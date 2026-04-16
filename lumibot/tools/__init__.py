@@ -10,9 +10,11 @@ from .debugers import *
 from .decorators import append_locals, execute_after, snatch_locals, staticdecorator
 from .helpers import *
 from .indicators import (
+    cash_flow_adjusted_returns,
     cagr,
     calculate_returns,
     create_tearsheet,
+    cumulative_to_period_flows,
     get_risk_free_rate,
     get_symbol_returns,
     max_drawdown,

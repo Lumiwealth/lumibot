@@ -29,7 +29,7 @@ from lumibot.tools.parquet_utils import (
 )
 from lumibot.tools.symbol_normalization import normalize_symbol_for_broker, normalize_symbol_for_internal
 from ..data_sources import DataSource
-from ..entities import Asset, Order, Position, Quote
+from ..entities import Asset, CashEvent, Order, Position, Quote
 from ..entities.chains import normalize_option_chains
 from ..trading_builtins import SafeList, SafeOrderDict
 
@@ -85,6 +85,19 @@ TRADE_EVENT_LOG_COLUMNS = (
     "asset.expiration",
     "asset.asset_type",
     "price_source",
+    "event_kind",
+    "event_id",
+    "cash_event_type",
+    "cash_event_amount",
+    "cash_event_currency",
+    "cash_event_description",
+    "cash_event_direction",
+    "cash_event_reason",
+    "is_external_cash_flow",
+    "cash_event_raw_type",
+    "cash_event_raw_subtype",
+    "cash_event_broker_name",
+    "cash_event_broker_event_id",
 )
 
 # Consolidate errors from different brokers into a single class that can be easily caught even
@@ -126,6 +139,121 @@ class Broker(ABC):
         """Normalize an internal symbol into this broker's preferred native format."""
         effective_broker_name = broker_name or getattr(self, "name", "")
         return normalize_symbol_for_broker(symbol, broker_name=effective_broker_name, asset_type=asset_type)
+
+    def get_cash_events(
+        self,
+        *,
+        since: datetime | None = None,
+        limit: int | None = 100,
+    ) -> list[CashEvent]:
+        """Return normalized broker cash events.
+
+        Live brokers can override this to surface deposits, withdrawals, interest, dividends,
+        fees, and other non-trade cash activity. The default implementation returns an empty
+        list so unsupported brokers remain no-op.
+        """
+        return []
+
+    def record_cash_event(
+        self,
+        cash_event: CashEvent,
+        *,
+        strategy: str | None = None,
+        exchange: str | None = None,
+        reason: str | None = None,
+        occurred_at: datetime | None = None,
+    ) -> None:
+        """Append a normalized cash event to the broker's event log.
+
+        Backtests use this to surface deposits, withdrawals, and financing as first-class rows in
+        the existing trade-event stream so downstream artifacts can render them without requiring a
+        separate cash-event file.
+        """
+        if not getattr(self, "_trade_event_log_enabled", True):
+            return
+        if not isinstance(cash_event, CashEvent):
+            raise ValueError("cash_event must be a CashEvent")
+
+        event_time = occurred_at or cash_event.occurred_at
+        audit_enabled = getattr(self, "_backtest_audit_enabled", None)
+        if audit_enabled is None:
+            audit_enabled = self._truthy_env(os.environ.get("LUMIBOT_BACKTEST_AUDIT"))
+
+        if audit_enabled:
+            new_row = {
+                "time": event_time,
+                "strategy": strategy,
+                "exchange": exchange,
+                "identifier": cash_event.event_id,
+                "symbol": None,
+                "side": cash_event.direction,
+                "type": "cash_event",
+                "status": cash_event.event_type,
+                "price": None,
+                "filled_quantity": None,
+                "multiplier": None,
+                "trade_cost": None,
+                "trade_slippage": None,
+                "time_in_force": None,
+                "asset.right": None,
+                "asset.strike": None,
+                "asset.multiplier": None,
+                "asset.expiration": None,
+                "asset.asset_type": None,
+                "price_source": None,
+                "event_kind": "cash_event",
+                "event_id": cash_event.event_id,
+                "cash_event_type": cash_event.event_type,
+                "cash_event_amount": cash_event.amount,
+                "cash_event_currency": cash_event.currency,
+                "cash_event_description": cash_event.description,
+                "cash_event_direction": cash_event.direction,
+                "cash_event_reason": reason,
+                "is_external_cash_flow": cash_event.is_external_cash_flow,
+                "cash_event_raw_type": cash_event.raw_type,
+                "cash_event_raw_subtype": cash_event.raw_subtype,
+                "cash_event_broker_name": cash_event.broker_name,
+                "cash_event_broker_event_id": cash_event.broker_event_id,
+            }
+        else:
+            new_row = (
+                event_time,
+                strategy,
+                exchange,
+                cash_event.event_id,
+                None,
+                cash_event.direction,
+                "cash_event",
+                cash_event.event_type,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                "cash_event",
+                cash_event.event_id,
+                cash_event.event_type,
+                cash_event.amount,
+                cash_event.currency,
+                cash_event.description,
+                cash_event.direction,
+                reason,
+                cash_event.is_external_cash_flow,
+                cash_event.raw_type,
+                cash_event.raw_subtype,
+                cash_event.broker_name,
+                cash_event.broker_event_id,
+            )
+
+        self._trade_event_log_rows.append(new_row)
+        self._trade_event_log_df_cache = None
 
     def __init__(self, name="", connect_stream=True, data_source: DataSource = None, option_source: DataSource = None,
                  config=None, max_workers=20, extended_trading_minutes=0, cleanup_config=None):
@@ -2446,6 +2574,19 @@ class Broker(ABC):
             }
             if price_source:
                 new_row["price_source"] = price_source
+            new_row["event_kind"] = "trade"
+            new_row["event_id"] = None
+            new_row["cash_event_type"] = None
+            new_row["cash_event_amount"] = None
+            new_row["cash_event_currency"] = None
+            new_row["cash_event_description"] = None
+            new_row["cash_event_direction"] = None
+            new_row["cash_event_reason"] = None
+            new_row["is_external_cash_flow"] = None
+            new_row["cash_event_raw_type"] = None
+            new_row["cash_event_raw_subtype"] = None
+            new_row["cash_event_broker_name"] = None
+            new_row["cash_event_broker_event_id"] = None
         else:
             # PERF: In backtests, trade events are appended in large volumes. Avoid property
             # lookups where we can safely access the backing fields.
@@ -2470,6 +2611,19 @@ class Broker(ABC):
                 asset.expiration if asset is not None else None,
                 asset.asset_type if asset is not None else None,
                 price_source,
+                "trade",
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
             )
 
         # Backtest-only trade audit telemetry.

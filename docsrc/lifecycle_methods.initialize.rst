@@ -19,6 +19,10 @@ You can also use the initialize method to define custom parameters like my_custo
 
 These parameters can easily be set using the strategy constructor later on.
 
+**AI Trading Agents**
+
+``initialize()`` is also where you should create built-in LumiBot AI agents with ``self.agents.create(...)``. This is the best place to set the agent's standing ``system_prompt``, default model, allowed tools, and external MCP server allowlists. See :doc:`agents` for the full guide.
+
 .. code-block:: python
 
     strategy_1 = MyStrategy(

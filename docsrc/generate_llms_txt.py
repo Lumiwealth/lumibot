@@ -9,6 +9,7 @@ LLMS_TXT_CONTENT = '''# Lumibot
 
 > Python trading and backtesting framework for stocks, options, crypto, and futures.
 > Supports Alpaca, Interactive Brokers, Tradier, Schwab, ThetaData, Yahoo Finance, and Polygon.
+> Includes built-in AI trading agents, agentic backtesting, DuckDB query tools, replay caching, and external MCP tool support.
 
 ## Critical Rules for Code Generation
 
@@ -21,10 +22,23 @@ LLMS_TXT_CONTENT = '''# Lumibot
 - Access portfolio with `self.portfolio_value`, `self.cash`, `self.positions`
 - Implement `on_trading_iteration()` for main strategy logic - runs once per bar/iteration
 - For options: Use `self.create_asset(symbol, asset_type=Asset.AssetType.OPTION, expiration=date, strike=price, right='call'|'put')`
+- AI agents live on `self.agents` and should be created in `initialize()`
+- Use DuckDB for agent time-series analysis instead of pasting large historical bar payloads into prompts
 
 ## Full Documentation
 
 For complete API documentation with all method signatures, parameters, return types, and examples, see **llms-full.txt** in this repository.
+
+## AI Trading Agents
+
+- LumiBot supports **AI trading agents** directly inside the `Strategy` lifecycle with `self.agents.create(...)`
+- Agents can run from `initialize()`, `on_trading_iteration()`, `on_filled_order()`, and other lifecycle methods
+- Agentic backtests can replay identical runs from cache without another model call
+- DuckDB is the built-in SQL query surface for time-series analysis
+- External MCP servers can be mounted with explicit tool allowlists
+- Main docs page: `https://lumibot.lumiwealth.com/agents.html`
+- Backtesting docs: `https://lumibot.lumiwealth.com/backtesting.html`
+- GitHub guide: `https://github.com/Lumiwealth/lumibot/blob/dev/docs/AI_TRADING_AGENTS.md`
 
 ## Quick Reference
 

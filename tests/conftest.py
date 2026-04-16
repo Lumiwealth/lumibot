@@ -83,6 +83,10 @@ if os.getcwd() != str(project_root):
     print(f"Changed working directory to: {project_root}")
 
 
+def pytest_configure(config):
+    config.addinivalue_line("markers", "ibkr: downloader-only IBKR tests that do not require Polygon or ThetaData credentials")
+
+
 def cleanup_all_schedulers():
     """Emergency cleanup for any remaining scheduler instances"""
     try:
@@ -274,8 +278,10 @@ def pytest_runtest_setup(item: pytest.Item):
       - downloader: tests that hit remote/downloader services
       - polygon: requires Polygon credentials
       - thetadata: requires ThetaData credentials
+      - ibkr: downloader-only IBKR tests; does not require Polygon/ThetaData creds
 
     Behavior:
+      - If a test is marked with ibkr, require neither Polygon nor ThetaData.
       - If a test is marked with polygon and/or thetadata, only those
         provider credentials are required.
       - If a test has apitest/downloader but no provider-specific markers,
@@ -289,9 +295,13 @@ def pytest_runtest_setup(item: pytest.Item):
 
     requires_polygon = item.get_closest_marker("polygon") is not None
     requires_theta = item.get_closest_marker("thetadata") is not None
+    requires_ibkr = item.get_closest_marker("ibkr") is not None
 
     # Determine which providers are required
-    if requires_polygon or requires_theta:
+    if requires_ibkr:
+        need_polygon = False
+        need_theta = False
+    elif requires_polygon or requires_theta:
         need_polygon = requires_polygon
         need_theta = requires_theta
     else:

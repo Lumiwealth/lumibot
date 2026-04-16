@@ -13,6 +13,7 @@ Features
 * **Advanced Orders**: Bracket orders, one-cancels-other (OCO), one-triggers-other (OTO)
 * **Multi-leg Options**: Support for complex options strategies
 * **Live Streaming**: Real-time trade updates and market data
+* **Cash Events**: Live cloud payloads can include normalized broker cash events such as deposits, withdrawals, interest, dividends, fees, journals, and adjustments
 
 Getting Started
 ---------------
@@ -230,6 +231,49 @@ Advanced Order Types
     )
     
     self.submit_order(bracket_order)
+
+Cash Events
+-----------
+
+Lumibot can emit normalized live ``cash_events`` in the cloud payload for Alpaca strategies. This is separate from the
+order event pipeline and is intended for non-trade account activity such as:
+
+* deposits and withdrawals
+* interest
+* dividends and withholding
+* fees
+* journals and other cash adjustments
+
+The Alpaca implementation uses the authenticated Trading API client already configured inside LumiBot and calls the
+account activities endpoint through the SDK's inherited REST client. No extra broker client or raw ``requests`` setup
+is required.
+
+Normalized cash-event shape
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Each emitted event includes:
+
+* ``event_id`` (stable deterministic ID for downstream idempotency)
+* ``broker_event_id`` (when Alpaca provides one)
+* ``broker_name``
+* ``event_type``
+* ``raw_type``
+* ``raw_subtype``
+* ``amount``
+* ``currency``
+* ``occurred_at``
+* ``description``
+* ``direction``
+* ``is_external_cash_flow``
+
+Notes
+~~~~~
+
+* Cash events are polled and deduplicated before they are added to the live cloud payload.
+* Payloads stay bounded and omit full raw broker blobs to avoid unnecessary listener payload growth.
+* Alpaca paper credentials can be used to validate the read path when the account activities endpoint is authorized.
+
+See also: :doc:`cash_accounting`
 
 Important Notes
 ---------------

@@ -53,6 +53,7 @@ extensions = [
 # ============================================================================
 llms_txt_summary = """Lumibot is a Python trading and backtesting framework for stocks, options, crypto, and futures.
 It supports multiple brokers (Alpaca, Interactive Brokers, Tradier, Schwab) and data sources (Yahoo, ThetaData, Polygon).
+Lumibot also includes built-in AI trading agents, DuckDB-powered time-series analysis, replayable agent backtests, and external MCP tool support.
 
 CRITICAL RULES FOR CODE GENERATION:
 - NEVER use datetime.now() or datetime.today() - always use self.get_datetime() for backtesting compatibility
@@ -64,6 +65,8 @@ CRITICAL RULES FOR CODE GENERATION:
 - Access portfolio with self.portfolio_value, self.cash, self.positions
 - Implement on_trading_iteration() for main strategy logic - runs once per bar/iteration
 - For options: Use self.create_asset(symbol, asset_type=Asset.AssetType.OPTION, expiration=date, strike=price, right='call'|'put')
+- AI agents live on self.agents and should be created in initialize()
+- Use DuckDB for agent time-series analysis instead of passing large bar payloads in prompt text
 """
 
 # Add any paths that contain templates here, relative to this directory.

@@ -870,6 +870,61 @@ If you want “10 backtests at once” cheaply:
 - use scale-to-zero + spot capacity providers
 - but only after request fanout is controlled, otherwise you DDoS your own downloader
 
+### 12.5 Parallelism assessment (2026-03-28)
+
+Backtest speed work often gets framed as “the engine needs parallelism.” That is only partly true.
+
+What is true:
+
+- a single backtest can be compute-heavy,
+- the main strategy loop is a real hotspot,
+- and aggregate throughput across many independent runs can benefit enormously from parallel execution.
+
+What is **not** true:
+
+- that LumiBot cannot run anything in parallel today,
+- or that generic parallelization of `on_trading_iteration()` is the safest path to big wins.
+
+Important distinctions:
+
+1. **Single backtest**
+- The core execution model is serial by design: strategy logic, order processing, and clock advancement are path-dependent.
+- Generic loop parallelization risks changing fills, timestamps, and PnL.
+
+2. **Many independent backtests**
+- This is the best place for big concurrency wins.
+- Parameter sweeps, window sweeps, and strategy comparisons should use process/container-level parallelism with bounded downloader concurrency.
+
+3. **Data hydration**
+- Some provider work is already parallelized today (chunk downloads, thread-pool fanout, async prefetch).
+- For cold-cache option-heavy runs, hydration/request fanout often dominates before core loop parallelism does.
+
+4. **Artifacts**
+- Plots, tearsheets, indicators, and uploads can be a meaningful part of wall time.
+- If users need core results first, defer or decouple post-processing.
+
+Small local benchmark note (synthetic in-memory minute data):
+
+- empty 20-day minute loop: ~7,800 iterations in ~6.0s
+- same loop with one `get_last_price()` per bar: ~7,800 iterations in ~10.4s
+
+Interpretation:
+
+- single-run compute overhead is real,
+- but 10x single-run gains are more likely to come from batching, event-driven skipping, cache reuse, or artifact deferral than from directly parallelizing the core loop.
+
+Recommended order of operations:
+
+1. measure cold vs warm,
+2. profile a real slow strategy,
+3. parallelize **independent runs** first,
+4. batch/skip work inside one run,
+5. only then consider intra-loop parallelism with parity safeguards.
+
+Detailed reasoning and code anchors:
+
+- `docs/investigations/2026-03-28_BACKTEST_PARALLELISM_ASSESSMENT.md`
+
 ---
 
 ## 13) Accuracy audits (MELI-style, bulletproof)

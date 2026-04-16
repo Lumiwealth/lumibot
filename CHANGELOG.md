@@ -1,5 +1,80 @@
 # Changelog
 
+## 4.4.62 - 2026-04-15
+
+### Fixed
+- **CRITICAL: Flat-price fabrication bug in backtesting fills.** `BacktestingBroker._pandas_fill_path` previously picked `df_original.iloc[-1:]` when the "bars at or after self.datetime" filter came back empty, OR `df_original.iloc[0]` when the filter caught rows far in the future. Both paths could silently price every fill at a single bar's OPEN that had nothing to do with the simulation time, producing deterministic constant prices across multi-year backtests. Observed incident: BotSpot "Alpha Picks" backtest where 72 of 84 stocks froze at the OPEN of 2026-04-10 for every fill across 2022-2024. The fix rejects future bars outside a narrow window (2 days for daily, 2 hours for hourly, 5 minutes for minute), prefers the most recent bar at or before the simulation time, and refuses to fabricate a fill when no bar exists within a reasonable window of `self.datetime`. A second-layer `max_fill_distance` sanity check (7 days for daily, 1 day for intraday) hard-rejects any fill price derived from a bar too far from the simulation clock, cancelling the offending iteration rather than producing a garbage fill. Provider-agnostic; applies to every data source that flows through `PANDAS` / `InteractiveBrokersREST` fill paths (ThetaData, IBKR, Polygon, etc.).
+- IBKR history loading now fails open by returning available real bars instead of synthesizing an empty dataset when the cache refresh leaves the requested window underfilled (commit `5de1362a`, April 14).
+- Interactive Brokers REST backtesting data source now prefers an already-loaded daily stock/index series for `get_last_price`/`get_quote` before triggering a separate intraday minute fetch, which avoids unnecessary VIX/USD midpoint history requests during daily-cadence backtests (commit `5de1362a`, April 14).
+- `Order.to_dict()` now emits `identifier` and `avg_fill_price` consistently so downstream consumers that rely on these fields on serialized orders no longer see missing keys after backtest-time fills (commit `e3cb48fe`, April 15).
+- Release the IBKR downloader fail-closed hotfix from the corrected commit so CI and PyPI ship the same behavior validated locally (merged from dev).
+
+### Changed
+- README restructured for visitor conversion: Quick Start code block, competitor comparison table (LumiBot is the only open-source Python trading library with options support), supported brokers & data sources matrix, migration guide from Backtrader (merged from dev).
+- PyPI metadata overhaul: added 20 search keywords and 12 classifiers (Financial, Investment, AI, Python 3.10-3.12) after being previously empty. Updated package description for search discoverability (merged from dev).
+- Author email updated to rob@botspot.trade; added project_urls for documentation, Discord, and BotSpot platform (merged from dev).
+
+### Added
+- `docs/MIGRATING_FROM_BACKTRADER.md`: concept mapping and side-by-side code examples for users switching from the now-unmaintained Backtrader library (merged from dev).
+- Release readiness script now verifies that every referenced artifact file actually exists on disk (not just that `artifact_path` is non-empty), preventing stale pointer references from passing the deployment gate (commit `323b6488`, April 12).
+- LumiBot matrix runner emits `lumibot_runner_state.json` checkpoint files during long runs so in-flight case state is inspectable during multi-hour acceptance runs (commit `6944e22c`, April 12).
+
+## 4.4.61 - 2026-04-01
+
+Release bookkeeping only. No functional code changes from 4.4.60.
+
+## 4.4.60 - 2026-04-01
+
+### Fixed
+- Data Downloader queue client now uses a dedicated configurable connect-timeout budget instead of a hardcoded `5s`, which prevents IBKR/VIX history refreshes from failing closed on slow downloader connections.
+- IBKR history loading now fails closed when a refresh leaves the requested window underfilled, so stale cached slices are no longer returned as if they were complete history.
+
+## 4.4.58 - 2026-04-01
+
+### Added
+- `@agent_tool` decorator now auto-includes function source code in tool descriptions, giving AI agents full visibility into parameters, defaults, and implementation details without manual documentation.
+- `AgentHandle` now always merges built-in tools with custom user tools (previously custom tools replaced built-ins).
+- Four new canonical agent demo strategies: M2 Liquidity (FRED data), Macro Risk (Alpaca bars), Momentum Allocator (Alpaca bars + news), and News Sentiment (Alpaca news). These replace the previous stress-test examples with production-quality patterns.
+- Version logged at startup (`LumiBot v{version} starting`) via `logger.info` for CloudWatch/backtest/live log visibility.
+- Version included in backtest `settings.json` artifacts (`lumibot_version` field) for post-deploy verification.
+- Auto-create next version branch job in release workflow to prevent team-blocking delays after a release.
+- Post-deployment verification steps documented in `DEPLOYMENT.md`.
+
+### Changed
+- Improved lookahead-bias guardrails in agent system prompts: agents must now explicitly set end-date bounds on ALL temporal tool parameters, not just known ones.
+- Major documentation refresh: agents quickstart, canonical demos, observability, FAQ, getting started page with agent framework introduction.
+
+### Fixed
+- `BACKTESTING_QUIET_LOGS` env var parsing was broken (comparing string to `None`); now correctly parses boolean-like strings (`true`, `1`, `yes`, `on`).
+- Removed contradictory `set_console_log_level("ERROR")` call when `quiet_logs=False` in `trader.py`.
+- IBKR pagination test assertions updated to match current behavior.
+- `.gitignore` fix for deployment reliability.
+
+## 4.4.57 - 2026-03-30
+
+### Changed
+- Bump `quantstats-lumi` dependency to `>=1.1.3,<1.2.0` so tearsheet consumers require the renamed `Worst 1-Month Return` row and the latest machine-readable contract.
+
+### Fixed
+- Backtest console print settings no longer get silently overwritten when `lumibot_logger` re-applies log levels during a backtest run. (PR #981 — @davidlatte)
+- Tearsheet summary artifact compatibility with `quantstats-lumi` machine-readable metric contract (typed scalar values, no `%` string leakage in JSON scalar values).
+- Removed the duplicate `cash_financing_rates()` strategy hook so cash financing now uses a single public interface centered on `set_cash_financing_rates(...)`.
+- Backtest stats, plots, and tearsheet inputs now subtract external cashflows from returns, so deposits and withdrawals no longer distort `total_return`, CAGR, or other performance metrics.
+- Backtest runners now honor caller-provided `plot_file_html` and `trades_file` paths instead of silently writing trade artifacts to the default `logs/` directory.
+
+### Added
+- Tradier stock shorting support: `sell_short` and `buy_to_cover` order sides now map correctly so short-selling equities works on Tradier. (PR #976 — @brettelliot)
+- AI trading agent framework: `self.agents.create(...)` inside strategies with DuckDB query tools, agentic backtesting with replay cache, and external MCP server mounting. New modules under `lumibot/components/agents/`.
+- End-to-end tearsheet custom-metrics proof coverage for real backtest runs that generate both `tearsheet.html` and `tearsheet_metrics.json`.
+- Backtest cash-accounting coverage for `adjust_cash`, `deposit_cash`, `withdraw_cash`, and strategy-managed financing-rate updates.
+- Normalized `cash_events` live payload support in LumiBot for Alpaca and Tradier, including stable event IDs, retry-safe pending emission, and bounded payload serialization.
+- Period-delta cash columns in `stats.csv` (`cash_*_period`) for manual inspection of deposits, withdrawals, financing accruals, and cashflow-adjusted return math.
+- Cash-event rows in `trades.csv` / parquet and cash-event markers in `trades.html`, including deposits, withdrawals, and financing credits/debits.
+
+### Docs
+- Expanded public documentation for `tearsheet_custom_metrics(...)`, including parameter structure, full examples, literal-scalar unit behavior, and release-order guidance for QuantStats/LumiBot metric changes.
+- Added public documentation for strategy cash accounting, financing lifecycle usage, broker cash-event normalization, and broker-specific limitations for Alpaca and Tradier.
+
 ## 4.4.55 - 2026-03-15
 
 ### Added

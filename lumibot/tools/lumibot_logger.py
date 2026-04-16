@@ -622,7 +622,7 @@ class StrategyLoggerAdapter(logging.LoggerAdapter):
             self.extra = extra_dict
 
 
-def _ensure_handlers_configured(is_backtest=False):
+def _ensure_handlers_configured(is_backtest=False, skip_if_configured=False):
     """
     Ensure that the root logger has the appropriate handlers configured.
     This is called once globally to set up consistent formatting, but we also
@@ -643,9 +643,14 @@ def _ensure_handlers_configured(is_backtest=False):
         Whether we are in a backtesting (default False). This can also be determined from the IS_BACKTESTING
         environment variable, but is provided here as an optional parameter for cases
         where we might want to explicitly control this behavior without relying on environment variables.
-
+    skip_if_configured : bool, optional
+        If True, will skip re-applying log levels if handlers are already configured. This avoids
+        overriding any changes to the defaults if this is not the first time calling.
     """
     global _handlers_configured, _BACKTESTING_QUIET_LOGS_ENABLED
+
+    if skip_if_configured and _handlers_configured:
+        return
 
     # Resolve baseline log level from the environment (default INFO)
     default_level = os.environ.get('LUMIBOT_LOG_LEVEL', 'INFO').upper()
@@ -921,7 +926,7 @@ def set_console_log_level(level: str):
     >>> set_console_log_level('DEBUG')  # Enable debug logging in console
     >>> set_console_log_level('ERROR')  # Only show errors and critical messages in console
     """
-    _ensure_handlers_configured()
+    _ensure_handlers_configured(skip_if_configured=True)
 
     # Check both "root" and "lumibot" logger to ensure we get the correct root logger.
     # Currently, "lumibot" is used in _ensure_handlers_configured() to set up the console handler, but "root" is
@@ -956,7 +961,7 @@ def add_file_handler(file_path: str, level: str = 'INFO', is_backtest: bool = Fa
     >>> from lumibot.tools.lumibot_logger import add_file_handler
     >>> add_file_handler('/path/to/lumibot.log', 'DEBUG')
     """
-    _ensure_handlers_configured(is_backtest=is_backtest)
+    _ensure_handlers_configured(is_backtest=is_backtest, skip_if_configured=True)
     
     try:
         file_level = getattr(logging, level.upper())

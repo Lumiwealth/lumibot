@@ -104,3 +104,47 @@ Here is an example of a simple strategy that uses Tradier as the broker:
     trader = Trader()
     trader.add_strategy(strategy)
     strategy_executors = trader.run_all()
+
+Cash Events
+-----------
+
+Lumibot can emit normalized live ``cash_events`` in the cloud payload for Tradier strategies. These events are pulled
+from Tradier account history and are separate from LumiBot's order lifecycle pipeline.
+
+Supported history categories include:
+
+* ACH and wire activity
+* dividends
+* interest
+* fees and taxes
+* journals
+* checks, transfers, and adjustments
+
+Normalized cash-event shape
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Each emitted event includes:
+
+* ``event_id`` (stable deterministic ID for downstream idempotency)
+* ``broker_event_id`` (when Tradier provides one)
+* ``broker_name``
+* ``event_type``
+* ``raw_type``
+* ``raw_subtype``
+* ``amount``
+* ``currency``
+* ``occurred_at``
+* ``description``
+* ``direction``
+* ``is_external_cash_flow``
+
+Tradier-specific limitations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Tradier account history is a broker history surface, not a real-time stream.
+* Tradier's official API only exposes account history for live accounts.
+* Tradier sandbox/paper accounts do not provide account history, so the cash-event read path cannot be fully smoke
+  tested against paper credentials.
+* Tradier history is updated on a delayed/nightly basis, so new cash events are not expected to appear intraday.
+
+See also: :doc:`cash_accounting`

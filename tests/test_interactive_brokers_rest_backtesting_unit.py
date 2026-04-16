@@ -90,3 +90,110 @@ def test_ibkr_rest_stock_daily_uses_rth(monkeypatch):
 
     assert captured["count"] == 1
     assert captured["include_after_hours"] is False
+
+
+def test_ibkr_rest_stock_daily_prefetch_stays_unloaded_when_coverage_fails(monkeypatch):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+        idx = pd.DatetimeIndex(
+            [
+                datetime(2025, 1, 1, 0, 0, tzinfo=timezone.utc),
+                datetime(2025, 1, 2, 0, 0, tzinfo=timezone.utc),
+            ]
+        ).tz_convert("America/New_York")
+        return pd.DataFrame(
+            {"open": [1.0, 2.0], "high": [1.1, 2.1], "low": [0.9, 1.9], "close": [1.0, 2.0], "volume": [10, 11]},
+            index=idx,
+        )
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
+    monkeypatch.setattr(ibkr_helper, "frame_covers_requested_window", lambda *args, **kwargs: False)
+
+    ds = InteractiveBrokersRESTBacktesting(
+        datetime_start=datetime(2025, 1, 1, tzinfo=timezone.utc),
+        datetime_end=datetime(2025, 1, 3, tzinfo=timezone.utc),
+        show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+    )
+
+    asset = Asset(symbol="TSLA", asset_type=Asset.AssetType.STOCK)
+    quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
+
+    ds._pull_source_symbol_bars(
+        asset=asset,
+        length=200,
+        timestep="day",
+        quote=quote,
+        include_after_hours=True,
+    )
+
+    assert (asset, quote, "day", "AUTO") not in ds._fully_loaded_series
+
+
+def test_ibkr_rest_crypto_minute_prefetch_stays_unloaded_when_coverage_fails(monkeypatch):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+        idx = pd.date_range(start=start_dt, periods=5, freq="1min")
+        return pd.DataFrame(
+            {"open": 1.0, "high": 1.1, "low": 0.9, "close": 1.0, "volume": 1.0},
+            index=idx,
+        )
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
+    monkeypatch.setattr(ibkr_helper, "frame_covers_requested_window", lambda *args, **kwargs: False)
+
+    ds = InteractiveBrokersRESTBacktesting(
+        datetime_start=datetime(2025, 1, 1, tzinfo=timezone.utc),
+        datetime_end=datetime(2025, 1, 2, tzinfo=timezone.utc),
+        show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+    )
+
+    asset = Asset(symbol="BTC", asset_type=Asset.AssetType.CRYPTO)
+    quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
+
+    ds._pull_source_symbol_bars(
+        asset=asset,
+        length=30,
+        timestep="minute",
+        quote=quote,
+        include_after_hours=True,
+    )
+
+    assert (asset, quote, "minute", "AUTO") not in ds._fully_loaded_series
+
+
+def test_ibkr_rest_futures_minute_prefetch_stays_unloaded_when_coverage_fails(monkeypatch):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+        idx = pd.date_range(start=start_dt, periods=5, freq="1min")
+        return pd.DataFrame(
+            {"open": 1.0, "high": 1.1, "low": 0.9, "close": 1.0, "volume": 1.0},
+            index=idx,
+        )
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
+    monkeypatch.setattr(ibkr_helper, "frame_covers_requested_window", lambda *args, **kwargs: False)
+
+    ds = InteractiveBrokersRESTBacktesting(
+        datetime_start=datetime(2025, 1, 1, tzinfo=timezone.utc),
+        datetime_end=datetime(2025, 1, 2, tzinfo=timezone.utc),
+        show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+    )
+
+    asset = Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
+    quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
+
+    ds._pull_source_symbol_bars(
+        asset=asset,
+        length=30,
+        timestep="minute",
+        quote=quote,
+        include_after_hours=True,
+    )
+
+    assert (asset, quote, "minute", "AUTO") not in ds._fully_loaded_series

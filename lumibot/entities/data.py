@@ -744,9 +744,14 @@ class Data:
                     raise ValueError(
                         f"The date you are looking for ({dt_key}) for ({self.asset}) is after the available data's end ({self.datetime_end}) with length={length} and timeshift={timeshift}; data refresh required instead of using stale bars."
                     )
-                logger.warning(
-                    f"The date you are looking for ({dt_key}) is after the available data's end ({self.datetime_end}) by {gap}. Using the last available bar (within tolerance of {max_gap})."
+                message = (
+                    f"The date you are looking for ({dt_key}) is after the available data's end ({self.datetime_end}) by {gap}. "
+                    f"Using the last available bar (within tolerance of {max_gap})."
                 )
+                if self.timestep == "day":
+                    logger.debug(message)
+                else:
+                    logger.warning(message)
 
             # Search for dt in self.iter_index_dict
             if getattr(self, "iter_index_dict", None) is None:

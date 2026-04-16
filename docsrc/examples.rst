@@ -3,6 +3,49 @@ Code Examples
 
 This page contains practical code examples for common Lumibot tasks. These examples cover stocks, options, crypto, futures, and advanced features like the PerplexityHelper for AI-powered trading decisions.
 
+AI Agents
+---------
+
+LumiBot now supports AI agents directly inside the normal strategy lifecycle. The recommended agent docs path is:
+
+- :doc:`agents` for the main guide
+- :doc:`agents_quickstart` for the core ``self.agents.create(...)`` / ``.run(...)`` pattern
+- :doc:`agents_canonical_demos` for the Alpaca news, FRED macro, and M2 demos
+- :doc:`agents_observability` for traces, replay cache, and warnings
+
+The canonical AI examples are intentionally strategy-shaped rather than toy snippets. They show:
+
+- how to create an agent in ``initialize()``
+- how to expose ``BuiltinTools`` and external ``MCPServer`` tools
+- how to run the agent from lifecycle methods
+- how to inspect ``result.summary``, traces, warnings, and replay behavior
+- how to evaluate the resulting strategy with benchmarked tearsheets
+
+Typical AI agent pattern:
+
+.. code-block:: python
+
+    from lumibot.components.agents import BuiltinTools, MCPServer
+
+    def initialize(self):
+        self.agents.create(
+            name="research",
+            default_model="gemini-3.1-flash-lite-preview",
+            system_prompt="Use the available tools and return a short summary.",
+            tools=[
+                BuiltinTools.account.positions(),
+                BuiltinTools.account.portfolio(),
+                BuiltinTools.market.last_price(),
+                BuiltinTools.docs.search(),
+            ],
+        )
+
+    def on_trading_iteration(self):
+        result = self.agents["research"].run(
+            context={"symbol": "SPY", "current_datetime": self.get_datetime().isoformat()}
+        )
+        self.log_message(f"[research] {result.summary}", color="yellow")
+
 Stocks
 ------
 

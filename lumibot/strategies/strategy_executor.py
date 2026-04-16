@@ -898,6 +898,9 @@ class StrategyExecutor(Thread):
             if getattr(self, "_capture_locals", False):
                 snapshot_before = self.strategy._copy_dict()
             result = func_input(self, *args, **kwargs)
+            if func_input.__name__ == "_on_trading_iteration":
+                self.strategy._apply_daily_cash_financing_if_needed()
+                self.strategy._update_portfolio_value()
             self._trace_stats(self._strategy_context, snapshot_before)
             return result
 
@@ -912,6 +915,26 @@ class StrategyExecutor(Thread):
         result["datetime"] = self.strategy.get_datetime()
         result["portfolio_value"] = self.strategy.portfolio_value  # Fast lookup for portfolio value
         result["cash"] = self.strategy.cash
+        result["cash_deposits_total"] = float(getattr(self.strategy, "_cash_deposits_total", 0.0))
+        result["cash_withdrawals_total"] = float(getattr(self.strategy, "_cash_withdrawals_total", 0.0))
+        result["cash_adjustments_net_total"] = float(getattr(self.strategy, "_cash_adjustments_net_total", 0.0))
+        result["cash_financing_enabled"] = bool(getattr(self.strategy, "_cash_financing_enabled", False))
+        result["cash_financing_account_mode"] = str(getattr(self.strategy, "_cash_financing_account_mode", "margin"))
+        result["cash_financing_credit_total"] = float(getattr(self.strategy, "_cash_financing_credit_total", 0.0))
+        result["cash_financing_debit_total"] = float(getattr(self.strategy, "_cash_financing_debit_total", 0.0))
+        result["cash_financing_net_total"] = float(getattr(self.strategy, "_cash_financing_net_total", 0.0))
+        result["cash_financing_days_accrued"] = int(getattr(self.strategy, "_cash_financing_days_accrued", 0))
+        result["cash_financing_events"] = int(getattr(self.strategy, "_cash_financing_events", 0))
+        result["cash_financing_last_credit_rate_used"] = getattr(
+            self.strategy,
+            "_cash_financing_last_credit_rate_used",
+            None,
+        )
+        result["cash_financing_last_debit_rate_used"] = getattr(
+            self.strategy,
+            "_cash_financing_last_debit_rate_used",
+            None,
+        )
 
         # Add positions column
         positions_list = []
@@ -950,7 +973,7 @@ class StrategyExecutor(Thread):
     @lifecycle_method
     def _initialize(self):
         self.strategy.log_message(f"Strategy {self.strategy._name} is initializing", color="green")
-        self.strategy.log_message("Executing the initialize lifecycle method")
+        self.strategy.logger.debug("Executing the initialize lifecycle method")
 
         # Do this for backwards compatibility.
         initialize_argspecs = inspect.getfullargspec(self.strategy.initialize)
@@ -984,13 +1007,13 @@ class StrategyExecutor(Thread):
     @lifecycle_method
     @trace_stats
     def _before_market_opens(self):
-        self.strategy.log_message("Executing the before_market_opens lifecycle method")
+        self.strategy.logger.debug("Executing the before_market_opens lifecycle method")
         self.strategy.before_market_opens()
 
     @lifecycle_method
     @trace_stats
     def _before_starting_trading(self):
-        self.strategy.log_message("Executing the before_starting_trading lifecycle method")
+        self.strategy.logger.debug("Executing the before_starting_trading lifecycle method")
         self.strategy.before_starting_trading()
 
     @lifecycle_method
@@ -1110,19 +1133,19 @@ class StrategyExecutor(Thread):
     @lifecycle_method
     @trace_stats
     def _before_market_closes(self):
-        self.strategy.log_message("Executing the before_market_closes lifecycle method")
+        self.strategy.logger.debug("Executing the before_market_closes lifecycle method")
         self.strategy.before_market_closes()
 
     @lifecycle_method
     @trace_stats
     def _after_market_closes(self):
-        self.strategy.log_message("Executing the after_market_closes lifecycle method")
+        self.strategy.logger.debug("Executing the after_market_closes lifecycle method")
         self.strategy.after_market_closes()
 
     @lifecycle_method
     @trace_stats
     def _on_strategy_end(self):
-        self.strategy.log_message("Executing the on_strategy_end lifecycle method")
+        self.strategy.logger.debug("Executing the on_strategy_end lifecycle method")
         self.strategy.on_strategy_end()
         self.strategy._dump_stats()
 

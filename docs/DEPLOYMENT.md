@@ -2,20 +2,49 @@
 
 > Release/deployment workflow for LumiBot (version branches, changelog, tags, and GitHub releases).
 
-**Last Updated:** 2026-02-07  
-**Status:** Active  
+**Last Updated:** 2026-03-30
+**Status:** Active
 **Audience:** Developers + AI Agents
 
 ---
 
 ## TL;DR (do this in order)
 
-1) Get the `version/X.Y.Z` PR **green** (and ensure everyone has pushed their commits).  
-2) Merge latest `dev` into `version/X.Y.Z` and re-check CI (prevents drift / missing commits).  
-3) Merge the PR into `dev` (no direct pushes to `dev`).  
-4) Tag the **merge commit on `dev`** as `vX.Y.Z` (this triggers GitHub Actions to publish to PyPI + create a GitHub Release).  
-5) Verify `pip install lumibot==X.Y.Z` works.  
-6) Immediately cut `version/X.Y.(Z+1)` from updated `dev`, bump `setup.py`, and push the branch so everyone’s local clones move forward.
+1) Get the `version/X.Y.Z` PR **green** (and ensure everyone has pushed their commits).
+2) Merge latest `dev` into `version/X.Y.Z` and re-check CI (prevents drift / missing commits from other engineers).
+3) Merge the PR into `dev` (no direct pushes to `dev`).
+4) Tag the **merge commit on `dev`** as `vX.Y.Z` (this triggers GitHub Actions to publish to PyPI + create a GitHub Release).
+5) Verify `pip install lumibot==X.Y.Z` works.
+6) **Immediately** cut `version/X.Y.(Z+1)` from updated `dev`, bump `setup.py`, and push — **do this BEFORE triggering BotManager deploys** so other engineers/agents can continue working on the new branch while the slow downstream deploy runs.
+7) Trigger BotManager deploys (dev then prod) — this takes ~30 minutes and should be the last step.
+
+## The `dev` Branch Is Sacred (CRITICAL)
+
+`dev` is the **single source of truth** for this project. Multiple external engineers (Brett, David, etc.) submit PRs against it, and multiple AI agents work off it concurrently.
+
+**Rules:**
+- **Always branch from `dev`**: every `version/X.Y.Z` branch starts from `dev`.
+- **Always merge back to `dev`**: every release lands on `dev` via PR merge before tagging.
+- **Always merge `dev` into your version branch before deploying**: other engineers may have merged PRs to `dev` while you were working. Step 0.5 in the checklist below ensures you pick those up.
+- **Never let `dev` fall behind a release**: if you tagged a release, `dev` must contain that tag’s commit.
+- **Never push directly to `dev`**: all changes land via PR merge.
+
+After a release is published, the next version branch must be cut from `dev` immediately so the team isn’t blocked.
+
+## QuantStats dependency policy
+
+For tearsheet metric contract changes, LumiBot should require:
+
+```text
+quantstats-lumi>=1.1.3,<1.2.0
+```
+
+Release order for tearsheet metric changes:
+
+1. Release `quantstats_lumi` first.
+2. Update LumiBot's dependency floor and tests/docs.
+3. Validate the released QuantStats package against the local LumiBot source in a clean environment.
+4. Only then release LumiBot and roll downstream consumers.
 
 ## Goals
 
@@ -189,23 +218,9 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
    - Find failing run quickly:
      - `gh run list -R Lumiwealth/lumibot -w "Release (PyPI + GitHub)" -L 10`
 
-6) **Downstream rollout (BotManager)**
-   - Confirm BotManager is pinned to the new version and deploy workflows ran:
-
-     ```bash
-     gh variable set -R Lumiwealth/bot_manager LUMIBOT_VERSION -b "X.Y.Z"
-     gh variable list -R Lumiwealth/bot_manager | rg '^LUMIBOT_VERSION'
-
-     gh workflow run -R Lumiwealth/bot_manager "CI/CD - Development Environment" --ref main \
-       -f force_rebuild_images=false -f skip_tests=false
-
-     gh workflow run -R Lumiwealth/bot_manager "CI/CD - Production Environment" --ref prod \
-       -f force_rebuild_images=false -f skip_tests=false
-
-     gh run list -R Lumiwealth/bot_manager -L 10
-     ```
-
-7) **Start the next version branch**
+6) **Start the next version branch (do this BEFORE BotManager deploy)**
+   - This step is time-sensitive: other engineers and AI agents need a working branch to continue
+     development while the slow BotManager deploy (~30 min) runs in the background.
    - Create `version/X.Y.(Z+1)` from `dev` (or from the just-deployed commit once it’s on `dev`).
    - Immediately bump `setup.py` to `X.Y.(Z+1)` and commit: `chore: start X.Y.(Z+1)`.
    - Add a new `CHANGELOG.md` section: `## X.Y.(Z+1) - Unreleased`.
@@ -218,11 +233,55 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
      # bump setup.py + CHANGELOG.md, then:
      git push -u origin version/X.Y.(Z+1)
      ```
+   - Switch your local checkout to the new branch so you’re ready for the next cycle.
+
+7) **Downstream rollout (BotManager) — LAST STEP**
+   - This takes ~30 minutes. Only trigger it after Step 6 is done so the team isn’t blocked.
+   - Confirm BotManager is pinned to the new version and deploy workflows ran:
+
+     ```bash
+     gh variable set -R Lumiwealth/bot_manager LUMIBOT_VERSION -b "X.Y.Z"
+     gh variable list -R Lumiwealth/bot_manager | rg ‘^LUMIBOT_VERSION’
+
+     gh workflow run -R Lumiwealth/bot_manager "CI/CD - Development Environment" --ref main \
+       -f force_rebuild_images=false -f skip_tests=false
+
+     gh workflow run -R Lumiwealth/bot_manager "CI/CD - Production Environment" --ref prod \
+       -f force_rebuild_images=false -f skip_tests=false
+
+     gh run list -R Lumiwealth/bot_manager -L 10
+     ```
+
+8) **Post-deployment verification (REQUIRED)**
+   - After BotManager deploys finish, verify the new version is actually running in production.
+   - **Backtest smoke test**: Run a short backtest via BotSpot MCP or the API, then check that
+     `settings.json` → `lumibot_version` matches the version you just deployed.
+     - Use `get_backtest_artifact` with `label=settings.json` — the `lumibot_version` field in the
+       JSON content shows exactly which version the ECS task ran.
+     - If it shows the OLD version, the Docker image cache may be stale — re-trigger BotManager
+       deploy with `force_rebuild_images=true`.
+   - **Live trading check** (if applicable): Confirm active bots restarted cleanly by checking
+     deployment logs via `get_deployment_logs` or the BotSpot dashboard.
+   - **Version mismatch troubleshooting**:
+     - BotManager bakes `lumibot==${LUMIBOT_VERSION}` into Docker dependency images.
+     - If the variable was updated but `force_rebuild_images=false`, the cached image might still
+       have the old wheel. Rebuild with `force_rebuild_images=true` to force a fresh pip install.
+     - PyPI CDN propagation can lag a few minutes after publish — if the deploy ran immediately
+       after tagging, it may have installed the old version from cache. Wait and re-deploy.
 
 ---
 
-## Common pitfalls (learned during 4.4.32)
+## Common pitfalls (learned the hard way)
 
+- **Forgetting to cut the next version branch after a release** blocks the entire team.
+  - Symptom: everyone is still on `version/X.Y.Z` with uncommitted work piling up on an already-released branch.
+  - Happened during 4.4.56→4.4.57: the next branch was never created, so local work accumulated on the
+    stale `version/4.4.56` branch while PRs #976 and #981 merged to `dev` without being picked up.
+  - Fix: Step 6 (cut next version branch) is **mandatory and immediate** — do it before BotManager deploy.
+- **Not merging `dev` into the version branch before release** causes community PRs to be silently excluded.
+  - Other engineers merge PRs to `dev` independently. If you don’t pull `dev` into your version branch
+    before deploying, those changes won’t ship even though they’re merged.
+  - Step 0.5 exists specifically for this — don’t skip it.
 - **Version drift (`setup.py` doesn’t match the branch name)** breaks traceability and confuses deployments.
   - Fix: enforce “`setup.py` == `version/X.Y.Z`” as a hard invariant.
   - Never downgrade versions; always bump forward if something went wrong.
@@ -258,6 +317,27 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
   - Run with `pytest -m apitest …` and expect skips when the market is closed.
   - Tradier’s sandbox environment does not behave like a full live account for certain order lifecycle endpoints;
     design smoke tests to skip appropriately.
+
+## Automation in place
+
+- **Auto-create next version branch**: After the release workflow publishes to PyPI, a `start-next-version`
+  job automatically creates `version/X.Y.(Z+1)` from `dev`, bumps `setup.py`, and pushes. This prevents
+  the "forgot to create the next branch" problem that blocked development after v4.4.56.
+- **Version logged at startup**: `LumiBot v{version} starting` is logged via `logger.info` when the
+  package is imported, making it visible in CloudWatch, backtest logs, and live trading logs.
+- **Version in backtest artifacts**: `settings.json` includes `lumibot_version` for every backtest,
+  enabling post-deploy verification without log parsing.
+
+## Future improvements (not yet implemented)
+
+- **Post-deploy canary in BotManager CI**: After the BotManager deploy workflow finishes, a final job
+  should trigger a short canary backtest via the API, wait for completion, and assert that
+  `settings.json → lumibot_version` matches the deployed version. This catches stale Docker images
+  and PyPI propagation lag automatically. Implementation lives in bot_manager's CI workflows and
+  should be done carefully since a flaky canary would block production deploys.
+- **Automated version assertion in `scheduled_test_backtest.py`**: The existing Lambda that runs
+  canary backtests on a schedule (`bot_manager/lambda/scheduled_test_backtest.py`) should check
+  `lumibot_version` in the result and alert if it doesn't match the pinned `LUMIBOT_VERSION` variable.
 
 ## Notes
 

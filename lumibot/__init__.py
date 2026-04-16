@@ -49,7 +49,7 @@ except ImportError:
 except:
     __version__ = "unknown"
 
-print(f"Lumibot version {__version__}")
+logger.info(f"LumiBot v{__version__} starting")
 
 # Get the major and minor Python version
 major, minor = sys.version_info[:2]

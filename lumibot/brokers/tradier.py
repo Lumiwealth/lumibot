@@ -5,6 +5,7 @@ import base64
 import json
 import time
 import threading
+import datetime
 from typing import Union
 
 import pandas as pd
@@ -16,7 +17,7 @@ from termcolor import colored
 
 from .broker import Broker, LumibotBrokerAPIError
 from lumibot.data_sources.tradier_data import TradierData
-from lumibot.entities import Asset, Order, Position
+from lumibot.entities import Asset, CashEvent, Order, Position
 from lumibot.tools.helpers import create_options_symbol
 from lumibot.tools.lumibot_logger import get_logger
 from lumibot.trading_builtins import PollingStream
@@ -37,6 +38,18 @@ class Tradier(Broker):
     """
 
     POLL_EVENT = PollingStream.POLL_EVENT
+    CASH_ACTIVITY_TYPES = (
+        "ach",
+        "wire",
+        "dividend",
+        "fee",
+        "tax",
+        "journal",
+        "check",
+        "transfer",
+        "adjustment",
+        "interest",
+    )
 
     # OAuth refresh endpoint (only available for approved Tradier partner apps).
     _OAUTH_REFRESH_URL = "https://api.tradier.com/v1/oauth/refreshtoken"
@@ -654,7 +667,7 @@ class Tradier(Broker):
                 # Place the order
                 order_response = self.tradier.orders.order(
                     symbol,
-                    order.side,
+                    self._lumi_side2tradier(order),
                     order.quantity,
                     order_type=order.order_type,
                     duration=order.time_in_force,
@@ -743,6 +756,167 @@ class Tradier(Broker):
     def get_historical_account_value(self):
         logger.error("The function get_historical_account_value is not implemented yet for Tradier.")
         return {"hourly": None, "daily": None}
+
+    @staticmethod
+    def _extract_history_amount(row: dict) -> float:
+        for key in ("amount", "net_amount", "total", "cash", "value"):
+            if key in row and row.get(key) not in (None, ""):
+                return CashEvent.coerce_amount(row.get(key))
+        return 0.0
+
+    @staticmethod
+    def _extract_history_field(row: dict, raw_type: str, field_name: str):
+        nested_key = f"{raw_type}.{field_name}"
+        value = row.get(nested_key)
+        if value not in (None, ""):
+            return value
+        return row.get(field_name)
+
+    @classmethod
+    def _extract_history_description(cls, row: dict, raw_type: str) -> str | None:
+        description = cls._extract_history_field(row, raw_type, "description")
+        if description not in (None, ""):
+            return str(description)
+        symbol = cls._extract_history_field(row, raw_type, "symbol")
+        if symbol not in (None, ""):
+            return str(symbol)
+        return None
+
+    @classmethod
+    def _extract_history_symbol(cls, row: dict, raw_type: str) -> str | None:
+        symbol = cls._extract_history_field(row, raw_type, "symbol")
+        if symbol in (None, ""):
+            return None
+        return str(symbol)
+
+    @classmethod
+    def _extract_history_quantity(cls, row: dict, raw_type: str) -> str | None:
+        quantity = cls._extract_history_field(row, raw_type, "quantity")
+        if quantity in (None, ""):
+            return None
+        return str(quantity)
+
+    @staticmethod
+    def _override_cash_event_type_from_description(description: str | None) -> str | None:
+        normalized_description = str(description or "").strip().lower()
+        if not normalized_description:
+            return None
+        if "tax" in normalized_description:
+            return "tax"
+        if "fee" in normalized_description:
+            return "fee"
+        return None
+
+    @classmethod
+    def _map_cash_event_type(cls, raw_type: str, amount: float, description: str | None = None) -> tuple[str, bool]:
+        normalized_raw_type = str(raw_type or "").strip().lower()
+        description_override = cls._override_cash_event_type_from_description(description)
+        if description_override is not None:
+            return description_override, False
+        if normalized_raw_type in {"ach", "wire", "check", "transfer"}:
+            return ("deposit" if amount >= 0 else "withdrawal"), True
+        if normalized_raw_type == "dividend":
+            return "dividend", False
+        if normalized_raw_type == "interest":
+            return "interest", False
+        if normalized_raw_type == "fee":
+            return "fee", False
+        if normalized_raw_type == "tax":
+            return "tax", False
+        if normalized_raw_type == "journal":
+            return "journal", False
+        if normalized_raw_type == "adjustment":
+            return "adjustment", False
+        return "other_cash", False
+
+    @classmethod
+    def _normalize_history_row_to_cash_event(cls, row: dict) -> CashEvent | None:
+        if not isinstance(row, dict):
+            return None
+
+        raw_type = str(row.get("type") or "").strip().lower()
+        if not raw_type or raw_type in {"trade", "option"}:
+            return None
+
+        amount = cls._extract_history_amount(row)
+        if raw_type in {"ach", "wire", "check", "transfer"} and amount == 0:
+            return None
+        description = cls._extract_history_description(row, raw_type) or raw_type
+        symbol = cls._extract_history_symbol(row, raw_type)
+        quantity = cls._extract_history_quantity(row, raw_type)
+        event_type, is_external_cash_flow = cls._map_cash_event_type(raw_type, amount, description)
+        occurred_at = (
+            row.get("date")
+            or row.get("created_at")
+            or row.get("settlement_date")
+            or row.get("transaction_date")
+        )
+        broker_event_id = row.get("id") or row.get("event_id") or row.get("transaction_id")
+
+        return CashEvent(
+            event_id=CashEvent.build_event_id(
+                broker_name="tradier",
+                broker_event_id=broker_event_id,
+                raw_type=raw_type,
+                raw_subtype=row.get("status"),
+                occurred_at=occurred_at,
+                amount=amount,
+                description=description,
+                extra_components=[symbol, quantity],
+            ),
+            broker_event_id=broker_event_id,
+            broker_name="tradier",
+            event_type=event_type,
+            raw_type=raw_type,
+            raw_subtype=row.get("status"),
+            amount=amount,
+            currency=row.get("currency") or "USD",
+            occurred_at=occurred_at,
+            description=description,
+            direction=CashEvent._infer_direction(amount),
+            is_external_cash_flow=is_external_cash_flow,
+        )
+
+    def get_cash_events(
+        self,
+        *,
+        since: datetime.datetime | None = None,
+        limit: int | None = 100,
+    ) -> list[CashEvent]:
+        start_date = CashEvent.coerce_datetime(since).date() if since is not None else None
+        end_date = datetime.datetime.now(datetime.timezone.utc).date()
+        per_type_limit = max(int(limit or 100), 1)
+        per_page_limit = min(per_type_limit, 1000)
+        max_pages = max((per_type_limit - 1) // per_page_limit + 1, 1)
+
+        event_by_id: dict[str, CashEvent] = {}
+        for activity_type in self.CASH_ACTIVITY_TYPES:
+            for page in range(1, max_pages + 1):
+                history_df = self.tradier.account.get_history(
+                    start_date=start_date,
+                    end_date=end_date,
+                    limit=per_page_limit,
+                    page=page,
+                    activity_type=activity_type,
+                )
+
+                if history_df is None or history_df.empty:
+                    break
+
+                for row in history_df.to_dict(orient="records"):
+                    event = self._normalize_history_row_to_cash_event(row)
+                    if event is not None:
+                        event_by_id[event.event_id] = event
+
+                if len(history_df.index) < per_page_limit:
+                    break
+
+        normalized_events = sorted(
+            event_by_id.values(),
+            key=lambda event: (event.occurred_at, event.event_id),
+        )
+        logger.debug("Tradier returned %s normalized cash events", len(normalized_events))
+        return normalized_events
 
     def _pull_positions(self, strategy):
         try:
@@ -1023,7 +1197,17 @@ class Tradier(Broker):
 
         # Set the side that we will return
         side = order.side
+
         if order.asset.asset_type == Asset.AssetType.STOCK:
+            # Map extended side values to for Tradier API
+            if side in ("buy_to_open"):
+                side = "buy"
+            elif side in ("sell_to_close"):
+                side = "sell"
+            elif side in ("buy_to_cover", "buy_to_close"):
+                side = "buy_to_cover"
+            elif side in ("sell_to_open", "sell_short"):
+                side = "sell_short"
             return side
 
         # Convert the side to the Tradier side for options orders if necessary

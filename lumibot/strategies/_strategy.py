@@ -8,6 +8,7 @@ import string
 import time
 import traceback
 import uuid
+from collections import deque
 from decimal import Decimal
 from typing import Dict, List, Union
 
@@ -41,9 +42,9 @@ from ..backtesting import (
     ThetaDataBacktestingPandas,
     YahooDataBacktesting,
 )
+from ..components.agents import AgentManager
 from ..credentials import (
     BACKTESTING_END,
-    BACKTESTING_QUIET_LOGS,
     BACKTESTING_SHOW_PROGRESS_BAR,
     BACKTESTING_START,
     BROKER,
@@ -64,9 +65,11 @@ from ..credentials import (
     STRATEGY_NAME,
     THETADATA_CONFIG,
 )
-from ..entities import Asset, Data, Order, Position
+from ..entities import Asset, CashEvent, Data, Order, Position
 from ..tools import (
+    cash_flow_adjusted_returns,
     create_tearsheet,
+    cumulative_to_period_flows,
     day_deduplicate,
     get_symbol_returns,
     plot_indicators,
@@ -307,6 +310,34 @@ class _Strategy:
         # initialize cash variables
         self._position_value = None
         self._portfolio_value = None
+        self._cash_deposits_total = 0.0
+        self._cash_withdrawals_total = 0.0
+        self._cash_adjustments_net_total = 0.0
+        self._cash_financing_enabled = False
+        self._cash_financing_account_mode = "margin"
+        self._cash_financing_day_count_basis = 360
+        self._cash_financing_missing_rate_policy = "carry_forward"
+        self._cash_financing_credit_rate_annual = None
+        self._cash_financing_debit_rate_annual = None
+        self._cash_financing_last_valid_credit_rate_annual = None
+        self._cash_financing_last_valid_debit_rate_annual = None
+        self._cash_financing_last_accrual_date = None
+        self._cash_financing_credit_total = 0.0
+        self._cash_financing_debit_total = 0.0
+        self._cash_financing_net_total = 0.0
+        self._cash_financing_days_accrued = 0
+        self._cash_financing_events = 0
+        self._cash_financing_last_credit_rate_used = None
+        self._cash_financing_last_debit_rate_used = None
+        self._cash_event_poll_lookback_days = 7
+        self._cash_event_poll_interval_seconds = 300
+        self._cash_event_cloud_emit_limit = 50
+        self._cash_event_fetch_limit = 100
+        self._cash_event_dedupe_capacity = 1000
+        self._cash_event_last_poll_at = None
+        self._cash_event_pending_for_cloud = []
+        self._cash_event_sent_ids = set()
+        self._cash_event_sent_id_order = deque()
 
         # Only log one message about cloud API key being missing
         self._logged_missing_lumiwealth_api_key = False
@@ -571,6 +602,7 @@ class _Strategy:
         self.should_send_summary_to_discord = should_send_summary_to_discord
         self._last_backup_state = None
         self.vars = Vars()
+        self.agents = AgentManager(self)
 
         # Storing parameters for the initialize method
         if not hasattr(self, "parameters") or not isinstance(self.parameters, dict) or self.parameters is None:
@@ -588,6 +620,19 @@ class _Strategy:
                     f"Applied BACKTESTING_PARAMETERS override: {list(BACKTESTING_PARAMETERS.keys())}",
                     "green",
                 )
+            )
+
+        cash_financing_cfg = self.parameters.get("cash_financing")
+        if isinstance(cash_financing_cfg, dict):
+            self._configure_cash_financing(
+                enabled=cash_financing_cfg.get("enabled", True),
+                account_mode=cash_financing_cfg.get("account_mode", "margin"),
+                day_count_basis=cash_financing_cfg.get("day_count_basis", 360),
+                missing_rate_policy=cash_financing_cfg.get("missing_rate_policy", "carry_forward"),
+            )
+            self._set_cash_financing_rates(
+                credit_rate_annual=cash_financing_cfg.get("credit_rate_annual"),
+                debit_rate_annual=cash_financing_cfg.get("debit_rate_annual"),
             )
 
         self._strategy_returns_df = None
@@ -702,6 +747,256 @@ class _Strategy:
         cash_position = self.broker.get_tracked_position(self._name, self._quote_asset)
         self._cash_position = cash_position
         return cash_position
+
+    @staticmethod
+    def _coerce_cash_rate(value, field_name):
+        if value is None:
+            return None
+        try:
+            rate = float(value)
+        except (TypeError, ValueError):
+            raise ValueError(f"{field_name} must be a finite non-negative number")
+        if not math.isfinite(rate) or rate < 0:
+            raise ValueError(f"{field_name} must be a finite non-negative number")
+        return rate
+
+    def _configure_cash_financing(
+        self,
+        *,
+        enabled: bool | None = None,
+        account_mode: str | None = None,
+        day_count_basis: int | None = None,
+        missing_rate_policy: str | None = None,
+    ) -> None:
+        if enabled is not None:
+            self._cash_financing_enabled = bool(enabled)
+
+        if account_mode is not None:
+            normalized_account_mode = str(account_mode).strip().lower()
+            if normalized_account_mode not in {"margin", "cash"}:
+                raise ValueError("account_mode must be 'margin' or 'cash'")
+            self._cash_financing_account_mode = normalized_account_mode
+
+        if day_count_basis is not None:
+            try:
+                basis = int(day_count_basis)
+            except (TypeError, ValueError):
+                raise ValueError("day_count_basis must be a positive integer")
+            if basis <= 0:
+                raise ValueError("day_count_basis must be a positive integer")
+            self._cash_financing_day_count_basis = basis
+
+        if missing_rate_policy is not None:
+            normalized_missing_policy = str(missing_rate_policy).strip().lower()
+            if normalized_missing_policy not in {"carry_forward", "error"}:
+                raise ValueError("missing_rate_policy must be 'carry_forward' or 'error'")
+            self._cash_financing_missing_rate_policy = normalized_missing_policy
+
+    def _set_cash_financing_rates(
+        self,
+        *,
+        credit_rate_annual: float | None = None,
+        debit_rate_annual: float | None = None,
+    ) -> None:
+        if credit_rate_annual is not None:
+            normalized_credit_rate = self._coerce_cash_rate(credit_rate_annual, "credit_rate_annual")
+            self._cash_financing_credit_rate_annual = normalized_credit_rate
+            self._cash_financing_last_valid_credit_rate_annual = normalized_credit_rate
+
+        if debit_rate_annual is not None:
+            normalized_debit_rate = self._coerce_cash_rate(debit_rate_annual, "debit_rate_annual")
+            self._cash_financing_debit_rate_annual = normalized_debit_rate
+            self._cash_financing_last_valid_debit_rate_annual = normalized_debit_rate
+
+    def _resolve_cash_financing_rate(self, *, side: str) -> float:
+        if side == "credit":
+            rate = self._cash_financing_credit_rate_annual
+            fallback_rate = self._cash_financing_last_valid_credit_rate_annual
+        elif side == "debit":
+            rate = self._cash_financing_debit_rate_annual
+            fallback_rate = self._cash_financing_last_valid_debit_rate_annual
+        else:
+            raise ValueError(f"Unknown financing side: {side}")
+
+        if rate is not None:
+            return float(rate)
+
+        if self._cash_financing_missing_rate_policy == "carry_forward" and fallback_rate is not None:
+            return float(fallback_rate)
+
+        raise ValueError(
+            f"Missing {side} financing rate for {self._name}. "
+            "Set rates via set_cash_financing_rates()."
+        )
+
+    def _apply_cash_adjustment(
+        self,
+        *,
+        delta_cash: float,
+        reason: str,
+        kind: str,
+        allow_negative: bool | None = None,
+    ) -> float:
+        if not self.is_backtesting:
+            raise RuntimeError("Cash adjustments are only supported in backtesting")
+
+        try:
+            delta = float(delta_cash)
+        except (TypeError, ValueError):
+            raise ValueError("delta_cash must be a finite number")
+
+        if not math.isfinite(delta):
+            raise ValueError("delta_cash must be a finite number")
+
+        allow_negative_effective = (
+            self._cash_financing_account_mode == "margin"
+            if allow_negative is None
+            else bool(allow_negative)
+        )
+
+        current_cash = float(self.cash or 0.0)
+        updated_cash = current_cash + delta
+
+        if (not allow_negative_effective) and updated_cash < 0:
+            raise ValueError(
+                f"Cash adjustment '{reason}' would create negative cash "
+                f"({updated_cash:.2f}) while account_mode='cash'"
+            )
+
+        self._set_cash_position(updated_cash)
+
+        if kind == "deposit":
+            self._cash_deposits_total += abs(delta)
+        elif kind == "withdrawal":
+            self._cash_withdrawals_total += abs(delta)
+
+        self._cash_adjustments_net_total += delta
+        self._record_backtest_cash_event(
+            event_type=kind if kind in {"deposit", "withdrawal", "adjustment"} else "adjustment",
+            amount=delta,
+            reason=reason,
+            description=reason,
+            is_external_cash_flow=True,
+            raw_type=f"backtest_{kind}",
+        )
+        return updated_cash
+
+    def _record_backtest_cash_event(
+        self,
+        *,
+        event_type: str,
+        amount: float,
+        reason: str | None = None,
+        description: str | None = None,
+        is_external_cash_flow: bool = False,
+        raw_type: str | None = None,
+        raw_subtype: str | None = None,
+    ) -> None:
+        if not self.is_backtesting:
+            return
+        try:
+            normalized_amount = float(amount)
+        except (TypeError, ValueError):
+            return
+        if not math.isfinite(normalized_amount) or abs(normalized_amount) < 1e-12:
+            return
+
+        current_dt = self.get_datetime()
+        if current_dt is None:
+            return
+
+        try:
+            cash_event = CashEvent(
+                broker_name="backtesting",
+                event_type=event_type,
+                amount=normalized_amount,
+                occurred_at=current_dt,
+                raw_type=raw_type,
+                raw_subtype=raw_subtype,
+                description=description or reason,
+                is_external_cash_flow=is_external_cash_flow,
+            )
+        except Exception:
+            return
+
+        broker = getattr(self, "broker", None)
+        record_cash_event = getattr(broker, "record_cash_event", None)
+        if callable(record_cash_event):
+            record_cash_event(
+                cash_event,
+                strategy=getattr(self, "_name", None),
+                reason=reason,
+                occurred_at=current_dt,
+            )
+
+    def _apply_daily_cash_financing_if_needed(self) -> None:
+        if not self.is_backtesting or not self._cash_financing_enabled:
+            return
+
+        current_dt = self.get_datetime()
+        if current_dt is None:
+            return
+        current_date = current_dt.date() if hasattr(current_dt, "date") else current_dt
+
+        if self._cash_financing_last_accrual_date == current_date:
+            return
+
+        if self._cash_financing_last_accrual_date is None:
+            days_to_accrue = 1
+        else:
+            days_delta = (current_date - self._cash_financing_last_accrual_date).days
+            if days_delta <= 0:
+                return
+            days_to_accrue = days_delta
+
+        current_cash = float(self.cash or 0.0)
+        if self._cash_financing_account_mode == "cash" and current_cash < 0:
+            raise ValueError(
+                "Negative cash is not permitted while account_mode='cash'. "
+                "Switch to account_mode='margin' or prevent negative balances."
+            )
+
+        credit_rate = self._resolve_cash_financing_rate(side="credit")
+        debit_rate = self._resolve_cash_financing_rate(side="debit")
+
+        if current_cash >= 0:
+            annual_rate = credit_rate
+        else:
+            annual_rate = debit_rate
+
+        daily_rate = annual_rate / float(self._cash_financing_day_count_basis)
+        cash_factor = (1.0 + daily_rate) ** days_to_accrue
+        updated_cash = current_cash * cash_factor
+        delta_cash = updated_cash - current_cash
+
+        self._set_cash_position(updated_cash)
+
+        if delta_cash >= 0:
+            self._cash_financing_credit_total += delta_cash
+        else:
+            self._cash_financing_debit_total += abs(delta_cash)
+        self._cash_financing_net_total += delta_cash
+        self._cash_financing_days_accrued += days_to_accrue
+        self._cash_financing_events += 1
+        self._cash_financing_last_credit_rate_used = credit_rate
+        self._cash_financing_last_debit_rate_used = debit_rate
+        self._cash_financing_last_accrual_date = current_date
+
+        if abs(delta_cash) >= 1e-12:
+            financing_reason = "cash_financing_credit" if delta_cash >= 0 else "cash_financing_debit"
+            financing_description = (
+                f"Daily cash financing {'credit' if delta_cash >= 0 else 'debit'} "
+                f"for {days_to_accrue} day(s)"
+            )
+            self._record_backtest_cash_event(
+                event_type="interest",
+                amount=delta_cash,
+                reason=financing_reason,
+                description=financing_description,
+                is_external_cash_flow=False,
+                raw_type=financing_reason,
+                raw_subtype=f"annual_rate={annual_rate:.12f}",
+            )
 
     def _sanitize_user_asset(self, asset):
         if isinstance(asset, Asset):
@@ -1429,8 +1724,20 @@ class _Strategy:
                 if tracker_key in self._dividends_applied_tracker:
                     continue  # Already applied dividend for this asset on this date
 
-                cash_delta += dividend_per_share * float(quantity)
+                dividend_amount = dividend_per_share * float(quantity)
+                cash_delta += dividend_amount
                 cash_updated = True
+                self._record_backtest_cash_event(
+                    event_type="dividend",
+                    amount=dividend_amount,
+                    reason="dividend",
+                    description=(
+                        f"{getattr(asset, 'symbol', str(asset))} dividend "
+                        f"{float(dividend_per_share):.6f} x {float(quantity):.6f}"
+                    ),
+                    raw_type="dividend",
+                    raw_subtype=getattr(asset, "symbol", None),
+                )
 
                 # Mark as applied
                 self._dividends_applied_tracker.add(tracker_key)
@@ -1456,7 +1763,36 @@ class _Strategy:
         if "datetime" in self._stats.columns:
             self._stats = self._stats.set_index("datetime")
             self._stats = self._stats.sort_index()
-        self._stats["return"] = self._stats["portfolio_value"].pct_change()
+
+        cumulative_period_columns = (
+            ("cash_deposits_total", "cash_deposits_period"),
+            ("cash_withdrawals_total", "cash_withdrawals_period"),
+            ("cash_adjustments_net_total", "cash_adjustments_net_period"),
+            ("cash_financing_credit_total", "cash_financing_credit_period"),
+            ("cash_financing_debit_total", "cash_financing_debit_period"),
+            ("cash_financing_net_total", "cash_financing_net_period"),
+        )
+
+        for total_col, period_col in cumulative_period_columns:
+            if total_col in self._stats.columns:
+                self._stats[period_col] = cumulative_to_period_flows(self._stats[total_col])
+
+        external_flow_totals = (
+            self._stats["cash_adjustments_net_total"]
+            if "cash_adjustments_net_total" in self._stats.columns
+            else None
+        )
+        self._stats["return"] = cash_flow_adjusted_returns(
+            self._stats["portfolio_value"],
+            external_flow_totals,
+        )
+        if "portfolio_value" in self._stats.columns:
+            adjusted_base = float(self._stats["portfolio_value"].iloc[0])
+            if external_flow_totals is not None:
+                adjusted_base -= float(external_flow_totals.iloc[0])
+            self._stats["cash_adjusted_portfolio_value"] = (
+                (1.0 + self._stats["return"].fillna(0.0)).cumprod() * adjusted_base
+            )
         self._stats_dirty = False
 
         return self._stats
@@ -1769,6 +2105,7 @@ class _Strategy:
     def plot_returns_vs_benchmark(
         self,
         plot_file_html="backtest_result.html",
+        trades_file=None,
         trades_df=None,
         show_plot=True,
     ):
@@ -1782,9 +2119,10 @@ class _Strategy:
                 f"{self._log_strat_name()}Strategy",
                 self._benchmark_returns_df,
                 str(self._benchmark_asset),
-                plot_file_html,
-                trades_df,
-                show_plot,
+                plot_file_html=plot_file_html,
+                trades_file=trades_file,
+                trades_df=trades_df,
+                show_plot=show_plot,
                 initial_budget=self._initial_budget,
             )
 
@@ -1837,11 +2175,43 @@ class _Strategy:
 
         return drawdown, drawdown_details
 
+    def _default_cash_tearsheet_metrics(self) -> dict:
+        metrics = {
+            "Cash Deposits Total": float(getattr(self, "_cash_deposits_total", 0.0)),
+            "Cash Withdrawals Total": float(getattr(self, "_cash_withdrawals_total", 0.0)),
+            "Cash Adjustments Net Total": float(getattr(self, "_cash_adjustments_net_total", 0.0)),
+            "Cash Financing Credit Total": float(getattr(self, "_cash_financing_credit_total", 0.0)),
+            "Cash Financing Debit Total": float(getattr(self, "_cash_financing_debit_total", 0.0)),
+            "Cash Financing Net Total": float(getattr(self, "_cash_financing_net_total", 0.0)),
+            "Cash Financing Days Accrued": int(getattr(self, "_cash_financing_days_accrued", 0)),
+            "Cash Financing Events": int(getattr(self, "_cash_financing_events", 0)),
+        }
+
+        has_non_zero_flow = any(
+            abs(float(metrics[key])) > 0.0
+            for key in (
+                "Cash Deposits Total",
+                "Cash Withdrawals Total",
+                "Cash Adjustments Net Total",
+                "Cash Financing Credit Total",
+                "Cash Financing Debit Total",
+                "Cash Financing Net Total",
+            )
+        )
+        has_financing_config = bool(getattr(self, "_cash_financing_enabled", False))
+        has_financing_activity = bool(metrics["Cash Financing Days Accrued"] or metrics["Cash Financing Events"])
+
+        if not (has_non_zero_flow or has_financing_config or has_financing_activity):
+            return {}
+
+        return metrics
+
     def _collect_custom_tearsheet_metrics(self) -> dict:
         """Invoke Strategy.tearsheet_custom_metrics() if implemented."""
+        base_metrics = self._default_cash_tearsheet_metrics()
         hook = getattr(self, "tearsheet_custom_metrics", None)
         if not callable(hook):
-            return {}
+            return base_metrics
 
         stats_df = self._stats.copy(deep=True) if isinstance(self._stats, pd.DataFrame) else None
         strategy_returns = self._extract_returns_series(
@@ -1867,18 +2237,18 @@ class _Strategy:
             )
         except Exception as exc:
             self.logger.warning("tearsheet_custom_metrics() failed; continuing without custom metrics: %s", exc)
-            return {}
+            return base_metrics
 
         if custom_metrics is None:
-            return {}
+            return base_metrics
         if not isinstance(custom_metrics, dict):
             self.logger.warning(
                 "tearsheet_custom_metrics() must return a dict, got %s; ignoring custom metrics.",
                 type(custom_metrics).__name__,
             )
-            return {}
+            return base_metrics
 
-        return custom_metrics
+        return {**base_metrics, **custom_metrics}
 
     def tearsheet(
         self,
@@ -1976,7 +2346,7 @@ class _Strategy:
     @classmethod
     def run_backtest(
         self,
-        datasource_class,
+        datasource_class=None,
         backtesting_start: datetime = None,
         backtesting_end: datetime = None,
         minutes_before_closing = 5,
@@ -2026,9 +2396,11 @@ class _Strategy:
 
         Parameters
         ----------
-        datasource_class : class
+        datasource_class : class, optional
             The datasource class to use. For example, if you want to use the yahoo finance datasource,
-            then you would pass YahooDataBacktesting as the datasource_class.
+            then you would pass YahooDataBacktesting as the datasource_class. When BACKTESTING_DATA_SOURCE
+            is configured in the environment, you may leave this as None and let the runtime resolve the
+            effective backtesting data source from the environment instead.
         backtesting_start : datetime
             The start date of the backtesting period.
         backtesting_end : datetime
@@ -2138,7 +2510,7 @@ class _Strategy:
         >>> benchmark_asset = Asset(symbol="QQQ", asset_type="stock")
         >>>
         >>> backtest = MyStrategy.backtest(
-        >>>     datasource_class=YahooDataBacktesting,
+        >>>     datasource_class=None,
         >>>     backtesting_start=backtesting_start,
         >>>     backtesting_end=backtesting_end,
         >>>     benchmark_asset=benchmark_asset,
@@ -2263,10 +2635,20 @@ class _Strategy:
                         pass
 
             label = env_override_raw or _DEFAULT_BACKTESTING_DATA_SOURCE
-            get_logger(__name__).info(colored(
-                f"Using BACKTESTING_DATA_SOURCE setting for backtest data: {label}",
-                "green"
-            ))
+            if quiet_logs:
+                get_logger(__name__).debug(
+                    colored(
+                        f"Using BACKTESTING_DATA_SOURCE setting for backtest data: {label}",
+                        "green"
+                    )
+                )
+            else:
+                get_logger(__name__).info(
+                    colored(
+                        f"Using BACKTESTING_DATA_SOURCE setting for backtest data: {label}",
+                        "green"
+                    )
+                )
         elif datasource_class is None:
             raise ValueError(
                 "No backtesting data source provided. Set BACKTESTING_DATA_SOURCE in the environment "
@@ -2361,141 +2743,164 @@ class _Strategy:
 
         backtesting_start, backtesting_end = self.verify_backtest_inputs(backtesting_start, backtesting_end)
 
-        get_logger(__name__).info("Backtest start = %s", backtesting_start)
-        get_logger(__name__).info("Backtest end = %s", backtesting_end)
+        quiet_logs_env = os.environ.get("BACKTESTING_QUIET_LOGS")
+        if quiet_logs_env is not None:
+            quiet_logs = quiet_logs_env.strip().lower() in ("true", "1", "yes", "on")
 
-        if not self.IS_BACKTESTABLE:
-            get_logger(__name__).warning(f"Strategy {name + ' ' if name is not None else ''}cannot be " f"backtested at the moment")
-            return None
-
-        if BACKTESTING_QUIET_LOGS is not None:
-            quiet_logs = BACKTESTING_QUIET_LOGS
-
-        if BACKTESTING_SHOW_PROGRESS_BAR is not None:
+        show_progress_env = os.environ.get("BACKTESTING_SHOW_PROGRESS_BAR")
+        if show_progress_env is not None:
             show_progress_bar = BACKTESTING_SHOW_PROGRESS_BAR
 
-        self._trader = trader_class(logfile=logfile, backtest=True, quiet_logs=quiet_logs)
+        previous_backtesting_env = {
+            "IS_BACKTESTING": os.environ.get("IS_BACKTESTING"),
+            "BACKTESTING_QUIET_LOGS": os.environ.get("BACKTESTING_QUIET_LOGS"),
+            "BACKTESTING_SHOW_PROGRESS_BAR": os.environ.get("BACKTESTING_SHOW_PROGRESS_BAR"),
+        }
+        os.environ["IS_BACKTESTING"] = "true"
+        os.environ["BACKTESTING_QUIET_LOGS"] = "true" if quiet_logs else "false"
+        os.environ["BACKTESTING_SHOW_PROGRESS_BAR"] = "true" if show_progress_bar else "false"
 
-        if datasource_class.__name__ == 'PolygonDataBacktesting':
-            data_source = datasource_class(
-                backtesting_start,
-                backtesting_end,
-                config=config,
-                auto_adjust=auto_adjust,
-                api_key=polygon_api_key,
-                pandas_data=pandas_data,
-                show_progress_bar=show_progress_bar,
-                max_memory=POLYGON_MAX_MEMORY_BYTES,
-                log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
-                **kwargs,
-            )
-        elif issubclass(datasource_class, ThetaDataBacktestingPandas) or (
-            optionsource_class and issubclass(optionsource_class, ThetaDataBacktestingPandas)
-        ):
-            data_source = datasource_class(
-                backtesting_start,
-                backtesting_end,
-                config=config,
-                auto_adjust=auto_adjust,
-                username=thetadata_username,
-                password=thetadata_password,
-                pandas_data=pandas_data,
-                use_quote_data=use_quote_data,
-                show_progress_bar=show_progress_bar,
-                log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
-                **kwargs,
-            )
-        elif datasource_class == InteractiveBrokersRESTBacktesting:
-            data_source = datasource_class(
-                backtesting_start,
-                backtesting_end,
-                config=config,
-                auto_adjust=auto_adjust,
-                pandas_data=pandas_data,
-                show_progress_bar=show_progress_bar,
-                log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
-                **kwargs,
-            )
-        else:
-            data_source = datasource_class(
-                datetime_start=backtesting_start,
-                datetime_end=backtesting_end,
-                config=config,
-                auto_adjust=auto_adjust,
-                pandas_data=pandas_data,
-                show_progress_bar=show_progress_bar,
-                log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
-                **kwargs,
-            )
-
-        if not use_other_option_source:
-            backtesting_broker = BacktestingBroker(data_source)
-        else:
-            options_source = optionsource_class(
-                backtesting_start,
-                backtesting_end,
-                config=config,
-                auto_adjust=auto_adjust,
-                username=thetadata_username,
-                password=thetadata_password,
-                pandas_data=pandas_data,
-                show_progress_bar=show_progress_bar,
-                **kwargs,
-            )
-            backtesting_broker = BacktestingBroker(data_source, options_source)
-
-        strategy = self(
-            backtesting_broker,
-            minutes_before_closing=minutes_before_closing,
-            minutes_before_opening=minutes_before_opening,
-            sleeptime=sleeptime,
-            risk_free_rate=risk_free_rate,
-            stats_file=stats_file,
-            benchmark_asset=benchmark_asset,
-            analyze_backtest=analyze_backtest,
-            backtesting_start=backtesting_start,
-            backtesting_end=backtesting_end,
-            pandas_data=pandas_data,
-            quote_asset=quote_asset,
-            starting_positions=starting_positions,
-            name=name,
-            budget=budget,
-            parameters=parameters,
-            buy_trading_fees=buy_trading_fees,
-            sell_trading_fees=sell_trading_fees,
-            buy_trading_slippages=buy_trading_slippages,
-            sell_trading_slippages=sell_trading_slippages,
-            save_logfile=save_logfile,
-            include_cash_positions=include_cash_positions,
-            **kwargs,
-        )
-        self._trader.add_strategy(strategy)
-
-        self.logger.info("Starting backtest...")
         try:
-            strategy._backtest_time_start_monotonic = time.monotonic()
-        except Exception:
-            pass
-        start = datetime.datetime.now()
+            logger = get_logger(__name__)
+            logger.info("Backtest start = %s", backtesting_start)
+            logger.info("Backtest end = %s", backtesting_end)
 
-        result = self._trader.run_all(
-            show_plot=show_plot,
-            show_tearsheet=show_tearsheet,
-            save_tearsheet=save_tearsheet,
-            show_indicators=show_indicators,
-            tearsheet_file=tearsheet_file,
-            tearsheet_metrics_file=tearsheet_metrics_file,
-            base_filename=base_filename,
-        )
+            if not self.IS_BACKTESTABLE:
+                logger.warning(f"Strategy {name + ' ' if name is not None else ''}cannot be " f"backtested at the moment")
+                return None
 
-        end = datetime.datetime.now()
-        backtesting_length = backtesting_end - backtesting_start
-        backtesting_run_time = end - start
-        self.logger.info(
-            f"Backtest took {backtesting_run_time} for a speed of {backtesting_run_time / backtesting_length:,.3f}"
-        )
+            self._trader = trader_class(logfile=logfile, backtest=True, quiet_logs=quiet_logs)
 
-        return result[name], strategy
+            if datasource_class.__name__ == 'PolygonDataBacktesting':
+                data_source = datasource_class(
+                    backtesting_start,
+                    backtesting_end,
+                    config=config,
+                    auto_adjust=auto_adjust,
+                    api_key=polygon_api_key,
+                    pandas_data=pandas_data,
+                    show_progress_bar=show_progress_bar,
+                    max_memory=POLYGON_MAX_MEMORY_BYTES,
+                    log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
+                    **kwargs,
+                )
+            elif issubclass(datasource_class, ThetaDataBacktestingPandas) or (
+                optionsource_class and issubclass(optionsource_class, ThetaDataBacktestingPandas)
+            ):
+                data_source = datasource_class(
+                    backtesting_start,
+                    backtesting_end,
+                    config=config,
+                    auto_adjust=auto_adjust,
+                    username=thetadata_username,
+                    password=thetadata_password,
+                    pandas_data=pandas_data,
+                    use_quote_data=use_quote_data,
+                    show_progress_bar=show_progress_bar,
+                    log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
+                    **kwargs,
+                )
+            elif datasource_class == InteractiveBrokersRESTBacktesting:
+                data_source = datasource_class(
+                    backtesting_start,
+                    backtesting_end,
+                    config=config,
+                    auto_adjust=auto_adjust,
+                    pandas_data=pandas_data,
+                    show_progress_bar=show_progress_bar,
+                    log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
+                    **kwargs,
+                )
+            else:
+                data_source = datasource_class(
+                    datetime_start=backtesting_start,
+                    datetime_end=backtesting_end,
+                    config=config,
+                    auto_adjust=auto_adjust,
+                    pandas_data=pandas_data,
+                    show_progress_bar=show_progress_bar,
+                    log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
+                    **kwargs,
+                )
+
+            if not use_other_option_source:
+                backtesting_broker = BacktestingBroker(data_source)
+            else:
+                options_source = optionsource_class(
+                    backtesting_start,
+                    backtesting_end,
+                    config=config,
+                    auto_adjust=auto_adjust,
+                    username=thetadata_username,
+                    password=thetadata_password,
+                    pandas_data=pandas_data,
+                    show_progress_bar=show_progress_bar,
+                    **kwargs,
+                )
+                backtesting_broker = BacktestingBroker(data_source, options_source)
+
+            strategy = self(
+                backtesting_broker,
+                minutes_before_closing=minutes_before_closing,
+                minutes_before_opening=minutes_before_opening,
+                sleeptime=sleeptime,
+                risk_free_rate=risk_free_rate,
+                stats_file=stats_file,
+                benchmark_asset=benchmark_asset,
+                analyze_backtest=analyze_backtest,
+                backtesting_start=backtesting_start,
+                backtesting_end=backtesting_end,
+                pandas_data=pandas_data,
+                quote_asset=quote_asset,
+                starting_positions=starting_positions,
+                name=name,
+                budget=budget,
+                parameters=parameters,
+                buy_trading_fees=buy_trading_fees,
+                sell_trading_fees=sell_trading_fees,
+                buy_trading_slippages=buy_trading_slippages,
+                sell_trading_slippages=sell_trading_slippages,
+                save_logfile=save_logfile,
+                include_cash_positions=include_cash_positions,
+                **kwargs,
+            )
+            self._trader.add_strategy(strategy)
+
+            self.logger.info("Starting backtest...")
+            try:
+                strategy._backtest_time_start_monotonic = time.monotonic()
+            except Exception:
+                pass
+            start = datetime.datetime.now()
+
+            result = self._trader.run_all(
+                show_plot=show_plot,
+                show_tearsheet=show_tearsheet,
+                save_tearsheet=save_tearsheet,
+                show_indicators=show_indicators,
+                plot_file_html=plot_file_html,
+                trades_file=trades_file,
+                settings_file=settings_file,
+                indicators_file=indicators_file,
+                tearsheet_file=tearsheet_file,
+                tearsheet_metrics_file=tearsheet_metrics_file,
+                base_filename=base_filename,
+            )
+
+            end = datetime.datetime.now()
+            backtesting_length = backtesting_end - backtesting_start
+            backtesting_run_time = end - start
+            self.logger.info(
+                f"Backtest took {backtesting_run_time} for a speed of {backtesting_run_time / backtesting_length:,.3f}"
+            )
+
+            return result[name], strategy
+        finally:
+            for key, previous_value in previous_backtesting_env.items():
+                if previous_value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = previous_value
 
     def write_backtest_settings(self, settings_file):
         """
@@ -2569,8 +2974,9 @@ class _Strategy:
         if not show_plot:
             backtesting_broker.export_trade_events_to_csv(trades_file)
         self.plot_returns_vs_benchmark(
-            plot_file_html,
-            backtesting_broker._trade_event_log_df,
+            plot_file_html=plot_file_html,
+            trades_file=trades_file,
+            trades_df=backtesting_broker._trade_event_log_df,
             show_plot=show_plot,
         )
         # Create chart lines dataframe
@@ -2665,6 +3071,104 @@ class _Strategy:
 
         return start_dt, end_dt
 
+    @staticmethod
+    def _remember_sent_cash_event_id(self, event_id: str) -> None:
+        if not event_id:
+            return
+
+        sent_ids = getattr(self, "_cash_event_sent_ids", None)
+        sent_queue = getattr(self, "_cash_event_sent_id_order", None)
+        if sent_ids is None or sent_queue is None:
+            return
+
+        if event_id in sent_ids:
+            return
+
+        dedupe_capacity = int(getattr(self, "_cash_event_dedupe_capacity", 1000) or 1000)
+        while len(sent_queue) >= dedupe_capacity:
+            expired_event_id = sent_queue.popleft()
+            sent_ids.discard(expired_event_id)
+
+        sent_queue.append(event_id)
+        sent_ids.add(event_id)
+
+    @staticmethod
+    def _collect_cash_events_for_cloud(self) -> list[CashEvent]:
+        pending_events = list(getattr(self, "_cash_event_pending_for_cloud", []) or [])
+        emit_limit = int(getattr(self, "_cash_event_cloud_emit_limit", 50) or 50)
+        if pending_events:
+            return pending_events[:emit_limit]
+
+        broker = getattr(self, "broker", None)
+        get_cash_events = getattr(broker, "get_cash_events", None)
+        if not callable(get_cash_events):
+            return []
+
+        last_poll_at = getattr(self, "_cash_event_last_poll_at", None)
+        poll_interval_seconds = int(getattr(self, "_cash_event_poll_interval_seconds", 300) or 300)
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        if (
+            isinstance(last_poll_at, datetime.datetime)
+            and (now_utc - last_poll_at).total_seconds() < poll_interval_seconds
+        ):
+            return []
+
+        lookback_days = int(getattr(self, "_cash_event_poll_lookback_days", 7) or 7)
+        fetch_limit = int(getattr(self, "_cash_event_fetch_limit", 100) or 100)
+        fetch_since = now_utc - datetime.timedelta(days=lookback_days)
+        self._cash_event_last_poll_at = now_utc
+
+        try:
+            fetched_events = get_cash_events(since=fetch_since, limit=fetch_limit)
+        except Exception as exc:
+            self.logger.warning(f"Failed to load broker cash events: {exc}")
+            self.logger.debug(traceback.format_exc())
+            return []
+
+        sent_ids = getattr(self, "_cash_event_sent_ids", set())
+        pending_ids = {
+            getattr(event, "event_id", None)
+            for event in getattr(self, "_cash_event_pending_for_cloud", []) or []
+        }
+
+        normalized_events = []
+        for event in fetched_events or []:
+            if not isinstance(event, CashEvent):
+                continue
+            if event.event_id in sent_ids or event.event_id in pending_ids:
+                continue
+            normalized_events.append(event)
+
+        normalized_events.sort(key=lambda event: (event.occurred_at, event.event_id))
+        if normalized_events:
+            self.logger.debug(
+                "Loaded %s new cash events from broker '%s'",
+                len(normalized_events),
+                getattr(broker, "name", "unknown"),
+            )
+            self._cash_event_pending_for_cloud.extend(normalized_events)
+
+        pending_events = list(getattr(self, "_cash_event_pending_for_cloud", []) or [])
+        return pending_events[:emit_limit]
+
+    @staticmethod
+    def _mark_cash_events_sent(self, emitted_events: list[CashEvent]) -> None:
+        if not emitted_events:
+            return
+
+        emitted_event_ids = {event.event_id for event in emitted_events if getattr(event, "event_id", None)}
+        if not emitted_event_ids:
+            return
+
+        remaining_pending_events = []
+        for event in getattr(self, "_cash_event_pending_for_cloud", []) or []:
+            if getattr(event, "event_id", None) in emitted_event_ids:
+                _Strategy._remember_sent_cash_event_id(self, event.event_id)
+            else:
+                remaining_pending_events.append(event)
+
+        self._cash_event_pending_for_cloud = remaining_pending_events
+
     def send_update_to_cloud(self):
         """
         Sends an update to the LumiWealth cloud server with the current portfolio value, cash, positions, and any outstanding orders.
@@ -2732,6 +3236,9 @@ class _Strategy:
             self.logger.error(traceback.format_exc())
             return False
 
+        cash_events = _Strategy._collect_cash_events_for_cloud(self)
+        self.logger.debug(f"Number of cash events: {len(cash_events)}")
+
         LUMIWEALTH_URL = "https://listener.lumiwealth.com/portfolio_events"
 
         headers = {
@@ -2748,11 +3255,15 @@ class _Strategy:
             "cash": cash,
             "positions": positions_data,
             "orders": [order.to_dict() for order in orders],
+            "cash_events": [event.to_dict() for event in cash_events],
             "strategy_name": self._name,
             "broker_name": self.broker.name,
         }
 
-        self.logger.debug(f"Preparing to send portfolio update: value={portfolio_value}, cash={cash}, positions={len(positions)}, orders={len(orders)}")
+        self.logger.debug(
+            f"Preparing to send portfolio update: value={portfolio_value}, cash={cash}, "
+            f"positions={len(positions)}, orders={len(orders)}, cash_events={len(cash_events)}"
+        )
 
         # Helper function to recursively replace NaN in dictionaries
         def replace_nan(value):
@@ -2795,6 +3306,7 @@ class _Strategy:
 
         # Check if the message was sent successfully
         if response.status_code == 200:
+            _Strategy._mark_cash_events_sent(self, cash_events)
             self.logger.debug(f"Portfolio update sent successfully to cloud for strategy '{self._name}'")
             return True
         elif response.status_code == 401:

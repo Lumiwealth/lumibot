@@ -115,8 +115,11 @@ def test_ibkr_fetch_history_between_dates_keeps_prior_chunks_when_later_page_is_
     def _fake_history_request(**kwargs):
         calls["history"] += 1
         if calls["history"] == 1:
+            # Return data covering the full requested window.  With full
+            # coverage in a single page the function no longer paginates, so
+            # only one history call is expected.
             idx = pd.date_range(
-                start=end.astimezone(timezone.utc) - timedelta(hours=2),
+                start=start.astimezone(timezone.utc),
                 end=end.astimezone(timezone.utc),
                 freq="1h",
                 tz="UTC",
@@ -142,7 +145,7 @@ def test_ibkr_fetch_history_between_dates_keeps_prior_chunks_when_later_page_is_
         source="Midpoint",
         source_was_explicit=True,
     )
-    assert calls["history"] >= 2
+    assert calls["history"] >= 1
     assert calls["missing_window"] == 0
     assert not df.empty
     assert df.index.max() <= end

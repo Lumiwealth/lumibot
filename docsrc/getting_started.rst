@@ -5,6 +5,13 @@ Lumibot is a Python library that allows you to create trading strategies and bac
 
 Lumibot is designed to be easy to use, but also powerful. It is designed to be used by both beginners and advanced users. It is also designed to be flexible, so you can use it to create any kind of trading strategy you want. It is also designed to be fast, so you can backtest your strategies quickly.
 
+Build AI Trading Agents
+=======================
+
+Lumibot now supports **AI trading agents** inside the ``Strategy`` class. If you want an **agentic trading** workflow, you can create an agent in ``initialize()``, run it from ``on_trading_iteration()`` or ``on_filled_order()``, query time-series data with DuckDB, and replay the same agent decisions during backtests.
+
+Read :doc:`agents` for the full guide.
+
 Need Help Building Strategies?
 ==============================
 
@@ -301,3 +308,25 @@ This will open a web browser with a visualization of the profiling results.
 
    **Profiling can be complex**, so it is recommended to read the `yappi documentation <https://yappi.readthedocs.io/en/latest/>`__.
 
+Frequently Asked Questions
+==========================
+
+**What is the fastest way to test a strategy?**
+
+Use Yahoo Finance backtesting -- it's free and requires no API keys. Import ``YahooDataBacktesting``, set a date range, and call ``.backtest()``. See the example at the top of this page.
+
+**Do I need a broker account to get started?**
+
+No. You can backtest strategies using free data from Yahoo Finance without any broker account. You only need a broker when you're ready to paper trade or go live. Alpaca offers free paper trading accounts.
+
+**Can I build an AI-powered trading strategy?**
+
+Yes! LumiBot supports AI trading agents that use LLMs to make decisions on every bar. Create an agent in ``initialize()``, run it from ``on_trading_iteration()``, and it can call external tools, analyze data with DuckDB, and submit orders. The same code works for backtesting and live trading. See :doc:`agents` for the full guide.
+
+**Why must I use ``self.get_datetime()`` instead of ``datetime.now()``?**
+
+During backtesting, ``datetime.now()`` returns the real current time, not the simulated historical time. This will make your strategy think it's in the present when it's actually replaying historical data. Always use ``self.get_datetime()`` -- it works correctly in both backtesting and live trading.
+
+**Where can I find more help?**
+
+Check the :doc:`faq` for 70+ answered questions covering backtesting, brokers, AI agents, options, crypto, and more. Join the `Discord Community <https://discord.gg/v6asVjTCvh>`_ for live help from other LumiBot users.

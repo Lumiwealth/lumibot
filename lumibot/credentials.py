@@ -19,6 +19,10 @@ from lumibot.tools.lumibot_logger import get_logger
 logger = get_logger(__name__)
 
 
+def _quiet_backtest_logs_requested() -> bool:
+    return os.environ.get("BACKTESTING_QUIET_LOGS", "").strip().lower() in ("1", "true", "yes", "on")
+
+
 def find_and_load_dotenv(base_dir) -> bool:
     for root, dirs, files in os.walk(base_dir):
         logger.debug(f"Checking {root} for .env file")
@@ -28,7 +32,10 @@ def find_and_load_dotenv(base_dir) -> bool:
 
             # Create a colored message for the log using termcolor
             colored_message = termcolor.colored(f".env file loaded from: {dotenv_path}", "green")
-            logger.info(colored_message)
+            if _quiet_backtest_logs_requested():
+                logger.debug(colored_message)
+            else:
+                logger.info(colored_message)
 
             # Optional local override file. This is intentionally loaded *after* `.env` so it can
             # override settings without requiring edits to the primary file (which may contain
@@ -37,7 +44,10 @@ def find_and_load_dotenv(base_dir) -> bool:
             if os.path.exists(dotenv_local_path):
                 load_dotenv(dotenv_local_path, override=True)
                 colored_message = termcolor.colored(f".env.local file loaded from: {dotenv_local_path}", "green")
-                logger.info(colored_message)
+                if _quiet_backtest_logs_requested():
+                    logger.debug(colored_message)
+                else:
+                    logger.info(colored_message)
             return True
 
     return False
@@ -269,8 +279,9 @@ ALPACA_TEST_CONFIG = {  # Paper trading!
 
 # Tradier Configuration
 TRADIER_CONFIG = {
-    # Add TRADIER_ACCESS_TOKEN, TRADIER_ACCOUNT_NUMBER, and TRADIER_IS_PAPER to your .env file or set them as secrets
-    "ACCESS_TOKEN": os.environ.get("TRADIER_ACCESS_TOKEN"),
+    # Add TRADIER_ACCESS_TOKEN (or TRADIER_API_KEY), TRADIER_ACCOUNT_NUMBER, and TRADIER_IS_PAPER to your
+    # .env file or set them as secrets.
+    "ACCESS_TOKEN": os.environ.get("TRADIER_ACCESS_TOKEN") or os.environ.get("TRADIER_API_KEY"),
     "ACCOUNT_NUMBER": os.environ.get("TRADIER_ACCOUNT_NUMBER"),
     "PAPER": os.environ.get("TRADIER_IS_PAPER").lower() == "true"
     if os.environ.get("TRADIER_IS_PAPER")
@@ -279,8 +290,9 @@ TRADIER_CONFIG = {
 
 # Tradier test configuration for unit tests
 TRADIER_TEST_CONFIG = {
-    # Add TRADIER_TEST_ACCESS_TOKEN and TRADIER_TEST_ACCOUNT_NUMBER to your .env file or set them as secrets
-    "ACCESS_TOKEN": os.environ.get("TRADIER_TEST_ACCESS_TOKEN"),
+    # Add TRADIER_TEST_ACCESS_TOKEN (or TRADIER_TEST_API_KEY) and TRADIER_TEST_ACCOUNT_NUMBER to your .env file
+    # or set them as secrets.
+    "ACCESS_TOKEN": os.environ.get("TRADIER_TEST_ACCESS_TOKEN") or os.environ.get("TRADIER_TEST_API_KEY"),
     "ACCOUNT_NUMBER": os.environ.get("TRADIER_TEST_ACCOUNT_NUMBER"),
     "PAPER": True
 }

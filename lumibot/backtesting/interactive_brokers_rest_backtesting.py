@@ -197,6 +197,18 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                 except Exception:
                     pass
 
+        # If a native daily stock/index series is already loaded, prefer it over triggering a
+        # separate minute fetch. This preserves daily-cadence semantics and avoids unnecessary
+        # intraday index requests such as VIX/USD midpoint history during daily backtests.
+        if asset_type in {"stock", "index"}:
+            day_key = (base_asset, quote_asset, "day", self._normalize_exchange_key(effective_exchange))
+            day_data = self._data_store.get(day_key)
+            if day_data is not None:
+                try:
+                    return day_data.get_last_price(now)
+                except Exception:
+                    pass
+
         minute_key = (base_asset, quote_asset, "minute", self._normalize_exchange_key(effective_exchange))
         if minute_key not in self._fully_loaded_series:
             try:
@@ -259,6 +271,26 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                     pass
                 self._fully_loaded_series.add(day_key)
 
+            day_data = self._data_store.get(day_key)
+            if day_data is not None:
+                try:
+                    ohlcv_bid_ask_dict = day_data.get_quote(now)
+                    return Quote(
+                        asset=base_asset,
+                        price=ohlcv_bid_ask_dict.get("close"),
+                        bid=ohlcv_bid_ask_dict.get("bid"),
+                        ask=ohlcv_bid_ask_dict.get("ask"),
+                        volume=ohlcv_bid_ask_dict.get("volume"),
+                        timestamp=now,
+                        bid_size=ohlcv_bid_ask_dict.get("bid_size"),
+                        ask_size=ohlcv_bid_ask_dict.get("ask_size"),
+                        raw_data=ohlcv_bid_ask_dict,
+                    )
+                except Exception:
+                    pass
+
+        if asset_type in {"stock", "index"}:
+            day_key = (base_asset, quote_asset, "day", self._normalize_exchange_key(effective_exchange))
             day_data = self._data_store.get(day_key)
             if day_data is not None:
                 try:
@@ -461,7 +493,16 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                     exchange=effective_exchange,
                     include_after_hours=True,
                 )
-                self._fully_loaded_series.add(key)
+                data_prefetched = self._data_store.get(key)
+                df_prefetched = getattr(data_prefetched, "df", None) if data_prefetched is not None else None
+                if ibkr_helper.frame_covers_requested_window(
+                    df_prefetched,
+                    asset=asset_separated,
+                    timestep=dataset_key,
+                    start_dt=prefetch_start,
+                    end_dt=prefetch_end,
+                ):
+                    self._fully_loaded_series.add(key)
         elif asset_type in {"stock", "index"} and ts_unit == "day":
             # Equity/index daily strategies repeatedly request overlapping windows.
             # Prefetch the full backtest range once and reuse in-memory slices.
@@ -488,7 +529,16 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                     exchange=effective_exchange,
                     include_after_hours=include_after_hours,
                 )
-                self._fully_loaded_series.add(key)
+                data_prefetched = self._data_store.get(key)
+                df_prefetched = getattr(data_prefetched, "df", None) if data_prefetched is not None else None
+                if ibkr_helper.frame_covers_requested_window(
+                    df_prefetched,
+                    asset=asset_separated,
+                    timestep=dataset_key,
+                    start_dt=prefetch_start,
+                    end_dt=prefetch_end,
+                ):
+                    self._fully_loaded_series.add(key)
         elif asset_type == "crypto" and ts_unit == "day":
             # Prefetch daily series for the full backtest window on first access so we do not
             # hammer the downloader once per simulated day.
@@ -505,7 +555,16 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                     exchange=effective_exchange,
                     include_after_hours=True,
                 )
-                self._fully_loaded_series.add(key)
+                data_prefetched = self._data_store.get(key)
+                df_prefetched = getattr(data_prefetched, "df", None) if data_prefetched is not None else None
+                if ibkr_helper.frame_covers_requested_window(
+                    df_prefetched,
+                    asset=asset_separated,
+                    timestep=dataset_key,
+                    start_dt=prefetch_start,
+                    end_dt=prefetch_end,
+                ):
+                    self._fully_loaded_series.add(key)
         elif asset_type == "crypto" and ts_unit == "minute":
             # Crypto is 24/7 but IBKR history calls are still expensive. Intraday strategies can call
             # `get_historical_prices()` tens of thousands of times; prefetch the full window once
@@ -521,7 +580,16 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                     exchange=effective_exchange,
                     include_after_hours=True,
                 )
-                self._fully_loaded_series.add(key)
+                data_prefetched = self._data_store.get(key)
+                df_prefetched = getattr(data_prefetched, "df", None) if data_prefetched is not None else None
+                if ibkr_helper.frame_covers_requested_window(
+                    df_prefetched,
+                    asset=asset_separated,
+                    timestep=dataset_key,
+                    start_dt=self.datetime_start,
+                    end_dt=self.datetime_end,
+                ):
+                    self._fully_loaded_series.add(key)
         else:
                 self._update_pandas_data(
                     asset_separated,

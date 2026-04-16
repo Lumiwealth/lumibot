@@ -81,6 +81,12 @@ class Trader:
             show_tearsheet=True, 
             save_tearsheet=True, 
             show_indicators=True, 
+            plot_file_html=None,
+            trades_file=None,
+            trade_events_file=None,
+            settings_file=None,
+            indicators_file=None,
+            tearsheet_csv_file=None,
             tearsheet_file=None,
             tearsheet_metrics_file=None,
             base_filename=None,
@@ -104,6 +110,24 @@ class Trader:
 
         show_indicators: bool
             Whether to display the indicators (markers and lines) in the user's web browser. This is only used for backtesting.
+
+        plot_file_html: str
+            The path to save the trades plot HTML. This is only used for backtesting.
+
+        trades_file: str
+            The path to save the simplified trades CSV/parquet artifact. This is only used for backtesting.
+
+        trade_events_file: str
+            The path to save the full trade-events CSV/parquet artifact. This is only used for backtesting.
+
+        settings_file: str
+            The path to save backtest settings JSON. This is only used for backtesting.
+
+        indicators_file: str
+            The path to save indicators HTML. This is only used for backtesting.
+
+        tearsheet_csv_file: str
+            The path to save tearsheet CSV. This is only used for backtesting.
 
         tearsheet_file: str
             The path to save the tearsheet. This is only used for backtesting.
@@ -201,6 +225,12 @@ class Trader:
                         show_tearsheet=show_tearsheet,
                         save_tearsheet=save_tearsheet,
                         show_indicators=show_indicators,
+                        plot_file_html=plot_file_html,
+                        trades_file=trades_file,
+                        trade_events_file=trade_events_file,
+                        settings_file=settings_file,
+                        indicators_file=indicators_file,
+                        tearsheet_csv_file=tearsheet_csv_file,
                         tearsheet_file=tearsheet_file,
                         tearsheet_metrics_file=tearsheet_metrics_file,
                         base_filename=base_filename,
@@ -335,8 +365,7 @@ class Trader:
                 set_log_level("ERROR")
             else:
                 set_log_level("INFO")
-                set_console_log_level("ERROR")  # Set console log level to ERROR while keeping file logs at INFO
-                # When quiet_logs=False, allow INFO logs to console (respects BACKTESTING_QUIET_LOGS)
+                # When quiet_logs=False, show INFO logs on console too
         else:
             # Live trades should always have full logging for both console and file
             set_log_level("INFO")

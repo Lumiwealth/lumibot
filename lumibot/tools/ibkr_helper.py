@@ -32,6 +32,7 @@ IBKR_DEFAULT_CRYPTO_VENUE = "ZEROHASH"
 IBKR_DEFAULT_HISTORY_SOURCE = "Trades"
 IBKR_DEFAULT_FUTURES_EXCHANGE_FALLBACK = "CME"
 IBKR_DEFAULT_INDEX_HISTORY_SOURCE = "Midpoint"
+IBKR_STOCK_INDEX_DAILY_MAX_PERIOD = "180d"
 
 IBKR_CONID_NEGATIVE_CACHE_TTL_SECONDS = 24 * 60 * 60  # 24h (persisted via BacktestCacheManager when enabled)
 
@@ -901,6 +902,32 @@ def get_price_data(
         frame = frame.drop(columns=["missing"], errors="ignore")
     if asset_type in {"stock", "index"} and str(timestep_component).endswith("day"):
         frame = _repair_isolated_split_spikes_daily(frame)
+    placeholder_covered = _window_is_placeholder_covered(df_cache, start_local=start_local, end_local=end_local)
+    if not frame.empty:
+        try:
+            covers_requested_window = frame_covers_requested_window(
+                frame,
+                asset=asset,
+                timestep=timestep,
+                start_dt=start_utc,
+                end_dt=end_utc,
+            )
+        except Exception:
+            covers_requested_window = False
+        if not covers_requested_window:
+            logger.warning(
+                "IBKR cached history remained underfilled after refresh for %s/%s timestep=%s exchange=%s source=%s; "
+                "returning available real bars instead of synthesizing an empty dataset "
+                "(placeholder_covered=%s)",
+                getattr(asset, "symbol", None),
+                getattr(quote, "symbol", None) if quote else None,
+                timestep,
+                effective_exchange,
+                history_source,
+                placeholder_covered,
+            )
+    elif placeholder_covered:
+        return frame
     return frame
 
 
@@ -1509,16 +1536,17 @@ def _fetch_history_between_dates(
     include_after_hours: bool,
     source: str,
     source_was_explicit: bool,
+    _period_override: Optional[str] = None,
 ) -> pd.DataFrame:
     conid = _resolve_conid(asset=asset, quote=quote, exchange=exchange)
     bar, bar_seconds, _cache_timestep = _timestep_to_ibkr_bar(timestep)
-    period = _max_period_for_bar(bar)
     asset_type = _normalize_asset_type(getattr(asset, "asset_type", ""))
     # IBKR's `continuous=true` is IBKR-specific roll behavior. For LumiBot `cont_future` assets
     # we prefer our own synthetic roll (explicit contract series per expiration) so parity is
     # stable across data providers. Only request IBKR "continuous" when we truly do not have an
     # explicit expiration to anchor the contract.
     continuous = bool(asset_type == "cont_future" and getattr(asset, "expiration", None) is None)
+    period = _period_override or _history_period_for_request(asset_type=asset_type, bar=bar, source=source)
 
     cursor_end = _to_utc(end_dt)
     start_dt = _to_utc(start_dt)
@@ -1540,18 +1568,12 @@ def _fetch_history_between_dates(
         # IBKR typically returns {"data":[...]} (empty list means no data).
         data = payload.get("data") if isinstance(payload, dict) else None
         if not data:
-            # If we already fetched earlier chunks, keep them and stop paging.
-            #
-            # WHY:
-            # - During long backward pagination windows, an occasional empty page can occur due to
-            #   transient gateway behavior even when previous pages were valid.
-            # - Returning an empty frame here would discard all collected bars and can poison the
-            #   cache with a broad missing-window marker.
             if chunks:
-                break
+                raise RuntimeError(
+                    "IBKR history pagination returned empty data before covering the requested window "
+                    f"for {getattr(asset, 'symbol', None)} {timestep} ({start_dt.isoformat()} -> {end_dt.isoformat()})"
+                )
 
-            # True no-data at the first page: write placeholders so we don't hammer IBKR for the
-            # same fully empty range.
             _record_missing_window(
                 asset=asset,
                 quote=quote,
@@ -1566,9 +1588,11 @@ def _fetch_history_between_dates(
 
         df = _history_payload_to_frame(data, source_was_explicit=source_was_explicit)
         if df.empty:
-            # Same rationale as above: preserve already-fetched chunks when a later page is empty.
             if chunks:
-                break
+                raise RuntimeError(
+                    "IBKR history pagination returned an empty frame before covering the requested window "
+                    f"for {getattr(asset, 'symbol', None)} {timestep} ({start_dt.isoformat()} -> {end_dt.isoformat()})"
+                )
 
             _record_missing_window(
                 asset=asset,
@@ -1617,6 +1641,104 @@ def _fetch_history_between_dates(
     #
     # The caller (`get_price_data`) performs the final slice for the requested time range.
     return merged
+
+
+def _history_period_for_request(*, asset_type: str, bar: str, source: str) -> str:
+    normalized_bar = (bar or "").strip().lower()
+    if asset_type in {"stock", "index"} and normalized_bar.endswith("d"):
+        return IBKR_STOCK_INDEX_DAILY_MAX_PERIOD
+    return _max_period_for_bar(bar)
+
+
+def frame_covers_requested_window(
+    df: pd.DataFrame,
+    *,
+    asset: Asset,
+    timestep: str,
+    start_dt: datetime,
+    end_dt: datetime,
+) -> bool:
+    if df is None or df.empty:
+        return False
+
+    asset_type = _normalize_asset_type(getattr(asset, "asset_type", ""))
+    try:
+        bar, _, _ = _timestep_to_ibkr_bar(timestep)
+    except Exception:
+        return False
+
+    tolerance = timedelta(0)
+    normalized_bar = (bar or "").strip().lower()
+    if normalized_bar.endswith("min"):
+        tolerance = timedelta(minutes=int(normalized_bar.removesuffix("min") or "1")) * 3
+    elif normalized_bar.endswith("h"):
+        tolerance = timedelta(hours=int(normalized_bar.removesuffix("h") or "1")) * 3
+    elif normalized_bar.endswith("d"):
+        tolerance = timedelta(days=int(normalized_bar.removesuffix("d") or "1")) * 3
+
+    frame = df
+    if asset_type in {"stock", "index"} and normalized_bar.endswith("d"):
+        try:
+            frame = _align_stock_index_daily_to_session_close(df)
+        except Exception:
+            frame = df
+
+    start_local = pd.Timestamp(start_dt)
+    end_local = pd.Timestamp(end_dt)
+    coverage_start = frame.index.min()
+    coverage_end = frame.index.max()
+    if coverage_start is None or coverage_end is None:
+        return False
+
+    try:
+        if coverage_start.tzinfo is not None and start_local.tzinfo is None:
+            start_local = start_local.tz_localize(coverage_start.tzinfo)
+        elif coverage_start.tzinfo is None and start_local.tzinfo is not None:
+            start_local = start_local.tz_localize(None)
+        elif coverage_start.tzinfo is not None and start_local.tzinfo is not None:
+            start_local = start_local.tz_convert(coverage_start.tzinfo)
+    except Exception:
+        pass
+
+    try:
+        if coverage_end.tzinfo is not None and end_local.tzinfo is None:
+            end_local = end_local.tz_localize(coverage_end.tzinfo)
+        elif coverage_end.tzinfo is None and end_local.tzinfo is not None:
+            end_local = end_local.tz_localize(None)
+        elif coverage_end.tzinfo is not None and end_local.tzinfo is not None:
+            end_local = end_local.tz_convert(coverage_end.tzinfo)
+    except Exception:
+        pass
+
+    return bool(
+        coverage_start <= (start_local + tolerance)
+        and coverage_end >= (end_local - tolerance)
+    )
+
+
+def _downloader_history_meta(payload: Any) -> Dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {}
+    meta = payload.get("_botspot_meta")
+    if not isinstance(meta, dict):
+        return {}
+    if str(meta.get("provider") or "").strip().lower() != "ibkr":
+        return {}
+    return meta
+
+
+def _ensure_cacheable_downloader_history_payload(payload: Any) -> None:
+    meta = _downloader_history_meta(payload)
+    if not meta:
+        return
+    classification = str(meta.get("classification") or "").strip().lower()
+    cache_policy = str(meta.get("cache_write_policy") or "").strip().lower()
+    if classification in {"complete", "explicit_no_data"} and cache_policy in {"allow", "negative_only"}:
+        return
+    raise RuntimeError(
+        "IBKR downloader returned a non-cacheable history payload "
+        f"(classification={classification or 'unknown'} cache_write_policy={cache_policy or 'unknown'})"
+    )
 
 
 def _ibkr_history_request(
@@ -1672,6 +1794,7 @@ def _ibkr_history_request(
                 return fallback_result
         # Do not treat entitlement errors as NO_DATA; surface them to the caller.
         raise RuntimeError(f"IBKR history error: {result.get('error')}")
+    _ensure_cacheable_downloader_history_payload(result)
     return result
 
 

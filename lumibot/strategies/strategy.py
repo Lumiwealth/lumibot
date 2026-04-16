@@ -1285,6 +1285,92 @@ class Strategy(_Strategy):
         """
         return self.cash
 
+    def adjust_cash(self, amount: float, reason: str = "manual_adjustment", allow_negative: bool | None = None) -> float:
+        """Adjust cash directly during backtesting.
+
+        Positive values add cash, negative values remove cash. This method is intended for
+        framework-supported strategy cashflows (for example synthetic withdrawals/deposits and
+        custom financing accruals) without mutating private internals.
+        """
+        return self._apply_cash_adjustment(
+            delta_cash=amount,
+            reason=reason,
+            kind="adjustment",
+            allow_negative=allow_negative,
+        )
+
+    def withdraw_cash(self, amount: float, reason: str = "withdrawal", allow_negative: bool | None = None) -> float:
+        """Withdraw cash during backtesting and return the updated cash balance."""
+        try:
+            amount_value = float(amount)
+        except (TypeError, ValueError):
+            raise ValueError("amount must be a finite positive number")
+        if not math.isfinite(amount_value) or amount_value <= 0:
+            raise ValueError("amount must be a finite positive number")
+
+        return self._apply_cash_adjustment(
+            delta_cash=-amount_value,
+            reason=reason,
+            kind="withdrawal",
+            allow_negative=allow_negative,
+        )
+
+    def deposit_cash(self, amount: float, reason: str = "deposit") -> float:
+        """Deposit cash during backtesting and return the updated cash balance."""
+        try:
+            amount_value = float(amount)
+        except (TypeError, ValueError):
+            raise ValueError("amount must be a finite positive number")
+        if not math.isfinite(amount_value) or amount_value <= 0:
+            raise ValueError("amount must be a finite positive number")
+
+        return self._apply_cash_adjustment(
+            delta_cash=amount_value,
+            reason=reason,
+            kind="deposit",
+            allow_negative=True,
+        )
+
+    def configure_cash_financing(
+        self,
+        *,
+        enabled: bool = True,
+        account_mode: str = "margin",
+        day_count_basis: int = 360,
+        missing_rate_policy: str = "carry_forward",
+    ) -> None:
+        """Configure framework-managed daily cash financing for backtests.
+
+        Parameters
+        ----------
+        enabled : bool
+            Enables/disables financing accrual.
+        account_mode : str
+            ``"margin"`` allows negative cash balances, ``"cash"`` blocks them.
+        day_count_basis : int
+            Day-count basis used for daily accrual conversion (broker-like default is 360).
+        missing_rate_policy : str
+            ``"carry_forward"`` uses last known rates, ``"error"`` raises if a rate is missing.
+        """
+        self._configure_cash_financing(
+            enabled=enabled,
+            account_mode=account_mode,
+            day_count_basis=day_count_basis,
+            missing_rate_policy=missing_rate_policy,
+        )
+
+    def set_cash_financing_rates(
+        self,
+        *,
+        credit_rate_annual: float | None = None,
+        debit_rate_annual: float | None = None,
+    ) -> None:
+        """Set annualized cash financing rates used by framework daily accrual."""
+        self._set_cash_financing_rates(
+            credit_rate_annual=credit_rate_annual,
+            debit_rate_annual=debit_rate_annual,
+        )
+
     def get_positions(self, include_cash_positions: bool = False):
         """Get all positions for the account.
 
@@ -4978,6 +5064,12 @@ class Strategy(_Strategy):
             Supported values:
             - ``{"My Metric": 1.23}``
             - ``{"My Metric": {"strategy": 1.23, "benchmark": 0.87}}``
+            - ``{"My Metric": {"Strategy": 1.23, "Benchmark (SPY)": 0.87}}``
+
+            Custom metrics are treated as literal scalars. LumiBot and QuantStats do
+            not automatically infer percent units for custom rows, so the safest
+            pattern is to return unit-clear values such as counts, days, ratios, or
+            raw decimals with explicit names.
 
         Example
         -------
@@ -4990,8 +5082,13 @@ class Strategy(_Strategy):
         >>>     drawdown_details,
         >>>     risk_free_rate,
         >>> ):
-        >>>     avg_abs_return = float(strategy_returns.abs().mean()) if not strategy_returns.empty else 0.0
-        >>>     return {"Avg Absolute Daily Return %": avg_abs_return * 100.0}
+        >>>     non_null_returns = strategy_returns.dropna()
+        >>>     return {
+        >>>         "Custom Return Observation Count": int(non_null_returns.shape[0]),
+        >>>         "Custom Mean Absolute Daily Return": (
+        >>>             float(non_null_returns.abs().mean()) if not non_null_returns.empty else 0.0
+        >>>         ),
+        >>>     }
         """
         return {}
 
@@ -5267,7 +5364,7 @@ class Strategy(_Strategy):
     @classmethod
     def backtest(
         self,
-        datasource_class: Type[DataSource],
+        datasource_class: Type[DataSource] | None = None,
         backtesting_start: datetime.datetime = None,
         backtesting_end: datetime.datetime = None,
         minutes_before_closing: int = 1,
@@ -5314,9 +5411,10 @@ class Strategy(_Strategy):
 
         Parameters
         ----------
-        datasource_class : class
+        datasource_class : class, optional
             The datasource class to use. For example, if you want to use the yahoo finance datasource, then you
-            would pass YahooDataBacktesting as the datasource_class.
+            would pass YahooDataBacktesting as the datasource_class. When BACKTESTING_DATA_SOURCE is configured
+            in the environment, you may leave this as None and let the runtime resolve the effective datasource.
         backtesting_start : datetime.datetime
             The start date of the backtesting period.
         backtesting_end : datetime.datetime
@@ -5433,7 +5531,7 @@ class Strategy(_Strategy):
         >>> benchmark_asset = Asset(symbol="QQQ", asset_type="stock")
         >>>
         >>> backtest = MyStrategy.backtest(
-        >>>     datasource_class=YahooDataBacktesting,
+        >>>     datasource_class=None,
         >>>     backtesting_start=backtesting_start,
         >>>     backtesting_end=backtesting_end,
         >>>     benchmark_asset=benchmark_asset,

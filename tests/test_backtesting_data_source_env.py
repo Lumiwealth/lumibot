@@ -138,6 +138,39 @@ class TestBacktestingDataSourceEnv:
             for record in caplog.records
         )
 
+    def test_backtest_allows_omitting_datasource_class_when_env_is_set(self, monkeypatch, caplog):
+        import logging
+
+        caplog.set_level(logging.INFO, logger="lumibot.strategies._strategy")
+
+        class YahooDataBacktesting:
+            def __init__(self, *args, **kwargs):
+                raise TestBacktestingDataSourceEnv._YahooSelected()
+
+        import lumibot.strategies._strategy as strategy_module
+
+        monkeypatch.setattr(strategy_module, "YahooDataBacktesting", YahooDataBacktesting)
+        monkeypatch.setenv("BACKTESTING_DATA_SOURCE", "Yahoo")
+
+        with pytest.raises(self._YahooSelected):
+            SimpleTestStrategy.backtest(
+                backtesting_start=datetime(2023, 1, 1),
+                backtesting_end=datetime(2023, 1, 10),
+                quiet_logs=False,
+                show_plot=False,
+                show_tearsheet=False,
+                show_indicators=False,
+                show_progress_bar=False,
+                save_tearsheet=False,
+                save_stats_file=False,
+                save_logfile=False,
+            )
+
+        assert any(
+            "Using BACKTESTING_DATA_SOURCE setting for backtest data: Yahoo" in record.message
+            for record in caplog.records
+        )
+
     def test_invalid_data_source_raises_error(self, monkeypatch):
         monkeypatch.setenv("BACKTESTING_DATA_SOURCE", "InvalidSource")
 

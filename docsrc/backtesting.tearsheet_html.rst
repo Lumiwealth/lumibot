@@ -28,6 +28,81 @@ Alongside ``*_tearsheet.html``, LumiBot also writes ``*_tearsheet_metrics.json``
 - It is intended for downstream automation (agents, dashboards, APIs).
 - You can append strategy-specific metrics by implementing
   ``Strategy.tearsheet_custom_metrics(...)``.
+- Percentage-style built-in tearsheet metrics are stored as raw decimals in JSON.
+- The monthly downside row is named ``Worst 1-Month Return``.
+
+Cashflow-adjusted returns
+-------------------------
+
+Tearsheet performance now uses the cashflow-adjusted return series from LumiBot stats generation.
+
+That means:
+
+- deposits do not create artificial positive performance
+- withdrawals do not create artificial negative performance
+- financing, dividends, fees, and trading P&L remain part of strategy performance
+
+For manual inspection of the underlying mechanics, use:
+
+- ``stats.csv`` / ``stats.parquet`` for the snapshot series and cashflow period columns
+- ``trades.csv`` / ``trades.parquet`` for the discrete event rows
+- ``trades.html`` for the visual overlay of raw portfolio value, cash-adjusted portfolio value, cash, and event markers
+
+Custom metrics workflow
+-----------------------
+
+Use ``Strategy.tearsheet_custom_metrics(...)`` when you want strategy-defined rows in
+both the HTML tearsheet and ``*_tearsheet_metrics.json``.
+
+Example:
+
+.. code-block:: python
+
+   class MyStrategy(Strategy):
+       def tearsheet_custom_metrics(
+           self,
+           stats_df,
+           strategy_returns,
+           benchmark_returns,
+           drawdown,
+           drawdown_details,
+           risk_free_rate,
+       ):
+           non_null_returns = strategy_returns.dropna()
+           avg_dd_days = (
+               float(drawdown_details["days"].mean())
+               if not drawdown_details.empty and "days" in drawdown_details.columns
+               else 0.0
+           )
+           return {
+               "Custom Return Observation Count": int(non_null_returns.shape[0]),
+               "Custom Mean Absolute Daily Return": (
+                   float(non_null_returns.abs().mean()) if not non_null_returns.empty else 0.0
+               ),
+               "Custom Average Drawdown Days": avg_dd_days,
+           }
+
+Design rules:
+
+- This is a rare-use feature. Most strategies should not implement custom tearsheet rows.
+- Custom metrics are literal scalar inserts, not auto-formatted percentage rows.
+- Prefer unit-clear names and values.
+- Use scalar values unless you explicitly need strategy/benchmark split output.
+- If no custom metrics apply, return ``{}``.
+- For short or degenerate runs, LumiBot still writes a placeholder
+  ``*_tearsheet_metrics.json`` instead of failing.
+
+Release-order note
+------------------
+
+When the tearsheet metric contract changes:
+
+1. release ``quantstats_lumi`` first,
+2. update LumiBot's dependency floor,
+3. validate the released QuantStats package against the local LumiBot source,
+4. only then release LumiBot.
+
+See also: :doc:`cash_accounting`
 
 .. figure:: _html/images/tearsheet_condor_martingale.png
    :alt: Tearsheet example 1

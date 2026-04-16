@@ -27,6 +27,9 @@ This folder contains **human-authored** documentation for the LumiBot trading an
 If you’re coordinating IBKR speed + crash hardening work, start with:
 - `docs/handoffs/2026-01-26_IBKR_SPEED_RESILIENCE_MASTER_HANDOFF.md`
 
+If you’re assessing whether backtests should be sped up via parallelism, start with:
+- `docs/investigations/2026-03-28_BACKTEST_PARALLELISM_ASSESSMENT.md`
+
 ---
 
 ## File Index
@@ -47,6 +50,9 @@ If you’re coordinating IBKR speed + crash hardening work, start with:
 | `BACKTESTING_TESTS.md` | Test suite organization and how to run backtest-related tests | When writing or debugging tests |
 | `THETADATA_CACHE_VALIDATION.md` | How ThetaData caching works, cache invalidation, version bumping | When debugging stale data or cache issues |
 | `REMOTE_CACHE.md` | S3 remote cache architecture and configuration | When debugging cache sync or S3 issues |
+| `AI_TRADING_AGENTS.md` | Architecture, roadmap, prompt model, observability model, external MCP strategy, and acceptance-test plan for LumiBot's AI trading agent runtime | When documenting or planning LumiBot's AI trading agent feature set |
+| `AI_AGENT_RUNTIME_PLAN.md` | Research summary, implementation notes, and follow-on plan for agentic strategies | When planning runtime internals, replay caching, memory, and tool plumbing |
+| `TEARSHEET_METRICS.md` | Machine-readable tearsheet artifacts, custom tearsheet metrics, and usage rules | When working on tearsheet metrics, custom metrics, or agent consumption of tearsheet summaries |
 | `PRODLIKE_LOCAL_BACKTEST_RUNS.md` | How to run production-like backtests locally | When replicating prod behavior locally |
 | `DEPLOYMENT.md` | Release workflow (version branches, changelog, tags) | When deploying a new version |
 | `FUTURES_ROLL_POLICY.md` | Futures contract rolling logic and configuration | When working with futures strategies |
@@ -81,6 +87,10 @@ docs/
 |-----------|---------|-------------|
 | `handoffs/` | Cross-session coordination notes between AI agents or developers | When pausing work mid-task, switching contexts, or coordinating with others |
 | `investigations/` | Deep dives, root-cause analyses, accuracy audits | When debugging complex issues or documenting findings for future reference |
+
+Recommended investigation for backtest scaling questions:
+
+- `docs/investigations/2026-03-28_BACKTEST_PARALLELISM_ASSESSMENT.md`
 
 ---
 

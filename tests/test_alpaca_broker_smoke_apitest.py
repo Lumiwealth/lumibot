@@ -1,10 +1,11 @@
 import time
 
 import pytest
+from alpaca.common.exceptions import APIError
 
 from lumibot.brokers.alpaca import Alpaca
 from lumibot.credentials import ALPACA_TEST_CONFIG
-from lumibot.entities import Asset, Order
+from lumibot.entities import Asset, CashEvent, Order
 
 
 pytestmark = pytest.mark.apitest
@@ -66,5 +67,20 @@ def test_alpaca_smoke_place_and_cancel_day_limit_order():
             time.sleep(0.25)
 
         assert status in {"canceled", "cancelled"} or status.endswith(".canceled") or status.endswith(".cancelled")
+    finally:
+        broker.cleanup_streams()
+
+
+def test_alpaca_smoke_cash_events_read_path():
+    broker = _alpaca()
+    try:
+        try:
+            events = broker.get_cash_events(limit=10)
+        except APIError as exc:
+            if "unauthorized" in str(exc).lower():
+                pytest.skip("Alpaca paper credentials are not authorized for account activities in this environment.")
+            raise
+        assert isinstance(events, list)
+        assert all(isinstance(event, CashEvent) for event in events)
     finally:
         broker.cleanup_streams()

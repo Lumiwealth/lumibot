@@ -145,6 +145,58 @@ def test_create_tearsheet_writes_metrics_json_without_custom_metrics(monkeypatch
     assert "Sharpe" in payload["scalar_metrics"]
 
 
+def test_create_tearsheet_falls_back_when_metrics_json_api_is_missing(monkeypatch, tmp_path):
+    import quantstats_lumi as qs
+
+    def fake_html(returns, benchmark=None, title=None, output=None, download_filename=None, **kwargs):
+        if output:
+            with open(output, "w", encoding="utf-8") as handle:
+                handle.write("<html><body>ok</body></html>")
+        return pd.DataFrame({"Metric": ["Sharpe"], "Strategy": ["1.23"]})
+
+    def fake_metrics(returns, benchmark=None, rf=0.0, display=True, **kwargs):
+        assert display is False
+        return pd.DataFrame(
+            {
+                "Metric": ["Sharpe", "Total Return"],
+                "Benchmark": [0.91, "4.00%"],
+                "Strategy": [1.23, "8.00%"],
+            }
+        )
+
+    monkeypatch.setattr(qs.reports, "html", fake_html)
+    monkeypatch.delattr(qs.reports, "metrics_json", raising=False)
+    monkeypatch.setattr(qs.reports, "metrics", fake_metrics)
+
+    idx = pd.date_range(datetime(2025, 12, 8), periods=5, freq="1D")
+    strategy_df = pd.DataFrame({"portfolio_value": [100, 101, 100, 102, 103]}, index=idx)
+    benchmark_df = pd.DataFrame({"symbol_cumprod": [100, 100.5, 100.2, 101, 101.1]}, index=idx)
+
+    tearsheet_file = tmp_path / "tearsheet.html"
+    metrics_file = tmp_path / "tearsheet_metrics.json"
+
+    create_tearsheet(
+        strategy_df=strategy_df,
+        strat_name="FallbackMetricsStrategy",
+        tearsheet_file=str(tearsheet_file),
+        benchmark_df=benchmark_df,
+        benchmark_asset="SPY",
+        show_tearsheet=False,
+        save_tearsheet=True,
+        risk_free_rate=0.0,
+        tearsheet_metrics_file=str(metrics_file),
+    )
+
+    payload = json.loads(metrics_file.read_text(encoding="utf-8"))
+    assert payload["metadata"]["summary_only"] is True
+    assert payload["metadata"]["status"] == "ok"
+    assert payload["metadata"]["source"] == "metrics_fallback"
+    assert payload["scalar_metrics"]["Sharpe"] == 1.23
+    assert payload["scalar_metrics"]["Total Return"] == "8.00%"
+    assert payload["benchmark_scalar_metrics"]["Sharpe"] == 0.91
+    assert payload["benchmark_scalar_metrics"]["Total Return"] == "4.00%"
+
+
 def test_create_tearsheet_writes_placeholder_metrics_json_on_insufficient_data(tmp_path):
     idx = pd.to_datetime(["2025-01-02"])
     strategy_df = pd.DataFrame({"portfolio_value": [100000.0]}, index=idx)

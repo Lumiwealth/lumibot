@@ -8,14 +8,14 @@ from decimal import Decimal
 
 import pandas_market_calendars as mcal
 from alpaca.trading.client import TradingClient
-from alpaca.trading.enums import QueryOrderStatus, PositionSide
+from alpaca.trading.enums import ActivityType, QueryOrderStatus, PositionSide
 from alpaca.trading.requests import GetOrdersRequest, ReplaceOrderRequest
 from alpaca.trading.stream import TradingStream
 from dateutil import tz
 from termcolor import colored
 
 from lumibot.data_sources import AlpacaData
-from lumibot.entities import Asset, Order, Position, Quote
+from lumibot.entities import Asset, CashEvent, Order, Position, Quote
 from lumibot.tools.helpers import has_more_than_n_decimal_places
 from lumibot.tools.lumibot_logger import get_logger
 from lumibot.trading_builtins import PollingStream
@@ -113,6 +113,39 @@ class Alpaca(Broker):
         forex=[],
         crypto=["crypto", "CRYPTO"],  # Added support for crypto asset class names
     )
+    CASH_ACTIVITY_TYPES = tuple(activity.value for activity in ActivityType if activity != ActivityType.FILL)
+    DIVIDEND_ACTIVITY_TYPES = {
+        "DIV",
+        "DIVCGL",
+        "DIVCGS",
+        "DIVNRA",
+        "DIVROC",
+        "DIVTXEX",
+    }
+    TAX_ACTIVITY_TYPES = {"DIVWH", "WH"}
+    FEE_ACTIVITY_TYPES = {"CFEE", "FEE"}
+    INTEREST_ACTIVITY_TYPES = {"INT", "INTPNL"}
+    JOURNAL_ACTIVITY_TYPES = {"JNLC", "JNLS"}
+    EXTERNAL_CASH_ACTIVITY_TYPES = {"ACATC", "ACATS", "CSD", "CSW"}
+    TRADE_LIKE_ACTIVITY_TYPES = {"FXTRD", "OPTRD"}
+    ADJUSTMENT_ACTIVITY_TYPES = {
+        "CIL",
+        "EXTRD",
+        "MA",
+        "MEM",
+        "NC",
+        "OCT",
+        "OPASN",
+        "OPCSH",
+        "OPEXC",
+        "OPEXP",
+        "PTC",
+        "REORG",
+        "SPIN",
+        "SPLIT",
+        "SWP",
+        "VOF",
+    }
 
     def __init__(self, config, max_workers=20, chunk_size=100, connect_stream=True, data_source=None, polling_interval=5.0):
         # Calling init methods
@@ -1106,6 +1139,128 @@ class Alpaca(Broker):
             "hour": response_hour.df,
             "day": response_day.df,
         }
+
+    @classmethod
+    def _map_cash_event_type(cls, raw_type: str, amount: float) -> tuple[str, bool]:
+        normalized_raw_type = str(raw_type or "").upper().strip()
+
+        if normalized_raw_type == "CSD":
+            return "deposit", True
+        if normalized_raw_type in {"ACATS", "CSW"}:
+            return "withdrawal", True
+        if normalized_raw_type == "ACATC":
+            return ("deposit" if amount >= 0 else "withdrawal"), True
+        if normalized_raw_type in cls.DIVIDEND_ACTIVITY_TYPES:
+            return "dividend", False
+        if normalized_raw_type in cls.TAX_ACTIVITY_TYPES:
+            return "tax", False
+        if normalized_raw_type in cls.FEE_ACTIVITY_TYPES:
+            return "fee", False
+        if normalized_raw_type in cls.INTEREST_ACTIVITY_TYPES:
+            return "interest", False
+        if normalized_raw_type in cls.JOURNAL_ACTIVITY_TYPES:
+            return "journal", False
+        if normalized_raw_type in cls.ADJUSTMENT_ACTIVITY_TYPES:
+            return "adjustment", False
+        return "other_cash", normalized_raw_type in cls.EXTERNAL_CASH_ACTIVITY_TYPES
+
+    @classmethod
+    def _normalize_activity_to_cash_event(cls, activity: dict) -> CashEvent | None:
+        if not isinstance(activity, dict):
+            return None
+
+        raw_type = str(activity.get("activity_type") or "").upper().strip()
+        if not raw_type or raw_type == ActivityType.FILL.value or raw_type in cls.TRADE_LIKE_ACTIVITY_TYPES:
+            return None
+
+        amount = CashEvent.coerce_amount(activity.get("net_amount"))
+        event_type, is_external_cash_flow = cls._map_cash_event_type(raw_type, amount)
+        occurred_at = (
+            activity.get("date")
+            or activity.get("transaction_time")
+            or activity.get("created_at")
+        )
+
+        return CashEvent(
+            event_id=CashEvent.build_event_id(
+                broker_name="alpaca",
+                broker_event_id=activity.get("id"),
+                raw_type=raw_type,
+                raw_subtype=activity.get("status"),
+                occurred_at=occurred_at,
+                amount=amount,
+                description=activity.get("description"),
+            ),
+            broker_event_id=activity.get("id"),
+            broker_name="alpaca",
+            event_type=event_type,
+            raw_type=raw_type,
+            raw_subtype=activity.get("status"),
+            amount=amount,
+            currency=activity.get("currency") or "USD",
+            occurred_at=occurred_at,
+            description=activity.get("description"),
+            direction=CashEvent._infer_direction(amount),
+            is_external_cash_flow=is_external_cash_flow,
+        )
+
+    def get_cash_events(
+        self,
+        *,
+        since: datetime.datetime | None = None,
+        limit: int | None = 100,
+    ) -> list[CashEvent]:
+        normalized_limit = max(int(limit or 100), 1)
+        page_size = min(max(normalized_limit * 10, normalized_limit), 100)
+        normalized_events = []
+        seen_event_ids = set()
+
+        # Alpaca's account-activities endpoint has historically rejected some otherwise valid-looking
+        # activity-type filters (for example `INTPNL`) with 400 responses. Pull raw activity pages and
+        # normalize client-side, but paginate until we actually collect `limit` cash events instead of
+        # stopping after the first raw page.
+        request_fields = {
+            "direction": "desc",
+            "page_size": page_size,
+        }
+        if since is not None:
+            request_fields["after"] = CashEvent.coerce_datetime(since).isoformat()
+
+        page_token = None
+        max_pages = 50
+        for _ in range(max_pages):
+            if page_token:
+                request_fields["page_token"] = page_token
+            else:
+                request_fields.pop("page_token", None)
+
+            raw_activities = self.api.get("/account/activities", request_fields)
+            if isinstance(raw_activities, dict):
+                raw_activities = raw_activities.get("activities") or raw_activities.get("activity") or []
+
+            if not raw_activities:
+                break
+
+            for activity in raw_activities:
+                event = self._normalize_activity_to_cash_event(activity)
+                if event is not None and event.event_id not in seen_event_ids:
+                    normalized_events.append(event)
+                    seen_event_ids.add(event.event_id)
+
+            if len(normalized_events) >= normalized_limit:
+                break
+
+            last_row = raw_activities[-1]
+            next_token = last_row.get("id") if isinstance(last_row, dict) else None
+            if not next_token or next_token == page_token:
+                break
+            page_token = next_token
+
+        normalized_events.sort(key=lambda event: (event.occurred_at, event.event_id))
+        if len(normalized_events) > normalized_limit:
+            normalized_events = normalized_events[-normalized_limit:]
+        logger.debug("Alpaca returned %s normalized cash events", len(normalized_events))
+        return normalized_events
 
     # =======Stream functions=========
 

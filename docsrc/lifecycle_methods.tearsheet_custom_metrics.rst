@@ -8,6 +8,8 @@ analysis, immediately before LumiBot writes:
 - ``*_tearsheet_metrics.json``
 
 Use this hook when you want strategy-defined metrics in both artifacts.
+This is the supported way to add strategy-specific tearsheet summary rows without
+forking LumiBot or QuantStats.
 
 When it runs
 ------------
@@ -65,6 +67,7 @@ Supported formats:
 
     {"Custom Metric A": 1.23}
     {"Custom Metric B": {"strategy": 1.23, "benchmark": 0.91}}
+    {"Custom Metric C": {"Strategy": 1.23, "Benchmark (SPY)": 0.91}}
 
 Behavior rules:
 
@@ -72,6 +75,52 @@ Behavior rules:
 2. Returning ``None`` is treated as no custom metrics.
 3. Returning a non-dict is ignored (with a warning).
 4. Exceptions inside the hook are caught; tearsheet generation continues.
+
+Unit semantics
+--------------
+
+Custom metrics are treated as literal scalars.
+
+- LumiBot forwards them to QuantStats as-is.
+- ``tearsheet_metrics.json`` preserves machine-typed scalar values.
+- The tearsheet HTML table shows the same scalar values.
+
+Because there is no automatic percent/unit inference for custom rows, prefer
+unit-clear metric names and values such as:
+
+- counts
+- days
+- ratios
+- raw decimals with explicit naming
+
+Good examples:
+
+.. code-block:: python
+
+    {
+        "Custom Return Observation Count": 252,
+        "Custom Mean Absolute Daily Return": 0.0117,
+        "Custom Average Drawdown Days": 14.2,
+        "Custom Average Trapped Capital Pct of NLV": 0.1715,
+    }
+
+Naming guidance:
+
+- Avoid literal ``%`` characters in custom metric names.
+- Prefer ``Pct`` or ``Percent`` in the label and store the value as a raw decimal.
+- This keeps metric names stable across ``*_tearsheet.html`` and
+  ``*_tearsheet_metrics.json``.
+
+If you need per-column values, the most explicit form is:
+
+.. code-block:: python
+
+    {
+        "Custom Relative Edge": {
+            "Strategy": 1.23,
+            "Benchmark (SPY)": 0.91,
+        }
+    }
 
 Example
 -------
@@ -91,17 +140,41 @@ Example
             if strategy_returns.empty:
                 return {}
 
-            p95 = float(strategy_returns.quantile(0.95))
-            avg_dd_days = (
-                float(drawdown_details["days"].mean())
-                if not drawdown_details.empty and "days" in drawdown_details.columns
-                else 0.0
-            )
+            non_null_returns = strategy_returns.dropna()
+            avg_dd_days = 0.0
+            if not drawdown_details.empty and "days" in drawdown_details.columns:
+                avg_dd_days = float(drawdown_details["days"].mean())
 
             return {
-                "95th Percentile Daily Return": p95,
-                "Average Drawdown Days": avg_dd_days,
+                "Custom Return Observation Count": int(non_null_returns.shape[0]),
+                "Custom Mean Absolute Daily Return": (
+                    float(non_null_returns.abs().mean()) if not non_null_returns.empty else 0.0
+                ),
+                "Custom Average Drawdown Days": avg_dd_days,
             }
+
+End-to-end flow
+---------------
+
+1. Backtest finishes.
+2. LumiBot builds the strategy and benchmark return series.
+3. LumiBot calls ``tearsheet_custom_metrics(...)``.
+4. Returned metrics are merged into the QuantStats tearsheet table.
+5. The same metrics are written to:
+
+   - ``*_tearsheet.html``
+   - ``*_tearsheet_metrics.json``
+
+Practical guidance
+------------------
+
+- This hook is uncommon. Most strategies should not implement it.
+- Use this hook for strategy-specific summary rows.
+- Keep generic reusable metrics in QuantStats core.
+- Prefer scalar custom metrics unless you specifically need strategy/benchmark split values.
+- If no custom metrics apply for a run, return ``{}``.
+- Degenerate or too-short backtests should still finish; LumiBot writes a placeholder
+  ``*_tearsheet_metrics.json`` instead of crashing.
 
 API reference (source of truth)
 -------------------------------

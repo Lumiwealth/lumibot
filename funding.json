@@ -1,0 +1,51 @@
+{
+  "version": "v1.0.0",
+  "entity": {
+    "type": "organisation",
+    "role": "owner",
+    "name": "Lumiwealth",
+    "email": "rob@botspot.trade",
+    "phone": "",
+    "description": "Lumiwealth builds open source tools for algorithmic trading and financial markets. Our flagship project, Lumibot, is a Python framework used by 14,000+ students and developers to build, backtest, and deploy trading bots across stocks, options, crypto, forex, and futures.",
+    "webpageUrl": {
+      "url": "https://lumiwealth.com"
+    }
+  },
+  "projects": [
+    {
+      "guid": "lumibot",
+      "name": "Lumibot",
+      "description": "Backtesting and Trading Bots Made Easy for Crypto, Stocks, Options, Futures, FOREX and more. Lumibot is a Python library that makes it simple to build and deploy algorithmic trading strategies with multiple broker integrations (Alpaca, Interactive Brokers, Tradier, Coinbase) and data sources (Yahoo Finance, ThetaData, Polygon).",
+      "webpageUrl": {
+        "url": "https://lumibot.lumiwealth.com"
+      },
+      "repositoryUrl": {
+        "url": "https://github.com/Lumiwealth/lumibot"
+      },
+      "licenses": ["GPL-3.0"],
+      "tags": ["python", "trading", "backtesting", "algorithmic-trading", "fintech", "quantitative-finance", "stocks", "options", "crypto", "forex", "futures"]
+    }
+  ],
+  "funding": {
+    "channels": [
+      {
+        "guid": "github-sponsors",
+        "type": "payment-provider",
+        "address": "https://github.com/sponsors/Lumiwealth",
+        "description": "GitHub Sponsors"
+      }
+    ],
+    "plans": [
+      {
+        "guid": "development",
+        "status": "active",
+        "name": "Core Development & Maintenance",
+        "description": "Ongoing development of Lumibot: new broker integrations, data source support, backtesting improvements, bug fixes, documentation, and community support.",
+        "amount": 100000,
+        "currency": "USD",
+        "frequency": "one-time"
+      }
+    ],
+    "history": []
+  }
+}

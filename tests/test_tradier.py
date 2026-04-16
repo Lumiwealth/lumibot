@@ -193,6 +193,20 @@ class TestTradierBroker:
         stock_order.side = "sell"
         assert broker._lumi_side2tradier(stock_order) == "sell"
 
+        # Extended stock sides should map to Tradier API accepted values
+        stock_order.side = "buy_to_open"
+        assert broker._lumi_side2tradier(stock_order) == "buy"
+        stock_order.side = "sell_to_close"
+        assert broker._lumi_side2tradier(stock_order) == "sell"
+        stock_order.side = "buy_to_close"
+        assert broker._lumi_side2tradier(stock_order) == "buy_to_cover"
+        stock_order.side = "buy_to_cover"
+        assert broker._lumi_side2tradier(stock_order) == "buy_to_cover"
+        stock_order.side = "sell_to_open"
+        assert broker._lumi_side2tradier(stock_order) == "sell_short"
+        stock_order.side = "sell_short"
+        assert broker._lumi_side2tradier(stock_order) == "sell_short"
+
         assert broker._lumi_side2tradier(option_order) == "buy_to_open"
         option_order.side = "sell"
         assert broker._lumi_side2tradier(option_order) == "sell_to_open"

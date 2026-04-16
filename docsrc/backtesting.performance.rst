@@ -44,6 +44,33 @@ Quick diagnosis checklist
 
    - If data is downloading, progress may not advance unless a heartbeat is enabled.
 
+Execution model and realistic parallelism
+-----------------------------------------
+
+One LumiBot backtest runs a single strategy through a single simulated broker clock. That means the core execution path is intentionally serial:
+
+- strategy logic runs,
+- pending orders are processed,
+- then the simulated clock advances.
+
+This is important for correctness because fills, cash, positions, bracket/OCO behavior, and mark-to-market all depend on prior state.
+
+What this means in practice:
+
+- **Do not expect arbitrary strategies to become 10x faster just by “making the loop parallel.”**
+- Generic vectorized or matrix-style execution is not a good fit for the current LumiBot execution model.
+
+Where parallelism does help:
+
+- provider-side data downloads and prefetch,
+- running many **independent** backtests at once (for example parameter sweeps),
+- and deferring expensive report generation until after the simulation is complete.
+
+Practical guidance:
+
+- If one backtest is slow, first determine whether it is hydration-bound, compute-bound, or artifact-bound.
+- If you need many backtests, run multiple backtests externally with bounded concurrency rather than expecting one backtest to fan out internally.
+
 Profiling (YAPPI)
 -----------------
 

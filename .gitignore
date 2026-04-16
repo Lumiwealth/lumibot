@@ -10,6 +10,7 @@ lumibot/cache
 *cache*
 !lumibot/tools/backtest_cache.py
 !lumibot/tools/parquet_series_cache.py
+!lumibot/components/agents/replay_cache.py
 !tests/test_backtest_cache_manager.py
 !tests/backtest/test_ibkr_helper_stale_end_negative_cache.py
 !tests/backtest/test_ibkr_conids_seed_from_v1_for_new_cache_version.py

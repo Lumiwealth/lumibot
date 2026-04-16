@@ -127,6 +127,7 @@ QUEUE_POLL_INTERVAL = float(os.environ.get("THETADATA_QUEUE_POLL_INTERVAL", "0.2
 # or via env var if they truly want infinite waits.
 QUEUE_TIMEOUT = float(os.environ.get("THETADATA_QUEUE_TIMEOUT", "600"))
 MAX_CONCURRENT_REQUESTS = int(os.environ.get("THETADATA_MAX_CONCURRENT", "8"))  # Max requests in flight
+QUEUE_CONNECT_HTTP_TIMEOUT = float(os.environ.get("THETADATA_QUEUE_CONNECT_HTTP_TIMEOUT", "15"))
 QUEUE_SUBMIT_HTTP_TIMEOUT = float(os.environ.get("THETADATA_QUEUE_SUBMIT_HTTP_TIMEOUT", "120"))
 QUEUE_STATUS_HTTP_TIMEOUT = float(os.environ.get("THETADATA_QUEUE_STATUS_HTTP_TIMEOUT", "10"))
 QUEUE_RESULT_HTTP_TIMEOUT = float(os.environ.get("THETADATA_QUEUE_RESULT_HTTP_TIMEOUT", "120"))
@@ -380,7 +381,7 @@ class QueueClient:
             resp = self._get_session().get(
                 f"{self.base_url}/queue/stats",
                 headers={self.api_key_header: self.api_key},
-                timeout=(5, QUEUE_STATUS_HTTP_TIMEOUT),
+                timeout=(QUEUE_CONNECT_HTTP_TIMEOUT, QUEUE_STATUS_HTTP_TIMEOUT),
             )
             resp.raise_for_status()
             return resp.json()
@@ -512,7 +513,7 @@ class QueueClient:
                     submit_url,
                     json=payload,
                     headers={self.api_key_header: self.api_key},
-                    timeout=(5, QUEUE_SUBMIT_HTTP_TIMEOUT),
+                    timeout=(QUEUE_CONNECT_HTTP_TIMEOUT, QUEUE_SUBMIT_HTTP_TIMEOUT),
                 )
             except (
                 requests_exceptions.ReadTimeout,
@@ -645,7 +646,7 @@ class QueueClient:
             resp = self._get_session().get(
                 f"{self.base_url}/queue/status/{request_id}",
                 headers={self.api_key_header: self.api_key},
-                timeout=(5, QUEUE_STATUS_HTTP_TIMEOUT),
+                timeout=(QUEUE_CONNECT_HTTP_TIMEOUT, QUEUE_STATUS_HTTP_TIMEOUT),
             )
             if resp.status_code == 404:
                 # Request not found, remove from tracking
@@ -704,7 +705,7 @@ class QueueClient:
             resp = self._get_session().get(
                 f"{self.base_url}/queue/{request_id}/result",
                 headers={self.api_key_header: self.api_key},
-                timeout=(5, QUEUE_RESULT_HTTP_TIMEOUT),
+                timeout=(QUEUE_CONNECT_HTTP_TIMEOUT, QUEUE_RESULT_HTTP_TIMEOUT),
             )
             data = resp.json()
             status_code = resp.status_code
@@ -747,6 +748,7 @@ class QueueClient:
         last_status = None
         last_info_time = 0.0
         missing_info_streak = 0
+        terminal_result_error_streak = 0
 
         while True:
             elapsed = time.time() - start_time
@@ -836,14 +838,31 @@ class QueueClient:
                     # and never record a cache placeholder (breaking the warm-cache invariant).
                     result, status_code, result_state = self.get_result(request_id)
                     if status_code == 202:
+                        terminal_result_error_streak = 0
                         # Result not ready yet; keep polling.
                         pass
+                    elif status_code == 0 or result_state == "error":
+                        terminal_result_error_streak += 1
+                        logger.warning(
+                            "[DOWNLOADER][QUEUE] Failed to fetch terminal result: request_id=%s status=%s streak=%d error=%s",
+                            request_id,
+                            status,
+                            terminal_result_error_streak,
+                            info.error,
+                        )
+                        if terminal_result_error_streak >= 3:
+                            self._invalidate_sessions("terminal result fetch failures")
+                            raise TimeoutError(
+                                f"Failed to fetch terminal result for {request_id} after {terminal_result_error_streak} attempts"
+                            )
                     elif result_state == "dead" or status_code == 500:
+                        terminal_result_error_streak = 0
                         with self._lock:
                             if info.correlation_id in self._pending_requests:
                                 self._pending_requests[info.correlation_id].status = "dead"
                         raise Exception(f"Request {request_id} permanently failed: {info.error}")
                     else:
+                        terminal_result_error_streak = 0
                         elapsed = time.time() - start_time
                         result_size = len(result) if isinstance(result, (list, dict)) else 0
                         logger.info(
@@ -862,11 +881,13 @@ class QueueClient:
                         return result, status_code
 
                 elif status == "dead":
+                    terminal_result_error_streak = 0
                     with self._lock:
                         if info.correlation_id in self._pending_requests:
                             self._pending_requests[info.correlation_id].status = "dead"
                     raise Exception(f"Request {request_id} permanently failed: {info.error}")
             else:
+                terminal_result_error_streak = 0
                 # If we lose connectivity to the downloader status endpoint, waiting can look like a
                 # "silent stall". Emit a low-rate heartbeat and opportunistically reset sessions so
                 # the request can recover without user intervention.

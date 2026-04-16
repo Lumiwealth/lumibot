@@ -391,7 +391,14 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             )
             if df is None or df.empty:
                 return None
-            self._fully_loaded_series.add(canonical_key)
+            if ibkr_helper.frame_covers_requested_window(
+                df,
+                asset=asset,
+                timestep=dataset_key,
+                start_dt=prefetch_start,
+                end_dt=prefetch_end,
+            ):
+                self._fully_loaded_series.add(canonical_key)
         elif asset_type in {"future", "cont_future"} and unit in {"minute", "hour", "day"} and canonical_key not in self._fully_loaded_series:
             try:
                 from lumibot.backtesting.interactive_brokers_rest_backtesting import InteractiveBrokersRESTBacktesting
@@ -420,7 +427,14 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             )
             if df is None or df.empty:
                 return None
-            self._fully_loaded_series.add(canonical_key)
+            if ibkr_helper.frame_covers_requested_window(
+                df,
+                asset=asset,
+                timestep=dataset_key,
+                start_dt=prefetch_start,
+                end_dt=prefetch_end,
+            ):
+                self._fully_loaded_series.add(canonical_key)
         elif asset_type == "crypto" and unit in {"minute", "hour"} and canonical_key not in self._fully_loaded_series:
             try:
                 prefetch_start = min(start_datetime, self._router.datetime_start)
@@ -438,7 +452,14 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             )
             if df is None or df.empty:
                 return None
-            self._fully_loaded_series.add(canonical_key)
+            if ibkr_helper.frame_covers_requested_window(
+                df,
+                asset=asset,
+                timestep=dataset_key,
+                start_dt=prefetch_start,
+                end_dt=prefetch_end,
+            ):
+                self._fully_loaded_series.add(canonical_key)
         elif asset_type in {"stock", "index"} and unit == "day" and canonical_key not in self._fully_loaded_series:
             # Daily lookback requests are in trading bars, so rely on the provider-agnostic
             # `start_datetime` computed by `get_start_datetime_and_ts_unit()`.
@@ -457,7 +478,14 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             )
             if df is None or df.empty:
                 return None
-            self._fully_loaded_series.add(canonical_key)
+            if ibkr_helper.frame_covers_requested_window(
+                df,
+                asset=asset,
+                timestep=dataset_key,
+                start_dt=prefetch_start,
+                end_dt=prefetch_end,
+            ):
+                self._fully_loaded_series.add(canonical_key)
         elif asset_type == "crypto" and unit == "day" and canonical_key not in self._fully_loaded_series:
             try:
                 lookback_days = max(7, int(length) + 5)
@@ -476,7 +504,14 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             )
             if df is None or df.empty:
                 return None
-            self._fully_loaded_series.add(canonical_key)
+            if ibkr_helper.frame_covers_requested_window(
+                df,
+                asset=asset,
+                timestep=dataset_key,
+                start_dt=prefetch_start,
+                end_dt=prefetch_end,
+            ):
+                self._fully_loaded_series.add(canonical_key)
         else:
             df = ibkr_helper.get_price_data(
                 asset=asset,

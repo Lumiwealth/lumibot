@@ -50,20 +50,20 @@
     },
     {
       "backtest_time_seconds": 35.419062666012906,
-      "baseline_run_id": "TqqqSma200Strategy_2026-01-05_09-35_IibziX",
+      "baseline_run_id": "TqqqSma200Strategy_2026-04-01_14-58_t2qrwP",
       "data_source": "thetadata",
       "end_date": "2025-12-01",
-      "lumibot_version": "4.4.27",
+      "lumibot_version": "4.4.59",
       "max_backtest_time_seconds": 180,
       "metrics_centipercent": {
-        "cagr": 4133,
+        "cagr": 4089,
         "max_drawdown": -4840,
-        "total_return": 858502
+        "total_return": 824304
       },
       "metrics_raw": {
-        "cagr": "41.33%",
+        "cagr": "40.89%",
         "max_drawdown": "-48.40%",
-        "total_return": "8,585.02%"
+        "total_return": "8,243.04%"
       },
       "script_filename": "TQQQ 200-Day MA.py",
       "settings_backtesting_end": "2025-11-30 23:59:00-05:00",

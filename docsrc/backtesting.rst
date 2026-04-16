@@ -12,6 +12,20 @@ Lumibot has multiple modes for backtesting:
 
 It is recommended to use Yahoo Backtesting for daily stock backtesting, ThetaData Backtesting for stocks/options/index data, and Interactive Brokers (REST) Backtesting for futures and crypto data. Pandas Backtesting is an advanced feature that allows you to test any type of data you have in CSV format but requires more work to setup and is not recommended for most users.
 
+Agentic Backtesting
+===================
+
+Lumibot also supports **agentic backtesting**. A strategy can create one or more AI agents, run them from normal lifecycle methods, analyze point-in-time data with DuckDB, and replay identical agent runs from cache on the next backtest instead of paying for another model call.
+
+This matters if you want:
+
+- an **AI trading agent** that makes decisions inside ``on_trading_iteration()``
+- an **LLM trading bot** that can also be tested historically
+- external **MCP tools** attached to a strategy
+- backtest/live parity for agent-driven strategies
+
+See :doc:`agents` for the full agent runtime guide and usage examples.
+
 Files Generated from Backtesting
 ================================
 

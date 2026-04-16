@@ -43,6 +43,50 @@ TERMINAL_TRADE_STATUSES_FOR_MARKERS = {
     "expire",
 }
 
+TRADE_EXPORT_COLUMNS = [
+    "time",
+    "side",
+    "status",
+    "filled_quantity",
+    "symbol",
+    "asset.asset_type",
+    "asset.right",
+    "asset.strike",
+    "asset.expiration",
+    "price",
+    "type",
+    "asset.multiplier",
+    "trade_cost",
+    "trade_slippage",
+    "event_kind",
+    "event_id",
+    "cash_event_type",
+    "cash_event_amount",
+    "cash_event_currency",
+    "cash_event_description",
+    "cash_event_direction",
+    "cash_event_reason",
+    "is_external_cash_flow",
+    "cash_event_raw_type",
+    "cash_event_raw_subtype",
+    "cash_event_broker_name",
+    "cash_event_broker_event_id",
+]
+
+CASH_EVENT_MARKER_STYLES = {
+    "deposit": {"label": "Deposit", "color": "#2ca02c", "symbol": "circle"},
+    "withdrawal": {"label": "Withdrawal", "color": "#d62728", "symbol": "circle-open"},
+    "financing_credit": {"label": "Financing Credit", "color": "#1f77b4", "symbol": "diamond"},
+    "financing_debit": {"label": "Financing Debit", "color": "#ff7f0e", "symbol": "diamond-open"},
+    "dividend": {"label": "Dividend", "color": "#17becf", "symbol": "star"},
+    "interest": {"label": "Interest", "color": "#2ca02c", "symbol": "diamond"},
+    "fee": {"label": "Fee", "color": "#d62728", "symbol": "x"},
+    "tax": {"label": "Tax", "color": "#8c564b", "symbol": "x-open"},
+    "journal": {"label": "Journal", "color": "#7f7f7f", "symbol": "square"},
+    "adjustment": {"label": "Adjustment", "color": "#9467bd", "symbol": "square-open"},
+    "other_cash": {"label": "Cash Event", "color": "#bcbd22", "symbol": "hexagon"},
+}
+
 
 def _format_indicator_plotly_text(value: object, detail_text: object) -> str:
     """Format plotly hover text for indicator markers/lines.
@@ -215,6 +259,71 @@ def _build_trade_marker_tooltip(row: pd.Series):
     )
 
 
+def _classify_cash_event_marker(row: pd.Series) -> str:
+    raw_type = str(row.get("cash_event_raw_type") or "").strip().lower()
+    event_type = str(row.get("cash_event_type") or "other_cash").strip().lower()
+    direction = str(row.get("cash_event_direction") or "").strip().lower()
+
+    if event_type == "interest":
+        if raw_type == "cash_financing_credit" or direction == "in":
+            return "financing_credit"
+        if raw_type == "cash_financing_debit" or direction == "out":
+            return "financing_debit"
+    return event_type if event_type in CASH_EVENT_MARKER_STYLES else "other_cash"
+
+
+def _build_cash_event_marker_tooltip(row: pd.Series) -> str | None:
+    event_type = str(row.get("cash_event_type") or "").strip()
+    if not event_type:
+        return None
+
+    amount_value = row.get("cash_event_amount")
+    amount_text = "0.00"
+    if not pd.isna(amount_value):
+        try:
+            amount_text = f"{float(amount_value):,.2f}"
+        except (TypeError, ValueError):
+            amount_text = str(amount_value)
+
+    currency = row.get("cash_event_currency")
+    currency_text = str(currency).strip() if not pd.isna(currency) and currency is not None else "USD"
+    description = row.get("cash_event_description")
+    description_text = (
+        str(description).strip()
+        if not pd.isna(description) and description is not None and str(description).strip()
+        else "No description"
+    )
+    reason = row.get("cash_event_reason")
+    reason_text = (
+        str(reason).strip()
+        if not pd.isna(reason) and reason is not None and str(reason).strip()
+        else "n/a"
+    )
+    direction = row.get("cash_event_direction")
+    direction_text = (
+        str(direction).strip()
+        if not pd.isna(direction) and direction is not None and str(direction).strip()
+        else "neutral"
+    )
+    raw_type = row.get("cash_event_raw_type")
+    raw_type_text = (
+        str(raw_type).strip()
+        if not pd.isna(raw_type) and raw_type is not None and str(raw_type).strip()
+        else "n/a"
+    )
+    external_flag = bool(row.get("is_external_cash_flow")) if not pd.isna(row.get("is_external_cash_flow")) else False
+
+    return (
+        f"{event_type.replace('_', ' ').title()}<br>"
+        f"Amount: {amount_text} {currency_text}<br>"
+        f"Direction: {direction_text}<br>"
+        f"Reason: {reason_text}<br>"
+        f"Raw Type: {raw_type_text}<br>"
+        f"External Cash Flow: {external_flag}<br>"
+        f"Description: {description_text}<br>"
+    )
+
+
 def total_return(_df):
     """Calculate the cumulative return in a dataframe
     The dataframe _df must include a column "return" that
@@ -227,6 +336,65 @@ def total_return(_df):
     total_ret = df["cum_return"].iloc[-1] - 1
 
     return total_ret
+
+
+def cumulative_to_period_flows(series: pd.Series | None) -> pd.Series:
+    """Convert a cumulative external-cash-flow series into per-period flows.
+
+    The input series is expected to increase for deposits and decrease for withdrawals.
+    Missing values are forward-filled so sparse stats rows remain stable for downstream
+    resampling and reporting.
+    """
+
+    if series is None:
+        return pd.Series(dtype=float)
+
+    numeric = pd.to_numeric(series, errors="coerce")
+    if numeric.empty:
+        return pd.Series(dtype=float, index=series.index)
+
+    numeric = numeric.ffill().fillna(0.0)
+    period = numeric.diff()
+    if len(period) > 0:
+        period.iloc[0] = numeric.iloc[0]
+    return period.astype(float)
+
+
+def cash_flow_adjusted_returns(
+    values: pd.Series | None,
+    cumulative_external_flows: pd.Series | None = None,
+) -> pd.Series:
+    """Compute returns net of external cash flows.
+
+    Formula:
+        (ending_value - starting_value - net_external_flow) / starting_value
+
+    Deposits are positive external flows and withdrawals are negative external flows.
+    Account economics such as financing, dividends, and fees should remain embedded in
+    `values`; only truly external cash movements should be passed via
+    `cumulative_external_flows`.
+    """
+
+    if values is None:
+        return pd.Series(dtype=float)
+
+    numeric_values = pd.to_numeric(values, errors="coerce")
+    if numeric_values.empty:
+        return pd.Series(dtype=float, index=getattr(values, "index", None))
+
+    if cumulative_external_flows is None:
+        external_period = pd.Series(0.0, index=numeric_values.index, dtype=float)
+    else:
+        cumulative = pd.to_numeric(cumulative_external_flows, errors="coerce")
+        cumulative = cumulative.reindex(numeric_values.index)
+        external_period = cumulative_to_period_flows(cumulative)
+        external_period = external_period.reindex(numeric_values.index).fillna(0.0)
+
+    previous_values = numeric_values.shift(1)
+    returns = (numeric_values - previous_values - external_period) / previous_values
+    returns = returns.where(previous_values.notna())
+    returns.name = "return"
+    return returns.astype(float)
 
 
 def cagr(_df):
@@ -904,6 +1072,7 @@ def plot_returns(
     benchmark_df,
     benchmark_name,
     plot_file_html="backtest_result.html",
+    trades_file=None,
     trades_df=None,
     show_plot=True,
     initial_budget=1,
@@ -915,18 +1084,12 @@ def plot_returns(
     logger.info("\nCreating trades CSV/parquet%s...", " and plot" if show_plot else " (show_plot=False, skipping HTML)")
 
     # --- Start: CSV Generation for trades_df ---
-    trades_csv_file = plot_file_html.replace(".html", ".csv")
+    trades_csv_file = trades_file or plot_file_html.replace(".html", ".csv")
     # Define standard columns for trades data
-    standard_trade_columns = [
-        "time", "side", "status", "filled_quantity", "symbol", "asset.asset_type",
-        "asset.right", "asset.strike", "asset.expiration", "price", "type",
-        "asset.multiplier", "trade_cost", "trade_slippage"
-    ]
-
     if trades_df is None or trades_df.empty:
         logger.info(f"No trades provided. Empty trades CSV file will be created: {trades_csv_file}")
         # Create an empty DataFrame with standard headers for the CSV
-        empty_trades_for_csv = pd.DataFrame(columns=standard_trade_columns)
+        empty_trades_for_csv = pd.DataFrame(columns=TRADE_EXPORT_COLUMNS)
         empty_trades_for_csv.to_csv(trades_csv_file, index=False)
         trades_parquet_file = trades_csv_file.replace(".csv", ".parquet")
         write_parquet_with_logging(
@@ -943,11 +1106,11 @@ def plot_returns(
         # Prepare a copy of trades_df for CSV export, ensuring standard columns
         trades_df_for_csv = trades_df.copy()
         # Add any missing standard columns (filled with NA)
-        for col in standard_trade_columns:
+        for col in TRADE_EXPORT_COLUMNS:
             if col not in trades_df_for_csv.columns:
                 trades_df_for_csv[col] = pd.NA
         # Select and reorder to standard columns, dropping any non-standard ones
-        trades_df_for_csv = trades_df_for_csv[standard_trade_columns]
+        trades_df_for_csv = trades_df_for_csv[TRADE_EXPORT_COLUMNS]
         trades_df_for_csv.to_csv(trades_csv_file, index=False)
         logger.info(f"Trades data saved to CSV: {trades_csv_file}")
         trades_parquet_file = trades_csv_file.replace(".csv", ".parquet")
@@ -974,9 +1137,13 @@ def plot_returns(
     _df1 = strategy_df.copy()
     _df1 = _df1.sort_index(ascending=True)
     _df1.index.name = "datetime"
-    _df1[strategy_name] = (1 + _df1["return"]).cumprod()
-    _df1.loc[_df1.index[0], strategy_name] = 1
-    _df1[strategy_name] = _df1[strategy_name] * initial_budget
+    adjusted_value_col = "cash_adjusted_portfolio_value"
+    raw_value_col = "portfolio_value"
+    adjusted_line_label = "Cash-Adjusted Portfolio Value"
+    raw_line_label = "Portfolio Value"
+    if adjusted_value_col not in _df1.columns:
+        _df1[adjusted_value_col] = (1 + _df1["return"].fillna(0.0)).cumprod() * initial_budget
+        _df1.loc[_df1.index[0], adjusted_value_col] = initial_budget
     dfs_concat.append(_df1)
 
     _df2 = benchmark_df.copy()
@@ -1013,7 +1180,7 @@ def plot_returns(
         logger.info("There were no trades in this backtest. Plot will not show trade markers.")
         # Create a DataFrame with standard trade columns (all NaN) and df_final's index (if any)
         # This ensures df_final gets all standard trade columns for consistent plotting.
-        _columns_for_merge = [col for col in standard_trade_columns if col != "time"]
+        _columns_for_merge = [col for col in TRADE_EXPORT_COLUMNS if col != "time"]
         if not df_final.index.empty:
             processed_trades_for_merge = pd.DataFrame(index=df_final.index, columns=_columns_for_merge)
         else: # df_final is empty, create an empty df with columns and time index
@@ -1028,7 +1195,7 @@ def plot_returns(
             processed_trades_for_merge = processed_trades_for_merge.set_index('time')
             
             # Ensure all standard columns (excluding 'time') are present, filling missing ones with NA
-            _columns_to_ensure_in_merge = [col for col in standard_trade_columns if col != "time"]
+            _columns_to_ensure_in_merge = [col for col in TRADE_EXPORT_COLUMNS if col != "time"]
             for col in _columns_to_ensure_in_merge:
                 if col not in processed_trades_for_merge.columns:
                     processed_trades_for_merge[col] = pd.NA
@@ -1037,7 +1204,7 @@ def plot_returns(
         else:
             logger.warning("Trades data provided but 'time' column is missing. Cannot merge trades for plotting. Plot will not show trade markers.")
             # Fallback to empty trades for merge to avoid errors and ensure consistent columns in df_final
-            _columns_for_merge = [col for col in standard_trade_columns if col != "time"]
+            _columns_for_merge = [col for col in TRADE_EXPORT_COLUMNS if col != "time"]
             if not df_final.index.empty:
                 processed_trades_for_merge = pd.DataFrame(index=df_final.index, columns=_columns_for_merge)
             else:
@@ -1069,24 +1236,48 @@ def plot_returns(
     # Manually create a list of formatted positions
     formatted_positions_list = [format_positions(pos) for pos in df_final["positions"]]
 
-    # Modify the strategy line to include positions
+    for line_col in (adjusted_value_col, raw_value_col, "cash"):
+        if line_col in df_final.columns:
+            df_final[line_col] = pd.to_numeric(df_final[line_col], errors="coerce").ffill().bfill()
+
+    # Cash-adjusted portfolio line (primary)
     fig.add_trace(
         go.Scatter(
             x=df_final.index,
-            y=df_final[strategy_name],
+            y=df_final[adjusted_value_col],
             mode="lines",
-            name=strategy_name,
+            name=adjusted_line_label,
             connectgaps=True,
             hovertemplate=(
-                f"{strategy_name}<br>"
-                "Portfolio Value: %{y:$,.2f}<br>"
+                f"{adjusted_line_label}<br>"
+                "Value: %{y:$,.2f}<br>"
                 "%{x|%b %d %Y %I:%M:%S %p}<br>"
                 "Positions:<br>"
                 "%{text}<extra></extra>"
             ),
-            text=formatted_positions_list,  # Apply the formatting function to positions
+            text=formatted_positions_list,
+            line=dict(width=3),
         )
     )
+
+    # Raw portfolio value line (secondary)
+    if raw_value_col in df_final.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=df_final.index,
+                y=df_final[raw_value_col],
+                mode="lines",
+                name=raw_line_label,
+                connectgaps=True,
+                hovertemplate=(
+                    f"{raw_line_label}<br>"
+                    "Value: %{y:$,.2f}<br>"
+                    "%{x|%b %d %Y %I:%M:%S %p}<extra></extra>"
+                ),
+                line=dict(width=2, dash="dash"),
+                opacity=0.8,
+            )
+        )
 
     # Benchmark line
     fig.add_trace(
@@ -1114,13 +1305,14 @@ def plot_returns(
     )
 
     # Use a % of the range of df_final[strategy_name] to shift the buy and sell ticks
-    _max = df_final[strategy_name].max()
-    _min = df_final[strategy_name].min()
-    vshift = (_max - _min) * 0.10
+    _max = df_final[adjusted_value_col].max()
+    _min = df_final[adjusted_value_col].min()
+    value_range = _max - _min
+    vshift = value_range * 0.10 if value_range else max(abs(_max), 1.0) * 0.01
 
     # Buy ticks
     buys = df_final.copy()
-    buys[strategy_name] = buys[strategy_name].bfill()
+    buys[adjusted_value_col] = buys[adjusted_value_col].bfill()
     # Include all buy-type sides: buy, buy_to_open, buy_to_cover, buy_to_close
     buys = buys.loc[df_final["side"].isin(["buy", "buy_to_open", "buy_to_cover", "buy_to_close"])]
 
@@ -1138,10 +1330,10 @@ def plot_returns(
 
         buys.index.name = "datetime"
         buys = (
-            buys.groupby(["datetime", strategy_name])["plotly_text_buys"].apply(lambda x: "<br>".join(x)).reset_index()
+            buys.groupby(["datetime", adjusted_value_col])["plotly_text_buys"].apply(lambda x: "<br>".join(x)).reset_index()
         )
         buys = buys.set_index("datetime")
-        buys["buy_shift"] = buys[strategy_name] - vshift
+        buys["buy_shift"] = buys[adjusted_value_col] - vshift
         fig.add_trace(
             go.Scatter(
                 x=buys.index,
@@ -1162,7 +1354,7 @@ def plot_returns(
 
     # Sell ticks
     sells = df_final.copy()
-    sells[strategy_name] = sells[strategy_name].bfill()
+    sells[adjusted_value_col] = sells[adjusted_value_col].bfill()
     # Include all sell-type sides: sell, sell_to_close, sell_short, sell_to_open
     sells = sells.loc[df_final["side"].isin(["sell", "sell_to_close", "sell_short", "sell_to_open"])]
 
@@ -1177,12 +1369,12 @@ def plot_returns(
 
         sells.index.name = "datetime"
         sells = (
-            sells.groupby(["datetime", strategy_name], group_keys=True)["plotly_text_sells"]
+            sells.groupby(["datetime", adjusted_value_col], group_keys=True)["plotly_text_sells"]
             .apply(lambda x: "<br>".join(x))
             .reset_index()
         )
         sells = sells.set_index("datetime")
-        sells["sell_shift"] = sells[strategy_name] + vshift
+        sells["sell_shift"] = sells[adjusted_value_col] + vshift
         fig.add_trace(
             go.Scatter(
                 x=sells.index,
@@ -1196,6 +1388,58 @@ def plot_returns(
                 text=sells["plotly_text_sells"],
             )
         )
+
+    ###############################
+    # Plot cash-event markers
+    ###############################
+
+    cash_events = df_final.copy()
+    cash_events = cash_events.loc[
+        (cash_events.get("event_kind") == "cash_event") & cash_events["cash_event_type"].notnull()
+    ]
+    if not cash_events.empty and raw_value_col in cash_events.columns:
+        cash_events["marker_group"] = cash_events.apply(_classify_cash_event_marker, axis=1)
+        cash_events["plotly_text_cash_events"] = cash_events.apply(_build_cash_event_marker_tooltip, axis=1)
+        cash_events = cash_events.loc[cash_events["plotly_text_cash_events"].notnull()]
+
+        marker_offsets = {
+            "deposit": -0.40,
+            "withdrawal": 0.40,
+            "financing_credit": -0.25,
+            "financing_debit": 0.25,
+            "dividend": -0.15,
+            "interest": -0.10,
+            "fee": 0.15,
+            "tax": 0.20,
+            "journal": -0.30,
+            "adjustment": 0.30,
+            "other_cash": 0.0,
+        }
+
+        for marker_group, marker_df in cash_events.groupby("marker_group"):
+            style = CASH_EVENT_MARKER_STYLES.get(marker_group, CASH_EVENT_MARKER_STYLES["other_cash"])
+            grouped = (
+                marker_df.groupby([marker_df.index, raw_value_col])["plotly_text_cash_events"]
+                .apply(lambda values: "<br><br>".join(values))
+                .reset_index()
+            )
+            if "level_0" in grouped.columns and "datetime" not in grouped.columns:
+                grouped = grouped.rename(columns={"level_0": "datetime"})
+            grouped = grouped.set_index("datetime")
+            grouped["marker_y"] = grouped[raw_value_col] + (vshift * marker_offsets.get(marker_group, 0.0))
+            fig.add_trace(
+                go.Scatter(
+                    x=grouped.index,
+                    y=grouped["marker_y"],
+                    mode="markers",
+                    name=style["label"],
+                    marker_symbol=style["symbol"],
+                    marker_color=style["color"],
+                    marker_size=13,
+                    hovertemplate="%{text}<br>%{x|%b %d %Y %I:%M:%S %p}<extra></extra>",
+                    text=grouped["plotly_text_cash_events"],
+                )
+            )
 
     ###############################
     # Chart Titles and Layouts
@@ -1242,10 +1486,18 @@ def _prepare_tearsheet_returns(strategy_df: pd.DataFrame, benchmark_df: pd.DataF
         return None
 
     # PERF/MEMORY: Backtests can carry very wide `strategy_df` frames (positions, orders, debug
-    # columns, etc.). QuantStats only needs the portfolio value series and the benchmark cumprod.
-    # Copying the full frame can spike RSS and has caused production backtests to OOM (exit code -9).
+    # columns, etc.). QuantStats only needs the cash-flow-adjusted return series (preferred) or
+    # enough information to derive it from portfolio value + external cash flows.
+    strategy_columns = []
+    for column in ("return", "portfolio_value", "cash_adjustments_net_total"):
+        if column in strategy_df.columns:
+            strategy_columns.append(column)
+
+    if not strategy_columns:
+        return None
+
     try:
-        _strategy_df = strategy_df.loc[:, ["portfolio_value"]].copy()
+        _strategy_df = strategy_df.loc[:, strategy_columns].copy()
     except Exception:
         return None
 
@@ -1259,12 +1511,22 @@ def _prepare_tearsheet_returns(strategy_df: pd.DataFrame, benchmark_df: pd.DataF
     _strategy_df.index = pd.to_datetime(_strategy_df.index)
     _benchmark_df.index = pd.to_datetime(_benchmark_df.index)
 
+    strategy_returns = None
+    if "return" in _strategy_df.columns:
+        strategy_returns = pd.to_numeric(_strategy_df["return"], errors="coerce")
+        strategy_returns.index = pd.to_datetime(strategy_returns.index)
+        strategy_returns = strategy_returns.sort_index()
+        strategy_returns = strategy_returns.groupby(level=0).last()
+        strategy_returns = ((1.0 + strategy_returns).resample("D").prod(min_count=1) - 1.0).fillna(0.0)
+        strategy_returns.name = "strategy"
+
     df = pd.merge(_strategy_df, _benchmark_df, left_index=True, right_index=True, how="outer")
     df.index = pd.to_datetime(df.index)
     df = df.sort_index()
 
-    df["portfolio_value"] = df["portfolio_value"].ffill()
-    df["portfolio_value"] = df["portfolio_value"].bfill()
+    if "portfolio_value" in df.columns:
+        df["portfolio_value"] = df["portfolio_value"].ffill()
+        df["portfolio_value"] = df["portfolio_value"].bfill()
 
     if "symbol_cumprod" in df.columns:
         df["symbol_cumprod"] = df["symbol_cumprod"].ffill()
@@ -1275,21 +1537,28 @@ def _prepare_tearsheet_returns(strategy_df: pd.DataFrame, benchmark_df: pd.DataF
 
     df.loc[df.index[0], "symbol_cumprod"] = 1 if pd.isna(first_symbol) else first_symbol
 
-    # Seed the resample with the true initial equity so that pct_change sees day 0 -> day 1 moves
+    # Seed the resample with the true initial equity so that pct_change sees day 0 -> day 1 moves.
+    # Preserve the initial cumulative external cash total as well so the first daily return does
+    # not accidentally absorb initialize()-time deposits/withdrawals.
     first_strategy_idx = _strategy_df.index.min()
-    if pd.notna(first_strategy_idx):
+    if pd.notna(first_strategy_idx) and "portfolio_value" in _strategy_df.columns:
         first_strategy_idx = pd.to_datetime(first_strategy_idx)
         initial_equity = _strategy_df.loc[first_strategy_idx, "portfolio_value"]
-        # Some backtests record multiple portfolio snapshots at the same timestamp. In that case
-        # `.loc[...]` returns a Series; pick the last value to preserve the later
-        # `df.index.duplicated(keep="last")` de-dup semantics.
         if isinstance(initial_equity, pd.Series):
             initial_equity = initial_equity.iloc[-1]
+
+        initial_cash_adjustments_total = 0.0
+        if "cash_adjustments_net_total" in _strategy_df.columns:
+            initial_cash_adjustments_total = _strategy_df.loc[first_strategy_idx, "cash_adjustments_net_total"]
+            if isinstance(initial_cash_adjustments_total, pd.Series):
+                initial_cash_adjustments_total = initial_cash_adjustments_total.iloc[-1]
+
         anchor_idx = first_strategy_idx.normalize() - pd.Timedelta(microseconds=1)
         anchor_row = pd.DataFrame(
             {
                 "portfolio_value": [initial_equity],
                 "symbol_cumprod": [first_symbol if not pd.isna(first_symbol) else 1],
+                "cash_adjustments_net_total": [initial_cash_adjustments_total],
             },
             index=[anchor_idx],
         )
@@ -1300,9 +1569,25 @@ def _prepare_tearsheet_returns(strategy_df: pd.DataFrame, benchmark_df: pd.DataF
     # NOTE: Use forward-fill (not backfill) so weekends/holidays carry the last known value.
     # Backfilling would leak future values into prior days and can distort volatility-matched charts.
     df = df.resample("D").last()
-    df["portfolio_value"] = df["portfolio_value"].ffill()
+    if "portfolio_value" in df.columns:
+        df["portfolio_value"] = df["portfolio_value"].ffill()
     df["symbol_cumprod"] = df["symbol_cumprod"].ffill()
-    df["strategy"] = df["portfolio_value"].pct_change(fill_method=None).fillna(0)
+
+    if strategy_returns is not None:
+        df["strategy"] = strategy_returns.reindex(df.index).fillna(0.0)
+    else:
+        cumulative_external_flows = None
+        if "cash_adjustments_net_total" in df.columns:
+            df["cash_adjustments_net_total"] = pd.to_numeric(
+                df["cash_adjustments_net_total"], errors="coerce"
+            ).ffill().fillna(0.0)
+            cumulative_external_flows = df["cash_adjustments_net_total"]
+
+        df["strategy"] = cash_flow_adjusted_returns(
+            df["portfolio_value"],
+            cumulative_external_flows,
+        ).fillna(0.0)
+
     df["benchmark"] = df["symbol_cumprod"].pct_change(fill_method=None).fillna(0)
 
     df_final = df.loc[:, ["strategy", "benchmark"]]
@@ -1600,18 +1885,80 @@ def create_tearsheet(
     except Exception:  # pragma: no cover
         pass
 
+    def _coerce_tearsheet_metric_value(value):
+        if value is None:
+            return None
+        if isinstance(value, Decimal):
+            return float(value)
+        if isinstance(value, np.generic):
+            return value.item()
+        if pd.isna(value):
+            return None
+        return value
+
+    def _write_tearsheet_metrics_json_fallback() -> None:
+        with open(os.devnull, "w") as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
+            metrics_df = qs.reports.metrics(
+                df_final["strategy"],
+                df_final["benchmark"],
+                rf=risk_free_rate,
+                display=False,
+                custom_metrics=custom_metrics,
+            )
+
+        if not isinstance(metrics_df, pd.DataFrame) or metrics_df.empty:
+            raise ValueError("quantstats_lumi.reports.metrics did not return a metrics DataFrame")
+
+        metric_col = "Metric" if "Metric" in metrics_df.columns else None
+        value_columns = [col for col in metrics_df.columns if col != metric_col]
+        if not value_columns:
+            raise ValueError("metrics DataFrame did not contain any value columns")
+
+        strategy_col = "Strategy" if "Strategy" in value_columns else value_columns[-1]
+        benchmark_col = next((col for col in value_columns if col != strategy_col), None)
+
+        scalar_metrics: dict[str, object] = {}
+        benchmark_scalar_metrics: dict[str, object] = {}
+        iterable = metrics_df.iterrows()
+        for idx, row in iterable:
+            metric_name = row.get(metric_col) if metric_col else idx
+            if metric_name is None or str(metric_name).strip() == "":
+                continue
+            metric_name = str(metric_name)
+            scalar_metrics[metric_name] = _coerce_tearsheet_metric_value(row.get(strategy_col))
+            if benchmark_col is not None:
+                benchmark_scalar_metrics[metric_name] = _coerce_tearsheet_metric_value(row.get(benchmark_col))
+
+        payload = {
+            "metadata": {
+                "summary_only": True,
+                "status": "ok",
+                "source": "metrics_fallback",
+            },
+            "scalar_metrics": scalar_metrics,
+        }
+        if benchmark_scalar_metrics:
+            payload["benchmark_scalar_metrics"] = benchmark_scalar_metrics
+
+        with open(str(tearsheet_metrics_file), "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, indent=2)
+
     # Generate machine-readable tearsheet metrics JSON alongside the HTML tearsheet.
     if tearsheet_metrics_file:
         try:
-            with open(os.devnull, "w") as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
-                qs.reports.metrics_json(
-                    df_final["strategy"],
-                    df_final["benchmark"],
-                    rf=risk_free_rate,
-                    output=tearsheet_metrics_file,
-                    summary_only=True,
-                    custom_metrics=custom_metrics,
-                )
+            metrics_json_fn = getattr(qs.reports, "metrics_json", None)
+            if callable(metrics_json_fn):
+                with open(os.devnull, "w") as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
+                    metrics_json_fn(
+                        df_final["strategy"],
+                        df_final["benchmark"],
+                        rf=risk_free_rate,
+                        output=tearsheet_metrics_file,
+                        summary_only=True,
+                        custom_metrics=custom_metrics,
+                    )
+            else:
+                _write_tearsheet_metrics_json_fallback()
             logger.info("Tearsheet metrics JSON saved to %s", tearsheet_metrics_file)
         except Exception as exc:
             logger.warning("Failed to generate tearsheet metrics JSON: %s", exc)

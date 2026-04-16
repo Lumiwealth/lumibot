@@ -11,6 +11,7 @@ from lumibot.strategies._strategy import _Strategy
 class _HookHarness:
     _extract_returns_series = staticmethod(_Strategy._extract_returns_series)
     _build_drawdown_inputs = staticmethod(_Strategy._build_drawdown_inputs)
+    _default_cash_tearsheet_metrics = _Strategy._default_cash_tearsheet_metrics
     _collect_custom_tearsheet_metrics = _Strategy._collect_custom_tearsheet_metrics
 
 

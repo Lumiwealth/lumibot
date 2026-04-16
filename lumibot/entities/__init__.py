@@ -3,6 +3,7 @@ from .bar import Bar
 
 # Import base implementations
 from .bars import Bars as _BarsBase
+from .cash_event import CashEvent
 from .chains import Chains
 from .data import Data as _DataBase
 from .data_polars import DataPolars
@@ -22,6 +23,7 @@ __all__ = [
     "AssetsMapping",
     "Bar",
     "Bars",
+    "CashEvent",
     "Chains",
     "Data",
     "DataPolars",

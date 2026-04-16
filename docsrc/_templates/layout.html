@@ -11,26 +11,82 @@
   "mainEntity": [
     {
       "@type": "Question",
+      "name": "What is LumiBot?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "LumiBot is an open-source Python library for backtesting and algorithmic trading. It supports stocks, options, crypto, futures, and forex across multiple brokers including Alpaca, Interactive Brokers, Tradier, Schwab, and more. You write your strategy once and run it in both backtesting and live trading with the same code."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I backtest an AI trading agent with LumiBot?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. LumiBot is the only production framework that puts an AI agent inside the backtest simulation loop. During a backtest, the AI agent runs on every bar, receives point-in-time market state, calls external tools, reasons over the data, and submits orders. A built-in replay cache makes subsequent reruns deterministic and nearly instant."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What are AI trading agents in LumiBot?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AI trading agents are LLM-powered decision makers that run inside your strategy. An agent reasons over market data, calls external tools (REST APIs, MCP servers), analyzes time-series data with DuckDB, and submits trading orders on every bar during both backtests and live trading."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Why is LumiBot's approach to AI agent trading unique?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "LumiBot is the only production framework that runs the AI agent inside the backtest simulation on every bar. Most platforms either bolt an LLM onto the side with no bar-by-bar reasoning (QuantConnect), provide agent frameworks with no backtesting (CrewAI, AutoGen, LangGraph), or are hobby scripts without infrastructure."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is replay caching in LumiBot?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Replay caching means LumiBot caches every AI agent run during backtesting. When a subsequent backtest hits the same combination of prompt, context, model, tools, and timestamp, the cached result is returned instantly with zero LLM calls. This makes warm reruns deterministic, fast, and cost-effective."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is @agent_tool in LumiBot?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "@agent_tool is a decorator that wraps a Python method as a callable tool that the AI agent can invoke. It automatically includes the function's source code in the tool description sent to the AI. This is the recommended way to give agents access to external data via REST APIs."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What LLM providers does LumiBot support?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "LumiBot's agent runtime is built on Google ADK (Agent Development Kit). The default model is Google Gemini (gemini-3.1-flash-lite-preview). The architecture supports routing to other providers through Google ADK's model router. You need a GOOGLE_API_KEY environment variable."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What brokers does LumiBot support?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "LumiBot supports Alpaca (stocks, options, crypto), Interactive Brokers (stocks, options, futures, forex), Tradier (stocks, options), Schwab (stocks, options), Tradovate (futures), ProjectX (futures), and CCXT-based exchanges (Coinbase, Kraken, Binance, Kucoin, and more)."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What data sources are available for backtesting in LumiBot?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "LumiBot supports Yahoo Finance (free, daily stocks), ThetaData (premium stocks and options), Polygon.io (stocks, options, crypto), DataBento (stocks, futures, options), Interactive Brokers REST, and Pandas (bring your own CSV data)."
+      }
+    },
+    {
+      "@type": "Question",
       "name": "Why can't I use datetime.now() in my Lumibot strategy?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "During backtesting, datetime.now() returns the real current time, not the simulated time. Your strategy will think it's 2024 when it's actually simulating trades from 2020. Always use self.get_datetime() instead."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "Why do my variables reset between trading iterations in Lumibot?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Local variables are reset each iteration. Use self.vars for persistent state. For example: self.vars.my_variable = value"
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "Why does 'from __future__ import annotations' break my Lumibot strategy?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "This import breaks Lumibot's type checking system and causes backtests to crash. Never use it - just remove this import."
+        "text": "During backtesting, datetime.now() returns the real current time, not the simulated time. Your strategy will think it's today when it's actually simulating trades from years ago. Always use self.get_datetime() instead."
       }
     },
     {
@@ -38,31 +94,31 @@
       "name": "Why does my crypto strategy stop trading at 4pm?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Crypto markets are 24/7, but Lumibot defaults to stock market hours. Add self.set_market('24/7') to your initialize method."
+        "text": "Crypto markets are 24/7, but LumiBot defaults to stock market hours. Add self.set_market('24/7') to your initialize method to enable 24/7 trading."
       }
     },
     {
       "@type": "Question",
-      "name": "Why do my option calculations seem off by 100x?",
+      "name": "What Python version does LumiBot require?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Options are multiplied by 100. A $1.50 option premium costs $150 per contract. Always multiply the premium by 100 for cost calculations."
+        "text": "LumiBot requires Python 3.10 or higher. This is enforced via python_requires in setup.py."
       }
     },
     {
       "@type": "Question",
-      "name": "Why does get_last_price() return None?",
+      "name": "How do I deploy a LumiBot trading strategy?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Price data may be unavailable for illiquid assets. Always check if the return value is None before using it in calculations."
+        "text": "LumiBot strategies can be deployed to Render ($7/month) or Replit ($25/month) as background workers for 24/7 operation. Configure your broker credentials as environment variables and deploy. Render is recommended for most users."
       }
     },
     {
       "@type": "Question",
-      "name": "How do I close a crypto futures position in Lumibot?",
+      "name": "What order types does LumiBot support?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "For CRYPTO_FUTURE assets, use self.close_position(futures_asset) instead of submit_order(). Using submit_order to 'sell' opens a new position instead of closing."
+        "text": "LumiBot supports market, limit, stop, stop-limit, trailing stop, bracket (entry + take-profit + stop-loss), OTO (one-triggers-other), OCO (one-cancels-other), and SMART_LIMIT orders (timed ladder across bid/ask spread for options)."
       }
     }
   ]

@@ -114,6 +114,41 @@ lumibot/
                            └──────────────┘
 ```
 
+## Execution Model and Concurrency Boundaries
+
+Single-backtest execution is intentionally **serial**.
+
+- A backtest currently runs **one strategy per `Trader`**. Backtesting multiple strategies in one shared run is rejected rather than silently interleaving them.
+- The core execution model is a path-dependent loop:
+  1. execute `on_trading_iteration()`
+  2. process pending orders / fills
+  3. advance the simulated clock
+- This ordering is correctness-critical because cash, positions, OCO/bracket/multileg dependencies, option lifecycle tasks, and mark-to-market all depend on the prior state.
+
+This has an important performance implication:
+
+- **Do not assume that “more threads” inside one backtest will preserve behavior.**
+- Generic matrix/vector-style acceleration is not a natural fit for arbitrary LumiBot strategies because strategies are free-form Python with mutable state and broker-like callbacks.
+
+Where parallelism **does** fit today:
+
+- provider/data hydration (parallel chunk downloads, async prefetch, multi-asset bar fanout),
+- independent backtest runs (parameter sweeps, window sweeps, strategy comparisons),
+- and some bounded batching opportunities inside one run (for example grouped price lookups).
+
+Practical guidance:
+
+- If you need “10 backtests at once,” prefer **process/container-level concurrency for independent runs**.
+- If one backtest is slow, first determine whether the dominant cost is:
+  - data hydration,
+  - compute inside the serial loop,
+  - or artifact generation.
+
+See also:
+
+- `docs/BACKTESTING_PERFORMANCE.md`
+- `docs/investigations/2026-03-28_BACKTEST_PARALLELISM_ASSESSMENT.md`
+
 ## Key Components
 
 ### 1. BacktestingBroker (`backtesting/backtesting_broker.py`)
@@ -678,7 +713,7 @@ forward-fills short gaps (≤ 3 days) from the prior close so the daily clock ca
 ```bash
 SHOW_PLOT=True        # trades.html + trades.csv
 SHOW_INDICATORS=True  # indicators.html + indicators.csv
-SHOW_TEARSHEET=True   # tearsheet.html + tearsheet.csv
+SHOW_TEARSHEET=True   # tearsheet.html + tearsheet.csv + tearsheet_metrics.json
 BACKTESTING_QUIET_LOGS=false  # useful when debugging (otherwise logs may be empty)
 ```
 

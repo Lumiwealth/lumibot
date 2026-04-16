@@ -115,3 +115,59 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+
+  start-next-version:
+    name: Start next version branch
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute next version and create branch
+        run: |
+          set -euo pipefail
+
+          # Extract current version from the tag that triggered this workflow
+          TAG="${GITHUB_REF_NAME}"          # e.g. v4.4.57
+          VERSION="${TAG#v}"                # e.g. 4.4.57
+
+          # Compute next patch version
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          NEXT_PATCH=$((PATCH + 1))
+          NEXT_VERSION="${MAJOR}.${MINOR}.${NEXT_PATCH}"
+          BRANCH="version/${NEXT_VERSION}"
+
+          echo "Current: ${VERSION} → Next: ${NEXT_VERSION} → Branch: ${BRANCH}"
+
+          # Check if branch already exists (idempotent)
+          if git ls-remote --heads origin "${BRANCH}" | grep -q "${BRANCH}"; then
+            echo "Branch ${BRANCH} already exists — skipping."
+            exit 0
+          fi
+
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Create the branch from dev
+          git checkout -b "${BRANCH}"
+
+          # Bump setup.py
+          sed -i "s/version=\"${VERSION}\"/version=\"${NEXT_VERSION}\"/" setup.py
+          grep "version=" setup.py  # verify
+
+          # Add changelog placeholder
+          sed -i "s/^# Changelog$/# Changelog\n\n## ${NEXT_VERSION} - Unreleased/" CHANGELOG.md
+
+          # Commit and push
+          git add setup.py CHANGELOG.md
+          git commit -m "chore: start ${NEXT_VERSION}"
+          git push -u origin "${BRANCH}"
+
+          echo "✅ Created ${BRANCH} with setup.py=${NEXT_VERSION}"

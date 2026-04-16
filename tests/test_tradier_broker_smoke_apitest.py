@@ -4,7 +4,7 @@ import pytest
 
 from lumibot.brokers.tradier import Tradier
 from lumibot.credentials import TRADIER_CONFIG, TRADIER_TEST_CONFIG
-from lumibot.entities import Asset, Order
+from lumibot.entities import Asset, CashEvent, Order
 
 
 pytestmark = pytest.mark.apitest
@@ -85,5 +85,15 @@ def test_tradier_smoke_place_and_cancel_day_limit_order():
             time.sleep(0.25)
 
         assert status in {"canceled", "cancelled"}
+    finally:
+        broker.cleanup_streams()
+
+
+def test_tradier_smoke_cash_events_read_path():
+    broker = _tradier_live_or_skip()
+    try:
+        events = broker.get_cash_events(limit=10)
+        assert isinstance(events, list)
+        assert all(isinstance(event, CashEvent) for event in events)
     finally:
         broker.cleanup_streams()

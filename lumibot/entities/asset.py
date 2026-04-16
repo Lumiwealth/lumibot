@@ -174,6 +174,9 @@ class Asset:
 
     # Pull the rights from the OptionRight class
     _right: list = [v for k, v in OptionRight.__dict__.items() if not k.startswith("__")]
+    _asset_type_aliases = {
+        "us_equity": AssetType.STOCK,
+    }
 
     def __init__(
         self,
@@ -413,17 +416,17 @@ class Asset:
         return self._cached_hash
 
     def asset_type_must_be_one_of(self, v):
-        # TODO: check if this works!
-        if v == "us_equity":
-            v = "stock"
         if v is None or isinstance(v, self.AssetType):
             return v
 
         v = v.lower()
+        if v in self._asset_type_aliases:
+            return self._asset_type_aliases[v]
         try:
             asset_type = self.AssetType(v)
         except ValueError:
-            raise ValueError(f"`asset_type` must be one of {', '.join(self._asset_types)}")
+            valid_asset_types = ", ".join(member.value for member in self.AssetType)
+            raise ValueError(f"`asset_type` must be one of {valid_asset_types}") from None
         return asset_type
 
     def right_must_be_one_of(self, v):

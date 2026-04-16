@@ -98,6 +98,10 @@ class DataSourceBacktesting(DataSource, ABC):
         # Progress bar should always show when enabled, regardless of quiet_logs
         # Quiet logs only affects INFO/WARNING/ERROR logging, not progress bar
         self._show_progress_bar = show_progress_bar
+        self._progress_bar_interval_seconds = float(
+            os.environ.get("BACKTESTING_PROGRESS_BAR_INTERVAL_SECONDS", "0.25")
+        )
+        self._last_progress_bar_update = None
 
         self._progress_csv_path = progress_csv_path or "logs/progress.csv"
         # Add initialization for the logging timer attribute
@@ -327,6 +331,9 @@ class DataSourceBacktesting(DataSource, ABC):
 
         self._datetime = new_datetime
 
+        if not self._show_progress_bar and not self.log_backtest_progress_to_file:
+            return
+
         total_seconds = max((self.datetime_end - self.datetime_start).total_seconds(), 1)
         current_seconds = max((new_datetime - self.datetime_start).total_seconds(), 0)
         percent = min((current_seconds / total_seconds) * 100, 100)
@@ -353,7 +360,17 @@ class DataSourceBacktesting(DataSource, ABC):
                     if eta_seconds >= 0:
                         eta_override = timedelta(seconds=eta_seconds)
 
-        if self._show_progress_bar:
+        should_print_progress_bar = self._show_progress_bar
+        if should_print_progress_bar and self._progress_bar_interval_seconds > 0:
+            last_progress_bar_update = getattr(self, "_last_progress_bar_update", None)
+            if last_progress_bar_update is not None:
+                should_print_progress_bar = (
+                    percent >= 100
+                    or (now_wall - last_progress_bar_update).total_seconds() >= self._progress_bar_interval_seconds
+                )
+
+        if should_print_progress_bar:
+            self._last_progress_bar_update = now_wall
             print_progress_bar(
                 new_datetime,
                 self.datetime_start,

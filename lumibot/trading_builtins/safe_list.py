@@ -13,7 +13,8 @@ class SafeList:
         if initial is None:
             initial = []
         self.__lock = lock
-        self.__items = initial
+        self.__items = list(initial)
+        self.revision = 0
 
     def __repr__(self):
         return repr(self.__items)
@@ -57,9 +58,11 @@ class SafeList:
         lock = self.__lock
         if lock is None:
             self.__items[n] = val
+            self.revision += 1
             return
         with lock:
             self.__items[n] = val
+            self.revision += 1
 
     def __add__(self, val):
         lock = self.__lock
@@ -76,15 +79,18 @@ class SafeList:
         lock = self.__lock
         if lock is None:
             self.__items.append(value)
+            self.revision += 1
             return
         with lock:
             self.__items.append(value)
+            self.revision += 1
 
     def remove(self, value, key=None):
         lock = self.__lock
         if lock is None:
             if key is None:
                 self.__items.remove(value)
+                self.revision += 1
                 return
             if not isinstance(key, str):
                 raise ValueError(f"key must be a string, received {key} of type {type(key)}")
@@ -97,18 +103,21 @@ class SafeList:
                         item_identifier = getattr(item, "identifier", _MISSING)
                     if item_identifier == value:
                         del self.__items[idx]
+                        self.revision += 1
                         break
                 return
 
             for idx, item in enumerate(self.__items):
                 if getattr(item, key) == value:
                     del self.__items[idx]
+                    self.revision += 1
                     break
             return
 
         with lock:
             if key is None:
                 self.__items.remove(value)
+                self.revision += 1
             else:
                 if not isinstance(key, str):
                     raise ValueError(f"key must be a string, received {key} of type {type(key)}")
@@ -121,20 +130,28 @@ class SafeList:
                             item_identifier = getattr(item, "identifier", _MISSING)
                         if item_identifier == value:
                             del self.__items[idx]
+                            self.revision += 1
                             break
                 else:
                     for idx, item in enumerate(self.__items):
                         if getattr(item, key) == value:
                             del self.__items[idx]
+                            self.revision += 1
                             break
 
     def extend(self, value):
         lock = self.__lock
         if lock is None:
-            self.__items.extend(value)
+            value_list = list(value)
+            if value_list:
+                self.__items.extend(value_list)
+                self.revision += 1
             return
         with lock:
-            self.__items.extend(value)
+            value_list = list(value)
+            if value_list:
+                self.__items.extend(value_list)
+                self.revision += 1
 
     def get_list(self):
         lock = self.__lock
@@ -165,22 +182,28 @@ class SafeList:
             if keep_last <= 0:
                 removed = len(self.__items)
                 self.__items = []
+                if removed:
+                    self.revision += 1
                 return removed
             if len(self.__items) <= keep_last:
                 return 0
             removed = len(self.__items) - keep_last
             self.__items = self.__items[-keep_last:]
+            self.revision += 1
             return removed
 
         with lock:
             if keep_last <= 0:
                 removed = len(self.__items)
                 self.__items = []
+                if removed:
+                    self.revision += 1
                 return removed
             if len(self.__items) <= keep_last:
                 return 0
             removed = len(self.__items) - keep_last
             self.__items = self.__items[-keep_last:]
+            self.revision += 1
             return removed
 
 
@@ -203,6 +226,7 @@ class SafeOrderDict:
             raise ValueError("lock must be a threading.RLock")
         self.__lock = lock
         self.__items: dict[str, object] = {}
+        self.revision = 0
         if initial:
             for item in initial:
                 self.append(item)
@@ -263,9 +287,11 @@ class SafeOrderDict:
         lock = self.__lock
         if lock is None:
             self.__items[str(identifier)] = value
+            self.revision += 1
             return
         with lock:
             self.__items[str(identifier)] = value
+            self.revision += 1
 
     def remove(self, value, key=None):
         lock = self.__lock
@@ -277,16 +303,22 @@ class SafeOrderDict:
     def _remove_unlocked(self, value, key=None):
         if key is None:
             if isinstance(value, str):
-                self.__items.pop(value, None)
+                removed = self.__items.pop(value, None)
+                if removed is not None:
+                    self.revision += 1
                 return
             identifier = self._identifier_for(value)
             if identifier is None:
                 return
-            self.__items.pop(str(identifier), None)
+            removed = self.__items.pop(str(identifier), None)
+            if removed is not None:
+                self.revision += 1
             return
 
         if key == "identifier":
-            self.__items.pop(str(value), None)
+            removed = self.__items.pop(str(value), None)
+            if removed is not None:
+                self.revision += 1
             return
 
         # Fallback: scan by arbitrary key (should be rare for order buckets).
@@ -294,7 +326,9 @@ class SafeOrderDict:
             raise ValueError(f"key must be a string, received {key} of type {type(key)}")
         for identifier, item in list(self.__items.items()):
             if getattr(item, key, _MISSING) == value:
-                self.__items.pop(identifier, None)
+                removed = self.__items.pop(identifier, None)
+                if removed is not None:
+                    self.revision += 1
                 break
 
     def extend(self, value):

@@ -1,6 +1,7 @@
 import datetime as dt
 import io
 from decimal import Decimal
+from pathlib import Path
 from zoneinfo import ZoneInfo
 import pytz
 import pytest
@@ -152,6 +153,51 @@ def test_get_trading_days():
     # Check timezone of market_open and market_close times
     assert all(str(dtm.tzinfo) == str(america_chicago) for dtm in trading_days.market_open)
     assert all(str(dtm.tzinfo) == str(america_chicago) for dtm in trading_days.market_close)
+
+
+def test_get_trading_days_long_window_uses_direct_schedule(monkeypatch, tmp_path):
+    tzinfo = pytz.timezone("America/New_York")
+    start = dt.datetime(2020, 1, 1)
+    end = dt.datetime(2022, 1, 10)
+    schedule_calls = []
+
+    class _FakeCalendar:
+        def schedule(self, start_date, end_date, tz=None):
+            schedule_calls.append((start_date, end_date, tz))
+            index = pd.DatetimeIndex(
+                [
+                    pd.Timestamp("2020-01-02", tz=tzinfo),
+                    pd.Timestamp("2021-01-04", tz=tzinfo),
+                ]
+            )
+            return pd.DataFrame(
+                {
+                    "market_open": [
+                        pd.Timestamp("2020-01-02 09:30", tz=tzinfo),
+                        pd.Timestamp("2021-01-04 09:30", tz=tzinfo),
+                    ],
+                    "market_close": [
+                        pd.Timestamp("2020-01-02 16:00", tz=tzinfo),
+                        pd.Timestamp("2021-01-04 16:00", tz=tzinfo),
+                    ],
+                },
+                index=index,
+            )
+
+    monkeypatch.setenv("LUMIBOT_TRADING_DAYS_CACHE_DIR", str(Path(tmp_path) / "trading_days"))
+    monkeypatch.setattr(helpers_module.mcal, "get_calendar", lambda market: _FakeCalendar())
+    monkeypatch.setattr(
+        helpers_module,
+        "_get_trading_schedule_for_year",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("year cache path should not be used")),
+    )
+    helpers_module._TRADING_CALENDAR_CACHE.clear()
+
+    trading_days = get_trading_days("NYSE", start_date=start, end_date=end, tzinfo=tzinfo)
+
+    assert len(schedule_calls) == 1
+    assert len(trading_days) == 2
+    assert str(trading_days.index.tz) == str(tzinfo)
 
 
 def test_get_trading_times_day_nyse():

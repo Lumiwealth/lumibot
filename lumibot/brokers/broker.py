@@ -285,6 +285,13 @@ class Broker(ABC):
         self._filled_positions = SafeList(safelist_lock)
         self._subscribers = SafeList(safelist_lock)
         self._is_stream_subscribed = False
+        self._tracked_orders_cache_key = None
+        self._tracked_orders_cache_value = []
+        self._tracked_orders_filter_cache = {}
+        self._active_tracked_orders_filter_cache = {}
+        self._tracked_positions_cache = {}
+        self._tracked_position_cache = {}
+        self._asset_potential_total_cache = {}
         # PERF: appending to a pandas DataFrame with concat on every trade event is extremely slow
         # (option-heavy intraday backtests can generate 100k+ events). Store rows in a Python list
         # and materialize a DataFrame lazily when needed.
@@ -927,6 +934,18 @@ class Broker(ABC):
     # ================================ Common functions ================================
     @property
     def _tracked_orders(self):
+        cache_key = (
+            getattr(self._unprocessed_orders, "revision", 0),
+            getattr(self._new_orders, "revision", 0),
+            getattr(self._partially_filled_orders, "revision", 0),
+            getattr(self._filled_orders, "revision", 0),
+            getattr(self._error_orders, "revision", 0),
+            getattr(self._canceled_orders, "revision", 0),
+            getattr(self._placeholder_orders, "revision", 0),
+        )
+        if self._tracked_orders_cache_key == cache_key:
+            return self._tracked_orders_cache_value
+
         orders: list[Order] = []
         orders.extend(self._unprocessed_orders.get_list())
         orders.extend(self._new_orders.get_list())
@@ -935,7 +954,22 @@ class Broker(ABC):
         orders.extend(self._error_orders.get_list())
         orders.extend(self._canceled_orders.get_list())
         orders.extend(self._placeholder_orders.get_list())
+        self._tracked_orders_cache_key = cache_key
+        self._tracked_orders_cache_value = orders
         return orders
+
+    @staticmethod
+    def _strategy_name_from_input(strategy):
+        if strategy is not None and not isinstance(strategy, str):
+            return getattr(strategy, "name", getattr(strategy, "_name", None))
+        return strategy
+
+    @staticmethod
+    def _cache_result(cache: dict, key, value):
+        if len(cache) >= 256:
+            cache.clear()
+        cache[key] = value
+        return value
 
     def is_backtesting_broker(self):
         return self.IS_BACKTESTING_BROKER
@@ -1553,7 +1587,7 @@ class Broker(ABC):
             )
             self._filled_positions.append(position)
         else:
-            position._quantity += quote_quantity
+            position.quantity = position._quantity + quote_quantity
 
     # =========Clock functions=====================
 
@@ -1791,15 +1825,30 @@ class Broker(ABC):
     def get_tracked_position(self, strategy, asset):
         """get a tracked position given an asset and
         a strategy"""
+        strategy_name = self._strategy_name_from_input(strategy)
+        cache_key = (getattr(self._filled_positions, "revision", 0), strategy_name, asset)
+        cached = self._tracked_position_cache.get(cache_key)
+        if cached is not None or cache_key in self._tracked_position_cache:
+            return cached
+
         for position in self._filled_positions:
-            if position.asset == asset and (not strategy or position.strategy == strategy):
+            if position.asset == asset and (strategy_name is None or position.strategy == strategy_name):
+                self._cache_result(self._tracked_position_cache, cache_key, position)
                 return position
+        self._cache_result(self._tracked_position_cache, cache_key, None)
         return None
 
     def get_tracked_positions(self, strategy=None):
         """get all tracked positions for a given strategy"""
-        result = [position for position in self._filled_positions if strategy is None or position.strategy == strategy]
-        return result
+        strategy_name = self._strategy_name_from_input(strategy)
+        cache_key = (getattr(self._filled_positions, "revision", 0), strategy_name)
+        cached = self._tracked_positions_cache.get(cache_key)
+        if cached is not None or cache_key in self._tracked_positions_cache:
+            return list(cached)
+
+        result = [position for position in self._filled_positions if strategy_name is None or position.strategy == strategy_name]
+        self._cache_result(self._tracked_positions_cache, cache_key, result)
+        return list(result)
 
     # =========Orders and assets functions=================
 
@@ -1815,16 +1864,23 @@ class Broker(ABC):
 
     def get_tracked_orders(self, strategy=None, asset=None) -> list[Order]:
         """get all tracked orders for a given strategy"""
-        # Allow filtering by Strategy instance or by name
-        if strategy is not None and not isinstance(strategy, str):
-            strategy_name = getattr(strategy, "name", getattr(strategy, "_name", None))
+        strategy_name = self._strategy_name_from_input(strategy)
+        tracked_orders = self._tracked_orders
+        cache_key = (self._tracked_orders_cache_key, strategy_name, asset)
+        cached = self._tracked_orders_filter_cache.get(cache_key)
+        if cached is not None or cache_key in self._tracked_orders_filter_cache:
+            return list(cached)
+
+        if strategy_name is None and asset is None:
+            result = list(tracked_orders)
         else:
-            strategy_name = strategy
-        result = []
-        for order in self._tracked_orders:
-            if (strategy_name is None or order.strategy == strategy_name) and (asset is None or order.asset == asset):
-                result.append(order)
-        return result
+            result = []
+            for order in tracked_orders:
+                if (strategy_name is None or order.strategy == strategy_name) and (asset is None or order.asset == asset):
+                    result.append(order)
+
+        self._cache_result(self._tracked_orders_filter_cache, cache_key, result)
+        return list(result)
 
     def get_active_tracked_orders(self, strategy=None, asset=None) -> list[Order]:
         """Return only active (open) tracked orders for a strategy/asset.
@@ -1833,11 +1889,18 @@ class Broker(ABC):
         the internal lists that can contain active orders (unprocessed/new/partially-filled
         plus placeholders), avoiding the much larger filled/canceled/error histories.
         """
-        # Allow filtering by Strategy instance or by name
-        if strategy is not None and not isinstance(strategy, str):
-            strategy_name = getattr(strategy, "name", getattr(strategy, "_name", None))
-        else:
-            strategy_name = strategy
+        strategy_name = self._strategy_name_from_input(strategy)
+        active_cache_key = (
+            getattr(self._unprocessed_orders, "revision", 0),
+            getattr(self._new_orders, "revision", 0),
+            getattr(self._partially_filled_orders, "revision", 0),
+            getattr(self._placeholder_orders, "revision", 0),
+            strategy_name,
+            asset,
+        )
+        cached = self._active_tracked_orders_filter_cache.get(active_cache_key)
+        if cached is not None or active_cache_key in self._active_tracked_orders_filter_cache:
+            return list(cached)
 
         result: list[Order] = []
         for bucket in (
@@ -1854,12 +1917,12 @@ class Broker(ABC):
                 if asset is not None and order.asset != asset:
                     continue
                 result.append(order)
-        return result
+        self._cache_result(self._active_tracked_orders_filter_cache, active_cache_key, result)
+        return list(result)
 
     def get_all_orders(self) -> list[Order]:
         """get all tracked and completed orders"""
-        orders = self._tracked_orders
-        return orders
+        return list(self._tracked_orders)
 
     def get_order(self, identifier) -> Order:
         """get a tracked order given an identifier"""
@@ -1880,13 +1943,28 @@ class Broker(ABC):
         """given a strategy and a asset, check the ongoing
         position and the tracked order and returns the total
         number of shares provided all orders went through"""
+        strategy_name = self._strategy_name_from_input(strategy)
+        cache_key = (
+            getattr(self._filled_positions, "revision", 0),
+            getattr(self._unprocessed_orders, "revision", 0),
+            getattr(self._new_orders, "revision", 0),
+            getattr(self._partially_filled_orders, "revision", 0),
+            getattr(self._placeholder_orders, "revision", 0),
+            strategy_name,
+            asset,
+        )
+        cached = self._asset_potential_total_cache.get(cache_key)
+        if cached is not None or cache_key in self._asset_potential_total_cache:
+            return cached
+
         quantity = 0
-        position = self.get_tracked_position(strategy, asset)
+        position = self.get_tracked_position(strategy_name, asset)
         if position is not None:
             quantity = position.quantity
 
-        # Get all tracked orders for the strategy and asset
-        orders = self.get_tracked_orders(strategy, asset)
+        # Only active orders can contribute to future quantity. Filled/canceled/error orders
+        # are already reflected elsewhere and never count toward the potential total.
+        orders = self.get_active_tracked_orders(strategy_name, asset)
 
         # Add the quantity of the order to the total
         for order in orders:
@@ -1900,6 +1978,7 @@ class Broker(ABC):
             if quantity.as_tuple().exponent > -4:
                 quantity = float(quantity)  # has less than 5 decimal places, use float
 
+        self._cache_result(self._asset_potential_total_cache, cache_key, quantity)
         return quantity
 
     def _parse_broker_orders(self, broker_orders, strategy_name, strategy_object=None):

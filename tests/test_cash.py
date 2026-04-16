@@ -166,6 +166,19 @@ class TestCash(unittest.TestCase):
                                 f"get_cash() should equal {amount}")
                 self.assertEqual(property_cash, method_cash,
                                 f"Both methods should be consistent for amount {amount}")
+
+    def test_cash_uses_cached_quote_position_reference(self):
+        """Test that repeated cash reads stay correct with the cached quote position reference."""
+        self.strategy._set_cash_position(12345.67)
+        cash_position = self.strategy._get_cash_position()
+
+        self.assertIsNotNone(cash_position)
+        self.assertEqual(self.strategy.cash, 12345.67)
+
+        cash_position.quantity = 76543.21
+
+        self.assertEqual(self.strategy.cash, 76543.21)
+        self.assertEqual(self.strategy.get_cash(), 76543.21)
     
     # Edge Cases
     def test_cash_with_zero_value(self):

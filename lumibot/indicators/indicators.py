@@ -148,7 +148,8 @@ class Indicators:
         name : str
             Arbitrary label used in the cache key. Give each distinct user
             indicator a stable label so repeat calls hit the memo.
-        fn : callable(df, **kwargs) -> pandas.Series | pandas.DataFrame
+        fn : callable
+            ``fn(df, **kwargs) -> pandas.Series | pandas.DataFrame``.
             Function to run once over the full history DataFrame.
         asset : Asset
             Underlying asset.

@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.5.0 - Unreleased
+
+### Added
+- **`Strategy.indicators` subsystem.** New per-strategy indicator accessor that computes any indicator over the full bar series once, then hands back the value at the current bar in O(1) on every subsequent call. Eliminates the per-iteration `df.rolling(...).apply(...)` full-history recompute pattern that dominated wall-time on indicator-heavy strategies. Exposes the entire pandas-ta-classic surface (~130 indicators) via `self.indicators.<indicator>(asset, **kwargs)` passthrough plus `self.indicators.custom(name, fn, asset, **kwargs)` for user-defined indicators. Same API for backtest and live. See `docsrc/indicators.rst` for the full reference and migration guide.
+
 ## 4.4.63 - Unreleased
 
 ### Fixed

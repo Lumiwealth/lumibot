@@ -1639,11 +1639,15 @@ def _fetch_history_between_dates(
         # IBKR typically returns {"data":[...]} (empty list means no data).
         data = payload.get("data") if isinstance(payload, dict) else None
         if not data:
+            # If we already fetched earlier chunks, keep them and stop paging.
+            # CME weekend/maintenance gaps (Fri 4pm CT → Sun 5pm CT, nightly 4–5pm CT)
+            # make a backward-paging window land in a no-trading range and return empty
+            # even when the surrounding bars are valid. Raising here discards every
+            # chunk we already collected and poisons the cache with a broad
+            # missing-window marker — then every subsequent call for the same asset
+            # takes the slow retry path. Break out with what we have.
             if chunks:
-                raise RuntimeError(
-                    "IBKR history pagination returned empty data before covering the requested window "
-                    f"for {getattr(asset, 'symbol', None)} {timestep} ({start_dt.isoformat()} -> {end_dt.isoformat()})"
-                )
+                break
 
             _record_missing_window(
                 asset=asset,
@@ -1659,11 +1663,10 @@ def _fetch_history_between_dates(
 
         df = _history_payload_to_frame(data, source_was_explicit=source_was_explicit)
         if df.empty:
+            # Same rationale as the empty-data branch above: an intermediate empty
+            # page during backward pagination must not discard earlier chunks.
             if chunks:
-                raise RuntimeError(
-                    "IBKR history pagination returned an empty frame before covering the requested window "
-                    f"for {getattr(asset, 'symbol', None)} {timestep} ({start_dt.isoformat()} -> {end_dt.isoformat()})"
-                )
+                break
 
             _record_missing_window(
                 asset=asset,

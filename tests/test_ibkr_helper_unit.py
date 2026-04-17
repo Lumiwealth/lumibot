@@ -359,11 +359,16 @@ def test_stock_index_daily_period_cap_is_5y():
 
 def test_history_period_for_request_daily_stock_index_uses_cap():
     """Daily stock/index requests must use the class-wide max period so
-    pagination reaches back to the requested window efficiently."""
+    pagination reaches back to the requested window efficiently.
+
+    Only tests canonical IBKR bar strings (``1d``) because that's what
+    ``_timestep_to_ibkr_bar`` produces — ``day`` is a lumibot *timestep*
+    label that is always converted to ``1d`` before this helper is called.
+    """
     import lumibot.tools.ibkr_helper as ibkr_helper
 
     for asset_type in ("stock", "index"):
-        for bar in ("1d", "day", "1D"):
+        for bar in ("1d", "1D"):
             period = ibkr_helper._history_period_for_request(
                 asset_type=asset_type, bar=bar, source="Trades"
             )

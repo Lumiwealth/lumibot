@@ -332,3 +332,41 @@ def test_ibkr_get_price_data_returns_real_cached_bars_when_window_stays_underfil
     assert not df.empty
     assert len(df) == len(stale)
     assert df["close"].tolist() == stale["close"].tolist()
+
+
+def test_stock_index_daily_period_cap_is_5y():
+    """Regression guard for the daily stock/index history period cap.
+
+    IBKR Client Portal REST caps daily responses at ~1000 data points per
+    call (``IBKR_HISTORY_MAX_POINTS``). A ``5y`` request already hits that
+    ceiling (verified against production on 2026-04-17: 1000 bars covering
+    ~4 trading years), so it is the efficient ceiling for pagination.
+
+    Prior value ``180d`` returned ~125 bars per call, which in practice
+    caused the backward-walking loop in ``_fetch_history_between_dates``
+    to complete in a single iteration (the initial fetch near real-now
+    populated the cache, and the coverage check then skipped the true
+    historical window for every subsequent simulation date — producing a
+    flat "latest price" for the entire backtest range).
+
+    If you need to tighten this again, write a regression test that
+    reproduces the long-backtest flat-price failure first.
+    """
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    assert ibkr_helper.IBKR_STOCK_INDEX_DAILY_MAX_PERIOD == "5y"
+
+
+def test_history_period_for_request_daily_stock_index_uses_cap():
+    """Daily stock/index requests must use the class-wide max period so
+    pagination reaches back to the requested window efficiently."""
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    for asset_type in ("stock", "index"):
+        for bar in ("1d", "day", "1D"):
+            period = ibkr_helper._history_period_for_request(
+                asset_type=asset_type, bar=bar, source="Trades"
+            )
+            assert period == ibkr_helper.IBKR_STOCK_INDEX_DAILY_MAX_PERIOD, (
+                f"asset_type={asset_type} bar={bar} period={period}"
+            )

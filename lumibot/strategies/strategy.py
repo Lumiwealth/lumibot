@@ -5561,7 +5561,11 @@ class Strategy(_Strategy):
             try:
                 parsed_start = datetime.datetime.fromisoformat(env_start)
                 if parsed_start != backtesting_start:
-                    logging.info(
+                    # WARNING (not INFO): silent truncation of a strategy's
+                    # hardcoded backtest window from a stale .env value is
+                    # easy to miss and produces "mystery" result drift. Flag
+                    # it loudly so the override is visible in every run.
+                    logging.warning(
                         f"BACKTESTING_START env var override: {backtesting_start} -> {parsed_start}"
                     )
                 backtesting_start = parsed_start
@@ -5573,7 +5577,7 @@ class Strategy(_Strategy):
             try:
                 parsed_end = datetime.datetime.fromisoformat(env_end)
                 if parsed_end != backtesting_end:
-                    logging.info(
+                    logging.warning(
                         f"BACKTESTING_END env var override: {backtesting_end} -> {parsed_end}"
                     )
                 backtesting_end = parsed_end

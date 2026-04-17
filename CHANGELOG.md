@@ -2,6 +2,16 @@
 
 ## 4.4.63 - Unreleased
 
+### Fixed
+- **Backtesting: persist placeholder markers for IBKR terminal pagination-empty responses.** `_fetch_history_between_dates` raises `"IBKR history pagination returned empty data before covering the requested window"` when IBKR serves partial-then-empty responses (common for entitlement/stitching gaps like CONT_FUTURE 1-minute Trades). The error was caught but `_is_terminal_no_data_error` did not match the message, so no placeholder marker was written and every backtest refetched the same ~23s empty-result call. Fix: extend `_is_terminal_no_data_error` in `lumibot/tools/ibkr_helper.py` to match the pagination-empty tokens, so `_record_missing_window` persists a `missing=True` marker and `_window_is_placeholder_covered` short-circuits on subsequent runs. Observed impact on `vband_mnq_mes_1m` benchmark: 55.8s → 2.94s (**18.98x**) on warm cache; all results byte-identical.
+
+### Added
+- `LUMIBOT_CACHE_MISS_DEBUG` env var gates opt-in `[CACHE_MISS]` / `[FETCH]` warning traces in `ibkr_helper.py` for auditing why the cache layer decided to hit the network. Documented in `docs/ENV_VARS.md` and `docsrc/environment_variables.rst`.
+
+### Changed
+- `lumibot/backtesting/routed_backtesting.py`: narrow short-circuit in `_IbkrRoutingAdapter.update_pandas_data` skips IBKR's 1-minute prefetch for `cont_future`/`future` quote-lookup calls when coarser non-day cadence (15-minute, 30-minute, hour, …) is already loaded. Affects `get_quote(asset)` default-timestep lookups during backtests. Observed impact on `mes_ema_15m` benchmark: 26.6s → 7.03s (**3.78x**) on warm cache; results byte-identical.
+- `lumibot/data_sources/pandas_data.py`: module-level `_USD_FOREX = Asset("USD", "forex")` singleton reused by `find_asset_in_data_store()` to avoid constructing a fresh default-quote `Asset` on every call (~200K calls/backtest). Missing-asset warnings now gate to first-encounter per `(asset, timestep)` to avoid flooding 1-minute backtest logs with redundant warnings.
+
 ## 4.4.62 - 2026-04-15
 
 ### Fixed

@@ -136,6 +136,13 @@ This page documents environment variables used by LumiBot, with an emphasis on *
 - Output: produces a `*_profile_yappi.csv` artifact alongside other backtest artifacts.
 - Related tooling: `scripts/analyze_yappi_csv.py`
 
+### `LUMIBOT_CACHE_MISS_DEBUG`
+- Purpose: Opt-in diagnostic logging for IBKR history cache misses and every real network fetch. Emits `[CACHE_MISS]` (why the cache miss fired) and `[FETCH]` (with a short Python traceback of the caller) at WARNING level.
+- Values: truthy enables (`1`, `true`); unset/`0` disables.
+- Default: disabled (zero runtime cost when unset — gated before any work).
+- When to use: diagnosing unexpected IBKR roundtrips in warm-cache backtests. Drove the root-cause find that produced the 2026-04-16 MES 3.89x speedup (IBKR returning empty 1-minute CONT_FUTURE history at 7s/chunk on every pass).
+- Where: `lumibot/tools/ibkr_helper.py`
+
 ## Remote downloader (ThetaData via shared service) — internal/proprietary
 
 This section describes the internal **Data Downloader** service used by LumiWealth/BotSpot deployments.

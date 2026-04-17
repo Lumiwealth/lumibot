@@ -1,9 +1,21 @@
 # CLAUDE.md - AI Assistant Instructions for LumiBot
 
+## 🚨🚨🚨 RULE #1 — NEVER FABRICATE BACKTEST DATA 🚨🚨🚨
+
+**Fake / synthesized / default-filled market data is STRICTLY FORBIDDEN.**
+**Missing data is fine. Fake data is a lawsuit waiting to happen.**
+
+- If real bars are unavailable for a day / symbol / timeframe, return empty. Do NOT invent a placeholder bar, do NOT carry-forward the last price, do NOT substitute a constant (e.g. `VIX=14.2`), do NOT interpolate.
+- This applies to **every provider path** (IBKR, ThetaData, Polygon, Yahoo, DataBento, custom) and **every timestep** (minute, day, tick).
+- Placeholder rows used for cache bookkeeping ("we tried this day, nothing was there") must NEVER be returned to a strategy as real bars. Filter them out, and surface the absence to the caller.
+- If you find code that fabricates/synthesizes/forward-fills missing market data to keep a strategy alive — **delete it**. The honest outcome (empty frame, explicit warning, strategy skip) is the ONLY correct outcome.
+- A backtest that makes decisions on fake data produces fake PnL. Showing fake PnL to customers is a legal and reputational catastrophe.
+- Full details and enforcement rules live in `docs/BACKTESTING_ARCHITECTURE.md` under "RULE #1". Read it before touching any data-fetching code.
+
 ## Quick Start
 
 **First, read these files:**
-1. `docs/BACKTESTING_ARCHITECTURE.md` - Understand the backtesting data flow
+1. `docs/BACKTESTING_ARCHITECTURE.md` - Understand the backtesting data flow AND the no-fake-data rule
 2. `AGENTS.md` - Critical rules for ThetaData (DO NOT SKIP)
 
 ## Backtesting Accuracy (Definition)
@@ -320,9 +332,15 @@ BACKTESTING_DATA_SOURCE=none       # Uses whatever class the code specifies
 
 ### Cache Management
 
-If seeing wrong/stale data:
-1. Bump `LUMIBOT_CACHE_S3_VERSION` (e.g., v5 → v6)
+**LOCAL/DEV ONLY — if seeing wrong/stale data on your own machine or in dev:**
+1. Bump `LUMIBOT_CACHE_S3_VERSION` (e.g., v5 → v6) — invalidates everything, forces clean rebuild
 2. Clear local cache: `rm -rf ~/Library/Caches/lumibot/`
+
+**🚨 PRODUCTION — NEVER bump `LUMIBOT_CACHE_S3_VERSION`.** Doing so invalidates the entire prod cache including ThetaData option chains, which are extremely expensive to rewarm and will make the site/backtests painfully slow for a long time. For prod issues:
+- Prove bad data is actually *cached* (download a specific parquet and inspect) before deleting anything — the bug may be runtime-only
+- Use **surgical** `aws s3 rm --recursive` on the narrowest affected prefix (e.g., `s3://lumibot-cache-prod/prod/cache/v1/ibkr/stock/` or `.../ibkr/index/`)
+- It is OK to clear most of `prod/cache/v1/ibkr/` **except `ibkr/future/`** (futures cache is costly to rebuild)
+- Never touch `prod/cache/v1/thetadata/` — that data is clean and rebuilds are slow
 
 ## Common Tasks
 

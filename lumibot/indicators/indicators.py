@@ -110,7 +110,7 @@ class Indicators:
     def __init__(self, strategy):
         self._strategy = strategy
         self._cache: dict = {}
-        self._fallback_length: int = 100_000
+        self._fallback_length: int = 10_000
 
     def __getattr__(self, name: str):
         if name.startswith("_"):
@@ -184,12 +184,15 @@ class Indicators:
 
     def _dispatch(self, asset, timestep, name, kwargs, custom_fn):
         key = self._cache_key(asset, timestep, name, kwargs)
-        if key not in self._cache:
-            df = self._full_history(asset, timestep)
-            if df is None or df.empty:
-                return None
-            self._cache[key] = self._compute(df, name, kwargs, custom_fn)
-        return self._at_current_bar(self._cache[key])
+        df = self._full_history(asset, timestep)
+        if df is None or df.empty:
+            return None
+        data_tag = (len(df), df.index[-1])
+        cached = self._cache.get(key)
+        if cached is None or cached[0] != data_tag:
+            result = self._compute(df, name, kwargs, custom_fn)
+            self._cache[key] = (data_tag, result)
+        return self._at_current_bar(self._cache[key][1])
 
     def _asset_key(self, asset):
         if hasattr(asset, "symbol"):
@@ -210,41 +213,62 @@ class Indicators:
         """Return the full known bar series DataFrame for ``asset``.
 
         In backtest mode (PANDAS-style data source) this returns the entire
-        simulated dataset, not just "history up to now" — the indicator output
-        is sliced to current-bar in ``_at_current_bar``, so the strategy never
-        sees future values.
+        simulated dataset — the indicator output is sliced to current-bar
+        in ``_at_current_bar``, so the strategy never sees future values.
 
-        In live mode this falls back to ``get_historical_prices`` with a large
-        length argument.
+        In routed/live modes ``_data_store`` is populated lazily. If it is
+        empty we call ``get_historical_prices`` with a large length to force
+        the adapter to prefetch, then re-read the resulting full series.
         """
         broker = getattr(self._strategy, "broker", None)
         data_source = getattr(broker, "data_source", None) if broker is not None else None
-        if data_source is not None and getattr(data_source, "_data_store", None) is not None:
-            data_obj = self._find_in_store(data_source, asset)
-            if data_obj is not None and hasattr(data_obj, "df"):
-                df = data_obj.df
-                if df is not None and not df.empty:
-                    return df
+
+        df = self._read_store_df(data_source, asset, timestep)
+        if df is not None:
+            return df
+
         try:
             bars = self._strategy.get_historical_prices(
                 asset, length=self._fallback_length, timestep=timestep
             )
         except Exception as exc:
             logger.debug("indicators: get_historical_prices fallback failed for %s: %s", asset, exc)
-            return None
+            bars = None
+
+        df = self._read_store_df(data_source, asset, timestep)
+        if df is not None:
+            return df
+
         if bars is None:
             return None
         return getattr(bars, "df", None)
 
-    def _find_in_store(self, data_source, asset):
+    def _read_store_df(self, data_source, asset, timestep) -> Optional[pd.DataFrame]:
+        if data_source is None or getattr(data_source, "_data_store", None) is None:
+            return None
+        data_obj = self._find_in_store(data_source, asset, timestep)
+        if data_obj is None or not hasattr(data_obj, "df"):
+            return None
+        df = data_obj.df
+        if df is None or df.empty:
+            return None
+        return df
+
+    def _find_in_store(self, data_source, asset, timestep=None):
         store = data_source._data_store
         if hasattr(data_source, "find_asset_in_data_store"):
-            try:
-                key = data_source.find_asset_in_data_store(asset)
-                if key in store:
+            for ts_arg in (timestep, None):
+                try:
+                    key = data_source.find_asset_in_data_store(asset, timestep=ts_arg) if ts_arg else data_source.find_asset_in_data_store(asset)
+                except TypeError:
+                    try:
+                        key = data_source.find_asset_in_data_store(asset)
+                    except Exception:
+                        key = None
+                except Exception:
+                    key = None
+                if key is not None and key in store:
                     return store[key]
-            except Exception:
-                pass
         for stored_key, data in store.items():
             stored_asset = stored_key[0] if isinstance(stored_key, tuple) else stored_key
             if stored_asset == asset:
@@ -275,31 +299,33 @@ class Indicators:
         return result
 
     @staticmethod
+    def _position_at(index: pd.Index, now) -> int:
+        """Return the integer position of the most recent bar at-or-before ``now``.
+
+        Uses ``searchsorted`` for O(log N) lookup without allocating a slice.
+        Returns -1 if no bar is on-or-before ``now``.
+        """
+        try:
+            pos = index.searchsorted(now, side="right") - 1
+        except TypeError:
+            idx = index.get_indexer([now], method="pad")
+            return int(idx[0]) if len(idx) else -1
+        return int(pos)
+
+    @staticmethod
     def _latest_scalar(series: pd.Series, now):
         if series.empty:
             return np.nan
-        try:
-            sl = series.loc[:now]
-            if sl.empty:
-                return np.nan
-            return sl.iloc[-1]
-        except (TypeError, KeyError):
-            idx = series.index.get_indexer([now], method="pad")[0]
-            if idx < 0:
-                return np.nan
-            return series.iloc[idx]
+        pos = Indicators._position_at(series.index, now)
+        if pos < 0:
+            return np.nan
+        return series.iloc[pos]
 
     @staticmethod
     def _latest_row(df: pd.DataFrame, now):
         if df.empty:
             return None
-        try:
-            sl = df.loc[:now]
-            if sl.empty:
-                return None
-            return sl.iloc[-1]
-        except (TypeError, KeyError):
-            idx = df.index.get_indexer([now], method="pad")[0]
-            if idx < 0:
-                return None
-            return df.iloc[idx]
+        pos = Indicators._position_at(df.index, now)
+        if pos < 0:
+            return None
+        return df.iloc[pos]

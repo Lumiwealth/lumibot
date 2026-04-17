@@ -5,6 +5,11 @@
 ### Added
 - **`Strategy.indicators` subsystem.** New per-strategy indicator accessor that computes any indicator over the full bar series once, then hands back the value at the current bar in O(1) on every subsequent call. Eliminates the per-iteration `df.rolling(...).apply(...)` full-history recompute pattern that dominated wall-time on indicator-heavy strategies. Exposes the entire pandas-ta-classic surface (~130 indicators) via `self.indicators.<indicator>(asset, **kwargs)` passthrough plus `self.indicators.custom(name, fn, asset, **kwargs)` for user-defined indicators. Same API for backtest and live. See `docsrc/indicators.rst` for the full reference and migration guide.
 
+### Changed
+- **`Strategy.indicators`: per-bar lookup now O(log N) via `searchsorted`.** `_latest_scalar`/`_latest_row` no longer allocate a `.loc[:now]` slice on every call; they compute the integer position of the most-recent bar ≤ now with `Index.searchsorted(now, side="right") - 1` and `iloc` directly. Collapses the per-iteration cost of a memoized indicator from a full label-compare slice to a binary search + one integer index. Observed impact on `tqqq_median` benchmark (13-year daily): 54.71s → 5.59s end-to-end (**~9.8x faster per-iteration lookup** — the memoized compute was already one-shot; this fixes the hot-path indexing cost).
+- **`Strategy.indicators`: cache keyed on full-history fingerprint.** `_dispatch` now tags each memoized result with `(len(df), df.index[-1])` and recomputes transparently when the underlying bar series grows (routed/live prefetch). Prevents stale indicator output when the data source extends the frame after the first call.
+- **`Strategy.indicators`: prefetch-aware full-history fallback.** `_full_history` now tries `_data_store` first, then — if empty — calls `get_historical_prices(length=self._fallback_length)` purely to trigger the routed/live adapter's prefetch path, and re-reads the now-populated store. This makes the indicator subsystem work correctly on routed/IBKR backtests where `_data_store` is populated lazily on first access. `_fallback_length` reduced from 100_000 to 10_000 to avoid pandas ns-timestamp overflow (100k daily bars ≈ year 1573, below the pandas epoch).
+
 ## 4.4.63 - Unreleased
 
 ### Fixed

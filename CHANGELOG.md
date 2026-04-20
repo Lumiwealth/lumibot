@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.5.1 - Unreleased
+
 ## 4.5.0 - 2026-04-19
 
 > Note: the in-flight `4.4.63` work was never published to PyPI (no `v4.4.63`

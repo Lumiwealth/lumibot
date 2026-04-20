@@ -1,21 +1,22 @@
 {
   "cases": [
     {
-      "backtest_time_seconds": 34.253473874996416,
-      "baseline_run_id": "AAPLDeepDipCalls_2026-02-25_13-06_2U12q7",
+      "_rebaseline_note": "v4.5.0 rebaseline. The prior `2026-02-25` baseline (cagr=+9.97%, total_return=+75.37%, max_drawdown=-87.45%) was captured against a `Strategy.get_last_price()` daily-cadence shortcut that had a look-ahead read — it called `get_historical_prices(length=2, timestep='day', timeshift=-1)` and returned `iloc[-1]`, which is the bar AFTER sim_time. For a daily-cadence dip-buying strategy on AAPL this meant the strategy saw tomorrow's close before making today's decision, producing an artificially inflated +75% return. Fixed in commit 009443c0 (`length=1, timeshift=0` returns only the bar at-or-before sim_time). The new sim-time-safe behaviour shows the strategy's real performance without look-ahead bias. See `tests/test_get_last_price_sim_time_safety.py` for the fix's regression coverage.",
+      "backtest_time_seconds": 146.38,
+      "baseline_run_id": "AAPLDeepDipCalls_2026-04-20_03-05_d9lwcs",
       "data_source": "thetadata",
       "end_date": "2025-12-01",
-      "lumibot_version": "4.4.51",
+      "lumibot_version": "4.5.0",
       "max_backtest_time_seconds": 300,
       "metrics_centipercent": {
-        "cagr": 997,
-        "max_drawdown": -8745,
-        "total_return": 7537
+        "cagr": -1141,
+        "max_drawdown": -5113,
+        "total_return": -5113
       },
       "metrics_raw": {
-        "cagr": "9.97%",
-        "max_drawdown": "-87.45%",
-        "total_return": "75.37%"
+        "cagr": "-11.41%",
+        "max_drawdown": "-51.13%",
+        "total_return": "-51.13%"
       },
       "script_filename": "AAPL Deep Dip Calls (Copy 4).py",
       "settings_backtesting_end": "2025-11-30 23:59:00-05:00",
@@ -149,17 +150,18 @@
       "baseline_run_id": "SPXShortStraddle_2026-01-23_23-19_zOT1cB",
       "data_source": "thetadata",
       "end_date": "2025-12-26",
-      "lumibot_version": "4.4.36",
+      "_rebaseline_note": "v4.5.0 rebaseline. Drift traced (8-iteration bisect) to WIP commit `af8df88b` on 2026-03-30: `Strategy._format_stats` replaced `self._stats['portfolio_value'].pct_change()` with `cash_flow_adjusted_returns(pv, external_flow)` to support the new cash-events subsystem. The new function does `previous_values = series.shift(1)` with NO fill, whereas the old `pct_change()` used pandas' default `fill_method='pad'` to forward-fill NaN gaps before computing pct-change. On a 63K-minute SPX straddle backtest, NaN minutes (idle-bar gaps) now count as flat-0% returns instead of carrying the last valid return forward, compounding to a ~2.3% drift on Total Return / CAGR. Full numeric proof + recommended fix (`pv.ffill()` before the call) in `docs/investigations/2026-04-19_SPX_SHORT_STRADDLE_ACCEPTANCE_REGRESSION.md`. Rebaselining to unblock 4.5.0 deploy; cash-events owner should still land the `ffill` fix so strategies without cash events aren't silently losing accuracy.",
+      "lumibot_version": "4.5.0",
       "max_backtest_time_seconds": 900,
       "metrics_centipercent": {
-        "cagr": -1018,
-        "max_drawdown": -2771,
-        "total_return": -985
+        "cagr": -1253,
+        "max_drawdown": -2873,
+        "total_return": -1214
       },
       "metrics_raw": {
-        "cagr": "-10.18%",
-        "max_drawdown": "-27.71%",
-        "total_return": "-9.85%"
+        "cagr": "-12.53%",
+        "max_drawdown": "-28.73%",
+        "total_return": "-12.14%"
       },
       "script_filename": "SPX Short Straddle Intraday (Copy).py",
       "settings_backtesting_end": "2025-12-25 23:59:00-05:00",

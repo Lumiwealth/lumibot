@@ -137,7 +137,19 @@ def test_ibkr_helper_persists_fetched_bars_even_when_requested_window_has_no_ove
     assert calls["secdef"] == 1
 
 
-def test_ibkr_fetch_history_between_dates_raises_on_later_empty_page(monkeypatch):
+def test_ibkr_fetch_history_between_dates_keeps_chunks_on_later_empty_page(monkeypatch):
+    """Mid-walk empty page in IBKR backward pagination must NOT discard earlier chunks.
+
+    History: CME futures have weekend + nightly-maintenance closes. IBKR's history
+    endpoint correctly returns `{"data": []}` when a `period`-sized backward window
+    lands entirely inside a no-trading range. Previously this test asserted that
+    the helper RAISED a `RuntimeError` in that case — which was the bug that
+    caused every CME futures backtest to fail when the backward walk hit a
+    weekend (commit `0e89a50a` "fix: short-circuit empty IBKR prefetch" restores
+    the correct behaviour: break out of the loop and return whatever earlier
+    chunks we already have). Locking in the correct contract here so a future
+    edit can't silently reintroduce the raise.
+    """
     import lumibot.tools.ibkr_helper as ibkr_helper
 
     asset = Asset(symbol="TSLA", asset_type=Asset.AssetType.STOCK)
@@ -169,19 +181,23 @@ def test_ibkr_fetch_history_between_dates_raises_on_later_empty_page(monkeypatch
 
     monkeypatch.setattr(ibkr_helper, "_ibkr_history_request", _fake_history_request)
 
-    with pytest.raises(RuntimeError, match="pagination returned empty data before covering the requested window"):
-        ibkr_helper._fetch_history_between_dates(
-            asset=asset,
-            quote=quote,
-            timestep="day",
-            start_dt=start,
-            end_dt=end,
-            exchange=None,
-            include_after_hours=False,
-            source="Trades",
-            source_was_explicit=True,
-        )
+    result = ibkr_helper._fetch_history_between_dates(
+        asset=asset,
+        quote=quote,
+        timestep="day",
+        start_dt=start,
+        end_dt=end,
+        exchange=None,
+        include_after_hours=False,
+        source="Trades",
+        source_was_explicit=True,
+    )
 
+    # Helper must preserve the page-1 chunks and stop paging on the empty page —
+    # MUST NOT raise. See commit 0e89a50a for the behavioural invariant.
+    assert isinstance(result, pd.DataFrame)
+    assert not result.empty, "page-1 chunks must survive the mid-walk empty page"
+    assert len(result) == 7, f"expected 7 rows from page 1, got {len(result)}"
     assert calls["count"] == 2
 
 

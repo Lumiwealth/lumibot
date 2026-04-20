@@ -448,6 +448,26 @@ If warm run #2 still submits a lot of the same request types:
 - if running a fresh cache version, ensure the registry is seeded (see
   `docs/investigations/2026-01-27_ROUTER_IBKR_SPEED.md`)
 
+### Pattern B3 — IBKR CONT_FUTURE empty 1-minute prefetch (~21s per pass)
+
+**Symptoms**
+- a futures strategy uses a coarser cadence (e.g., 15-minute or hourly bars)
+- per-pass wall time is dominated by `_fetch_history_between_dates` even with warm caches
+- `LUMIBOT_CACHE_MISS_DEBUG=1` shows repeated `[FETCH]` calls with `timestep=minute`, triggered from `get_quote(asset)` → `_update_pandas_data(timestep="minute")`
+- fetches return empty (`fetched_empty=True fetched_rows=0`) — IBKR serves empty for CONT_FUTURE 1-minute Trades queries across rolled contracts, but each empty response takes multiple IBKR roundtrips (~7s/chunk)
+
+**Likely cause**
+- `Strategy.get_quote(asset)` defaults to `timestep="minute"`. For `cont_future`/`future`, the IBKR adapter's `update_pandas_data` prefetches a month of 1-minute history for the quote lookup even when the strategy is actually trading at a coarser cadence. Empty results aren't written to cache, so the expensive empty fetch repeats on every order pass.
+
+**Fix (2026-04-16)**
+- `lumibot/backtesting/routed_backtesting.py`: `_IbkrRoutingAdapter.update_pandas_data` now short-circuits the 1-minute prefetch for `cont_future`/`future` quote-lookup calls (`qty == 1`, `unit == "minute"`) when a coarser non-day cadence is already in `_fully_loaded_series` for the same `(asset, quote_asset)`. The key is added to `_empty_prefetch_series` so subsequent passes skip the fetch entirely.
+- Safe because the coarser frame already covers the quote-lookup window — `get_quote` falls back to OHLC-based fills on the loaded cadence.
+- Measured: `mes_ema_15m` 26.6s → 7.16s (median of N=3), a 3.71x speedup, byte-identical results. See `docs/investigations/2026-04-16_BACKTEST_3X_SPEEDUP.md`.
+
+**First action**
+- set `LUMIBOT_CACHE_MISS_DEBUG=1` and look for repeated `[FETCH] ts=minute` with CONT_FUTURE symbols
+- confirm the strategy's primary cadence is coarser than minute before applying the short-circuit
+
 ### Pattern C — Low submits but still slow
 
 **Symptoms**

@@ -215,6 +215,7 @@ Table of Contents
    strategy_methods
    strategy_properties
    entities
+   indicators
    backtesting
    brokers
    reference

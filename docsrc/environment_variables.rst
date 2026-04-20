@@ -166,6 +166,14 @@ BACKTESTING_PROFILE
 - Output:
   - Produces a ``*_profile_yappi.csv`` artifact alongside other backtest artifacts.
 
+LUMIBOT_CACHE_MISS_DEBUG
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Opt-in diagnostic logging for the IBKR history cache path. Emits ``[CACHE_MISS]`` (why a cache miss fired) and ``[FETCH]`` (including a short Python traceback of the caller) at WARNING level.
+- Values: truthy enables (``1``, ``true``); unset/``0`` disables.
+- Default: disabled. Zero runtime cost when unset — the check is gated before any logging work.
+- When to use: diagnosing unexpected IBKR roundtrips in warm-cache backtests (e.g., when profiling shows time in ``_fetch_history_between_dates`` that you expected to be cached).
+
 ThetaData option-chain building (performance)
 ---------------------------------------------
 

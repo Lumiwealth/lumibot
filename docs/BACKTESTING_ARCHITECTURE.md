@@ -1,5 +1,18 @@
 # BACKTESTING_ARCHITECTURE.md - LumiBot Backtesting Architecture
 
+## 🚨🚨🚨 RULE #1: NEVER FABRICATE DATA. MISSING > FAKE. 🚨🚨🚨
+
+**Fabricated / synthesized / "placeholder-filled" price or volume data is STRICTLY FORBIDDEN in every backtesting code path.**
+
+- If real data is unavailable, **return empty / skip the day / fail loud**. Never invent bars, never carry-forward a previous value, never return a constant "default" (e.g. VIX=14.2) to keep the strategy running.
+- A strategy that runs on **fake data produces fake PnL**. Fake PnL shown to a customer is a reputational and **legal liability** — treat this as a lawsuit-grade issue, not a convenience.
+- "Missing data" is an acceptable outcome. "Fake data" is not.
+- Any placeholder rows that exist internally for cache bookkeeping (e.g. to remember "we tried this day and there was nothing") MUST be filtered out before bars are returned to the strategy, AND the caller must be informed via `placeholder_covered` / empty frames / explicit warnings.
+- If you see code that synthesizes, interpolates, forward-fills, or defaults missing market data to keep a strategy from crashing — **remove it**. The correct behavior is to surface the absence upward so the strategy can make an honest decision (skip, warn, or abort).
+- This applies to **every provider path**: IBKR, ThetaData, Polygon, Yahoo, DataBento, custom. No exceptions.
+
+**Enforcement:** any PR that introduces synthetic/fabricated/default-filled market data without explicit user approval must be rejected in code review. Tests that mask missing data with "reasonable defaults" are anti-tests — replace them with assertions that missing data propagates correctly.
+
 ## Overview
 
 LumiBot is a trading and backtesting framework. This document focuses on the **backtesting architecture**, specifically how data flows from external sources (Yahoo, ThetaData, IBKR Client Portal REST, Polygon) into the backtesting engine.

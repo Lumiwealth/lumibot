@@ -289,11 +289,26 @@ class RuntimeTelemetryEmitter:
     def _maybe_add_deep_snapshot(self, payload: dict[str, Any]) -> None:
         if not self._config.deep_enabled:
             return
+        should_fire = False
         try:
             pct = payload.get("cgroup_mem_pct")
-            if pct is None or float(pct) < float(self._config.deep_threshold_pct):
-                return
+            if pct is not None and float(pct) >= float(self._config.deep_threshold_pct):
+                should_fire = True
         except Exception:
+            pass
+        # Local/Mac fallback: cgroup stats absent, and /proc/self/status does not
+        # exist on macOS → process_rss_bytes is None. Fall back to ru_maxrss_bytes
+        # (populated on both Linux and macOS via resource.getrusage) so the deep
+        # tracemalloc snapshot still fires when memory pressure is real.
+        if not should_fire:
+            try:
+                rss = payload.get("process_rss_bytes") or payload.get("ru_maxrss_bytes")
+                threshold = int(os.environ.get("LUMIBOT_TELEMETRY_DEEP_RSS_BYTES", str(1 * 1024**3)))
+                if rss is not None and int(rss) >= threshold:
+                    should_fire = True
+            except Exception:
+                pass
+        if not should_fire:
             return
 
         now = time.time()

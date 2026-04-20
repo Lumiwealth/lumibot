@@ -188,6 +188,28 @@ class TestStrategyMethods:
         strat.get_last_price.assert_not_called()
 
     def test_get_last_price_prefers_day_bars_for_routed_backtesting_daily_cadence(self):
+        """The routed/IBKR/ThetaData daily shortcut must request exactly ONE
+        bar at or before sim_time.
+
+        IMPORTANT — bug history (2026-04-17 Alpha Picks incident):
+            The earlier version of this test mocked `get_historical_prices`
+            to return a TWO-row DataFrame (`[100.0, 101.0]`) and asserted the
+            shortcut returned 101.0 (the second row). That assertion pinned
+            the *bug*: it proved the shortcut could read a bar AFTER
+            sim_time when its call was `length=2, timeshift=-1`, and the
+            frame's second row was look-ahead. In production that second row
+            turned out to be real-now's market close (via a polluted cache
+            frame) and polluted position sizing on every IBKR stock backtest.
+
+            This test now asserts the correct sim-time-safe contract:
+              1. The shortcut MUST call `get_historical_prices` with
+                 `length=1` and either `timeshift=0` or omitted (no negative
+                 shift). See `tests/test_get_last_price_sim_time_safety.py`
+                 for the whitebox regression on the call signature.
+              2. The shortcut MUST return the close of the single bar it
+                 asked for — so when `get_historical_prices` returns a
+                 DataFrame with one row `[100.0]`, the answer is `100.0`.
+        """
         strat = self._make_strategy_stub()
         strat._quote_asset = Asset("USD", Asset.AssetType.FOREX)
         strat._should_use_daily_last_price = MagicMock(return_value=True)
@@ -202,15 +224,44 @@ class TestStrategyMethods:
         broker.get_last_price = MagicMock(return_value=999.0)
         strat.broker = broker
 
-        strat.get_historical_prices = MagicMock(
-            return_value=SimpleNamespace(df=pd.DataFrame({"close": [100.0, 101.0]}))
-        )
+        # Record exactly how the shortcut calls get_historical_prices so the
+        # test fails if a future edit restores `length=2, timeshift=-1`.
+        captured_calls: list[dict] = []
+
+        def _capture(*args, **kwargs):
+            captured_calls.append(
+                {
+                    "length": kwargs.get("length"),
+                    "timestep": kwargs.get("timestep"),
+                    "timeshift": kwargs.get("timeshift"),
+                }
+            )
+            return SimpleNamespace(df=pd.DataFrame({"close": [100.0]}))
+
+        strat.get_historical_prices = MagicMock(side_effect=_capture)
 
         price = Strategy.get_last_price(strat, Asset("SPY", Asset.AssetType.STOCK))
 
-        assert price == 101.0
+        # Single bar at sim_time → shortcut returns that bar's close.
+        assert price == 100.0, (
+            "Shortcut must return the single pre-sim bar's close. Any other "
+            "value means the shortcut is reading a forbidden slice."
+        )
         strat.get_historical_prices.assert_called_once()
         broker.get_last_price.assert_not_called()
+
+        # The specific param combo is the crux of the fix — pin it.
+        assert len(captured_calls) == 1
+        call = captured_calls[0]
+        assert call["length"] == 1, (
+            f"Shortcut called length={call['length']} — must be 1. length>=2 "
+            "reintroduces the Alpha Picks 2026-04-17 look-ahead bug."
+        )
+        assert call["timestep"] == "day"
+        assert call["timeshift"] in (None, 0), (
+            f"Shortcut called timeshift={call['timeshift']} — must be 0 or "
+            "omitted. Any negative timeshift walks forward past sim_time."
+        )
 
     def test_validate_order_with_invalid_order_type(self):
         """

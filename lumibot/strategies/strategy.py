@@ -2503,10 +2503,39 @@ class Strategy(_Strategy):
             # For daily-cadence backtests, prefer day bars for sources where minute-level
             # fetches are expensive (ThetaData/IBKR/routed backtesting). Keep Yahoo/Polygon
             # on legacy behavior to preserve existing regression anchors.
+            #
+            # 🚨 CRITICAL — sim-time safety invariant:
+            # This shortcut MUST request exactly the bar AT (or the last completed bar before)
+            # the simulation time — never a bar after it. In backtests the full history exists
+            # ahead of the sim clock, so any call that reaches into the future is look-ahead
+            # bias and will silently leak future prices into position sizing / last-price reads.
+            #
+            # Why `length=1` (no timeshift, no length=2):
+            # `Data.get_bars(dt, length, timestep="day", timeshift=0)` returns rows in the closed
+            # interval `[iter_count - (length - 1), iter_count]` where `iter_count` is the index
+            # of the last bar whose timestamp is ≤ `dt` (see `Data.get_iter_count` —
+            # `searchsorted(side="right") - 1`). With `length=1, timeshift=0` the slice is the
+            # single bar at `iter_count`, guaranteed to be at or before sim_time.
+            #
+            # The earlier `length=2, timeshift=-1` call produced `slice(iter_count, iter_count+2)`,
+            # i.e. `[bar-at-sim-time, next-bar-after-sim-time]`, and then read `iloc[-1]` —
+            # returning the NEXT bar's close. When the underlying frame also contained bars past
+            # the backtest window (e.g. a shared S3 cache row stamped at wall-clock "today"),
+            # that next-bar was real-now's market close. Observed 2026-04-17 on an Alpha Picks
+            # IBKR backtest: `get_last_price(COP, sim_time=2022-07-01)` returned $97.43 (today's
+            # close) instead of the 2022-07-01 close of $90.98, polluting position sizing.
+            # Regression coverage lives in `tests/test_get_last_price_sim_time_safety.py` and
+            # explicitly replays a polluted frame so this exact failure mode cannot re-land.
             should_use_daily = self._should_use_daily_last_price(asset)
             if is_backtesting_run and should_use_daily and self._supports_daily_last_price_optimization():
                 try:
-                    bars = self.get_historical_prices(asset, length=2, timestep="day", timeshift=-1, quote=quote_asset, exchange=exchange)
+                    bars = self.get_historical_prices(
+                        asset,
+                        length=1,
+                        timestep="day",
+                        quote=quote_asset,
+                        exchange=exchange,
+                    )
                     if bars is not None and getattr(bars, "df", None) is not None and not bars.df.empty:
                         result = float(bars.df["close"].iloc[-1])
                         cache[cache_key] = result
@@ -5537,6 +5566,55 @@ class Strategy(_Strategy):
         >>>     benchmark_asset=benchmark_asset,
         >>> )
         """
+        # Environment-variable override for start/end dates.
+        #
+        # Why: strategies frequently hardcode `backtesting_start` / `backtesting_end`
+        # in their `if __name__ == "__main__":` block for local dev convenience.
+        # When the same code is run in a managed container (bot_manager backtest
+        # ECS task, etc.), the orchestrator wants the caller's requested date
+        # range to win — otherwise MCP `start_backtest(startDate, endDate)` has
+        # no teeth and every run uses whatever the author pinned in the file.
+        #
+        # Precedence: env var > passed argument. The env vars are set by the
+        # infrastructure (bot_manager copies `start_date`/`end_date` from the
+        # job payload into `BACKTESTING_START` / `BACKTESTING_END`), so they
+        # represent the caller's current intent. Local runs with no env var
+        # set continue to use the hardcoded datetime as before.
+        #
+        # Accepted formats: ISO date (`YYYY-MM-DD`) or full ISO datetime. Any
+        # parse failure is logged and the passed-in value is kept — we never
+        # silently fall back to "now" or the epoch.
+        env_start = os.environ.get("BACKTESTING_START")
+        env_end = os.environ.get("BACKTESTING_END")
+        if env_start:
+            try:
+                parsed_start = datetime.datetime.fromisoformat(env_start)
+                if parsed_start != backtesting_start:
+                    # WARNING (not INFO): silent truncation of a strategy's
+                    # hardcoded backtest window from a stale .env value is
+                    # easy to miss and produces "mystery" result drift. Flag
+                    # it loudly so the override is visible in every run.
+                    logging.warning(
+                        f"BACKTESTING_START env var override: {backtesting_start} -> {parsed_start}"
+                    )
+                backtesting_start = parsed_start
+            except (TypeError, ValueError) as exc:
+                logging.warning(
+                    f"Ignoring unparseable BACKTESTING_START={env_start!r}: {exc}"
+                )
+        if env_end:
+            try:
+                parsed_end = datetime.datetime.fromisoformat(env_end)
+                if parsed_end != backtesting_end:
+                    logging.warning(
+                        f"BACKTESTING_END env var override: {backtesting_end} -> {parsed_end}"
+                    )
+                backtesting_end = parsed_end
+            except (TypeError, ValueError) as exc:
+                logging.warning(
+                    f"Ignoring unparseable BACKTESTING_END={env_end!r}: {exc}"
+                )
+
         results, strategy = self.run_backtest(
             datasource_class=datasource_class,
             backtesting_start=backtesting_start,

@@ -151,6 +151,65 @@ def test_ibkr_fetch_history_between_dates_keeps_prior_chunks_when_later_page_is_
     assert df.index.max() <= end
 
 
+def test_ibkr_fetch_history_keeps_chunks_when_mid_paging_page_is_empty(monkeypatch):
+    """Regression for af8df88b: CME weekend/maintenance gaps return empty pages
+    mid-pagination. The loop must keep already-fetched chunks and break, not
+    raise RuntimeError (which would make futures backtests spin to timeout).
+    """
+    calls = {"history": 0, "missing_window": 0}
+    tz = ibkr_helper.LUMIBOT_DEFAULT_PYTZ
+
+    base = Asset("MES", asset_type=Asset.AssetType.FUTURE)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+    start = tz.localize(datetime(2025, 9, 5, 0, 0, 0))
+    end = tz.localize(datetime(2025, 9, 8, 0, 0, 0))
+
+    monkeypatch.setattr(ibkr_helper, "_resolve_conid", lambda **kwargs: 711280067)
+    monkeypatch.setattr(
+        ibkr_helper,
+        "_record_missing_window",
+        lambda **_: calls.__setitem__("missing_window", calls["missing_window"] + 1),
+    )
+
+    def _fake_history_request(**kwargs):
+        calls["history"] += 1
+        cursor_end = kwargs["start_time"].astimezone(timezone.utc)
+        # Call 3 simulates the weekend/holiday gap: IBKR returns empty even though
+        # earlier pages were valid.
+        if calls["history"] >= 3:
+            return {"data": []}
+        # Calls 1 and 2 return 24h of hourly bars each, walking backwards.
+        cursor_start = cursor_end - timedelta(hours=24)
+        idx = pd.date_range(start=cursor_start, end=cursor_end, freq="1h", tz="UTC", inclusive="left")
+        data = []
+        for i, ts in enumerate(idx):
+            ms = int(ts.timestamp() * 1000)
+            data.append({"t": ms, "o": 4000 + i, "h": 4001 + i, "l": 3999 + i, "c": 4000 + i, "v": 10})
+        return {"data": data}
+
+    monkeypatch.setattr(ibkr_helper, "_ibkr_history_request", _fake_history_request)
+
+    df = ibkr_helper._fetch_history_between_dates(
+        asset=base,
+        quote=quote,
+        timestep="hour",
+        start_dt=start,
+        end_dt=end,
+        exchange="CME",
+        include_after_hours=True,
+        source="Trades",
+        source_was_explicit=True,
+    )
+
+    # Must not raise — we should have chunks from calls 1 + 2 even though call 3 was empty.
+    assert calls["history"] >= 3, "Expected at least three pagination requests"
+    assert not df.empty, "Prior chunks must survive a mid-walk empty page"
+    assert len(df) >= 24, f"Expected bars from the two non-empty pages, got {len(df)}"
+    # No missing-window marker should be recorded when partial data was returned.
+    assert calls["missing_window"] == 0
+
+
 def test_ibkr_crypto_get_price_data_derives_daily_for_1d_like_timesteps(monkeypatch):
     base = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
     quote = Asset("USD", asset_type=Asset.AssetType.FOREX)

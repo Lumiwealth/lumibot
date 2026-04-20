@@ -179,6 +179,11 @@ class _DataFrameRoutingAdapter(_RoutingAdapter):
     def __init__(self, router: "RoutedBacktestingPandas"):
         super().__init__(router)
         self._fully_loaded_series: set[Any] = set()
+        # Canonical keys whose full-window prefetch returned empty. Without this, strategies that
+        # request a timestep the cache has no data for (e.g., TQQQ minute when only daily is
+        # available) re-call get_price_data on every iteration — burning tens of thousands of
+        # redundant parquet reads. See `update_pandas_data` early-exit below.
+        self._empty_prefetch_series: set[Any] = set()
 
     def _start_buffer(self, asset: Asset, provider_spec: ProviderSpec) -> timedelta:
         return self._default_start_buffer
@@ -348,6 +353,8 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         canonical_key, legacy_key = self._router._build_dataset_keys(asset, quote_asset, dataset_key)
         if canonical_key in self._fully_loaded_series and canonical_key in self._router._data_store:
             return None
+        if canonical_key in self._empty_prefetch_series:
+            return None
         existing = self._router._data_store.get(canonical_key)
         existing_df = getattr(existing, "df", None) if existing is not None else None
 
@@ -390,6 +397,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                 include_after_hours=include_after_hours,
             )
             if df is None or df.empty:
+                self._empty_prefetch_series.add(canonical_key)
                 return None
             if ibkr_helper.frame_covers_requested_window(
                 df,
@@ -400,6 +408,27 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             ):
                 self._fully_loaded_series.add(canonical_key)
         elif asset_type in {"future", "cont_future"} and unit in {"minute", "hour", "day"} and canonical_key not in self._fully_loaded_series:
+            # PERF: IBKR frequently returns empty 1-minute history for CONT_FUTURE requests with
+            # source=Trades (across-contract stitching is lossy). The empty fetch still takes ~7s
+            # per chunk (the downloader makes multiple IBKR API roundtrips before concluding that
+            # no bars exist). For strategies that have already prefetched a coarser non-day cadence
+            # (e.g., 15-minute), we can safely skip the minute/hour fetch — `get_quote()` order-fill
+            # lookups are the only consumer, and they tolerate a missing frame here (falling back
+            # to OHLC-based fills on the already-loaded coarser data).
+            if qty == 1 and unit == "minute":
+                has_coarser_loaded = any(
+                    isinstance(key, tuple)
+                    and len(key) >= 3
+                    and key[0] is asset
+                    and key[1] is quote_asset
+                    and isinstance(key[2], str)
+                    and key[2] not in {"day", "minute"}
+                    for key in self._fully_loaded_series
+                )
+                if has_coarser_loaded:
+                    self._empty_prefetch_series.add(canonical_key)
+                    return None
+
             try:
                 from lumibot.backtesting.interactive_brokers_rest_backtesting import InteractiveBrokersRESTBacktesting
 
@@ -426,6 +455,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                 include_after_hours=include_after_hours,
             )
             if df is None or df.empty:
+                self._empty_prefetch_series.add(canonical_key)
                 return None
             if ibkr_helper.frame_covers_requested_window(
                 df,
@@ -451,6 +481,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                 include_after_hours=include_after_hours,
             )
             if df is None or df.empty:
+                self._empty_prefetch_series.add(canonical_key)
                 return None
             if ibkr_helper.frame_covers_requested_window(
                 df,
@@ -477,6 +508,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                 include_after_hours=include_after_hours,
             )
             if df is None or df.empty:
+                self._empty_prefetch_series.add(canonical_key)
                 return None
             if ibkr_helper.frame_covers_requested_window(
                 df,
@@ -503,6 +535,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                 include_after_hours=include_after_hours,
             )
             if df is None or df.empty:
+                self._empty_prefetch_series.add(canonical_key)
                 return None
             if ibkr_helper.frame_covers_requested_window(
                 df,

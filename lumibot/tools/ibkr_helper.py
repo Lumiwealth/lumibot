@@ -32,7 +32,33 @@ IBKR_DEFAULT_CRYPTO_VENUE = "ZEROHASH"
 IBKR_DEFAULT_HISTORY_SOURCE = "Trades"
 IBKR_DEFAULT_FUTURES_EXCHANGE_FALLBACK = "CME"
 IBKR_DEFAULT_INDEX_HISTORY_SOURCE = "Midpoint"
-IBKR_STOCK_INDEX_DAILY_MAX_PERIOD = "180d"
+# Per-request period cap for daily stock/index history.
+#
+# Rationale: IBKR Client Portal Gateway caps daily-history responses at ~1000
+# data points per call (``IBKR_HISTORY_MAX_POINTS``). Live testing against the
+# production gateway on 2026-04-17 showed that ``period=5y`` already hits that
+# ceiling (1000 bars returned, covering ~4 trading years), while ``period=2y``
+# returned 323 bars and ``period=180d`` (the prior value) returned only ~125
+# bars. Asking for less than the cap is pure inefficiency: multi-year
+# backtests would need 40+ round-trips per symbol, and in practice the loop
+# was completing after a single iteration (the initial fetch near real-now
+# filled the cache, then the coverage check skipped the real historical
+# window for every subsequent simulation date, resulting in flat "today"
+# prices for the entire historical range — observed in Peter Credit Spreads
+# backtest a83663bd where VIX was constant 14.2 across 2,010 simulated days
+# and max drawdown was ``-94%``).
+#
+# With ``5y``:
+#   - Each call returns up to 1000 bars (~4 years of daily data).
+#   - An 8-year backtest is covered in ~2 paginated chunks per symbol/source.
+#   - Short requests (e.g. "2 bars ending <date>") still receive a valid
+#     response because IBKR honours ``startTime`` and returns the N bars
+#     ending at that time, bounded by 1000.
+#
+# If a future need arises for sub-daily stock/index bars with very long
+# windows, extend ``_history_period_for_request`` to pick a smaller period
+# tailored to the bar size rather than tightening this cap.
+IBKR_STOCK_INDEX_DAILY_MAX_PERIOD = "5y"
 
 IBKR_CONID_NEGATIVE_CACHE_TTL_SECONDS = 24 * 60 * 60  # 24h (persisted via BacktestCacheManager when enabled)
 
@@ -716,6 +742,33 @@ def get_price_data(
     # bracketed by placeholder markers and contains no real bars, treat it as a cache hit.
     if needs_fetch and _window_is_placeholder_covered(df_cache, start_local=start_local, end_local=end_local):
         needs_fetch = False
+
+    # Opt-in trace: log why we decided to hit the network, so we can audit measured-pass cache misses.
+    if needs_fetch and os.environ.get("LUMIBOT_CACHE_MISS_DEBUG"):
+        try:
+            logger.warning(
+                "[CACHE_MISS] %s %s ts=%s start_local=%s end_local=%s cov_start=%s cov_end=%s "
+                "win_cov_start=%s win_cov_end=%s win_empty=%s start_tol=%s end_tol=%s "
+                "win_start_gap_closed=%s win_end_gap_closed=%s cache_start_gap_closed=%s cache_end_gap_closed=%s",
+                getattr(asset, "symbol", None),
+                asset_type,
+                timestep,
+                start_local,
+                end_local,
+                coverage_start,
+                coverage_end,
+                window_cov_start,
+                window_cov_end,
+                bool(window_slice.empty) if coverage_start is not None else None,
+                start_tolerance,
+                end_tolerance,
+                window_start_gap_closed,
+                window_end_gap_closed,
+                cache_start_gap_closed,
+                cache_end_gap_closed,
+            )
+        except Exception:
+            pass
 
     if needs_fetch:
         segments: list[tuple[datetime, datetime]] = []
@@ -1552,6 +1605,24 @@ def _fetch_history_between_dates(
     start_dt = _to_utc(start_dt)
     chunks: list[pd.DataFrame] = []
 
+    # Opt-in trace: log every real network fetch + caller, to audit cache-miss root causes.
+    if os.environ.get("LUMIBOT_CACHE_MISS_DEBUG"):
+        try:
+            import traceback
+            stack = "".join(traceback.format_stack(limit=10)[:-1])
+            logger.warning(
+                "[FETCH] sym=%s type=%s ts=%s start=%s end=%s source=%s\n%s",
+                getattr(asset, "symbol", None),
+                asset_type,
+                timestep,
+                start_dt.isoformat(),
+                end_dt.isoformat(),
+                source,
+                stack,
+            )
+        except Exception:
+            pass
+
     # Fetch backwards (end -> start) to accommodate IBKR's 1000 datapoint cap.
     while cursor_end > start_dt:
         payload = _ibkr_history_request(
@@ -1568,11 +1639,15 @@ def _fetch_history_between_dates(
         # IBKR typically returns {"data":[...]} (empty list means no data).
         data = payload.get("data") if isinstance(payload, dict) else None
         if not data:
+            # If we already fetched earlier chunks, keep them and stop paging.
+            # CME weekend/maintenance gaps (Fri 4pm CT → Sun 5pm CT, nightly 4–5pm CT)
+            # make a backward-paging window land in a no-trading range and return empty
+            # even when the surrounding bars are valid. Raising here discards every
+            # chunk we already collected and poisons the cache with a broad
+            # missing-window marker — then every subsequent call for the same asset
+            # takes the slow retry path. Break out with what we have.
             if chunks:
-                raise RuntimeError(
-                    "IBKR history pagination returned empty data before covering the requested window "
-                    f"for {getattr(asset, 'symbol', None)} {timestep} ({start_dt.isoformat()} -> {end_dt.isoformat()})"
-                )
+                break
 
             _record_missing_window(
                 asset=asset,
@@ -1588,11 +1663,10 @@ def _fetch_history_between_dates(
 
         df = _history_payload_to_frame(data, source_was_explicit=source_was_explicit)
         if df.empty:
+            # Same rationale as the empty-data branch above: an intermediate empty
+            # page during backward pagination must not discard earlier chunks.
             if chunks:
-                raise RuntimeError(
-                    "IBKR history pagination returned an empty frame before covering the requested window "
-                    f"for {getattr(asset, 'symbol', None)} {timestep} ({start_dt.isoformat()} -> {end_dt.isoformat()})"
-                )
+                break
 
             _record_missing_window(
                 asset=asset,
@@ -2504,6 +2578,13 @@ def _is_terminal_no_data_error(exc: Exception) -> bool:
             "no data available",
             "does not have data",
             "asset does not exist",
+            # `_fetch_history_between_dates` raises this when IBKR pagination returns
+            # empty before we covered the requested window. In practice this happens
+            # for entitlement/stitching gaps (e.g. CONT_FUTURE 1-minute Trades) where
+            # the data will never be served — so treat it as a terminal no-data
+            # condition and persist a placeholder marker to skip future refetches.
+            "pagination returned empty data before covering",
+            "pagination returned an empty frame before covering",
         )
     )
 

@@ -604,6 +604,9 @@ class _Strategy:
         self.vars = Vars()
         self.agents = AgentManager(self)
 
+        from lumibot.indicators import Indicators
+        self.indicators = Indicators(self)
+
         # Storing parameters for the initialize method
         if not hasattr(self, "parameters") or not isinstance(self.parameters, dict) or self.parameters is None:
             self.parameters = {}

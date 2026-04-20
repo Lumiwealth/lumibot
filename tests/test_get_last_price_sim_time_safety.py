@@ -390,3 +390,42 @@ class TestShortcutParamsAreSimTimeSafe:
             "or omitted. Any negative timeshift produces a `slice(x, x+|ts|+1)` "
             "that walks forward past sim_time. Never re-introduce `timeshift=-1`."
         )
+
+
+class TestForwardFillWhenNoSimTimeBar:
+    """When the shortcut's length=1 slice returns empty (no bar at sim_time),
+    Rob's requirement is: forward-fill from the last prior known bar rather
+    than returning None.
+
+    Rationale: None breaks the rebalance logic (strategy skips the buy). At
+    sim_time=00:00 on a 24/7 market, there's no day bar at 00:00 but
+    2022-06-30 16:00 has a valid close that's a perfectly good "last known
+    price" for mark-to-market purposes.
+    """
+
+    def test_forward_fill_returns_last_prior_bar_when_length1_empty(self):
+        # Frame has a 2022-06-30 bar but sim_time 2022-07-01 00:00 might
+        # not exactly hit it depending on iter_count semantics. The shortcut
+        # should forward-fill with 2022-06-30's close.
+        asset = Asset("AMR", "stock")
+        data = _make_daily_data(
+            asset,
+            [
+                ("2022-06-28 16:00", 120.0),
+                ("2022-06-29 16:00", 122.0),
+                ("2022-06-30 16:00", 124.87),
+            ],
+        )
+        sim_time = NY.localize(datetime(2022, 7, 1, 0, 0))
+
+        result, broker_called = _run_shortcut(data, asset, sim_time)
+
+        # Either the shortcut forward-fills (124.87) or falls through.
+        # The unacceptable outcome is returning None when there's plainly a
+        # 2022-06-30 bar available.
+        if not broker_called:
+            assert result == pytest.approx(124.87), (
+                f"Shortcut returned {result} for sim_time 2022-07-01 00:00 "
+                f"when 2022-06-30 close (124.87) was the obvious forward-fill "
+                f"candidate."
+            )

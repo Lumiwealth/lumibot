@@ -2540,6 +2540,49 @@ class Strategy(_Strategy):
                         result = float(bars.df["close"].iloc[-1])
                         cache[cache_key] = result
                         return result
+
+                    # Forward-fill retry (v4.5.1): when the length=1 slice comes
+                    # back empty (observed on 24/7-market midnight iterations —
+                    # no day bar exists exactly at sim_time=00:00), request a
+                    # small window ending at sim_time and return the close of
+                    # the last row with index <= sim_time. Without this, the
+                    # shortcut returns None → broker fallback also returns
+                    # None → strategy skips every order for the entire run
+                    # (observed on Alpha Picks 24/7 local BT: 31 simulated
+                    # days at Val: $100,000 with zero trades). Semantic: "if
+                    # we have no bar at sim_time, the price hasn't changed
+                    # since the last known bar" — matches how mark-to-market
+                    # works elsewhere. No guard layered here; this ONLY
+                    # triggers on an honestly-empty length=1 result.
+                    sim_dt = getattr(getattr(self, "broker", None), "datetime", None)
+                    if sim_dt is not None:
+                        bars_ff = self.get_historical_prices(
+                            asset,
+                            length=5,
+                            timestep="day",
+                            quote=quote_asset,
+                            exchange=exchange,
+                        )
+                        if (
+                            bars_ff is not None
+                            and getattr(bars_ff, "df", None) is not None
+                            and not bars_ff.df.empty
+                        ):
+                            try:
+                                df_ff = bars_ff.df
+                                idx = df_ff.index
+                                sim_cmp = pd.Timestamp(sim_dt)
+                                if getattr(idx, "tz", None) is not None and sim_cmp.tzinfo is None:
+                                    sim_cmp = sim_cmp.tz_localize(idx.tz)
+                                elif getattr(idx, "tz", None) is None and sim_cmp.tzinfo is not None:
+                                    sim_cmp = sim_cmp.tz_localize(None)
+                                pre_sim = df_ff[idx <= sim_cmp]
+                                if not pre_sim.empty:
+                                    result = float(pre_sim["close"].iloc[-1])
+                                    cache[cache_key] = result
+                                    return result
+                            except Exception:
+                                pass
                 except Exception:
                     # Fall through to the default path on any failure.
                     pass

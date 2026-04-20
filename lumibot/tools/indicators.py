@@ -1594,6 +1594,37 @@ def _prepare_tearsheet_returns(strategy_df: pd.DataFrame, benchmark_df: pd.DataF
     df_final.index = pd.to_datetime(df_final.index)
     df_final.index = df_final.index.tz_localize(None)
 
+    # Tearsheet anchor (v4.5.1): the QuantStats cumulative-returns plot uses
+    # `(1 + returns).cumprod() - 1`, so if the first day has a non-zero return
+    # the Strategy line starts at that return (e.g. -4%) instead of at 0%. The
+    # benchmark starts at 0 because its first-day pct_change is NaN→0, creating
+    # a visual artifact where the blue Strategy line starts below the yellow
+    # Benchmark line even though both should start at "portfolio allocated,
+    # no move yet". Fix: prepend an explicit day-0 anchor at
+    # `first_index - 1 calendar day` with both returns = 0, so the cumulative
+    # curves share a common 0% starting point. Rob asked for this in the
+    # 2026-04-20 tearsheet review.
+    if not df_final.empty:
+        first_strat = df_final["strategy"].iloc[0] if "strategy" in df_final.columns else 0
+        first_bench = df_final["benchmark"].iloc[0] if "benchmark" in df_final.columns else 0
+        # Only prepend if the first row has a non-zero return — otherwise the
+        # anchor would be redundant.
+        try:
+            needs_anchor = (
+                (pd.notna(first_strat) and float(first_strat) != 0.0)
+                or (pd.notna(first_bench) and float(first_bench) != 0.0)
+            )
+        except Exception:
+            needs_anchor = False
+        if needs_anchor:
+            anchor_index = df_final.index[0] - pd.Timedelta(days=1)
+            anchor_row = pd.DataFrame(
+                {"strategy": [0.0], "benchmark": [0.0]},
+                index=[anchor_index],
+            )
+            df_final = pd.concat([anchor_row, df_final], axis=0)
+            df_final = df_final[~df_final.index.duplicated(keep="last")]
+
     if df_final.empty or df_final["benchmark"].isnull().all() or df_final["strategy"].isnull().all():
         return None
 
@@ -1730,6 +1761,15 @@ def create_tearsheet(
                 backtesting_data_sources=backtesting_data_sources,
                 backtest_time_seconds=backtest_time_seconds,
                 custom_metrics=custom_metrics,
+                # match_dates=False preserves the day-0 anchor row that
+                # _prepare_tearsheet_returns prepends (both strategy and
+                # benchmark at return=0). QuantStats' default _match_dates
+                # truncates to the first non-zero return in either series,
+                # which drops our anchor and makes the Strategy line start at
+                # day-1's drawdown instead of 0%. The returns and benchmark
+                # series are already date-aligned by _prepare_tearsheet_returns
+                # so we don't need _match_dates to do anything.
+                match_dates=False,
             )
     except Exception as exc:
         # QuantStats can fail on short windows when seaborn tries to fit a KDE on
@@ -1807,6 +1847,7 @@ def create_tearsheet(
                         backtesting_data_sources=backtesting_data_sources,
                         backtest_time_seconds=backtest_time_seconds,
                         custom_metrics=custom_metrics,
+                        match_dates=False,  # preserve day-0 anchor (see primary path for rationale)
                     )
                 retried = True
             except Exception as retry_exc:

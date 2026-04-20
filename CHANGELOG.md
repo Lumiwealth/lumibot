@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.5.2 - Unreleased
+
 ## 4.5.1 - Unreleased
 
 ### Fixed

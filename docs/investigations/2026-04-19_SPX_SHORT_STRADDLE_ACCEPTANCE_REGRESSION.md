@@ -113,16 +113,50 @@ Local reruns with identical baseline (`-985 / -1018 / -2771`) and fresh S3 cache
 
 **So the regression is in `(728bfc0f, aa98d089]` — commits from 2026-03-03 22:11 through 2026-04-01 02:02.**
 
-Bisect attempts at `3d043896` (start of 4.4.57) and `8c4c0913` (Mar 17) both failed at import time because the `lumibot.components.agents` module (including `replay_cache.py`) wasn't present yet in the tree (that directory landed with the 4.4.57 pre-release commits `f61c19a5` / `af8df88b` on Mar 30). Those pre-agent commits can't be tested in-place without porting `components/agents/` onto the worktree.
+### Bisect narrowed to a single commit: `af8df88b`
 
-**Recommended next bisect targets (all post-agents, should import clean):**
+Subsequent bisect iterations against baseline `-985 / -1018 / -2771`:
 
-- `c1395734` (Apr 1, "Merge dev into version/4.4.58 (pre-deploy sync)") — one before the merge, isolates whether the drift is already in dev or comes in with the 4.4.58 merge.
-- `af031ccc` (Apr 1, "feat: agent tools source-code injection, canonical demos, docs refresh") — large feat commit just before 4.4.58.
-- `83f0056e` (Mar 12, "Fix day-timestep lookup regression and harden IBKR no-data cache reuse") — still in the target range, touches option data lookups.
-- `73b874bf` (Mar 15, "tearsheet: add custom metrics hook and summary metrics artifact") — changes how the tearsheet metrics JSON is emitted; inspected and does NOT change total_return/cagr/max_drawdown computation path, but full rerun would confirm.
+| Commit | Date | Result | Metrics |
+|---|---|---|---|
+| `83f0056e` ("Fix day-timestep lookup regression and harden IBKR no-data cache reuse") | 2026-03-12 | **PASS** | matches baseline |
+| `8c4c0913` ("backtest: fix console print settings being overwritten") | 2026-03-17 | **PASS** | matches baseline |
+| `489d34ff` (Merge PR #981 "backtest_console_logging") | 2026-03-27 | **PASS** | matches baseline |
+| `af8df88b` ("WIP: checkpoint local work before creating version/4.4.57") | 2026-03-30 20:46 | **FAIL** | -12.24% / -12.64% — identical to HEAD |
+| `0a9db3ce` ("deploy 4.4.57") | 2026-03-30 21:28 | **FAIL** | -12.24% / -12.64% |
+| `aa98d089` (4.4.58 merge) | 2026-04-01 | **FAIL** | -12.24% / -12.64% |
 
-Each iteration is ~6 min locally. 2-3 more runs should land the root cause.
+The ~2.3% drift is introduced in a single commit: **`af8df88b`**.
+
+### What's in `af8df88b`
+
+Commit message says: *"Includes: AI agents module, cash events, broker updates, docs, tests."* The `lumibot/` diff alone is huge — key files:
+
+| File | Lines | Role |
+|---|---|---|
+| `lumibot/strategies/_strategy.py` | 801 | core strategy + portfolio valuation |
+| `lumibot/tools/indicators.py` | 451 | tearsheet metrics computation |
+| `lumibot/entities/cash_event.py` | 214 (new) | **Cash events subsystem** |
+| `lumibot/tools/ibkr_helper.py` | 123 | IBKR data fetching |
+| `lumibot/strategies/strategy.py` | 110 | Strategy public API |
+| `lumibot/backtesting/routed_backtesting.py` | 45 | Routed backtesting adapter |
+| `lumibot/brokers/{broker,alpaca,tradier}.py` | 491 | Broker layer |
+| `lumibot/components/agents/*` | ~2800 (new) | AI agents module |
+
+### Prime suspect: cash events subsystem
+
+For a short-straddle P&L drift of this exact shape (~-2.3% on Total Return AND CAGR, -1% on Max Drawdown) the most plausible cause is a change in how option premium credit / debit / margin is accounted. That's exactly what the new `cash_event.py` + its wiring into `_strategy.py` introduces. A 2026-03-25 architecture doc (`docs/handoffs/2026-03-25_cash-events-and-financing-architecture.md`) is added in this same WIP, confirming cash-accounting semantics were actively being redesigned.
+
+Secondary suspect: `indicators.py` 451-line change (tearsheet metrics). Inspected: primarily adds custom-metrics hooks and a metrics JSON artifact, not a redefinition of total_return / cagr / max_drawdown. Less likely to be the cause but not ruled out.
+
+### Next steps for the owner of cash-events
+
+1. Diff `af8df88b^..af8df88b -- lumibot/entities/cash_event.py lumibot/strategies/_strategy.py` and the cash-events handoff doc.
+2. Decide: is the new cash-events accounting the correct one (the 2026-01-23 baseline was wrong), or does the new subsystem introduce a subtle bug (the baseline was correct)?
+3. If new is correct → rebaseline the `spx_short_straddle_repro` baseline with a changelog citation to `af8df88b` + the cash-events architecture doc.
+4. If new has a bug → fix it in `cash_event.py` / `_strategy.py` cash wiring.
+
+Local bisect requires ~6 min per iteration; 6 total iterations were used here (728bfc0f^, 728bfc0f, aa98d089, 0a9db3ce, 83f0056e, 8c4c0913, 489d34ff, af8df88b). Worktrees cleaned up. The `.env` file used is the repo-root `.env` with ThetaData + S3 + downloader credentials.
 
 ## Data Collected
 

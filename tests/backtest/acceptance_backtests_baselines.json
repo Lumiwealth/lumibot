@@ -98,21 +98,22 @@
       "strategy_name": "BackdoorButterfly0DTE"
     },
     {
-      "backtest_time_seconds": 279.9582362079527,
-      "baseline_run_id": "MeliDeepDrawdownCalls_2026-02-25_15-10_NSLPjr",
+      "_rebaseline_note": "v4.5.0 rebaseline. Old baseline (2026-02-25 on lumibot 4.4.51) was captured against the look-ahead-biased get_last_price daily-cadence shortcut (commit 009443c0 fix). Strategy trades MELI stock dips into call options with daily cadence (1D sleeptime), hit by the fix. Post-fix metrics reflect actual sim-time-safe strategy performance. See tests/test_get_last_price_sim_time_safety.py for the fix regression suite.",
+      "backtest_time_seconds": 279.95,
+      "baseline_run_id": "MeliDeepDrawdownCalls_2026-04-20_03-49_upktoD",
       "data_source": "thetadata",
       "end_date": "2025-12-18",
-      "lumibot_version": "4.4.51",
+      "lumibot_version": "4.5.0",
       "max_backtest_time_seconds": 600,
       "metrics_centipercent": {
-        "cagr": -2273,
-        "max_drawdown": -9988,
-        "total_return": -9646
+        "cagr": -1013,
+        "max_drawdown": -8648,
+        "total_return": -7493
       },
       "metrics_raw": {
-        "cagr": "-22.73%",
-        "max_drawdown": "-99.88%",
-        "total_return": "-96.46%"
+        "cagr": "-10.13%",
+        "max_drawdown": "-86.48%",
+        "total_return": "-74.93%"
       },
       "script_filename": "Meli Deep Drawdown Calls.py",
       "settings_backtesting_end": "2025-12-17 23:59:00-05:00",

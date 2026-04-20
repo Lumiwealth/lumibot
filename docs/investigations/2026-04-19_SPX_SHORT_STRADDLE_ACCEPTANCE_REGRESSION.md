@@ -100,6 +100,30 @@ Once the specific commit is identified:
 
 Local runs require live ThetaData credentials, a warm S3 cache namespace, and ~9 min per iteration — 5+ iterations at minimum to isolate. This doc gets the next session to within 2-3 runs of the root cause by pre-ruling-out obvious no-ops (fee change, daily-pricing scope changes) and pre-prioritising the highest-probability candidate (off-session MTM guard).
 
+## Bisect log — 2026-04-19
+
+Local reruns with identical baseline (`-985 / -1018 / -2771`) and fresh S3 cache:
+
+| Commit | Date | Result | Notes |
+|---|---|---|---|
+| `a9cab9e4` ("start 4.4.53", just before `728bfc0f`) | 2026-03-03 | **PASS** | ~5:42 runtime; metrics match baseline. |
+| `728bfc0f` ("Guard backtest option MTM from off-session stale marks") | 2026-03-03 | **PASS** | ~5:46 runtime. Rules out the off-session MTM guard — it does NOT cause the drift. (Contradicts earlier hypothesis in this doc's "Candidate Commits" section.) |
+| `aa98d089` (4.4.58 merge) | 2026-04-01 | **FAIL** | ~6:06 runtime. Total Return -12.24% (baseline -9.85%), CAGR -12.64% (baseline -10.18%). Same ~2.3% drift magnitude as current HEAD. |
+| `version/4.5.0` HEAD (`0306ebff`) | 2026-04-19 | **FAIL** | Total Return -12.14%, CAGR -12.53%, Max Drawdown -28.73%. |
+
+**So the regression is in `(728bfc0f, aa98d089]` — commits from 2026-03-03 22:11 through 2026-04-01 02:02.**
+
+Bisect attempts at `3d043896` (start of 4.4.57) and `8c4c0913` (Mar 17) both failed at import time because the `lumibot.components.agents` module (including `replay_cache.py`) wasn't present yet in the tree (that directory landed with the 4.4.57 pre-release commits `f61c19a5` / `af8df88b` on Mar 30). Those pre-agent commits can't be tested in-place without porting `components/agents/` onto the worktree.
+
+**Recommended next bisect targets (all post-agents, should import clean):**
+
+- `c1395734` (Apr 1, "Merge dev into version/4.4.58 (pre-deploy sync)") — one before the merge, isolates whether the drift is already in dev or comes in with the 4.4.58 merge.
+- `af031ccc` (Apr 1, "feat: agent tools source-code injection, canonical demos, docs refresh") — large feat commit just before 4.4.58.
+- `83f0056e` (Mar 12, "Fix day-timestep lookup regression and harden IBKR no-data cache reuse") — still in the target range, touches option data lookups.
+- `73b874bf` (Mar 15, "tearsheet: add custom metrics hook and summary metrics artifact") — changes how the tearsheet metrics JSON is emitted; inspected and does NOT change total_return/cagr/max_drawdown computation path, but full rerun would confirm.
+
+Each iteration is ~6 min locally. 2-3 more runs should land the root cause.
+
 ## Data Collected
 
 - CI failure artifacts from run `24492945391` (shard 2/4, 2026-04-16): raw assertion output only; the tearsheet CSV was not preserved as a build artifact. For full trades.csv / logs.csv access, the failing tearsheet would need to be pulled from a fresh CI run (add `actions/upload-artifact` step scoped to `_acceptance_runs/**` before bisecting).

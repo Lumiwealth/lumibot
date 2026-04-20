@@ -359,6 +359,16 @@ def get_price_data(
     - optional S3 mirroring via BacktestCacheManager
     - best-effort negative caching via `missing=True` placeholder rows (only for true NO_DATA)
     """
+    # v4.5.1: defensive coercion. Callers occasionally hand us a bare string
+    # symbol (observed in Alpha Picks 2026-04-19 local backtest: upstream code
+    # path leaked a string through to this helper, producing misleading
+    # "IBKR history fetch failed for None/USD ...: 'str' object has no
+    # attribute 'symbol'" errors that obscured the real bug). Accepting a
+    # string here is a one-line safety net that lets the rest of the pipeline
+    # work, and the log message becomes accurate.
+    if isinstance(asset, str):
+        asset = Asset(symbol=asset)
+
     start_utc = _to_utc(start_dt)
     end_utc = _to_utc(end_dt)
     if start_utc > end_utc:

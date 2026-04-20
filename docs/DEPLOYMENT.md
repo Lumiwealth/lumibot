@@ -254,12 +254,27 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
 
 8) **Post-deployment verification (REQUIRED)**
    - After BotManager deploys finish, verify the new version is actually running in production.
-   - **Backtest smoke test**: Run a short backtest via BotSpot MCP or the API, then check that
-     `settings.json` → `lumibot_version` matches the version you just deployed.
-     - Use `get_backtest_artifact` with `label=settings.json` — the `lumibot_version` field in the
-       JSON content shows exactly which version the ECS task ran.
-     - If it shows the OLD version, the Docker image cache may be stale — re-trigger BotManager
-       deploy with `force_rebuild_images=true`.
+   - **Primary check — backtest smoke test**: Run a short backtest via BotSpot MCP and confirm
+     `settings.json` → `lumibot_version` matches the version you just deployed. Use a simple,
+     fast strategy (e.g. `TQQQMedian`) over a two-week window so the run completes in under ~3 min.
+     Concrete MCP flow:
+     1. `list_strategies` → pick a simple/fast one, grab its `strategyId`.
+     2. `list_revisions(strategyId=…)` → grab a `revisionId`.
+     3. `start_backtest(revisionId=…, startDate="YYYY-MM-01", endDate="YYYY-MM-15")` → returns
+        `backtestId`.
+     4. `backtest_status(backtestId=…)` until `status=completed`.
+     5. `get_backtest_artifact(backtestId=…, label="settings.json")` → assert
+        `jsonContent.lumibot_version == "X.Y.Z"`. This is the authoritative gate.
+   - **MCP smoke-test matrix (run in parallel after the backtest finishes)** — confirms the whole
+     BotSpot MCP surface is healthy end-to-end, not just that one backtest passed:
+     - `get_account_status` → auth token works, billing cycle + active products are reachable.
+     - `list_backtests(limit=3)` → recent history (including the smoke-test run) is queryable.
+     - `list_deployments(limit=3)` → live bots respond with `status=running` and `live.performance.stats`
+       populated (use this to confirm the version bump didn’t kill any bot — look for non-null
+       `lastUpdated` on bots that were running before the deploy).
+     - `query_csv(backtestId=<smoke-test id>, artifactType="trades.csv", sql="SELECT COUNT(*) FROM data")` →
+       DuckDB artifact pipeline works, Parquet sibling resolves.
+     - Any of these erroring is a deploy-validation failure even if `lumibot_version` matches.
    - **Live trading check** (if applicable): Confirm active bots restarted cleanly by checking
      deployment logs via `get_deployment_logs` or the BotSpot dashboard.
    - **Version mismatch troubleshooting**:

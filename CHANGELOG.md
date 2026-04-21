@@ -2,7 +2,7 @@
 
 ## 4.5.3 - Unreleased
 
-## 4.5.2 - Unreleased
+## 4.5.2 - 2026-04-21
 
 ### Added
 - **WEEX broker support via CCXT.** New `WEEX_CONFIG` in `lumibot/credentials.py` wires WEEX (CCXT exchange id `weex`) into the broker auto-detect chain, the explicit-name branch (`TRADING_BROKER=weex`), and the data-source aliases (`DATA_SOURCE=weex`). WEEX requires three credentials (`WEEX_API_KEY`, `WEEX_API_SECRET`, `WEEX_API_PASSPHRASE`) and has no API sandbox, so `sandbox` is hard-wired to `False`. Added `"weex"` to the exchange-id whitelists in `lumibot/brokers/ccxt.py` (balance parsing at line 104 and open-orders routing at line 224) so the generic Ccxt broker accepts WEEX without raising `NotImplementedError`. Initial scope is **spot trading only**; WEEX's primary business is USDT-margined perpetual swap, but swap support is not wired into the shared Ccxt broker today. Note that WEEX's Terms of Use exclude US and Canadian residents, documented in `docsrc/brokers.ccxt.rst`. New unit test `test_initialize_weex_broker` in `tests/test_ccxt.py`.

@@ -62,9 +62,14 @@ git branch --show-current  # Verify still on version/X.Y.Z
 1. **All work** happens on `version/X.Y.Z`. Never push directly to `dev`.
 2. **Before release**: merge `dev` into `version/X.Y.Z` to pick up other engineers’ changes.
 3. **Release**: merge `version/X.Y.Z` into `dev` via PR, tag `vX.Y.Z` on the dev merge commit.
-4. **After release**: the release workflow auto-creates `version/X.Y.(Z+1)` from `dev`. Switch to it immediately.
+4. **After release (CRITICAL, DO NOT SKIP)**: the release workflow auto-creates `version/X.Y.(Z+1)` on the REMOTE. You must switch your LOCAL checkout to it. Steps:
+   - `git status --porcelain=v1` — if non-empty, commit as `wip: carry-over to X.Y.(Z+1)` on the OLD branch first.
+   - `git fetch origin && git switch version/X.Y.(Z+1)` (never `git checkout`).
+   - If you had local-only commits on `version/X.Y.Z` (including the carry-over above), cherry-pick them onto the new branch.
+   - Verify: `git branch --show-current` must print `version/X.Y.(Z+1)`; `grep 'version=' setup.py` must match.
+   - Staying on the released branch locally causes every new commit to land on frozen code and uncommitted work to silently belong to the wrong version (the 2026-04-20 4.5.1 incident — WEEX/Coinbase/iter_count work had to be manually cherry-picked to 4.5.2 because the local checkout was never switched).
 5. **BotManager deploy**: update `LUMIBOT_VERSION` variable, trigger dev then prod workflows.
-6. **Post-deploy**: verify `lumibot_version` in a backtest’s `settings.json` matches.
+6. **Post-deploy**: verify `lumibot_version` in a backtest’s `settings.json` matches (via BotSpot MCP `start_backtest` + `get_backtest_artifact` with `label="settings.json"`).
 
 ### What went wrong (2026-04-15 incident)
 During the flat-price bug investigation, the local checkout silently switched from `version/4.4.62` to `master`. This was not caught until the user noticed. The deploy itself was correct (all remote artifacts were on the right branch), but the local state was wrong. **Always verify your branch before and after every operation.**

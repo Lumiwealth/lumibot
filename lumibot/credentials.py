@@ -318,6 +318,19 @@ COINBASE_CONFIG = {
     "sandbox": os.environ.get("COINBASE_SANDBOX", "false").lower() == "true",
 }
 
+# WEEX Configuration (spot trading only — WEEX is primarily a futures exchange,
+# but perpetual-swap support is not implemented in the shared Ccxt broker today).
+# WEEX requires three credentials (apiKey + secret + passphrase) and has no sandbox.
+# NOTE: WEEX's Terms of Use exclude US and Canadian residents.
+WEEX_CONFIG = {
+    "exchange_id": "weex",
+    "apiKey":   os.environ.get("WEEX_API_KEY"),
+    "secret":   os.environ.get("WEEX_API_SECRET"),
+    "password": os.environ.get("WEEX_API_PASSPHRASE"),  # mandatory passphrase
+    "margin": False,
+    "sandbox": False,  # WEEX has no public API sandbox
+}
+
 # Interactive Brokers Configuration
 INTERACTIVE_BROKERS_CONFIG = {
     "SOCKET_PORT": int(os.environ.get("INTERACTIVE_BROKERS_PORT")) if os.environ.get("INTERACTIVE_BROKERS_PORT") else None,
@@ -486,6 +499,8 @@ if not is_backtesting or is_backtesting.lower() == "false":
             broker = Ccxt(COINBASE_CONFIG)
         elif trading_broker_name.lower() == "kraken":
             broker = Ccxt(KRAKEN_CONFIG)
+        elif trading_broker_name.lower() == "weex":
+            broker = Ccxt(WEEX_CONFIG)
         elif trading_broker_name.lower() == "ib" or trading_broker_name.lower() == "interactivebrokers":
             broker = InteractiveBrokers(INTERACTIVE_BROKERS_CONFIG)
         elif trading_broker_name.lower() == "ibrest" or trading_broker_name.lower() == "interactivebrokersrest":
@@ -600,6 +615,8 @@ if not is_backtesting or is_backtesting.lower() == "false":
             broker = Ccxt(COINBASE_CONFIG)
         elif KRAKEN_CONFIG["apiKey"]:
             broker = Ccxt(KRAKEN_CONFIG)
+        elif WEEX_CONFIG["apiKey"] and WEEX_CONFIG["secret"] and WEEX_CONFIG["password"]:
+            broker = Ccxt(WEEX_CONFIG)
         elif BITUNIX_CONFIG["API_KEY"] and BITUNIX_CONFIG["API_SECRET"]:
             broker = Bitunix(BITUNIX_CONFIG)
         elif get_available_projectx_firms():
@@ -635,6 +652,9 @@ if not is_backtesting or is_backtesting.lower() == "false":
             elif data_source_name.lower() == "kraken":
                 from .data_sources import CcxtData
                 data_source = CcxtData(KRAKEN_CONFIG)
+            elif data_source_name.lower() == "weex":
+                from .data_sources import CcxtData
+                data_source = CcxtData(WEEX_CONFIG)
             elif data_source_name.lower() == "ib" or data_source_name.lower() == "interactivebrokers":
                 from .data_sources import InteractiveBrokersData
                 data_source = InteractiveBrokersData(INTERACTIVE_BROKERS_CONFIG)

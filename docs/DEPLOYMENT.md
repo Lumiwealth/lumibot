@@ -2,7 +2,7 @@
 
 > Release/deployment workflow for LumiBot (version branches, changelog, tags, and GitHub releases).
 
-**Last Updated:** 2026-03-30
+**Last Updated:** 2026-04-21
 **Status:** Active
 **Audience:** Developers + AI Agents
 
@@ -15,8 +15,9 @@
 3) Merge the PR into `dev` (no direct pushes to `dev`).
 4) Tag the **merge commit on `dev`** as `vX.Y.Z` (this triggers GitHub Actions to publish to PyPI + create a GitHub Release).
 5) Verify `pip install lumibot==X.Y.Z` works.
-6) **Immediately** cut `version/X.Y.(Z+1)` from updated `dev`, bump `setup.py`, and push — **do this BEFORE triggering BotManager deploys** so other engineers/agents can continue working on the new branch while the slow downstream deploy runs.
+6) **Switch your LOCAL checkout to `version/X.Y.(Z+1)`** (the release workflow auto-creates the remote branch; you must pull it and switch locally, carrying any uncommitted work via cherry-pick). Verify with `git branch --show-current` and `grep version= setup.py` before doing anything else. This is NOT optional — skipping it means every subsequent commit lands on a frozen, released branch. See step 6 for the full checklist.
 7) Trigger BotManager deploys (dev then prod) — this takes ~30 minutes and should be the last step.
+8) Post-deploy: run an MCP backtest against prod and assert `settings.json.lumibot_version == "X.Y.Z"`. See step 8.
 
 ## The `dev` Branch Is Sacred (CRITICAL)
 
@@ -218,22 +219,47 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
    - Find failing run quickly:
      - `gh run list -R Lumiwealth/lumibot -w "Release (PyPI + GitHub)" -L 10`
 
-6) **Start the next version branch (do this BEFORE BotManager deploy)**
-   - This step is time-sensitive: other engineers and AI agents need a working branch to continue
-     development while the slow BotManager deploy (~30 min) runs in the background.
-   - Create `version/X.Y.(Z+1)` from `dev` (or from the just-deployed commit once it’s on `dev`).
-   - Immediately bump `setup.py` to `X.Y.(Z+1)` and commit: `chore: start X.Y.(Z+1)`.
-   - Add a new `CHANGELOG.md` section: `## X.Y.(Z+1) - Unreleased`.
-   - Push the new branch to GitHub (so other agents don’t keep working on the old version branch):
+6) **Switch your LOCAL checkout to `version/X.Y.(Z+1)` (NOT OPTIONAL — DO NOT SKIP)**
+
+   > **Why this is step 6 and not a footnote:** remote branches don't protect you from your own local state. If you stay on `version/X.Y.Z` locally after the release, every subsequent `git commit` lands on a released branch, every uncommitted edit belongs to the wrong version, and any new work from other agents collides with yours on a branch that is supposed to be frozen. The 2026-04-20 4.5.1 deploy hit exactly this: WEEX/Coinbase/iter_count work was sitting uncommitted on `version/4.5.1` after release and had to be manually carried over to `version/4.5.2` via cherry-pick because the local branch was never switched.
+
+   6a) **The release workflow auto-creates the remote branch** `version/X.Y.(Z+1)` from `dev` (see `.github/workflows/release.yml` → "Start next version branch" job). You do NOT need to create it. You DO need to pull it and switch your local checkout to it.
+
+   6b) **Capture any local work first.** If you have uncommitted changes or local-only commits on `version/X.Y.Z`, they did not ship in the release (the release tag points at the `dev` merge commit that existed at tag time). Move them to `version/X.Y.(Z+1)`:
 
      ```bash
-     git switch dev
-     git pull --ff-only
-     git switch -c version/X.Y.(Z+1)
-     # bump setup.py + CHANGELOG.md, then:
-     git push -u origin version/X.Y.(Z+1)
+     # Snapshot anything uncommitted as a throwaway commit on the OLD branch
+     git status --porcelain=v1           # if non-empty, commit before switching
+     git add -u && git commit -m "wip: carry-over to X.Y.(Z+1)"
+     # Note SHAs of all commits that are on local version/X.Y.Z but not on origin/version/X.Y.Z
+     git log --oneline origin/version/X.Y.Z..HEAD
      ```
-   - Switch your local checkout to the new branch so you’re ready for the next cycle.
+
+   6c) **Switch locally and cherry-pick the carry-overs.** Use `git switch`, never `git checkout`:
+
+     ```bash
+     git fetch origin
+     git switch version/X.Y.(Z+1)        # pulls the auto-created remote branch
+     git cherry-pick <sha1> <sha2> ...   # reapply carry-overs from step 6b
+     ```
+
+   6d) **Audit the CHANGELOG.** The auto-created branch already has `## X.Y.(Z+1) - Unreleased`. If your carry-over commits left entries under the wrong heading (a squashed WIP commit often does), move them by hand. Also confirm the `## X.Y.Z - Unreleased` heading for the just-released version was updated to `## X.Y.Z - YYYY-MM-DD`; if not, fix it as part of this step.
+
+   6e) **VERIFY the switch stuck — this is the enforcement point.** Before you touch anything else:
+
+     ```bash
+     git branch --show-current            # MUST print version/X.Y.(Z+1)
+     grep 'version=' setup.py | head -1   # MUST print version="X.Y.(Z+1)",
+     git status --porcelain=v1            # MUST be empty
+     ```
+
+     If any of those three checks is wrong, STOP and fix before proceeding. Do not trigger BotManager deploy on the wrong local branch state.
+
+   6f) **Push** anything you cherry-picked:
+
+     ```bash
+     git push origin version/X.Y.(Z+1)
+     ```
 
 7) **Downstream rollout (BotManager) — LAST STEP**
    - This takes ~30 minutes. Only trigger it after Step 6 is done so the team isn’t blocked.

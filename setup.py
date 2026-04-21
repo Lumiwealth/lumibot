@@ -76,7 +76,7 @@ setuptools.setup(
         "scipy>=1.14.0",
         "quantstats-lumi>=1.1.3,<1.2.0",
         "python-dotenv",  # Secret Storage
-        "ccxt>=4.4.80",
+        "ccxt>=4.5.50",  # 4.5.50+ includes WEEX exchange support
         "termcolor",
         "jsonpickle",
         "apscheduler>=3.10.4",

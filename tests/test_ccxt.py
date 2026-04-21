@@ -46,3 +46,25 @@ def test_initialize_ccxt_broker_legacy(mocker):
 
     # Assert that strategy.data_source is InteractiveBrokersData object
     assert isinstance(strategy.broker.data_source, CcxtData)
+
+
+# Fake WEEX credentials, they do not need to be real — CCXT requires apiKey + secret + passphrase.
+WEEX_CONFIG = {
+    "exchange_id": "weex",
+    "apiKey":   "w1x2y3z4",
+    "secret":   "7dQYvW+eXeHW0fake/fakefake/fake==",
+    "password": "not_my_passphrase",
+    "margin": False,
+    "sandbox": False,  # WEEX has no sandbox
+}
+
+
+def test_initialize_weex_broker(mocker):
+    """WEEX shares the generic CCXT broker path; instantiation should succeed with a 3-field config."""
+    broker = Ccxt(WEEX_CONFIG)
+    mocker.patch.object(broker, "_get_balances_at_broker", return_value=None)
+    mocker.patch.object(broker, "_set_initial_positions")
+
+    assert broker.api.exchangeId == "weex"
+    assert broker.data_source is not None
+    assert isinstance(broker.data_source, CcxtData)

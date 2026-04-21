@@ -537,10 +537,31 @@ class Data:
         # PERF: Precompute an integer nanoseconds view of the datetime index so `get_iter_count()`
         # can use NumPy search/forward cursors without triggering pandas datetime scalar validation.
         #
-        # NOTE: For tz-aware indexes, `.asi8` is UTC nanoseconds since epoch, which matches
-        # `datetime.timestamp()` semantics for tz-aware python datetimes.
+        # NOTE: For tz-aware indexes, `.asi8` is integer-since-epoch in the index's NATIVE unit.
+        # Pandas 1.x stored all datetime64 as `ns`. Pandas 2.x defaults tz-aware indexes to `us`,
+        # which means `.asi8` returns microseconds — 1000x smaller than the `dt.timestamp() * 1e9`
+        # nanoseconds that `get_iter_count()` builds for the comparison. On a `us`-precision index
+        # every `dt_ns` is larger than every `idx_ns[i]`, so `np.searchsorted(idx, dt_ns,
+        # side="right")` always returns `len(idx)` and iter_count lands on the last row — i.e. the
+        # shortcut silently returns the last bar of the fetched frame for every sim_time.
+        #
+        # Observed 2026-04-20 in Alpha Picks prod: fresh IBKR parquets wrote as `datetime64[us,
+        # America/New_York]`, so `get_last_price(COP, sim_time=2022-07-01)` returned $97.43 (the
+        # close of 2022-07-29 — the last bar in the 5y-window fetch), instead of $90.98 (the real
+        # 2022-07-01 close), poisoning position sizing despite the v4.5.0 look-ahead fix and the
+        # v4.5.1 forward-fill. Local dev caches were written by older pandas as `datetime64[ns]`,
+        # which happened to work and masked the bug.
+        #
+        # Fix: normalize to nanoseconds explicitly. `DatetimeIndex.as_unit("ns")` is the supported
+        # pandas-2.x API; on older pandas it either no-ops (already ns) or raises AttributeError
+        # in which case the index is already ns by definition.
         try:
-            self._index_values_ns = self.df.index.asi8
+            idx = self.df.index
+            try:
+                idx = idx.as_unit("ns")
+            except (AttributeError, TypeError):
+                pass  # pandas <2.0 — always ns
+            self._index_values_ns = idx.asi8
         except Exception:
             self._index_values_ns = None
 

@@ -376,7 +376,7 @@ Describe your strategy's thesis and the assets it trades. Do not repeat instruct
 
 **What does LumiBot handle automatically in the base prompt?**
 
-The base prompt tells the agent whether the run is a backtest or live, the current datetime and timezone, current positions and cash, rules about look-ahead bias, the default investor policy (conviction over activity, no overtrading), position sizing and limit order preferences, and DuckDB conventions and tool usage guidance.
+The base prompt tells the agent whether the run is a backtest or live, the current datetime and timezone, current positions and cash, rules about look-ahead bias, the default investor policy (conviction over activity, no overtrading), risk and drawdown discipline (risk-adjusted returns over raw returns, recovery math, cut losers, no chasing after drawdowns, Sharpe/Sortino/Calmar framing), position sizing and limit order preferences, and DuckDB conventions and tool usage guidance.
 
 **Can I override the default investor policy?**
 

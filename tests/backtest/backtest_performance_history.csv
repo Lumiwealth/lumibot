@@ -7586,3 +7586,14 @@ timestamp,test_name,data_source,trading_days,execution_time_seconds,git_commit,l
 2026-04-17T01:34:59.995312,test_acceptance_tqqq_sma200,unknown,,18.679,748abb5f,4.5.0,,,,,Auto-tracked from test_acceptance_backtests_ci
 2026-04-17T01:40:50.214407,test_acceptance_backdoor_butterfly,unknown,,350.101,748abb5f,4.5.0,,,,,Auto-tracked from test_acceptance_backtests_ci
 2026-04-17T01:45:30.351157,test_acceptance_meli_deep_drawdown,unknown,,279.988,748abb5f,4.5.0,,,,,Auto-tracked from test_acceptance_backtests_ci
+2026-04-21T20:53:36.145186,test_agent_runtime_stock_backtest_replays_from_cache,unknown,,0.378,f39f9056,4.5.3,,,,,Auto-tracked from test_agent_runtime_backtest
+2026-04-21T20:53:36.455600,test_agent_runtime_option_backtest_executes_option_order,unknown,,0.163,f39f9056,4.5.3,,,,,Auto-tracked from test_agent_runtime_backtest
+2026-04-21T20:53:45.994379,test_agent_runtime_minute_duckdb_stress_binds_once,unknown,,9.388,f39f9056,4.5.3,,,,,Auto-tracked from test_agent_runtime_backtest
+2026-04-21T20:53:46.334460,test_agent_runtime_injects_base_prompt_runtime_context_and_default_summary_log,unknown,,0.144,f39f9056,4.5.3,,,,,Auto-tracked from test_agent_runtime_backtest
+2026-04-21T20:53:46.779613,test_agent_runtime_replays_market_priming_builtins_on_cache,unknown,,0.305,f39f9056,4.5.3,,,,,Auto-tracked from test_agent_runtime_backtest
+2026-04-21T20:53:48.925908,test_builtin_market_history_and_duckdb_descriptions_include_schema_hints,unknown,,0.921,f39f9056,4.5.3,,,,,Auto-tracked from test_agent_runtime_backtest
+2026-04-21T20:53:49.247902,test_run_backtest_explicit_quiet_logs_false_emits_agent_logs,unknown,,0.146,f39f9056,4.5.3,,,,,Auto-tracked from test_agent_runtime_backtest
+2026-04-21T20:53:49.561269,test_run_backtest_explicit_quiet_logs_true_suppresses_agent_logs,unknown,,0.141,f39f9056,4.5.3,,,,,Auto-tracked from test_agent_runtime_backtest
+2026-04-21T20:53:49.874088,test_agent_runtime_emits_future_timestamp_warning_without_blocking,unknown,,0.149,f39f9056,4.5.3,,,,,Auto-tracked from test_agent_runtime_backtest
+2026-04-21T20:53:50.192184,test_agent_runtime_invalid_asset_type_emits_observability_warning,unknown,,0.147,f39f9056,4.5.3,,,,,Auto-tracked from test_agent_runtime_backtest
+2026-04-21T20:54:26.123751,test_builtin_docs_search_returns_local_doc_snippets,unknown,,35.78,f39f9056,4.5.3,,,,,Auto-tracked from test_agent_runtime_backtest

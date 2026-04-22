@@ -97,6 +97,7 @@ setuptools.setup(
         "openai",
         "google-adk>=1.19.0",
         "google-genai>=1.68.0",
+        "litellm>=1.77.0",
         "anyio>=4.10.0",
         "mcp>=1.26.0",
         "schwab-py>=1.5.0",

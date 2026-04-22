@@ -675,3 +675,38 @@ Notes:
 
 - Burst mode (more frequent telemetry logs) turns on automatically above ~80% of container memory.
 - Deep snapshots trigger above ~90% with a ~1 hour cooldown (these thresholds are fixed defaults today).
+
+AI agent model providers
+------------------------
+
+LumiBot's AI agent subsystem (``self.agents.create(default_model=...)``) supports multiple LLM providers. You only need the key matching the provider id you pass as ``default_model``. Non-Gemini ids are routed through LiteLLM, which ships as a LumiBot dependency.
+
+GOOGLE_API_KEY
+^^^^^^^^^^^^^^
+
+- Purpose: Auth for Gemini models (the default provider).
+- Values: Obtain from https://aistudio.google.com/apikey.
+- Required when ``default_model`` starts with ``gemini-`` (e.g. ``gemini-3.1-flash-lite-preview``).
+
+OPENAI_API_KEY
+^^^^^^^^^^^^^^
+
+- Purpose: Auth for OpenAI models (GPT-5.4 family and others).
+- Values: Obtain from https://platform.openai.com/api-keys.
+- Required when ``default_model`` looks like ``openai/gpt-5.4-mini`` or any other ``openai/...`` id.
+
+XAI_API_KEY
+^^^^^^^^^^^
+
+- Purpose: Auth for xAI Grok models.
+- Values: Obtain from https://console.x.ai/.
+- Required when ``default_model`` looks like ``xai/grok-4.20-0309-reasoning`` or any other ``xai/...`` id.
+
+ANTHROPIC_API_KEY
+^^^^^^^^^^^^^^^^^
+
+- Purpose: Auth for Anthropic Claude models.
+- Values: Obtain from https://console.anthropic.com/.
+- Required when ``default_model`` looks like ``anthropic/claude-opus-4-7`` or any other ``anthropic/...`` id.
+
+Other providers (Groq, Mistral, Cohere, Fireworks, Together, etc.) use the provider-prefixed id format and the corresponding provider env var; see the LiteLLM documentation for the full list.

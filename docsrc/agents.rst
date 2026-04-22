@@ -308,7 +308,16 @@ Most alternatives either put the LLM outside the backtest loop (QuantConnect), h
 
 **What AI models are supported?**
 
-The default model is Gemini (``gemini-3.1-flash-lite-preview``). You need a ``GOOGLE_API_KEY`` environment variable set. The architecture supports OpenAI, Anthropic, and other providers through the underlying model router. Pass the model name via the ``default_model`` parameter when creating your agent.
+LumiBot ships with first-class support for Gemini, OpenAI (GPT), xAI (Grok), Anthropic (Claude), and any other provider covered by LiteLLM (~100 providers). You pick the model per agent via the ``default_model`` parameter when creating your agent.
+
+Gemini ids (e.g. ``"gemini-3.1-flash-lite-preview"``) take Google ADK's native fast path. Anything else is automatically routed through LiteLLM using the provider-prefixed id format:
+
+- Gemini: ``"gemini-3.1-flash-lite-preview"`` (default) -- requires ``GOOGLE_API_KEY``
+- OpenAI: ``"openai/gpt-5.4-mini"`` (good default), ``"openai/gpt-5.4"``, ``"openai/gpt-5.4-pro"``, ``"openai/gpt-5.4-nano"`` -- requires ``OPENAI_API_KEY``
+- xAI Grok: ``"xai/grok-4.20-0309-reasoning"`` (Grok 4.2, reasoning on, 2M ctx), ``"xai/grok-4-1-fast-reasoning-latest"`` (cheap/fast), or ``"xai/grok-4-latest"`` (older) -- requires ``XAI_API_KEY``
+- Anthropic Claude: ``"anthropic/claude-opus-4-7"``, ``"anthropic/claude-sonnet-4-6"`` -- requires ``ANTHROPIC_API_KEY``
+
+The replay cache keys on the model id, so swapping providers on the same backtest produces fresh runs rather than stale cross-model replays. Tool calling is normalized across providers by LiteLLM, so your ``@agent_tool`` functions work unchanged regardless of which model you pick.
 
 **How do I get started?**
 
@@ -316,7 +325,7 @@ Install LumiBot, set ``GOOGLE_API_KEY`` in your environment, copy the Quick Star
 
 **What API keys do I need?**
 
-At minimum, ``GOOGLE_API_KEY`` for the Gemini model that powers the agent. If your ``@agent_tool`` functions call external APIs, you also need those keys -- for example ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for Alpaca data APIs. The M2 Liquidity demo only needs ``GOOGLE_API_KEY`` because FRED data is public.
+At minimum, one model provider key matching the ``default_model`` you set: ``GOOGLE_API_KEY`` for Gemini (the default), ``OPENAI_API_KEY`` for GPT models, ``XAI_API_KEY`` for Grok, or ``ANTHROPIC_API_KEY`` for Claude. If your ``@agent_tool`` functions call external APIs, you also need those keys -- for example ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for Alpaca data APIs. The M2 Liquidity demo only needs one model-provider key because FRED data is public.
 
 **How do I set up my environment?**
 

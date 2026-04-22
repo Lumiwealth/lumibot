@@ -289,6 +289,26 @@ class RuntimeRequest:
     bound_tools: list[BoundTool]
 
 
+def _resolve_model_for_adk(model: Any) -> Any:
+    # Native Gemini IDs take ADK's fast path as plain strings. Any other
+    # provider prefix (e.g. "openai/...", "xai/...", "anthropic/...") is
+    # routed through google.adk.models.lite_llm.LiteLlm which normalizes
+    # tool-call shapes and auth across ~100 providers via LiteLLM.
+    if not isinstance(model, str):
+        return model
+    lower = model.strip().lower()
+    if lower.startswith("gemini-") or lower.startswith("models/gemini"):
+        return model
+    try:
+        from google.adk.models.lite_llm import LiteLlm
+    except ImportError as exc:
+        raise ImportError(
+            f"Agent model '{model}' requires the 'litellm' package. "
+            "Install it with: pip install litellm"
+        ) from exc
+    return LiteLlm(model=model)
+
+
 class GoogleADKRuntime:
     def __init__(self, mcp_servers: list[MCPServer] | None = None) -> None:
         self.mcp_servers = mcp_servers or []
@@ -356,7 +376,7 @@ class GoogleADKRuntime:
         tools = [function_tool_type(_wrap_tool_callable(tool)) for tool in request.bound_tools]
         agent = LlmAgentType(
             name=request.agent_name,
-            model=request.model,
+            model=_resolve_model_for_adk(request.model),
             instruction=self._instruction_for(request),
             tools=tools,
             generate_content_config=genai_types.GenerateContentConfig(

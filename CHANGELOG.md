@@ -1,6 +1,9 @@
 # Changelog
 
-## 4.5.3 - Unreleased
+## 4.5.3 - 2026-04-21
+
+### Changed
+- **Agent prompt now instructs strategies on risk and drawdown discipline.** New "RISK AND DRAWDOWN DISCIPLINE" block in `AgentHandle`'s base prompt (`lumibot/components/agents/manager.py`) tells generated strategies to optimize for risk-adjusted return, not headline return; explains recovery math (20% DD needs 25% gain, 50% needs 100%, 80% needs 400%); sizes positions by conviction + volatility, not just cash; cuts broken theses instead of averaging down; does not chase losses with more size; and thinks in Sharpe/Sortino/Calmar terms. Zero code-path changes; purely a behavioral shift in what agent-generated strategies do.
 
 ## 4.5.2 - 2026-04-21
 

@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.5.4 - Unreleased
+
 ## 4.5.3 - 2026-04-21
 
 ### Changed

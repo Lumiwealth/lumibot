@@ -289,6 +289,33 @@ class RuntimeRequest:
     bound_tools: list[BoundTool]
 
 
+_LITELLM_CONFIGURED = False
+
+
+def _configure_litellm_quietly() -> None:
+    # LiteLLM's provider-lookup path in get_llm_provider_logic.py prints a
+    # red "Provider List: https://docs.litellm.ai/docs/providers" banner to
+    # stderr on internal probes (cost/tokenizer lookups for models not in
+    # litellm.model_cost). The banner is purely cosmetic: real failures
+    # still raise BadRequestError. New model ids (e.g. gpt-5.4-*, grok-4.20)
+    # routinely ship before LiteLLM's static registry catches up, so this
+    # banner would fire on every agent call for current-generation models.
+    # suppress_debug_info mutes the banner without suppressing exceptions.
+    global _LITELLM_CONFIGURED
+    if _LITELLM_CONFIGURED:
+        return
+    try:
+        import litellm
+    except ImportError:
+        _LITELLM_CONFIGURED = True
+        return
+    try:
+        litellm.suppress_debug_info = True
+    except Exception:
+        pass
+    _LITELLM_CONFIGURED = True
+
+
 def _resolve_model_for_adk(model: Any) -> Any:
     # Native Gemini IDs take ADK's fast path as plain strings. Any other
     # provider prefix (e.g. "openai/...", "xai/...", "anthropic/...") is
@@ -299,6 +326,7 @@ def _resolve_model_for_adk(model: Any) -> Any:
     lower = model.strip().lower()
     if lower.startswith("gemini-") or lower.startswith("models/gemini"):
         return model
+    _configure_litellm_quietly()
     try:
         from google.adk.models.lite_llm import LiteLlm
     except ImportError as exc:

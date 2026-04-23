@@ -1,11 +1,20 @@
+import csv
 import json
 import os
 import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
+
 from lumibot.constants import LUMIBOT_CACHE_FOLDER
+from lumibot.tools.parquet_utils import (
+    coerce_object_columns_to_json_strings,
+    is_parquet_required,
+    write_parquet_with_logging,
+)
 
 from .builtins import _order_to_dict, _position_to_dict
 from .duckdb_tools import DuckDBQueryLayer
@@ -116,16 +125,131 @@ def _compact_json(value: Any, limit: int = 240) -> str:
     return _truncate_text(text, limit=limit)
 
 
+def _usage_value(payload: Any, *keys: str) -> int:
+    if not isinstance(payload, dict):
+        return 0
+    for key in keys:
+        value = payload.get(key)
+        if value is None:
+            continue
+        try:
+            return int(value)
+        except Exception:
+            continue
+    return 0
+
+
+def _usage_breakdown(payload: Any, *, cache_hit: bool) -> dict[str, int]:
+    if cache_hit or not isinstance(payload, dict):
+        return {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "thinking_tokens": 0,
+            "cached_input_tokens": 0,
+            "tool_use_input_tokens": 0,
+        }
+
+    input_tokens = _usage_value(payload, "prompt_token_count", "prompt_tokens", "input_tokens")
+    output_tokens = _usage_value(payload, "candidates_token_count", "completion_tokens", "output_tokens")
+    total_tokens = _usage_value(payload, "total_token_count", "total_tokens")
+    thinking_tokens = _usage_value(payload, "thoughts_token_count", "reasoning_tokens")
+    cached_input_tokens = _usage_value(payload, "cached_content_token_count", "cached_input_tokens")
+    tool_use_input_tokens = _usage_value(payload, "tool_use_prompt_token_count")
+
+    if total_tokens <= 0:
+        total_tokens = input_tokens + output_tokens
+
+    return {
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "total_tokens": total_tokens,
+        "thinking_tokens": thinking_tokens,
+        "cached_input_tokens": cached_input_tokens,
+        "tool_use_input_tokens": tool_use_input_tokens,
+    }
+
+
+_AGENT_DETAIL_COLUMNS = [
+    "timestamp",
+    "call_index",
+    "event_index",
+    "agent_name",
+    "model",
+    "mode",
+    "cache_hit",
+    "event_kind",
+    "tool_name",
+    "event_detail",
+    "event_text",
+    "summary",
+    "final_text",
+    "thinking_text",
+    "thinking_captured",
+    "tool_sequence",
+    "tool_call_count",
+    "event_count",
+    "task_prompt",
+    "user_system_prompt",
+    "base_system_prompt",
+    "effective_system_prompt",
+    "context_text",
+    "runtime_context_text",
+    "warning_messages",
+    "event_input_tokens",
+    "event_output_tokens",
+    "event_total_tokens",
+    "event_thinking_tokens",
+    "event_cached_input_tokens",
+    "event_tool_use_input_tokens",
+    "call_input_tokens",
+    "call_output_tokens",
+    "call_total_tokens",
+    "call_thinking_tokens",
+    "call_cached_input_tokens",
+    "call_tool_use_input_tokens",
+    "trace_path",
+]
+
+
 def _unwrap_tool_payload(payload: Any) -> Any:
     if isinstance(payload, dict) and set(payload.keys()) == {"payload"} and isinstance(payload.get("payload"), dict):
         return payload["payload"]
     return payload
 
 
+def _sanitize_csv_text(value: Any) -> str:
+    if value is None:
+        return ""
+    text = str(value)
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = text.replace("\n", " \\n ")
+    text = text.replace("\t", " ")
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _flatten_csv_value(value: Any) -> str:
+    value = _normalize_json(value)
+    if value is None:
+        return ""
+    if isinstance(value, dict):
+        parts = []
+        for key, item in value.items():
+            item_text = _flatten_csv_value(item)
+            if item_text:
+                parts.append(f"{key}={item_text}")
+        return _sanitize_csv_text("; ".join(parts))
+    if isinstance(value, (list, tuple)):
+        parts = [_flatten_csv_value(item) for item in value]
+        parts = [part for part in parts if part]
+        return _sanitize_csv_text(" | ".join(parts))
+    return _sanitize_csv_text(value)
+
+
 def _summarize_tool_payload(tool_name: str | None, payload: Any) -> str:
     payload = _unwrap_tool_payload(payload)
     if not isinstance(payload, dict):
-        return _truncate_text(payload)
+        return _sanitize_csv_text(_truncate_text(payload))
 
     if "articles" in payload and isinstance(payload["articles"], list):
         articles = payload["articles"]
@@ -138,25 +262,25 @@ def _summarize_tool_payload(tool_name: str | None, payload: Any) -> str:
             headline = article.get("headline") or "untitled"
             prefix = f"{symbols} " if symbols else ""
             headline_parts.append(f"{prefix}@ {published_at}: {headline}")
-        return _truncate_text(
+        return _sanitize_csv_text(_truncate_text(
             f"count={payload.get('count', len(articles))} "
             f"window=({payload.get('window_start')} -> {payload.get('window_end')}) "
             f"headlines={headline_parts}"
-        )
+        ))
 
     if "row_count" in payload and "table_name" in payload:
-        return _truncate_text(
+        return _sanitize_csv_text(_truncate_text(
             f"table={payload.get('table_name')} symbol={payload.get('symbol')} "
             f"rows={payload.get('row_count')} timestep={payload.get('timestep')} "
             f"loaded_at={payload.get('loaded_at')}"
-        )
+        ))
 
     if "rows" in payload and "row_count" in payload:
         rows = payload.get("rows") or []
         sample = rows[0] if rows else {}
-        return _truncate_text(
+        return _sanitize_csv_text(_truncate_text(
             f"rows={payload.get('row_count')} sample={_compact_json(sample, limit=140)}"
-        )
+        ))
 
     if "positions" in payload and isinstance(payload["positions"], list):
         labels: list[str] = []
@@ -166,21 +290,55 @@ def _summarize_tool_payload(tool_name: str | None, payload: Any) -> str:
             asset = position.get("asset") or {}
             symbol = asset.get("symbol") if isinstance(asset, dict) else asset
             labels.append(f"{symbol}:{position.get('quantity')}")
-        return _truncate_text(f"positions={labels}")
+        return _sanitize_csv_text(_truncate_text(f"positions={labels}"))
 
     if "cash" in payload and "portfolio_value" in payload:
-        return _truncate_text(
+        return _sanitize_csv_text(_truncate_text(
             f"cash={payload.get('cash')} portfolio_value={payload.get('portfolio_value')} "
             f"datetime={payload.get('datetime')}"
-        )
+        ))
 
     if "identifier" in payload or "status" in payload:
-        return _truncate_text(
+        return _sanitize_csv_text(_truncate_text(
             f"identifier={payload.get('identifier')} status={payload.get('status')} "
             f"symbol={payload.get('symbol')} side={payload.get('side')} quantity={payload.get('quantity')}"
-        )
+        ))
 
-    return _compact_json(payload)
+    return _flatten_csv_value(payload) or _sanitize_csv_text(_compact_json(payload))
+
+
+def _visible_model_texts(result: AgentRunResult) -> list[str]:
+    summary = (result.summary or result.text or "").strip()
+    return [
+        _sanitize_csv_text(event.text)
+        for event in result.events
+        if event.kind == "text"
+        and event.text
+        and not event.tool_name
+        and event.text.strip()
+        and event.text.strip() != summary
+    ]
+
+
+def _thinking_texts(result: AgentRunResult) -> list[str]:
+    return [
+        _sanitize_csv_text(event.text)
+        for event in result.events
+        if event.kind == "thinking" and event.text and event.text.strip()
+    ]
+
+
+def _event_usage_breakdown(event: AgentTraceEvent) -> dict[str, int]:
+    if event.kind != "usage":
+        return {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "thinking_tokens": 0,
+            "cached_input_tokens": 0,
+            "tool_use_input_tokens": 0,
+        }
+    return _usage_breakdown(event.payload, cache_hit=False)
 
 
 def _iter_timestamp_candidates(value: Any, *, path: str = "payload", hinted: bool = False):
@@ -495,6 +653,65 @@ class AgentHandle:
         self._bound_tools = bound
         return bound
 
+    @staticmethod
+    def _log_fatal_backtest_error(exc: BaseException, category: str, model: str) -> None:
+        """Write a clean, loud error banner to stderr when we crash a backtest
+        on an unrecoverable config/auth/billing error. Points the user at
+        the likely fix (env var name, provider URL) so they can act
+        without decoding a raw provider stack trace."""
+        # Map provider prefix -> (env var, billing url).
+        provider_hints = {
+            "openai/": ("OPENAI_API_KEY", "https://platform.openai.com/api-keys", "https://platform.openai.com/account/billing"),
+            "xai/": ("XAI_API_KEY", "https://console.x.ai/", "https://console.x.ai/team"),
+            "anthropic/": ("ANTHROPIC_API_KEY", "https://console.anthropic.com/", "https://console.anthropic.com/settings/billing"),
+        }
+        env_var, key_url, billing_url = ("GOOGLE_API_KEY", "https://aistudio.google.com/apikey", "https://aistudio.google.com/")
+        for prefix, (ev, ku, bu) in provider_hints.items():
+            if isinstance(model, str) and model.startswith(prefix):
+                env_var, key_url, billing_url = ev, ku, bu
+                break
+
+        lines = [
+            "",
+            "=" * 78,
+            f"AI AGENT BACKTEST CRASHED ({category.upper()} error)",
+            "=" * 78,
+            f"Model:  {model}",
+            f"Error:  {exc.__class__.__name__}: {str(exc)[:400]}",
+            "",
+        ]
+        if category == "auth":
+            lines.extend([
+                f"Likely cause: {env_var} is missing or invalid.",
+                f"  Get a key at: {key_url}",
+                f"  Then:         export {env_var}='your-key-here'",
+            ])
+        elif category == "billing":
+            lines.extend([
+                f"Likely cause: provider billing issue (out of credits, quota exceeded).",
+                f"  Check billing at: {billing_url}",
+            ])
+        elif category == "config":
+            lines.extend([
+                "Likely cause: bad model id, malformed request, or context-window exceeded.",
+                f"  Current model:      {model}",
+                "  Verify the model id is on your provider's /models list.",
+                "  If context-window: reduce runtime context / memory / tool count.",
+            ])
+        lines.extend([
+            "",
+            "Backtest stopped intentionally so you can fix this and re-run.",
+            "Note: live trading does NOT stop on this error category — it logs and",
+            "skips the iteration so the bot stays alive for operator intervention.",
+            "=" * 78,
+            "",
+        ])
+        try:
+            sys.stderr.write("\n".join(lines))
+            sys.stderr.flush()
+        except Exception:
+            pass
+
     def _cache_payload(
         self,
         *,
@@ -680,6 +897,7 @@ class AgentHandle:
         log_message = getattr(self.manager.strategy, "log_message", None)
         if not callable(log_message):
             return
+        usage = _usage_breakdown(result.usage, cache_hit=bool(result.cache_hit))
         trace_path = ""
         if isinstance(result.payload, dict):
             trace_path = str(result.payload.get("trace_path") or "")
@@ -687,6 +905,8 @@ class AgentHandle:
         message = (
             f"[agents] name={self.name} mode={runtime_context.get('mode')} "
             f"model={result.model} cache_hit={result.cache_hit} "
+            f"tokens_in={usage['input_tokens']} tokens_out={usage['output_tokens']} "
+            f"tokens_total={usage['total_tokens']} "
             f"tool_calls={len(result.tool_calls)} observability_warnings={len(result.warnings)} "
             f"summary={summary!r} trace={trace_path}"
         )
@@ -756,6 +976,12 @@ class AgentHandle:
             if cached is not None:
                 result = self._result_from_cached(cached, cache_key)
                 self._replay_cached_side_effects(result)
+                self.manager._record_agent_observability(
+                    handle=self,
+                    result=result,
+                    runtime_context=runtime_context,
+                    cache_payload=cache_payload,
+                )
                 self._append_memory(result)
                 self._append_run_artifact_summary(result, runtime_context)
                 self._log_run_summary(result, runtime_context)
@@ -771,7 +997,106 @@ class AgentHandle:
             memory_notes=self._memory_prompt_notes(),
             bound_tools=self._ensure_bound_tools(),
         )
-        result = self._runtime.run(request)
+        # Strategy-level safety net with live-vs-backtest branching.
+        #
+        # Scope: this behavior is ONLY for AI agent calls. The rest of
+        # LumiBot's main loop error handling (strategy_executor catches,
+        # _on_bot_crash, gracefully_exit, broker errors) is unchanged.
+        #
+        # Philosophy:
+        #   - LIVE TRADING: never crash. A live bot must survive any AI
+        #     provider error (outage, rate limit, auth, quota, bad model,
+        #     context-window exceeded) without stopping the scheduler.
+        #     Log the error and return a graceful "no decision this bar"
+        #     result. Next iteration tries again.
+        #   - BACKTEST: crash loud on config/auth/billing errors so the
+        #     user can fix and re-run. Silent +0% tearsheets are worse
+        #     than a clear error message. Transient errors (provider 5xx,
+        #     rate limits) still skip silently since they're not bugs the
+        #     user can act on.
+        #
+        # The _classify_agent_error helper (runtime.py) handles the taxonomy.
+        try:
+            result = self._runtime.run(request)
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except BaseException as exc:  # noqa: BLE001 - intentional broad catch
+            import traceback as _tb
+            from .runtime import _classify_agent_error
+            from .schemas import AgentRunResult, AgentTraceEvent
+
+            category = _classify_agent_error(exc)
+            is_backtesting = bool(getattr(self.manager.strategy, "is_backtesting", False))
+
+            # Backtest crashes loud on permanent config errors so user notices + fixes.
+            # Live never crashes, regardless of category.
+            if is_backtesting and category in ("auth", "config", "billing"):
+                self._log_fatal_backtest_error(exc, category, model_name)
+                raise
+
+            error_detail = f"{exc.__class__.__name__}: {str(exc)[:400]}"
+            try:
+                sys.stderr.write(
+                    f"[lumibot.agents] agent '{self.name}' (model={model_name!r}) call failed: "
+                    f"category={category} mode={'backtest' if is_backtesting else 'live'}. "
+                    f"Skipping this iteration (no trades placed). Error: {error_detail}\n"
+                )
+                sys.stderr.flush()
+            except Exception:
+                pass
+            now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            fallback_summary = (
+                f"RESULT: Skipped this iteration. Agent call failed "
+                f"(category={category}): {error_detail}. "
+                f"Strategy continues with no-op decision; no trades placed."
+            )
+            error_event = AgentTraceEvent(
+                kind="text",
+                text=fallback_summary,
+                timestamp=now_iso,
+                payload={
+                    "runtime_error": True,
+                    "error_category": category,
+                    "error_class": exc.__class__.__name__,
+                    "error_message": str(exc)[:800],
+                    "traceback": "".join(_tb.format_exception(type(exc), exc, exc.__traceback__))[-2000:],
+                },
+            )
+            result = AgentRunResult(
+                summary=fallback_summary,
+                model=model_name,
+                events=[error_event],
+                usage=None,
+            )
+            # Mark it so downstream code and the user can easily filter/count
+            # skipped iterations in the warnings stream.
+            result.warnings.append(
+                {
+                    "kind": "agent_runtime_failure_skipped",
+                    "category": category,
+                    "message": f"agent_runtime_failure_skipped: {error_detail}",
+                    "timestamp": now_iso,
+                }
+            )
+            result.cache_key = None  # never cache a failure
+            result.payload = {
+                "trace_path": None,
+                "runtime_error": True,
+                "error_class": exc.__class__.__name__,
+                "error_message": str(exc)[:800],
+            }
+            # Record this skipped run in the agent's memory so the model on
+            # the next iteration knows the previous cycle was skipped.
+            self.manager._record_agent_observability(
+                handle=self,
+                result=result,
+                runtime_context=runtime_context,
+                cache_payload=cache_payload,
+            )
+            self._append_memory(result)
+            self._append_run_artifact_summary(result, runtime_context)
+            self._log_run_summary(result, runtime_context)
+            return result
         result.cache_key = cache_key
         result.warnings = self._derive_warnings(result, runtime_context)
         trace_payload = {
@@ -826,6 +1151,12 @@ class AgentHandle:
                     "payload": result.payload,
                 },
             )
+        self.manager._record_agent_observability(
+            handle=self,
+            result=result,
+            runtime_context=runtime_context,
+            cache_payload=cache_payload,
+        )
         self._append_memory(result)
         self._append_run_artifact_summary(result, runtime_context)
         self._log_run_summary(result, runtime_context)
@@ -839,9 +1170,253 @@ class AgentManager:
         self._warned_backtest_mcp_tools: set[tuple[str, str]] = set()
         self.replay_cache = AgentReplayCache()
         self.duckdb = DuckDBQueryLayer(strategy)
+        self._observability_totals: dict[str, dict[str, int]] = {}
+        self._observability_call_index: dict[str, int] = {}
 
     def __getitem__(self, item: str) -> AgentHandle:
         return self._agents[item]
+
+    def _artifact_csv_path(self, agent_name: str, suffix: str) -> Path:
+        stats_file = getattr(self.strategy, "stats_file", None) or getattr(self.strategy, "_stats_file", None)
+        if isinstance(stats_file, str) and stats_file.strip():
+            stats_path = Path(stats_file)
+            stats_suffix = "_stats.csv"
+            if stats_path.name.endswith(stats_suffix):
+                prefix = stats_path.name[: -len(stats_suffix)]
+                return stats_path.with_name(f"{prefix}{suffix}")
+            return stats_path.with_name(f"{stats_path.stem}{suffix}")
+        fallback_dir = Path(os.environ.get("LUMIBOT_CACHE_FOLDER") or LUMIBOT_CACHE_FOLDER) / "agent_runtime"
+        fallback_dir.mkdir(parents=True, exist_ok=True)
+        return fallback_dir / f"{agent_name}{suffix}"
+
+    def _append_detail_rows(
+        self,
+        *,
+        handle: AgentHandle,
+        result: AgentRunResult,
+        runtime_context: dict[str, Any],
+        cache_payload: dict[str, Any],
+        usage: dict[str, int],
+        call_index: int,
+    ) -> Path:
+        detail_path = self._artifact_csv_path(handle.name, "_agent_detail.csv")
+        detail_path.parent.mkdir(parents=True, exist_ok=True)
+        trace_path = ""
+        if isinstance(result.payload, dict):
+            trace_path = str(result.payload.get("trace_path") or "")
+        warning_messages = " | ".join(_sanitize_csv_text(message) for message in result.warning_messages if message)
+        normalized_events = result.events or [AgentTraceEvent(kind="text", text=result.summary or "")]
+        thinking_texts = _thinking_texts(result)
+        final_texts = _visible_model_texts(result)
+        final_text = " || ".join(final_texts) if final_texts else _sanitize_csv_text(result.summary or result.text or "")
+        thinking_text = " || ".join(thinking_texts)
+        tool_sequence = " -> ".join(event.tool_name or "unknown_tool" for event in result.tool_calls)
+        task_prompt = _sanitize_csv_text(cache_payload.get("task_prompt") or "")
+        user_system_prompt = _sanitize_csv_text(cache_payload.get("user_system_prompt") or "")
+        base_system_prompt = _sanitize_csv_text(cache_payload.get("base_system_prompt") or "")
+        effective_system_prompt = _sanitize_csv_text(cache_payload.get("effective_system_prompt") or "")
+        context_text = _flatten_csv_value(cache_payload.get("context") or {})
+        runtime_context_text = _flatten_csv_value(cache_payload.get("runtime_context") or {})
+        rows: list[dict[str, Any]] = []
+        for event_index, event in enumerate(normalized_events, start=1):
+            event_usage = _event_usage_breakdown(event)
+            rows.append(
+                {
+                    "timestamp": event.timestamp or handle._event_timestamp(),
+                    "call_index": call_index,
+                    "event_index": event_index,
+                    "agent_name": handle.name,
+                    "model": result.model,
+                    "mode": runtime_context.get("mode"),
+                    "cache_hit": bool(result.cache_hit),
+                    "event_kind": event.kind,
+                    "tool_name": event.tool_name or "",
+                    "event_detail": _summarize_tool_payload(event.tool_name, event.payload),
+                    "event_text": _sanitize_csv_text(event.text or ""),
+                    "summary": _sanitize_csv_text(result.summary or result.text or ""),
+                    "final_text": final_text,
+                    "thinking_text": thinking_text,
+                    "thinking_captured": bool(thinking_texts),
+                    "tool_sequence": tool_sequence,
+                    "tool_call_count": len(result.tool_calls),
+                    "event_count": len(normalized_events),
+                    "task_prompt": task_prompt,
+                    "user_system_prompt": user_system_prompt,
+                    "base_system_prompt": base_system_prompt,
+                    "effective_system_prompt": effective_system_prompt,
+                    "context_text": context_text,
+                    "runtime_context_text": runtime_context_text,
+                    "warning_messages": warning_messages,
+                    "event_input_tokens": event_usage["input_tokens"],
+                    "event_output_tokens": event_usage["output_tokens"],
+                    "event_total_tokens": event_usage["total_tokens"],
+                    "event_thinking_tokens": event_usage["thinking_tokens"],
+                    "event_cached_input_tokens": event_usage["cached_input_tokens"],
+                    "event_tool_use_input_tokens": event_usage["tool_use_input_tokens"],
+                    "call_input_tokens": usage["input_tokens"],
+                    "call_output_tokens": usage["output_tokens"],
+                    "call_total_tokens": usage["total_tokens"],
+                    "call_thinking_tokens": usage["thinking_tokens"],
+                    "call_cached_input_tokens": usage["cached_input_tokens"],
+                    "call_tool_use_input_tokens": usage["tool_use_input_tokens"],
+                    "trace_path": trace_path,
+                }
+            )
+        file_exists = detail_path.exists()
+        with detail_path.open("a", encoding="utf-8", newline="") as handle_file:
+            writer = csv.DictWriter(handle_file, fieldnames=_AGENT_DETAIL_COLUMNS)
+            if not file_exists or detail_path.stat().st_size == 0:
+                writer.writeheader()
+            writer.writerows(rows)
+        return detail_path
+
+    def _write_detail_parquet(self, *, detail_path: Path, agent_name: str) -> Path:
+        parquet_path = detail_path.with_suffix(".parquet")
+        try:
+            detail_df = pd.read_csv(detail_path)
+        except Exception as exc:
+            message = f"Agent detail CSV could not be loaded for Parquet export ({detail_path}): {exc}"
+            if is_parquet_required():
+                raise RuntimeError(message) from exc
+            self._log_warning(message)
+            return parquet_path
+
+        write_parquet_with_logging(
+            df=detail_df,
+            path=str(parquet_path),
+            artifact=f"agent_detail:{agent_name}",
+            logger=getattr(self.strategy, "logger", None) or self,
+            index=False,
+            required=is_parquet_required(),
+            compression="zstd",
+            sanitizer=coerce_object_columns_to_json_strings,
+        )
+        return parquet_path
+
+    def _log_warning(self, message: str) -> None:
+        try:
+            logger = getattr(self.strategy, "logger", None)
+            if logger is not None and hasattr(logger, "warning"):
+                logger.warning(message)
+                return
+        except Exception:
+            pass
+
+    def info(self, message: str, *args: Any, **kwargs: Any) -> None:
+        logger = getattr(self.strategy, "logger", None)
+        if logger is not None and hasattr(logger, "info"):
+            try:
+                logger.info(message, *args, **kwargs)
+                return
+            except Exception:
+                pass
+
+    def warning(self, message: str, *args: Any, **kwargs: Any) -> None:
+        if args:
+            try:
+                message = message % args
+            except Exception:
+                message = f"{message} {' '.join(str(arg) for arg in args)}"
+        self._log_warning(message)
+
+    def error(self, message: str, *args: Any, **kwargs: Any) -> None:
+        if args:
+            try:
+                message = message % args
+            except Exception:
+                message = f"{message} {' '.join(str(arg) for arg in args)}"
+        try:
+            logger = getattr(self.strategy, "logger", None)
+            if logger is not None and hasattr(logger, "error"):
+                logger.error(message, **kwargs)
+                return
+        except Exception:
+            pass
+        self._log_warning(message)
+        try:
+            sys.stderr.write(f"{message}\n")
+            sys.stderr.flush()
+        except Exception:
+            pass
+
+    def _update_strategy_parameters_for_agent(
+        self,
+        *,
+        agent_name: str,
+        model: str,
+        usage: dict[str, int],
+        detail_path: Path,
+        detail_parquet_path: Path,
+        cache_hit: bool,
+        tool_call_count: int,
+    ) -> None:
+        params = getattr(self.strategy, "parameters", None)
+        if not isinstance(params, dict):
+            return
+        totals = self._observability_totals.setdefault(
+            agent_name,
+            {
+                "calls": 0,
+                "cache_hits": 0,
+                "tool_calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "total_tokens": 0,
+                "thinking_tokens": 0,
+                "cached_input_tokens": 0,
+                "tool_use_input_tokens": 0,
+            },
+        )
+        totals["calls"] += 1
+        totals["tool_calls"] += int(tool_call_count)
+        if cache_hit:
+            totals["cache_hits"] += 1
+        for key in ("input_tokens", "output_tokens", "total_tokens", "thinking_tokens", "cached_input_tokens", "tool_use_input_tokens"):
+            totals[key] += int(usage.get(key, 0) or 0)
+
+        prefix = f"agent_{agent_name}_"
+        params[f"{prefix}model"] = model
+        params[f"{prefix}calls"] = totals["calls"]
+        params[f"{prefix}cache_hits"] = totals["cache_hits"]
+        params[f"{prefix}tool_calls"] = totals["tool_calls"]
+        params[f"{prefix}input_tokens"] = totals["input_tokens"]
+        params[f"{prefix}output_tokens"] = totals["output_tokens"]
+        params[f"{prefix}total_tokens"] = totals["total_tokens"]
+        params[f"{prefix}thinking_tokens"] = totals["thinking_tokens"]
+        params[f"{prefix}cached_input_tokens"] = totals["cached_input_tokens"]
+        params[f"{prefix}tool_use_input_tokens"] = totals["tool_use_input_tokens"]
+        params[f"{prefix}detail_csv"] = str(detail_path)
+        params[f"{prefix}detail_parquet"] = str(detail_parquet_path)
+
+    def _record_agent_observability(
+        self,
+        *,
+        handle: AgentHandle,
+        result: AgentRunResult,
+        runtime_context: dict[str, Any],
+        cache_payload: dict[str, Any],
+    ) -> None:
+        usage = _usage_breakdown(result.usage, cache_hit=bool(result.cache_hit))
+        call_index = self._observability_call_index.get(handle.name, 0) + 1
+        self._observability_call_index[handle.name] = call_index
+        detail_path = self._append_detail_rows(
+            handle=handle,
+            result=result,
+            runtime_context=runtime_context,
+            cache_payload=cache_payload,
+            usage=usage,
+            call_index=call_index,
+        )
+        detail_parquet_path = self._write_detail_parquet(detail_path=detail_path, agent_name=handle.name)
+        self._update_strategy_parameters_for_agent(
+            agent_name=handle.name,
+            model=result.model,
+            usage=usage,
+            detail_path=detail_path,
+            detail_parquet_path=detail_parquet_path,
+            cache_hit=bool(result.cache_hit),
+            tool_call_count=len(result.tool_calls),
+        )
 
     def create(
         self,
@@ -880,4 +1455,17 @@ class AgentManager:
                 color="yellow",
             )
         self._agents[name] = handle
+
+        # Auto-populate strategy.parameters with this agent's model id so the
+        # tearsheet's "Parameters Used" panel self-identifies which LLM the
+        # strategy used. Works for multi-agent strategies (each gets its own
+        # key). Non-fatal if strategy.parameters is unset or not a dict —
+        # some test doubles or legacy strategies don't set it.
+        try:
+            params = getattr(self.strategy, "parameters", None)
+            if isinstance(params, dict):
+                params[f"agent_{name}_model"] = resolved_model
+        except Exception:
+            pass
+
         return handle

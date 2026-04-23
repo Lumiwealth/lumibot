@@ -401,6 +401,12 @@ class PandasData(DataSourceBacktesting):
         requested_unit = None
         normalized_key = None
         asset_for_type = asset[0] if isinstance(asset, tuple) else asset
+        asset_lookup = asset_for_type
+        quote_lookup = quote
+        if isinstance(asset, tuple) and len(asset) >= 2 and quote_lookup is None:
+            tuple_quote = asset[1]
+            if isinstance(tuple_quote, Asset):
+                quote_lookup = tuple_quote
         requested_asset_type = str(getattr(asset_for_type, "asset_type", "") or "").strip().lower()
         if "." in requested_asset_type:
             requested_asset_type = requested_asset_type.split(".")[-1]
@@ -455,22 +461,24 @@ class PandasData(DataSourceBacktesting):
         candidates = []
 
         if timestep is not None:
-            base_quote = quote if quote is not None else _USD_FOREX
-            candidates.append((asset, base_quote, timestep))
+            base_quote = quote_lookup if quote_lookup is not None else _USD_FOREX
+            candidates.append((asset_lookup, base_quote, timestep))
             if normalized_key is not None and str(normalized_key) != str(timestep):
-                candidates.append((asset, base_quote, normalized_key))
-            if quote is not None:
-                candidates.append((asset, _USD_FOREX, timestep))
+                candidates.append((asset_lookup, base_quote, normalized_key))
+            if quote_lookup is not None:
+                candidates.append((asset_lookup, _USD_FOREX, timestep))
                 if normalized_key is not None and str(normalized_key) != str(timestep):
-                    candidates.append((asset, _USD_FOREX, normalized_key))
+                    candidates.append((asset_lookup, _USD_FOREX, normalized_key))
 
-        if quote is not None:
-            candidates.append((asset, quote))
+        if quote_lookup is not None:
+            candidates.append((asset_lookup, quote_lookup))
 
-        if isinstance(asset, Asset) and asset.asset_type in ["option", "future", "cont_future", "stock", "index"]:
-            candidates.append((asset, _USD_FOREX))
+        if isinstance(asset_lookup, Asset) and asset_lookup.asset_type in ["option", "future", "cont_future", "stock", "index"]:
+            candidates.append((asset_lookup, _USD_FOREX))
 
-        candidates.append(asset)
+        candidates.append(asset_lookup)
+        if asset_lookup is not asset:
+            candidates.append(asset)
 
         for key in candidates:
             if key in self._data_store:

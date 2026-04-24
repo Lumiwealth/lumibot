@@ -94,3 +94,16 @@ def test_find_asset_in_data_store_prefers_native_day_key_when_present_for_strict
     ds._data_store = {(base, quote): minute, (base, quote, "day"): daily}  # type: ignore[attr-defined]
 
     assert ds.find_asset_in_data_store(base, quote=quote, timestep="day") == (base, quote, "day")
+
+
+def test_find_asset_in_data_store_matches_canonical_day_key_for_crypto_tuple():
+    base = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    daily = Data(base, _day_df(), timestep="day", quote=quote)
+
+    ds = PandasData.__new__(PandasData)
+    ds._data_store = {(base, quote, "day"): daily}  # type: ignore[attr-defined]
+
+    asset_tuple = (base, quote)
+    assert ds.find_asset_in_data_store(asset_tuple, quote=quote, timestep="day") == (base, quote, "day")
+    assert ds.find_asset_in_data_store(asset_tuple, quote=None, timestep="day") == (base, quote, "day")

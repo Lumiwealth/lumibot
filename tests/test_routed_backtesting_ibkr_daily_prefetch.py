@@ -78,6 +78,48 @@ def test_routed_backtesting_prefetches_ibkr_crypto_daily_window_once(monkeypatch
     assert len(calls) == 1
 
 
+def test_routed_backtesting_crypto_daily_tuple_lookup_uses_prefetched_canonical_key(monkeypatch):
+    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+        idx = pd.date_range(start=start_dt, end=end_dt, freq="D")
+        df = pd.DataFrame(
+            {
+                "open": 100.0,
+                "high": 101.0,
+                "low": 99.0,
+                "close": 100.0,
+                "volume": 1.0,
+                "bid": 100.0,
+                "ask": 100.0,
+            },
+            index=idx,
+        )
+        df.index.name = "timestamp"
+        return df
+
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", _fake_get_price_data)
+
+    source = RoutedBacktestingPandas(
+        datetime_start=datetime(2025, 4, 23, tzinfo=timezone.utc),
+        datetime_end=datetime(2025, 5, 5, tzinfo=timezone.utc),
+        market="24/7",
+        show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+    )
+    source.load_data()
+
+    base = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+    source._update_datetime(source.datetime_start)
+    bars = source.get_historical_prices((base, quote), length=5, timestep="day", quote=quote)
+
+    assert bars is not None
+    assert getattr(bars, "df", None) is not None
+    assert not bars.df.empty
+
+
 def test_routed_backtesting_prefetches_ibkr_stock_daily_with_full_lookback(monkeypatch):
     calls: list[tuple[datetime, datetime, str]] = []
 

@@ -2230,6 +2230,13 @@ class Broker(ABC):
 
         return None
 
+    def _resolve_subscriber(self, strategy_name):
+        """Get subscriber by name, falling back to the sole registered subscriber when strategy_name is None."""
+        subscriber = self._get_subscriber(strategy_name)
+        if subscriber is None and strategy_name is None and len(self._subscribers) == 1:
+            subscriber = self._subscribers[0]
+        return subscriber
+
     def _on_new_order(self, order):
         """notify relevant subscriber/strategy about
         new order event"""
@@ -2238,7 +2245,7 @@ class Broker(ABC):
             self.logger.info(colored(f"New order was created: {order}", color="green"))
 
         payload = dict(order=order)
-        subscriber = self._get_subscriber(order.strategy)
+        subscriber = self._resolve_subscriber(order.strategy)
         if subscriber:
             # PERF: Many strategies do not override `Strategy.on_new_order()` (base impl is `pass`).
             # Avoid enqueueing/processing a no-op event in high-churn backtests.
@@ -2260,7 +2267,7 @@ class Broker(ABC):
             self.logger.info(colored(f"Order was canceled: {order}", color="green"))
 
         payload = dict(order=order)
-        subscriber = self._get_subscriber(order.strategy)
+        subscriber = self._resolve_subscriber(order.strategy)
         if subscriber:
             # PERF: Many strategies do not override `Strategy.on_canceled_order()` (base impl is `pass`).
             # Avoid enqueueing/processing a no-op event in high-churn backtests.
@@ -2288,7 +2295,7 @@ class Broker(ABC):
             quantity=quantity,
             multiplier=multiplier,
         )
-        subscriber = self._get_subscriber(order.strategy)
+        subscriber = self._resolve_subscriber(order.strategy)
         if subscriber:
             subscriber.add_event(subscriber.PARTIALLY_FILLED_ORDER, payload)
         else:
@@ -2308,7 +2315,7 @@ class Broker(ABC):
             quantity=quantity,
             multiplier=multiplier,
         )
-        subscriber = self._get_subscriber(order.strategy)
+        subscriber = self._resolve_subscriber(order.strategy)
         if subscriber:
             subscriber.add_event(subscriber.FILLED_ORDER, payload)
         else:
@@ -2458,7 +2465,7 @@ class Broker(ABC):
             elif type_event == self.ERROR_ORDER:
                 order = self._process_error_order(stored_order, error or LumibotBrokerAPIError("Unknown order error"))
                 if order:
-                    subscriber = self._get_subscriber(order.strategy)
+                    subscriber = self._resolve_subscriber(order.strategy)
                     if subscriber:
                         payload = dict(order=order, error=error)
                         subscriber.add_event(subscriber.ERROR_ORDER, payload)
@@ -2503,7 +2510,7 @@ class Broker(ABC):
                 order = self._process_error_order(stored_order, error or LumibotBrokerAPIError("Unknown order error"))
                 if order:
                     # Notify subscriber about the error event
-                    subscriber = self._get_subscriber(order.strategy)
+                    subscriber = self._resolve_subscriber(order.strategy)
                     if subscriber:
                         payload = dict(order=order, error=error)
                         subscriber.add_event(subscriber.ERROR_ORDER, payload)

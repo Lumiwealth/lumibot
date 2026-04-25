@@ -473,6 +473,17 @@ def _configure_litellm_quietly() -> None:
     _LITELLM_CONFIGURED = True
 
 
+def _sync_xai_api_key_alias() -> None:
+    """Allow Grok users to provide either the vendor key name or product name.
+
+    LiteLLM's xAI provider reads XAI_API_KEY. LumiBot's older Grok helper also
+    accepts GROK_API_KEY, so mirror GROK_API_KEY into XAI_API_KEY for xai/ models
+    when the canonical xAI env var is absent.
+    """
+    if not os.environ.get("XAI_API_KEY") and os.environ.get("GROK_API_KEY"):
+        os.environ["XAI_API_KEY"] = os.environ["GROK_API_KEY"]
+
+
 def _resolve_model_for_adk(model: Any) -> Any:
     # Native Gemini IDs take ADK's fast path as plain strings. Any other
     # provider prefix (e.g. "openai/...", "xai/...", "anthropic/...") is
@@ -483,6 +494,8 @@ def _resolve_model_for_adk(model: Any) -> Any:
     lower = model.strip().lower()
     if lower.startswith("gemini-") or lower.startswith("models/gemini"):
         return model
+    if lower.startswith("xai/"):
+        _sync_xai_api_key_alias()
     _configure_litellm_quietly()
     try:
         from google.adk.models.lite_llm import LiteLlm

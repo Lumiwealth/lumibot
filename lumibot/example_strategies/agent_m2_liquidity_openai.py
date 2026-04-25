@@ -7,7 +7,7 @@ AI agent support via the LiteLLM bridge.
 
 The only differences vs the Gemini version:
     - default_model is an OpenAI id ("openai/gpt-5.4-mini")
-    - OPENAI_API_KEY is required instead of GOOGLE_API_KEY
+    - OPENAI_API_KEY is required instead of GEMINI_API_KEY
     - The litellm package must be installed (it ships with Lumibot)
 
 All other agent mechanics (built-in tools, replay cache, backtesting

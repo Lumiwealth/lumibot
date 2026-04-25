@@ -1,21 +1,14 @@
 """
-M2 Liquidity Strategy - AI Agent Demo (xAI Grok)
-------------------------------------------------
-Same strategy intent as agent_m2_liquidity.py, but uses xAI's Grok model
-instead of Google's Gemini. This demonstrates Lumibot's multi-provider
-AI agent support via the LiteLLM bridge.
+M2 Liquidity Strategy - AI Agent Demo (Anthropic Claude)
+--------------------------------------------------------
+Same strategy intent as agent_m2_liquidity.py, but uses Anthropic Claude
+instead of Gemini. This demonstrates Lumibot's multi-provider AI agent
+support via the LiteLLM bridge.
 
 The only differences vs the Gemini version:
-    - default_model is an xAI id ("xai/grok-4.20-0309-reasoning")
-    - XAI_API_KEY or GROK_API_KEY is required instead of GEMINI_API_KEY
+    - default_model is an Anthropic id ("anthropic/claude-sonnet-4-6")
+    - ANTHROPIC_API_KEY is required instead of GEMINI_API_KEY
     - The litellm package must be installed (it ships with Lumibot)
-
-Model choice note:
-    xai/grok-4.20-0309-reasoning is Grok 4.20 (= Grok 4.2) with chain-of-
-    thought reasoning enabled. 2M context, $2/M input / $6/M output. If you
-    want a cheaper/faster variant, try xai/grok-4-1-fast-reasoning-latest
-    ($0.20/M input / $0.50/M output, same 2M context). The plain
-    xai/grok-4-latest alias is older and more expensive.
 
 All other agent mechanics (built-in tools, replay cache, backtesting
 safety rules, base system prompt) are identical across providers. The
@@ -23,11 +16,11 @@ cache key includes the model string, so swapping providers on the same
 backtest produces fresh runs rather than stale cross-model replays.
 
 Requirements:
-    - XAI_API_KEY or GROK_API_KEY (get one at https://console.x.ai/)
+    - ANTHROPIC_API_KEY (get one at https://console.anthropic.com/)
 
 Usage:
-    export XAI_API_KEY='your-xai-key'
-    python agent_m2_liquidity_grok.py
+    export ANTHROPIC_API_KEY='your-anthropic-key'
+    python agent_m2_liquidity_anthropic.py
 """
 
 import csv
@@ -41,7 +34,7 @@ from lumibot.strategies.strategy import Strategy
 IS_BACKTESTING = True
 
 
-class M2LiquidityGrokStrategy(Strategy):
+class M2LiquidityAnthropicStrategy(Strategy):
 
     @agent_tool(
         name="get_fred_series",
@@ -56,19 +49,7 @@ class M2LiquidityGrokStrategy(Strategy):
     def get_fred_series(
         self, series_id: str, start_date: str = "2020-01-01", end_date: str = ""
     ) -> dict:
-        """Fetch a FRED series using the public CSV endpoint (no API key needed).
-
-        Args:
-            series_id: FRED series identifier (e.g., M2SL, FEDFUNDS, CPIAUCSL,
-                UNRATE, GDP, T10Y2Y, BOGMBASE)
-            start_date: Start date in YYYY-MM-DD format (default '2020-01-01')
-            end_date: End date in YYYY-MM-DD format. Must not exceed the
-                current datetime during backtests.
-
-        Returns:
-            dict: A dictionary with 'series_id', 'count', and 'observations'
-                keys. Each observation contains 'date' and 'value'.
-        """
+        """Fetch a FRED series using the public CSV endpoint (no API key needed)."""
         params = {"id": series_id}
         if start_date:
             params["cosd"] = start_date
@@ -101,7 +82,7 @@ class M2LiquidityGrokStrategy(Strategy):
         self.vars.iteration_count = 0
         self.agents.create(
             name="m2_analyst",
-            default_model="xai/grok-4.20-0309-reasoning",
+            default_model="anthropic/claude-sonnet-4-6",
             system_prompt=(
                 "You must be fully invested at all times. Never leave cash idle. "
                 "Fetch M2 money supply data (M2SL) and check if liquidity is expanding "
@@ -124,10 +105,10 @@ class M2LiquidityGrokStrategy(Strategy):
 
 
 if __name__ == "__main__":
-    if not os.environ.get("XAI_API_KEY") and not os.environ.get("GROK_API_KEY"):
-        print("ERROR: XAI_API_KEY or GROK_API_KEY environment variable is required.")
-        print("Get an API key at https://console.x.ai/")
-        print("Then set it: export XAI_API_KEY='your-key-here'")
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        print("ERROR: ANTHROPIC_API_KEY environment variable is required.")
+        print("Get an API key at https://console.anthropic.com/")
+        print("Then set it: export ANTHROPIC_API_KEY='your-key-here'")
         raise SystemExit(1)
 
     from datetime import datetime
@@ -136,7 +117,7 @@ if __name__ == "__main__":
 
     if IS_BACKTESTING:
         trading_fee = TradingFee(percent_fee=0.001)
-        M2LiquidityGrokStrategy.backtest(
+        M2LiquidityAnthropicStrategy.backtest(
             YahooDataBacktesting,
             backtesting_start=datetime(2024, 1, 1),
             backtesting_end=datetime(2025, 1, 1),

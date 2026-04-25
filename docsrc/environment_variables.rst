@@ -681,7 +681,7 @@ AI agent model providers
 
 LumiBot's AI agent subsystem (``self.agents.create(default_model=...)``) supports multiple LLM providers. You only need the key matching the provider id you pass as ``default_model``. Non-Gemini ids are routed through LiteLLM, which ships as a LumiBot dependency.
 
-GOOGLE_API_KEY
+GEMINI_API_KEY
 ^^^^^^^^^^^^^^
 
 - Purpose: Auth for Gemini models (the default provider).
@@ -695,12 +695,13 @@ OPENAI_API_KEY
 - Values: Obtain from https://platform.openai.com/api-keys.
 - Required when ``default_model`` looks like ``openai/gpt-5.4-mini`` or any other ``openai/...`` id.
 
-XAI_API_KEY
-^^^^^^^^^^^
+XAI_API_KEY or GROK_API_KEY
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 - Purpose: Auth for xAI Grok models.
 - Values: Obtain from https://console.x.ai/.
 - Required when ``default_model`` looks like ``xai/grok-4.20-0309-reasoning`` or any other ``xai/...`` id.
+- ``XAI_API_KEY`` is the canonical provider env var; ``GROK_API_KEY`` is also accepted for user-facing Grok naming.
 
 ANTHROPIC_API_KEY
 ^^^^^^^^^^^^^^^^^

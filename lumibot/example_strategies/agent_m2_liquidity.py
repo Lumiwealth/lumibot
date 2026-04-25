@@ -7,11 +7,11 @@ between TQQQ (risk-on) and SHV (risk-off) based on whether
 liquidity is expanding or contracting.
 
 Requirements:
-    - GOOGLE_API_KEY (for Gemini model)
+    - GEMINI_API_KEY (for Gemini model)
     - No additional API keys needed (FRED CSV endpoint is public)
 
 Usage:
-    export GOOGLE_API_KEY='your-google-key'
+    export GEMINI_API_KEY='your-gemini-key'
     python agent_m2_liquidity.py
 """
 
@@ -111,10 +111,10 @@ class M2LiquidityStrategy(Strategy):
 if __name__ == "__main__":
     import os
 
-    if not os.environ.get("GOOGLE_API_KEY"):
-        print("ERROR: GOOGLE_API_KEY environment variable is required.")
+    if not os.environ.get("GEMINI_API_KEY"):
+        print("ERROR: GEMINI_API_KEY environment variable is required.")
         print("Get a free API key from https://aistudio.google.com/apikey")
-        print("Then set it: export GOOGLE_API_KEY='your-key-here'")
+        print("Then set it: export GEMINI_API_KEY='your-key-here'")
         raise SystemExit(1)
 
     from datetime import datetime

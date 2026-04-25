@@ -273,19 +273,19 @@ Most alternatives either put the LLM outside the backtest loop (QuantConnect), h
 
 **What AI models are supported?**
 
-The default model is Gemini (`gemini-3.1-flash-lite-preview`). You need a `GOOGLE_API_KEY` environment variable set. The architecture supports OpenAI, Anthropic, and other providers through the underlying model router. Pass the model name via the `default_model` parameter when creating your agent.
+The default model is Gemini (`gemini-3.1-flash-lite-preview`). You need a `GEMINI_API_KEY` environment variable set. The architecture supports OpenAI, Anthropic, and other providers through the underlying model router. Pass the model name via the `default_model` parameter when creating your agent.
 
 **How do I get started?**
 
-Install LumiBot, set `GOOGLE_API_KEY` in your environment, copy the Quick Start example above, and run it. The M2 Liquidity Strategy example is a complete, runnable strategy file. See the public docs at `https://lumibot.lumiwealth.com/agents.html` for additional patterns and the four reference demo strategies.
+Install LumiBot, set `GEMINI_API_KEY` in your environment, copy the Quick Start example above, and run it. The M2 Liquidity Strategy example is a complete, runnable strategy file. Provider-specific variants are available for OpenAI, Grok, and Anthropic. See the public docs at `https://lumibot.lumiwealth.com/agents.html` for additional patterns and the reference demo strategies.
 
 **What API keys do I need?**
 
-At minimum, `GOOGLE_API_KEY` for the Gemini model that powers the agent. If your `@agent_tool` functions call external APIs, you also need those keys -- for example `ALPACA_API_KEY` and `ALPACA_API_SECRET` for Alpaca data APIs. The M2 Liquidity demo only needs `GOOGLE_API_KEY` because FRED data is public.
+At minimum, `GEMINI_API_KEY` for the Gemini model that powers the agent. If your `@agent_tool` functions call external APIs, you also need those keys -- for example `ALPACA_API_KEY` and `ALPACA_API_SECRET` for Alpaca data APIs. The M2 Liquidity demo only needs `GEMINI_API_KEY` because FRED data is public.
 
 **How do I set up my environment?**
 
-Create a `.env` file in your project directory with your API keys (e.g., `GOOGLE_API_KEY=your_key_here`). LumiBot reads environment variables at startup. You can also export them in your shell. For backtesting, set `BACKTESTING_DATA_SOURCE` in `.env` or use `datasource_class=None` to defer to the environment configuration.
+Create a `.env` file in your project directory with your API keys (e.g., `GEMINI_API_KEY=your_key_here`). LumiBot reads environment variables at startup. You can also export them in your shell. For backtesting, set `BACKTESTING_DATA_SOURCE` in `.env` or use `datasource_class=None` to defer to the environment configuration.
 
 **Can I use this for live trading?**
 

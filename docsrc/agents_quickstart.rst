@@ -294,7 +294,7 @@ No. All built-in tools (positions, portfolio, prices, orders, DuckDB, docs) are 
 
 **What API keys do I need?**
 
-At minimum, one model provider key matching your ``default_model``. The default is Gemini, which needs ``GOOGLE_API_KEY``. LumiBot also supports ``openai/...`` ids (needs ``OPENAI_API_KEY``), ``xai/...`` ids for Grok (needs ``XAI_API_KEY``), and ``anthropic/...`` ids for Claude (needs ``ANTHROPIC_API_KEY``). If your ``@agent_tool`` functions call external APIs, you also need those keys -- for example ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for Alpaca-based demos. The M2 Liquidity demo only needs one model-provider key because FRED data is public.
+At minimum, one model provider key matching your ``default_model``. The default is Gemini, which needs ``GEMINI_API_KEY``. LumiBot also supports ``openai/...`` ids (needs ``OPENAI_API_KEY``), ``xai/...`` ids for Grok (needs ``XAI_API_KEY`` or ``GROK_API_KEY``), and ``anthropic/...`` ids for Claude (needs ``ANTHROPIC_API_KEY``). If your ``@agent_tool`` functions call external APIs, you also need those keys -- for example ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for Alpaca-based demos. The M2 Liquidity demo only needs one model-provider key because FRED data is public.
 
 **How long should my system prompt be?**
 
@@ -302,7 +302,7 @@ Two to three sentences describing your strategy intent. For example: what data t
 
 **How do I get started with the minimal example?**
 
-Copy the Minimal Example from this page, set ``GOOGLE_API_KEY`` in your environment, and run it. The agent will use only built-in tools (positions, prices, DuckDB, orders) to analyze the market and make decisions. No external APIs or custom tools are required for the minimal example.
+Copy the Minimal Example from this page, set ``GEMINI_API_KEY`` in your environment, and run it. The agent will use only built-in tools (positions, prices, DuckDB, orders) to analyze the market and make decisions. No external APIs or custom tools are required for the minimal example.
 
 **What does datasource_class=None mean?**
 

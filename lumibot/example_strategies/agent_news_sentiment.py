@@ -5,11 +5,11 @@ This strategy uses an @agent_tool to call the Alpaca News API for
 historical news headlines, then lets the AI decide what to trade.
 
 Requirements:
-    - GOOGLE_API_KEY (for Gemini model)
+    - GEMINI_API_KEY (for Gemini model)
     - ALPACA_API_KEY and ALPACA_API_SECRET (for Alpaca News API)
 
 Usage:
-    export GOOGLE_API_KEY='your-google-key'
+    export GEMINI_API_KEY='your-gemini-key'
     export ALPACA_API_KEY='your-alpaca-key'
     export ALPACA_API_SECRET='your-alpaca-secret'
     python agent_news_sentiment.py
@@ -113,10 +113,10 @@ class NewsSentimentStrategy(Strategy):
 if __name__ == "__main__":
     import os
 
-    if not os.environ.get("GOOGLE_API_KEY"):
-        print("ERROR: GOOGLE_API_KEY environment variable is required.")
+    if not os.environ.get("GEMINI_API_KEY"):
+        print("ERROR: GEMINI_API_KEY environment variable is required.")
         print("Get a free API key from https://aistudio.google.com/apikey")
-        print("Then set it: export GOOGLE_API_KEY='your-key-here'")
+        print("Then set it: export GEMINI_API_KEY='your-key-here'")
         raise SystemExit(1)
 
     if not os.environ.get("ALPACA_API_KEY") or not os.environ.get("ALPACA_API_SECRET"):

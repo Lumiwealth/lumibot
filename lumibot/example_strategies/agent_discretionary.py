@@ -12,9 +12,9 @@ guidance, position sizing) comes from LumiBot's base system prompt.
 This is the demo used for honest multi-provider model comparison. The
 exact same code runs against any provider via the AGENT_MODEL env var:
 
-    AGENT_MODEL="gemini-3.1-pro-preview"           # needs GOOGLE_API_KEY
+    AGENT_MODEL="gemini-3.1-pro-preview"           # needs GEMINI_API_KEY
     AGENT_MODEL="openai/gpt-5.4"                    # needs OPENAI_API_KEY
-    AGENT_MODEL="xai/grok-4.20-0309-reasoning"      # needs XAI_API_KEY
+    AGENT_MODEL="xai/grok-4.20-0309-reasoning"      # needs XAI_API_KEY or GROK_API_KEY
     AGENT_MODEL="anthropic/claude-opus-4-7"         # needs ANTHROPIC_API_KEY
 
 Data source: Yahoo Finance (US-listed stocks + ETFs). Fundamentals come
@@ -22,7 +22,7 @@ from yfinance (already a LumiBot dependency). News comes from Alpaca.
 Macro comes from FRED.
 
 Requirements (only the key matching AGENT_MODEL is strictly required):
-    - GOOGLE_API_KEY / OPENAI_API_KEY / XAI_API_KEY / ANTHROPIC_API_KEY
+    - GEMINI_API_KEY / OPENAI_API_KEY / XAI_API_KEY or GROK_API_KEY / ANTHROPIC_API_KEY
     - ALPACA_API_KEY and ALPACA_API_SECRET (for the news tool; optional)
 
 Usage:
@@ -53,7 +53,8 @@ class DiscretionaryTraderStrategy(Strategy):
             "Common series: M2SL (M2 money supply), FEDFUNDS (fed funds rate), "
             "CPIAUCSL (CPI), UNRATE (unemployment), GDP, T10Y2Y (10Y-2Y yield "
             "spread), BOGMBASE (monetary base), DGS10 (10Y Treasury), VIXCLS "
-            "(VIX close), DCOILWTICO (crude oil WTI), GOLDAMGBD228NLBM (gold)."
+            "(VIX close), DCOILWTICO (crude oil WTI), GOLDAMGBD228NLBM (gold). "
+            "These are economic series ids, not tradable tickers; do not pass them to market price/history tools."
         ),
     )
     def get_fred_series(
@@ -222,22 +223,29 @@ if __name__ == "__main__":
     # Auth precheck: only the key for the selected provider is required.
     prefix_key = {
         "openai/": ("OPENAI_API_KEY", "https://platform.openai.com/api-keys"),
-        "xai/": ("XAI_API_KEY", "https://console.x.ai/"),
+        "xai/": (("XAI_API_KEY", "GROK_API_KEY"), "https://console.x.ai/"),
         "anthropic/": ("ANTHROPIC_API_KEY", "https://console.anthropic.com/"),
     }
     required_key = None
     sign_up_url = None
     if model_id.startswith("gemini-") or model_id.startswith("models/gemini"):
-        required_key, sign_up_url = "GOOGLE_API_KEY", "https://aistudio.google.com/apikey"
+        required_key, sign_up_url = "GEMINI_API_KEY", "https://aistudio.google.com/apikey"
     else:
         for prefix, (k, url) in prefix_key.items():
             if model_id.startswith(prefix):
                 required_key, sign_up_url = k, url
                 break
-    if required_key and not os.environ.get(required_key):
-        print(f"ERROR: {required_key} is required for AGENT_MODEL={model_id!r}.")
+    if isinstance(required_key, tuple):
+        missing_key = not any(os.environ.get(key) for key in required_key)
+        key_label = " or ".join(required_key)
+    else:
+        missing_key = bool(required_key) and not os.environ.get(required_key)
+        key_label = required_key
+    if missing_key:
+        print(f"ERROR: {key_label} is required for AGENT_MODEL={model_id!r}.")
         print(f"Get one at {sign_up_url}")
-        print(f"Then export it: export {required_key}='your-key'")
+        first_key = required_key[0] if isinstance(required_key, tuple) else required_key
+        print(f"Then export it: export {first_key}='your-key'")
         raise SystemExit(1)
 
     from lumibot.backtesting import YahooDataBacktesting

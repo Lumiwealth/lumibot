@@ -50,7 +50,7 @@ Maximum-discretion AI trader. The user system prompt is literally one sentence: 
 .. code-block:: bash
 
     # Google Gemini 3.1 Pro (default)
-    export GOOGLE_API_KEY='your-key'
+    export GEMINI_API_KEY='your-key'
     export BACKTESTING_START='2026-03-01'
     export BACKTESTING_END='2026-03-31'
     AGENT_MODEL="gemini-3.1-pro-preview" python agent_discretionary.py
@@ -221,11 +221,11 @@ Frequently Asked Questions
 
 **Which demo should I start with?**
 
-Start with ``agent_m2_liquidity.py`` if you want the simplest setup -- it only needs ``GOOGLE_API_KEY`` because FRED data is public. Start with ``agent_news_sentiment.py`` if you want a multi-stock news-driven strategy and have Alpaca API keys.
+Start with ``agent_m2_liquidity.py`` if you want the simplest setup -- it only needs ``GEMINI_API_KEY`` because FRED data is public. If you want to test another provider without changing strategy code, use ``agent_m2_liquidity_openai.py``, ``agent_m2_liquidity_grok.py``, or ``agent_m2_liquidity_anthropic.py``. Start with ``agent_news_sentiment.py`` if you want a multi-stock news-driven strategy and have Alpaca API keys.
 
 **Do these demos work out of the box?**
 
-Yes. Set the required API keys (``GOOGLE_API_KEY`` for all demos, plus ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for the Alpaca-based demos) and run the file directly with ``python3 agent_m2_liquidity.py``. Each demo is a complete, self-contained strategy file.
+Yes. Set the required model provider key for the demo you are running (for example ``GEMINI_API_KEY`` for Gemini, ``OPENAI_API_KEY`` for OpenAI, ``XAI_API_KEY`` or ``GROK_API_KEY`` for Grok, or ``ANTHROPIC_API_KEY`` for Claude), plus ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for the Alpaca-based demos, and run the file directly with ``python3 agent_m2_liquidity.py``. Each demo is a complete, self-contained strategy file.
 
 **Can I modify the demos?**
 

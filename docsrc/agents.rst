@@ -313,24 +313,24 @@ LumiBot ships with first-class support for Gemini, OpenAI (GPT), xAI (Grok), Ant
 
 Gemini ids (e.g. ``"gemini-3.1-flash-lite-preview"``) take Google ADK's native fast path. Anything else is automatically routed through LiteLLM using the provider-prefixed id format:
 
-- Gemini: ``"gemini-3.1-flash-lite-preview"`` (default) -- requires ``GOOGLE_API_KEY``
+- Gemini: ``"gemini-3.1-flash-lite-preview"`` (default) -- requires ``GEMINI_API_KEY``
 - OpenAI: ``"openai/gpt-5.4-mini"`` (good default), ``"openai/gpt-5.4"``, ``"openai/gpt-5.4-pro"``, ``"openai/gpt-5.4-nano"`` -- requires ``OPENAI_API_KEY``
-- xAI Grok: ``"xai/grok-4.20-0309-reasoning"`` (Grok 4.2, reasoning on, 2M ctx), ``"xai/grok-4-1-fast-reasoning-latest"`` (cheap/fast), or ``"xai/grok-4-latest"`` (older) -- requires ``XAI_API_KEY``
+- xAI Grok: ``"xai/grok-4.20-0309-reasoning"`` (Grok 4.2, reasoning on, 2M ctx), ``"xai/grok-4-1-fast-reasoning-latest"`` (cheap/fast), or ``"xai/grok-4-latest"`` (older) -- requires ``XAI_API_KEY`` or ``GROK_API_KEY``
 - Anthropic Claude: ``"anthropic/claude-opus-4-7"``, ``"anthropic/claude-sonnet-4-6"`` -- requires ``ANTHROPIC_API_KEY``
 
 The replay cache keys on the model id, so swapping providers on the same backtest produces fresh runs rather than stale cross-model replays. Tool calling is normalized across providers by LiteLLM, so your ``@agent_tool`` functions work unchanged regardless of which model you pick.
 
 **How do I get started?**
 
-Install LumiBot, set ``GOOGLE_API_KEY`` in your environment, copy the Quick Start example on this page, and run it. The M2 Liquidity Strategy example is a complete, runnable strategy file. See :doc:`agents_quickstart` for additional patterns and :doc:`agents_canonical_demos` for the four reference demo strategies.
+Install LumiBot, set ``GEMINI_API_KEY`` in your environment, copy the Quick Start example on this page, and run it. The M2 Liquidity Strategy example is a complete, runnable strategy file. Provider-specific variants are available for OpenAI, Grok, and Anthropic. See :doc:`agents_quickstart` for additional patterns and :doc:`agents_canonical_demos` for the reference demo strategies.
 
 **What API keys do I need?**
 
-At minimum, one model provider key matching the ``default_model`` you set: ``GOOGLE_API_KEY`` for Gemini (the default), ``OPENAI_API_KEY`` for GPT models, ``XAI_API_KEY`` for Grok, or ``ANTHROPIC_API_KEY`` for Claude. If your ``@agent_tool`` functions call external APIs, you also need those keys -- for example ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for Alpaca data APIs. The M2 Liquidity demo only needs one model-provider key because FRED data is public.
+At minimum, one model provider key matching the ``default_model`` you set: ``GEMINI_API_KEY`` for Gemini (the default), ``OPENAI_API_KEY`` for GPT models, ``XAI_API_KEY`` or ``GROK_API_KEY`` for Grok, or ``ANTHROPIC_API_KEY`` for Claude. If your ``@agent_tool`` functions call external APIs, you also need those keys -- for example ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for Alpaca data APIs. The M2 Liquidity demo only needs one model-provider key because FRED data is public.
 
 **How do I set up my environment?**
 
-Create a ``.env`` file in your project directory with your API keys (e.g., ``GOOGLE_API_KEY=your_key_here``). LumiBot reads environment variables at startup. You can also export them in your shell. For backtesting, set ``BACKTESTING_DATA_SOURCE`` in ``.env`` or use ``datasource_class=None`` to defer to the environment configuration.
+Create a ``.env`` file in your project directory with your API keys (e.g., ``GEMINI_API_KEY=your_key_here``). LumiBot reads environment variables at startup. You can also export them in your shell. For backtesting, set ``BACKTESTING_DATA_SOURCE`` in ``.env`` or use ``datasource_class=None`` to defer to the environment configuration.
 
 **Can I use this for live trading?**
 

@@ -122,7 +122,7 @@ The replay cache is fully automatic. No configuration needed.
 What LLM providers does LumiBot support for agents?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-LumiBot's agent runtime is built on `Google ADK <https://google.github.io/adk-docs/>`_ (Agent Development Kit). The default and most tested model is **Google Gemini** (``gemini-3.1-flash-lite-preview``). The architecture supports routing to other providers (OpenAI, Anthropic) through Google ADK's model router, but Gemini is the primary, production-tested path. You need a ``GOOGLE_API_KEY`` environment variable set:
+LumiBot's agent runtime is built on `Google ADK <https://google.github.io/adk-docs/>`_ (Agent Development Kit). The default model is **Gemini** (``gemini-3.1-flash-lite-preview``). The architecture supports routing to other providers (OpenAI, Anthropic, xAI/Grok, and others) through Google ADK's LiteLLM bridge. You need a ``GEMINI_API_KEY`` environment variable set for Gemini:
 
 .. code-block:: python
 
@@ -135,7 +135,7 @@ LumiBot's agent runtime is built on `Google ADK <https://google.github.io/adk-do
 How do I create my first AI trading agent?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Create the agent in ``initialize()`` and run it from ``on_trading_iteration()``. You need ``GOOGLE_API_KEY`` set in your environment:
+Create the agent in ``initialize()`` and run it from ``on_trading_iteration()``. You need ``GEMINI_API_KEY`` set in your environment for Gemini:
 
 .. code-block:: python
 
@@ -270,7 +270,7 @@ LumiBot ships four reference demo strategies in ``lumibot/example_strategies/``:
 3. **Momentum Allocator** (``agent_momentum_allocator.py``) -- momentum + sentiment using price bars and news
 4. **M2 Liquidity** (``agent_m2_liquidity.py``) -- liquidity-driven allocation using FRED money supply data
 
-Start with the M2 Liquidity demo -- it only needs ``GOOGLE_API_KEY`` since FRED data is public.
+Start with the M2 Liquidity demo -- it only needs ``GEMINI_API_KEY`` since FRED data is public.
 
 How much does it cost to run AI agent backtests?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

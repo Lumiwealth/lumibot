@@ -179,7 +179,8 @@ def _bind_last_price(strategy: Any, manager: Any) -> BoundTool:
             "Get the current last price for one asset. "
             "Arguments: symbol, asset_type, optional expiration/strike/right for derivatives, optional quote_symbol, optional exchange. "
             "Valid asset_type values: stock, option, future, cont_future, forex, crypto, index, multileg, us_equity. "
-            "Use stock for normal equities. Example: market_last_price(symbol='SPY', asset_type='stock')."
+            "Use stock for normal equities. Do not pass economic series ids such as DCOILWTICO, FEDFUNDS, or M2SL as market symbols; use macro/FRED tools for those instead. "
+            "Example: market_last_price(symbol='SPY', asset_type='stock')."
         ),
         function=last_price,
         metadata={"kind": "builtin", "replay_on_cache": True},
@@ -224,7 +225,7 @@ def _bind_load_history(strategy: Any, manager: Any) -> BoundTool:
             "Load visible historical bars into DuckDB and return the table metadata. "
             "Arguments: symbol, length, timestep, optional table_name, asset_type, quote_symbol, exchange, expiration, strike, right, include_after_hours. "
             "Valid asset_type values: stock, option, future, cont_future, forex, crypto, index, multileg, us_equity. "
-            "Use stock for normal equities. If asset_type is omitted, stock is assumed. "
+            "Use stock for normal equities. If asset_type is omitted, stock is assumed. Do not pass economic series ids such as DCOILWTICO, FEDFUNDS, or M2SL as market symbols; use macro/FRED tools for those instead. "
             "The loaded price tables usually expose columns such as datetime, open, high, low, close, volume, bid, ask, dividend, and dividend_yield. "
             "Use datetime for timestamps and close for the traded price unless the returned sample rows show otherwise. "
             "Caveat: this only loads bars visible at the current LumiBot runtime datetime. "

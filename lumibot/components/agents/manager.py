@@ -662,10 +662,10 @@ class AgentHandle:
         # Map provider prefix -> (env var, billing url).
         provider_hints = {
             "openai/": ("OPENAI_API_KEY", "https://platform.openai.com/api-keys", "https://platform.openai.com/account/billing"),
-            "xai/": ("XAI_API_KEY", "https://console.x.ai/", "https://console.x.ai/team"),
+            "xai/": ("XAI_API_KEY or GROK_API_KEY", "https://console.x.ai/", "https://console.x.ai/team"),
             "anthropic/": ("ANTHROPIC_API_KEY", "https://console.anthropic.com/", "https://console.anthropic.com/settings/billing"),
         }
-        env_var, key_url, billing_url = ("GOOGLE_API_KEY", "https://aistudio.google.com/apikey", "https://aistudio.google.com/")
+        env_var, key_url, billing_url = ("GEMINI_API_KEY", "https://aistudio.google.com/apikey", "https://aistudio.google.com/")
         for prefix, (ev, ku, bu) in provider_hints.items():
             if isinstance(model, str) and model.startswith(prefix):
                 env_var, key_url, billing_url = ev, ku, bu

@@ -2231,9 +2231,9 @@ class Broker(ABC):
         return None
 
     def _resolve_subscriber(self, strategy_name):
-        """Get subscriber by name, falling back to the sole registered subscriber when strategy_name is None."""
+        """Get subscriber by name, falling back to the sole registered subscriber when strategy_name is falsy."""
         subscriber = self._get_subscriber(strategy_name)
-        if subscriber is None and strategy_name is None and len(self._subscribers) == 1:
+        if subscriber is None and not strategy_name and len(self._subscribers) == 1:
             subscriber = self._subscribers[0]
         return subscriber
 

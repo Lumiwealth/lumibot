@@ -1308,8 +1308,11 @@ class Tradier(Broker):
         except Exception:
             pass
         stored_orders = {x.identifier: x for x in self.get_all_orders()}
+        strategy_name = self._strategy_name
+        if not strategy_name and len(self._subscribers) == 1:
+            strategy_name = self._subscribers[0].name
         for order_row in raw_orders:
-            order = self._parse_broker_order_dict(order_row, strategy_name=self._strategy_name)
+            order = self._parse_broker_order_dict(order_row, strategy_name=strategy_name)
             # Process child orders first so they are tracked in the Lumi system before the parent order
             all_orders = [child for child in order.child_orders] + [order]
 

@@ -1337,6 +1337,21 @@ class Tradier(Broker):
                     # Always Update Quantity and Children. Children can change as they are assigned an identifier
                     # for the first time.
                     stored_order = stored_orders[order.identifier]
+
+                    # Repair missing strategy using tag field (mirrors fix in projectx.py).
+                    # Tradier stores the order tag as the strategy name with underscores replaced by hyphens.
+                    if not stored_order.strategy:
+                        tag = getattr(stored_order, 'tag', None) or getattr(order, 'tag', None)
+                        if tag and hasattr(self, '_subscribers') and self._subscribers:
+                            for sub in self._subscribers:
+                                sub_name = getattr(sub, 'name', '') or str(sub)
+                                if re.sub(r'[^a-zA-Z0-9-]', '-', sub_name) == tag or sub_name == tag:
+                                    stored_order.strategy = sub_name
+                                    break
+                        if not stored_order.strategy and hasattr(self, '_subscribers') and len(self._subscribers) == 1:
+                            only_sub = self._subscribers[0]
+                            stored_order.strategy = getattr(only_sub, 'name', '') or str(only_sub)
+
                     stored_order.quantity = order.quantity  # Update the quantity in case it has changed
                     stored_order.broker_create_date = order.broker_create_date
                     stored_order.broker_update_date = order.broker_update_date

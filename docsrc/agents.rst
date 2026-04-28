@@ -538,27 +538,31 @@ LumiBot also writes AI usage details for every agent run during a backtest:
   - ``agent_<name>_output_tokens``
   - ``agent_<name>_total_tokens``
   - ``agent_<name>_thinking_tokens``
+  - ``agent_<name>_cached_input_tokens``
+  - ``agent_<name>_uncached_input_tokens``
+  - ``agent_<name>_latency_ms_avg``
   - ``agent_<name>_tool_calls``
   - ``agent_<name>_cache_hits``
-  - ``agent_<name>_detail_csv``
   - ``agent_<name>_detail_parquet``
 
-- A detailed tabular artifact is written beside the normal backtest artifacts using the same base filename pattern:
+- A single detailed tabular artifact is written beside the normal backtest artifacts using the same base filename pattern:
 
-  - ``<run>_agent_detail.csv``
   - ``<run>_agent_detail.parquet``
 
-The CSV is the compatibility/human-readable file. The Parquet file is the fast machine-readable sibling used by BotSpot/MCP query tooling when available, matching the existing ``trades.csv``/``trades.parquet`` and ``stats.csv``/``stats.parquet`` contract.
+The Parquet file is the canonical machine-readable audit artifact used by BotSpot/MCP query tooling. LumiBot does not estimate provider pricing in this file because model prices change; it records raw token usage only.
 
-Each row in ``*_agent_detail`` is one model event inside one agent call. The file includes:
+Each agent call gets one ``call_summary`` row plus one row per model event inside the call. This avoids repeating call-level token totals on every tool row while still preserving the event timeline. The file includes:
 
 - prompt/context fields (user system prompt, effective prompt, task prompt, runtime context)
-- event kind (``thinking``, ``text``, ``tool_call``, ``tool_result``, ``usage`` when present)
+- event kind (``call_summary``, ``thinking``, ``text``, ``tool_call``, ``tool_result``, ``usage`` when present)
 - event text
 - tool name
 - flattened tool/event details in normal columns
-- input/output/total token counts for that call
+- full event payload JSON for exact forensic inspection
+- input/output/total token counts on the ``call_summary`` row
+- cached/uncached input token counts when the provider reports them
 - thinking token counts when the provider exposes them
+- latency fields for the full call and first model event
 - cache-hit flag and warnings
 
 This file is meant to answer practical debugging questions after a backtest:
@@ -567,5 +571,24 @@ This file is meant to answer practical debugging questions after a backtest:
 - What tools did it call?
 - What came back from those tools?
 - How many tokens did that call use?
+- How many input tokens were cached vs. uncached?
+- How long did the call take?
 
 Thinking text is captured when the provider/SDK exposes it. Gemini thought summaries are requested automatically. Other providers may expose only thinking token counts and not the actual thought text.
+
+Built-in Alpaca news tool
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Strategies can use ``BuiltinTools.news.alpaca_news()`` to give an agent access to the Alpaca News API without writing a custom wrapper:
+
+.. code-block:: python
+
+    from lumibot.components.agents import BuiltinTools
+
+    self.agents.create(
+        name="trader",
+        system_prompt="Trade based on recent market news.",
+        tools=[BuiltinTools.news.alpaca_news()],
+    )
+
+The tool uses the user's own Alpaca credentials (``ALPACA_API_KEY`` / ``ALPACA_API_SECRET`` or the ``APCA_*`` aliases). It defaults ``end`` to the current simulated datetime in backtests to avoid look-ahead. By default it returns headlines, summaries, URLs, sources, timestamps, and symbols; full article content is only included if the agent explicitly sets ``include_content=True``.

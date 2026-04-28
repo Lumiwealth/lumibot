@@ -38,7 +38,7 @@ import io
 import os
 import requests
 
-from lumibot.components.agents import agent_tool
+from lumibot.components.agents import BuiltinTools, agent_tool
 from lumibot.strategies.strategy import Strategy
 
 IS_BACKTESTING = True
@@ -99,65 +99,6 @@ class DiscretionaryTraderStrategy(Strategy):
             return {"error": str(e), "series_id": series_id}
 
     @agent_tool(
-        name="search_news",
-        description=(
-            "Search recent US stock market news from Alpaca. Returns headlines, "
-            "summaries, and associated stock symbols. Pass start/end as ISO "
-            "timestamps to scope to a time range. Filter by symbols if you "
-            "already have a target name in mind."
-        ),
-    )
-    def search_news(
-        self, start: str = "", end: str = "", symbols: str = "", limit: int = 10
-    ) -> dict:
-        """Call the Alpaca News API.
-
-        Args:
-            start: Start timestamp in ISO format (e.g. '2025-06-01T00:00:00Z').
-            end: End timestamp in ISO format. Must not exceed the current
-                simulated datetime during backtests.
-            symbols: Comma-separated tickers to filter by (e.g. 'AAPL,MSFT').
-            limit: Max articles to return (default 10, cap 50).
-
-        Returns:
-            dict with count and articles (each {headline, summary, symbols,
-            created_at}).
-        """
-        api_key = os.environ.get("ALPACA_API_KEY", "")
-        api_secret = os.environ.get("ALPACA_API_SECRET", "")
-        if not api_key or not api_secret:
-            return {"error": "ALPACA_API_KEY/SECRET not set; news unavailable", "count": 0, "articles": []}
-        headers = {"APCA-API-KEY-ID": api_key, "APCA-API-SECRET-KEY": api_secret}
-        params = {"limit": min(max(int(limit or 10), 1), 50), "sort": "desc"}
-        if start:
-            params["start"] = start
-        if end:
-            params["end"] = end
-        if symbols:
-            params["symbols"] = symbols
-        try:
-            resp = requests.get(
-                "https://data.alpaca.markets/v1beta1/news",
-                headers=headers, params=params, timeout=15,
-            )
-            resp.raise_for_status()
-            articles = resp.json().get("news", [])
-            return {
-                "count": len(articles),
-                "articles": [
-                    {
-                        "headline": a.get("headline", ""),
-                        "summary": (a.get("summary") or "")[:300],
-                        "symbols": a.get("symbols", []),
-                        "created_at": a.get("created_at", ""),
-                    }
-                    for a in articles
-                ],
-            }
-        except Exception as e:
-            return {"error": str(e), "count": 0, "articles": []}
-
-    @agent_tool(
         name="get_fundamentals",
         description=(
             "Get fundamentals snapshot for any US-listed stock or ETF from "
@@ -205,7 +146,7 @@ class DiscretionaryTraderStrategy(Strategy):
             name="trader",
             default_model=model_id,
             system_prompt="Make as much money as you possibly can.",
-            tools=[self.get_fred_series, self.search_news, self.get_fundamentals],
+            tools=[self.get_fred_series, BuiltinTools.news.alpaca_news(), self.get_fundamentals],
         )
         self.log_message(f"DiscretionaryTraderStrategy initialized with model={model_id}", color="yellow")
 

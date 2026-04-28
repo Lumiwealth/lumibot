@@ -1,6 +1,9 @@
 import math
-from datetime import date, datetime
+import os
+from datetime import date, datetime, timedelta
 from typing import Any, Literal
+
+import requests
 
 from lumibot.entities import Order
 
@@ -13,6 +16,7 @@ AssetTypeArg = Literal["stock", "option", "future", "cont_future", "forex", "cry
 OrderSideArg = Literal["buy", "sell", "buy_to_open", "sell_to_close", "sell_short", "buy_to_cover"]
 OrderTypeArg = Literal["market", "limit", "stop", "stop_limit", "trailing_stop", "smart_limit"]
 TimeInForceArg = Literal["day", "gtc", "gtd"]
+NewsSortArg = Literal["asc", "desc"]
 
 
 def _coerce_expiration(expiration: Any) -> Any:
@@ -276,6 +280,115 @@ def _bind_docs_search(strategy: Any, manager: Any) -> BoundTool:
     )
 
 
+def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
+    def alpaca_news(
+        *,
+        symbols: str = "",
+        start: str = "",
+        end: str = "",
+        limit: int = 10,
+        include_content: bool = False,
+        exclude_contentless: bool = False,
+        sort: NewsSortArg = "desc",
+    ) -> dict[str, Any]:
+        api_key = (
+            os.environ.get("ALPACA_API_KEY")
+            or os.environ.get("APCA_API_KEY_ID")
+            or ""
+        ).strip()
+        api_secret = (
+            os.environ.get("ALPACA_API_SECRET")
+            or os.environ.get("APCA_API_SECRET_KEY")
+            or ""
+        ).strip()
+        if not api_key or not api_secret:
+            return {
+                "ok": False,
+                "tool_error": True,
+                "error": {
+                    "type": "MissingCredentials",
+                    "message": "Set ALPACA_API_KEY and ALPACA_API_SECRET to use alpaca_news.",
+                },
+                "articles": [],
+                "count": 0,
+            }
+
+        current_dt = strategy.get_datetime()
+        if not end:
+            end = current_dt.isoformat()
+        if not start:
+            start = (current_dt - timedelta(days=7)).isoformat()
+        limit = max(1, min(int(limit), 50))
+        sort = "asc" if str(sort).lower() == "asc" else "desc"
+
+        params: dict[str, Any] = {
+            "start": start,
+            "end": end,
+            "sort": sort,
+            "limit": limit,
+            "include_content": bool(include_content),
+            "exclude_contentless": bool(exclude_contentless),
+        }
+        if symbols:
+            params["symbols"] = symbols
+
+        response = requests.get(
+            "https://data.alpaca.markets/v1beta1/news",
+            headers={
+                "APCA-API-KEY-ID": api_key,
+                "APCA-API-SECRET-KEY": api_secret,
+            },
+            params=params,
+            timeout=20,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        normalized_articles: list[dict[str, Any]] = []
+        for article in payload.get("news", []) or []:
+            if not isinstance(article, dict):
+                continue
+            normalized: dict[str, Any] = {
+                "id": article.get("id"),
+                "headline": article.get("headline"),
+                "summary": article.get("summary"),
+                "author": article.get("author"),
+                "source": article.get("source"),
+                "created_at": article.get("created_at"),
+                "updated_at": article.get("updated_at"),
+                "url": article.get("url"),
+                "symbols": article.get("symbols") or [],
+            }
+            if include_content and article.get("content"):
+                content = str(article.get("content") or "")
+                normalized["content"] = content[:2000]
+                normalized["content_truncated"] = len(content) > 2000
+            normalized_articles.append(normalized)
+
+        return {
+            "ok": True,
+            "provider": "alpaca",
+            "endpoint": "v1beta1/news",
+            "window_start": start,
+            "window_end": end,
+            "count": len(normalized_articles),
+            "next_page_token": payload.get("next_page_token"),
+            "articles": normalized_articles,
+        }
+
+    return BoundTool(
+        name="alpaca_news",
+        description=(
+            "Fetch Alpaca News API articles using the user's own Alpaca API key. "
+            "Arguments: optional symbols comma-list, start, end, limit <= 50, include_content, exclude_contentless, sort. "
+            "In backtests, always pass end at or before the current simulated datetime; if end is omitted, LumiBot uses the current simulated datetime. "
+            "Default include_content=False returns metadata, headlines, summaries, URLs, sources, timestamps, and symbols only. "
+            "If include_content=True, article content is truncated and will be recorded in agent traces/artifacts."
+        ),
+        function=alpaca_news,
+        metadata={"kind": "builtin"},
+    )
+
+
 def _bind_open_orders(strategy: Any, manager: Any) -> BoundTool:
     def open_orders() -> dict[str, Any]:
         orders = strategy.get_orders()
@@ -464,6 +577,15 @@ class _DocsTools:
         )
 
 
+class _NewsTools:
+    def alpaca_news(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="alpaca_news",
+            description="Fetch Alpaca News API articles with bring-your-own Alpaca API credentials.",
+            binder=_bind_alpaca_news,
+        )
+
+
 class _OrderTools:
     def submit(self) -> ToolDefinition:
         return ToolDefinition(name="orders_submit_order", description="Submit an order with explicit side/type/time_in_force.", binder=_bind_submit_order)
@@ -483,6 +605,7 @@ class _BuiltinTools:
     market = _MarketTools()
     duckdb = _DuckDBTools()
     docs = _DocsTools()
+    news = _NewsTools()
     orders = _OrderTools()
 
     def all(self) -> list[ToolDefinition]:

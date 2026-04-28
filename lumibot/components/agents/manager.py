@@ -1,8 +1,9 @@
-import csv
+import hashlib
 import json
 import os
 import re
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -125,36 +126,88 @@ def _compact_json(value: Any, limit: int = 240) -> str:
     return _truncate_text(text, limit=limit)
 
 
+def _coerce_usage_int(value: Any) -> int:
+    if value is None:
+        return 0
+    try:
+        return int(value)
+    except Exception:
+        return 0
+
+
+def _usage_nested_value(payload: Any, *path: str) -> int:
+    if not path:
+        return _coerce_usage_int(payload)
+    key = path[0]
+    if isinstance(payload, dict):
+        return _usage_nested_value(payload.get(key), *path[1:])
+    if isinstance(payload, list):
+        return sum(_usage_nested_value(item, *path) for item in payload)
+    return 0
+
+
 def _usage_value(payload: Any, *keys: str) -> int:
     if not isinstance(payload, dict):
         return 0
     for key in keys:
-        value = payload.get(key)
-        if value is None:
+        if "." in key:
+            value = _usage_nested_value(payload, *key.split("."))
+        else:
+            value = _usage_nested_value(payload, key)
+        if value <= 0:
             continue
-        try:
-            return int(value)
-        except Exception:
-            continue
+        return value
     return 0
+
+
+def _zero_usage() -> dict[str, int]:
+    return {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "thinking_tokens": 0,
+        "cached_input_tokens": 0,
+        "cache_write_input_tokens": 0,
+        "uncached_input_tokens": 0,
+        "tool_use_input_tokens": 0,
+    }
 
 
 def _usage_breakdown(payload: Any, *, cache_hit: bool) -> dict[str, int]:
     if cache_hit or not isinstance(payload, dict):
-        return {
-            "input_tokens": 0,
-            "output_tokens": 0,
-            "total_tokens": 0,
-            "thinking_tokens": 0,
-            "cached_input_tokens": 0,
-            "tool_use_input_tokens": 0,
-        }
+        return _zero_usage()
 
     input_tokens = _usage_value(payload, "prompt_token_count", "prompt_tokens", "input_tokens")
     output_tokens = _usage_value(payload, "candidates_token_count", "completion_tokens", "output_tokens")
     total_tokens = _usage_value(payload, "total_token_count", "total_tokens")
-    thinking_tokens = _usage_value(payload, "thoughts_token_count", "reasoning_tokens")
-    cached_input_tokens = _usage_value(payload, "cached_content_token_count", "cached_input_tokens")
+    thinking_tokens = _usage_value(
+        payload,
+        "thoughts_token_count",
+        "reasoning_tokens",
+        "completion_tokens_details.reasoning_tokens",
+        "output_tokens_details.reasoning_tokens",
+    )
+    cached_input_tokens = _usage_value(
+        payload,
+        "cached_content_token_count",
+        "cached_input_tokens",
+        "cache_read_input_tokens",
+        "cached_prompt_tokens",
+        "cached_tokens",
+        "prompt_cache_hit_tokens",
+        "prompt_tokens_details.cached_tokens",
+        "input_tokens_details.cached_tokens",
+        "cache_tokens_details.token_count",
+    )
+    cache_write_input_tokens = _usage_value(
+        payload,
+        "cache_creation_input_tokens",
+        "cache_creation.ephemeral_5m_input_tokens",
+        "cache_creation.ephemeral_1h_input_tokens",
+    )
+    uncached_input_tokens = _usage_value(payload, "prompt_cache_miss_tokens", "prompt_tokens_details.uncached_tokens")
+    if uncached_input_tokens <= 0:
+        uncached_input_tokens = max(input_tokens - cached_input_tokens, 0)
     tool_use_input_tokens = _usage_value(payload, "tool_use_prompt_token_count")
 
     if total_tokens <= 0:
@@ -166,6 +219,8 @@ def _usage_breakdown(payload: Any, *, cache_hit: bool) -> dict[str, int]:
         "total_tokens": total_tokens,
         "thinking_tokens": thinking_tokens,
         "cached_input_tokens": cached_input_tokens,
+        "cache_write_input_tokens": cache_write_input_tokens,
+        "uncached_input_tokens": uncached_input_tokens,
         "tool_use_input_tokens": tool_use_input_tokens,
     }
 
@@ -179,8 +234,10 @@ _AGENT_DETAIL_COLUMNS = [
     "mode",
     "cache_hit",
     "event_kind",
+    "is_call_summary",
     "tool_name",
     "event_detail",
+    "event_payload_json",
     "event_text",
     "summary",
     "final_text",
@@ -201,13 +258,22 @@ _AGENT_DETAIL_COLUMNS = [
     "event_total_tokens",
     "event_thinking_tokens",
     "event_cached_input_tokens",
+    "event_cache_write_input_tokens",
+    "event_uncached_input_tokens",
     "event_tool_use_input_tokens",
     "call_input_tokens",
     "call_output_tokens",
     "call_total_tokens",
     "call_thinking_tokens",
     "call_cached_input_tokens",
+    "call_cache_write_input_tokens",
+    "call_uncached_input_tokens",
     "call_tool_use_input_tokens",
+    "call_started_at",
+    "call_first_event_at",
+    "call_ended_at",
+    "call_latency_ms",
+    "call_first_event_latency_ms",
     "trace_path",
 ]
 
@@ -226,6 +292,15 @@ def _sanitize_csv_text(value: Any) -> str:
     text = text.replace("\n", " \\n ")
     text = text.replace("\t", " ")
     return re.sub(r"\s+", " ", text).strip()
+
+
+def _payload_json_text(value: Any) -> str:
+    if value is None:
+        return ""
+    try:
+        return _sanitize_csv_text(json.dumps(_normalize_json(value), sort_keys=True, default=str))
+    except Exception:
+        return _sanitize_csv_text(repr(value))
 
 
 def _flatten_csv_value(value: Any) -> str:
@@ -330,15 +405,20 @@ def _thinking_texts(result: AgentRunResult) -> list[str]:
 
 def _event_usage_breakdown(event: AgentTraceEvent) -> dict[str, int]:
     if event.kind != "usage":
-        return {
-            "input_tokens": 0,
-            "output_tokens": 0,
-            "total_tokens": 0,
-            "thinking_tokens": 0,
-            "cached_input_tokens": 0,
-            "tool_use_input_tokens": 0,
-        }
+        return _zero_usage()
     return _usage_breakdown(event.payload, cache_hit=False)
+
+
+def _runtime_timing_payload(result: AgentRunResult) -> dict[str, Any]:
+    return {
+        "call_started_at": result.started_at or "",
+        "call_first_event_at": result.first_event_at or "",
+        "call_ended_at": result.ended_at or "",
+        "call_latency_ms": result.latency_ms if result.latency_ms is not None else "",
+        "call_first_event_latency_ms": (
+            result.first_event_latency_ms if result.first_event_latency_ms is not None else ""
+        ),
+    }
 
 
 def _iter_timestamp_candidates(value: Any, *, path: str = "payload", hinted: bool = False):
@@ -371,6 +451,31 @@ def _stable_tool_metadata_for_cache(tool: BoundTool) -> dict[str, Any]:
         "kind": metadata.get("kind"),
     }
     return {key: value for key, value in stable.items() if value is not None}
+
+
+def _provider_prompt_cache_key(
+    *,
+    agent_name: str,
+    model: str,
+    effective_system_prompt: str,
+    bound_tools: list[BoundTool],
+) -> str:
+    payload = {
+        "agent": agent_name,
+        "model": model,
+        "effective_system_prompt": effective_system_prompt,
+        "tool_surface": [
+            {
+                "name": tool.name,
+                "description": tool.description,
+                "source": tool.source,
+                "metadata": _stable_tool_metadata_for_cache(tool),
+            }
+            for tool in bound_tools
+        ],
+    }
+    digest = hashlib.sha256(json.dumps(_normalize_json(payload), sort_keys=True).encode("utf-8")).hexdigest()
+    return f"lumibot:{agent_name}:{digest[:32]}"
 
 
 class AgentHandle:
@@ -650,8 +755,15 @@ class AgentHandle:
                 continue
             bound.append(bind_callable_tool(entry).binder(self.manager.strategy, self.manager))
         bound.extend(self._build_remote_tools())
-        self._bound_tools = bound
-        return bound
+        # Built-ins are auto-included, but strategies may also explicitly pass
+        # a BuiltinTools entry. ADK rejects duplicate function declarations, so
+        # keep one tool per name. Later entries win, which lets explicit
+        # user-supplied tools override auto-included built-ins.
+        deduped: dict[str, BoundTool] = {}
+        for tool in bound:
+            deduped[tool.name] = tool
+        self._bound_tools = list(deduped.values())
+        return self._bound_tools
 
     @staticmethod
     def _log_fatal_backtest_error(exc: BaseException, category: str, model: str) -> None:
@@ -782,6 +894,8 @@ class AgentHandle:
             "summary": result.summary or result.text or "",
             "cache_hit": result.cache_hit,
             "cache_key": result.cache_key,
+            "usage": _usage_breakdown(result.usage, cache_hit=bool(result.cache_hit)),
+            "timing": _runtime_timing_payload(result),
             "tool_calls": [event.tool_name for event in result.tool_calls if event.tool_name],
             "warning_messages": result.warning_messages,
             "trace_path": trace_path,
@@ -803,6 +917,7 @@ class AgentHandle:
             for event in cached.get("events", [])
             if isinstance(event, dict)
         ]
+        timing = cached.get("timing") if isinstance(cached.get("timing"), dict) else {}
         return AgentRunResult(
             summary=cached.get("summary"),
             model=cached.get("model") or self.default_model,
@@ -812,6 +927,11 @@ class AgentHandle:
             usage=cached.get("usage"),
             payload=cached.get("payload"),
             warnings=list(cached.get("warnings") or []),
+            started_at=timing.get("call_started_at"),
+            first_event_at=timing.get("call_first_event_at"),
+            ended_at=timing.get("call_ended_at"),
+            latency_ms=_coerce_usage_int(timing.get("call_latency_ms")),
+            first_event_latency_ms=_coerce_usage_int(timing.get("call_first_event_latency_ms")),
         )
 
     def _replay_cached_side_effects(self, result: AgentRunResult) -> None:
@@ -843,7 +963,7 @@ class AgentHandle:
             )
         tool_names = [event.tool_name for event in result.tool_calls if event.tool_name]
         used_data_tool = any(
-            name.startswith("market_") or name.startswith("duckdb_") or name.startswith("account_") or name in {"get_news", "fred_search", "fred_get_series"}
+            name.startswith("market_") or name.startswith("duckdb_") or name.startswith("account_") or name in {"get_news", "alpaca_news", "fred_search", "fred_get_series"}
             for name in tool_names
         )
         used_order_tool = any(name.startswith("orders_") for name in tool_names)
@@ -906,7 +1026,11 @@ class AgentHandle:
             f"[agents] name={self.name} mode={runtime_context.get('mode')} "
             f"model={result.model} cache_hit={result.cache_hit} "
             f"tokens_in={usage['input_tokens']} tokens_out={usage['output_tokens']} "
-            f"tokens_total={usage['total_tokens']} "
+            f"tokens_cached_in={usage['cached_input_tokens']} "
+            f"tokens_uncached_in={usage['uncached_input_tokens']} "
+            f"tokens_thinking={usage['thinking_tokens']} tokens_total={usage['total_tokens']} "
+            f"latency_ms={result.latency_ms if result.latency_ms is not None else 'unknown'} "
+            f"first_event_latency_ms={result.first_event_latency_ms if result.first_event_latency_ms is not None else 'unknown'} "
             f"tool_calls={len(result.tool_calls)} observability_warnings={len(result.warnings)} "
             f"summary={summary!r} trace={trace_path}"
         )
@@ -945,6 +1069,31 @@ class AgentHandle:
             )
         for warning in result.warning_messages:
             log_message(f"[agents][observability_warning] {warning}", color="yellow")
+
+    @staticmethod
+    def _finalize_runtime_timing(
+        result: AgentRunResult,
+        *,
+        started_at: str,
+        started_perf: float,
+        ended_at: str,
+        ended_perf: float,
+    ) -> None:
+        if result.started_at is None:
+            result.started_at = started_at
+        if result.ended_at is None:
+            result.ended_at = ended_at
+        if result.latency_ms is None:
+            result.latency_ms = max(int((ended_perf - started_perf) * 1000), 0)
+        if result.first_event_at is None:
+            first_event = next((event for event in result.events if event.timestamp), None)
+            if first_event is not None:
+                result.first_event_at = first_event.timestamp
+        if result.first_event_latency_ms is None and result.first_event_at:
+            started_dt = _parse_datetime_like(result.started_at)
+            first_dt = _parse_datetime_like(result.first_event_at)
+            if started_dt is not None and first_dt is not None:
+                result.first_event_latency_ms = max(int((first_dt - started_dt).total_seconds() * 1000), 0)
 
     def run(
         self,
@@ -996,6 +1145,12 @@ class AgentHandle:
             runtime_context=runtime_context,
             memory_notes=self._memory_prompt_notes(),
             bound_tools=self._ensure_bound_tools(),
+            provider_prompt_cache_key=_provider_prompt_cache_key(
+                agent_name=self.name,
+                model=model_name,
+                effective_system_prompt=effective_system_prompt,
+                bound_tools=self._ensure_bound_tools(),
+            ),
         )
         # Strategy-level safety net with live-vs-backtest branching.
         #
@@ -1016,6 +1171,8 @@ class AgentHandle:
         #     user can act on.
         #
         # The _classify_agent_error helper (runtime.py) handles the taxonomy.
+        started_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        started_perf = time.perf_counter()
         try:
             result = self._runtime.run(request)
         except (KeyboardInterrupt, SystemExit):
@@ -1085,6 +1242,13 @@ class AgentHandle:
                 "error_class": exc.__class__.__name__,
                 "error_message": str(exc)[:800],
             }
+            self._finalize_runtime_timing(
+                result,
+                started_at=started_at,
+                started_perf=started_perf,
+                ended_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                ended_perf=time.perf_counter(),
+            )
             # Record this skipped run in the agent's memory so the model on
             # the next iteration knows the previous cycle was skipped.
             self.manager._record_agent_observability(
@@ -1097,6 +1261,13 @@ class AgentHandle:
             self._append_run_artifact_summary(result, runtime_context)
             self._log_run_summary(result, runtime_context)
             return result
+        self._finalize_runtime_timing(
+            result,
+            started_at=started_at,
+            started_perf=started_perf,
+            ended_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            ended_perf=time.perf_counter(),
+        )
         result.cache_key = cache_key
         result.warnings = self._derive_warnings(result, runtime_context)
         trace_payload = {
@@ -1132,6 +1303,7 @@ class AgentHandle:
             "warnings": result.warnings,
             "summary": result.summary,
             "usage": result.usage,
+            "timing": _runtime_timing_payload(result),
             "duckdb_metrics": self.manager.duckdb.get_metrics(),
         }
         trace_path = self._write_trace(result, trace_payload)
@@ -1149,6 +1321,7 @@ class AgentHandle:
                     "warnings": result.warnings,
                     "usage": result.usage,
                     "payload": result.payload,
+                    "timing": _runtime_timing_payload(result),
                 },
             )
         self.manager._record_agent_observability(
@@ -1172,11 +1345,12 @@ class AgentManager:
         self.duckdb = DuckDBQueryLayer(strategy)
         self._observability_totals: dict[str, dict[str, int]] = {}
         self._observability_call_index: dict[str, int] = {}
+        self._observability_rows: dict[str, list[dict[str, Any]]] = {}
 
     def __getitem__(self, item: str) -> AgentHandle:
         return self._agents[item]
 
-    def _artifact_csv_path(self, agent_name: str, suffix: str) -> Path:
+    def _artifact_path(self, agent_name: str, suffix: str) -> Path:
         stats_file = getattr(self.strategy, "stats_file", None) or getattr(self.strategy, "_stats_file", None)
         if isinstance(stats_file, str) and stats_file.strip():
             stats_path = Path(stats_file)
@@ -1189,7 +1363,7 @@ class AgentManager:
         fallback_dir.mkdir(parents=True, exist_ok=True)
         return fallback_dir / f"{agent_name}{suffix}"
 
-    def _append_detail_rows(
+    def _write_detail_rows(
         self,
         *,
         handle: AgentHandle,
@@ -1199,7 +1373,7 @@ class AgentManager:
         usage: dict[str, int],
         call_index: int,
     ) -> Path:
-        detail_path = self._artifact_csv_path(handle.name, "_agent_detail.csv")
+        detail_path = self._artifact_path(handle.name, "_agent_detail.parquet")
         detail_path.parent.mkdir(parents=True, exist_ok=True)
         trace_path = ""
         if isinstance(result.payload, dict):
@@ -1217,81 +1391,115 @@ class AgentManager:
         effective_system_prompt = _sanitize_csv_text(cache_payload.get("effective_system_prompt") or "")
         context_text = _flatten_csv_value(cache_payload.get("context") or {})
         runtime_context_text = _flatten_csv_value(cache_payload.get("runtime_context") or {})
+        timing = _runtime_timing_payload(result)
+        common: dict[str, Any] = {
+            "timestamp": result.ended_at or handle._event_timestamp(),
+            "call_index": call_index,
+            "agent_name": handle.name,
+            "model": result.model,
+            "mode": runtime_context.get("mode"),
+            "cache_hit": bool(result.cache_hit),
+            "summary": _sanitize_csv_text(result.summary or result.text or ""),
+            "final_text": final_text,
+            "thinking_text": thinking_text,
+            "thinking_captured": bool(thinking_texts),
+            "tool_sequence": tool_sequence,
+            "tool_call_count": len(result.tool_calls),
+            "event_count": len(normalized_events),
+            "task_prompt": task_prompt,
+            "user_system_prompt": user_system_prompt,
+            "base_system_prompt": base_system_prompt,
+            "effective_system_prompt": effective_system_prompt,
+            "context_text": context_text,
+            "runtime_context_text": runtime_context_text,
+            "warning_messages": warning_messages,
+            **timing,
+            "trace_path": trace_path,
+        }
         rows: list[dict[str, Any]] = []
+        rows.append(
+            {
+                **common,
+                "timestamp": result.ended_at or handle._event_timestamp(),
+                "event_index": 0,
+                "event_kind": "call_summary",
+                "is_call_summary": True,
+                "tool_name": "",
+                "event_detail": (
+                    f"events={len(normalized_events)} tool_calls={len(result.tool_calls)} "
+                    f"cache_hit={bool(result.cache_hit)}"
+                ),
+                "event_payload_json": _payload_json_text(
+                    {
+                        "usage": result.usage or {},
+                        "warnings": result.warnings,
+                        "timing": timing,
+                    }
+                ),
+                "event_text": "",
+                "event_input_tokens": 0,
+                "event_output_tokens": 0,
+                "event_total_tokens": 0,
+                "event_thinking_tokens": 0,
+                "event_cached_input_tokens": 0,
+                "event_cache_write_input_tokens": 0,
+                "event_uncached_input_tokens": 0,
+                "event_tool_use_input_tokens": 0,
+                "call_input_tokens": usage["input_tokens"],
+                "call_output_tokens": usage["output_tokens"],
+                "call_total_tokens": usage["total_tokens"],
+                "call_thinking_tokens": usage["thinking_tokens"],
+                "call_cached_input_tokens": usage["cached_input_tokens"],
+                "call_cache_write_input_tokens": usage["cache_write_input_tokens"],
+                "call_uncached_input_tokens": usage["uncached_input_tokens"],
+                "call_tool_use_input_tokens": usage["tool_use_input_tokens"],
+            }
+        )
         for event_index, event in enumerate(normalized_events, start=1):
             event_usage = _event_usage_breakdown(event)
             rows.append(
                 {
+                    **common,
                     "timestamp": event.timestamp or handle._event_timestamp(),
-                    "call_index": call_index,
                     "event_index": event_index,
-                    "agent_name": handle.name,
-                    "model": result.model,
-                    "mode": runtime_context.get("mode"),
-                    "cache_hit": bool(result.cache_hit),
                     "event_kind": event.kind,
+                    "is_call_summary": False,
                     "tool_name": event.tool_name or "",
                     "event_detail": _summarize_tool_payload(event.tool_name, event.payload),
+                    "event_payload_json": _payload_json_text(event.payload),
                     "event_text": _sanitize_csv_text(event.text or ""),
-                    "summary": _sanitize_csv_text(result.summary or result.text or ""),
-                    "final_text": final_text,
-                    "thinking_text": thinking_text,
-                    "thinking_captured": bool(thinking_texts),
-                    "tool_sequence": tool_sequence,
-                    "tool_call_count": len(result.tool_calls),
-                    "event_count": len(normalized_events),
-                    "task_prompt": task_prompt,
-                    "user_system_prompt": user_system_prompt,
-                    "base_system_prompt": base_system_prompt,
-                    "effective_system_prompt": effective_system_prompt,
-                    "context_text": context_text,
-                    "runtime_context_text": runtime_context_text,
-                    "warning_messages": warning_messages,
                     "event_input_tokens": event_usage["input_tokens"],
                     "event_output_tokens": event_usage["output_tokens"],
                     "event_total_tokens": event_usage["total_tokens"],
                     "event_thinking_tokens": event_usage["thinking_tokens"],
                     "event_cached_input_tokens": event_usage["cached_input_tokens"],
+                    "event_cache_write_input_tokens": event_usage["cache_write_input_tokens"],
+                    "event_uncached_input_tokens": event_usage["uncached_input_tokens"],
                     "event_tool_use_input_tokens": event_usage["tool_use_input_tokens"],
-                    "call_input_tokens": usage["input_tokens"],
-                    "call_output_tokens": usage["output_tokens"],
-                    "call_total_tokens": usage["total_tokens"],
-                    "call_thinking_tokens": usage["thinking_tokens"],
-                    "call_cached_input_tokens": usage["cached_input_tokens"],
-                    "call_tool_use_input_tokens": usage["tool_use_input_tokens"],
-                    "trace_path": trace_path,
+                    "call_input_tokens": 0,
+                    "call_output_tokens": 0,
+                    "call_total_tokens": 0,
+                    "call_thinking_tokens": 0,
+                    "call_cached_input_tokens": 0,
+                    "call_cache_write_input_tokens": 0,
+                    "call_uncached_input_tokens": 0,
+                    "call_tool_use_input_tokens": 0,
                 }
             )
-        file_exists = detail_path.exists()
-        with detail_path.open("a", encoding="utf-8", newline="") as handle_file:
-            writer = csv.DictWriter(handle_file, fieldnames=_AGENT_DETAIL_COLUMNS)
-            if not file_exists or detail_path.stat().st_size == 0:
-                writer.writeheader()
-            writer.writerows(rows)
-        return detail_path
-
-    def _write_detail_parquet(self, *, detail_path: Path, agent_name: str) -> Path:
-        parquet_path = detail_path.with_suffix(".parquet")
-        try:
-            detail_df = pd.read_csv(detail_path)
-        except Exception as exc:
-            message = f"Agent detail CSV could not be loaded for Parquet export ({detail_path}): {exc}"
-            if is_parquet_required():
-                raise RuntimeError(message) from exc
-            self._log_warning(message)
-            return parquet_path
-
+        agent_rows = self._observability_rows.setdefault(handle.name, [])
+        agent_rows.extend(rows)
+        detail_df = pd.DataFrame(agent_rows, columns=_AGENT_DETAIL_COLUMNS)
         write_parquet_with_logging(
             df=detail_df,
-            path=str(parquet_path),
-            artifact=f"agent_detail:{agent_name}",
+            path=str(detail_path),
+            artifact=f"agent_detail:{handle.name}",
             logger=getattr(self.strategy, "logger", None) or self,
             index=False,
             required=is_parquet_required(),
             compression="zstd",
             sanitizer=coerce_object_columns_to_json_strings,
         )
-        return parquet_path
+        return detail_path
 
     def _log_warning(self, message: str) -> None:
         try:
@@ -1345,10 +1553,11 @@ class AgentManager:
         agent_name: str,
         model: str,
         usage: dict[str, int],
-        detail_path: Path,
         detail_parquet_path: Path,
         cache_hit: bool,
         tool_call_count: int,
+        latency_ms: int | None,
+        first_event_latency_ms: int | None,
     ) -> None:
         params = getattr(self.strategy, "parameters", None)
         if not isinstance(params, dict):
@@ -1364,15 +1573,32 @@ class AgentManager:
                 "total_tokens": 0,
                 "thinking_tokens": 0,
                 "cached_input_tokens": 0,
+                "cache_write_input_tokens": 0,
+                "uncached_input_tokens": 0,
                 "tool_use_input_tokens": 0,
+                "latency_ms": 0,
+                "first_event_latency_ms": 0,
             },
         )
         totals["calls"] += 1
         totals["tool_calls"] += int(tool_call_count)
         if cache_hit:
             totals["cache_hits"] += 1
-        for key in ("input_tokens", "output_tokens", "total_tokens", "thinking_tokens", "cached_input_tokens", "tool_use_input_tokens"):
+        for key in (
+            "input_tokens",
+            "output_tokens",
+            "total_tokens",
+            "thinking_tokens",
+            "cached_input_tokens",
+            "cache_write_input_tokens",
+            "uncached_input_tokens",
+            "tool_use_input_tokens",
+        ):
             totals[key] += int(usage.get(key, 0) or 0)
+        if latency_ms is not None:
+            totals["latency_ms"] += int(latency_ms)
+        if first_event_latency_ms is not None:
+            totals["first_event_latency_ms"] += int(first_event_latency_ms)
 
         prefix = f"agent_{agent_name}_"
         params[f"{prefix}model"] = model
@@ -1384,8 +1610,14 @@ class AgentManager:
         params[f"{prefix}total_tokens"] = totals["total_tokens"]
         params[f"{prefix}thinking_tokens"] = totals["thinking_tokens"]
         params[f"{prefix}cached_input_tokens"] = totals["cached_input_tokens"]
+        params[f"{prefix}cache_write_input_tokens"] = totals["cache_write_input_tokens"]
+        params[f"{prefix}uncached_input_tokens"] = totals["uncached_input_tokens"]
         params[f"{prefix}tool_use_input_tokens"] = totals["tool_use_input_tokens"]
-        params[f"{prefix}detail_csv"] = str(detail_path)
+        params[f"{prefix}latency_ms_total"] = totals["latency_ms"]
+        params[f"{prefix}latency_ms_avg"] = round(totals["latency_ms"] / totals["calls"], 2) if totals["calls"] else 0
+        params[f"{prefix}first_event_latency_ms_avg"] = (
+            round(totals["first_event_latency_ms"] / totals["calls"], 2) if totals["calls"] else 0
+        )
         params[f"{prefix}detail_parquet"] = str(detail_parquet_path)
 
     def _record_agent_observability(
@@ -1399,7 +1631,7 @@ class AgentManager:
         usage = _usage_breakdown(result.usage, cache_hit=bool(result.cache_hit))
         call_index = self._observability_call_index.get(handle.name, 0) + 1
         self._observability_call_index[handle.name] = call_index
-        detail_path = self._append_detail_rows(
+        detail_parquet_path = self._write_detail_rows(
             handle=handle,
             result=result,
             runtime_context=runtime_context,
@@ -1407,15 +1639,15 @@ class AgentManager:
             usage=usage,
             call_index=call_index,
         )
-        detail_parquet_path = self._write_detail_parquet(detail_path=detail_path, agent_name=handle.name)
         self._update_strategy_parameters_for_agent(
             agent_name=handle.name,
             model=result.model,
             usage=usage,
-            detail_path=detail_path,
             detail_parquet_path=detail_parquet_path,
             cache_hit=bool(result.cache_hit),
             tool_call_count=len(result.tool_calls),
+            latency_ms=result.latency_ms,
+            first_event_latency_ms=result.first_event_latency_ms,
         )
 
     def create(

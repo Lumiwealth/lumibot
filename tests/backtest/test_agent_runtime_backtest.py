@@ -198,6 +198,36 @@ class PromptCaptureRuntime:
         )
 
 
+class UsageTelemetryRuntime:
+    call_count = 0
+
+    def run(self, request):
+        type(self).call_count += 1
+        idx = type(self).call_count
+        usage = {
+            "prompt_tokens": 1000 + idx,
+            "completion_tokens": 200 + idx,
+            "total_tokens": 1200 + (idx * 2),
+            "prompt_tokens_details": {"cached_tokens": 700 + idx},
+            "completion_tokens_details": {"reasoning_tokens": 55 + idx},
+            "cache_creation_input_tokens": 123 + idx,
+            "tool_use_prompt_token_count": 17 + idx,
+        }
+        events = [
+            _event("thinking", text="I should inspect the account first."),
+            _event("tool_call", tool_name="account_portfolio", payload={}),
+            _event("tool_result", tool_name="account_portfolio", payload={"cash": 10000, "portfolio_value": 10000}),
+            _event("usage", payload=usage),
+            _event("text", text="RESULT: Held cash after validating telemetry."),
+        ]
+        return AgentRunResult(
+            summary="RESULT: Held cash after validating telemetry.",
+            model=request.model,
+            events=events,
+            usage=usage,
+        )
+
+
 class FutureTimestampRuntime:
     call_count = 0
 
@@ -385,6 +415,25 @@ class PromptCaptureStrategy(Strategy):
             system_prompt="Review the current state before deciding whether to trade.",
             default_model="stub-prompt-capture",
             tools=[BuiltinTools.account.positions(), BuiltinTools.account.portfolio()],
+            _runtime=self.runtime_class(),
+        )
+
+    def on_trading_iteration(self):
+        self.agents["research"].run(context={"symbol": "AGST"})
+
+
+class UsageTelemetryStrategy(Strategy):
+    runtime_class = UsageTelemetryRuntime
+
+    def initialize(self):
+        self.sleeptime = "1D"
+        from lumibot.components.agents import BuiltinTools
+
+        self.agents.create(
+            name="research",
+            system_prompt="Capture token usage and observability artifacts.",
+            default_model="stub-usage-telemetry",
+            tools=[BuiltinTools.account.portfolio()],
             _runtime=self.runtime_class(),
         )
 
@@ -650,6 +699,8 @@ def test_agent_runtime_injects_base_prompt_runtime_context_and_default_summary_l
     assert "Do not trade for the sake of activity." in request.system_prompt
     assert "Do not resist intentional concentration" in request.system_prompt
     assert "Avoid leaving raw cash idle unless there is a specific reason" in request.system_prompt
+    tool_names = [tool.name for tool in request.bound_tools]
+    assert len(tool_names) == len(set(tool_names))
     summary_logs = [line for line in strategy.vars.captured_logs if line.startswith("[agents] name=research")]
     assert summary_logs
     assert "cache_hit=False" in summary_logs[-1]
@@ -660,6 +711,62 @@ def test_agent_runtime_injects_base_prompt_runtime_context_and_default_summary_l
     assert records
     assert records[-1]["agent_name"] == "research"
     assert records[-1]["trace_relative_path"].startswith("agent_runtime/traces/")
+
+
+@pytest.mark.usefixtures("disable_datasource_override")
+def test_agent_detail_parquet_has_single_token_summary_row_and_full_events(monkeypatch, tmp_path):
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
+    UsageTelemetryRuntime.call_count = 0
+    _, strategy = UsageTelemetryStrategy.run_backtest(
+        datasource_class=PandasDataBacktesting,
+        backtesting_start=datetime(2025, 1, 6),
+        backtesting_end=datetime(2025, 1, 7),
+        pandas_data=_build_stock_pandas_data(),
+        benchmark_asset=None,
+        analyze_backtest=False,
+        show_plot=False,
+        save_tearsheet=False,
+        show_tearsheet=False,
+        show_indicators=False,
+        save_logfile=False,
+        show_progress_bar=False,
+        quiet_logs=True,
+    )
+
+    detail_parquet = Path(strategy.parameters["agent_research_detail_parquet"])
+    assert detail_parquet.exists()
+    assert "agent_research_detail_csv" not in strategy.parameters
+    assert not detail_parquet.with_suffix(".csv").exists()
+    df = pd.read_parquet(detail_parquet)
+    assert "call_summary" in set(df["event_kind"])
+    assert "thinking" in set(df["event_kind"])
+    assert "tool_call" in set(df["event_kind"])
+    assert "tool_result" in set(df["event_kind"])
+    assert "usage" in set(df["event_kind"])
+    assert df["call_index"].nunique() == UsageTelemetryRuntime.call_count
+
+    summaries = df[df["event_kind"] == "call_summary"]
+    assert len(summaries) == UsageTelemetryRuntime.call_count
+    call_numbers = list(range(1, UsageTelemetryRuntime.call_count + 1))
+    assert summaries["call_input_tokens"].sum() == sum(1000 + idx for idx in call_numbers)
+    assert summaries["call_output_tokens"].sum() == sum(200 + idx for idx in call_numbers)
+    assert summaries["call_cached_input_tokens"].sum() == sum(700 + idx for idx in call_numbers)
+    assert summaries["call_uncached_input_tokens"].sum() == sum(300 for _idx in call_numbers)
+    assert summaries["call_thinking_tokens"].sum() == sum(55 + idx for idx in call_numbers)
+    assert summaries["call_cache_write_input_tokens"].sum() == sum(123 + idx for idx in call_numbers)
+    assert summaries["call_tool_use_input_tokens"].sum() == sum(17 + idx for idx in call_numbers)
+    if UsageTelemetryRuntime.call_count > 1:
+        assert summaries["call_input_tokens"].nunique() > 1
+    assert pd.to_numeric(summaries["call_latency_ms"]).ge(0).all()
+    assert "I should inspect the account first." in " ".join(df["thinking_text"].fillna("").astype(str).tolist())
+    assert "portfolio_value" in " ".join(df["event_payload_json"].fillna("").astype(str).tolist())
+
+    non_summary = df[df["event_kind"] != "call_summary"]
+    assert non_summary["call_input_tokens"].sum() == 0
+    assert non_summary["call_output_tokens"].sum() == 0
+    usage_rows = df[df["event_kind"] == "usage"]
+    assert usage_rows["event_input_tokens"].sum() == sum(1000 + idx for idx in call_numbers)
+    assert usage_rows["event_cached_input_tokens"].sum() == sum(700 + idx for idx in call_numbers)
 
 
 @pytest.mark.usefixtures("disable_datasource_override")

@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import hashlib
 import importlib
 import logging
 import json
@@ -8,6 +9,7 @@ import math
 import os
 import re
 import sys
+import time
 import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -287,6 +289,7 @@ class RuntimeRequest:
     runtime_context: dict[str, Any] | None
     memory_notes: list[dict[str, Any]]
     bound_tools: list[BoundTool]
+    provider_prompt_cache_key: str | None = None
 
 
 _LITELLM_CONFIGURED = False
@@ -350,7 +353,10 @@ _BILLING_BODY_KEYWORDS = (
     "insufficient funds",
     "no credits",
     "no credit",
+    "available credits",
     "out of credits",
+    "spending limit",
+    "monthly spending limit",
     "billing",
     "payment",
     "purchase those",
@@ -484,7 +490,42 @@ def _sync_xai_api_key_alias() -> None:
         os.environ["XAI_API_KEY"] = os.environ["GROK_API_KEY"]
 
 
-def _resolve_model_for_adk(model: Any) -> Any:
+def _sync_gemini_api_key_alias() -> None:
+    """Allow product-facing GEMINI_API_KEY with Google SDK internals.
+
+    Google examples and some SDK paths use GOOGLE_API_KEY. LumiBot's public
+    docs use GEMINI_API_KEY, so mirror it when the Google name is absent.
+    """
+    if not os.environ.get("GOOGLE_API_KEY") and os.environ.get("GEMINI_API_KEY"):
+        os.environ["GOOGLE_API_KEY"] = os.environ["GEMINI_API_KEY"]
+
+
+def _provider_prompt_cache_key(request: RuntimeRequest) -> str:
+    """Stable provider-routing key for server-side prompt caches.
+
+    This is not LumiBot's replay cache key. It intentionally excludes the
+    changing market context so providers can reuse the static prefix
+    (system prompt + tool declarations) while still computing each new bar.
+    """
+    payload = {
+        "agent": request.agent_name,
+        "model": request.model,
+        "system_prompt": request.system_prompt,
+        "tools": [
+            {
+                "name": tool.name,
+                "description": tool.description,
+                "source": tool.source,
+                "metadata": tool.metadata,
+            }
+            for tool in request.bound_tools
+        ],
+    }
+    digest = hashlib.sha256(json.dumps(_json_safe_value(payload), sort_keys=True).encode("utf-8")).hexdigest()
+    return f"lumibot:{request.agent_name}:{digest[:32]}"
+
+
+def _resolve_model_for_adk(model: Any, *, prompt_cache_key: str | None = None) -> Any:
     # Native Gemini IDs take ADK's fast path as plain strings. Any other
     # provider prefix (e.g. "openai/...", "xai/...", "anthropic/...") is
     # routed through google.adk.models.lite_llm.LiteLlm which normalizes
@@ -493,6 +534,7 @@ def _resolve_model_for_adk(model: Any) -> Any:
         return model
     lower = model.strip().lower()
     if lower.startswith("gemini-") or lower.startswith("models/gemini"):
+        _sync_gemini_api_key_alias()
         return model
     if lower.startswith("xai/"):
         _sync_xai_api_key_alias()
@@ -504,7 +546,18 @@ def _resolve_model_for_adk(model: Any) -> Any:
             f"Agent model '{model}' requires the 'litellm' package. "
             "Install it with: pip install litellm"
         ) from exc
-    return LiteLlm(model=model)
+    kwargs: dict[str, Any] = {}
+    if prompt_cache_key:
+        if lower.startswith("openai/"):
+            # OpenAI prompt caching is automatic for long shared prefixes. The
+            # key improves routing stability and 24h is the documented maximum
+            # extended retention value.
+            kwargs["prompt_cache_key"] = prompt_cache_key
+            kwargs["prompt_cache_retention"] = "24h"
+        elif lower.startswith("xai/"):
+            # xAI recommends x-grok-conv-id for Chat Completions cache routing.
+            kwargs["headers"] = {"x-grok-conv-id": prompt_cache_key}
+    return LiteLlm(model=model, **kwargs)
 
 
 class GoogleADKRuntime:
@@ -601,6 +654,10 @@ class GoogleADKRuntime:
         return "\n\n".join(sections)
 
     async def _run_async(self, request: RuntimeRequest) -> AgentRunResult:
+        started_at = _utc_iso_timestamp()
+        started_perf = time.perf_counter()
+        first_event_at: str | None = None
+        first_event_perf: float | None = None
         LlmAgentType, InMemoryRunnerType, genai_types, function_tool_type = self._ensure_adk()
         tool_name_map = {_tool_function_name(tool.name): tool.name for tool in request.bound_tools}
         tools = [function_tool_type(_wrap_tool_callable(tool)) for tool in request.bound_tools]
@@ -611,7 +668,10 @@ class GoogleADKRuntime:
         planner = self._maybe_build_gemini_thinking_planner(request.model, genai_types)
         agent = LlmAgentType(
             name=request.agent_name,
-            model=_resolve_model_for_adk(request.model),
+            model=_resolve_model_for_adk(
+                request.model,
+                prompt_cache_key=request.provider_prompt_cache_key or _provider_prompt_cache_key(request),
+            ),
             instruction=self._instruction_for(request),
             tools=tools,
             generate_content_config=genai_types.GenerateContentConfig(**config_kwargs),
@@ -631,12 +691,17 @@ class GoogleADKRuntime:
         )
         events: list[AgentTraceEvent] = []
         async for event in runner.run_async(user_id=user_id, session_id=session_id, new_message=content):
-            events.extend(_normalize_event(event))
-        timestamp = _utc_iso_timestamp()
+            normalized_events = _normalize_event(event)
+            if normalized_events and first_event_perf is None:
+                first_event_perf = time.perf_counter()
+                first_event_at = _utc_iso_timestamp()
+            timestamp = _utc_iso_timestamp()
+            for normalized_event in normalized_events:
+                normalized_event.timestamp = timestamp
+            events.extend(normalized_events)
         for event in events:
             if event.tool_name:
                 event.tool_name = tool_name_map.get(event.tool_name, event.tool_name)
-            event.timestamp = timestamp
         summary = None
         text_chunks = [event.text for event in events if event.kind == "text" and event.text]
         if text_chunks:
@@ -646,11 +711,22 @@ class GoogleADKRuntime:
             if event.kind == "usage":
                 usage = event.payload
                 break
+        ended_at = _utc_iso_timestamp()
+        ended_perf = time.perf_counter()
         return AgentRunResult(
             summary=summary,
             model=request.model,
             events=events,
             usage=usage,
+            started_at=started_at,
+            first_event_at=first_event_at,
+            ended_at=ended_at,
+            latency_ms=max(int((ended_perf - started_perf) * 1000), 0),
+            first_event_latency_ms=(
+                max(int((first_event_perf - started_perf) * 1000), 0)
+                if first_event_perf is not None
+                else None
+            ),
         )
 
     # Transient-error retry policy for the full agent call. Covers both the

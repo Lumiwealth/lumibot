@@ -1,4 +1,6 @@
 import os
+import sys
+import types
 
 from lumibot.components.agents.runtime import _resolve_model_for_adk, _sync_gemini_api_key_alias, _sync_xai_api_key_alias
 
@@ -40,15 +42,15 @@ def test_google_api_key_wins_over_gemini_alias(monkeypatch):
 
 
 def test_openai_model_forwards_prompt_cache_key_and_24h_retention(monkeypatch):
-    from google.adk.models import lite_llm as lite_llm_module
-
     created: dict[str, object] = {}
 
     class FakeLiteLlm:
         def __init__(self, **kwargs):
             created.update(kwargs)
 
-    monkeypatch.setattr(lite_llm_module, "LiteLlm", FakeLiteLlm)
+    fake_module = types.ModuleType("google.adk.models.lite_llm")
+    fake_module.LiteLlm = FakeLiteLlm
+    monkeypatch.setitem(sys.modules, "google.adk.models.lite_llm", fake_module)
 
     result = _resolve_model_for_adk("openai/gpt-5.4-mini", prompt_cache_key="stable-prefix-key")
 
@@ -59,15 +61,15 @@ def test_openai_model_forwards_prompt_cache_key_and_24h_retention(monkeypatch):
 
 
 def test_xai_model_forwards_grok_conversation_cache_header(monkeypatch):
-    from google.adk.models import lite_llm as lite_llm_module
-
     created: dict[str, object] = {}
 
     class FakeLiteLlm:
         def __init__(self, **kwargs):
             created.update(kwargs)
 
-    monkeypatch.setattr(lite_llm_module, "LiteLlm", FakeLiteLlm)
+    fake_module = types.ModuleType("google.adk.models.lite_llm")
+    fake_module.LiteLlm = FakeLiteLlm
+    monkeypatch.setitem(sys.modules, "google.adk.models.lite_llm", fake_module)
 
     result = _resolve_model_for_adk("xai/grok-4.20-0309-reasoning", prompt_cache_key="stable-prefix-key")
 

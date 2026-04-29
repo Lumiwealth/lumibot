@@ -2,10 +2,7 @@
 
 ## 4.5.6 - Unreleased
 
-## 4.5.5 - 2026-04-24
-
 ### Added
-- **Anthropic Claude M2 Liquidity demo.** Added `lumibot/example_strategies/agent_m2_liquidity_anthropic.py`, matching the Gemini/OpenAI/Grok variants with `default_model="anthropic/claude-sonnet-4-6"` and `ANTHROPIC_API_KEY` setup instructions.
 - **Canonical AI agent detail artifact is now Parquet-only and token-first.** AI agent backtests now write one canonical `*_agent_detail.parquet` artifact beside the normal backtest outputs. The file contains one `call_summary` row per AI call plus event rows for `thinking`, `text`, `tool_call`, `tool_result`, and `usage`, with exact prompt/context fields, model output text, tool args/results, event payload JSON, input/output/total tokens, thinking tokens, cached/uncached input tokens, cache-write tokens, tool-use prompt tokens, full-call latency, and first-event latency. Pricing is intentionally excluded; the artifact records raw token facts only.
 - **Built-in BYOK Alpaca news tool for AI agents.** Added `BuiltinTools.news.alpaca_news()`, which uses the user's own `ALPACA_API_KEY`/`ALPACA_API_SECRET` or `APCA_API_KEY_ID`/`APCA_API_SECRET_KEY`, defaults the news `end` timestamp to the current simulated datetime during backtests, and returns normalized Alpaca news headlines/summaries/sources/URLs/symbols. Full content is opt-in with `include_content=True`.
 - **Alpaca news proof script, example strategy, and live quality test.** Added `scripts/run_alpaca_news_ai_proof.py`, which runs a tiny real AI-agent backtest, forces the scan-first/full-article workflow, and verifies the resulting `*_agent_detail.parquet` contains `alpaca_news` tool calls, full article content, thinking rows when exposed by the model, and token/latency fields. Added `lumibot/example_strategies/agent_alpaca_news_builtin.py` as the recommended built-in-tool news example. Added opt-in `apitest` coverage that checks Alpaca/Benzinga historical relevance and real pagination on known broad-market event windows.
@@ -14,8 +11,15 @@
 - **Alpaca news tool now supports scan-first / full-read workflow without hidden truncation.** `BuiltinTools.news.alpaca_news()` now defaults `limit=30`, supports `page_token`, returns `content_available_count` and `summary_available_count`, exposes `requested_end` / `effective_end` / `lookahead_clamped`, clamps future backtest `end` timestamps to the current simulated datetime, and returns the full article body when `include_content=True` unless `content_max_chars` is explicitly set. The tool description now teaches agents that Alpaca news is symbol/date-window retrieval rather than keyword search, recommends focused scans at `limit=10-20`, broad scans at `limit=30-50`, explains pagination, and lists broad-market/sector ETF proxies for less sparse historical news queries.
 
 ### Fixed
-- **AI agent provider-key naming now matches product-facing env vars.** Gemini examples/docs/error guidance now use `GEMINI_API_KEY`, and Grok examples accept either `XAI_API_KEY` or `GROK_API_KEY`. LumiBot mirrors `GROK_API_KEY` into `XAI_API_KEY` for LiteLLM's xAI provider when the canonical xAI env var is absent. Added regression coverage in `tests/test_agent_runtime_provider_keys.py`.
 - **AI agent prompt caching telemetry and routing keys.** Provider cache routing is now stable for OpenAI (`prompt_cache_key` + 24h retention) and xAI (`x-grok-conv-id`), and LumiBot normalizes cached-token fields from provider usage payloads into `cached_input_tokens` / `uncached_input_tokens` so backtests can prove whether provider prompt caching is actually being used.
+
+## 4.5.5 - 2026-04-24
+
+### Added
+- **Anthropic Claude M2 Liquidity demo.** Added `lumibot/example_strategies/agent_m2_liquidity_anthropic.py`, matching the Gemini/OpenAI/Grok variants with `default_model="anthropic/claude-sonnet-4-6"` and `ANTHROPIC_API_KEY` setup instructions.
+
+### Fixed
+- **AI agent provider-key naming now matches product-facing env vars.** Gemini examples/docs/error guidance now use `GEMINI_API_KEY`, and Grok examples accept either `XAI_API_KEY` or `GROK_API_KEY`. LumiBot mirrors `GROK_API_KEY` into `XAI_API_KEY` for LiteLLM's xAI provider when the canonical xAI env var is absent. Added regression coverage in `tests/test_agent_runtime_provider_keys.py`.
 
 ## 4.5.4 - 2026-04-24
 

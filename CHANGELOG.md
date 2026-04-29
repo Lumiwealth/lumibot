@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.5.8 - 2026-04-29
+
+Deploy marker: eefe772f (`deploy 4.5.8`)
+
+### Fixed
+- **Broker cash-event polling is hardened for real Alpaca and Tradier activity-history responses.** Alpaca cash-event polling now requests non-fill account-activity categories separately (`TRANS`, `DIV`, `MISC`) instead of paging through trade fills or letting dividend pages hide funding rows, safely handles wrapped/model/invalid activity rows, and was verified against real Alpaca live API-key/OAuth accounts with actual `CSD` deposits and `CSW` withdrawals. Tradier cash-event polling now parses the raw history response inside LumiBot so the published `lumiwealth_tradier` package's `"history": "null"` bug cannot emit live warnings like `string indices must be integers, not 'str'`; direct-request pagination, wrapper fallback, null-history payloads, the exact TypeError path, and real Tradier live transfer/wire/dividend history were verified.
+- **Cash-event warnings now identify the broker and sanitized fetch context.** Strategy warnings now include the broker name/class, and Alpaca/Tradier broker adapters log sanitized activity type, page/limit, pagination, and raw-type counts so future production warnings can be diagnosed without exposing API keys.
+
 ## 4.5.7 - 2026-04-29
 
 Deploy marker: c850cd66 (`deploy 4.5.7`)

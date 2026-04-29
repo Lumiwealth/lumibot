@@ -3,6 +3,7 @@ import datetime
 import time
 import traceback
 from asyncio import CancelledError
+from collections import Counter
 from datetime import timezone
 from decimal import Decimal
 
@@ -1164,9 +1165,54 @@ class Alpaca(Broker):
             return "adjustment", False
         return "other_cash", normalized_raw_type in cls.EXTERNAL_CASH_ACTIVITY_TYPES
 
+    @staticmethod
+    def _coerce_activity_dict(activity) -> dict | None:
+        if isinstance(activity, dict):
+            return activity
+        for method_name in ("model_dump", "dict"):
+            method = getattr(activity, method_name, None)
+            if callable(method):
+                try:
+                    payload = method()
+                except Exception:
+                    continue
+                if isinstance(payload, dict):
+                    return payload
+        payload = getattr(activity, "__dict__", None)
+        if isinstance(payload, dict):
+            return payload
+        return None
+
+    @classmethod
+    def _coerce_activity_page(cls, raw_activities) -> list[dict]:
+        if raw_activities is None or isinstance(raw_activities, (str, bytes)):
+            return []
+
+        if isinstance(raw_activities, dict):
+            for key in ("activities", "activity"):
+                nested = raw_activities.get(key)
+                if nested:
+                    return cls._coerce_activity_page(nested)
+            else:
+                if "activity_type" in raw_activities:
+                    raw_activities = [raw_activities]
+                else:
+                    raw_activities = list(raw_activities.values())
+
+        if isinstance(raw_activities, (str, bytes)) or not isinstance(raw_activities, (list, tuple)):
+            return []
+
+        activities = []
+        for activity in raw_activities:
+            activity_dict = cls._coerce_activity_dict(activity)
+            if activity_dict is not None:
+                activities.append(activity_dict)
+        return activities
+
     @classmethod
     def _normalize_activity_to_cash_event(cls, activity: dict) -> CashEvent | None:
-        if not isinstance(activity, dict):
+        activity = cls._coerce_activity_dict(activity)
+        if activity is None:
             return None
 
         raw_type = str(activity.get("activity_type") or "").upper().strip()
@@ -1215,51 +1261,81 @@ class Alpaca(Broker):
         normalized_events = []
         seen_event_ids = set()
 
-        # Alpaca's account-activities endpoint has historically rejected some otherwise valid-looking
-        # activity-type filters (for example `INTPNL`) with 400 responses. Pull raw activity pages and
-        # normalize client-side, but paginate until we actually collect `limit` cash events instead of
-        # stopping after the first raw page.
-        request_fields = {
-            "direction": "desc",
-            "page_size": page_size,
-        }
-        if since is not None:
-            request_fields["after"] = CashEvent.coerce_datetime(since).isoformat()
-
-        page_token = None
+        # Query non-fill categories separately so real funding rows (TRANS/CSD/CSW) cannot be
+        # hidden behind a first page dominated by dividends or other non-trade activity.
+        activity_type_filters = ("TRANS", "DIV", "MISC")
         max_pages = 50
-        for _ in range(max_pages):
-            if page_token:
-                request_fields["page_token"] = page_token
-            else:
-                request_fields.pop("page_token", None)
+        raw_activity_count = 0
+        raw_activity_type_counts = Counter()
+        pages_read = 0
+        for activity_type_filter in activity_type_filters:
+            page_token = None
+            events_before_filter = len(normalized_events)
+            request_fields = {
+                "activity_types": activity_type_filter,
+                "direction": "desc",
+                "page_size": page_size,
+            }
+            if since is not None:
+                request_fields["after"] = CashEvent.coerce_datetime(since).isoformat()
 
-            raw_activities = self.api.get("/account/activities", request_fields)
-            if isinstance(raw_activities, dict):
-                raw_activities = raw_activities.get("activities") or raw_activities.get("activity") or []
+            for _ in range(max_pages):
+                if page_token:
+                    request_fields["page_token"] = page_token
+                else:
+                    request_fields.pop("page_token", None)
 
-            if not raw_activities:
-                break
+                try:
+                    raw_activities = self.api.get("/account/activities", request_fields)
+                except Exception as exc:
+                    logger.warning(
+                        "Alpaca cash-event fetch failed: %s (activity_types=%s, page_size=%s, "
+                        "page_token_present=%s, since_set=%s)",
+                        exc,
+                        request_fields.get("activity_types"),
+                        request_fields.get("page_size"),
+                        bool(request_fields.get("page_token")),
+                        since is not None,
+                    )
+                    raise
+                raw_activities = self._coerce_activity_page(raw_activities)
 
-            for activity in raw_activities:
-                event = self._normalize_activity_to_cash_event(activity)
-                if event is not None and event.event_id not in seen_event_ids:
-                    normalized_events.append(event)
-                    seen_event_ids.add(event.event_id)
+                if not raw_activities:
+                    break
+                pages_read += 1
+                raw_activity_count += len(raw_activities)
+                raw_activity_type_counts.update(
+                    str(activity.get("activity_type") or "").upper().strip()
+                    for activity in raw_activities
+                    if isinstance(activity, dict)
+                )
 
-            if len(normalized_events) >= normalized_limit:
-                break
+                for activity in raw_activities:
+                    event = self._normalize_activity_to_cash_event(activity)
+                    if event is not None and event.event_id not in seen_event_ids:
+                        normalized_events.append(event)
+                        seen_event_ids.add(event.event_id)
 
-            last_row = raw_activities[-1]
-            next_token = last_row.get("id") if isinstance(last_row, dict) else None
-            if not next_token or next_token == page_token:
-                break
-            page_token = next_token
+                if len(normalized_events) - events_before_filter >= normalized_limit:
+                    break
+
+                last_row = raw_activities[-1]
+                next_token = last_row.get("id")
+                if not next_token or next_token == page_token:
+                    break
+                page_token = next_token
 
         normalized_events.sort(key=lambda event: (event.occurred_at, event.event_id))
         if len(normalized_events) > normalized_limit:
             normalized_events = normalized_events[-normalized_limit:]
-        logger.debug("Alpaca returned %s normalized cash events", len(normalized_events))
+        logger.debug(
+            "Alpaca returned %s normalized cash events from %s raw non-fill activities across %s pages "
+            "(raw_activity_types=%s)",
+            len(normalized_events),
+            raw_activity_count,
+            pages_read,
+            dict(raw_activity_type_counts),
+        )
         return normalized_events
 
     # =======Stream functions=========

@@ -88,13 +88,14 @@ def test_alpaca_activity_normalization_maps_external_and_tax_events():
     assert tax_event.direction == "out"
 
 
-def test_alpaca_get_cash_events_fetches_unfiltered_activity_page_and_normalizes():
-    requested = {}
+def test_alpaca_get_cash_events_fetches_transfer_page_and_normalizes():
+    requests = []
 
     class _DummyAPI:
         def get(self, path, params):
-            requested["path"] = path
-            requested["params"] = dict(params)
+            requests.append({"path": path, "params": dict(params)})
+            if params.get("activity_types") != "TRANS" or params.get("page_token"):
+                return []
             return [
                 {
                     "id": "evt-deposit",
@@ -119,10 +120,10 @@ def test_alpaca_get_cash_events_fetches_unfiltered_activity_page_and_normalizes(
 
     events = broker.get_cash_events(limit=10)
 
-    assert requested["path"] == "/account/activities"
-    assert requested["params"]["page_size"] == 100
-    assert requested["params"]["direction"] == "desc"
-    assert "activity_types" not in requested["params"]
+    assert all(request["path"] == "/account/activities" for request in requests)
+    assert requests[0]["params"]["page_size"] == 100
+    assert requests[0]["params"]["direction"] == "desc"
+    assert [request["params"]["activity_types"] for request in requests] == ["TRANS", "TRANS", "DIV", "MISC"]
     assert len(events) == 1
     assert events[0].event_type == "deposit"
 
@@ -133,6 +134,8 @@ def test_alpaca_get_cash_events_paginates_until_it_finds_older_cash_events():
     class _DummyAPI:
         def get(self, path, params):
             requests.append(dict(params))
+            if params.get("activity_types") != "TRANS":
+                return []
             if "page_token" not in params:
                 return [
                     {
@@ -168,9 +171,42 @@ def test_alpaca_get_cash_events_paginates_until_it_finds_older_cash_events():
 
     events = broker.get_cash_events(limit=1)
 
-    assert len(requests) == 2
-    assert requests[1]["page_token"] == "evt-fill-2"
+    transfer_requests = [request for request in requests if request["activity_types"] == "TRANS"]
+    assert len(transfer_requests) == 2
+    assert transfer_requests[1]["page_token"] == "evt-fill-2"
     assert len(events) == 1
+    assert events[0].event_type == "deposit"
+
+
+def test_alpaca_cash_events_handles_wrapped_or_invalid_activity_pages():
+    class _DummyAPI:
+        def __init__(self):
+            self.calls = 0
+
+        def get(self, path, params):
+            self.calls += 1
+            if self.calls == 1:
+                return {
+                    "activities": {
+                        "evt-deposit": {
+                            "id": "evt-deposit",
+                            "activity_type": "CSD",
+                            "date": "2026-03-24",
+                            "net_amount": "1000.00",
+                            "description": "ACH deposit",
+                        },
+                        "evt-fill": "not a valid activity row",
+                    }
+                }
+            return "not a valid page"
+
+    broker = Alpaca.__new__(Alpaca)
+    broker.api = _DummyAPI()
+
+    events = broker.get_cash_events(limit=10)
+
+    assert len(events) == 1
+    assert events[0].raw_type == "CSD"
     assert events[0].event_type == "deposit"
 
 
@@ -290,6 +326,67 @@ def test_tradier_get_cash_events_paginates_per_activity_type():
     requests = []
 
     class _DummyAccount:
+        ACCOUNT_HISTORY_ENDPOINT = "v1/accounts/VA000001/history"
+
+        @staticmethod
+        def date2str(value):
+            return value.isoformat() if hasattr(value, "isoformat") else value
+
+        def request(self, endpoint, params):
+            requests.append({"endpoint": endpoint, "params": dict(params)})
+            if params["type"] != "ach":
+                return {"history": "null"}
+
+            if params.get("page") == 1:
+                return {
+                    "history": {
+                        "event": [
+                            {
+                                "id": f"tradier-deposit-{index}",
+                                "type": "ach",
+                                "date": "2026-03-24",
+                                "amount": "1000.00",
+                                "description": "Bank ACH",
+                            }
+                            for index in range(1000)
+                        ]
+                    }
+                }
+
+            if params.get("page") == 2:
+                return {
+                    "history": {
+                        "event": {
+                            "id": "tradier-deposit-last",
+                            "type": "ach",
+                            "date": "2026-03-23",
+                            "amount": "500.00",
+                            "description": "Bank ACH",
+                        }
+                    }
+                }
+
+            return {"history": "null"}
+
+    broker = Tradier.__new__(Tradier)
+    broker.tradier = SimpleNamespace(account=_DummyAccount())
+    broker._tradier_account_number = "VA000001"
+
+    events = broker.get_cash_events(limit=1500)
+
+    ach_requests = [req for req in requests if req["params"]["type"] == "ach"]
+    assert ach_requests[0]["endpoint"] == "v1/accounts/VA000001/history"
+    assert ach_requests[0]["params"]["limit"] == 1000
+    assert ach_requests[0]["params"]["page"] == 1
+    assert ach_requests[1]["params"]["page"] == 2
+    assert len(events) == 1001
+    assert events[0].event_type == "deposit"
+
+
+def test_tradier_get_cash_events_wrapper_fallback_paginates_per_activity_type():
+    requests = []
+
+    class _DummyAccount:
         def get_history(self, **kwargs):
             requests.append(dict(kwargs))
             if kwargs["activity_type"] != "ach":
@@ -337,6 +434,46 @@ def test_tradier_get_cash_events_paginates_per_activity_type():
     assert ach_requests[1]["page"] == 2
     assert len(events) == 1001
     assert events[0].event_type == "deposit"
+
+
+def test_tradier_empty_history_payload_normalizes_to_empty_dataframe():
+    empty_history = Tradier._normalize_history_payload_to_df({"history": "null"})
+    empty_event = Tradier._normalize_history_payload_to_df({"history": {"event": "null"}})
+    bad_payload = Tradier._normalize_history_payload_to_df("not a dict")
+
+    assert empty_history.empty
+    assert empty_event.empty
+    assert bad_payload.empty
+
+
+def test_tradier_get_cash_events_treats_wrapper_null_history_typeerror_as_empty():
+    requests = []
+
+    class _DummyAccount:
+        def get_history(self, start_date=None, end_date=None, limit=None, activity_type=None, symbol=None):
+            requests.append(
+                {
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "limit": limit,
+                    "activity_type": activity_type,
+                    "symbol": symbol,
+                }
+            )
+            if activity_type == "ach":
+                raise TypeError("string indices must be integers, not 'str'")
+
+            import pandas as pd
+
+            return pd.DataFrame()
+
+    broker = Tradier.__new__(Tradier)
+    broker.tradier = SimpleNamespace(account=_DummyAccount())
+
+    events = broker.get_cash_events(limit=100)
+
+    assert events == []
+    assert any(req["activity_type"] == "ach" for req in requests)
 
 
 def test_tradier_get_cash_events_omits_page_when_client_does_not_support_it():
@@ -418,6 +555,24 @@ class _Response:
         self.status_code = status_code
         self.text = text
         self.headers = {}
+
+
+def test_cash_event_fetch_warning_identifies_broker(caplog):
+    class _FailingBroker:
+        name = "tradier"
+
+        def get_cash_events(self, **_kwargs):
+            raise TypeError("string indices must be integers, not 'str'")
+
+    dummy = _cloud_update_dummy(lambda **_kwargs: [])
+    dummy.broker = _FailingBroker()
+
+    with caplog.at_level(logging.WARNING, logger="tests.cash_events.cloud"):
+        events = _Strategy._collect_cash_events_for_cloud(dummy)
+
+    assert events == []
+    assert "Failed to load broker cash events from tradier (_FailingBroker)" in caplog.text
+    assert "string indices must be integers" in caplog.text
 
 
 def test_send_update_to_cloud_includes_cash_events_and_dedupes_on_success(monkeypatch):

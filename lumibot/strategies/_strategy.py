@@ -3124,7 +3124,11 @@ class _Strategy:
         try:
             fetched_events = get_cash_events(since=fetch_since, limit=fetch_limit)
         except Exception as exc:
-            self.logger.warning(f"Failed to load broker cash events: {exc}")
+            broker_name = getattr(broker, "name", None) or broker.__class__.__name__
+            self.logger.warning(
+                f"Failed to load broker cash events from {broker_name} "
+                f"({broker.__class__.__name__}): {exc}"
+            )
             self.logger.debug(traceback.format_exc())
             return []
 

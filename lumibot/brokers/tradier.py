@@ -7,6 +7,7 @@ import time
 import threading
 import datetime
 import inspect
+from collections import Counter
 from typing import Union
 
 import pandas as pd
@@ -878,6 +879,98 @@ class Tradier(Broker):
             is_external_cash_flow=is_external_cash_flow,
         )
 
+    @staticmethod
+    def _normalize_history_payload_to_df(data) -> pd.DataFrame:
+        if not isinstance(data, dict):
+            return pd.DataFrame()
+
+        history = data.get("history")
+        if not history or history == "null" or not isinstance(history, dict):
+            return pd.DataFrame()
+
+        events = history.get("event")
+        if not events or events == "null":
+            return pd.DataFrame()
+        if isinstance(events, dict):
+            events = [events]
+        if not isinstance(events, list):
+            return pd.DataFrame()
+
+        rows = [event for event in events if isinstance(event, dict)]
+        if not rows:
+            return pd.DataFrame()
+        return pd.json_normalize(rows)
+
+    def _get_tradier_history_page(
+        self,
+        *,
+        start_date: datetime.date | None,
+        end_date: datetime.date | None,
+        limit: int,
+        page: int,
+        activity_type: str,
+        supports_page: bool,
+    ) -> pd.DataFrame:
+        account = self.tradier.account
+        request = getattr(account, "request", None)
+        endpoint = getattr(account, "ACCOUNT_HISTORY_ENDPOINT", None)
+        if endpoint is None:
+            endpoint = f"v1/accounts/{getattr(self, '_tradier_account_number', '')}/history"
+
+        if callable(request):
+            params = {
+                "start": account.date2str(start_date),
+                "end": account.date2str(end_date),
+                "limit": limit,
+                "page": page,
+                "type": activity_type.lower(),
+            }
+            params = {key: value for key, value in params.items() if value is not None}
+            try:
+                data = request(endpoint=endpoint, params=params)
+            except Exception as exc:
+                logger.warning(
+                    "Tradier cash-event history fetch failed: %s (activity_type=%s, page=%s, "
+                    "limit=%s, endpoint=%s, since_set=%s)",
+                    exc,
+                    activity_type,
+                    page,
+                    limit,
+                    endpoint,
+                    start_date is not None,
+                )
+                raise
+            return self._normalize_history_payload_to_df(data)
+
+        # Compatibility fallback for alternate clients. Some published lumiwealth_tradier versions
+        # throw TypeError("string indices must be integers") when the API returns {"history": "null"}.
+        kwargs = {
+            "start_date": start_date,
+            "end_date": end_date,
+            "limit": limit,
+            "activity_type": activity_type,
+        }
+        if supports_page:
+            kwargs["page"] = page
+
+        try:
+            history_df = account.get_history(**kwargs)
+        except TypeError as exc:
+            if "string indices must be integers" in str(exc):
+                logger.debug(
+                    "Tradier cash-event history returned an empty/null payload through the wrapper "
+                    "(activity_type=%s, page=%s, limit=%s). Treating as empty.",
+                    activity_type,
+                    page,
+                    limit,
+                )
+                return pd.DataFrame()
+            raise
+
+        if isinstance(history_df, pd.DataFrame):
+            return history_df
+        return self._normalize_history_payload_to_df(history_df)
+
     def get_cash_events(
         self,
         *,
@@ -889,32 +982,43 @@ class Tradier(Broker):
         per_type_limit = max(int(limit or 100), 1)
         per_page_limit = min(per_type_limit, 1000)
         max_pages = max((per_type_limit - 1) // per_page_limit + 1, 1)
-        get_history = self.tradier.account.get_history
-        try:
-            signature = inspect.signature(get_history)
-            supports_page = "page" in signature.parameters or any(
-                parameter.kind is inspect.Parameter.VAR_KEYWORD
-                for parameter in signature.parameters.values()
-            )
-        except Exception:
-            supports_page = False
+        account = self.tradier.account
+        supports_page = callable(getattr(account, "request", None))
+        if not supports_page:
+            try:
+                signature = inspect.signature(account.get_history)
+                supports_page = "page" in signature.parameters or any(
+                    parameter.kind is inspect.Parameter.VAR_KEYWORD
+                    for parameter in signature.parameters.values()
+                )
+            except Exception:
+                supports_page = False
+        request_limit = per_page_limit if supports_page else per_type_limit
+        page_count = max_pages if supports_page else 1
 
         event_by_id: dict[str, CashEvent] = {}
+        raw_row_count = 0
+        raw_type_counts = Counter()
         for activity_type in self.CASH_ACTIVITY_TYPES:
-            for page in range(1, max_pages + 1):
-                kwargs = {
-                    "start_date": start_date,
-                    "end_date": end_date,
-                    "limit": per_page_limit if supports_page else per_type_limit,
-                    "activity_type": activity_type,
-                }
-                if supports_page:
-                    kwargs["page"] = page
-                history_df = get_history(**kwargs)
+            for page in range(1, page_count + 1):
+                history_df = self._get_tradier_history_page(
+                    start_date=start_date,
+                    end_date=end_date,
+                    limit=request_limit,
+                    page=page,
+                    activity_type=activity_type,
+                    supports_page=supports_page,
+                )
 
                 if history_df is None or history_df.empty:
                     break
 
+                raw_row_count += len(history_df.index)
+                if "type" in history_df.columns:
+                    raw_type_counts.update(
+                        str(raw_type or "").lower().strip()
+                        for raw_type in history_df["type"].dropna().tolist()
+                    )
                 for row in history_df.to_dict(orient="records"):
                     event = self._normalize_history_row_to_cash_event(row)
                     if event is not None:
@@ -922,14 +1026,19 @@ class Tradier(Broker):
 
                 if len(history_df.index) < per_page_limit:
                     break
-                if not supports_page:
-                    break
 
         normalized_events = sorted(
             event_by_id.values(),
             key=lambda event: (event.occurred_at, event.event_id),
         )
-        logger.debug("Tradier returned %s normalized cash events", len(normalized_events))
+        logger.debug(
+            "Tradier returned %s normalized cash events from %s raw history rows "
+            "(supports_page=%s, raw_types=%s)",
+            len(normalized_events),
+            raw_row_count,
+            supports_page,
+            dict(raw_type_counts),
+        )
         return normalized_events
 
     def _pull_positions(self, strategy):

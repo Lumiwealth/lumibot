@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.5.7 - Unreleased
+## 4.5.7 - 2026-04-29
 
 ### Fixed
 - **AI agents no longer send unsupported `temperature=0` to LiteLLM-routed providers.** The ADK runtime had hardcoded `temperature=0.0` for every model. OpenAI GPT-5/reasoning-class models reject custom temperature values and only allow the provider default, causing backtests to fail before the first agent call. LumiBot now keeps explicit `temperature=0.0` only on the Gemini-native ADK path and omits temperature for OpenAI/xAI/Anthropic/etc. LiteLLM providers. Verified with a real `openai/gpt-5.4` agent call.

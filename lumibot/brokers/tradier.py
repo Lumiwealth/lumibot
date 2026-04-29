@@ -7,6 +7,7 @@ import time
 import threading
 import datetime
 import inspect
+from collections import Counter
 from typing import Union
 
 import pandas as pd
@@ -925,7 +926,21 @@ class Tradier(Broker):
                 "type": activity_type.lower(),
             }
             params = {key: value for key, value in params.items() if value is not None}
-            return self._normalize_history_payload_to_df(request(endpoint=endpoint, params=params))
+            try:
+                data = request(endpoint=endpoint, params=params)
+            except Exception as exc:
+                logger.warning(
+                    "Tradier cash-event history fetch failed: %s (activity_type=%s, page=%s, "
+                    "limit=%s, endpoint=%s, since_set=%s)",
+                    exc,
+                    activity_type,
+                    page,
+                    limit,
+                    endpoint,
+                    start_date is not None,
+                )
+                raise
+            return self._normalize_history_payload_to_df(data)
 
         # Compatibility fallback for alternate clients. Some published lumiwealth_tradier versions
         # throw TypeError("string indices must be integers") when the API returns {"history": "null"}.
@@ -942,6 +957,13 @@ class Tradier(Broker):
             history_df = account.get_history(**kwargs)
         except TypeError as exc:
             if "string indices must be integers" in str(exc):
+                logger.debug(
+                    "Tradier cash-event history returned an empty/null payload through the wrapper "
+                    "(activity_type=%s, page=%s, limit=%s). Treating as empty.",
+                    activity_type,
+                    page,
+                    limit,
+                )
                 return pd.DataFrame()
             raise
 
@@ -975,6 +997,8 @@ class Tradier(Broker):
         page_count = max_pages if supports_page else 1
 
         event_by_id: dict[str, CashEvent] = {}
+        raw_row_count = 0
+        raw_type_counts = Counter()
         for activity_type in self.CASH_ACTIVITY_TYPES:
             for page in range(1, page_count + 1):
                 history_df = self._get_tradier_history_page(
@@ -989,6 +1013,12 @@ class Tradier(Broker):
                 if history_df is None or history_df.empty:
                     break
 
+                raw_row_count += len(history_df.index)
+                if "type" in history_df.columns:
+                    raw_type_counts.update(
+                        str(raw_type or "").lower().strip()
+                        for raw_type in history_df["type"].dropna().tolist()
+                    )
                 for row in history_df.to_dict(orient="records"):
                     event = self._normalize_history_row_to_cash_event(row)
                     if event is not None:
@@ -1001,7 +1031,14 @@ class Tradier(Broker):
             event_by_id.values(),
             key=lambda event: (event.occurred_at, event.event_id),
         )
-        logger.debug("Tradier returned %s normalized cash events", len(normalized_events))
+        logger.debug(
+            "Tradier returned %s normalized cash events from %s raw history rows "
+            "(supports_page=%s, raw_types=%s)",
+            len(normalized_events),
+            raw_row_count,
+            supports_page,
+            dict(raw_type_counts),
+        )
         return normalized_events
 
     def _pull_positions(self, strategy):

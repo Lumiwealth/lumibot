@@ -88,13 +88,14 @@ def test_alpaca_activity_normalization_maps_external_and_tax_events():
     assert tax_event.direction == "out"
 
 
-def test_alpaca_get_cash_events_fetches_unfiltered_activity_page_and_normalizes():
-    requested = {}
+def test_alpaca_get_cash_events_fetches_transfer_page_and_normalizes():
+    requests = []
 
     class _DummyAPI:
         def get(self, path, params):
-            requested["path"] = path
-            requested["params"] = dict(params)
+            requests.append({"path": path, "params": dict(params)})
+            if params.get("activity_types") != "TRANS" or params.get("page_token"):
+                return []
             return [
                 {
                     "id": "evt-deposit",
@@ -119,10 +120,10 @@ def test_alpaca_get_cash_events_fetches_unfiltered_activity_page_and_normalizes(
 
     events = broker.get_cash_events(limit=10)
 
-    assert requested["path"] == "/account/activities"
-    assert requested["params"]["page_size"] == 100
-    assert requested["params"]["direction"] == "desc"
-    assert requested["params"]["activity_types"] == "TRANS,DIV,MISC"
+    assert all(request["path"] == "/account/activities" for request in requests)
+    assert requests[0]["params"]["page_size"] == 100
+    assert requests[0]["params"]["direction"] == "desc"
+    assert [request["params"]["activity_types"] for request in requests] == ["TRANS", "TRANS", "DIV", "MISC"]
     assert len(events) == 1
     assert events[0].event_type == "deposit"
 
@@ -133,6 +134,8 @@ def test_alpaca_get_cash_events_paginates_until_it_finds_older_cash_events():
     class _DummyAPI:
         def get(self, path, params):
             requests.append(dict(params))
+            if params.get("activity_types") != "TRANS":
+                return []
             if "page_token" not in params:
                 return [
                     {
@@ -168,8 +171,9 @@ def test_alpaca_get_cash_events_paginates_until_it_finds_older_cash_events():
 
     events = broker.get_cash_events(limit=1)
 
-    assert len(requests) == 2
-    assert requests[1]["page_token"] == "evt-fill-2"
+    transfer_requests = [request for request in requests if request["activity_types"] == "TRANS"]
+    assert len(transfer_requests) == 2
+    assert transfer_requests[1]["page_token"] == "evt-fill-2"
     assert len(events) == 1
     assert events[0].event_type == "deposit"
 
@@ -551,6 +555,24 @@ class _Response:
         self.status_code = status_code
         self.text = text
         self.headers = {}
+
+
+def test_cash_event_fetch_warning_identifies_broker(caplog):
+    class _FailingBroker:
+        name = "tradier"
+
+        def get_cash_events(self, **_kwargs):
+            raise TypeError("string indices must be integers, not 'str'")
+
+    dummy = _cloud_update_dummy(lambda **_kwargs: [])
+    dummy.broker = _FailingBroker()
+
+    with caplog.at_level(logging.WARNING, logger="tests.cash_events.cloud"):
+        events = _Strategy._collect_cash_events_for_cloud(dummy)
+
+    assert events == []
+    assert "Failed to load broker cash events from tradier (_FailingBroker)" in caplog.text
+    assert "string indices must be integers" in caplog.text
 
 
 def test_send_update_to_cloud_includes_cash_events_and_dedupes_on_success(monkeypatch):

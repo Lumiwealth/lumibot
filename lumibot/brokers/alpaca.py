@@ -3,6 +3,7 @@ import datetime
 import time
 import traceback
 from asyncio import CancelledError
+from collections import Counter
 from datetime import timezone
 from decimal import Decimal
 
@@ -1260,49 +1261,81 @@ class Alpaca(Broker):
         normalized_events = []
         seen_event_ids = set()
 
-        # Ask Alpaca for non-fill activity categories so we do not page through thousands of trade fills
-        # just to find rare deposits, withdrawals, dividends, fees, or journals.
-        request_fields = {
-            "activity_types": "TRANS,DIV,MISC",
-            "direction": "desc",
-            "page_size": page_size,
-        }
-        if since is not None:
-            request_fields["after"] = CashEvent.coerce_datetime(since).isoformat()
-
-        page_token = None
+        # Query non-fill categories separately so real funding rows (TRANS/CSD/CSW) cannot be
+        # hidden behind a first page dominated by dividends or other non-trade activity.
+        activity_type_filters = ("TRANS", "DIV", "MISC")
         max_pages = 50
-        for _ in range(max_pages):
-            if page_token:
-                request_fields["page_token"] = page_token
-            else:
-                request_fields.pop("page_token", None)
+        raw_activity_count = 0
+        raw_activity_type_counts = Counter()
+        pages_read = 0
+        for activity_type_filter in activity_type_filters:
+            page_token = None
+            events_before_filter = len(normalized_events)
+            request_fields = {
+                "activity_types": activity_type_filter,
+                "direction": "desc",
+                "page_size": page_size,
+            }
+            if since is not None:
+                request_fields["after"] = CashEvent.coerce_datetime(since).isoformat()
 
-            raw_activities = self.api.get("/account/activities", request_fields)
-            raw_activities = self._coerce_activity_page(raw_activities)
+            for _ in range(max_pages):
+                if page_token:
+                    request_fields["page_token"] = page_token
+                else:
+                    request_fields.pop("page_token", None)
 
-            if not raw_activities:
-                break
+                try:
+                    raw_activities = self.api.get("/account/activities", request_fields)
+                except Exception as exc:
+                    logger.warning(
+                        "Alpaca cash-event fetch failed: %s (activity_types=%s, page_size=%s, "
+                        "page_token_present=%s, since_set=%s)",
+                        exc,
+                        request_fields.get("activity_types"),
+                        request_fields.get("page_size"),
+                        bool(request_fields.get("page_token")),
+                        since is not None,
+                    )
+                    raise
+                raw_activities = self._coerce_activity_page(raw_activities)
 
-            for activity in raw_activities:
-                event = self._normalize_activity_to_cash_event(activity)
-                if event is not None and event.event_id not in seen_event_ids:
-                    normalized_events.append(event)
-                    seen_event_ids.add(event.event_id)
+                if not raw_activities:
+                    break
+                pages_read += 1
+                raw_activity_count += len(raw_activities)
+                raw_activity_type_counts.update(
+                    str(activity.get("activity_type") or "").upper().strip()
+                    for activity in raw_activities
+                    if isinstance(activity, dict)
+                )
 
-            if len(normalized_events) >= normalized_limit:
-                break
+                for activity in raw_activities:
+                    event = self._normalize_activity_to_cash_event(activity)
+                    if event is not None and event.event_id not in seen_event_ids:
+                        normalized_events.append(event)
+                        seen_event_ids.add(event.event_id)
 
-            last_row = raw_activities[-1]
-            next_token = last_row.get("id")
-            if not next_token or next_token == page_token:
-                break
-            page_token = next_token
+                if len(normalized_events) - events_before_filter >= normalized_limit:
+                    break
+
+                last_row = raw_activities[-1]
+                next_token = last_row.get("id")
+                if not next_token or next_token == page_token:
+                    break
+                page_token = next_token
 
         normalized_events.sort(key=lambda event: (event.occurred_at, event.event_id))
         if len(normalized_events) > normalized_limit:
             normalized_events = normalized_events[-normalized_limit:]
-        logger.debug("Alpaca returned %s normalized cash events", len(normalized_events))
+        logger.debug(
+            "Alpaca returned %s normalized cash events from %s raw non-fill activities across %s pages "
+            "(raw_activity_types=%s)",
+            len(normalized_events),
+            raw_activity_count,
+            pages_read,
+            dict(raw_activity_type_counts),
+        )
         return normalized_events
 
     # =======Stream functions=========

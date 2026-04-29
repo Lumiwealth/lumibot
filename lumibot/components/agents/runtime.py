@@ -630,13 +630,6 @@ class GoogleADKRuntime:
         lines.append("- Use tools for structured data and trading actions.")
         lines.append("- Use DuckDB for time-series analysis when historical tables are available.")
         lines.append("- Return a short final summary after you finish using tools.")
-        if request.memory_notes:
-            lines.append("")
-            lines.append("Persistent memory from earlier runs:")
-            for note in request.memory_notes[-5:]:
-                timestamp = note.get("timestamp") or "unknown_time"
-                summary = note.get("summary") or ""
-                lines.append(f"- {timestamp}: {summary}")
         return "\n".join(lines).strip()
 
     def _build_user_text(self, request: RuntimeRequest) -> str:
@@ -644,6 +637,11 @@ class GoogleADKRuntime:
         if request.runtime_context:
             sections.append(
                 f"Runtime Context JSON:\n{json.dumps(_json_safe_value(request.runtime_context), sort_keys=True, default=str)}"
+            )
+        if request.memory_notes:
+            sections.append(
+                "Persistent Memory JSON:\n"
+                f"{json.dumps(_json_safe_value(request.memory_notes[-5:]), sort_keys=True, default=str)}"
             )
         if request.task_prompt:
             sections.append(f"Task:\n{request.task_prompt.strip()}")

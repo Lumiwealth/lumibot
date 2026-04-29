@@ -576,6 +576,31 @@ This file is meant to answer practical debugging questions after a backtest:
 
 Thinking text is captured when the provider/SDK exposes it. Gemini thought summaries are requested automatically. Other providers may expose only thinking token counts and not the actual thought text.
 
+Provider prompt caching
+~~~~~~~~~~~~~~~~~~~~~~~
+
+LumiBot has two separate cache layers:
+
+- The LumiBot replay cache skips the entire agent call on identical warm backtests.
+- Provider prompt caching reduces cost/latency during cold backtests and live trading when the static prompt prefix repeats.
+
+The agent runtime keeps the large, stable instructions and tool definitions at the beginning of the request and moves dynamic fields such as current datetime, runtime mode, positions, orders, memory, task prompt, and user context into later request sections. This improves provider prefix-cache hit rates without changing strategy behavior.
+
+Provider-specific routing:
+
+- OpenAI models receive a stable ``prompt_cache_key`` plus ``prompt_cache_retention="24h"`` through LiteLLM.
+- xAI/Grok models receive a stable ``x-grok-conv-id`` header through LiteLLM.
+- Gemini native models use Gemini's implicit caching path. Explicit ADK context caching is a future optimization; the runtime already records Gemini ``cached_content_token_count`` when the provider reports it.
+
+Use ``scripts/run_agent_prompt_cache_probe.py`` to verify provider-reported cache behavior with real calls:
+
+.. code-block:: bash
+
+    python scripts/run_agent_prompt_cache_probe.py --model gemini-3.1-flash-lite-preview
+    python scripts/run_agent_prompt_cache_probe.py --model openai/gpt-5.4-mini
+
+The probe bypasses LumiBot's replay cache, sends repeated calls with the same long static prefix, and prints input tokens, cached input tokens, uncached input tokens, output tokens, and latency for each call.
+
 Built-in Alpaca news tool
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 

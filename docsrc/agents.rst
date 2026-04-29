@@ -591,4 +591,19 @@ Strategies can use ``BuiltinTools.news.alpaca_news()`` to give an agent access t
         tools=[BuiltinTools.news.alpaca_news()],
     )
 
-The tool uses the user's own Alpaca credentials (``ALPACA_API_KEY`` / ``ALPACA_API_SECRET`` or the ``APCA_*`` aliases). It defaults ``end`` to the current simulated datetime in backtests to avoid look-ahead. By default it returns headlines, summaries, URLs, sources, timestamps, and symbols; full article content is only included if the agent explicitly sets ``include_content=True``.
+The tool uses the user's own Alpaca credentials (``ALPACA_API_KEY`` / ``ALPACA_API_SECRET`` or the ``APCA_*`` aliases). It defaults ``end`` to the current simulated datetime in backtests and clamps future ``end`` values to avoid look-ahead. The response includes ``requested_end``, ``effective_end``, and ``lookahead_clamped`` so you can audit the exact window used.
+
+Alpaca news is historical symbol/date-window retrieval, not keyword search. The API supports ``symbols``, ``start``, ``end``, ``limit`` (max 50), ``sort``, ``include_content``, ``exclude_contentless``, and ``page_token``. For broad market context, query market ETF proxies such as ``SPY,QQQ,DIA,IWM``; for sector context, query sector ETFs such as ``XLK,SMH`` (tech/semis), ``XLF,KRE`` (financials/banks), ``XLE,USO`` (energy), ``XLV,XBI`` (healthcare/biotech), ``TLT,IEF,SHY`` (rates/bonds), or ``GLD,SLV,DBC`` (gold/commodities).
+
+Use a two-step workflow:
+
+1. Scan with ``include_content=False`` and ``limit=10`` to ``20``. This returns headlines, summaries, URLs, sources, timestamps, symbols, and ``next_page_token`` without dumping long article bodies into the model context.
+2. If a story looks important, call again for the same or narrower window with ``include_content=True``. Full article content is returned without truncation unless you explicitly pass ``content_max_chars``.
+
+Do not trade from one weak or noisy article. News can be sparse for single stocks, so broaden from the stock to its sector or market ETF when needed, compare article timestamps against the simulated datetime, and use ``page_token`` when the first page does not provide enough evidence.
+
+To run the live proof that validates historical relevance, full-content retrieval, and the resulting ``*_agent_detail.parquet`` artifact:
+
+.. code-block:: bash
+
+    python scripts/run_alpaca_news_ai_proof.py --model gemini-3.1-pro-preview

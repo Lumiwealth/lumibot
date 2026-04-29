@@ -26,7 +26,7 @@ Maximum-discretion AI trader. The user system prompt is literally one sentence: 
 **Tools:**
 
 - ``get_fred_series`` -- FRED macro data (M2SL, FEDFUNDS, CPIAUCSL, T10Y2Y, VIXCLS, DCOILWTICO, etc.)
-- ``BuiltinTools.news.alpaca_news()`` -- Alpaca news headlines with bring-your-own Alpaca credentials (optional; gracefully disabled when credentials are unset)
+- ``BuiltinTools.news.alpaca_news()`` -- Alpaca/Benzinga historical news with bring-your-own Alpaca credentials; scan headlines/summaries first, then fetch full article content with ``include_content=True`` when needed
 - ``get_fundamentals`` -- yfinance fundamentals snapshot (P/E, forward P/E, market cap, profit margins, earnings date, analyst targets, short interest, 52W high/low, sector, industry)
 - Plus all built-in tools (portfolio, positions, last_price, history, orders, DuckDB, docs)
 
@@ -68,6 +68,8 @@ Maximum-discretion AI trader. The user system prompt is literally one sentence: 
     AGENT_MODEL="anthropic/claude-opus-4-7" python agent_discretionary.py
 
 After the backtest finishes, the tearsheet will show the model id and cumulative token totals in **Parameters Used**, and the run directory will also contain ``*_agent_detail.parquet`` with one ``call_summary`` row per AI call plus event rows for thinking/text/tool calls/tool results/usage.
+
+Use ``scripts/run_alpaca_news_ai_proof.py`` when you need a cheap real-provider proof that the built-in news tool retrieves relevant historical articles, fetches full content on demand, and records the calls in ``*_agent_detail.parquet``.
 
 See ``scripts/run_discretionary_3way.py`` for a parallel runner that executes the same strategy against three providers concurrently with a memory watchdog and auto-retry on transient provider errors.
 

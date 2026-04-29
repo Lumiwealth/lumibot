@@ -560,6 +560,22 @@ def _resolve_model_for_adk(model: Any, *, prompt_cache_key: str | None = None) -
     return LiteLlm(model=model, **kwargs)
 
 
+def _supports_explicit_temperature_for_adk_model(model: Any) -> bool:
+    """Return True only for ADK-native models known to accept temperature.
+
+    ADK's LiteLlm bridge forwards GenerateContentConfig fields to provider APIs.
+    OpenAI GPT-5/reasoning-class models reject custom temperature values and only
+    allow the provider default. Passing temperature=0.0 therefore breaks those
+    models before the agent can run. Keep deterministic temperature only on the
+    Gemini-native path; let LiteLLM providers use their provider defaults unless
+    a future explicit per-provider compatibility layer is added.
+    """
+    if not isinstance(model, str):
+        return False
+    lower = model.strip().lower()
+    return lower.startswith("gemini-") or lower.startswith("models/gemini")
+
+
 class GoogleADKRuntime:
     def __init__(self, mcp_servers: list[MCPServer] | None = None) -> None:
         self.mcp_servers = mcp_servers or []
@@ -660,9 +676,10 @@ class GoogleADKRuntime:
         tool_name_map = {_tool_function_name(tool.name): tool.name for tool in request.bound_tools}
         tools = [function_tool_type(_wrap_tool_callable(tool)) for tool in request.bound_tools]
         config_kwargs: dict[str, Any] = {
-            "temperature": 0.0,
             "max_output_tokens": 65535,
         }
+        if _supports_explicit_temperature_for_adk_model(request.model):
+            config_kwargs["temperature"] = 0.0
         planner = self._maybe_build_gemini_thinking_planner(request.model, genai_types)
         agent = LlmAgentType(
             name=request.agent_name,

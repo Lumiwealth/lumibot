@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.5.7 - 2026-04-29
+
+Deploy marker: c850cd66 (`deploy 4.5.7`)
+
+### Fixed
+- **AI agents no longer send unsupported `temperature=0` to LiteLLM-routed providers.** The ADK runtime had hardcoded `temperature=0.0` for every model. OpenAI GPT-5/reasoning-class models reject custom temperature values and only allow the provider default, causing backtests to fail before the first agent call. LumiBot now keeps explicit `temperature=0.0` only on the Gemini-native ADK path and omits temperature for OpenAI/xAI/Anthropic/etc. LiteLLM providers. Verified with a real `openai/gpt-5.4` agent call.
+- **Tradier live cash-event polling no longer passes unsupported `page=` to `Account.get_history()`.** The installed `lumiwealth-tradier` client supports `start_date`, `end_date`, `limit`, `activity_type`, and `symbol`, but not `page`. LumiBot now detects whether the client supports pagination and falls back to a single bounded per-activity request when it does not, preventing live warnings like `Account.get_history() got an unexpected keyword argument 'page'` and allowing broker cash events to load.
+
 ## 4.5.6 - 2026-04-29
 
 Deploy marker: 61b75f24 (`deploy 4.5.6`)

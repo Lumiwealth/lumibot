@@ -339,6 +339,56 @@ def test_tradier_get_cash_events_paginates_per_activity_type():
     assert events[0].event_type == "deposit"
 
 
+def test_tradier_get_cash_events_omits_page_when_client_does_not_support_it():
+    requests = []
+
+    class _DummyAccount:
+        def get_history(self, start_date=None, end_date=None, limit=None, activity_type=None, symbol=None):
+            requests.append(
+                {
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "limit": limit,
+                    "activity_type": activity_type,
+                    "symbol": symbol,
+                }
+            )
+            if activity_type != "ach":
+                return None
+
+            import pandas as pd
+
+            return pd.DataFrame(
+                [
+                    {
+                        "id": "tradier-deposit",
+                        "type": "ach",
+                        "date": "2026-03-24",
+                        "amount": "1000.00",
+                        "description": "Bank ACH",
+                    }
+                ]
+            )
+
+    broker = Tradier.__new__(Tradier)
+    broker.tradier = SimpleNamespace(account=_DummyAccount())
+
+    events = broker.get_cash_events(limit=1500)
+
+    ach_requests = [req for req in requests if req["activity_type"] == "ach"]
+    assert ach_requests == [
+        {
+            "start_date": None,
+            "end_date": ach_requests[0]["end_date"],
+            "limit": 1500,
+            "activity_type": "ach",
+            "symbol": None,
+        }
+    ]
+    assert len(events) == 1
+    assert events[0].event_type == "deposit"
+
+
 def _cloud_update_dummy(get_cash_events):
     return SimpleNamespace(
         is_backtesting=False,

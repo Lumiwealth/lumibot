@@ -7669,3 +7669,4 @@ timestamp,test_name,data_source,trading_days,execution_time_seconds,git_commit,l
 2026-04-28T23:07:38.636269,test_agent_runtime_invalid_asset_type_emits_observability_warning,unknown,,0.153,19cac24b,4.5.6,,,,,Auto-tracked from test_agent_runtime_backtest
 2026-04-28T23:07:39.029097,test_builtin_docs_search_returns_local_doc_snippets,unknown,,0.259,19cac24b,4.5.6,,,,,Auto-tracked from test_agent_runtime_backtest
 2026-04-28T23:10:51.198123,test_agent_runtime_injects_base_prompt_runtime_context_and_default_summary_log,unknown,,0.213,19cac24b,4.5.6,,,,,Auto-tracked from test_agent_runtime_backtest
+2026-04-29T00:53:37.946517,test_agent_runtime_injects_base_prompt_runtime_context_and_default_summary_log,unknown,,0.144,fea8b004,4.5.7,,,,,Auto-tracked from test_agent_runtime_backtest

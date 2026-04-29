@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.5.6 - Unreleased
+## 4.5.6 - 2026-04-29
 
 ### Added
 - **Canonical AI agent detail artifact is now Parquet-only and token-first.** AI agent backtests now write one canonical `*_agent_detail.parquet` artifact beside the normal backtest outputs. The file contains one `call_summary` row per AI call plus event rows for `thinking`, `text`, `tool_call`, `tool_result`, and `usage`, with exact prompt/context fields, model output text, tool args/results, event payload JSON, input/output/total tokens, thinking tokens, cached/uncached input tokens, cache-write tokens, tool-use prompt tokens, full-call latency, and first-event latency. Pricing is intentionally excluded; the artifact records raw token facts only.

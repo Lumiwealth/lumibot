@@ -580,17 +580,12 @@ class AgentHandle:
 
     def _base_system_prompt(self, runtime_context: dict[str, Any]) -> str:
         mode = runtime_context.get("mode") or "live"
-        current_datetime = runtime_context.get("current_datetime") or "unknown"
-        timezone_name = runtime_context.get("timezone") or "unknown"
         lines = [
             "You are operating as a trading agent inside LumiBot.",
             "Use the provided runtime context and tool outputs as the ground truth for the current state of the strategy.",
             "Ground claims in tool results or runtime context instead of unsupported prior knowledge or vague market memory.",
             "If evidence is weak, conflicting, stale, or incomplete, prefer doing nothing and explain why.",
-            f"Execution mode: {mode}.",
-            f"Current datetime: {current_datetime}.",
-            f"Current timezone: {timezone_name}.",
-            "Runtime context JSON will include current positions, cash, equity/portfolio value, recent orders, and recent trades.",
+            "Execution mode, current datetime, current timezone, current positions, cash, equity/portfolio value, recent orders, and recent trades are provided in Runtime Context JSON.",
             "Review current exposure, available cash, and recent activity before proposing any new trade.",
             "",
             "DEFAULT INVESTOR POLICY - FOLLOW THIS UNLESS THE USER'S SYSTEM PROMPT CLEARLY ASKS FOR A DIFFERENT STYLE:",

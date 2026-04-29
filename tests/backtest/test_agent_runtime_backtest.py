@@ -694,7 +694,8 @@ def test_agent_runtime_injects_base_prompt_runtime_context_and_default_summary_l
     assert "recent_trades" in request.runtime_context
     assert "BACKTESTING SAFETY RULES" in request.system_prompt
     assert "Look-ahead bias" in request.system_prompt
-    assert "Current datetime:" in request.system_prompt
+    assert "Current datetime:" not in request.system_prompt
+    assert "current_datetime" in request.runtime_context
     assert "DEFAULT INVESTOR POLICY" in request.system_prompt
     assert "Do not trade for the sake of activity." in request.system_prompt
     assert "Do not resist intentional concentration" in request.system_prompt

@@ -122,7 +122,7 @@ class AlpacaNewsDeepReadProofStrategy(Strategy):
             task_prompt=(
                 "Call alpaca_news exactly twice for historical broad-market news. "
                 "First call: symbols='SPY,QQQ,DIA,IWM', start='2025-04-21T00:00:00Z', "
-                "end='2025-04-21T23:59:59Z', limit=10, include_content=False, sort='asc'. "
+                "end='2025-04-21T23:59:59Z', limit=30, include_content=False, sort='asc'. "
                 "Review the timestamps and headlines. Second call: use the same symbols/start/end, "
                 "limit=3, include_content=True, exclude_contentless=True, sort='asc' to fetch full article content. "
                 "Do not call any other tools. Final answer must include SCAN_COUNT, FULL_ARTICLE_CHARS, "

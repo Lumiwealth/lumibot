@@ -1164,9 +1164,54 @@ class Alpaca(Broker):
             return "adjustment", False
         return "other_cash", normalized_raw_type in cls.EXTERNAL_CASH_ACTIVITY_TYPES
 
+    @staticmethod
+    def _coerce_activity_dict(activity) -> dict | None:
+        if isinstance(activity, dict):
+            return activity
+        for method_name in ("model_dump", "dict"):
+            method = getattr(activity, method_name, None)
+            if callable(method):
+                try:
+                    payload = method()
+                except Exception:
+                    continue
+                if isinstance(payload, dict):
+                    return payload
+        payload = getattr(activity, "__dict__", None)
+        if isinstance(payload, dict):
+            return payload
+        return None
+
+    @classmethod
+    def _coerce_activity_page(cls, raw_activities) -> list[dict]:
+        if raw_activities is None or isinstance(raw_activities, (str, bytes)):
+            return []
+
+        if isinstance(raw_activities, dict):
+            for key in ("activities", "activity"):
+                nested = raw_activities.get(key)
+                if nested:
+                    return cls._coerce_activity_page(nested)
+            else:
+                if "activity_type" in raw_activities:
+                    raw_activities = [raw_activities]
+                else:
+                    raw_activities = list(raw_activities.values())
+
+        if isinstance(raw_activities, (str, bytes)) or not isinstance(raw_activities, (list, tuple)):
+            return []
+
+        activities = []
+        for activity in raw_activities:
+            activity_dict = cls._coerce_activity_dict(activity)
+            if activity_dict is not None:
+                activities.append(activity_dict)
+        return activities
+
     @classmethod
     def _normalize_activity_to_cash_event(cls, activity: dict) -> CashEvent | None:
-        if not isinstance(activity, dict):
+        activity = cls._coerce_activity_dict(activity)
+        if activity is None:
             return None
 
         raw_type = str(activity.get("activity_type") or "").upper().strip()
@@ -1215,11 +1260,10 @@ class Alpaca(Broker):
         normalized_events = []
         seen_event_ids = set()
 
-        # Alpaca's account-activities endpoint has historically rejected some otherwise valid-looking
-        # activity-type filters (for example `INTPNL`) with 400 responses. Pull raw activity pages and
-        # normalize client-side, but paginate until we actually collect `limit` cash events instead of
-        # stopping after the first raw page.
+        # Ask Alpaca for non-fill activity categories so we do not page through thousands of trade fills
+        # just to find rare deposits, withdrawals, dividends, fees, or journals.
         request_fields = {
+            "activity_types": "TRANS,DIV,MISC",
             "direction": "desc",
             "page_size": page_size,
         }
@@ -1235,8 +1279,7 @@ class Alpaca(Broker):
                 request_fields.pop("page_token", None)
 
             raw_activities = self.api.get("/account/activities", request_fields)
-            if isinstance(raw_activities, dict):
-                raw_activities = raw_activities.get("activities") or raw_activities.get("activity") or []
+            raw_activities = self._coerce_activity_page(raw_activities)
 
             if not raw_activities:
                 break
@@ -1251,7 +1294,7 @@ class Alpaca(Broker):
                 break
 
             last_row = raw_activities[-1]
-            next_token = last_row.get("id") if isinstance(last_row, dict) else None
+            next_token = last_row.get("id")
             if not next_token or next_token == page_token:
                 break
             page_token = next_token

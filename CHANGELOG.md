@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.5.9 - Unreleased
+
 ## 4.5.8 - 2026-04-29
 
 Deploy marker: eefe772f (`deploy 4.5.8`)

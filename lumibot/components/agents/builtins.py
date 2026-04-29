@@ -310,9 +310,10 @@ ALPACA_NEWS_DESCRIPTION = (
     "start, end, limit <= 50, include_content, exclude_contentless, page_token, optional content_max_chars, and sort. "
     "In backtests, only use articles at or before the current simulated datetime; if end is omitted, LumiBot uses "
     "the current simulated datetime, and future end times are clamped to avoid look-ahead bias. "
-    "Use a two-step workflow: first scan with include_content=False and limit=10-20 to read headlines, summaries, "
-    "timestamps, URLs, sources, and symbols; do not trade from one weak or noisy article. If a story matters, call "
-    "again for the same/narrower window with include_content=True to read the full article body. Full content is "
+    "Use a two-step workflow: first scan with include_content=False to read headlines, summaries, timestamps, URLs, "
+    "sources, and symbols. Use limit=10-20 for focused single-symbol checks, limit=30-50 for broad market or sector scans, "
+    "and use page_token when next_page_token is returned to fetch more pages. Do not trade from one weak or noisy article. If a story matters, call "
+    "again for the same/narrower window with include_content=True and usually exclude_contentless=True to read the full article body. Full content is "
     "not truncated unless you explicitly set content_max_chars. Use page_token when next_page_token is returned. "
     "If single-stock news is sparse, broaden intelligently: broad market SPY,QQQ,DIA,IWM; tech/AI/semis QQQ,XLK,SMH; "
     "financials/banks XLF,KRE; energy/oil XLE,USO; healthcare/biotech XLV,XBI; industrials XLI; consumer discretionary "
@@ -326,7 +327,7 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
         symbols: str = "",
         start: str = "",
         end: str = "",
-        limit: int = 20,
+        limit: int = 30,
         include_content: bool = False,
         exclude_contentless: bool = False,
         page_token: str = "",

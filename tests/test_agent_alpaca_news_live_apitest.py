@@ -16,6 +16,13 @@ class _LiveNewsStrategy:
         return datetime(2024, 8, 6, 16, 0, tzinfo=timezone.utc)
 
 
+class _LivePaginationStrategy:
+    is_backtesting = True
+
+    def get_datetime(self):
+        return datetime(2025, 4, 22, 16, 0, tzinfo=timezone.utc)
+
+
 def _require_alpaca_news_creds() -> None:
     has_key = bool(os.environ.get("ALPACA_API_KEY") or os.environ.get("APCA_API_KEY_ID"))
     has_secret = bool(os.environ.get("ALPACA_API_SECRET") or os.environ.get("APCA_API_SECRET_KEY"))
@@ -76,3 +83,38 @@ def test_live_alpaca_news_known_market_event_scan_and_full_content():
     assert max(len(str(article["content"])) for article in full_content_articles) > 1000
     assert all(article.get("content_truncated") is False for article in full_content_articles)
     assert all(article.get("content_original_length") == len(str(article.get("content") or "")) for article in full_content_articles)
+
+
+def test_live_alpaca_news_pagination_fetches_distinct_second_page():
+    """Verify real Alpaca pagination, not just unit-level page_token forwarding."""
+    _require_alpaca_news_creds()
+
+    tool = BuiltinTools.news.alpaca_news().binder(_LivePaginationStrategy(), None)
+    first_page = tool.function(
+        symbols="SPY,QQQ,DIA,IWM",
+        start="2025-04-21T00:00:00Z",
+        end="2025-04-21T23:59:59Z",
+        limit=5,
+        include_content=False,
+        sort="asc",
+    )
+
+    assert first_page["ok"] is True
+    assert first_page["count"] == 5
+    assert first_page["next_page_token"]
+
+    second_page = tool.function(
+        symbols="SPY,QQQ,DIA,IWM",
+        start="2025-04-21T00:00:00Z",
+        end="2025-04-21T23:59:59Z",
+        limit=5,
+        include_content=False,
+        sort="asc",
+        page_token=first_page["next_page_token"],
+    )
+
+    assert second_page["ok"] is True
+    assert second_page["count"] >= 1
+    first_ids = {article.get("id") for article in first_page["articles"]}
+    second_ids = {article.get("id") for article in second_page["articles"]}
+    assert first_ids.isdisjoint(second_ids)

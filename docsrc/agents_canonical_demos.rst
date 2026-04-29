@@ -1,20 +1,21 @@
 Canonical AI Agent Demos
 ========================
 
-LumiBot includes five canonical AI agent demo strategies that serve as both reference implementations and end-to-end acceptance tests for agentic backtesting. All five use the ``@agent_tool`` pattern with the ``requests`` library, the full built-in tool set, replay caching, and benchmarked tearsheet output.
+LumiBot includes six canonical AI agent demo strategies that serve as both reference implementations and end-to-end acceptance tests for agentic backtesting. These examples cover both custom ``@agent_tool`` wrappers and built-in agent tools, the full built-in tool set, replay caching, and benchmarked tearsheet output.
 
 These are complete, runnable strategies -- not snippets. They demonstrate how to backtest an AI trading agent with real external data sources, and they validate that LumiBot's AI-driven trading strategy backtest pipeline works end to end. All demo files are located in ``lumibot/example_strategies/``.
 
-The Five Demos
+The Six Demos
 ---------------
 
 - **Discretionary Trader** (``lumibot/example_strategies/agent_discretionary.py``) -- **maximum-discretion agent** with a one-sentence prompt, no asset whitelist, broad tool surface, and an ``AGENT_MODEL`` env var for multi-provider comparisons (Gemini, GPT, Grok, Claude)
+- **Alpaca News Built-in Strategy** (``lumibot/example_strategies/agent_alpaca_news_builtin.py``) -- recommended built-in-tool pattern for Alpaca/Benzinga news: scan headlines/summaries first, fetch full article bodies on demand, and use pagination when needed
 - **News Sentiment Strategy** (``lumibot/example_strategies/agent_news_sentiment.py``) -- event-driven stock selection using Alpaca news data
 - **Macro Risk Strategy** (``lumibot/example_strategies/agent_macro_risk.py``) -- macro regime allocation using Alpaca market data
 - **Momentum Allocator Strategy** (``lumibot/example_strategies/agent_momentum_allocator.py``) -- momentum and sentiment allocation using Alpaca price bars and news
 - **M2 Liquidity Strategy** (``lumibot/example_strategies/agent_m2_liquidity.py``) -- liquidity-driven allocation using FRED money supply data
 
-The first demo (Discretionary Trader) intentionally gives the AI maximum latitude so you can compare how different frontier models (Gemini 3.1 Pro, GPT-5.4, Grok 4.2) perform with minimal guidance. The other four are narrower and more prescriptive, making them better templates to copy when you want a specific trading thesis.
+The first demo (Discretionary Trader) intentionally gives the AI maximum latitude so you can compare how different frontier models (Gemini 3.1 Pro, GPT-5.4, Grok 4.2) perform with minimal guidance. The Alpaca News Built-in Strategy is the recommended news-tool template for new code. The older News Sentiment Strategy intentionally remains as a custom ``@agent_tool`` example for users who need to wrap their own REST APIs.
 
 Discretionary Trader
 --------------------
@@ -72,6 +73,21 @@ After the backtest finishes, the tearsheet will show the model id and cumulative
 Use ``scripts/run_alpaca_news_ai_proof.py`` when you need a cheap real-provider proof that the built-in news tool retrieves relevant historical articles, fetches full content on demand, and records the calls in ``*_agent_detail.parquet``.
 
 See ``scripts/run_discretionary_3way.py`` for a parallel runner that executes the same strategy against three providers concurrently with a memory watchdog and auto-retry on transient provider errors.
+
+Alpaca News Built-in Strategy
+-----------------------------
+
+**File:** ``lumibot/example_strategies/agent_alpaca_news_builtin.py``
+
+This strategy demonstrates the preferred way to give an AI agent Alpaca/Benzinga news access: pass ``BuiltinTools.news.alpaca_news()`` to ``self.agents.create(...)`` instead of writing a strategy-local Alpaca wrapper.
+
+**What it demonstrates:**
+
+- Built-in news-tool wiring with ``tools=[BuiltinTools.news.alpaca_news()]``
+- Scan-first workflow with ``include_content=False`` and broad-market symbols like ``SPY,QQQ,DIA,IWM``
+- Full article retrieval with ``include_content=True`` before trading on important stories
+- Pagination via ``next_page_token`` / ``page_token`` when the first page does not provide enough evidence
+- Backtest look-ahead protection through timestamp discipline and the tool's ``lookahead_clamped`` field
 
 News Sentiment Strategy
 -----------------------

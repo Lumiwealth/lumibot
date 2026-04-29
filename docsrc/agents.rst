@@ -587,7 +587,10 @@ Strategies can use ``BuiltinTools.news.alpaca_news()`` to give an agent access t
 
     self.agents.create(
         name="trader",
-        system_prompt="Trade based on recent market news.",
+        system_prompt=(
+            "Use Alpaca news and market tools to make trading decisions. "
+            "Scan headlines and summaries first. If a story matters, fetch full article content before trading."
+        ),
         tools=[BuiltinTools.news.alpaca_news()],
     )
 
@@ -597,10 +600,42 @@ Alpaca news is historical symbol/date-window retrieval, not keyword search. The 
 
 Use a two-step workflow:
 
-1. Scan with ``include_content=False`` and ``limit=10`` to ``20``. This returns headlines, summaries, URLs, sources, timestamps, symbols, and ``next_page_token`` without dumping long article bodies into the model context.
-2. If a story looks important, call again for the same or narrower window with ``include_content=True``. Full article content is returned without truncation unless you explicitly pass ``content_max_chars``.
+1. Scan with ``include_content=False``. Use ``limit=10`` to ``20`` for focused single-symbol checks and ``limit=30`` to ``50`` for broad market or sector scans. This returns headlines, summaries, URLs, sources, timestamps, symbols, and ``next_page_token`` without dumping long article bodies into the model context.
+2. If a story looks important, call again for the same or narrower window with ``include_content=True`` and usually ``exclude_contentless=True``. Full article content is returned without truncation unless you explicitly pass ``content_max_chars``.
+3. If ``next_page_token`` is present and the first page does not provide enough evidence, call again with ``page_token=next_page_token``.
 
 Do not trade from one weak or noisy article. News can be sparse for single stocks, so broaden from the stock to its sector or market ETF when needed, compare article timestamps against the simulated datetime, and use ``page_token`` when the first page does not provide enough evidence.
+
+Complete runnable example:
+
+.. code-block:: python
+
+    import os
+    from lumibot.components.agents import BuiltinTools
+    from lumibot.strategies.strategy import Strategy
+
+    class AlpacaNewsBuiltinStrategy(Strategy):
+        def initialize(self):
+            self.sleeptime = "1D"
+            self.agents.create(
+                name="news_trader",
+                default_model=os.environ.get("AGENT_MODEL", "gemini-3.1-flash-lite-preview"),
+                system_prompt=(
+                    "Use Alpaca news and market tools to decide whether to hold SPY, QQQ, or a defensive ETF. "
+                    "First call alpaca_news with symbols='SPY,QQQ,DIA,IWM', include_content=False, and limit=30. "
+                    "If a story looks market-moving, call alpaca_news again with include_content=True and "
+                    "exclude_contentless=True before trading. "
+                    "Use page_token when next_page_token is returned."
+                ),
+                tools=[BuiltinTools.news.alpaca_news()],
+            )
+
+        def on_trading_iteration(self):
+            self.agents["news_trader"].run(
+                context={"current_datetime": self.get_datetime().isoformat()}
+            )
+
+See ``lumibot/example_strategies/agent_alpaca_news_builtin.py`` for the full example including the backtest runner.
 
 To run the live proof that validates historical relevance, full-content retrieval, and the resulting ``*_agent_detail.parquet`` artifact:
 

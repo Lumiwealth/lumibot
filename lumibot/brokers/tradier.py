@@ -6,6 +6,7 @@ import json
 import time
 import threading
 import datetime
+import inspect
 from typing import Union
 
 import pandas as pd
@@ -888,17 +889,28 @@ class Tradier(Broker):
         per_type_limit = max(int(limit or 100), 1)
         per_page_limit = min(per_type_limit, 1000)
         max_pages = max((per_type_limit - 1) // per_page_limit + 1, 1)
+        get_history = self.tradier.account.get_history
+        try:
+            signature = inspect.signature(get_history)
+            supports_page = "page" in signature.parameters or any(
+                parameter.kind is inspect.Parameter.VAR_KEYWORD
+                for parameter in signature.parameters.values()
+            )
+        except Exception:
+            supports_page = False
 
         event_by_id: dict[str, CashEvent] = {}
         for activity_type in self.CASH_ACTIVITY_TYPES:
             for page in range(1, max_pages + 1):
-                history_df = self.tradier.account.get_history(
-                    start_date=start_date,
-                    end_date=end_date,
-                    limit=per_page_limit,
-                    page=page,
-                    activity_type=activity_type,
-                )
+                kwargs = {
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "limit": per_page_limit if supports_page else per_type_limit,
+                    "activity_type": activity_type,
+                }
+                if supports_page:
+                    kwargs["page"] = page
+                history_df = get_history(**kwargs)
 
                 if history_df is None or history_df.empty:
                     break
@@ -909,6 +921,8 @@ class Tradier(Broker):
                         event_by_id[event.event_id] = event
 
                 if len(history_df.index) < per_page_limit:
+                    break
+                if not supports_page:
                     break
 
         normalized_events = sorted(

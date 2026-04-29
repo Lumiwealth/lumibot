@@ -54,6 +54,11 @@ class AgentRunResult:
     usage: dict[str, Any] | None = None
     payload: dict[str, Any] | None = None
     warnings: list[dict[str, Any]] = field(default_factory=list)
+    started_at: str | None = None
+    first_event_at: str | None = None
+    ended_at: str | None = None
+    latency_ms: int | None = None
+    first_event_latency_ms: int | None = None
 
     @property
     def text(self) -> str:

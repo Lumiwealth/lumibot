@@ -2,7 +2,7 @@
 
 ## 4.5.9 - 2026-04-30
 
-Deploy marker: TBD (`deploy 4.5.9`)
+Deploy marker: b0da6a50 (`deploy 4.5.9`)
 
 ### Fixed
 - **IBKR continuous futures now tolerate IBKR-listed holiday expiration dates for the same contract month.** MNQ June 2026 (`MNQM26`) was computed from the synthetic equity-index anchor as `2026-06-19`, but IBKR lists the contract with `expirationDate/ltd=20260618`; the exact-date miss was then persisted in the negative conid cache and BotSpot backtests saw no MNQ bars. LumiBot now keeps the strict no-front-month-fallback invariant, but when IBKR returns exactly one contract in the requested `YYYYMM`, it resolves that conid, records both the listed date and computed-date alias, clears stale target negative-cache entries, and uses the IBKR-listed date for cont-future history fetches.

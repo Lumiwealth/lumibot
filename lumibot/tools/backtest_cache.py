@@ -10,6 +10,7 @@ from typing import Callable, Dict, Optional
 
 from lumibot.constants import LUMIBOT_CACHE_FOLDER
 from lumibot.credentials import CACHE_REMOTE_CONFIG
+from lumibot.tools.data_source_telemetry import record_data_source_event
 from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
@@ -167,6 +168,13 @@ class BacktestCacheManager:
                         self._stats["local_reuse"] += 1.0
                     with self._downloaded_remote_keys_lock:
                         self._downloaded_remote_keys.add(remote_key)
+                    self._record_telemetry(
+                        action="local_reuse",
+                        local_path=local_path,
+                        remote_key=remote_key,
+                        payload=payload,
+                        result="hit",
+                    )
                     return False
 
             # If we've already observed this remote key missing in S3 during the current process,
@@ -174,6 +182,13 @@ class BacktestCacheManager:
             if not local_path.exists() and not force_download:
                 with self._missing_remote_keys_lock:
                     if remote_key in self._missing_remote_keys:
+                        self._record_telemetry(
+                            action="known_missing_reuse",
+                            local_path=local_path,
+                            remote_key=remote_key,
+                            payload=payload,
+                            result="miss",
+                        )
                         return False
 
             with self._downloaded_remote_keys_lock:
@@ -185,6 +200,13 @@ class BacktestCacheManager:
             if local_path.exists() and already_downloaded and not force_download:
                 with self._stats_lock:
                     self._stats["inprocess_reuse"] += 1.0
+                self._record_telemetry(
+                    action="inprocess_reuse",
+                    local_path=local_path,
+                    remote_key=remote_key,
+                    payload=payload,
+                    result="hit",
+                )
                 return False
 
             if local_path.exists():
@@ -258,6 +280,15 @@ class BacktestCacheManager:
                 self._stats["downloads"] += 1.0
                 self._stats["download_s"] += float(elapsed)
                 self._stats["download_bytes"] += float(downloaded_bytes)
+            self._record_telemetry(
+                action="s3_download",
+                local_path=local_path,
+                remote_key=remote_key,
+                payload=payload,
+                result="hit",
+                elapsed_s=elapsed,
+                bytes=downloaded_bytes,
+            )
             return True
         except Exception as exc:  # pragma: no cover - narrow in helper
             if tmp_path.exists():
@@ -282,7 +313,25 @@ class BacktestCacheManager:
                     pass
                 with self._stats_lock:
                     self._stats["misses"] += 1.0
+                self._record_telemetry(
+                    action="s3_miss",
+                    local_path=local_path,
+                    remote_key=remote_key,
+                    payload=payload,
+                    result="miss",
+                    error_type=type(exc).__name__,
+                    error=self._describe_error(exc),
+                )
                 return False
+            self._record_telemetry(
+                action="s3_error",
+                local_path=local_path,
+                remote_key=remote_key,
+                payload=payload,
+                result="error",
+                error_type=type(exc).__name__,
+                error=self._describe_error(exc),
+            )
             raise
 
     def on_local_update(
@@ -332,6 +381,15 @@ class BacktestCacheManager:
             self._stats["uploads"] += 1.0
             self._stats["upload_s"] += float(elapsed)
             self._stats["upload_bytes"] += float(uploaded_bytes)
+        self._record_telemetry(
+            action="s3_upload",
+            local_path=local_path,
+            remote_key=remote_key,
+            payload=payload,
+            result="uploaded",
+            elapsed_s=elapsed,
+            bytes=uploaded_bytes,
+        )
         return True
 
     def stats_snapshot(self) -> Dict[str, float]:
@@ -467,6 +525,53 @@ class BacktestCacheManager:
             message = error.get("Message")
             return f"{code}: {message}" if code or message else "unknown"
         return str(exc)
+
+    @staticmethod
+    def _record_telemetry(
+        *,
+        action: str,
+        local_path: Path,
+        remote_key: str,
+        payload: Optional[Dict[str, object]],
+        result: str,
+        elapsed_s: Optional[float] = None,
+        bytes: Optional[int] = None,
+        error_type: Optional[str] = None,
+        error: Optional[str] = None,
+    ) -> None:
+        provider = None
+        symbol = None
+        asset_type = None
+        timestep = None
+        source = None
+        exchange = None
+        payload_type = None
+        if isinstance(payload, dict):
+            provider = payload.get("provider")
+            symbol = payload.get("symbol")
+            asset_type = payload.get("asset_type")
+            timestep = payload.get("timestep")
+            source = payload.get("source")
+            exchange = payload.get("exchange")
+            payload_type = payload.get("type")
+        record_data_source_event(
+            category="remote_cache",
+            action=action,
+            provider=provider,
+            symbol=symbol,
+            asset_type=asset_type,
+            timestep=timestep,
+            source=source,
+            exchange=exchange,
+            result=result,
+            elapsed_s=elapsed_s,
+            bytes=bytes,
+            local_path=local_path.as_posix(),
+            remote_key=remote_key,
+            error_type=error_type,
+            error=error,
+            payload_type=payload_type,
+        )
 
 
 _MANAGER_LOCK = threading.Lock()

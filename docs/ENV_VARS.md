@@ -143,6 +143,23 @@ This page documents environment variables used by LumiBot, with an emphasis on *
 - When to use: diagnosing unexpected IBKR roundtrips in warm-cache backtests. Drove the root-cause find that produced the 2026-04-16 MES 3.89x speedup (IBKR returning empty 1-minute CONT_FUTURE history at 7s/chunk on every pass).
 - Where: `lumibot/tools/ibkr_helper.py`
 
+### `LUMIBOT_DATA_SOURCE_TELEMETRY`
+- Purpose: Emit structured backtest telemetry that separates local cache reuse, S3 cache downloads/misses/uploads, IBKR cache-coverage decisions, Data Downloader queue waits, and provider fetch segments.
+- Values: truthy enables (`1`, `true`, `yes`); falsy disables (`0`, `false`, `no`).
+- Default: enabled automatically when `LUMIBOT_CACHE_MISS_DEBUG` is enabled; otherwise disabled.
+- Output:
+  - `*_data_source_telemetry.csv`
+  - `*_data_source_telemetry.parquet`
+  - `settings.json.data_source_telemetry` summary with counts and elapsed seconds by action/provider.
+- When to use: diagnosing whether a slow backtest is waiting on S3 hydration, local cache validation, remote cache misses, Data Downloader queueing, or IBKR/provider history responses.
+- Where: `lumibot/tools/data_source_telemetry.py`, `lumibot/tools/backtest_cache.py`, `lumibot/tools/ibkr_helper.py`, `lumibot/tools/data_downloader_queue_client.py`
+
+### `LUMIBOT_DATA_SOURCE_TELEMETRY_MAX_EVENTS`
+- Purpose: Cap row-level data-source telemetry events so pathological cold runs cannot produce unbounded artifacts.
+- Values: integer number of events.
+- Default: `100000`.
+- Notes: the settings summary reports both recorded and dropped event counts.
+
 ## Remote downloader (ThetaData via shared service) — internal/proprietary
 
 This section describes the internal **Data Downloader** service used by LumiWealth/BotSpot deployments.

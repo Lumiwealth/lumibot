@@ -29,6 +29,8 @@ from urllib.parse import urlparse
 import requests
 from requests import exceptions as requests_exceptions
 
+from lumibot.tools.data_source_telemetry import record_data_source_event
+
 logger = logging.getLogger(__name__)
 
 # Lightweight, non-secret telemetry for backtest audit/debugging.
@@ -1195,6 +1197,7 @@ def queue_request(
         Exception if request permanently failed (moved to DLQ)
     """
     client = get_queue_client()
+    request_started = time.perf_counter()
 
     # Extract path from URL
     from urllib.parse import parse_qsl, urlparse
@@ -1206,15 +1209,43 @@ def queue_request(
     if querystring:
         merged_query_params.update(querystring)
 
-    result, status_code = client.execute_request(
-        method="GET",
-        path=path,
-        query_params=merged_query_params,
-        headers=headers,
-        timeout=timeout,
-    )
+    try:
+        result, status_code = client.execute_request(
+            method="GET",
+            path=path,
+            query_params=merged_query_params,
+            headers=headers,
+            timeout=timeout,
+        )
+    except Exception as exc:
+        record_data_source_event(
+            category="downloader_queue",
+            action="queue_request",
+            provider=_provider_from_path(path),
+            result="error",
+            elapsed_s=time.perf_counter() - request_started,
+            status_code=None,
+            error_type=type(exc).__name__,
+            error=str(exc),
+            path=path,
+            param_keys=sorted(str(k) for k in merged_query_params.keys()),
+            params=_sanitize_query_params(merged_query_params),
+        )
+        raise
 
     # Handle status codes
+    record_data_source_event(
+        category="downloader_queue",
+        action="queue_request",
+        provider=_provider_from_path(path),
+        result="success" if status_code == 200 else ("no_data" if status_code == 472 else "non_200"),
+        elapsed_s=time.perf_counter() - request_started,
+        status_code=status_code,
+        rows=_result_row_count(result),
+        path=path,
+        param_keys=sorted(str(k) for k in merged_query_params.keys()),
+        params=_sanitize_query_params(merged_query_params),
+    )
     if status_code == 472:
         return None  # No data
     elif status_code == 200:
@@ -1222,3 +1253,21 @@ def queue_request(
     else:
         logger.warning("Queue request returned status %d: %s", status_code, result)
         return result
+
+
+def _provider_from_path(path: str) -> str:
+    prefix = str(path or "").strip("/").split("/", 1)[0]
+    return prefix or "downloader"
+
+
+def _result_row_count(result: Any) -> Optional[int]:
+    if result is None:
+        return 0
+    if isinstance(result, list):
+        return len(result)
+    if isinstance(result, dict):
+        data = result.get("data")
+        if isinstance(data, list):
+            return len(data)
+        return len(result)
+    return None

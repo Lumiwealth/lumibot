@@ -174,6 +174,26 @@ LUMIBOT_CACHE_MISS_DEBUG
 - Default: disabled. Zero runtime cost when unset — the check is gated before any logging work.
 - When to use: diagnosing unexpected IBKR roundtrips in warm-cache backtests (e.g., when profiling shows time in ``_fetch_history_between_dates`` that you expected to be cached).
 
+LUMIBOT_DATA_SOURCE_TELEMETRY
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Emit structured backtest telemetry that separates local cache reuse, S3 cache downloads/misses/uploads, IBKR cache-coverage decisions, Data Downloader queue waits, and provider fetch segments.
+- Values: truthy enables (``1``, ``true``, ``yes``); falsy disables (``0``, ``false``, ``no``).
+- Default: enabled automatically when ``LUMIBOT_CACHE_MISS_DEBUG`` is enabled; otherwise disabled.
+- Output:
+  - ``*_data_source_telemetry.csv``
+  - ``*_data_source_telemetry.parquet``
+  - ``settings.json`` summary under ``data_source_telemetry``
+- When to use: diagnosing whether a slow backtest is waiting on S3 hydration, local cache validation, remote cache misses, Data Downloader queueing, or IBKR/provider history responses.
+
+LUMIBOT_DATA_SOURCE_TELEMETRY_MAX_EVENTS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Cap row-level data-source telemetry events so pathological cold runs cannot produce unbounded artifacts.
+- Values: integer number of events.
+- Default: ``100000``.
+- Notes: the settings summary reports both recorded and dropped event counts.
+
 ThetaData option-chain building (performance)
 ---------------------------------------------
 

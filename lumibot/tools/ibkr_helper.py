@@ -14,6 +14,7 @@ import pandas as pd
 from lumibot.constants import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset
 from lumibot.tools.backtest_cache import CacheMode, get_backtest_cache
+from lumibot.tools.data_source_telemetry import record_data_source_event
 from lumibot.tools.ibkr_secdef import (
     IBKR_US_FUTURES_EXCHANGES,
     IbkrFuturesExchangeAmbiguousError,
@@ -740,18 +741,88 @@ def get_price_data(
             and (end_tolerance <= timedelta(0) or (end_local - coverage_end) > end_tolerance)
         )
     )
+    miss_reasons: list[str] = []
+    if coverage_start is None or coverage_end is None:
+        miss_reasons.append("empty_cache")
+    elif window_slice.empty:
+        miss_reasons.append("window_empty")
+    else:
+        if (
+            window_cov_start is not None
+            and start_local < window_cov_start
+            and not window_start_gap_closed
+            and (start_tolerance <= timedelta(0) or (window_cov_start - start_local) > start_tolerance)
+        ):
+            miss_reasons.append("window_start_underfilled")
+        if (
+            window_cov_end is not None
+            and end_local > window_cov_end
+            and not window_end_gap_closed
+            and (end_tolerance <= timedelta(0) or (end_local - window_cov_end) > end_tolerance)
+        ):
+            miss_reasons.append("window_end_underfilled")
+        if (
+            coverage_start is not None
+            and start_local < coverage_start
+            and not cache_start_gap_closed
+            and (start_tolerance <= timedelta(0) or (coverage_start - start_local) > start_tolerance)
+        ):
+            miss_reasons.append("cache_start_underfilled")
+        if (
+            coverage_end is not None
+            and end_local > coverage_end
+            and not cache_end_gap_closed
+            and (end_tolerance <= timedelta(0) or (end_local - coverage_end) > end_tolerance)
+        ):
+            miss_reasons.append("cache_end_underfilled")
     blocked_window = _RUNTIME_HISTORY_NO_DATA_WINDOWS.get(runtime_no_data_key)
+    runtime_no_data_hit = False
     if blocked_window is not None:
         blocked_start, blocked_end = blocked_window
         if start_utc >= blocked_start and end_utc <= blocked_end:
             needs_fetch = False
+            runtime_no_data_hit = True
     # Persisted no-data suppression:
     #
     # `_record_missing_window()` writes placeholder markers to parquet so we can skip repeated
     # no-data fetches across runs (not only within this process). If the requested window is fully
     # bracketed by placeholder markers and contains no real bars, treat it as a cache hit.
+    placeholder_hit = False
     if needs_fetch and _window_is_placeholder_covered(df_cache, start_local=start_local, end_local=end_local):
         needs_fetch = False
+        placeholder_hit = True
+
+    record_data_source_event(
+        category="ibkr_history",
+        action="cache_decision",
+        provider="ibkr",
+        symbol=getattr(asset, "symbol", None),
+        asset_type=asset_type,
+        timestep=timestep,
+        source=history_source,
+        exchange=effective_exchange,
+        cache_result=(
+            "fetch_required"
+            if needs_fetch
+            else ("runtime_no_data_hit" if runtime_no_data_hit else ("placeholder_hit" if placeholder_hit else "cache_hit"))
+        ),
+        result="miss" if needs_fetch else "hit",
+        start_dt=start_utc,
+        end_dt=end_utc,
+        local_path=cache_file.as_posix(),
+        rows=len(window_slice) if window_slice is not None else None,
+        coverage_start=coverage_start,
+        coverage_end=coverage_end,
+        window_cov_start=window_cov_start,
+        window_cov_end=window_cov_end,
+        miss_reasons=miss_reasons,
+        start_tolerance=str(start_tolerance),
+        end_tolerance=str(end_tolerance),
+        window_start_gap_closed=window_start_gap_closed,
+        window_end_gap_closed=window_end_gap_closed,
+        cache_start_gap_closed=cache_start_gap_closed,
+        cache_end_gap_closed=cache_end_gap_closed,
+    )
 
     # Opt-in trace: log why we decided to hit the network, so we can audit measured-pass cache misses.
     if needs_fetch and os.environ.get("LUMIBOT_CACHE_MISS_DEBUG"):
@@ -804,6 +875,7 @@ def get_price_data(
             if seg_start >= seg_end:
                 continue
             prev_max = df_cache.index.max() if not df_cache.empty else None
+            fetch_started = time.perf_counter()
             try:
                 fetched = _fetch_history_between_dates(
                     asset=asset,
@@ -817,6 +889,7 @@ def get_price_data(
                     source_was_explicit=source_was_explicit,
                 )
             except Exception as exc:
+                fetch_elapsed = time.perf_counter() - fetch_started
                 # Avoid crashing the entire backtest on entitlement/session issues. Return an empty
                 # frame so strategies can continue with a loud error in logs.
                 logger.error(
@@ -829,6 +902,26 @@ def get_price_data(
                     exc,
                 )
                 terminal_no_data = _is_terminal_no_data_error(exc)
+                record_data_source_event(
+                    category="ibkr_history",
+                    action="provider_fetch_segment",
+                    provider="ibkr",
+                    symbol=getattr(asset, "symbol", None),
+                    asset_type=asset_type,
+                    timestep=timestep,
+                    source=history_source,
+                    exchange=effective_exchange,
+                    result="terminal_no_data" if terminal_no_data else "error",
+                    start_dt=seg_start,
+                    end_dt=seg_end,
+                    elapsed_s=fetch_elapsed,
+                    rows=0,
+                    local_path=cache_file.as_posix(),
+                    error_type=type(exc).__name__,
+                    error=str(exc),
+                    terminal_no_data=terminal_no_data,
+                    miss_reasons=miss_reasons,
+                )
                 # If IBKR explicitly reports a terminal no-data condition (for example
                 # "Chart data unavailable"), record the missing window so we don't hammer the same
                 # request on every subsequent iteration.
@@ -864,6 +957,24 @@ def get_price_data(
                     # No-data terminal errors are not recoverable by trying more segments in the
                     # same iteration/window.
                     break
+            else:
+                record_data_source_event(
+                    category="ibkr_history",
+                    action="provider_fetch_segment",
+                    provider="ibkr",
+                    symbol=getattr(asset, "symbol", None),
+                    asset_type=asset_type,
+                    timestep=timestep,
+                    source=history_source,
+                    exchange=effective_exchange,
+                    result="success" if fetched is not None and not fetched.empty else "empty",
+                    start_dt=seg_start,
+                    end_dt=seg_end,
+                    elapsed_s=time.perf_counter() - fetch_started,
+                    rows=len(fetched) if fetched is not None else 0,
+                    local_path=cache_file.as_posix(),
+                    miss_reasons=miss_reasons,
+                )
             if fetched is not None and not fetched.empty:
                 merged = _merge_frames(df_cache, fetched)
                 _write_cache_frame(cache_file, merged)
@@ -990,7 +1101,39 @@ def get_price_data(
                 placeholder_covered,
             )
     elif placeholder_covered:
+        record_data_source_event(
+            category="ibkr_history",
+            action="return_frame",
+            provider="ibkr",
+            symbol=getattr(asset, "symbol", None),
+            asset_type=asset_type,
+            timestep=timestep,
+            source=history_source,
+            exchange=effective_exchange,
+            result="placeholder_empty",
+            start_dt=start_utc,
+            end_dt=end_utc,
+            rows=0,
+            local_path=cache_file.as_posix(),
+            placeholder_covered=True,
+        )
         return frame
+    record_data_source_event(
+        category="ibkr_history",
+        action="return_frame",
+        provider="ibkr",
+        symbol=getattr(asset, "symbol", None),
+        asset_type=asset_type,
+        timestep=timestep,
+        source=history_source,
+        exchange=effective_exchange,
+        result="data" if not frame.empty else "empty",
+        start_dt=start_utc,
+        end_dt=end_utc,
+        rows=len(frame),
+        local_path=cache_file.as_posix(),
+        placeholder_covered=placeholder_covered,
+    )
     return frame
 
 

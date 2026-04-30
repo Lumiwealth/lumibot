@@ -4198,6 +4198,19 @@ class Strategy(_Strategy):
             settings["thetadata_queue_telemetry"] = queue_telemetry_snapshot()
         except Exception:
             pass
+        try:
+            from lumibot.tools.data_source_telemetry import (
+                data_source_telemetry_snapshot,
+                write_data_source_telemetry_artifacts,
+            )
+
+            settings["data_source_telemetry"] = data_source_telemetry_snapshot()
+            settings["data_source_telemetry_artifact"] = write_data_source_telemetry_artifacts(settings_file)
+        except Exception as exc:
+            try:
+                self.logger.warning("Failed to write data source telemetry artifact: %s", exc)
+            except Exception:
+                pass
         os.makedirs(os.path.dirname(settings_file), exist_ok=True)
         with open(settings_file, "w") as outfile:
             json = jsonpickle.encode(settings)

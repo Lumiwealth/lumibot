@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.5.10 - Unreleased
+
 ## 4.5.9 - 2026-04-30
 
 Deploy marker: b0da6a50 (`deploy 4.5.9`)

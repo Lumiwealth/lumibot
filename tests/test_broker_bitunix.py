@@ -38,6 +38,55 @@ class TestBitunixBroker(unittest.TestCase):
         with self.assertRaises(ValueError):
             Bitunix({"TRADING_MODE": "FUTURES"})
 
+    def test_client_cancel_order_accepts_broker_keyword_shape(self):
+        client = BitUnixClient(api_key="test_api_key", secret_key="test_api_secret")
+        client._request = MagicMock(return_value={"code": 0})
+
+        response = client.cancel_order(order_id="2048802184602955776", symbol="BTCUSDT")
+
+        self.assertEqual(response, {"code": 0})
+        client._request.assert_called_once_with(
+            method="POST",
+            endpoint="/api/v1/futures/trade/cancel_orders",
+            json_body={"symbol": "BTCUSDT", "orderList": ["2048802184602955776"]},
+        )
+
+    def test_client_cancel_order_accepts_order_object(self):
+        client = BitUnixClient(api_key="test_api_key", secret_key="test_api_secret")
+        client._request = MagicMock(return_value={"code": 0})
+        order = SimpleNamespace(identifier="abc123", symbol="ETHUSDT")
+
+        response = client.cancel_order(order)
+
+        self.assertEqual(response, {"code": 0})
+        client._request.assert_called_once_with(
+            method="POST",
+            endpoint="/api/v1/futures/trade/cancel_orders",
+            json_body={"symbol": "ETHUSDT", "orderList": ["abc123"]},
+        )
+
+    @patch("lumibot.brokers.bitunix.BitUnixClient")
+    @patch("lumibot.brokers.bitunix.BitunixData")
+    def test_broker_cancel_order_passes_symbol_with_identifier(self, MockBitunixData, MockBitUnixClientInstance):
+        MockBitUnixClientInstance.return_value = self.mock_bitunix_client
+        self.mock_bitunix_client.cancel_order.return_value = {"code": 0}
+        mock_data_source = MockBitunixData.return_value
+        mock_data_source.client_symbols = set()
+
+        broker = Bitunix(self.config)
+        broker._process_trade_event = MagicMock()
+        asset = Asset("BTCUSDT", Asset.AssetType.CRYPTO_FUTURE)
+        order = Order("test_strategy", asset, Decimal("0.1"))
+        order.identifier = "2048802184602955776"
+
+        broker.cancel_order(order)
+
+        self.mock_bitunix_client.cancel_order.assert_called_once_with(
+            order_id="2048802184602955776",
+            symbol="BTCUSDT",
+        )
+        broker._process_trade_event.assert_called_once_with(order, broker.CANCELED_ORDER)
+
     @patch("lumibot.brokers.bitunix.BitUnixClient")
     @patch("lumibot.brokers.bitunix.BitunixData")
     def test_pull_positions_success(self, MockBitunixData, MockBitUnixClientInstance):

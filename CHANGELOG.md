@@ -1,6 +1,9 @@
 # Changelog
 
-## 4.5.10 - Unreleased
+## 4.5.10 - 2026-04-30
+
+### Fixed
+- **Bitunix futures order cancellation now sends the exchange-required symbol with the order id.** `Bitunix.cancel_order()` now passes both `order_id` and `symbol` into the Bitunix REST client, and `BitUnixClient.cancel_order()` accepts either the broker's keyword shape or a Lumibot order object. This fixes cancellation failures caused by the client method expecting an order object while the broker passed only an identifier.
 
 ## 4.5.9 - 2026-04-30
 

@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.5.11 - Unreleased
+
 ## 4.5.10 - 2026-04-30
 
 Deploy marker: 9e73736f (`deploy 4.5.10`)

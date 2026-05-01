@@ -384,7 +384,10 @@ class Bitunix(Broker):
 
         try:
             # Retry up to 5 times on network error
-            response = self.api.cancel_order(order_id=order.identifier)
+            symbol = getattr(order, "symbol", None)
+            if not symbol and getattr(order, "asset", None) is not None:
+                symbol = getattr(order.asset, "symbol", None)
+            response = self.api.cancel_order(order_id=order.identifier, symbol=symbol)
 
             # Check response
             if response and response.get("code") == 0:

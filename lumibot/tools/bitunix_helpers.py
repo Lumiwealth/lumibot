@@ -194,14 +194,32 @@ class BitUnixClient:
             json_body=body,
         )
 
-    def cancel_order(self, order) -> Dict[str, Any]:
+    def cancel_order(
+        self,
+        order=None,
+        *,
+        order_id: Optional[str] = None,
+        symbol: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         Cancel a single FUTURES order.
         """
+        if order is not None:
+            order_id = order_id or getattr(order, "identifier", None) or getattr(order, "id", None)
+            symbol = symbol or getattr(order, "symbol", None)
+            asset = getattr(order, "asset", None)
+            if symbol is None and asset is not None:
+                symbol = getattr(asset, "symbol", None)
+
+        if not order_id:
+            raise ValueError("BitUnixClient.cancel_order requires an order identifier")
+        if not symbol:
+            raise ValueError("BitUnixClient.cancel_order requires a symbol")
+
         return self._request(
             method="POST",
             endpoint="/api/v1/futures/trade/cancel_orders",
-            json_body={"symbol": order.symbol, "orderList": [order.identifier]},
+            json_body={"symbol": symbol, "orderList": [str(order_id)]},
         )
 
     def adjust_position_margin(

@@ -1,29 +1,101 @@
+from __future__ import annotations
+
 # This file contains helper functions for getting data from Polygon.io
 import os
 import time
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta, timezone
+from importlib import import_module
 from pathlib import Path
-from typing import Iterator, List, Optional
+from typing import TYPE_CHECKING, Iterator, List, Optional
 from urllib.parse import urlparse, urlunparse
 
-import pandas as pd
-import pandas_market_calendars as mcal
-from polygon.exceptions import BadResponse
-
-# noinspection PyPackageRequirements
-from polygon.rest import RESTClient
-from termcolor import colored
-from tqdm import tqdm
-from urllib3.exceptions import MaxRetryError
-
-from lumibot.constants import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
-from lumibot.credentials import POLYGON_API_KEY
+from lumibot import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
-from lumibot.tools.lumibot_logger import get_logger
 
-logger = get_logger(__name__)
+if TYPE_CHECKING:
+    from polygon.rest import RESTClient
+
+_POLYGON_CLIENT_CLASSES = {}
+_COLORED_FN = None
+_DEFAULT_PYTZ = None
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+_TQDM_FUNC = None
+
+
+class _LazyLogger:
+    __slots__ = ("_logger",)
+
+    def __init__(self):
+        object.__setattr__(self, "_logger", None)
+
+    def _load(self):
+        logger = object.__getattribute__(self, "_logger")
+        if logger is None:
+            from lumibot.tools.lumibot_logger import get_logger
+
+            logger = get_logger(__name__)
+            object.__setattr__(self, "_logger", logger)
+        return logger
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+logger = _LazyLogger()
+
+
+def colored(*args, **kwargs):
+    global _COLORED_FN
+    if _COLORED_FN is None:
+        from termcolor import colored as _colored
+
+        _COLORED_FN = _colored
+    return _COLORED_FN(*args, **kwargs)
+
+
+def _default_pytz():
+    global _DEFAULT_PYTZ
+    if _DEFAULT_PYTZ is None:
+        from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
+
+        _DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ
+    return _DEFAULT_PYTZ
+
+
+def _polygon_api_key():
+    from lumibot.credentials import POLYGON_API_KEY
+
+    return POLYGON_API_KEY
+
+
+def tqdm(*args, **kwargs):
+    global _TQDM_FUNC
+    if _TQDM_FUNC is None:
+        from tqdm import tqdm as _real_tqdm
+
+        _TQDM_FUNC = _real_tqdm
+    return _TQDM_FUNC(*args, **kwargs)
 
 # Adjust as desired, in days. We'll reuse any existing chain file
 # that is not older than RECENT_FILE_TOLERANCE_DAYS.
@@ -35,6 +107,16 @@ MAX_POLYGON_DAYS = 30
 # Define a cache dictionary to store schedules and a global dictionary for buffered schedules
 schedule_cache = {}
 buffered_schedules = {}
+_PANDAS_MARKET_CALENDARS = None
+
+
+def _get_market_calendars():
+    global _PANDAS_MARKET_CALENDARS
+    if _PANDAS_MARKET_CALENDARS is None:
+        import pandas_market_calendars as mcal
+
+        _PANDAS_MARKET_CALENDARS = mcal
+    return _PANDAS_MARKET_CALENDARS
 
 
 def get_cached_schedule(cal, start_date, end_date, buffer_days=30):
@@ -213,6 +295,8 @@ def get_price_data_from_polygon(
             limit=50000,
         )
 
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_range = {executor.submit(fetch_chunk, cstart, cend): (cstart, cend)
                            for (cstart, cend) in chunks}
@@ -373,11 +457,13 @@ def get_trading_dates(asset: Asset, start: datetime, end: datetime):
         or asset.asset_type == Asset.AssetType.STOCK
         or asset.asset_type == Asset.AssetType.OPTION
     ):
+        mcal = _get_market_calendars()
         cal = mcal.get_calendar("NYSE")
 
     # Forex Asset for Backtesting - Forex trades weekdays, 24hrs starting Sunday 5pm EST
     # Calendar: "CME_FX"
     elif asset.asset_type == Asset.AssetType.FOREX:
+        mcal = _get_market_calendars()
         cal = mcal.get_calendar("CME_FX")
 
     else:
@@ -633,7 +719,7 @@ def update_cache(
         if d not in cached_dates:
             # Create a datetime at the start of the day using the default timezone,
             # then convert to UTC.
-            dt = datetime(year=d.year, month=d.month, day=d.day, tzinfo=LUMIBOT_DEFAULT_PYTZ)
+            dt = datetime(year=d.year, month=d.month, day=d.day, tzinfo=_default_pytz())
             dt_utc = dt.astimezone(timezone.utc)
             dummy_rows.append((dt_utc, {"missing": True}))
     # If any dummy rows were created, add them to the DataFrame.
@@ -871,10 +957,29 @@ def get_chains_cached(
     return option_contracts
 
 
-class PolygonClient(RESTClient):
+def _polygon_client_class(facade_cls):
+    client_class = _POLYGON_CLIENT_CLASSES.get(facade_cls)
+    if client_class is not None:
+        return client_class
+
+    from polygon.rest import RESTClient
+
+    client_class = type(
+        "_RateLimitedPolygonClient",
+        (facade_cls, RESTClient),
+        {"__module__": __name__},
+    )
+    _POLYGON_CLIENT_CLASSES[facade_cls] = client_class
+    return client_class
+
+
+class PolygonClient:
     ''' Rate Limited RESTClient with factory method '''
 
     WAIT_SECONDS_RETRY = 60
+
+    def __new__(cls, *args, **kwargs):
+        return object.__new__(_polygon_client_class(cls))
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -916,7 +1021,7 @@ class PolygonClient(RESTClient):
 
         """
         if 'api_key' not in kwargs or kwargs.get('api_key') is None:
-            kwargs['api_key'] = POLYGON_API_KEY
+            kwargs['api_key'] = _polygon_api_key()
 
         return cls(*args, **kwargs)
 
@@ -925,6 +1030,9 @@ class PolygonClient(RESTClient):
         Override to handle rate-limits by sleeping 60s, but *throttle*
         the log message so it isn't repeated too frequently.
         """
+        from polygon.exceptions import BadResponse
+        from urllib3.exceptions import MaxRetryError
+
         max_attempts = int(os.environ.get("POLYGON_MAX_RETRY_ATTEMPTS", "0") or "0")
         max_total_sleep = int(os.environ.get("POLYGON_MAX_RETRY_SLEEP_SECONDS", "0") or "0")
         wait_seconds = int(os.environ.get("POLYGON_WAIT_SECONDS_RETRY", str(PolygonClient.WAIT_SECONDS_RETRY)) or "0")

@@ -273,6 +273,14 @@ class TestOrderBasics:
         assert position.available == 0
         assert position.avg_fill_price == order.avg_fill_price
 
+    def test_add_transaction_fast_matches_transaction_field_order(self):
+        order = Order(strategy='abc', asset=Asset("SPY"), side="buy", quantity=100)
+
+        order.add_transaction_fast(price=101.25, quantity=2)
+
+        assert order.transactions[-1].price == 101.25
+        assert order.transactions[-1].quantity == 2
+
 
 class TestOrderAdvanced:
     def test_oco_type_reassigned(self):

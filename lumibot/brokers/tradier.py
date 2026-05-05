@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import re
 import traceback
@@ -8,23 +10,121 @@ import threading
 import datetime
 import inspect
 from collections import Counter
-from typing import Union
-
-import pandas as pd
-import requests
-from lumiwealth_tradier import Tradier as _Tradier
-from lumiwealth_tradier.base import TradierApiError
-from lumiwealth_tradier.orders import OrderLeg
-from termcolor import colored
+from importlib import import_module
+from typing import TYPE_CHECKING, Union
 
 from .broker import Broker, LumibotBrokerAPIError
-from lumibot.data_sources.tradier_data import TradierData
-from lumibot.entities import Asset, CashEvent, Order, Position
-from lumibot.tools.helpers import create_options_symbol
+from lumibot.entities import Asset, Order
 from lumibot.tools.lumibot_logger import get_logger
-from lumibot.trading_builtins import PollingStream
+
+if TYPE_CHECKING:
+    from lumibot.entities import CashEvent
 
 logger = get_logger(__name__)
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+    def __setattr__(self, name, value):
+        if name in {"_module_name", "_module"}:
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self._load(), name, value)
+
+    def __delattr__(self, name):
+        if name in {"_module_name", "_module"}:
+            object.__delattr__(self, name)
+        else:
+            delattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+requests = _LazyModule("requests")
+_TRADIER_CLASS = None
+_TRADIER_API_ERROR_CLASS = None
+_ORDER_LEG_CLASS = None
+_TRADIER_DATA_CLASS = None
+_CREATE_OPTIONS_SYMBOL = None
+_CASH_EVENT_CLASS = None
+_COLORED_FN = None
+
+
+def colored(*args, **kwargs):
+    global _COLORED_FN
+    if _COLORED_FN is None:
+        from termcolor import colored as _termcolor_colored
+
+        _COLORED_FN = _termcolor_colored
+    return _COLORED_FN(*args, **kwargs)
+
+
+def _cash_event_class():
+    global _CASH_EVENT_CLASS
+    if _CASH_EVENT_CLASS is None:
+        from lumibot.entities import CashEvent
+
+        _CASH_EVENT_CLASS = CashEvent
+    return _CASH_EVENT_CLASS
+
+
+def _tradier_class():
+    global _TRADIER_CLASS
+    if _TRADIER_CLASS is None:
+        from lumiwealth_tradier import Tradier
+
+        _TRADIER_CLASS = Tradier
+    return _TRADIER_CLASS
+
+
+def _tradier_api_error_class():
+    global _TRADIER_API_ERROR_CLASS
+    if _TRADIER_API_ERROR_CLASS is None:
+        from lumiwealth_tradier.base import TradierApiError
+
+        _TRADIER_API_ERROR_CLASS = TradierApiError
+    return _TRADIER_API_ERROR_CLASS
+
+
+def _order_leg_class():
+    global _ORDER_LEG_CLASS
+    if _ORDER_LEG_CLASS is None:
+        from lumiwealth_tradier.orders import OrderLeg
+
+        _ORDER_LEG_CLASS = OrderLeg
+    return _ORDER_LEG_CLASS
+
+
+def _tradier_data_class():
+    global _TRADIER_DATA_CLASS
+    if _TRADIER_DATA_CLASS is None:
+        from lumibot.data_sources.tradier_data import TradierData
+
+        _TRADIER_DATA_CLASS = TradierData
+    return _TRADIER_DATA_CLASS
+
+
+def _create_options_symbol(*args, **kwargs):
+    global _CREATE_OPTIONS_SYMBOL
+    if _CREATE_OPTIONS_SYMBOL is None:
+        from lumibot.tools.helpers import create_options_symbol
+
+        _CREATE_OPTIONS_SYMBOL = create_options_symbol
+    return _CREATE_OPTIONS_SYMBOL(*args, **kwargs)
 
 
 class Tradier(Broker):
@@ -39,7 +139,7 @@ class Tradier(Broker):
     ***Note: Tradier does not support Trailing StopLoss orders.
     """
 
-    POLL_EVENT = PollingStream.POLL_EVENT
+    POLL_EVENT = "poll"
     CASH_ACTIVITY_TYPES = (
         "ach",
         "wire",
@@ -216,7 +316,7 @@ class Tradier(Broker):
                 self._refresh_oauth_token(force=False)
                 try:
                     return orig_request(*args, **kwargs)
-                except TradierApiError as e:
+                except _tradier_api_error_class() as e:
                     # Retry once on auth errors after forcing a refresh.
                     if self._is_auth_error(e) and self._refresh_oauth_token(force=True):
                         return orig_request(*args, **kwargs)
@@ -336,11 +436,11 @@ class Tradier(Broker):
         self._refresh_oauth_token(force=False)
 
         # Create the Tradier object
-        self.tradier = _Tradier(account_number, self._tradier_access_token, paper)
+        self.tradier = _tradier_class()(account_number, self._tradier_access_token, paper)
 
         # Check if the user has provided a data source, if not, create one
         if data_source is None:
-            data_source = TradierData(
+            data_source = _tradier_data_class()(
                 account_number=account_number,
                 access_token=self._tradier_access_token,
                 paper=paper,
@@ -422,7 +522,7 @@ class Tradier(Broker):
                 limit_price=limit_price,
                 stop_price=stop_price,
             )
-        except TradierApiError as e:
+        except _tradier_api_error_class() as e:
             raise LumibotBrokerAPIError(f"Unable to modify order at broker. {e}") from e
 
     def _submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None):
@@ -525,12 +625,12 @@ class Tradier(Broker):
         legs = []
         for order in orders:
             # Create the options symbol
-            option_symbol = create_options_symbol(
+            option_symbol = _create_options_symbol(
                 order.asset.symbol, order.asset.expiration, order.asset.right, order.asset.strike
             )
 
             # Example leg: leg1 = OrderLeg(option_symbol=option_symbol_1, quantity=1, side='buy_to_open')
-            leg = OrderLeg(
+            leg = _order_leg_class()(
                 option_symbol=option_symbol,
                 quantity=int(order.quantity), # Quantity for Tradier must be a positive integer
                 side=self._lumi_side2tradier(order),
@@ -602,14 +702,14 @@ class Tradier(Broker):
                 legs = []
                 if order.order_class != Order.OrderClass.OCO:
                     # Create the stock/options symbol
-                    parent_option_symbol = create_options_symbol(
+                    parent_option_symbol = _create_options_symbol(
                         order.asset.symbol, order.asset.expiration, order.asset.right, order.asset.strike
                     ) if order.asset.asset_type == Asset.AssetType.OPTION else None
                     parent_stock_symbol = self._normalize_symbol_for_broker(order.asset.symbol, asset_type=order.asset.asset_type) \
                         if order.asset.asset_type != Asset.AssetType.OPTION else None
 
                     # Add the parent order to the legs list
-                    legs.append(OrderLeg(
+                    legs.append(_order_leg_class()(
                         stock_symbol=parent_stock_symbol,  # None if option order
                         option_symbol=parent_option_symbol,  # None if stock order
                         quantity=int(order.quantity),
@@ -630,14 +730,14 @@ class Tradier(Broker):
                         if child_order.order_type != Order.OrderType.STOP_LIMIT else child_order.stop_limit_price
 
                     # Create the stock/options symbol
-                    child_option_symbol = create_options_symbol(
+                    child_option_symbol = _create_options_symbol(
                         order.asset.symbol, order.asset.expiration, order.asset.right, order.asset.strike
                     ) if child_order.asset.asset_type == Asset.AssetType.OPTION else None
                     child_stock_symbol = self._normalize_symbol_for_broker(order.asset.symbol, asset_type=order.asset.asset_type) \
                         if child_order.asset.asset_type != Asset.AssetType.OPTION else None
 
                     # Create the leg
-                    leg = OrderLeg(
+                    leg = _order_leg_class()(
                         stock_symbol=child_stock_symbol,  # None if option order
                         option_symbol=child_option_symbol,  # None if stock order
                         quantity=int(child_order.quantity),
@@ -658,7 +758,7 @@ class Tradier(Broker):
                         legs=legs,
                         tag=tag,
                     )
-                except TradierApiError as e:
+                except _tradier_api_error_class() as e:
                     msg = colored(f"Error submitting order {order}: {e}", color="red")
                     self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
                     return None
@@ -681,7 +781,7 @@ class Tradier(Broker):
             elif order.asset is not None and order.asset.asset_type == Asset.AssetType.OPTION:
                 tradier_side = self._lumi_side2tradier(order)
                 stock_symbol = self._normalize_symbol_for_broker(order.asset.symbol, asset_type=order.asset.asset_type)
-                option_symbol = create_options_symbol(
+                option_symbol = _create_options_symbol(
                     order.asset.symbol, order.asset.expiration, order.asset.right, order.asset.strike
                 )
 
@@ -711,7 +811,7 @@ class Tradier(Broker):
             self._unprocessed_orders.append(order)
             self._safe_stream_dispatch(self.NEW_ORDER, order=order)
 
-        except TradierApiError as e:
+        except _tradier_api_error_class() as e:
             msg = colored(f"Error submitting order {order}: {e}", color="red")
             self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
 
@@ -720,7 +820,7 @@ class Tradier(Broker):
     def _get_balances_at_broker(self, quote_asset: Asset, strategy):
         try:
             df = self.tradier.account.get_account_balance()
-        except TradierApiError as e:
+        except _tradier_api_error_class() as e:
             # Check if the error is a 401 or 403, if so, the access token is invalid
             error = str(e)
             if "401" in error or "403" in error:
@@ -761,6 +861,8 @@ class Tradier(Broker):
 
     @staticmethod
     def _extract_history_amount(row: dict) -> float:
+        CashEvent = _cash_event_class()
+
         for key in ("amount", "net_amount", "total", "cash", "value"):
             if key in row and row.get(key) not in (None, ""):
                 return CashEvent.coerce_amount(row.get(key))
@@ -833,6 +935,8 @@ class Tradier(Broker):
 
     @classmethod
     def _normalize_history_row_to_cash_event(cls, row: dict) -> CashEvent | None:
+        CashEvent = _cash_event_class()
+
         if not isinstance(row, dict):
             return None
 
@@ -977,6 +1081,8 @@ class Tradier(Broker):
         since: datetime.datetime | None = None,
         limit: int | None = 100,
     ) -> list[CashEvent]:
+        CashEvent = _cash_event_class()
+
         start_date = CashEvent.coerce_datetime(since).date() if since is not None else None
         end_date = datetime.datetime.now(datetime.timezone.utc).date()
         per_type_limit = max(int(limit or 100), 1)
@@ -1044,7 +1150,7 @@ class Tradier(Broker):
     def _pull_positions(self, strategy):
         try:
             positions_df = self.tradier.account.get_positions()
-        except TradierApiError as e:
+        except _tradier_api_error_class() as e:
             # Check if the error is a 401 or 403, if so, the access token is invalid
             error = str(e)
             if "401" in error or "403" in error:
@@ -1079,6 +1185,8 @@ class Tradier(Broker):
             asset = Asset.symbol2asset(symbol)  # Parse the symbol. Handles 'stock' and 'option' types
 
             # Create the position
+            from lumibot.entities import Position
+
             position = Position(
                 strategy=strategy_name,
                 asset=asset,
@@ -1562,6 +1670,8 @@ class Tradier(Broker):
 
     def _get_stream_object(self):
         """get the broker stream connection"""
+        from lumibot.trading_builtins import PollingStream
+
         stream = PollingStream(self.polling_interval)
         return stream
 
@@ -1664,7 +1774,7 @@ class Tradier(Broker):
         # Try to run the stream
         try:
             self.stream._run()
-        except TradierApiError as e:
+        except _tradier_api_error_class() as e:
             # Check if the error is a 401 or 403, if so, the access token is invalid
             error = str(e)
             if "401" in error or "403" in error:

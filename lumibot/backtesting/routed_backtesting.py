@@ -5,21 +5,65 @@ import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from importlib import import_module
 from typing import Any, Dict, Optional
-
-import pandas as pd
 
 from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestingPandas
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
-from lumibot.credentials import ALPACA_CONFIG, COINBASE_CONFIG, KRAKEN_CONFIG, POLYGON_API_KEY
-from lumibot.entities import Asset, Data
-from lumibot.tools import ibkr_helper
-from lumibot.tools import polygon_helper
+from lumibot.entities import Asset
 from lumibot.tools.helpers import parse_timestep_qty_and_unit
 
 logger = logging.getLogger(__name__)
 
 _DEFAULT_QUOTE_ASSET = Asset("USD", "forex")
+_DATA_CLASS = None
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+    def __setattr__(self, name, value):
+        setattr(self._load(), name, value)
+
+    def __delattr__(self, name):
+        if name in {"_module_name", "_module"}:
+            object.__delattr__(self, name)
+        else:
+            delattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+ibkr_helper = _LazyModule("lumibot.tools.ibkr_helper")
+polygon_helper = _LazyModule("lumibot.tools.polygon_helper")
+
+
+def _credential(name: str):
+    import lumibot.credentials as credentials
+
+    return getattr(credentials, name)
+
+
+def _data_class():
+    global _DATA_CLASS
+    if _DATA_CLASS is None:
+        from lumibot.entities import Data
+
+        _DATA_CLASS = Data
+    return _DATA_CLASS
 
 
 class RoutingProviderError(ValueError):
@@ -82,9 +126,9 @@ def _infer_default_ccxt_exchange_id() -> str:
         if resolved:
             return resolved
 
-    if (COINBASE_CONFIG.get("apiKey") or "").strip():
+    if (_credential("COINBASE_CONFIG").get("apiKey") or "").strip():
         return "coinbase"
-    if (KRAKEN_CONFIG.get("apiKey") or "").strip():
+    if (_credential("KRAKEN_CONFIG").get("apiKey") or "").strip():
         return "kraken"
     return "binance"
 
@@ -280,7 +324,7 @@ class _DataFrameRoutingAdapter(_RoutingAdapter):
         else:
             merged = df
 
-        data = Data(asset, merged, timestep=ts_unit, quote=quote_asset)
+        data = _data_class()(asset, merged, timestep=ts_unit, quote=quote_asset)
         self._router._data_store[canonical_key] = data
         if legacy_key not in self._router._data_store:
             self._router._data_store[legacy_key] = data
@@ -575,7 +619,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         # a separate key (e.g., "60minute") and annotate the instance so `Data.get_bars()` can
         # slice directly without resampling each iteration.
         data_timestep = unit if unit in {"minute", "hour", "day"} else "minute"
-        data = Data(asset, merged, timestep=data_timestep, quote=quote_asset)
+        data = _data_class()(asset, merged, timestep=data_timestep, quote=quote_asset)
         data._native_timestep_quantity = int(qty)  # type: ignore[attr-defined]
         data._native_timestep_unit = unit  # type: ignore[attr-defined]
         try:
@@ -720,7 +764,7 @@ class _PolygonRoutingAdapter(_DataFrameRoutingAdapter):
         require_quote_data: bool,
         require_ohlc_data: bool,
     ) -> pd.DataFrame | None:
-        polygon_key = (os.environ.get("POLYGON_API_KEY") or POLYGON_API_KEY or "").strip()
+        polygon_key = (os.environ.get("POLYGON_API_KEY") or _credential("POLYGON_API_KEY") or "").strip()
         if not polygon_key:
             raise RoutingProviderError("Routing selected Polygon but POLYGON_API_KEY is not configured.")
 
@@ -797,9 +841,10 @@ class _AlpacaRoutingAdapter(_DataFrameRoutingAdapter):
         require_ohlc_data: bool,
     ) -> pd.DataFrame | None:
         if self._source is None:
+            alpaca_config = _credential("ALPACA_CONFIG")
             if not (
-                ALPACA_CONFIG.get("OAUTH_TOKEN")
-                or (ALPACA_CONFIG.get("API_KEY") and ALPACA_CONFIG.get("API_SECRET"))
+                alpaca_config.get("OAUTH_TOKEN")
+                or (alpaca_config.get("API_KEY") and alpaca_config.get("API_SECRET"))
             ):
                 raise RoutingProviderError(
                     "Routing selected Alpaca but Alpaca credentials are not configured. "
@@ -810,7 +855,7 @@ class _AlpacaRoutingAdapter(_DataFrameRoutingAdapter):
             self._source = AlpacaBacktesting(
                 datetime_start=self._router.datetime_start,
                 datetime_end=self._router.datetime_end,
-                config=ALPACA_CONFIG,
+                config=alpaca_config,
                 show_progress_bar=False,
             )
 

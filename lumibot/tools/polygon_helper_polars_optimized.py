@@ -1,23 +1,38 @@
 # This file contains helper functions for getting data from Polygon.io optimized with Polars
+from __future__ import annotations
+
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Iterator, List, Optional
-
-import pandas_market_calendars as mcal
-import polars as pl
-
-# noinspection PyPackageRequirements
-from termcolor import colored
-from tqdm import tqdm
+from typing import TYPE_CHECKING, Iterator, List, Optional
 
 from lumibot.constants import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
 from lumibot.tools.lumibot_logger import get_logger
 
+if TYPE_CHECKING:
+    from lumibot.tools.polygon_helper import PolygonClient
+
 logger = get_logger(__name__)
+
+
+class _LazyPolars:
+    _module = None
+
+    def _load(self):
+        if self._module is None:
+            import polars as pl
+
+            self._module = pl
+        return self._module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pl = _LazyPolars()
 
 # Adjust as desired, in days. We'll reuse any existing chain file
 # that is not older than RECENT_FILE_TOLERANCE_DAYS.
@@ -33,6 +48,16 @@ MAX_CONCURRENT_REQUESTS = 20
 # Define a cache dictionary to store schedules and a global dictionary for buffered schedules
 schedule_cache = {}
 buffered_schedules = {}
+_PANDAS_MARKET_CALENDARS = None
+
+
+def _get_market_calendars():
+    global _PANDAS_MARKET_CALENDARS
+    if _PANDAS_MARKET_CALENDARS is None:
+        import pandas_market_calendars as mcal
+
+        _PANDAS_MARKET_CALENDARS = mcal
+    return _PANDAS_MARKET_CALENDARS
 
 
 def get_cached_schedule(cal, start_date, end_date, buffer_days=30):
@@ -169,6 +194,8 @@ def get_price_data_from_polygon_polars(
         s_date = e_date + timedelta(days=1)
 
     # Download data in parallel with optimized batch processing
+    from tqdm import tqdm
+
     pbar = tqdm(total=total_queries,
             desc=f"Downloading and caching {asset} / {quote_asset.symbol if quote_asset else ''} '{timespan}'",
             dynamic_ncols=True)
@@ -322,11 +349,13 @@ def get_trading_dates(asset: Asset, start: datetime, end: datetime):
         or asset.asset_type == Asset.AssetType.STOCK
         or asset.asset_type == Asset.AssetType.OPTION
     ):
+        mcal = _get_market_calendars()
         cal = mcal.get_calendar("NYSE")
 
     # Forex Asset for Backtesting - Forex trades weekdays, 24hrs starting Sunday 5pm EST
     # Calendar: "CME_FX"
     elif asset.asset_type == Asset.AssetType.FOREX:
+        mcal = _get_market_calendars()
         cal = mcal.get_calendar("CME_FX")
 
     else:
@@ -395,6 +424,8 @@ def get_polygon_symbol(asset, polygon_client, quote_asset=None):
         )
 
         if len(contracts) == 0:
+            from termcolor import colored
+
             text = colored(f"Unable to find option contract for {asset}", "red")
             logger.debug(text)
             return

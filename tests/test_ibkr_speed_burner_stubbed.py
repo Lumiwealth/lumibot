@@ -183,6 +183,24 @@ def test_ibkr_speed_burner_prefetches_once_and_slices_forever(monkeypatch):
     assert len(bars_15m.df) == 10
     assert (bars_15m.df.index[1] - bars_15m.df.index[0]) == pd.Timedelta(minutes=15)
 
+    # Prime the strategy-native cache, then prove repeated reads do not need the data-source
+    # fallback path after the Data object is cached on the strategy.
+    assert futures.get_last_price(fut_mes) == pytest.approx(6400.0 + 199 * 0.01)
+    bars_1m_first = futures.get_historical_prices(fut_mes, length=100, timestep="minute")
+    bars_1m_second = futures.get_historical_prices(fut_mes, length=100, timestep="minute")
+    assert len(bars_1m_first.df) == 100
+    assert len(bars_1m_second.df) == 100
+
+    original_get_historical_prices = futures_broker.data_source.get_historical_prices
+
+    def fail_get_historical_prices(*args, **kwargs):
+        raise AssertionError("strategy-native IBKR historical cache was bypassed")
+
+    monkeypatch.setattr(futures_broker.data_source, "get_historical_prices", fail_get_historical_prices)
+    bars_1m_cached = futures.get_historical_prices(fut_mes, length=100, timestep="minute")
+    assert len(bars_1m_cached.df) == 100
+    monkeypatch.setattr(futures_broker.data_source, "get_historical_prices", original_get_historical_prices)
+
     # Run a few hundred iterations of each loop. This is a correctness/speed-structure test:
     # it should not refetch the same series per iteration.
     iterations = 200
@@ -299,6 +317,12 @@ def test_ibkr_speed_burner_prefetches_once_and_slices_forever(monkeypatch):
     crypto_fills = trade_events_crypto[trade_events_crypto["status"] == "fill"].reset_index(drop=True)
     assert len(crypto_fills) == orders_total_crypto
     assert list(crypto_fills.iloc[:3]["symbol"]) == ["BTC", "ETH", "SOL"]
+    assert len(getattr(crypto_broker, "_filled_order_identifiers", ())) == 0
+    for order in crypto_broker._filled_orders.get_list()[:6]:
+        assert not hasattr(order, "_fast_trade_event_pair_row")
+        assert not hasattr(order, "_fast_trade_event_pair_row_index")
+        assert not hasattr(order, "_fast_trade_event_static")
+    assert isinstance(crypto_broker._trade_event_log_rows[0], tuple)
 
     # Crypto: first iteration (dt=minute_index[200]).
     _assert_fill(

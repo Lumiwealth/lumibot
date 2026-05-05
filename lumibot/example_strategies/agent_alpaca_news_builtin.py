@@ -26,7 +26,6 @@ Usage:
 
 import os
 
-from lumibot.components.agents import BuiltinTools
 from lumibot.strategies.strategy import Strategy
 
 
@@ -35,6 +34,8 @@ IS_BACKTESTING = True
 
 class AlpacaNewsBuiltinStrategy(Strategy):
     def initialize(self):
+        from lumibot.components.agents import BuiltinTools
+
         self.sleeptime = "1D"
         self.vars.iteration_count = 0
         model_id = os.environ.get("AGENT_MODEL", "gemini-3.1-flash-lite-preview")

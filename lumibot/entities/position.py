@@ -106,6 +106,30 @@ class Position:
                     )
             self.orders = orders
 
+    @classmethod
+    def simple_backtest(cls, strategy, asset, quantity, order, avg_fill_price=None):
+        """Create a Position for the validated simple backtest fill hot path."""
+        position = cls.__new__(cls)
+        position.strategy = strategy
+        position.asset = asset
+        position.symbol = asset.symbol
+        position.orders = [order]
+        position.avg_fill_price = avg_fill_price
+        position._quantity = quantity if type(quantity) is Decimal else Decimal(quantity)
+        position._quantity_float = float(position._quantity)
+        asset_type_value = getattr(order, "_simple_asset_type_value", None)
+        if asset_type_value is None:
+            asset_type = getattr(asset, "asset_type", None)
+            asset_type_value = str.__str__(asset_type) if isinstance(asset_type, str) else str(asset_type or "")
+        if asset_type_value == "crypto":
+            position._hold = Decimal("0")
+            position._available = Decimal("0")
+        else:
+            position._hold = 0
+            position._available = 0
+        position._raw = None
+        return position
+
     def __repr__(self):
         return f"{self.strategy} Position: {self.quantity} shares of {self.asset} ({len(self.orders)} orders)"
 
@@ -221,6 +245,12 @@ class Position:
         self._quantity_float = float(self._quantity)
         if order not in self.orders:
             self.orders.append(order)
+
+    def add_simple_order(self, order: entities.Order, quantity: Decimal, is_buy: bool):
+        qty = Decimal(quantity)
+        self._quantity += qty if is_buy else -qty
+        self._quantity_float = float(self._quantity)
+        self.orders.append(order)
 
     # ========= Serialization methods ===========
     def to_minimal_dict(self) -> dict:

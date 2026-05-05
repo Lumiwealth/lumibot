@@ -1,14 +1,14 @@
-from datetime import datetime, timedelta
+from __future__ import annotations
+
+from datetime import datetime
+from importlib import import_module
 import re
 import weakref
 from decimal import Decimal
+from types import ModuleType
 from typing import Union, Set
-import warnings
 import atexit
 
-import numpy as np
-import pandas as pd
-import polars as pl
 import pytz
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
@@ -22,6 +22,44 @@ logger = get_logger(__name__)
 # share the same `df.columns` object; cache column presence flags to avoid repeated
 # `Index.__contains__` probes in tight loops.
 _PANDAS_COLUMNS_FLAGS_CACHE: dict[int, tuple[weakref.ReferenceType, tuple[bool, bool, bool, bool]]] = {}
+_POLARS_MODULE = None
+
+
+class _LazyModule(ModuleType):
+    def __init__(self, module_name: str):
+        super().__init__(module_name)
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+np = _LazyModule("numpy")
+pd = _LazyModule("pandas")
+
+
+def _get_polars_module():
+    global _POLARS_MODULE
+    if _POLARS_MODULE is None:
+        import polars as _pl
+
+        _POLARS_MODULE = _pl
+    return _POLARS_MODULE
+
+
+def _is_polars_df(value) -> bool:
+    if value.__class__.__name__ != "DataFrame":
+        return False
+    module = getattr(value.__class__, "__module__", "")
+    return module == "polars" or module.startswith("polars.")
 
 
 class PolarsConversionTracker:
@@ -166,7 +204,27 @@ class Bars:
     >>> self.log_message(df["close"][-1])
     """
 
-    def __init__(self, df, source, asset, quote=None, raw=None, return_polars=False, tzinfo=None):
+    @classmethod
+    def from_pandas_fast(cls, df, source, asset, quote=None, raw=None):
+        """Build a pandas-backed Bars object for pre-normalized backtesting slices."""
+        obj = cls.__new__(cls)
+        obj.source = str(source).upper()
+        obj.asset = asset
+        if isinstance(asset, tuple):
+            obj.symbol = f"{asset[0].symbol}/{asset[1].symbol}".upper()
+        else:
+            obj.symbol = asset.symbol.upper()
+        obj.quote = quote
+        obj._raw = raw if raw is not None else df
+        obj._return_polars = False
+        obj._polars_cache = None
+        obj._pandas_cache = None
+        obj._tzinfo = None
+        obj._df = df
+        obj._df_is_pandas = True
+        return obj
+
+    def __init__(self, df, source, asset, quote=None, raw=None, return_polars=False, tzinfo=None, skip_timezone=False):
         """
         df columns: open, high, low, close, volume, dividend, stock_splits
         datetime column for polars DataFrames
@@ -185,13 +243,26 @@ class Bars:
         self._polars_cache = None
         self._pandas_cache = None
         self._tzinfo = self._normalize_tzinfo(tzinfo)
+        self._df_is_pandas = isinstance(df, pd.DataFrame)
+
+        if (
+            skip_timezone
+            and not return_polars
+            and isinstance(df, pd.DataFrame)
+            and "return" in df.columns
+            and "dividend" not in df.columns
+        ):
+            self._df = df
+            return
         
         # Check if empty
-        if (isinstance(df, pl.DataFrame) and df.shape[0] == 0) or \
+        is_polars_df = _is_polars_df(df)
+        if (is_polars_df and df.shape[0] == 0) or \
            (isinstance(df, pd.DataFrame) and df.shape[0] == 0):
             logger.warning(f"Unable to get bar data for {asset} {source}")
         
-        if isinstance(df, pl.DataFrame):
+        if is_polars_df:
+            pl = _get_polars_module()
             # Already polars, process it
             columns = df.columns
             
@@ -324,16 +395,22 @@ class Bars:
                         returns[1:] = (curr - prev) / prev
                 self._df["return"] = returns
 
-            self._apply_timezone()
+            if not skip_timezone:
+                self._apply_timezone()
             if self._return_polars:
                 self._pandas_cache = self._df
                 self._df = self._convert_pandas_to_polars(self._df)
                 self._polars_cache = None
+                self._df_is_pandas = False
 
     @property
     def df(self):
         """Return the active DataFrame representation based on return_polars flag."""
-        return self.polars_df if self._return_polars else self.pandas_df
+        if self._return_polars:
+            return self.polars_df
+        if self._df_is_pandas:
+            return self._df
+        return self.pandas_df
 
     @df.setter
     def df(self, value):
@@ -341,13 +418,14 @@ class Bars:
         self._df = value
         self._polars_cache = None
         self._pandas_cache = None
+        self._df_is_pandas = isinstance(value, pd.DataFrame)
 
         if isinstance(value, pd.DataFrame):
             self._apply_timezone()
             if self._return_polars:
                 self._pandas_cache = value
                 self._df = self._convert_pandas_to_polars(value)
-        elif isinstance(value, pl.DataFrame) and not self._return_polars:
+        elif _is_polars_df(value) and not self._return_polars:
             tracker = PolarsConversionTracker()
             tracker.track_conversion(self.asset.symbol if hasattr(self.asset, 'symbol') else str(self.asset))
             pandas_df = value.to_pandas()
@@ -361,7 +439,7 @@ class Bars:
     @property
     def polars_df(self):
         """Return as Polars DataFrame if needed"""
-        if isinstance(self._df, pl.DataFrame):
+        if _is_polars_df(self._df):
             return self._df
         else:
             # Convert pandas to polars once and cache
@@ -398,17 +476,17 @@ class Bars:
 
     def __len__(self):
         """Return the number of bars (rows) in the DataFrame"""
-        if isinstance(self._df, pl.DataFrame):
+        if _is_polars_df(self._df):
             return self._df.height
         if isinstance(self._df, pd.DataFrame):
             return len(self._df)
         df = self.df
-        return df.height if isinstance(df, pl.DataFrame) else len(df)
+        return df.height if _is_polars_df(df) else len(df)
 
     @property
     def empty(self):
         """Check if the DataFrame is empty (compatible with both pandas and polars)"""
-        if isinstance(self._df, pl.DataFrame):
+        if _is_polars_df(self._df):
             return self._df.is_empty()
         else:
             return self._df.empty
@@ -456,8 +534,9 @@ class Bars:
             self._df = target_df
         return target_df
 
-    def _convert_pandas_to_polars(self, pandas_df: pd.DataFrame) -> pl.DataFrame:
+    def _convert_pandas_to_polars(self, pandas_df: pd.DataFrame):
         """Convert a pandas DataFrame (possibly with datetime index) to Polars."""
+        pl = _get_polars_module()
         df_to_convert = pandas_df.copy()
         if isinstance(df_to_convert.index, pd.DatetimeIndex):
             df_to_convert = df_to_convert.reset_index()
@@ -468,6 +547,7 @@ class Bars:
 
     @classmethod
     def parse_bar_list(cls, bar_list, source, asset):
+        pl = _get_polars_module()
         raw = []
         for bar in bar_list:
             raw.append(bar)
@@ -502,7 +582,8 @@ class Bars:
         """
         result = []
         # Use appropriate DataFrame for iteration
-        if isinstance(self._df, pl.DataFrame):
+        pl = _get_polars_module()
+        if _is_polars_df(self._df):
             underlying_df = self._df
         else:
             underlying_df = pl.from_pandas(self._df.reset_index() if hasattr(self._df, 'index') else self._df)
@@ -586,6 +667,7 @@ class Bars:
         Bars object
         """
         # Get polars DataFrame for operations
+        pl = _get_polars_module()
         df_copy = self.polars_df
         # Find datetime column
         dt_col = None
@@ -659,6 +741,7 @@ class Bars:
         Ensures the datetime column is a proper polars Datetime, coercing from integer epoch seconds
         (or milliseconds) and common string formats.
         """
+        pl = _get_polars_module()
         underlying_df = self.polars_df
 
         # Identify datetime column
@@ -690,13 +773,13 @@ class Bars:
                 .drop(dt_col)
                 .rename({tmp_name: dt_col})
             )
-            if isinstance(self._df, pl.DataFrame):
+            if _is_polars_df(self._df):
                 self._df = underlying_df
         elif early_dtype == pl.Utf8:
             underlying_df = underlying_df.with_columns(
                 pl.col(dt_col).str.strptime(pl.Datetime, strict=False, format=None).alias(dt_col)
             )
-            if isinstance(self._df, pl.DataFrame):
+            if _is_polars_df(self._df):
                 self._df = underlying_df
 
         # Frequency normalization

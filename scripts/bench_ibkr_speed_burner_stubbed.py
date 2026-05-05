@@ -124,8 +124,13 @@ def main() -> int:
                 self.submit_order(order)
             self._i += 1
 
+    iterations = int(os.environ.get("LUMIBOT_BENCH_ITERATIONS", "1000"))
+
     tz = "America/New_York"
-    minute_index = pd.date_range("2025-12-08 09:30", periods=600, freq="1min", tz=tz)
+    # Keep enough minute bars for longer runs. A 200-iteration benchmark with a shared broker
+    # overweights one-time lazy series loads; 1000 iterations gives a steadier runtime signal.
+    minute_periods = max(4000, (iterations * 2) + 300)
+    minute_index = pd.date_range("2025-12-08 09:30", periods=minute_periods, freq="1min", tz=tz)
     # Provide enough daily history for `length=20` at the chosen intraday timestamps.
     day_index = pd.date_range("2025-09-01 00:00", periods=200, freq="1D", tz=tz)
 
@@ -197,7 +202,6 @@ def main() -> int:
     # Ensure multi-timeframe paths are exercised.
     _ = futures.get_historical_prices(fut_mes, length=10, timestep="15min")
 
-    iterations = 200
     t0 = perf_counter()
     for _ in range(iterations):
         futures.on_trading_iteration()

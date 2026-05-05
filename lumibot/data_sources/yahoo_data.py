@@ -1,16 +1,57 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta
 from decimal import Decimal
+from importlib import import_module
 from typing import Union
 
-import numpy
-import pandas as pd
-
 from lumibot.data_sources import DataSourceBacktesting
-from lumibot.entities import Asset, Bars
-from lumibot.tools import YahooHelper
+from lumibot.entities import Asset
 from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
+_BARS_CLASS = None
+_YAHOO_HELPER = None
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+numpy = _LazyModule("numpy")
+pd = _LazyModule("pandas")
+
+
+def _bars_class():
+    global _BARS_CLASS
+    if _BARS_CLASS is None:
+        from lumibot.entities import Bars
+
+        _BARS_CLASS = Bars
+    return _BARS_CLASS
+
+
+def _yahoo_helper():
+    global _YAHOO_HELPER
+    if _YAHOO_HELPER is None:
+        from lumibot.tools import YahooHelper
+
+        _YAHOO_HELPER = YahooHelper
+    return _YAHOO_HELPER
 
 
 class YahooData(DataSourceBacktesting):
@@ -254,7 +295,7 @@ class YahooData(DataSourceBacktesting):
         for sym in symbols_to_try:
             logger.info("Attempting to fetch data for symbol: %s", sym)
             try:
-                data = YahooHelper.get_symbol_data(
+                data = _yahoo_helper().get_symbol_data(
                     sym,
                     interval=interval,
                     auto_adjust=self.auto_adjust,
@@ -336,7 +377,7 @@ class YahooData(DataSourceBacktesting):
 
         if missing_assets:
             # Fetch data using the helper without restricting dates here
-            dfs = YahooHelper.get_symbols_data(
+            dfs = _yahoo_helper().get_symbols_data(
                 missing_assets,
                 interval=interval,
                 auto_adjust=self.auto_adjust
@@ -363,7 +404,7 @@ class YahooData(DataSourceBacktesting):
         if quote is not None:
             logger.warning(f"quote is not implemented for YahooData, but {quote} was passed as the quote")
 
-        bars = Bars(response, self.SOURCE, asset, raw=response)
+        bars = _bars_class()(response, self.SOURCE, asset, raw=response)
         return bars
 
     def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:

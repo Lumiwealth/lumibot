@@ -22,6 +22,27 @@ class _DummyIbkrFuturesStrategy(Strategy):
         return
 
 
+class _CallbackIbkrFuturesStrategy(_DummyIbkrFuturesStrategy):
+    def initialize(self, parameters=None):
+        super().initialize(parameters=parameters)
+        self.filled_events = []
+
+    def on_filled_order(self, position, order, price, quantity, multiplier):
+        filled_events = getattr(self, "filled_events", None)
+        if filled_events is None:
+            filled_events = []
+            self.filled_events = filled_events
+        filled_events.append(
+            {
+                "symbol": order.asset.symbol,
+                "side": order.side,
+                "price": price,
+                "quantity": quantity,
+                "multiplier": multiplier,
+            }
+        )
+
+
 def _make_df(*, bid0: float, ask0: float, bid1: float, ask1: float) -> pd.DataFrame:
     idx = pd.date_range("2025-12-08 09:31", periods=2, freq="1min", tz="America/New_York")
     df = pd.DataFrame(
@@ -129,6 +150,64 @@ def test_ibkr_rest_backtesting_futures_market_roundtrip_uses_bid_ask_and_multipl
     expected_pnl = (100.75 - 100.25) * 1.0 * 5.0
     expected_cash = 10_000.0 + expected_pnl
     assert strategy.cash == pytest.approx(expected_cash, rel=1e-9)
+
+
+def test_ibkr_rest_backtesting_futures_market_fill_preserves_custom_callback(monkeypatch):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    df = _make_quote_only_df(bids=[100.00, 100.75], asks=[100.25, 101.00])
+
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+        return df
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
+
+    data_source = InteractiveBrokersRESTBacktesting(
+        datetime_start=df.index[0].to_pydatetime(),
+        datetime_end=(df.index[-1] + pd.Timedelta(minutes=1)).to_pydatetime(),
+        market="24/7",
+        show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+    )
+    data_source.load_data()
+
+    broker = BacktestingBroker(data_source=data_source)
+    broker.initialize_market_calendars(data_source.get_trading_days_pandas())
+    broker._first_iteration = False
+
+    strategy = _CallbackIbkrFuturesStrategy(
+        broker=broker,
+        budget=10_000.0,
+        analyze_backtest=False,
+        parameters={},
+    )
+    strategy._first_iteration = False
+
+    fut = Asset("MES", asset_type=Asset.AssetType.FUTURE, expiration=date(2025, 12, 19), multiplier=5)
+
+    data_source.get_historical_prices_between_dates(
+        (fut, Asset("USD", asset_type=Asset.AssetType.FOREX)),
+        timestep="minute",
+        quote=None,
+        start_date=df.index[0].to_pydatetime(),
+        end_date=df.index[-1].to_pydatetime(),
+    )
+
+    order = strategy.create_order(fut, Decimal("1"), Order.OrderSide.BUY, order_type=Order.OrderType.MARKET)
+    strategy.submit_order(order)
+    broker.process_pending_orders(strategy)
+    strategy._executor.process_queue()
+
+    assert order.is_filled()
+    assert strategy.filled_events == [
+        {
+            "symbol": "MES",
+            "side": Order.OrderSide.BUY,
+            "price": pytest.approx(100.25),
+            "quantity": pytest.approx(1.0),
+            "multiplier": 5,
+        }
+    ]
 
 
 def test_ibkr_rest_backtesting_futures_smart_limit_uses_asset_min_tick(monkeypatch):

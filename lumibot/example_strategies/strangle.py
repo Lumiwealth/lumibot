@@ -3,9 +3,13 @@ import logging
 import time
 from itertools import cycle
 
-from yfinance import Ticker
-
 from lumibot.strategies.strategy import Strategy
+
+
+def _ticker(symbol):
+    from yfinance import Ticker
+
+    return Ticker(symbol)
 
 
 class Strangle(Strategy):
@@ -224,7 +228,7 @@ class Strangle(Strategy):
 
             # Check to make sure date is not too close to earnings.
             print(f"Getting earnings date for {asset.symbol}")
-            edate_df = Ticker(asset.symbol).calendar
+            edate_df = _ticker(asset.symbol).calendar
             if edate_df is None:
                 print(
                     f"There was no calendar information for {asset.symbol} so it "

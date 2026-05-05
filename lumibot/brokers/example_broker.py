@@ -1,13 +1,25 @@
-from typing import Union
+from typing import TYPE_CHECKING, Union
 
 from termcolor import colored
 
 from .broker import Broker
-from lumibot.data_sources import ExampleBrokerData
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.lumibot_logger import get_logger
 
+if TYPE_CHECKING:
+    from lumibot.strategies.strategy import Strategy
+
 logger = get_logger(__name__)
+_EXAMPLE_BROKER_DATA_CLASS = None
+
+
+def _example_broker_data_class():
+    global _EXAMPLE_BROKER_DATA_CLASS
+    if _EXAMPLE_BROKER_DATA_CLASS is None:
+        from lumibot.data_sources import ExampleBrokerData
+
+        _EXAMPLE_BROKER_DATA_CLASS = ExampleBrokerData
+    return _EXAMPLE_BROKER_DATA_CLASS
 
 class ExampleBroker(Broker):
     """
@@ -20,10 +32,10 @@ class ExampleBroker(Broker):
             self,
             config=None,
             data_source=None,
-    ):
+        ):
         # Check if the user has provided a data source, if not, create one
         if data_source is None:
-            data_source = ExampleBrokerData()
+            data_source = _example_broker_data_class()()
 
         super().__init__(
             name=self.NAME,

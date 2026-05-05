@@ -5,20 +5,65 @@ Provides market data functionality through ProjectX data feed.
 Supports historical data retrieval for futures contracts.
 """
 
+from __future__ import annotations
+
 from datetime import datetime, timedelta
-import pandas as pd
-from typing import Dict, List
+from importlib import import_module
+from typing import TYPE_CHECKING, Dict, List
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.data_sources.data_source import DataSource
-from lumibot.entities import Asset, Bars, Quote
+from lumibot.entities import Asset, Quote
 from lumibot.tools.lumibot_logger import get_logger
-from lumibot.tools.projectx_helpers import ProjectXClient
+
+if TYPE_CHECKING:
+    from lumibot.entities import Bars
 
 # Import moved to avoid circular dependency
 # from lumibot.credentials import PROJECTX_CONFIG
 
 logger = get_logger(__name__)
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+ProjectXClient = None
+_BARS_CLASS = None
+
+
+def _projectx_client_class():
+    global ProjectXClient
+    if ProjectXClient is None:
+        from lumibot.tools.projectx_helpers import ProjectXClient as _ProjectXClient
+
+        ProjectXClient = _ProjectXClient
+    return ProjectXClient
+
+
+def _bars_class():
+    global _BARS_CLASS
+    if _BARS_CLASS is None:
+        from lumibot.entities import Bars
+
+        _BARS_CLASS = Bars
+    return _BARS_CLASS
 
 
 class ProjectXData(DataSource):
@@ -79,7 +124,7 @@ class ProjectXData(DataSource):
             )
 
         # Initialize ProjectX client
-        self.client = ProjectXClient(config)
+        self.client = _projectx_client_class()(config)
 
         # Setup logging
         self.logger = get_logger(f"ProjectXData_{self.firm}")
@@ -312,7 +357,7 @@ class ProjectXData(DataSource):
                 logger.debug(debug_msg)
             except Exception as log_exc:
                 self.logger.debug(f"Datetime normalization debug failed for {asset.symbol}: {log_exc}")
-            return Bars(df=df, source=self.SOURCE, asset=asset, raw=df.to_dict())
+            return _bars_class()(df=df, source=self.SOURCE, asset=asset, raw=df.to_dict())
         except Exception as e:
             self.logger.error(f"Error fetching bars for {getattr(asset, 'symbol', asset)}: {e}")
             return None
@@ -576,7 +621,7 @@ class ProjectXData(DataSource):
                 return None
 
             # Create Bars object
-            bars = Bars(
+            bars = _bars_class()(
                 df=df,
                 source=self.SOURCE,
                 asset=asset,

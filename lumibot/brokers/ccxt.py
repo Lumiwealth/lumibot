@@ -1,17 +1,36 @@
+from __future__ import annotations
+
 import datetime
 import os
 from decimal import ROUND_DOWN, Decimal, getcontext
 from typing import Union
 
-from termcolor import colored
-
-from lumibot.data_sources import CcxtData
-from lumibot.entities import Asset, Order, Position
+from lumibot.entities import Asset, Order
 from lumibot.tools.lumibot_logger import get_logger
 
 from .broker import Broker
 
 logger = get_logger(__name__)
+_CCXT_DATA_CLASS = None
+_COLORED_FN = None
+
+
+def colored(*args, **kwargs):
+    global _COLORED_FN
+    if _COLORED_FN is None:
+        from termcolor import colored as _termcolor_colored
+
+        _COLORED_FN = _termcolor_colored
+    return _COLORED_FN(*args, **kwargs)
+
+
+def _ccxt_data_class():
+    global _CCXT_DATA_CLASS
+    if _CCXT_DATA_CLASS is None:
+        from lumibot.data_sources import CcxtData
+
+        _CCXT_DATA_CLASS = CcxtData
+    return _CCXT_DATA_CLASS
 
 
 class Ccxt(Broker):
@@ -19,7 +38,8 @@ class Ccxt(Broker):
     Crypto broker using CCXT.
     """
 
-    def __init__(self, config, data_source: CcxtData = None, max_workers=20, chunk_size=100, **kwargs):
+    def __init__(self, config, data_source=None, max_workers=20, chunk_size=100, **kwargs):
+        CcxtData = _ccxt_data_class()
         if data_source is None:
             data_source = CcxtData(config, max_workers=max_workers, chunk_size=chunk_size)
         super().__init__(name="ccxt", config=config, data_source=data_source, max_workers=max_workers, **kwargs)
@@ -200,6 +220,8 @@ class Ccxt(Broker):
             asset_type="crypto",
             precision=precision,
         )
+
+        from lumibot.entities import Position
 
         position_return = Position(strategy, asset, quantity, hold=hold, available=available, orders=orders)
         return position_return

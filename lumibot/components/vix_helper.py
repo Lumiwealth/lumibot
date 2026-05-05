@@ -1,23 +1,9 @@
+from __future__ import annotations
+
 import datetime
 import traceback
 from datetime import timedelta
-
-import pandas as pd
-import yfinance as yf
-from scipy import stats
-import traceback
-import datetime
-
-# Fix for NumPy 2.0+ compatibility with pandas_ta
-import numpy as np
-
-# pandas_ta 0.3.14b uses numpy.NaN which was removed in NumPy 2.0
-# Create alias for backward compatibility if needed
-if not hasattr(np, 'NaN'):
-    np.NaN = np.nan
-
-# Import pandas-ta-classic
-import pandas_ta_classic as ta
+from importlib import import_module
 
 """ 
     Description
@@ -26,6 +12,49 @@ import pandas_ta_classic as ta
     This is a general component for working with the VIX. It can be used to check the 
     VIX, VIX 1D, VIX RSI, VIX percentile values and more.
 """
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+    def __setattr__(self, name, value):
+        setattr(self._load(), name, value)
+
+    def __delattr__(self, name):
+        if name in {"_module_name", "_module"}:
+            object.__delattr__(self, name)
+        else:
+            delattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+yf = _LazyModule("yfinance")
+stats = _LazyModule("scipy.stats")
+_TA_MODULE = None
+
+
+def _get_ta_module():
+    global _TA_MODULE
+    if _TA_MODULE is None:
+        np = import_module("numpy")
+        if not hasattr(np, "NaN"):
+            np.NaN = np.nan
+        _TA_MODULE = import_module("pandas_ta_classic")
+    return _TA_MODULE
 
 class VixHelper:
     def __init__(self, strategy) -> None:
@@ -420,7 +449,7 @@ class VixHelper:
         vix_df = pd.DataFrame(vix_values, columns=['VIX'])
 
         # Calculate the RSI
-        vix_df['RSI'] = ta.rsi(vix_df['VIX'], length=window)
+        vix_df['RSI'] = _get_ta_module().rsi(vix_df['VIX'], length=window)
 
         # Get the last VIX RSI value
         vix_rsi = vix_df['RSI'].iloc[-1]
@@ -1103,7 +1132,7 @@ class VixHelper:
         gvz_df = pd.DataFrame(gvz_values, columns=['GVZ'])
 
         # Calculate the RSI
-        gvz_df['RSI'] = ta.rsi(gvz_df['GVZ'], length=window)
+        gvz_df['RSI'] = _get_ta_module().rsi(gvz_df['GVZ'], length=window)
 
         # Get the last GVZ RSI value
         gvz_rsi = gvz_df['RSI'].iloc[-1]
@@ -1482,7 +1511,7 @@ class VixHelper:
         vix_df = pd.DataFrame(vix_values, columns=['VIX'])
 
         # Calculate the RSI
-        vix_df['RSI'] = ta.rsi(vix_df['VIX'], length=window)
+        vix_df['RSI'] = _get_ta_module().rsi(vix_df['VIX'], length=window)
 
         # Get the last VIX RSI value
         vix_rsi = vix_df['RSI'].iloc[-1]

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 import io
 import json
@@ -10,78 +12,355 @@ import traceback
 import uuid
 from collections import deque
 from decimal import Decimal
-from typing import Dict, List, Union
+from importlib import import_module
+from typing import TYPE_CHECKING, Dict, List, Union
 
-import matplotlib.dates as mdates
-import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
-import pandas as pd
-import polars as pl
-import requests
-from sqlalchemy import create_engine, inspect, text
-from sqlalchemy.exc import OperationalError
-from termcolor import colored
-
-from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.tools.lumibot_logger import get_logger, get_strategy_logger
-from lumibot.tools.parquet_utils import (
-    coerce_object_columns_to_json_strings,
-    is_parquet_required,
-    write_parquet_with_logging,
-)
 
-from ..backtesting import (
-    AlpacaBacktesting,
-    BacktestingBroker,
-    CcxtBacktesting,
-    DataBentoDataBacktesting,
-    InteractiveBrokersRESTBacktesting,
-    PolygonDataBacktesting,
-    RoutedBacktestingPandas,
-    ThetaDataBacktesting,
-    ThetaDataBacktestingPandas,
-    YahooDataBacktesting,
-)
-from ..components.agents import AgentManager
-from ..credentials import (
-    BACKTESTING_END,
-    BACKTESTING_SHOW_PROGRESS_BAR,
-    BACKTESTING_START,
-    BROKER,
-    DATA_SOURCE,
-    DB_CONNECTION_STR,
-    DISCORD_WEBHOOK_URL,
-    HIDE_POSITIONS,
-    HIDE_TRADES,
-    LIVE_CONFIG,
-    LOG_BACKTEST_PROGRESS_TO_FILE,
-    LUMIWEALTH_API_KEY,
-    MARKET,
-    POLYGON_API_KEY,
-    POLYGON_MAX_MEMORY_BYTES,
-    SHOW_INDICATORS,
-    SHOW_PLOT,
-    SHOW_TEARSHEET,
-    STRATEGY_NAME,
-    THETADATA_CONFIG,
-)
-from ..entities import Asset, CashEvent, Data, Order, Position
-from ..tools import (
-    cash_flow_adjusted_returns,
-    create_tearsheet,
-    cumulative_to_period_flows,
-    day_deduplicate,
-    get_symbol_returns,
-    plot_indicators,
-    plot_returns,
-    stats_summary,
-    to_datetime_aware,
-)
-from ..traders import Trader
-from .strategy_executor import StrategyExecutor
+from ..entities import Asset, Order
+
+if TYPE_CHECKING:
+    from ..entities import CashEvent, Data
 
 # Set the stats table name for when storing stats in a database, defined by db_connection_str
 STATS_TABLE_NAME = "strategy_tracker"
+_COMPAT_SENTINEL = object()
+_BACKTESTING_IMPORTS_READY = False
+_REQUESTS_MODULE = None
+_SQLALCHEMY_IMPORTS = None
+_POLARS_MODULE = None
+_TOOL_FUNC_CACHE = {}
+_PARQUET_UTILS = None
+_STRATEGY_EXECUTOR_CLASS = None
+_TRADER_CLASS = None
+_LUMIBOT_DEFAULT_PYTZ = None
+_CREDENTIALS_MODULE = None
+_COLORED_FN = None
+Trader = _COMPAT_SENTINEL
+BROKER = _COMPAT_SENTINEL
+DATA_SOURCE = _COMPAT_SENTINEL
+STRATEGY_NAME = _COMPAT_SENTINEL
+HIDE_POSITIONS = _COMPAT_SENTINEL
+HIDE_TRADES = _COMPAT_SENTINEL
+MARKET = _COMPAT_SENTINEL
+LIVE_CONFIG = _COMPAT_SENTINEL
+DISCORD_WEBHOOK_URL = _COMPAT_SENTINEL
+DB_CONNECTION_STR = _COMPAT_SENTINEL
+LUMIWEALTH_API_KEY = _COMPAT_SENTINEL
+BACKTESTING_START = _COMPAT_SENTINEL
+BACKTESTING_END = _COMPAT_SENTINEL
+SHOW_PLOT = _COMPAT_SENTINEL
+SHOW_TEARSHEET = _COMPAT_SENTINEL
+SHOW_INDICATORS = _COMPAT_SENTINEL
+POLYGON_API_KEY = _COMPAT_SENTINEL
+THETADATA_CONFIG = _COMPAT_SENTINEL
+BACKTESTING_SHOW_PROGRESS_BAR = _COMPAT_SENTINEL
+POLYGON_MAX_MEMORY_BYTES = _COMPAT_SENTINEL
+LOG_BACKTEST_PROGRESS_TO_FILE = _COMPAT_SENTINEL
+AlpacaBacktesting = None
+BacktestingBroker = None
+CcxtBacktesting = None
+DataBentoDataBacktesting = None
+InteractiveBrokersRESTBacktesting = None
+PolygonDataBacktesting = None
+RoutedBacktestingPandas = None
+ThetaDataBacktesting = None
+ThetaDataBacktestingPandas = None
+YahooDataBacktesting = None
+
+
+def colored(*args, **kwargs):
+    global _COLORED_FN
+    if _COLORED_FN is None:
+        from termcolor import colored as _termcolor_colored
+
+        _COLORED_FN = _termcolor_colored
+    return _COLORED_FN(*args, **kwargs)
+
+
+def _strategy_executor_class():
+    global _STRATEGY_EXECUTOR_CLASS
+    if _STRATEGY_EXECUTOR_CLASS is None:
+        from .strategy_executor import StrategyExecutor
+
+        _STRATEGY_EXECUTOR_CLASS = StrategyExecutor
+    return _STRATEGY_EXECUTOR_CLASS
+
+
+def _trader_class():
+    global _TRADER_CLASS, Trader
+    if Trader is not _COMPAT_SENTINEL:
+        return Trader
+    if _TRADER_CLASS is None:
+        from ..traders import Trader as _Trader
+
+        _TRADER_CLASS = _Trader
+    return _TRADER_CLASS
+
+
+def _default_pytz():
+    global _LUMIBOT_DEFAULT_PYTZ
+    if _LUMIBOT_DEFAULT_PYTZ is None:
+        from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
+
+        _LUMIBOT_DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ
+    return _LUMIBOT_DEFAULT_PYTZ
+
+
+def _credential(name):
+    override = globals().get(name, _COMPAT_SENTINEL)
+    if override is not _COMPAT_SENTINEL:
+        return override
+    global _CREDENTIALS_MODULE
+    if _CREDENTIALS_MODULE is None:
+        from .. import credentials
+
+        _CREDENTIALS_MODULE = credentials
+    return getattr(_CREDENTIALS_MODULE, name)
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+    def __setattr__(self, name, value):
+        if name in {"_module_name", "_module"}:
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self._load(), name, value)
+
+    def __delattr__(self, name):
+        if name in {"_module_name", "_module"}:
+            object.__delattr__(self, name)
+        else:
+            delattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+
+
+def _call_tool_func(name, *args, **kwargs):
+    fn = _TOOL_FUNC_CACHE.get(name)
+    if fn is None:
+        tools = import_module("lumibot.tools")
+        fn = getattr(tools, name)
+        _TOOL_FUNC_CACHE[name] = fn
+    return fn(*args, **kwargs)
+
+
+def _get_parquet_utils():
+    global _PARQUET_UTILS
+    if _PARQUET_UTILS is None:
+        from lumibot.tools.parquet_utils import (
+            coerce_object_columns_to_json_strings,
+            is_parquet_required,
+            write_parquet_with_logging,
+        )
+
+        _PARQUET_UTILS = (
+            coerce_object_columns_to_json_strings,
+            is_parquet_required,
+            write_parquet_with_logging,
+        )
+    return _PARQUET_UTILS
+
+
+def cash_flow_adjusted_returns(*args, **kwargs):
+    return _call_tool_func("cash_flow_adjusted_returns", *args, **kwargs)
+
+
+def create_tearsheet(*args, **kwargs):
+    return _call_tool_func("create_tearsheet", *args, **kwargs)
+
+
+def cumulative_to_period_flows(*args, **kwargs):
+    return _call_tool_func("cumulative_to_period_flows", *args, **kwargs)
+
+
+def day_deduplicate(*args, **kwargs):
+    return _call_tool_func("day_deduplicate", *args, **kwargs)
+
+
+def get_symbol_returns(*args, **kwargs):
+    return _call_tool_func("get_symbol_returns", *args, **kwargs)
+
+
+def plot_indicators(*args, **kwargs):
+    return _call_tool_func("plot_indicators", *args, **kwargs)
+
+
+def plot_returns(*args, **kwargs):
+    return _call_tool_func("plot_returns", *args, **kwargs)
+
+
+def stats_summary(*args, **kwargs):
+    return _call_tool_func("stats_summary", *args, **kwargs)
+
+
+def to_datetime_aware(*args, **kwargs):
+    return _call_tool_func("to_datetime_aware", *args, **kwargs)
+
+
+def _get_requests_module():
+    global _REQUESTS_MODULE
+    if _REQUESTS_MODULE is None:
+        import requests as _requests
+
+        _REQUESTS_MODULE = _requests
+    return _REQUESTS_MODULE
+
+
+def _get_sqlalchemy_imports():
+    global _SQLALCHEMY_IMPORTS
+    if _SQLALCHEMY_IMPORTS is None:
+        from sqlalchemy import create_engine, inspect, text
+        from sqlalchemy.exc import OperationalError
+
+        _SQLALCHEMY_IMPORTS = (create_engine, inspect, text, OperationalError)
+    return _SQLALCHEMY_IMPORTS
+
+
+def _get_polars_module():
+    global _POLARS_MODULE
+    if _POLARS_MODULE is None:
+        import polars as _pl
+
+        _POLARS_MODULE = _pl
+    return _POLARS_MODULE
+
+
+class _LazyAgentManager:
+    """Import and construct AgentManager only when strategy code uses agents."""
+
+    __slots__ = ("_strategy", "_manager")
+
+    def __init__(self, strategy):
+        self._strategy = strategy
+        self._manager = None
+
+    def _get_manager(self):
+        manager = self._manager
+        if manager is None:
+            from ..components.agents import AgentManager
+
+            manager = AgentManager(self._strategy)
+            self._manager = manager
+            try:
+                self._strategy.agents = manager
+            except Exception:
+                pass
+        return manager
+
+    def __getattr__(self, name):
+        return getattr(self._get_manager(), name)
+
+    def __getitem__(self, key):
+        return self._get_manager()[key]
+
+    def __contains__(self, key):
+        return key in self._get_manager()
+
+    def __iter__(self):
+        return iter(self._get_manager())
+
+    def __len__(self):
+        return len(self._get_manager())
+
+    def __repr__(self):
+        manager = self._manager
+        if manager is None:
+            return "<LazyAgentManager unloaded>"
+        return repr(manager)
+
+
+class _LazyIndicators:
+    """Import and construct Indicators only when strategy code uses indicators."""
+
+    __slots__ = ("_strategy", "_indicators")
+
+    def __init__(self, strategy):
+        self._strategy = strategy
+        self._indicators = None
+
+    def _get_indicators(self):
+        indicators = self._indicators
+        if indicators is None:
+            from lumibot.indicators import Indicators
+
+            indicators = Indicators(self._strategy)
+            self._indicators = indicators
+            try:
+                self._strategy.indicators = indicators
+            except Exception:
+                pass
+        return indicators
+
+    def __getattr__(self, name):
+        return getattr(self._get_indicators(), name)
+
+    def __repr__(self):
+        indicators = self._indicators
+        if indicators is None:
+            return "<LazyIndicators unloaded>"
+        return repr(indicators)
+
+
+def _ensure_backtesting_imports():
+    global _BACKTESTING_IMPORTS_READY
+    global AlpacaBacktesting, BacktestingBroker, CcxtBacktesting, DataBentoDataBacktesting
+    global InteractiveBrokersRESTBacktesting, PolygonDataBacktesting, RoutedBacktestingPandas
+    global ThetaDataBacktesting, ThetaDataBacktestingPandas, YahooDataBacktesting
+
+    if _BACKTESTING_IMPORTS_READY:
+        return
+
+    from ..backtesting import (
+        AlpacaBacktesting as _AlpacaBacktesting,
+        BacktestingBroker as _BacktestingBroker,
+        CcxtBacktesting as _CcxtBacktesting,
+        DataBentoDataBacktesting as _DataBentoDataBacktesting,
+        InteractiveBrokersRESTBacktesting as _InteractiveBrokersRESTBacktesting,
+        PolygonDataBacktesting as _PolygonDataBacktesting,
+        RoutedBacktestingPandas as _RoutedBacktestingPandas,
+        ThetaDataBacktesting as _ThetaDataBacktesting,
+        ThetaDataBacktestingPandas as _ThetaDataBacktestingPandas,
+        YahooDataBacktesting as _YahooDataBacktesting,
+    )
+
+    if AlpacaBacktesting is None:
+        AlpacaBacktesting = _AlpacaBacktesting
+    if BacktestingBroker is None:
+        BacktestingBroker = _BacktestingBroker
+    if CcxtBacktesting is None:
+        CcxtBacktesting = _CcxtBacktesting
+    if DataBentoDataBacktesting is None:
+        DataBentoDataBacktesting = _DataBentoDataBacktesting
+    if InteractiveBrokersRESTBacktesting is None:
+        InteractiveBrokersRESTBacktesting = _InteractiveBrokersRESTBacktesting
+    if PolygonDataBacktesting is None:
+        PolygonDataBacktesting = _PolygonDataBacktesting
+    if RoutedBacktestingPandas is None:
+        RoutedBacktestingPandas = _RoutedBacktestingPandas
+    if ThetaDataBacktesting is None:
+        ThetaDataBacktesting = _ThetaDataBacktesting
+    if ThetaDataBacktestingPandas is None:
+        ThetaDataBacktestingPandas = _ThetaDataBacktestingPandas
+    if YahooDataBacktesting is None:
+        YahooDataBacktesting = _YahooDataBacktesting
+    _BACKTESTING_IMPORTS_READY = True
 
 class SafeJSONEncoder(json.JSONEncoder):
     """Custom JSON encoder for Lumibot objects.
@@ -150,7 +429,7 @@ class _Strategy:
             if tzinfo is None or tzinfo.utcoffset(value) is None:
                 return to_datetime_aware(value)
             if not hasattr(tzinfo, "zone"):
-                return value.astimezone(LUMIBOT_DEFAULT_PYTZ)
+                return value.astimezone(_default_pytz())
         return value
 
     @property
@@ -306,6 +585,8 @@ class _Strategy:
         self.sell_trading_slippages = sell_trading_slippages
         self.save_logfile = save_logfile
         self.broker = broker
+        if getattr(broker, "IS_BACKTESTING_BROKER", False):
+            _ensure_backtesting_imports()
 
         # initialize cash variables
         self._position_value = None
@@ -345,8 +626,8 @@ class _Strategy:
         if name is not None:
             self._name = name
 
-        elif STRATEGY_NAME is not None:
-            self._name = STRATEGY_NAME
+        elif _credential("STRATEGY_NAME") is not None:
+            self._name = _credential("STRATEGY_NAME")
 
         else:
             self._name = self.__class__.__name__
@@ -362,12 +643,12 @@ class _Strategy:
         self._logged_get_historical_prices_assets = set()
 
         if self.broker == None:
-            self.broker = BROKER
+            self.broker = _credential("BROKER")
 
         # Handle data source initialization
         self._data_source = data_source
         if self._data_source is None:
-            self._data_source = DATA_SOURCE
+            self._data_source = _credential("DATA_SOURCE")
 
         # If we have a custom data source, attach it to the broker
         if self._data_source is not None and self.broker is not None:
@@ -377,19 +658,20 @@ class _Strategy:
             # Set the custom data source
             self.broker.data_source = self._data_source
 
-        self.hide_positions = HIDE_POSITIONS
-        self.hide_trades = HIDE_TRADES
+        self.hide_positions = _credential("HIDE_POSITIONS")
+        self.hide_trades = _credential("HIDE_TRADES")
         self.include_cash_positions = include_cash_positions
 
         # If the MARKET env variable is set, use it as the market
-        if MARKET:
+        market = _credential("MARKET")
+        if market:
             # Log the market being used
-            colored_message = colored(f"Using market from environment variables: {MARKET}", "green")
+            colored_message = colored(f"Using market from environment variables: {market}", "green")
             self.logger.info(colored_message)
-            self.set_market(MARKET)
+            self.set_market(market)
 
-        self.live_config = LIVE_CONFIG
-        self.discord_webhook_url = discord_webhook_url if discord_webhook_url is not None else DISCORD_WEBHOOK_URL
+        self.live_config = _credential("LIVE_CONFIG")
+        self.discord_webhook_url = discord_webhook_url if discord_webhook_url is not None else _credential("DISCORD_WEBHOOK_URL")
 
         if account_history_db_connection_str:
             self.db_connection_str = account_history_db_connection_str
@@ -397,7 +679,8 @@ class _Strategy:
         elif db_connection_str:
             self.db_connection_str = db_connection_str
         else:
-            self.db_connection_str = DB_CONNECTION_STR if DB_CONNECTION_STR else None
+            env_db_connection_str = _credential("DB_CONNECTION_STR")
+            self.db_connection_str = env_db_connection_str if env_db_connection_str else None
 
         self.discord_account_summary_footer = discord_account_summary_footer
         self.backup_table_name="vars_backup"
@@ -406,7 +689,7 @@ class _Strategy:
         if lumiwealth_api_key:
             self.lumiwealth_api_key = lumiwealth_api_key
         else:
-            self.lumiwealth_api_key = LUMIWEALTH_API_KEY
+            self.lumiwealth_api_key = _credential("LUMIWEALTH_API_KEY")
 
         if strategy_id is None:
             self.strategy_id = self._name
@@ -482,6 +765,8 @@ class _Strategy:
             # Create initial starting positions.
             self.starting_positions = starting_positions
             if self.starting_positions is not None and len(self.starting_positions) > 0:
+                from ..entities import Position
+
                 for asset, quantity in self.starting_positions.items():
                     position = Position(
                         self._name,
@@ -587,7 +872,7 @@ class _Strategy:
         self._minutes_after_closing = minutes_after_closing
         self._sleeptime = sleeptime
         self._risk_free_rate = risk_free_rate
-        self._executor = StrategyExecutor(self)
+        self._executor = _strategy_executor_class()(self)
         self.broker._add_subscriber(self._executor)
 
         # Stats related variables
@@ -602,10 +887,9 @@ class _Strategy:
         self.should_send_summary_to_discord = should_send_summary_to_discord
         self._last_backup_state = None
         self.vars = Vars()
-        self.agents = AgentManager(self)
+        self.agents = _LazyAgentManager(self)
 
-        from lumibot.indicators import Indicators
-        self.indicators = Indicators(self)
+        self.indicators = _LazyIndicators(self)
 
         # Storing parameters for the initialize method
         if not hasattr(self, "parameters") or not isinstance(self.parameters, dict) or self.parameters is None:
@@ -727,6 +1011,8 @@ class _Strategy:
                 return
 
         # If not in positions, create a new position for cash
+        from ..entities import Position
+
         position = Position(
             self._name,
             self._quote_asset,
@@ -740,9 +1026,10 @@ class _Strategy:
 
     def _get_cash_position(self):
         cash_position = getattr(self, "_cash_position", None)
+        cash_asset = getattr(cash_position, "asset", None) if cash_position is not None else None
         if (
             cash_position is not None
-            and getattr(cash_position, "asset", None) == self._quote_asset
+            and (cash_asset is self._quote_asset or cash_asset == self._quote_asset)
             and getattr(cash_position, "strategy", None) == self._name
         ):
             return cash_position
@@ -909,6 +1196,8 @@ class _Strategy:
             return
 
         try:
+            from ..entities import CashEvent
+
             cash_event = CashEvent(
                 broker_name="backtesting",
                 event_type=event_type,
@@ -1119,9 +1408,9 @@ class _Strategy:
             if isinstance(broker_dt, datetime.datetime):
                 try:
                     if broker_dt.tzinfo is None:
-                        option_mark_time_local = LUMIBOT_DEFAULT_PYTZ.localize(broker_dt)
+                        option_mark_time_local = _default_pytz().localize(broker_dt)
                     else:
-                        option_mark_time_local = broker_dt.astimezone(LUMIBOT_DEFAULT_PYTZ)
+                        option_mark_time_local = broker_dt.astimezone(_default_pytz())
                 except Exception:
                     option_mark_time_local = None
 
@@ -1304,8 +1593,10 @@ class _Strategy:
         if base_asset_type is None:
             base_asset_type = getattr(base_asset, "asset_type", None)
             base_asset_type = getattr(base_asset_type, "value", base_asset_type)
-            base_asset_type = str(base_asset_type).lower()
+        base_asset_type = str(base_asset_type).lower()
         is_option_asset = base_asset_type == "option"
+        if self.is_backtesting and is_option_asset:
+            _ensure_backtesting_imports()
         is_thetadata_option_backtest = (
             self.is_backtesting
             and is_option_asset
@@ -1539,7 +1830,7 @@ class _Strategy:
 
         now = self._normalize_snapshot_datetime(getattr(self.broker, "datetime", None))
         if now is None:
-            now = self._normalize_snapshot_datetime(datetime.datetime.now(LUMIBOT_DEFAULT_PYTZ))
+            now = self._normalize_snapshot_datetime(datetime.datetime.now(_default_pytz()))
 
         trade_time = self._normalize_snapshot_datetime(snapshot.get("last_trade_time"))
         bid_time = self._normalize_snapshot_datetime(snapshot.get("last_bid_time"))
@@ -1622,10 +1913,10 @@ class _Strategy:
         if isinstance(dt_value, datetime.datetime):
             if dt_value.tzinfo is None:
                 try:
-                    return LUMIBOT_DEFAULT_PYTZ.localize(dt_value)
+                    return _default_pytz().localize(dt_value)
                 except ValueError:
-                    return dt_value.replace(tzinfo=LUMIBOT_DEFAULT_PYTZ)
-            return dt_value.astimezone(LUMIBOT_DEFAULT_PYTZ)
+                    return dt_value.replace(tzinfo=_default_pytz())
+            return dt_value.astimezone(_default_pytz())
         return None
 
     @staticmethod
@@ -1816,6 +2107,11 @@ class _Strategy:
                 stats_parquet_file = (
                     self._stats_file[:-4] + ".parquet" if self._stats_file.lower().endswith(".csv") else self._stats_file + ".parquet"
                 )
+                (
+                    coerce_object_columns_to_json_strings,
+                    is_parquet_required,
+                    write_parquet_with_logging,
+                ) = _get_parquet_utils()
                 required = bool(self.is_backtesting) and is_parquet_required()
                 write_parquet_with_logging(
                     df=self._stats,
@@ -1840,6 +2136,8 @@ class _Strategy:
         if not self.is_backtesting or not self._benchmark_asset:
             return
         if self._backtesting_start is not None and self._backtesting_end is not None:
+            _ensure_backtesting_imports()
+
             # Need to adjust the backtesting end date because the data from Yahoo
             # is at the start of the day, so the graph cuts short. This may be needed
             # for other timeframes as well
@@ -1872,6 +2170,7 @@ class _Strategy:
 
                 # Add returns column
                 if hasattr(df, 'select'):  # Polars DataFrame
+                    pl = _get_polars_module()
                     df = df.with_columns(pl.col("close").pct_change().alias("return"))
                     # Add the symbol_cumprod column for polars
                     df = df.with_columns((1 + pl.col("return")).cum_prod().alias("symbol_cumprod"))
@@ -2078,6 +2377,7 @@ class _Strategy:
                     return
                 df = df.loc[self._backtesting_start:self._backtesting_end].copy()
                 if hasattr(df, 'select'):  # Polars DataFrame
+                    pl = _get_polars_module()
                     df = df.with_columns(pl.col("close").pct_change().alias("return"))
                     df = df.with_columns((1 + pl.col("return")).cumprod().alias("symbol_cumprod"))
                 else:  # Pandas DataFrame
@@ -2390,7 +2690,7 @@ class _Strategy:
         use_quote_data = False,
         show_progress_bar = True,
         quiet_logs = False,
-        trader_class = Trader,
+        trader_class = None,
         include_cash_positions=False,
         save_stats_file = True,
         **kwargs,
@@ -2522,6 +2822,8 @@ class _Strategy:
 
         if name is None:
             name = self.__name__
+        if trader_class is None:
+            trader_class = _trader_class()
 
         self._name = name
         self._analyze_backtest = analyze_backtest
@@ -2529,8 +2831,8 @@ class _Strategy:
         # Set backtesting_start: priority 1 - passed argument, 2 - BACKTESTING_START env var, 3 - default to 1 year ago
         if backtesting_start is not None:
             pass
-        elif BACKTESTING_START is not None:
-            backtesting_start = BACKTESTING_START
+        elif _credential("BACKTESTING_START") is not None:
+            backtesting_start = _credential("BACKTESTING_START")
         else:
             backtesting_start = datetime.datetime.now() - datetime.timedelta(days=365)
             get_logger(__name__).warning(
@@ -2543,8 +2845,8 @@ class _Strategy:
         # Set backtesting_end: priority 1 - passed argument, 2 - BACKTESTING_END env var, 3 - default to yesterday
         if backtesting_end is not None:
             pass
-        elif BACKTESTING_END is not None:
-            backtesting_end = BACKTESTING_END
+        elif _credential("BACKTESTING_END") is not None:
+            backtesting_end = _credential("BACKTESTING_END")
         else:
             backtesting_end = datetime.datetime.now() - datetime.timedelta(days=1)
             get_logger(__name__).warning(
@@ -2560,17 +2862,18 @@ class _Strategy:
 
         # If show_plot is None, then set it to True
         if show_plot is None:
-            show_plot = SHOW_PLOT
+            show_plot = _credential("SHOW_PLOT")
 
         # If show_tearsheet is None, then set it to True
         if show_tearsheet is None:
-            show_tearsheet = SHOW_TEARSHEET
+            show_tearsheet = _credential("SHOW_TEARSHEET")
 
         # If show_indicators is None, then set it to True
         if show_indicators is None:
-            show_indicators = SHOW_INDICATORS
+            show_indicators = _credential("SHOW_INDICATORS")
 
         from lumibot.credentials import BACKTESTING_DATA_SOURCE as _DEFAULT_BACKTESTING_DATA_SOURCE
+        _ensure_backtesting_imports()
 
         # Determine whether an environment override exists. When BACKTESTING_DATA_SOURCE
         # is set (and not blank/\"none\"), it should take precedence even if a
@@ -2659,7 +2962,7 @@ class _Strategy:
             )
 
         # Make sure polygon_api_key is set if using PolygonDataBacktesting
-        polygon_api_key = polygon_api_key if polygon_api_key is not None else POLYGON_API_KEY
+        polygon_api_key = polygon_api_key if polygon_api_key is not None else _credential("POLYGON_API_KEY")
         if datasource_class.__name__ == 'PolygonDataBacktesting' and polygon_api_key is None:
             raise ValueError(
                 "Please set `POLYGON_API_KEY` to your API key from polygon.io as an environment variable if "
@@ -2670,8 +2973,9 @@ class _Strategy:
         # Make sure thetadata_username and thetadata_password are set if using ThetaDataBacktesting
         if thetadata_username is None or thetadata_password is None:
             # Try getting the Theta Data credentials from credentials
-            thetadata_username = THETADATA_CONFIG.get('THETADATA_USERNAME')
-            thetadata_password = THETADATA_CONFIG.get('THETADATA_PASSWORD')
+            thetadata_config = _credential("THETADATA_CONFIG")
+            thetadata_username = thetadata_config.get('THETADATA_USERNAME')
+            thetadata_password = thetadata_config.get('THETADATA_PASSWORD')
 
             # Check again if theta data username and pass are set (before checking dict)
             if datasource_class.__name__ == 'ThetaDataBacktesting' and (thetadata_username is None or thetadata_password is None):
@@ -2752,7 +3056,7 @@ class _Strategy:
 
         show_progress_env = os.environ.get("BACKTESTING_SHOW_PROGRESS_BAR")
         if show_progress_env is not None:
-            show_progress_bar = BACKTESTING_SHOW_PROGRESS_BAR
+            show_progress_bar = _credential("BACKTESTING_SHOW_PROGRESS_BAR")
 
         previous_backtesting_env = {
             "IS_BACKTESTING": os.environ.get("IS_BACKTESTING"),
@@ -2783,8 +3087,8 @@ class _Strategy:
                     api_key=polygon_api_key,
                     pandas_data=pandas_data,
                     show_progress_bar=show_progress_bar,
-                    max_memory=POLYGON_MAX_MEMORY_BYTES,
-                    log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
+                    max_memory=_credential("POLYGON_MAX_MEMORY_BYTES"),
+                    log_backtest_progress_to_file=_credential("LOG_BACKTEST_PROGRESS_TO_FILE"),
                     **kwargs,
                 )
             elif issubclass(datasource_class, ThetaDataBacktestingPandas) or (
@@ -2800,7 +3104,7 @@ class _Strategy:
                     pandas_data=pandas_data,
                     use_quote_data=use_quote_data,
                     show_progress_bar=show_progress_bar,
-                    log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
+                    log_backtest_progress_to_file=_credential("LOG_BACKTEST_PROGRESS_TO_FILE"),
                     **kwargs,
                 )
             elif datasource_class == InteractiveBrokersRESTBacktesting:
@@ -2811,7 +3115,7 @@ class _Strategy:
                     auto_adjust=auto_adjust,
                     pandas_data=pandas_data,
                     show_progress_bar=show_progress_bar,
-                    log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
+                    log_backtest_progress_to_file=_credential("LOG_BACKTEST_PROGRESS_TO_FILE"),
                     **kwargs,
                 )
             else:
@@ -2822,7 +3126,7 @@ class _Strategy:
                     auto_adjust=auto_adjust,
                     pandas_data=pandas_data,
                     show_progress_bar=show_progress_bar,
-                    log_backtest_progress_to_file=LOG_BACKTEST_PROGRESS_TO_FILE,
+                    log_backtest_progress_to_file=_credential("LOG_BACKTEST_PROGRESS_TO_FILE"),
                     **kwargs,
                 )
 
@@ -3139,6 +3443,8 @@ class _Strategy:
         }
 
         normalized_events = []
+        from ..entities import CashEvent
+
         for event in fetched_events or []:
             if not isinstance(event, CashEvent):
                 continue
@@ -3286,6 +3592,7 @@ class _Strategy:
         # Apply to your data dictionary
         data = replace_nan(data)
 
+        requests = _get_requests_module()
         try:
             # Send the data to the cloud
             json_data = json.dumps(data, default=str)
@@ -3430,6 +3737,7 @@ class _Strategy:
         if silent:
             payload["flags"] = [4096]
 
+        requests = _get_requests_module()
         # Check if we have an image
         if image_buf is not None:
             # The files that you want to send
@@ -3450,6 +3758,13 @@ class _Strategy:
             )
 
     def send_spark_chart_to_discord(self, stats_df, portfolio_value, now, days=1095):
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.dates as mdates
+        import matplotlib.pyplot as plt
+        import matplotlib.ticker as ticker
+
         # Check if we are in backtesting mode, if so, don't send the message
         if self.is_backtesting:
             return
@@ -3676,7 +3991,7 @@ class _Strategy:
         cash = self.get_cash()
 
         # # Get the datetime
-        now = pd.Timestamp(datetime.datetime.now()).tz_localize(LUMIBOT_DEFAULT_PYTZ)
+        now = pd.Timestamp(datetime.datetime.now()).tz_localize(_default_pytz())
 
         # Get the returns
         returns_text, stats_df = self.calculate_returns()
@@ -3688,6 +4003,7 @@ class _Strategy:
         self.send_result_text_to_discord(returns_text, portfolio_value, cash)
 
     def get_stats_from_database(self, stats_table_name, retries=5, delay=5):
+        create_engine, inspect, text, OperationalError = _get_sqlalchemy_imports()
         attempt = 0
         while attempt < retries:
             try:
@@ -3705,7 +4021,7 @@ class _Strategy:
                     self.logger.info(f"Table {stats_table_name} does not exist. Creating it now.")
 
                     # Get the current time in New York
-                    ny_tz = LUMIBOT_DEFAULT_PYTZ
+                    ny_tz = _default_pytz()
                     now = datetime.datetime.now(ny_tz)
 
                     # Create an empty stats dataframe
@@ -3741,6 +4057,7 @@ class _Strategy:
                     raise
 
     def to_sql(self, stats_df, stats_table_name, if_exists='replace', index=True, retries=5, delay=5):
+        create_engine, _inspect, _text, OperationalError = _get_sqlalchemy_imports()
         attempt = 0
         while attempt < retries:
             try:
@@ -3764,12 +4081,13 @@ class _Strategy:
         if not hasattr(self, "db_connection_str") or self.db_connection_str is None or self.db_connection_str == "" or not self.should_backup_variables_to_database:
             return
 
+        create_engine, inspect, text, _OperationalError = _get_sqlalchemy_imports()
         # Ensure we have a self.db_engine
         if not hasattr(self, 'db_engine') or not self.db_engine:
             self.db_engine = create_engine(self.db_connection_str)
 
         # Get the current time in New York
-        ny_tz = LUMIBOT_DEFAULT_PYTZ
+        ny_tz = _default_pytz()
         now = datetime.datetime.now(ny_tz)
 
         if not inspect(self.db_engine).has_table(self.backup_table_name):
@@ -3850,6 +4168,7 @@ class _Strategy:
             return
     
         try:
+            create_engine, inspect, text, _OperationalError = _get_sqlalchemy_imports()
             if not hasattr(self, 'db_engine') or not self.db_engine:
                 self.db_engine = create_engine(self.db_connection_str)
     
@@ -3923,7 +4242,7 @@ class _Strategy:
         # Calculate the return over the past 24 hours, 7 days, and 30 days using the stats dataframe
 
         # Get the current time in New York
-        ny_tz = LUMIBOT_DEFAULT_PYTZ
+        ny_tz = _default_pytz()
 
         # Get the datetime
         now = datetime.datetime.now(ny_tz)
@@ -3940,11 +4259,11 @@ class _Strategy:
         # Check if the datetime column is timezone-aware
         if stats_df['datetime'].dt.tz is None:
             # If the datetime is timezone-naive, directly localize it to "America/New_York"
-            stats_df["datetime"] = stats_df["datetime"].dt.tz_localize(LUMIBOT_DEFAULT_PYTZ, ambiguous='infer')
+            stats_df["datetime"] = stats_df["datetime"].dt.tz_localize(_default_pytz(), ambiguous='infer')
         else:
             # If the datetime is already timezone-aware, first remove timezone and then localize
             stats_df["datetime"] = stats_df["datetime"].dt.tz_localize(None)
-            stats_df["datetime"] = stats_df["datetime"].dt.tz_localize(LUMIBOT_DEFAULT_PYTZ, ambiguous='infer')
+            stats_df["datetime"] = stats_df["datetime"].dt.tz_localize(_default_pytz(), ambiguous='infer')
 
         # Get the stats
         stats_new = pd.DataFrame(
@@ -3964,7 +4283,7 @@ class _Strategy:
         stats_df = pd.concat([stats_df, stats_new])
 
         # # Convert the datetime column to eastern time
-        stats_df["datetime"] = stats_df["datetime"].dt.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+        stats_df["datetime"] = stats_df["datetime"].dt.tz_convert(_default_pytz())
 
         # Remove any duplicate rows
         stats_df = stats_df[~stats_df["datetime"].duplicated(keep="last")]

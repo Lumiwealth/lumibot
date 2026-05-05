@@ -3,15 +3,32 @@
 This mixin provides common polars operations without disrupting inheritance.
 """
 
+from __future__ import annotations
+
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
-
-import polars as pl
 
 from lumibot.entities import Asset, Bars
 from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
+
+
+class _LazyPolars:
+    _module = None
+
+    def _load(self):
+        if self._module is None:
+            import polars as pl
+
+            self._module = pl
+        return self._module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pl = _LazyPolars()
 
 # DEBUG-LOG: Always-on debug logging (will be removed after debugging is complete)
 _THETA_PARITY_DEBUG = False

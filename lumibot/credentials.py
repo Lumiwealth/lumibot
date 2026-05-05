@@ -9,14 +9,58 @@
 import os
 import sys
 
-from .brokers import Alpaca, Ccxt, InteractiveBrokers, InteractiveBrokersREST, Tradier, Tradovate, Schwab, Bitunix, ProjectX
-from dotenv import load_dotenv
 import termcolor
-from dateutil import parser
 
 # Configure logging
 from lumibot.tools.lumibot_logger import get_logger
 logger = get_logger(__name__)
+_LOAD_DOTENV = None
+_DATEUTIL_PARSER = None
+
+
+def _load_dotenv(dotenv_path, *, override=False):
+    global _LOAD_DOTENV
+    if _LOAD_DOTENV is None:
+        from dotenv import load_dotenv
+
+        _LOAD_DOTENV = load_dotenv
+    return _LOAD_DOTENV(dotenv_path, override=override)
+
+
+def _parse_datetime(value):
+    global _DATEUTIL_PARSER
+    if _DATEUTIL_PARSER is None:
+        from dateutil import parser
+
+        _DATEUTIL_PARSER = parser
+    return _DATEUTIL_PARSER.parse(value)
+
+
+def _broker_class(name: str):
+    from . import brokers
+
+    return getattr(brokers, name)
+
+
+_BROKER_CLASS_NAMES = {
+    "Alpaca",
+    "Ccxt",
+    "InteractiveBrokers",
+    "InteractiveBrokersREST",
+    "Tradier",
+    "Tradovate",
+    "Schwab",
+    "Bitunix",
+    "ProjectX",
+}
+
+
+def __getattr__(name: str):
+    if name in _BROKER_CLASS_NAMES:
+        cls = _broker_class(name)
+        globals()[name] = cls
+        return cls
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _quiet_backtest_logs_requested() -> bool:
@@ -24,13 +68,16 @@ def _quiet_backtest_logs_requested() -> bool:
 
 
 def find_and_load_dotenv(base_dir) -> bool:
-    for root, dirs, files in os.walk(base_dir):
-        logger.debug(f"Checking {root} for .env file")
-        if '.env' in files:
-            dotenv_path = os.path.join(root, '.env')
-            load_dotenv(dotenv_path)
+    current = os.path.abspath(base_dir)
+    if os.path.isfile(current):
+        current = os.path.dirname(current)
 
-            # Create a colored message for the log using termcolor
+    while True:
+        logger.debug(f"Checking {current} for .env file")
+        dotenv_path = os.path.join(current, ".env")
+        if os.path.isfile(dotenv_path):
+            _load_dotenv(dotenv_path)
+
             colored_message = termcolor.colored(f".env file loaded from: {dotenv_path}", "green")
             if _quiet_backtest_logs_requested():
                 logger.debug(colored_message)
@@ -40,9 +87,9 @@ def find_and_load_dotenv(base_dir) -> bool:
             # Optional local override file. This is intentionally loaded *after* `.env` so it can
             # override settings without requiring edits to the primary file (which may contain
             # shared or sensitive values).
-            dotenv_local_path = os.path.join(root, ".env.local")
-            if os.path.exists(dotenv_local_path):
-                load_dotenv(dotenv_local_path, override=True)
+            dotenv_local_path = os.path.join(current, ".env.local")
+            if os.path.isfile(dotenv_local_path):
+                _load_dotenv(dotenv_local_path, override=True)
                 colored_message = termcolor.colored(f".env.local file loaded from: {dotenv_local_path}", "green")
                 if _quiet_backtest_logs_requested():
                     logger.debug(colored_message)
@@ -50,6 +97,10 @@ def find_and_load_dotenv(base_dir) -> bool:
                     logger.info(colored_message)
             return True
 
+        parent = os.path.dirname(current)
+        if parent == current:
+            break
+        current = parent
     return False
 
 
@@ -104,10 +155,10 @@ backtesting_end = os.environ.get("BACKTESTING_END")
 # Check if the dates are not None and not empty strings before parsing
 BACKTESTING_START = None
 if backtesting_start:
-    BACKTESTING_START = parser.parse(backtesting_start)
+    BACKTESTING_START = _parse_datetime(backtesting_start)
 BACKTESTING_END = None
 if backtesting_end:
-    BACKTESTING_END = parser.parse(backtesting_end)
+    BACKTESTING_END = _parse_datetime(backtesting_end)
 
 # Get the backtesting data source
 BACKTESTING_DATA_SOURCE = os.environ.get("BACKTESTING_DATA_SOURCE", "ThetaData")
@@ -490,27 +541,27 @@ if not is_backtesting or is_backtesting.lower() == "false":
     if trading_broker_name:
         # Create broker instance based on explicitly specified name
         if trading_broker_name.lower() == "alpaca":
-            broker = Alpaca(ALPACA_CONFIG)
+            broker = _broker_class("Alpaca")(ALPACA_CONFIG)
         elif trading_broker_name.lower() == "tradier":
-            broker = Tradier(TRADIER_CONFIG)
+            broker = _broker_class("Tradier")(TRADIER_CONFIG)
         elif trading_broker_name.lower() == "ccxt":
-            broker = Ccxt(COINBASE_CONFIG)
+            broker = _broker_class("Ccxt")(COINBASE_CONFIG)
         elif trading_broker_name.lower() == "coinbase":
-            broker = Ccxt(COINBASE_CONFIG)
+            broker = _broker_class("Ccxt")(COINBASE_CONFIG)
         elif trading_broker_name.lower() == "kraken":
-            broker = Ccxt(KRAKEN_CONFIG)
+            broker = _broker_class("Ccxt")(KRAKEN_CONFIG)
         elif trading_broker_name.lower() == "weex":
-            broker = Ccxt(WEEX_CONFIG)
+            broker = _broker_class("Ccxt")(WEEX_CONFIG)
         elif trading_broker_name.lower() == "ib" or trading_broker_name.lower() == "interactivebrokers":
-            broker = InteractiveBrokers(INTERACTIVE_BROKERS_CONFIG)
+            broker = _broker_class("InteractiveBrokers")(INTERACTIVE_BROKERS_CONFIG)
         elif trading_broker_name.lower() == "ibrest" or trading_broker_name.lower() == "interactivebrokersrest":
-            broker = InteractiveBrokersREST(INTERACTIVE_BROKERS_REST_CONFIG)
+            broker = _broker_class("InteractiveBrokersREST")(INTERACTIVE_BROKERS_REST_CONFIG)
         elif trading_broker_name.lower() == "tradovate":
-            broker = Tradovate(TRADOVATE_CONFIG)
+            broker = _broker_class("Tradovate")(TRADOVATE_CONFIG)
         elif trading_broker_name.lower() == "schwab":
-            broker = Schwab(SCHWAB_CONFIG)
+            broker = _broker_class("Schwab")(SCHWAB_CONFIG)
         elif trading_broker_name.lower() == "bitunix":
-            broker = Bitunix(BITUNIX_CONFIG)
+            broker = _broker_class("Bitunix")(BITUNIX_CONFIG)
         elif trading_broker_name.lower() == "projectx":
             try:
                 # Get specified firm or use auto-detection
@@ -522,7 +573,7 @@ if not is_backtesting or is_backtesting.lower() == "false":
                 
                 from .data_sources import ProjectXData
                 data_source = ProjectXData(config)
-                broker = ProjectX(config, data_source=data_source)
+                broker = _broker_class("ProjectX")(config, data_source=data_source)
             except Exception as e:
                 colored_message = termcolor.colored(f"Failed to initialize ProjectX broker: {e}", "red")
                 logger.error(colored_message)
@@ -568,7 +619,7 @@ if not is_backtesting or is_backtesting.lower() == "false":
                 
                 from .data_sources import ProjectXData
                 data_source = ProjectXData(config)
-                broker = ProjectX(config, data_source=data_source)
+                broker = _broker_class("ProjectX")(config, data_source=data_source)
             except Exception as e:
                 colored_message = termcolor.colored(f"Failed to initialize ProjectX broker {trading_broker_name}: {e}", "red")
                 logger.error(colored_message)
@@ -579,7 +630,7 @@ if not is_backtesting or is_backtesting.lower() == "false":
         # Auto-detect broker based on available credentials if not explicitly specified
         if ALPACA_CONFIG["API_KEY"] or ALPACA_CONFIG["OAUTH_TOKEN"]:
             try:
-                broker = Alpaca(ALPACA_CONFIG)
+                broker = _broker_class("Alpaca")(ALPACA_CONFIG)
             except ValueError as e:
                 # If Alpaca initialization fails due to missing credentials, skip it
                 if "Either OAuth token or API key/secret must be provided" in str(e):
@@ -587,14 +638,14 @@ if not is_backtesting or is_backtesting.lower() == "false":
                 else:
                     raise e
         elif TRADIER_CONFIG["ACCESS_TOKEN"]:
-            broker = Tradier(TRADIER_CONFIG)
+            broker = _broker_class("Tradier")(TRADIER_CONFIG)
         elif INTERACTIVE_BROKERS_CONFIG["CLIENT_ID"]:
-            broker = InteractiveBrokers(INTERACTIVE_BROKERS_CONFIG)
+            broker = _broker_class("InteractiveBrokers")(INTERACTIVE_BROKERS_CONFIG)
         elif INTERACTIVE_BROKERS_REST_CONFIG["IB_USERNAME"]:
-            broker = InteractiveBrokersREST(INTERACTIVE_BROKERS_REST_CONFIG)
+            broker = _broker_class("InteractiveBrokersREST")(INTERACTIVE_BROKERS_REST_CONFIG)
         elif TRADOVATE_CONFIG["USERNAME"]:
             try:
-                broker = Tradovate(TRADOVATE_CONFIG)
+                broker = _broker_class("Tradovate")(TRADOVATE_CONFIG)
             except Exception as e:
                 # Handle rate limiting and other connection errors gracefully
                 error_str = str(e)
@@ -610,15 +661,15 @@ if not is_backtesting or is_backtesting.lower() == "false":
                     raise
         # Only check for SCHWAB_ACCOUNT_NUMBER to select Schwab
         elif SCHWAB_CONFIG.get("SCHWAB_ACCOUNT_NUMBER"):
-            broker = Schwab(SCHWAB_CONFIG)
+            broker = _broker_class("Schwab")(SCHWAB_CONFIG)
         elif COINBASE_CONFIG["apiKey"]:
-            broker = Ccxt(COINBASE_CONFIG)
+            broker = _broker_class("Ccxt")(COINBASE_CONFIG)
         elif KRAKEN_CONFIG["apiKey"]:
-            broker = Ccxt(KRAKEN_CONFIG)
+            broker = _broker_class("Ccxt")(KRAKEN_CONFIG)
         elif WEEX_CONFIG["apiKey"] and WEEX_CONFIG["secret"] and WEEX_CONFIG["password"]:
-            broker = Ccxt(WEEX_CONFIG)
+            broker = _broker_class("Ccxt")(WEEX_CONFIG)
         elif BITUNIX_CONFIG["API_KEY"] and BITUNIX_CONFIG["API_SECRET"]:
-            broker = Bitunix(BITUNIX_CONFIG)
+            broker = _broker_class("Bitunix")(BITUNIX_CONFIG)
         elif get_available_projectx_firms():
             try:
                 # Use first available ProjectX firm
@@ -628,7 +679,7 @@ if not is_backtesting or is_backtesting.lower() == "false":
                 if config.get("api_key") and config.get("username"):
                     from .data_sources import ProjectXData
                     data_source = ProjectXData(config)
-                    broker = ProjectX(config, data_source=data_source)
+                    broker = _broker_class("ProjectX")(config, data_source=data_source)
             except Exception as e:
                 colored_message = termcolor.colored(f"Failed to initialize ProjectX broker: {e}", "red")
                 logger.error(colored_message)

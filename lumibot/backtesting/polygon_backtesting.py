@@ -1,20 +1,81 @@
+from __future__ import annotations
+
 import traceback
 from collections import OrderedDict
 from datetime import timedelta
 from decimal import Decimal
+from importlib import import_module
 from typing import Union
 
-from polygon.exceptions import BadResponse
 from termcolor import colored
 
 from lumibot.tools.lumibot_logger import get_logger
 from lumibot.data_sources import PandasData
-from lumibot.entities import Asset, Data
-from lumibot.tools import polygon_helper
-from lumibot.tools.polygon_helper import PolygonClient
+from lumibot.entities import Asset
 
 logger = get_logger(__name__)
 START_BUFFER = timedelta(days=5)
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+    def __setattr__(self, name, value):
+        setattr(self._load(), name, value)
+
+    def __delattr__(self, name):
+        if name in {"_module_name", "_module"}:
+            object.__delattr__(self, name)
+        else:
+            delattr(self._load(), name)
+
+
+polygon_helper = _LazyModule("lumibot.tools.polygon_helper")
+_POLYGON_CLIENT_CLASS = None
+_BAD_RESPONSE_CLASS = None
+_DATA_CLASS = None
+
+
+def _polygon_client_class():
+    global _POLYGON_CLIENT_CLASS
+    if _POLYGON_CLIENT_CLASS is None:
+        from lumibot.tools.polygon_helper import PolygonClient
+
+        _POLYGON_CLIENT_CLASS = PolygonClient
+    return _POLYGON_CLIENT_CLASS
+
+
+def _bad_response_class():
+    global _BAD_RESPONSE_CLASS
+    if _BAD_RESPONSE_CLASS is None:
+        from polygon.exceptions import BadResponse
+
+        _BAD_RESPONSE_CLASS = BadResponse
+    return _BAD_RESPONSE_CLASS
+
+
+def _data_class():
+    global _DATA_CLASS
+    if _DATA_CLASS is None:
+        from lumibot.entities import Data
+
+        _DATA_CLASS = Data
+    return _DATA_CLASS
+
 
 class PolygonDataBacktesting(PandasData):
     """
@@ -43,7 +104,7 @@ class PolygonDataBacktesting(PandasData):
         # Store errors CSV path for use in data retrieval
 
         # RESTClient API for Polygon.io polygon-api-client
-        self.polygon_client = PolygonClient.create(api_key=api_key)
+        self.polygon_client = _polygon_client_class().create(api_key=api_key)
 
     def _enforce_storage_limit(pandas_data: OrderedDict):
         storage_used = sum(data.df.memory_usage().sum() for data in pandas_data.values())
@@ -138,7 +199,7 @@ class PolygonDataBacktesting(PandasData):
                 timespan=ts_unit,
                 quote_asset=quote_asset
             )
-        except BadResponse as e:
+        except _bad_response_class() as e:
             # Assuming e.message or similar attribute contains the error message
             formatted_start_datetime = start_datetime.strftime("%Y-%m-%d")
             formatted_end_datetime = self.datetime_end.strftime("%Y-%m-%d")
@@ -180,7 +241,7 @@ class PolygonDataBacktesting(PandasData):
 
         if (df is None) or df.empty:
             return
-        data = Data(asset_separated, df, timestep=ts_unit, quote=quote_asset)
+        data = _data_class()(asset_separated, df, timestep=ts_unit, quote=quote_asset)
         pandas_data_update = self._set_pandas_data_keys([data])
         # Add the keys to the self.pandas_data dictionary
         self.pandas_data.update(pandas_data_update)

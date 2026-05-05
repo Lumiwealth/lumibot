@@ -5,38 +5,105 @@ Provides futures trading functionality through ProjectX broker integration.
 Supports multiple underlying brokers (TSX, TOPONE, etc.) via ProjectX gateway.
 """
 
+from __future__ import annotations
+
 import threading
 from datetime import datetime, timedelta
-from typing import Dict, List
-
-import pandas as pd
+from importlib import import_module
+from typing import TYPE_CHECKING, Dict, List
 
 from lumibot.brokers.broker import Broker
-from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
-from lumibot.data_sources import DataSource
-from lumibot.entities import Asset, Order, Position
+from lumibot.entities import Asset, Order
 from lumibot.tools.lumibot_logger import get_logger
-from lumibot.tools.projectx_helpers import (
-    ProjectXClient,
-    create_bracket_meta,
-    normalize_bracket_entry_tag,
-    build_unique_order_tag,
-    select_effective_prices,
-    bracket_child_tag,
-    derive_base_tag,
-    early_store_bracket_meta,
-    restore_bracket_meta_if_needed,
-    should_spawn_bracket_children,
-    build_bracket_child_spec,
-)
-from termcolor import colored
 # PollingStream usage was removed to align with centralized lifecycle in core Broker
-import traceback
+
+if TYPE_CHECKING:
+    from lumibot.entities import Position
 
 # Import moved to avoid circular dependency
 # from lumibot.credentials import PROJECTX_CONFIG
 
 logger = get_logger(__name__)
+_COLORED_FN = None
+
+
+def colored(*args, **kwargs):
+    global _COLORED_FN
+    if _COLORED_FN is None:
+        from termcolor import colored as _termcolor_colored
+
+        _COLORED_FN = _termcolor_colored
+    return _COLORED_FN(*args, **kwargs)
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+_projectx_helpers = _LazyModule("lumibot.tools.projectx_helpers")
+ProjectXClient = None
+
+
+def _projectx_client_class():
+    global ProjectXClient
+    if ProjectXClient is None:
+        ProjectXClient = _projectx_helpers.ProjectXClient
+    return ProjectXClient
+
+
+def create_bracket_meta(*args, **kwargs):
+    return _projectx_helpers.create_bracket_meta(*args, **kwargs)
+
+
+def normalize_bracket_entry_tag(*args, **kwargs):
+    return _projectx_helpers.normalize_bracket_entry_tag(*args, **kwargs)
+
+
+def build_unique_order_tag(*args, **kwargs):
+    return _projectx_helpers.build_unique_order_tag(*args, **kwargs)
+
+
+def select_effective_prices(*args, **kwargs):
+    return _projectx_helpers.select_effective_prices(*args, **kwargs)
+
+
+def bracket_child_tag(*args, **kwargs):
+    return _projectx_helpers.bracket_child_tag(*args, **kwargs)
+
+
+def derive_base_tag(*args, **kwargs):
+    return _projectx_helpers.derive_base_tag(*args, **kwargs)
+
+
+def early_store_bracket_meta(*args, **kwargs):
+    return _projectx_helpers.early_store_bracket_meta(*args, **kwargs)
+
+
+def restore_bracket_meta_if_needed(*args, **kwargs):
+    return _projectx_helpers.restore_bracket_meta_if_needed(*args, **kwargs)
+
+
+def should_spawn_bracket_children(*args, **kwargs):
+    return _projectx_helpers.should_spawn_bracket_children(*args, **kwargs)
+
+
+def build_bracket_child_spec(*args, **kwargs):
+    return _projectx_helpers.build_bracket_child_spec(*args, **kwargs)
 
 
 class ProjectX(Broker):
@@ -101,7 +168,7 @@ class ProjectX(Broker):
         2: "short",
     }
 
-    def __init__(self, config: dict = None, data_source: DataSource = None,
+    def __init__(self, config: dict = None, data_source = None,
                  connect_stream: bool = True, max_workers: int = 20, firm: str = None):
         """
         Initialize ProjectX broker.
@@ -142,7 +209,7 @@ class ProjectX(Broker):
         self.firm = config.get("firm")
 
         # Initialize ProjectX client
-        self.client = ProjectXClient(config)
+        self.client = _projectx_client_class()(config)
 
         # Account management
         self.account_id = None
@@ -600,6 +667,8 @@ class ProjectX(Broker):
 
             # Get orders from last 30 days to catch filled/cancelled orders
             # Note: Orders may disappear quickly after being filled
+            from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
+
             end_date = datetime.now(LUMIBOT_DEFAULT_PYTZ).replace(hour=23, minute=59, second=59)
             start_date = end_date.replace(hour=0, minute=0, second=0) - timedelta(days=self.order_lookback_days)
 
@@ -762,6 +831,8 @@ class ProjectX(Broker):
         """Get all orders from broker, including recently filled ones via trades."""
         try:
             # Get all orders from today to catch any recent activity
+            from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
+
             end_date = datetime.now(LUMIBOT_DEFAULT_PYTZ).replace(hour=23, minute=59, second=59)
             start_date = end_date.replace(hour=0, minute=0, second=0)
 
@@ -1071,6 +1142,8 @@ class ProjectX(Broker):
 
             # Try both field names: avgPrice and averagePrice
             avg_price = broker_position.get("avgPrice") or broker_position.get("averagePrice", 0.0)
+
+            from lumibot.entities import Position
 
             position = Position(
                 strategy="",  # Will be set by strategy

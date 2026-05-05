@@ -7,8 +7,18 @@ from collections import deque
 from datetime import datetime, timedelta
 
 from lumibot.data_sources import DataSource
-from lumibot.tools import print_progress_bar, to_datetime_aware
-from lumibot.tools.helpers import get_timezone_from_datetime
+
+_HELPER_FUNCS = {}
+
+
+def _helper_func(name):
+    func = _HELPER_FUNCS.get(name)
+    if func is None:
+        from lumibot import tools
+
+        func = getattr(tools, name)
+        _HELPER_FUNCS[name] = func
+    return func
 
 
 class DataSourceBacktesting(DataSource, ABC):
@@ -65,13 +75,13 @@ class DataSourceBacktesting(DataSource, ABC):
         else:
             _backtesting_started = backtesting_started
 
-        self.datetime_start = to_datetime_aware(datetime_start)
-        self.datetime_end = to_datetime_aware(datetime_end)
+        self.datetime_start = _helper_func("to_datetime_aware")(datetime_start)
+        self.datetime_end = _helper_func("to_datetime_aware")(datetime_end)
         self._datetime = self.datetime_start
         self._iter_count = None
         self.backtesting_started = _backtesting_started
         self.log_backtest_progress_to_file = log_backtest_progress_to_file
-        self.tzinfo = get_timezone_from_datetime(self.datetime_start)
+        self.tzinfo = _helper_func("get_timezone_from_datetime")(self.datetime_start)
         self._eta_history = deque()
         self._eta_window_seconds = 30
         self._eta_calibration_seconds = 25
@@ -330,6 +340,10 @@ class DataSourceBacktesting(DataSource, ABC):
         import json
 
         self._datetime = new_datetime
+        try:
+            self._datetime_minus_microsecond = new_datetime - timedelta(microseconds=1)
+        except Exception:
+            self._datetime_minus_microsecond = None
 
         if not self._show_progress_bar and not self.log_backtest_progress_to_file:
             return
@@ -371,7 +385,7 @@ class DataSourceBacktesting(DataSource, ABC):
 
         if should_print_progress_bar:
             self._last_progress_bar_update = now_wall
-            print_progress_bar(
+            _helper_func("print_progress_bar")(
                 new_datetime,
                 self.datetime_start,
                 self.datetime_end,

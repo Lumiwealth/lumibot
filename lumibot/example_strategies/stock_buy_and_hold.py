@@ -1,8 +1,5 @@
 import datetime as dt
 
-import pytz
-
-from lumibot.credentials import ALPACA_TEST_CONFIG
 from lumibot.strategies.strategy import Strategy
 
 """
@@ -60,7 +57,10 @@ if __name__ == "__main__":
     IS_BACKTESTING = True
 
     if IS_BACKTESTING:
+        import pytz
+
         from lumibot.backtesting import AlpacaBacktesting
+        from lumibot.credentials import ALPACA_TEST_CONFIG
 
         if not IS_BACKTESTING:
             print("This strategy is not meant to be run live. Please set IS_BACKTESTING to True.")

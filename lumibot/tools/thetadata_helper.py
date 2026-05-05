@@ -1,4 +1,6 @@
 # This file contains helper functions for getting data from Polygon.io
+from __future__ import annotations
+
 import functools
 import hashlib
 import json
@@ -9,26 +11,124 @@ import re
 import signal
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
+from importlib import import_module
 from pathlib import Path
+from types import ModuleType
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlencode, urlparse
 
-import pandas as pd
-import pandas_market_calendars as mcal
 import pytz
-import requests
-from dateutil import parser as dateutil_parser
-from tqdm import tqdm
 
-from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
+from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.entities import Asset
-from lumibot.tools.backtest_cache import CacheMode, get_backtest_cache
-from lumibot.tools.lumibot_logger import get_logger
 
-logger = get_logger(__name__)
+LUMIBOT_DEFAULT_PYTZ = pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE)
+
+
+class _LazyModule(ModuleType):
+    def __init__(self, module_name: str):
+        super().__init__(module_name)
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+    def __setattr__(self, name, value):
+        if name in {"_module_name", "_module"}:
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self._load(), name, value)
+
+    def __delattr__(self, name):
+        if name in {"_module_name", "_module"}:
+            object.__delattr__(self, name)
+        else:
+            delattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+mcal = _LazyModule("pandas_market_calendars")
+requests = _LazyModule("requests")
+_TQDM_FUNC = None
+_BACKTEST_CACHE_MODE = None
+_BACKTEST_CACHE_GETTER = None
+_DATEUTIL_PARSE = None
+
+
+class _LazyLogger:
+    __slots__ = ("_logger",)
+
+    def __init__(self):
+        object.__setattr__(self, "_logger", None)
+
+    def _load(self):
+        logger = object.__getattribute__(self, "_logger")
+        if logger is None:
+            from lumibot.tools.lumibot_logger import get_logger
+
+            logger = get_logger(__name__)
+            object.__setattr__(self, "_logger", logger)
+        return logger
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+logger = _LazyLogger()
+
+
+def _dateutil_parse(value):
+    global _DATEUTIL_PARSE
+    if _DATEUTIL_PARSE is None:
+        from dateutil import parser as dateutil_parser
+
+        _DATEUTIL_PARSE = dateutil_parser.parse
+    return _DATEUTIL_PARSE(value)
+
+
+class _LazyCacheMode:
+    def __getattr__(self, name):
+        global _BACKTEST_CACHE_MODE
+        if _BACKTEST_CACHE_MODE is None:
+            from lumibot.tools.backtest_cache import CacheMode as _CacheMode
+
+            _BACKTEST_CACHE_MODE = _CacheMode
+        return getattr(_BACKTEST_CACHE_MODE, name)
+
+
+CacheMode = _LazyCacheMode()
+
+
+def get_backtest_cache():
+    global _BACKTEST_CACHE_GETTER
+    if _BACKTEST_CACHE_GETTER is None:
+        from lumibot.tools.backtest_cache import get_backtest_cache as _get_backtest_cache
+
+        _BACKTEST_CACHE_GETTER = _get_backtest_cache
+    return _BACKTEST_CACHE_GETTER()
+
+
+def _tqdm(*args, **kwargs):
+    global _TQDM_FUNC
+    if _TQDM_FUNC is None:
+        from tqdm import tqdm
+
+        _TQDM_FUNC = tqdm
+    return _TQDM_FUNC(*args, **kwargs)
+
+
+def tqdm(*args, **kwargs):
+    return _tqdm(*args, **kwargs)
 
 # ==============================================================================
 # Download Status Tracking
@@ -3344,6 +3444,8 @@ def get_price_data(
             result_df=result_df,
         )
     else:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
         with ThreadPoolExecutor(max_workers=chunk_workers) as executor:
             future_map: Dict[Any, Tuple[datetime, datetime, float]] = {}
             for chunk_start, chunk_end in chunk_ranges:
@@ -5756,7 +5858,7 @@ def get_historical_eod_data(
             ts = pd.to_datetime(value, errors="coerce")
             if ts is None or pd.isna(ts):
                 try:
-                    parsed = dateutil_parser.parse(str(value))
+                    parsed = _dateutil_parse(str(value))
                 except Exception:
                     return None
                 if parsed.tzinfo is None:

@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
+import pytest
 import pytz
 
 from lumibot.entities import Asset
@@ -159,3 +160,90 @@ class TestDataGetLastPriceTradeOnly:
         tz = pytz.timezone("America/New_York")
         dt = tz.localize(datetime(2024, 1, 3, 9, 30))
         assert data.get_last_price(dt) == 5.0
+
+
+def test_native_minute_bars_fast_returns_lazy_pandas_slice_until_used():
+    asset = Asset("SPY")
+    tz = pytz.timezone("America/New_York")
+    idx = pd.date_range(tz.localize(datetime(2024, 1, 2, 9, 30)), periods=20, freq="1min")
+    df = pd.DataFrame(
+        {
+            "open": range(20),
+            "high": range(1, 21),
+            "low": range(20),
+            "close": range(2, 22),
+            "volume": [100] * 20,
+        },
+        index=idx,
+    )
+    data = Data(asset, df, timestep="minute")
+
+    bars_df = data.get_native_bars_fast(idx[10].to_pydatetime(), length=5, timestep="minute", mark_timezone=False)
+
+    assert isinstance(bars_df, pd.DataFrame)
+    assert len(bars_df) == 5
+    assert getattr(bars_df, "_lumibot_real_df", None) is None
+    assert bars_df["close"].iloc[-1] == 11
+    assert getattr(bars_df, "_lumibot_real_df", None) is not None
+
+
+def test_native_minute_bars_fast_lazy_slice_matches_common_pandas_ops():
+    asset = Asset("SPY")
+    tz = pytz.timezone("America/New_York")
+    idx = pd.date_range(tz.localize(datetime(2024, 1, 2, 9, 30)), periods=20, freq="1min")
+    df = pd.DataFrame(
+        {
+            "open": range(20),
+            "high": range(1, 21),
+            "low": range(20),
+            "close": range(2, 22),
+            "volume": [100] * 20,
+        },
+        index=idx,
+    )
+    data = Data(asset, df, timestep="minute")
+
+    fast_df = data.get_native_bars_fast(idx[10].to_pydatetime(), length=5, timestep="minute", mark_timezone=False)
+    slow_df = data.get_bars(idx[10].to_pydatetime(), length=5, timestep="minute", timeshift=None)
+
+    ops = {
+        "shape": lambda x: x.shape,
+        "dtypes": lambda x: tuple(map(str, x.dtypes)),
+        "iloc": lambda x: float(x.iloc[-1]["close"]),
+        "tail": lambda x: float(x.tail(1)["close"].iloc[0]),
+        "copy": lambda x: float(x.copy()["close"].iloc[-1]),
+        "reset_index": lambda x: x.reset_index().shape,
+        "to_numpy": lambda x: x.to_numpy().shape,
+        "describe": lambda x: round(float(x.describe().loc["mean", "close"]), 4),
+        "iterrows": lambda x: sum(1 for _ in x.iterrows()),
+    }
+
+    for op_name, op in ops.items():
+        assert op(fast_df) == op(slow_df), op_name
+
+
+def test_native_minute_bars_fast_lazy_slice_can_defer_return_column():
+    asset = Asset("SPY")
+    tz = pytz.timezone("America/New_York")
+    idx = pd.date_range(tz.localize(datetime(2024, 1, 2, 9, 30)), periods=20, freq="1min")
+    df = pd.DataFrame(
+        {
+            "open": range(20),
+            "high": range(1, 21),
+            "low": range(20),
+            "close": range(2, 22),
+            "volume": [100] * 20,
+        },
+        index=idx,
+    )
+    data = Data(asset, df, timestep="minute", assume_clean=True)
+    data._defer_clean_returns = True
+    data._initialize_clean_repaired_state()
+
+    bars_df = data.get_native_bars_fast(idx[10].to_pydatetime(), length=5, timestep="minute", mark_timezone=False)
+
+    assert getattr(bars_df, "_lumibot_real_df", None) is None
+    assert "return" in bars_df.columns
+    assert getattr(bars_df, "_lumibot_real_df", None) is None
+    assert bars_df["return"].iloc[0] == pytest.approx(1 / 6)
+    assert bars_df["return"].iloc[-1] == pytest.approx(0.1)

@@ -1,18 +1,63 @@
+from __future__ import annotations
+
 import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Any, Dict, Union
+from importlib import import_module
+from typing import TYPE_CHECKING, Any, Dict, Union
 
-import numpy as np
 import pytz
-from pandas import DataFrame
 
 logger = logging.getLogger(__name__)
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.data_sources import DataSourceBacktesting
-from lumibot.entities import Asset, Bars
-from lumibot.tools import CcxtCacheDB
+from lumibot.entities import Asset
+
+if TYPE_CHECKING:
+    from pandas import DataFrame
+    from lumibot.entities import Bars
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+np = _LazyModule("numpy")
+_CCXT_CACHE_DB_CLASS = None
+_BARS_CLASS = None
+
+
+def _ccxt_cache_db_class():
+    global _CCXT_CACHE_DB_CLASS
+    if _CCXT_CACHE_DB_CLASS is None:
+        from lumibot.tools import CcxtCacheDB
+
+        _CCXT_CACHE_DB_CLASS = CcxtCacheDB
+    return _CCXT_CACHE_DB_CLASS
+
+
+def _bars_class():
+    global _BARS_CLASS
+    if _BARS_CLASS is None:
+        from lumibot.entities import Bars
+
+        _BARS_CLASS = Bars
+    return _BARS_CLASS
 
 
 class CcxtBacktestingData(DataSourceBacktesting):
@@ -43,7 +88,7 @@ class CcxtBacktestingData(DataSourceBacktesting):
         # The number of historical data is downloaded earlier than the start date when downloading historical data.
         self._download_start_dt_prebuffer = 300
 
-        self.cache_db = CcxtCacheDB(self.name,max_download_limit=download_limit)
+        self.cache_db = _ccxt_cache_db_class()(self.name,max_download_limit=download_limit)
 
 
     def _to_utc_timezone(self, dt:datetime)->datetime:
@@ -235,7 +280,7 @@ class CcxtBacktestingData(DataSourceBacktesting):
     def _parse_source_symbol_bars(self, response:DataFrame, asset:tuple[Asset,Asset],
                                   quote:Asset=None, length:int=None)->Bars:
         # Parse the dataframe returned from CCXT.
-        bars = Bars(response, self.SOURCE, asset, quote=quote, raw=response)
+        bars = _bars_class()(response, self.SOURCE, asset, quote=quote, raw=response)
         return bars
 
     def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:

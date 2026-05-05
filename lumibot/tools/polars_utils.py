@@ -4,7 +4,22 @@ from __future__ import annotations
 
 from typing import Iterable, Optional, Sequence, Set
 
-import polars as pl
+
+class _LazyPolars:
+    _module = None
+
+    def _load(self):
+        if self._module is None:
+            import polars as pl
+
+            self._module = pl
+        return self._module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pl = _LazyPolars()
 
 
 class PolarsResampleError(Exception):

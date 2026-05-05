@@ -1,16 +1,75 @@
+from __future__ import annotations
+
 from collections import OrderedDict, defaultdict
 from datetime import timedelta
 from decimal import Decimal
+from importlib import import_module
 from typing import Union
 
-import pandas as pd
-
 from lumibot.data_sources import DataSourceBacktesting
-from lumibot.entities import Asset, Bars, Quote
-from lumibot.tools.helpers import parse_timestep_qty_and_unit
-from lumibot.tools.lumibot_logger import get_logger
+from lumibot.entities import Asset, Quote
 
-logger = get_logger(__name__)
+_BARS_CLASS = None
+_PARSE_TIMESTEP_QTY_AND_UNIT = None
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+
+
+class _LazyLogger:
+    __slots__ = ("_logger",)
+
+    def __init__(self):
+        self._logger = None
+
+    def _load(self):
+        if self._logger is None:
+            from lumibot.tools.lumibot_logger import get_logger
+
+            self._logger = get_logger(__name__)
+        return self._logger
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+logger = _LazyLogger()
+
+
+def _bars_class():
+    global _BARS_CLASS
+    if _BARS_CLASS is None:
+        from lumibot.entities import Bars
+
+        _BARS_CLASS = Bars
+    return _BARS_CLASS
+
+
+def _parse_timestep_qty_and_unit(*args, **kwargs):
+    global _PARSE_TIMESTEP_QTY_AND_UNIT
+    if _PARSE_TIMESTEP_QTY_AND_UNIT is None:
+        from lumibot.tools.helpers import parse_timestep_qty_and_unit
+
+        _PARSE_TIMESTEP_QTY_AND_UNIT = parse_timestep_qty_and_unit
+    return _PARSE_TIMESTEP_QTY_AND_UNIT(*args, **kwargs)
 
 # PERF: `find_asset_in_data_store()` is called in tight loops (often 200K+ times per backtest). It
 # constructs `Asset("USD", "forex")` as the default quote on every call, which shows up as ~3s of
@@ -412,7 +471,7 @@ class PandasData(DataSourceBacktesting):
             requested_asset_type = requested_asset_type.split(".")[-1]
         if timestep is not None:
             try:
-                qty, requested_unit = parse_timestep_qty_and_unit(str(timestep))
+                qty, requested_unit = _parse_timestep_qty_and_unit(str(timestep))
             except Exception:
                 qty, requested_unit = 1, str(timestep)
                 requested_unit = str(timestep)
@@ -615,7 +674,27 @@ class PandasData(DataSourceBacktesting):
         asset2 = quote
         if isinstance(asset, tuple):
             asset1, asset2 = asset
-        bars = Bars(response, self.SOURCE, asset1, quote=asset2, raw=response, return_polars=return_polars)
+        skip_timezone = bool(getattr(response, "attrs", {}).get("_lumibot_skip_timezone", False))
+        if not skip_timezone and getattr(self, "IS_BACKTESTING_DATA_SOURCE", False):
+            response_index = getattr(response, "index", None)
+            skip_timezone = bool(hasattr(response_index, "tz") and response_index.tz is not None)
+        if (
+            skip_timezone
+            and not return_polars
+            and isinstance(response, pd.DataFrame)
+            and "return" in response.columns
+            and "dividend" not in response.columns
+        ):
+            return _bars_class().from_pandas_fast(response, self.SOURCE, asset1, quote=asset2, raw=response)
+        bars = _bars_class()(
+            response,
+            self.SOURCE,
+            asset1,
+            quote=asset2,
+            raw=response,
+            return_polars=return_polars,
+            skip_timezone=skip_timezone,
+        )
         return bars
 
     def get_yesterday_dividend(self, asset, quote=None):

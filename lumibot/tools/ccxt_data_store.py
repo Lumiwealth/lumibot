@@ -1,19 +1,42 @@
+from __future__ import annotations
+
 import time
-import duckdb
 import os
 import uuid
-import ccxt
 from datetime import datetime
-from tabulate import tabulate
-import pandas as pd
-from pandas import DataFrame
+from importlib import import_module
 from ..constants import LUMIBOT_CACHE_FOLDER
 from lumibot.tools.lumibot_logger import get_logger
 import math
-import numpy as np
-from typing import Union
+from typing import TYPE_CHECKING, Union
+
+if TYPE_CHECKING:
+    from pandas import DataFrame
 
 logger = get_logger(__name__)
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+duckdb = _LazyModule("duckdb")
+pd = _LazyModule("pandas")
+np = _LazyModule("numpy")
 
 class CcxtCacheDB:
     """A ccxt data cache class using duckdb.
@@ -46,6 +69,8 @@ class CcxtCacheDB:
 
         """
         self.logger = get_logger(self.__class__.__name__)
+        import ccxt
+
         try:
             exchange_class = getattr(ccxt, exchange_id)
         except:
@@ -457,6 +482,8 @@ class CcxtCacheDB:
 
 
     def _table_str(self, df, headers="keys"):
+        from tabulate import tabulate
+
         return tabulate(df, headers=headers, tablefmt='psql')
 
 if __name__ == "__main__":

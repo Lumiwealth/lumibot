@@ -17,12 +17,18 @@ Usage:
 """
 
 import os
-import requests
 
-from lumibot.components.agents import agent_tool
 from lumibot.strategies.strategy import Strategy
 
+from ._agent_tool import agent_tool
+
 IS_BACKTESTING = True
+
+
+def _requests():
+    import requests
+
+    return requests
 
 
 class MacroRiskStrategy(Strategy):
@@ -56,7 +62,7 @@ class MacroRiskStrategy(Strategy):
         if end:
             params["end"] = end
         try:
-            resp = requests.get(
+            resp = _requests().get(
                 f"https://data.alpaca.markets/v2/stocks/{symbol}/bars",
                 headers=headers, params=params, timeout=15,
             )
@@ -92,7 +98,7 @@ class MacroRiskStrategy(Strategy):
         api_secret = os.environ.get("ALPACA_API_SECRET", "")
         headers = {"APCA-API-KEY-ID": api_key, "APCA-API-SECRET-KEY": api_secret}
         try:
-            resp = requests.get(
+            resp = _requests().get(
                 "https://data.alpaca.markets/v1beta1/screener/stocks/movers",
                 headers=headers, params={"top": top}, timeout=15,
             )

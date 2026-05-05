@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 import math
 import os
@@ -10,21 +12,38 @@ from sys import exit
 from threading import Thread
 from typing import Union
 
-from dateutil import tz
 from ibapi.client import *
 from ibapi.contract import *
 from ibapi.order import *
 from ibapi.wrapper import *
-from termcolor import colored
 
-from lumibot.data_sources import InteractiveBrokersData
 from lumibot.tools.lumibot_logger import get_logger
 from lumibot.tools.symbol_normalization import normalize_symbol_for_broker
 
 logger = get_logger(__name__)
+_INTERACTIVE_BROKERS_DATA_CLASS = None
+_COLORED_FN = None
+
+
+def colored(*args, **kwargs):
+    global _COLORED_FN
+    if _COLORED_FN is None:
+        from termcolor import colored as _termcolor_colored
+
+        _COLORED_FN = _termcolor_colored
+    return _COLORED_FN(*args, **kwargs)
+
+
+def _interactive_brokers_data_class():
+    global _INTERACTIVE_BROKERS_DATA_CLASS
+    if _INTERACTIVE_BROKERS_DATA_CLASS is None:
+        from lumibot.data_sources import InteractiveBrokersData
+
+        _INTERACTIVE_BROKERS_DATA_CLASS = InteractiveBrokersData
+    return _INTERACTIVE_BROKERS_DATA_CLASS
 
 # Naming conflict on Order between IB and Lumibot.
-from lumibot.entities import Asset, Position
+from lumibot.entities import Asset
 from lumibot.entities import Order as OrderLum
 
 from .broker import Broker
@@ -58,7 +77,7 @@ class InteractiveBrokers(Broker):
 
     def __init__(self, config, max_workers=20, chunk_size=100, data_source=None, **kwargs):
         if data_source is None:
-            data_source = InteractiveBrokersData(config, max_workers=max_workers, chunk_size=chunk_size)
+            data_source = _interactive_brokers_data_class()(config, max_workers=max_workers, chunk_size=chunk_size)
 
         super().__init__(
             name="interactive_brokers",
@@ -115,7 +134,7 @@ class InteractiveBrokers(Broker):
         if not self.ib:
             self.ib = IBApp(ip_address=self.ip, socket_port=self.socket_port, client_id=self.client_id, subaccount=self.subaccount, ib_broker=self)
 
-        if isinstance(self.data_source, InteractiveBrokersData):
+        if isinstance(self.data_source, _interactive_brokers_data_class()):
             if not self.data_source.ib:
                 self.data_source.ib = self.ib
 
@@ -168,6 +187,8 @@ class InteractiveBrokers(Broker):
             )
 
         quantity = broker_position["position"]
+        from lumibot.entities import Position
+
         position = Position(strategy, asset, quantity, orders=orders)
         return position
 
@@ -825,7 +846,7 @@ class IBWrapper(EWrapper):
         if not hasattr(self, "realtimeBar"):
             self.init_realtimeBar()
         rtb = dict(
-            datetime=datetime.datetime.fromtimestamp(time).astimezone(tz=tz.tzlocal()),
+            datetime=datetime.datetime.fromtimestamp(time).astimezone(),
             open=open_,
             high=high,
             low=low,

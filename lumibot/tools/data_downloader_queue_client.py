@@ -23,13 +23,33 @@ import random
 import threading
 import time
 from dataclasses import dataclass, field
+from importlib import import_module
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
-import requests
-from requests import exceptions as requests_exceptions
-
 logger = logging.getLogger(__name__)
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+requests = _LazyModule("requests")
+requests_exceptions = _LazyModule("requests.exceptions")
 
 # Lightweight, non-secret telemetry for backtest audit/debugging.
 #

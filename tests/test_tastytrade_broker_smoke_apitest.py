@@ -507,6 +507,123 @@ def test_avg_fill_from_legs_returns_none_when_unfilled():
 
 
 # ---------------------------------------------------------------------------
+# TastytradeData (market data)
+# ---------------------------------------------------------------------------
+
+def test_get_last_price_prefers_mid(monkeypatch):
+    from lumibot.data_sources.tastytrade_data import TastytradeData
+    from lumibot.entities import Asset
+    from lumibot.data_sources import tastytrade_data as td_mod
+
+    fake_md = MagicMock()
+    fake_md.mid = Decimal("100.10")
+    fake_md.last = Decimal("100.05")
+    fake_md.mark = Decimal("100.07")
+    fake_md.bid = Decimal("100.05")
+    fake_md.ask = Decimal("100.15")
+
+    async def _get(_session, _symbol, _instrument_type):
+        return fake_md
+
+    monkeypatch.setattr(td_mod, "_tt_get_market_data", _get)
+
+    ds = TastytradeData(session=MagicMock(), runner=None)
+
+    asset = Asset(symbol="AAPL", asset_type=Asset.AssetType.STOCK)
+    price = ds.get_last_price(asset)
+    assert price == 100.10  # picked mid
+
+
+def test_get_last_price_falls_back_to_bid_ask_avg(monkeypatch):
+    from lumibot.data_sources.tastytrade_data import TastytradeData
+    from lumibot.entities import Asset
+    from lumibot.data_sources import tastytrade_data as td_mod
+
+    fake_md = MagicMock()
+    fake_md.mid = None
+    fake_md.last = None
+    fake_md.mark = None
+    fake_md.bid = Decimal("99.90")
+    fake_md.ask = Decimal("100.10")
+
+    async def _get(_session, _symbol, _instrument_type):
+        return fake_md
+
+    monkeypatch.setattr(td_mod, "_tt_get_market_data", _get)
+
+    ds = TastytradeData(session=MagicMock(), runner=None)
+    asset = Asset(symbol="AAPL", asset_type=Asset.AssetType.STOCK)
+    assert ds.get_last_price(asset) == 100.0
+
+
+def test_get_quote_populates_bid_ask_mid(monkeypatch):
+    from lumibot.data_sources.tastytrade_data import TastytradeData
+    from lumibot.entities import Asset
+    from lumibot.data_sources import tastytrade_data as td_mod
+
+    fake_md = MagicMock()
+    fake_md.bid = Decimal("99.90")
+    fake_md.ask = Decimal("100.10")
+    fake_md.mid = Decimal("100.00")
+    fake_md.last = Decimal("100.05")
+    fake_md.mark = None
+    fake_md.bid_size = Decimal("100")
+    fake_md.ask_size = Decimal("200")
+    fake_md.volume = Decimal("500000")
+    fake_md.updated_at = datetime.datetime(2026, 5, 4, 14, 30)
+
+    async def _get(_session, _symbol, _instrument_type):
+        return fake_md
+
+    monkeypatch.setattr(td_mod, "_tt_get_market_data", _get)
+
+    ds = TastytradeData(session=MagicMock(), runner=None)
+    quote = ds.get_quote(Asset(symbol="AAPL", asset_type=Asset.AssetType.STOCK))
+    assert quote.bid == 99.90
+    assert quote.ask == 100.10
+    assert quote.mid_price == 100.00
+    assert quote.price == 100.05
+    assert quote.bid_size == 100
+    assert quote.ask_size == 200
+
+
+def test_get_chains_pivots_to_lumibot_shape(monkeypatch):
+    from lumibot.data_sources.tastytrade_data import TastytradeData
+    from lumibot.entities import Asset
+    from lumibot.data_sources import tastytrade_data as td_mod
+
+    def _opt(strike, opt_type):
+        m = MagicMock()
+        m.strike_price = Decimal(str(strike))
+        m.option_type = MagicMock(value=opt_type)
+        return m
+
+    chain = {
+        datetime.date(2026, 5, 16): [
+            _opt(450, "C"), _opt(440, "C"),
+            _opt(450, "P"), _opt(440, "P"),
+        ],
+        datetime.date(2026, 6, 20): [
+            _opt(460, "Call"), _opt(450, "Put"),
+        ],
+    }
+
+    async def _get(_session, _symbol):
+        return chain
+
+    monkeypatch.setattr(td_mod, "_tt_get_option_chain", _get)
+
+    ds = TastytradeData(session=MagicMock(), runner=None)
+    out = ds.get_chains(Asset(symbol="SPY", asset_type=Asset.AssetType.STOCK))
+
+    assert out["Multiplier"] == 100
+    assert out["Chains"]["CALL"]["2026-05-16"] == [440.0, 450.0]
+    assert out["Chains"]["PUT"]["2026-05-16"] == [440.0, 450.0]
+    assert out["Chains"]["CALL"]["2026-06-20"] == [460.0]
+    assert out["Chains"]["PUT"]["2026-06-20"] == [450.0]
+
+
+# ---------------------------------------------------------------------------
 # Live sandbox smoke (only runs when sandbox credentials are present)
 # ---------------------------------------------------------------------------
 

@@ -627,14 +627,13 @@ def test_get_chains_pivots_to_lumibot_shape(monkeypatch):
 # Live sandbox smoke (only runs when sandbox credentials are present)
 # ---------------------------------------------------------------------------
 
-@pytest.mark.apitest
 @pytest.mark.skipif(
     not all(os.environ.get(k) for k in (
         "TASTYTRADE_CLIENT_SECRET",
         "TASTYTRADE_REFRESH_TOKEN",
         "TASTYTRADE_ACCOUNT_NUMBER",
     )),
-    reason="Tastytrade sandbox credentials not configured.",
+    reason="Tastytrade credentials not configured.",
 )
 def test_live_sandbox_balances_and_positions():
     """Hit the sandbox API for balances + positions; expects no exceptions."""

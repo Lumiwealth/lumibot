@@ -216,14 +216,6 @@ class Tastytrade(Broker):
     def _run(self, coro: Awaitable[T], timeout: Optional[float] = 30.0) -> T:
         return self._async_bridge.run(coro, timeout=timeout)
 
-    @staticmethod
-    def _strategy_name(strategy) -> str:
-        if strategy is None:
-            return "Unknown"
-        if isinstance(strategy, str):
-            return strategy
-        return getattr(strategy, "name", str(strategy))
-
     # ------------------------------------------------------------------
     # Account
     # ------------------------------------------------------------------
@@ -264,7 +256,7 @@ class Tastytrade(Broker):
             logger.error(colored(f"[Tastytrade] Failed to fetch positions: {e}", "red"))
             return []
 
-        strategy_name = self._strategy_name(strategy)
+        strategy_name = self._strategy_name_from_input(strategy)
         positions: List[Position] = []
         for tp in tt_positions or []:
             asset = self._tt_position_to_asset(tp)
@@ -292,27 +284,34 @@ class Tastytrade(Broker):
             qty = -qty
         return qty
 
-    @staticmethod
-    def _tt_position_to_asset(tp) -> Optional[Asset]:
+    @classmethod
+    def _tt_position_to_asset(cls, tp) -> Optional[Asset]:
         """Convert a Tastytrade position to a Lumibot Asset.
 
-        Tastytrade exposes ``instrument_type`` (Equity, Equity Option, Future,
-        Future Option, Cryptocurrency, ...) and ``symbol`` / ``underlying_symbol``.
-        The full mapping (especially OCC option symbol parsing) will be done
-        in the parser follow-up; for now we handle equities explicitly and
-        log a warning for option/future/crypto positions so the user can see
-        what's being skipped.
+        Handles ``Equity`` (stock) and ``Equity Option`` (OCC-symbol options).
+        Futures, future options, crypto, and other instrument types log a
+        warning and return None — they'll land when broader asset support
+        does.
         """
         instrument = (getattr(tp, "instrument_type", "") or "").lower()
-        symbol = getattr(tp, "symbol", None) or getattr(tp, "underlying_symbol", None)
+        symbol = getattr(tp, "symbol", None)
         if not symbol:
             return None
         if instrument == "equity":
             return Asset(symbol=symbol, asset_type=Asset.AssetType.STOCK)
+        if instrument == "equity option":
+            asset = cls._occ_to_asset(symbol)
+            if asset is None:
+                logger.warning(colored(
+                    f"[Tastytrade] Could not parse OCC symbol on equity-option "
+                    f"position: {symbol!r}. Skipping.",
+                    "yellow",
+                ))
+            return asset
         logger.warning(colored(
             f"[Tastytrade] Skipping position with unhandled instrument_type "
-            f"'{instrument}' for symbol {symbol}. Asset parsing will be "
-            f"completed in a follow-up commit.",
+            f"'{instrument}' for symbol {symbol}. (Futures / future options / "
+            f"crypto support is a follow-up.)",
             "yellow",
         ))
         return None

@@ -775,6 +775,8 @@ def test_get_chains_pivots_to_lumibot_shape(monkeypatch):
 # Live sandbox smoke (only runs when sandbox credentials are present)
 # ---------------------------------------------------------------------------
 
+@pytest.mark.apitest
+@pytest.mark.tastytrade
 @pytest.mark.skipif(
     not all(os.environ.get(k) for k in (
         "TASTYTRADE_CLIENT_SECRET",
@@ -784,10 +786,16 @@ def test_get_chains_pivots_to_lumibot_shape(monkeypatch):
     reason="Tastytrade credentials not configured.",
 )
 def test_live_sandbox_balances_and_positions():
-    """Hit the sandbox API for balances + positions; expects no exceptions."""
+    """Hit the sandbox API for balances + positions; expects no exceptions.
+
+    Forces ``is_test=True`` so the test is guaranteed to hit Tastytrade's
+    certification (sandbox) environment regardless of how the user set
+    ``TASTYTRADE_SANDBOX`` — preventing accidental prod-account runs in CI.
+    Users running this locally need sandbox credentials, not prod.
+    """
     from lumibot.brokers.tastytrade import Tastytrade
 
-    broker = Tastytrade(connect_stream=False)
+    broker = Tastytrade(connect_stream=False, is_test=True)
     try:
         cash, positions_value, nlv = broker._get_balances_at_broker(
             quote_asset=None, strategy=None,

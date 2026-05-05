@@ -164,8 +164,21 @@ def test_side_mapping_equity_vs_option():
     from lumibot.brokers.tastytrade import Tastytrade
     from tastytrade.order import OrderAction
 
-    assert Tastytrade._lumi_side_to_tt_action("buy", is_option=False) == OrderAction.BUY
-    assert Tastytrade._lumi_side_to_tt_action("sell", is_option=False) == OrderAction.SELL
+    # Equity: plain buy -> BUY_TO_OPEN (Tastytrade rejects plain Buy/Sell on
+    # the standard order endpoint).
+    assert Tastytrade._lumi_side_to_tt_action(
+        "buy", is_option=False
+    ) == OrderAction.BUY_TO_OPEN
+    assert Tastytrade._lumi_side_to_tt_action(
+        "sell", is_option=False
+    ) == OrderAction.SELL_TO_CLOSE
+    assert Tastytrade._lumi_side_to_tt_action(
+        "sell_short", is_option=False
+    ) == OrderAction.SELL_TO_OPEN
+    assert Tastytrade._lumi_side_to_tt_action(
+        "buy_to_cover", is_option=False
+    ) == OrderAction.BUY_TO_CLOSE
+    # Options:
     assert Tastytrade._lumi_side_to_tt_action(
         "buy_to_open", is_option=True
     ) == OrderAction.BUY_TO_OPEN
@@ -223,11 +236,15 @@ def test_submit_order_equity_limit(monkeypatch):
         new_order = captured[0]
         assert new_order.order_type == OrderType.LIMIT
         assert new_order.time_in_force == OrderTimeInForce.DAY
-        assert new_order.price == Decimal("150.25")
+        # BUY -> debit -> negative price (Tastytrade convention; serializer
+        # strips abs() and emits price-effect on the wire).
+        assert new_order.price == Decimal("-150.25")
+        assert new_order.price_effect.value == "Debit"
         assert len(new_order.legs) == 1
         leg = new_order.legs[0]
         assert leg.symbol == "AAPL"
-        assert leg.action == OrderAction.BUY
+        # Equity buy maps to BUY_TO_OPEN (Tastytrade rejects plain Buy).
+        assert leg.action == OrderAction.BUY_TO_OPEN
         assert Decimal(str(leg.quantity)) == Decimal("10")
     finally:
         broker._async_bridge.close()
@@ -260,10 +277,13 @@ def test_submit_order_option_limit_uses_occ(monkeypatch):
         broker._submit_order(order)
 
         assert len(captured) == 1
-        leg = captured[0].legs[0]
+        new_order = captured[0]
+        leg = new_order.legs[0]
         assert leg.instrument_type == InstrumentType.EQUITY_OPTION
         assert leg.symbol == "AAPL  260717C00230000"
         assert leg.action == OrderAction.BUY_TO_OPEN
+        # BUY_TO_OPEN -> debit -> negative price.
+        assert new_order.price == Decimal("-4.20")
     finally:
         broker._async_bridge.close()
 
@@ -318,7 +338,9 @@ def test_submit_orders_multileg_credit_spread(monkeypatch):
         assert len(captured) == 1
         new_order = captured[0]
         assert new_order.order_type == OrderType.LIMIT
-        assert new_order.price == Decimal("2.50")  # absolute value, sign from legs
+        # Credit spread -> positive price (you receive the premium).
+        assert new_order.price == Decimal("2.50")
+        assert new_order.price_effect.value == "Credit"
         assert len(new_order.legs) == 2
         actions = [l.action for l in new_order.legs]
         assert OrderAction.SELL_TO_OPEN in actions
@@ -470,7 +492,8 @@ def test_modify_order_calls_replace(monkeypatch):
         assert len(captured) == 1
         identifier, new_order = captured[0]
         assert identifier == "1234"
-        assert new_order.price == Decimal("151.50")
+        # BUY -> debit -> negative.
+        assert new_order.price == Decimal("-151.50")
         assert order.identifier == "9999"  # broker assigns new id on replace
         assert order.limit_price == 151.50
     finally:

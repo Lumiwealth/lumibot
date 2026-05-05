@@ -342,6 +342,14 @@ class Tastytrade(Broker):
 
     @staticmethod
     def _lumi_side_to_tt_action(side: str, is_option: bool) -> "_TTOrderAction":
+        """Map a Lumibot order side to a Tastytrade OrderAction.
+
+        Tastytrade's API does NOT accept plain ``Buy``/``Sell`` on equity
+        order legs — it wants the explicit open/close form even for stocks.
+        ``BUY``/``SELL`` plain values exist in the SDK enum for special
+        cases (e.g. notional market orders) but get rejected on the
+        standard order endpoint with ``order_legs.action: is invalid``.
+        """
         s = (side or "").lower()
         if is_option:
             mapping = {
@@ -349,17 +357,23 @@ class Tastytrade(Broker):
                 "sell_to_open": _TTOrderAction.SELL_TO_OPEN,
                 "buy_to_close": _TTOrderAction.BUY_TO_CLOSE,
                 "sell_to_close": _TTOrderAction.SELL_TO_CLOSE,
-                # Plain buy/sell on options default to opening; callers should
-                # use the explicit *_to_open / *_to_close sides when possible.
+                # Plain buy/sell on options default to opening; callers
+                # should use the explicit *_to_open / *_to_close sides.
                 "buy": _TTOrderAction.BUY_TO_OPEN,
                 "sell": _TTOrderAction.SELL_TO_OPEN,
             }
         else:
+            # Equities: open long = BUY_TO_OPEN, close long = SELL_TO_CLOSE,
+            # short = SELL_TO_OPEN, cover = BUY_TO_CLOSE.
             mapping = {
-                "buy": _TTOrderAction.BUY,
-                "sell": _TTOrderAction.SELL,
-                "buy_to_cover": _TTOrderAction.BUY,
-                "sell_short": _TTOrderAction.SELL,
+                "buy": _TTOrderAction.BUY_TO_OPEN,
+                "sell": _TTOrderAction.SELL_TO_CLOSE,
+                "buy_to_open": _TTOrderAction.BUY_TO_OPEN,
+                "sell_to_close": _TTOrderAction.SELL_TO_CLOSE,
+                "sell_short": _TTOrderAction.SELL_TO_OPEN,
+                "sell_to_open": _TTOrderAction.SELL_TO_OPEN,
+                "buy_to_cover": _TTOrderAction.BUY_TO_CLOSE,
+                "buy_to_close": _TTOrderAction.BUY_TO_CLOSE,
             }
         if s not in mapping:
             raise ValueError(f"Unsupported order side {side!r} for Tastytrade.")
@@ -431,7 +445,32 @@ class Tastytrade(Broker):
     def _format_price(price: Optional[Union[float, Decimal]]) -> Optional[Decimal]:
         if price is None:
             return None
-        return Decimal(str(price)).quantize(Decimal("0.01"))
+        # Preserve sign — Tastytrade encodes price-effect in the sign of price
+        # (negative = debit, positive = credit). The SDK's serializer strips
+        # abs() before sending and pairs it with a "price-effect" field.
+        sign = -1 if Decimal(str(price)) < 0 else 1
+        return (sign * abs(Decimal(str(price))).quantize(Decimal("0.01")))
+
+    @staticmethod
+    def _is_debit_action(side: str, is_option: bool) -> bool:
+        """Return True if a BUY-side action (debit). False for SELL-side (credit)."""
+        s = (side or "").lower()
+        if is_option:
+            return s in ("buy", "buy_to_open", "buy_to_close")
+        return s in ("buy", "buy_to_cover")
+
+    def _sign_single_leg_price(
+        self,
+        order: Order,
+        price: Optional[Union[float, Decimal]],
+    ) -> Optional[Union[float, Decimal]]:
+        """Apply sign convention for a single-leg order based on its side."""
+        if price is None:
+            return None
+        is_option = order.asset and order.asset.asset_type == Asset.AssetType.OPTION
+        is_debit = self._is_debit_action(order.side, is_option=is_option)
+        magnitude = abs(Decimal(str(price)))
+        return -magnitude if is_debit else magnitude
 
     def _build_new_order(
         self,
@@ -491,13 +530,16 @@ class Tastytrade(Broker):
         limit = order.limit_price
         if order_type_str == Order.OrderType.STOP_LIMIT:
             limit = order.stop_limit_price
+        # Tastytrade encodes credit/debit in the price sign — BUY -> negative,
+        # SELL -> positive. The SDK serializer strips abs() and emits price-effect.
+        signed_limit = self._sign_single_leg_price(order, limit)
 
         try:
             new_order = self._build_new_order(
                 legs=[leg],
                 order_type=order_type_str,
                 time_in_force=order.time_in_force,
-                price=limit,
+                price=signed_limit,
                 stop_trigger=order.stop_price,
             )
         except Exception as e:
@@ -547,18 +589,34 @@ class Tastytrade(Broker):
 
         legs = [self._build_leg(o) for o in orders]
 
-        # Tastytrade requires a positive price on debit/credit; sign comes
-        # from leg actions (buy=debit, sell=credit). 'even' uses 0.00.
-        if order_type_norm in ("debit", "credit"):
+        # Sign the price per Tastytrade's convention: positive = credit,
+        # negative = debit. The serializer sends abs(price) + price-effect.
+        if order_type_norm == "credit":
             if price is None:
-                raise ValueError(f"price is required for '{order_type_norm}' multileg.")
+                raise ValueError("price is required for 'credit' multileg.")
             tt_price: Optional[Decimal] = abs(Decimal(str(price)))
+        elif order_type_norm == "debit":
+            if price is None:
+                raise ValueError("price is required for 'debit' multileg.")
+            tt_price = -abs(Decimal(str(price)))
         elif order_type_norm == "even":
             tt_price = Decimal("0.00")
         elif order_type_norm == "limit":
             if price is None:
                 raise ValueError("price is required for 'limit' multileg.")
-            tt_price = abs(Decimal(str(price)))
+            # Infer sign from leg net direction. If callers want explicit
+            # credit/debit semantics they should use those keywords directly.
+            buys = sum(1 for leg in legs if "buy" in str(leg.action.value).lower())
+            sells = sum(1 for leg in legs if "sell" in str(leg.action.value).lower())
+            if buys > 0 and sells == 0:
+                tt_price = -abs(Decimal(str(price)))   # all buys -> debit
+            elif sells > 0 and buys == 0:
+                tt_price = abs(Decimal(str(price)))    # all sells -> credit
+            else:
+                raise ValueError(
+                    "Mixed-action multileg 'limit' is ambiguous. Use "
+                    "order_type='credit' or 'debit' to disambiguate."
+                )
         else:  # market
             tt_price = None
 
@@ -683,12 +741,13 @@ class Tastytrade(Broker):
         new_limit = limit_price if limit_price is not None else order.limit_price
         new_stop = stop_price if stop_price is not None else order.stop_price
         order_type_str = (order.order_type or "limit")
+        signed_limit = self._sign_single_leg_price(order, new_limit)
         try:
             new_order = self._build_new_order(
                 legs=[leg],
                 order_type=order_type_str,
                 time_in_force=order.time_in_force,
-                price=new_limit,
+                price=signed_limit,
                 stop_trigger=new_stop,
             )
         except Exception as e:

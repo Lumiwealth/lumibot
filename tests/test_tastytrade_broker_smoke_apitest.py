@@ -424,6 +424,89 @@ def test_parse_broker_order_multileg_attaches_children():
 
 
 # ---------------------------------------------------------------------------
+# Order modification + polling stream
+# ---------------------------------------------------------------------------
+
+def test_get_stream_object_returns_polling_stream(monkeypatch):
+    from lumibot.trading_builtins import PollingStream
+
+    broker, _, _ = _make_broker(monkeypatch)
+    try:
+        stream = broker._get_stream_object()
+        assert isinstance(stream, PollingStream)
+        assert stream.polling_interval == broker.polling_interval
+    finally:
+        broker._async_bridge.close()
+
+
+def test_modify_order_calls_replace(monkeypatch):
+    from lumibot.entities import Asset, Order
+
+    broker, fake_account, _ = _make_broker(monkeypatch)
+    try:
+        captured: list = []
+
+        async def _replace(_session, identifier, new_order):
+            captured.append((identifier, new_order))
+            resp = MagicMock()
+            resp.order = MagicMock()
+            resp.order.id = 9999
+            return resp
+
+        fake_account.replace_order.side_effect = _replace
+
+        order = Order(
+            strategy="s",
+            asset=Asset(symbol="AAPL", asset_type=Asset.AssetType.STOCK),
+            quantity=10,
+            side=Order.OrderSide.BUY,
+            order_type=Order.OrderType.LIMIT,
+            limit_price=150.00,
+        )
+        order.identifier = "1234"
+
+        broker._modify_order(order, limit_price=151.50)
+
+        assert len(captured) == 1
+        identifier, new_order = captured[0]
+        assert identifier == "1234"
+        assert new_order.price == Decimal("151.50")
+        assert order.identifier == "9999"  # broker assigns new id on replace
+        assert order.limit_price == 151.50
+    finally:
+        broker._async_bridge.close()
+
+
+def test_avg_fill_from_legs_weighted_average():
+    from lumibot.brokers.tastytrade import Tastytrade
+
+    fill1 = MagicMock()
+    fill1.quantity = Decimal("3")
+    fill1.fill_price = Decimal("100")
+    fill2 = MagicMock()
+    fill2.quantity = Decimal("7")
+    fill2.fill_price = Decimal("110")
+    leg = MagicMock()
+    leg.fills = [fill1, fill2]
+    placed = MagicMock()
+    placed.legs = [leg]
+
+    avg = Tastytrade._avg_fill_from_legs(placed)
+    # (3*100 + 7*110) / 10 = 107
+    assert avg == Decimal("107")
+
+
+def test_avg_fill_from_legs_returns_none_when_unfilled():
+    from lumibot.brokers.tastytrade import Tastytrade
+
+    leg = MagicMock()
+    leg.fills = []
+    placed = MagicMock()
+    placed.legs = [leg]
+    assert Tastytrade._avg_fill_from_legs(placed) is None
+
+
+# ---------------------------------------------------------------------------
 # Live sandbox smoke (only runs when sandbox credentials are present)
 # ---------------------------------------------------------------------------
 

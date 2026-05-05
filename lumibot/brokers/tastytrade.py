@@ -16,15 +16,17 @@ Functional surface:
 - Order submission for equities, single-leg equity options, and multileg
   equity-option spreads (``order_type`` = market / limit / debit / credit /
   even, mapped onto Tastytrade's ``NewOrder``)
+- Order modification via ``account.replace_order``
 - Order cancellation
 - Order parsing and read-back via ``account.get_order`` /
   ``account.get_live_orders`` / ``account.get_order_history``
+- Polling stream dispatching NEW / FILLED / CANCELED / ERROR events to
+  the strategy executor
 
 Stubs (logged warnings, follow-ups still pending):
 
 - Advanced orders (OCO / OTO / bracket → Tastytrade ``NewComplexOrder``)
-- Order modification (``account.replace_order``)
-- Account / order event streaming (``AlertStreamer`` + ``DXLinkStreamer``)
+- Native websocket streaming (``AlertStreamer`` + ``DXLinkStreamer``)
 - Market data on ``TastytradeData`` (chains, quotes, historical bars)
 """
 
@@ -33,6 +35,7 @@ import datetime
 import os
 import re
 import threading
+import traceback
 from decimal import Decimal
 from typing import Any, Awaitable, List, Optional, TypeVar, Union
 
@@ -42,6 +45,7 @@ from .broker import Broker
 from lumibot.data_sources.tastytrade_data import TastytradeData
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.lumibot_logger import get_logger
+from lumibot.trading_builtins import PollingStream
 
 logger = get_logger(__name__)
 
@@ -125,6 +129,7 @@ class Tastytrade(Broker):
     """
 
     NAME = "Tastytrade"
+    POLL_EVENT = PollingStream.POLL_EVENT
 
     def __init__(
         self,
@@ -136,6 +141,7 @@ class Tastytrade(Broker):
         connect_stream: bool = True,
         data_source: Optional[TastytradeData] = None,
         max_workers: int = 1,
+        polling_interval: float = 5.0,
     ):
         if _TTSession is None:
             raise ImportError(
@@ -176,6 +182,7 @@ class Tastytrade(Broker):
 
         self._tt_account_number = account_number
         self._tt_is_test = bool(is_test)
+        self.polling_interval = polling_interval
         self._async_bridge = _AsyncBridge()
 
         # Build the SDK Session (sync constructor) and resolve the Account.
@@ -655,12 +662,65 @@ class Tastytrade(Broker):
     def _modify_order(self, order: Order,
                       limit_price: Union[float, None] = None,
                       stop_price: Union[float, None] = None):
-        logger.error(colored(
-            f"[Tastytrade] _modify_order is not yet implemented (order={order}). "
-            f"Cancel and resubmit for now.",
-            "red",
-        ))
-        return None
+        """Replace an order's limit and/or stop price.
+
+        Tastytrade implements modification as a *replace*: build a new
+        ``NewOrder`` with the same legs and an updated price, then call
+        ``account.replace_order(session, order_id, new_order)``.
+        """
+        if not order.identifier:
+            raise ValueError(
+                "Order identifier is not set; cannot modify. Did you submit it?"
+            )
+        if order.is_filled() or order.is_canceled():
+            return
+
+        try:
+            leg = self._build_leg(order)
+        except Exception as e:
+            logger.error(colored(f"[Tastytrade] _modify_order build_leg failed: {e}", "red"))
+            return None
+
+        new_limit = limit_price if limit_price is not None else order.limit_price
+        new_stop = stop_price if stop_price is not None else order.stop_price
+        order_type_str = (order.order_type or "limit")
+        try:
+            new_order = self._build_new_order(
+                legs=[leg],
+                order_type=order_type_str,
+                time_in_force=order.time_in_force,
+                price=new_limit,
+                stop_trigger=new_stop,
+            )
+        except Exception as e:
+            logger.error(colored(f"[Tastytrade] _modify_order build NewOrder failed: {e}", "red"))
+            return None
+
+        try:
+            response = self._run(self._account.replace_order(
+                self._session, order.identifier, new_order,
+            ))
+        except Exception as e:
+            logger.error(colored(
+                f"[Tastytrade] replace_order({order.identifier}) failed: {e}",
+                "red",
+            ))
+            return None
+
+        # Replace returns a new PlacedOrder with a new id; update local order.
+        placed = getattr(response, "order", None) or response
+        new_id = getattr(placed, "id", None)
+        if new_id is not None:
+            order.identifier = str(new_id)
+        if limit_price is not None:
+            order.limit_price = limit_price
+        if stop_price is not None:
+            order.stop_price = stop_price
+        try:
+            order.update_raw(response)
+        except Exception:
+            pass
+        return order
 
     # ------------------------------------------------------------------
     # Order parsing + read-back
@@ -856,21 +916,195 @@ class Tastytrade(Broker):
             return []
 
     # ------------------------------------------------------------------
-    # Streaming (deferred)
+    # Stream / polling
     # ------------------------------------------------------------------
+    # Tastytrade *does* expose a websocket (``AlertStreamer`` for account
+    # events, ``DXLinkStreamer`` for quotes). For this milestone we use
+    # polling, matching what Tradier does — it's simpler, hits the same
+    # SDK methods we already exercise, and avoids holding a long-lived
+    # async websocket from a sync-shaped broker. Native streaming is a
+    # follow-up.
     def _get_stream_object(self):
-        logger.warning(colored(
-            "[Tastytrade] _get_stream_object is not yet implemented; "
-            "order events will not stream until a follow-up commit lands.",
-            "yellow",
-        ))
-        return None
+        return PollingStream(self.polling_interval)
 
     def _register_stream_events(self):
-        return None
+        broker = self
+
+        @broker.stream.add_action(broker.POLL_EVENT)
+        def on_poll():
+            try:
+                broker.do_polling()
+            except Exception:
+                logger.error(traceback.format_exc())
+
+        @broker.stream.add_action(broker.NEW_ORDER)
+        def on_new(order):
+            try:
+                broker._process_trade_event(order, broker.NEW_ORDER)
+            except Exception:
+                logger.error(traceback.format_exc())
+
+        @broker.stream.add_action(broker.FILLED_ORDER)
+        def on_fill(order, price, filled_quantity):
+            try:
+                broker._process_trade_event(
+                    order,
+                    broker.FILLED_ORDER,
+                    price=price,
+                    filled_quantity=filled_quantity,
+                    multiplier=getattr(order.asset, "multiplier", 1),
+                )
+            except Exception:
+                logger.error(traceback.format_exc())
+
+        @broker.stream.add_action(broker.CANCELED_ORDER)
+        def on_cancel(order):
+            try:
+                broker._process_trade_event(order, broker.CANCELED_ORDER)
+            except Exception:
+                logger.error(traceback.format_exc())
+
+        @broker.stream.add_action(broker.ERROR_ORDER)
+        def on_error(order, error_msg):
+            try:
+                if order.is_active() and order.child_orders:
+                    for child in order.child_orders:
+                        child.set_error(error_msg)
+                        broker._process_trade_event(child, broker.ERROR_ORDER)
+                broker._process_trade_event(order, broker.ERROR_ORDER)
+                order.set_error(error_msg)
+            except Exception:
+                logger.error(traceback.format_exc())
 
     def _run_stream(self):
-        return None
+        self._stream_established()
+        try:
+            self.stream._run()
+        except Exception as e:
+            logger.error(colored(
+                f"[Tastytrade] polling stream crashed: {e}", "red",
+            ))
+
+    # ------------------------------------------------------------------
+    # Polling implementation
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _avg_fill_from_legs(placed) -> Optional[Decimal]:
+        """Compute size-weighted average fill price from a PlacedOrder's legs."""
+        legs = list(getattr(placed, "legs", []) or [])
+        total_qty = Decimal(0)
+        total_value = Decimal(0)
+        for leg in legs:
+            for fill in (getattr(leg, "fills", None) or []):
+                qty = Decimal(str(getattr(fill, "quantity", 0) or 0))
+                price = Decimal(str(getattr(fill, "fill_price", 0) or 0))
+                total_qty += qty
+                total_value += qty * price
+        if total_qty <= 0:
+            return None
+        return total_value / total_qty
+
+    @staticmethod
+    def _filled_qty_from_legs(placed) -> Optional[Decimal]:
+        legs = list(getattr(placed, "legs", []) or [])
+        total = Decimal(0)
+        any_fill = False
+        for leg in legs:
+            for fill in (getattr(leg, "fills", None) or []):
+                total += Decimal(str(getattr(fill, "quantity", 0) or 0))
+                any_fill = True
+        if not any_fill:
+            return None
+        # For multileg, this sums leg fills. For single-leg, it's the leg's
+        # filled quantity directly.
+        return total if len(legs) == 1 else total / Decimal(len(legs))
+
+    def do_polling(self):
+        """Poll Tastytrade for live orders, dispatch transitions to the stream.
+
+        Mirrors Tradier's polling shape: pull live orders, parse, compare
+        against tracked Lumibot orders, dispatch NEW / FILLED / CANCELED /
+        ERROR events as the broker-side status moves.
+        """
+        # Sync positions so the strategy sees fresh holdings.
+        try:
+            self.sync_positions(None)
+        except Exception:
+            logger.error(traceback.format_exc())
+
+        raw_orders = self._pull_broker_all_orders()
+        stored_orders = {x.identifier: x for x in self.get_all_orders()}
+
+        strategy_name = self._strategy_name
+        if not strategy_name and len(self._subscribers) == 1:
+            strategy_name = self._subscribers[0].name
+
+        broker_ids = set()
+        for placed in raw_orders or []:
+            parsed = self._parse_broker_order(placed, strategy_name=strategy_name)
+            if parsed is None:
+                continue
+            if parsed.identifier:
+                broker_ids.add(parsed.identifier)
+
+            for order in [*parsed.child_orders, parsed]:
+                if not order.identifier:
+                    continue
+
+                if order.identifier not in stored_orders:
+                    # First time we see this order. On startup, only ingest
+                    # active orders to avoid OOM on long broker histories.
+                    if self._first_iteration and not (
+                        order.is_active() or order.status == Order.OrderStatus.NEW
+                    ):
+                        continue
+                    self._process_new_order(order)
+                    continue
+
+                stored = stored_orders[order.identifier]
+                stored.quantity = order.quantity or stored.quantity
+
+                if order.equivalent_status(stored):
+                    stored.status = order.status
+                    continue
+
+                status = (order.status or "").lower()
+                if status in ("submitted", "open"):
+                    self._safe_stream_dispatch(self.NEW_ORDER, order=stored)
+                elif status == "fill":
+                    fill_price = self._avg_fill_from_legs(placed)
+                    fill_qty = self._filled_qty_from_legs(placed) or order.quantity
+                    if fill_price is not None and fill_qty is not None:
+                        self._safe_stream_dispatch(
+                            self.FILLED_ORDER,
+                            order=stored,
+                            price=fill_price,
+                            filled_quantity=fill_qty,
+                        )
+                elif status == "canceled":
+                    self._safe_stream_dispatch(self.CANCELED_ORDER, order=stored)
+                elif status == "error":
+                    msg = getattr(placed, "reject_reason", None) or (
+                        f"Tastytrade rejected order {order.identifier}"
+                    )
+                    self._safe_stream_dispatch(
+                        self.ERROR_ORDER, order=stored, error_msg=msg,
+                    )
+                # 'partial_fill' deliberately not dispatched: polling can
+                # easily miss partials; only complete fills are reliable.
+
+        # Tracked locally but no longer reported by broker → likely cancelled.
+        tracked = {x.identifier: x for x in self.get_tracked_orders()}
+        for oid, order in tracked.items():
+            if oid and oid not in broker_ids and order.is_active():
+                logger.debug(
+                    f"[Tastytrade] order {oid} no longer at broker; "
+                    f"dispatching as cancelled."
+                )
+                self._safe_stream_dispatch(self.CANCELED_ORDER, order=order)
+
+        if self._first_iteration:
+            self._first_iteration = False
 
     # ------------------------------------------------------------------
     # Lifecycle

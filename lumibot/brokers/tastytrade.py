@@ -104,7 +104,15 @@ class _AsyncBridge:
         if not self._loop.is_running():
             raise RuntimeError("Tastytrade asyncio bridge is not running.")
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
-        return future.result(timeout=timeout)
+        try:
+            return future.result(timeout=timeout)
+        except BaseException:
+            # Includes TimeoutError, KeyboardInterrupt, and any exception the
+            # coroutine raises after the caller has already moved on. Cancel
+            # the underlying task so it doesn't keep running on the loop and
+            # leak resources.
+            future.cancel()
+            raise
 
     def close(self) -> None:
         if self._loop.is_running():
@@ -155,14 +163,13 @@ class Tastytrade(Broker):
             refresh_token = refresh_token or config.get("REFRESH_TOKEN")
             account_number = account_number or config.get("ACCOUNT_NUMBER")
             if is_test is None and "SANDBOX" in config:
-                is_test = bool(config.get("SANDBOX"))
+                is_test = self._parse_truthy(config.get("SANDBOX"))
 
         client_secret = client_secret or os.environ.get("TASTYTRADE_CLIENT_SECRET")
         refresh_token = refresh_token or os.environ.get("TASTYTRADE_REFRESH_TOKEN")
         account_number = account_number or os.environ.get("TASTYTRADE_ACCOUNT_NUMBER")
         if is_test is None:
-            env_sandbox = os.environ.get("TASTYTRADE_SANDBOX", "")
-            is_test = env_sandbox.strip().lower() in ("1", "true", "yes", "y")
+            is_test = self._parse_truthy(os.environ.get("TASTYTRADE_SANDBOX"))
 
         missing = [
             n for n, v in (
@@ -215,6 +222,22 @@ class Tastytrade(Broker):
     # ------------------------------------------------------------------
     def _run(self, coro: Awaitable[T], timeout: Optional[float] = 30.0) -> T:
         return self._async_bridge.run(coro, timeout=timeout)
+
+    @staticmethod
+    def _parse_truthy(value) -> bool:
+        """Tolerant truthy parser for env vars / config dicts.
+
+        Treats common stringy false-like values (``"false"``, ``"0"``,
+        ``"no"``, ``"off"``, ``""``) as False so a config of
+        ``{"SANDBOX": "false"}`` doesn't accidentally land on the cert
+        environment via Python's ``bool("false") == True``.
+        """
+        if value is None:
+            return False
+        if isinstance(value, bool):
+            return value
+        s = str(value).strip().lower()
+        return s in ("1", "true", "yes", "y", "on")
 
     # ------------------------------------------------------------------
     # Account
@@ -724,6 +747,11 @@ class Tastytrade(Broker):
         Tastytrade implements modification as a *replace*: build a new
         ``NewOrder`` with the same legs and an updated price, then call
         ``account.replace_order(session, order_id, new_order)``.
+
+        Multileg orders are rejected explicitly — ``_build_leg`` only knows
+        how to construct a single leg from the parent ``Order``, which would
+        silently submit a one-legged replacement and break a spread. Cancel
+        and resubmit is the workaround until multileg replace is wired up.
         """
         if not order.identifier:
             raise ValueError(
@@ -731,6 +759,18 @@ class Tastytrade(Broker):
             )
         if order.is_filled() or order.is_canceled():
             return
+
+        if (order.order_class == Order.OrderClass.MULTILEG
+                or len(getattr(order, "child_orders", []) or []) > 1):
+            logger.error(colored(
+                f"[Tastytrade] _modify_order does not support multileg orders "
+                f"(order_class={order.order_class}, child_orders="
+                f"{len(getattr(order, 'child_orders', []) or [])}). _build_leg "
+                f"only constructs a single leg, which would silently break the "
+                f"spread. Cancel and resubmit instead.",
+                "red",
+            ))
+            return None
 
         try:
             leg = self._build_leg(order)
@@ -851,9 +891,17 @@ class Tastytrade(Broker):
                 "buy": Order.OrderSide.BUY_TO_OPEN,
                 "sell": Order.OrderSide.SELL_TO_OPEN,
             }.get(action_str, Order.OrderSide.BUY)
+        # Equity legs read back from Tastytrade use the explicit open/close
+        # form ("Buy to Open", "Sell to Close", ...) because that's what we
+        # had to send on the wire — Tastytrade rejects plain Buy/Sell on
+        # equity legs. Preserve that detail when parsing.
         return {
             "buy": Order.OrderSide.BUY,
             "sell": Order.OrderSide.SELL,
+            "buy to open": Order.OrderSide.BUY_TO_OPEN,
+            "sell to open": Order.OrderSide.SELL_TO_OPEN,
+            "buy to close": Order.OrderSide.BUY_TO_CLOSE,
+            "sell to close": Order.OrderSide.SELL_TO_CLOSE,
         }.get(action_str, Order.OrderSide.BUY)
 
     def _parse_broker_order(self, response: Any, strategy_name: str,
@@ -1127,6 +1175,12 @@ class Tastytrade(Broker):
                     continue
 
                 status = (order.status or "").lower()
+                # Dispatch the transition AND update stored.status synchronously
+                # for terminal states. The dispatch enqueues an event that
+                # the stream worker processes asynchronously, so without the
+                # synchronous update the next poll's "missing from broker_ids"
+                # check would still see is_active() == True and re-dispatch
+                # CANCELED on top of an already-FILLED order.
                 if status in ("submitted", "open"):
                     self._safe_stream_dispatch(self.NEW_ORDER, order=stored)
                 elif status == "fill":
@@ -1139,8 +1193,10 @@ class Tastytrade(Broker):
                             price=fill_price,
                             filled_quantity=fill_qty,
                         )
+                        stored.status = Order.OrderStatus.FILLED
                 elif status == "canceled":
                     self._safe_stream_dispatch(self.CANCELED_ORDER, order=stored)
+                    stored.status = Order.OrderStatus.CANCELED
                 elif status == "error":
                     msg = getattr(placed, "reject_reason", None) or (
                         f"Tastytrade rejected order {order.identifier}"
@@ -1148,6 +1204,7 @@ class Tastytrade(Broker):
                     self._safe_stream_dispatch(
                         self.ERROR_ORDER, order=stored, error_msg=msg,
                     )
+                    stored.status = Order.OrderStatus.ERROR
                 # 'partial_fill' deliberately not dispatched: polling can
                 # easily miss partials; only complete fills are reliable.
 

@@ -82,6 +82,60 @@ def test_async_bridge_runs_and_returns_value():
         bridge.close()
 
 
+def test_async_bridge_cancels_future_on_timeout():
+    """If run() times out the underlying coroutine must be cancelled,
+    not left running on the background loop."""
+    from lumibot.brokers.tastytrade import _AsyncBridge
+    import concurrent.futures
+
+    bridge = _AsyncBridge()
+    try:
+        cancelled = asyncio.Event()
+
+        async def _slow():
+            try:
+                await asyncio.sleep(10)
+            except asyncio.CancelledError:
+                # Signal back from the loop thread.
+                bridge._loop.call_soon_threadsafe(cancelled.set)
+                raise
+
+        with pytest.raises(concurrent.futures.TimeoutError):
+            bridge.run(_slow(), timeout=0.05)
+
+        # Give the cancellation a moment to propagate.
+        deadline = asyncio.get_event_loop().time() + 1.0 if False else None
+        for _ in range(20):
+            if cancelled.is_set():
+                break
+            import time as _t
+            _t.sleep(0.05)
+        assert cancelled.is_set(), "coroutine was not cancelled after timeout"
+    finally:
+        bridge.close()
+
+
+def test_parse_truthy_handles_string_false():
+    """bool('false') is True; _parse_truthy must not be that naive."""
+    from lumibot.brokers.tastytrade import Tastytrade
+
+    # Truthy
+    assert Tastytrade._parse_truthy("true") is True
+    assert Tastytrade._parse_truthy("True") is True
+    assert Tastytrade._parse_truthy("1") is True
+    assert Tastytrade._parse_truthy("yes") is True
+    assert Tastytrade._parse_truthy("on") is True
+    assert Tastytrade._parse_truthy(True) is True
+    # Falsy
+    assert Tastytrade._parse_truthy("false") is False
+    assert Tastytrade._parse_truthy("0") is False
+    assert Tastytrade._parse_truthy("no") is False
+    assert Tastytrade._parse_truthy("off") is False
+    assert Tastytrade._parse_truthy("") is False
+    assert Tastytrade._parse_truthy(None) is False
+    assert Tastytrade._parse_truthy(False) is False
+
+
 @patch("lumibot.brokers.tastytrade._TTAccount")
 @patch("lumibot.brokers.tastytrade._TTSession")
 def test_init_with_kwargs_resolves_account(mock_session_cls, mock_account_cls):
@@ -517,6 +571,73 @@ def test_avg_fill_from_legs_weighted_average():
     avg = Tastytrade._avg_fill_from_legs(placed)
     # (3*100 + 7*110) / 10 = 107
     assert avg == Decimal("107")
+
+
+def test_modify_order_rejects_multileg(monkeypatch):
+    """_modify_order must reject multileg orders early — it only knows how
+    to rebuild a single leg from the parent and would silently break a spread."""
+    from lumibot.entities import Asset, Order
+
+    broker, fake_account, _ = _make_broker(monkeypatch)
+    try:
+        replaced = []
+
+        async def _replace(*args, **kwargs):
+            replaced.append((args, kwargs))
+            return MagicMock()
+
+        fake_account.replace_order.side_effect = _replace
+
+        parent = Order(
+            strategy="s",
+            asset=Asset(symbol="SPY", asset_type=Asset.AssetType.STOCK),
+            quantity=1,
+            side=Order.OrderSide.SELL_TO_OPEN,
+            order_class=Order.OrderClass.MULTILEG,
+            order_type=Order.OrderType.LIMIT,
+            limit_price=2.50,
+        )
+        parent.identifier = "12345"
+
+        result = broker._modify_order(parent, limit_price=2.75)
+        assert result is None
+        assert replaced == [], (
+            "Multileg modify must NOT call replace_order with a single-leg payload"
+        )
+    finally:
+        broker._async_bridge.close()
+
+
+def test_leg_to_lumi_side_equity_explicit_actions():
+    """Equity legs read back from Tastytrade arrive as 'Buy to Open' etc.
+    because that's what the wire requires. Parser must map them correctly."""
+    from lumibot.brokers.tastytrade import Tastytrade
+    from lumibot.entities import Order
+
+    def _leg(action_value):
+        leg = MagicMock()
+        leg.action = MagicMock(value=action_value)
+        return leg
+
+    assert Tastytrade._leg_to_lumi_side(
+        _leg("Buy to Open"), is_option=False
+    ) == Order.OrderSide.BUY_TO_OPEN
+    assert Tastytrade._leg_to_lumi_side(
+        _leg("Sell to Close"), is_option=False
+    ) == Order.OrderSide.SELL_TO_CLOSE
+    assert Tastytrade._leg_to_lumi_side(
+        _leg("Sell to Open"), is_option=False
+    ) == Order.OrderSide.SELL_TO_OPEN
+    assert Tastytrade._leg_to_lumi_side(
+        _leg("Buy to Close"), is_option=False
+    ) == Order.OrderSide.BUY_TO_CLOSE
+    # Plain Buy/Sell still round-trip.
+    assert Tastytrade._leg_to_lumi_side(
+        _leg("Buy"), is_option=False
+    ) == Order.OrderSide.BUY
+    assert Tastytrade._leg_to_lumi_side(
+        _leg("Sell"), is_option=False
+    ) == Order.OrderSide.SELL
 
 
 def test_avg_fill_from_legs_returns_none_when_unfilled():

@@ -173,21 +173,22 @@
     },
     {
       "_ci_runtime_note": "Raised in v4.5.6 after GitHub CI consistently measured this external-data IBKR futures acceptance case at ~7.6-8.9 minutes despite unchanged output metrics. This is a runtime gate only; metric assertions remain strict.",
+      "_rebaseline_note": "2026-05-05 rebaseline on codex/lumibot-performance-optimizations. The backtesting broker now has direct simple futures fill paths that preserve futures margin release and multiplier PnL semantics, covered by tests/test_backtesting_futures_flips.py and tests/test_ibkr_futures_backtesting_smoke_stubbed.py. CI run 25370937691 produced these deterministic IBKR MES metrics while all other acceptance shards passed.",
       "backtest_time_seconds": 8.748265125090256,
-      "baseline_run_id": "IbkrMesFuturesAcceptance_2026-01-18_17-19_MyTLU5",
+      "baseline_run_id": "IbkrMesFuturesAcceptance_2026-05-05_10-39_draQx9",
       "data_source": "ibkr",
       "end_date": "2025-12-11",
-      "lumibot_version": "4.4.33",
+      "lumibot_version": "4.5.10",
       "max_backtest_time_seconds": 900,
       "metrics_centipercent": {
-        "cagr": -446,
-        "max_drawdown": -4,
-        "total_return": -4
+        "cagr": -9998,
+        "max_drawdown": -664,
+        "total_return": -664
       },
       "metrics_raw": {
-        "cagr": "-4.46%",
-        "max_drawdown": "-0.04%",
-        "total_return": "-0.04%"
+        "cagr": "-99.98%",
+        "max_drawdown": "-6.64%",
+        "total_return": "-6.64%"
       },
       "script_filename": "IBKR MES Futures Acceptance.py",
       "settings_backtesting_end": "2025-12-10 23:59:00-05:00",

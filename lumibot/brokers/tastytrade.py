@@ -7,22 +7,31 @@ methods are synchronous, so this adapter owns a dedicated asyncio event
 loop running on a background daemon thread and dispatches every SDK call
 through ``asyncio.run_coroutine_threadsafe``.
 
-Initial commit scope (intentionally narrow, follow-ups will fill in the rest):
+Functional surface:
 
 - Authentication via OAuth (``provider_secret`` + ``refresh_token``)
 - Account selection by account number
-- Real implementations: ``_get_balances_at_broker``, ``_pull_positions``,
-  ``_pull_position``, ``cancel_order``
-- Logged-stub implementations: ``_submit_order``, ``_submit_orders``
-  (multileg), ``_modify_order``, ``_parse_broker_order``,
-  ``_pull_broker_order``, ``_pull_broker_all_orders``
-- Streaming: returns ``None`` from ``_get_stream_object`` and no-ops the
-  register / run methods. A follow-up will plug in either polling (similar
-  to Tradier) or the SDK's ``AlertStreamer`` / ``DXLinkStreamer``.
+- Balances and positions (equity; option / future positions are skipped
+  with a warning until full asset parsing lands)
+- Order submission for equities, single-leg equity options, and multileg
+  equity-option spreads (``order_type`` = market / limit / debit / credit /
+  even, mapped onto Tastytrade's ``NewOrder``)
+- Order cancellation
+- Order parsing and read-back via ``account.get_order`` /
+  ``account.get_live_orders`` / ``account.get_order_history``
+
+Stubs (logged warnings, follow-ups still pending):
+
+- Advanced orders (OCO / OTO / bracket → Tastytrade ``NewComplexOrder``)
+- Order modification (``account.replace_order``)
+- Account / order event streaming (``AlertStreamer`` + ``DXLinkStreamer``)
+- Market data on ``TastytradeData`` (chains, quotes, historical bars)
 """
 
 import asyncio
+import datetime
 import os
+import re
 import threading
 from decimal import Decimal
 from typing import Any, Awaitable, List, Optional, TypeVar, Union
@@ -39,9 +48,25 @@ logger = get_logger(__name__)
 try:  # tastytrade is an optional runtime dep; surface a clear error if missing.
     from tastytrade import Account as _TTAccount
     from tastytrade import Session as _TTSession
+    from tastytrade.order import (
+        InstrumentType as _TTInstrumentType,
+        Leg as _TTLeg,
+        NewOrder as _TTNewOrder,
+        OrderAction as _TTOrderAction,
+        OrderStatus as _TTOrderStatus,
+        OrderTimeInForce as _TTOrderTIF,
+        OrderType as _TTOrderType,
+    )
 except Exception as _import_err:  # pragma: no cover - import-time guard
     _TTAccount = None
     _TTSession = None
+    _TTInstrumentType = None
+    _TTLeg = None
+    _TTNewOrder = None
+    _TTOrderAction = None
+    _TTOrderStatus = None
+    _TTOrderTIF = None
+    _TTOrderType = None
     _TASTYTRADE_IMPORT_ERROR = _import_err
 else:
     _TASTYTRADE_IMPORT_ERROR = None
@@ -286,23 +311,331 @@ class Tastytrade(Broker):
         return None
 
     # ------------------------------------------------------------------
-    # Orders
+    # Mapping helpers (Lumibot ↔ Tastytrade)
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _to_occ_symbol(asset: Asset) -> str:
+        """Build a 21-char OCC option symbol from a Lumibot Asset.
+
+        Format: ``ROOT (left-padded to 6) + YYMMDD + C/P + strike*1000 (8 digits)``.
+        Example: ``AAPL  260717C00230000``.
+        """
+        if asset.expiration is None or asset.right is None or asset.strike is None:
+            raise ValueError(
+                f"Option asset is missing expiration/right/strike: {asset!r}"
+            )
+        root = (asset.symbol or "").upper().ljust(6)
+        exp = asset.expiration
+        if isinstance(exp, datetime.datetime):
+            exp = exp.date()
+        yymmdd = exp.strftime("%y%m%d")
+        right_letter = "C" if str(asset.right).upper().startswith("C") else "P"
+        strike_int = int(round(float(asset.strike) * 1000))
+        strike_str = f"{strike_int:08d}"
+        return f"{root}{yymmdd}{right_letter}{strike_str}"
+
+    @staticmethod
+    def _lumi_side_to_tt_action(side: str, is_option: bool) -> "_TTOrderAction":
+        s = (side or "").lower()
+        if is_option:
+            mapping = {
+                "buy_to_open": _TTOrderAction.BUY_TO_OPEN,
+                "sell_to_open": _TTOrderAction.SELL_TO_OPEN,
+                "buy_to_close": _TTOrderAction.BUY_TO_CLOSE,
+                "sell_to_close": _TTOrderAction.SELL_TO_CLOSE,
+                # Plain buy/sell on options default to opening; callers should
+                # use the explicit *_to_open / *_to_close sides when possible.
+                "buy": _TTOrderAction.BUY_TO_OPEN,
+                "sell": _TTOrderAction.SELL_TO_OPEN,
+            }
+        else:
+            mapping = {
+                "buy": _TTOrderAction.BUY,
+                "sell": _TTOrderAction.SELL,
+                "buy_to_cover": _TTOrderAction.BUY,
+                "sell_short": _TTOrderAction.SELL,
+            }
+        if s not in mapping:
+            raise ValueError(f"Unsupported order side {side!r} for Tastytrade.")
+        return mapping[s]
+
+    @staticmethod
+    def _lumi_order_type_to_tt(order_type: str) -> "_TTOrderType":
+        s = (order_type or "").lower()
+        mapping = {
+            "market": _TTOrderType.MARKET,
+            "limit": _TTOrderType.LIMIT,
+            "smart_limit": _TTOrderType.LIMIT,
+            "stop": _TTOrderType.STOP,
+            "stop_limit": _TTOrderType.STOP_LIMIT,
+            # debit/credit/even are multileg pricing modes — they all map to
+            # LIMIT on the wire, with the leg actions and ``price`` carrying
+            # the credit/debit semantics.
+            "debit": _TTOrderType.LIMIT,
+            "credit": _TTOrderType.LIMIT,
+            "even": _TTOrderType.LIMIT,
+        }
+        if s not in mapping:
+            raise ValueError(f"Unsupported order_type {order_type!r} for Tastytrade.")
+        return mapping[s]
+
+    @staticmethod
+    def _lumi_tif_to_tt(tif: Optional[str]) -> "_TTOrderTIF":
+        s = (tif or "day").lower()
+        mapping = {
+            "day": _TTOrderTIF.DAY,
+            "gtc": _TTOrderTIF.GTC,
+            "ioc": _TTOrderTIF.IOC,
+            "ext": _TTOrderTIF.EXT,
+            "pre": _TTOrderTIF.EXT,
+            "post": _TTOrderTIF.EXT,
+        }
+        return mapping.get(s, _TTOrderTIF.DAY)
+
+    def _build_leg(self, order: Order) -> "_TTLeg":
+        """Build a Tastytrade ``Leg`` from a Lumibot child/single Order."""
+        asset = order.asset
+        if asset is None:
+            raise ValueError(f"Order has no asset: {order!r}")
+
+        if asset.asset_type == Asset.AssetType.STOCK:
+            symbol = (asset.symbol or "").upper()
+            instrument_type = _TTInstrumentType.EQUITY
+            is_option = False
+        elif asset.asset_type == Asset.AssetType.OPTION:
+            symbol = self._to_occ_symbol(asset)
+            instrument_type = _TTInstrumentType.EQUITY_OPTION
+            is_option = True
+        else:
+            raise ValueError(
+                f"Tastytrade broker does not yet support asset_type "
+                f"{asset.asset_type!r} (symbol={asset.symbol!r})."
+            )
+
+        action = self._lumi_side_to_tt_action(order.side, is_option=is_option)
+        qty = Decimal(str(order.quantity))
+        return _TTLeg(
+            instrument_type=instrument_type,
+            symbol=symbol,
+            action=action,
+            quantity=qty,
+        )
+
+    @staticmethod
+    def _format_price(price: Optional[Union[float, Decimal]]) -> Optional[Decimal]:
+        if price is None:
+            return None
+        return Decimal(str(price)).quantize(Decimal("0.01"))
+
+    def _build_new_order(
+        self,
+        legs: List["_TTLeg"],
+        order_type: str,
+        time_in_force: str,
+        price: Optional[Union[float, Decimal]] = None,
+        stop_trigger: Optional[Union[float, Decimal]] = None,
+    ) -> "_TTNewOrder":
+        tt_type = self._lumi_order_type_to_tt(order_type)
+        tt_tif = self._lumi_tif_to_tt(time_in_force)
+
+        kwargs: dict = {
+            "time_in_force": tt_tif,
+            "order_type": tt_type,
+            "legs": legs,
+        }
+        if tt_type in (_TTOrderType.LIMIT, _TTOrderType.STOP_LIMIT):
+            if price is None:
+                raise ValueError(
+                    f"Limit/Stop-Limit orders require a price (order_type={order_type!r})."
+                )
+            kwargs["price"] = self._format_price(price)
+        if tt_type in (_TTOrderType.STOP, _TTOrderType.STOP_LIMIT):
+            if stop_trigger is None:
+                raise ValueError(
+                    f"Stop / Stop-Limit orders require a stop_trigger "
+                    f"(order_type={order_type!r})."
+                )
+            kwargs["stop_trigger"] = self._format_price(stop_trigger)
+        return _TTNewOrder(**kwargs)
+
+    # ------------------------------------------------------------------
+    # Order submission
     # ------------------------------------------------------------------
     def _submit_order(self, order: Order) -> Optional[Order]:
-        logger.error(colored(
-            f"[Tastytrade] _submit_order is not yet implemented (order={order}).",
-            "red",
-        ))
-        return None
+        # Advanced orders (OCO/OTO/bracket) need NewComplexOrder — defer.
+        if order.is_advanced_order():
+            logger.error(colored(
+                "[Tastytrade] Advanced (OCO/OTO/bracket) orders are not yet "
+                "supported. Submit child orders individually for now.",
+                "red",
+            ))
+            self._safe_stream_dispatch(self.ERROR_ORDER, order=order,
+                                       error_msg="advanced orders unsupported")
+            return None
 
-    def _submit_orders(self, orders, is_multileg=False, order_type=None,
-                       duration="day", price=None):
-        logger.error(colored(
-            "[Tastytrade] _submit_orders is not yet implemented "
-            "(multileg path also pending).",
-            "red",
-        ))
-        return None
+        try:
+            leg = self._build_leg(order)
+        except Exception as e:
+            logger.error(colored(f"[Tastytrade] Cannot build leg for {order!r}: {e}", "red"))
+            self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=str(e))
+            return None
+
+        # For STOP_LIMIT, Lumibot stores the limit price in stop_limit_price.
+        order_type_str = (order.order_type or "limit")
+        limit = order.limit_price
+        if order_type_str == Order.OrderType.STOP_LIMIT:
+            limit = order.stop_limit_price
+
+        try:
+            new_order = self._build_new_order(
+                legs=[leg],
+                order_type=order_type_str,
+                time_in_force=order.time_in_force,
+                price=limit,
+                stop_trigger=order.stop_price,
+            )
+        except Exception as e:
+            logger.error(colored(f"[Tastytrade] Cannot build NewOrder for {order!r}: {e}", "red"))
+            self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=str(e))
+            return None
+
+        try:
+            response = self._run(self._account.place_order(self._session, new_order, dry_run=False))
+        except Exception as e:
+            logger.error(colored(f"[Tastytrade] place_order failed for {order!r}: {e}", "red"))
+            self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=str(e))
+            return None
+
+        return self._finalize_submitted_order(order, response)
+
+    def _submit_orders(
+        self,
+        orders,
+        is_multileg: bool = False,
+        order_type: Optional[str] = None,
+        duration: str = "day",
+        price: Optional[Union[float, Decimal]] = None,
+    ):
+        if not orders:
+            return []
+
+        if not is_multileg:
+            return [self._submit_order(o) for o in orders]
+
+        # Multileg: build one NewOrder with all legs.
+        if order_type is None:
+            order_type = "market"
+        order_type_norm = (order_type or "market").lower()
+        if order_type_norm not in ("market", "limit", "debit", "credit", "even"):
+            raise ValueError(
+                f"Invalid multileg order_type {order_type!r}. Expected one of "
+                f"market/limit/debit/credit/even."
+            )
+
+        # Lumibot multileg convention: all legs share the same underlying.
+        underlyings = {o.asset.symbol for o in orders if o.asset and o.asset.symbol}
+        if len(underlyings) > 1:
+            raise ValueError(
+                f"All legs of a multileg order must share an underlying; got {underlyings}."
+            )
+
+        legs = [self._build_leg(o) for o in orders]
+
+        # Tastytrade requires a positive price on debit/credit; sign comes
+        # from leg actions (buy=debit, sell=credit). 'even' uses 0.00.
+        if order_type_norm in ("debit", "credit"):
+            if price is None:
+                raise ValueError(f"price is required for '{order_type_norm}' multileg.")
+            tt_price: Optional[Decimal] = abs(Decimal(str(price)))
+        elif order_type_norm == "even":
+            tt_price = Decimal("0.00")
+        elif order_type_norm == "limit":
+            if price is None:
+                raise ValueError("price is required for 'limit' multileg.")
+            tt_price = abs(Decimal(str(price)))
+        else:  # market
+            tt_price = None
+
+        new_order = self._build_new_order(
+            legs=legs,
+            order_type="limit" if order_type_norm != "market" else "market",
+            time_in_force=duration,
+            price=tt_price,
+        )
+
+        try:
+            response = self._run(self._account.place_order(self._session, new_order, dry_run=False))
+        except Exception as e:
+            logger.error(colored(f"[Tastytrade] Multileg place_order failed: {e}", "red"))
+            for o in orders:
+                self._safe_stream_dispatch(self.ERROR_ORDER, order=o, error_msg=str(e))
+            return None
+
+        # Build a parent Order representing the multileg group. Lumibot's
+        # ``Order.OrderType`` doesn't have credit/debit/even — those are
+        # wire-level pricing modes for the broker, not Lumibot order types.
+        # Store the broker-level mapping (limit for non-market, market for
+        # market) on the parent Order.
+        parent_order_type = (
+            Order.OrderType.MARKET if order_type_norm == "market"
+            else Order.OrderType.LIMIT
+        )
+        parent_asset = Asset(
+            symbol=orders[0].asset.symbol,
+            asset_type=Asset.AssetType.STOCK,
+        )
+        parent = Order(
+            identifier=str(getattr(getattr(response, "order", None), "id", "") or ""),
+            asset=parent_asset,
+            strategy=orders[0].strategy,
+            order_class=Order.OrderClass.MULTILEG,
+            side=orders[0].side,
+            quantity=orders[0].quantity,
+            order_type=parent_order_type,
+            time_in_force=duration,
+            limit_price=tt_price,
+            status=Order.OrderStatus.SUBMITTED,
+        )
+        for child in orders:
+            child.parent_identifier = parent.identifier
+        parent.child_orders = list(orders)
+        try:
+            parent.update_raw(response)
+        except Exception:
+            pass
+        self._unprocessed_orders.append(parent)
+        self._safe_stream_dispatch(self.NEW_ORDER, order=parent)
+        return [parent]
+
+    def _finalize_submitted_order(self, order: Order, response: Any) -> Order:
+        """Stamp identifier + SUBMITTED status onto a single-leg order."""
+        placed = getattr(response, "order", None) or response
+        identifier = getattr(placed, "id", None)
+        if identifier is None and isinstance(placed, dict):
+            identifier = placed.get("id")
+        order.identifier = str(identifier) if identifier is not None else None
+        order.status = Order.OrderStatus.SUBMITTED
+        try:
+            order.update_raw(response)
+        except Exception:
+            pass
+        self._unprocessed_orders.append(order)
+        self._safe_stream_dispatch(self.NEW_ORDER, order=order)
+        return order
+
+    def _safe_stream_dispatch(self, event, **kwargs):
+        """Dispatch to stream if one is wired; no-op otherwise.
+
+        Mirrors Tradier's helper so the broker doesn't crash when ``stream``
+        is None (which is the case until streaming lands in a follow-up).
+        """
+        stream = getattr(self, "stream", None)
+        if stream is None:
+            return
+        try:
+            stream.dispatch(event, **kwargs)
+        except Exception:
+            return
 
     def cancel_order(self, order: Order) -> None:
         if order.is_filled() or order.is_canceled():
@@ -323,32 +656,204 @@ class Tastytrade(Broker):
                       limit_price: Union[float, None] = None,
                       stop_price: Union[float, None] = None):
         logger.error(colored(
-            f"[Tastytrade] _modify_order is not yet implemented (order={order}).",
+            f"[Tastytrade] _modify_order is not yet implemented (order={order}). "
+            f"Cancel and resubmit for now.",
             "red",
         ))
         return None
+
+    # ------------------------------------------------------------------
+    # Order parsing + read-back
+    # ------------------------------------------------------------------
+    _TT_STATUS_TO_LUMI = {
+        # Tastytrade OrderStatus → Lumibot Order.OrderStatus
+        "Received": Order.OrderStatus.SUBMITTED,
+        "Routed": Order.OrderStatus.SUBMITTED,
+        "In Flight": Order.OrderStatus.SUBMITTED,
+        "Live": Order.OrderStatus.OPEN,
+        "Contingent": Order.OrderStatus.OPEN,
+        "Cancel Requested": Order.OrderStatus.CANCELLING,
+        "Replace Requested": Order.OrderStatus.OPEN,
+        "Cancelled": Order.OrderStatus.CANCELED,
+        "Filled": Order.OrderStatus.FILLED,
+        "Expired": Order.OrderStatus.EXPIRED,
+        "Rejected": Order.OrderStatus.ERROR,
+        "Removed": Order.OrderStatus.CANCELED,
+        "Partially Removed": Order.OrderStatus.PARTIALLY_FILLED,
+    }
+
+    @classmethod
+    def _tt_status_to_lumi(cls, status: Any) -> str:
+        # status may be an OrderStatus enum or its string value.
+        key = getattr(status, "value", status)
+        return cls._TT_STATUS_TO_LUMI.get(str(key), Order.OrderStatus.NEW)
+
+    @staticmethod
+    def _occ_to_asset(symbol: str) -> Optional[Asset]:
+        """Parse an OCC option symbol back into a Lumibot Asset."""
+        m = re.match(r"^\s*([A-Z][A-Z0-9.\- ]{0,5}?)\s*(\d{6})([CP])(\d{8})\s*$", symbol or "")
+        if not m:
+            return None
+        root, yymmdd, cp, strike_str = m.groups()
+        try:
+            expiration = datetime.datetime.strptime(yymmdd, "%y%m%d").date()
+            strike = Decimal(strike_str) / Decimal(1000)
+        except Exception:
+            return None
+        return Asset(
+            symbol=root.strip(),
+            asset_type=Asset.AssetType.OPTION,
+            expiration=expiration,
+            strike=float(strike),
+            right=Asset.OptionRight.CALL if cp == "C" else Asset.OptionRight.PUT,
+        )
+
+    @classmethod
+    def _leg_to_asset(cls, leg) -> Optional[Asset]:
+        instrument = getattr(leg, "instrument_type", None)
+        instrument_value = getattr(instrument, "value", instrument)
+        symbol = getattr(leg, "symbol", "") or ""
+        if instrument_value == "Equity":
+            return Asset(symbol=symbol.strip().upper(), asset_type=Asset.AssetType.STOCK)
+        if instrument_value == "Equity Option":
+            return cls._occ_to_asset(symbol)
+        return None
+
+    @classmethod
+    def _leg_to_lumi_side(cls, leg, is_option: bool) -> str:
+        action = getattr(leg, "action", None)
+        action_value = getattr(action, "value", action)
+        action_str = str(action_value or "").lower()
+        if is_option:
+            return {
+                "buy to open": Order.OrderSide.BUY_TO_OPEN,
+                "sell to open": Order.OrderSide.SELL_TO_OPEN,
+                "buy to close": Order.OrderSide.BUY_TO_CLOSE,
+                "sell to close": Order.OrderSide.SELL_TO_CLOSE,
+                "buy": Order.OrderSide.BUY_TO_OPEN,
+                "sell": Order.OrderSide.SELL_TO_OPEN,
+            }.get(action_str, Order.OrderSide.BUY)
+        return {
+            "buy": Order.OrderSide.BUY,
+            "sell": Order.OrderSide.SELL,
+        }.get(action_str, Order.OrderSide.BUY)
 
     def _parse_broker_order(self, response: Any, strategy_name: str,
                             strategy_object=None) -> Optional[Order]:
-        logger.error(colored(
-            "[Tastytrade] _parse_broker_order is not yet implemented.",
-            "red",
-        ))
-        return None
+        """Convert a Tastytrade ``PlacedOrder`` into a Lumibot ``Order``.
 
-    def _pull_broker_order(self, identifier: str) -> Optional[dict]:
-        logger.error(colored(
-            f"[Tastytrade] _pull_broker_order({identifier}) is not yet implemented.",
-            "red",
-        ))
-        return None
+        Multileg orders return a parent ``Order`` with one child per leg
+        attached via ``add_child_order``. Single-leg orders return a single
+        ``Order``.
+        """
+        if response is None:
+            return None
+
+        legs = list(getattr(response, "legs", []) or [])
+        if not legs:
+            return None
+
+        identifier = getattr(response, "id", None)
+        identifier = str(identifier) if identifier is not None else None
+        status = self._tt_status_to_lumi(getattr(response, "status", None))
+        order_type = getattr(getattr(response, "order_type", None), "value", None)
+        order_type = str(order_type).lower() if order_type else Order.OrderType.LIMIT
+        # Tastytrade enums use 'Stop Limit' / 'Marketable Limit' — normalize.
+        order_type = order_type.replace(" ", "_")
+        if order_type == "marketable_limit":
+            order_type = "limit"
+        tif = getattr(getattr(response, "time_in_force", None), "value", None)
+        tif = str(tif).lower() if tif else "day"
+        price = getattr(response, "price", None)
+        stop = getattr(response, "stop_trigger", None)
+
+        if len(legs) == 1:
+            asset = self._leg_to_asset(legs[0])
+            if asset is None:
+                logger.warning(colored(
+                    f"[Tastytrade] Unhandled leg for order {identifier}: {legs[0]!r}",
+                    "yellow",
+                ))
+                return None
+            qty = getattr(legs[0], "quantity", None) or 0
+            side = self._leg_to_lumi_side(legs[0], is_option=(asset.asset_type == Asset.AssetType.OPTION))
+            order = Order(
+                identifier=identifier,
+                asset=asset,
+                strategy=strategy_name,
+                quantity=Decimal(str(qty)),
+                side=side,
+                order_type=order_type,
+                limit_price=price,
+                stop_price=stop,
+                time_in_force=tif,
+                status=status,
+            )
+            try:
+                order.update_raw(response)
+            except Exception:
+                pass
+            return order
+
+        # Multileg: parent Order + one child per leg.
+        underlying = getattr(response, "underlying_symbol", None) or (
+            getattr(self._leg_to_asset(legs[0]), "symbol", "") or ""
+        )
+        parent_asset = Asset(symbol=underlying, asset_type=Asset.AssetType.STOCK)
+        parent = Order(
+            identifier=identifier,
+            asset=parent_asset,
+            strategy=strategy_name,
+            order_class=Order.OrderClass.MULTILEG,
+            order_type=order_type,
+            limit_price=price,
+            time_in_force=tif,
+            status=status,
+        )
+        for leg in legs:
+            asset = self._leg_to_asset(leg)
+            if asset is None:
+                continue
+            qty = getattr(leg, "quantity", None) or 0
+            side = self._leg_to_lumi_side(leg, is_option=(asset.asset_type == Asset.AssetType.OPTION))
+            child = Order(
+                identifier=identifier,  # Tastytrade leg has no separate id
+                asset=asset,
+                strategy=strategy_name,
+                quantity=Decimal(str(qty)),
+                side=side,
+                order_type=order_type,
+                status=status,
+            )
+            child.parent_identifier = identifier
+            parent.add_child_order(child)
+        try:
+            parent.update_raw(response)
+        except Exception:
+            pass
+        return parent
+
+    def _pull_broker_order(self, identifier: str) -> Optional[Any]:
+        if not identifier:
+            return None
+        try:
+            return self._run(self._account.get_order(self._session, identifier))
+        except Exception as e:
+            logger.error(colored(
+                f"[Tastytrade] get_order({identifier}) failed: {e}", "red",
+            ))
+            return None
 
     def _pull_broker_all_orders(self) -> list:
-        logger.error(colored(
-            "[Tastytrade] _pull_broker_all_orders is not yet implemented.",
-            "red",
-        ))
-        return []
+        """Return all live orders. Filled/cancelled history can be fetched
+        separately via ``get_order_history`` if a strategy needs it."""
+        try:
+            return list(self._run(self._account.get_live_orders(self._session)) or [])
+        except Exception as e:
+            logger.error(colored(
+                f"[Tastytrade] get_live_orders failed: {e}", "red",
+            ))
+            return []
 
     # ------------------------------------------------------------------
     # Streaming (deferred)

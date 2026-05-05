@@ -95,7 +95,9 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
     def _parse_source_timestep(self, timestep, reverse=False):
         if reverse:
-            normalized = self.get_timestep_from_string(timestep)
+            normalized = str(timestep).strip().lower()
+            if normalized not in {"day", "minute"}:
+                normalized = super()._parse_source_timestep(timestep, reverse=False)
             TimeFrame = _alpaca_attr("alpaca.data.timeframe", "TimeFrame")
             if normalized == "day":
                 return TimeFrame.Day

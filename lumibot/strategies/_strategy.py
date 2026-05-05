@@ -329,14 +329,32 @@ def _ensure_backtesting_imports():
 
     from ..backtesting import (
         AlpacaBacktesting as _AlpacaBacktesting,
+    )
+    from ..backtesting import (
         BacktestingBroker as _BacktestingBroker,
+    )
+    from ..backtesting import (
         CcxtBacktesting as _CcxtBacktesting,
+    )
+    from ..backtesting import (
         DataBentoDataBacktesting as _DataBentoDataBacktesting,
+    )
+    from ..backtesting import (
         InteractiveBrokersRESTBacktesting as _InteractiveBrokersRESTBacktesting,
+    )
+    from ..backtesting import (
         PolygonDataBacktesting as _PolygonDataBacktesting,
+    )
+    from ..backtesting import (
         RoutedBacktestingPandas as _RoutedBacktestingPandas,
+    )
+    from ..backtesting import (
         ThetaDataBacktesting as _ThetaDataBacktesting,
+    )
+    from ..backtesting import (
         ThetaDataBacktestingPandas as _ThetaDataBacktestingPandas,
+    )
+    from ..backtesting import (
         YahooDataBacktesting as _YahooDataBacktesting,
     )
 

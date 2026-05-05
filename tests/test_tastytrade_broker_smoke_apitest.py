@@ -85,31 +85,35 @@ def test_async_bridge_runs_and_returns_value():
 def test_async_bridge_cancels_future_on_timeout():
     """If run() times out the underlying coroutine must be cancelled,
     not left running on the background loop."""
-    from lumibot.brokers.tastytrade import _AsyncBridge
     import concurrent.futures
+    import threading
+    import time
+
+    from lumibot.brokers.tastytrade import _AsyncBridge
 
     bridge = _AsyncBridge()
     try:
-        cancelled = asyncio.Event()
+        # threading.Event (not asyncio.Event) — the signal flows from the
+        # background asyncio thread to the main test thread, which is exactly
+        # what threading.Event is for. asyncio.Event is bound to a single
+        # loop and isn't safe across threads.
+        cancelled = threading.Event()
 
         async def _slow():
             try:
                 await asyncio.sleep(10)
             except asyncio.CancelledError:
-                # Signal back from the loop thread.
-                bridge._loop.call_soon_threadsafe(cancelled.set)
+                cancelled.set()
                 raise
 
         with pytest.raises(concurrent.futures.TimeoutError):
             bridge.run(_slow(), timeout=0.05)
 
-        # Give the cancellation a moment to propagate.
-        deadline = asyncio.get_event_loop().time() + 1.0 if False else None
+        # Give cancellation a moment to propagate to the loop thread.
         for _ in range(20):
             if cancelled.is_set():
                 break
-            import time as _t
-            _t.sleep(0.05)
+            time.sleep(0.05)
         assert cancelled.is_set(), "coroutine was not cancelled after timeout"
     finally:
         bridge.close()
@@ -396,7 +400,7 @@ def test_submit_orders_multileg_credit_spread(monkeypatch):
         assert new_order.price == Decimal("2.50")
         assert new_order.price_effect.value == "Credit"
         assert len(new_order.legs) == 2
-        actions = [l.action for l in new_order.legs]
+        actions = [leg.action for leg in new_order.legs]
         assert OrderAction.SELL_TO_OPEN in actions
         assert OrderAction.BUY_TO_OPEN in actions
     finally:

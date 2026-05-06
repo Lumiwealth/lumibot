@@ -22,7 +22,7 @@ Lumibot agents can research, debate, backtest, explain, and place real orders. R
 ```python
 self.agents.create(
     name="evidence_researcher",
-    model="openai/gpt-5.5-mini",
+    model="openai/gpt-5.4-mini",
     allow_trading=False,
     system_prompt="Gather market data, indicators, news, SEC fundamentals, and filings.",
 )

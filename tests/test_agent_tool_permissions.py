@@ -48,7 +48,7 @@ def test_agent_allow_trading_false_removes_only_mutating_order_tools():
     strategy = _Strategy()
     manager = AgentManager(strategy)
 
-    agent = manager.create(name="researcher", model="openai/gpt-5.5-mini", allow_trading=False)
+    agent = manager.create(name="researcher", model="openai/gpt-5.4-mini", allow_trading=False)
     tool_names = {tool.name for tool in agent._ensure_bound_tools()}
 
     assert "orders_submit_order" not in tool_names
@@ -58,7 +58,7 @@ def test_agent_allow_trading_false_removes_only_mutating_order_tools():
     assert "account_positions" in tool_names
     assert "get_income_statement" in tool_names
     assert "get_indicator" in tool_names
-    assert agent.default_model == "openai/gpt-5.5-mini"
+    assert agent.default_model == "openai/gpt-5.4-mini"
 
 
 def test_agent_allow_trading_true_keeps_mutating_order_tools():
@@ -89,13 +89,13 @@ def test_read_only_agent_runtime_can_use_non_trading_tools(tmp_path):
 
     agent = manager.create(
         name="researcher_runtime",
-        model="openai/gpt-5.5-mini",
+        model="openai/gpt-5.4-mini",
         allow_trading=False,
         _runtime=runtime,
     )
     result = agent.run(task_prompt="Research without trading.")
 
     assert result.summary == "Research completed without trading tools."
-    assert _Runtime.last_request.model == "openai/gpt-5.5-mini"
+    assert _Runtime.last_request.model == "openai/gpt-5.4-mini"
     assert any(event.tool_name == "search_memory" for event in result.tool_calls)
     assert any(event.tool_name == "notify_user" for event in result.tool_calls)

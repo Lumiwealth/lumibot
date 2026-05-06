@@ -19,7 +19,7 @@ Each agent can use a different model:
 ```python
 self.agents.create(
     name="evidence_researcher",
-    model="openai/gpt-5.5-mini",
+    model="openai/gpt-5.4-mini",
     allow_trading=False,
 )
 

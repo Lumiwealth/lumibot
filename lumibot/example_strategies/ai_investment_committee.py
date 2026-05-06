@@ -16,7 +16,7 @@ submit, cancel, or modify orders. The portfolio manager keeps trading enabled.
 
 Example model setup:
 
-    COMMITTEE_RESEARCH_MODEL="openai/gpt-5.5-mini"
+    COMMITTEE_RESEARCH_MODEL="openai/gpt-5.4-mini"
     COMMITTEE_BULL_MODEL="openai/gpt-5.5"
     COMMITTEE_BEAR_MODEL="openai/gpt-5.5"
     COMMITTEE_TRADER_MODEL="openai/gpt-5.5"
@@ -54,7 +54,7 @@ class AIInvestmentCommitteeStrategy(Strategy):
             self.notifications.enabled = True
             self.notifications.configure_telegram()
 
-        research_model = os.environ.get("COMMITTEE_RESEARCH_MODEL", "openai/gpt-5.5-mini")
+        research_model = os.environ.get("COMMITTEE_RESEARCH_MODEL", "openai/gpt-5.4-mini")
         bull_model = os.environ.get("COMMITTEE_BULL_MODEL", "openai/gpt-5.5")
         bear_model = os.environ.get("COMMITTEE_BEAR_MODEL", "openai/gpt-5.5")
         trader_model = os.environ.get("COMMITTEE_TRADER_MODEL", "openai/gpt-5.5")

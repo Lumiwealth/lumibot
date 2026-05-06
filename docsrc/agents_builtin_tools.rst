@@ -17,7 +17,7 @@ Use ``allow_trading=False`` for research agents:
 
    self.agents.create(
        name="researcher",
-       model="openai/gpt-5.5-mini",
+       model="openai/gpt-5.4-mini",
        allow_trading=False,
    )
 

@@ -83,6 +83,7 @@ tests/backtest/_speed_burner_profiles/
 
 # Prod-like local runner output
 backtest_runs/
+artifacts/
 
 # Local tool configs (untracked, user-specific)
 context*.json

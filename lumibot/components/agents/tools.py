@@ -81,7 +81,12 @@ def _build_description(func: Callable[..., Any], explicit_description: str | Non
     return base
 
 
-def agent_tool(*, name: str | None = None, description: str | None = None) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+def agent_tool(
+    *,
+    name: str | None = None,
+    description: str | None = None,
+    mutates_trading: bool = False,
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         setattr(
             func,
@@ -89,6 +94,7 @@ def agent_tool(*, name: str | None = None, description: str | None = None) -> Ca
             {
                 "name": name or func.__name__,
                 "description": _build_description(func, description),
+                "mutates_trading": bool(mutates_trading),
             },
         )
         return func
@@ -111,12 +117,18 @@ def bind_callable_tool(callable_obj: Callable[..., Any]) -> ToolDefinition:
             description=tool_description,
             function=callable_obj,
             source="local",
-            metadata={"kind": "callable"},
+            metadata={
+                "kind": "callable",
+                "mutates_trading": bool(metadata.get("mutates_trading")),
+            },
         )
 
     return ToolDefinition(
         name=tool_name,
         description=tool_description,
         binder=binder,
-        metadata={"kind": "callable"},
+        metadata={
+            "kind": "callable",
+            "mutates_trading": bool(metadata.get("mutates_trading")),
+        },
     )

@@ -260,3 +260,26 @@ Each emission is a single JSON line prefixed with `LUMIBOT_TELEMETRY`.
 Notes:
 - Burst mode (more frequent logs) turns on automatically above ~80% of container memory.
 - Deep snapshots trigger above ~90% with a ~1 hour cooldown (these thresholds are fixed defaults today).
+
+## AI agent fundamentals, memory, and notifications
+
+### `LUMIBOT_SEC_USER_AGENT`
+- Purpose: Contact-style SEC EDGAR user agent header.
+- Values: Human-readable app/contact string.
+- Default: LumiBot support contact.
+
+### `LUMIBOT_SEC_CACHE_DIR`
+- Purpose: Override the local SEC fundamentals and filing cache.
+- Default: `~/.lumibot/cache/sec`.
+
+### `LUMIBOT_MEMORY_DIR`
+- Purpose: Override the local JSONL agent memory root.
+- Default: `.lumibot/memory` under the current working directory.
+
+### `TELEGRAM_BOT_TOKEN`
+- Purpose: Telegram Bot API token for `self.notifications.configure_telegram()`.
+- Values: Bot token from BotFather.
+
+### `TELEGRAM_CHAT_ID`
+- Purpose: Telegram chat/channel/user id for strategy notifications.
+- Values: Telegram chat id.

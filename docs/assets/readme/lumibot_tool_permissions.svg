@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-labelledby="title desc">
+  <title id="title">Lumibot Agent Tool Permissions</title>
+  <desc id="desc">Research agents keep read-only tools while trading tools are reserved for portfolio manager agents.</desc>
+  <rect width="1200" height="420" fill="#ffffff"/>
+  <text x="50" y="60" font-family="Inter, Arial, sans-serif" font-size="32" font-weight="700" fill="#111827">Tool permissions by agent role</text>
+  <g font-family="Inter, Arial, sans-serif">
+    <rect x="70" y="110" width="470" height="240" rx="14" fill="#f0fdfa" stroke="#14b8a6" stroke-width="2"/>
+    <text x="105" y="155" font-size="24" font-weight="700" fill="#0f766e">Research agents</text>
+    <text x="105" y="195" font-size="18" fill="#134e4a">allow_trading=False</text>
+    <text x="105" y="235" font-size="17" fill="#134e4a">Can read: prices, positions, orders, indicators, news, SEC filings, memory</text>
+    <text x="105" y="275" font-size="17" fill="#991b1b">Cannot: submit, cancel, or modify orders</text>
+    <rect x="660" y="110" width="470" height="240" rx="14" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+    <text x="695" y="155" font-size="24" font-weight="700" fill="#1d4ed8">Portfolio manager</text>
+    <text x="695" y="195" font-size="18" fill="#1e3a8a">allow_trading=True</text>
+    <text x="695" y="235" font-size="17" fill="#1e3a8a">Can inspect the same evidence and account state</text>
+    <text x="695" y="275" font-size="17" fill="#1e3a8a">Can place Lumibot orders inside strategy risk rules</text>
+  </g>
+</svg>

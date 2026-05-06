@@ -5,7 +5,7 @@ from typing import Any, Literal
 
 import requests
 
-from lumibot.entities import Order
+from lumibot.entities import Asset, Order
 
 from .docs_tools import search_lumibot_docs
 from .asset_resolution import resolve_asset_and_quote
@@ -17,6 +17,19 @@ OrderSideArg = Literal["buy", "sell", "buy_to_open", "sell_to_close", "sell_shor
 OrderTypeArg = Literal["market", "limit", "stop", "stop_limit", "trailing_stop", "smart_limit"]
 TimeInForceArg = Literal["day", "gtc", "gtd"]
 NewsSortArg = Literal["asc", "desc"]
+
+COMMON_INDICATORS = [
+    "sma",
+    "ema",
+    "rsi",
+    "macd",
+    "bbands",
+    "atr",
+    "vwap",
+    "vwma",
+    "roc",
+    "stoch",
+]
 
 
 def _parse_datetime_value(value: Any) -> datetime | None:
@@ -534,6 +547,293 @@ def _bind_modify_order(strategy: Any, manager: Any) -> BoundTool:
     )
 
 
+def _jsonable(value: Any) -> Any:
+    if hasattr(value, "as_dict"):
+        return value.as_dict()
+    if hasattr(value, "item"):
+        try:
+            return value.item()
+        except Exception:
+            pass
+    if isinstance(value, dict):
+        return {str(k): _jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(v) for v in value]
+    return value
+
+
+def _bind_list_indicators(strategy: Any, manager: Any) -> BoundTool:
+    def list_indicators() -> dict[str, Any]:
+        return {
+            "ok": True,
+            "common_indicators": COMMON_INDICATORS,
+            "notes": (
+                "Use get_indicator for one current-bar indicator value. "
+                "Lumibot slices indicator outputs to the current strategy datetime, so backtests do not see future bars."
+            ),
+        }
+
+    return BoundTool(
+        name="list_indicators",
+        description="List common pandas-ta-classic indicator names available through Lumibot's current-bar indicator system.",
+        function=list_indicators,
+        source="builtin",
+        metadata={"kind": "indicator"},
+    )
+
+
+def _bind_get_indicator(strategy: Any, manager: Any) -> BoundTool:
+    def get_indicator(
+        symbol: str,
+        indicator: str,
+        timestep: str = "day",
+        asset_type: AssetTypeArg = "stock",
+        kwargs: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        asset = Asset(symbol, asset_type=asset_type)
+        indicator_name = _require_non_empty_text("indicator", indicator)
+        fn = getattr(strategy.indicators, indicator_name)
+        value = fn(asset, timestep=timestep, **(kwargs or {}))
+        return {
+            "ok": True,
+            "symbol": symbol.upper(),
+            "asset_type": asset_type,
+            "indicator": indicator_name,
+            "timestep": timestep,
+            "datetime": strategy.get_datetime().isoformat() if hasattr(strategy.get_datetime(), "isoformat") else str(strategy.get_datetime()),
+            "value": _jsonable(value),
+            "no_lookahead": True,
+        }
+
+    return BoundTool(
+        name="get_indicator",
+        description=(
+            "Get one technical indicator for the current strategy datetime. "
+            "Arguments: symbol, indicator, timestep='day', asset_type='stock', kwargs={...}. "
+            "Examples: get_indicator(symbol='SPY', indicator='rsi', kwargs={'length': 14}); "
+            "get_indicator(symbol='NVDA', indicator='macd'). "
+            "In backtests this returns only the current-bar value and does not expose future bars."
+        ),
+        function=get_indicator,
+        source="builtin",
+        metadata={"kind": "indicator"},
+    )
+
+
+def _bind_get_indicators(strategy: Any, manager: Any) -> BoundTool:
+    def get_indicators(
+        symbol: str,
+        indicators: list[str],
+        timestep: str = "day",
+        asset_type: AssetTypeArg = "stock",
+    ) -> dict[str, Any]:
+        results = []
+        single = _bind_get_indicator(strategy, manager).function
+        for name in indicators:
+            try:
+                results.append(single(symbol=symbol, indicator=name, timestep=timestep, asset_type=asset_type))
+            except Exception as exc:
+                results.append({"ok": False, "indicator": name, "error": str(exc)})
+        return {"ok": True, "symbol": symbol.upper(), "results": results}
+
+    return BoundTool(
+        name="get_indicators",
+        description="Get multiple current-bar technical indicators for one symbol. Pass indicators=['rsi', 'macd', 'bbands', ...].",
+        function=get_indicators,
+        source="builtin",
+        metadata={"kind": "indicator"},
+    )
+
+
+def _bind_get_income_statement(strategy: Any, manager: Any) -> BoundTool:
+    def get_income_statement(symbol: str, as_of: str | None = None, raw: bool = False) -> dict[str, Any]:
+        return strategy.fundamentals.get_income_statement(symbol, as_of=as_of, raw=raw)
+
+    return BoundTool(
+        name="get_income_statement",
+        description="Get SEC income statement facts for a US equity, gated to as_of or the current strategy datetime.",
+        function=get_income_statement,
+        source="builtin",
+        metadata={"kind": "fundamentals"},
+    )
+
+
+def _bind_get_balance_sheet(strategy: Any, manager: Any) -> BoundTool:
+    def get_balance_sheet(symbol: str, as_of: str | None = None, raw: bool = False) -> dict[str, Any]:
+        return strategy.fundamentals.get_balance_sheet(symbol, as_of=as_of, raw=raw)
+
+    return BoundTool(
+        name="get_balance_sheet",
+        description="Get SEC balance sheet facts for a US equity, gated to as_of or the current strategy datetime.",
+        function=get_balance_sheet,
+        source="builtin",
+        metadata={"kind": "fundamentals"},
+    )
+
+
+def _bind_get_cash_flow(strategy: Any, manager: Any) -> BoundTool:
+    def get_cash_flow(symbol: str, as_of: str | None = None, raw: bool = False) -> dict[str, Any]:
+        return strategy.fundamentals.get_cash_flow(symbol, as_of=as_of, raw=raw)
+
+    return BoundTool(
+        name="get_cash_flow",
+        description="Get SEC cash flow facts for a US equity, gated to as_of or the current strategy datetime.",
+        function=get_cash_flow,
+        source="builtin",
+        metadata={"kind": "fundamentals"},
+    )
+
+
+def _bind_get_company_facts(strategy: Any, manager: Any) -> BoundTool:
+    def get_company_facts(symbol: str, as_of: str | None = None, raw: bool = False) -> dict[str, Any]:
+        return strategy.fundamentals.get_company_facts(symbol, as_of=as_of, raw=raw)
+
+    return BoundTool(
+        name="get_company_facts",
+        description="Get compact or raw SEC companyfacts for a US equity, gated to as_of or the current strategy datetime.",
+        function=get_company_facts,
+        source="builtin",
+        metadata={"kind": "fundamentals"},
+    )
+
+
+def _bind_get_filings(strategy: Any, manager: Any) -> BoundTool:
+    def get_filings(symbol: str, form: str | None = None, as_of: str | None = None, limit: int = 10) -> dict[str, Any]:
+        return strategy.fundamentals.get_filings(symbol, form=form, as_of=as_of, limit=limit)
+
+    return BoundTool(
+        name="get_filings",
+        description=(
+            "List SEC filings for a US equity, point-in-time gated by as_of/current strategy datetime. "
+            "Use form='10-K' or form='10-Q' when you need annual or quarterly reports."
+        ),
+        function=get_filings,
+        source="builtin",
+        metadata={"kind": "filings"},
+    )
+
+
+def _bind_search_filing(strategy: Any, manager: Any) -> BoundTool:
+    def search_filing(
+        symbol: str,
+        accession_number: str,
+        query: str,
+        primary_document: str | None = None,
+        max_results: int = 5,
+    ) -> dict[str, Any]:
+        return strategy.fundamentals.search_filing(
+            symbol,
+            accession_number=accession_number,
+            query=query,
+            primary_document=primary_document,
+            max_results=max_results,
+        )
+
+    return BoundTool(
+        name="search_filing",
+        description=(
+            "Keyword-search a cached SEC filing document and return matching context snippets. "
+            "Use after get_filings when you want annual-report details about risks, margins, debt, accounting, "
+            "customers, liquidity, guidance, dilution, buybacks, or management commentary."
+        ),
+        function=search_filing,
+        source="builtin",
+        metadata={"kind": "filings"},
+    )
+
+
+def _bind_get_filing_document(strategy: Any, manager: Any) -> BoundTool:
+    def get_filing_document(
+        symbol: str,
+        accession_number: str,
+        primary_document: str | None = None,
+        max_chars: int | None = 20000,
+    ) -> dict[str, Any]:
+        return strategy.fundamentals.get_filing_document(
+            symbol,
+            accession_number=accession_number,
+            primary_document=primary_document,
+            max_chars=max_chars,
+        )
+
+    return BoundTool(
+        name="get_filing_document",
+        description=(
+            "Read a SEC filing document as text. This can be large, so prefer search_filing first. "
+            "Use max_chars to bound context, or set max_chars=None only when you intentionally need the full document."
+        ),
+        function=get_filing_document,
+        source="builtin",
+        metadata={"kind": "filings"},
+    )
+
+
+def _bind_notify_user(strategy: Any, manager: Any) -> BoundTool:
+    def notify_user(title: str, message: str, severity: str = "info", enabled: bool | None = None) -> dict[str, Any]:
+        results = strategy.notify(title, message, severity=severity, enabled=enabled)
+        return {"ok": all(result.ok for result in results), "results": [_jsonable(result.__dict__) for result in results]}
+
+    return BoundTool(
+        name="notify_user",
+        description=(
+            "Send a user notification through configured Lumibot notification providers. "
+            "Backtests keep notifications disabled by default unless enabled=True is passed or notifications are configured as enabled."
+        ),
+        function=notify_user,
+        source="builtin",
+        metadata={"kind": "notification"},
+    )
+
+
+def _bind_memory_remember(strategy: Any, manager: Any) -> BoundTool:
+    def remember(text: str, kind: str = "memory", tags: list[str] | None = None) -> dict[str, Any]:
+        return strategy.memory.remember(text, kind=kind, tags=tags)
+
+    return BoundTool(name="remember", description="Store a local Lumibot agent memory or note as JSONL.", function=remember, source="builtin", metadata={"kind": "memory"})
+
+
+def _bind_memory_search(strategy: Any, manager: Any) -> BoundTool:
+    def search_memory(query: str, limit: int = 10, kind: str | None = None) -> dict[str, Any]:
+        return strategy.memory.search(query, limit=limit, kind=kind)
+
+    return BoundTool(name="search_memory", description="Search local Lumibot agent memories, lessons, decisions, and theses.", function=search_memory, source="builtin", metadata={"kind": "memory"})
+
+
+def _bind_remember_decision(strategy: Any, manager: Any) -> BoundTool:
+    def remember_decision(text: str, symbol: str | None = None, action: str | None = None) -> dict[str, Any]:
+        return strategy.memory.remember_decision(text, symbol=symbol, action=action)
+
+    return BoundTool(name="remember_decision", description="Record an AI trading decision in the local decision journal.", function=remember_decision, source="builtin", metadata={"kind": "memory"})
+
+
+def _bind_remember_lesson(strategy: Any, manager: Any) -> BoundTool:
+    def remember_lesson(text: str, symbol: str | None = None) -> dict[str, Any]:
+        return strategy.memory.remember_lesson(text, symbol=symbol)
+
+    return BoundTool(name="remember_lesson", description="Record a compact trading lesson for future agent runs.", function=remember_lesson, source="builtin", metadata={"kind": "memory"})
+
+
+def _bind_open_thesis(strategy: Any, manager: Any) -> BoundTool:
+    def open_thesis(text: str, symbol: str | None = None, tags: list[str] | None = None) -> dict[str, Any]:
+        return strategy.memory.open_thesis(text, symbol=symbol, tags=tags)
+
+    return BoundTool(name="open_thesis", description="Open a hedge-fund-style investment thesis in local Lumibot memory.", function=open_thesis, source="builtin", metadata={"kind": "memory"})
+
+
+def _bind_update_thesis(strategy: Any, manager: Any) -> BoundTool:
+    def update_thesis(thesis_id: str, text: str) -> dict[str, Any]:
+        return strategy.memory.update_thesis(thesis_id, text)
+
+    return BoundTool(name="update_thesis", description="Append an update to an open investment thesis.", function=update_thesis, source="builtin", metadata={"kind": "memory"})
+
+
+def _bind_close_thesis(strategy: Any, manager: Any) -> BoundTool:
+    def close_thesis(thesis_id: str, text: str) -> dict[str, Any]:
+        return strategy.memory.close_thesis(thesis_id, text)
+
+    return BoundTool(name="close_thesis", description="Close an investment thesis and record its outcome/reflection.", function=close_thesis, source="builtin", metadata={"kind": "memory"})
+
+
 def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
     def submit_order(
         *,
@@ -667,18 +967,95 @@ class _NewsTools:
         )
 
 
+class _IndicatorTools:
+    def list_indicators(self) -> ToolDefinition:
+        return ToolDefinition(name="list_indicators", description="List common technical indicators.", binder=_bind_list_indicators)
+
+    def get_indicator(self) -> ToolDefinition:
+        return ToolDefinition(name="get_indicator", description="Get one current-bar technical indicator.", binder=_bind_get_indicator)
+
+    def get_indicators(self) -> ToolDefinition:
+        return ToolDefinition(name="get_indicators", description="Get multiple current-bar technical indicators.", binder=_bind_get_indicators)
+
+
+class _FundamentalTools:
+    def income_statement(self) -> ToolDefinition:
+        return ToolDefinition(name="get_income_statement", description="Get SEC income statement facts.", binder=_bind_get_income_statement)
+
+    def balance_sheet(self) -> ToolDefinition:
+        return ToolDefinition(name="get_balance_sheet", description="Get SEC balance sheet facts.", binder=_bind_get_balance_sheet)
+
+    def cash_flow(self) -> ToolDefinition:
+        return ToolDefinition(name="get_cash_flow", description="Get SEC cash flow facts.", binder=_bind_get_cash_flow)
+
+    def company_facts(self) -> ToolDefinition:
+        return ToolDefinition(name="get_company_facts", description="Get SEC companyfacts.", binder=_bind_get_company_facts)
+
+    def filings(self) -> ToolDefinition:
+        return ToolDefinition(name="get_filings", description="List SEC filings.", binder=_bind_get_filings)
+
+    def search_filing(self) -> ToolDefinition:
+        return ToolDefinition(name="search_filing", description="Search a SEC filing.", binder=_bind_search_filing)
+
+    def filing_document(self) -> ToolDefinition:
+        return ToolDefinition(name="get_filing_document", description="Read a SEC filing document.", binder=_bind_get_filing_document)
+
+
+class _NotificationTools:
+    def notify_user(self) -> ToolDefinition:
+        return ToolDefinition(name="notify_user", description="Send a user notification.", binder=_bind_notify_user)
+
+
+class _MemoryTools:
+    def remember(self) -> ToolDefinition:
+        return ToolDefinition(name="remember", description="Store a local memory.", binder=_bind_memory_remember)
+
+    def search(self) -> ToolDefinition:
+        return ToolDefinition(name="search_memory", description="Search local memories.", binder=_bind_memory_search)
+
+    def remember_decision(self) -> ToolDefinition:
+        return ToolDefinition(name="remember_decision", description="Record an agent decision.", binder=_bind_remember_decision)
+
+    def remember_lesson(self) -> ToolDefinition:
+        return ToolDefinition(name="remember_lesson", description="Record a compact lesson.", binder=_bind_remember_lesson)
+
+    def open_thesis(self) -> ToolDefinition:
+        return ToolDefinition(name="open_thesis", description="Open an investment thesis.", binder=_bind_open_thesis)
+
+    def update_thesis(self) -> ToolDefinition:
+        return ToolDefinition(name="update_thesis", description="Update an investment thesis.", binder=_bind_update_thesis)
+
+    def close_thesis(self) -> ToolDefinition:
+        return ToolDefinition(name="close_thesis", description="Close an investment thesis.", binder=_bind_close_thesis)
+
+
 class _OrderTools:
     def submit(self) -> ToolDefinition:
-        return ToolDefinition(name="orders_submit_order", description="Submit an order with explicit side/type/time_in_force.", binder=_bind_submit_order)
+        return ToolDefinition(
+            name="orders_submit_order",
+            description="Submit an order with explicit side/type/time_in_force.",
+            binder=_bind_submit_order,
+            metadata={"mutates_trading": True},
+        )
 
     def cancel(self) -> ToolDefinition:
-        return ToolDefinition(name="orders_cancel_order", description="Cancel a tracked order by identifier.", binder=_bind_cancel_order)
+        return ToolDefinition(
+            name="orders_cancel_order",
+            description="Cancel a tracked order by identifier.",
+            binder=_bind_cancel_order,
+            metadata={"mutates_trading": True},
+        )
 
     def open_orders(self) -> ToolDefinition:
         return ToolDefinition(name="orders_open_orders", description="List tracked orders and their identifiers.", binder=_bind_open_orders)
 
     def modify(self) -> ToolDefinition:
-        return ToolDefinition(name="orders_modify_order", description="Modify a tracked order by identifier.", binder=_bind_modify_order)
+        return ToolDefinition(
+            name="orders_modify_order",
+            description="Modify a tracked order by identifier.",
+            binder=_bind_modify_order,
+            metadata={"mutates_trading": True},
+        )
 
 
 class _BuiltinTools:
@@ -687,6 +1064,10 @@ class _BuiltinTools:
     duckdb = _DuckDBTools()
     docs = _DocsTools()
     news = _NewsTools()
+    indicators = _IndicatorTools()
+    fundamentals = _FundamentalTools()
+    notifications = _NotificationTools()
+    memory = _MemoryTools()
     orders = _OrderTools()
 
     def all(self) -> list[ToolDefinition]:
@@ -698,6 +1079,25 @@ class _BuiltinTools:
             self.market.load_history_table(),
             self.duckdb.query(),
             self.docs.search(),
+            self.news.alpaca_news(),
+            self.indicators.list_indicators(),
+            self.indicators.get_indicator(),
+            self.indicators.get_indicators(),
+            self.fundamentals.income_statement(),
+            self.fundamentals.balance_sheet(),
+            self.fundamentals.cash_flow(),
+            self.fundamentals.company_facts(),
+            self.fundamentals.filings(),
+            self.fundamentals.search_filing(),
+            self.fundamentals.filing_document(),
+            self.notifications.notify_user(),
+            self.memory.remember(),
+            self.memory.search(),
+            self.memory.remember_decision(),
+            self.memory.remember_lesson(),
+            self.memory.open_thesis(),
+            self.memory.update_thesis(),
+            self.memory.close_thesis(),
             self.orders.submit(),
             self.orders.cancel(),
             self.orders.open_orders(),

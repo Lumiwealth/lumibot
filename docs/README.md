@@ -52,6 +52,11 @@ If you’re assessing whether backtests should be sped up via parallelism, start
 | `REMOTE_CACHE.md` | S3 remote cache architecture and configuration | When debugging cache sync or S3 issues |
 | `AI_TRADING_AGENTS.md` | Architecture, roadmap, prompt model, observability model, external MCP strategy, and acceptance-test plan for LumiBot's AI trading agent runtime | When documenting or planning LumiBot's AI trading agent feature set |
 | `AI_AGENT_RUNTIME_PLAN.md` | Research summary, implementation notes, and follow-on plan for agentic strategies | When planning runtime internals, replay caching, memory, and tool plumbing |
+| `AI_INVESTMENT_COMMITTEE.md` | Multi-agent investment committee example with researcher, bull, bear, and portfolio-manager roles | When building agentic committee strategies |
+| `AI_AGENT_BUILTIN_TOOLS.md` | Built-in agent tools, trading permissions, indicators, fundamentals, memory, and notifications | When changing the agent tool surface |
+| `SEC_FUNDAMENTALS.md` | SEC fundamentals, filings, point-in-time gating, and cache behavior | When working on fundamentals or filings |
+| `AI_AGENT_MEMORY.md` | Native local agent memory storage and tools | When working on memory/reflection behavior |
+| `AI_AGENT_NOTIFICATIONS.md` | Native notifications and agent notification tools | When working on Telegram or user alerts |
 | `TEARSHEET_METRICS.md` | Machine-readable tearsheet artifacts, custom tearsheet metrics, and usage rules | When working on tearsheet metrics, custom metrics, or agent consumption of tearsheet summaries |
 | `PRODLIKE_LOCAL_BACKTEST_RUNS.md` | How to run production-like backtests locally | When replicating prod behavior locally |
 | `DEPLOYMENT.md` | Release workflow (version branches, changelog, tags) | When deploying a new version |

@@ -679,7 +679,7 @@ Notes:
 AI agent model providers
 ------------------------
 
-LumiBot's AI agent subsystem (``self.agents.create(default_model=...)``) supports multiple LLM providers. You only need the key matching the provider id you pass as ``default_model``. Non-Gemini ids are routed through LiteLLM, which ships as a LumiBot dependency.
+LumiBot's AI agent subsystem (``self.agents.create(model=...)`` or ``default_model=...``) supports multiple LLM providers. You only need the key matching the provider id you pass for each agent. Non-Gemini ids are routed through LiteLLM, which ships as a LumiBot dependency.
 
 GEMINI_API_KEY
 ^^^^^^^^^^^^^^
@@ -711,3 +711,40 @@ ANTHROPIC_API_KEY
 - Required when ``default_model`` looks like ``anthropic/claude-opus-4-7`` or any other ``anthropic/...`` id.
 
 Other providers (Groq, Mistral, Cohere, Fireworks, Together, etc.) use the provider-prefixed id format and the corresponding provider env var; see the LiteLLM documentation for the full list.
+
+SEC fundamentals and agent memory
+---------------------------------
+
+LUMIBOT_SEC_USER_AGENT
+^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Contact-style SEC EDGAR user agent header.
+- Values: Human-readable app/contact string.
+- Default: LumiBot support contact.
+
+LUMIBOT_SEC_CACHE_DIR
+^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Override local SEC fundamentals and filing cache.
+- Default: ``~/.lumibot/cache/sec``.
+
+LUMIBOT_MEMORY_DIR
+^^^^^^^^^^^^^^^^^^
+
+- Purpose: Override local JSONL agent memory root.
+- Default: ``.lumibot/memory`` under the current working directory.
+
+Telegram notifications
+----------------------
+
+TELEGRAM_BOT_TOKEN
+^^^^^^^^^^^^^^^^^^
+
+- Purpose: Telegram Bot API token for ``self.notifications.configure_telegram()``.
+- Values: Bot token from BotFather.
+
+TELEGRAM_CHAT_ID
+^^^^^^^^^^^^^^^^
+
+- Purpose: Telegram chat/channel/user id for strategy notifications.
+- Values: Telegram chat id.

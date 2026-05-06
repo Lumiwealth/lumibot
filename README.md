@@ -5,11 +5,49 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Discord](https://img.shields.io/discord/1045669553608851456?label=Discord)](https://discord.gg/TmMsJCKY3T)
 
-# Lumibot: Algorithmic Trading for Stocks, Options, Crypto, Futures & Forex
+# Lumibot: AI Trading Agents, Backtesting, and Live Execution
 
-**The same code runs your backtest and your live trading.** The only open-source Python trading library with full options support, built-in AI trading agents, and 5+ broker integrations.
+**The same code runs your backtest and your live trading.** Lumibot is an open-source Python trading framework for AI trading agents, stocks, options, crypto, futures, forex, and real broker execution.
+
+<p align="center">
+  <img src="docs/assets/readme/lumibot_investment_committee_architecture.svg" alt="Lumibot AI investment committee architecture" width="100%">
+</p>
 
 If you find Lumibot useful, a star helps others discover it.
+
+## AI Investment Committees That Actually Trade
+
+Lumibot agents can research, debate, backtest, explain, and place real orders. Research agents can be locked to read-only tools with `allow_trading=False`, while a portfolio-manager agent can place Lumibot orders after reviewing the evidence.
+
+```python
+self.agents.create(
+    name="evidence_researcher",
+    model="openai/gpt-5.5-mini",
+    allow_trading=False,
+    system_prompt="Gather market data, indicators, news, SEC fundamentals, and filings.",
+)
+
+self.agents.create(
+    name="portfolio_manager",
+    model="openai/gpt-5.5",
+    allow_trading=True,
+    system_prompt="Review the bull and bear cases, then place orders only inside risk limits.",
+)
+```
+
+<p align="center">
+  <img src="docs/assets/readme/lumibot_tool_permissions.svg" alt="Lumibot agent tool permissions" width="100%">
+</p>
+
+Built-in AI agent tools now include SEC fundamentals, SEC filing search, technical indicators, local memory, and Telegram notifications.
+
+<p align="center">
+  <img src="docs/assets/readme/lumibot_sec_filings.svg" alt="Lumibot SEC fundamentals and filings" width="100%">
+</p>
+
+<p align="center">
+  <img src="docs/assets/readme/lumibot_memory_notifications.svg" alt="Lumibot memory and notifications" width="100%">
+</p>
 
 ## Use Lumibot Your Way
 
@@ -139,12 +177,16 @@ For the deepest historical coverage (stocks, options, futures, indexes), we reco
 Lumibot includes a built-in AI trading agent runtime. Build agents that run identically in backtests and live trading.
 
 - Create agents with `self.agents.create(...)`
+- Use a different model per agent with `model="openai/gpt-5.5"` or any LiteLLM/ADK-supported provider string
+- Make research agents read-only with `allow_trading=False`
+- Give agents built-in SEC fundamentals, filings, indicators, memory, and notifications
 - Use **DuckDB** for time-series analysis instead of dumping raw bars into prompts
 - Mount external **MCP servers** for news, macro data, filings, or any domain-specific tools
 - Replay identical agent decisions in **backtests** without paying for another model call
 
 Start here:
 - [Agent Documentation](https://lumibot.lumiwealth.com/agents.html)
+- [AI Investment Committee Example](https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/ai_investment_committee.py)
 - [Stock Agent Example](https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/agent_stock_backtest.py)
 - [Options Agent Example](https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/agent_option_backtest.py)
 - [Full Guide](https://github.com/Lumiwealth/lumibot/blob/dev/docs/AI_TRADING_AGENTS.md)

@@ -607,6 +607,15 @@ class _Strategy:
         from lumibot.indicators import Indicators
         self.indicators = Indicators(self)
 
+        from lumibot.fundamentals import SECFundamentals
+        self.fundamentals = SECFundamentals(self)
+
+        from lumibot.components.notifications import NotificationManager
+        self.notifications = NotificationManager(self)
+
+        from lumibot.components.memory import MemoryStore
+        self.memory = MemoryStore(self)
+
         # Storing parameters for the initialize method
         if not hasattr(self, "parameters") or not isinstance(self.parameters, dict) or self.parameters is None:
             self.parameters = {}
@@ -3333,6 +3342,23 @@ class _Strategy:
                 f"❌ Failed to send update to cloud. Status: {response.status_code}, Response: {response.text}"
             )
             return False
+
+    def notify(self, title, message=None, *, severity="info", enabled=None, **kwargs):
+        """Send a strategy notification through configured providers.
+
+        Backtests keep notifications disabled by default through
+        ``self.notifications`` unless explicitly enabled.
+        """
+        if message is None:
+            message = str(title)
+            title = "Lumibot notification"
+        return self.notifications.notify(
+            str(title),
+            str(message),
+            severity=severity,
+            enabled=enabled,
+            **kwargs,
+        )
 
     def should_send_account_summary_to_discord(self):
         # Check if db_connection_str has been set, if not, return False

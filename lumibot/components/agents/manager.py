@@ -489,21 +489,34 @@ class AgentHandle:
         tools: list[Any] | None = None,
         mcp_servers: list[MCPServer] | None = None,
         runtime: Any | None = None,
+        allow_trading: bool = True,
     ) -> None:
         self.manager = manager
         self.name = name
         self.system_prompt = system_prompt
         self.default_model = default_model
+        self.allow_trading = bool(allow_trading)
         from .builtins import BuiltinTools
-        builtin_tools = BuiltinTools.all()
+        builtin_tools = self._filter_tools_for_trading_permission(BuiltinTools.all())
         if tools is None:
             self._tool_inputs = builtin_tools
         else:
             # Always include built-in tools, plus any custom tools the user added
-            self._tool_inputs = builtin_tools + list(tools)
+            self._tool_inputs = builtin_tools + self._filter_tools_for_trading_permission(list(tools))
         self._mcp_servers = mcp_servers or []
         self._runtime = runtime or GoogleADKRuntime(mcp_servers=self._mcp_servers)
         self._bound_tools: list[BoundTool] | None = None
+
+    def _filter_tools_for_trading_permission(self, tools: list[Any]) -> list[Any]:
+        if self.allow_trading:
+            return list(tools)
+        filtered: list[Any] = []
+        for tool in tools:
+            metadata = getattr(tool, "metadata", {}) or {}
+            if bool(metadata.get("mutates_trading")):
+                continue
+            filtered.append(tool)
+        return filtered
 
     def _state_bucket(self) -> dict[str, Any]:
         bucket = self.manager.strategy.vars.get("_agent_runtime_state", {})
@@ -1650,6 +1663,7 @@ class AgentManager:
         *,
         name: str,
         system_prompt: str | None = None,
+        model: str | None = None,
         default_model: str | None = None,
         tools: list[Any] | None = None,
         mcp_servers: list[MCPServer] | None = None,
@@ -1661,7 +1675,10 @@ class AgentManager:
         if name in self._agents:
             raise ValueError(f"Agent with name {name!r} already exists.")
         resolved_system_prompt = system_prompt or prompt or "You are a LumiBot trading agent."
-        resolved_model = default_model or "gemini-3.1-flash-lite-preview"
+        if model is not None and default_model is not None and model != default_model:
+            raise ValueError("Pass either model or default_model, not both with different values.")
+        resolved_model = model or default_model or "gemini-3.1-flash-lite-preview"
+        resolved_allow_trading = True if allow_trading is None else bool(allow_trading)
         handle = AgentHandle(
             manager=self,
             name=name,
@@ -1670,15 +1687,11 @@ class AgentManager:
             tools=tools,
             mcp_servers=mcp_servers,
             runtime=_runtime,
+            allow_trading=resolved_allow_trading,
         )
         if cadence is not None:
             self.strategy.log_message(
                 f"[agents] cadence={cadence!r} is informational only; scheduling stays in strategy lifecycle code.",
-                color="yellow",
-            )
-        if allow_trading is not None:
-            self.strategy.log_message(
-                f"[agents] allow_trading={allow_trading!r} is deprecated; tool exposure now controls mutations.",
                 color="yellow",
             )
         self._agents[name] = handle

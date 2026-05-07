@@ -1,45 +1,16 @@
-from datetime import datetime
-from zoneinfo import ZoneInfo
-
 from lumibot.example_strategies.ai_investment_committee import AIInvestmentCommitteeStrategy
 
 
-class _CommitteeControlHarness:
-    def __init__(self, current_dt, start_on_or_after):
-        self.parameters = {"committee_start_on_or_after": start_on_or_after}
-        self.current_dt = current_dt
-        self.messages = []
+def test_ai_committee_example_uses_normal_lumibot_iteration_flow():
+    parameter_names = set(AIInvestmentCommitteeStrategy.parameters)
 
-    def get_datetime(self):
-        return self.current_dt
-
-    def log_message(self, message, **kwargs):
-        self.messages.append(message)
+    assert "run_once" not in parameter_names
+    assert "committee_start_on_or_after" not in parameter_names
+    assert "run_every_n_iterations" not in parameter_names
+    assert not hasattr(AIInvestmentCommitteeStrategy, "_before_committee_start")
 
 
-def test_ai_committee_start_gate_waits_until_configured_date():
-    before = _CommitteeControlHarness(
-        datetime(2024, 1, 7, 9, 30, tzinfo=ZoneInfo("America/New_York")),
-        "2024-01-08",
-    )
-    on_date = _CommitteeControlHarness(
-        datetime(2024, 1, 8, 9, 30, tzinfo=ZoneInfo("America/New_York")),
-        "2024-01-08",
-    )
-
-    assert AIInvestmentCommitteeStrategy._before_committee_start(before) is True
-    assert AIInvestmentCommitteeStrategy._before_committee_start(on_date) is False
-
-
-def test_ai_committee_start_gate_supports_timestamp_with_timezone():
-    before = _CommitteeControlHarness(
-        datetime(2024, 1, 8, 9, 29, tzinfo=ZoneInfo("America/New_York")),
-        "2024-01-08T09:30:00-05:00",
-    )
-    at_time = _CommitteeControlHarness(
-        datetime(2024, 1, 8, 9, 30, tzinfo=ZoneInfo("America/New_York")),
-        "2024-01-08T09:30:00-05:00",
-    )
-
-    assert AIInvestmentCommitteeStrategy._before_committee_start(before) is True
-    assert AIInvestmentCommitteeStrategy._before_committee_start(at_time) is False
+def test_ai_committee_example_exposes_expected_risk_controls():
+    assert AIInvestmentCommitteeStrategy.parameters["max_position_pct"] == 0.20
+    assert AIInvestmentCommitteeStrategy.parameters["max_new_positions_per_run"] == 2
+    assert AIInvestmentCommitteeStrategy.parameters["enable_notifications"] is False

@@ -28,7 +28,6 @@ Requirements:
 """
 
 import os
-from datetime import date, datetime
 
 from lumibot.strategies.strategy import Strategy
 
@@ -46,11 +45,9 @@ class AIInvestmentCommitteeStrategy(Strategy):
 
     def initialize(self):
         self.sleeptime = "1D"
-        self.vars.iteration_count = 0
         self.vars.last_evidence_pack = None
         self.vars.last_bull_case = None
         self.vars.last_bear_case = None
-        self.vars.committee_completed = False
 
         if self.parameters.get("enable_notifications"):
             self.notifications.enabled = True
@@ -87,15 +84,6 @@ class AIInvestmentCommitteeStrategy(Strategy):
         )
 
     def on_trading_iteration(self):
-        if self.parameters.get("run_once") and self.vars.get("committee_completed"):
-            return
-        if self._before_committee_start():
-            return
-
-        self.vars.iteration_count += 1
-        if self.vars.iteration_count != 1 and self.vars.iteration_count % 5 != 0:
-            return
-
         universe = list(self.parameters.get("universe") or DEFAULT_UNIVERSE)
         context = {
             "universe": universe,
@@ -144,32 +132,6 @@ class AIInvestmentCommitteeStrategy(Strategy):
             },
         )
         self.log_message(f"[investment_committee] {decision.summary}", color="yellow")
-        self.vars.committee_completed = True
-
-    def _before_committee_start(self) -> bool:
-        start_on_or_after = self.parameters.get("committee_start_on_or_after")
-        if not start_on_or_after:
-            return False
-        current_dt = self.get_datetime()
-        text = str(start_on_or_after).strip()
-        if not text:
-            return False
-        try:
-            if len(text) <= 10:
-                target_date = date.fromisoformat(text[:10])
-                return current_dt.date() < target_date
-            target_dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
-            if target_dt.tzinfo is None and current_dt.tzinfo is not None:
-                target_dt = target_dt.replace(tzinfo=current_dt.tzinfo)
-            if target_dt.tzinfo is not None and current_dt.tzinfo is not None:
-                target_dt = target_dt.astimezone(current_dt.tzinfo)
-            return current_dt < target_dt
-        except Exception:
-            self.log_message(
-                f"Invalid committee_start_on_or_after={start_on_or_after!r}; running committee normally.",
-                color="yellow",
-            )
-            return False
 
     def _evidence_researcher_prompt(self) -> str:
         return """

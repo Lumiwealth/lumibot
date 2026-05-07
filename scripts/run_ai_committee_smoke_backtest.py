@@ -52,13 +52,15 @@ def main() -> None:
     cache_dir = artifact_dir / "cache"
     memory_dir = artifact_dir / "memory"
     sec_dir = artifact_dir / "sec"
+    fred_dir = artifact_dir / "fred"
     artifact_dir.mkdir(parents=True, exist_ok=True)
 
     os.environ["LUMIBOT_CACHE_FOLDER"] = str(cache_dir)
     os.environ["LUMIBOT_MEMORY_DIR"] = str(memory_dir)
     os.environ["LUMIBOT_SEC_CACHE_DIR"] = str(sec_dir)
-    os.environ["ALPACA_API_KEY"] = "fixture-key"
-    os.environ["ALPACA_API_SECRET"] = "fixture-secret"
+    os.environ["LUMIBOT_FRED_CACHE_DIR"] = str(fred_dir)
+    os.environ["ALPACA_NEWS_API_KEY"] = "fixture-key"
+    os.environ["ALPACA_NEWS_API_SECRET"] = "fixture-secret"
 
     CommitteeToolRuntime.call_count = 0
     CommitteeToolRuntime.last_results = None
@@ -66,6 +68,7 @@ def main() -> None:
     with (
         patch("lumibot.fundamentals.sec.requests.get", _fake_requests_get),
         patch("lumibot.components.agents.builtins.requests.get", _fake_requests_get),
+        patch("lumibot.macro.fred.requests.get", _fake_requests_get),
         patch("lumibot.components.notifications.telegram.requests.post", _fake_telegram_post),
     ):
         result, strategy = CommitteeToolBacktestStrategy.run_backtest(

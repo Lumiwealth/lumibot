@@ -280,7 +280,7 @@ class FREDMacroData:
         )
         observations = []
         for row in csv.DictReader(StringIO(text)):
-            obs_date = _parse_dt(row.get("DATE") or row.get("date"))
+            obs_date = _parse_dt(row.get("DATE") or row.get("date") or row.get("observation_date"))
             if obs_date is None:
                 continue
             obs_day = obs_date.date()

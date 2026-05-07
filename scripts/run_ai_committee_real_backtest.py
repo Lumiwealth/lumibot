@@ -61,6 +61,7 @@ def main() -> None:
     os.environ["LUMIBOT_CACHE_FOLDER"] = str(artifact_dir / "cache")
     os.environ["LUMIBOT_MEMORY_DIR"] = str(artifact_dir / "memory")
     os.environ["LUMIBOT_SEC_CACHE_DIR"] = str(artifact_dir / "sec")
+    os.environ["LUMIBOT_FRED_CACHE_DIR"] = str(artifact_dir / "fred")
 
     stats_file = artifact_dir / "stats.csv"
     trades_file = artifact_dir / "trades.csv"

@@ -52,7 +52,15 @@ self.agents.create(
 Built-in AI agent tools now include SEC fundamentals, SEC filing search, FRED macro data, technical indicators, local memory, and Telegram notifications.
 
 <p align="center">
+  <img src="docs/assets/readme/lumibot_bull_bear_agents.png" alt="Lumibot bull and bear agents" width="100%">
+</p>
+
+<p align="center">
   <img src="docs/assets/readme/lumibot_sec_filings.png" alt="Lumibot SEC fundamentals and filings" width="100%">
+</p>
+
+<p align="center">
+  <img src="docs/assets/readme/lumibot_point_in_time_tools.png" alt="Lumibot point-in-time research tools" width="100%">
 </p>
 
 <p align="center">
@@ -61,6 +69,14 @@ Built-in AI agent tools now include SEC fundamentals, SEC filing search, FRED ma
 
 <p align="center">
   <img src="docs/assets/readme/lumibot_memory_notifications.png" alt="Lumibot memory and notifications" width="100%">
+</p>
+
+<p align="center">
+  <img src="docs/assets/readme/lumibot_traceable_artifacts.png" alt="Lumibot traceable backtest artifacts" width="100%">
+</p>
+
+<p align="center">
+  <img src="docs/assets/readme/lumibot_vs_tradingagents.png" alt="Lumibot versus TradingAgents" width="100%">
 </p>
 
 ## Use Lumibot Your Way

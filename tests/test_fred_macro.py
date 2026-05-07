@@ -27,7 +27,7 @@ def test_fred_csv_mode_is_date_gated_and_cached(monkeypatch, tmp_path):
         calls.append((url, kwargs))
         return _Response(
             text=(
-                "DATE,DGS10\n"
+                "observation_date,DGS10\n"
                 "2024-12-31,4.20\n"
                 "2025-01-15,4.30\n"
                 "2025-01-16,4.40\n"

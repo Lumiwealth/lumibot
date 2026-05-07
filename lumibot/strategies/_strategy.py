@@ -610,6 +610,9 @@ class _Strategy:
         from lumibot.fundamentals import SECFundamentals
         self.fundamentals = SECFundamentals(self)
 
+        from lumibot.macro import FREDMacroData
+        self.macro = FREDMacroData(self)
+
         from lumibot.components.notifications import NotificationManager
         self.notifications = NotificationManager(self)
 

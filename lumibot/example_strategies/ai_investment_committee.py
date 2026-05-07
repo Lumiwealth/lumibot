@@ -5,7 +5,7 @@ AI Investment Committee - Multi-Agent Lumibot Demo
 This strategy demonstrates a plain-Python Lumibot investment committee:
 
 1. Evidence Researcher gathers market data, indicators, news, SEC fundamentals,
-   and SEC filings.
+   SEC filings, and FRED macro data.
 2. Bull Researcher builds the strongest long-only case.
 3. Bear Researcher attacks the trade and identifies risks.
 4. Portfolio Manager decides whether to place real Lumibot orders.
@@ -25,6 +25,7 @@ Requirements:
     - OPENAI_API_KEY when using OpenAI models
     - Active Alpaca broker credentials or ALPACA_NEWS_API_KEY / ALPACA_NEWS_API_SECRET for Alpaca news, optional
     - SEC fundamentals use public SEC EDGAR APIs and do not require an API key
+    - FRED macro tools work with curated public CSV series by default; set FRED_API_KEY for vintage data
 """
 
 import os
@@ -96,7 +97,7 @@ class AIInvestmentCommitteeStrategy(Strategy):
             task_prompt=(
                 "Build the evidence pack for today's committee. Start with the full universe, "
                 "then focus deeply on the best long-only candidates. Use SEC fundamentals, SEC filings, "
-                "news, market data, and indicators before handing off."
+                "FRED macro data, news, market data, and indicators before handing off."
             ),
             context=context,
         )
@@ -145,7 +146,8 @@ For each candidate symbol, gather:
 3. Recent news using alpaca_news when credentials are available.
 4. SEC fundamentals using get_income_statement, get_balance_sheet, get_cash_flow, and get_company_facts.
 5. SEC filings using get_filings. For promising or risky names, use search_filing for risks, margins, debt, liquidity, customers, accounting changes, buybacks, dilution, and management commentary.
-6. Any additional read-only tools needed to reduce uncertainty.
+6. Macro context using list_fred_series, get_fred_snapshot, and get_fred_latest for rates, inflation, labor, growth, liquidity, credit spreads, and market risk when relevant.
+7. Any additional read-only tools needed to reduce uncertainty.
 
 Return JSON-like markdown with:
 - candidate symbols reviewed
@@ -153,6 +155,7 @@ Return JSON-like markdown with:
 - price/technical summary
 - fundamental summary
 - filing highlights
+- macro regime summary
 - news/catalyst summary
 - bull evidence
 - bear evidence

@@ -100,6 +100,9 @@ class CommitteeToolRuntime:
         results["balance"] = _invoke_tool(request, events, "get_balance_sheet", symbol=symbol)
         results["cash_flow"] = _invoke_tool(request, events, "get_cash_flow", symbol=symbol)
         results["facts"] = _invoke_tool(request, events, "get_company_facts", symbol=symbol)
+        results["fred_list"] = _invoke_tool(request, events, "list_fred_series", category="rates")
+        results["fred_latest"] = _invoke_tool(request, events, "get_fred_latest", series_id="DGS10")
+        results["fred_snapshot"] = _invoke_tool(request, events, "get_fred_snapshot", series_ids=["DGS10", "UNRATE"])
         filings = _invoke_tool(request, events, "get_filings", symbol=symbol, form="10-K", limit=5)
         if "filings" not in filings:
             raise AssertionError(filings)
@@ -275,9 +278,21 @@ def _fake_alpaca_news_get(url, headers=None, params=None, timeout=None):
     )
 
 
+def _fake_fred_get(url, params=None, **kwargs):
+    assert "fredgraph.csv" in url
+    series_id = params["id"]
+    if series_id == "DGS10":
+        return _Response(text="DATE,DGS10\n2025-01-03,4.50\n2025-01-06,4.60\n2025-01-07,4.70\n")
+    if series_id == "UNRATE":
+        return _Response(text="DATE,UNRATE\n2024-12-01,4.1\n2025-02-01,4.2\n")
+    raise AssertionError(series_id)
+
+
 def _fake_requests_get(url, **kwargs):
     if "data.alpaca.markets/v1beta1/news" in url:
         return _fake_alpaca_news_get(url, **kwargs)
+    if "fredgraph.csv" in url:
+        return _fake_fred_get(url, **kwargs)
     return _fake_sec_get(url, **kwargs)
 
 
@@ -293,9 +308,12 @@ def test_ai_committee_builtin_tools_execute_inside_backtest(monkeypatch, tmp_pat
     monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
     monkeypatch.setenv("LUMIBOT_MEMORY_DIR", str(tmp_path / "memory"))
     monkeypatch.setenv("LUMIBOT_SEC_CACHE_DIR", str(tmp_path / "sec"))
-    monkeypatch.setenv("ALPACA_API_KEY", "fixture-key")
-    monkeypatch.setenv("ALPACA_API_SECRET", "fixture-secret")
+    monkeypatch.setenv("LUMIBOT_FRED_CACHE_DIR", str(tmp_path / "fred"))
+    monkeypatch.delenv("FRED_API_KEY", raising=False)
+    monkeypatch.setenv("ALPACA_NEWS_API_KEY", "fixture-key")
+    monkeypatch.setenv("ALPACA_NEWS_API_SECRET", "fixture-secret")
     monkeypatch.setattr("lumibot.fundamentals.sec.requests.get", _fake_requests_get)
+    monkeypatch.setattr("lumibot.macro.fred.requests.get", _fake_fred_get)
     monkeypatch.setattr("lumibot.components.agents.builtins.requests.get", _fake_requests_get)
     monkeypatch.setattr("lumibot.components.notifications.telegram.requests.post", _fake_telegram_post)
 
@@ -330,6 +348,10 @@ def test_ai_committee_builtin_tools_execute_inside_backtest(monkeypatch, tmp_pat
     assert results["balance"]["values"]["assets"]["value"] == 364980000000
     assert results["cash_flow"]["values"]["free_cash_flow"]["derived"] is True
     assert results["facts"]["facts"]["NetIncomeLoss"]["value"] == 93736000000
+    assert results["fred_list"]["series"]
+    assert results["fred_latest"]["latest"]["value"] == 4.6
+    assert results["fred_snapshot"]["values"]["DGS10"]["value"] == 4.6
+    assert results["fred_snapshot"]["values"]["UNRATE"]["value"] == 4.1
     assert len(results["filings"]["filings"]) == 1
     assert results["filings"]["filings"][0]["form"] == "10-K"
     assert results["filing_search"]["match_count"] >= 1

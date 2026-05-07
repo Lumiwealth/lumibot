@@ -58,6 +58,10 @@ def test_agent_allow_trading_false_removes_only_mutating_order_tools():
     assert "account_positions" in tool_names
     assert "get_income_statement" in tool_names
     assert "get_indicator" in tool_names
+    assert "list_fred_series" in tool_names
+    assert "get_fred_series" in tool_names
+    assert "get_fred_latest" in tool_names
+    assert "get_fred_snapshot" in tool_names
     assert agent.default_model == "openai/gpt-5.4-mini"
 
 

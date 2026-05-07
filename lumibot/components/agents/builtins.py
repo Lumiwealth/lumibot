@@ -784,6 +784,76 @@ def _bind_get_filing_document(strategy: Any, manager: Any) -> BoundTool:
     )
 
 
+def _bind_list_fred_series(strategy: Any, manager: Any) -> BoundTool:
+    def list_fred_series(category: str | None = None) -> dict[str, Any]:
+        return strategy.macro.list_series(category=category)
+
+    return BoundTool(
+        name="list_fred_series",
+        description=(
+            "List curated Federal Reserve FRED macro series available to agents, grouped by category. "
+            "Use this before requesting rates, inflation, labor, growth, liquidity, credit, or risk data."
+        ),
+        function=list_fred_series,
+        source="builtin",
+        metadata={"kind": "macro"},
+    )
+
+
+def _bind_get_fred_series(strategy: Any, manager: Any) -> BoundTool:
+    def get_fred_series(
+        series_id: str,
+        start: str | None = None,
+        end: str | None = None,
+        as_of: str | None = None,
+        limit: int | None = None,
+    ) -> dict[str, Any]:
+        return strategy.macro.get_series(series_id, start=start, end=end, as_of=as_of, limit=limit)
+
+    return BoundTool(
+        name="get_fred_series",
+        description=(
+            "Get a FRED macro time series. In backtests, as_of defaults to the strategy datetime. "
+            "With FRED_API_KEY this requests vintage data using realtime_start/realtime_end. "
+            "Without a key, curated CSV mode date-gates observations but may use revised values."
+        ),
+        function=get_fred_series,
+        source="builtin",
+        metadata={"kind": "macro"},
+    )
+
+
+def _bind_get_fred_latest(strategy: Any, manager: Any) -> BoundTool:
+    def get_fred_latest(series_id: str, as_of: str | None = None) -> dict[str, Any]:
+        return strategy.macro.get_latest(series_id, as_of=as_of)
+
+    return BoundTool(
+        name="get_fred_latest",
+        description=(
+            "Get the latest FRED macro observation available as of the strategy datetime or explicit as_of date."
+        ),
+        function=get_fred_latest,
+        source="builtin",
+        metadata={"kind": "macro"},
+    )
+
+
+def _bind_get_fred_snapshot(strategy: Any, manager: Any) -> BoundTool:
+    def get_fred_snapshot(series_ids: list[str] | str, as_of: str | None = None) -> dict[str, Any]:
+        return strategy.macro.get_snapshot(series_ids, as_of=as_of)
+
+    return BoundTool(
+        name="get_fred_snapshot",
+        description=(
+            "Get latest available values for several FRED macro series as of the strategy datetime. "
+            "Pass a list or comma-separated string such as FEDFUNDS,DGS10,CPIAUCSL,UNRATE."
+        ),
+        function=get_fred_snapshot,
+        source="builtin",
+        metadata={"kind": "macro"},
+    )
+
+
 def _bind_notify_user(strategy: Any, manager: Any) -> BoundTool:
     def notify_user(title: str, message: str, severity: str = "info", enabled: bool | None = None) -> dict[str, Any]:
         results = strategy.notify(title, message, severity=severity, enabled=enabled)
@@ -1017,6 +1087,20 @@ class _FundamentalTools:
         return ToolDefinition(name="get_filing_document", description="Read a SEC filing document.", binder=_bind_get_filing_document)
 
 
+class _MacroTools:
+    def list_fred_series(self) -> ToolDefinition:
+        return ToolDefinition(name="list_fred_series", description="List curated FRED macro series.", binder=_bind_list_fred_series)
+
+    def get_fred_series(self) -> ToolDefinition:
+        return ToolDefinition(name="get_fred_series", description="Get a FRED macro time series.", binder=_bind_get_fred_series)
+
+    def get_fred_latest(self) -> ToolDefinition:
+        return ToolDefinition(name="get_fred_latest", description="Get the latest FRED macro observation.", binder=_bind_get_fred_latest)
+
+    def get_fred_snapshot(self) -> ToolDefinition:
+        return ToolDefinition(name="get_fred_snapshot", description="Get a multi-series FRED macro snapshot.", binder=_bind_get_fred_snapshot)
+
+
 class _NotificationTools:
     def notify_user(self) -> ToolDefinition:
         return ToolDefinition(name="notify_user", description="Send a user notification.", binder=_bind_notify_user)
@@ -1082,6 +1166,7 @@ class _BuiltinTools:
     news = _NewsTools()
     indicators = _IndicatorTools()
     fundamentals = _FundamentalTools()
+    macro = _MacroTools()
     notifications = _NotificationTools()
     memory = _MemoryTools()
     orders = _OrderTools()
@@ -1106,6 +1191,10 @@ class _BuiltinTools:
             self.fundamentals.filings(),
             self.fundamentals.search_filing(),
             self.fundamentals.filing_document(),
+            self.macro.list_fred_series(),
+            self.macro.get_fred_series(),
+            self.macro.get_fred_latest(),
+            self.macro.get_fred_snapshot(),
             self.notifications.notify_user(),
             self.memory.remember(),
             self.memory.search(),

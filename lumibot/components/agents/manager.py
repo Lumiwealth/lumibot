@@ -971,7 +971,17 @@ class AgentHandle:
             )
         tool_names = [event.tool_name for event in result.tool_calls if event.tool_name]
         used_data_tool = any(
-            name.startswith("market_") or name.startswith("duckdb_") or name.startswith("account_") or name in {"get_news", "alpaca_news", "fred_search", "fred_get_series"}
+            name.startswith("market_")
+            or name.startswith("duckdb_")
+            or name.startswith("account_")
+            or name in {
+                "get_news",
+                "alpaca_news",
+                "list_fred_series",
+                "get_fred_series",
+                "get_fred_latest",
+                "get_fred_snapshot",
+            }
             for name in tool_names
         )
         used_order_tool = any(name.startswith("orders_") for name in tool_names)

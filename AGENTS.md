@@ -9,6 +9,14 @@ Backtesting “accuracy” is measured against live broker behavior when possibl
 ## Multi-Agent Collaboration (CRITICAL)
 This repo is frequently edited by **multiple AI sessions**. To avoid lost work:
 
+- **Canonical checkout (STRICT):** normal LumiBot work happens in
+  `/Users/robertgrzesik/Development/lumibot`. Keep that checkout on the active
+  `version/X.Y.Z` branch, clean, and deploy-ready. Do not create sibling
+  worktrees like `lumibot-version-X.Y.Z` for normal feature/doc/test work.
+  Temporary worktrees outside this folder are allowed only for isolated review
+  of unusually large or risky external PRs, and must not become the active
+  release workspace.
+
 - **Release workflow (STRICT):**
   - **Never push directly to `dev`.** All work must land via a PR (usually from `version/X.Y.Z` → `dev`).
   - **Stay on the current branch.** If you start on a `version/*` branch, keep all commits on that branch and push that branch.

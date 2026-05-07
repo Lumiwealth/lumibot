@@ -25,6 +25,13 @@ Backtesting “accuracy” is measured against live broker behavior when possibl
 ## Multi-Agent Collaboration (CRITICAL)
 This repo is often worked on by **multiple AI sessions** at the same time.
 
+- Canonical checkout: normal LumiBot work must happen in
+  `/Users/robertgrzesik/Development/lumibot`. Keep that checkout on the active
+  `version/X.Y.Z` branch, clean, and ready for release. Do not create sibling
+  worktrees like `lumibot-version-X.Y.Z` for normal development. Temporary
+  worktrees outside this folder are acceptable only for isolated review of
+  unusually large or risky external PRs, and must not become the active release
+  workspace.
 - Branch etiquette: if a task mandates a specific version branch (e.g., `4.4.25`), treat it as the shared branch—stay on it and do not create new branches/PRs unless explicitly instructed. Otherwise, start new work branches from a stable base branch (e.g., `dev`/`main`/`master`), and avoid chaining feature/WIP branches.
 - No “feature branch chaining”: if you’re already on a feature/WIP or version branch (e.g., `feature/*`, `fix/*`, `wip/*`, `version/*`, `release/*`, or a version-named branch like `X.Y.Z`), keep working there; don’t create another feature branch from it unless explicitly instructed.
 - Branch naming (LumiBot convention): prefer version-scoped branches so multiple agents can collaborate without “feature branch naming drift”.

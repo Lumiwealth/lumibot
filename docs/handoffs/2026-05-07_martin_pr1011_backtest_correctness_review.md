@@ -8,23 +8,21 @@ Review Martin's large Lumibot performance/RAM optimization PR before it is allow
 
 ## Repositories and Worktrees
 
-- Main active release branch for normal Lumibot work:
-  `/Users/robertgrzesik/Development/lumibot-version-4.5.11`
+- Canonical active release checkout for normal Lumibot work:
+  `/Users/robertgrzesik/Development/lumibot`
   - Branch: `version/4.5.11`
   - Expected version: `setup.py` contains `version="4.5.11"`
+  - Do not use this folder for the Martin PR investigation unless Rob explicitly redirects you.
 
 - Martin PR review worktree:
   `/private/tmp/lumibot-pr1011`
   - Detached at PR head `27dd1b4e`
   - Remote branch: `origin/codex/lumibot-performance-optimizations`
+  - This is the correct folder for the other agent reviewing Martin's PR.
 
-- Current accidental local combined stack:
-  `/Users/robertgrzesik/Development/lumibot`
-  - Branch: local `dev`
-  - Contains local-only AI committee commits plus merge commit `842b84d6 Merge Martin memory optimization PR`
-  - Do not push this local `dev` branch directly.
-
-Do not use `git checkout`. Use separate worktrees or `git switch` only where explicitly safe.
+Do not use `git checkout`. Do not switch the canonical `/Users/robertgrzesik/Development/lumibot`
+checkout away from `version/4.5.11` for this review. The temporary `/private/tmp/lumibot-pr1011`
+worktree is the isolation boundary for Martin's PR.
 
 ## PR Commits
 
@@ -106,7 +104,7 @@ Compare at least these states:
 - Martin PR head: `27dd1b4e`.
 - If needed, accidental local merge stack: `842b84d6` or current local `dev` in `/Users/robertgrzesik/Development/lumibot`.
 
-Use separate worktrees or clean clones. Do not disturb `/Users/robertgrzesik/Development/lumibot-version-4.5.11`.
+Use separate worktrees or clean clones. Do not disturb `/Users/robertgrzesik/Development/lumibot`.
 
 ## Required Tests
 
@@ -168,4 +166,4 @@ Do not accept "it passes tests" as enough. Result drift requires accounting-leve
 
 ## Short Prompt for Another Agent
 
-Please review Martin's Lumibot PR #1011 (`origin/codex/lumibot-performance-optimizations`, head `27dd1b4e`) in `/private/tmp/lumibot-pr1011`. Treat it as a correctness-risk investigation, not a normal performance review. The PR changes 132 files and changed the IBKR MES futures acceptance baseline from about `-0.04%` total return to about `-6.64%`. Your job is to determine whether that result drift is correct or a regression. Compare against the pre-PR baseline (`07d280b1` / clean `origin/dev` before PR), inspect futures accounting/order lifecycle/cache changes, run focused and release-style tests, and produce a written accounting explanation. Do not touch `/Users/robertgrzesik/Development/lumibot-version-4.5.11`, which is reserved for the AI trading agents release work.
+Please review Martin's Lumibot PR #1011 (`origin/codex/lumibot-performance-optimizations`, head `27dd1b4e`) in `/private/tmp/lumibot-pr1011`. Treat it as a correctness-risk investigation, not a normal performance review. The PR changes 132 files and changed the IBKR MES futures acceptance baseline from about `-0.04%` total return to about `-6.64%`. Your job is to determine whether that result drift is correct or a regression. Compare against the pre-PR baseline (`07d280b1` / clean `origin/dev` before PR), inspect futures accounting/order lifecycle/cache changes, run focused and release-style tests, and produce a written accounting explanation. Do not touch `/Users/robertgrzesik/Development/lumibot`, which is the canonical active `version/4.5.11` checkout for normal LumiBot release work.

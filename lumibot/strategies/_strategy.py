@@ -327,39 +327,28 @@ def _ensure_backtesting_imports():
     if _BACKTESTING_IMPORTS_READY:
         return
 
-    from ..backtesting import (
-        AlpacaBacktesting as _AlpacaBacktesting,
-        BacktestingBroker as _BacktestingBroker,
-        CcxtBacktesting as _CcxtBacktesting,
-        DataBentoDataBacktesting as _DataBentoDataBacktesting,
-        InteractiveBrokersRESTBacktesting as _InteractiveBrokersRESTBacktesting,
-        PolygonDataBacktesting as _PolygonDataBacktesting,
-        RoutedBacktestingPandas as _RoutedBacktestingPandas,
-        ThetaDataBacktesting as _ThetaDataBacktesting,
-        ThetaDataBacktestingPandas as _ThetaDataBacktestingPandas,
-        YahooDataBacktesting as _YahooDataBacktesting,
-    )
+    backtesting = import_module("lumibot.backtesting")
 
     if AlpacaBacktesting is None:
-        AlpacaBacktesting = _AlpacaBacktesting
+        AlpacaBacktesting = backtesting.AlpacaBacktesting
     if BacktestingBroker is None:
-        BacktestingBroker = _BacktestingBroker
+        BacktestingBroker = backtesting.BacktestingBroker
     if CcxtBacktesting is None:
-        CcxtBacktesting = _CcxtBacktesting
+        CcxtBacktesting = backtesting.CcxtBacktesting
     if DataBentoDataBacktesting is None:
-        DataBentoDataBacktesting = _DataBentoDataBacktesting
+        DataBentoDataBacktesting = backtesting.DataBentoDataBacktesting
     if InteractiveBrokersRESTBacktesting is None:
-        InteractiveBrokersRESTBacktesting = _InteractiveBrokersRESTBacktesting
+        InteractiveBrokersRESTBacktesting = backtesting.InteractiveBrokersRESTBacktesting
     if PolygonDataBacktesting is None:
-        PolygonDataBacktesting = _PolygonDataBacktesting
+        PolygonDataBacktesting = backtesting.PolygonDataBacktesting
     if RoutedBacktestingPandas is None:
-        RoutedBacktestingPandas = _RoutedBacktestingPandas
+        RoutedBacktestingPandas = backtesting.RoutedBacktestingPandas
     if ThetaDataBacktesting is None:
-        ThetaDataBacktesting = _ThetaDataBacktesting
+        ThetaDataBacktesting = backtesting.ThetaDataBacktesting
     if ThetaDataBacktestingPandas is None:
-        ThetaDataBacktestingPandas = _ThetaDataBacktestingPandas
+        ThetaDataBacktestingPandas = backtesting.ThetaDataBacktestingPandas
     if YahooDataBacktesting is None:
-        YahooDataBacktesting = _YahooDataBacktesting
+        YahooDataBacktesting = backtesting.YahooDataBacktesting
     _BACKTESTING_IMPORTS_READY = True
 
 class SafeJSONEncoder(json.JSONEncoder):

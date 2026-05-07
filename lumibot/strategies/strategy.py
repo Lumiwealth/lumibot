@@ -825,6 +825,7 @@ class Strategy(_Strategy):
         broker = self.broker
         if (
             isinstance(asset, Asset)
+            and getattr(asset, "asset_type", None) not in (Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE)
             and quote is None
             and order_type is Order.OrderType.MARKET
             and time_in_force == "gtc"

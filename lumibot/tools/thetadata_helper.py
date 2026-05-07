@@ -587,19 +587,13 @@ SPLIT_DENOMINATOR_COLUMNS = ("split_from", "from", "denominator", "ratio_from", 
 SPLIT_RATIO_COLUMNS = ("ratio", "split_ratio")
 
 
-def _env_truthy(name: str, default: str = "true") -> bool:
-    value = os.environ.get(name, default)
-    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
-
-
 def _corporate_action_horizon_date() -> date:
-    if _env_truthy("IS_BACKTESTING", "false"):
-        backtesting_end = os.environ.get("BACKTESTING_END")
-        if backtesting_end:
-            try:
-                return datetime.fromisoformat(backtesting_end).date()
-            except ValueError:
-                logger.debug("Ignoring unparseable BACKTESTING_END=%r for corporate actions", backtesting_end)
+    backtesting_end = os.environ.get("BACKTESTING_END")
+    if backtesting_end:
+        try:
+            return datetime.fromisoformat(backtesting_end).date()
+        except ValueError:
+            logger.debug("Ignoring unparseable BACKTESTING_END=%r for corporate actions", backtesting_end)
     return date.today()
 
 OPTION_LIST_ENDPOINTS = {

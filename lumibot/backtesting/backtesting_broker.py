@@ -2111,7 +2111,7 @@ class BacktestingBroker(Broker):
             new_cash = current_cash - trade_amount if is_buy_order else current_cash + trade_amount
             self._set_strategy_cash_fast(strategy, new_cash)
 
-        multiplier = getattr(order, "_simple_multiplier", None) or 1
+        multiplier = getattr(order, "_simple_multiplier", None) or getattr(order.asset, "multiplier", None) or 1
         try:
             if getattr(order, "_simple_backtest_order", False):
                 self._process_simple_market_filled_order(order, price, filled_quantity_f)

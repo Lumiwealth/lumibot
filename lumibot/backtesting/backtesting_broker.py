@@ -3170,6 +3170,10 @@ class BacktestingBroker(Broker):
                     or getattr(order, "_smart_limit_managed_by_parent", False)
                     or not is_market_order
                     or not (is_buy_order or is_sell_order)
+                    or (
+                        asset_type in (Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE)
+                        and not getattr(order, "_simple_backtest_order", False)
+                    )
                     or asset_type not in (Asset.AssetType.CRYPTO, Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE)
                     or getattr(order, "_simple_is_option", None)
                     or (not getattr(order, "_simple_backtest_order", False) and self._is_option_asset(order_asset))

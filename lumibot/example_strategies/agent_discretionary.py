@@ -23,7 +23,7 @@ Macro comes from FRED.
 
 Requirements (only the key matching AGENT_MODEL is strictly required):
     - GEMINI_API_KEY / OPENAI_API_KEY / XAI_API_KEY or GROK_API_KEY / ANTHROPIC_API_KEY
-    - ALPACA_API_KEY and ALPACA_API_SECRET (for the news tool; optional)
+    - Active Alpaca broker credentials or ALPACA_NEWS_API_KEY / ALPACA_NEWS_API_SECRET for the news tool; optional
 
 Usage:
     export AGENT_MODEL="xai/grok-4.20-0309-reasoning"

@@ -624,7 +624,7 @@ Strategies can use ``BuiltinTools.news.alpaca_news()`` to give an agent access t
         tools=[BuiltinTools.news.alpaca_news()],
     )
 
-The tool uses the user's own Alpaca credentials (``ALPACA_API_KEY`` / ``ALPACA_API_SECRET`` or the ``APCA_*`` aliases). It defaults ``end`` to the current simulated datetime in backtests and clamps future ``end`` values to avoid look-ahead. The response includes ``requested_end``, ``effective_end``, and ``lookahead_clamped`` so you can audit the exact window used.
+The tool uses the active Alpaca broker credentials when the strategy is running on Alpaca, including OAuth connections. If the active broker is not Alpaca, set bring-your-own-key news credentials with ``ALPACA_NEWS_API_KEY`` and ``ALPACA_NEWS_API_SECRET``. It defaults ``end`` to the current simulated datetime in backtests and clamps future ``end`` values to avoid look-ahead. The response includes ``requested_end``, ``effective_end``, and ``lookahead_clamped`` so you can audit the exact window used.
 
 Alpaca news is historical symbol/date-window retrieval, not keyword search. The API supports ``symbols``, ``start``, ``end``, ``limit`` (max 50), ``sort``, ``include_content``, ``exclude_contentless``, and ``page_token``. For broad market context, query market ETF proxies such as ``SPY,QQQ,DIA,IWM``; for sector context, query sector ETFs such as ``XLK,SMH`` (tech/semis), ``XLF,KRE`` (financials/banks), ``XLE,USO`` (energy), ``XLV,XBI`` (healthcare/biotech), ``TLT,IEF,SHY`` (rates/bonds), or ``GLD,SLV,DBC`` (gold/commodities).
 

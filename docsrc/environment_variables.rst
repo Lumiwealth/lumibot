@@ -353,6 +353,13 @@ ALPACA_IS_PAPER
 - Values: ``true`` (paper) / ``false`` (live).
 - Default: ``true`` (paper trading).
 
+ALPACA_NEWS_API_KEY / ALPACA_NEWS_API_SECRET
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Optional bring-your-own-key credentials for ``BuiltinTools.news.alpaca_news()`` when the active broker is not Alpaca.
+- Values: Alpaca API credentials with news/data access (**do not hardcode**).
+- Note: When the active broker is Alpaca, the built-in news tool reuses that broker's OAuth token or API key/secret instead.
+
 Tradier broker
 --------------
 

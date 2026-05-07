@@ -337,6 +337,31 @@ ALPACA_NEWS_DESCRIPTION = (
 
 
 def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
+    def _resolve_alpaca_news_headers() -> tuple[dict[str, str] | None, str | None]:
+        broker = getattr(strategy, "broker", None)
+        if str(getattr(broker, "name", "") or "").lower() == "alpaca":
+            oauth_token = str(getattr(broker, "oauth_token", "") or "").strip()
+            if oauth_token:
+                return {"Authorization": f"Bearer {oauth_token}"}, "alpaca_broker_oauth"
+
+            api_key = str(getattr(broker, "api_key", "") or "").strip()
+            api_secret = str(getattr(broker, "api_secret", "") or "").strip()
+            if api_key and api_secret:
+                return {
+                    "APCA-API-KEY-ID": api_key,
+                    "APCA-API-SECRET-KEY": api_secret,
+                }, "alpaca_broker_api_key"
+
+        api_key = str(os.environ.get("ALPACA_NEWS_API_KEY") or "").strip()
+        api_secret = str(os.environ.get("ALPACA_NEWS_API_SECRET") or "").strip()
+        if api_key and api_secret:
+            return {
+                "APCA-API-KEY-ID": api_key,
+                "APCA-API-SECRET-KEY": api_secret,
+            }, "byok_alpaca_news_env"
+
+        return None, None
+
     def alpaca_news(
         *,
         symbols: str = "",
@@ -349,23 +374,14 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
         content_max_chars: int | None = None,
         sort: NewsSortArg = "desc",
     ) -> dict[str, Any]:
-        api_key = (
-            os.environ.get("ALPACA_API_KEY")
-            or os.environ.get("APCA_API_KEY_ID")
-            or ""
-        ).strip()
-        api_secret = (
-            os.environ.get("ALPACA_API_SECRET")
-            or os.environ.get("APCA_API_SECRET_KEY")
-            or ""
-        ).strip()
-        if not api_key or not api_secret:
+        auth_headers, credential_source = _resolve_alpaca_news_headers()
+        if not auth_headers:
             return {
                 "ok": False,
                 "tool_error": True,
                 "error": {
                     "type": "MissingCredentials",
-                    "message": "Set ALPACA_API_KEY and ALPACA_API_SECRET to use alpaca_news.",
+                    "message": "Use an Alpaca broker connection or set ALPACA_NEWS_API_KEY and ALPACA_NEWS_API_SECRET to use alpaca_news.",
                 },
                 "articles": [],
                 "count": 0,
@@ -412,10 +428,7 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
 
         response = requests.get(
             "https://data.alpaca.markets/v1beta1/news",
-            headers={
-                "APCA-API-KEY-ID": api_key,
-                "APCA-API-SECRET-KEY": api_secret,
-            },
+            headers=auth_headers,
             params=params,
             timeout=20,
         )
@@ -462,6 +475,7 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
             "provider": "alpaca",
             "source": "benzinga",
             "endpoint": "v1beta1/news",
+            "credential_source": credential_source,
             "window_start": start,
             "window_end": end,
             "requested_end": requested_end,

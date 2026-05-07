@@ -23,7 +23,7 @@ Example model setup:
 
 Requirements:
     - OPENAI_API_KEY when using OpenAI models
-    - ALPACA_API_KEY and ALPACA_API_SECRET for Alpaca news, optional
+    - Active Alpaca broker credentials or ALPACA_NEWS_API_KEY / ALPACA_NEWS_API_SECRET for Alpaca news, optional
     - SEC fundamentals use public SEC EDGAR APIs and do not require an API key
 """
 

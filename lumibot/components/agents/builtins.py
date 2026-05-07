@@ -299,8 +299,10 @@ def _bind_duckdb_query(strategy: Any, manager: Any) -> BoundTool:
 
 
 def _bind_docs_search(strategy: Any, manager: Any) -> BoundTool:
-    def docs_search(*, query: str, max_results: int = 5) -> dict[str, Any]:
+    def docs_search(*, query: str, max_results: int = 5, limit: int | None = None) -> dict[str, Any]:
         query = _require_non_empty_text("query", query)
+        if limit is not None:
+            max_results = limit
         max_results = _require_positive_int("max_results", max_results)
         return search_lumibot_docs(query=query, max_results=max_results)
 
@@ -308,7 +310,7 @@ def _bind_docs_search(strategy: Any, manager: Any) -> BoundTool:
         name="lumibot_docs_search",
         description=(
             "Search LumiBot's local documentation and return the best matching snippets. "
-            "Arguments: query, optional max_results. "
+            "Arguments: query, optional max_results or limit. "
             "Use this when you are unsure how a LumiBot tool, asset type, benchmark, or backtesting feature works. "
             "Example: lumibot_docs_search(query='run_backtest benchmark_asset SPY')."
         ),

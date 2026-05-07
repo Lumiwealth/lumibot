@@ -2,6 +2,13 @@
 
 These rules are mandatory whenever you work on ThetaData integrations.
 
+## Image Generation Rule (CRITICAL)
+
+- For any generated or AI-edited image, infographic, diagram, marketing visual, README visual, documentation visual, or repo asset image, use the Nano Banana MCP only (`mcp__nano_banana__generate_image` / `mcp__nano_banana__edit_image`).
+- Do not use generic image generators, local SVG/HTML/canvas placeholders, Python drawing scripts, Mermaid screenshots, manually assembled box diagrams, or other fallback image pipelines unless Rob explicitly approves that exact alternative in the current turn.
+- Every generated image must be visually inspected before it is committed. Reject outputs with broken/missing text, awkward arrows, cluttered layouts, inaccurate product claims, or anything that looks like a placeholder.
+- If Nano Banana MCP is unavailable or broken, stop and report that blocker instead of making replacement images another way.
+
 ## Backtesting Accuracy (Definition)
 
 Backtesting “accuracy” is measured against live broker behavior when possible (replay a live-traded interval and reproduce fills + PnL within tolerances). Vendor parity (e.g., stored DataBento artifacts) is a regression signal, not absolute truth.

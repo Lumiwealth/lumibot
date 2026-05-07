@@ -6,7 +6,7 @@ strategy lifecycle code. There is no LangGraph dependency and no separate
 workflow engine. Each agent is a plain LumiBot agent created with
 ``self.agents.create(...)`` and called from ``on_trading_iteration()``.
 
-.. image:: ../docs/assets/readme/lumibot_investment_committee_architecture.svg
+.. image:: ../docs/assets/readme/lumibot_investment_committee_architecture.png
    :alt: Lumibot AI investment committee architecture
 
 Recommended Flow
@@ -25,6 +25,9 @@ The reference committee uses four roles:
 
 Different Models Per Agent
 --------------------------
+
+.. image:: ../docs/assets/ai_committee/docs_model_per_agent.png
+   :alt: Different model per Lumibot agent
 
 Every agent can use a different model:
 
@@ -57,3 +60,29 @@ cannot submit, cancel, or modify orders.
 
 The flagship example lives at
 ``lumibot/example_strategies/ai_investment_committee.py``.
+
+Evidence, Debate, And Portfolio Decisions
+-----------------------------------------
+
+The committee does not require LangGraph or any external workflow runtime. The
+strategy calls each agent from normal Python code, passes the prior agent's
+summary into the next agent, and keeps order submission restricted to the final
+portfolio manager.
+
+.. image:: ../docs/assets/ai_committee/bull_bear_debate.png
+   :alt: Lumibot bull and bear debate flow
+
+The evidence researcher should gather market data, technical indicators, recent
+news, SEC fundamentals, and relevant SEC filing excerpts. The bull and bear
+researchers can use the same read-only tools to dig deeper before the portfolio
+manager checks positions, cash, open orders, and risk limits.
+
+Backtest Artifacts
+------------------
+
+Committee runs leave normal LumiBot backtest artifacts plus agent traces,
+memory JSONL files, SEC cache files, and run summaries. This makes it possible
+to answer why a trade was placed after the backtest completes.
+
+.. image:: ../docs/assets/ai_committee/docs_backtest_artifacts.png
+   :alt: Lumibot AI committee backtest artifact traceability

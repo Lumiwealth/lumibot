@@ -10,14 +10,24 @@
 **The same code runs your backtest and your live trading.** Lumibot is an open-source Python trading framework for AI trading agents, stocks, options, crypto, futures, forex, and real broker execution.
 
 <p align="center">
-  <img src="docs/assets/readme/lumibot_investment_committee_architecture.svg" alt="Lumibot AI investment committee architecture" width="100%">
+  <img src="docs/assets/readme/lumibot_ai_trading_agents_overview.png" alt="Lumibot AI trading agents overview" width="100%">
 </p>
 
 If you find Lumibot useful, a star helps others discover it.
 
+<p align="center">
+  <a href="https://www.star-history.com/?repos=lumibot%2Flumibot%2Clumiwealth%2Flumibot&type=date&legend=top-left">
+    <img src="https://api.star-history.com/svg?repos=lumibot/lumibot,lumiwealth/lumibot&type=Date&legend=top-left" alt="Lumibot star history" width="100%">
+  </a>
+</p>
+
 ## AI Investment Committees That Actually Trade
 
 Lumibot agents can research, debate, backtest, explain, and place real orders. Research agents can be locked to read-only tools with `allow_trading=False`, while a portfolio-manager agent can place Lumibot orders after reviewing the evidence.
+
+<p align="center">
+  <img src="docs/assets/readme/lumibot_investment_committee_architecture.png" alt="Lumibot AI investment committee architecture" width="100%">
+</p>
 
 ```python
 self.agents.create(
@@ -36,17 +46,21 @@ self.agents.create(
 ```
 
 <p align="center">
-  <img src="docs/assets/readme/lumibot_tool_permissions.svg" alt="Lumibot agent tool permissions" width="100%">
+  <img src="docs/assets/ai_committee/docs_tool_permissions.png" alt="Lumibot agent tool permissions" width="100%">
 </p>
 
 Built-in AI agent tools now include SEC fundamentals, SEC filing search, technical indicators, local memory, and Telegram notifications.
 
 <p align="center">
-  <img src="docs/assets/readme/lumibot_sec_filings.svg" alt="Lumibot SEC fundamentals and filings" width="100%">
+  <img src="docs/assets/readme/lumibot_sec_filings.png" alt="Lumibot SEC fundamentals and filings" width="100%">
 </p>
 
 <p align="center">
-  <img src="docs/assets/readme/lumibot_memory_notifications.svg" alt="Lumibot memory and notifications" width="100%">
+  <img src="docs/assets/readme/lumibot_backtest_live_parity.png" alt="Lumibot backtest and live trading parity" width="100%">
+</p>
+
+<p align="center">
+  <img src="docs/assets/readme/lumibot_memory_notifications.png" alt="Lumibot memory and notifications" width="100%">
 </p>
 
 ## Use Lumibot Your Way
@@ -187,6 +201,7 @@ Lumibot includes a built-in AI trading agent runtime. Build agents that run iden
 Start here:
 - [Agent Documentation](https://lumibot.lumiwealth.com/agents.html)
 - [AI Investment Committee Example](https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/ai_investment_committee.py)
+- [Standalone AI Committee Demo](https://github.com/Lumiwealth/lumibot-ai-investment-committee)
 - [Stock Agent Example](https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/agent_stock_backtest.py)
 - [Options Agent Example](https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/agent_option_backtest.py)
 - [Full Guide](https://github.com/Lumiwealth/lumibot/blob/dev/docs/AI_TRADING_AGENTS.md)
@@ -264,7 +279,7 @@ We welcome contributions! Here's a video to help you get started: [Watch The Vid
 
 **Steps:**
 1. Clone the repository
-2. Create a new branch: `git checkout -b my-feature`
+2. Create a new branch: `git switch -c my-feature`
 3. Install dev dependencies: `pip install -r requirements_dev.txt && pip install -e .`
 4. Make your changes
 5. Run tests: `pytest`

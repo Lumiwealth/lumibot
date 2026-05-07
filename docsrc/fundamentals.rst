@@ -16,7 +16,7 @@ Available strategy methods:
    self.fundamentals.search_filing("AAPL", accession_number="...", query="risk")
    self.fundamentals.get_filing_document("AAPL", accession_number="...")
 
-.. image:: ../docs/assets/readme/lumibot_sec_filings.svg
+.. image:: ../docs/assets/ai_committee/docs_sec_point_in_time_cache.png
    :alt: SEC fundamentals and filing research flow
 
 Point-In-Time Behavior
@@ -49,3 +49,14 @@ Agents receive these built-ins:
 
 Prefer ``search_filing`` before reading a full filing document. Annual reports
 and quarterly filings can be long, and search keeps the model context focused.
+
+Filing Search
+-------------
+
+.. image:: ../docs/assets/ai_committee/docs_filing_search_workflow.png
+   :alt: SEC filing search workflow for Lumibot agents
+
+Filing search is useful for agent workflows modeled after real fundamental
+research. A researcher can identify a relevant annual report, search for risk
+factors or accounting details, and only open the full filing when it needs more
+context.

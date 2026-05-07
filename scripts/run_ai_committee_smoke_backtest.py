@@ -8,8 +8,6 @@ Usage:
     python scripts/run_ai_committee_smoke_backtest.py
 """
 
-from __future__ import annotations
-
 import json
 import os
 import sys

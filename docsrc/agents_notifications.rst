@@ -5,6 +5,9 @@ LumiBot strategies can send notifications through ``self.notify(...)`` or
 ``self.notifications.notify(...)``. Telegram is the first native notification
 provider.
 
+.. image:: ../docs/assets/ai_committee/docs_notification_configuration.png
+   :alt: Lumibot notification configuration
+
 Configure Telegram:
 
 .. code-block:: python

@@ -5,7 +5,7 @@ LumiBot includes a native local memory store for agentic strategies. Memory is
 available in backtesting and live trading so behavior stays as similar as
 possible across modes.
 
-.. image:: ../docs/assets/readme/lumibot_memory_notifications.svg
+.. image:: ../docs/assets/ai_committee/docs_memory_lifecycle.png
    :alt: Lumibot memory and notifications flow
 
 Storage
@@ -36,3 +36,13 @@ Agents can call:
 
 The investment committee example uses these tools to record decisions, thesis
 updates, and compact lessons.
+
+Traceability
+------------
+
+Memory complements LumiBot's normal backtest artifacts. The agent can search
+past decisions and lessons during future iterations, while the developer can
+inspect the JSONL files after the run.
+
+.. image:: ../docs/assets/ai_committee/docs_backtest_artifacts.png
+   :alt: Lumibot backtest artifacts and agent memory

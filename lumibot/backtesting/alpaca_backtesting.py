@@ -77,6 +77,11 @@ def _alpaca_data_class():
     return _ALPACA_DATA_CLASS
 
 
+def _alpaca_timeframe_from_source_value(value):
+    module = import_module("lumibot.data_sources.alpaca_data")
+    return module._timeframe_from_source_value(value)
+
+
 def _sanitize_base_and_quote_asset(*args, **kwargs):
     global _ALPACA_HELPERS
     if _ALPACA_HELPERS is None:
@@ -94,8 +99,15 @@ class AlpacaBacktesting(DataSourceBacktesting):
     LUMIBOT_DEFAULT_QUOTE_ASSET = Asset(LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL, LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE)
 
     def _parse_source_timestep(self, timestep, reverse=False):
+        timestep_text = str(timestep)
+        for item in _alpaca_data_class().TIMESTEP_MAPPING:
+            if reverse and timestep_text == item["timestep"]:
+                return _alpaca_timeframe_from_source_value(item["representations"][0])
+            if not reverse and timestep_text in item["representations"]:
+                return item["timestep"]
+
         if reverse:
-            normalized = self.get_timestep_from_string(timestep)
+            normalized = super()._parse_source_timestep(timestep, reverse=False)
             TimeFrame = _alpaca_attr("alpaca.data.timeframe", "TimeFrame")
             if normalized == "day":
                 return TimeFrame.Day

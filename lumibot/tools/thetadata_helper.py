@@ -586,6 +586,22 @@ SPLIT_NUMERATOR_COLUMNS = ("split_to", "to", "numerator", "ratio_to", "after_sha
 SPLIT_DENOMINATOR_COLUMNS = ("split_from", "from", "denominator", "ratio_from", "before_shares")
 SPLIT_RATIO_COLUMNS = ("ratio", "split_ratio")
 
+
+def _env_truthy(name: str, default: str = "true") -> bool:
+    value = os.environ.get(name, default)
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def _corporate_action_horizon_date() -> date:
+    if _env_truthy("IS_BACKTESTING", "false"):
+        backtesting_end = os.environ.get("BACKTESTING_END")
+        if backtesting_end:
+            try:
+                return datetime.fromisoformat(backtesting_end).date()
+            except ValueError:
+                logger.debug("Ignoring unparseable BACKTESTING_END=%r for corporate actions", backtesting_end)
+    return date.today()
+
 OPTION_LIST_ENDPOINTS = {
     "expirations": "/v3/option/list/expirations",
     "strikes": "/v3/option/list/strikes",
@@ -1742,11 +1758,11 @@ def _get_option_query_strike(option_asset: Asset, sim_datetime: datetime = None)
     # Get the underlying stock asset
     underlying_asset = Asset(option_asset.symbol, asset_type="stock")
 
-    from datetime import date as date_type
-    today = date_type.today()
+    today = _corporate_action_horizon_date()
 
     # FIX (2025-12-12): Use sim_datetime as the reference date for split lookup.
-    # This ensures we catch all splits between the simulation date and today.
+    # This ensures we catch all splits between the simulation date and the
+    # corporate-action horizon (BACKTESTING_END for deterministic backtests, today otherwise).
     # Previously, we used option expiration, which missed splits that occurred
     # BEFORE the expiration but AFTER the sim_datetime.
     if sim_datetime is not None:
@@ -1895,9 +1911,7 @@ def _apply_corporate_actions_to_frame(
         if underlying_asset is None:
             underlying_asset = Asset(getattr(asset, "symbol", ""), asset_type="stock")
 
-        from datetime import date as date_type
-
-        today = date_type.today()
+        today = _corporate_action_horizon_date()
         splits = _get_theta_splits(underlying_asset, start_day, today, username, password)
 
         if splits is None or splits.empty:
@@ -1934,12 +1948,11 @@ def _apply_corporate_actions_to_frame(
         return frame
 
     dividends = _get_theta_dividends(asset, start_day, end_day, username, password)
-    # CRITICAL: Fetch splits up to TODAY, not the data's end date!
+    # CRITICAL: Fetch splits up to the corporate-action horizon, not the data's end date!
     # When fetching March 2020 data, we still need to know about the July 2022 split
     # so we can adjust historical prices to be comparable to current prices.
     # This matches Yahoo Finance behavior where Adj Close always reflects current splits.
-    from datetime import date as date_type
-    today = date_type.today()
+    today = _corporate_action_horizon_date()
     splits = _get_theta_splits(asset, start_day, today, username, password)
     if "dividend" not in frame.columns:
         frame["dividend"] = 0.0
@@ -1969,7 +1982,7 @@ def _apply_corporate_actions_to_frame(
             # Sort splits by date (oldest first)
             sorted_splits = splits.sort_values("event_date")
 
-            # IMPORTANT: Apply ALL splits up to TODAY's date, not the data's end date.
+            # IMPORTANT: Apply ALL splits up to the corporate-action horizon, not the data's end date.
             # When we fetch March 2020 data in 2025, we need to apply the July 2022 split
             # so that historical prices are comparable to current split-adjusted prices.
             # This matches how Yahoo Finance calculates Adj Close - it always reflects
@@ -6858,9 +6871,8 @@ def build_historical_chain(
     # - Without this fix, the strategy tries to buy $1320 strike (wrong!)
     # - With this fix, strikes are adjusted: $1320 / 20 = $66 (correct!)
     #
-    # We fetch splits from as_of_date to TODAY and apply the cumulative ratio.
-    from datetime import date as date_type
-    today = date_type.today()
+    # We fetch splits from as_of_date to the corporate-action horizon and apply the cumulative ratio.
+    today = _corporate_action_horizon_date()
 
     # Fetch splits that occurred AFTER the backtest date
     splits = _get_theta_splits(asset, as_of_date, today)

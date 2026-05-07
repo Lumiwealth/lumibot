@@ -12,6 +12,9 @@
 #
 import os
 import sys
+from datetime import date
+from pathlib import Path
+from xml.sax.saxutils import escape
 
 # Ensure the repository root is discoverable before any installed packages so
 # autodoc resolves modules from the local checkout instead of site-packages.
@@ -115,6 +118,54 @@ html_theme_options = {
 html_static_path = ["_html"]
 html_css_files = ["custom.css", "bootstrap/css/bootstrap.css"]
 html_extra_path = ["_extra"]
+
+
+def _generate_sitemap() -> None:
+    """Generate sitemap.xml from the docs source tree before Sphinx copies _extra.
+
+    The previous sitemap was a small hand-written file, so Search Console only
+    discovered a few top-level pages even though the docs contain many more
+    pages. Generating it from the source files keeps Search Console aligned with
+    the docs that Sphinx actually builds.
+    """
+
+    docs_root = Path(__file__).resolve().parent
+    extra_root = docs_root / "_extra"
+    extra_root.mkdir(parents=True, exist_ok=True)
+    urls: set[str] = set()
+
+    for source in docs_root.rglob("*.rst"):
+        relative = source.relative_to(docs_root)
+        if any(part.startswith("_") for part in relative.parts):
+            continue
+        if relative.parts[0] in {"strategy_methods.account", "strategy_methods.data", "strategy_methods.orders", "strategy_properties"}:
+            continue
+        if source.name.endswith("_template.rst"):
+            continue
+        html_path = relative.with_suffix(".html").as_posix()
+        if html_path == "index.html":
+            urls.add("https://lumibot.lumiwealth.com/")
+        urls.add(f"https://lumibot.lumiwealth.com/{html_path}")
+
+    today = date.today().isoformat()
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ]
+    for url in sorted(urls):
+        lines.extend(
+            [
+                "  <url>",
+                f"    <loc>{escape(url)}</loc>",
+                f"    <lastmod>{today}</lastmod>",
+                "  </url>",
+            ]
+        )
+    lines.append("</urlset>")
+    (extra_root / "sitemap.xml").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+_generate_sitemap()
 
 # html_theme_options = {
 #     "announcement": """

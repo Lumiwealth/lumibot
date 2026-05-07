@@ -15,8 +15,8 @@ Recommended Flow
 The reference committee uses four roles:
 
 1. **Evidence Researcher** -- read-only. Gathers market data, indicators,
-   Alpaca news, SEC fundamentals, SEC filings, account state, and anything
-   else available through read-only tools.
+   Alpaca news, SEC fundamentals, SEC filings, FRED macro data, account state,
+   and anything else available through read-only tools.
 2. **Bull Researcher** -- read-only. Builds the strongest long-only thesis.
 3. **Bear Researcher** -- read-only. Attacks the thesis and identifies reasons
    to avoid, delay, reduce, or monitor the trade.
@@ -55,8 +55,8 @@ Safety Pattern
 
 Use ``allow_trading=False`` for every agent that should not mutate broker state.
 Those agents can still inspect positions, account state, open orders, market
-data, indicators, SEC fundamentals, filings, memory, and notifications. They
-cannot submit, cancel, or modify orders.
+data, indicators, SEC fundamentals, filings, FRED macro data, memory, and
+notifications. They cannot submit, cancel, or modify orders.
 
 The flagship example lives at
 ``lumibot/example_strategies/ai_investment_committee.py``.
@@ -73,9 +73,10 @@ portfolio manager.
    :alt: Lumibot bull and bear debate flow
 
 The evidence researcher should gather market data, technical indicators, recent
-news, SEC fundamentals, and relevant SEC filing excerpts. The bull and bear
-researchers can use the same read-only tools to dig deeper before the portfolio
-manager checks positions, cash, open orders, and risk limits.
+news, SEC fundamentals, FRED macro context, and relevant SEC filing excerpts.
+The bull and bear researchers can use the same read-only tools to dig deeper
+before the portfolio manager checks positions, cash, open orders, and risk
+limits.
 
 Backtest Artifacts
 ------------------

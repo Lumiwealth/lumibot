@@ -50,6 +50,13 @@ Agents receive these built-ins:
 Prefer ``search_filing`` before reading a full filing document. Annual reports
 and quarterly filings can be long, and search keeps the model context focused.
 
+Related Macro Data
+------------------
+
+For economic context such as rates, inflation, unemployment, GDP, liquidity, and
+credit spreads, use :doc:`macro_data`. SEC fundamentals are company-specific;
+FRED macro data is economy and market-regime context.
+
 Filing Search
 -------------
 

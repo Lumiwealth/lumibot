@@ -272,6 +272,15 @@ Notes:
 - Purpose: Override the local SEC fundamentals and filing cache.
 - Default: `~/.lumibot/cache/sec`.
 
+### `FRED_API_KEY`
+- Purpose: Optional official FRED/ALFRED API key for macro data tools.
+- Default: unset.
+- Notes: When set, Lumibot requests vintage observations with `realtime_start` and `realtime_end` for point-in-time backtests. Without it, curated CSV mode is date-gated but can contain revised values.
+
+### `LUMIBOT_FRED_CACHE_DIR`
+- Purpose: Override the local FRED macro data cache.
+- Default: `~/.lumibot/cache/fred`.
+
 ### `LUMIBOT_MEMORY_DIR`
 - Purpose: Override the local JSONL agent memory root.
 - Default: `.lumibot/memory` under the current working directory.

@@ -9,6 +9,7 @@ Lumibot agents include built-ins for:
 - Alpaca news
 - indicators
 - SEC fundamentals and filings
+- FRED macro data
 - memory
 - notifications
 - orders
@@ -25,13 +26,22 @@ self.agents.create(name="researcher", allow_trading=False)
 - `orders_cancel_order`
 - `orders_modify_order`
 
-It keeps read-only tools, including `orders_open_orders`, positions, portfolio, market data, indicators, SEC filings, memory, and notifications.
+It keeps read-only tools, including `orders_open_orders`, positions, portfolio, market data, indicators, SEC filings, FRED macro data, memory, and notifications.
 
 Indicator tools:
 
 - `list_indicators`
 - `get_indicator`
 - `get_indicators`
+
+FRED macro tools:
+
+- `list_fred_series`
+- `get_fred_series`
+- `get_fred_latest`
+- `get_fred_snapshot`
+
+In backtests, FRED tools default `as_of` to the current strategy datetime. With `FRED_API_KEY`, Lumibot requests vintage data using FRED/ALFRED realtime parameters. Without a key, curated CSV mode is date-gated but may contain revised values.
 
 Memory tools:
 

@@ -55,6 +55,7 @@ If you’re assessing whether backtests should be sped up via parallelism, start
 | `AI_INVESTMENT_COMMITTEE.md` | Multi-agent investment committee example with researcher, bull, bear, and portfolio-manager roles | When building agentic committee strategies |
 | `AI_AGENT_BUILTIN_TOOLS.md` | Built-in agent tools, trading permissions, indicators, fundamentals, memory, and notifications | When changing the agent tool surface |
 | `SEC_FUNDAMENTALS.md` | SEC fundamentals, filings, point-in-time gating, and cache behavior | When working on fundamentals or filings |
+| `FRED_MACRO_DATA.md` | FRED macro data tools, API-key behavior, backtest date gating, and cache behavior | When working on macro data or agent macro tools |
 | `AI_AGENT_MEMORY.md` | Native local agent memory storage and tools | When working on memory/reflection behavior |
 | `AI_AGENT_NOTIFICATIONS.md` | Native notifications and agent notification tools | When working on Telegram or user alerts |
 | `TEARSHEET_METRICS.md` | Machine-readable tearsheet artifacts, custom tearsheet metrics, and usage rules | When working on tearsheet metrics, custom metrics, or agent consumption of tearsheet summaries |

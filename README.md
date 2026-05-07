@@ -34,7 +34,7 @@ self.agents.create(
     name="evidence_researcher",
     model="openai/gpt-5.4-mini",
     allow_trading=False,
-    system_prompt="Gather market data, indicators, news, SEC fundamentals, and filings.",
+    system_prompt="Gather market data, indicators, news, SEC fundamentals, filings, and FRED macro data.",
 )
 
 self.agents.create(
@@ -49,7 +49,7 @@ self.agents.create(
   <img src="docs/assets/ai_committee/docs_tool_permissions.png" alt="Lumibot agent tool permissions" width="100%">
 </p>
 
-Built-in AI agent tools now include SEC fundamentals, SEC filing search, technical indicators, local memory, and Telegram notifications.
+Built-in AI agent tools now include SEC fundamentals, SEC filing search, FRED macro data, technical indicators, local memory, and Telegram notifications.
 
 <p align="center">
   <img src="docs/assets/readme/lumibot_sec_filings.png" alt="Lumibot SEC fundamentals and filings" width="100%">
@@ -193,7 +193,7 @@ Lumibot includes a built-in AI trading agent runtime. Build agents that run iden
 - Create agents with `self.agents.create(...)`
 - Use a different model per agent with `model="openai/gpt-5.5"` or any LiteLLM/ADK-supported provider string
 - Make research agents read-only with `allow_trading=False`
-- Give agents built-in SEC fundamentals, filings, indicators, memory, and notifications
+- Give agents built-in SEC fundamentals, filings, FRED macro data, indicators, memory, and notifications
 - Use **DuckDB** for time-series analysis instead of dumping raw bars into prompts
 - Mount external **MCP servers** for news, macro data, filings, or any domain-specific tools
 - Replay identical agent decisions in **backtests** without paying for another model call

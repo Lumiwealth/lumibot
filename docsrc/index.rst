@@ -16,6 +16,7 @@ LumiBot is the **only production framework** where an AI agent reasons, calls ex
 - **Replay caching** makes warm backtest reruns deterministic and fast (zero LLM calls on rerun)
 - **Any LLM provider per agent** -- use a cheaper model for evidence gathering and a stronger model for debate/trading
 - **Built-in SEC fundamentals and filings** -- agents can inspect income statements, balance sheets, cash flow, company facts, and annual reports
+- **Built-in FRED macro data** -- agents can inspect rates, inflation, labor, growth, liquidity, credit spreads, and market-risk series
 - **Trading permissions** -- research agents can use read-only tools while portfolio-manager agents place orders
 - **Same code for backtest and live** -- write once, backtest it, deploy it
 - **External MCP servers are just a URL** -- no local scripts, no npm installs
@@ -25,6 +26,7 @@ Key AI agent docs:
 - :doc:`agents` -- main guide: agentic backtesting framework, MCP trading tools, and competitive positioning
 - :doc:`agents_investment_committee` -- multi-agent investment committee example
 - :doc:`fundamentals` -- SEC fundamentals and filing research tools
+- :doc:`macro_data` -- FRED macro data tools and point-in-time behavior
 - :doc:`agents_builtin_tools` -- built-in tools, indicators, and trading permissions
 - :doc:`agents_quickstart` -- quick start with code examples for AI agent backtesting
 - :doc:`agents_canonical_demos` -- three reference demos: news sentiment, macro risk, and M2 liquidity
@@ -221,6 +223,7 @@ Table of Contents
    strategy_properties
    entities
    indicators
+   macro_data
    backtesting
    brokers
    reference

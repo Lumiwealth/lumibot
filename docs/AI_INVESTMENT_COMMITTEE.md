@@ -5,7 +5,7 @@ It does not use LangGraph or an external debate service.
 
 Flow:
 
-1. `evidence_researcher`: read-only, gathers market data, indicators, news, SEC fundamentals, and SEC filings.
+1. `evidence_researcher`: read-only, gathers market data, indicators, news, SEC fundamentals, SEC filings, and FRED macro data.
 2. `bull_researcher`: read-only, builds the strongest long-only case.
 3. `bear_researcher`: read-only, attacks the trade and identifies risks.
 4. `portfolio_manager`: trading-enabled, checks positions/cash/open orders/risk limits and places Lumibot orders.

@@ -3,7 +3,7 @@ Agent Built-In Tools
 
 LumiBot agents include built-in tools for market state, account state, orders,
 DuckDB queries, documentation search, news, indicators, SEC fundamentals,
-filings, memory, and notifications.
+filings, FRED macro data, memory, and notifications.
 
 Trading Permissions
 -------------------
@@ -22,7 +22,8 @@ Use ``allow_trading=False`` for research agents:
    )
 
 This removes tools that submit, cancel, or modify orders. Read-only tools remain
-available, including open orders and positions.
+available, including open orders, positions, SEC filings, FRED macro data,
+indicators, memory, and notifications.
 
 Technical Indicator Tools
 -------------------------
@@ -47,6 +48,19 @@ SEC Filing Tools
 Use ``get_filings`` to find point-in-time filings, ``search_filing`` to search
 large filings before opening them, and ``get_filing_document`` when the agent
 needs the full filing text.
+
+FRED Macro Tools
+----------------
+
+- ``list_fred_series``
+- ``get_fred_series``
+- ``get_fred_latest``
+- ``get_fred_snapshot``
+
+In backtests, FRED tools default ``as_of`` to the current strategy datetime.
+With ``FRED_API_KEY``, LumiBot requests vintage observations using FRED/ALFRED
+``realtime_start`` and ``realtime_end``. Without a key, curated CSV mode is
+date-gated but may contain revised values. See :doc:`macro_data`.
 
 Notification Tools
 ------------------

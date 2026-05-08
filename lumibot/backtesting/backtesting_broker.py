@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import logging
 import math
@@ -8,26 +10,75 @@ import threading
 from collections import OrderedDict, defaultdict
 from datetime import datetime, timedelta
 from decimal import Decimal
+from importlib import import_module
+from types import ModuleType
 from typing import Any, Optional, Union
 
-import numpy as np
-import pandas as pd
-import polars as pl
-import pytz
-
 from lumibot.brokers import Broker
-from lumibot.data_sources import DataSourceBacktesting
-from lumibot.entities import Asset, Order, Position, SmartLimitConfig, TradingFee
-from lumibot.tools.smart_limit_utils import build_price_ladder, compute_final_price, compute_mid, expected_fill_price, infer_tick_size, round_to_tick
+from lumibot.brokers.broker import _FAST_TRADE_EVENT_MARKER, _FAST_TRADE_PAIR_EVENT_MARKER
+from lumibot.entities import Asset, Order, Position, SmartLimitConfig
+from lumibot.tools.smart_limit_utils import compute_final_price, compute_mid, expected_fill_price, infer_tick_size, round_to_tick
 from lumibot.tools.lumibot_logger import get_logger
 from lumibot.trading_builtins import CustomStream
 
-try:
-    from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestingPandas
-except Exception:  # pragma: no cover - optional dependency
-    ThetaDataBacktestingPandas = None
+ThetaDataBacktestingPandas = None
+_THETADATA_BACKTESTING_PANDAS_IMPORT_ATTEMPTED = False
+_POLARS_MODULE = None
+_NO_SIMPLE_POSITION = object()
+DataSourceBacktesting = None
 
 logger = get_logger(__name__)
+
+
+class _LazyModule(ModuleType):
+    def __init__(self, module_name: str):
+        super().__init__(module_name)
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+np = _LazyModule("numpy")
+pd = _LazyModule("pandas")
+
+
+def _get_thetadata_backtesting_pandas_cls():
+    """Load ThetaDataBacktestingPandas only when a Theta-specific branch needs it."""
+    global ThetaDataBacktestingPandas, _THETADATA_BACKTESTING_PANDAS_IMPORT_ATTEMPTED
+    if not _THETADATA_BACKTESTING_PANDAS_IMPORT_ATTEMPTED:
+        _THETADATA_BACKTESTING_PANDAS_IMPORT_ATTEMPTED = True
+        try:
+            from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestingPandas as cls
+        except Exception:  # pragma: no cover - optional dependency
+            cls = None
+        ThetaDataBacktestingPandas = cls
+    return ThetaDataBacktestingPandas
+
+
+def _get_polars_module():
+    global _POLARS_MODULE
+    if _POLARS_MODULE is None:
+        import polars as pl
+
+        _POLARS_MODULE = pl
+    return _POLARS_MODULE
+
+
+def _data_source_backtesting_class():
+    global DataSourceBacktesting
+    if DataSourceBacktesting is None:
+        from lumibot.data_sources import DataSourceBacktesting
+
+    return DataSourceBacktesting
 
 
 # Typical initial margin requirements for common futures contracts
@@ -157,7 +208,7 @@ class BacktestingBroker(Broker):
         # self._config = config
 
         # Check if data source is a backtesting data source
-        if not (isinstance(self.data_source, DataSourceBacktesting) or
+        if not (isinstance(self.data_source, _data_source_backtesting_class()) or
                 (hasattr(self.data_source, 'IS_BACKTESTING_DATA_SOURCE') and
                  self.data_source.IS_BACKTESTING_DATA_SOURCE)):
             raise ValueError("Must provide a backtesting data_source to run with a BacktestingBroker")
@@ -380,6 +431,7 @@ class BacktestingBroker(Broker):
         performance bottleneck, so this method sources active orders directly from the
         broker's active-order buckets.
         """
+        strategy_name = self._strategy_name_from_input(strategy)
         active_orders: list[Order] = []
         try:
             buckets = (
@@ -389,7 +441,7 @@ class BacktestingBroker(Broker):
             )
         except Exception:
             # Fallback to the slower path if internal buckets are unavailable.
-            orders = self.get_tracked_orders(strategy=strategy)
+            orders = self.get_tracked_orders(strategy=strategy_name)
             if not orders:
                 return []
             return [
@@ -397,9 +449,15 @@ class BacktestingBroker(Broker):
                 if o.is_active() and (asset is None or getattr(o, "asset", None) == asset)
             ]
 
+        simple_by_strategy = getattr(self, "_simple_new_orders_by_strategy", None)
+        if simple_by_strategy:
+            for order in simple_by_strategy.get(strategy_name, ()):
+                if asset is None or getattr(order, "asset", None) == asset:
+                    active_orders.append(order)
+
         for bucket in buckets:
             for order in bucket:
-                if getattr(order, "strategy", None) != strategy:
+                if getattr(order, "strategy", None) != strategy_name:
                     continue
                 if asset is not None and getattr(order, "asset", None) != asset:
                     continue
@@ -429,26 +487,27 @@ class BacktestingBroker(Broker):
         orders : list, optional
             List of minimal order dicts from Order.to_minimal_dict()
         """
-        tz = self.datetime.tzinfo
-        is_pytz = isinstance(tz, (pytz.tzinfo.StaticTzInfo, pytz.tzinfo.DstTzInfo))
+        current_datetime = self.data_source.get_datetime()
+        tz = current_datetime.tzinfo
+        normalize_tz = getattr(tz, "normalize", None)
 
-        previous_datetime = self.datetime
+        previous_datetime = current_datetime
 
         if isinstance(update_dt, timedelta):
-            new_datetime = self.datetime + update_dt
+            new_datetime = current_datetime + update_dt
         elif isinstance(update_dt, int) or isinstance(update_dt, float):
-            new_datetime = self.datetime + timedelta(seconds=update_dt)
+            new_datetime = current_datetime + timedelta(seconds=update_dt)
         else:
             new_datetime = update_dt
 
         # This is needed to handle Daylight Savings Time changes
-        new_datetime = tz.normalize(new_datetime) if is_pytz else new_datetime
+        new_datetime = normalize_tz(new_datetime) if callable(normalize_tz) else new_datetime
 
         # Guard against non-advancing timestamps (e.g., DST ambiguity)
         if new_datetime <= previous_datetime:
             new_datetime = previous_datetime + timedelta(minutes=1)
-            if is_pytz:
-                new_datetime = tz.normalize(new_datetime)
+            if callable(normalize_tz):
+                new_datetime = normalize_tz(new_datetime)
 
         self.data_source._update_datetime(
             new_datetime,
@@ -1004,9 +1063,17 @@ class BacktestingBroker(Broker):
         # Currently perfect fill price in backtesting!
         order.avg_fill_price = price
 
-        position = super()._process_filled_order(order, price, quantity)
+        self._new_orders.remove(order.identifier, key="identifier")
+        self._unprocessed_orders.remove(order.identifier, key="identifier")
+        self._partially_filled_orders.remove(order.identifier, key="identifier")
+        order.add_transaction(price, quantity)
+        order.status = self.FILLED_ORDER
+        order.set_filled()
+        self._track_filled_order(order)
+
         if existing_position:
-            position.add_order(order, quantity)  # Add will update quantity, but not double count the order
+            position = existing_position
+            position.add_order(order, quantity)
             if position.quantity == 0:
                 logger.info(f"Position {position} liquidated")
                 self._filled_positions.remove(position)
@@ -1032,7 +1099,14 @@ class BacktestingBroker(Broker):
                         cancel_sides=cancel_sides,
                     )
         else:
+            position = order.to_position(quantity)
+            if position is None:
+                logger.error(f"Skipping filled order processing - could not create position from order {order.identifier}")
+                return
             self._filled_positions.append(position)  # New position, add it to the tracker
+
+        if order.asset and "crypto" == order.asset.asset_type and not getattr(order, "_simple_is_crypto_forex", False):
+            self._process_crypto_quote(order, quantity, price)
 
         # If this is a child order, update the parent order status if all children are filled or cancelled.
         if order.parent_identifier:
@@ -1058,6 +1132,24 @@ class BacktestingBroker(Broker):
             return
         filled_ids.add(identifier)
         self._filled_orders.append(order)
+
+    def _track_unique_simple_filled_order(self, order: Order) -> None:
+        """Record a monotonic-ID simple backtest order without a duplicate-id side set."""
+        self._filled_orders.append(order)
+
+    def _finalize_fast_trade_pair_row(self, order: Order, pair_row) -> None:
+        """Freeze a filled pair row and remove temporary private order references."""
+        try:
+            row_index = order._fast_trade_event_pair_row_index
+            if self._trade_event_log_rows[row_index] is pair_row:
+                self._trade_event_log_rows[row_index] = tuple(pair_row)
+            del order._fast_trade_event_pair_row
+            del order._fast_trade_event_pair_row_index
+            del order._fast_trade_event_static
+        except AttributeError:
+            return
+        except Exception:
+            return
 
     def _process_partially_filled_order(self, order, price, quantity):
         """
@@ -1124,15 +1216,19 @@ class BacktestingBroker(Broker):
             self._unprocessed_orders.remove(order.identifier, key="identifier")
             self._partially_filled_orders.remove(order.identifier, key="identifier")
 
-            self._track_filled_order(order)
+            self._track_unique_simple_filled_order(order)
 
     def _submit_order(self, order):
         """Submit an order for an asset"""
+        if getattr(order, "_simple_is_option", None):
+            self._backtest_has_option_lifecycle_exposure = True
+        elif self._is_option_asset(getattr(order, "asset", None)):
+            self._backtest_has_option_lifecycle_exposure = True
 
         # Optional audit trail (submission-time context).
         #
         # Invariant: audit collection must never break backtests; any errors must be swallowed.
-        audit_enabled = self._audit_enabled()
+        audit_enabled = getattr(self, "_backtest_audit_enabled", False)
         if audit_enabled:
             try:
                 self._audit_merge(order, self._audit_submit_fields(order), overwrite=False)
@@ -1144,12 +1240,93 @@ class BacktestingBroker(Broker):
         # submitted below. Bracket/OTO orders will be submitted here, but their child orders will not be submitted
         # until the parent order is filled
         if order.order_class is not Order.OrderClass.OCO:
-            order.update_raw(order)
-            self.stream.dispatch(
-                self.NEW_ORDER,
-                wait_until_complete=True,
-                order=order,
-            )
+            actions = getattr(getattr(self, "stream", None), "_actions_mapping", None)
+            default_action = getattr(self, "_default_new_order_stream_action", None)
+            if actions is not None and actions.get(self.NEW_ORDER) is default_action and not audit_enabled:
+                try:
+                    if getattr(order, "_simple_backtest_order", False):
+                        order._transmitted = True
+                        order._raw = order
+                        order._status = self.NEW_ORDER
+                        if order._new_event is not None:
+                            order._new_event.set()
+                        by_strategy = getattr(self, "_simple_new_orders_by_strategy", None)
+                        if by_strategy is None:
+                            by_strategy = {}
+                            self._simple_new_orders_by_strategy = by_strategy
+                        by_strategy.setdefault(order.strategy, []).append(order)
+                        self._simple_new_orders_revision = getattr(self, "_simple_new_orders_revision", 0) + 1
+                        processed_order = order
+                    else:
+                        order.update_raw(order)
+                        processed_order = self._process_new_order(order)
+                    if processed_order and not (
+                        getattr(order, "_simple_backtest_order", False)
+                        and self._should_skip_default_new_callback(order)
+                    ):
+                        self._on_new_order(processed_order)
+                    if getattr(order, "_simple_backtest_order", False) and getattr(self, "_trade_event_log_enabled", True):
+                        static = getattr(order, "_fast_trade_event_static", None)
+                        if static is not None:
+                            (
+                                strategy_name,
+                                identifier,
+                                symbol,
+                                side,
+                                order_type,
+                                trade_slippage,
+                                time_in_force,
+                                asset_multiplier,
+                                asset_type,
+                            ) = static
+                        else:
+                            asset = order.asset
+                            strategy_name = order.strategy
+                            identifier = order._identifier
+                            symbol = order.symbol
+                            side = order.side
+                            order_type = order.order_type
+                            trade_slippage = getattr(order, "trade_slippage", None)
+                            time_in_force = order.time_in_force
+                            asset_multiplier = asset.multiplier if asset is not None else None
+                            asset_type = asset.asset_type if asset is not None else None
+                        pair_row = [
+                            _FAST_TRADE_PAIR_EVENT_MARKER,
+                            self.data_source.get_datetime(),
+                            None,
+                            strategy_name,
+                            identifier,
+                            symbol,
+                            side,
+                            order_type,
+                            order._status,
+                            None,
+                            None,
+                            None,
+                            1,
+                            None,
+                            trade_slippage,
+                            time_in_force,
+                            asset_multiplier,
+                            asset_type,
+                            None,
+                        ]
+                        order._fast_trade_event_pair_row = pair_row
+                        order._fast_trade_event_pair_row_index = len(self._trade_event_log_rows)
+                        self._trade_event_log_rows.append(pair_row)
+                        if self._trade_event_log_df_cache is not None:
+                            self._trade_event_log_df_cache = None
+                    else:
+                        self._record_fast_backtest_trade_event(order, None, None, 1)
+                except Exception:
+                    logger.error(traceback.format_exc())
+            else:
+                order.update_raw(order)
+                self.stream.dispatch(
+                    self.NEW_ORDER,
+                    wait_until_complete=True,
+                    order=order,
+                )
 
         # Only an OCO order submits the child orders immediately. Bracket/OTO child orders are not submitted until
         # the parent order is filled
@@ -1176,6 +1353,81 @@ class BacktestingBroker(Broker):
                     wait_until_complete=True,
                     order=child,
                 )
+
+        return order
+
+    def _submit_simple_backtest_order(self, order):
+        """Submit a validated simple backtest order without the general broker dispatch path."""
+        if getattr(order, "_simple_is_option", None):
+            self._backtest_has_option_lifecycle_exposure = True
+            return self._submit_order(order)
+
+        actions = getattr(getattr(self, "stream", None), "_actions_mapping", None)
+        default_action = getattr(self, "_default_new_order_stream_action", None)
+        if actions is None or actions.get(self.NEW_ORDER) is not default_action or getattr(self, "_backtest_audit_enabled", False):
+            return self._submit_order(order)
+
+        try:
+            order._transmitted = True
+            order._raw = order
+            order._status = self.NEW_ORDER
+            if order._new_event is not None:
+                order._new_event.set()
+
+            by_strategy = getattr(self, "_simple_new_orders_by_strategy", None)
+            if by_strategy is None:
+                by_strategy = {}
+                self._simple_new_orders_by_strategy = by_strategy
+            by_strategy.setdefault(order.strategy, []).append(order)
+            self._simple_new_orders_revision = getattr(self, "_simple_new_orders_revision", 0) + 1
+
+            skip_new_cache = getattr(self, "_skip_default_new_callback_by_strategy", None)
+            skip_new_callback = None if skip_new_cache is None else skip_new_cache.get(order.strategy)
+            if skip_new_callback is None:
+                skip_new_callback = self._should_skip_default_new_callback(order)
+            if not skip_new_callback:
+                self._on_new_order(order)
+
+            if getattr(self, "_trade_event_log_enabled", True):
+                (
+                    strategy_name,
+                    identifier,
+                    symbol,
+                    side,
+                    order_type,
+                    trade_slippage,
+                    time_in_force,
+                    asset_multiplier,
+                    asset_type,
+                ) = order._fast_trade_event_static
+                pair_row = [
+                    _FAST_TRADE_PAIR_EVENT_MARKER,
+                    getattr(order, "_date_created", None) or self.data_source.get_datetime(),
+                    None,
+                    strategy_name,
+                    identifier,
+                    symbol,
+                    side,
+                    order_type,
+                    order._status,
+                    None,
+                    None,
+                    None,
+                    1,
+                    None,
+                    trade_slippage,
+                    time_in_force,
+                    asset_multiplier,
+                    asset_type,
+                    None,
+                ]
+                order._fast_trade_event_pair_row = pair_row
+                order._fast_trade_event_pair_row_index = len(self._trade_event_log_rows)
+                self._trade_event_log_rows.append(pair_row)
+                if self._trade_event_log_df_cache is not None:
+                    self._trade_event_log_df_cache = None
+        except Exception:
+            logger.error(traceback.format_exc())
 
         return order
 
@@ -1535,6 +1787,9 @@ class BacktestingBroker(Broker):
         return option_price
 
     def _run_backtest_option_lifecycle_tasks(self, strategy) -> None:
+        if not getattr(self, "_backtest_has_option_lifecycle_exposure", False):
+            return
+
         # Run conservative early-assignment checks near close.
         self.process_early_assignment_contracts(strategy)
 
@@ -1784,8 +2039,437 @@ class BacktestingBroker(Broker):
         if not trade_cost:
             return
 
-        current_cash = strategy.cash
+        current_cash = self._get_strategy_cash_fast(strategy)
         strategy._set_cash_position(current_cash - float(trade_cost))
+
+    @staticmethod
+    def _get_strategy_cash_fast(strategy) -> float:
+        cash_position = getattr(strategy, "_cash_position", None)
+        if cash_position is None:
+            get_cash_position = getattr(strategy, "_get_cash_position", None)
+            cash_position = get_cash_position() if callable(get_cash_position) else None
+
+        quantity = getattr(cash_position, "quantity", None) if cash_position is not None else None
+        if type(quantity) is Decimal:
+            return float(quantity)
+        if quantity is None:
+            cash_value = getattr(strategy, "cash", None)
+            if cash_value is not None:
+                try:
+                    return float(cash_value)
+                except Exception:
+                    pass
+            return 0.0
+        return quantity
+
+    @staticmethod
+    def _set_strategy_cash_fast(strategy, cash: float) -> None:
+        cash_position = getattr(strategy, "_cash_position", None)
+        if cash_position is not None:
+            try:
+                cash_f = float(cash)
+                cash_position._quantity_float = cash_f
+            except Exception:
+                cash_position.quantity = cash
+            return
+        strategy._set_cash_position(cash)
+
+    def _execute_simple_market_fast_fill(
+        self,
+        order: Order,
+        price: float,
+        filled_quantity: Decimal,
+        strategy,
+        price_source=None,
+    ) -> None:
+        """Direct fill for narrow zero-fee IBKR market orders with no user fill callback."""
+        order.trade_cost = 0.0
+        asset_type = getattr(order, "_simple_asset_type", None)
+        if asset_type is None:
+            asset_type = getattr(order.asset, "asset_type", None)
+        quote_asset_type = getattr(order, "_simple_quote_asset_type", None)
+        if quote_asset_type is None and getattr(order, "quote", None):
+            quote_asset_type = getattr(order.quote, "asset_type", None)
+
+        filled_quantity_f = getattr(order, "_simple_quantity_float", None)
+        if filled_quantity_f is None:
+            filled_quantity_f = filled_quantity
+        if filled_quantity_f is not None and type(filled_quantity_f) is not float:
+            filled_quantity_f = float(filled_quantity_f)
+
+        if asset_type in (Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE):
+            self._process_futures_fill(strategy, order, float(price), filled_quantity_f)
+        elif asset_type == Asset.AssetType.CRYPTO and quote_asset_type == Asset.AssetType.FOREX:
+            trade_amount = filled_quantity_f * price
+            multiplier = getattr(order, "_simple_multiplier", None)
+            if multiplier and multiplier != 1:
+                trade_amount *= multiplier
+            current_cash = self._get_strategy_cash_fast(strategy)
+            is_buy_order = getattr(order, "_simple_is_buy", None)
+            if is_buy_order is None:
+                is_buy_order = order.is_buy_order()
+            new_cash = current_cash - trade_amount if is_buy_order else current_cash + trade_amount
+            self._set_strategy_cash_fast(strategy, new_cash)
+
+        multiplier = getattr(order, "_simple_multiplier", None) or getattr(order.asset, "multiplier", None) or 1
+        try:
+            if getattr(order, "_simple_backtest_order", False):
+                self._process_simple_market_filled_order(order, price, filled_quantity_f)
+            else:
+                self._process_filled_order(order, price, filled_quantity_f)
+            self._record_fast_backtest_trade_event(
+                order,
+                price,
+                filled_quantity_f,
+                multiplier,
+                price_source=price_source,
+            )
+        except Exception:
+            logger.error(traceback.format_exc())
+
+    def _execute_simple_backtest_market_fast_fill(self, order: Order, price: float, strategy, price_source=None) -> None:
+        """Tighter direct fill for Order.simple_market_backtest orders."""
+        order.trade_cost = 0.0
+        quantity = order._simple_quantity_float
+
+        if order._simple_is_future:
+            self._process_futures_fill(strategy, order, float(price), quantity)
+        elif order._simple_is_crypto_forex:
+            trade_amount = quantity * price
+            multiplier = order._simple_multiplier
+            if multiplier != 1:
+                trade_amount *= multiplier
+            cash_delta = -trade_amount if order._simple_is_buy else trade_amount
+            cash_position = getattr(strategy, "_cash_position", None)
+            if cash_position is not None:
+                current_quantity = getattr(cash_position, "_quantity_float", None)
+                if current_quantity is None:
+                    current_quantity = getattr(cash_position, "quantity", None)
+                    if type(current_quantity) is Decimal:
+                        current_quantity = float(current_quantity)
+                new_cash = (current_quantity or 0.0) + cash_delta
+                try:
+                    cash_position._quantity_float = float(new_cash)
+                except Exception:
+                    cash_position.quantity = new_cash
+            else:
+                current_cash = self._get_strategy_cash_fast(strategy)
+                strategy._set_cash_position(current_cash + cash_delta)
+
+        try:
+            self._process_simple_market_filled_order(order, price, quantity)
+            self._record_fast_backtest_trade_event(
+                order,
+                price,
+                quantity,
+                order._simple_multiplier,
+                price_source=price_source,
+            )
+        except Exception:
+            logger.error(traceback.format_exc())
+
+    def _execute_simple_futures_backtest_fast_fill(
+        self,
+        order: Order,
+        price: float,
+        strategy,
+        price_source=None,
+        event_dt=None,
+    ) -> None:
+        """Direct fill for simple futures market orders."""
+        try:
+            order.trade_cost = 0.0
+            quantity = order._simple_quantity_float
+            price_f = float(price)
+
+            margin_per_contract = getattr(order.asset, "_lumibot_margin_requirement_cache", None)
+            if margin_per_contract is None:
+                margin_per_contract = get_futures_margin_requirement(order.asset)
+                try:
+                    setattr(order.asset, "_lumibot_margin_requirement_cache", margin_per_contract)
+                except Exception:
+                    pass
+            key = getattr(order, "_simple_futures_ledger_key", None)
+            if key is None:
+                key = self._get_futures_ledger_key(strategy, order.asset)
+            ledger = self._futures_lot_ledgers[key]
+            signed_fill_qty = quantity if order._simple_is_buy else -quantity
+            current_cash = self._get_strategy_cash_fast(strategy)
+            new_cash = current_cash
+
+            if not ledger:
+                ledger.append({"qty": signed_fill_qty, "price": price_f})
+                new_cash -= margin_per_contract * quantity
+            elif len(ledger) == 1:
+                lot = ledger[0]
+                lot_qty = lot["qty"]
+                if lot_qty and signed_fill_qty and lot_qty * signed_fill_qty < 0:
+                    closing_qty = min(abs(lot_qty), quantity)
+                    entry_price = lot["price"]
+                    multiplier = order._simple_multiplier
+                    if lot_qty > 0:
+                        realized_pnl = (price_f - entry_price) * closing_qty * multiplier
+                        lot["qty"] -= closing_qty
+                    else:
+                        realized_pnl = (entry_price - price_f) * closing_qty * multiplier
+                        lot["qty"] += closing_qty
+                    new_cash += margin_per_contract * closing_qty
+                    new_cash += realized_pnl
+                    if abs(lot["qty"]) < 1e-9:
+                        ledger.pop(0)
+                    opening_qty = quantity - closing_qty
+                    if opening_qty > 0:
+                        opening_sign = 1 if signed_fill_qty > 0 else -1
+                        ledger.append({"qty": opening_sign * opening_qty, "price": price_f})
+                        new_cash -= margin_per_contract * opening_qty
+                else:
+                    ledger.append({"qty": signed_fill_qty, "price": price_f})
+                    new_cash -= margin_per_contract * quantity
+            else:
+                self._process_futures_fill(strategy, order, price_f, quantity)
+                new_cash = None
+
+            if new_cash is not None:
+                if not ledger:
+                    self._futures_lot_ledgers.pop(key, None)
+                self._set_strategy_cash_fast(strategy, new_cash)
+
+            simple_positions = getattr(self, "_simple_positions_by_strategy_asset", None)
+            if simple_positions is None:
+                simple_positions = {}
+                self._simple_positions_by_strategy_asset = simple_positions
+            position_key = (order.strategy, id(order.asset))
+            existing_position = simple_positions.get(position_key)
+            if existing_position is _NO_SIMPLE_POSITION:
+                existing_position = None
+            elif existing_position is None:
+                existing_position = self.get_tracked_position(order.strategy, order.asset)
+                if existing_position is not None:
+                    simple_positions[position_key] = existing_position
+                else:
+                    simple_positions[position_key] = _NO_SIMPLE_POSITION
+
+            order._avg_fill_price = round(float(price), 2) if price is not None else None
+            order.transactions = [order.Transaction(quantity, price)]
+            order._status = self.FILLED_ORDER
+            filled_event = order._filled_event
+            if filled_event is not None:
+                filled_event.set()
+            closed_event = order._closed_event
+            if closed_event is not None:
+                closed_event.set()
+            self._track_unique_simple_filled_order(order)
+
+            qty_decimal = order._quantity
+            if existing_position:
+                new_qty = existing_position._quantity + (qty_decimal if order._simple_is_buy else -qty_decimal)
+                if new_qty == 0:
+                    self._filled_positions.remove(existing_position)
+                    simple_positions[position_key] = _NO_SIMPLE_POSITION
+                else:
+                    existing_position._quantity = new_qty
+                    existing_position._quantity_float = float(new_qty)
+                    existing_position.orders.append(order)
+            else:
+                position_qty = qty_decimal
+                if order._simple_is_sell:
+                    position_qty = -position_qty
+                position = Position.simple_backtest(
+                    order.strategy,
+                    order.asset,
+                    position_qty,
+                    order,
+                    avg_fill_price=order._avg_fill_price,
+                )
+                self._filled_positions.append(position)
+                simple_positions[position_key] = position
+
+            if getattr(self, "_trade_event_log_enabled", True):
+                pair_row = getattr(order, "_fast_trade_event_pair_row", None)
+                if pair_row is not None:
+                    pair_row[2] = event_dt if event_dt is not None else self.data_source.get_datetime()
+                    pair_row[9] = order._status
+                    pair_row[10] = price
+                    pair_row[11] = quantity
+                    pair_row[12] = order._simple_multiplier
+                    pair_row[13] = order.trade_cost
+                    pair_row[18] = price_source
+                    if self._trade_event_log_df_cache is not None:
+                        self._trade_event_log_df_cache = None
+                    self._finalize_fast_trade_pair_row(order, pair_row)
+                else:
+                    self._record_fast_backtest_trade_event(
+                        order,
+                        price,
+                        quantity,
+                        order._simple_multiplier,
+                        price_source=price_source,
+                    )
+        except Exception:
+            logger.error(traceback.format_exc())
+
+    def _execute_simple_crypto_forex_backtest_fast_fill(
+        self,
+        order: Order,
+        price: float,
+        strategy,
+        price_source=None,
+        event_dt=None,
+    ) -> None:
+        """Direct fill for simple crypto/forex market orders."""
+        try:
+            quantity = order._simple_quantity_float
+            order.trade_cost = 0.0
+
+            trade_amount = quantity * price
+            multiplier = order._simple_multiplier
+            if multiplier != 1:
+                trade_amount *= multiplier
+            cash_delta = -trade_amount if order._simple_is_buy else trade_amount
+            cash_position = getattr(strategy, "_cash_position", None)
+            if cash_position is not None:
+                current_quantity = getattr(cash_position, "_quantity_float", None)
+                if current_quantity is None:
+                    current_quantity = getattr(cash_position, "quantity", None)
+                    if type(current_quantity) is Decimal:
+                        current_quantity = float(current_quantity)
+                new_cash = (current_quantity or 0.0) + cash_delta
+                try:
+                    cash_position._quantity_float = float(new_cash)
+                except Exception:
+                    cash_position.quantity = new_cash
+            else:
+                current_cash = self._get_strategy_cash_fast(strategy)
+                strategy._set_cash_position(current_cash + cash_delta)
+
+            simple_positions = getattr(self, "_simple_positions_by_strategy_asset", None)
+            if simple_positions is None:
+                simple_positions = {}
+                self._simple_positions_by_strategy_asset = simple_positions
+            position_key = (order.strategy, id(order.asset))
+            existing_position = simple_positions.get(position_key)
+            if existing_position is _NO_SIMPLE_POSITION:
+                existing_position = None
+            elif existing_position is None:
+                existing_position = self.get_tracked_position(order.strategy, order.asset)
+                if existing_position is not None:
+                    simple_positions[position_key] = existing_position
+                else:
+                    simple_positions[position_key] = _NO_SIMPLE_POSITION
+
+            order._avg_fill_price = round(float(price), 2) if price is not None else None
+            order.transactions = [order.Transaction(quantity, price)]
+            order._status = self.FILLED_ORDER
+            filled_event = getattr(order, "_filled_event", None)
+            if filled_event is not None:
+                filled_event.set()
+            closed_event = getattr(order, "_closed_event", None)
+            if closed_event is not None:
+                closed_event.set()
+            self._track_unique_simple_filled_order(order)
+
+            qty_decimal = order._quantity
+            if existing_position:
+                new_qty = existing_position._quantity + (qty_decimal if order._simple_is_buy else -qty_decimal)
+                if new_qty == 0:
+                    self._filled_positions.remove(existing_position)
+                    simple_positions[position_key] = _NO_SIMPLE_POSITION
+                else:
+                    existing_position._quantity = new_qty
+                    existing_position._quantity_float = float(new_qty)
+                    existing_position.orders.append(order)
+            else:
+                if order._simple_is_sell:
+                    qty_decimal = -qty_decimal
+                position = Position.simple_backtest(
+                    order.strategy,
+                    order.asset,
+                    qty_decimal,
+                    order,
+                    avg_fill_price=order._avg_fill_price,
+                )
+                self._filled_positions.append(position)
+                simple_positions[position_key] = position
+
+            if getattr(self, "_trade_event_log_enabled", True):
+                pair_row = getattr(order, "_fast_trade_event_pair_row", None)
+                if pair_row is not None:
+                    pair_row[2] = event_dt if event_dt is not None else self.data_source.get_datetime()
+                    pair_row[9] = order._status
+                    pair_row[10] = price
+                    pair_row[11] = quantity
+                    pair_row[12] = order._simple_multiplier
+                    pair_row[13] = order.trade_cost
+                    pair_row[18] = price_source
+                    if self._trade_event_log_df_cache is not None:
+                        self._trade_event_log_df_cache = None
+                    self._finalize_fast_trade_pair_row(order, pair_row)
+                else:
+                    self._record_fast_backtest_trade_event(
+                        order,
+                        price,
+                        quantity,
+                        order._simple_multiplier,
+                        price_source=price_source,
+                    )
+        except Exception:
+            logger.error(traceback.format_exc())
+
+    def _process_simple_market_filled_order(self, order: Order, price, quantity):
+        """Minimal bookkeeping for simple direct market orders proven by the fast lane."""
+        simple_positions = getattr(self, "_simple_positions_by_strategy_asset", None)
+        if simple_positions is None:
+            simple_positions = {}
+            self._simple_positions_by_strategy_asset = simple_positions
+        position_key = (order.strategy, id(order.asset))
+        existing_position = simple_positions.get(position_key)
+        if existing_position is _NO_SIMPLE_POSITION:
+            existing_position = None
+        elif existing_position is None:
+            existing_position = self.get_tracked_position(order.strategy, order.asset)
+            if existing_position is not None:
+                simple_positions[position_key] = existing_position
+            else:
+                simple_positions[position_key] = _NO_SIMPLE_POSITION
+        order._avg_fill_price = round(float(price), 2) if price is not None else None
+
+        order.transactions = [order.Transaction(quantity, price)]
+        order._status = self.FILLED_ORDER
+        filled_event = order._filled_event
+        if filled_event is not None:
+            filled_event.set()
+        closed_event = order._closed_event
+        if closed_event is not None:
+            closed_event.set()
+        self._track_unique_simple_filled_order(order)
+
+        qty_decimal = order._quantity
+
+        if existing_position:
+            new_qty = existing_position._quantity + (qty_decimal if order._simple_is_buy else -qty_decimal)
+            if new_qty == 0:
+                self._filled_positions.remove(existing_position)
+                simple_positions[position_key] = _NO_SIMPLE_POSITION
+            else:
+                existing_position._quantity = new_qty
+                existing_position._quantity_float = float(new_qty)
+                existing_position.orders.append(order)
+        else:
+            position_qty = qty_decimal
+            if order._simple_is_sell:
+                position_qty = -position_qty
+            position = Position.simple_backtest(
+                order.strategy,
+                order.asset,
+                position_qty,
+                order,
+                avg_fill_price=order._avg_fill_price,
+            )
+            self._filled_positions.append(position)
+            simple_positions[position_key] = position
+
+        if not order._simple_is_crypto_forex and order._simple_asset_type_value == "crypto":
+            self._process_crypto_quote(order, quantity, price)
 
     def _execute_filled_order(
         self,
@@ -1835,7 +2519,7 @@ class BacktestingBroker(Broker):
             if hasattr(order.asset, 'multiplier') and order.asset.multiplier:
                 trade_amount *= order.asset.multiplier
 
-            current_cash = strategy.cash
+            current_cash = self._get_strategy_cash_fast(strategy)
 
             if order.is_buy_order():
                 # Deduct cash for buy orders (trade amount + fees)
@@ -1856,15 +2540,32 @@ class BacktestingBroker(Broker):
         if filled_quantity_f is not None and not isinstance(filled_quantity_f, float):
             filled_quantity_f = float(filled_quantity_f)
 
-        self.stream.dispatch(
-            self.FILLED_ORDER,
-            wait_until_complete=True,
-            order=order,
-            price=price,
-            filled_quantity=filled_quantity_f,
-            quantity=filled_quantity_f,
-            multiplier=multiplier,
-        )
+        # PERF: In backtests the FILLED_ORDER stream action is normally the broker's own
+        # `_process_trade_event()` wrapper. When that default action is still installed, call the
+        # filled-order work directly and skip the generic trade-event router/payload path.
+        actions = getattr(getattr(self, "stream", None), "_actions_mapping", None)
+        default_action = getattr(self, "_default_filled_order_stream_action", None)
+        audit_enabled = getattr(self, "_backtest_audit_enabled", None)
+        if audit_enabled is None:
+            audit_enabled = self._truthy_env(os.environ.get("LUMIBOT_BACKTEST_AUDIT"))
+        if actions is not None and actions.get(self.FILLED_ORDER) is default_action and not audit_enabled:
+            try:
+                position = self._process_filled_order(order, price, filled_quantity_f)
+                if position and not self._should_skip_default_filled_callback(order):
+                    self._on_filled_order(position, order, price, filled_quantity_f, multiplier)
+                self._record_fast_backtest_trade_event(order, price, filled_quantity_f, multiplier)
+            except Exception:
+                logger.error(traceback.format_exc())
+        else:
+            self.stream.dispatch(
+                self.FILLED_ORDER,
+                wait_until_complete=True,
+                order=order,
+                price=price,
+                filled_quantity=filled_quantity_f,
+                quantity=filled_quantity_f,
+                multiplier=multiplier,
+            )
 
         # Only apply trade cost if it's not crypto with forex quote (already handled above)
         if (
@@ -1886,6 +2587,176 @@ class BacktestingBroker(Broker):
                 parent_order.set_filled()
                 if parent_order not in self._filled_orders:
                     self._filled_orders.append(parent_order)
+
+    def _should_skip_default_new_callback(self, order: Order) -> bool:
+        strategy_name = getattr(order, "strategy", None)
+        cache = getattr(self, "_skip_default_new_callback_by_strategy", None)
+        if cache is None:
+            cache = {}
+            self._skip_default_new_callback_by_strategy = cache
+        if strategy_name in cache:
+            return cache[strategy_name]
+
+        subscriber = self._get_subscriber(strategy_name)
+        if not subscriber:
+            cache[strategy_name] = False
+            return False
+
+        try:
+            strategy_obj = getattr(subscriber, "strategy", None)
+            handler = getattr(strategy_obj, "on_new_order", None)
+            func = getattr(handler, "__func__", handler)
+            result = getattr(func, "__qualname__", "") == "Strategy.on_new_order"
+        except Exception:
+            result = False
+        cache[strategy_name] = result
+        return result
+
+    def _should_skip_default_filled_callback(self, order: Order) -> bool:
+        asset_type = getattr(getattr(order, "asset", None), "asset_type", None)
+        if asset_type not in (Asset.AssetType.CRYPTO, Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE):
+            return False
+
+        strategy_name = getattr(order, "strategy", None)
+        cache = getattr(self, "_skip_default_filled_callback_by_strategy", None)
+        if cache is None:
+            cache = {}
+            self._skip_default_filled_callback_by_strategy = cache
+        if strategy_name in cache:
+            return cache[strategy_name]
+
+        subscriber = self._get_subscriber(strategy_name)
+        if not subscriber:
+            cache[strategy_name] = False
+            return False
+
+        try:
+            strategy_obj = getattr(subscriber, "strategy", None)
+            handler = getattr(strategy_obj, "on_filled_order", None)
+            func = getattr(handler, "__func__", handler)
+            executor_handler = getattr(subscriber, "_on_filled_order", None)
+            executor_func = getattr(executor_handler, "__func__", executor_handler)
+            result = (
+                getattr(func, "__qualname__", "") == "Strategy.on_filled_order"
+                and getattr(executor_func, "__qualname__", "") == "StrategyExecutor._on_filled_order"
+                and not callable(getattr(strategy_obj, "_filled_order_callback", None))
+            )
+        except Exception:
+            result = False
+        cache[strategy_name] = result
+        return result
+
+    def _record_fast_backtest_trade_event(
+        self,
+        order: Order,
+        price,
+        filled_quantity,
+        multiplier=1,
+        price_source=None,
+    ):
+        """Append the non-audit trade log row for a direct backtest fill."""
+        if price_source is None:
+            price_source = getattr(order, "_price_source", None)
+        if getattr(self, "_trade_event_log_enabled", True):
+            static = getattr(order, "_fast_trade_event_static", None)
+            if static is not None:
+                (
+                    strategy_name,
+                    identifier,
+                    symbol,
+                    side,
+                    order_type,
+                    trade_slippage,
+                    time_in_force,
+                    asset_multiplier,
+                    asset_type,
+                ) = static
+            else:
+                asset = order.asset
+                strategy_name = order.strategy
+                identifier = order._identifier
+                symbol = order.symbol
+                side = order.side
+                order_type = order.order_type
+                trade_slippage = getattr(order, "trade_slippage", None)
+                time_in_force = order.time_in_force
+                asset_multiplier = asset.multiplier if asset is not None else None
+                asset_type = asset.asset_type if asset is not None else None
+            pair_row = getattr(order, "_fast_trade_event_pair_row", None)
+            if pair_row is not None and price is not None:
+                pair_row[2] = self.data_source.get_datetime()
+                pair_row[9] = order._status
+                pair_row[10] = price
+                pair_row[11] = filled_quantity
+                pair_row[12] = multiplier
+                pair_row[13] = order.trade_cost
+                pair_row[18] = price_source
+                if self._trade_event_log_df_cache is not None:
+                    self._trade_event_log_df_cache = None
+                self._finalize_fast_trade_pair_row(order, pair_row)
+                return
+            if (
+                getattr(order, "_simple_backtest_order", False)
+                and price is None
+                and filled_quantity is None
+                and order._status == self.NEW_ORDER
+            ):
+                pair_row = [
+                    _FAST_TRADE_PAIR_EVENT_MARKER,
+                    self.data_source.get_datetime(),
+                    None,
+                    strategy_name,
+                    identifier,
+                    symbol,
+                    side,
+                    order_type,
+                    order._status,
+                    None,
+                    None,
+                    None,
+                    1,
+                    None,
+                    trade_slippage,
+                    time_in_force,
+                    asset_multiplier,
+                    asset_type,
+                    None,
+                ]
+                order._fast_trade_event_pair_row = pair_row
+                order._fast_trade_event_pair_row_index = len(self._trade_event_log_rows)
+                self._trade_event_log_rows.append(pair_row)
+                if self._trade_event_log_df_cache is not None:
+                    self._trade_event_log_df_cache = None
+                return
+            self._trade_event_log_rows.append(
+                (
+                    _FAST_TRADE_EVENT_MARKER,
+                    self.data_source.get_datetime(),
+                    strategy_name,
+                    identifier,
+                    symbol,
+                    side,
+                    order_type,
+                    order._status,
+                    price,
+                    filled_quantity,
+                    multiplier,
+                    order.trade_cost,
+                    trade_slippage,
+                    time_in_force,
+                    asset_multiplier,
+                    asset_type,
+                    price_source,
+                )
+            )
+            if self._trade_event_log_df_cache is not None:
+                self._trade_event_log_df_cache = None
+
+        if price_source and getattr(order, "_price_source", None) is not None:
+            try:
+                delattr(order, "_price_source")
+            except AttributeError:
+                pass
 
     def _process_crypto_quote(self, order, quantity, price):
         """Override to skip quote processing for assets that use direct cash updates or margin-based trading."""
@@ -1946,13 +2817,41 @@ class BacktestingBroker(Broker):
 
     def _process_futures_fill(self, strategy, order, price, filled_quantity):
         multiplier = getattr(order.asset, "multiplier", 1)
-        margin_per_contract = get_futures_margin_requirement(order.asset)
+        margin_per_contract = getattr(order.asset, "_lumibot_margin_requirement_cache", None)
+        if margin_per_contract is None:
+            margin_per_contract = get_futures_margin_requirement(order.asset)
+            try:
+                setattr(order.asset, "_lumibot_margin_requirement_cache", margin_per_contract)
+            except Exception:
+                pass
 
-        key = self._get_futures_ledger_key(strategy, order.asset)
+        key = getattr(order, "_simple_futures_ledger_key", None)
+        if key is None:
+            strategy_name = getattr(strategy, "_name", None) or getattr(strategy, "name", "unknown_strategy")
+            key_cache = getattr(order.asset, "_lumibot_futures_ledger_key_cache", None)
+            if key_cache is None:
+                key_cache = {}
+                try:
+                    setattr(order.asset, "_lumibot_futures_ledger_key_cache", key_cache)
+                except Exception:
+                    key_cache = None
+            key = key_cache.get(strategy_name) if key_cache is not None else None
+            if key is None:
+                key = self._get_futures_ledger_key(strategy, order.asset)
+                if key_cache is not None:
+                    key_cache[strategy_name] = key
         ledger = self._futures_lot_ledgers[key]
 
-        net_before = sum(lot["qty"] for lot in ledger)
-        signed_fill_qty = filled_quantity if order.is_buy_order() else -filled_quantity
+        if not ledger:
+            net_before = 0.0
+        elif len(ledger) == 1:
+            net_before = ledger[0]["qty"]
+        else:
+            net_before = sum(lot["qty"] for lot in ledger)
+        is_buy_order = getattr(order, "_simple_is_buy", None)
+        if is_buy_order is None:
+            is_buy_order = order.is_buy_order()
+        signed_fill_qty = filled_quantity if is_buy_order else -filled_quantity
 
         closing_qty = 0.0
         if net_before and signed_fill_qty and net_before * signed_fill_qty < 0:
@@ -1960,11 +2859,20 @@ class BacktestingBroker(Broker):
 
         opening_qty = filled_quantity - closing_qty
 
-        current_cash = strategy.cash or 0.0
+        current_cash = self._get_strategy_cash_fast(strategy)
         new_cash = current_cash
 
         if closing_qty > 0:
-            realized_pnl = self._realize_futures_pnl(ledger, closing_qty, price, multiplier)
+            if len(ledger) == 1 and abs(abs(ledger[0]["qty"]) - closing_qty) < 1e-9:
+                lot = ledger[0]
+                entry_price = lot["price"]
+                if lot["qty"] > 0:
+                    realized_pnl = (price - entry_price) * closing_qty * multiplier
+                else:
+                    realized_pnl = (entry_price - price) * closing_qty * multiplier
+                ledger.pop(0)
+            else:
+                realized_pnl = self._realize_futures_pnl(ledger, closing_qty, price, multiplier)
             new_cash += margin_per_contract * closing_qty
             new_cash += realized_pnl
 
@@ -1979,7 +2887,7 @@ class BacktestingBroker(Broker):
         if not ledger:
             self._futures_lot_ledgers.pop(key, None)
 
-        strategy._set_cash_position(new_cash)
+        self._set_strategy_cash_fast(strategy, new_cash)
 
     def calculate_trade_cost(self, order: Order, strategy, price: float):
         """Calculate the trade cost of an order for a given strategy"""
@@ -2014,7 +2922,7 @@ class BacktestingBroker(Broker):
                 trade_cost += Decimal(str(order.quantity)) * trading_fee.per_contract_fee
 
         return trade_cost
-        
+
 
     def process_pending_orders(self, strategy):
         """Used to evaluate and execute open orders in backtesting.
@@ -2031,40 +2939,293 @@ class BacktestingBroker(Broker):
 
         # This function is called once per bar (minute-level: ~100k/year). Avoid allocating lists
         # or copying buckets when there are no pending orders.
-        strategy_name = strategy.name
+        strategy_name = getattr(strategy, "_name", None)
+        if strategy_name is None:
+            strategy_name = strategy.name
 
         unprocessed_bucket = getattr(self, "_unprocessed_orders", None)
         new_bucket = getattr(self, "_new_orders", None)
-        if not unprocessed_bucket and not new_bucket:
-            self._run_backtest_option_lifecycle_tasks(strategy)
+        simple_by_strategy = getattr(self, "_simple_new_orders_by_strategy", None)
+        if not unprocessed_bucket and not new_bucket and not simple_by_strategy:
+            if getattr(self, "_backtest_has_option_lifecycle_exposure", False):
+                self._run_backtest_option_lifecycle_tasks(strategy)
             return
 
-        def _iter_bucket(bucket):
-            if not bucket:
-                return ()
-            get_list = getattr(bucket, "get_list", None)
-            if callable(get_list):
-                return get_list()
-            return bucket
-
-        pending_orders: list[Order] = []
-        for order in _iter_bucket(unprocessed_bucket):
-            if getattr(order, "strategy", None) == strategy_name:
-                pending_orders.append(order)
-        for order in _iter_bucket(new_bucket):
-            if getattr(order, "strategy", None) == strategy_name:
-                pending_orders.append(order)
+        simple_pending = simple_by_strategy.pop(strategy_name, None) if simple_by_strategy else None
+        if simple_pending and not unprocessed_bucket and not new_bucket:
+            self._simple_new_orders_revision = getattr(self, "_simple_new_orders_revision", 0) + 1
+            pending_orders = simple_pending
+        else:
+            pending_orders: list[Order] = []
+            if simple_pending:
+                self._simple_new_orders_revision = getattr(self, "_simple_new_orders_revision", 0) + 1
+                pending_orders.extend(simple_pending)
+            if unprocessed_bucket:
+                get_list = getattr(unprocessed_bucket, "get_list", None)
+                for order in get_list() if callable(get_list) else unprocessed_bucket:
+                    if getattr(order, "strategy", None) == strategy_name:
+                        pending_orders.append(order)
+            if new_bucket:
+                get_list = getattr(new_bucket, "get_list", None)
+                for order in get_list() if callable(get_list) else new_bucket:
+                    if getattr(order, "strategy", None) == strategy_name:
+                        pending_orders.append(order)
 
         if not pending_orders:
-            self._run_backtest_option_lifecycle_tasks(strategy)
+            self._requeue_simple_pending(strategy_name, simple_pending)
+            if getattr(self, "_backtest_has_option_lifecycle_exposure", False):
+                self._run_backtest_option_lifecycle_tasks(strategy)
             return
 
-        # Prefetching: Track assets and schedule prefetch
-        current_dt = self.datetime
-        audit_enabled = self._audit_enabled()
+        audit_enabled = getattr(self, "_backtest_audit_enabled", False)
         # PERF: Used in multiple branches below; avoid recomputing per order.
-        data_source_name = str(getattr(self.data_source, "SOURCE", "") or "").upper()
+        data_source = self.data_source
+        data_source_source = getattr(data_source, "SOURCE", "") or ""
+        is_ibkr_rest_source = data_source_source in ("InteractiveBrokersREST", "INTERACTIVEBROKERSREST")
+        data_source_name = "INTERACTIVEBROKERSREST" if is_ibkr_rest_source else str(data_source_source).upper()
 
+        if (
+            not audit_enabled
+            and is_ibkr_rest_source
+            and not self.hybrid_prefetcher
+            and not self.prefetcher
+            and not (getattr(strategy, "buy_trading_fees", None) or getattr(strategy, "sell_trading_fees", None))
+        ):
+            actions = getattr(getattr(self, "stream", None), "_actions_mapping", None)
+            default_action = getattr(self, "_default_filled_order_stream_action", None)
+            can_use_direct_fill = actions is not None and actions.get(self.FILLED_ORDER) is default_action
+            if can_use_direct_fill:
+                first_order = pending_orders[0]
+                skip_filled_cache = getattr(self, "_skip_default_filled_callback_by_strategy", None)
+                skip_default_filled_callback = (
+                    None if skip_filled_cache is None else skip_filled_cache.get(getattr(first_order, "strategy", None))
+                )
+                if skip_default_filled_callback is None:
+                    skip_default_filled_callback = self._should_skip_default_filled_callback(first_order)
+            else:
+                skip_default_filled_callback = False
+            if can_use_direct_fill and skip_default_filled_callback and simple_pending and not unprocessed_bucket and not new_bucket:
+                all_simple_filled = True
+                fast_open_data_source = self.data_source
+                fast_open_now = getattr(fast_open_data_source, "_datetime", None)
+                if fast_open_now is None:
+                    fast_open_now = fast_open_data_source.get_datetime()
+                fast_open_exchange = getattr(fast_open_data_source, "exchange", None)
+                exchange_cache = getattr(self, "_fast_open_exchange_key_cache", None)
+                exchange_cache_key = (id(fast_open_data_source), fast_open_exchange)
+                if exchange_cache is not None and exchange_cache[0] == exchange_cache_key:
+                    fast_open_exchange_key = exchange_cache[1]
+                else:
+                    try:
+                        fast_open_exchange_key = fast_open_data_source._normalize_exchange_key(fast_open_exchange)
+                    except Exception:
+                        fast_open_exchange_key = (str(fast_open_exchange or "").strip().upper() or "AUTO")
+                    self._fast_open_exchange_key_cache = (exchange_cache_key, fast_open_exchange_key)
+                fast_open_cache = getattr(self, "_fast_market_open_data_cache", None)
+                if fast_open_cache is None:
+                    fast_open_cache = {}
+                    self._fast_market_open_data_cache = fast_open_cache
+                no_bid_ask = getattr(self, "_simple_no_bid_ask_fill_keys", None)
+                no_bid_open_cache = getattr(self, "_simple_no_bid_ask_open_cache", None)
+                if no_bid_open_cache is None:
+                    no_bid_open_cache = {}
+                    self._simple_no_bid_ask_open_cache = no_bid_open_cache
+                coerce_price = self._coerce_price
+                fast_open_cache_get = fast_open_cache.get
+                terminal_statuses = (self.FILLED_ORDER, self.CANCELED_ORDER, self.ERROR_ORDER)
+                for order in simple_pending:
+                    order_asset = order.asset
+                    is_buy_order = getattr(order, "_simple_is_buy", False)
+                    order_status = getattr(order, "_status", None)
+                    if (
+                        order_status in terminal_statuses
+                        or not getattr(order, "_simple_direct_fill_eligible", False)
+                    ):
+                        all_simple_filled = False
+                        break
+
+                    order_exchange = getattr(order, "exchange", None)
+                    order_quote = order.quote
+                    order_asset_id = id(order_asset)
+                    order_quote_id = id(order_quote)
+                    no_bid_ask_key = (order_asset_id, order_quote_id, order_exchange)
+                    price = None
+                    price_source = "quote"
+                    no_bid_ask_hit = no_bid_ask_key in no_bid_ask if no_bid_ask else False
+                    if no_bid_ask_hit and order_exchange is None:
+                        cached_open_entry = no_bid_open_cache.get(no_bid_ask_key)
+                        if cached_open_entry is not None and cached_open_entry[0] == fast_open_exchange_key:
+                            open_line = cached_open_entry[1]
+                            exact_i = cached_open_entry[2]
+                        else:
+                            cached_open = fast_open_cache_get((order_asset_id, order_quote_id, "minute", fast_open_exchange_key))
+                            if cached_open is not None:
+                                _, cached_open_line, exact_i = cached_open
+                                open_line = getattr(cached_open_line, "dataline", cached_open_line)
+                                no_bid_open_cache[no_bid_ask_key] = (fast_open_exchange_key, open_line, exact_i)
+                            else:
+                                open_line = None
+                                exact_i = None
+                        if open_line is not None:
+                            try:
+                                i = exact_i.get(fast_open_now) if exact_i is not None else None
+                                if i is not None:
+                                    price = float(open_line[int(i)])
+                                    price_source = "ohlc_fast_open"
+                            except Exception:
+                                price = None
+                    if not no_bid_ask_hit:
+                        fast_bid, fast_ask = self._fast_get_bid_ask_for_fill(order_asset, order_quote, order_exchange)
+                        fast_bid = coerce_price(fast_bid)
+                        fast_ask = coerce_price(fast_ask)
+                        price = fast_ask if is_buy_order else fast_bid
+                        if fast_bid is None and fast_ask is None:
+                            if no_bid_ask is None:
+                                no_bid_ask = set()
+                                self._simple_no_bid_ask_fill_keys = no_bid_ask
+                            no_bid_ask.add(no_bid_ask_key)
+                    if price is None or price <= 0 or price != price:
+                        price = None
+                        if order_exchange is None:
+                            cached_open_entry = no_bid_open_cache.get(no_bid_ask_key)
+                            if cached_open_entry is not None and cached_open_entry[0] == fast_open_exchange_key:
+                                open_line = cached_open_entry[1]
+                                exact_i = cached_open_entry[2]
+                            else:
+                                cached_open = fast_open_cache_get(
+                                    (order_asset_id, order_quote_id, "minute", fast_open_exchange_key)
+                                )
+                                if cached_open is not None:
+                                    _, cached_open_line, exact_i = cached_open
+                                    open_line = getattr(cached_open_line, "dataline", cached_open_line)
+                                    no_bid_open_cache[no_bid_ask_key] = (fast_open_exchange_key, open_line, exact_i)
+                                else:
+                                    open_line = None
+                                    exact_i = None
+                            if open_line is not None:
+                                try:
+                                    i = exact_i.get(fast_open_now) if exact_i is not None else None
+                                    if i is not None:
+                                        price = float(open_line[int(i)])
+                                except Exception:
+                                    price = None
+                        if price is None or price <= 0 or price != price:
+                            price = coerce_price(
+                                self._fast_get_market_open_for_fill(
+                                    order_asset,
+                                    order_quote,
+                                    order_exchange,
+                                    _data_source=fast_open_data_source,
+                                    _now=fast_open_now,
+                                    _cache=fast_open_cache,
+                                )
+                            )
+                        price_source = "ohlc_fast_open"
+                    if price is None or price <= 0 or price != price:
+                        all_simple_filled = False
+                        break
+
+                    if getattr(order, "_simple_is_crypto_forex", False):
+                        self._execute_simple_crypto_forex_backtest_fast_fill(
+                            order,
+                            price,
+                            strategy,
+                            price_source,
+                            event_dt=fast_open_now,
+                        )
+                    elif getattr(order, "_simple_is_future", False):
+                        self._execute_simple_futures_backtest_fast_fill(
+                            order,
+                            price,
+                            strategy,
+                            price_source,
+                            event_dt=fast_open_now,
+                        )
+                    else:
+                        self._execute_simple_backtest_market_fast_fill(order, price, strategy, price_source)
+                if all_simple_filled:
+                    if getattr(self, "_backtest_has_option_lifecycle_exposure", False):
+                        self._run_backtest_option_lifecycle_tasks(strategy)
+                    return
+
+            fast_fills = []
+            can_fast_fill_all = can_use_direct_fill
+            for order in pending_orders:
+                order_asset = order.asset
+                asset_type = getattr(order_asset, "asset_type", None)
+                is_market_order = order.order_type == Order.OrderType.MARKET
+                is_buy_order = getattr(order, "_simple_is_buy", None)
+                if is_buy_order is None:
+                    is_buy_order = order.is_buy_order()
+                is_sell_order = getattr(order, "_simple_is_sell", None)
+                if is_sell_order is None:
+                    is_sell_order = order.is_sell_order()
+                if (
+                    not order.is_active()
+                    or order.dependent_order_filled
+                    or getattr(order, "dependent_order", None) is not None
+                    or getattr(order, "parent_identifier", None) is not None
+                    or order.order_class is Order.OrderClass.OCO
+                    or order.order_class is Order.OrderClass.MULTILEG
+                    or getattr(order, "_smart_limit_managed_by_parent", False)
+                    or not is_market_order
+                    or not (is_buy_order or is_sell_order)
+                    or (
+                        asset_type in (Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE)
+                        and not getattr(order, "_simple_backtest_order", False)
+                    )
+                    or asset_type not in (Asset.AssetType.CRYPTO, Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE)
+                    or getattr(order, "_simple_is_option", None)
+                    or (not getattr(order, "_simple_backtest_order", False) and self._is_option_asset(order_asset))
+                    or self._should_force_day_fill_timestep(order)
+                    or not skip_default_filled_callback
+                ):
+                    can_fast_fill_all = False
+                    break
+
+                order_exchange = getattr(order, "exchange", None)
+                no_bid_ask_key = (id(order_asset), id(order.quote), order_exchange)
+                no_bid_ask = getattr(self, "_simple_no_bid_ask_fill_keys", None)
+                price = None
+                price_source = "quote"
+                if not (no_bid_ask and no_bid_ask_key in no_bid_ask):
+                    fast_bid, fast_ask = self._fast_get_bid_ask_for_fill(order_asset, order.quote, order_exchange)
+                    fast_bid = self._coerce_price(fast_bid)
+                    fast_ask = self._coerce_price(fast_ask)
+                    price = fast_ask if is_buy_order else fast_bid
+                    if fast_bid is None and fast_ask is None:
+                        if no_bid_ask is None:
+                            no_bid_ask = set()
+                            self._simple_no_bid_ask_fill_keys = no_bid_ask
+                        no_bid_ask.add(no_bid_ask_key)
+                if price is None or self._is_invalid_price(price):
+                    price = self._coerce_price(
+                        self._fast_get_market_open_for_fill(
+                            order_asset,
+                            order.quote,
+                            order_exchange,
+                        )
+                    )
+                    price_source = "ohlc_fast_open"
+                if price is None or self._is_invalid_price(price):
+                    can_fast_fill_all = False
+                    break
+                fast_fills.append((order, price, price_source))
+
+            if can_fast_fill_all and fast_fills:
+                for order, price, price_source in fast_fills:
+                    self._execute_simple_market_fast_fill(
+                        order=order,
+                        price=price,
+                        filled_quantity=order.quantity,
+                        strategy=strategy,
+                        price_source=price_source,
+                    )
+                if getattr(self, "_backtest_has_option_lifecycle_exposure", False):
+                    self._run_backtest_option_lifecycle_tasks(strategy)
+                return
+
+        current_dt = self.datetime
         if self.hybrid_prefetcher:
             # Use advanced hybrid prefetcher
             try:
@@ -2209,18 +3370,24 @@ class BacktestingBroker(Broker):
             fast_bid = None
             fast_ask = None
             force_day_fill_timestep = self._should_force_day_fill_timestep(order)
+            order_asset = order.asset
+            is_buy_order = order.is_buy_order()
+            is_sell_order = order.is_sell_order()
+            is_buy_or_sell = is_buy_order or is_sell_order
+            is_option_order = self._is_option_asset(order_asset)
+            is_market_order = order.order_type == Order.OrderType.MARKET
 
             # PERF: MARKET orders dominate many warm-cache backtests (minute strategies, speed-burner).
             # When bid/ask are already present in the cached Data series, we can fill immediately
             # without constructing a `Quote` object or running the full quote normalization stack.
             if (
                 not audit_enabled
-                and order.order_type == Order.OrderType.MARKET
-                and (order.is_buy_order() or order.is_sell_order())
-                and not self._is_option_asset(getattr(order, "asset", None))
+                and is_market_order
+                and is_buy_or_sell
+                and not is_option_order
             ):
                 fast_bid, fast_ask = self._fast_get_bid_ask_for_fill(
-                    order.asset,
+                    order_asset,
                     order.quote,
                     getattr(order, "exchange", None),
                 )
@@ -2231,7 +3398,7 @@ class BacktestingBroker(Broker):
                 if fast_ask is not None and self._is_invalid_price(fast_ask):
                     fast_ask = None
 
-                required_price = fast_ask if order.is_buy_order() else fast_bid
+                required_price = fast_ask if is_buy_order else fast_bid
                 if required_price is not None and not self._is_invalid_price(required_price):
                     setattr(order, "_price_source", "quote")
                     self._execute_filled_order(
@@ -2248,9 +3415,9 @@ class BacktestingBroker(Broker):
             skip_quote_fills = (
                 (not audit_enabled)
                 and data_source_name in {"INTERACTIVEBROKERSREST"}
-                and order.order_type == Order.OrderType.MARKET
-                and (order.is_buy_order() or order.is_sell_order())
-                and not self._is_option_asset(getattr(order, "asset", None))
+                and is_market_order
+                and is_buy_or_sell
+                and not is_option_order
                 and fast_bid is None
                 and fast_ask is None
             )
@@ -2258,27 +3425,51 @@ class BacktestingBroker(Broker):
                 not skip_quote_fills
                 and not audit_enabled
                 and force_day_fill_timestep
-                and order.order_type == Order.OrderType.MARKET
-                and (order.is_buy_order() or order.is_sell_order())
+                and is_market_order
+                and is_buy_or_sell
             ):
                 skip_quote_fills = True
+
+            if (
+                skip_quote_fills
+                and not audit_enabled
+                and is_market_order
+                and is_buy_or_sell
+                and not force_day_fill_timestep
+                and not is_option_order
+            ):
+                fast_open = self._fast_get_market_open_for_fill(
+                    order_asset,
+                    order.quote,
+                    getattr(order, "exchange", None),
+                )
+                fast_open = self._coerce_price(fast_open)
+                if fast_open is not None and not self._is_invalid_price(fast_open):
+                    setattr(order, "_price_source", "ohlc_fast_open")
+                    self._execute_filled_order(
+                        order=order,
+                        price=fast_open,
+                        filled_quantity=filled_quantity,
+                        strategy=strategy,
+                    )
+                    continue
 
             # PERFORMANCE: Prefer quote-based fills when bid/ask are present so we avoid
             # fetching trade-only OHLC bars (which can be sparse/missing, especially for
             # options). When bid/ask are unavailable we fall back to the OHLC-based model.
             should_try_quote_first = not (
-                force_day_fill_timestep and order.order_type == Order.OrderType.MARKET
+                force_day_fill_timestep and is_market_order
             )
             if (
                 should_try_quote_first
                 and
                 order.order_type in (Order.OrderType.MARKET, Order.OrderType.LIMIT)
-                and (order.is_buy_order() or order.is_sell_order())
+                and is_buy_or_sell
             ):
                 quote = None
                 if not skip_quote_fills:
                     try:
-                        quote = self.get_quote(order.asset, quote=order.quote)
+                        quote = self.get_quote(order_asset, quote=order.quote)
                     except Exception:
                         quote = None
 
@@ -2296,12 +3487,12 @@ class BacktestingBroker(Broker):
                 # to sparse trade-only OHLC (which can leave orders unfilled and canceled at EOD).
                 if (
                     (bid is None or ask is None)
-                    and getattr(order.asset, "asset_type", None) == Asset.AssetType.OPTION
+                    and getattr(order_asset, "asset_type", None) == Asset.AssetType.OPTION
                     and self.data_source is not None
                     and self.data_source.__class__.__name__ == "ThetaDataBacktestingPandas"
                 ):
                     try:
-                        snap = self.data_source.get_quote(order.asset, quote=order.quote, snapshot_only=True)
+                        snap = self.data_source.get_quote(order_asset, quote=order.quote, snapshot_only=True)
                     except TypeError:
                         snap = None
                     except Exception:
@@ -2314,10 +3505,8 @@ class BacktestingBroker(Broker):
                         if ask is None and snap_ask is not None and not self._is_invalid_price(snap_ask):
                             ask = snap_ask
 
-                is_buy = order.is_buy_order()
-
                 if order.order_type == Order.OrderType.MARKET:
-                    required_price = ask if is_buy else bid
+                    required_price = ask if is_buy_order else bid
                     if required_price is not None and not self._is_invalid_price(required_price):
                         if audit_enabled:
                             payload: dict[str, Any] = {
@@ -2346,7 +3535,7 @@ class BacktestingBroker(Broker):
                     limit_price = self._coerce_price(order.limit_price)
                     crossed = False
                     if limit_price is not None:
-                        if is_buy:
+                        if is_buy_order:
                             if limit_price >= ask:
                                 fill_price = ask
                                 crossed = True
@@ -2360,7 +3549,7 @@ class BacktestingBroker(Broker):
                                 fill_price = limit_price
 
                     if fill_price is not None and not self._is_invalid_price(fill_price):
-                        spread_key = "max_spread_buy_pct" if is_buy else "max_spread_sell_pct"
+                        spread_key = "max_spread_buy_pct" if is_buy_order else "max_spread_sell_pct"
                         spread_limit = self._get_spread_limit(strategy, spread_key)
                         if spread_limit is None:
                             spread_limit = self._get_spread_limit(strategy, "max_spread_pct")
@@ -2609,6 +3798,7 @@ class BacktestingBroker(Broker):
                             if df_check is not None and hasattr(df_check, "index"):
                                 last_dt = df_check.index.max()
                             elif df_check is not None and hasattr(df_check, "columns"):
+                                pl = _get_polars_module()
                                 dt_col = None
                                 for col in df_check.columns:
                                     try:
@@ -2805,6 +3995,7 @@ class BacktestingBroker(Broker):
 
                 # Handle both pandas and polars DataFrames
                 if hasattr(df_original, 'select'):  # Polars DataFrame
+                    pl = _get_polars_module()
                     # Find datetime column
                     dt_col = None
                     for col in df_original.columns:
@@ -3140,7 +4331,25 @@ class BacktestingBroker(Broker):
                     )
                 continue
 
-        self._run_backtest_option_lifecycle_tasks(strategy)
+        self._requeue_simple_pending(strategy_name, simple_pending)
+        if getattr(self, "_backtest_has_option_lifecycle_exposure", False):
+            self._run_backtest_option_lifecycle_tasks(strategy)
+
+    def _requeue_simple_pending(self, strategy_name, simple_pending) -> None:
+        if not simple_pending:
+            return
+        active_simple = [order for order in simple_pending if order.is_active()]
+        if not active_simple:
+            return
+        by_strategy = getattr(self, "_simple_new_orders_by_strategy", None)
+        if by_strategy is None:
+            by_strategy = {}
+            self._simple_new_orders_by_strategy = by_strategy
+        existing = by_strategy.get(strategy_name)
+        if existing:
+            active_simple.extend(existing)
+        by_strategy[strategy_name] = active_simple
+        self._simple_new_orders_revision = getattr(self, "_simple_new_orders_revision", 0) + 1
 
     def _coerce_price(self, value):
         """Convert numeric inputs to float when possible for safe comparisons."""
@@ -3215,7 +4424,7 @@ class BacktestingBroker(Broker):
         if data_source is None or data_source.__class__.__name__ != "InteractiveBrokersRESTBacktesting":
             return None, None
 
-        now = getattr(self, "datetime", None)
+        now = data_source.get_datetime()
         if now is None:
             return None, None
 
@@ -3301,6 +4510,122 @@ class BacktestingBroker(Broker):
 
         return bid, ask
 
+    def _fast_get_market_open_for_fill(
+        self,
+        asset: Asset,
+        quote: Optional[Asset],
+        exchange: Optional[str] = None,
+        *,
+        _data_source=None,
+        _now=None,
+        _cache=None,
+    ) -> Optional[float]:
+        """Fast exact-bar MARKET fill from loaded IBKR OHLC data.
+
+        This is intentionally narrow: if the current simulation timestamp is not an exact bar
+        timestamp in the cached Data object, return None and let the canonical OHLC path enforce
+        its broader gap/fabrication guards.
+        """
+        data_source = _data_source if _data_source is not None else getattr(self, "data_source", None)
+        if data_source is None or data_source.__class__.__name__ != "InteractiveBrokersRESTBacktesting":
+            return None
+
+        now = _now if _now is not None else data_source.get_datetime()
+        if now is None:
+            return None
+
+        timestep = getattr(data_source, "_timestep", None) or "minute"
+        if str(timestep) != "minute":
+            return None
+
+        cache = _cache if _cache is not None else getattr(self, "_fast_market_open_data_cache", None)
+        if cache is None:
+            cache = {}
+            setattr(self, "_fast_market_open_data_cache", cache)
+
+        effective_exchange = exchange if exchange is not None else getattr(data_source, "exchange", None)
+        try:
+            exchange_key = data_source._normalize_exchange_key(effective_exchange)  # type: ignore[attr-defined]
+        except Exception:
+            exchange_key = (str(effective_exchange or "").strip().upper() or "AUTO")
+
+        cache_key = (id(asset), id(quote), str(timestep), exchange_key)
+        if cache_key in cache:
+            cached = cache[cache_key]
+            if len(cached) == 3:
+                data_obj, open_line, exact_i = cached
+            else:
+                data_obj, open_line = cached
+                exact_i = getattr(data_obj, "iter_index_dict", None) if data_obj is not None else None
+        else:
+            quote_asset = quote if quote is not None else Asset("USD", asset_type=Asset.AssetType.FOREX)
+            data_obj = None
+            open_line = None
+            exact_i = None
+            store = getattr(data_source, "_data_store", None)
+            if isinstance(store, dict):
+                try:
+                    canonical_key, legacy_key = data_source._build_dataset_keys(  # type: ignore[attr-defined]
+                        asset,
+                        quote_asset,
+                        str(timestep),
+                        effective_exchange,
+                    )
+                except Exception:
+                    canonical_key = (asset, quote_asset, str(timestep), exchange_key)
+                    legacy_key = (asset, quote_asset, exchange_key)
+
+                data_obj = store.get(canonical_key)
+                if data_obj is None:
+                    data_obj = store.get(legacy_key)
+
+            if data_obj is not None:
+                try:
+                    open_line_obj = getattr(data_obj, "datalines", {}).get("open")
+                    open_line = getattr(open_line_obj, "dataline", None) if open_line_obj is not None else getattr(data_obj, "open", None)
+                    exact_i = getattr(data_obj, "iter_index_dict", None)
+                    if exact_i is None:
+                        data_obj.repair_times_and_fill(data_obj.df.index)
+                        exact_i = getattr(data_obj, "iter_index_dict", None)
+                except Exception:
+                    open_line = None
+                    exact_i = None
+
+            cache[cache_key] = (data_obj, open_line, exact_i)
+
+        if data_obj is None or open_line is None:
+            return None
+
+        if exact_i is not None:
+            i = exact_i.get(now)
+            if i is not None:
+                try:
+                    return open_line[int(i)]
+                except Exception:
+                    return None
+
+        try:
+            now_ts = pd.Timestamp(now)
+            index = getattr(getattr(data_obj, "df", None), "index", None)
+            if index is None or len(index) == 0:
+                return None
+            i = data_obj.get_iter_count(now)
+            if int(i) < 0 or int(i) >= len(index):
+                return None
+            selected_ts = pd.Timestamp(index[int(i)])
+            if getattr(selected_ts, "tz", None) is not None:
+                if now_ts.tz is None:
+                    now_ts = now_ts.tz_localize(selected_ts.tz)
+                else:
+                    now_ts = now_ts.tz_convert(selected_ts.tz)
+            elif now_ts.tz is not None:
+                now_ts = now_ts.tz_localize(None)
+            if selected_ts != now_ts:
+                return None
+            return open_line[int(i)]
+        except Exception:
+            return None
+
     def _resolve_provider_key_for_asset(self, asset: Asset) -> Optional[str]:
         """Resolve a routing provider key for an asset when exposed by the data source."""
         if asset is None:
@@ -3329,6 +4654,9 @@ class BacktestingBroker(Broker):
     def _should_force_day_fill_timestep(self, order: Order) -> bool:
         """Whether market fills should bypass minute quote paths and use daily bars."""
         if order is None:
+            return False
+
+        if getattr(order, "_simple_backtest_order", False) and not getattr(order, "_simple_is_option", False):
             return False
 
         asset = getattr(order, "asset", None)
@@ -3379,9 +4707,12 @@ class BacktestingBroker(Broker):
         return timestep == "day"
 
     def _is_thetadata_source(self) -> bool:
-        if ThetaDataBacktestingPandas is None:
+        if self.data_source.__class__.__name__ != "ThetaDataBacktestingPandas":
             return False
-        return isinstance(self.data_source, ThetaDataBacktestingPandas)
+        theta_cls = _get_thetadata_backtesting_pandas_cls()
+        if theta_cls is None:
+            return False
+        return isinstance(self.data_source, theta_cls)
 
     def _get_spread_limit(self, strategy, key: str) -> Optional[float]:
         if strategy is None or not key:
@@ -4313,6 +5644,8 @@ class BacktestingBroker(Broker):
             except:
                 logger.error(traceback.format_exc())
 
+        broker._default_new_order_stream_action = on_trade_event
+
         @broker.stream.add_action(broker.PLACEHOLDER_ORDER)
         def on_trade_event(order):
             try:
@@ -4337,6 +5670,8 @@ class BacktestingBroker(Broker):
                 return True
             except:
                 logger.error(traceback.format_exc())
+
+        broker._default_filled_order_stream_action = on_trade_event
 
         @broker.stream.add_action(broker.CANCELED_ORDER)
         def on_trade_event(order, **payload):

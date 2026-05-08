@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import random
 import re
 import threading
@@ -5,20 +7,56 @@ import time
 import traceback
 from collections import deque
 from datetime import datetime, timezone
-from typing import Optional, Union
-
-import requests
-from termcolor import colored
+from importlib import import_module
+from typing import TYPE_CHECKING, Optional, Union
 
 from .broker import Broker
-from lumibot.data_sources import TradovateData
-from lumibot.entities import Asset, Order, Position
-from lumibot.trading_builtins import PollingStream
+from lumibot.entities import Asset, Order
+
+if TYPE_CHECKING:
+    from lumibot.entities import Position
 
 # Set up module-specific logger for enhanced logging
 from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
+_COLORED_FN = None
+
+
+def colored(*args, **kwargs):
+    global _COLORED_FN
+    if _COLORED_FN is None:
+        from termcolor import colored as _termcolor_colored
+
+        _COLORED_FN = _termcolor_colored
+    return _COLORED_FN(*args, **kwargs)
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+requests = _LazyModule("requests")
+
+
+def _tradovate_data_class():
+    from lumibot.data_sources import TradovateData
+
+    return TradovateData
 
 class TradovateAPIError(Exception):
     """Exception raised for errors in the Tradovate API."""
@@ -33,7 +71,7 @@ class Tradovate(Broker):
     Tradovate broker that implements connection to the Tradovate API.
     """
     NAME = "Tradovate"
-    POLL_EVENT = PollingStream.POLL_EVENT
+    POLL_EVENT = "poll"
 
     def __init__(self, config=None, data_source=None):
         if config is None:
@@ -84,7 +122,7 @@ class Tradovate(Broker):
                 # Update config with API URLs for consistency
                 config["TRADING_API_URL"] = self.trading_api_url
                 config["MD_URL"] = self.market_data_url
-                data_source = TradovateData(
+                data_source = _tradovate_data_class()(
                     config=config,
                     trading_token=self.trading_token,
                     market_token=self.market_token
@@ -530,6 +568,8 @@ class Tradovate(Broker):
 
     def _get_stream_object(self):
         """Return a polling stream to monitor Tradovate orders."""
+        from lumibot.trading_builtins import PollingStream
+
         return PollingStream(self.polling_interval)
 
     def check_token_expiry(self):
@@ -695,6 +735,8 @@ class Tradovate(Broker):
                 net_price = pos.get("netPrice", 0)
                 hold = 0
                 available = 0
+                from lumibot.entities import Position
+
                 position_obj = Position(
                     strategy,
                     asset,

@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import datetime
 import inspect
+from importlib import import_module
 import logging
 import math
 import os
@@ -8,20 +11,12 @@ import time
 import uuid
 import warnings
 from decimal import Decimal
-from typing import Callable, List, Type, Union, Optional
+from types import ModuleType
+from typing import TYPE_CHECKING, Callable, List, Optional, Type, Union
 
-import jsonpickle
-import matplotlib
-from matplotlib.colors import is_color_like
-import numpy as np
-import pandas as pd
-import pandas_market_calendars as mcal
-from apscheduler.triggers.cron import CronTrigger
 from termcolor import colored, COLORS
 
-from ..data_sources import DataSource
-from ..entities import Asset, Data, Order, Position, Quote, TradingFee, TradingSlippage, SmartLimitConfig
-from ..tools import get_risk_free_rate
+from ..entities import Asset, Order, Quote, SmartLimitConfig
 from ..tools.smart_limit_utils import (
     build_price_ladder,
     compute_final_price,
@@ -30,13 +25,101 @@ from ..tools.smart_limit_utils import (
     infer_tick_size,
     round_to_tick,
 )
-from ..tools.polars_utils import PolarsResampleError, resample_polars_ohlc
-from ..traders import Trader
-from ..credentials import IS_BACKTESTING
 from ._strategy import _Strategy
-from ..constants import LUMIBOT_DEFAULT_TIMEZONE, LUMIBOT_DEFAULT_PYTZ
 
-matplotlib.use("Agg")
+if TYPE_CHECKING:
+    from ..data_sources import DataSource
+    from ..entities import Data, Position, TradingFee, TradingSlippage
+
+_FAST_LAST_PRICE_MISS = object()
+_PANDAS_MARKET_CALENDARS = None
+_TRADER_CLASS = None
+_COMPAT_SENTINEL = object()
+IS_BACKTESTING = _COMPAT_SENTINEL
+_IS_BACKTESTING = None
+_LUMIBOT_DEFAULT_TIMEZONE = None
+_LUMIBOT_DEFAULT_PYTZ = None
+
+
+class _LazyModule(ModuleType):
+    def __init__(self, module_name: str):
+        super().__init__(module_name)
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+    def __setattr__(self, name, value):
+        if name in {"_module_name", "_module"}:
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self._load(), name, value)
+
+    def __delattr__(self, name):
+        if name in {"_module_name", "_module"}:
+            object.__delattr__(self, name)
+        else:
+            delattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+np = _LazyModule("numpy")
+
+
+def _get_market_calendars():
+    global _PANDAS_MARKET_CALENDARS
+    if _PANDAS_MARKET_CALENDARS is None:
+        import pandas_market_calendars as mcal
+
+        _PANDAS_MARKET_CALENDARS = mcal
+    return _PANDAS_MARKET_CALENDARS
+
+
+def _trader_class():
+    global _TRADER_CLASS
+    if _TRADER_CLASS is None:
+        from ..traders import Trader
+
+        _TRADER_CLASS = Trader
+    return _TRADER_CLASS
+
+
+def _is_backtesting_env():
+    global _IS_BACKTESTING, IS_BACKTESTING
+    if IS_BACKTESTING is not _COMPAT_SENTINEL:
+        return IS_BACKTESTING
+    if _IS_BACKTESTING is None:
+        from ..credentials import IS_BACKTESTING as _credentials_is_backtesting
+
+        _IS_BACKTESTING = _credentials_is_backtesting
+    return _IS_BACKTESTING
+
+
+def _default_timezone():
+    global _LUMIBOT_DEFAULT_TIMEZONE
+    if _LUMIBOT_DEFAULT_TIMEZONE is None:
+        from ..constants import LUMIBOT_DEFAULT_TIMEZONE
+
+        _LUMIBOT_DEFAULT_TIMEZONE = LUMIBOT_DEFAULT_TIMEZONE
+    return _LUMIBOT_DEFAULT_TIMEZONE
+
+
+def _default_pytz():
+    global _LUMIBOT_DEFAULT_PYTZ
+    if _LUMIBOT_DEFAULT_PYTZ is None:
+        from ..constants import LUMIBOT_DEFAULT_PYTZ
+
+        _LUMIBOT_DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ
+    return _LUMIBOT_DEFAULT_PYTZ
+
 
 class Strategy(_Strategy):
     @property
@@ -352,6 +435,8 @@ class Strategy(_Strategy):
             return self._risk_free_rate
         else:
             # Use the yahoo data to get the risk free rate, or 0 if None is returned
+            from ..tools import get_risk_free_rate
+
             now = self.get_datetime()
             return get_risk_free_rate(now) or 0.0
 
@@ -737,6 +822,54 @@ class Strategy(_Strategy):
         >>> order = self.create_order(base, 0.05, "buy", limit_price=41000,  quote=quote)
         >>> self.submit_order(order)
         """
+        broker = self.broker
+        if (
+            isinstance(asset, Asset)
+            and getattr(asset, "asset_type", None) not in (Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE)
+            and quote is None
+            and order_type is Order.OrderType.MARKET
+            and time_in_force == "gtc"
+            and getattr(broker, "IS_BACKTESTING_BROKER", False)
+            and (
+                order_class,
+                type,
+                smart_limit,
+                custom_params,
+                pair,
+                limit_price,
+                stop_price,
+                stop_limit_price,
+                trail_price,
+                trail_percent,
+                secondary_limit_price,
+                secondary_stop_price,
+                secondary_stop_limit_price,
+                secondary_trail_price,
+                secondary_trail_percent,
+                take_profit_price,
+                stop_loss_price,
+                stop_loss_limit_price,
+                position_filled,
+                exchange,
+                good_till_date,
+            ) == (None,) * 21
+        ):
+            seq = getattr(broker, "_backtest_order_seq", 0) + 1
+            setattr(broker, "_backtest_order_seq", seq)
+            ds = getattr(broker, "data_source", None)
+            date_created = getattr(ds, "_datetime", None)
+            if date_created is None:
+                date_created = broker.datetime
+            return Order.simple_market_backtest(
+                self._name,
+                asset,
+                quantity,
+                side,
+                time_in_force=time_in_force,
+                date_created=date_created,
+                quote=self._quote_asset,
+                identifier=f"bt_{seq}",
+            )
 
         if quote is None:
             quote = self.quote_asset
@@ -748,10 +881,17 @@ class Strategy(_Strategy):
         # PERF: uuid4() generation is a measurable hot path in high-churn backtests (1 order per bar per asset).
         # Backtests only need identifiers to be unique within the run, so use a cheap monotonic counter.
         identifier = None
-        if getattr(self.broker, "IS_BACKTESTING_BROKER", False):
-            seq = getattr(self.broker, "_backtest_order_seq", 0) + 1
-            setattr(self.broker, "_backtest_order_seq", seq)
+        is_backtesting_broker = getattr(broker, "IS_BACKTESTING_BROKER", False)
+        if is_backtesting_broker:
+            seq = getattr(broker, "_backtest_order_seq", 0) + 1
+            setattr(broker, "_backtest_order_seq", seq)
             identifier = f"bt_{seq}"
+            ds = getattr(broker, "data_source", None)
+            date_created = getattr(ds, "_datetime", None)
+            if date_created is None:
+                date_created = broker.datetime
+        else:
+            date_created = self.get_datetime()
 
         order = Order(
             self.name,
@@ -775,7 +915,7 @@ class Strategy(_Strategy):
             secondary_trail_percent=secondary_trail_percent,
             exchange=exchange,
             position_filled=position_filled,
-            date_created=self.get_datetime(),
+            date_created=date_created,
             quote=quote,
             pair=pair,
             type=type,
@@ -1703,6 +1843,13 @@ class Strategy(_Strategy):
         >>> order2 = self.create_order((asset_ETH, asset_quote), 10, "buy")
         >>> self.submit_order([order1, order2])
         """
+        if getattr(order, "_simple_backtest_order", False):
+            broker = self.broker
+            if getattr(broker, "IS_BACKTESTING_BROKER", False):
+                submit_simple = getattr(broker, "_submit_simple_backtest_order", None)
+                if submit_simple is not None:
+                    return submit_simple(order)
+                return broker._submit_order(order)
 
         if isinstance(order, list):
             # Submit multiple orders
@@ -1808,7 +1955,7 @@ class Strategy(_Strategy):
             if not self._validate_order(order):
                 return
 
-            if order.order_type == Order.OrderType.SMART_LIMIT:
+            if order.order_type is Order.OrderType.SMART_LIMIT:
                 if self.broker.IS_BACKTESTING_BROKER:
                     return self.broker.submit_order(order)
 
@@ -2404,6 +2551,54 @@ class Strategy(_Strategy):
             results.append(self.close_position(asset))
         return results
 
+    def _get_ibkr_backtest_last_price_fast(self, asset, quote=None, exchange=None, *, allow_source_fallback=False):
+        if not isinstance(asset, Asset) or quote is not None or exchange is not None:
+            return _FAST_LAST_PRICE_MISS
+
+        broker = getattr(self, "broker", None)
+        ds = getattr(broker, "data_source", None)
+        asset_type = getattr(asset, "asset_type", None)
+        asset_type_value = getattr(asset, "_cached_asset_type_key", None)
+        if asset_type_value is None:
+            asset_type_value = str.__str__(asset_type) if isinstance(asset_type, str) else str(asset_type or "")
+        if (
+            not getattr(broker, "IS_BACKTESTING_BROKER", False)
+            or getattr(ds, "SOURCE", None) != "InteractiveBrokersREST"
+            or asset_type_value not in ("crypto", "future", "cont_future")
+        ):
+            return _FAST_LAST_PRICE_MISS
+
+        quote_asset = self._quote_asset
+        now = getattr(ds, "_datetime", None)
+        if now is not None:
+            exchange_key = "AUTO" if getattr(ds, "exchange", None) is None else ds._normalize_exchange_key(ds.exchange)
+            data_cache = getattr(self, "_ibkr_last_price_data_cache", None)
+            if data_cache is None:
+                data_cache = {}
+                self._ibkr_last_price_data_cache = data_cache
+            cache_key = (id(asset), id(quote_asset), exchange_key)
+            data = data_cache.get(cache_key)
+            if data is None:
+                data = getattr(ds, "_data_store", {}).get((asset, quote_asset, "minute", exchange_key))
+                if data is not None:
+                    data_cache[cache_key] = data
+            if data is not None:
+                try:
+                    if asset_type_value in ("future", "cont_future"):
+                        price = data.get_previous_bar_close_fast(now)
+                        if price is not None:
+                            return price
+                        now = getattr(ds, "_datetime_minus_microsecond", None) or now - datetime.timedelta(
+                            microseconds=1
+                        )
+                    return data.get_last_price_fast(now)
+                except Exception:
+                    pass
+
+        if allow_source_fallback:
+            return ds.get_last_price(asset, quote=quote_asset, exchange=None)
+        return _FAST_LAST_PRICE_MISS
+
     def get_last_price(self, asset: Union[Asset, str], quote=None, exchange=None) -> Union[float, Decimal, None]:
         """Takes an asset and returns the last known price
 
@@ -2458,6 +2653,103 @@ class Strategy(_Strategy):
         >>> )
         >>> price = self.get_last_price(asset=self.base, exchange="CME")
         """
+        if isinstance(asset, Asset) and quote is None and exchange is None:
+            quote_asset = getattr(self, "_quote_asset", None)
+            fast_ctx_cache = getattr(self, "_ibkr_last_price_fast_context_cache", None) if quote_asset is not None else None
+            if fast_ctx_cache is not None:
+                ctx = fast_ctx_cache.get((id(asset), id(quote_asset)))
+                if ctx is not None:
+                    ds_for_cache, data, asset_type_value = ctx
+                    now = getattr(ds_for_cache, "_datetime", None)
+                    if now is not None:
+                        if asset_type_value in ("future", "cont_future"):
+                            price = data.get_previous_bar_close_fast(now)
+                            if price is not None:
+                                return price
+                            now = getattr(ds_for_cache, "_datetime_minus_microsecond", None) or now - datetime.timedelta(microseconds=1)
+                        try:
+                            return data.get_last_price_fast(now)
+                        except Exception:
+                            pass
+            broker = getattr(self, "broker", None)
+            ds = getattr(broker, "data_source", None)
+            last_price_ctx_cache = getattr(self, "_ibkr_last_price_context_cache", None)
+            if last_price_ctx_cache is not None and getattr(ds, "SOURCE", None) == "InteractiveBrokersREST":
+                effective_exchange = getattr(ds, "exchange", None)
+                try:
+                    exchange_key = "AUTO" if effective_exchange is None else ds._normalize_exchange_key(effective_exchange)
+                except Exception:
+                    exchange_key = str(effective_exchange or "").strip().upper() or "AUTO"
+                ctx = last_price_ctx_cache.get((id(ds), id(asset), id(quote_asset), exchange_key))
+                if ctx is not None:
+                    data, asset_type_value = ctx
+                    now = getattr(ds, "_datetime", None)
+                    if now is not None:
+                        if asset_type_value in ("future", "cont_future"):
+                            price = data.get_previous_bar_close_fast(now)
+                            if price is not None:
+                                return price
+                            now = getattr(ds, "_datetime_minus_microsecond", None) or now - datetime.timedelta(microseconds=1)
+                        try:
+                            return data.get_last_price_fast(now)
+                        except Exception:
+                            pass
+            asset_type = getattr(asset, "asset_type", None)
+            asset_type_value = getattr(asset, "_cached_asset_type_key", None)
+            if asset_type_value is None:
+                asset_type_value = str.__str__(asset_type) if isinstance(asset_type, str) else str(asset_type or "")
+            if (
+                getattr(broker, "IS_BACKTESTING_BROKER", False)
+                and getattr(ds, "SOURCE", None) == "InteractiveBrokersREST"
+                and asset_type_value in ("crypto", "future", "cont_future")
+            ):
+                quote_asset = self._quote_asset
+                now = getattr(ds, "_datetime", None)
+                if now is not None:
+                    exchange_key = "AUTO" if getattr(ds, "exchange", None) is None else ds._normalize_exchange_key(ds.exchange)
+                    data_cache = getattr(self, "_ibkr_last_price_data_cache", None)
+                    if data_cache is None:
+                        data_cache = {}
+                        self._ibkr_last_price_data_cache = data_cache
+                    cache_key = (id(asset), id(quote_asset), exchange_key)
+                    data = data_cache.get(cache_key)
+                    if data is None:
+                        data = getattr(ds, "_data_store", {}).get((asset, quote_asset, "minute", exchange_key))
+                        if data is not None:
+                            data_cache[cache_key] = data
+                    if data is not None:
+                        try:
+                            last_price_ctx_cache = getattr(self, "_ibkr_last_price_context_cache", None)
+                            if last_price_ctx_cache is None:
+                                last_price_ctx_cache = {}
+                                self._ibkr_last_price_context_cache = last_price_ctx_cache
+                            last_price_ctx_cache[(id(ds), id(asset), id(quote_asset), exchange_key)] = (
+                                data,
+                                asset_type_value,
+                            )
+                            fast_ctx_cache = getattr(self, "_ibkr_last_price_fast_context_cache", None)
+                            if fast_ctx_cache is None:
+                                fast_ctx_cache = {}
+                                self._ibkr_last_price_fast_context_cache = fast_ctx_cache
+                            fast_ctx_cache[(id(asset), id(quote_asset))] = (
+                                ds,
+                                data,
+                                asset_type_value,
+                            )
+                            if asset_type_value in ("future", "cont_future"):
+                                price = data.get_previous_bar_close_fast(now)
+                                if price is not None:
+                                    return price
+                                now = getattr(ds, "_datetime_minus_microsecond", None) or now - datetime.timedelta(
+                                    microseconds=1
+                                )
+                            return data.get_last_price_fast(now)
+                        except Exception:
+                            pass
+        else:
+            fast_price = Strategy._get_ibkr_backtest_last_price_fast(self, asset, quote=quote, exchange=exchange)
+            if fast_price is not _FAST_LAST_PRICE_MISS:
+                return fast_price
 
         # Check if the asset is valid
         if asset is None or (isinstance(asset, Asset) and not asset.is_valid()):
@@ -2473,6 +2765,16 @@ class Strategy(_Strategy):
             )
             return None
 
+        fast_price = Strategy._get_ibkr_backtest_last_price_fast(
+            self,
+            asset,
+            quote=quote,
+            exchange=exchange,
+            allow_source_fallback=True,
+        )
+        if fast_price is not _FAST_LAST_PRICE_MISS:
+            return fast_price
+
         asset = self._sanitize_user_asset(asset)
 
         if quote is None:
@@ -2481,7 +2783,7 @@ class Strategy(_Strategy):
             quote_asset = quote
 
         is_backtesting_run = bool(
-            IS_BACKTESTING
+            _is_backtesting_env()
             or getattr(self, "is_backtesting", False)
             or getattr(getattr(self, "broker", None), "IS_BACKTESTING_BROKER", False)
         )
@@ -2500,6 +2802,27 @@ class Strategy(_Strategy):
                 return cache[cache_key]
 
         try:
+            asset_type_for_last = getattr(asset, "asset_type", "")
+            asset_type_for_last = getattr(asset_type_for_last, "value", asset_type_for_last)
+            asset_type_for_last = str(asset_type_for_last).lower()
+            if is_backtesting_run and asset_type_for_last in {"crypto", "future", "cont_future"}:
+                result = self.broker.data_source.get_last_price(
+                    asset,
+                    quote=quote_asset,
+                    exchange=exchange,
+                )
+                cache[cache_key] = result
+                return result
+
+            if is_backtesting_run and asset_type_for_last not in {"stock", "equity", "index"}:
+                result = self.broker.get_last_price(
+                    asset,
+                    quote=quote_asset,
+                    exchange=exchange,
+                )
+                cache[cache_key] = result
+                return result
+
             # For daily-cadence backtests, prefer day bars for sources where minute-level
             # fetches are expensive (ThetaData/IBKR/routed backtesting). Keep Yahoo/Polygon
             # on legacy behavior to preserve existing regression anchors.
@@ -2526,7 +2849,10 @@ class Strategy(_Strategy):
             # close) instead of the 2022-07-01 close of $90.98, polluting position sizing.
             # Regression coverage lives in `tests/test_get_last_price_sim_time_safety.py` and
             # explicitly replays a polluted frame so this exact failure mode cannot re-land.
-            should_use_daily = self._should_use_daily_last_price(asset)
+            should_use_daily = (
+                asset_type_for_last in {"stock", "equity", "index"}
+                and self._should_use_daily_last_price(asset)
+            )
             if is_backtesting_run and should_use_daily and self._supports_daily_last_price_optimization():
                 try:
                     bars = self.get_historical_prices(
@@ -2624,7 +2950,7 @@ class Strategy(_Strategy):
         if asset_type not in {"stock", "equity", "index"}:
             return False
         if not (
-            IS_BACKTESTING
+            _is_backtesting_env()
             or getattr(self, "is_backtesting", False)
             or getattr(getattr(self, "broker", None), "IS_BACKTESTING_BROKER", False)
         ):
@@ -2842,6 +3168,7 @@ class Strategy(_Strategy):
         """
 
         # Load the specified market calendar
+        mcal = _get_market_calendars()
         calendar = mcal.get_calendar(exchange)
 
         # Convert the input string date to pandas Timestamp
@@ -3129,6 +3456,7 @@ class Strategy(_Strategy):
                 break
 
         # Check if the market is open on the expiration date, if not then get the previous open day
+        mcal = _get_market_calendars()
         nyse = mcal.get_calendar("NYSE")
 
         # Get the schedule for all the days that the market is open between the given date and the proposed expiration date
@@ -3268,7 +3596,7 @@ class Strategy(_Strategy):
 
         # Hard default when tzinfo is missing
         if tz is None:
-            return LUMIBOT_DEFAULT_TIMEZONE
+            return _default_timezone()
 
         # Prefer canonical zone identifiers when available
         if hasattr(tz, "zone") and getattr(tz, "zone", None):
@@ -3285,7 +3613,7 @@ class Strategy(_Strategy):
             pass
 
         # Final fallback to configured default to ensure a str is returned
-        return LUMIBOT_DEFAULT_TIMEZONE
+        return _default_timezone()
 
     @property
     def pytz(self):
@@ -3303,7 +3631,7 @@ class Strategy(_Strategy):
         >>> self.log_message(f"pytz: {pytz}")
         """
         tz = getattr(self.broker.data_source, "tzinfo", None)
-        return tz or LUMIBOT_DEFAULT_PYTZ
+        return tz or _default_pytz()
 
     def get_datetime(self, adjust_for_delay: bool = False):
         """Returns the current datetime according to the data source. In a backtest this will be the current bar's datetime. In live trading this will be the current datetime on the exchange.
@@ -3374,6 +3702,8 @@ class Strategy(_Strategy):
             return job_id
 
         # Create a CronTrigger from the schedule string using the broker's timezone
+        from apscheduler.triggers.cron import CronTrigger
+
         trigger = CronTrigger.from_crontab(cron_schedule, timezone=self.pytz)
 
         # Add the job to the scheduler
@@ -3611,6 +3941,8 @@ class Strategy(_Strategy):
             return default
 
         try:
+            from matplotlib.colors import is_color_like
+
             valid = is_color_like(normalized)
         except Exception:
             valid = False
@@ -4199,6 +4531,8 @@ class Strategy(_Strategy):
         except Exception:
             pass
         os.makedirs(os.path.dirname(settings_file), exist_ok=True)
+        import jsonpickle
+
         with open(settings_file, "w") as outfile:
             json = jsonpickle.encode(settings)
             outfile.write(json)
@@ -4393,6 +4727,265 @@ class Strategy(_Strategy):
         >>> last_ohlc = df.iloc[-1] # Get the last row of the DataFrame (the most recent pricing data we have)
         >>> self.log_message(f"Last price of BTC in USD: {last_ohlc['close']}, and the open price was {last_ohlc['open']}")
         """
+        if (
+            timeshift is None
+            and exchange is None
+            and include_after_hours is True
+            and not args
+            and not kwargs
+            and isinstance(asset, Asset)
+            and isinstance(length, int)
+            and timestep in {"minute", "day"}
+        ):
+            quote_asset = self._quote_asset if quote is None else quote
+            if quote is None:
+                request_cache = getattr(self, "_ibkr_native_hist_request_cache_default_quote", None)
+                request_key = (id(asset), length, timestep)
+            else:
+                request_cache = getattr(self, "_ibkr_native_hist_request_cache", None)
+                request_key = (id(asset), id(quote_asset), length, timestep)
+            if request_cache is not None:
+                ctx = request_cache.get(request_key)
+                if ctx is not None:
+                    ds_for_cache, bars_from_pandas_fast, data = ctx
+                    current_dt = getattr(ds_for_cache, "_datetime", None)
+                    if current_dt is not None:
+                        try:
+                            if timestep == "day":
+                                day_bars_cache = getattr(self, "_ibkr_native_day_bars_cache", None)
+                                if day_bars_cache is not None:
+                                    day_key = (
+                                        id(asset),
+                                        id(quote_asset),
+                                        length,
+                                        getattr(ds_for_cache, "exchange", None),
+                                        current_dt.date(),
+                                    )
+                                    cached_bars = day_bars_cache.get(day_key)
+                                    if cached_bars is not None:
+                                        return cached_bars
+                                else:
+                                    day_key = None
+                            else:
+                                day_key = None
+                            response = data.get_native_bars_fast(
+                                current_dt,
+                                length=length,
+                                timestep=timestep,
+                                mark_timezone=False,
+                            )
+                            if response is not None and not isinstance(response, float):
+                                bars = bars_from_pandas_fast(
+                                    response,
+                                    ds_for_cache.SOURCE,
+                                    asset,
+                                    quote=quote_asset,
+                                    raw=response,
+                                )
+                                if day_key is not None:
+                                    day_bars_cache[day_key] = bars
+                                return bars
+                        except Exception:
+                            pass
+
+        if (
+            timestep == "minute"
+            and timeshift is None
+            and exchange is None
+            and include_after_hours is True
+            and not args
+            and not kwargs
+            and isinstance(asset, Asset)
+            and isinstance(length, int)
+        ):
+            minute_ctx_cache = getattr(self, "_ibkr_native_minute_bars_context_cache", None)
+            if minute_ctx_cache is not None:
+                broker_for_cache = getattr(self, "broker", None)
+                ds_for_cache = getattr(broker_for_cache, "data_source", None)
+                if getattr(ds_for_cache, "SOURCE", None) == "InteractiveBrokersREST":
+                    quote_asset = self._quote_asset if quote is None else quote
+                    effective_exchange = getattr(ds_for_cache, "exchange", None)
+                    ctx = minute_ctx_cache.get((id(ds_for_cache), id(asset), id(quote_asset), effective_exchange))
+                    if ctx is not None:
+                        Bars, data = ctx
+                        current_dt = getattr(ds_for_cache, "_datetime", None)
+                        if current_dt is None:
+                            current_dt = getattr(broker_for_cache, "datetime", None)
+                        if current_dt is not None:
+                            try:
+                                response = data.get_native_bars_fast(
+                                    current_dt,
+                                    length=length,
+                                    timestep="minute",
+                                    mark_timezone=False,
+                                )
+                                if response is not None and not isinstance(response, float):
+                                    return Bars.from_pandas_fast(
+                                        response,
+                                        ds_for_cache.SOURCE,
+                                        asset,
+                                        quote=quote_asset,
+                                        raw=response,
+                                    )
+                            except Exception:
+                                pass
+
+        if (
+            timestep == "day"
+            and timeshift is None
+            and exchange is None
+            and include_after_hours is True
+            and not args
+            and not kwargs
+            and isinstance(asset, Asset)
+            and isinstance(length, int)
+        ):
+            day_bars_cache = getattr(self, "_ibkr_native_day_bars_cache", None)
+            if day_bars_cache is not None:
+                broker_for_cache = getattr(self, "broker", None)
+                ds_for_cache = getattr(broker_for_cache, "data_source", None)
+                current_dt = getattr(ds_for_cache, "_datetime", None)
+                if current_dt is not None and getattr(ds_for_cache, "SOURCE", None) == "InteractiveBrokersREST":
+                    quote_asset = self._quote_asset if quote is None else quote
+                    cached_bars = day_bars_cache.get(
+                        (
+                            id(asset),
+                            id(quote_asset),
+                            length,
+                            getattr(ds_for_cache, "exchange", None),
+                            current_dt.date(),
+                        )
+                    )
+                    if cached_bars is not None:
+                        return cached_bars
+
+        broker = getattr(self, "broker", None)
+        ds = getattr(broker, "data_source", None)
+        if (
+            not args
+            and not kwargs
+            and isinstance(asset, Asset)
+            and isinstance(length, int)
+            and timestep in {"minute", "hour", "day"}
+            and timeshift is None
+            and exchange is None
+            and include_after_hours is True
+            and getattr(broker, "IS_BACKTESTING_BROKER", False)
+            and getattr(ds, "SOURCE", None) == "InteractiveBrokersREST"
+        ):
+            asset_type = getattr(asset, "asset_type", None)
+            asset_type_value = getattr(asset, "_cached_asset_type_key", None)
+            if asset_type_value is None:
+                asset_type_value = str.__str__(asset_type) if isinstance(asset_type, str) else str(asset_type or "")
+            if asset_type_value == "option":
+                return ds.get_historical_prices(
+                    asset,
+                    length,
+                    timestep=timestep,
+                    timeshift=None,
+                    exchange=None,
+                    include_after_hours=True,
+                    quote=self._quote_asset if quote is None else quote,
+                    return_polars=False,
+                )
+            quote_asset = self._quote_asset if quote is None else quote
+            if timestep in {"minute", "day"}:
+                try:
+                    effective_exchange = getattr(ds, "exchange", None)
+                    current_dt = getattr(ds, "_datetime", None)
+                    if current_dt is None:
+                        current_dt = broker.datetime
+                    if timestep == "day":
+                        try:
+                            day_key = (
+                                id(asset),
+                                id(quote_asset),
+                                int(length),
+                                effective_exchange,
+                                current_dt.date(),
+                            )
+                            day_bars_cache = getattr(self, "_ibkr_native_day_bars_cache", None)
+                            if day_bars_cache is not None:
+                                cached_bars = day_bars_cache.get(day_key)
+                                if cached_bars is not None:
+                                    return cached_bars
+                        except Exception:
+                            day_key = None
+                    else:
+                        day_key = None
+                    hist_cache_key = (id(asset), id(quote_asset), timestep, effective_exchange)
+                    hist_cache = getattr(self, "_ibkr_native_hist_data_cache", None)
+                    data = hist_cache.get(hist_cache_key) if hist_cache is not None else None
+                    if data is None:
+                        data = getattr(ds, "_fully_loaded_hot_data_cache", {}).get(hist_cache_key)
+                        if data is not None:
+                            if hist_cache is None:
+                                hist_cache = {}
+                                self._ibkr_native_hist_data_cache = hist_cache
+                            hist_cache[hist_cache_key] = data
+                    if data is not None:
+                        Bars = getattr(ds, "_native_bars_fast_cls", None)
+                        if Bars is None:
+                            from lumibot.entities.bars import Bars
+
+                            ds._native_bars_fast_cls = Bars
+                        if timestep == "minute":
+                            minute_ctx_cache = getattr(self, "_ibkr_native_minute_bars_context_cache", None)
+                            if minute_ctx_cache is None:
+                                minute_ctx_cache = {}
+                                self._ibkr_native_minute_bars_context_cache = minute_ctx_cache
+                            minute_ctx_cache[(id(ds), id(asset), id(quote_asset), effective_exchange)] = (Bars, data)
+                        request_cache = getattr(self, "_ibkr_native_hist_request_cache", None)
+                        if request_cache is None:
+                            request_cache = {}
+                            self._ibkr_native_hist_request_cache = request_cache
+                        request_cache[(id(asset), id(quote_asset), int(length), timestep)] = (
+                            ds,
+                            Bars.from_pandas_fast,
+                            data,
+                        )
+                        if quote is None:
+                            default_request_cache = getattr(
+                                self,
+                                "_ibkr_native_hist_request_cache_default_quote",
+                                None,
+                            )
+                            if default_request_cache is None:
+                                default_request_cache = {}
+                                self._ibkr_native_hist_request_cache_default_quote = default_request_cache
+                            default_request_cache[(id(asset), int(length), timestep)] = (
+                                ds,
+                                Bars.from_pandas_fast,
+                                data,
+                            )
+                        response = data.get_native_bars_fast(
+                            current_dt,
+                            length=length,
+                            timestep=timestep,
+                            mark_timezone=False,
+                        )
+                        if response is not None and not isinstance(response, float):
+                            bars = Bars.from_pandas_fast(response, ds.SOURCE, asset, quote=quote_asset, raw=response)
+                            if day_key is not None:
+                                day_bars_cache = getattr(self, "_ibkr_native_day_bars_cache", None)
+                                if day_bars_cache is None:
+                                    day_bars_cache = {}
+                                    self._ibkr_native_day_bars_cache = day_bars_cache
+                                day_bars_cache[day_key] = bars
+                            return bars
+                except Exception:
+                    pass
+            return ds.get_historical_prices(
+                asset,
+                length,
+                timestep=timestep,
+                timeshift=None,
+                exchange=None,
+                include_after_hours=True,
+                quote=quote_asset,
+                return_polars=False,
+            )
+
         if args:
             if len(args) != 1:
                 raise TypeError("get_historical_prices() accepts at most 1 extra positional argument (deprecated `return_polars`)")
@@ -4426,9 +5019,49 @@ class Strategy(_Strategy):
         if quote is None:
             quote = self.quote_asset
 
+        # PERF: native-bar backtest calls are the hottest historical-price path. When no
+        # resampling or live-source compatibility work is needed, go straight to the data source.
+        if (
+            timestep in {"minute", "hour", "day"}
+            and timeshift is None
+            and exchange is None
+            and include_after_hours is True
+            and not return_polars
+            and not return_polars_provided
+            and getattr(getattr(self, "broker", None), "IS_BACKTESTING_BROKER", False)
+        ):
+            asset = self._sanitize_user_asset(asset)
+            asset = self.crypto_assets_to_tuple(asset, quote)
+            ds = self.broker.data_source
+            if self.broker.option_source and getattr(asset, "asset_type", None) == "option":
+                ds = self.broker.option_source
+            if getattr(ds, "IS_BACKTESTING_DATA_SOURCE", False):
+                return ds.get_historical_prices(
+                    asset,
+                    length,
+                    timestep=timestep,
+                    timeshift=None,
+                    exchange=None,
+                    include_after_hours=True,
+                    quote=quote,
+                    return_polars=False,
+                )
+
         # Parse timestep to check if we need to aggregate
         original_timestep = timestep
-        parsed = self._parse_timestep(timestep) if timestep else None
+        if timestep in {"minute", "day", "hour"}:
+            parsed = (1, timestep)
+        elif timestep:
+            parse_cache = getattr(self, "_historical_timestep_parse_cache", None)
+            if parse_cache is None:
+                parse_cache = {}
+                self._historical_timestep_parse_cache = parse_cache
+            parsed = parse_cache.get(timestep)
+            if timestep not in parse_cache:
+                parsed = self._parse_timestep(timestep)
+                parse_cache[timestep] = parsed
+        else:
+            parsed = None
 
         # Determine the actual timestep to use for data fetching
         if parsed and parsed[0] > 1:
@@ -4466,52 +5099,27 @@ class Strategy(_Strategy):
         if not actual_timestep:
             actual_timestep = self.broker.data_source.get_timestep()
 
-        # Only log once per asset to reduce noise.
-        # PERF: avoid per-call f-string construction in hot loops; use a tuple key.
-        asset_key = (asset, int(length), original_timestep)
-        if asset_key not in self._logged_get_historical_prices_assets:
-            if needs_resampling:
-                self.logger.info(
-                    f"Getting historical prices for {asset}, {length} bars of {original_timestep} "
-                    f"(fetching {actual_length} {actual_timestep} bars)"
-                )
-            else:
-                self.logger.info(f"Getting historical prices for {asset}, {length} bars, {original_timestep}")
-            self._logged_get_historical_prices_assets.add(asset_key)
+        # Only log once per asset to reduce noise. In quiet backtests, skip the bookkeeping too.
+        if self.logger.isEnabledFor(logging.INFO):
+            asset_key = (asset, int(length), original_timestep)
+            if asset_key not in self._logged_get_historical_prices_assets:
+                if needs_resampling:
+                    self.logger.info(
+                        f"Getting historical prices for {asset}, {length} bars of {original_timestep} "
+                        f"(fetching {actual_length} {actual_timestep} bars)"
+                    )
+                else:
+                    self.logger.info(f"Getting historical prices for {asset}, {length} bars, {original_timestep}")
+                self._logged_get_historical_prices_assets.add(asset_key)
 
         effective_return_polars = return_polars
-
-        # Call through to the appropriate data source. Only pass `return_polars` if supported
-        # to maintain compatibility with live data sources that don't yet accept it.
-        #
-        # PERF: avoid per-call nested function creation/dict allocations; keep this inline and cache
-        # `return_polars` support per data source type.
-        supports_cache = getattr(self, "_get_hist_supports_return_polars_by_ds_type", None)
-        if supports_cache is None:
-            supports_cache = {}
-            setattr(self, "_get_hist_supports_return_polars_by_ds_type", supports_cache)
 
         ds = self.broker.data_source
         if self.broker.option_source and getattr(asset, "asset_type", None) == "option":
             ds = self.broker.option_source
 
-        ds_type = type(ds)
-        supports_return_polars = supports_cache.get(ds_type)
-        if supports_return_polars is None:
-            try:
-                params = inspect.signature(ds_type.get_historical_prices).parameters
-                supports_return_polars = (
-                    "return_polars" in params
-                    or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
-                )
-            except Exception:
-                # Conservative default: if we can't inspect, assume it does NOT support return_polars
-                # so we don't raise TypeError by passing an unknown kwarg.
-                supports_return_polars = False
-            supports_cache[ds_type] = bool(supports_return_polars)
-
         fn = ds.get_historical_prices
-        if supports_return_polars:
+        if getattr(ds, "IS_BACKTESTING_DATA_SOURCE", False):
             bars = fn(
                 asset,
                 actual_length,  # Use the actual length for fetching
@@ -4523,21 +5131,56 @@ class Strategy(_Strategy):
                 return_polars=effective_return_polars,
             )
         else:
-            bars = fn(
-                asset,
-                actual_length,  # Use the actual length for fetching
-                timestep=actual_timestep,
-                timeshift=timeshift,
-                exchange=exchange,
-                include_after_hours=include_after_hours,
-                quote=quote,
-            )
+            # Live data sources vary in whether they accept `return_polars`; inspect once per type.
+            supports_cache = getattr(self, "_get_hist_supports_return_polars_by_ds_type", None)
+            if supports_cache is None:
+                supports_cache = {}
+                setattr(self, "_get_hist_supports_return_polars_by_ds_type", supports_cache)
+
+            ds_type = type(ds)
+            supports_return_polars = supports_cache.get(ds_type)
+            if supports_return_polars is None:
+                try:
+                    params = inspect.signature(ds_type.get_historical_prices).parameters
+                    supports_return_polars = (
+                        "return_polars" in params
+                        or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
+                    )
+                except Exception:
+                    # Conservative default: if we can't inspect, assume it does NOT support return_polars
+                    # so we don't raise TypeError by passing an unknown kwarg.
+                    supports_return_polars = False
+                supports_cache[ds_type] = bool(supports_return_polars)
+
+            if supports_return_polars:
+                bars = fn(
+                    asset,
+                    actual_length,  # Use the actual length for fetching
+                    timestep=actual_timestep,
+                    timeshift=timeshift,
+                    exchange=exchange,
+                    include_after_hours=include_after_hours,
+                    quote=quote,
+                    return_polars=effective_return_polars,
+                )
+            else:
+                bars = fn(
+                    asset,
+                    actual_length,  # Use the actual length for fetching
+                    timestep=actual_timestep,
+                    timeshift=timeshift,
+                    exchange=exchange,
+                    include_after_hours=include_after_hours,
+                    quote=quote,
+                )
 
         # If we need to resample the data
         if needs_resampling and bars and len(bars) > 0:
             resampled_with_polars = False
             if return_polars:
                 try:
+                    from ..tools.polars_utils import PolarsResampleError, resample_polars_ohlc
+
                     polars_frame = bars.polars_df
                     resampled_frame = resample_polars_ohlc(polars_frame, multiplier, base_unit, length)
                     if resampled_frame is not None and not resampled_frame.is_empty():
@@ -5428,7 +6071,7 @@ class Strategy(_Strategy):
         Returns:
             None
         """
-        trader = Trader()
+        trader = _trader_class()()
 
         trader.add_strategy(self)
         trader.run_all()
@@ -5475,7 +6118,7 @@ class Strategy(_Strategy):
         use_quote_data: bool = True,  # Changed to True for ThetaData options support
         show_progress_bar: bool = True,
         quiet_logs: bool = True,
-        trader_class: Type[Trader] = Trader,
+        trader_class = None,
         save_stats_file: bool = True,
         **kwargs,
     ):

@@ -4,7 +4,6 @@ Automatically records execution time and key metrics to CSV for long-term tracki
 """
 import csv
 import datetime
-import os
 from pathlib import Path
 
 
@@ -43,7 +42,7 @@ class PerformanceTracker:
         """Create CSV file with headers if it doesn't exist"""
         if not self.csv_path.exists():
             with open(self.csv_path, 'w', newline='') as f:
-                writer = csv.DictWriter(f, fieldnames=self.COLUMNS)
+                writer = csv.DictWriter(f, fieldnames=self.COLUMNS, lineterminator="\n")
                 writer.writeheader()
 
     def _get_git_commit(self):
@@ -111,7 +110,7 @@ class PerformanceTracker:
         }
 
         with open(self.csv_path, 'a', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=self.COLUMNS)
+            writer = csv.DictWriter(f, fieldnames=self.COLUMNS, lineterminator="\n")
             writer.writerow(row)
 
     def get_recent_performance(self, test_name=None, limit=10):

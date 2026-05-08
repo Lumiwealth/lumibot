@@ -4,7 +4,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 import pandas as pd
-from datetime import datetime as dt, time, timedelta # Renamed datetime to dt to avoid conflict
+from datetime import datetime as dt # Renamed datetime to dt to avoid conflict
 import pytz
 
 
@@ -238,6 +238,26 @@ class TestBacktestingBroker:
         broker._partially_filled_orders = MagicMock()
 
         orders = broker.get_active_tracked_orders(strategy="test", asset=asset)
+
+        assert orders == [matching]
+
+    def test_get_active_tracked_orders_normalizes_strategy_object_for_simple_pending(self):
+        broker = BacktestingBroker.__new__(BacktestingBroker)
+        asset = Asset("SPY")
+        strategy = SimpleNamespace(name="test")
+        matching = MagicMock()
+        matching.asset = asset
+        matching.strategy = "test"
+        matching.is_active.return_value = True
+        broker._simple_new_orders_by_strategy = {"test": [matching]}
+        broker._unprocessed_orders = MagicMock()
+        broker._unprocessed_orders.get_list.return_value = []
+        broker._new_orders = MagicMock()
+        broker._new_orders.get_list.return_value = []
+        broker._partially_filled_orders = MagicMock()
+        broker._partially_filled_orders.get_list.return_value = []
+
+        orders = broker.get_active_tracked_orders(strategy=strategy, asset=asset)
 
         assert orders == [matching]
 

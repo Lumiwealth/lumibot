@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import base64
 import json
 import os
@@ -5,33 +7,55 @@ import re
 import traceback
 from datetime import datetime, timedelta
 from threading import Thread
-from typing import List, Optional, Union
-
-import dotenv
-from pytz import timezone
-
-# Import Schwab specific libraries
-from schwab.client import Client
-from schwab.streaming import StreamClient
-from termcolor import colored
+from typing import TYPE_CHECKING, List, Optional, Union
 
 from .broker import Broker
-from lumibot.data_sources import SchwabData  # Import YahooData
-from lumibot.entities import Asset, Order, Position
+from lumibot.entities import Asset, Order
 from lumibot.tools.lumibot_logger import get_logger
+
+if TYPE_CHECKING:
+    from lumibot.entities import Position
+    from lumibot.strategies.strategy import Strategy
 
 logger = get_logger(__name__)
 
-# Import PollingStream class
 import time
 from pathlib import Path
-
-from lumibot.tools import SchwabHelper
-from lumibot.trading_builtins import PollingStream
 
 # ---- Lumiwealth default Schwab app configuration ----
 LUMI_DEFAULT_APP_KEY = "RfUVxotUc8p6CbeCwFmophgNZSat0TLv"
 LUMI_DEFAULT_CALLBACK = "https://api.botspot.trade/broker_oauth/schwab"
+_SCHWAB_DATA_CLASS = None
+SchwabHelper = None
+_COLORED_FN = None
+
+
+def colored(*args, **kwargs):
+    global _COLORED_FN
+    if _COLORED_FN is None:
+        from termcolor import colored as _termcolor_colored
+
+        _COLORED_FN = _termcolor_colored
+    return _COLORED_FN(*args, **kwargs)
+
+
+def _schwab_data_class():
+    global _SCHWAB_DATA_CLASS
+    if _SCHWAB_DATA_CLASS is None:
+        from lumibot.data_sources import SchwabData
+
+        _SCHWAB_DATA_CLASS = SchwabData
+    return _SCHWAB_DATA_CLASS
+
+
+def _schwab_helper():
+    global SchwabHelper
+    if SchwabHelper is None:
+        from lumibot.tools import SchwabHelper as _helper
+
+        SchwabHelper = _helper
+    return SchwabHelper
+
 
 class Schwab(Broker):
     """
@@ -46,7 +70,7 @@ class Schwab(Broker):
     """
 
     NAME = "Schwab"
-    POLL_EVENT = PollingStream.POLL_EVENT
+    POLL_EVENT = "poll"
 
     def __init__(
             self,
@@ -60,6 +84,7 @@ class Schwab(Broker):
 
         # === Prepare Data Source ===
         # Determine if SchwabData is intended or if a specific one was passed
+        SchwabData = _schwab_data_class()
         is_schwab_data_intended = data_source is None or isinstance(data_source, SchwabData)
         final_data_source = data_source
 
@@ -106,6 +131,8 @@ class Schwab(Broker):
         self.market = (config.get("MARKET") if config else None) or os.environ.get("MARKET") or "NASDAQ"
 
         # Load environment variables (still useful for fallback if config is missing keys)
+        import dotenv
+
         dotenv.load_dotenv()
         logger.warning("==== [DEBUG] Schwab Broker Initialization (New OAuth Flow) ====")
         config = config or {}
@@ -173,10 +200,10 @@ class Schwab(Broker):
         if token_payload_env:
             logger.info("[Schwab] SCHWAB_TOKEN environment variable found. Processing it.")
             try:
-                SchwabHelper._save_payload_str_to_token_file(token_payload_env, token_path)
-                if SchwabHelper._is_token_valid_for_schwab_py(token_path):
-                    SchwabHelper._ensure_token_metadata(token_path)
-                    if SchwabHelper._is_token_valid_for_schwab_py(token_path):
+                _schwab_helper()._save_payload_str_to_token_file(token_payload_env, token_path)
+                if _schwab_helper()._is_token_valid_for_schwab_py(token_path):
+                    _schwab_helper()._ensure_token_metadata(token_path)
+                    if _schwab_helper()._is_token_valid_for_schwab_py(token_path):
                         token_available_and_valid = True
                         logger.info(f"[Schwab] Token from SCHWAB_TOKEN env var processed, validated, and saved to {token_path}")
                     else:
@@ -192,8 +219,8 @@ class Schwab(Broker):
         if not token_available_and_valid and token_path.exists() and token_path.stat().st_size > 0:
             logger.info(f"[Schwab] Existing token file found at {token_path}. Validating...")
             try:
-                SchwabHelper._ensure_token_metadata(token_path)
-                if SchwabHelper._is_token_valid_for_schwab_py(token_path):
+                _schwab_helper()._ensure_token_metadata(token_path)
+                if _schwab_helper()._is_token_valid_for_schwab_py(token_path):
                     token_available_and_valid = True
                     logger.info(f"[Schwab] Existing token file {token_path} is valid after metadata check.")
                 else:
@@ -205,7 +232,7 @@ class Schwab(Broker):
 
         if not token_available_and_valid:
             logger.info("[Schwab] No valid token found. Initiating user authorization flow to obtain token payload.")
-            auth_success = SchwabHelper._initiate_schwab_auth_and_get_token_payload(api_key, schwab_backend_redirect_uri, token_path)
+            auth_success = _schwab_helper()._initiate_schwab_auth_and_get_token_payload(api_key, schwab_backend_redirect_uri, token_path)
             if not auth_success:
                 self.schwab_authorization_error = True
                 raise ConnectionError(
@@ -213,9 +240,9 @@ class Schwab(Broker):
                     "Please check logs, ensure SCHWAB_APP_KEY and SCHWAB_BACKEND_CALLBACK_URL are correct, "
                     "and that the backend OAuth flow is functioning. Restart to try again."
                 )
-            if SchwabHelper._is_token_valid_for_schwab_py(token_path):
-                SchwabHelper._ensure_token_metadata(token_path)
-                if SchwabHelper._is_token_valid_for_schwab_py(token_path):
+            if _schwab_helper()._is_token_valid_for_schwab_py(token_path):
+                _schwab_helper()._ensure_token_metadata(token_path)
+                if _schwab_helper()._is_token_valid_for_schwab_py(token_path):
                     token_available_and_valid = True
                 else:
                     logger.error(f"[Schwab] Token became invalid after SchwabHelper._ensure_token_metadata post-auth. Deleting {token_path}.")
@@ -285,6 +312,8 @@ class Schwab(Broker):
             # Passing it raises: TypeError: BaseClient.__init__() got an unexpected keyword argument 'app_secret'.
             # The secret is only needed when REFRESHING a token via the auth helpers, not when we already
             # have a full token dict and build the OAuth2Session ourselves, so we can safely omit it here.
+            from schwab.client import Client
+
             self.client = Client(api_key=api_key, session=oauth_session)
             logger.info(f"[Schwab] Successfully initialized Schwab client from {token_path} (app_secret not used).")
             # Check if SCHWAB_APP_SECRET is available for auto-refresh warning
@@ -478,7 +507,7 @@ class Schwab(Broker):
                 elif asset_type == 'OPTION':
                     # Parse option details
                     option_symbol = instrument.get('symbol')
-                    option_parts = SchwabHelper._parse_option_symbol(option_symbol)
+                    option_parts = _schwab_helper()._parse_option_symbol(option_symbol)
 
                     if option_parts is None:
                         logger.error(colored(f"Failed to parse option symbol: {option_symbol}", "red"))
@@ -561,6 +590,8 @@ class Schwab(Broker):
                             existing_position.market_value += market_value
                     else:
                         # Create a new Position object
+                        from lumibot.entities import Position
+
                         pos_dict[key] = Position(
                             strategy_name,
                             asset=asset,
@@ -658,6 +689,8 @@ class Schwab(Broker):
 
         try:
             # Get orders from last 7 days
+            from pytz import timezone
+
             seek_start = datetime.now(timezone('UTC')) - timedelta(days=7)
 
             response = self.client.get_orders_for_account(
@@ -964,7 +997,7 @@ class Schwab(Broker):
                     )
                 elif asset_type == Asset.AssetType.OPTION:
                     option_symbol = instrument.get("symbol", "")
-                    option_parts = SchwabHelper._parse_option_symbol(option_symbol)
+                    option_parts = _schwab_helper()._parse_option_symbol(option_symbol)
 
                     if not option_parts:
                         logger.error(colored(f"Failed to parse option symbol: {option_symbol} for order ID: {order_id}", "red"))
@@ -1025,6 +1058,8 @@ class Schwab(Broker):
         # Only create stream client if client exists
         if self.client:
             try:
+                from schwab.streaming import StreamClient
+
                 self.stream_client = StreamClient(self.client, account_id=account_number)
             except Exception as e:
                 logger.error(colored(f"Failed to create Schwab StreamClient: {e}", "red"))
@@ -1036,7 +1071,7 @@ class Schwab(Broker):
         # === Configure Data Source Client ===
         # The data_source passed here is the one set in self.data_source by super().__init__
         # self.data_source should already be the correct instance (either passed in or created in __init__)
-        if self._is_schwab_data_intended and isinstance(self.data_source, SchwabData):
+        if self._is_schwab_data_intended and isinstance(self.data_source, _schwab_data_class()):
             if self.client:
                 # Set the client on the existing SchwabData instance
                 if not hasattr(self.data_source, 'client') or self.data_source.client is None:
@@ -1070,6 +1105,8 @@ class Schwab(Broker):
     # Unimplemented methods with stubs
     def _get_stream_object(self):
         """Get the broker stream connection"""
+        from lumibot.trading_builtins import PollingStream
+
         stream = PollingStream(5.0)  # 5 seconds polling interval
         return stream
 
@@ -1198,7 +1235,7 @@ class Schwab(Broker):
 
             # Import Schwab order templates
             try:
-                from schwab.orders.common import Duration, OrderType, Session
+                from schwab.orders.common import Duration, Session
                 from schwab.orders.equities import (
                     equity_buy_limit,
                     equity_buy_market,

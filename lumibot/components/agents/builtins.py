@@ -709,12 +709,20 @@ def _bind_get_cash_flow(strategy: Any, manager: Any) -> BoundTool:
 
 
 def _bind_get_company_facts(strategy: Any, manager: Any) -> BoundTool:
-    def get_company_facts(symbol: str, as_of: str | None = None, raw: bool = False) -> dict[str, Any]:
-        return strategy.fundamentals.get_company_facts(symbol, as_of=as_of, raw=raw)
+    def get_company_facts(
+        symbol: str,
+        as_of: str | None = None,
+        raw: bool = False,
+        max_facts: int | None = 80,
+    ) -> dict[str, Any]:
+        return strategy.fundamentals.get_company_facts(symbol, as_of=as_of, raw=raw, max_facts=max_facts)
 
     return BoundTool(
         name="get_company_facts",
-        description="Get compact or raw SEC companyfacts for a US equity, gated to as_of or the current strategy datetime.",
+        description=(
+            "Get compact or raw SEC companyfacts for a US equity, gated to as_of or the current strategy datetime. "
+            "Default output is capped to important/latest facts so agent runs stay within context; use max_facts or raw=True only when needed."
+        ),
         function=get_company_facts,
         source="builtin",
         metadata={"kind": "fundamentals"},

@@ -14,6 +14,8 @@ self.fundamentals.search_filing("AAPL", accession_number="...", query="risk")
 self.fundamentals.get_filing_document("AAPL", accession_number="...")
 ```
 
+`get_company_facts()` returns a compact latest-facts view by default, capped at important fields so agent runs do not flood the model context. Pass `max_facts=None` for the full compact fact set, or `raw=True` for the raw SEC companyfacts payload when you explicitly need it.
+
 Agent tools use the same names without `self.fundamentals.`:
 
 - `get_income_statement`

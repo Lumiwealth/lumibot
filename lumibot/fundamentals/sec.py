@@ -47,6 +47,27 @@ CASH_FLOW_TAGS = {
     "buybacks": ["PaymentsForRepurchaseOfCommonStock"],
 }
 
+_DEFAULT_COMPANY_FACTS_LIMIT = 80
+_PRIORITY_COMPANY_FACT_TAGS = tuple(
+    dict.fromkeys(
+        [
+            *(tag for tags in INCOME_STATEMENT_TAGS.values() for tag in tags),
+            *(tag for tags in BALANCE_SHEET_TAGS.values() for tag in tags),
+            *(tag for tags in CASH_FLOW_TAGS.values() for tag in tags),
+            "ResearchAndDevelopmentExpense",
+            "SellingGeneralAndAdministrativeExpense",
+            "OperatingExpenses",
+            "InterestExpenseNonOperating",
+            "IncomeTaxExpenseBenefit",
+            "InventoryNet",
+            "AccountsReceivableNetCurrent",
+            "AccountsPayableCurrent",
+            "LongTermDebtAndFinanceLeaseObligationsNoncurrent",
+            "WeightedAverageNumberOfDilutedSharesOutstanding",
+        ]
+    )
+)
+
 
 def _parse_dt(value: Any) -> datetime | None:
     if isinstance(value, datetime):
@@ -178,7 +199,14 @@ class SECFundamentals:
         url = f"{SEC_DATA_BASE_URL}/submissions/CIK{cik}.json"
         return self._get_json(url, self._cache_path("submissions", f"CIK{cik}.json"))
 
-    def get_company_facts(self, symbol: str, *, as_of: Any | None = None, raw: bool = False) -> dict[str, Any]:
+    def get_company_facts(
+        self,
+        symbol: str,
+        *,
+        as_of: Any | None = None,
+        raw: bool = False,
+        max_facts: int | None = _DEFAULT_COMPANY_FACTS_LIMIT,
+    ) -> dict[str, Any]:
         cik = self.ticker_to_cik(symbol)
         url = f"{SEC_DATA_BASE_URL}/api/xbrl/companyfacts/CIK{cik}.json"
         payload = self._get_json(url, self._cache_path("companyfacts", f"CIK{cik}.json"))
@@ -187,11 +215,23 @@ class SECFundamentals:
         facts = payload.get("facts", {}).get("us-gaap", {})
         as_of_dt = _as_of_datetime(as_of) if as_of is not None else self._strategy_as_of()
         compact: dict[str, Any] = {"symbol": symbol.upper(), "cik": cik, "as_of": as_of_dt.isoformat(), "facts": {}}
-        for tag, tag_payload in facts.items():
+        ordered_tags = [tag for tag in _PRIORITY_COMPANY_FACT_TAGS if tag in facts]
+        priority_seen = set(ordered_tags)
+        ordered_tags.extend(tag for tag in sorted(facts) if tag not in priority_seen)
+        limit = None if max_facts is None else max(int(max_facts), 1)
+        stopped_for_limit = False
+        for tag in ordered_tags:
+            if limit is not None and len(compact["facts"]) >= limit:
+                stopped_for_limit = True
+                break
+            tag_payload = facts[tag]
             units = tag_payload.get("units", {})
             latest = self._latest_fact_from_units(units, as_of_dt)
             if latest is not None:
                 compact["facts"][tag] = latest
+        compact["fact_count"] = len(compact["facts"])
+        compact["truncated"] = stopped_for_limit
+        compact["max_facts"] = max_facts
         return compact
 
     def get_income_statement(self, symbol: str, *, as_of: Any | None = None, raw: bool = False) -> dict[str, Any]:

@@ -101,3 +101,33 @@ def test_sec_filings_and_keyword_search(monkeypatch, tmp_path):
     )
     assert matches["match_count"] >= 1
     assert "Customer concentration" in matches["matches"][0]["context"]
+
+
+def test_company_facts_are_compact_by_default(monkeypatch, tmp_path):
+    def fake_get(url, **kwargs):
+        if url.endswith("company_tickers.json"):
+            return _Response(payload={"0": {"ticker": "AAPL", "cik_str": 320193, "title": "Apple Inc."}})
+        if "companyfacts" in url:
+            facts = {
+                "RevenueFromContractWithCustomerExcludingAssessedTax": {
+                    "units": {"USD": [{"val": 100, "filed": "2024-01-01", "form": "10-K"}]}
+                }
+            }
+            for index in range(10):
+                facts[f"CustomFact{index}"] = {
+                    "units": {"USD": [{"val": index, "filed": "2024-01-01", "form": "10-K"}]}
+                }
+            return _Response(payload={"facts": {"us-gaap": facts}})
+        raise AssertionError(url)
+
+    monkeypatch.setattr("lumibot.fundamentals.sec.requests.get", fake_get)
+    sec = SECFundamentals(cache_dir=tmp_path, min_request_interval_seconds=0)
+
+    compact = sec.get_company_facts("AAPL", as_of="2025-01-01", max_facts=3)
+    assert compact["fact_count"] == 3
+    assert compact["truncated"] is True
+    assert "RevenueFromContractWithCustomerExcludingAssessedTax" in compact["facts"]
+
+    full = sec.get_company_facts("AAPL", as_of="2025-01-01", max_facts=None)
+    assert full["fact_count"] == 11
+    assert full["truncated"] is False

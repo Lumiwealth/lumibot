@@ -17,33 +17,27 @@ NewsSortArg = Literal["asc", "desc"]
 
 
 class _LazyModule:
+    """Read-only proxy that imports the target module on first attribute access.
+
+    object.__setattr__ touches the internal slots directly; callers should only
+    read attributes through this proxy so module mutation is not hidden here.
+    """
+
     __slots__ = ("_module_name", "_module")
 
     def __init__(self, module_name: str):
-        self._module_name = module_name
-        self._module = None
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
 
     def _load(self):
-        module = self._module
+        module = object.__getattribute__(self, "_module")
         if module is None:
-            module = import_module(self._module_name)
-            self._module = module
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
         return module
 
     def __getattr__(self, name):
         return getattr(self._load(), name)
-
-    def __setattr__(self, name, value):
-        if name in {"_module_name", "_module"}:
-            object.__setattr__(self, name, value)
-        else:
-            setattr(self._load(), name, value)
-
-    def __delattr__(self, name):
-        if name in {"_module_name", "_module"}:
-            object.__delattr__(self, name)
-        else:
-            delattr(self._load(), name)
 
 
 requests = _LazyModule("requests")

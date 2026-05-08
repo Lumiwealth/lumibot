@@ -121,6 +121,7 @@ class ImportantFunctions(Strategy):
 
 
 if __name__ == "__main__":
+    # Defer optional broker imports so importing this example does not require CCXT.
     from lumibot.brokers import Ccxt
 
     KRAKEN_CONFIG = {

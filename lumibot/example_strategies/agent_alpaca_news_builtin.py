@@ -34,6 +34,7 @@ IS_BACKTESTING = True
 
 class AlpacaNewsBuiltinStrategy(Strategy):
     def initialize(self):
+        # BuiltinTools stays local so importing this example does not load agent tooling.
         from lumibot.components.agents import BuiltinTools
 
         self.sleeptime = "1D"

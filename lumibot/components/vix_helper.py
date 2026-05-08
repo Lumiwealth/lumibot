@@ -48,6 +48,8 @@ _TA_MODULE = None
 
 
 def _get_ta_module():
+    # Lazy-load pandas_ta_classic on the first RSI call so importing VixHelper
+    # does not pull NumPy/pandas-ta into startup paths that never compute RSI.
     global _TA_MODULE
     if _TA_MODULE is None:
         np = import_module("numpy")

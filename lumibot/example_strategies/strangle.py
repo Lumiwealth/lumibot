@@ -7,6 +7,7 @@ from lumibot.strategies.strategy import Strategy
 
 
 def _ticker(symbol):
+    """Import yfinance on first strategy use and return a Ticker instance."""
     from yfinance import Ticker
 
     return Ticker(symbol)

@@ -16,6 +16,12 @@ _READ_ONLY_SQL_RE = re.compile(r"^\s*(select|with|show|describe|pragma|explain)\
 
 
 class _LazyModule:
+    """Proxy that imports a module on first attribute read.
+
+    object.__setattr__ and object.__getattribute__ bypass __getattr__ while the
+    internal slots are empty, avoiding recursion before the real module loads.
+    """
+
     __slots__ = ("_module_name", "_module")
 
     def __init__(self, module_name: str):

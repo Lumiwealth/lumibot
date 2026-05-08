@@ -135,9 +135,13 @@ def _strategy_timezone_name(strategy: Any, current_dt: Any) -> str | None:
 
 
 def _serialize_recent_trade_events(strategy: Any, limit: int = 10) -> list[dict[str, Any]]:
+    """Serialize broker trade events; optional expand_trade_event_rows maps rows -> rows."""
+
     broker = getattr(strategy, "broker", None)
     rows = list(getattr(broker, "_trade_event_log_rows", []) or [])
-    expand_rows = getattr(broker, "_expand_trade_event_rows", None)
+    expand_rows = getattr(broker, "expand_trade_event_rows", None)
+    if expand_rows is None:
+        expand_rows = getattr(broker, "_expand_trade_event_rows", None)
     if callable(expand_rows):
         rows = expand_rows(rows)
     columns = list(getattr(broker, "_trade_event_log_columns", []) or [])
@@ -1405,7 +1409,7 @@ class AgentManager:
         self.strategy = strategy
         self._agents: dict[str, AgentHandle] = {}
         self._warned_backtest_mcp_tools: set[tuple[str, str]] = set()
-        agent_replay_cache_class, _normalize_json_func = _get_replay_imports()
+        agent_replay_cache_class, _ = _get_replay_imports()
         self.replay_cache = agent_replay_cache_class()
         self.duckdb = _get_duckdb_query_layer_class()(strategy)
         self._observability_totals: dict[str, dict[str, int]] = {}

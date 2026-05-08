@@ -20,15 +20,9 @@ import os
 
 from lumibot.strategies.strategy import Strategy
 
-from ._agent_tool import agent_tool
+from lumibot.example_strategies._agent_tool import agent_tool, _requests
 
 IS_BACKTESTING = True
-
-
-def _requests():
-    import requests
-
-    return requests
 
 
 class MomentumAllocatorStrategy(Strategy):

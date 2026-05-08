@@ -7,12 +7,15 @@ from lumibot.entities import Order
 from lumibot.strategies.strategy import Strategy
 
 
+# DriftType mirrors lumibot.components.drift_rebalancer_logic.DriftType; keep
+# values aligned because strategy parameters are passed directly into that logic.
 class DriftType:
     ABSOLUTE = "absolute"
     RELATIVE = "relative"
 
 
 def _pd():
+    # _pd() imports pandas on demand so example discovery stays lightweight.
     import pandas as pd
 
     return pd

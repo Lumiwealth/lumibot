@@ -1,5 +1,6 @@
 import importlib
 import inspect
+import sys
 from unittest.mock import patch
 
 
@@ -21,6 +22,27 @@ def test_lazy_package_all_exports_resolve():
         module = importlib.import_module(module_name)
         for export_name in getattr(module, "__all__", ()):
             getattr(module, export_name)
+
+
+def test_lazy_package_exports_defer_heavy_submodule_imports():
+    # Invariant: importing package namespaces must not import heavy optional
+    # backends until their public export is first accessed.
+    cases = [
+        ("lumibot.backtesting", "BacktestingBroker", "lumibot.backtesting.backtesting_broker"),
+        ("lumibot.brokers", "Alpaca", "lumibot.brokers.alpaca"),
+        ("lumibot.components", "BuiltinTools", "lumibot.components.agents"),
+        ("lumibot.data_sources", "YahooData", "lumibot.data_sources.yahoo_data"),
+        ("lumibot.tools", "YahooHelper", "lumibot.tools.yahoo_helper"),
+    ]
+
+    for module_name, export_name, target_module in cases:
+        sys.modules.pop(target_module, None)
+        module = importlib.import_module(module_name)
+        module.__dict__.pop(export_name, None)
+
+        assert target_module not in sys.modules
+        getattr(module, export_name)
+        assert target_module in sys.modules
 
 
 def test_legacy_star_import_exports_resolve():
@@ -71,7 +93,6 @@ def test_lazy_module_patch_teardown_forwards_deletion():
     targets = [
         "lumibot.tools.thetadata_helper.requests._lumibot_patch_probe",
         "lumibot.brokers.tradier.requests._lumibot_patch_probe",
-        "lumibot.components.agents.builtins.requests._lumibot_patch_probe",
         "lumibot.tools.projectx_helpers.requests._lumibot_patch_probe",
         "lumibot.backtesting.routed_backtesting.pd._lumibot_patch_probe",
         "lumibot.backtesting.databento_backtesting_pandas.pd._lumibot_patch_probe",
@@ -86,13 +107,11 @@ def test_lazy_module_patch_teardown_forwards_deletion():
 
 def test_lazy_module_patch_teardown_restores_existing_attributes():
     from lumibot.brokers import tradier
-    from lumibot.components.agents import builtins
     from lumibot.tools import projectx_helpers, thetadata_helper
 
     target_pairs = [
         (thetadata_helper.requests, "lumibot.tools.thetadata_helper.requests.get"),
         (tradier.requests, "lumibot.brokers.tradier.requests.get"),
-        (builtins.requests, "lumibot.components.agents.builtins.requests.get"),
         (projectx_helpers.requests, "lumibot.tools.projectx_helpers.requests.get"),
     ]
 
@@ -123,7 +142,12 @@ def test_legacy_entities_package_alias_resolves_submodules():
 def test_lightweight_example_agent_tool_preserves_source_description():
     from lumibot.example_strategies._agent_tool import agent_tool
 
-    @agent_tool(description="Demo tool")
+    @agent_tool(
+        name="sample_tool",
+        description=(
+            "Demo tool"
+        ),
+    )
     def sample_tool(value: int) -> int:
         return value + 1
 
@@ -132,4 +156,25 @@ def test_lightweight_example_agent_tool_preserves_source_description():
     assert metadata["name"] == "sample_tool"
     assert metadata["description"].startswith("Demo tool")
     assert "Source code:" in metadata["description"]
+    assert "description=(" not in metadata["description"]
     assert "def sample_tool(value: int) -> int:" in metadata["description"]
+
+
+def test_lightweight_example_agent_tool_signature_fallback_uses_any_for_missing_annotations():
+    from lumibot.example_strategies._agent_tool import _build_description
+
+    def sample_tool(value):
+        return value
+
+    with patch("inspect.getsource", side_effect=OSError):
+        description = _build_description(sample_tool, "Demo tool")
+
+    assert "value (any)" in description
+
+
+def test_crypto_example_import_defers_ccxt_broker():
+    sys.modules.pop("lumibot.brokers.ccxt", None)
+    module = importlib.import_module("lumibot.example_strategies.crypto_important_functions")
+
+    assert module.ImportantFunctions is not None
+    assert "lumibot.brokers.ccxt" not in sys.modules

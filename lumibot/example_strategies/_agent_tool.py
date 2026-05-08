@@ -13,12 +13,15 @@ def _get_clean_source(func: Callable[..., Any]) -> str | None:
     lines = source.split("\n")
     clean_lines = []
     past_decorator = False
+    decorator_depth = 0
     for line in lines:
         stripped = line.strip()
         if not past_decorator:
-            if stripped.startswith("@"):
-                continue
-            if stripped.startswith(")") and not stripped.startswith("def"):
+            # Skip all decorator lines, including multi-line decorator arguments,
+            # before reaching the def statement that belongs in the tool prompt.
+            if stripped.startswith("@") or decorator_depth:
+                decorator_depth += stripped.count("(") - stripped.count(")")
+                decorator_depth = max(decorator_depth, 0)
                 continue
             past_decorator = True
         clean_lines.append(line)
@@ -42,14 +45,23 @@ def _build_description(func: Callable[..., Any], explicit_description: str | Non
         if name == "self":
             continue
         annotation = param.annotation
-        type_str = annotation.__name__ if hasattr(annotation, "__name__") else str(annotation)
-        if type_str == "<class 'inspect._empty'>":
+        if annotation is inspect.Parameter.empty:
             type_str = "any"
+        elif hasattr(annotation, "__name__"):
+            type_str = annotation.__name__
+        else:
+            type_str = str(annotation)
         default = f", default={param.default!r}" if param.default is not inspect.Parameter.empty else ""
         params.append(f"{name} ({type_str}{default})")
     if params:
         return f"{base}\n\nParameters: {', '.join(params)}"
     return base
+
+
+def _requests():
+    import requests
+
+    return requests
 
 
 def agent_tool(*, name: str | None = None, description: str | None = None) -> Callable[[Callable[..., Any]], Callable[..., Any]]:

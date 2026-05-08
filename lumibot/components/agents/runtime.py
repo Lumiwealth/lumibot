@@ -786,13 +786,12 @@ class GoogleADKRuntime:
         return _classify_agent_error(exc) not in ("transient", "unknown")
 
     def run(self, request: RuntimeRequest) -> AgentRunResult:
+        import asyncio
         import time as _time
 
         last_exc: BaseException | None = None
         for attempt in range(1, self._MAX_RUN_ATTEMPTS + 1):
             try:
-                import asyncio
-
                 return asyncio.run(self._run_async(request))
             except (KeyboardInterrupt, SystemExit):
                 raise

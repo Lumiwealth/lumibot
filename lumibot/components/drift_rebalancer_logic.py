@@ -13,6 +13,12 @@ if TYPE_CHECKING:
 
 
 class _LazyModule:
+    """Defer module import until first attribute access.
+
+    Invariant: this proxy is for attribute reads such as pd.DataFrame; assignment
+    should not be routed through the underlying module.
+    """
+
     __slots__ = ("_module_name", "_module")
 
     def __init__(self, module_name: str):
@@ -30,11 +36,14 @@ class _LazyModule:
         return getattr(self._load(), name)
 
 
+# pandas stays behind a proxy so importing component logic does not import pandas.
 pd = _LazyModule("pandas")
+# Cache the prettifier on first use so importing drift logic stays lightweight.
 _PRETTIFY_DATAFRAME_WITH_DECIMALS = None
 
 
 def _prettify_dataframe_with_decimals(*args, **kwargs):
+    # First call imports the helper; later calls reuse the same function object.
     global _PRETTIFY_DATAFRAME_WITH_DECIMALS
     if _PRETTIFY_DATAFRAME_WITH_DECIMALS is None:
         from lumibot.tools.pandas import prettify_dataframe_with_decimals

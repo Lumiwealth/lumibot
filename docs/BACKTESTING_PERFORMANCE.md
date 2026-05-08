@@ -138,6 +138,11 @@ When a user clicks “Backtest”, the system goes through phases. A useful ment
 - reduce work done before first progress write
 - avoid expensive imports at module import time
 
+**Lazy import contract**
+- Package exports in `lumibot.*.__init__` must defer provider/backend imports until first attribute access.
+- Optional technical-analysis helpers, including VIX RSI (`pandas_ta_classic`), should import on first use rather than during package import.
+- Example strategies may keep broker/data/tool imports inside helpers or `__main__` blocks when those imports are only needed to run that example.
+
 ### Phase C — Data hydration (remote downloader + caching)
 
 This is the dominant cost for many option strategies on cold caches:

@@ -7,20 +7,15 @@ import traceback
 from datetime import datetime, timedelta
 from decimal import Decimal
 from functools import wraps
+from importlib import import_module
 from queue import Empty, Queue
 from threading import Event, Lock, Thread
-
-import pandas as pd
+from types import ModuleType
 
 logger = logging.getLogger(__name__)
-import pandas_market_calendars as mcal
-from apscheduler.jobstores.memory import MemoryJobStore
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset, Order
-from lumibot.entities import Asset
-from lumibot.tools import append_locals, get_trading_days, staticdecorator
+from lumibot.tools.decorators import append_locals, staticdecorator
 from lumibot.tools.smart_limit_utils import (
     build_price_ladder,
     compute_final_price,
@@ -31,6 +26,83 @@ from lumibot.tools.smart_limit_utils import (
 )
 
 SNAPSHOT_CAPTURE_THROTTLE_SECONDS = 1.9
+_SCHEDULER_IMPORTS = None
+_PANDAS_MARKET_CALENDARS = None
+_GET_TRADING_DAYS = None
+
+
+class _LazyModule(ModuleType):
+    def __init__(self, module_name: str):
+        super().__init__(module_name)
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+
+
+def get_trading_days(*args, **kwargs):
+    global _GET_TRADING_DAYS
+    if _GET_TRADING_DAYS is None:
+        from lumibot.tools.helpers import get_trading_days as _func
+
+        _GET_TRADING_DAYS = _func
+    return _GET_TRADING_DAYS(*args, **kwargs)
+
+
+def _get_scheduler_imports():
+    global _SCHEDULER_IMPORTS
+    if _SCHEDULER_IMPORTS is None:
+        from apscheduler.jobstores.memory import MemoryJobStore
+        from apscheduler.schedulers.background import BackgroundScheduler
+        from apscheduler.triggers.cron import CronTrigger
+
+        _SCHEDULER_IMPORTS = (MemoryJobStore, BackgroundScheduler, CronTrigger)
+    return _SCHEDULER_IMPORTS
+
+
+def _get_market_calendars():
+    global _PANDAS_MARKET_CALENDARS
+    if _PANDAS_MARKET_CALENDARS is None:
+        import pandas_market_calendars as mcal
+
+        _PANDAS_MARKET_CALENDARS = mcal
+    return _PANDAS_MARKET_CALENDARS
+
+
+class _BacktestSchedulerStub:
+    """Cheap scheduler placeholder for backtests; creates real scheduler only if used."""
+
+    running = False
+
+    def __init__(self, executor):
+        self._executor = executor
+
+    def _materialize(self):
+        MemoryJobStore, BackgroundScheduler, _CronTrigger = _get_scheduler_imports()
+        job_stores = {"default": MemoryJobStore(), "On_Trading_Iteration": MemoryJobStore()}
+        scheduler = BackgroundScheduler(jobstores=job_stores)
+        self._executor.scheduler = scheduler
+        return scheduler
+
+    def add_job(self, *args, **kwargs):
+        return self._materialize().add_job(*args, **kwargs)
+
+    def get_jobs(self):
+        return []
+
+    def get_job(self, _job_id):
+        return None
 
 
 class StrategyExecutor(Thread):
@@ -51,20 +123,21 @@ class StrategyExecutor(Thread):
         self.strategy = strategy
         self._strategy_context = None
         self.broker = self.strategy.broker
+        self._is_backtesting_strategy = bool(getattr(self.strategy, "is_backtesting", False))
         self.result = {}
         self._in_trading_iteration = False
 
         # Store any exception that occurs during execution
         self.exception = None
 
-        # Create a dictionary of job stores. A job store is where the scheduler persists its jobs. In this case,
-        # we create an in-memory job store for "default" and "On_Trading_Iteration" which is the job store we will
-        # use to store jobs for the main on_trading_iteration method.
-        job_stores = {"default": MemoryJobStore(), "On_Trading_Iteration": MemoryJobStore()}
-
-        # Instantiate a BackgroundScheduler with the job stores we just defined. This scheduler will be used to store
-        # the jobs that we create later and execute them at the correct time.
-        self.scheduler = BackgroundScheduler(jobstores=job_stores)
+        # Backtests drive iterations synchronously and never need APScheduler. Live sessions create
+        # it lazily in _setup_live_trading_scheduler().
+        if self._is_backtesting_strategy:
+            self.scheduler = _BacktestSchedulerStub(self)
+        else:
+            MemoryJobStore, BackgroundScheduler, _CronTrigger = _get_scheduler_imports()
+            job_stores = {"default": MemoryJobStore(), "On_Trading_Iteration": MemoryJobStore()}
+            self.scheduler = BackgroundScheduler(jobstores=job_stores)
 
         # Initialize a target count and a current count for cron jobs to 0.
         # These are used to determine when to execute the on_trading_iteration method.
@@ -131,7 +204,7 @@ class StrategyExecutor(Thread):
                 self._market_type_cache[market_name] = True
                 return True
 
-            cal = mcal.get_calendar(market_name)
+            cal = _get_market_calendars().get_calendar(market_name)
 
             # Sample ~1.5 weeks so we can observe weekend gaps as well as daily spans.
             reference_day = pd.Timestamp('2025-01-13', tz='UTC')  # Monday
@@ -298,7 +371,6 @@ class StrategyExecutor(Thread):
         cash_broker_max_retries = 3
         cash_broker_retries = 0
         orders_broker = []
-        positions_broker = []
         while held_trades_len > 0:
             # Snapshot for the broker and lumibot:
             self.strategy
@@ -658,8 +730,14 @@ class StrategyExecutor(Thread):
             self.strategy.logger.error(f"Event {event} not recognized. Payload: {payload}")
 
     def process_queue(self):
-        while not self.queue.empty():
-            event, payload = self.queue.get()
+        queue = self.queue
+        if self._is_backtesting_strategy and not queue.queue:
+            return
+        while True:
+            try:
+                event, payload = queue.get_nowait()
+            except Empty:
+                break
             self.process_event(event, payload)
 
     def _process_smart_limit_orders(self):
@@ -1480,6 +1558,7 @@ class StrategyExecutor(Thread):
                 )
 
         # Return a CronTrigger object with the calculated settings.
+        _MemoryJobStore, _BackgroundScheduler, CronTrigger = _get_scheduler_imports()
         return CronTrigger(**kwargs)
 
     # TODO: speed up this function, it's a major bottleneck for backtesting
@@ -1692,8 +1771,13 @@ class StrategyExecutor(Thread):
 
     def _setup_live_trading_scheduler(self):
         """Set up the APScheduler for live trading sessions"""
+        MemoryJobStore, BackgroundScheduler, _CronTrigger = _get_scheduler_imports()
         # Ensure a scheduler exists (it may have been set to None during a previous graceful_exit)
-        if not hasattr(self, 'scheduler') or self.scheduler is None:
+        if (
+            not hasattr(self, 'scheduler')
+            or self.scheduler is None
+            or not isinstance(self.scheduler, BackgroundScheduler)
+        ):
             job_stores = {"default": MemoryJobStore(), "On_Trading_Iteration": MemoryJobStore()}
             self.scheduler = BackgroundScheduler(jobstores=job_stores)
 
@@ -1977,7 +2061,10 @@ class StrategyExecutor(Thread):
 
     def get_next_ap_scheduler_run_time(self):
         # Check if scheduler object exists.
-        if self.scheduler is None or not isinstance(self.scheduler, BackgroundScheduler):
+        if self.scheduler is None or isinstance(self.scheduler, _BacktestSchedulerStub):
+            return None
+        _MemoryJobStore, BackgroundScheduler, _CronTrigger = _get_scheduler_imports()
+        if not isinstance(self.scheduler, BackgroundScheduler):
             return None
 
         # Get the current jobs from the scheduler.

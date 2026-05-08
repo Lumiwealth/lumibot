@@ -1,21 +1,42 @@
+from __future__ import annotations
+
 import datetime
 import os
 import re
 import traceback
 from decimal import Decimal
 from math import gcd
-from typing import Union
-
-from termcolor import colored
+from typing import TYPE_CHECKING, Union
 
 from lumibot.tools.lumibot_logger import get_logger
 
 from ..brokers import Broker
-from ..data_sources import InteractiveBrokersRESTData
-from ..entities import Asset, Order, Position
-from ..trading_builtins import PollingStream
+from ..entities import Asset, Order
+
+if TYPE_CHECKING:
+    from ..entities import Position
 
 logger = get_logger(__name__)
+_INTERACTIVE_BROKERS_REST_DATA_CLASS = None
+_COLORED_FN = None
+
+
+def colored(*args, **kwargs):
+    global _COLORED_FN
+    if _COLORED_FN is None:
+        from termcolor import colored as _termcolor_colored
+
+        _COLORED_FN = _termcolor_colored
+    return _COLORED_FN(*args, **kwargs)
+
+
+def _interactive_brokers_rest_data_class():
+    global _INTERACTIVE_BROKERS_REST_DATA_CLASS
+    if _INTERACTIVE_BROKERS_REST_DATA_CLASS is None:
+        from ..data_sources import InteractiveBrokersRESTData
+
+        _INTERACTIVE_BROKERS_REST_DATA_CLASS = InteractiveBrokersRESTData
+    return _INTERACTIVE_BROKERS_REST_DATA_CLASS
 
 TYPE_MAP = dict(
     stock="STK",
@@ -68,7 +89,7 @@ class InteractiveBrokersREST(Broker):
     Broker that connects to the Interactive Brokers REST API.
     """
 
-    POLL_EVENT = PollingStream.POLL_EVENT
+    POLL_EVENT = "poll"
     NAME = "InteractiveBrokersREST"
 
     def __init__(self, config, data_source=None, poll_interval=5.0):
@@ -76,7 +97,7 @@ class InteractiveBrokersREST(Broker):
         self.polling_interval = poll_interval
 
         if data_source is None:
-            data_source = InteractiveBrokersRESTData(config)
+            data_source = _interactive_brokers_rest_data_class()(config)
 
         super().__init__(
             name=self.NAME,
@@ -139,6 +160,8 @@ class InteractiveBrokersREST(Broker):
                 quantity = balances["cashbalance"]
 
                 if quantity != 0:
+                    from ..entities import Position
+
                     position = Position(
                         strategy=strategy_name,
                         asset=asset,
@@ -381,6 +404,8 @@ class InteractiveBrokersREST(Broker):
             )
 
         quantity = broker_position["position"]
+        from ..entities import Position
+
         position = Position(strategy, asset, quantity, orders=orders)
         return position
 
@@ -399,6 +424,8 @@ class InteractiveBrokersREST(Broker):
         for pos in result:
             if pos.asset == asset:
                 return pos
+        from ..entities import Position
+
         return Position(strategy, asset, 0)
 
     def _pull_broker_positions(self, strategy=None):
@@ -562,6 +589,8 @@ class InteractiveBrokersREST(Broker):
                 continue
 
             # Create the Position object
+            from ..entities import Position
+
             position_obj = Position(
                 strategy=strategy,
                 asset=asset,
@@ -1149,6 +1178,8 @@ class InteractiveBrokersREST(Broker):
 
     def _get_stream_object(self):
         """Create polling stream"""
+        from ..trading_builtins import PollingStream
+
         return PollingStream(self.polling_interval)
 
     def _close_connection(self):

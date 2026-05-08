@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import json
 import os
@@ -5,33 +7,75 @@ import time
 import threading
 from collections import deque
 from abc import ABC, abstractmethod
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from queue import Queue
+from importlib import import_module
 from threading import RLock, Thread
-from typing import Union
-
-import pandas as pd
-import pandas_market_calendars as mcal
-from dateutil import tz
-from termcolor import colored
+from typing import TYPE_CHECKING, Union
 
 from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
 
 from lumibot.tools.lumibot_logger import get_logger, get_strategy_logger
-from lumibot.tools.parquet_utils import (
-    coerce_object_columns_to_json_strings,
-    is_parquet_required,
-    write_parquet_with_logging,
-)
 from lumibot.tools.symbol_normalization import normalize_symbol_for_broker, normalize_symbol_for_internal
-from ..data_sources import DataSource
-from ..entities import Asset, CashEvent, Order, Position, Quote
+from ..entities import Asset, Order
 from ..entities.chains import normalize_option_chains
 from ..trading_builtins import SafeList, SafeOrderDict
+
+if TYPE_CHECKING:
+    from ..data_sources import DataSource
+    from ..entities import CashEvent, Position, Quote
+    from ..strategies.strategy import Strategy
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+_PARQUET_UTILS = None
+_COLORED_FN = None
+
+
+def colored(*args, **kwargs):
+    global _COLORED_FN
+    if _COLORED_FN is None:
+        from termcolor import colored as _termcolor_colored
+
+        _COLORED_FN = _termcolor_colored
+    return _COLORED_FN(*args, **kwargs)
+
+
+def _get_parquet_utils():
+    global _PARQUET_UTILS
+    if _PARQUET_UTILS is None:
+        from lumibot.tools.parquet_utils import (
+            coerce_object_columns_to_json_strings,
+            is_parquet_required,
+            write_parquet_with_logging,
+        )
+
+        _PARQUET_UTILS = (
+            coerce_object_columns_to_json_strings,
+            is_parquet_required,
+            write_parquet_with_logging,
+        )
+    return _PARQUET_UTILS
 
 DEFAULT_CLEANUP_CONFIG = {
     "enabled": True,
@@ -99,6 +143,8 @@ TRADE_EVENT_LOG_COLUMNS = (
     "cash_event_broker_name",
     "cash_event_broker_event_id",
 )
+_FAST_TRADE_EVENT_MARKER = "__fast_trade__"
+_FAST_TRADE_PAIR_EVENT_MARKER = "__fast_trade_pair__"
 
 # Consolidate errors from different brokers into a single class that can be easily caught even
 # if the user decides to switch brokers.
@@ -169,6 +215,8 @@ class Broker(ABC):
         the existing trade-event stream so downstream artifacts can render them without requiring a
         separate cash-event file.
         """
+        from ..entities import CashEvent
+
         if not getattr(self, "_trade_event_log_enabled", True):
             return
         if not isinstance(cash_event, CashEvent):
@@ -302,7 +350,7 @@ class Broker(ABC):
         self._trade_event_log_rows = (
             deque(maxlen=self._trade_event_log_max_rows) if self._trade_event_log_max_rows else []
         )
-        self._trade_event_log_df_cache = pd.DataFrame()
+        self._trade_event_log_df_cache = None
         self._trade_event_log_columns = TRADE_EVENT_LOG_COLUMNS
         self._hold_trade_events = False
         self._held_trades = []
@@ -351,6 +399,8 @@ class Broker(ABC):
 
         # setting the orders queue and threads
         if not self.IS_BACKTESTING_BROKER:
+            from queue import Queue
+
             self._orders_queue = Queue()
             self._orders_thread = None
             self._start_orders_thread()
@@ -942,6 +992,7 @@ class Broker(ABC):
             getattr(self._error_orders, "revision", 0),
             getattr(self._canceled_orders, "revision", 0),
             getattr(self._placeholder_orders, "revision", 0),
+            getattr(self, "_simple_new_orders_revision", 0),
         )
         if self._tracked_orders_cache_key == cache_key:
             return self._tracked_orders_cache_value
@@ -949,6 +1000,10 @@ class Broker(ABC):
         orders: list[Order] = []
         orders.extend(self._unprocessed_orders.get_list())
         orders.extend(self._new_orders.get_list())
+        simple_by_strategy = getattr(self, "_simple_new_orders_by_strategy", None)
+        if simple_by_strategy:
+            for strategy_orders in simple_by_strategy.values():
+                orders.extend(strategy_orders)
         orders.extend(self._partially_filled_orders.get_list())
         orders.extend(self._filled_orders.get_list())
         orders.extend(self._error_orders.get_list())
@@ -1390,6 +1445,41 @@ class Broker(ABC):
     def _process_new_order(self, order):
         # Don't duplicate orders in the new orders tracker. Check if an order with the same identifier already exists
         # in the tracked orders.
+        if self.IS_BACKTESTING_BROKER:
+            order_identifier = order.identifier
+
+            def _find_in_bucket(bucket):
+                if order_identifier not in bucket:
+                    return None
+                getter = getattr(bucket, "get", None)
+                if getter is not None:
+                    existing = getter(order_identifier)
+                    if existing is not None:
+                        return existing
+                for existing in bucket.get_list():
+                    if getattr(existing, "_identifier", getattr(existing, "identifier", None)) == order_identifier:
+                        return existing
+                return None
+
+            existing_order = _find_in_bucket(self._new_orders)
+            if existing_order is not None:
+                return existing_order
+
+            existing_order = _find_in_bucket(self._unprocessed_orders)
+            if existing_order is not None:
+                order = existing_order
+            else:
+                for bucket in (self._partially_filled_orders, self._placeholder_orders):
+                    existing_order = _find_in_bucket(bucket)
+                    if existing_order is not None:
+                        return existing_order
+
+            self._unprocessed_orders.remove(order_identifier, key="identifier")
+            order.status = self.NEW_ORDER
+            order.set_new()
+            self._new_orders.append(order)
+            return order
+
         existing_order = self.get_tracked_order(order.identifier)
         if existing_order:
             # Check if this order already exists in self._new_orders based on the identifier - Do nothing
@@ -1580,6 +1670,8 @@ class Broker(ABC):
             quote_quantity = -quote_quantity
         position = self.get_tracked_position(order.strategy, order.quote)
         if position is None:
+            from ..entities import Position
+
             position = Position(
                 order.strategy,
                 order.quote,
@@ -1592,7 +1684,7 @@ class Broker(ABC):
     # =========Clock functions=====================
 
     def utc_to_local(self, utc_dt):
-        return utc_dt.replace(tzinfo=timezone.utc).astimezone(tz=tz.tzlocal())
+        return utc_dt.replace(tzinfo=timezone.utc).astimezone()
 
     def market_hours(self, market="NASDAQ", close=True, next=False, date=None):
         """[summary]
@@ -1616,6 +1708,8 @@ class Broker(ABC):
         """
 
         market = self.market if self.market is not None else market
+        import pandas_market_calendars as mcal
+
         mkt_cal = mcal.get_calendar(market)
 
         # Get the current datetime in UTC (because the market hours are in UTC)
@@ -1739,7 +1833,7 @@ class Broker(ABC):
             
             return True
             
-        current_time = datetime.now().astimezone(tz=tz.tzlocal())
+        current_time = datetime.now().astimezone()
 
         # For ANY market, check both today's and tomorrow's sessions since trading sessions 
         # can span multiple calendar days (futures: 6pm Thu -> 6pm Fri, forex: Sun 5pm -> Fri 5pm, 
@@ -1773,7 +1867,7 @@ class Broker(ABC):
         open_time_next_day = self.utc_to_local(self.market_hours(close=False, next=True))
         now = self.utc_to_local(datetime.now())
         open_time = open_time_this_day if open_time_this_day > now else open_time_next_day
-        current_time = datetime.now().astimezone(tz=tz.tzlocal())
+        current_time = datetime.now().astimezone()
         if self.is_market_open():
             return 0
         else:
@@ -1784,7 +1878,7 @@ class Broker(ABC):
         """Return the remaining time for the market to close in seconds"""
         market_hours = self.market_hours(close=True)
         close_time = self.utc_to_local(market_hours)
-        current_time = datetime.now().astimezone(tz=tz.tzlocal())
+        current_time = datetime.now().astimezone()
         if self.is_market_open():
             result = close_time.timestamp() - current_time.timestamp()
             return result
@@ -1832,7 +1926,10 @@ class Broker(ABC):
             return cached
 
         for position in self._filled_positions:
-            if position.asset == asset and (strategy_name is None or position.strategy == strategy_name):
+            position_asset = position.asset
+            if (position_asset is asset or position_asset == asset) and (
+                strategy_name is None or position.strategy == strategy_name
+            ):
                 self._cache_result(self._tracked_position_cache, cache_key, position)
                 return position
         self._cache_result(self._tracked_position_cache, cache_key, None)
@@ -1895,6 +1992,7 @@ class Broker(ABC):
             getattr(self._new_orders, "revision", 0),
             getattr(self._partially_filled_orders, "revision", 0),
             getattr(self._placeholder_orders, "revision", 0),
+            getattr(self, "_simple_new_orders_revision", 0),
             strategy_name,
             asset,
         )
@@ -1913,6 +2011,19 @@ class Broker(ABC):
                 if not order.is_active():
                     continue
                 if strategy_name is not None and order.strategy != strategy_name:
+                    continue
+                if asset is not None and order.asset != asset:
+                    continue
+                result.append(order)
+        simple_by_strategy = getattr(self, "_simple_new_orders_by_strategy", None)
+        if simple_by_strategy:
+            strategy_orders = (
+                simple_by_strategy.get(strategy_name, ())
+                if strategy_name is not None
+                else (order for orders in simple_by_strategy.values() for order in orders)
+            )
+            for order in strategy_orders:
+                if not order.is_active():
                     continue
                 if asset is not None and order.asset != asset:
                     continue
@@ -2050,6 +2161,8 @@ class Broker(ABC):
             if kwargs.get('is_multileg') and kwargs.get('order_type') == Order.OrderType.LIMIT:
                 raise NotImplementedError("Multileg limit orders are not supported by this broker")
 
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+
             with ThreadPoolExecutor(
                 max_workers=self.max_workers,
                 thread_name_prefix=f"{self.name}_submitting_orders",
@@ -2083,6 +2196,8 @@ class Broker(ABC):
 
     def cancel_orders(self, orders):
         """cancel orders"""
+        from concurrent.futures import ThreadPoolExecutor
+
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             tasks = []
             for order in orders:
@@ -2230,13 +2345,6 @@ class Broker(ABC):
 
         return None
 
-    def _resolve_subscriber(self, strategy_name):
-        """Get subscriber by name, falling back to the sole registered subscriber when strategy_name is falsy."""
-        subscriber = self._get_subscriber(strategy_name)
-        if subscriber is None and not strategy_name and len(self._subscribers) == 1:
-            subscriber = self._subscribers[0]
-        return subscriber
-
     def _on_new_order(self, order):
         """notify relevant subscriber/strategy about
         new order event"""
@@ -2245,7 +2353,7 @@ class Broker(ABC):
             self.logger.info(colored(f"New order was created: {order}", color="green"))
 
         payload = dict(order=order)
-        subscriber = self._resolve_subscriber(order.strategy)
+        subscriber = self._get_subscriber(order.strategy)
         if subscriber:
             # PERF: Many strategies do not override `Strategy.on_new_order()` (base impl is `pass`).
             # Avoid enqueueing/processing a no-op event in high-churn backtests.
@@ -2267,7 +2375,7 @@ class Broker(ABC):
             self.logger.info(colored(f"Order was canceled: {order}", color="green"))
 
         payload = dict(order=order)
-        subscriber = self._resolve_subscriber(order.strategy)
+        subscriber = self._get_subscriber(order.strategy)
         if subscriber:
             # PERF: Many strategies do not override `Strategy.on_canceled_order()` (base impl is `pass`).
             # Avoid enqueueing/processing a no-op event in high-churn backtests.
@@ -2295,7 +2403,7 @@ class Broker(ABC):
             quantity=quantity,
             multiplier=multiplier,
         )
-        subscriber = self._resolve_subscriber(order.strategy)
+        subscriber = self._get_subscriber(order.strategy)
         if subscriber:
             subscriber.add_event(subscriber.PARTIALLY_FILLED_ORDER, payload)
         else:
@@ -2315,8 +2423,26 @@ class Broker(ABC):
             quantity=quantity,
             multiplier=multiplier,
         )
-        subscriber = self._resolve_subscriber(order.strategy)
+        subscriber = self._get_subscriber(order.strategy)
         if subscriber:
+            # Futures/crypto cash and position effects are handled before the strategy executor
+            # event. If the user did not override the callback, avoid enqueueing a no-op.
+            try:
+                asset_type = getattr(getattr(order, "asset", None), "asset_type", None)
+                if asset_type in (Asset.AssetType.CRYPTO, Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE):
+                    strategy_obj = getattr(subscriber, "strategy", None)
+                    handler = getattr(strategy_obj, "on_filled_order", None)
+                    func = getattr(handler, "__func__", handler)
+                    executor_handler = getattr(subscriber, "_on_filled_order", None)
+                    executor_func = getattr(executor_handler, "__func__", executor_handler)
+                    if (
+                        getattr(func, "__qualname__", "") == "Strategy.on_filled_order"
+                        and getattr(executor_func, "__qualname__", "") == "StrategyExecutor._on_filled_order"
+                        and not callable(getattr(strategy_obj, "_filled_order_callback", None))
+                    ):
+                        return
+            except Exception:
+                pass
             subscriber.add_event(subscriber.FILLED_ORDER, payload)
         else:
             self.logger.error(colored(f"Subscriber {order.strategy} not found", color="red"))
@@ -2343,9 +2469,180 @@ class Broker(ABC):
                     cache = pd.DataFrame(list(rows))
                 else:
                     cols = getattr(self, "_trade_event_log_columns", None) or None
-                    cache = pd.DataFrame(list(rows), columns=list(cols) if cols else None)
+                    normalized_rows = self._expand_trade_event_rows(rows)
+                    cache = pd.DataFrame(normalized_rows, columns=list(cols) if cols else None)
             self._trade_event_log_df_cache = cache
         return cache
+
+    def _expand_trade_event_rows(self, rows):
+        expanded = []
+        for row in rows:
+            if (
+                isinstance(row, (tuple, list))
+                and len(row) == 19
+                and row[0] == _FAST_TRADE_PAIR_EVENT_MARKER
+            ):
+                (
+                    _marker,
+                    new_time,
+                    fill_time,
+                    strategy,
+                    identifier,
+                    symbol,
+                    side,
+                    order_type,
+                    new_status,
+                    fill_status,
+                    price,
+                    filled_quantity,
+                    multiplier,
+                    trade_cost,
+                    trade_slippage,
+                    time_in_force,
+                    asset_multiplier,
+                    asset_type,
+                    price_source,
+                ) = row
+
+                expanded.append(
+                    (
+                        new_time,
+                        strategy,
+                        None,
+                        identifier,
+                        symbol,
+                        side,
+                        order_type,
+                        new_status,
+                        None,
+                        None,
+                        1,
+                        None,
+                        trade_slippage,
+                        time_in_force,
+                        None,
+                        None,
+                        asset_multiplier,
+                        None,
+                        asset_type,
+                        None,
+                        "trade",
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                    )
+                )
+                if fill_time is not None:
+                    expanded.append(
+                        (
+                            fill_time,
+                            strategy,
+                            None,
+                            identifier,
+                            symbol,
+                            side,
+                            order_type,
+                            fill_status,
+                            price,
+                            filled_quantity,
+                            multiplier,
+                            trade_cost,
+                            trade_slippage,
+                            time_in_force,
+                            None,
+                            None,
+                            asset_multiplier,
+                            None,
+                            asset_type,
+                            price_source,
+                            "trade",
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                        )
+                    )
+            elif (
+                isinstance(row, tuple)
+                and len(row) == 17
+                and row[0] == _FAST_TRADE_EVENT_MARKER
+            ):
+                (
+                    _marker,
+                    event_time,
+                    strategy,
+                    identifier,
+                    symbol,
+                    side,
+                    order_type,
+                    status,
+                    price,
+                    filled_quantity,
+                    multiplier,
+                    trade_cost,
+                    trade_slippage,
+                    time_in_force,
+                    asset_multiplier,
+                    asset_type,
+                    price_source,
+                ) = row
+                expanded.append(
+                    (
+                        event_time,
+                        strategy,
+                        None,
+                        identifier,
+                        symbol,
+                        side,
+                        order_type,
+                        status,
+                        price,
+                        filled_quantity,
+                        multiplier,
+                        trade_cost,
+                        trade_slippage,
+                        time_in_force,
+                        None,
+                        None,
+                        asset_multiplier,
+                        None,
+                        asset_type,
+                        price_source,
+                        "trade",
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                    )
+                )
+            else:
+                expanded.append(row)
+        return expanded
 
     @_trade_event_log_df.setter
     def _trade_event_log_df(self, value) -> None:
@@ -2465,7 +2762,7 @@ class Broker(ABC):
             elif type_event == self.ERROR_ORDER:
                 order = self._process_error_order(stored_order, error or LumibotBrokerAPIError("Unknown order error"))
                 if order:
-                    subscriber = self._resolve_subscriber(order.strategy)
+                    subscriber = self._get_subscriber(order.strategy)
                     if subscriber:
                         payload = dict(order=order, error=error)
                         subscriber.add_event(subscriber.ERROR_ORDER, payload)
@@ -2510,7 +2807,7 @@ class Broker(ABC):
                 order = self._process_error_order(stored_order, error or LumibotBrokerAPIError("Unknown order error"))
                 if order:
                     # Notify subscriber about the error event
-                    subscriber = self._resolve_subscriber(order.strategy)
+                    subscriber = self._get_subscriber(order.strategy)
                     if subscriber:
                         payload = dict(order=order, error=error)
                         subscriber.add_event(subscriber.ERROR_ORDER, payload)
@@ -2546,7 +2843,7 @@ class Broker(ABC):
         # method call overhead in the hot-path trade-event logger, but fall back to `get_datetime()`
         # for stubbed sources used in unit tests.
         if is_backtesting:
-            current_dt = getattr(self.data_source, "_datetime", None) or self.data_source.get_datetime()
+            current_dt = self.datetime
         else:
             current_dt = self.data_source.get_datetime()
         # Cache the audit-enabled flag when available (BacktestingBroker sets this in __init__).
@@ -2730,6 +3027,11 @@ class Broker(ABC):
         parquet_filename = (
             filename[:-4] + ".parquet" if str(filename).lower().endswith(".csv") else str(filename) + ".parquet"
         )
+        (
+            coerce_object_columns_to_json_strings,
+            is_parquet_required,
+            write_parquet_with_logging,
+        ) = _get_parquet_utils()
         required = bool(self.IS_BACKTESTING_BROKER) and is_parquet_required()
         write_parquet_with_logging(
             df=df,

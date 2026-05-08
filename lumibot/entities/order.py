@@ -1,4 +1,5 @@
 import datetime
+import itertools
 import uuid
 from collections import namedtuple
 from decimal import Decimal
@@ -19,6 +20,7 @@ from lumibot.tools.types import check_positive, check_price
 logger = get_logger(__name__)
 
 _LAZY_EVENT_LOCK = Lock()
+_SIMPLE_BACKTEST_IDENTIFIER_COUNTER = itertools.count(1)
 
 
 class _LazyEvent:
@@ -64,6 +66,7 @@ class _LazyEvent:
                         event.set()
                     self._event = event
         return bool(event.wait(timeout=timeout))
+
 
 
 # Custom string enum implementation for Python 3.9 compatibility
@@ -152,6 +155,41 @@ NONE_TYPE = type(None)  # Order is shadowing 'type' parameter, this is a workaro
 
 class Order:
     Transaction = namedtuple("Transaction", ["quantity", "price"])
+    good_till_date = None
+    position_filled = None
+    limit_price = None
+    stop_price = None
+    stop_limit_price = None
+    trail_price = None
+    trail_percent = None
+    price_triggered = False
+    take_profit_price = None
+    stop_loss_price = None
+    stop_loss_limit_price = None
+    parent_identifier = None
+    dependent_order = None
+    dependent_order_filled = False
+    smart_limit = None
+    trade_cost = None
+    trade_slippage = 0.0
+    custom_params = None
+    pair = None
+    tag = ""
+    broker_create_date = None
+    broker_update_date = None
+    exchange = None
+    error_message = None
+    transactions = ()
+    _trail_stop_price = None
+    _avg_fill_price = None
+    _new_event = None
+    _canceled_event = None
+    _partial_filled_event = None
+    _filled_event = None
+    _closed_event = None
+    _raw = None
+    _transmitted = False
+    _error = None
 
     class OrderClass(StrEnum):
         SIMPLE = "simple"
@@ -510,14 +548,14 @@ class Order:
         self._quantity = quantity
 
         try:
-            self.side = side if isinstance(side, (self.OrderSide, NONE_TYPE)) else self.OrderSide(side)
+            self.side = side if (side is None or isinstance(side, self.OrderSide)) else self.OrderSide(side)
         except ValueError:
             raise ValueError(f"Order: Invalid side {side}. Must be one of:"
                              f" {', '.join([str(s.value) for s in self.OrderSide])}") from None
 
         try:
             self.order_class = order_class \
-                if isinstance(order_class, (self.OrderClass, NONE_TYPE)) else self.OrderClass(order_class)
+                if (order_class is None or isinstance(order_class, self.OrderClass)) else self.OrderClass(order_class)
         except ValueError:
             raise ValueError(f"Order: Invalid order_class '{order_class}'. Must be one of:"
                              f" {', '.join([str(oc.value) for oc in self.OrderClass])}") from None
@@ -612,7 +650,7 @@ class Order:
 
         try:
             self.order_type = order_type \
-                if isinstance(order_type, (self.OrderType, NONE_TYPE)) else self.OrderType(order_type)
+                if (order_type is None or isinstance(order_type, self.OrderType)) else self.OrderType(order_type)
         except ValueError:
             raise ValueError(f"Order: Invalid order_type {order_type}. Must be one of:"
                              f" {', '.join([str(t.value) for t in self.OrderType])}") from None
@@ -667,6 +705,107 @@ class Order:
             secondary_trail_price,
             secondary_trail_percent,
         )
+
+    @classmethod
+    def simple_market_backtest(
+        cls,
+        strategy,
+        asset,
+        quantity,
+        side,
+        *,
+        quote=None,
+        time_in_force="gtc",
+        date_created=None,
+        identifier=None,
+    ):
+        """Construct a normal simple MARKET order for hot backtest paths."""
+        obj = cls.__new__(cls)
+        obj.child_orders = []
+        obj.strategy = strategy
+        obj.asset = asset
+        obj.quote = quote
+        obj.symbol = asset.symbol if asset else None
+        obj._identifier = identifier if identifier else f"bt-{next(_SIMPLE_BACKTEST_IDENTIFIER_COUNTER):x}"
+        obj._status = "unprocessed"
+        obj._date_created = date_created
+        obj.side = side if (side is None or side.__class__ is cls.OrderSide) else cls.OrderSide(side)
+        obj.time_in_force = time_in_force
+        obj.order_class = cls.OrderClass.SIMPLE
+        obj.order_type = cls.OrderType.MARKET
+        asset_type = getattr(asset, "asset_type", None)
+        quote_asset_type = getattr(quote, "asset_type", None) if quote is not None else None
+        asset_type_value = getattr(asset, "_cached_asset_type_key", None)
+        if asset_type_value is None:
+            asset_type_value = str.__str__(asset_type) if isinstance(asset_type, str) else str(asset_type or "")
+        quote_asset_type_value = getattr(quote, "_cached_asset_type_key", None) if quote is not None else ""
+        if quote_asset_type_value is None:
+            quote_asset_type_value = (
+                str.__str__(quote_asset_type) if isinstance(quote_asset_type, str) else str(quote_asset_type or "")
+            )
+
+        if asset and asset_type_value == "crypto" and quote:
+            pair_cache = getattr(asset, "_lumibot_quote_pair_cache", None)
+            if pair_cache is None:
+                pair_cache = {}
+                try:
+                    setattr(asset, "_lumibot_quote_pair_cache", pair_cache)
+                except Exception:
+                    pair_cache = None
+            quote_symbol = quote.symbol
+            if pair_cache is not None:
+                pair = pair_cache.get(quote_symbol)
+                if pair is None:
+                    pair = f"{asset.symbol}/{quote_symbol}"
+                    pair_cache[quote_symbol] = pair
+                obj.pair = pair
+            else:
+                obj.pair = f"{asset.symbol}/{quote_symbol}"
+        obj._simple_asset_type_value = asset_type_value
+        obj._simple_is_crypto_forex = asset_type_value == "crypto" and quote_asset_type_value == "forex"
+        obj._simple_is_future = asset_type_value in ("future", "cont_future")
+        obj._simple_multiplier = getattr(asset, "multiplier", None) or 1
+        obj._simple_is_option = asset_type_value == "option"
+        if obj._simple_is_future:
+            obj._simple_futures_ledger_key = (obj.strategy, obj.symbol, asset_type, getattr(asset, "expiration", None))
+        obj._quantity = quantity if isinstance(quantity, Decimal) else Decimal(quantity)
+        obj._simple_quantity_float = float(obj._quantity)
+        obj._simple_backtest_order = True
+        side_obj = obj.side
+        if side_obj is cls.OrderSide.BUY:
+            obj._simple_is_buy = True
+            obj._simple_is_sell = False
+        elif side_obj is cls.OrderSide.SELL:
+            obj._simple_is_buy = False
+            obj._simple_is_sell = True
+        else:
+            obj._simple_is_buy = (
+                side_obj is cls.OrderSide.BUY_TO_OPEN
+                or side_obj is cls.OrderSide.BUY_TO_COVER
+                or side_obj is cls.OrderSide.BUY_TO_CLOSE
+            )
+            obj._simple_is_sell = (
+                side_obj is cls.OrderSide.SELL_SHORT
+                or side_obj is cls.OrderSide.SELL_TO_OPEN
+                or side_obj is cls.OrderSide.SELL_TO_CLOSE
+            )
+        obj._simple_direct_fill_eligible = (
+            (obj._simple_is_buy or obj._simple_is_sell)
+            and asset_type_value in ("crypto", "future", "cont_future")
+        )
+        obj._fast_trade_event_static = (
+            obj.strategy,
+            obj._identifier,
+            obj.symbol,
+            obj.side,
+            obj.order_type,
+            obj.trade_slippage,
+            obj.time_in_force,
+            obj._simple_multiplier,
+            asset_type,
+        )
+        return obj
+
     def is_advanced_order(self):
         order_class = self.order_class
         return (
@@ -1167,7 +1306,19 @@ class Order:
 
     def add_transaction(self, price, quantity):
         transaction = self.Transaction(price=price, quantity=quantity)
-        self.transactions.append(transaction)
+        transactions = self.transactions
+        if type(transactions) is list:
+            transactions.append(transaction)
+        else:
+            self.transactions = [transaction]
+
+    def add_transaction_fast(self, price, quantity):
+        transaction = self.Transaction(quantity=quantity, price=price)
+        transactions = self.transactions
+        if type(transactions) is list:
+            transactions.append(transaction)
+        else:
+            self.transactions = [transaction]
 
     def cash_pending(self, strategy):
         # Returns the impact to cash of any unfilled shares.
@@ -1346,28 +1497,50 @@ class Order:
     # ======Setting the events methods===========
 
     def set_new(self):
+        if self._new_event is None:
+            self._new_event = _LazyEvent()
         self._new_event.set()
 
     def set_canceled(self):
+        if self._canceled_event is None:
+            self._canceled_event = _LazyEvent()
         self._canceled_event.set()
+        if self._closed_event is None:
+            self._closed_event = _LazyEvent()
         self._closed_event.set()
 
     def set_partially_filled(self):
+        if self._partial_filled_event is None:
+            self._partial_filled_event = _LazyEvent()
         self._partial_filled_event.set()
 
     def set_filled(self):
+        if self._filled_event is None:
+            self._filled_event = _LazyEvent()
         self._filled_event.set()
+        if self._closed_event is None:
+            self._closed_event = _LazyEvent()
         self._closed_event.set()
 
     # =========Waiting methods==================
 
     def wait_to_be_registered(self):
         logger.info("Waiting for order %r to be registered" % self)
+        if self._new_event is None:
+            if self.status != "unprocessed":
+                logger.info("Order %r registered" % self)
+                return
+            self._new_event = _LazyEvent()
         self._new_event.wait()
         logger.info("Order %r registered" % self)
 
     def wait_to_be_closed(self):
         logger.info("Waiting for broker to execute order %r" % self)
+        if self._closed_event is None:
+            if self.status in {"filled", "canceled", "error"}:
+                logger.info("Order %r executed by broker" % self)
+                return
+            self._closed_event = _LazyEvent()
         self._closed_event.wait()
         logger.info("Order %r executed by broker" % self)
 

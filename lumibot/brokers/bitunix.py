@@ -1,19 +1,62 @@
+from __future__ import annotations
+
 import os
 import time
 import traceback
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Tuple
-
-import pandas as pd
+from importlib import import_module
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from .broker import Broker, LumibotBrokerAPIError
-from lumibot.data_sources.bitunix_data import BitunixData
-from lumibot.entities import Asset, Order, Position
-from lumibot.tools.bitunix_helpers import BitUnixClient
+from lumibot.entities import Asset, Order
 from lumibot.tools.lumibot_logger import get_logger
-from lumibot.trading_builtins import PollingStream
+
+if TYPE_CHECKING:
+    from lumibot.entities import Position
 
 logger = get_logger(__name__)
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+BitUnixClient = None
+BitunixData = None
+
+
+def _bitunix_client_class():
+    global BitUnixClient
+    if BitUnixClient is None:
+        from lumibot.tools.bitunix_helpers import BitUnixClient as _BitUnixClient
+
+        BitUnixClient = _BitUnixClient
+    return BitUnixClient
+
+
+def _bitunix_data_class():
+    global BitunixData
+    if BitunixData is None:
+        from lumibot.data_sources.bitunix_data import BitunixData as _BitunixData
+
+        BitunixData = _BitunixData
+    return BitunixData
+
 
 class Bitunix(Broker):
     """
@@ -75,7 +118,7 @@ class Bitunix(Broker):
             raise ValueError("API_KEY and API_SECRET must be provided in config")
 
         # Initialize API client and WS attributes BEFORE calling super().__init__
-        self.api = BitUnixClient(api_key=api_key, secret_key=api_secret)
+        self.api = _bitunix_client_class()(api_key=api_key, secret_key=api_secret)
         self.api_secret = api_secret  # needed for signing
         # Private-channel URL per BitUnix docs (used for authenticated account streams)
         self.ws_url = "wss://fapi.bitunix.com/private/"
@@ -98,7 +141,7 @@ class Bitunix(Broker):
             logger.debug(traceback.format_exc())
 
         if not data_source:
-            data_source = BitunixData(config, max_workers=max_workers, chunk_size=chunk_size)
+            data_source = _bitunix_data_class()(config, max_workers=max_workers, chunk_size=chunk_size)
             # Share the client instance with the data source if it was just created
             data_source.client = self.api
             # Share the client_symbols set with the broker for WebSocket subscriptions
@@ -194,6 +237,8 @@ class Bitunix(Broker):
                     # entry price is avgOpenPrice (fallback to entryValue)
                     entry = Decimal(str(p.get("avgOpenPrice", p.get("entryValue", "0"))))
                     if qty != 0 and sym:
+                        from lumibot.entities import Position
+
                         asset = Asset(sym, Asset.AssetType.CRYPTO_FUTURE)
                         pos = Position(strategy_name, asset, qty)
                         pos.avg_fill_price = entry
@@ -606,13 +651,15 @@ class Bitunix(Broker):
 
     def _get_stream_object(self):
         """Returns the polling stream object."""
+        from lumibot.trading_builtins import PollingStream
+
         return PollingStream(self.poll_interval)
 
     def _register_stream_events(self):
         """Register polling event for Bitunix."""
         broker = self
 
-        @broker.stream.add_action(PollingStream.POLL_EVENT)
+        @broker.stream.add_action("poll")
         def on_trade_event_poll():
             self.do_polling()
 

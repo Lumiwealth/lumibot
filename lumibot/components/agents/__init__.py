@@ -13,11 +13,27 @@ _NAME_TO_MODULE = {
     "StubAgentRuntime": "runtime",
     "agent_tool": "tools",
 }
+_SUBMODULES = {
+    "asset_resolution",
+    "builtins",
+    "docs_tools",
+    "duckdb_tools",
+    "manager",
+    "replay_cache",
+    "runtime",
+    "schemas",
+    "tools",
+}
 
 __all__ = sorted(_NAME_TO_MODULE)
 
 
 def __getattr__(name):
+    if name in _SUBMODULES:
+        module = _import_module(f"{__name__}.{name}")
+        globals()[name] = module
+        return module
+
     module_name = _NAME_TO_MODULE.get(name)
     if module_name is None:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
@@ -28,4 +44,4 @@ def __getattr__(name):
 
 
 def __dir__():
-    return sorted(set(globals()) | set(__all__))
+    return sorted(set(globals()) | set(__all__) | _SUBMODULES)

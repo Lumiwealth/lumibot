@@ -39,6 +39,18 @@ class _LazyModule:
     def __getattr__(self, name):
         return getattr(self._load(), name)
 
+    def __setattr__(self, name, value):
+        if name in {"_module_name", "_module"}:
+            object.__setattr__(self, name, value)
+            return
+        setattr(self._load(), name, value)
+
+    def __delattr__(self, name):
+        if name in {"_module_name", "_module"}:
+            object.__delattr__(self, name)
+            return
+        delattr(self._load(), name)
+
 
 requests = _LazyModule("requests")
 

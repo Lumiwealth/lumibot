@@ -122,6 +122,21 @@ def test_lazy_module_patch_teardown_restores_existing_attributes():
         assert proxy.get is original
 
 
+def test_lazy_agent_builtin_module_supports_string_patches():
+    import lumibot.components as components
+    import lumibot.components.agents as agents
+
+    components.__dict__.pop("agents", None)
+    agents.__dict__.pop("builtins", None)
+    sys.modules.pop("lumibot.components.agents.builtins", None)
+
+    with patch("lumibot.components.agents.builtins.requests.get") as mocked:
+        from lumibot.components.agents import builtins
+
+        assert components.agents is agents
+        assert builtins.requests.get is mocked
+
+
 def test_legacy_entities_package_alias_resolves_submodules():
     import lumibot  # noqa: F401
     import entities

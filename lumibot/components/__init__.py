@@ -9,11 +9,17 @@ _AGENT_EXPORTS = {
     "MCPServer",
     "agent_tool",
 }
+_SUBMODULES = {"agents"}
 
 __all__ = sorted(_AGENT_EXPORTS)
 
 
 def __getattr__(name):
+    if name in _SUBMODULES:
+        module = _import_module(f"{__name__}.{name}")
+        globals()[name] = module
+        return module
+
     if name in _AGENT_EXPORTS:
         agents = _import_module(f"{__name__}.agents")
         value = getattr(agents, name)
@@ -23,4 +29,4 @@ def __getattr__(name):
 
 
 def __dir__():
-    return sorted(set(globals()) | set(__all__))
+    return sorted(set(globals()) | set(__all__) | _SUBMODULES)

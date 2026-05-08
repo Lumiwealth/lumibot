@@ -1,19 +1,19 @@
+from __future__ import annotations
+
 # This file contains helper functions for getting data from DataBento - POLARS VERSION
 # This is a FULL COPY of databento_helper.py that will be incrementally optimized to leverage polars
 # for filtering operations while maintaining pandas compatibility at the boundaries.
 
 import os
-import re
 from datetime import date, datetime, timedelta, timezone
+from importlib import import_module
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Optional, List, Dict, Tuple, Union
 from decimal import Decimal
 
-import pandas as pd
-import polars as pl
 from lumibot import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
-from lumibot.tools import futures_roll
 from termcolor import colored
 
 # Set up module-specific logger
@@ -25,13 +25,46 @@ class DataBentoAuthenticationError(RuntimeError):
     """Raised when DataBento rejects authentication credentials."""
     pass
 
-# DataBento imports (will be installed as dependency)
-try:
-    import databento as db
-    from databento import Historical
-    DATABENTO_AVAILABLE = True
-except ImportError:
-    DATABENTO_AVAILABLE = False
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+    def __setattr__(self, name, value):
+        setattr(self._load(), name, value)
+
+    def __delattr__(self, name):
+        if name in {"_module_name", "_module"}:
+            object.__delattr__(self, name)
+        else:
+            delattr(self._load(), name)
+
+
+class _LazyDatabentoHistorical:
+    def __call__(self, *args, **kwargs):
+        return getattr(import_module("databento"), "Historical")(*args, **kwargs)
+
+
+pd = _LazyModule("pandas")
+pl = _LazyModule("polars")
+futures_roll = _LazyModule("lumibot.tools.futures_roll")
+db = _LazyModule("databento")
+Historical = _LazyDatabentoHistorical()
+DATABENTO_AVAILABLE = find_spec("databento") is not None
+if not DATABENTO_AVAILABLE:
     logger.warning("DataBento package not available. Please install with: pip install databento")
 
 # Cache settings - CRITICAL: Use separate cache from pandas version to avoid contamination

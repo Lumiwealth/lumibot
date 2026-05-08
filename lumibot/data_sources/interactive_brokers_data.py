@@ -1,11 +1,12 @@
+from __future__ import annotations
+
 import datetime
 import math
 from decimal import Decimal
+from importlib import import_module
 from typing import Union
 
-import pandas as pd
-
-from lumibot.entities import Asset, Bars, Quote
+from lumibot.entities import Asset, Quote
 
 from .data_source import DataSource
 
@@ -17,6 +18,37 @@ TYPE_MAP = dict(
     index="IND",
     multileg="BAG",
 )
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+_BARS_CLASS = None
+
+
+def _bars_class():
+    global _BARS_CLASS
+    if _BARS_CLASS is None:
+        from lumibot.entities import Bars
+
+        _BARS_CLASS = Bars
+    return _BARS_CLASS
 
 
 class InteractiveBrokersData(DataSource):
@@ -259,7 +291,7 @@ class InteractiveBrokersData(DataSource):
     def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
         # Catch empty dataframe.
         if isinstance(response, float) or response.empty:
-            bars = Bars(response, self.SOURCE, asset, raw=response)
+            bars = _bars_class()(response, self.SOURCE, asset, raw=response)
             return bars
         df = response.copy()
         # df["date"] = pd.to_datetime(df["date"], unit='s')
@@ -286,7 +318,7 @@ class InteractiveBrokersData(DataSource):
             ]
         ]
 
-        bars = Bars(df, self.SOURCE, asset, raw=response, quote=quote)
+        bars = _bars_class()(df, self.SOURCE, asset, raw=response, quote=quote)
         return bars
 
     def _start_realtime_bars(self, asset, keep_bars=12):

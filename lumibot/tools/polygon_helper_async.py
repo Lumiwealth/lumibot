@@ -1,16 +1,11 @@
 # Async implementation for Polygon data downloads - significantly faster than sync version
-import asyncio
+from __future__ import annotations
+
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional
+from importlib import import_module
+from typing import Any, Dict, List, Optional
 
-import aiohttp
-import polars as pl
-
-try:
-    from tqdm.asyncio import tqdm
-except ImportError:
-    from tqdm import tqdm
 from lumibot.entities import Asset
 from lumibot.tools.lumibot_logger import get_logger
 
@@ -20,9 +15,54 @@ logger = get_logger(__name__)
 MAX_CONCURRENT_REQUESTS = 50  # Much higher than sync version
 MAX_POLYGON_DAYS = 7  # Smaller chunks for better parallelization
 RATE_LIMIT_PER_MINUTE = 100  # Polygon rate limit
-CONNECTION_TIMEOUT = aiohttp.ClientTimeout(total=60, connect=10, sock_read=30)
 MAX_RETRIES = 3
 RETRY_DELAY = 0.5
+
+_AIOHTTP = None
+_ASYNCIO = None
+_POLARS = None
+_TQDM = None
+
+
+def _asyncio():
+    global _ASYNCIO
+    if _ASYNCIO is None:
+        _ASYNCIO = import_module("asyncio")
+    return _ASYNCIO
+
+
+def _aiohttp():
+    global _AIOHTTP
+    if _AIOHTTP is None:
+        import aiohttp
+
+        _AIOHTTP = aiohttp
+    return _AIOHTTP
+
+
+def _pl():
+    global _POLARS
+    if _POLARS is None:
+        import polars as pl
+
+        _POLARS = pl
+    return _POLARS
+
+
+def _tqdm():
+    global _TQDM
+    if _TQDM is None:
+        try:
+            from tqdm.asyncio import tqdm
+        except ImportError:
+            from tqdm import tqdm
+
+        _TQDM = tqdm
+    return _TQDM
+
+
+def _connection_timeout():
+    return _aiohttp().ClientTimeout(total=60, connect=10, sock_read=30)
 
 class AsyncPolygonClient:
     """Async Polygon client for high-performance data downloads."""
@@ -30,11 +70,12 @@ class AsyncPolygonClient:
     def __init__(self, api_key: str):
         self.api_key = api_key
         self.base_url = "https://api.polygon.io"
-        self.session: Optional[aiohttp.ClientSession] = None
+        self.session = None
         self.rate_limiter = RateLimiter(RATE_LIMIT_PER_MINUTE)
 
     async def __aenter__(self):
         """Create session on context enter."""
+        aiohttp = _aiohttp()
         connector = aiohttp.TCPConnector(
             limit=100,
             limit_per_host=50,
@@ -43,7 +84,7 @@ class AsyncPolygonClient:
         )
         self.session = aiohttp.ClientSession(
             connector=connector,
-            timeout=CONNECTION_TIMEOUT,
+            timeout=_connection_timeout(),
             headers={"Authorization": f"Bearer {self.api_key}"}
         )
         return self
@@ -64,6 +105,7 @@ class AsyncPolygonClient:
     ) -> Optional[List[Dict]]:
         """Get aggregated bars data."""
         await self.rate_limiter.acquire()
+        asyncio = _asyncio()
 
         # Format dates
         from_str = from_date.strftime("%Y-%m-%d")
@@ -106,10 +148,11 @@ class RateLimiter:
         self.calls_per_minute = calls_per_minute
         self.min_interval = 60.0 / calls_per_minute
         self.last_call = 0
-        self.lock = asyncio.Lock()
+        self.lock = _asyncio().Lock()
 
     async def acquire(self):
         """Wait if necessary to respect rate limit."""
+        asyncio = _asyncio()
         async with self.lock:
             now = time.time()
             time_since_last = now - self.last_call
@@ -126,7 +169,7 @@ async def download_polygon_data_async(
     timespan: str = "minute",
     quote_asset: Optional[Asset] = None,
     symbol: Optional[str] = None
-) -> Optional[pl.DataFrame]:
+) -> Optional[Any]:
     """
     Download Polygon data using async/await for maximum performance.
     
@@ -178,8 +221,10 @@ async def download_polygon_data_async(
 
     # Download all chunks in parallel
     async with AsyncPolygonClient(api_key) as client:
+        asyncio = _asyncio()
+
         # Create progress bar
-        pbar = tqdm(
+        pbar = _tqdm()(
             total=len(chunks),
             desc=f"Async downloading {asset.symbol} {timespan}",
             dynamic_ncols=True
@@ -208,6 +253,7 @@ async def download_polygon_data_async(
         return None
 
     # Optimized DataFrame creation
+    pl = _pl()
     df = pl.DataFrame(results, schema_overrides={
         "o": pl.Float64,
         "h": pl.Float64,
@@ -238,7 +284,7 @@ def get_price_data_from_polygon_async(
     timespan: str = "minute",
     quote_asset: Optional[Asset] = None,
     force_cache_update: bool = False
-) -> Optional[pl.DataFrame]:
+) -> Optional[Any]:
     """
     Wrapper function to use async download in sync context.
     
@@ -260,7 +306,7 @@ def get_price_data_from_polygon_async(
     # Validate cache
     force_cache_update = validate_cache_polars(force_cache_update, asset, cache_file, api_key)
 
-    df_all: Optional[pl.DataFrame] = None
+    df_all: Optional[Any] = None
 
     # Load cached data if available
     if cache_file.exists() and not force_cache_update:
@@ -283,6 +329,7 @@ def get_price_data_from_polygon_async(
     end_dt = datetime.combine(poly_end, datetime.max.time(), tzinfo=timezone.utc)
 
     # Run async download
+    asyncio = _asyncio()
     try:
         loop = asyncio.get_event_loop()
     except RuntimeError:
@@ -300,6 +347,7 @@ def get_price_data_from_polygon_async(
         if df_all is None or len(df_all) == 0:
             df_all = new_data
         else:
+            pl = _pl()
             df_all = (
                 pl.concat([df_all.lazy(), new_data.lazy()])
                 .sort("datetime")
@@ -312,6 +360,7 @@ def get_price_data_from_polygon_async(
     df_all = update_cache_polars(cache_file, df_all, missing_dates)
 
     # Reload and clean cache
+    pl = _pl()
     df_all_full = load_cache_polars(cache_file)
     if "missing" in df_all_full.columns:
         df_all_output = df_all_full.filter(~pl.col("missing").cast(pl.Boolean))

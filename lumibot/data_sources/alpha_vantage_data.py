@@ -1,16 +1,48 @@
+from __future__ import annotations
+
 import os.path
 import time
 from datetime import datetime, timedelta
-
-import pandas as pd
+from importlib import import_module
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
-from lumibot.entities import Asset, Bars
+from lumibot.entities import Asset
 from lumibot.tools.lumibot_logger import get_logger
 
 from .data_source import DataSource
 
 logger = get_logger(__name__)
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+_BARS_CLASS = None
+
+
+def _bars_class():
+    global _BARS_CLASS
+    if _BARS_CLASS is None:
+        from lumibot.entities import Bars
+
+        _BARS_CLASS = Bars
+    return _BARS_CLASS
 
 
 class AlphaVantageData(DataSource):
@@ -141,5 +173,5 @@ class AlphaVantageData(DataSource):
         return result
 
     def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
-        bars = Bars(response, self.SOURCE, asset, raw=response, quote=quote)
+        bars = _bars_class()(response, self.SOURCE, asset, raw=response, quote=quote)
         return bars

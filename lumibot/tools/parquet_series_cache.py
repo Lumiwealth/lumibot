@@ -2,15 +2,35 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from importlib import import_module
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
-
-import pandas as pd
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.tools.backtest_cache import get_backtest_cache
 
 logger = logging.getLogger(__name__)
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
 
 
 @dataclass(frozen=True)

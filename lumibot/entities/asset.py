@@ -2,7 +2,7 @@ from collections import UserDict
 from datetime import date, datetime
 from enum import Enum
 
-from lumibot.tools import parse_symbol
+from lumibot.tools.symbol_parser import parse_symbol
 
 
 FUTURES_MONTH_CODES = {

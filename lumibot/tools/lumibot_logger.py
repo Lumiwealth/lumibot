@@ -50,14 +50,10 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple
 from enum import Enum
 
-# Import LUMIWEALTH_API_KEY from credentials
-try:
-    from ..credentials import LUMIWEALTH_API_KEY
-except ImportError:
-    LUMIWEALTH_API_KEY = None
+LUMIWEALTH_API_KEY = os.environ.get("LUMIWEALTH_API_KEY")
 
 class CSVErrorHandler(logging.Handler):
     """

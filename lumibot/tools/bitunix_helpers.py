@@ -2,9 +2,14 @@ import os
 import time
 from typing import Dict, Any, Optional
 import hashlib
-import requests
 import json
 from lumibot.tools.lumibot_logger import get_logger
+
+
+def _requests():
+    import requests
+
+    return requests
 
 class BitUnixClient:
     """
@@ -90,7 +95,7 @@ class BitUnixClient:
         url = self.BASE_URL + endpoint
         # Use custom serialization for POST bodies so that the sent JSON matches the signature body exactly
         if method.upper() == "GET":
-            resp = requests.request(
+            resp = _requests().request(
                 method=method.upper(),
                 url=url,
                 headers=headers,
@@ -100,7 +105,7 @@ class BitUnixClient:
         else:
             # Serialize body without spaces to match signature
             body_str = json.dumps(json_body, separators=(',', ':'), ensure_ascii=False) if json_body is not None else ""
-            resp = requests.request(
+            resp = _requests().request(
                 method=method.upper(),
                 url=url,
                 headers=headers,

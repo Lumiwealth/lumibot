@@ -1,19 +1,75 @@
+from __future__ import annotations
+
 import datetime
 import os
 from datetime import timedelta
 from decimal import Decimal
-from typing import Union
+from importlib import import_module
+from typing import TYPE_CHECKING, Union
 
-import pandas as pd
 from termcolor import colored
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.data_sources import DataSource
-from lumibot.entities import Asset, Bars, Chains, Quote
-from lumibot.tools import get_trading_days, parse_timestep_qty_and_unit
+from lumibot.entities import Asset, Chains, Quote
 from lumibot.tools.lumibot_logger import get_logger
 
+if TYPE_CHECKING:
+    from lumibot.entities import Bars
+
 logger = get_logger(__name__)
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+_BARS_CLASS = None
+_GET_TRADING_DAYS = None
+_PARSE_TIMESTEP_QTY_AND_UNIT = None
+
+
+def _bars_class():
+    global _BARS_CLASS
+    if _BARS_CLASS is None:
+        from lumibot.entities import Bars
+
+        _BARS_CLASS = Bars
+    return _BARS_CLASS
+
+
+def _get_trading_days(*args, **kwargs):
+    global _GET_TRADING_DAYS
+    if _GET_TRADING_DAYS is None:
+        from lumibot.tools import get_trading_days
+
+        _GET_TRADING_DAYS = get_trading_days
+    return _GET_TRADING_DAYS(*args, **kwargs)
+
+
+def _parse_timestep_qty_and_unit(*args, **kwargs):
+    global _PARSE_TIMESTEP_QTY_AND_UNIT
+    if _PARSE_TIMESTEP_QTY_AND_UNIT is None:
+        from lumibot.tools import parse_timestep_qty_and_unit
+
+        _PARSE_TIMESTEP_QTY_AND_UNIT = parse_timestep_qty_and_unit
+    return _PARSE_TIMESTEP_QTY_AND_UNIT(*args, **kwargs)
+
 
 class SchwabData(DataSource):
     """
@@ -280,7 +336,7 @@ class SchwabData(DataSource):
         Returns:
             tuple: (timedelta object, timestep_unit string)
         """
-        qty, unit = parse_timestep_qty_and_unit(timestep_str)
+        qty, unit = _parse_timestep_qty_and_unit(timestep_str)
 
         if unit == "minute":
             return timedelta(minutes=qty), unit
@@ -339,7 +395,7 @@ class SchwabData(DataSource):
         timestep = timestep if timestep else self.MIN_TIMESTEP
 
         # Parse the timestep
-        timestep_qty, timestep_unit = parse_timestep_qty_and_unit(timestep)
+        timestep_qty, timestep_unit = _parse_timestep_qty_and_unit(timestep)
 
         # Calculate end date in Eastern time
         end_date = datetime.datetime.now()
@@ -361,7 +417,7 @@ class SchwabData(DataSource):
             tcal_start_date = end_date - (td * length * 2 + timedelta(days=3))
 
             try:
-                trading_days = get_trading_days(market='NYSE', start_date=tcal_start_date, end_date=end_date)
+                trading_days = _get_trading_days(market='NYSE', start_date=tcal_start_date, end_date=end_date)
                 # Filter out trading days when the market_open is after the end_date
                 trading_days = trading_days[trading_days['market_open'] < end_date]
                 # Now, start_date is the length bars before the last trading day
@@ -488,7 +544,7 @@ class SchwabData(DataSource):
                 df.index = df.index.tz_convert(LUMIBOT_DEFAULT_TIMEZONE)
 
             # Create and return the Bars object
-            bars = Bars(df, self.SOURCE, asset, raw=df, quote=quote)
+            bars = _bars_class()(df, self.SOURCE, asset, raw=df, quote=quote)
             return bars
 
         except Exception as e:

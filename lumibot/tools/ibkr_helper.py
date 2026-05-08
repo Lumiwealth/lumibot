@@ -6,22 +6,91 @@ import os
 import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
+from importlib import import_module
 from pathlib import Path
+from types import ModuleType
 from typing import Any, Dict, Optional, Tuple
-
-import pandas as pd
 
 from lumibot.constants import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset
-from lumibot.tools.backtest_cache import CacheMode, get_backtest_cache
-from lumibot.tools.data_downloader_queue_client import queue_request
 from lumibot.tools.ibkr_secdef import (
     IbkrFuturesExchangeAmbiguousError,
     select_futures_exchange_from_secdef_search_payload,
 )
-from lumibot.tools.parquet_series_cache import ParquetSeriesCache
 
 logger = logging.getLogger(__name__)
+
+
+class _LazyModule(ModuleType):
+    def __init__(self, module_name: str):
+        super().__init__(module_name)
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+_BACKTEST_CACHE_MODE = None
+_BACKTEST_CACHE_GETTER = None
+_QUEUE_REQUEST = None
+_PARQUET_SERIES_CACHE = None
+
+
+class _LazyCacheMode:
+    def __getattr__(self, name):
+        global _BACKTEST_CACHE_MODE
+        if _BACKTEST_CACHE_MODE is None:
+            from lumibot.tools.backtest_cache import CacheMode as _CacheMode
+
+            _BACKTEST_CACHE_MODE = _CacheMode
+        return getattr(_BACKTEST_CACHE_MODE, name)
+
+
+class _LazyParquetSeriesCache:
+    def _load(self):
+        global _PARQUET_SERIES_CACHE
+        if _PARQUET_SERIES_CACHE is None:
+            from lumibot.tools.parquet_series_cache import ParquetSeriesCache as _ParquetSeriesCache
+
+            _PARQUET_SERIES_CACHE = _ParquetSeriesCache
+        return _PARQUET_SERIES_CACHE
+
+    def __call__(self, *args, **kwargs):
+        return self._load()(*args, **kwargs)
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+CacheMode = _LazyCacheMode()
+ParquetSeriesCache = _LazyParquetSeriesCache()
+
+
+def get_backtest_cache():
+    global _BACKTEST_CACHE_GETTER
+    if _BACKTEST_CACHE_GETTER is None:
+        from lumibot.tools.backtest_cache import get_backtest_cache as _get_backtest_cache
+
+        _BACKTEST_CACHE_GETTER = _get_backtest_cache
+    return _BACKTEST_CACHE_GETTER()
+
+
+def queue_request(*args, **kwargs):
+    global _QUEUE_REQUEST
+    if _QUEUE_REQUEST is None:
+        from lumibot.tools.data_downloader_queue_client import queue_request as _queue_request
+
+        _QUEUE_REQUEST = _queue_request
+    return _QUEUE_REQUEST(*args, **kwargs)
 
 CACHE_SUBFOLDER = "ibkr"
 

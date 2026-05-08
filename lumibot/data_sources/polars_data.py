@@ -1,16 +1,51 @@
+from __future__ import annotations
+
 from collections import OrderedDict, defaultdict
 from datetime import timedelta
 from decimal import Decimal
-from typing import Union
-
-import pandas as pd
+from importlib import import_module
+from typing import TYPE_CHECKING, Union
 
 from lumibot.data_sources import DataSourceBacktesting
-from lumibot.entities import Asset, Bars, Quote
+from lumibot.entities import Asset
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.tools.lumibot_logger import get_logger
 
+if TYPE_CHECKING:
+    from lumibot.entities import Quote
+
 logger = get_logger(__name__)
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+_BARS_CLASS = None
+
+
+def _bars_class():
+    global _BARS_CLASS
+    if _BARS_CLASS is None:
+        from lumibot.entities import Bars
+
+        _BARS_CLASS = Bars
+    return _BARS_CLASS
 
 
 class PolarsData(DataSourceBacktesting):
@@ -751,7 +786,6 @@ class PolarsData(DataSourceBacktesting):
                 # CRITICAL: Integer timeshift represents BAR offsets, not minute deltas!
                 # Must calculate adjustment based on the actual timestep being requested.
                 if timeshift:
-                    from datetime import timedelta
                     if isinstance(timeshift, int):
                         # Calculate timedelta for one bar of this timestep
                         timestep_delta, _ = self.convert_timestep_str_to_timedelta(timestep)
@@ -886,7 +920,7 @@ class PolarsData(DataSourceBacktesting):
         asset2 = quote
         if isinstance(asset, tuple):
             asset1, asset2 = asset
-        bars = Bars(response, self.SOURCE, asset1, quote=asset2, raw=response, return_polars=return_polars)
+        bars = _bars_class()(response, self.SOURCE, asset1, quote=asset2, raw=response, return_polars=return_polars)
         return bars
 
     def get_yesterday_dividend(self, asset, quote=None):

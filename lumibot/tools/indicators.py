@@ -1943,7 +1943,7 @@ def create_tearsheet(
         with open(os.devnull, "w") as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
             metrics_df = qs.reports.metrics(
                 df_final["strategy"],
-                df_final["benchmark"],
+                _benchmark_series,
                 rf=risk_free_rate,
                 display=False,
                 custom_metrics=custom_metrics,
@@ -1994,7 +1994,7 @@ def create_tearsheet(
                 with open(os.devnull, "w") as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
                     metrics_json_fn(
                         df_final["strategy"],
-                        df_final["benchmark"],
+                        _benchmark_series,
                         rf=risk_free_rate,
                         output=tearsheet_metrics_file,
                         summary_only=True,

@@ -199,9 +199,11 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         quote_key = quote_asset if quote_asset is not None else _USD_FOREX
         effective_exchange = exchange if exchange is not None else self.exchange
         timestep_key = timestep if isinstance(timestep, str) else str(timestep)
+        exchange_key = self._normalize_exchange_key(effective_exchange)
+        hot_cache_key = (asset_separated, quote_key, timestep_key, exchange_key)
         hot_cache = getattr(self, "_fully_loaded_hot_data_cache", None)
         if hot_cache is not None:
-            data = hot_cache.get((id(asset_separated), id(quote_key), timestep_key, effective_exchange))
+            data = hot_cache.get(hot_cache_key)
             if data is not None:
                 try:
                     if timeshift is None and timestep in {"minute", "day"}:
@@ -378,11 +380,15 @@ class InteractiveBrokersRESTBacktesting(PandasData):
             if hot_cache is None:
                 hot_cache = {}
                 self._fully_loaded_hot_data_cache = hot_cache
-            hot_cache[(id(base_asset), id(quote_asset), "minute", effective_exchange)] = data
+            hot_cache[(base_asset, quote_asset, "minute", self._normalize_exchange_key(effective_exchange))] = data
             try:
-                return data.get_last_price_fast(now)
+                fast = getattr(data, "get_last_price_fast", None)
+                return fast(now) if callable(fast) else data.get_last_price(now)
             except Exception:
-                pass
+                try:
+                    return data.get_last_price(now)
+                except Exception:
+                    pass
         return None
 
     def get_quote(self, asset, quote=None, exchange=None, **kwargs):
@@ -611,7 +617,8 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         quote_key = quote_asset if quote_asset is not None else _USD_FOREX
         effective_exchange = exchange if exchange is not None else self.exchange
         timestep_key = timestep if isinstance(timestep, str) else str(timestep)
-        hot_cache_key = (id(asset_separated), id(quote_key), timestep_key, effective_exchange)
+        exchange_key = self._normalize_exchange_key(effective_exchange)
+        hot_cache_key = (asset_separated, quote_key, timestep_key, exchange_key)
         hot_cache = getattr(self, "_fully_loaded_hot_data_cache", None)
         if hot_cache is not None:
             data = hot_cache.get(hot_cache_key)

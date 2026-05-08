@@ -100,7 +100,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
     def _parse_source_timestep(self, timestep, reverse=False):
         timestep_text = str(timestep)
-        for item in _alpaca_data_class().TIMESTEP_MAPPING:
+        for item in self.TIMESTEP_MAPPING:
             if reverse and timestep_text == item["timestep"]:
                 return _alpaca_timeframe_from_source_value(item["representations"][0])
             if not reverse and timestep_text in item["representations"]:

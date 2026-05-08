@@ -272,15 +272,6 @@ class YahooHelper:
         }
 
     @staticmethod
-    def get_symbol_info(symbol):
-        yf = _get_yfinance()
-        proxy = YahooHelper.sleep_and_get_proxy()
-        if proxy:
-            yf.set_config(proxy=proxy)
-        ticker = yf.Ticker(symbol)
-        return ticker.info
-
-    @staticmethod
     def get_symbol_last_price(symbol):
         yf = _get_yfinance()
         proxy = YahooHelper.sleep_and_get_proxy()

@@ -31,6 +31,9 @@ logger = logging.getLogger(__name__)
 
 
 class _LazyModule:
+    # Why: keep hot imports fast by deferring requests until first use.
+    # Invariant: existing requests.* and requests_exceptions.* call sites must
+    # behave like module attributes forwarded through _load/__getattr__.
     __slots__ = ("_module_name", "_module")
 
     def __init__(self, module_name: str):

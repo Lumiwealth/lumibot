@@ -54,7 +54,7 @@ polygon_helper = _LazyModule("lumibot.tools.polygon_helper")
 def _credential(name: str):
     import lumibot.credentials as credentials
 
-    return getattr(credentials, name)
+    return getattr(credentials, name, None)
 
 
 def _data_class():
@@ -126,9 +126,9 @@ def _infer_default_ccxt_exchange_id() -> str:
         if resolved:
             return resolved
 
-    if (_credential("COINBASE_CONFIG").get("apiKey") or "").strip():
+    if ((_credential("COINBASE_CONFIG") or {}).get("apiKey") or "").strip():
         return "coinbase"
-    if (_credential("KRAKEN_CONFIG").get("apiKey") or "").strip():
+    if ((_credential("KRAKEN_CONFIG") or {}).get("apiKey") or "").strip():
         return "kraken"
     return "binance"
 
@@ -841,7 +841,7 @@ class _AlpacaRoutingAdapter(_DataFrameRoutingAdapter):
         require_ohlc_data: bool,
     ) -> pd.DataFrame | None:
         if self._source is None:
-            alpaca_config = _credential("ALPACA_CONFIG")
+            alpaca_config = _credential("ALPACA_CONFIG") or {}
             if not (
                 alpaca_config.get("OAUTH_TOKEN")
                 or (alpaca_config.get("API_KEY") and alpaca_config.get("API_SECRET"))

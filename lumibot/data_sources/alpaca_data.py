@@ -656,14 +656,17 @@ class AlpacaData(DataSource):
 
         # Normalize assets list to Asset objects
         norm_assets: List[Asset] = []
+        crypto_quote_by_asset: Dict[Asset, Asset] = {}
         for a in assets:
             if isinstance(a, Asset):
                 norm_assets.append(a)
             elif isinstance(a, str):
                 norm_assets.append(Asset(a))
             elif isinstance(a, tuple) and len(a) == 2 and all(isinstance(x, Asset) for x in a):
-                # crypto pair tuple (base, quote)
-                norm_assets.append(a[0])
+                # crypto pair tuple (base, quote); preserve each quote for symbol formatting.
+                base_asset, quote_asset = a
+                norm_assets.append(base_asset)
+                crypto_quote_by_asset[base_asset] = quote_asset
             else:
                 logger.warning(f"Unsupported asset entry {a}, skipping")
 
@@ -854,8 +857,9 @@ class AlpacaData(DataSource):
                 syms = []
                 asset_map = {}
                 for a in chunk:
-                    # Attempt to sanitize base/quote using helper (falls back to provided quote parameter)
-                    base_asset, quote_asset = a, quote if quote else self.LUMIBOT_DEFAULT_QUOTE_ASSET
+                    # Use the tuple-specific quote first; fall back to the shared quote parameter.
+                    base_asset = a
+                    quote_asset = crypto_quote_by_asset.get(a, quote if quote else self.LUMIBOT_DEFAULT_QUOTE_ASSET)
                     symbol_fmt = f"{base_asset.symbol}/{quote_asset.symbol}"
                     syms.append(symbol_fmt)
                     asset_map[symbol_fmt] = a

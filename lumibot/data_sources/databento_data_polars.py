@@ -44,34 +44,21 @@ class _LazyModule:
     def __getattr__(self, name):
         return getattr(self._load(), name)
 
-    def __setattr__(self, name, value):
-        setattr(self._load(), name, value)
-
-    def __delattr__(self, name):
-        if name in {"_module_name", "_module"}:
-            object.__delattr__(self, name)
-        else:
-            delattr(self._load(), name)
-
 
 pl = _LazyModule("polars")
 databento_helper_polars = _LazyModule("lumibot.tools.databento_helper_polars")
 futures_roll = _LazyModule("lumibot.tools.futures_roll")
-db = None
 _DATABENTO_MODULE = None
 _BARS_CLASS = None
 
 
 def _databento_module():
-    global _DATABENTO_MODULE, db
-    if db is not None:
-        return db
+    global _DATABENTO_MODULE
     if _DATABENTO_MODULE is None:
         try:
             _DATABENTO_MODULE = import_module("databento")
         except ImportError:  # pragma: no cover - optional dependency
             return None
-    db = _DATABENTO_MODULE
     return _DATABENTO_MODULE
 
 

@@ -76,6 +76,8 @@ def _data_polars_class():
 
 
 def _databento_auth_error_class():
+    # Resolve lazily so auth-sensitive paths can catch the exact exception type
+    # without importing the DataBento helper during backend module import.
     global _DATABENTO_AUTH_ERROR_CLASS
     if _DATABENTO_AUTH_ERROR_CLASS is None:
         from lumibot.tools.databento_helper_polars import DataBentoAuthenticationError

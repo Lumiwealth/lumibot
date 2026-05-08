@@ -472,6 +472,13 @@ class Data:
         self._index_is_unique = bool(getattr(self.df.index, "is_unique", False))
         self.trading_hours_start, self.trading_hours_end = self.set_times(trading_hours_start, trading_hours_end)
         self.date_start, self.date_end = self.set_dates(date_start, date_end)
+        self.df = self.trim_data(
+            self.df,
+            self.date_start,
+            self.date_end,
+            self.trading_hours_start,
+            self.trading_hours_end,
+        )
         try:
             self._data_len = int(len(self.df.index))
         except Exception:
@@ -485,6 +492,17 @@ class Data:
         self._ohlc_has_nan = False
         self._volume_has_nan = False
         self._dividend_has_nan = "dividend" in self.df.columns
+        try:
+            required_with_data = [c for c in ("open", "high", "low", "close") if c in self.df.columns]
+            if required_with_data:
+                self._ohlc_has_nan = bool(pd.isna(self.df[required_with_data].to_numpy(copy=False)).any())
+            self._volume_has_nan = bool(pd.isna(self.df["volume"].to_numpy(copy=False)).any())
+            if "dividend" in self.df.columns:
+                self._dividend_has_nan = bool(pd.isna(self.df["dividend"].to_numpy(copy=False)).any())
+        except Exception:
+            self._ohlc_has_nan = True
+            self._volume_has_nan = True
+            self._dividend_has_nan = True
         bars_cols = ["open", "high", "low", "close", "volume"]
         if "dividend" in self.df.columns:
             bars_cols.append("dividend")
@@ -493,7 +511,7 @@ class Data:
         self._bars_has_volume = True
         self._bars_has_dividend = "dividend" in self._bars_cols
         self._bars_required_cols = ["open", "high", "low", "close"]
-        return True
+        return self._initialize_clean_repaired_state()
 
     def set_times(self, trading_hours_start, trading_hours_end):
         """Set the start and end times for the data. The default is 0001 hrs to 2359 hrs.
@@ -878,13 +896,25 @@ class Data:
 
         self.datalines = {}
         if getattr(self, "_skip_clean_datalines", False):
-            # IBKR native daily bars are used for direct slicing/last-price reads; full Dataline
-            # wrappers add load-time CPU/RSS with no benefit on that path.
-            self.datetime = idx_values.to_numpy()
+            # Keep the legacy datalines contract even on the clean fast path so
+            # get_last_price/get_quote/_get_bars_dict can still index columns.
+            self.datalines["datetime"] = Dataline(
+                self.asset,
+                "datetime",
+                idx_values.to_numpy(),
+                idx_values.dtype,
+            )
+            self.datetime = self.datalines["datetime"].dataline
             for column in self.df.columns:
-                setattr(self, column, self.df[column].to_numpy())
-            self._quote_required_cols_present = False
-            self._quote_missing_cols = list(_DATA_QUOTE_COLS)
+                self.datalines[column] = Dataline(
+                    self.asset,
+                    column,
+                    self.df[column].to_numpy(),
+                    self.df[column].dtype,
+                )
+                setattr(self, column, self.datalines[column].dataline)
+            self._quote_required_cols_present = all(col in self.datalines for col in _DATA_REQUIRED_PRICE_COLS)
+            self._quote_missing_cols = [col for col in _DATA_QUOTE_COLS if col not in self.datalines]
             self._quote_presence_logged = False
         else:
             self.to_datalines()

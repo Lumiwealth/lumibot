@@ -8,6 +8,8 @@ _INV_SQRT_TWO_PI = 1.0 / sqrt(2.0 * pi)
 
 
 class _NormalDistribution:
+    """Scalar standard-normal cdf/pdf without importing scipy.stats.norm at startup."""
+
     @staticmethod
     def cdf(value):
         return 0.5 * (1.0 + erf(value / _SQRT_TWO))

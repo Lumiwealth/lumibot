@@ -48,6 +48,10 @@ For markets that truly close (futures daily maintenance, weekend gaps, holiday e
 
 If a broker accepts order submission during a closed session, the order is still “working”, but it cannot fill until the market reopens (i.e., until data resumes).
 
+### Rule 4 — Vendor gaps stay explicit
+
+Daily crypto data can have vendor-side missing days even for assets that trade continuously. Do not forward-fill those missing days into synthetic OHLCV candles. Preserve missing rows as `missing=True` so execution code can skip them or fall back through canonical data handling instead of trading against fabricated prices.
+
 ---
 
 ## Concrete example: CME equity futures early close (Labor Day)
@@ -88,4 +92,3 @@ Eventually we may want lifecycle hooks that include which market (or asset class
 instead of a single global market.
 
 This is a feature request, not a current requirement.
-

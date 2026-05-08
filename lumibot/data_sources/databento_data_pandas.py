@@ -65,7 +65,7 @@ def _databento_data_polars_class():
     if _DATABENTO_DATA_POLARS_CLASS is None:
         try:
             from .databento_data_polars import DataBentoDataPolars
-        except Exception:  # pragma: no cover - optional dependency path
+        except (ImportError, ModuleNotFoundError):  # pragma: no cover - optional dependency path
             return None
 
         _DATABENTO_DATA_POLARS_CLASS = DataBentoDataPolars

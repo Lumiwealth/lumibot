@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 
 from termcolor import colored
 
@@ -76,7 +76,7 @@ class TradovateData(DataSource):
         logger.error(colored("Method 'get_historical_prices' is not implemented for Tradovate because it requires a CME subscription which costs $440/month.", "red"))
         return None
 
-    def get_last_price(self, asset, quote=None, exchange=None) -> Union[float, Decimal, None]:
+    def get_last_price(self, asset, quote=None, exchange=None) -> float | Decimal | None:
         """
         Retrieve the most recent price for the given asset via WebSocket.
         This method first retrieves the contract ID for the asset's symbol, then subscribes

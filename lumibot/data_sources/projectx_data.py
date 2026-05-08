@@ -357,7 +357,7 @@ class ProjectXData(DataSource):
                 logger.debug(debug_msg)
             except Exception as log_exc:
                 self.logger.debug(f"Datetime normalization debug failed for {asset.symbol}: {log_exc}")
-            return _bars_class()(df=df, source=self.SOURCE, asset=asset, raw=df.to_dict())
+            return _bars_class()(df=df, source=self.SOURCE, asset=asset, raw=df)
         except Exception as e:
             self.logger.error(f"Error fetching bars for {getattr(asset, 'symbol', asset)}: {e}")
             return None
@@ -625,7 +625,7 @@ class ProjectXData(DataSource):
                 df=df,
                 source=self.SOURCE,
                 asset=asset,
-                raw=df.to_dict()
+                raw=df
             )
 
             self.logger.debug(f"Retrieved {len(df)} bars for {asset.symbol} from {start_datetime} to {end_datetime}")

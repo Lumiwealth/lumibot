@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from datetime import time
 from decimal import Decimal
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 def _pd():
@@ -88,7 +92,7 @@ def set_pandas_float_display_precision(precision: int = 5):
     pd.set_option('display.float_format', format_str.format)
 
 
-def prettify_dataframe_with_decimals(df, decimal_places: int = 5) -> str:
+def prettify_dataframe_with_decimals(df: pd.DataFrame, decimal_places: int = 5) -> str:
     np = _np()
 
     def decimal_formatter(x):

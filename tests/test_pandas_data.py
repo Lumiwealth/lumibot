@@ -1,9 +1,10 @@
 from datetime import datetime, timedelta
 
 import pandas as pd
+import pytz
 
 from lumibot.data_sources import PandasData
-from lumibot.entities import Asset
+from lumibot.entities import Asset, Bars
 from lumibot.entities.data import Data
 
 from tests.fixtures import pandas_data_fixture
@@ -117,3 +118,50 @@ class TestPandasData:
         assert snapshot["last_trade_time"] == idx[-1].to_pydatetime()
         assert snapshot["last_bid_time"] == idx[-1].to_pydatetime()
         assert snapshot["last_ask_time"] == idx[-1].to_pydatetime()
+
+    def test_parse_source_symbol_bars_fast_path_normalizes_tz_naive_frames(self):
+        asset = Asset("SPY", asset_type=Asset.AssetType.STOCK)
+        source = PandasData(
+            datetime_start=datetime(2024, 1, 1),
+            datetime_end=datetime(2024, 1, 2),
+            pandas_data={},
+        )
+        idx = pd.date_range("2024-01-01 09:30", periods=2, freq="min")
+        response = pd.DataFrame(
+            {
+                "open": [100.0, 101.0],
+                "high": [101.0, 102.0],
+                "low": [99.0, 100.0],
+                "close": [100.5, 101.5],
+                "volume": [1000, 1000],
+                "return": [0.0, 0.01],
+            },
+            index=idx,
+        )
+        response.attrs["_lumibot_skip_timezone"] = True
+
+        bars = source._parse_source_symbol_bars(response, asset)
+
+        assert isinstance(bars, Bars)
+        assert bars.df.index.tz is not None
+
+    def test_bars_fast_path_preserves_tz_aware_processed_frame(self):
+        asset = Asset("SPY", asset_type=Asset.AssetType.STOCK)
+        tz = pytz.timezone("America/New_York")
+        idx = pd.date_range(tz.localize(datetime(2024, 1, 1, 9, 30)), periods=2, freq="min")
+        response = pd.DataFrame(
+            {
+                "open": [100.0, 101.0],
+                "high": [101.0, 102.0],
+                "low": [99.0, 100.0],
+                "close": [100.5, 101.5],
+                "volume": [1000, 1000],
+                "return": [0.0, 0.01],
+            },
+            index=idx,
+        )
+
+        bars = Bars.from_pandas_fast(response, "PANDAS", asset)
+
+        assert bars.df is response
+        assert bars.df.index.tz is not None

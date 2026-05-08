@@ -2279,23 +2279,8 @@ def _derive_daily_from_intraday(
     close = pd.to_numeric(daily.get("close"), errors="coerce")
     daily["missing"] = daily["missing"].fillna(True) | close.isna()
 
-    # IBKR crypto history is often effectively 24/5: weekend days may be absent even though
-    # strategies are frequently configured as 24/7. To keep daily-cadence backtests stable
-    # (no refresh loops / "missing BTC day"), forward-fill short gaps (<= 3 days) using the
-    # prior close. This mirrors the existing Data.checker() tolerance window.
-    if close is not None and not close.empty:
-        filled_close = close.ffill(limit=3)
-        filled_mask = close.isna() & filled_close.notna()
-        if filled_mask.any():
-            daily.loc[filled_mask, "close"] = filled_close[filled_mask]
-            for col in ("open", "high", "low"):
-                if col in daily.columns:
-                    daily.loc[filled_mask, col] = pd.to_numeric(daily.loc[filled_mask, col], errors="coerce").fillna(
-                        daily.loc[filled_mask, "close"]
-                    )
-            if "volume" in daily.columns:
-                daily.loc[filled_mask, "volume"] = pd.to_numeric(daily.loc[filled_mask, "volume"], errors="coerce").fillna(0)
-            daily.loc[filled_mask, "missing"] = False
+    # Keep vendor gaps explicit. Backtests must not trade against synthesized
+    # crypto OHLCV rows; callers can drop rows where missing=True.
     return daily
 
 

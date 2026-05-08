@@ -219,9 +219,11 @@ class Bars:
         obj._return_polars = False
         obj._polars_cache = None
         obj._pandas_cache = None
-        obj._tzinfo = None
+        obj._tzinfo = LUMIBOT_DEFAULT_PYTZ
         obj._df = df
         obj._df_is_pandas = True
+        if not isinstance(df.index, pd.DatetimeIndex) or df.index.tz is None:
+            obj._apply_timezone()
         return obj
 
     def __init__(self, df, source, asset, quote=None, raw=None, return_polars=False, tzinfo=None, skip_timezone=False):
@@ -253,6 +255,10 @@ class Bars:
             and "dividend" not in df.columns
         ):
             self._df = df
+            # Fast path is only safe for tz-aware processed frames; normalize
+            # tz-naive callers instead of letting inconsistent indexes escape.
+            if not isinstance(df.index, pd.DatetimeIndex) or df.index.tz is None:
+                self._apply_timezone()
             return
         
         # Check if empty

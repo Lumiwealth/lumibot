@@ -5,7 +5,39 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 import pytest
 
+from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset
+
+
+def test_derive_crypto_daily_preserves_vendor_gaps():
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    idx = pd.DatetimeIndex(
+        [
+            LUMIBOT_DEFAULT_PYTZ.localize(datetime(2025, 1, 1, 12, 0)),
+            LUMIBOT_DEFAULT_PYTZ.localize(datetime(2025, 1, 3, 12, 0)),
+        ]
+    )
+    intraday = pd.DataFrame(
+        {
+            "open": [100.0, 103.0],
+            "high": [101.0, 104.0],
+            "low": [99.0, 102.0],
+            "close": [100.5, 103.5],
+            "volume": [10.0, 12.0],
+        },
+        index=idx,
+    )
+
+    daily = ibkr_helper._derive_daily_from_intraday(
+        intraday,
+        start_day=LUMIBOT_DEFAULT_PYTZ.localize(datetime(2025, 1, 1)),
+        end_day=LUMIBOT_DEFAULT_PYTZ.localize(datetime(2025, 1, 3)),
+    )
+
+    missing_day = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2025, 1, 2))
+    assert bool(daily.loc[missing_day, "missing"]) is True
+    assert pd.isna(daily.loc[missing_day, "close"])
 
 
 def test_ibkr_helper_caches_history_and_reuses_cache(monkeypatch, tmp_path):

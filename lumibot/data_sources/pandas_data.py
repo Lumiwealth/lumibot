@@ -685,6 +685,9 @@ class PandasData(DataSourceBacktesting):
             and "return" in response.columns
             and "dividend" not in response.columns
         ):
+            # Fast path invariant: only preprocessed Data.get_bars() frames hit
+            # this branch. They already carry tz-aware indexes and derived returns;
+            # Bars.from_pandas_fast intentionally skips Bars.__init__ validation.
             return _bars_class().from_pandas_fast(response, self.SOURCE, asset1, quote=asset2, raw=response)
         bars = _bars_class()(
             response,

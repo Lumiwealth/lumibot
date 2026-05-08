@@ -717,9 +717,9 @@ def update_cache(
     # For every missing date not in the cache, create a dummy row.
     for d in missing_dates or []:
         if d not in cached_dates:
-            # Create a datetime at the start of the day using the default timezone,
-            # then convert to UTC.
-            dt = datetime(year=d.year, month=d.month, day=d.day, tzinfo=_default_pytz())
+            # Create a datetime at the start of the day using pytz.localize,
+            # then convert to UTC. Passing pytz zones via tzinfo gives bad offsets.
+            dt = _default_pytz().localize(datetime(year=d.year, month=d.month, day=d.day))
             dt_utc = dt.astimezone(timezone.utc)
             dummy_rows.append((dt_utc, {"missing": True}))
     # If any dummy rows were created, add them to the DataFrame.

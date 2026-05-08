@@ -1,21 +1,75 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Union, Optional
-
-import pandas as pd
-import polars as pl
+from importlib import import_module
+from typing import TYPE_CHECKING, Optional, Union
 
 from .data_source import DataSource
-from lumibot.entities import Asset, Bars, Quote
-from lumibot.tools import databento_helper, databento_helper_polars
+from lumibot.entities import Asset, Quote
 from lumibot.tools.lumibot_logger import get_logger
 
-try:
+if TYPE_CHECKING:
+    from lumibot.entities import Bars
     from .databento_data_polars import DataBentoDataPolars
-except Exception:  # pragma: no cover - optional dependency path
-    DataBentoDataPolars = None
 
 logger = get_logger(__name__)
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+    def __setattr__(self, name, value):
+        setattr(self._load(), name, value)
+
+    def __delattr__(self, name):
+        if name in {"_module_name", "_module"}:
+            object.__delattr__(self, name)
+        else:
+            delattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+pl = _LazyModule("polars")
+databento_helper = _LazyModule("lumibot.tools.databento_helper")
+databento_helper_polars = _LazyModule("lumibot.tools.databento_helper_polars")
+_BARS_CLASS = None
+_DATABENTO_DATA_POLARS_CLASS = None
+
+
+def _bars_class():
+    global _BARS_CLASS
+    if _BARS_CLASS is None:
+        from lumibot.entities import Bars
+
+        _BARS_CLASS = Bars
+    return _BARS_CLASS
+
+
+def _databento_data_polars_class():
+    global _DATABENTO_DATA_POLARS_CLASS
+    if _DATABENTO_DATA_POLARS_CLASS is None:
+        try:
+            from .databento_data_polars import DataBentoDataPolars
+        except Exception:  # pragma: no cover - optional dependency path
+            return None
+
+        _DATABENTO_DATA_POLARS_CLASS = DataBentoDataPolars
+    return _DATABENTO_DATA_POLARS_CLASS
 
 
 class DataBentoDataPandas(DataSource):
@@ -247,7 +301,7 @@ class DataBentoDataPandas(DataSource):
             return None
 
         # Create and return Bars object
-        bars = Bars(
+        bars = _bars_class()(
             df=df_result,
             source=self.SOURCE,
             asset=asset,
@@ -376,12 +430,13 @@ class DataBentoDataPandas(DataSource):
     def _ensure_live_delegate(self) -> Optional['DataBentoDataPolars']:
         if not self.enable_live_stream:
             return None
-        if DataBentoDataPolars is None or self.is_backtesting_mode:
+        databento_data_polars_class = _databento_data_polars_class()
+        if databento_data_polars_class is None or self.is_backtesting_mode:
             return None
 
         if self._live_delegate is None:
             try:
-                self._live_delegate = DataBentoDataPolars(
+                self._live_delegate = databento_data_polars_class(
                     api_key=self._api_key,
                     has_paid_subscription=True,
                     enable_cache=False,
@@ -425,7 +480,7 @@ class DataBentoDataPandas(DataSource):
                 return None
 
             # Create Bars object
-            bars = Bars(
+            bars = _bars_class()(
                 df=response,
                 source=self.SOURCE,
                 asset=asset,

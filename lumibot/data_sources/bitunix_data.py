@@ -1,11 +1,56 @@
-from typing import Optional
+from __future__ import annotations
 
-import pandas as pd
+from importlib import import_module
+from typing import TYPE_CHECKING, Optional
+
 import pytz
 
 from lumibot.data_sources.data_source import DataSource
-from lumibot.entities import Asset, Bars
-from lumibot.tools.bitunix_helpers import BitUnixClient
+from lumibot.entities import Asset
+
+if TYPE_CHECKING:
+    from lumibot.entities import Bars
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+BitUnixClient = None
+_BARS_CLASS = None
+
+
+def _bitunix_client_class():
+    global BitUnixClient
+    if BitUnixClient is None:
+        from lumibot.tools.bitunix_helpers import BitUnixClient as _BitUnixClient
+
+        BitUnixClient = _BitUnixClient
+    return BitUnixClient
+
+
+def _bars_class():
+    global _BARS_CLASS
+    if _BARS_CLASS is None:
+        from lumibot.entities import Bars
+
+        _BARS_CLASS = Bars
+    return _BARS_CLASS
 
 
 class BitunixData(DataSource):
@@ -42,7 +87,7 @@ class BitunixData(DataSource):
             self.api_secret = getattr(config, "API_SECRET", None)
             if not self.api_key or not self.api_secret:
                 raise ValueError("API_KEY and API_SECRET must be provided in config")
-        self.client = BitUnixClient(self.api_key, self.api_secret)
+        self.client = _bitunix_client_class()(self.api_key, self.api_secret)
         # Track symbols we're interested in for WebSocket subscriptions
         self.client_symbols = set()
 
@@ -206,7 +251,7 @@ class BitunixData(DataSource):
         """
         Wraps the raw DataFrame into a Bars entity with source metadata.
         """
-        return Bars(df, self.SOURCE, asset, raw=df, quote=quote)
+        return _bars_class()(df, self.SOURCE, asset, raw=df, quote=quote)
 
     def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None, strike_count: int = 100) -> dict:
         """Option chains not supported by BitUnix."""

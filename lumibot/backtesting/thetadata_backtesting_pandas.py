@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import logging
 import math
@@ -5,17 +7,65 @@ import os
 import subprocess
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import Dict, List, Optional, Union
+from importlib import import_module
+from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
-import pandas as pd
 import pytz
 
-from lumibot.credentials import THETADATA_CONFIG
 from lumibot.data_sources import PandasData
-from lumibot.entities import Asset, AssetsMapping, Data
-from lumibot.tools import thetadata_helper
+from lumibot.entities import Asset, AssetsMapping
+
+if TYPE_CHECKING:
+    from lumibot.entities import Data
 
 logger = logging.getLogger(__name__)
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+    def __setattr__(self, name, value):
+        setattr(self._load(), name, value)
+
+    def __delattr__(self, name):
+        if name in {"_module_name", "_module"}:
+            object.__delattr__(self, name)
+        else:
+            delattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+thetadata_helper = _LazyModule("lumibot.tools.thetadata_helper")
+_DATA_CLASS = None
+
+
+def _thetadata_config():
+    from lumibot.credentials import THETADATA_CONFIG
+
+    return THETADATA_CONFIG
+
+
+def _data_class():
+    global _DATA_CLASS
+    if _DATA_CLASS is None:
+        from lumibot.entities import Data
+
+        _DATA_CLASS = Data
+    return _DATA_CLASS
 
 
 def _parity_log(message: str, *args) -> None:
@@ -132,10 +182,11 @@ class ThetaDataBacktestingPandas(PandasData):
         self._cadence_last_dt = None
         self._observed_intraday_cadence = False
 
+        config = _thetadata_config()
         if username is None:
-            username = THETADATA_CONFIG.get("THETADATA_USERNAME")
+            username = config.get("THETADATA_USERNAME")
         if password is None:
-            password = THETADATA_CONFIG.get("THETADATA_PASSWORD")
+            password = config.get("THETADATA_PASSWORD")
         if username is None or password is None:
             logger.warning("ThetaData credentials are not configured; ThetaTerminal may fail to authenticate.")
 
@@ -2261,7 +2312,7 @@ class ThetaDataBacktestingPandas(PandasData):
                     data_start_candidate,
                     data_end_candidate,
                 ) = _process_frame(merged_df)
-        data = Data(asset_separated, cleaned_df, timestep=ts_unit, quote=quote_asset)
+        data = _data_class()(asset_separated, cleaned_df, timestep=ts_unit, quote=quote_asset)
         # For minute data we want strict cache boundary enforcement so missing bars force a refresh.
         # For daily data, the backtester queries intraday timestamps (09:30/16:00) while the latest
         # completed daily bar represents the prior session; allow Data.check_data's tolerance window.

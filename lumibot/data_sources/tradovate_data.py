@@ -1,11 +1,16 @@
+from __future__ import annotations
+
 from decimal import Decimal
-from typing import Union
+from typing import TYPE_CHECKING, Union
 
 from termcolor import colored
 
 from lumibot.data_sources import DataSource
-from lumibot.entities import Asset, Bars
+from lumibot.entities import Asset
 from lumibot.tools.lumibot_logger import get_logger
+
+if TYPE_CHECKING:
+    from lumibot.entities import Bars
 
 logger = get_logger(__name__)
 

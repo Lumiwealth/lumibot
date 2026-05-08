@@ -1,26 +1,75 @@
+from __future__ import annotations
+
 import datetime
 from decimal import Decimal
+from importlib import import_module
 from typing import Optional, Union
 
-import pandas as pd
-import polars as pl
-
-from lumibot.constants import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
 import pytz
-from lumibot.tools.helpers import parse_timestep_qty_and_unit, to_datetime_aware
 from lumibot.tools.lumibot_logger import get_logger
 
 from .asset import Asset
 from .dataline import Dataline
 
 logger = get_logger(__name__)
+_DEFAULT_PYTZ = None
+_PARSE_TIMESTEP_QTY_AND_UNIT = None
+_TO_DATETIME_AWARE = None
 
-# Set the option to raise an error if downcasting is not possible (if available in this pandas version)
-try:
-    pd.set_option('future.no_silent_downcasting', True)
-except (pd._config.config.OptionError, AttributeError):
-    # Option not available in this pandas version, skip it
-    pass
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module_name = object.__getattribute__(self, "_module_name")
+            module = import_module(module_name)
+            if module_name == "pandas":
+                try:
+                    module.set_option('future.no_silent_downcasting', True)
+                except (module._config.config.OptionError, AttributeError):
+                    pass
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+pl = _LazyModule("polars")
+
+
+def _default_pytz():
+    global _DEFAULT_PYTZ
+    if _DEFAULT_PYTZ is None:
+        from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
+
+        _DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ
+    return _DEFAULT_PYTZ
+
+
+def parse_timestep_qty_and_unit(*args, **kwargs):
+    global _PARSE_TIMESTEP_QTY_AND_UNIT
+    if _PARSE_TIMESTEP_QTY_AND_UNIT is None:
+        from lumibot.tools.helpers import parse_timestep_qty_and_unit as _parse_timestep_qty_and_unit
+
+        _PARSE_TIMESTEP_QTY_AND_UNIT = _parse_timestep_qty_and_unit
+    return _PARSE_TIMESTEP_QTY_AND_UNIT(*args, **kwargs)
+
+
+def to_datetime_aware(*args, **kwargs):
+    global _TO_DATETIME_AWARE
+    if _TO_DATETIME_AWARE is None:
+        from lumibot.tools.helpers import to_datetime_aware as _to_datetime_aware
+
+        _TO_DATETIME_AWARE = _to_datetime_aware
+    return _TO_DATETIME_AWARE(*args, **kwargs)
 
 
 class DataPolars:
@@ -218,9 +267,9 @@ class DataPolars:
                     self._pandas_df.index = self._localize_or_convert_index(self._pandas_df.index, polars_tz)
 
                 if not getattr(self._pandas_df.index, "tz", None):
-                    self._pandas_df.index = self._localize_or_convert_index(self._pandas_df.index, DEFAULT_PYTZ)
-                elif str(self._pandas_df.index.tz) != str(DEFAULT_PYTZ):
-                    self._pandas_df.index = self._pandas_df.index.tz_convert(DEFAULT_PYTZ)
+                    self._pandas_df.index = self._localize_or_convert_index(self._pandas_df.index, _default_pytz())
+                elif str(self._pandas_df.index.tz) != str(_default_pytz()):
+                    self._pandas_df.index = self._pandas_df.index.tz_convert(_default_pytz())
 
         return self._pandas_df
 

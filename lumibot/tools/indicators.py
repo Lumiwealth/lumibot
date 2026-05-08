@@ -1,34 +1,135 @@
+from __future__ import annotations
+
 import contextlib
 import json
 import math
 import os
-import webbrowser
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
+from importlib import import_module
 
-import pandas as pd
-import numpy as np
-import plotly.graph_objects as go
 import pytz
-import quantstats_lumi as qs
-from plotly.subplots import make_subplots
 
 from ..constants import LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.tools import to_datetime_aware
 
-from .yahoo_helper import YahooHelper as yh
 
-from lumibot.tools.lumibot_logger import get_logger
-from lumibot.tools.parquet_utils import (
-    coerce_object_columns_to_json_strings,
-    is_parquet_required,
-    write_parquet_with_logging,
-)
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
 
-logger = get_logger(__name__)
+    def __init__(self, module_name: str):
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+np = _LazyModule("numpy")
+
+
+class _LazyLogger:
+    __slots__ = ("_logger",)
+
+    def __init__(self):
+        object.__setattr__(self, "_logger", None)
+
+    def _load(self):
+        logger = object.__getattribute__(self, "_logger")
+        if logger is None:
+            from lumibot.tools.lumibot_logger import get_logger
+
+            logger = get_logger(__name__)
+            object.__setattr__(self, "_logger", logger)
+        return logger
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+logger = _LazyLogger()
 
 _TRUE_ENV_VALUES = {"1", "true", "yes", "on"}
 _FALSE_ENV_VALUES = {"0", "false", "no", "off"}
+
+
+def _get_quantstats_lumi():
+    import quantstats_lumi as qs
+
+    globals()["qs"] = qs
+    return qs
+
+
+def _get_plotly_imports():
+    go = globals().get("go")
+    make_subplots = globals().get("make_subplots")
+    if go is None:
+        import plotly.graph_objects as go
+
+        globals()["go"] = go
+    if make_subplots is None:
+        from plotly.subplots import make_subplots
+
+        globals()["make_subplots"] = make_subplots
+
+    return go, make_subplots
+
+
+def _get_webbrowser():
+    module = globals().get("webbrowser")
+    if module is None:
+        module = import_module("webbrowser")
+        globals()["webbrowser"] = module
+    return module
+
+
+def _parquet_utils():
+    from lumibot.tools.parquet_utils import (
+        coerce_object_columns_to_json_strings,
+        is_parquet_required,
+        write_parquet_with_logging,
+    )
+
+    return coerce_object_columns_to_json_strings, is_parquet_required, write_parquet_with_logging
+
+
+def coerce_object_columns_to_json_strings(*args, **kwargs):
+    fn, _, _ = _parquet_utils()
+    return fn(*args, **kwargs)
+
+
+def is_parquet_required(*args, **kwargs):
+    _, fn, _ = _parquet_utils()
+    return fn(*args, **kwargs)
+
+
+def write_parquet_with_logging(*args, **kwargs):
+    _, _, fn = _parquet_utils()
+    return fn(*args, **kwargs)
+
+
+def __getattr__(name):
+    if name == "qs":
+        return _get_quantstats_lumi()
+    if name == "yh":
+        from .yahoo_helper import YahooHelper as yh
+
+        globals()["yh"] = yh
+        return yh
+    if name in {"go", "make_subplots"}:
+        go, make_subplots = _get_plotly_imports()
+        return go if name == "go" else make_subplots
+    if name == "webbrowser":
+        return _get_webbrowser()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 TERMINAL_TRADE_STATUSES_FOR_MARKERS = {
     "fill",
@@ -567,6 +668,8 @@ def get_symbol_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
 
     """
     # Fetch the symbol data
+    from .yahoo_helper import YahooHelper as yh
+
     returns_df = yh.get_symbol_data(symbol)
 
     if returns_df is None:
@@ -706,6 +809,7 @@ def plot_indicators(
         return
 
     logger.info("\nCreating indicators plot...")
+    go, make_subplots = _get_plotly_imports()
 
     # Assign "default_plot" as plot_name for markers and lines that don't have one
     if chart_markers_df is not None and not chart_markers_df.empty:
@@ -1131,6 +1235,8 @@ def plot_returns(
     if not show_plot:
         logger.info("show_plot is False; trades CSV/parquet written, skipping HTML plot.")
         return
+
+    go, make_subplots = _get_plotly_imports()
 
     dfs_concat = []
 
@@ -1745,6 +1851,8 @@ def create_tearsheet(
     # Set the name of the benchmark column so that quantstats can use it in the report
     df_final["benchmark"].name = str(benchmark_asset)
 
+    qs = _get_quantstats_lumi()
+
     # Run quantstats reports surpressing any logs because it can be noisy for no reason
     try:
         with open(os.devnull, "w") as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
@@ -1879,7 +1987,7 @@ def create_tearsheet(
                 return f"{float(value) * 100.0:.2f}%"
 
             try:
-                import quantstats_lumi as _qs
+                _qs = qs
 
                 strat_returns = _qs.utils._prepare_returns(df_final["strategy"].astype(float))
                 bench_returns = _qs.utils._prepare_returns(df_final["benchmark"].astype(float))
@@ -2009,13 +2117,15 @@ def create_tearsheet(
 
     if show_tearsheet and not disable_ui:
         url = "file://" + os.path.abspath(str(tearsheet_file))
-        webbrowser.open(url)
+        _get_webbrowser().open(url)
 
     return result
 
 
 def get_risk_free_rate(dt: datetime = None):
     try:
+        from .yahoo_helper import YahooHelper as yh
+
         result = yh.get_risk_free_rate(dt=dt)
     except Exception as e:
         logger.error(f"Error getting the risk free rate: {e}")

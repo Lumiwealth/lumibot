@@ -297,6 +297,16 @@ Notes:
 - Default: `2000`.
 - Notes: Full run traces and artifacts are still written separately. This only compacts the lightweight runtime notes so repeated backtest iterations do not blow up the model context window.
 
+### `LUMIBOT_AGENT_MAX_MODEL_CALLS`
+- Purpose: Hard cap uncached agent model calls in a single strategy run.
+- Default: unset.
+- Notes: When set, Lumibot raises before making the next provider call once the cap is reached. This is intended for expensive AI backtests and smoke runs where accidental spend matters.
+
+### `LUMIBOT_AGENT_MAX_RUN_ATTEMPTS`
+- Purpose: Override the retry budget for a single agent model call.
+- Default: `2` in backtests, `10` in live trading.
+- Notes: Backtests default to a lower retry budget so a bad provider window does not multiply model spend across many simulated iterations.
+
 ### `TELEGRAM_BOT_TOKEN`
 - Purpose: Telegram Bot API token for `self.notifications.configure_telegram()`.
 - Values: Bot token from BotFather.

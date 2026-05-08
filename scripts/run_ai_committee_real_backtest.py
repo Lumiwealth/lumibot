@@ -6,7 +6,7 @@ relevant model provider key, usually ``OPENAI_API_KEY``, to already be present i
 the environment.
 
 Usage:
-    OPENAI_API_KEY=... python scripts/run_ai_committee_real_backtest.py
+    LUMIBOT_ALLOW_PAID_AI_COMMITTEE_BACKTEST=1 OPENAI_API_KEY=... python scripts/run_ai_committee_real_backtest.py
 """
 
 import json
@@ -42,8 +42,24 @@ def _json_safe(value):
         return repr(value)
 
 
+def _requires_openai_key() -> bool:
+    models = [
+        os.environ.get("COMMITTEE_RESEARCH_MODEL", "openai/gpt-5.4-mini"),
+        os.environ.get("COMMITTEE_BULL_MODEL", "openai/gpt-5.5"),
+        os.environ.get("COMMITTEE_BEAR_MODEL", "openai/gpt-5.5"),
+        os.environ.get("COMMITTEE_TRADER_MODEL", "openai/gpt-5.5"),
+    ]
+    return any(str(model).strip().lower().startswith("openai/") for model in models)
+
+
 def main() -> None:
-    if not os.environ.get("OPENAI_API_KEY"):
+    if os.environ.get("LUMIBOT_ALLOW_PAID_AI_COMMITTEE_BACKTEST") != "1":
+        raise RuntimeError(
+            "This script makes real paid model calls. Set "
+            "LUMIBOT_ALLOW_PAID_AI_COMMITTEE_BACKTEST=1 and "
+            "LUMIBOT_AGENT_MAX_MODEL_CALLS to an explicit cap before running."
+        )
+    if _requires_openai_key() and not os.environ.get("OPENAI_API_KEY"):
         raise RuntimeError("OPENAI_API_KEY is required for the default OpenAI committee models.")
 
     os.environ["BACKTESTING_DATA_SOURCE"] = "none"
@@ -53,6 +69,8 @@ def main() -> None:
     os.environ.setdefault("COMMITTEE_BULL_MODEL", "openai/gpt-5.5")
     os.environ.setdefault("COMMITTEE_BEAR_MODEL", "openai/gpt-5.5")
     os.environ.setdefault("COMMITTEE_TRADER_MODEL", "openai/gpt-5.5")
+    os.environ.setdefault("LUMIBOT_AGENT_MAX_MODEL_CALLS", "96")
+    os.environ.setdefault("LUMIBOT_AGENT_MAX_RUN_ATTEMPTS", "2")
 
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     artifact_dir = ARTIFACT_ROOT / run_id

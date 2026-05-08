@@ -32,6 +32,10 @@ _TIMESTAMP_HINT_RE = re.compile(
 _DEFAULT_MEMORY_NOTE_MAX_CHARS = 2000
 
 
+class AgentModelCallLimitExceeded(RuntimeError):
+    """Raised before a model call when the configured agent-call budget is exhausted."""
+
+
 def _safe_call(func, default=None):
     try:
         return func()
@@ -127,6 +131,21 @@ def _agent_memory_note_max_chars() -> int:
         except Exception:
             pass
     return _DEFAULT_MEMORY_NOTE_MAX_CHARS
+
+
+def _agent_model_call_limit(strategy: Any) -> int | None:
+    params = getattr(strategy, "parameters", None)
+    raw = None
+    if isinstance(params, dict):
+        raw = params.get("agent_max_model_calls")
+    if raw is None:
+        raw = os.environ.get("LUMIBOT_AGENT_MAX_MODEL_CALLS")
+    if raw is None or str(raw).strip() == "":
+        return None
+    try:
+        return max(int(raw), 0)
+    except Exception:
+        return None
 
 
 def _compact_json(value: Any, limit: int = 240) -> str:
@@ -1186,6 +1205,7 @@ class AgentHandle:
                 bound_tools=self._ensure_bound_tools(),
             ),
         )
+        self.manager._reserve_model_call(agent_name=self.name, model=model_name)
         # Strategy-level safety net with live-vs-backtest branching.
         #
         # Scope: this behavior is ONLY for AI agent calls. The rest of
@@ -1375,6 +1395,7 @@ class AgentManager:
         self.strategy = strategy
         self._agents: dict[str, AgentHandle] = {}
         self._warned_backtest_mcp_tools: set[tuple[str, str]] = set()
+        self._model_call_count = 0
         self.replay_cache = AgentReplayCache()
         self.duckdb = DuckDBQueryLayer(strategy)
         self._observability_totals: dict[str, dict[str, int]] = {}
@@ -1383,6 +1404,21 @@ class AgentManager:
 
     def __getitem__(self, item: str) -> AgentHandle:
         return self._agents[item]
+
+    def _reserve_model_call(self, *, agent_name: str, model: str) -> None:
+        limit = _agent_model_call_limit(self.strategy)
+        params = getattr(self.strategy, "parameters", None)
+        if limit is not None and self._model_call_count >= limit:
+            raise AgentModelCallLimitExceeded(
+                f"LUMIBOT_AGENT_MAX_MODEL_CALLS/agent_max_model_calls limit reached "
+                f"before agent={agent_name!r} model={model!r}. "
+                f"Configured limit={limit}, attempted_call={self._model_call_count + 1}."
+            )
+        self._model_call_count += 1
+        if isinstance(params, dict):
+            params["agent_model_calls"] = self._model_call_count
+            if limit is not None:
+                params["agent_max_model_calls"] = limit
 
     def _artifact_path(self, agent_name: str, suffix: str) -> Path:
         stats_file = getattr(self.strategy, "stats_file", None) or getattr(self.strategy, "_stats_file", None)

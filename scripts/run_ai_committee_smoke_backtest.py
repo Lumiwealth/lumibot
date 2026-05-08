@@ -61,6 +61,7 @@ def main() -> None:
     os.environ["LUMIBOT_FRED_CACHE_DIR"] = str(fred_dir)
     os.environ["ALPACA_NEWS_API_KEY"] = "fixture-key"
     os.environ["ALPACA_NEWS_API_SECRET"] = "fixture-secret"
+    os.environ["FRED_API_KEY"] = "fixture-fred-key"
 
     CommitteeToolRuntime.call_count = 0
     CommitteeToolRuntime.last_results = None

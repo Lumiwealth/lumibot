@@ -764,6 +764,24 @@ class GoogleADKRuntime:
     _RETRY_BACKOFF_SECONDS = (2.0, 3.0, 5.0, 10.0, 20.0, 30.0, 45.0, 60.0, 60.0, 60.0)
 
     @staticmethod
+    def _max_attempts_for_request(request: RuntimeRequest) -> int:
+        raw = os.environ.get("LUMIBOT_AGENT_MAX_RUN_ATTEMPTS")
+        if raw:
+            try:
+                return max(int(raw), 1)
+            except Exception:
+                pass
+        mode = ""
+        if isinstance(request.runtime_context, dict):
+            mode = str(request.runtime_context.get("mode") or "").strip().lower()
+        # Backtests can multiply spend quickly because one strategy run may call
+        # the model hundreds of times. Keep provider retries conservative unless
+        # the user explicitly opts into a higher retry budget.
+        if mode == "backtesting":
+            return 2
+        return GoogleADKRuntime._MAX_RUN_ATTEMPTS
+
+    @staticmethod
     def _is_non_retryable(exc: BaseException) -> bool:
         # Use the shared classifier: only transient and unknown errors retry.
         # auth / config / billing surface immediately so we don't waste ~5
@@ -774,7 +792,8 @@ class GoogleADKRuntime:
         import time as _time
 
         last_exc: BaseException | None = None
-        for attempt in range(1, self._MAX_RUN_ATTEMPTS + 1):
+        max_attempts = self._max_attempts_for_request(request)
+        for attempt in range(1, max_attempts + 1):
             try:
                 return asyncio.run(self._run_async(request))
             except (KeyboardInterrupt, SystemExit):
@@ -783,12 +802,12 @@ class GoogleADKRuntime:
                 last_exc = exc
                 if self._is_non_retryable(exc):
                     raise
-                if attempt >= self._MAX_RUN_ATTEMPTS:
+                if attempt >= max_attempts:
                     break
                 delay = self._RETRY_BACKOFF_SECONDS[min(attempt - 1, len(self._RETRY_BACKOFF_SECONDS) - 1)]
                 try:
                     sys.stderr.write(
-                        f"[lumibot.agents] transient error on attempt {attempt}/{self._MAX_RUN_ATTEMPTS} "
+                        f"[lumibot.agents] transient error on attempt {attempt}/{max_attempts} "
                         f"for model={request.model!r}: {exc.__class__.__name__}: {str(exc)[:240]}. "
                         f"Retrying in {delay:.0f}s...\n"
                     )

@@ -1,6 +1,9 @@
 from datetime import datetime, timezone
 
+import pytest
+
 from lumibot.components.agents import AgentManager, AgentRunResult, AgentTraceEvent
+from lumibot.components.agents.manager import AgentModelCallLimitExceeded
 
 
 class _Vars(dict):
@@ -160,3 +163,28 @@ def test_agent_runtime_memory_notes_are_compacted(monkeypatch, tmp_path):
     assert len(prior_notes) == 1
     assert len(prior_notes[0]["summary"]) == 500
     assert prior_notes[0]["summary"].endswith("...")
+
+
+def test_agent_model_call_limit_stops_before_runtime_call(monkeypatch):
+    monkeypatch.setenv("LUMIBOT_AGENT_MAX_MODEL_CALLS", "1")
+    strategy = _Strategy()
+    strategy.vars = _Vars()
+    strategy.is_backtesting = False
+    manager = AgentManager(strategy)
+    runtime = _LongSummaryRuntime()
+    _LongSummaryRuntime.requests = []
+
+    agent = manager.create(
+        name="limited",
+        model="openai/gpt-5.4-mini",
+        allow_trading=False,
+        _runtime=runtime,
+    )
+
+    agent.run(task_prompt="first call is allowed")
+    with pytest.raises(AgentModelCallLimitExceeded):
+        agent.run(task_prompt="second call is blocked before provider spend")
+
+    assert len(_LongSummaryRuntime.requests) == 1
+    assert strategy.parameters["agent_model_calls"] == 1
+    assert strategy.parameters["agent_max_model_calls"] == 1

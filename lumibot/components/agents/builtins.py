@@ -337,6 +337,30 @@ ALPACA_NEWS_DESCRIPTION = (
 
 
 def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
+    def _warn_unavailable() -> None:
+        message = (
+            "[agents] alpaca_news is not configured and will not be exposed. "
+            "Use an Alpaca broker connection or set ALPACA_NEWS_API_KEY and ALPACA_NEWS_API_SECRET."
+        )
+        if manager is not None:
+            warned = getattr(manager, "_warned_unavailable_builtin_tools", None)
+            if warned is None:
+                warned = set()
+                setattr(manager, "_warned_unavailable_builtin_tools", warned)
+            if "alpaca_news" in warned:
+                return
+            warned.add("alpaca_news")
+        log_message = getattr(strategy, "log_message", None)
+        if callable(log_message):
+            try:
+                log_message(message, color="yellow")
+                return
+            except Exception:
+                pass
+        warning = getattr(manager, "warning", None) if manager is not None else None
+        if callable(warning):
+            warning(message)
+
     def _resolve_alpaca_news_headers() -> tuple[dict[str, str] | None, str | None]:
         broker = getattr(strategy, "broker", None)
         if str(getattr(broker, "name", "") or "").lower() == "alpaca":
@@ -360,15 +384,32 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
                 "APCA-API-SECRET-KEY": api_secret,
             }, "byok_alpaca_news_env"
 
-        api_key = str(os.environ.get("ALPACA_API_KEY") or "").strip()
-        api_secret = str(os.environ.get("ALPACA_API_SECRET") or "").strip()
-        if api_key and api_secret:
-            return {
-                "APCA-API-KEY-ID": api_key,
-                "APCA-API-SECRET-KEY": api_secret,
-            }, "byok_alpaca_env"
-
         return None, None
+
+    def _unavailable_alpaca_news(**kwargs: Any) -> dict[str, Any]:
+        return {
+            "ok": False,
+            "tool_error": True,
+            "error": {
+                "type": "MissingCredentials",
+                "message": "alpaca_news is not configured. Use an Alpaca broker connection or set ALPACA_NEWS_API_KEY and ALPACA_NEWS_API_SECRET.",
+            },
+            "articles": [],
+            "count": 0,
+        }
+
+    if _resolve_alpaca_news_headers()[0] is None:
+        _warn_unavailable()
+        return BoundTool(
+            name="alpaca_news",
+            description=ALPACA_NEWS_DESCRIPTION,
+            function=_unavailable_alpaca_news,
+            metadata={
+                "kind": "builtin",
+                "disabled": True,
+                "disabled_reason": "missing Alpaca broker credentials or ALPACA_NEWS_API_KEY / ALPACA_NEWS_API_SECRET",
+            },
+        )
 
     def alpaca_news(
         *,

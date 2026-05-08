@@ -1,14 +1,20 @@
 from datetime import datetime, timezone
 
-from lumibot.components.agents import BuiltinTools
+from lumibot.components.agents import AgentManager, BuiltinTools
 
 
 class _Strategy:
     is_backtesting = True
     broker = None
 
+    def __init__(self):
+        self.log_messages = []
+
     def get_datetime(self):
         return datetime(2026, 4, 28, 15, 30, tzinfo=timezone.utc)
+
+    def log_message(self, message, color=None):
+        self.log_messages.append((message, color))
 
 
 class _Broker:
@@ -84,26 +90,19 @@ def test_builtin_alpaca_news_uses_byok_news_key_default_scan_mode_and_bounds_def
     assert result["credential_source"] == "byok_alpaca_news_env"
 
 
-def test_builtin_alpaca_news_falls_back_to_standard_alpaca_env(monkeypatch):
-    calls = []
-
-    def fake_get(url, *, headers, params, timeout):
-        calls.append({"url": url, "headers": headers, "params": params, "timeout": timeout})
-        return _Response()
-
+def test_builtin_alpaca_news_does_not_use_standard_alpaca_env(monkeypatch):
     monkeypatch.delenv("ALPACA_NEWS_API_KEY", raising=False)
     monkeypatch.delenv("ALPACA_NEWS_API_SECRET", raising=False)
     monkeypatch.setenv("ALPACA_API_KEY", "standard-key")
     monkeypatch.setenv("ALPACA_API_SECRET", "standard-secret")
-    monkeypatch.setattr("lumibot.components.agents.builtins.requests.get", fake_get)
 
-    tool = BuiltinTools.news.alpaca_news().binder(_Strategy(), None)
-    result = tool.function(symbols="AAPL")
+    strategy = _Strategy()
+    tool = BuiltinTools.news.alpaca_news().binder(strategy, None)
 
-    assert result["ok"] is True
-    assert calls[0]["headers"]["APCA-API-KEY-ID"] == "standard-key"
-    assert calls[0]["headers"]["APCA-API-SECRET-KEY"] == "standard-secret"
-    assert result["credential_source"] == "byok_alpaca_env"
+    assert tool.metadata["disabled"] is True
+    assert "ALPACA_NEWS_API_KEY" in tool.metadata["disabled_reason"]
+    assert strategy.log_messages
+    assert "alpaca_news is not configured" in strategy.log_messages[0][0]
 
 
 def test_builtin_alpaca_news_prefers_active_alpaca_broker_oauth(monkeypatch):
@@ -194,7 +193,7 @@ def test_builtin_alpaca_news_description_teaches_scan_deep_read_and_no_keyword_s
     assert "look-ahead bias" in tool_def.description
 
 
-def test_builtin_alpaca_news_missing_credentials_is_tool_error(monkeypatch):
+def test_builtin_alpaca_news_missing_credentials_disables_tool_and_warns(monkeypatch):
     monkeypatch.delenv("ALPACA_API_KEY", raising=False)
     monkeypatch.delenv("ALPACA_API_SECRET", raising=False)
     monkeypatch.delenv("APCA_API_KEY_ID", raising=False)
@@ -202,9 +201,28 @@ def test_builtin_alpaca_news_missing_credentials_is_tool_error(monkeypatch):
     monkeypatch.delenv("ALPACA_NEWS_API_KEY", raising=False)
     monkeypatch.delenv("ALPACA_NEWS_API_SECRET", raising=False)
 
-    tool = BuiltinTools.news.alpaca_news().binder(_Strategy(), None)
+    strategy = _Strategy()
+    tool = BuiltinTools.news.alpaca_news().binder(strategy, None)
     result = tool.function()
 
+    assert tool.metadata["disabled"] is True
+    assert strategy.log_messages
     assert result["ok"] is False
     assert result["tool_error"] is True
     assert result["articles"] == []
+
+
+def test_agent_manager_omits_unavailable_alpaca_news(monkeypatch):
+    monkeypatch.delenv("ALPACA_API_KEY", raising=False)
+    monkeypatch.delenv("ALPACA_API_SECRET", raising=False)
+    monkeypatch.delenv("APCA_API_KEY_ID", raising=False)
+    monkeypatch.delenv("APCA_API_SECRET_KEY", raising=False)
+    monkeypatch.delenv("ALPACA_NEWS_API_KEY", raising=False)
+    monkeypatch.delenv("ALPACA_NEWS_API_SECRET", raising=False)
+
+    strategy = _Strategy()
+    manager = AgentManager(strategy)
+    handle = manager.create(name="test_agent", tools=[])
+    tool_names = {tool.name for tool in handle._ensure_bound_tools()}
+
+    assert "alpaca_news" not in tool_names

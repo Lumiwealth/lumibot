@@ -772,9 +772,12 @@ class AgentHandle:
         bound: list[BoundTool] = []
         for entry in self._tool_inputs:
             if isinstance(entry, ToolDefinition):
-                bound.append(entry.binder(self.manager.strategy, self.manager))
+                tool = entry.binder(self.manager.strategy, self.manager)
+            else:
+                tool = bind_callable_tool(entry).binder(self.manager.strategy, self.manager)
+            if bool((tool.metadata or {}).get("disabled")):
                 continue
-            bound.append(bind_callable_tool(entry).binder(self.manager.strategy, self.manager))
+            bound.append(tool)
         bound.extend(self._build_remote_tools())
         # Built-ins are auto-included, but strategies may also explicitly pass
         # a BuiltinTools entry. ADK rejects duplicate function declarations, so

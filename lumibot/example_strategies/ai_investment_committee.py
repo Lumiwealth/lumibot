@@ -122,8 +122,8 @@ class AIInvestmentCommitteeStrategy(Strategy):
         decision = self.agents["portfolio_manager"].run(
             task_prompt=(
                 "Make the final long-only portfolio decision. Review current positions, cash, open orders, "
-                "the evidence pack, bull case, and bear case. Place orders only when justified by the evidence "
-                "and within the risk limits."
+                "the evidence pack, bull case, and bear case. Trade only symbols in context.universe. Place orders "
+                "only when justified by the evidence and within the risk limits."
             ),
             context={
                 **context,
@@ -203,9 +203,10 @@ You may place real Lumibot orders, but only within the strategy risk limits. Bef
 1. Check current portfolio, positions, open orders, and prices.
 2. Review the evidence pack, bull case, and bear case.
 3. Respect max_position_pct and max_new_positions_per_run from context.
-4. Do not short. Do not use options in this v1 committee example.
-5. Prefer doing nothing when evidence is weak or contradictory.
-6. If you trade, use remember_decision and optionally notify_user.
+4. Trade only symbols in context.universe. Do not buy defensive cash ETFs, alternative symbols, or assets outside the reviewed universe unless the user added them to the universe.
+5. Do not short. Do not use options in this v1 committee example.
+6. Prefer doing nothing when evidence is weak or contradictory.
+7. If you trade, use remember_decision and optionally notify_user.
 
 Return:
 - final decision

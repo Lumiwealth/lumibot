@@ -841,7 +841,67 @@ def _bind_get_filing_document(strategy: Any, manager: Any) -> BoundTool:
     )
 
 
+def _disabled_fred_tool_if_needed(strategy: Any, manager: Any, tool_name: str) -> BoundTool | None:
+    if not bool(getattr(strategy, "is_backtesting", False)):
+        return None
+    macro = getattr(strategy, "macro", None)
+    api_key = str(getattr(macro, "api_key", "") or os.environ.get("FRED_API_KEY") or "").strip()
+    if api_key:
+        return None
+
+    message = (
+        "[agents] FRED macro tools are not configured for point-in-time backtesting and will not be exposed. "
+        "Set FRED_API_KEY to use FRED/ALFRED vintage data in backtests."
+    )
+    if manager is not None:
+        warned = getattr(manager, "_warned_unavailable_builtin_tools", None)
+        if warned is None:
+            warned = set()
+            setattr(manager, "_warned_unavailable_builtin_tools", warned)
+        if "fred_macro_tools" not in warned:
+            warned.add("fred_macro_tools")
+            log_message = getattr(strategy, "log_message", None)
+            if callable(log_message):
+                try:
+                    log_message(message, color="yellow")
+                except Exception:
+                    warning = getattr(manager, "warning", None)
+                    if callable(warning):
+                        warning(message)
+            else:
+                warning = getattr(manager, "warning", None)
+                if callable(warning):
+                    warning(message)
+
+    def unavailable_fred_tool(**kwargs: Any) -> dict[str, Any]:
+        return {
+            "ok": False,
+            "tool_error": True,
+            "error": {
+                "type": "MissingCredentials",
+                "message": "FRED macro tools require FRED_API_KEY during backtests to avoid revised-data look-ahead bias.",
+            },
+            "observations": [],
+        }
+
+    return BoundTool(
+        name=tool_name,
+        description="FRED macro tool unavailable in backtests without FRED_API_KEY.",
+        function=unavailable_fred_tool,
+        source="builtin",
+        metadata={
+            "kind": "macro",
+            "disabled": True,
+            "disabled_reason": "missing FRED_API_KEY for point-in-time backtesting",
+        },
+    )
+
+
 def _bind_list_fred_series(strategy: Any, manager: Any) -> BoundTool:
+    disabled = _disabled_fred_tool_if_needed(strategy, manager, "list_fred_series")
+    if disabled is not None:
+        return disabled
+
     def list_fred_series(category: str | None = None) -> dict[str, Any]:
         return strategy.macro.list_series(category=category)
 
@@ -858,6 +918,10 @@ def _bind_list_fred_series(strategy: Any, manager: Any) -> BoundTool:
 
 
 def _bind_get_fred_series(strategy: Any, manager: Any) -> BoundTool:
+    disabled = _disabled_fred_tool_if_needed(strategy, manager, "get_fred_series")
+    if disabled is not None:
+        return disabled
+
     def get_fred_series(
         series_id: str,
         start: str | None = None,
@@ -881,6 +945,10 @@ def _bind_get_fred_series(strategy: Any, manager: Any) -> BoundTool:
 
 
 def _bind_get_fred_latest(strategy: Any, manager: Any) -> BoundTool:
+    disabled = _disabled_fred_tool_if_needed(strategy, manager, "get_fred_latest")
+    if disabled is not None:
+        return disabled
+
     def get_fred_latest(series_id: str, as_of: str | None = None) -> dict[str, Any]:
         return strategy.macro.get_latest(series_id, as_of=as_of)
 
@@ -896,6 +964,10 @@ def _bind_get_fred_latest(strategy: Any, manager: Any) -> BoundTool:
 
 
 def _bind_get_fred_snapshot(strategy: Any, manager: Any) -> BoundTool:
+    disabled = _disabled_fred_tool_if_needed(strategy, manager, "get_fred_snapshot")
+    if disabled is not None:
+        return disabled
+
     def get_fred_snapshot(series_ids: list[str] | str, as_of: str | None = None) -> dict[str, Any]:
         return strategy.macro.get_snapshot(series_ids, as_of=as_of)
 

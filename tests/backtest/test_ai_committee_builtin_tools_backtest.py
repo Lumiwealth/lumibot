@@ -279,6 +279,33 @@ def _fake_alpaca_news_get(url, headers=None, params=None, timeout=None):
 
 
 def _fake_fred_get(url, params=None, **kwargs):
+    if "series/observations" in url:
+        series_id = params["series_id"]
+        assert params["api_key"] == "fixture-fred-key"
+        assert params["observation_end"] == "2025-01-06"
+        assert params["realtime_start"] == "2025-01-06"
+        assert params["realtime_end"] == "2025-01-06"
+        if series_id == "DGS10":
+            return _Response(
+                payload={
+                    "observations": [
+                        {"date": "2025-01-03", "value": "4.50", "realtime_start": "2025-01-06", "realtime_end": "2025-01-06"},
+                        {"date": "2025-01-06", "value": "4.60", "realtime_start": "2025-01-06", "realtime_end": "2025-01-06"},
+                        {"date": "2025-01-07", "value": "4.70", "realtime_start": "2025-01-06", "realtime_end": "2025-01-06"},
+                    ]
+                }
+            )
+        if series_id == "UNRATE":
+            return _Response(
+                payload={
+                    "observations": [
+                        {"date": "2024-12-01", "value": "4.1", "realtime_start": "2025-01-06", "realtime_end": "2025-01-06"},
+                        {"date": "2025-02-01", "value": "4.2", "realtime_start": "2025-01-06", "realtime_end": "2025-01-06"},
+                    ]
+                }
+            )
+        raise AssertionError(series_id)
+
     assert "fredgraph.csv" in url
     series_id = params["id"]
     if series_id == "DGS10":
@@ -291,7 +318,7 @@ def _fake_fred_get(url, params=None, **kwargs):
 def _fake_requests_get(url, **kwargs):
     if "data.alpaca.markets/v1beta1/news" in url:
         return _fake_alpaca_news_get(url, **kwargs)
-    if "fredgraph.csv" in url:
+    if "fredgraph.csv" in url or "api.stlouisfed.org/fred" in url:
         return _fake_fred_get(url, **kwargs)
     return _fake_sec_get(url, **kwargs)
 
@@ -309,7 +336,7 @@ def test_ai_committee_builtin_tools_execute_inside_backtest(monkeypatch, tmp_pat
     monkeypatch.setenv("LUMIBOT_MEMORY_DIR", str(tmp_path / "memory"))
     monkeypatch.setenv("LUMIBOT_SEC_CACHE_DIR", str(tmp_path / "sec"))
     monkeypatch.setenv("LUMIBOT_FRED_CACHE_DIR", str(tmp_path / "fred"))
-    monkeypatch.delenv("FRED_API_KEY", raising=False)
+    monkeypatch.setenv("FRED_API_KEY", "fixture-fred-key")
     monkeypatch.setenv("ALPACA_NEWS_API_KEY", "fixture-key")
     monkeypatch.setenv("ALPACA_NEWS_API_SECRET", "fixture-secret")
     monkeypatch.setattr("lumibot.fundamentals.sec.requests.get", _fake_requests_get)

@@ -15,7 +15,7 @@ This page documents environment variables used by LumiBot, with an emphasis on *
 
 ### `ALPACA_NEWS_API_KEY` / `ALPACA_NEWS_API_SECRET`
 - Purpose: Optional credentials for the built-in `alpaca_news` agent tool when there is no active Alpaca broker.
-- Fallback: If these are unset, `alpaca_news` uses `ALPACA_API_KEY` and `ALPACA_API_SECRET` when present.
+- Fallback: If these are unset and there is no active Alpaca broker, `alpaca_news` is not exposed to agents.
 - Notes:
   - The tool date-gates requests to the strategy datetime during backtests.
   - Do not commit real key values.
@@ -282,7 +282,7 @@ Notes:
 ### `FRED_API_KEY`
 - Purpose: Optional official FRED/ALFRED API key for macro data tools.
 - Default: unset.
-- Notes: When set, Lumibot requests vintage observations with `realtime_start` and `realtime_end` for point-in-time backtests. Without it, curated CSV mode is date-gated but can contain revised values.
+- Notes: When set, Lumibot requests vintage observations with `realtime_start` and `realtime_end` for point-in-time backtests. Built-in FRED agent tools are not exposed during backtests without this key because curated CSV mode can contain revised values.
 
 ### `LUMIBOT_FRED_CACHE_DIR`
 - Purpose: Override the local FRED macro data cache.

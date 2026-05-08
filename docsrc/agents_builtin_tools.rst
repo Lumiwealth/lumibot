@@ -57,10 +57,11 @@ FRED Macro Tools
 - ``get_fred_latest``
 - ``get_fred_snapshot``
 
-In backtests, FRED tools default ``as_of`` to the current strategy datetime.
-With ``FRED_API_KEY``, LumiBot requests vintage observations using FRED/ALFRED
-``realtime_start`` and ``realtime_end``. Without a key, curated CSV mode is
-date-gated but may contain revised values. See :doc:`macro_data`.
+In backtests, built-in FRED tools require ``FRED_API_KEY`` so LumiBot can
+request vintage observations using FRED/ALFRED ``realtime_start`` and
+``realtime_end``. Without a key, built-in FRED tools are not exposed during
+backtests. In live runs, no-key curated CSV mode is available but may contain
+revised values. See :doc:`macro_data`.
 
 Notification Tools
 ------------------

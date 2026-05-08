@@ -41,6 +41,10 @@ With ``FRED_API_KEY``, LumiBot uses the official FRED/ALFRED API and passes
 ``realtime_start`` and ``realtime_end`` based on the strategy datetime. This is
 the stricter point-in-time path for macro backtests.
 
+Built-in FRED agent tools are hidden during backtests unless ``FRED_API_KEY`` is
+configured. This prevents agents from accidentally using revised public CSV data
+in historical simulations.
+
 Backtest Date Safety
 --------------------
 

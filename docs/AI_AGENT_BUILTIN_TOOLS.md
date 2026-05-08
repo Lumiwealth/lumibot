@@ -14,7 +14,7 @@ Lumibot agents include built-ins for:
 - notifications
 - orders
 
-Alpaca news uses an active Alpaca broker when available. Outside Alpaca broker runs, it first checks `ALPACA_NEWS_API_KEY` / `ALPACA_NEWS_API_SECRET`, then falls back to standard `ALPACA_API_KEY` / `ALPACA_API_SECRET`.
+Alpaca news uses an active Alpaca broker when available. Outside Alpaca broker runs, it checks `ALPACA_NEWS_API_KEY` / `ALPACA_NEWS_API_SECRET`. If neither path is available, `alpaca_news` is not exposed to agents.
 
 Trading permission:
 
@@ -43,7 +43,7 @@ FRED macro tools:
 - `get_fred_latest`
 - `get_fred_snapshot`
 
-In backtests, FRED tools default `as_of` to the current strategy datetime. With `FRED_API_KEY`, Lumibot requests vintage data using FRED/ALFRED realtime parameters. Without a key, curated CSV mode is date-gated but may contain revised values.
+In backtests, built-in FRED tools require `FRED_API_KEY` so Lumibot can request vintage data using FRED/ALFRED realtime parameters. Without a key, built-in FRED tools are not exposed during backtests. In live runs, no-key curated CSV mode is available, but it may contain revised values.
 
 Memory tools:
 

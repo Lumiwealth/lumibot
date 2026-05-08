@@ -71,11 +71,25 @@ def test_agent_allow_trading_false_removes_only_mutating_order_tools():
     assert "account_positions" in tool_names
     assert "get_income_statement" in tool_names
     assert "get_indicator" in tool_names
+    assert "list_fred_series" not in tool_names
+    assert "get_fred_series" not in tool_names
+    assert "get_fred_latest" not in tool_names
+    assert "get_fred_snapshot" not in tool_names
+    assert agent.default_model == "openai/gpt-5.4-mini"
+
+
+def test_agent_backtest_keeps_fred_tools_when_fred_api_key_is_set(monkeypatch):
+    monkeypatch.setenv("FRED_API_KEY", "test-fred-key")
+    strategy = _Strategy()
+    manager = AgentManager(strategy)
+
+    agent = manager.create(name="researcher_with_fred", model="openai/gpt-5.4-mini", allow_trading=False)
+    tool_names = {tool.name for tool in agent._ensure_bound_tools()}
+
     assert "list_fred_series" in tool_names
     assert "get_fred_series" in tool_names
     assert "get_fred_latest" in tool_names
     assert "get_fred_snapshot" in tool_names
-    assert agent.default_model == "openai/gpt-5.4-mini"
 
 
 def test_agent_allow_trading_true_keeps_mutating_order_tools():

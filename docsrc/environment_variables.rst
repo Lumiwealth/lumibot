@@ -358,7 +358,7 @@ ALPACA_NEWS_API_KEY / ALPACA_NEWS_API_SECRET
 
 - Purpose: Optional bring-your-own-key credentials for ``BuiltinTools.news.alpaca_news()`` when the active broker is not Alpaca.
 - Values: Alpaca API credentials with news/data access (**do not hardcode**).
-- Note: When the active broker is Alpaca, the built-in news tool reuses that broker's OAuth token or API key/secret instead.
+- Note: When the active broker is Alpaca, the built-in news tool reuses that broker's OAuth token or API key/secret instead. If these news-specific variables are absent, the tool falls back to standard ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` credentials.
 
 Tradier broker
 --------------

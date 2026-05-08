@@ -84,6 +84,28 @@ def test_builtin_alpaca_news_uses_byok_news_key_default_scan_mode_and_bounds_def
     assert result["credential_source"] == "byok_alpaca_news_env"
 
 
+def test_builtin_alpaca_news_falls_back_to_standard_alpaca_env(monkeypatch):
+    calls = []
+
+    def fake_get(url, *, headers, params, timeout):
+        calls.append({"url": url, "headers": headers, "params": params, "timeout": timeout})
+        return _Response()
+
+    monkeypatch.delenv("ALPACA_NEWS_API_KEY", raising=False)
+    monkeypatch.delenv("ALPACA_NEWS_API_SECRET", raising=False)
+    monkeypatch.setenv("ALPACA_API_KEY", "standard-key")
+    monkeypatch.setenv("ALPACA_API_SECRET", "standard-secret")
+    monkeypatch.setattr("lumibot.components.agents.builtins.requests.get", fake_get)
+
+    tool = BuiltinTools.news.alpaca_news().binder(_Strategy(), None)
+    result = tool.function(symbols="AAPL")
+
+    assert result["ok"] is True
+    assert calls[0]["headers"]["APCA-API-KEY-ID"] == "standard-key"
+    assert calls[0]["headers"]["APCA-API-SECRET-KEY"] == "standard-secret"
+    assert result["credential_source"] == "byok_alpaca_env"
+
+
 def test_builtin_alpaca_news_prefers_active_alpaca_broker_oauth(monkeypatch):
     calls = _install_fake_alpaca(monkeypatch)
 

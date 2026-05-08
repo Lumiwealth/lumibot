@@ -360,6 +360,14 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
                 "APCA-API-SECRET-KEY": api_secret,
             }, "byok_alpaca_news_env"
 
+        api_key = str(os.environ.get("ALPACA_API_KEY") or "").strip()
+        api_secret = str(os.environ.get("ALPACA_API_SECRET") or "").strip()
+        if api_key and api_secret:
+            return {
+                "APCA-API-KEY-ID": api_key,
+                "APCA-API-SECRET-KEY": api_secret,
+            }, "byok_alpaca_env"
+
         return None, None
 
     def alpaca_news(

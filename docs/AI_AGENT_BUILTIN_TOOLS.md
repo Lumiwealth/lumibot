@@ -14,6 +14,8 @@ Lumibot agents include built-ins for:
 - notifications
 - orders
 
+Alpaca news uses an active Alpaca broker when available. Outside Alpaca broker runs, it first checks `ALPACA_NEWS_API_KEY` / `ALPACA_NEWS_API_SECRET`, then falls back to standard `ALPACA_API_KEY` / `ALPACA_API_SECRET`.
+
 Trading permission:
 
 ```python

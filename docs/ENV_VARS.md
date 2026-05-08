@@ -13,6 +13,13 @@ This page documents environment variables used by LumiBot, with an emphasis on *
 
 ## Backtesting selection + dates
 
+### `ALPACA_NEWS_API_KEY` / `ALPACA_NEWS_API_SECRET`
+- Purpose: Optional credentials for the built-in `alpaca_news` agent tool when there is no active Alpaca broker.
+- Fallback: If these are unset, `alpaca_news` uses `ALPACA_API_KEY` and `ALPACA_API_SECRET` when present.
+- Notes:
+  - The tool date-gates requests to the strategy datetime during backtests.
+  - Do not commit real key values.
+
 ### `LUMIBOT_DISABLE_DOTENV`
 - Purpose: Disable recursive `.env` discovery (`os.walk`) at startup.
 - Values: truthy enables (`1`, `true`, `yes`); unset/`0` disables.

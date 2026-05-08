@@ -155,6 +155,8 @@ NONE_TYPE = type(None)  # Order is shadowing 'type' parameter, this is a workaro
 
 class Order:
     Transaction = namedtuple("Transaction", ["quantity", "price"])
+    # Class-level defaults support __new__-only simple_market_backtest orders
+    # that bypass __init__; keep these safe fallbacks available on instances.
     good_till_date = None
     position_filled = None
     limit_price = None
@@ -1451,7 +1453,8 @@ class Order:
         self.status = "error"
         self._error = error
         self.error_message = str(error)
-        self._closed_event.set()
+        if self._closed_event is not None:
+            self._closed_event.set()
 
     def was_transmitted(self):
         return self._transmitted

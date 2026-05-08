@@ -255,6 +255,13 @@ Usage
    strategy = MyStrategy()
    strategy.run_live()
 
+Runtime notes
+-------------
+
+ProjectX configuration is resolved when the broker is constructed, not when the module is imported. This keeps generic LumiBot imports lightweight while still validating the selected firm, API key, username, and base URL before any client calls are made.
+
+Orders returned by ProjectX are converted into LumiBot ``Order`` objects before lifecycle callbacks are dispatched. That conversion is intentionally broker-owned so strategies can use the same order status semantics as other LumiBot brokers.
+
 Supported Features
 ------------------
 

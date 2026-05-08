@@ -35,6 +35,7 @@ class ExampleBroker(Broker):
         ):
         # Check if the user has provided a data source, if not, create one
         if data_source is None:
+            # Resolve the class lazily, then instantiate it; this keeps broker import cheap.
             data_source = _example_broker_data_class()()
 
         super().__init__(

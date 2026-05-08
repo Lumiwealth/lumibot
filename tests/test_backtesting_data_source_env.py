@@ -188,6 +188,87 @@ class TestBacktestingDataSourceEnv:
                 save_logfile=False,
             )
 
+    def test_invalid_json_datasource_label_is_redacted(self, monkeypatch):
+        secret_payload = '{"default":"secret-provider","token":"super-secret",}'
+        monkeypatch.setenv("BACKTESTING_DATA_SOURCE", secret_payload)
+
+        with pytest.raises(ValueError) as excinfo:
+            SimpleTestStrategy.run_backtest(
+                None,
+                backtesting_start=datetime(2023, 1, 1),
+                backtesting_end=datetime(2023, 1, 31),
+                show_plot=False,
+                show_tearsheet=False,
+                show_indicators=False,
+                show_progress_bar=False,
+                save_tearsheet=False,
+                save_stats_file=False,
+                save_logfile=False,
+            )
+
+        message = str(excinfo.value)
+        assert "super-secret" not in message
+        assert "<redacted BACKTESTING_DATA_SOURCE>" in message
+
+    def test_router_datasource_log_redacts_raw_json(self, monkeypatch, caplog):
+        import logging
+
+        caplog.set_level(logging.INFO, logger="lumibot.strategies._strategy")
+
+        class RoutedBacktestingPandas:
+            def __init__(self, *args, **kwargs):
+                raise TestBacktestingDataSourceEnv._YahooSelected()
+
+        import lumibot.strategies._strategy as strategy_module
+
+        monkeypatch.setattr(strategy_module, "RoutedBacktestingPandas", RoutedBacktestingPandas)
+        monkeypatch.setenv("BACKTESTING_DATA_SOURCE", '{"default":"thetadata","token":"super-secret"}')
+
+        with pytest.raises(self._YahooSelected):
+            SimpleTestStrategy.run_backtest(
+                None,
+                backtesting_start=datetime(2023, 1, 1),
+                backtesting_end=datetime(2023, 1, 10),
+                config={},
+                show_plot=False,
+                show_tearsheet=False,
+                show_indicators=False,
+                show_progress_bar=False,
+                save_tearsheet=False,
+                save_stats_file=False,
+                save_logfile=False,
+            )
+
+        messages = "\n".join(record.message for record in caplog.records)
+        assert "super-secret" not in messages
+        assert "Using BACKTESTING_DATA_SOURCE setting for backtest data: router" in messages
+
+    def test_thetadata_config_non_dict_does_not_crash_with_datasource_dict(self, monkeypatch):
+        class YahooDataBacktesting:
+            pass
+
+        class ThetaDataBacktesting:
+            pass
+
+        import lumibot.strategies._strategy as strategy_module
+
+        monkeypatch.setattr(strategy_module, "THETADATA_CONFIG", None)
+        monkeypatch.setenv("BACKTESTING_DATA_SOURCE", "none")
+
+        with pytest.raises(ValueError, match="Please set `thetadata_username`"):
+            SimpleTestStrategy.run_backtest(
+                {"STOCK": YahooDataBacktesting, "OPTION": ThetaDataBacktesting},
+                backtesting_start=datetime(2023, 1, 1),
+                backtesting_end=datetime(2023, 1, 10),
+                show_plot=False,
+                show_tearsheet=False,
+                show_indicators=False,
+                show_progress_bar=False,
+                save_tearsheet=False,
+                save_stats_file=False,
+                save_logfile=False,
+            )
+
     def test_env_override_wins_over_explicit_datasource(self, monkeypatch, caplog):
         import logging
 

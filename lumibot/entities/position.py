@@ -247,6 +247,9 @@ class Position:
             self.orders.append(order)
 
     def add_simple_order(self, order: entities.Order, quantity: Decimal, is_buy: bool):
+        # Preserve the one-entry-per-order invariant used by add_order.
+        if order in self.orders:
+            return
         qty = Decimal(quantity)
         self._quantity += qty if is_buy else -qty
         self._quantity_float = float(self._quantity)

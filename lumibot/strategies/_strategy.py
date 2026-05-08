@@ -2891,6 +2891,14 @@ class _Strategy:
             # configured in credentials (ThetaData unless the project overrides it).
             env_override_name = _DEFAULT_BACKTESTING_DATA_SOURCE.lower()
 
+        env_override_label = env_override_raw or _DEFAULT_BACKTESTING_DATA_SOURCE
+        if env_override_routing is not None:
+            env_override_label = "router"
+        elif isinstance(env_override_label, str):
+            stripped_label = env_override_label.strip()
+            if stripped_label.startswith("{") and stripped_label.endswith("}"):
+                env_override_label = "<redacted BACKTESTING_DATA_SOURCE>"
+
         if env_override_name is not None:
             datasource_map = {
                 "polygon": PolygonDataBacktesting,
@@ -2908,9 +2916,8 @@ class _Strategy:
             }
 
             if env_override_name not in datasource_map:
-                label = env_override_raw or _DEFAULT_BACKTESTING_DATA_SOURCE
                 raise ValueError(
-                    f"Unknown BACKTESTING_DATA_SOURCE: '{label}'. "
+                    f"Unknown BACKTESTING_DATA_SOURCE: '{env_override_label}'. "
                     f"Valid options: {list(datasource_map.keys())}"
                 )
 
@@ -2929,18 +2936,17 @@ class _Strategy:
                     except Exception:
                         pass
 
-            label = env_override_raw or _DEFAULT_BACKTESTING_DATA_SOURCE
             if quiet_logs:
                 get_logger(__name__).debug(
                     colored(
-                        f"Using BACKTESTING_DATA_SOURCE setting for backtest data: {label}",
+                        f"Using BACKTESTING_DATA_SOURCE setting for backtest data: {env_override_label}",
                         "green"
                     )
                 )
             else:
                 get_logger(__name__).info(
                     colored(
-                        f"Using BACKTESTING_DATA_SOURCE setting for backtest data: {label}",
+                        f"Using BACKTESTING_DATA_SOURCE setting for backtest data: {env_override_label}",
                         "green"
                     )
                 )
@@ -2952,7 +2958,7 @@ class _Strategy:
 
         # Make sure polygon_api_key is set if using PolygonDataBacktesting
         polygon_api_key = polygon_api_key if polygon_api_key is not None else _credential("POLYGON_API_KEY")
-        if datasource_class.__name__ == 'PolygonDataBacktesting' and polygon_api_key is None:
+        if getattr(datasource_class, "__name__", None) == 'PolygonDataBacktesting' and polygon_api_key is None:
             raise ValueError(
                 "Please set `POLYGON_API_KEY` to your API key from polygon.io as an environment variable if "
                 "you are using PolygonDataBacktesting. If you don't have one, you can get a free API key "
@@ -2963,16 +2969,11 @@ class _Strategy:
         if thetadata_username is None or thetadata_password is None:
             # Try getting the Theta Data credentials from credentials
             thetadata_config = _credential("THETADATA_CONFIG")
-            thetadata_username = thetadata_config.get('THETADATA_USERNAME')
-            thetadata_password = thetadata_config.get('THETADATA_PASSWORD')
-
-            # Check again if theta data username and pass are set (before checking dict)
-            if datasource_class.__name__ == 'ThetaDataBacktesting' and (thetadata_username is None or thetadata_password is None):
-                raise ValueError(
-                    "Please set `thetadata_username` and `thetadata_password` in the backtest() function if "
-                    "you are using ThetaDataBacktesting. If you don't have one, you can do registeration "
-                    "from https://www.thetadata.net/."
-                )
+            if isinstance(thetadata_config, dict):
+                if thetadata_username is None:
+                    thetadata_username = thetadata_config.get('THETADATA_USERNAME')
+                if thetadata_password is None:
+                    thetadata_password = thetadata_config.get('THETADATA_PASSWORD')
 
         # check if datasource_class is a class or a dictionary
         if isinstance(datasource_class, dict):
@@ -2983,17 +2984,21 @@ class _Strategy:
                 use_other_option_source = False
             else:
                 use_other_option_source = True
-
-            # Check ThetaData credentials for optionsource_class after dict extraction
-            if optionsource_class.__name__ == 'ThetaDataBacktesting' and (thetadata_username is None or thetadata_password is None):
-                raise ValueError(
-                    "Please set `thetadata_username` and `thetadata_password` in the backtest() function if "
-                    "you are using ThetaDataBacktesting. If you don't have one, you can do registeration "
-                    "from https://www.thetadata.net/."
-                )
         else:
             optionsource_class = None
             use_other_option_source = False
+
+        theta_credentials_missing = thetadata_username is None or thetadata_password is None
+        uses_theta_data = (
+            getattr(datasource_class, "__name__", None) == 'ThetaDataBacktesting'
+            or getattr(optionsource_class, "__name__", None) == 'ThetaDataBacktesting'
+        )
+        if uses_theta_data and theta_credentials_missing:
+            raise ValueError(
+                "Please set `thetadata_username` and `thetadata_password` in the backtest() function if "
+                "you are using ThetaDataBacktesting. If you don't have one, you can do registeration "
+                "from https://www.thetadata.net/."
+            )
 
         # Make a string with 6 random numbers/letters (upper and lowercase) to avoid overwriting
         random_string = "".join(random.choices(string.ascii_letters + string.digits, k=6))

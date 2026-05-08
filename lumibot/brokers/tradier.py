@@ -393,7 +393,7 @@ class Tradier(Broker):
                 payload_b64 = config.get("TRADIER_TOKEN") or config.get("OAUTH_PAYLOAD")
         except Exception:
             payload_b64 = None
-        payload_b64 = payload_b64 or os.environ.get("TRADIER_TOKEN")
+        payload_b64 = payload_b64 or os.environ.get("TRADIER_TOKEN") or os.environ.get("OAUTH_PAYLOAD")
 
         token_json = None
         if payload_b64:
@@ -1085,9 +1085,8 @@ class Tradier(Broker):
 
         start_date = CashEvent.coerce_datetime(since).date() if since is not None else None
         end_date = datetime.datetime.now(datetime.timezone.utc).date()
-        per_type_limit = max(int(limit or 100), 1)
-        per_page_limit = min(per_type_limit, 1000)
-        max_pages = max((per_type_limit - 1) // per_page_limit + 1, 1)
+        original_limit = max(int(limit or 100), 1)
+        per_page_limit = min(original_limit, 1000)
         account = self.tradier.account
         supports_page = callable(getattr(account, "request", None))
         if not supports_page:
@@ -1099,14 +1098,19 @@ class Tradier(Broker):
                 )
             except Exception:
                 supports_page = False
-        request_limit = per_page_limit if supports_page else per_type_limit
-        page_count = max_pages if supports_page else 1
 
         event_by_id: dict[str, CashEvent] = {}
         raw_row_count = 0
         raw_type_counts = Counter()
         for activity_type in self.CASH_ACTIVITY_TYPES:
+            remaining = original_limit - len(event_by_id)
+            if remaining <= 0:
+                break
+            request_limit = min(per_page_limit, remaining) if supports_page else remaining
+            page_count = max((remaining - 1) // request_limit + 1, 1) if supports_page else 1
             for page in range(1, page_count + 1):
+                if len(event_by_id) >= original_limit:
+                    break
                 history_df = self._get_tradier_history_page(
                     start_date=start_date,
                     end_date=end_date,
@@ -1127,8 +1131,10 @@ class Tradier(Broker):
                     )
                 for row in history_df.to_dict(orient="records"):
                     event = self._normalize_history_row_to_cash_event(row)
-                    if event is not None:
+                    if event is not None and event.event_id not in event_by_id:
                         event_by_id[event.event_id] = event
+                        if len(event_by_id) >= original_limit:
+                            break
 
                 if len(history_df.index) < per_page_limit:
                     break
@@ -1145,7 +1151,7 @@ class Tradier(Broker):
             supports_page,
             dict(raw_type_counts),
         )
-        return normalized_events
+        return normalized_events[:original_limit]
 
     def _pull_positions(self, strategy):
         try:

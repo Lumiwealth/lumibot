@@ -177,6 +177,11 @@ This is the dominant cost for many option strategies on cold caches:
 - reduce expensive option pricing computations
 - prefer vectorized transforms where safe
 
+**Order and position hot path**
+- Simple market backtests can use lightweight `Order.simple_market_backtest()` and `Position.simple_backtest()` constructors after normal validation has already happened. These paths still preserve public `Order`/`Position` behavior, but avoid repeated event and Decimal setup in the tight fill loop.
+- Keep the one-order-one-position-entry invariant: repeated references to the same filled order must not mutate position quantity twice.
+- Crypto positions keep Decimal zero `hold`/`available` values; non-crypto positions keep numeric zero values. Tests should pin that distinction because serialization and broker parity code depend on it.
+
 ### Phase E — Artifacts (finalization)
 
 - generate trades/logs/indicators files

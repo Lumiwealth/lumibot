@@ -358,8 +358,8 @@ class Schwab(Broker):
                     # Complete remaining setup (stream, data source linking, etc.)
                     # Set hash_value on self before signaling readiness
                     self.hash_value = hash_value
-                    self._broker_fully_ready = True # Signal readiness
                     self._finish_initialization(config, self.data_source, self.account_number, hash_value)
+                    self._broker_fully_ready = True  # Signal readiness only after full init succeeds
                 else:
                     logger.error("[Schwab] Unable to locate account hash in response from get_account_numbers(). API response: %s", accounts_json)
                     self.schwab_authorization_error = True
@@ -373,6 +373,7 @@ class Schwab(Broker):
                     raise ConnectionError("Schwab authentication failed (401 Unauthorized). Token deleted. Please restart to re-authenticate.")
                 self.schwab_authorization_error = True
         except Exception as e_acc:
+            self._broker_fully_ready = False
             logger.error(colored(f"[Schwab] Exception while fetching account numbers: {e_acc}", "red"))
             logger.error(traceback.format_exc())
             self.schwab_authorization_error = True

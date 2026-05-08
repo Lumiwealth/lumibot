@@ -1740,9 +1740,15 @@ class Alpaca(Broker):
                 except KeyboardInterrupt:
                     logger.info("Exiting on Interrupt")
                     should_renew = False
+                except CancelledError:
+                    try:
+                        loop.run_until_complete(self.stream.close(should_renew))
+                    finally:
+                        if loop.is_running():
+                            loop.close()
+                    raise
                 except Exception as e:
-                    m = "consume cancelled" if isinstance(e, CancelledError) else e
-                    logger.error(f"error while consuming ws messages: {m}")
+                    logger.error(f"error while consuming ws messages: {e}")
                     logger.error(traceback.format_exc())
                     loop.run_until_complete(self.stream.close(should_renew))
                     if loop.is_running():

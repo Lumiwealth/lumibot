@@ -55,6 +55,69 @@ class TestPositionSigns(unittest.TestCase):
         position.add_order(buy_to_cover_order, Decimal("3"))
         self.assertEqual(position.quantity, 0)
 
+    def test_simple_backtest_preserves_crypto_decimal_zero_balances(self):
+        base = Asset("BTC", Asset.AssetType.CRYPTO)
+        quote = Asset("USD", Asset.AssetType.FOREX)
+        order = Order.simple_market_backtest(
+            "test_strategy",
+            base,
+            Decimal("0.5"),
+            Order.OrderSide.BUY,
+            quote=quote,
+        )
+
+        position = Position.simple_backtest("test_strategy", base, Decimal("0.5"), order)
+
+        self.assertEqual(position.quantity, 0.5)
+        self.assertEqual(position.hold, Decimal("0"))
+        self.assertEqual(position.available, Decimal("0"))
+        self.assertEqual(position.orders, [order])
+
+    def test_simple_backtest_preserves_non_crypto_numeric_zero_balances(self):
+        asset = Asset("SPY", Asset.AssetType.STOCK)
+        order = Order.simple_market_backtest(
+            "test_strategy",
+            asset,
+            2,
+            Order.OrderSide.BUY,
+        )
+
+        position = Position.simple_backtest("test_strategy", asset, 2, order)
+
+        self.assertEqual(position.quantity, 2)
+        self.assertEqual(position.hold, 0)
+        self.assertEqual(position.available, 0)
+        self.assertEqual(position.orders, [order])
+
+    def test_add_simple_order_updates_quantity_once_per_order(self):
+        asset = Asset("SPY", Asset.AssetType.STOCK)
+        first = Order.simple_market_backtest(
+            "test_strategy",
+            asset,
+            1,
+            Order.OrderSide.BUY,
+        )
+        second = Order.simple_market_backtest(
+            "test_strategy",
+            asset,
+            2,
+            Order.OrderSide.BUY,
+        )
+        third = Order.simple_market_backtest(
+            "test_strategy",
+            asset,
+            1,
+            Order.OrderSide.SELL,
+        )
+        position = Position.simple_backtest("test_strategy", asset, Decimal("1"), first)
+
+        position.add_simple_order(second, Decimal("2"), is_buy=True)
+        position.add_simple_order(second, Decimal("2"), is_buy=True)
+        position.add_simple_order(third, Decimal("1"), is_buy=False)
+
+        self.assertEqual(position.quantity, 2)
+        self.assertEqual(position.orders, [first, second, third])
+
 
 if __name__ == "__main__":
     unittest.main()

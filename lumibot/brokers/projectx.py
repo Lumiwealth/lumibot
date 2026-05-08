@@ -180,12 +180,12 @@ class ProjectX(Broker):
             max_workers: Maximum worker threads for async operations
             firm: Specific firm to use (auto-detected if not provided)
         """
-        # Use environment config if not provided
+        # Resolve firm-specific environment config at runtime so importing ProjectX stays side-effect light.
         if config is None:
             from lumibot.credentials import get_projectx_config
             config = get_projectx_config(firm)
 
-        # Validate required configuration
+        # Validate after firm detection; base_url comes from supported-firm defaults unless explicitly overridden.
         required_fields = ["api_key", "username", "base_url"]
         missing_fields = [field for field in required_fields if not config.get(field)]
         if missing_fields:
@@ -208,7 +208,7 @@ class ProjectX(Broker):
         self.config = config
         self.firm = config.get("firm")
 
-        # Initialize ProjectX client
+        # Instantiate through the lazy resolver so tests can patch ProjectXClient without importing the helper early.
         self.client = _projectx_client_class()(config)
 
         # Account management

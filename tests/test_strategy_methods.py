@@ -171,6 +171,23 @@ class TestStrategyMethods:
         is_valid = strategy._validate_order(None)
         assert is_valid == False
 
+    def test_create_order_none_order_type_uses_simple_market_backtest_fast_path(self):
+        strat = self._make_strategy_stub()
+        quote = Asset("USD", Asset.AssetType.FOREX)
+        strat._name = "test_strategy"
+        strat._quote_asset = quote
+        strat.broker = SimpleNamespace(
+            IS_BACKTESTING_BROKER=True,
+            data_source=SimpleNamespace(_datetime=datetime(2024, 1, 2, 9, 30)),
+            datetime=datetime(2024, 1, 2, 9, 30),
+        )
+
+        order = Strategy.create_order(strat, Asset("SPY"), 1, "buy", order_type=None)
+
+        assert getattr(order, "_simple_backtest_order", False) is True
+        assert order.order_type is Order.OrderType.MARKET
+        assert order.quote == quote
+
     def test_get_price_from_source_snapshot_fallback(self):
         strat = self._make_strategy_stub()
         strat._should_use_daily_last_price = MagicMock(return_value=False)
@@ -262,6 +279,80 @@ class TestStrategyMethods:
             f"Shortcut called timeshift={call['timeshift']} — must be 0 or "
             "omitted. Any negative timeshift walks forward past sim_time."
         )
+
+    def test_ibkr_last_price_fast_context_cache_is_exchange_scoped(self):
+        class _FastData:
+            def __init__(self, price):
+                self.price = price
+
+            def get_previous_bar_close_fast(self, _now):
+                return self.price
+
+            def get_last_price_fast(self, _now):
+                return self.price
+
+        asset = Asset("MES", Asset.AssetType.CONT_FUTURE)
+        quote = Asset("USD", Asset.AssetType.FOREX)
+        ds = SimpleNamespace(
+            SOURCE="InteractiveBrokersREST",
+            exchange="CME",
+            _datetime=datetime(2024, 1, 2, 9, 30),
+            _normalize_exchange_key=lambda exchange: exchange.upper(),
+        )
+        strat = self._make_strategy_stub()
+        strat._quote_asset = quote
+        strat.broker = SimpleNamespace(IS_BACKTESTING_BROKER=True, data_source=ds)
+        strat._ibkr_last_price_fast_context_cache = {
+            (id(asset), id(quote), "NYMEX"): (ds, _FastData(111.0), "cont_future"),
+            (id(asset), id(quote), "CME"): (ds, _FastData(222.0), "cont_future"),
+        }
+
+        assert Strategy.get_last_price(strat, asset) == 222.0
+
+    def test_ibkr_native_history_request_cache_is_quote_and_exchange_scoped(self):
+        class _NativeData:
+            def __init__(self, label):
+                self.label = label
+
+            def get_native_bars_fast(self, *_args, **_kwargs):
+                return self.label
+
+        def _bars_from_pandas_fast(response, source, asset_arg, *, quote, raw):
+            return {
+                "response": response,
+                "source": source,
+                "asset": asset_arg,
+                "quote": quote,
+                "raw": raw,
+            }
+
+        asset = Asset("MES", Asset.AssetType.CONT_FUTURE)
+        quote = Asset("USD", Asset.AssetType.FOREX)
+        ds = SimpleNamespace(
+            SOURCE="InteractiveBrokersREST",
+            exchange="CME",
+            _datetime=datetime(2024, 1, 2, 9, 30),
+        )
+        strat = self._make_strategy_stub()
+        strat._quote_asset = quote
+        strat.broker = SimpleNamespace(IS_BACKTESTING_BROKER=True, data_source=ds)
+        strat._ibkr_native_hist_request_cache_default_quote = {
+            (id(asset), id(quote), "NYMEX", 1, "minute"): (
+                ds,
+                _bars_from_pandas_fast,
+                _NativeData("nymex"),
+            ),
+            (id(asset), id(quote), "CME", 1, "minute"): (
+                ds,
+                _bars_from_pandas_fast,
+                _NativeData("cme"),
+            ),
+        }
+
+        bars = Strategy.get_historical_prices(strat, asset, 1, "minute")
+
+        assert bars["response"] == "cme"
+        assert bars["quote"] == quote
 
     def test_validate_order_with_invalid_order_type(self):
         """

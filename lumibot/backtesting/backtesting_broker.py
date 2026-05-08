@@ -1320,6 +1320,15 @@ class BacktestingBroker(Broker):
                         self._record_fast_backtest_trade_event(order, None, None, 1)
                 except Exception:
                     logger.error(traceback.format_exc())
+                    try:
+                        order.update_raw(order)
+                        self.stream.dispatch(
+                            self.NEW_ORDER,
+                            wait_until_complete=True,
+                            order=order,
+                        )
+                    except Exception:
+                        logger.error(traceback.format_exc())
             else:
                 order.update_raw(order)
                 self.stream.dispatch(
@@ -1428,6 +1437,15 @@ class BacktestingBroker(Broker):
                     self._trade_event_log_df_cache = None
         except Exception:
             logger.error(traceback.format_exc())
+            try:
+                order.update_raw(order)
+                self.stream.dispatch(
+                    self.NEW_ORDER,
+                    wait_until_complete=True,
+                    order=order,
+                )
+            except Exception:
+                logger.error(traceback.format_exc())
 
         return order
 
@@ -4584,9 +4602,6 @@ class BacktestingBroker(Broker):
                     open_line_obj = getattr(data_obj, "datalines", {}).get("open")
                     open_line = getattr(open_line_obj, "dataline", None) if open_line_obj is not None else getattr(data_obj, "open", None)
                     exact_i = getattr(data_obj, "iter_index_dict", None)
-                    if exact_i is None:
-                        data_obj.repair_times_and_fill(data_obj.df.index)
-                        exact_i = getattr(data_obj, "iter_index_dict", None)
                 except Exception:
                     open_line = None
                     exact_i = None

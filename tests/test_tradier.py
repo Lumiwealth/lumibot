@@ -99,6 +99,24 @@ class TestTradierBroker:
         assert broker._oauth_enabled()
         assert broker._tradier_access_token == "oauth-access"
 
+    def test_oauth_payload_env_fallback_sets_access_token(self, monkeypatch):
+        token_json = {
+            "access_token": "oauth-payload-access",
+            "refresh_token": "oauth-refresh",
+            "expires_in": 86400,
+            "issued_at": int(time.time() * 1000),
+        }
+        monkeypatch.delenv("TRADIER_TOKEN", raising=False)
+        monkeypatch.setenv("OAUTH_PAYLOAD", self._b64url(token_json))
+
+        broker = Tradier(
+            config={"ACCESS_TOKEN": None, "ACCOUNT_NUMBER": "1234", "PAPER": True},
+            connect_stream=False,
+        )
+
+        assert broker._oauth_enabled()
+        assert broker._tradier_access_token == "oauth-payload-access"
+
     def test_oauth_refresh_when_expired(self, monkeypatch):
         # Expired token payload
         token_json = {
@@ -507,6 +525,35 @@ class TestTradierBroker:
         assert stop_order.quantity == 1
         assert stop_order.side == "sell_to_close"
         assert stop_order.order_type == Order.OrderType.STOP
+
+    def test_get_cash_events_applies_limit_across_activity_types(self, monkeypatch):
+        broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True, connect_stream=False)
+        broker.tradier = SimpleNamespace(account=SimpleNamespace(request=lambda *args, **kwargs: None))
+        monkeypatch.setattr(broker, "CASH_ACTIVITY_TYPES", ("dividend", "interest"))
+        calls = []
+
+        def _history_page(*, activity_type, page, limit, **_kwargs):
+            calls.append((activity_type, page, limit))
+            if activity_type == "dividend":
+                return pd.DataFrame(
+                    [
+                        {"type": "dividend", "amount": "1", "date": "2024-01-02", "id": "d1"},
+                        {"type": "dividend", "amount": "2", "date": "2024-01-03", "id": "d2"},
+                    ]
+                )
+            return pd.DataFrame(
+                [
+                    {"type": "interest", "amount": "3", "date": "2024-01-04", "id": "i1"},
+                    {"type": "interest", "amount": "4", "date": "2024-01-05", "id": "i2"},
+                ]
+            )
+
+        monkeypatch.setattr(broker, "_get_tradier_history_page", _history_page)
+
+        events = broker.get_cash_events(limit=3)
+
+        assert [event.amount for event in events] == [1.0, 2.0, 3.0]
+        assert calls == [("dividend", 1, 3), ("interest", 1, 1)]
 
     @pytest.mark.skip(reason="Complex test that requires proper stream setup - skipping to fix CI timeout")
     def test_do_polling(self, mocker):

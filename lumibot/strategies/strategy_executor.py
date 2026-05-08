@@ -89,6 +89,9 @@ class _BacktestSchedulerStub:
         self._executor = executor
 
     def _materialize(self):
+        current = self._executor.scheduler
+        if current is not None and current is not self:
+            return current
         MemoryJobStore, BackgroundScheduler, _CronTrigger = _get_scheduler_imports()
         job_stores = {"default": MemoryJobStore(), "On_Trading_Iteration": MemoryJobStore()}
         scheduler = BackgroundScheduler(jobstores=job_stores)
@@ -731,6 +734,7 @@ class StrategyExecutor(Thread):
 
     def process_queue(self):
         queue = self.queue
+        # Backtests process events synchronously; the empty Queue backing deque is stable here.
         if self._is_backtesting_strategy and not queue.queue:
             return
         while True:

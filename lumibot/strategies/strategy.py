@@ -827,7 +827,7 @@ class Strategy(_Strategy):
             isinstance(asset, Asset)
             and getattr(asset, "asset_type", None) not in (Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE)
             and quote is None
-            and order_type is Order.OrderType.MARKET
+            and (order_type is None or order_type is Order.OrderType.MARKET)
             and time_in_force == "gtc"
             and getattr(broker, "IS_BACKTESTING_BROKER", False)
             and (
@@ -2655,9 +2655,17 @@ class Strategy(_Strategy):
         """
         if isinstance(asset, Asset) and quote is None and exchange is None:
             quote_asset = getattr(self, "_quote_asset", None)
+            broker = getattr(self, "broker", None)
+            ds = getattr(broker, "data_source", None)
+            try:
+                fast_exchange_key = (
+                    "AUTO" if getattr(ds, "exchange", None) is None else ds._normalize_exchange_key(ds.exchange)
+                )
+            except Exception:
+                fast_exchange_key = str(getattr(ds, "exchange", None) or "").strip().upper() or "AUTO"
             fast_ctx_cache = getattr(self, "_ibkr_last_price_fast_context_cache", None) if quote_asset is not None else None
             if fast_ctx_cache is not None:
-                ctx = fast_ctx_cache.get((id(asset), id(quote_asset)))
+                ctx = fast_ctx_cache.get((id(asset), id(quote_asset), fast_exchange_key))
                 if ctx is not None:
                     ds_for_cache, data, asset_type_value = ctx
                     now = getattr(ds_for_cache, "_datetime", None)
@@ -2671,8 +2679,6 @@ class Strategy(_Strategy):
                             return data.get_last_price_fast(now)
                         except Exception:
                             pass
-            broker = getattr(self, "broker", None)
-            ds = getattr(broker, "data_source", None)
             last_price_ctx_cache = getattr(self, "_ibkr_last_price_context_cache", None)
             if last_price_ctx_cache is not None and getattr(ds, "SOURCE", None) == "InteractiveBrokersREST":
                 effective_exchange = getattr(ds, "exchange", None)
@@ -2731,7 +2737,7 @@ class Strategy(_Strategy):
                             if fast_ctx_cache is None:
                                 fast_ctx_cache = {}
                                 self._ibkr_last_price_fast_context_cache = fast_ctx_cache
-                            fast_ctx_cache[(id(asset), id(quote_asset))] = (
+                            fast_ctx_cache[(id(asset), id(quote_asset), exchange_key)] = (
                                 ds,
                                 data,
                                 asset_type_value,
@@ -4738,12 +4744,15 @@ class Strategy(_Strategy):
             and timestep in {"minute", "day"}
         ):
             quote_asset = self._quote_asset if quote is None else quote
+            broker_for_request = getattr(self, "broker", None)
+            ds_for_request = getattr(broker_for_request, "data_source", None)
+            request_exchange = getattr(ds_for_request, "exchange", None)
             if quote is None:
                 request_cache = getattr(self, "_ibkr_native_hist_request_cache_default_quote", None)
-                request_key = (id(asset), length, timestep)
+                request_key = (id(asset), id(quote_asset), request_exchange, length, timestep)
             else:
                 request_cache = getattr(self, "_ibkr_native_hist_request_cache", None)
-                request_key = (id(asset), id(quote_asset), length, timestep)
+                request_key = (id(asset), id(quote_asset), request_exchange, length, timestep)
             if request_cache is not None:
                 ctx = request_cache.get(request_key)
                 if ctx is not None:
@@ -4939,7 +4948,7 @@ class Strategy(_Strategy):
                         if request_cache is None:
                             request_cache = {}
                             self._ibkr_native_hist_request_cache = request_cache
-                        request_cache[(id(asset), id(quote_asset), int(length), timestep)] = (
+                        request_cache[(id(asset), id(quote_asset), effective_exchange, int(length), timestep)] = (
                             ds,
                             Bars.from_pandas_fast,
                             data,
@@ -4953,7 +4962,7 @@ class Strategy(_Strategy):
                             if default_request_cache is None:
                                 default_request_cache = {}
                                 self._ibkr_native_hist_request_cache_default_quote = default_request_cache
-                            default_request_cache[(id(asset), int(length), timestep)] = (
+                            default_request_cache[(id(asset), id(quote_asset), effective_exchange, int(length), timestep)] = (
                                 ds,
                                 Bars.from_pandas_fast,
                                 data,

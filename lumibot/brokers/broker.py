@@ -2061,6 +2061,7 @@ class Broker(ABC):
             getattr(self._new_orders, "revision", 0),
             getattr(self._partially_filled_orders, "revision", 0),
             getattr(self._placeholder_orders, "revision", 0),
+            getattr(self, "_simple_new_orders_revision", 0),
             strategy_name,
             asset,
         )
@@ -2475,6 +2476,15 @@ class Broker(ABC):
         return cache
 
     def _expand_trade_event_rows(self, rows):
+        """Expand compact fast trade tuples into the legacy trade-event schema.
+
+        Pair rows use marker + 18 fields:
+        marker, new_time, fill_time, strategy, identifier, symbol, side, order_type,
+        new_status, fill_status, price, filled_quantity, multiplier, trade_cost,
+        trade_slippage, time_in_force, asset_multiplier, asset_type, price_source.
+        Single rows use marker + 16 fields without the separate new/fill split.
+        """
+
         expanded = []
         for row in rows:
             if (
@@ -2842,9 +2852,8 @@ class Broker(ABC):
         # PERF: backtesting data sources often store the current dt on `_datetime`. Avoid the extra
         # method call overhead in the hot-path trade-event logger, but fall back to `get_datetime()`
         # for stubbed sources used in unit tests.
-        if is_backtesting:
-            current_dt = self.datetime
-        else:
+        current_dt = getattr(self.data_source, "_datetime", None) if is_backtesting else None
+        if current_dt is None:
             current_dt = self.data_source.get_datetime()
         # Cache the audit-enabled flag when available (BacktestingBroker sets this in __init__).
         audit_enabled = getattr(self, "_backtest_audit_enabled", None)

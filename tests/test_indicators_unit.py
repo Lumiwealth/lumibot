@@ -16,6 +16,7 @@ import pandas as pd
 import pytest
 
 from lumibot.indicators import Indicators, IndicatorRow
+import lumibot.indicators.indicators as indicators_module
 
 
 def _make_strategy(df: pd.DataFrame, now):
@@ -81,6 +82,19 @@ def strategy_with_daily_bars():
         index=dates,
     )
     return _make_strategy(df, dates[-1])
+
+
+def test_indicator_backend_modules_are_lazy_until_used():
+    assert type(indicators_module.np).__name__ == "_LazyModule"
+    assert type(indicators_module.pd).__name__ == "_LazyModule"
+
+    lazy_np = indicators_module._LazyModule("numpy")
+    lazy_pd = indicators_module._LazyModule("pandas")
+    assert object.__getattribute__(lazy_np, "_module") is None
+    assert object.__getattribute__(lazy_pd, "_module") is None
+
+    assert lazy_np.nan is np.nan
+    assert lazy_pd.DataFrame is pd.DataFrame
 
 
 def test_sma_returns_scalar_at_current_bar(strategy_with_daily_bars):

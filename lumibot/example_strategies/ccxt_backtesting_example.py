@@ -1,8 +1,7 @@
+from __future__ import annotations
+
 from datetime import datetime
 
-from pandas import DataFrame
-
-from lumibot.backtesting import CcxtBacktesting
 from lumibot.entities import Asset, Order
 from lumibot.strategies.strategy import Strategy
 
@@ -35,7 +34,9 @@ class CcxtBacktestingExampleStrategy(Strategy):
         return self.get_historical_prices(asset=self.asset,length=self.window,
                                     timestep="day",quote=self.quote).df
 
-    def _get_bbands(self,history_df:DataFrame):
+    def _get_bbands(self, history_df):
+        from pandas import DataFrame
+
         # BBL (Lower Bollinger Band): Can act as a support level based on price volatility, and can indicate an 'oversold' condition if the price falls below this line.
         # BBM (Breaking Bollinger Bands): This is essentially a moving average over a selected period of time, used as a reference point for price trends.
         # BBU (Upper Bollinger Band): Can act as a resistance level based on price volatility, and can indicate an 'overbought' condition if the price moves above this line.
@@ -86,6 +87,7 @@ class CcxtBacktestingExampleStrategy(Strategy):
 
 
 if  __name__ == "__main__":
+    from lumibot.backtesting import CcxtBacktesting
 
     base_symbol = "ETH"
     quote_symbol = "USDT"

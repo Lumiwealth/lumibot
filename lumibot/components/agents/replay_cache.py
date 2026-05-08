@@ -11,7 +11,17 @@ from pathlib import Path
 from typing import Any
 
 from lumibot.constants import LUMIBOT_CACHE_FOLDER
-from lumibot.tools.backtest_cache import get_backtest_cache
+
+_BACKTEST_CACHE_GETTER = None
+
+
+def get_backtest_cache():
+    global _BACKTEST_CACHE_GETTER
+    if _BACKTEST_CACHE_GETTER is None:
+        from lumibot.tools.backtest_cache import get_backtest_cache as _get_backtest_cache
+
+        _BACKTEST_CACHE_GETTER = _get_backtest_cache
+    return _BACKTEST_CACHE_GETTER()
 
 
 def _normalize_json(value: Any) -> Any:

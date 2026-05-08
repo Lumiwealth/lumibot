@@ -1,13 +1,46 @@
+from __future__ import annotations
+
 import time
 from decimal import ROUND_DOWN, ROUND_UP, Decimal
-from typing import Any, Dict, List
-
-import pandas as pd
+from importlib import import_module
+from typing import TYPE_CHECKING, Any, Dict, List
 
 from lumibot.entities import Asset, TradingFee
 from lumibot.entities.order import Order
-from lumibot.strategies.strategy import Strategy
-from lumibot.tools.pandas import prettify_dataframe_with_decimals
+
+if TYPE_CHECKING:
+    from lumibot.strategies.strategy import Strategy
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+_PRETTIFY_DATAFRAME_WITH_DECIMALS = None
+
+
+def _prettify_dataframe_with_decimals(*args, **kwargs):
+    global _PRETTIFY_DATAFRAME_WITH_DECIMALS
+    if _PRETTIFY_DATAFRAME_WITH_DECIMALS is None:
+        from lumibot.tools.pandas import prettify_dataframe_with_decimals
+
+        _PRETTIFY_DATAFRAME_WITH_DECIMALS = prettify_dataframe_with_decimals
+    return _PRETTIFY_DATAFRAME_WITH_DECIMALS(*args, **kwargs)
 
 
 class DriftType:
@@ -364,7 +397,7 @@ class DriftOrderLogic:
 
         # Just print the drift_df to the log but sort it by symbol column
         drift_df = drift_df.sort_values(by='symbol')
-        self.strategy.logger.info(f"drift_df:\n{prettify_dataframe_with_decimals(df=drift_df)}")
+        self.strategy.logger.info(f"drift_df:\n{_prettify_dataframe_with_decimals(df=drift_df)}")
 
         rebalance_needed = self._check_if_rebalance_needed(drift_df)
         if rebalance_needed:

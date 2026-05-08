@@ -1,11 +1,8 @@
 import math
 import os
 from datetime import date, datetime, timedelta, timezone
+from importlib import import_module
 from typing import Any, Literal
-
-import requests
-
-from lumibot.entities import Order
 
 from .docs_tools import search_lumibot_docs
 from .asset_resolution import resolve_asset_and_quote
@@ -17,6 +14,43 @@ OrderSideArg = Literal["buy", "sell", "buy_to_open", "sell_to_close", "sell_shor
 OrderTypeArg = Literal["market", "limit", "stop", "stop_limit", "trailing_stop", "smart_limit"]
 TimeInForceArg = Literal["day", "gtc", "gtd"]
 NewsSortArg = Literal["asc", "desc"]
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+    def __setattr__(self, name, value):
+        if name in {"_module_name", "_module"}:
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self._load(), name, value)
+
+    def __delattr__(self, name):
+        if name in {"_module_name", "_module"}:
+            object.__delattr__(self, name)
+        else:
+            delattr(self._load(), name)
+
+
+requests = _LazyModule("requests")
+
+
+def _requests():
+    return requests
 
 
 def _parse_datetime_value(value: Any) -> datetime | None:
@@ -395,7 +429,7 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
         if page_token:
             params["page_token"] = page_token
 
-        response = requests.get(
+        response = _requests().get(
             "https://data.alpaca.markets/v1beta1/news",
             headers={
                 "APCA-API-KEY-ID": api_key,

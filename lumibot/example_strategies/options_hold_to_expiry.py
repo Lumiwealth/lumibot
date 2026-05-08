@@ -1,6 +1,5 @@
 from datetime import datetime
 
-from lumibot.entities import Asset
 from lumibot.strategies.strategy import Strategy
 
 """
@@ -26,6 +25,7 @@ class OptionsHoldToExpiry(Strategy):
 
     def on_trading_iteration(self):
         """Buys the self.buy_symbol once, then never again"""
+        from lumibot.entities import Asset
 
         buy_symbol = self.parameters["buy_symbol"]
         expiry = self.parameters["expiry"]

@@ -33,12 +33,18 @@ Usage:
 import csv
 import io
 import os
-import requests
 
-from lumibot.components.agents import agent_tool
 from lumibot.strategies.strategy import Strategy
 
+from ._agent_tool import agent_tool
+
 IS_BACKTESTING = True
+
+
+def _requests():
+    import requests
+
+    return requests
 
 
 class M2LiquidityGrokStrategy(Strategy):
@@ -75,7 +81,7 @@ class M2LiquidityGrokStrategy(Strategy):
         if end_date:
             params["coed"] = end_date
         try:
-            resp = requests.get(
+            resp = _requests().get(
                 "https://fred.stlouisfed.org/graph/fredgraph.csv",
                 params=params,
                 timeout=15,

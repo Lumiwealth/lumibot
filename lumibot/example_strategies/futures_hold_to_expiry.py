@@ -1,7 +1,5 @@
 from datetime import datetime
 
-from lumibot.credentials import IS_BACKTESTING
-from lumibot.entities import Asset
 from lumibot.strategies.strategy import Strategy
 
 """
@@ -28,6 +26,7 @@ class FuturesHoldToExpiry(Strategy):
 
     def on_trading_iteration(self):
         """Buys the self.buy_symbol once, then never again"""
+        from lumibot.entities import Asset
 
         buy_symbol = self.parameters["buy_symbol"]
         expiry = self.parameters["expiry"]
@@ -67,6 +66,8 @@ class FuturesHoldToExpiry(Strategy):
 
 
 if __name__ == "__main__":
+    from lumibot.credentials import IS_BACKTESTING
+
     if IS_BACKTESTING:
         from lumibot.backtesting import PolygonDataBacktesting
 

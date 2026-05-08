@@ -2,11 +2,15 @@ import json
 import re
 import time
 
-from openai import OpenAI
-
 from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def _openai_client_class():
+    from openai import OpenAI
+
+    return OpenAI
 
 # --- constants ---------------------------------------------------------------
 _MODEL_LIMITS = {
@@ -126,7 +130,7 @@ class PerplexityHelper:
                 raise ValueError("API key is required for PerplexityHelper. Set it as PERPLEXITY_API_KEY in your environment or your secrets")
 
         self.api_key = api_key
-        self.client = OpenAI(
+        self.client = _openai_client_class()(
             api_key=self.api_key,
             base_url="https://api.perplexity.ai",  # Correct base URL
         )

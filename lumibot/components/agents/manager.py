@@ -29,6 +29,7 @@ _TIMESTAMP_HINT_RE = re.compile(
     r"(time|date|datetime|published|updated|created|accepted|released|release|as_of|realtime)",
     re.IGNORECASE,
 )
+_DEFAULT_MEMORY_NOTE_MAX_CHARS = 2000
 
 
 def _safe_call(func, default=None):
@@ -116,6 +117,16 @@ def _truncate_text(value: Any, limit: int = 240) -> str:
     if len(text) <= limit:
         return text
     return text[: limit - 3] + "..."
+
+
+def _agent_memory_note_max_chars() -> int:
+    raw = os.environ.get("LUMIBOT_AGENT_MEMORY_NOTE_MAX_CHARS")
+    if raw:
+        try:
+            return max(int(raw), 200)
+        except Exception:
+            pass
+    return _DEFAULT_MEMORY_NOTE_MAX_CHARS
 
 
 def _compact_json(value: Any, limit: int = 240) -> str:
@@ -534,13 +545,14 @@ class AgentHandle:
 
     def _memory_prompt_notes(self) -> list[dict[str, Any]]:
         projected: list[dict[str, Any]] = []
+        max_chars = _agent_memory_note_max_chars()
         for note in self._memory_notes():
             if not isinstance(note, dict):
                 continue
             projected.append(
                 {
                     "timestamp": note.get("timestamp"),
-                    "summary": note.get("summary") or "",
+                    "summary": _truncate_text(note.get("summary") or "", limit=max_chars),
                     "warnings": list(note.get("warnings") or []),
                 }
             )
@@ -687,10 +699,11 @@ class AgentHandle:
         state = self._state_bucket()
         notes = self._memory_notes()
         event_timestamp = self._event_timestamp()
+        memory_summary = _truncate_text(result.summary or result.text or "", limit=_agent_memory_note_max_chars())
         notes.append(
             {
                 "timestamp": event_timestamp,
-                "summary": result.summary or result.text or "",
+                "summary": memory_summary,
                 "tool_calls": [event.tool_name for event in result.tool_calls if event.tool_name],
                 "warnings": result.warning_messages,
                 "cache_hit": result.cache_hit,

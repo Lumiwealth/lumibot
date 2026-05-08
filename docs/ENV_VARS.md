@@ -292,6 +292,11 @@ Notes:
 - Purpose: Override the local JSONL agent memory root.
 - Default: `.lumibot/memory` under the current working directory.
 
+### `LUMIBOT_AGENT_MEMORY_NOTE_MAX_CHARS`
+- Purpose: Limit how much prior agent-run memory is injected back into the next agent prompt.
+- Default: `2000`.
+- Notes: Full run traces and artifacts are still written separately. This only compacts the lightweight runtime notes so repeated backtest iterations do not blow up the model context window.
+
 ### `TELEGRAM_BOT_TOKEN`
 - Purpose: Telegram Bot API token for `self.notifications.configure_telegram()`.
 - Values: Bot token from BotFather.

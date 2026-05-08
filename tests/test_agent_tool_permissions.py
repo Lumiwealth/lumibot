@@ -44,6 +44,19 @@ class _Runtime:
         return AgentRunResult(summary="Research completed without trading tools.", model=request.model, events=events)
 
 
+class _LongSummaryRuntime:
+    requests = []
+
+    def run(self, request):
+        type(self).requests.append(request)
+        summary = "x" * 5000
+        return AgentRunResult(
+            summary=summary,
+            model=request.model,
+            events=[AgentTraceEvent(kind="text", text=summary)],
+        )
+
+
 def test_agent_allow_trading_false_removes_only_mutating_order_tools():
     strategy = _Strategy()
     manager = AgentManager(strategy)
@@ -103,3 +116,33 @@ def test_read_only_agent_runtime_can_use_non_trading_tools(tmp_path):
     assert _Runtime.last_request.model == "openai/gpt-5.4-mini"
     assert any(event.tool_name == "search_memory" for event in result.tool_calls)
     assert any(event.tool_name == "notify_user" for event in result.tool_calls)
+
+
+def test_agent_runtime_memory_notes_are_compacted(monkeypatch, tmp_path):
+    from lumibot.components.memory import MemoryStore
+    from lumibot.components.notifications import NotificationManager
+
+    monkeypatch.setenv("LUMIBOT_AGENT_MEMORY_NOTE_MAX_CHARS", "500")
+    strategy = _Strategy()
+    strategy.vars = _Vars()
+    strategy.is_backtesting = False
+    strategy.memory = MemoryStore(strategy, root_dir=tmp_path)
+    strategy.notifications = NotificationManager(strategy)
+    manager = AgentManager(strategy)
+    runtime = _LongSummaryRuntime()
+    _LongSummaryRuntime.requests = []
+
+    agent = manager.create(
+        name="compact_memory",
+        model="openai/gpt-5.4-mini",
+        allow_trading=False,
+        _runtime=runtime,
+    )
+    agent.run(task_prompt="first long summary")
+    agent.run(task_prompt="second should receive compact prior summary")
+
+    assert len(_LongSummaryRuntime.requests) == 2
+    prior_notes = _LongSummaryRuntime.requests[1].memory_notes
+    assert len(prior_notes) == 1
+    assert len(prior_notes[0]["summary"]) == 500
+    assert prior_notes[0]["summary"].endswith("...")

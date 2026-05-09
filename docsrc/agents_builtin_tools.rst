@@ -1,17 +1,22 @@
 Agent Built-In Tools
 ====================
 
-LumiBot agents include built-in tools for market state, account state, orders,
-DuckDB queries, documentation search, news, indicators, SEC fundamentals,
-filings, FRED macro data, memory, and notifications.
+LumiBot agents are useful because they can inspect the same strategy state that
+your Python code can inspect. Built-in tools are added automatically when an
+agent is created, so a strategy author does not need to manually wire common
+market, account, research, memory, or notification tools.
+
+The important design rule is simple:
+
+- Research agents can inspect evidence.
+- Trading agents can inspect evidence and mutate orders.
+- Backtests expose only data available at the simulated strategy datetime.
 
 Trading Permissions
 -------------------
 
-.. image:: ../docs/assets/ai_committee/docs_tool_permissions.png
-   :alt: Lumibot agent tool permissions
-
-Use ``allow_trading=False`` for research agents:
+Use ``allow_trading=False`` for any agent that should research, summarize, or
+review without changing broker state.
 
 .. code-block:: python
 
@@ -19,64 +24,108 @@ Use ``allow_trading=False`` for research agents:
        name="researcher",
        model="openai/gpt-5.4-mini",
        allow_trading=False,
+       system_prompt="Gather market data, indicators, news, filings, fundamentals, and macro context.",
    )
 
-This removes tools that submit, cancel, or modify orders. Read-only tools remain
-available, including open orders, positions, SEC filings, FRED macro data,
-indicators, memory, and notifications.
+With ``allow_trading=False``, LumiBot removes only tools that mutate orders:
 
-Technical Indicator Tools
--------------------------
+- submit order
+- modify order
+- cancel order
 
-.. image:: ../docs/assets/ai_committee/docs_indicator_tools.png
-   :alt: Lumibot technical indicators without lookahead
+Read-only tools remain available. A research agent can still inspect cash,
+positions, open orders, historical prices, indicators, news, SEC filings, FRED
+macro data, memory, and notifications.
+
+.. image:: ../docs/assets/ai_committee/docs_tool_permissions.png
+   :alt: Lumibot agent tool permissions
+
+Use ``allow_trading=True`` only for the final agent that is allowed to place or
+change orders. In an investment committee workflow, that is usually the
+portfolio manager or trader agent.
+
+Market And Account State
+------------------------
+
+These tools let agents understand what the strategy already knows:
+
+- current datetime
+- cash and portfolio value
+- positions
+- open orders
+- historical bars and market data
+- account and broker context available to the strategy
+
+These tools are read-only. They remain available even when
+``allow_trading=False``.
+
+Technical Indicators
+--------------------
+
+Indicator tools expose LumiBot's indicator system to agents:
 
 - ``list_indicators``
 - ``get_indicator``
 - ``get_indicators``
 
-Indicator tools call ``self.indicators`` under the hood. In backtests, LumiBot
-computes the full visible series but returns only the value at or before the
-current strategy datetime.
+In backtests, indicators are evaluated against the visible historical data and
+return the value at or before the current strategy datetime. This prevents the
+agent from seeing a future indicator value.
 
-SEC Filing Tools
-----------------
+SEC Fundamentals And Filings
+----------------------------
 
-.. image:: ../docs/assets/ai_committee/docs_filing_search_workflow.png
-   :alt: Lumibot SEC filing search workflow
+SEC tools use public SEC EDGAR data directly and cache responses locally. They
+do not require an API key.
 
-Use ``get_filings`` to find point-in-time filings, ``search_filing`` to search
-large filings before opening them, and ``get_filing_document`` when the agent
-needs the full filing text.
+Common tools include:
 
-FRED Macro Tools
-----------------
+- ``get_income_statement``
+- ``get_balance_sheet``
+- ``get_cash_flow``
+- ``get_company_facts``
+- ``get_filings``
+- ``search_filing``
+- ``get_filing_document``
+
+Backtests gate filings by filed date or acceptance timestamp, so an agent cannot
+read a filing before it existed. Use ``search_filing`` before
+``get_filing_document`` when the filing is large and the agent only needs a
+specific section.
+
+FRED Macro Data
+---------------
+
+FRED tools expose macroeconomic series to agents:
 
 - ``list_fred_series``
 - ``get_fred_series``
 - ``get_fred_latest``
 - ``get_fred_snapshot``
 
-In backtests, built-in FRED tools require ``FRED_API_KEY`` so LumiBot can
-request vintage observations using FRED/ALFRED ``realtime_start`` and
-``realtime_end``. Without a key, built-in FRED tools are not exposed during
-backtests. In live runs, no-key curated CSV mode is available but may contain
-revised values. See :doc:`macro_data`.
+For strict point-in-time backtests, set ``FRED_API_KEY`` so LumiBot can request
+FRED/ALFRED vintage observations using realtime parameters. Without a key,
+curated public CSV mode can be used in live runs, but it may contain revised
+values and is not exposed by default in point-in-time backtests.
 
-Notification Tools
-------------------
+News
+----
 
-``notify_user`` sends through configured notification providers. Backtests keep
-notifications disabled by default unless you explicitly enable them.
+If Alpaca credentials are configured, LumiBot can expose Alpaca/Benzinga news
+tools to agents. In backtests, news tools should use the strategy datetime as
+the cutoff so the agent cannot read future headlines.
 
-.. image:: ../docs/assets/ai_committee/docs_notification_configuration.png
-   :alt: Lumibot notification configuration
+DuckDB And Documentation Search
+-------------------------------
 
-Memory Tools
-------------
+Agents can use DuckDB for structured analysis instead of asking the model to
+reason over raw tables inside the prompt. Documentation search tools let the
+agent inspect LumiBot usage patterns when it needs framework guidance.
 
-.. image:: ../docs/assets/ai_committee/docs_memory_lifecycle.png
-   :alt: Lumibot agent memory lifecycle
+Memory
+------
+
+Memory tools write local JSONL files so agent decisions remain inspectable:
 
 - ``remember``
 - ``search_memory``
@@ -86,4 +135,29 @@ Memory Tools
 - ``update_thesis``
 - ``close_thesis``
 
-These write local JSONL files so agent decisions and lessons are inspectable.
+Memory works in both backtests and live runs. In a backtest, memory is part of
+the run artifact trail. In live trading, it can preserve context across
+iterations and restarts when the same memory directory is reused.
+
+Notifications
+-------------
+
+``notify_user`` sends through configured notification providers. Telegram is
+the first built-in provider. Backtests keep notifications disabled by default,
+but you can explicitly opt in when testing notification behavior.
+
+Point-In-Time Safety
+--------------------
+
+The built-in research tools are designed around backtest/live parity:
+
+- indicators return current-bar values only
+- SEC filings are gated by filed or accepted datetime
+- FRED backtests use vintage observations when ``FRED_API_KEY`` is available
+- news tools use the strategy datetime as the cutoff
+
+.. image:: ../docs/assets/readme/lumibot_point_in_time_tools.png
+   :alt: Lumibot point-in-time research tools
+
+This lets agents research during a backtest without accidentally looking into
+the future.

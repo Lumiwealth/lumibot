@@ -3,89 +3,35 @@
 [![PyPI](https://img.shields.io/pypi/v/lumibot)](https://pypi.org/project/lumibot/)
 [![Python](https://img.shields.io/pypi/pyversions/lumibot)](https://pypi.org/project/lumibot/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Discord](https://img.shields.io/discord/1045669553608851456?label=Discord)](https://discord.gg/TmMsJCKY3T)
 
-# Lumibot: AI Trading Agents, Backtesting, and Live Execution
+# Lumibot: Python Trading Strategies + AI Agents
 
-**The same code runs your backtest and your live trading.** Lumibot is an open-source Python trading framework for AI trading agents, stocks, options, crypto, futures, forex, and real broker execution.
+**The same Python strategy can run in a backtest, paper account, or live broker account.** Lumibot is an open-source trading framework for deterministic strategies, AI-agent strategies, stocks, options, crypto, futures, forex, and real broker execution.
 
 <p align="center">
   <img src="docs/assets/readme/lumibot_ai_trading_agents_overview.png" alt="Lumibot AI trading agents overview" width="100%">
 </p>
 
-If you find Lumibot useful, a star helps others discover it.
+## What You Can Build
 
-<p align="center">
-  <a href="https://www.star-history.com/?repos=lumibot%2Flumibot%2Clumiwealth%2Flumibot&type=date&legend=top-left">
-    <img src="https://api.star-history.com/svg?repos=lumibot/lumibot,lumiwealth/lumibot&type=Date&legend=top-left" alt="Lumibot star history" width="100%">
-  </a>
-</p>
+- **Deterministic strategies:** normal Python logic, indicators, if statements, scheduled rules, position sizing, and risk controls.
+- **AI-agent strategies:** one or more agents that reason through evidence, call tools, write memory, and optionally place orders.
+- **Backtests:** replay historical data and simulated orders with artifacts you can inspect.
+- **Paper or live trading:** reuse the same strategy code with real broker state and real order routing.
 
-## AI Investment Committees That Actually Trade
+## AI Agents Are Optional, Not The Whole Product
 
-Lumibot agents can research, debate, backtest, explain, and place real orders. Research agents can be locked to read-only tools with `allow_trading=False`, while a portfolio-manager agent can place Lumibot orders after reviewing the evidence.
+Lumibot now includes a built-in AI agent runtime, but you can still write classic Python trading strategies exactly as before. AI agents are useful when the strategy needs reasoning: reading filings, comparing news, checking macro context, debating a thesis, or explaining why a trade should happen.
+
+An investment committee is one example pattern:
 
 <p align="center">
   <img src="docs/assets/readme/lumibot_investment_committee_architecture.png" alt="Lumibot AI investment committee architecture" width="100%">
 </p>
 
-```python
-self.agents.create(
-    name="evidence_researcher",
-    model="openai/gpt-5.4-mini",
-    allow_trading=False,
-    system_prompt="Gather market data, indicators, news, SEC fundamentals, filings, and FRED macro data.",
-)
+In that pattern, read-only research agents gather evidence and a trading-enabled portfolio manager decides whether to place Lumibot orders. Other agent designs are possible: a single research agent, a pair of specialist agents, a strategy-refinement agent, or a risk-review agent layered on top of deterministic logic.
 
-self.agents.create(
-    name="portfolio_manager",
-    model="openai/gpt-5.5",
-    allow_trading=True,
-    system_prompt="Review the bull and bear cases, then place orders only inside risk limits.",
-)
-```
-
-<p align="center">
-  <img src="docs/assets/ai_committee/docs_tool_permissions.png" alt="Lumibot agent tool permissions" width="100%">
-</p>
-
-Built-in AI agent tools now include SEC fundamentals, SEC filing search, FRED macro data, technical indicators, local memory, and Telegram notifications.
-
-<p align="center">
-  <img src="docs/assets/readme/lumibot_bull_bear_agents.png" alt="Lumibot bull and bear agents" width="100%">
-</p>
-
-<p align="center">
-  <img src="docs/assets/readme/lumibot_sec_filings.png" alt="Lumibot SEC fundamentals and filings" width="100%">
-</p>
-
-<p align="center">
-  <img src="docs/assets/readme/lumibot_point_in_time_tools.png" alt="Lumibot point-in-time research tools" width="100%">
-</p>
-
-<p align="center">
-  <img src="docs/assets/readme/lumibot_backtest_live_parity.png" alt="Lumibot backtest and live trading parity" width="100%">
-</p>
-
-<p align="center">
-  <img src="docs/assets/readme/lumibot_memory_notifications.png" alt="Lumibot memory and notifications" width="100%">
-</p>
-
-<p align="center">
-  <img src="docs/assets/readme/lumibot_traceable_artifacts.png" alt="Lumibot traceable backtest artifacts" width="100%">
-</p>
-
-<p align="center">
-  <img src="docs/assets/readme/lumibot_vs_tradingagents.png" alt="Lumibot versus TradingAgents" width="100%">
-</p>
-
-## Use Lumibot Your Way
-
-| Path | Description |
-|------|-------------|
-| **Open source** | Build, backtest, and self-host trading strategies with Python. Free forever. |
-| **[BotSpot](https://botspot.trade/sales?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme)** | Deploy strategies to the cloud with AI assistance, monitoring, and scheduling. No code required. |
-| **Data providers** | Multiple supported. Yahoo Finance is free. ThetaData, Polygon, DataBento, and others available. |
+Built-in AI agent tools include market/account state, order inspection, DuckDB queries, documentation search, Alpaca news when credentials exist, technical indicators, SEC fundamentals and filings, FRED macro data, local memory, and Telegram notifications.
 
 ## Introducing BotSpot: No-Code AI Trading Bots
 
@@ -153,14 +99,14 @@ That same strategy code works with live brokers. Just swap the broker class.
 
 ### Option A: BotSpot (managed cloud)
 
-[BotSpot](https://botspot.trade/sales?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme) runs your Lumibot strategies on hosted infrastructure with scheduling, monitoring, and live execution. Build strategies with AI, no coding required.
+[BotSpot](https://botspot.trade/?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme) runs your Lumibot strategies on hosted infrastructure with scheduling, monitoring, and live execution. Build strategies with AI, no coding required.
 
 - Create trading bots using natural language
 - Backtest with historical data
 - Deploy to trade automatically 24/7
 - Join a community of algorithmic traders
 
-**[Get started at BotSpot.trade](https://botspot.trade/sales?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme)**
+**[Get started at BotSpot.trade](https://botspot.trade/?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme)**
 
 ### Option B: Self-hosted (full control)
 
@@ -216,11 +162,12 @@ Lumibot includes a built-in AI trading agent runtime. Build agents that run iden
 
 Start here:
 - [Agent Documentation](https://lumibot.lumiwealth.com/agents.html)
-- [AI Investment Committee Example](https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/ai_investment_committee.py)
+- [Agent Flow Design](https://lumibot.lumiwealth.com/agents_flows.html)
+- [AI Investment Committee Example](https://github.com/Lumiwealth/lumibot/blob/version/4.5.11/lumibot/example_strategies/ai_investment_committee.py)
 - [Standalone AI Committee Demo](https://github.com/Lumiwealth/lumibot-ai-investment-committee)
-- [Stock Agent Example](https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/agent_stock_backtest.py)
-- [Options Agent Example](https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/agent_option_backtest.py)
-- [Full Guide](https://github.com/Lumiwealth/lumibot/blob/dev/docs/AI_TRADING_AGENTS.md)
+- [Stock Agent Example](https://github.com/Lumiwealth/lumibot/blob/version/4.5.11/lumibot/example_strategies/agent_stock_backtest.py)
+- [Options Agent Example](https://github.com/Lumiwealth/lumibot/blob/version/4.5.11/lumibot/example_strategies/agent_option_backtest.py)
+- [Full Guide](https://github.com/Lumiwealth/lumibot/blob/version/4.5.11/docs/AI_TRADING_AGENTS.md)
 
 ## Community Strategies
 
@@ -238,7 +185,7 @@ python -m lumibot.example_strategies.stock_buy_and_hold
 ls lumibot/example_strategies/
 ```
 
-Browse all examples: [example_strategies/](https://github.com/Lumiwealth/lumibot/tree/dev/lumibot/example_strategies)
+Browse all examples: [example_strategies/](https://github.com/Lumiwealth/lumibot/tree/version/4.5.11/lumibot/example_strategies)
 
 **External example repo:** [stock_example_algo](https://github.com/Lumiwealth-Strategies/stock_example_algo) (deployable to Render or Repl.it)
 

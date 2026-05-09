@@ -7,6 +7,7 @@ LumiBot is the only production framework that lets an AI agent reason, call exte
    :maxdepth: 1
 
    agents_quickstart
+   agents_flows
    agents_builtin_tools
    agents_investment_committee
    agents_canonical_demos

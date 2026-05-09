@@ -24,7 +24,8 @@ LumiBot is the **only production framework** where an AI agent reasons, calls ex
 Key AI agent docs:
 
 - :doc:`agents` -- main guide: agentic backtesting framework, MCP trading tools, and competitive positioning
-- :doc:`agents_investment_committee` -- multi-agent investment committee example
+- :doc:`agents_flows` -- design single-agent, multi-agent, debate, committee, and hybrid flows
+- :doc:`agents_investment_committee` -- one concrete multi-agent investment committee example
 - :doc:`fundamentals` -- SEC fundamentals and filing research tools
 - :doc:`macro_data` -- FRED macro data tools and point-in-time behavior
 - :doc:`agents_builtin_tools` -- built-in tools, indicators, and trading permissions

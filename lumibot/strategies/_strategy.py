@@ -3213,21 +3213,34 @@ class _Strategy:
         # Log that we're starting to send data
         self.logger.debug(f"Starting cloud update for strategy '{self._name}' with API key: {self.lumiwealth_api_key[:10]}...")
 
-        # Get the current portfolio value
+        # Refresh the broker account snapshot first. This prevents a failed
+        # broker read from being published as stale/default account values.
         try:
-            portfolio_value = self.get_portfolio_value()
-            self.logger.debug(f"Portfolio value: {portfolio_value}")
+            balances_updated = self.update_broker_balances(force_update=True)
         except Exception as e:
-            self.logger.error(f"Failed to get portfolio value: {e}")
+            self.logger.error(f"Failed to refresh broker balances for cloud update: {e}")
             self.logger.error(traceback.format_exc())
             return False
+        if not balances_updated:
+            self.logger.error("Skipping cloud update because broker balances could not be verified.")
+            return False
 
-        # Get the current cash
+        def _verified_number(value, field_name):
+            try:
+                numeric_value = float(value)
+            except (TypeError, ValueError) as e:
+                raise ValueError(f"{field_name} is not numeric: {value!r}") from e
+            if not math.isfinite(numeric_value):
+                raise ValueError(f"{field_name} is not finite: {value!r}")
+            return numeric_value
+
         try:
-            cash = self.get_cash()
+            portfolio_value = _verified_number(self._portfolio_value, "portfolio_value")
+            cash = _verified_number(self.get_cash(), "cash")
+            self.logger.debug(f"Portfolio value: {portfolio_value}")
             self.logger.debug(f"Cash: {cash}")
         except Exception as e:
-            self.logger.error(f"Failed to get cash: {e}")
+            self.logger.error(f"Failed to build verified account snapshot: {e}")
             self.logger.error(traceback.format_exc())
             return False
 
@@ -3277,6 +3290,9 @@ class _Strategy:
             "cash_events": [event.to_dict() for event in cash_events],
             "strategy_name": self._name,
             "broker_name": self.broker.name,
+            "account_snapshot_status": "verified",
+            "account_snapshot_source": "broker_balance_refresh",
+            "account_snapshot_checked_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         }
 
         self.logger.debug(

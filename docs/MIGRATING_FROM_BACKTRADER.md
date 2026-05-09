@@ -9,11 +9,11 @@ Backtrader is no longer actively maintained (last commit: 2023). Lumibot is a mo
 | Last update | 2023 (abandoned) | 2026 (active) |
 | Python 3.12+ | Compatibility issues | Full support |
 | Options trading | No | Yes |
-| Crypto (100+ exchanges) | Limited | Yes (via CCXT) |
+| Crypto broker support | Limited | Yes, through documented CCXT integrations plus Bitunix |
 | Futures | Limited | Yes |
 | Same code: backtest to live | Partial | Yes |
 | AI agent integration | No | Built-in |
-| Multiple broker support | Limited | Alpaca, IBKR, Tradier, Schwab, CCXT |
+| Multiple broker support | Limited | Alpaca, IBKR, Tradier, Schwab, Tradovate, TopstepX (via ProjectX), Bitunix, and selected CCXT paths for Coinbase, Kraken, KuCoin, Binance, BitMEX, WEEX, Bybit, and OKX |
 
 ## Concept Mapping
 

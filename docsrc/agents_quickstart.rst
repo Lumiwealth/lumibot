@@ -57,6 +57,8 @@ The agent has access to all built-in tools (positions, portfolio, prices, histor
 
 The recommended way to give your agent access to external data is ``@agent_tool``. This wraps a Python method as a callable tool using the ``requests`` library. It works reliably in both backtests and live trading.
 
+This quick-start FRED example uses the public graph CSV endpoint because it is simple to read in a short code sample. That endpoint returns revised data. For strict point-in-time macro backtests, use the built-in FRED tools with ``FRED_API_KEY`` instead.
+
 .. code-block:: python
 
     import csv

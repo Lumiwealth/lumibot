@@ -139,17 +139,35 @@ then use normal Python for the actual order.
 
 .. code-block:: python
 
+   import json
+
+   def _agent_json_dict(result) -> dict:
+       """Fail closed unless the agent returns valid JSON with approved=true."""
+       raw = result.text or result.summary or "{}"
+       try:
+           payload = json.loads(raw)
+       except (TypeError, json.JSONDecodeError):
+           return {"approved": False, "reason": "agent did not return valid JSON"}
+       return payload if isinstance(payload, dict) else {"approved": False, "reason": "agent returned non-object JSON"}
+
    def on_trading_iteration(self):
        if not self.indicators.crossed_above("SPY", "sma_20", "sma_50"):
            return
 
        review = self.agents["risk_reviewer"].run(
-           task_prompt="Review whether this SMA crossover is worth trading today."
+           task_prompt=(
+               "Review whether this SMA crossover is worth trading today. "
+               "Return only JSON with this shape: "
+               '{"approved": true|false, "reason": "short explanation"}'
+           )
        )
 
-       if "approve" in review.summary.lower():
+       decision = _agent_json_dict(review)
+       if decision.get("approved") is True:
            order = self.create_order("SPY", 10, "buy")
            self.submit_order(order)
+       else:
+           self.log_message(f"Skipped trade: {decision.get('reason', 'not approved')}")
 
 This pattern is useful when you want explainability or research from the agent
 but still want deterministic order sizing and execution.

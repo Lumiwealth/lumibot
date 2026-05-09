@@ -55,7 +55,7 @@ This page documents environment variables used by LumiBot, with an emphasis on *
     - Provider values are case/whitespace/_/- insensitive. Supported values include:
       - `thetadata`, `ibkr`, `polygon`, `alpaca`
       - `ccxt` (auto-select exchange from existing env/credentials)
-      - any CCXT exchange id (e.g., `coinbase`, `kraken`, `binance`, `kucoin`) to route crypto to that exchange
+      - supported CCXT backtesting exchange ids such as `kraken`, `binance`, `kucoin`, `bitmex`, `bybit`, and `okx`
   - `none` to disable env override and rely on code.
 - Where: `lumibot/strategies/_strategy.py` datasource selection logic.
 
@@ -282,7 +282,7 @@ Notes:
 ### `FRED_API_KEY`
 - Purpose: Optional official FRED/ALFRED API key for macro data tools.
 - Default: unset.
-- Notes: When set, Lumibot requests vintage observations with `realtime_start` and `realtime_end` for point-in-time backtests. Built-in FRED agent tools are not exposed during backtests without this key because curated CSV mode can contain revised values.
+- Notes: When set, Lumibot requests vintage observations with `realtime_start` and `realtime_end` for point-in-time backtests. Built-in FRED agent tools are not exposed during backtests without this key because the no-key public graph CSV endpoint can contain revised values.
 
 ### `LUMIBOT_FRED_CACHE_DIR`
 - Purpose: Override the local FRED macro data cache.

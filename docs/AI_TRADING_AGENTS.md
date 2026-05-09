@@ -14,6 +14,8 @@ LumiBot has a first-class AI agent runtime inside the `Strategy` lifecycle. An A
 
 The primary way to give your agent access to external data is the `@agent_tool` decorator, which wraps any REST API as a callable tool using the `requests` library. This pattern works reliably in both backtests and live trading. MCP servers via URL are also supported for live trading or when you have a compatible server.
 
+The quick-start FRED example below uses the public graph CSV endpoint because it keeps the sample short. That endpoint returns revised data. For strict point-in-time macro backtests, use the built-in FRED tools with `FRED_API_KEY` instead.
+
 If you are looking for an agentic backtesting framework, an LLM trading bot backtest solution, or a way to backtest AI-driven trading strategies with external data, LumiBot is the only production-ready option that puts the AI agent inside the simulation loop.
 
 Related docs:
@@ -281,7 +283,7 @@ Install LumiBot, set `GEMINI_API_KEY` in your environment, copy the Quick Start 
 
 **What API keys do I need?**
 
-At minimum, `GEMINI_API_KEY` for the Gemini model that powers the agent. If your `@agent_tool` functions call external APIs, you also need those keys -- for example `ALPACA_API_KEY` and `ALPACA_API_SECRET` for Alpaca data APIs. The M2 Liquidity demo only needs `GEMINI_API_KEY` because FRED data is public.
+At minimum, `GEMINI_API_KEY` for the Gemini model that powers the agent. If your `@agent_tool` functions call external APIs, you also need those keys -- for example `ALPACA_API_KEY` and `ALPACA_API_SECRET` for Alpaca data APIs. The M2 Liquidity demo uses the public FRED graph CSV endpoint, which is useful for a simple demo but returns revised data. Use the built-in FRED tools with `FRED_API_KEY` for strict point-in-time macro backtests.
 
 **How do I set up my environment?**
 
@@ -293,7 +295,7 @@ Yes. The same strategy code runs in both backtest and live modes. For live tradi
 
 **Does it work with my broker?**
 
-LumiBot supports Alpaca, Interactive Brokers, Tradier, Schwab, Tradovate, CCXT (crypto), Bitunix, and more. Any broker supported by LumiBot works with AI agents. The agent submits orders through the standard LumiBot order execution pipeline.
+LumiBot supports Alpaca, Interactive Brokers, Tradier, Schwab, Tradovate, TopstepX futures (via ProjectX), Bitunix, and selected CCXT crypto paths. Documented CCXT examples include Coinbase, Kraken, KuCoin, Binance, BitMEX, WEEX, Bybit, and OKX across live/manual/backtesting paths; Lumibot does not claim support for every CCXT exchange. Any broker supported by LumiBot works with AI agents. The agent submits orders through the standard LumiBot order execution pipeline.
 
 **What is @agent_tool?**
 

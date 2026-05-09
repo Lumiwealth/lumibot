@@ -66,7 +66,7 @@ BACKTESTING_DATA_SOURCE
 
     - Provider values are case/whitespace/_/- insensitive.
     - Supported values include ``thetadata``, ``ibkr``, ``polygon``, ``alpaca``, and ``ccxt``.
-    - For CCXT, you may use ``ccxt`` (auto-select exchange from existing env/credentials) **or** specify a CCXT exchange id directly (for example: ``coinbase``, ``kraken``, ``binance``, ``kucoin``).
+    - For CCXT backtesting, you may use ``ccxt`` (auto-select exchange from existing env/credentials) **or** specify a supported CCXT backtesting exchange id directly. Documented backtesting examples are ``kraken``, ``binance``, ``kucoin``, ``bitmex``, ``bybit``, and ``okx``.
     - Routing keys are the canonical asset types (``future``, ``cont_future``, ``crypto``, etc.). Common plural aliases like ``futures``/``cont_futures`` are accepted.
 
   - ``none`` to disable the env override and rely on code.
@@ -315,10 +315,10 @@ TRADING_BROKER
 
 - Purpose: Explicitly specify which broker to use for live trading.
 - Values (case-insensitive):
-  - ``alpaca``, ``tradier``, ``ccxt``, ``coinbase``, ``kraken``
+  - ``alpaca``, ``tradier``, ``ccxt``, ``coinbase``, ``kraken``, ``weex``
   - ``ib``, ``interactivebrokers``, ``ibrest``, ``interactivebrokersrest``
   - ``tradovate``, ``schwab``, ``bitunix``
-  - ``projectx``, ``projectx-topstepx``, ``projectx-topone``, etc.
+  - ``projectx`` / ``projectx-topstepx`` for TopstepX futures (via ProjectX)
 - Note: If not set, broker is auto-detected based on available credentials.
 
 DATA_SOURCE
@@ -327,7 +327,7 @@ DATA_SOURCE
 - Purpose: Explicitly specify which data source to use.
 - Values (case-insensitive):
   - ``alpaca``, ``tradier``, ``polygon``, ``yahoo``, ``thetadata``, ``databento``
-  - ``ccxt``, ``coinbase``, ``kraken``, ``schwab``, ``bitunix``, ``projectx``
+  - ``ccxt``, ``coinbase``, ``kraken``, ``weex``, ``schwab``, ``bitunix``, ``projectx``
 - Note: If not set, uses broker's default data source.
 
 Alpaca broker
@@ -569,13 +569,13 @@ BITUNIX_TRADING_MODE
 ProjectX brokers
 ----------------
 
-ProjectX supports multiple prop trading firms. Each firm uses a unique prefix pattern.
+ProjectX support is primarily documented for TopstepX futures. The lower-level adapter can read firm-specific ProjectX environment variable prefixes, but new firms should be tested before being treated as production-ready.
 
 PROJECTX_FIRM
 ^^^^^^^^^^^^^
 
 - Purpose: Select which ProjectX firm to use.
-- Values: ``TOPSTEPX``, ``TOPONE``, ``TICKTICKTRADER``, ``BULENOX``, ``E8X``, etc.
+- Values: ``TOPSTEPX`` for the documented TopstepX path. Additional ProjectX firm ids may exist in the adapter, but require validation before use.
 
 PROJECTX_{FIRM}_API_KEY
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -743,7 +743,7 @@ FRED_API_KEY
 - Notes: When set, LumiBot requests vintage observations with
   ``realtime_start`` and ``realtime_end`` for point-in-time backtests.
   Built-in FRED agent tools are not exposed during backtests without this key
-  because curated CSV mode can contain revised values.
+  because the no-key public graph CSV endpoint can contain revised values.
 
 LUMIBOT_FRED_CACHE_DIR
 ^^^^^^^^^^^^^^^^^^^^^^

@@ -1,8 +1,11 @@
 SEC Fundamentals
 ================
 
-LumiBot includes native SEC EDGAR fundamentals for US equities. These tools use
-public SEC APIs directly, require no API key, and cache responses locally.
+LumiBot includes native SEC EDGAR fundamentals for US equities. These are core
+strategy data tools, not AI-only tools: deterministic Python strategies can call
+them directly, and AI agents receive the same point-in-time tools as built-ins.
+The tools use public SEC APIs directly, require no API key, and cache responses
+locally.
 
 Available strategy methods:
 

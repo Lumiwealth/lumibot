@@ -31,15 +31,15 @@ portfolio agents. They do not submit, cancel, or modify orders.
 API Key Behavior
 ----------------
 
-``FRED_API_KEY`` is optional.
+``FRED_API_KEY`` is required for the official FRED/ALFRED API path and for
+strict point-in-time macro backtests. With a key, LumiBot passes
+``realtime_start`` and ``realtime_end`` based on the strategy datetime so the
+backtest sees the vintage observations that were available at that time.
 
-Without ``FRED_API_KEY``, LumiBot supports a curated set of public FRED CSV
-series. This is useful for quick research and live context, but it can contain
-revised values.
-
-With ``FRED_API_KEY``, LumiBot uses the official FRED/ALFRED API and passes
-``realtime_start`` and ``realtime_end`` based on the strategy datetime. This is
-the stricter point-in-time path for macro backtests.
+Without ``FRED_API_KEY``, LumiBot can fetch an allowlisted set of **live**
+public FRED graph CSV endpoints. The data is fetched live from FRED rather than
+bundled with LumiBot. It is still revised data, so use it only for quick
+exploration or live context, not for strict point-in-time backtests.
 
 Built-in FRED agent tools are hidden during backtests unless ``FRED_API_KEY`` is
 configured. This prevents agents from accidentally using revised public CSV data

@@ -162,7 +162,6 @@ setuptools.setup(
         "Bug Tracker": "https://github.com/Lumiwealth/lumibot/issues",
         "Source Code": "https://github.com/Lumiwealth/lumibot",
         "BotSpot Platform": "https://botspot.trade/",
-        "Discord": "https://discord.gg/TmMsJCKY3T",
     },
     python_requires=">=3.10",
     cmdclass={"build_py": BuildWithThetaJar},

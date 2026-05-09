@@ -25,7 +25,9 @@ Requirements:
     - OPENAI_API_KEY when using OpenAI models
     - Active Alpaca broker credentials or ALPACA_NEWS_API_KEY / ALPACA_NEWS_API_SECRET for Alpaca news, optional
     - SEC fundamentals use public SEC EDGAR APIs and do not require an API key
-    - FRED macro tools work with curated public CSV series by default; set FRED_API_KEY for vintage data
+    - FRED_API_KEY is required for strict point-in-time FRED/ALFRED macro backtests.
+      Without it, public FRED CSV mode is revised/live-context data only and built-in
+      FRED tools are hidden during backtests.
 """
 
 import os

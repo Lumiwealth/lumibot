@@ -109,15 +109,22 @@ def initialize(self):
 Agents do not need to place trades. Use them for judgment and explanation, then keep final execution deterministic.
 
 ```python
+import json
+
 def on_trading_iteration(self):
     if not self.indicators.crossed_above("SPY", "sma_20", "sma_50"):
         return
 
     review = self.agents["risk_reviewer"].run(
-        task_prompt="Review whether this SMA crossover is worth trading today."
+        task_prompt=(
+            "Review whether this SMA crossover is worth trading today. "
+            "Return only JSON with this shape: "
+            '{"approved": true|false, "reason": "short explanation"}'
+        )
     )
 
-    if "approve" in review.summary.lower():
+    decision = json.loads(review.summary or review.text or "{}")
+    if decision.get("approved") is True:
         order = self.create_order("SPY", 10, "buy")
         self.submit_order(order)
 ```

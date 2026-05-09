@@ -106,8 +106,8 @@ html_theme_options = {
     "dark_logo": "Lumibot_Logo.webp",
     'announcement': """
     <div class="footer-banner bg-warning text-dark p-3">
-        <h5>Try Our Free AI Strategy Builder</h5>
-        <p>Our AI agent helps you build LumiBot strategies. Explore what others have created, or make your own. <a href="https://www.botspot.trade/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_footer_banner" target="_blank" class="text-dark"><strong>Claim your free trial</strong></a> while spots last at BotSpot.trade.</p>
+        <h5>Build Lumibot Strategies with AI</h5>
+        <p>BotSpot is the managed cloud product built on LumiBot. Describe a strategy, backtest it, and deploy it without managing servers. <a href="https://botspot.trade/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_footer_banner" target="_blank" class="text-dark"><strong>Start on BotSpot.trade</strong></a>.</p>
     </div>
     """
 }
@@ -181,10 +181,10 @@ _generate_sitemap()
 html_context = {
     'note': """
     <div class="important-note" style="margin-top: 20px; padding: 20px; background-color: #ffdd57; border-radius: 5px;">
-        <h3>Try Our Free AI Strategy Builder</h3>
-        <p>Need help building your LumiBot strategies? Our AI agent was built specifically for LumiBot and can help you create strategies in minutes.</p>
-        <p><strong>Explore what other builders have created in our marketplace, or let the AI build a custom strategy for you.</strong></p>
-        <p><a href="https://www.botspot.trade/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_every_page" target="_blank">Claim your free trial</a> while spots last at BotSpot.trade.</p>
+        <h3>Build Lumibot Strategies with BotSpot</h3>
+        <p>Need help turning an idea into a working LumiBot strategy? BotSpot can generate, backtest, and deploy LumiBot strategies from plain English.</p>
+        <p><strong>Use BotSpot when you want the managed cloud path instead of wiring infrastructure yourself.</strong></p>
+        <p><a href="https://botspot.trade/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_every_page" target="_blank">Start on BotSpot.trade</a>.</p>
     </div>
     """
 }

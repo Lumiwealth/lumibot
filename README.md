@@ -8,6 +8,8 @@
 
 **The same Python strategy can run in a backtest, paper account, or live broker account.** Lumibot is an open-source trading framework for deterministic strategies, AI-agent strategies, stocks, options, crypto, futures, forex, and real broker execution.
 
+**Full docs:** [lumibot.lumiwealth.com](https://lumibot.lumiwealth.com/) · **No-code cloud:** [BotSpot.trade](https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot)
+
 <p align="center">
   <img src="docs/assets/readme/lumibot_ai_trading_agents_overview.png" alt="Lumibot AI trading agents overview" width="100%">
 </p>
@@ -33,18 +35,16 @@ In that pattern, read-only research agents gather evidence and a trading-enabled
 
 Built-in AI agent tools include market/account state, order inspection, DuckDB queries, documentation search, Alpaca news when credentials exist, technical indicators, SEC fundamentals and filings, FRED macro data, local memory, and Telegram notifications.
 
-## Introducing BotSpot: No-Code AI Trading Bots
+## Build Without Code on BotSpot
 
-**[BotSpot](https://botspot.trade/?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme)** is our platform built on top of Lumibot that lets you build, backtest, and deploy trading strategies without writing any code. Just describe what you want in plain English and BotSpot's AI handles the rest.
+**[BotSpot](https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot)** is the managed cloud product built on Lumibot. Use it when you want to describe a strategy in plain English, have AI generate Lumibot code, backtest it, and deploy it without managing servers.
 
 - **Build** strategies using natural language -- the AI writes production-ready Lumibot code for you
 - **Backtest** against years of historical data with a single click
 - **Deploy** to live trading with real brokers (Alpaca, Interactive Brokers, and more)
 - **Browse** a marketplace of proven, community-built strategies you can run immediately
 
-<a href="https://botspot.trade/?utm_source=github&utm_medium=readme_badge&utm_campaign=lumibot">
-  <img src="https://img.shields.io/badge/%F0%9F%9A%80_Try_BotSpot_Free-Build_AI_Trading_Bots_Without_Code-brightgreen?style=for-the-badge&labelColor=2e3440" alt="Try BotSpot Free" height="40">
-</a>
+**Start on BotSpot:** [Build, backtest, and deploy AI trading bots](https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot)
 
 ## Quick Start
 
@@ -76,7 +76,7 @@ python my_strategy.py
 
 That same strategy code works with live brokers. Just swap the broker class.
 
-> **Full documentation: [lumibot.lumiwealth.com](https://lumibot.lumiwealth.com/)**
+For full setup guides, broker tutorials, AI-agent docs, examples, and deployment notes, use the **[Lumibot documentation](https://lumibot.lumiwealth.com/)**.
 
 ## Why Lumibot?
 
@@ -89,7 +89,7 @@ That same strategy code works with live brokers. Just swap the broker class.
 | **Futures** | Yes | Limited | Crypto only | Partial | Yes | Crypto only |
 | **Forex** | Yes | Outdated | No | No | Yes | No |
 | **AI agent runtime** | Built-in | No | FreqAI (ML) | No | No | ML pipeline |
-| **Brokers** | 5+ (Alpaca, IBKR, Tradier, Schwab, CCXT) | IB only (outdated) | 10+ crypto exchanges | None | None | 8+ crypto (paid) |
+| **Brokers** | Alpaca, IBKR, Tradier, Schwab, Tradovate, TopstepX (via ProjectX), Bitunix, plus selected CCXT crypto paths | IB only (outdated) | 10+ crypto exchanges | None | None | 8+ crypto (paid) |
 | **Actively maintained** | Yes (2026) | No (since 2023) | Yes | Minimal | Moderate | Yes |
 | **License** | MIT | GPL-3.0 | GPL-3.0 | Apache-2.0 | AGPL-3.0 | MIT |
 
@@ -99,14 +99,18 @@ That same strategy code works with live brokers. Just swap the broker class.
 
 ### Option A: BotSpot (managed cloud)
 
-[BotSpot](https://botspot.trade/?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme) runs your Lumibot strategies on hosted infrastructure with scheduling, monitoring, and live execution. Build strategies with AI, no coding required.
+[BotSpot](https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot) runs your Lumibot strategies on hosted infrastructure with scheduling, monitoring, and live execution. Build strategies with AI, no coding required.
 
 - Create trading bots using natural language
 - Backtest with historical data
 - Deploy to trade automatically 24/7
 - Join a community of algorithmic traders
 
-**[Get started at BotSpot.trade](https://botspot.trade/?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=GitHub+Readme)**
+**[Open BotSpot.trade](https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot)**
+
+<p align="center">
+  <img src="docs/assets/readme/lumibot_backtest_live_parity.png" alt="One Lumibot strategy can run in backtests and live broker accounts" width="100%">
+</p>
 
 ### Option B: Self-hosted (full control)
 
@@ -130,23 +134,37 @@ trader.add_strategy(strategy)
 trader.run_all()
 ```
 
-## Supported Brokers & Data Sources
+## Supported Brokers
 
-| Brokers (live trading) | Data Sources (backtesting) |
-|------------------------|---------------------------|
-| Alpaca | Yahoo Finance (free) |
-| Interactive Brokers | ThetaData |
-| Tradier | Polygon |
-| Schwab | DataBento |
-| CCXT (100+ crypto exchanges) | Interactive Brokers |
-| Bitunix | CCXT |
-| ProjectX | Alpaca |
+Lumibot supports stocks, options, crypto, futures, forex, and indexes across several broker integrations:
+
+- Alpaca
+- Interactive Brokers and Interactive Brokers REST
+- Tradier
+- Schwab
+- Tradovate
+- TopstepX futures (via ProjectX)
+- Bitunix
+- Selected CCXT crypto paths for Coinbase, Kraken, KuCoin, Binance, BitMEX, WEEX, Bybit, and OKX across live, manual, and backtesting examples. Lumibot does not claim blanket support for every CCXT exchange.
+
+## Select Backtesting Data Sources
+
+Lumibot can backtest from free daily data, broker data, premium market data, and your own files:
+
+- Yahoo Finance
+- Alpaca
+- Interactive Brokers REST
+- ThetaData
+- Polygon/Massive
+- DataBento
+- Tradier
+- Schwab
+- CCXT backtesting examples: Kraken, Binance, KuCoin, BitMEX, Bybit, and OKX
+- Pandas/CSV dataframes
 
 ### Recommended Data Provider
 
 For the deepest historical coverage (stocks, options, futures, indexes), we recommend [ThetaData](https://www.thetadata.net/). Use promo code **`BotSpot10`** for 10% off your first order.
-
-> *Affiliate disclosure: This is a referral link. Using this code supports the continued development of Lumibot as an open-source project.*
 
 ## AI Trading Agents
 
@@ -168,6 +186,14 @@ Start here:
 - [Stock Agent Example](https://github.com/Lumiwealth/lumibot/blob/version/4.5.11/lumibot/example_strategies/agent_stock_backtest.py)
 - [Options Agent Example](https://github.com/Lumiwealth/lumibot/blob/version/4.5.11/lumibot/example_strategies/agent_option_backtest.py)
 - [Full Guide](https://github.com/Lumiwealth/lumibot/blob/version/4.5.11/docs/AI_TRADING_AGENTS.md)
+
+## Memory and Traceability
+
+AI strategies can record decisions, lessons, open theses, tool calls, and run artifacts as local files. This makes an AI backtest reviewable instead of a black box: you can inspect why the agent traded, which tools it used, and what it remembered for later iterations.
+
+<p align="center">
+  <img src="docs/assets/readme/lumibot_memory_notifications.png" alt="Lumibot AI memory and notifications" width="100%">
+</p>
 
 ## Community Strategies
 
@@ -221,20 +247,17 @@ export BACKTESTING_DATA_SOURCE='{"default":"thetadata","crypto":"coinbase"}'
 
 - **Documentation:** [lumibot.lumiwealth.com](https://lumibot.lumiwealth.com/)
 - **Blog:** [lumiwealth.com/blog](https://lumiwealth.com/blog/)
-- **AI Strategy Builder:** [BotSpot.trade](https://www.botspot.trade/?utm_source=github&utm_medium=referral&utm_campaign=lumibot_readme)
-- **Discord:** [Join the community](https://discord.gg/TmMsJCKY3T)
+- **AI Strategy Builder:** [BotSpot.trade](https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot)
+
+## Project Growth
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Lumiwealth/lumibot&type=Date)](https://www.star-history.com/#Lumiwealth/lumibot&Date)
 
 ## AI Bootcamp
 
 Learn to build, backtest, and deploy trading strategies using AI. Join 2,400+ traders.
 
 **[Learn more about the AI Bootcamp](https://www.botspot.trade/ai-bot-builder-bootcamp?utm_source=github&utm_medium=referral&utm_campaign=lumibot_readme)**
-
-## DISCLAIMER
-
-> **THIS SOFTWARE IS PROVIDED FOR EDUCATIONAL AND INFORMATIONAL PURPOSES ONLY. IT IS NOT FINANCIAL ADVICE AND DOES NOT CONSTITUTE A RECOMMENDATION TO BUY OR SELL ANY SECURITY. LUMIBOT AND BOTSPOT ARE NOT REGISTERED BROKER-DEALERS OR FINANCIAL ADVISORS. ALGORITHMIC TRADING INVOLVES SUBSTANTIAL RISK OF LOSS, INCLUDING THE POSSIBILITY OF LOSSES GREATER THAN YOUR INITIAL INVESTMENT. SOFTWARE BUGS AND ERRORS CAN LEAD TO RAPID FINANCIAL LOSSES. PAST BACKTEST PERFORMANCE DOES NOT GUARANTEE FUTURE RESULTS. USE THIS SOFTWARE AT YOUR OWN RISK. YOU ARE SOLELY RESPONSIBLE FOR COMPLIANCE WITH ALL APPLICABLE LAWS AND REGULATIONS REGARDING THE ASSETS YOU CHOOSE TO TRADE.**
-
----
 
 ## Contributing
 
@@ -268,6 +291,12 @@ Lumibot can mirror its local parquet caches to AWS S3. See `docs/remote_cache.md
 - [Changelog](CHANGELOG.md) - Release notes
 - [AI Assistant Guide](CLAUDE.md) - Instructions for AI coding assistants
 - [Production Safety](AGENTS.md) - ThetaData and production rules
+
+## Disclaimer
+
+This software is provided for educational and informational purposes only. It is not financial advice and does not constitute a recommendation to buy or sell any security. Lumibot and BotSpot are not registered broker-dealers or financial advisors. Algorithmic trading involves substantial risk of loss, including the possibility of losses greater than your initial investment. Software bugs and errors can lead to rapid financial losses. Past backtest performance does not guarantee future results. Use this software at your own risk. You are solely responsible for compliance with all applicable laws and regulations regarding the assets you choose to trade.
+
+Affiliate disclosure: some provider links or promo codes, including ThetaData, may support continued Lumibot development.
 
 ## License
 

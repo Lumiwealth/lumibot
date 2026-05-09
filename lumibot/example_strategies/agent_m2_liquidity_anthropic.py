@@ -49,7 +49,11 @@ class M2LiquidityAnthropicStrategy(Strategy):
     def get_fred_series(
         self, series_id: str, start_date: str = "2020-01-01", end_date: str = ""
     ) -> dict:
-        """Fetch a FRED series using the public CSV endpoint (no API key needed)."""
+        """Fetch a FRED series using the public CSV endpoint.
+
+        This is revised public data for a simple demo/live-context tool, not
+        strict point-in-time FRED/ALFRED data for macro backtests.
+        """
         params = {"id": series_id}
         if start_date:
             params["cosd"] = start_date

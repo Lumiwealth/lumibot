@@ -212,10 +212,9 @@ Table of Contents
    :maxdepth: 2
 
    Home <self>
-   Build Bots with AI <https://botspot.trade/?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=Menu+Build+Bots+with+AI>
+   Build Bots with AI <https://botspot.trade/?utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot>
    BotSpot MCP Integration <botspot_mcp>
    GitHub <https://github.com/Lumiwealth/lumibot>
-   Discord Community <https://discord.gg/v6asVjTCvh>
    getting_started
    agents
    cash_accounting
@@ -224,6 +223,7 @@ Table of Contents
    strategy_properties
    entities
    indicators
+   fundamentals
    macro_data
    backtesting
    brokers
@@ -232,7 +232,7 @@ Table of Contents
    deployment
    common_mistakes
    faq
-   Get Pre-Built Strategies <https://www.botspot.trade/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_sidebar>
+   Get Pre-Built Strategies <https://botspot.trade/?utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot>
 
 Indices and tables
 ==================

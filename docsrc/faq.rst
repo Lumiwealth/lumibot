@@ -3,10 +3,6 @@ Frequently Asked Questions (FAQ)
 
 This page answers common questions about LumiBot. If you're new, start with the :doc:`getting_started` guide.
 
-.. contents:: On this page
-   :local:
-   :depth: 2
-
 Getting Started
 ---------------
 
@@ -159,15 +155,58 @@ The agent automatically has access to all built-in tools (positions, prices, ord
 What built-in tools do AI agents get automatically?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Every agent gets these built-in tools by default -- no configuration needed:
+Every agent gets built-in tools by default -- no configuration needed:
 
 - **Account:** ``account.positions``, ``account.portfolio`` -- current holdings and portfolio state
 - **Market data:** ``market.last_price``, ``market.load_history_table`` -- quotes and historical bars
 - **DuckDB:** ``duckdb.query`` -- SQL queries over time-series data
 - **Orders:** ``orders.submit``, ``orders.cancel``, ``orders.modify``, ``orders.open_orders``
 - **Documentation:** ``docs.search`` -- search LumiBot's own API docs
+- **Research:** Alpaca news when credentials exist, technical indicators, SEC fundamentals and filings, and FRED macro data
+- **Agent state:** local memory, decisions, lessons, theses, and notifications
 
 When you add custom tools via ``@agent_tool``, these built-in tools remain available.
+
+How do I make a research agent read-only?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Create it with ``allow_trading=False``:
+
+.. code-block:: python
+
+    self.agents.create(
+        name="researcher",
+        model="openai/gpt-5.4-mini",
+        allow_trading=False,
+        system_prompt="Research the setup. Do not place, modify, or cancel orders.",
+    )
+
+That removes mutating order tools: submit, modify, and cancel. It still lets the
+agent inspect positions, cash, open orders, market data, history, news, SEC
+filings, FRED macro data, indicators, memory, and notifications.
+
+How does agent memory work?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Agent memory is a native Lumibot feature, not a separate external service. It
+stores JSONL files for memories, decisions, lessons, and theses under the
+strategy memory directory so both backtests and live runs can inspect the same
+kind of state.
+
+Agents can call tools such as ``remember``, ``search_memory``,
+``remember_decision``, ``remember_lesson``, ``open_thesis``,
+``update_thesis``, and ``close_thesis``. Use memory for compact trading
+rationales, lessons learned, and open thesis tracking. Do not use it as a
+replacement for hard risk controls, broker state, or deterministic accounting.
+
+Does memory work in backtests?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. Memory is available in backtests and live trading because Lumibot's goal is
+to keep those modes as close as possible. In a backtest, memory timestamps use
+the simulated strategy datetime when available. That makes the resulting files
+useful for reviewing why an agent acted at a specific point in the historical
+simulation.
 
 What is ``@agent_tool`` and how do I use it?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -613,7 +652,7 @@ Crypto Trading
 How do I set up crypto trading?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-LumiBot uses CCXT to connect to crypto exchanges (Coinbase, Kraken, Binance, Kucoin, etc.). Set your exchange API keys as environment variables and call ``set_market("24/7")`` in ``initialize()``:
+LumiBot uses selected CCXT paths for crypto. Documented CCXT examples include Coinbase, Kraken, KuCoin, Binance, BitMEX, WEEX, Bybit, and OKX across live/manual/backtesting paths. LumiBot does not claim support for every CCXT exchange. Set your exchange API keys as environment variables or pass an explicit ``Ccxt`` config, then call ``set_market("24/7")`` in ``initialize()``:
 
 .. code-block:: python
 
@@ -623,6 +662,34 @@ LumiBot uses CCXT to connect to crypto exchanges (Coinbase, Kraken, Binance, Kuc
 
     # Create crypto asset
     btc = Asset(symbol="BTC", asset_type=Asset.AssetType.CRYPTO)
+
+Does Lumibot support every CCXT exchange?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. CCXT supports many exchanges, but Lumibot only documents and tests selected
+paths. Coinbase, Kraken, and WEEX have auto-detected credential paths. Coinbase,
+Kraken, KuCoin, and Binance have exchange-specific handling in the shared CCXT
+broker. Kraken, Binance, KuCoin, BitMEX, Bybit, and OKX have documented CCXT
+backtesting examples.
+
+Other CCXT exchanges may be possible with explicit ``Ccxt`` configuration, but
+they should be treated as unvalidated until balances, positions, order
+submission, fills, cancellation, and backtesting data are tested.
+
+Where are the CCXT exchange setup guides?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Start with :doc:`brokers.ccxt`, then use the exchange-specific pages for
+credential setup and caveats:
+
+* :doc:`brokers.ccxt.coinbase`
+* :doc:`brokers.ccxt.kraken`
+* :doc:`brokers.ccxt.weex`
+* :doc:`brokers.ccxt.kucoin`
+* :doc:`brokers.ccxt.binance`
+* :doc:`brokers.ccxt.bitmex`
+* :doc:`brokers.ccxt.bybit`
+* :doc:`brokers.ccxt.okx`
 
 Why does my crypto bot stop trading at 4pm?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -696,8 +763,9 @@ LumiBot supports the following brokers:
 - **Tradier** -- stocks, options ($10/month commission-free options)
 - **Schwab** -- stocks, options (via Trader API)
 - **Tradovate** -- futures (CME Group markets)
-- **ProjectX** -- futures
-- **CCXT-based exchanges** -- Coinbase, Kraken, Binance, Kucoin, Bitunix, and many more crypto exchanges
+- **TopstepX (via ProjectX)** -- futures
+- **Bitunix** -- crypto futures
+- **Selected CCXT crypto paths** -- Coinbase, Kraken, KuCoin, Binance, BitMEX, WEEX, Bybit, and OKX across live/manual/backtesting examples; not every CCXT exchange is supported automatically
 
 How do I configure my broker credentials?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

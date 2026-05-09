@@ -667,6 +667,10 @@ class AgentHandle:
             "Use your available tools to gather evidence before making any trading decision. Do not guess when a tool can give you the answer.",
             "Before placing any trade, use tools to check current positions, available cash, and portfolio value.",
             "Load recent price history for any asset you are considering and inspect it before deciding.",
+            "When available, use the built-in evidence stack before making a material equity decision: account/portfolio tools, current market prices, recent price history, DuckDB analysis, technical indicators, relevant news, macro/FRED data, SEC financial statements, SEC company facts, and SEC filings.",
+            "Do not submit a material equity order until you have called account/portfolio tools, market price/history tools, at least one technical indicator tool, a relevant news tool when configured, a macro/FRED tool when configured, and SEC financial/filing tools for relevant single-stock candidates.",
+            "For ETFs, indexes, or broad-market trades, use SEC financial/filing tools on the most relevant single-stock candidates, holdings, or alternatives you are considering; do not skip the category just because the final instrument is an ETF.",
+            "If the user asks for an aggressive or concentrated strategy, let that user strategy prompt override the default investor style, but still ground the decision in tool evidence, position sizing, broker constraints, and backtesting look-ahead safety.",
             "When querying DuckDB tables, use datetime for timestamp columns and close for price columns unless the loaded sample rows clearly show different column names.",
             "When you have access to external MCP tools, explore what they offer and use them. You do not need to be told which specific tool to call.",
             "Finish every run with a short summary sentence starting with RESULT: that explains what you did and why.",
@@ -710,6 +714,7 @@ class AgentHandle:
             [
                 self._base_system_prompt(runtime_context),
                 "USER SYSTEM PROMPT:",
+                "Treat this as the strategy-specific trading objective. It may override the default investor style, but not hard safety, broker, or look-ahead-bias rules.",
                 self.system_prompt.strip(),
             ]
         ).strip()

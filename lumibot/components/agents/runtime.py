@@ -227,6 +227,42 @@ def _coerce_usage_metadata(value: Any) -> dict[str, Any] | None:
     return None
 
 
+def _aggregate_usage_metadata(payloads: list[dict[str, Any]]) -> dict[str, Any] | None:
+    if not payloads:
+        return None
+    if len(payloads) == 1:
+        return payloads[0]
+
+    aggregate: dict[str, Any] = dict(payloads[-1])
+    additive_keys = {
+        "cached_content_token_count",
+        "candidates_token_count",
+        "prompt_token_count",
+        "thoughts_token_count",
+        "tool_use_prompt_token_count",
+        "total_token_count",
+        "completion_tokens",
+        "input_tokens",
+        "output_tokens",
+        "prompt_tokens",
+        "total_tokens",
+    }
+    for key in additive_keys:
+        total = 0
+        seen = False
+        for payload in payloads:
+            value = payload.get(key)
+            if isinstance(value, bool):
+                continue
+            if isinstance(value, (int, float)):
+                total += int(value)
+                seen = True
+        if seen:
+            aggregate[key] = total
+    aggregate["aggregated_usage_event_count"] = len(payloads)
+    return aggregate
+
+
 def _normalize_event(event: Any) -> list[AgentTraceEvent]:
     normalized: list[AgentTraceEvent] = []
     parts = getattr(getattr(event, "content", None), "parts", None) or []
@@ -661,10 +697,22 @@ class GoogleADKRuntime:
             )
         if request.task_prompt:
             sections.append(f"Task:\n{request.task_prompt.strip()}")
+        else:
+            sections.append(
+                "Task:\n"
+                "Do your normal job for the current market state. Before making a trading decision, use the available "
+                "tools to review account/portfolio state, current market prices, recent price history, technical "
+                "indicators, relevant news, macro/FRED data when configured, and SEC financial/filing evidence for "
+                "relevant single-stock candidates. Specifically, when these tools are available, include calls from "
+                "these categories: account_positions or account_portfolio; market_last_price or market_load_history_table; "
+                "duckdb_query after loading a price table; get_indicator or get_indicators; alpaca_news; list_fred_series, "
+                "get_fred_latest, get_fred_series, or get_fred_snapshot; get_income_statement, get_balance_sheet, "
+                "get_cash_flow, or get_company_facts; and get_filings, search_filing, or get_filing_document. "
+                "In backtests, date-bound every external data request to the current simulated datetime and do not use "
+                "future information."
+            )
         if request.context:
             sections.append(f"User Context JSON:\n{json.dumps(_json_safe_value(request.context), sort_keys=True, default=str)}")
-        if not sections:
-            sections.append("Task:\nDo your normal job for the current market state.")
         return "\n\n".join(sections)
 
     async def _run_async(self, request: RuntimeRequest) -> AgentRunResult:
@@ -721,11 +769,9 @@ class GoogleADKRuntime:
         text_chunks = [event.text for event in events if event.kind == "text" and event.text]
         if text_chunks:
             summary = text_chunks[-1]
-        usage = None
-        for event in reversed(events):
-            if event.kind == "usage":
-                usage = event.payload
-                break
+        usage = _aggregate_usage_metadata(
+            [event.payload for event in events if event.kind == "usage" and isinstance(event.payload, dict)]
+        )
         ended_at = _utc_iso_timestamp()
         ended_perf = time.perf_counter()
         return AgentRunResult(

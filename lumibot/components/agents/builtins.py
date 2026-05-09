@@ -1,3 +1,4 @@
+import json
 import math
 import os
 from datetime import date, datetime, timedelta, timezone
@@ -653,12 +654,35 @@ def _bind_get_indicator(strategy: Any, manager: Any) -> BoundTool:
         indicator: str,
         timestep: str = "day",
         asset_type: AssetTypeArg = "stock",
-        kwargs: dict[str, Any] | None = None,
+        parameters_json: str | None = None,
     ) -> dict[str, Any]:
         asset = Asset(symbol, asset_type=asset_type)
         indicator_name = _require_non_empty_text("indicator", indicator)
+        indicator_kwargs: dict[str, Any] = {}
+        if parameters_json:
+            try:
+                parsed = json.loads(parameters_json)
+            except json.JSONDecodeError as exc:
+                return {
+                    "ok": False,
+                    "tool_error": True,
+                    "error": {
+                        "type": "InvalidParametersJson",
+                        "message": f"parameters_json must be valid JSON: {exc}",
+                    },
+                }
+            if not isinstance(parsed, dict):
+                return {
+                    "ok": False,
+                    "tool_error": True,
+                    "error": {
+                        "type": "InvalidParametersJson",
+                        "message": "parameters_json must decode to a JSON object.",
+                    },
+                }
+            indicator_kwargs = parsed
         fn = getattr(strategy.indicators, indicator_name)
-        value = fn(asset, timestep=timestep, **(kwargs or {}))
+        value = fn(asset, timestep=timestep, **indicator_kwargs)
         return {
             "ok": True,
             "symbol": symbol.upper(),
@@ -674,8 +698,8 @@ def _bind_get_indicator(strategy: Any, manager: Any) -> BoundTool:
         name="get_indicator",
         description=(
             "Get one technical indicator for the current strategy datetime. "
-            "Arguments: symbol, indicator, timestep='day', asset_type='stock', kwargs={...}. "
-            "Examples: get_indicator(symbol='SPY', indicator='rsi', kwargs={'length': 14}); "
+            "Arguments: symbol, indicator, timestep='day', asset_type='stock', optional parameters_json as a JSON object string. "
+            "Examples: get_indicator(symbol='SPY', indicator='rsi', parameters_json='{\"length\": 14}'); "
             "get_indicator(symbol='NVDA', indicator='macd'). "
             "In backtests this returns only the current-bar value and does not expose future bars."
         ),

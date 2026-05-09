@@ -86,7 +86,7 @@ class CommitteeToolRuntime:
             symbol=symbol,
             indicator="sma",
             timestep="minute",
-            kwargs={"length": 2},
+            parameters_json='{"length": 2}',
         )
         results["indicators"] = _invoke_tool(
             request,

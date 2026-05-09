@@ -95,6 +95,24 @@ def test_agent_backtest_keeps_fred_tools_when_fred_api_key_is_set(monkeypatch):
     assert "get_fred_snapshot" in tool_names
 
 
+def test_builtin_indicator_schema_is_gemini_function_declaration_compatible():
+    pytest.importorskip("google.adk.tools.function_tool")
+    from google.adk.tools.function_tool import FunctionTool
+
+    from lumibot.components.agents.runtime import _wrap_tool_callable
+
+    strategy = _Strategy()
+    manager = AgentManager(strategy)
+    agent = manager.create(name="researcher", model="gemini-3.1-flash-lite-preview", allow_trading=False)
+    indicator_tool = next(tool for tool in agent._ensure_bound_tools() if tool.name == "get_indicator")
+
+    declaration = FunctionTool(_wrap_tool_callable(indicator_tool))._get_declaration().model_dump(exclude_none=True)
+    schema_text = str(declaration)
+
+    assert "additional_properties" not in schema_text
+    assert "parameters_json" in declaration["parameters"]["properties"]
+
+
 def test_agent_allow_trading_true_keeps_mutating_order_tools():
     strategy = _Strategy()
     manager = AgentManager(strategy)

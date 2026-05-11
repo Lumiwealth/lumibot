@@ -13,12 +13,13 @@ class _DummyBroker:
     IS_BACKTESTING_BROKER = False
     market = "NYSE"
 
-    def __init__(self):
+    def __init__(self, market_open=True):
         self._first_iteration = True
         self._orders_queue = SimpleNamespace(queue=[])
         self.closed = False
         self.strategy_name = None
         self.trading_days = None
+        self.market_open = market_open
 
     def is_backtesting_broker(self):
         return False
@@ -30,7 +31,7 @@ class _DummyBroker:
         self.trading_days = trading_days
 
     def is_market_open(self):
-        return True
+        return self.market_open
 
     def _close_connection(self):
         self.closed = True
@@ -114,6 +115,19 @@ class _DummyStrategy:
         return None
 
 
+class _ScheduledStateDummyStrategy(_DummyStrategy, _Strategy):
+    load_variables_from_db = _Strategy.load_variables_from_db
+    backup_variables_to_db = _Strategy.backup_variables_to_db
+
+    @property
+    def cash(self):
+        return self._cash
+
+    @cash.setter
+    def cash(self, value):
+        self._cash = value
+
+
 def test_strategy_executor_run_once_runs_one_live_iteration(monkeypatch):
     monkeypatch.setattr(
         "lumibot.strategies.strategy_executor.get_trading_days",
@@ -181,9 +195,40 @@ def test_run_live_enables_run_once_for_scheduled_execution(monkeypatch):
     assert captured["run_once"] is True
 
 
+def test_run_live_explicit_run_once_false_overrides_env(monkeypatch):
+    captured = {}
+
+    class DummyTrader:
+        def add_strategy(self, strategy):
+            captured["strategy"] = strategy
+
+        def run_all(self, **kwargs):
+            captured.update(kwargs)
+
+    strategy = object.__new__(strategy_module.Strategy)
+    monkeypatch.setattr(strategy_module, "Trader", DummyTrader)
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_EXECUTION", "true")
+
+    strategy_module.Strategy.run_live(strategy, run_once=False)
+
+    assert captured["strategy"] is strategy
+    assert captured["run_once"] is False
+
+
 def test_scheduled_state_file_loads_and_persists_self_vars(tmp_path, monkeypatch):
     state_file = tmp_path / "scheduled_state.json"
-    state_file.write_text('{"count": 2, "trade_date": "2026-05-11"}', encoding="utf-8")
+    state_file.write_text(
+        json.dumps(
+            {
+                "count": 2,
+                "trade_date": "2026-05-11",
+                "run_date": {"__lumibot_type__": "date", "value": "2026-05-10"},
+                "run_at": {"__lumibot_type__": "datetime", "value": "2026-05-11T09:30:00"},
+                "bands": {"__lumibot_type__": "tuple", "value": ["low", "high"]},
+            }
+        ),
+        encoding="utf-8",
+    )
     strategy = object.__new__(_Strategy)
     strategy.is_backtesting = False
     strategy.vars = Vars()
@@ -197,11 +242,71 @@ def test_scheduled_state_file_loads_and_persists_self_vars(tmp_path, monkeypatch
     _Strategy.load_variables_from_db(strategy)
 
     assert strategy.vars.get("count") == 2
-    assert strategy.vars.get("trade_date") == datetime.date(2026, 5, 11)
+    assert strategy.vars.get("trade_date") == "2026-05-11"
+    assert strategy.vars.get("run_date") == datetime.date(2026, 5, 10)
+    assert strategy.vars.get("run_at") == datetime.datetime(2026, 5, 11, 9, 30)
+    assert strategy.vars.get("bands") == ("low", "high")
 
     strategy.vars.set("count", 3)
+    strategy.vars.set("next_date", datetime.date(2026, 5, 12))
+    strategy.vars.set("limits", (1, datetime.date(2026, 5, 13)))
     _Strategy.backup_variables_to_db(strategy)
 
     persisted = json.loads(state_file.read_text(encoding="utf-8"))
     assert persisted["count"] == 3
     assert persisted["trade_date"] == "2026-05-11"
+    assert persisted["next_date"] == {"__lumibot_type__": "date", "value": "2026-05-12"}
+    assert persisted["limits"] == {
+        "__lumibot_type__": "tuple",
+        "value": [1, {"__lumibot_type__": "date", "value": "2026-05-13"}],
+    }
+
+
+def test_run_once_restores_state_before_closed_market_exit(tmp_path, monkeypatch):
+    state_file = tmp_path / "scheduled_state.json"
+    state_file.write_text('{"count": 2}', encoding="utf-8")
+    monkeypatch.setattr(
+        "lumibot.strategies.strategy_executor.get_trading_days",
+        lambda market: [{"date": datetime.date(2026, 5, 11)}],
+    )
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_EXECUTION", "true")
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_STATE_BACKEND", "s3")
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_STATE_FILE", str(state_file))
+
+    strategy = _ScheduledStateDummyStrategy()
+    strategy.broker = _DummyBroker(market_open=False)
+    executor = StrategyExecutor(strategy)
+    executor.sync_broker = lambda: None
+
+    assert executor.run_once() is True
+
+    persisted = json.loads(state_file.read_text(encoding="utf-8"))
+    assert persisted == {"count": 2}
+    assert strategy.iterations == 0
+
+
+def test_run_once_restores_state_before_lifecycle_hooks(tmp_path, monkeypatch):
+    state_file = tmp_path / "scheduled_state.json"
+    state_file.write_text('{"count": 2}', encoding="utf-8")
+    monkeypatch.setattr(
+        "lumibot.strategies.strategy_executor.get_trading_days",
+        lambda market: [{"date": datetime.date(2026, 5, 11)}],
+    )
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_EXECUTION", "true")
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_STATE_BACKEND", "s3")
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_STATE_FILE", str(state_file))
+
+    class Strategy(_ScheduledStateDummyStrategy):
+        def before_starting_trading(self):
+            super().before_starting_trading()
+            self.vars.set("count", self.vars.get("count") + 1)
+
+    strategy = Strategy()
+    executor = StrategyExecutor(strategy)
+    executor.sync_broker = lambda: None
+
+    assert executor.run_once() is True
+
+    persisted = json.loads(state_file.read_text(encoding="utf-8"))
+    assert persisted["count"] == 3
+    assert strategy.iterations == 1

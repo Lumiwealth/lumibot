@@ -1074,7 +1074,8 @@ class StrategyExecutor(Thread):
         # Time-consuming
         try:
             # Variable Restore
-            self.strategy.load_variables_from_db()
+            if not self._run_once_requested:
+                self.strategy.load_variables_from_db()
             on_trading_iteration()
 
             self.strategy._first_iteration = False
@@ -1131,7 +1132,7 @@ class StrategyExecutor(Thread):
 
             if self._run_once_requested:
                 self.exception = e
-                raise e
+                raise
 
             self._on_bot_crash(e)
 
@@ -1996,74 +1997,17 @@ class StrategyExecutor(Thread):
 
         return next_run_time
 
-    def _initialize_market_calendars_for_run(self):
-        """Initialize broker calendars for the current execution mode."""
-        market = self.broker.market
-
-        # For *pure* PandasData backtests, derive the calendar from the data itself so the
-        # StrategyExecutor can run on timestamps that exist in the supplied DataFrames
-        # (including daily bars where market_open == market_close).
-        #
-        # IMPORTANT: do NOT apply this to PolygonDataBacktesting (or other providers that
-        # inherit from PandasData) because their _date_index is typically empty at startup.
-        # In that case, get_trading_days_pandas() returns a "full-day open" dummy calendar
-        # (00:00–23:59:59), which can skip lifecycle hooks like before_market_opens() and
-        # breaks legacy backtests (e.g. tests/backtest/test_polygon.py).
-        data_source = getattr(self.broker, "data_source", None)
-        is_pure_pandas_data_source = (
-            self.strategy.is_backtesting
-            and data_source is not None
-            and type(data_source).__name__ in ("PandasData", "PandasDataBacktesting")
-            and hasattr(data_source, "get_trading_days_pandas")
-        )
-        if is_pure_pandas_data_source:
-            self.broker.initialize_market_calendars(data_source.get_trading_days_pandas())
-            return
-
-        # PERFORMANCE: default `get_trading_days()` spans 1950->today, which can be very expensive.
-        # In backtesting we know the simulation window; bound the calendar query to that range
-        # (+/- a small buffer) so schedule generation is O(window) instead of O(decades).
-        if self.strategy.is_backtesting:
-            try:
-                datetime_start = (
-                    getattr(self.broker, "datetime_start", None)
-                    or getattr(data_source, "datetime_start", None)
-                    or getattr(self.strategy, "_backtesting_start", None)
-                    or getattr(self.strategy, "backtesting_start", None)
-                )
-                datetime_end = (
-                    getattr(self.broker, "datetime_end", None)
-                    or getattr(data_source, "datetime_end", None)
-                    or getattr(self.strategy, "_backtesting_end", None)
-                    or getattr(self.strategy, "backtesting_end", None)
-                )
-                tzinfo = getattr(data_source, "tzinfo", None) or LUMIBOT_DEFAULT_PYTZ
-
-                if datetime_start is not None and datetime_end is not None:
-                    buffer = timedelta(days=14)
-                    # `get_trading_days` treats end_date as exclusive; include the final day.
-                    self.broker.initialize_market_calendars(
-                        get_trading_days(
-                            market=market,
-                            start_date=datetime_start - buffer,
-                            end_date=datetime_end + buffer + timedelta(days=1),
-                            tzinfo=tzinfo,
-                        )
-                    )
-                else:
-                    self.broker.initialize_market_calendars(get_trading_days(market))
-            except Exception:
-                self.broker.initialize_market_calendars(get_trading_days(market))
-        else:
-            self.broker.initialize_market_calendars(get_trading_days(market))
-
     def _run_live_once(self):
         """Run exactly one live trading iteration without starting APScheduler."""
         if self.strategy.is_backtesting:
             raise RuntimeError("run_once is only supported for live trading strategies")
 
+        # Scheduled one-shot runs must restore state before any lifecycle hook can read or mutate self.vars.
+        self.strategy.load_variables_from_db()
         self.strategy.log_message("Running one live trading iteration", color="blue")
-        if self.broker.is_market_open():
+        market_open = self.broker.is_market_open()
+        if market_open:
+            # Each scheduled run is a fresh live session, so the per-session hook runs every tick.
             self._before_starting_trading()
             self.lifecycle_last_date["before_starting_trading"] = self.strategy.get_datetime().date()
 
@@ -2082,7 +2026,7 @@ class StrategyExecutor(Thread):
             self.broker.set_strategy_name(self.strategy._name)
 
             self._initialize()
-            self._initialize_market_calendars_for_run()
+            self.broker.initialize_market_calendars(get_trading_days(self.broker.market))
             self._run_live_once()
             self._on_strategy_end()
 
@@ -2116,7 +2060,66 @@ class StrategyExecutor(Thread):
 
             self._initialize()
 
-            self._initialize_market_calendars_for_run()
+            # Get the trading days based on the market that the strategy is trading on
+            market = self.broker.market
+
+            # Initialize broker calendar and caches using trading days.
+            #
+            # For *pure* PandasData backtests, derive the calendar from the data itself so the
+            # StrategyExecutor can run on timestamps that exist in the supplied DataFrames
+            # (including daily bars where market_open == market_close).
+            #
+            # IMPORTANT: do NOT apply this to PolygonDataBacktesting (or other providers that
+            # inherit from PandasData) because their _date_index is typically empty at startup.
+            # In that case, get_trading_days_pandas() returns a "full-day open" dummy calendar
+            # (00:00–23:59:59), which can skip lifecycle hooks like before_market_opens() and
+            # breaks legacy backtests (e.g. tests/backtest/test_polygon.py).
+            data_source = getattr(self.broker, "data_source", None)
+            is_pure_pandas_data_source = (
+                self.strategy.is_backtesting
+                and data_source is not None
+                and type(data_source).__name__ in ("PandasData", "PandasDataBacktesting")
+                and hasattr(data_source, "get_trading_days_pandas")
+            )
+            if is_pure_pandas_data_source:
+                self.broker.initialize_market_calendars(data_source.get_trading_days_pandas())
+            else:
+                # PERFORMANCE: default `get_trading_days()` spans 1950->today, which can be very expensive.
+                # In backtesting we know the simulation window; bound the calendar query to that range
+                # (+/- a small buffer) so schedule generation is O(window) instead of O(decades).
+                if self.strategy.is_backtesting:
+                    try:
+                        datetime_start = (
+                            getattr(self.broker, "datetime_start", None)
+                            or getattr(data_source, "datetime_start", None)
+                            or getattr(self.strategy, "_backtesting_start", None)
+                            or getattr(self.strategy, "backtesting_start", None)
+                        )
+                        datetime_end = (
+                            getattr(self.broker, "datetime_end", None)
+                            or getattr(data_source, "datetime_end", None)
+                            or getattr(self.strategy, "_backtesting_end", None)
+                            or getattr(self.strategy, "backtesting_end", None)
+                        )
+                        tzinfo = getattr(data_source, "tzinfo", None) or LUMIBOT_DEFAULT_PYTZ
+
+                        if datetime_start is not None and datetime_end is not None:
+                            buffer = timedelta(days=14)
+                            # `get_trading_days` treats end_date as exclusive; include the final day.
+                            self.broker.initialize_market_calendars(
+                                get_trading_days(
+                                    market=market,
+                                    start_date=datetime_start - buffer,
+                                    end_date=datetime_end + buffer + timedelta(days=1),
+                                    tzinfo=tzinfo,
+                                )
+                            )
+                        else:
+                            self.broker.initialize_market_calendars(get_trading_days(market))
+                    except Exception:
+                        self.broker.initialize_market_calendars(get_trading_days(market))
+                else:
+                    self.broker.initialize_market_calendars(get_trading_days(market))
 
             #####
             # Main strategy execution loop

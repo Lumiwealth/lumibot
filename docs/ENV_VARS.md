@@ -66,25 +66,9 @@ This page documents environment variables used by LumiBot, with an emphasis on *
 
 ## Live scheduled execution (BotSpot/BotManager)
 
-### `LUMIBOT_SCHEDULED_EXECUTION`
-- Purpose: Internal BotSpot/BotManager flag for externally scheduled live strategy runs.
-- Values: truthy enables (`1`, `true`, `yes`, `y`, `on`); unset/`0` disables.
-- Behavior:
-  - `Strategy.run_live()` runs exactly one live trading iteration and exits instead of starting the normal always-on scheduler loop.
-  - `self.vars` is loaded from and saved to `LUMIBOT_SCHEDULED_STATE_FILE` when that state file is configured.
-- Where: `lumibot/strategies/strategy.py`, `lumibot/traders/trader.py`, `lumibot/strategies/strategy_executor.py`, `lumibot/strategies/_strategy.py`
-
-### `LUMIBOT_SCHEDULED_STATE_BACKEND`
-- Purpose: Identifies the external scheduled-state backend prepared by BotManager.
-- Values: `s3`, `dynamodb`, or `none`.
-- Notes:
-  - LumiBot itself reads/writes the local `LUMIBOT_SCHEDULED_STATE_FILE`; BotManager is responsible for hydrating/persisting that file to the external backend.
-  - `none` disables scheduled `self.vars` file load/save.
-
-### `LUMIBOT_SCHEDULED_STATE_FILE`
-- Purpose: Local JSON file used to restore and persist `self.vars` for one scheduled live run.
-- Example: `/app/.botspot/scheduled_state.json`
-- Notes: This file should be managed by BotManager/bootstrap code, not by user strategies.
+- `LUMIBOT_SCHEDULED_EXECUTION`: internal BotManager flag. Truthy values (`1`, `true`, `yes`, `y`, `on`) make `Strategy.run_live()` run one live iteration and exit.
+- `LUMIBOT_SCHEDULED_STATE_BACKEND`: external state backend prepared by BotManager: `s3`, `dynamodb`, or `none`. `none` disables scheduled `self.vars` file load/save.
+- `LUMIBOT_SCHEDULED_STATE_FILE`: local JSON file managed by BotManager/bootstrap code to restore and persist `self.vars` for one scheduled live run. State is restored before scheduled lifecycle hooks.
 
 ## Backtest output + UX flags
 

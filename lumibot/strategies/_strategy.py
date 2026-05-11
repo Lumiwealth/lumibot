@@ -4,6 +4,7 @@ import json
 import math
 import os
 import random
+import re
 import string
 import time
 import traceback
@@ -3757,8 +3758,102 @@ class _Strategy:
                     self.logger.error("Max retries reached for to_sql. Failing operation.")
                     raise
 
+    def _scheduled_state_enabled(self):
+        if self.is_backtesting:
+            return False
+        scheduled = str(os.environ.get("LUMIBOT_SCHEDULED_EXECUTION", "")).strip().lower()
+        if scheduled not in {"1", "true", "yes", "y", "on"}:
+            return False
+        if str(os.environ.get("LUMIBOT_SCHEDULED_STATE_BACKEND", "")).strip().lower() == "none":
+            return False
+        return bool(os.environ.get("LUMIBOT_SCHEDULED_STATE_FILE"))
+
+    @staticmethod
+    def _coerce_loaded_variable_value(value):
+        if not isinstance(value, str):
+            return value
+
+        iso_dt_re = re.compile(r"^\d{4}-\d{2}-\d{2}T")
+        iso_date_re = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+        if iso_dt_re.match(value):
+            try:
+                parsed = value.replace("Z", "+00:00") if value.endswith("Z") else value
+                return datetime.datetime.fromisoformat(parsed)
+            except Exception:
+                return value
+
+        if iso_date_re.match(value):
+            try:
+                return datetime.datetime.strptime(value, "%Y-%m-%d").date()
+            except Exception:
+                return value
+
+        return value
+
+    def _load_variables_from_scheduled_state_file(self):
+        state_file = os.environ.get("LUMIBOT_SCHEDULED_STATE_FILE")
+        if not state_file:
+            return
+
+        try:
+            with open(state_file, "r", encoding="utf-8") as f:
+                data = json.load(
+                    f,
+                    object_hook=lambda d: {
+                        key: self._coerce_loaded_variable_value(value) for key, value in d.items()
+                    },
+                )
+        except FileNotFoundError:
+            self.logger.info("Scheduled state file does not exist yet. Not restoring variables.")
+            return
+
+        if not isinstance(data, dict):
+            raise ValueError("Scheduled state file must contain a JSON object")
+
+        for key, value in data.items():
+            self.vars.set(key, value)
+
+        self._last_backup_state = json.dumps(self.vars.all(), sort_keys=True, cls=SafeJSONEncoder)
+        self.logger.info("Variables loaded successfully from scheduled state file")
+
+    def _backup_variables_to_scheduled_state_file(self):
+        state_file = os.environ.get("LUMIBOT_SCHEDULED_STATE_FILE")
+        if not state_file:
+            return
+
+        data_to_save = self.vars.all()
+        state_json = json.dumps(data_to_save, sort_keys=True, cls=SafeJSONEncoder)
+        if state_json == self._last_backup_state:
+            self.logger.info("No variables changed. Not backing up scheduled state.")
+            return
+
+        state_dir = os.path.dirname(state_file)
+        if state_dir:
+            os.makedirs(state_dir, exist_ok=True)
+        tmp_path = f"{state_file}.tmp"
+        fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(state_json)
+            os.replace(tmp_path, state_file)
+            os.chmod(state_file, 0o600)
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except FileNotFoundError:
+                pass
+            raise
+
+        self._last_backup_state = state_json
+        self.logger.info("Variables backed up successfully to scheduled state file")
+
     def backup_variables_to_db(self):
         if self.is_backtesting:
+            return
+
+        if self._scheduled_state_enabled():
+            self._backup_variables_to_scheduled_state_file()
             return
 
         if not hasattr(self, "db_connection_str") or self.db_connection_str is None or self.db_connection_str == "" or not self.should_backup_variables_to_database:
@@ -3845,6 +3940,10 @@ class _Strategy:
     def load_variables_from_db(self):
         if self.is_backtesting:
             return
+
+        if self._scheduled_state_enabled():
+            self._load_variables_from_scheduled_state_file()
+            return
     
         if not hasattr(self, "db_connection_str") or self.db_connection_str is None or not self.should_backup_variables_to_database:
             return
@@ -3873,35 +3972,14 @@ class _Strategy:
     
             json_data = df['variables'].iloc[0]
     
-            import re
-    
-            iso_dt_re = re.compile(r"^\d{4}-\d{2}-\d{2}T")      # datetime prefix
-            iso_date_re = re.compile(r"^\d{4}-\d{2}-\d{2}$")    # date only
-    
-            def _coerce_value(v):
-                if not isinstance(v, str):
-                    return v
-    
-                # ISO datetime (support trailing Z)
-                if iso_dt_re.match(v):
-                    try:
-                        v2 = v.replace("Z", "+00:00") if v.endswith("Z") else v
-                        return datetime.datetime.fromisoformat(v2)
-                    except Exception:
-                        return v
-    
-                # ISO date (YYYY-MM-DD)
-                if iso_date_re.match(v):
-                    try:
-                        return datetime.datetime.strptime(v, "%Y-%m-%d").date()
-                    except Exception:
-                        return v
-    
-                return v
-    
             # Decode any special types we stored using our SafeJSONEncoder,
             # but only parse strings that actually look like ISO dates/datetimes.
-            data = json.loads(json_data, object_hook=lambda d: {k: _coerce_value(v) for k, v in d.items()})
+            data = json.loads(
+                json_data,
+                object_hook=lambda d: {
+                    k: self._coerce_loaded_variable_value(v) for k, v in d.items()
+                },
+            )
     
             # Update self.vars dictionary
             for key, value in data.items():

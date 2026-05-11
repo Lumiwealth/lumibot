@@ -83,6 +83,34 @@ LUMIBOT_ACCEPTANCE_TRIPWIRE
   - This is an engineering/CI guardrail to enforce “warm-cache” acceptance backtests. It should not be used for normal production backtests.
   - When triggered, it prints a marker and exits the subprocess with a non-zero code so the test fails reliably.
 
+Live scheduled execution (BotSpot/BotManager)
+---------------------------------------------
+
+LUMIBOT_SCHEDULED_EXECUTION
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Internal BotSpot/BotManager flag for externally scheduled live strategy runs.
+- Values: truthy enables (``1``, ``true``, ``yes``, ``y``, ``on``); unset/``0`` disables.
+- Behavior:
+  - ``Strategy.run_live()`` runs exactly one live trading iteration and exits instead of starting the normal always-on scheduler loop.
+  - ``self.vars`` is loaded from and saved to ``LUMIBOT_SCHEDULED_STATE_FILE`` when that state file is configured.
+
+LUMIBOT_SCHEDULED_STATE_BACKEND
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Identifies the external scheduled-state backend prepared by BotManager.
+- Values: ``s3``, ``dynamodb``, or ``none``.
+- Notes:
+  - LumiBot reads/writes the local ``LUMIBOT_SCHEDULED_STATE_FILE``; BotManager is responsible for hydrating/persisting that file to the external backend.
+  - ``none`` disables scheduled ``self.vars`` file load/save.
+
+LUMIBOT_SCHEDULED_STATE_FILE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Local JSON file used to restore and persist ``self.vars`` for one scheduled live run.
+- Example: ``/app/.botspot/scheduled_state.json``
+- Notes: This file should be managed by BotManager/bootstrap code, not by user strategies.
+
 Backtest artifacts + UX flags
 -----------------------------
 

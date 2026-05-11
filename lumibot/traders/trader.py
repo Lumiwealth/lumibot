@@ -90,6 +90,7 @@ class Trader:
             tearsheet_file=None,
             tearsheet_metrics_file=None,
             base_filename=None,
+            run_once=False,
             ):
         """
         run all strategies
@@ -138,6 +139,10 @@ class Trader:
         base_filename: str
             The base filename to save the tearsheet, plot, indicators, etc. This is only used for backtesting.
 
+        run_once: bool
+            For live strategies, run one trading iteration synchronously and exit instead of starting the normal
+            always-on scheduler loop. This is intended for externally scheduled deployments.
+
         Returns
         -------
         dict
@@ -166,6 +171,12 @@ class Trader:
                     f"Running multiple live strategies is not implemented yet. You passed "
                     f"in {len(self._strategies)} strategies."
                 )
+
+        if run_once and async_:
+            raise RuntimeError("run_once cannot be combined with async_=True")
+
+        if run_once and self.is_backtest_broker:
+            raise RuntimeError("run_once is only supported for live trading strategies")
 
         strat = self._strategies[0]
         # NOTE: Market auto-detection now happens inside Broker.__init__.
@@ -209,9 +220,12 @@ class Trader:
                 logger.warning("Failed to enable yappi profiling: %s", exc)
 
         try:
-            self._start_pool()
-            if not async_:
-                self._join_pool()
+            if run_once:
+                self._run_pool_once()
+            else:
+                self._start_pool()
+                if not async_:
+                    self._join_pool()
             result = self._collect_analysis()
 
             if self.is_backtest_broker:
@@ -409,6 +423,14 @@ class Trader:
                 # Check if the thread stored an exception
                 if hasattr(strategy_thread, 'exception') and strategy_thread.exception is not None:
                     raise strategy_thread.exception
+
+    def _run_pool_once(self):
+        for strategy_thread in self._pool:
+            strategy_thread.run_once()
+
+        for strategy_thread in self._pool:
+            if hasattr(strategy_thread, 'exception') and strategy_thread.exception is not None:
+                raise strategy_thread.exception
 
     def _stop_pool(self, sig=None, frame=None):
         """Run all strategies on_abrupt_closing

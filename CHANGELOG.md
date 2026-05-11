@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Scheduled live execution now has a true one-shot LumiBot path.** When BotManager sets `LUMIBOT_SCHEDULED_EXECUTION`, `Strategy.run_live()` runs one live trading iteration and exits instead of starting the normal always-on scheduler loop. Scheduled runs also restore and persist `self.vars` through the BotManager-provided scheduled state file.
+
 ## 4.5.10 - 2026-04-30
 
 Deploy marker: 9e73736f (`deploy 4.5.10`)

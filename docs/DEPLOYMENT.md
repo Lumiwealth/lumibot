@@ -138,7 +138,10 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
      - screenshots for UI or workflow changes,
      - flow diagrams for architecture/runtime/tool-call behavior,
      - sequence diagrams for deployment, broker, agent, credential, or data-provider flows.
-   - Prefer generated or reproducible visuals checked into the appropriate docs assets folder, with source prompts/scripts noted when practical.
+   - Generate documentation visuals with a strong image MCP/model, preferably Nano Banana v3+ or GPT Image 2 / the current best GPT Image model. This applies to flow diagrams, architecture diagrams, sequence diagrams, screenshots-as-illustrations, README images, and other docs/product visuals.
+   - Do not ship placeholder SVG/HTML/canvas diagrams, Mermaid screenshots, Python-drawn diagrams, or manually assembled box diagrams when Nano Banana/GPT Image can produce a clearer asset.
+   - Prefer generated or reproducible visuals checked into the appropriate docs assets folder, with source prompts/scripts/model noted when practical.
+   - Visually inspect every generated image before release. Reject images with unreadable labels, broken text, bad arrows, inaccurate product claims, or cluttered layouts.
    - If a change genuinely does not need docs or visuals, state that explicitly in the PR description under **Docs** with the reason.
    - If docs are changed, run the relevant docs build or at minimum inspect the changed RST/Markdown for broken references and missing images before release.
 

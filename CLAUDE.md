@@ -18,6 +18,14 @@
 1. `docs/BACKTESTING_ARCHITECTURE.md` - Understand the backtesting data flow AND the no-fake-data rule
 2. `AGENTS.md` - Critical rules for ThetaData (DO NOT SKIP)
 
+## Image Generation Rule (CRITICAL)
+
+- For any generated or AI-edited image, infographic, diagram, marketing visual, README visual, documentation visual, or repo asset image, use a high-quality image MCP/model: Nano Banana (`mcp__nano_banana__generate_image` / `mcp__nano_banana__edit_image`) or GPT Image 2 / the current best GPT Image model when available.
+- Prefer Nano Banana v3+ or GPT Image 2-class models for flow diagrams, architecture diagrams, sequence diagrams, screenshots-as-illustrations, and documentation visuals. These models are strong enough for readable labels, arrows, and layout.
+- Do not use generic image generators, local SVG/HTML/canvas placeholders, Python drawing scripts, Mermaid screenshots, manually assembled box diagrams, or other fallback image pipelines unless Rob explicitly approves that exact alternative in the current turn.
+- Every generated image must be visually inspected before it is committed. Reject outputs with broken/missing text, awkward arrows, cluttered layouts, inaccurate product claims, or anything that looks like a placeholder.
+- If Nano Banana/GPT Image MCP access is unavailable or broken, stop and report that blocker instead of making replacement images another way.
+
 ## Backtesting Accuracy (Definition)
 
 Backtesting “accuracy” is measured against live broker behavior when possible (replay a live-traded interval and reproduce fills + PnL within tolerances). Vendor parity (e.g., stored DataBento artifacts) is a regression signal, not absolute truth.

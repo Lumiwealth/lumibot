@@ -56,6 +56,7 @@ class StrategyExecutor(Thread):
 
         # Store any exception that occurs during execution
         self.exception = None
+        self._run_once_requested = False
 
         # Create a dictionary of job stores. A job store is where the scheduler persists its jobs. In this case,
         # we create an in-memory job store for "default" and "On_Trading_Iteration" which is the job store we will
@@ -1073,7 +1074,8 @@ class StrategyExecutor(Thread):
         # Time-consuming
         try:
             # Variable Restore
-            self.strategy.load_variables_from_db()
+            if not self._run_once_requested:
+                self.strategy.load_variables_from_db()
             on_trading_iteration()
 
             self.strategy._first_iteration = False
@@ -1127,6 +1129,10 @@ class StrategyExecutor(Thread):
 
             # Log the traceback
             self.strategy.log_message(traceback.format_exc(), color="red")
+
+            if self._run_once_requested:
+                self.exception = e
+                raise
 
             self._on_bot_crash(e)
 
@@ -1990,6 +1996,58 @@ class StrategyExecutor(Thread):
         next_run_time = jobs[0].next_run_time
 
         return next_run_time
+
+    def _run_live_once(self):
+        """Run exactly one live trading iteration without starting APScheduler."""
+        if self.strategy.is_backtesting:
+            raise RuntimeError("run_once is only supported for live trading strategies")
+
+        # Scheduled one-shot runs must restore state before any lifecycle hook can read or mutate self.vars.
+        self.strategy.load_variables_from_db()
+        self.strategy.log_message("Running one live trading iteration", color="blue")
+        market_open = self.broker.is_market_open()
+        if market_open:
+            # Each scheduled run is a fresh live session, so the per-session hook runs every tick.
+            self._before_starting_trading()
+            self.lifecycle_last_date["before_starting_trading"] = self.strategy.get_datetime().date()
+
+        self.cron_count_target = 1
+        self.cron_count = 0
+        try:
+            self._on_trading_iteration()
+            self.process_queue()
+        finally:
+            self._in_trading_iteration = False
+
+    def run_once(self):
+        self._run_once_requested = True
+        try:
+            # Set the strategy name at the broker
+            self.broker.set_strategy_name(self.strategy._name)
+
+            self._initialize()
+            self.broker.initialize_market_calendars(get_trading_days(self.broker.market))
+            self._run_live_once()
+            self._on_strategy_end()
+
+            self.result = self.strategy._analysis
+            self.gracefully_exit()
+            return True
+        except Exception as e:
+            try:
+                self.strategy.logger.error(e)
+                self.strategy.logger.error(traceback.format_exc())
+                try:
+                    self._on_bot_crash(e)
+                except Exception as e1:
+                    self.strategy.logger.error(e1)
+                    self.strategy.logger.error(traceback.format_exc())
+            finally:
+                self.exception = e
+                self.result = self.strategy._analysis if hasattr(self.strategy, '_analysis') else {}
+            return False
+        finally:
+            self._run_once_requested = False
 
     def run(self):
         try:

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Scheduled live execution can now run one live iteration and exit when BotManager sets `LUMIBOT_SCHEDULED_EXECUTION`. Scheduled runs restore and persist `self.vars` through the BotManager state file.
+
 ## 4.5.10 - 2026-04-30
 
 Deploy marker: 9e73736f (`deploy 4.5.10`)

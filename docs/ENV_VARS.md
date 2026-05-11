@@ -64,6 +64,12 @@ This page documents environment variables used by LumiBot, with an emphasis on *
   - CI uses this to enforce the “warm S3 cache invariant” for canonical acceptance windows.
   - Exit behavior: tripwire prints `[ACCEPTANCE][TRIPWIRE] …` and hard-exits the subprocess with code `86`.
 
+## Live scheduled execution (BotSpot/BotManager)
+
+- `LUMIBOT_SCHEDULED_EXECUTION`: internal BotManager flag. Truthy values (`1`, `true`, `yes`, `y`, `on`) make `Strategy.run_live()` run one live iteration and exit.
+- `LUMIBOT_SCHEDULED_STATE_BACKEND`: external state backend prepared by BotManager: `s3`, `dynamodb`, or `none`. `none` disables scheduled `self.vars` file load/save.
+- `LUMIBOT_SCHEDULED_STATE_FILE`: local JSON file managed by BotManager/bootstrap code to restore and persist `self.vars` for one scheduled live run. State is restored before scheduled lifecycle hooks.
+
 ## Backtest output + UX flags
 
 ### `SHOW_PLOT`, `SHOW_INDICATORS`, `SHOW_TEARSHEET`

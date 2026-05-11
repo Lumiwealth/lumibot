@@ -5421,17 +5421,32 @@ class Strategy(_Strategy):
         """
         pass
 
-    def run_live(self):
+    def run_live(self, run_once: bool | None = None):
         """
         Executes the trading strategy in Live mode
+
+        Parameters
+        ----------
+        run_once : bool, optional
+            Run one trading iteration and exit instead of starting the normal always-on scheduler loop.
+            If omitted, this is enabled automatically when ``LUMIBOT_SCHEDULED_EXECUTION`` is truthy.
 
         Returns:
             None
         """
+        if run_once is None:
+            run_once = str(os.environ.get("LUMIBOT_SCHEDULED_EXECUTION", "")).strip().lower() in {
+                "1",
+                "true",
+                "yes",
+                "y",
+                "on",
+            }
+
         trader = Trader()
 
         trader.add_strategy(self)
-        trader.run_all()
+        trader.run_all(run_once=run_once)
 
     @classmethod
     def backtest(

@@ -2,7 +2,7 @@
 
 > Release/deployment workflow for LumiBot (version branches, changelog, tags, and GitHub releases).
 
-**Last Updated:** 2026-04-21
+**Last Updated:** 2026-05-10
 **Status:** Active
 **Audience:** Developers + AI Agents
 
@@ -88,7 +88,7 @@ Every release PR should include:
 - **Risk:** what could break; how to detect it quickly.
 - **Tests run:** local commands + GitHub CI.
 - **Perf evidence (if relevant):** exact commands + before/after numbers + profiler artifact path(s).
-- **Docs:** links to investigation notes / runbooks if new operational behavior was added.
+- **Docs:** links to updated `docs/` Markdown, `docsrc/` RST, investigation notes, runbooks, and visual assets for user-visible changes.
 
 ---
 
@@ -128,6 +128,19 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
    - Quick secret sanity checks (best-effort):
      - Ensure `.env*` stays untracked (except examples like `.env.local.example`).
      - Scan changed docs/scripts for tokens/keys if you touched any credentials-related files.
+
+0) **Documentation + visuals gate**
+   - For every user-visible feature, behavior change, new tool, new environment variable, or deployment/runtime change, confirm documentation exists in both places that apply:
+     - `docs/` Markdown for developer/runbook/reference docs.
+     - `docsrc/` RST for published user-facing documentation.
+   - Update the PR description with the exact documentation files changed.
+   - Include visual aids whenever they would make the change easier to understand:
+     - screenshots for UI or workflow changes,
+     - flow diagrams for architecture/runtime/tool-call behavior,
+     - sequence diagrams for deployment, broker, agent, credential, or data-provider flows.
+   - Prefer generated or reproducible visuals checked into the appropriate docs assets folder, with source prompts/scripts noted when practical.
+   - If a change genuinely does not need docs or visuals, state that explicitly in the PR description under **Docs** with the reason.
+   - If docs are changed, run the relevant docs build or at minimum inspect the changed RST/Markdown for broken references and missing images before release.
 
 0) **Sync your local repo**
    - `git switch dev && git pull --ff-only`

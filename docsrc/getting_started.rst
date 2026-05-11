@@ -24,6 +24,11 @@ At `BotSpot <https://botspot.trade/?utm_source=documentation&utm_medium=referral
 - **Join 2,400+ traders** — Connect with other builders in our Discord community
 - **Take our AI Bootcamp** — Live hands-on training to master automated trading
 
+.. image:: ../docs/assets/readme/lumibot_botspot_launch_path.png
+   :alt: Build on Lumibot and launch on BotSpot
+   :align: center
+   :width: 100%
+
 .. important::
 
    `Start on BotSpot <https://botspot.trade/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_getting_started>`_ if you want the managed no-code path.

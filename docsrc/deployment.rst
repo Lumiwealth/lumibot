@@ -18,7 +18,7 @@ Option A — Deploy on BotSpot (Recommended)
 **Why BotSpot:**
 
 - **No infrastructure to manage.** No servers, no deploy files, no environment-variable setup.
-- **Broker integrations built in.** Alpaca, Interactive Brokers, Tradier, Schwab, and more already wired up.
+- **Broker integrations built in.** Alpaca, Interactive Brokers, Tradier, Schwab, Tradovate, TopstepX via ProjectX, Bitunix, Coinbase, Kraken, WEEX, KuCoin, Binance, BitMEX, Bybit, and OKX have documented Lumibot paths.
 - **Backtest in the browser.** Test your strategy on historical data with one click before going live.
 - **Marketplace of proven strategies.** Browse community strategies and deploy any of them without writing code.
 - **Paper and live trading.** Start in paper mode, switch to live when you are ready.

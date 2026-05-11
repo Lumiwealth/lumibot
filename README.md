@@ -35,16 +35,24 @@ In that pattern, read-only research agents gather evidence and a trading-enabled
 
 Built-in AI agent tools include market/account state, order inspection, DuckDB queries, documentation search, Alpaca news when credentials exist, technical indicators, SEC fundamentals and filings, FRED macro data, local memory, and Telegram notifications.
 
+<p align="center">
+  <img src="docs/assets/readme/lumibot_agent_flows.png" alt="Lumibot agent flows are plain Python" width="100%">
+</p>
+
 ## Build Without Code on BotSpot
 
 **[BotSpot](https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot)** is the managed cloud product built on Lumibot. Use it when you want to describe a strategy in plain English, have AI generate Lumibot code, backtest it, and deploy it without managing servers.
 
 - **Build** strategies using natural language -- the AI writes production-ready Lumibot code for you
 - **Backtest** against years of historical data with a single click
-- **Deploy** to live trading with real brokers (Alpaca, Interactive Brokers, and more)
+- **Deploy** to live trading with real brokers including Alpaca, Interactive Brokers, Tradier, Schwab, Tradovate, TopstepX via ProjectX, Bitunix, Coinbase, Kraken, WEEX, KuCoin, Binance, BitMEX, Bybit, and OKX
 - **Browse** a marketplace of proven, community-built strategies you can run immediately
 
 **Start on BotSpot:** [Build, backtest, and deploy AI trading bots](https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot)
+
+<p align="center">
+  <img src="docs/assets/readme/lumibot_botspot_launch_path.png" alt="Build on Lumibot and launch on BotSpot" width="100%">
+</p>
 
 ## Quick Start
 
@@ -138,6 +146,10 @@ trader.run_all()
 
 Lumibot supports stocks, options, crypto, futures, forex, and indexes across several broker integrations:
 
+<p align="center">
+  <img src="docs/assets/readme/lumibot_brokers_data_sources.png" alt="Lumibot broker and data source integrations" width="100%">
+</p>
+
 - Alpaca
 - Interactive Brokers and Interactive Brokers REST
 - Tradier
@@ -177,6 +189,10 @@ Lumibot includes a built-in AI trading agent runtime. Build agents that run iden
 - Use **DuckDB** for time-series analysis instead of dumping raw bars into prompts
 - Mount external **MCP servers** for news, macro data, filings, or any domain-specific tools
 - Replay identical agent decisions in **backtests** without paying for another model call
+
+<p align="center">
+  <img src="docs/assets/readme/lumibot_point_in_time_tools.png" alt="Point-in-time AI agent tools prevent look-ahead bias" width="100%">
+</p>
 
 Start here:
 - [Agent Documentation](https://lumibot.lumiwealth.com/agents.html)

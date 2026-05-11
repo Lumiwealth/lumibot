@@ -11,6 +11,11 @@ review step, or a full multi-model debate. LumiBot provides the agent runtime,
 built-in tools, point-in-time backtesting, replay artifacts, and order
 permissions. Your strategy decides the flow.
 
+.. image:: ../docs/assets/readme/lumibot_agent_flows.png
+   :alt: Lumibot agent flows are plain Python
+   :align: center
+   :width: 100%
+
 Two Strategy Styles
 -------------------
 

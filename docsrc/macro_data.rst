@@ -5,6 +5,9 @@ LumiBot includes native Federal Reserve Economic Data (FRED) macro tools for
 strategies and AI agents. Use these tools for interest rates, inflation,
 employment, growth, liquidity, credit spreads, and market-risk context.
 
+.. image:: ../docs/assets/ai_committee/docs_fred_macro_data.png
+   :alt: FRED macro data tools and point-in-time behavior in Lumibot
+
 Strategy API
 ------------
 

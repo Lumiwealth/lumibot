@@ -239,7 +239,7 @@ Frequently Asked Questions
 
 **Which demo should I start with?**
 
-Start with ``agent_m2_liquidity.py`` if you want the simplest setup -- it only needs ``GEMINI_API_KEY`` because FRED data is public. If you want to test another provider without changing strategy code, use ``agent_m2_liquidity_openai.py``, ``agent_m2_liquidity_grok.py``, or ``agent_m2_liquidity_anthropic.py``. Start with ``agent_news_sentiment.py`` if you want a multi-stock news-driven strategy and have Alpaca API keys.
+Start with ``agent_m2_liquidity.py`` if you want the simplest setup -- it only needs a model-provider key because the demo uses FRED's public graph CSV endpoint. That endpoint is revised data, so use the built-in FRED tools with ``FRED_API_KEY`` for strict point-in-time macro backtests. If you want to test another provider without changing strategy code, use ``agent_m2_liquidity_openai.py``, ``agent_m2_liquidity_grok.py``, or ``agent_m2_liquidity_anthropic.py``. Start with ``agent_news_sentiment.py`` if you want a multi-stock news-driven strategy and have Alpaca API keys.
 
 **Do these demos work out of the box?**
 

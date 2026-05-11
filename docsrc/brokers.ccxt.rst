@@ -36,7 +36,7 @@ Features
 --------
 
 * **Cryptocurrency Trading**: Spot and margin trading
-* **Selected Exchanges**: Coinbase, Kraken, KuCoin, Binance, BitMEX, WEEX, Bybit, and OKX across live/manual/backtesting paths
+* **Selected Exchanges**: Coinbase, Kraken, and WEEX have auto-detected credential paths; KuCoin, Binance, and BitMEX have documented manual setup paths; Kraken, Binance, KuCoin, BitMEX, Bybit, and OKX have documented backtesting examples
 * **Real-time Data**: Live order and position updates
 * **Order Types**: Market, limit, stop orders
 * **Auto-Detection**: Automatically connects when environment variables are set

@@ -296,7 +296,7 @@ No. All built-in tools (positions, portfolio, prices, orders, DuckDB, docs) are 
 
 **What API keys do I need?**
 
-At minimum, one model provider key matching your ``default_model``. The default is Gemini, which needs ``GEMINI_API_KEY``. LumiBot also supports ``openai/...`` ids (needs ``OPENAI_API_KEY``), ``xai/...`` ids for Grok (needs ``XAI_API_KEY`` or ``GROK_API_KEY``), and ``anthropic/...`` ids for Claude (needs ``ANTHROPIC_API_KEY``). If your ``@agent_tool`` functions call external APIs, you also need those keys -- for example ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for Alpaca-based demos. The M2 Liquidity demo only needs one model-provider key because FRED data is public.
+At minimum, one model provider key matching your ``default_model``. The default is Gemini, which needs ``GEMINI_API_KEY``. LumiBot also supports ``openai/...`` ids (needs ``OPENAI_API_KEY``), ``xai/...`` ids for Grok (needs ``XAI_API_KEY`` or ``GROK_API_KEY``), and ``anthropic/...`` ids for Claude (needs ``ANTHROPIC_API_KEY``). If your ``@agent_tool`` functions call external APIs, you also need those keys -- for example ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for Alpaca-based demos. The M2 Liquidity demo only needs one model-provider key because it uses FRED's public revised-data CSV endpoint; strict point-in-time macro backtests should use the built-in FRED tools with ``FRED_API_KEY``.
 
 **How long should my system prompt be?**
 

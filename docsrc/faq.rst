@@ -83,7 +83,7 @@ AI trading agents are LLM-powered decision makers that run inside your strategy.
 Why is LumiBot's approach to AI agent trading unique?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-LumiBot is the **only production framework** that puts an AI agent inside the backtest simulation loop. Most platforms either bolt an LLM onto the side (no bar-by-bar reasoning), provide agent frameworks with no backtesting capability (CrewAI, AutoGen, LangGraph), or are hobby scripts without infrastructure. LumiBot combines LLM-in-the-loop reasoning, external tool access, replay caching, DuckDB queries, and full observability -- all in one framework.
+LumiBot's key difference is that it puts AI agents inside the backtest simulation loop. Most platforms either bolt an LLM onto the side (no bar-by-bar reasoning), provide agent frameworks with no backtesting capability (CrewAI, AutoGen, LangGraph), or are hobby scripts without infrastructure. LumiBot combines LLM-in-the-loop reasoning, external tool access, replay caching, DuckDB queries, and full observability -- all in one framework.
 
 Can I really backtest an AI trading agent?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -309,7 +309,7 @@ LumiBot ships four reference demo strategies in ``lumibot/example_strategies/``:
 3. **Momentum Allocator** (``agent_momentum_allocator.py``) -- momentum + sentiment using price bars and news
 4. **M2 Liquidity** (``agent_m2_liquidity.py``) -- liquidity-driven allocation using FRED money supply data
 
-Start with the M2 Liquidity demo -- it only needs ``GEMINI_API_KEY`` since FRED data is public.
+Start with the M2 Liquidity demo if you want the fewest credentials. It only needs a model-provider key because the demo uses FRED's public revised-data CSV endpoint. For strict point-in-time macro backtests, use the built-in FRED tools with ``FRED_API_KEY``.
 
 How much does it cost to run AI agent backtests?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -652,7 +652,7 @@ Crypto Trading
 How do I set up crypto trading?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-LumiBot uses selected CCXT paths for crypto. Documented CCXT examples include Coinbase, Kraken, KuCoin, Binance, BitMEX, WEEX, Bybit, and OKX across live/manual/backtesting paths. LumiBot does not claim support for every CCXT exchange. Set your exchange API keys as environment variables or pass an explicit ``Ccxt`` config, then call ``set_market("24/7")`` in ``initialize()``:
+LumiBot uses selected CCXT paths for crypto. Coinbase, Kraken, and WEEX have auto-detected credential paths. KuCoin, Binance, and BitMEX have documented manual CCXT setup paths. Kraken, Binance, KuCoin, BitMEX, Bybit, and OKX have documented CCXT backtesting examples. LumiBot does not claim support for every CCXT exchange. Set your exchange API keys as environment variables or pass an explicit ``Ccxt`` config, then call ``set_market("24/7")`` in ``initialize()``:
 
 .. code-block:: python
 
@@ -765,7 +765,7 @@ LumiBot supports the following brokers:
 - **Tradovate** -- futures (CME Group markets)
 - **TopstepX (via ProjectX)** -- futures
 - **Bitunix** -- crypto futures
-- **Selected CCXT crypto paths** -- Coinbase, Kraken, KuCoin, Binance, BitMEX, WEEX, Bybit, and OKX across live/manual/backtesting examples; not every CCXT exchange is supported automatically
+- **Selected CCXT crypto paths** -- Coinbase, Kraken, and WEEX have auto-detected credential paths; KuCoin, Binance, and BitMEX have documented manual CCXT setup paths; Kraken, Binance, KuCoin, BitMEX, Bybit, and OKX have documented backtesting examples
 
 How do I configure my broker credentials?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -1,7 +1,7 @@
 AI Trading Agents and Agentic Backtesting
 ==========================================
 
-LumiBot is the only production framework that lets an AI agent reason, call external tools, and execute trades **on every bar during a backtest** -- then run the exact same strategy code live. Whether you use ``@agent_tool`` to wrap any REST API as a callable tool or connect to one of 20,000+ external `MCP servers <https://modelcontextprotocol.io/>`_, LumiBot handles it in one unified codebase. A built-in replay cache makes warm reruns deterministic and fast. Whether you want to backtest an AI trading agent, build an agentic backtesting framework, or connect LLM-driven trading bots to live brokers, LumiBot handles it all.
+LumiBot lets an AI agent reason, call external tools, and execute trades **on every bar during a backtest** -- then run the exact same strategy code live. Whether you use ``@agent_tool`` to wrap any REST API as a callable tool or connect to one of 20,000+ external `MCP servers <https://modelcontextprotocol.io/>`_, LumiBot handles it in one unified codebase. A built-in replay cache makes warm reruns deterministic and fast. Whether you want to backtest an AI trading agent, build an agentic backtesting framework, or connect LLM-driven trading bots to live brokers, LumiBot handles it all.
 
 .. toctree::
    :maxdepth: 1
@@ -308,11 +308,11 @@ Frequently Asked Questions
 
 **Can I backtest an AI trading agent?**
 
-Yes, LumiBot is the only production framework that lets an AI agent reason, call tools, and execute trades on every bar during a backtest. The agent runs inside ``on_trading_iteration()``, receives point-in-time market state, and uses tools to make decisions -- all within the backtest simulation. A built-in replay cache makes warm reruns deterministic and fast.
+Yes. LumiBot lets an AI agent reason, call tools, and execute trades on every bar during a backtest. The agent runs inside ``on_trading_iteration()``, receives point-in-time market state, and uses tools to make decisions -- all within the backtest simulation. A built-in replay cache makes warm reruns deterministic and fast.
 
 **What makes LumiBot different from other AI trading frameworks?**
 
-Most alternatives either put the LLM outside the backtest loop (QuantConnect), have no backtesting at all (CrewAI, AutoGen, LangGraph), or are hobby scripts with no infrastructure. LumiBot is the only production framework that runs the AI agent inside the backtest simulation on every bar, with ``@agent_tool`` for reliable external data, MCP server support, replay caching, DuckDB time-series queries, and full observability -- all with the same code for backtest and live.
+Most alternatives either put the LLM outside the backtest loop (QuantConnect), have no backtesting at all (CrewAI, AutoGen, LangGraph), or are hobby scripts with no infrastructure. LumiBot runs the AI agent inside the backtest simulation on every bar, with ``@agent_tool`` for reliable external data, MCP server support, replay caching, DuckDB time-series queries, and full observability -- all with the same code for backtest and live.
 
 **What AI models are supported?**
 
@@ -345,7 +345,7 @@ Yes. The same strategy code runs in both backtest and live modes. For live tradi
 
 **Does it work with my broker?**
 
-LumiBot supports Alpaca, Interactive Brokers, Tradier, Schwab, Tradovate, TopstepX futures (via ProjectX), Bitunix, and selected CCXT crypto paths. Documented CCXT examples include Coinbase, Kraken, KuCoin, Binance, BitMEX, WEEX, Bybit, and OKX across live/manual/backtesting paths; Lumibot does not claim support for every CCXT exchange. Any broker supported by LumiBot works with AI agents. The agent submits orders through the standard LumiBot order execution pipeline.
+LumiBot supports Alpaca, Interactive Brokers, Tradier, Schwab, Tradovate, TopstepX futures (via ProjectX), Bitunix, and selected CCXT crypto paths. Coinbase, Kraken, and WEEX have auto-detected credential paths; KuCoin, Binance, and BitMEX have documented manual CCXT setup paths; Kraken, Binance, KuCoin, BitMEX, Bybit, and OKX have documented backtesting examples. Lumibot does not claim support for every CCXT exchange. Any broker supported by LumiBot works with AI agents. The agent submits orders through the standard LumiBot order execution pipeline.
 
 **What is @agent_tool?**
 

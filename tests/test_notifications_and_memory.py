@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+import requests
+
 from lumibot.components.memory import MemoryStore
 from lumibot.components.notifications import NotificationManager
 
@@ -49,6 +51,24 @@ def test_telegram_notification_provider_posts_payload(monkeypatch):
     assert calls[0]["url"] == "https://api.telegram.org/bottoken/sendMessage"
     assert calls[0]["json"]["chat_id"] == "chat"
     assert "Bought AAPL" in calls[0]["json"]["text"]
+
+
+def test_telegram_notification_provider_does_not_return_token_on_failure(monkeypatch):
+    def fake_post(url, json, timeout):
+        response = requests.Response()
+        response.status_code = 401
+        raise requests.HTTPError(f"401 Client Error for url: {url}", response=response)
+
+    monkeypatch.setattr("lumibot.components.notifications.telegram.requests.post", fake_post)
+    manager = NotificationManager(_Strategy(), enabled=True)
+    manager.configure_telegram(bot_token="super-secret-token", chat_id="chat")
+
+    result = manager.notify("Trade decision", "Bought AAPL", severity="warning")
+
+    assert result[0].ok is False
+    assert result[0].skipped is False
+    assert result[0].reason == "telegram request failed with status 401"
+    assert "super-secret-token" not in result[0].reason
 
 
 def test_memory_store_records_and_searches_decisions(tmp_path):

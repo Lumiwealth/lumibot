@@ -145,7 +145,7 @@ Lumibot supports stocks, options, crypto, futures, forex, and indexes across sev
 - Tradovate
 - TopstepX futures (via ProjectX)
 - Bitunix
-- Selected CCXT crypto paths for Coinbase, Kraken, KuCoin, Binance, BitMEX, WEEX, Bybit, and OKX across live, manual, and backtesting examples. Lumibot does not claim blanket support for every CCXT exchange.
+- Selected CCXT crypto paths. Coinbase, Kraken, and WEEX have auto-detected credential paths; KuCoin, Binance, and BitMEX have documented manual CCXT setup paths; Kraken, Binance, KuCoin, BitMEX, Bybit, and OKX have documented backtesting examples. Lumibot does not claim blanket support for every CCXT exchange.
 
 ## Select Backtesting Data Sources
 

@@ -43,13 +43,33 @@ class TelegramNotificationProvider:
             payload["parse_mode"] = self.parse_mode
         payload.update(kwargs)
         url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
-        response = requests.post(url, json=payload, timeout=20)
-        response.raise_for_status()
+        try:
+            response = requests.post(url, json=payload, timeout=20)
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            response = getattr(exc, "response", None)
+            status_code = getattr(response, "status_code", None)
+            reason = f"telegram request failed"
+            if status_code is not None:
+                reason = f"{reason} with status {status_code}"
+            return NotificationResult(
+                ok=False,
+                provider=self.provider,
+                title=title,
+                message=message,
+                severity=severity,
+                skipped=False,
+                reason=reason,
+            )
+        try:
+            response_payload = response.json() if response.content else {}
+        except ValueError:
+            response_payload = {}
         return NotificationResult(
             ok=True,
             provider=self.provider,
             title=title,
             message=message,
             severity=severity,
-            payload=response.json() if response.content else {},
+            payload=response_payload,
         )

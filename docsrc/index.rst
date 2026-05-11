@@ -9,7 +9,7 @@ Lumibot: Backtesting and Algorithmic Trading Library
 AI Trading Agents -- Backtest AI Agents with Real External Tools
 *****************************************************************
 
-LumiBot is the **only production framework** where an AI agent reasons, calls external tools, and makes trading decisions **on every bar during a backtest** -- then runs the exact same code live. This is real agentic backtesting: the LLM is inside the simulation loop, not bolted onto the side.
+LumiBot is built for **AI agents that reason, call external tools, and make trading decisions on every bar during a backtest** -- then run the exact same code live. This is real agentic backtesting: the LLM is inside the simulation loop, not bolted onto the side.
 
 - **Backtest AI trading agents** with real external data from 20,000+ MCP servers
 - **LLM in the loop on every bar** -- the agent reasons over point-in-time market state, calls tools, and submits orders

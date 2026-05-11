@@ -20,11 +20,11 @@
 
 ## Image Generation Rule (CRITICAL)
 
-- For any generated or AI-edited image, infographic, diagram, marketing visual, README visual, documentation visual, or repo asset image, use Nano Banana v3+ (`mcp__nano_banana__generate_image` / `mcp__nano_banana__edit_image`) or GPT Image 2+ quality only.
-- This is non-negotiable for flow diagrams, architecture diagrams, sequence diagrams, screenshots-as-illustrations, and documentation visuals. Use models strong enough for readable labels, arrows, and layout.
+- For any generated or AI-edited image, infographic, diagram, marketing visual, README visual, documentation visual, or repo asset image, use Nano Banana MCP only (`mcp__nano_banana__generate_image` / `mcp__nano_banana__edit_image`).
+- This is non-negotiable for flow diagrams, architecture diagrams, sequence diagrams, screenshots-as-illustrations, and documentation visuals. Use Nano Banana with reference images/profiles strong enough for readable labels, arrows, branding, and layout.
 - Never use generic image generators, cheaper/lower-quality image models, local SVG/HTML/canvas placeholders, Python drawing scripts, Mermaid screenshots, manually assembled box diagrams, or other fallback image pipelines for generated documentation/product images.
 - Every generated image must be visually inspected before it is committed. Reject outputs with broken/missing text, awkward arrows, cluttered layouts, inaccurate product claims, or anything that looks like a placeholder.
-- If Nano Banana v3+ or GPT Image 2+ access is unavailable or broken, stop and report that blocker instead of making replacement images another way.
+- If Nano Banana MCP access is unavailable or broken, stop and report that blocker instead of making replacement images another way.
 
 ## Backtesting Accuracy (Definition)
 

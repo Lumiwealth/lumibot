@@ -793,7 +793,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             raise ValueError(f"The dataframe is missing the following required columns: {', '.join(missing_columns)}")
 
         if timestep not in ['day', 'minute']:
-            raise ValueError(f"The timestep must be 'day' or 'minute'.")
+            raise ValueError("The timestep must be 'day' or 'minute'.")
 
         # For daily bars, we want to preserve original timestamps but add missing days
         if timestep == 'day':

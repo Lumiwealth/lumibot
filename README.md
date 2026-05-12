@@ -4,11 +4,19 @@
 [![Python](https://img.shields.io/pypi/pyversions/lumibot)](https://pypi.org/project/lumibot/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-# Lumibot: Python Trading Strategies + AI Agents
+# Lumibot: Backtestable AI Trading Agents for Algorithmic Trading
 
-**The same Python strategy can run in a backtest, paper account, or live broker account.** Lumibot is an open-source trading framework for deterministic strategies, AI-agent strategies, stocks, options, crypto, futures, forex, and real broker execution.
+**Build deterministic trading strategies, multi-agent LLM trading systems, and hybrid strategies that backtest, paper trade, and execute through real brokers.** Lumibot is an open-source algorithmic trading framework for stocks, options, crypto, futures, forex, indexes, SEC fundamentals, macro data, technical indicators, and AI agents that can actually place orders.
 
 **Full docs:** [lumibot.lumiwealth.com](https://lumibot.lumiwealth.com/) · **No-code cloud:** [BotSpot.trade](https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot)
+
+<p align="center">
+  <a href="https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot">
+    <strong>Build, backtest, and deploy an AI trading bot on BotSpot</strong>
+  </a>
+  <br>
+  Describe a strategy in plain English. BotSpot generates Lumibot code, runs the backtest, and deploys it in the cloud.
+</p>
 
 <p align="center">
   <img src="docs/assets/readme/lumibot_ai_trading_agents_overview.png" alt="Lumibot AI trading agents overview" width="100%">
@@ -21,9 +29,11 @@
 - **Backtests:** replay historical data and simulated orders with artifacts you can inspect.
 - **Paper or live trading:** reuse the same strategy code with real broker state and real order routing.
 
-## AI Agents Are Optional, Not The Whole Product
+## Backtestable AI Trading Agents
 
-Lumibot now includes a built-in AI agent runtime, but you can still write classic Python trading strategies exactly as before. AI agents are useful when the strategy needs reasoning: reading filings, comparing news, checking macro context, debating a thesis, or explaining why a trade should happen.
+Lumibot now includes a built-in AI agent runtime for financial research, reasoning, debate, risk review, and trade execution. Agents can inspect market data, read filings, query indicators, search memory, compare macro context, and submit orders through the same Lumibot strategy loop used by normal backtests and live trading.
+
+Classic Python strategies are still first-class. The point is not to replace deterministic trading logic. The point is that Lumibot lets you choose the right level of intelligence: fixed rules, AI agents, or a hybrid where Python handles the hard gates and agents reason through evidence.
 
 An investment committee is one example pattern:
 
@@ -31,7 +41,7 @@ An investment committee is one example pattern:
   <img src="docs/assets/readme/lumibot_investment_committee_architecture.png" alt="Lumibot AI investment committee architecture" width="100%">
 </p>
 
-In that pattern, read-only research agents gather evidence and a trading-enabled portfolio manager decides whether to place Lumibot orders. Other agent designs are possible: a single research agent, a pair of specialist agents, a strategy-refinement agent, or a risk-review agent layered on top of deterministic logic.
+In that pattern, read-only research agents gather evidence and a trading-enabled portfolio manager decides whether to place Lumibot orders. It is one pattern, not the only pattern. You can build a single-agent strategy, a specialist research flow, bull/bear/neutral committees, model-vs-model debates, deterministic execution gates, or agent reviewers layered on top of normal Python logic.
 
 Built-in AI agent tools include market/account state, order inspection, DuckDB queries, documentation search, Alpaca news when credentials exist, technical indicators, SEC fundamentals and filings, FRED macro data, local memory, and Telegram notifications.
 

@@ -2,7 +2,7 @@
 
 ## 4.5.11 - 2026-05-12
 
-Deploy marker: pending (`deploy 4.5.11`)
+Deploy marker: 4.5.11 release commit (`deploy 4.5.11`)
 
 ### Added
 - **Scheduled live execution can run one iteration and exit for BotManager scheduled runs.** When BotManager sets `LUMIBOT_SCHEDULED_EXECUTION`, LumiBot restores persisted `self.vars`, runs one live iteration, persists the updated state file, and exits cleanly.

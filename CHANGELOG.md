@@ -5,6 +5,7 @@
 Deploy marker: pending (`deploy 4.5.11`)
 
 ### Added
+- **Scheduled live execution can run one iteration and exit for BotManager scheduled runs.** When BotManager sets `LUMIBOT_SCHEDULED_EXECUTION`, LumiBot restores persisted `self.vars`, runs one live iteration, persists the updated state file, and exits cleanly.
 - **AI agent strategies now support richer multi-agent workflows.** Added per-agent model selection, `allow_trading=False` tool restrictions for research-only agents, and an AI investment committee example that runs researcher, bull-case, bear-case, and portfolio-manager agents inside the normal `on_trading_iteration()` flow.
 - **Built-in SEC fundamentals and filing tools for agents and strategies.** Added direct SEC EDGAR access with local caching, rate limiting, SEC user-agent support, company facts, normalized income statement / balance sheet / cash-flow helpers, filing lists, filing document retrieval, and keyword search over cached filings. Backtests gate filings by filed / accepted timestamps so agents do not see future disclosures.
 - **Built-in FRED macro tools.** Added official FRED/ALFRED API helpers for series lookup, latest values, historical observations, and point-in-time snapshots using `realtime_start` / `realtime_end`. FRED data fetches require `FRED_API_KEY` and cache under the Lumibot cache directory.

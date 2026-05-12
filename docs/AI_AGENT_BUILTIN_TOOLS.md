@@ -43,7 +43,7 @@ FRED macro tools:
 - `get_fred_latest`
 - `get_fred_snapshot`
 
-In backtests, built-in FRED tools require `FRED_API_KEY` so Lumibot can request vintage data using FRED/ALFRED realtime parameters. Without a key, built-in FRED tools are not exposed during backtests. In live runs and simple examples, the no-key public FRED graph CSV endpoint is available, but it may contain revised values.
+Built-in FRED tools require `FRED_API_KEY` so Lumibot can request official FRED/ALFRED observations with `realtime_start` and `realtime_end`. Lumibot does not use public CSV fallbacks for macro data, because those endpoints can contain revised values and are not a safe default for historical simulations.
 
 Memory tools:
 

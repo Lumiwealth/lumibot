@@ -14,7 +14,7 @@ LumiBot has a first-class AI agent runtime inside the `Strategy` lifecycle. An A
 
 The primary way to give your agent access to external data is the `@agent_tool` decorator, which wraps any REST API as a callable tool using the `requests` library. This pattern works reliably in both backtests and live trading. MCP servers via URL are also supported for live trading or when you have a compatible server.
 
-The quick-start FRED example below uses the public graph CSV endpoint because it keeps the sample short. That endpoint returns revised data. For strict point-in-time macro backtests, use the built-in FRED tools with `FRED_API_KEY` instead.
+The quick-start macro example below uses Lumibot's built-in FRED tools. Those tools require `FRED_API_KEY` and use official FRED/ALFRED realtime parameters so backtests do not accidentally see future macro revisions.
 
 If you are looking for an agentic backtesting framework, an LLM trading bot backtest solution, or a way to backtest AI-driven trading strategies with external data, LumiBot is the only production-ready option that puts the AI agent inside the simulation loop.
 
@@ -48,58 +48,10 @@ LumiBot combines:
 ## Quick Start
 
 ```python
-import csv
-import io
-import os
-import requests
-
-from lumibot.components.agents import agent_tool
 from lumibot.strategies import Strategy
 
 
 class M2LiquidityStrategy(Strategy):
-
-    @agent_tool(
-        name="get_fred_series",
-        description=(
-            "Fetch economic data from FRED (Federal Reserve Economic Data). "
-            "Common series: M2SL (M2 money supply), FEDFUNDS (fed funds rate), "
-            "CPIAUCSL (CPI), UNRATE (unemployment), GDP, T10Y2Y (yield spread). "
-            "Returns date-value pairs."
-        ),
-    )
-    def get_fred_series(
-        self, series_id: str, start_date: str = "2020-01-01", end_date: str = ""
-    ) -> dict:
-        """Fetch a FRED series using the public CSV endpoint.
-
-        Args:
-            series_id: FRED series identifier (e.g., M2SL, FEDFUNDS, CPIAUCSL)
-            start_date: Start date in YYYY-MM-DD format
-            end_date: End date in YYYY-MM-DD format
-        """
-        params = {"id": series_id}
-        if start_date:
-            params["cosd"] = start_date
-        if end_date:
-            params["coed"] = end_date
-        try:
-            resp = requests.get(
-                "https://fred.stlouisfed.org/graph/fredgraph.csv",
-                params=params, timeout=15,
-            )
-            resp.raise_for_status()
-            reader = csv.DictReader(io.StringIO(resp.text))
-            observations = []
-            for row in reader:
-                date = row.get("observation_date", "")
-                value = row.get(series_id, ".")
-                if value and value != ".":
-                    observations.append({"date": date, "value": float(value)})
-            return {"series_id": series_id, "count": len(observations), "observations": observations}
-        except Exception as e:
-            return {"error": str(e), "series_id": series_id}
-
     def initialize(self):
         self.sleeptime = "1D"
         self.agents.create(
@@ -110,7 +62,6 @@ class M2LiquidityStrategy(Strategy):
                 "TQQQ and SHV. Focus on whether M2 liquidity is expanding "
                 "or contracting."
             ),
-            tools=[self.get_fred_series],
         )
 
     def on_trading_iteration(self):
@@ -129,7 +80,9 @@ if __name__ == "__main__":
         )
 ```
 
-No local MCP server scripts. No npm installs. No explicit built-in tool lists. The `@agent_tool` decorator wraps a standard REST API call. LumiBot includes all built-in tools by default alongside your custom tools.
+The agent gets Lumibot's built-in `get_fred_series` tool automatically when `FRED_API_KEY` is configured. During backtests the tool defaults `as_of` to the strategy datetime and uses FRED/ALFRED realtime parameters, so the agent does not see future macro revisions.
+
+No local MCP server scripts. No npm installs. No explicit built-in tool lists. Lumibot includes all built-in tools by default, and you can add custom `@agent_tool` functions when you need proprietary APIs or special research logic.
 
 ---
 
@@ -283,7 +236,7 @@ Install LumiBot, set `GEMINI_API_KEY` in your environment, copy the Quick Start 
 
 **What API keys do I need?**
 
-At minimum, `GEMINI_API_KEY` for the Gemini model that powers the agent. If your `@agent_tool` functions call external APIs, you also need those keys -- for example `ALPACA_API_KEY` and `ALPACA_API_SECRET` for Alpaca data APIs. The M2 Liquidity demo uses the public FRED graph CSV endpoint, which is useful for a simple demo but returns revised data. Use the built-in FRED tools with `FRED_API_KEY` for strict point-in-time macro backtests.
+At minimum, `GEMINI_API_KEY` for the Gemini model that powers the agent. If your `@agent_tool` functions call external APIs, you also need those keys -- for example `ALPACA_API_KEY` and `ALPACA_API_SECRET` for Alpaca data APIs. Macro-data examples and built-in FRED tools require `FRED_API_KEY` so Lumibot can use the official FRED/ALFRED API and request point-in-time vintage observations in backtests.
 
 **How do I set up my environment?**
 
@@ -315,7 +268,7 @@ Yes. Pass a list of tools when creating the agent: `tools=[self.tool_a, self.too
 
 **What REST APIs can I wrap with @agent_tool?**
 
-Any REST API that returns JSON or text. The four canonical demos wrap Alpaca News API, Alpaca Bars API, Alpaca Screener API, and the FRED public CSV endpoint. You can wrap Alpha Vantage, your own internal services, SEC EDGAR, social sentiment APIs, or anything else accessible over HTTP.
+Any REST API that returns JSON or text. The canonical demos wrap Alpaca News API, Alpaca Bars API, Alpaca Screener API, and other HTTP services. For FRED macro data, prefer Lumibot's built-in FRED tools because they use the official API with realtime vintage parameters for point-in-time backtests. You can wrap Alpha Vantage, your own internal services, SEC EDGAR, social sentiment APIs, or anything else accessible over HTTP.
 
 **How do I add authentication to my tool?**
 

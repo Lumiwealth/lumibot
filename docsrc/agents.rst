@@ -37,62 +37,14 @@ LumiBot is different because it combines all of these in one framework:
 Quick Start
 -----------
 
-Here is a complete AI trading agent strategy that uses ``@agent_tool`` to fetch economic data from FRED and make trading decisions:
+Here is a complete AI trading agent strategy that uses Lumibot's built-in FRED macro tools and makes trading decisions:
 
 .. code-block:: python
 
-    import csv
-    import io
-    import os
-    import requests
-
-    from lumibot.components.agents import agent_tool
     from lumibot.strategies import Strategy
 
 
     class M2LiquidityStrategy(Strategy):
-
-        @agent_tool(
-            name="get_fred_series",
-            description=(
-                "Fetch economic data from FRED (Federal Reserve Economic Data). "
-                "Common series: M2SL (M2 money supply), FEDFUNDS (fed funds rate), "
-                "CPIAUCSL (CPI), UNRATE (unemployment), GDP, T10Y2Y (yield spread). "
-                "Returns date-value pairs."
-            ),
-        )
-        def get_fred_series(
-            self, series_id: str, start_date: str = "2020-01-01", end_date: str = ""
-        ) -> dict:
-            """Fetch a FRED series using the public CSV endpoint.
-
-            Args:
-                series_id: FRED series identifier (e.g., M2SL, FEDFUNDS, CPIAUCSL)
-                start_date: Start date in YYYY-MM-DD format
-                end_date: End date in YYYY-MM-DD format
-            """
-            params = {"id": series_id}
-            if start_date:
-                params["cosd"] = start_date
-            if end_date:
-                params["coed"] = end_date
-            try:
-                resp = requests.get(
-                    "https://fred.stlouisfed.org/graph/fredgraph.csv",
-                    params=params, timeout=15,
-                )
-                resp.raise_for_status()
-                reader = csv.DictReader(io.StringIO(resp.text))
-                observations = []
-                for row in reader:
-                    date = row.get("observation_date", "")
-                    value = row.get(series_id, ".")
-                    if value and value != ".":
-                        observations.append({"date": date, "value": float(value)})
-                return {"series_id": series_id, "count": len(observations), "observations": observations}
-            except Exception as e:
-                return {"error": str(e), "series_id": series_id}
-
         def initialize(self):
             self.sleeptime = "1D"
             self.agents.create(
@@ -103,7 +55,6 @@ Here is a complete AI trading agent strategy that uses ``@agent_tool`` to fetch 
                     "TQQQ and SHV. Focus on whether M2 liquidity is expanding "
                     "or contracting."
                 ),
-                tools=[self.get_fred_series],
             )
 
         def on_trading_iteration(self):
@@ -121,7 +72,7 @@ Here is a complete AI trading agent strategy that uses ``@agent_tool`` to fetch 
                 benchmark_asset="SPY",
             )
 
-That is the entire strategy file. No local MCP server scripts, no npm installs, no explicit built-in tool lists. The ``@agent_tool`` decorator wraps a standard REST API call using the ``requests`` library. LumiBot includes all built-in tools by default alongside your custom tools.
+That is the entire strategy file. No local MCP server scripts, no npm installs, and no explicit built-in tool lists. LumiBot includes built-in tools by default, including ``get_fred_series`` when ``FRED_API_KEY`` is configured.
 
 How ``@agent_tool`` Works
 -------------------------
@@ -130,7 +81,7 @@ The ``@agent_tool`` decorator is the primary way to give your AI agent access to
 
 **Key feature: automatic source code inclusion.** When you decorate a method with ``@agent_tool``, LumiBot automatically includes the function's source code in the tool description sent to the AI. This means the AI can see all parameters, default values, and implementation details without you having to describe them manually. Write a clear docstring with an ``Args`` section, and the AI will understand how to call your tool correctly.
 
-The introductory FRED examples on this page use the public graph CSV endpoint because it keeps the sample short. That endpoint returns revised data. For strict point-in-time macro backtests, use the built-in FRED tools with ``FRED_API_KEY`` instead.
+The introductory macro examples on this page use Lumibot's built-in FRED tools. Those tools require ``FRED_API_KEY`` and use official FRED/ALFRED realtime parameters so backtests do not accidentally see future macro revisions.
 
 .. code-block:: python
 
@@ -333,7 +284,7 @@ Install LumiBot, set ``GEMINI_API_KEY`` in your environment, copy the Quick Star
 
 **What API keys do I need?**
 
-At minimum, one model provider key matching the ``default_model`` you set: ``GEMINI_API_KEY`` for Gemini (the default), ``OPENAI_API_KEY`` for GPT models, ``XAI_API_KEY`` or ``GROK_API_KEY`` for Grok, or ``ANTHROPIC_API_KEY`` for Claude. If your ``@agent_tool`` functions call external APIs, you also need those keys -- for example ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for Alpaca data APIs. The M2 Liquidity demo uses the public FRED graph CSV endpoint, which is useful for a simple demo but returns revised data. Use the built-in FRED tools with ``FRED_API_KEY`` for strict point-in-time macro backtests.
+At minimum, one model provider key matching the ``default_model`` you set: ``GEMINI_API_KEY`` for Gemini (the default), ``OPENAI_API_KEY`` for GPT models, ``XAI_API_KEY`` or ``GROK_API_KEY`` for Grok, or ``ANTHROPIC_API_KEY`` for Claude. If your ``@agent_tool`` functions call external APIs, you also need those keys -- for example ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for Alpaca data APIs. Macro-data examples and built-in FRED tools require ``FRED_API_KEY`` so LumiBot can use the official FRED/ALFRED API and request point-in-time vintage observations in backtests.
 
 **How do I set up my environment?**
 
@@ -365,7 +316,7 @@ Yes. Pass a list of tools when creating the agent: ``tools=[self.tool_a, self.to
 
 **What REST APIs can I wrap with @agent_tool?**
 
-Any REST API that returns JSON or text. The four canonical demos wrap Alpaca News API, Alpaca Bars API, Alpaca Screener API, and the FRED public CSV endpoint. You can wrap Alpha Vantage, your own internal services, SEC EDGAR, social sentiment APIs, or anything else accessible over HTTP.
+Any REST API that returns JSON or text. The canonical demos wrap Alpaca News API, Alpaca Bars API, Alpaca Screener API, and other HTTP services. For FRED macro data, prefer Lumibot's built-in FRED tools because they use the official API with realtime vintage parameters for point-in-time backtests. You can wrap Alpha Vantage, your own internal services, SEC EDGAR, social sentiment APIs, or anything else accessible over HTTP.
 
 **How do I add authentication to my tool?**
 

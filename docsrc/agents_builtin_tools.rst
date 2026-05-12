@@ -103,11 +103,10 @@ FRED tools expose macroeconomic series to agents:
 - ``get_fred_latest``
 - ``get_fred_snapshot``
 
-For strict point-in-time backtests, set ``FRED_API_KEY`` so LumiBot can request
-FRED/ALFRED vintage observations using realtime parameters. Without a key,
-the public FRED graph CSV endpoint can be used for live context or simple
-examples, but it may contain revised values and is not exposed by default in
-point-in-time backtests.
+Set ``FRED_API_KEY`` so LumiBot can request FRED/ALFRED vintage observations
+using realtime parameters. LumiBot's built-in FRED tools do not use public CSV
+fallbacks; macro tool output should either come from the official API or fail
+clearly.
 
 News
 ----

@@ -28,22 +28,15 @@ You do not need to manually attach these tools. They are included with the rest 
 
 `FRED_API_KEY` is required for the official FRED/ALFRED API path and for strict point-in-time macro backtests.
 
-With `FRED_API_KEY`, Lumibot uses the official FRED/ALFRED API and passes `realtime_start` and `realtime_end` based on the strategy datetime. This is the strict point-in-time path for macro backtests.
+Lumibot uses the official FRED/ALFRED API and passes `realtime_start` and `realtime_end` based on the strategy datetime. This is the strict point-in-time path for macro backtests.
 
-Without `FRED_API_KEY`, Lumibot can fetch an allowlisted set of live public FRED graph CSV endpoints. The data is fetched live from FRED rather than bundled with Lumibot. It is still revised data, so use it for quick exploration or live context only, not for strict point-in-time backtests.
-
-Built-in FRED agent tools are hidden during backtests unless `FRED_API_KEY` is configured. This prevents agents from accidentally using revised public CSV data in historical simulations.
+Lumibot does not use public CSV fallbacks for macro data. Built-in FRED agent tools are hidden during backtests unless `FRED_API_KEY` is configured. This prevents agents from accidentally using macro data without a point-in-time data contract in historical simulations.
 
 ## Backtest Date Safety
 
 In a backtest, `as_of` defaults to `self.get_datetime()`.
 
-Lumibot always filters observations to `observation_date <= as_of`. With `FRED_API_KEY`, it also requests the vintage data known as of that date.
-
-Without a key, CSV mode is date-gated but not revision-safe. Tool results include:
-
-- `point_in_time_safe: false`
-- `uses_revised_data: true`
+Lumibot always filters observations to `observation_date <= as_of` and requests the vintage data known as of that date through the official API.
 
 ## Cache
 

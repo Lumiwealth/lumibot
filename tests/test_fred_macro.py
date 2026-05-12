@@ -20,33 +20,19 @@ class _Strategy:
         return datetime(2025, 1, 15, tzinfo=timezone.utc)
 
 
-def test_fred_csv_mode_is_date_gated_and_cached(monkeypatch, tmp_path):
-    calls = []
-
-    def fake_get(url, **kwargs):
-        calls.append((url, kwargs))
-        return _Response(
-            text=(
-                "observation_date,DGS10\n"
-                "2024-12-31,4.20\n"
-                "2025-01-15,4.30\n"
-                "2025-01-16,4.40\n"
-            )
-        )
-
+def test_fred_data_requires_api_key(monkeypatch, tmp_path):
     monkeypatch.delenv("FRED_API_KEY", raising=False)
-    monkeypatch.setattr("lumibot.macro.fred.requests.get", fake_get)
     fred = FREDMacroData(_Strategy(), cache_dir=tmp_path, min_request_interval_seconds=0)
 
-    result = fred.get_series("DGS10")
-    assert result["source"] == "fred_csv"
-    assert result["point_in_time_safe"] is False
-    assert result["uses_revised_data"] is True
-    assert [row["date"] for row in result["observations"]] == ["2024-12-31", "2025-01-15"]
+    try:
+        fred.get_series("DGS10")
+    except ValueError as exc:
+        assert "FRED_API_KEY is required" in str(exc)
+    else:
+        raise AssertionError("FRED macro data should require FRED_API_KEY")
 
-    again = fred.get_latest("DGS10")
-    assert again["latest"]["value"] == 4.3
-    assert len(calls) == 1
+    catalog = fred.list_series(category="rates")
+    assert any(row["series_id"] == "DGS10" for row in catalog["series"])
 
 
 def test_fred_api_mode_uses_vintage_params_and_filters_future_observations(monkeypatch, tmp_path):

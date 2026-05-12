@@ -1,11 +1,9 @@
-import csv
 import hashlib
 import json
 import os
 import re
 import time
 from datetime import date, datetime, timezone
-from io import StringIO
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +11,6 @@ import requests
 
 
 FRED_API_BASE_URL = "https://api.stlouisfed.org/fred"
-FRED_GRAPH_CSV_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv"
 
 
 CURATED_FRED_SERIES: dict[str, dict[str, str]] = {
@@ -79,9 +76,9 @@ def _safe_float(value: Any) -> float | None:
 class FREDMacroData:
     """FRED/ALFRED macro data client with local caching and strategy-date gating.
 
-    With ``FRED_API_KEY`` this uses the official API and requests vintage data
-    through ``realtime_start``/``realtime_end``. Without a key, it supports a
-    curated set of public FRED CSV series as revised data only.
+    Data access requires ``FRED_API_KEY`` and uses the official API with
+    ``realtime_start``/``realtime_end`` so backtests can request the vintage
+    observations known as of the simulated strategy datetime.
     """
 
     def __init__(
@@ -132,17 +129,6 @@ class FREDMacroData:
         cache_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
         return payload
 
-    def _get_text(self, url: str, params: dict[str, Any], cache_path: Path) -> str:
-        if cache_path.exists():
-            return cache_path.read_text(encoding="utf-8", errors="replace")
-        self._rate_limit()
-        response = requests.get(url, params=params, timeout=30)
-        response.raise_for_status()
-        text = response.text
-        cache_path.parent.mkdir(parents=True, exist_ok=True)
-        cache_path.write_text(text, encoding="utf-8", errors="replace")
-        return text
-
     def list_series(self, category: str | None = None) -> dict[str, Any]:
         rows = []
         wanted_category = str(category).strip().lower() if category else None
@@ -155,8 +141,8 @@ class FREDMacroData:
             "series": rows,
             "categories": sorted({metadata["category"] for metadata in CURATED_FRED_SERIES.values()}),
             "notes": (
-                "These are curated common macro series. Set FRED_API_KEY for official API access, "
-                "metadata/search, and point-in-time vintage observations."
+                "These are curated common macro series. Set FRED_API_KEY for official FRED/ALFRED "
+                "API access and point-in-time vintage observations."
             ),
         }
 
@@ -179,9 +165,12 @@ class FREDMacroData:
         if end_text is None or date.fromisoformat(end_text) > as_of_date:
             end_text = as_of_date.isoformat()
 
-        if self.api_key:
-            return self._get_series_from_api(series, start_text=start_text, end_text=end_text, as_of_date=as_of_date, limit=limit)
-        return self._get_series_from_csv(series, start_text=start_text, end_text=end_text, as_of_date=as_of_date, limit=limit)
+        if not self.api_key:
+            raise ValueError(
+                "FRED_API_KEY is required to fetch FRED macro data. "
+                "Lumibot uses the official FRED/ALFRED API so backtests can request point-in-time vintage observations."
+            )
+        return self._get_series_from_api(series, start_text=start_text, end_text=end_text, as_of_date=as_of_date, limit=limit)
 
     def get_latest(self, series_id: str, *, as_of: Any | None = None) -> dict[str, Any]:
         payload = self.get_series(series_id, as_of=as_of)
@@ -258,51 +247,3 @@ class FREDMacroData:
             )
         observations.sort(key=lambda row: row["date"])
         return observations
-
-    def _get_series_from_csv(
-        self,
-        series_id: str,
-        *,
-        start_text: str | None,
-        end_text: str,
-        as_of_date: date,
-        limit: int | None,
-    ) -> dict[str, Any]:
-        if series_id not in CURATED_FRED_SERIES:
-            raise ValueError(
-                f"{series_id} is not in Lumibot's no-key curated FRED list. "
-                "Set FRED_API_KEY to access arbitrary FRED series."
-            )
-        text = self._get_text(
-            FRED_GRAPH_CSV_URL,
-            {"id": series_id},
-            self._cache_path("csv", f"{series_id}.csv"),
-        )
-        observations = []
-        for row in csv.DictReader(StringIO(text)):
-            obs_date = _parse_dt(row.get("DATE") or row.get("date") or row.get("observation_date"))
-            if obs_date is None:
-                continue
-            obs_day = obs_date.date()
-            if obs_day > as_of_date:
-                continue
-            if start_text and obs_day < date.fromisoformat(start_text):
-                continue
-            if end_text and obs_day > date.fromisoformat(end_text):
-                continue
-            observations.append({"date": obs_day.isoformat(), "value": _safe_float(row.get(series_id))})
-        observations.sort(key=lambda row: row["date"])
-        if limit is not None:
-            observations = observations[-max(int(limit), 1):]
-        return {
-            "source": "fred_csv",
-            "series_id": series_id,
-            "as_of": as_of_date.isoformat(),
-            "point_in_time_safe": False,
-            "uses_revised_data": True,
-            "warning": (
-                "No FRED_API_KEY was configured, so this uses public CSV data. "
-                "Observations are date-gated but may include revised values."
-            ),
-            "observations": observations,
-        }

@@ -222,12 +222,20 @@ What is ``@agent_tool`` and how do I use it?
         description="Fetch economic data from FRED.",
     )
     def get_fred_series(self, series_id: str) -> dict:
-        """Fetch a FRED series.
+        """Fetch a FRED series through the official API.
 
         Args:
             series_id: FRED series identifier (e.g., M2SL)
         """
-        resp = requests.get(f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}")
+        resp = requests.get(
+            "https://api.stlouisfed.org/fred/series/observations",
+            params={
+                "series_id": series_id,
+                "api_key": os.environ["FRED_API_KEY"],
+                "file_type": "json",
+            },
+            timeout=15,
+        )
         return parse_response(resp)
 
 What are MCP servers and how do they work with LumiBot?

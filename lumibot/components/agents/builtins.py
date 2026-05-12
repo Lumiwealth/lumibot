@@ -959,8 +959,8 @@ def _bind_get_fred_series(strategy: Any, manager: Any) -> BoundTool:
         name="get_fred_series",
         description=(
             "Get a FRED macro time series. In backtests, as_of defaults to the strategy datetime. "
-            "With FRED_API_KEY this requests vintage data using realtime_start/realtime_end. "
-            "Without a key, curated CSV mode date-gates observations but may use revised values."
+            "Requires FRED_API_KEY and requests vintage data using realtime_start/realtime_end "
+            "so backtests do not accidentally use future revisions."
         ),
         function=get_fred_series,
         source="builtin",

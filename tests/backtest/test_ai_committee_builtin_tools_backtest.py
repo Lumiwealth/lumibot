@@ -306,19 +306,13 @@ def _fake_fred_get(url, params=None, **kwargs):
             )
         raise AssertionError(series_id)
 
-    assert "fredgraph.csv" in url
-    series_id = params["id"]
-    if series_id == "DGS10":
-        return _Response(text="DATE,DGS10\n2025-01-03,4.50\n2025-01-06,4.60\n2025-01-07,4.70\n")
-    if series_id == "UNRATE":
-        return _Response(text="DATE,UNRATE\n2024-12-01,4.1\n2025-02-01,4.2\n")
-    raise AssertionError(series_id)
+    raise AssertionError(f"unexpected FRED URL: {url}")
 
 
 def _fake_requests_get(url, **kwargs):
     if "data.alpaca.markets/v1beta1/news" in url:
         return _fake_alpaca_news_get(url, **kwargs)
-    if "fredgraph.csv" in url or "api.stlouisfed.org/fred" in url:
+    if "api.stlouisfed.org/fred" in url:
         return _fake_fred_get(url, **kwargs)
     return _fake_sec_get(url, **kwargs)
 

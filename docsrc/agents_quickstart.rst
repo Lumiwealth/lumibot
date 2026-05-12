@@ -55,16 +55,12 @@ The agent has access to all built-in tools (positions, portfolio, prices, histor
 ``@agent_tool`` Example (Primary Pattern)
 -------------------------------------------
 
-The recommended way to give your agent access to external data is ``@agent_tool``. This wraps a Python method as a callable tool using the ``requests`` library. It works reliably in both backtests and live trading.
+The recommended way to give your agent access to custom external data is ``@agent_tool``. This wraps a normal Python method as a callable tool. It works reliably in both backtests and live trading.
 
-This quick-start FRED example uses the public graph CSV endpoint because it is simple to read in a short code sample. That endpoint returns revised data. For strict point-in-time macro backtests, use the built-in FRED tools with ``FRED_API_KEY`` instead.
+This short FRED example delegates to Lumibot's point-in-time macro helper. In most strategies you do not need to add this wrapper, because built-in FRED tools are included automatically when ``FRED_API_KEY`` is configured.
 
 .. code-block:: python
 
-    import csv
-    import io
-    import os
-    import requests
     from lumibot.components.agents import agent_tool
     from lumibot.strategies import Strategy
 
@@ -83,34 +79,12 @@ This quick-start FRED example uses the public graph CSV endpoint because it is s
         def get_fred_series(
             self, series_id: str, start_date: str = "2020-01-01", end_date: str = ""
         ) -> dict:
-            """Fetch a FRED series using the public CSV endpoint.
-
-            Args:
-                series_id: FRED series identifier (e.g., M2SL, FEDFUNDS, CPIAUCSL)
-                start_date: Start date in YYYY-MM-DD format
-                end_date: End date in YYYY-MM-DD format
-            """
-            params = {"id": series_id}
-            if start_date:
-                params["cosd"] = start_date
-            if end_date:
-                params["coed"] = end_date
-            try:
-                resp = requests.get(
-                    "https://fred.stlouisfed.org/graph/fredgraph.csv",
-                    params=params, timeout=15,
-                )
-                resp.raise_for_status()
-                reader = csv.DictReader(io.StringIO(resp.text))
-                observations = []
-                for row in reader:
-                    date = row.get("observation_date", "")
-                    value = row.get(series_id, ".")
-                    if value and value != ".":
-                        observations.append({"date": date, "value": float(value)})
-                return {"series_id": series_id, "count": len(observations), "observations": observations}
-            except Exception as e:
-                return {"error": str(e), "series_id": series_id}
+            """Fetch a FRED series through Lumibot's point-in-time macro helper."""
+            return self.macro.get_series(
+                series_id,
+                start=start_date,
+                end=end_date or None,
+            )
 
         def initialize(self):
             self.sleeptime = "1D"

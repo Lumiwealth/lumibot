@@ -1,14 +1,15 @@
 import unittest
-from unittest.mock import MagicMock, patch
 from decimal import Decimal
 from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 from lumibot.brokers.bitunix import Bitunix
 from lumibot.brokers.schwab import Schwab
+from lumibot.data_sources.bitunix_data import BitunixData
 from lumibot.entities import Asset, Order, Position, SmartLimitConfig, SmartLimitPreset
 from lumibot.strategies.strategy import Strategy
 from lumibot.tools.bitunix_helpers import BitUnixClient
-from lumibot.brokers.broker import LumibotBrokerAPIError
+
 
 class TestBitunixBroker(unittest.TestCase):
     def setUp(self):
@@ -117,7 +118,7 @@ class TestBitunixBroker(unittest.TestCase):
         }
         positions = broker._pull_positions(mock_strategy)
         self.assertEqual(len(positions), 2)
-        
+
         btc_pos = next(p for p in positions if p.asset.symbol == "BTCUSDT")
         eth_pos = next(p for p in positions if p.asset.symbol == "ETHUSDT")
 
@@ -145,21 +146,30 @@ class TestBitunixBroker(unittest.TestCase):
                 "margin": "2000.00",
                 "crossUnrealizedPNL": "100.00",
                 "isolationUnrealizedPNL": "50.00",
-            }
+            },
         }
         # Mock _pull_positions as it's called by _get_balances_at_broker
-        broker._pull_positions = MagicMock(return_value=[
-            Position("test_strategy", Asset("BTCUSDT", Asset.AssetType.CRYPTO_FUTURE), Decimal("0.1"), avg_fill_price=Decimal("50000"))
-        ])
+        broker._pull_positions = MagicMock(
+            return_value=[
+                Position(
+                    "test_strategy",
+                    Asset("BTCUSDT", Asset.AssetType.CRYPTO_FUTURE),
+                    Decimal("0.1"),
+                    avg_fill_price=Decimal("50000"),
+                )
+            ]
+        )
 
-        cash, positions_value, net_liquidation = broker._get_balances_at_broker(Asset("USDT", Asset.AssetType.CRYPTO), mock_strategy)
+        cash, positions_value, net_liquidation = broker._get_balances_at_broker(
+            Asset("USDT", Asset.AssetType.CRYPTO), mock_strategy
+        )
 
         self.assertEqual(cash, 10000.00)
-        self.assertEqual(positions_value, 5000.0) # 0.1 * 50000
-        self.assertEqual(net_liquidation, 12650.00) # 10000 + 500 + 2000 + 100 + 50
+        self.assertEqual(positions_value, 5000.0)  # 0.1 * 50000
+        self.assertEqual(net_liquidation, 12650.00)  # 10000 + 500 + 2000 + 100 + 50
 
     def test_map_status_from_bitunix(self):
-        broker = Bitunix(self.config, connect_stream=False) # No need for full init
+        broker = Bitunix(self.config, connect_stream=False)  # No need for full init
         self.assertEqual(broker._map_status_from_bitunix("NEW"), Order.OrderStatus.SUBMITTED)
         self.assertEqual(broker._map_status_from_bitunix("PARTIALLY_FILLED"), Order.OrderStatus.PARTIALLY_FILLED)
         self.assertEqual(broker._map_status_from_bitunix("FILLED"), Order.OrderStatus.FILLED)
@@ -167,8 +177,7 @@ class TestBitunixBroker(unittest.TestCase):
         self.assertEqual(broker._map_status_from_bitunix("REJECTED"), Order.OrderStatus.ERROR)
         self.assertEqual(broker._map_status_from_bitunix("EXPIRED"), Order.OrderStatus.CANCELED)
         self.assertEqual(broker._map_status_from_bitunix("PENDING_CANCEL"), Order.OrderStatus.CANCELED)
-        self.assertEqual(broker._map_status_from_bitunix("UNKNOWN_STATUS"), Order.OrderStatus.ERROR) # Test default
-
+        self.assertEqual(broker._map_status_from_bitunix("UNKNOWN_STATUS"), Order.OrderStatus.ERROR)  # Test default
 
     @patch("lumibot.brokers.bitunix.BitUnixClient")
     @patch("lumibot.brokers.bitunix.BitunixData")
@@ -176,9 +185,9 @@ class TestBitunixBroker(unittest.TestCase):
         MockBitUnixClientInstance.return_value = self.mock_bitunix_client
         mock_data_source = MockBitunixData.return_value
         mock_data_source.client_symbols = set()
-        
+
         broker = Bitunix(self.config)
-        
+
         raw_order_data = {
             "orderId": "98765",
             "symbol": "ETHUSDT",
@@ -190,11 +199,11 @@ class TestBitunixBroker(unittest.TestCase):
             "price": "3000.00",
             "avgPrice": "3005.50",
             "leverage": "5",
-            "time": 1678886400000 # Example timestamp
+            "time": 1678886400000,  # Example timestamp
         }
-        
+
         parsed_order = broker._parse_broker_order(raw_order_data, "test_strategy")
-        
+
         self.assertIsNotNone(parsed_order)
         self.assertEqual(parsed_order.identifier, "98765")
         self.assertEqual(parsed_order.asset.symbol, "ETHUSDT")
@@ -228,6 +237,52 @@ class TestBitunixBroker(unittest.TestCase):
         self.assertEqual(broker._parse_source_timestep("1d"), "1d")
         # Test fallback/default
         self.assertEqual(broker._parse_source_timestep("unknown"), "1m")
+
+
+class TestBitunixData(unittest.TestCase):
+    def setUp(self):
+        self.config = {"API_KEY": "test_api_key", "API_SECRET": "test_api_secret"}
+
+    @patch("lumibot.data_sources.bitunix_data._bitunix_client_class")
+    def test_crypto_future_last_price_uses_asset_symbol(self, mock_client_class):
+        mock_client = MagicMock()
+        mock_client.get_funding_rate.return_value = {"code": 0, "data": {"markPrice": "42000.50"}}
+        mock_client_class.return_value.return_value = mock_client
+
+        data_source = BitunixData(self.config)
+        asset = Asset("BTCUSDT", Asset.AssetType.CRYPTO_FUTURE)
+
+        price = data_source.get_last_price(asset)
+
+        self.assertEqual(price, 42000.50)
+        mock_client.get_funding_rate.assert_called_once_with("BTCUSDT")
+
+    @patch("lumibot.data_sources.bitunix_data._bitunix_client_class")
+    def test_crypto_future_historical_prices_uses_asset_symbol(self, mock_client_class):
+        mock_client = MagicMock()
+        mock_client.get_kline.return_value = {
+            "code": 0,
+            "data": [
+                {
+                    "t": 1700000000000,
+                    "o": "1.0",
+                    "h": "2.0",
+                    "l": "0.5",
+                    "c": "1.5",
+                    "baseVol": "10",
+                }
+            ],
+        }
+        mock_client_class.return_value.return_value = mock_client
+
+        data_source = BitunixData(self.config)
+        asset = Asset("BTCUSDT", Asset.AssetType.CRYPTO_FUTURE)
+
+        bars = data_source.get_historical_prices(asset, 1, timestep="1m")
+
+        self.assertIsNotNone(bars)
+        self.assertEqual(data_source.client_symbols, {"BTCUSDT"})
+        mock_client.get_kline.assert_called_once_with(symbol="BTCUSDT", interval="1m", limit=2)
 
 
 class _StubStrategy(Strategy):
@@ -310,6 +365,7 @@ class TestSchwabSmartLimit(unittest.TestCase):
             strategy.submit_order(order)
 
         self.assertEqual(captured["order_type"], Order.OrderType.MARKET)
+
 
 if __name__ == "__main__":
     unittest.main()

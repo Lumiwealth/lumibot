@@ -3,16 +3,17 @@ import os
 import statistics
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta, time as dt_time
+from datetime import datetime, timedelta
+from datetime import time as dt_time
 from pathlib import Path
-from typing import Dict, List
 
 import requests
+
 from lumibot.entities import Asset
 from lumibot.tools import thetadata_helper
 
 
-def _request_healthz(base_url: str) -> Dict:
+def _request_healthz(base_url: str) -> dict:
     url = base_url.rstrip("/") + "/healthz"
     start = time.perf_counter()
     response = requests.get(url, timeout=5)
@@ -30,7 +31,7 @@ def _single_minute_request(
     day: datetime,
     username: str,
     password: str,
-) -> Dict:
+) -> dict:
     start_dt = datetime.combine(day.date(), dt_time(9, 30))
     end_dt = start_dt + timedelta(minutes=1)
     start = time.perf_counter()
@@ -54,7 +55,7 @@ def _burst_request(
     day: datetime,
     username: str,
     password: str,
-) -> Dict:
+) -> dict:
     try:
         result = _single_minute_request(asset, day, username, password)
         result["date"] = day.strftime("%Y-%m-%d")
@@ -69,7 +70,7 @@ def _burst_request(
         }
 
 
-def _summarize(results: List[Dict]) -> Dict:
+def _summarize(results: list[dict]) -> dict:
     durations = [entry["elapsed"] for entry in results if entry["elapsed"] is not None]
     if not durations:
         return {"count": len(results), "success": 0, "errors": len(results)}
@@ -104,7 +105,7 @@ def run():
     single_run = _single_minute_request(asset, datetime.utcnow(), username, password)
 
     burst_days = [datetime(2024, 10, 1) + timedelta(days=offset) for offset in range(100)]
-    burst_results: List[Dict] = []
+    burst_results: list[dict] = []
     with ThreadPoolExecutor(max_workers=16) as pool:
         futures = {pool.submit(_burst_request, asset, day, username, password): day for day in burst_days}
         for future in as_completed(futures):

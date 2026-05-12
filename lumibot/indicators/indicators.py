@@ -40,38 +40,59 @@ Computing the indicator **once** over the whole series and then indexing by
 current datetime collapses that to O(N + W) total — the exact speedup users
 are missing when they hand-roll indicator code inside ``on_trading_iteration``.
 """
+
 from __future__ import annotations
 
+# pyright: reportUnknownVariableType=false, reportUnknownMemberType=false, reportUnknownArgumentType=false
+# pyright: reportUnknownParameterType=false, reportMissingParameterType=false, reportMissingTypeArgument=false
+# pyright: reportMissingTypeStubs=false, reportInvalidTypeForm=false, reportOptionalMemberAccess=false
 import logging
+from collections.abc import Callable, Mapping
+from datetime import datetime
 from importlib import import_module
-from typing import Any, Callable, Optional
+from types import ModuleType
+from typing import Any, TypeAlias, cast
 
 logger = logging.getLogger(__name__)
 
-_TA_MODULE: Any = None
+PandasDataFrame: TypeAlias = Any  # noqa: UP040
+PandasSeries: TypeAlias = Any  # noqa: UP040
+PandasIndex: TypeAlias = Any  # noqa: UP040
+IndicatorResult: TypeAlias = Any  # noqa: UP040
+IndicatorValue: TypeAlias = Any  # noqa: UP040
+AssetKey: TypeAlias = tuple[str, Any | None]  # noqa: UP040
+CacheKey: TypeAlias = tuple[AssetKey, str, str, tuple[tuple[str, Any], ...]]  # noqa: UP040
+DataTag: TypeAlias = tuple[int, Any]  # noqa: UP040
+CacheValue: TypeAlias = tuple[DataTag, IndicatorResult]  # noqa: UP040
+
+_ta_module_cache: Any | None = None
 
 
-class _LazyModule:
+class _LazyModule(ModuleType):
+    _module_name: str
+    _module: ModuleType | None
+
     __slots__ = ("_module_name", "_module")
 
-    def __init__(self, module_name: str):
+    def __init__(self, module_name: str) -> None:
+        super().__init__(module_name)
         object.__setattr__(self, "_module_name", module_name)
         object.__setattr__(self, "_module", None)
 
-    def _load(self):
-        module = object.__getattribute__(self, "_module")
+    def _load(self) -> ModuleType:
+        module = cast(ModuleType | None, object.__getattribute__(self, "_module"))
         if module is None:
-            module = import_module(object.__getattribute__(self, "_module_name"))
+            module = import_module(cast(str, object.__getattribute__(self, "_module_name")))
             object.__setattr__(self, "_module", module)
         return module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
         setattr(self._load(), name, value)
 
-    def __delattr__(self, name):
+    def __delattr__(self, name: str) -> None:
         if name in {"_module_name", "_module"}:
             object.__delattr__(self, name)
         else:
@@ -82,19 +103,19 @@ np = _LazyModule("numpy")
 pd = _LazyModule("pandas")
 
 
-def _get_ta_module():
+def _get_ta_module() -> Any:
     """Lazy import pandas-ta-classic so the indicators module is importable
     even in environments where the indicator backend is missing (e.g. slim
     installs that never call ``self.indicators``).
     """
-    global _TA_MODULE
-    if _TA_MODULE is None:
+    global _ta_module_cache
+    if _ta_module_cache is None:
         if not hasattr(np, "NaN"):
             np.NaN = np.nan
         import pandas_ta_classic as ta
 
-        _TA_MODULE = ta
-    return _TA_MODULE
+        _ta_module_cache = ta
+    return _ta_module_cache
 
 
 class IndicatorRow:
@@ -108,10 +129,10 @@ class IndicatorRow:
 
     __slots__ = ("_data",)
 
-    def __init__(self, data: pd.Series):
+    def __init__(self, data: PandasSeries) -> None:
         self._data = data
 
-    def __getattr__(self, name: str):
+    def __getattr__(self, name: str) -> Any:
         data = object.__getattribute__(self, "_data")
         if name in data.index:
             return data[name]
@@ -120,13 +141,13 @@ class IndicatorRow:
             return data[normalized[name]]
         raise AttributeError(name)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Any) -> Any:
         return self._data[key]
 
-    def __contains__(self, key):
+    def __contains__(self, key: object) -> bool:
         return key in self._data.index
 
-    def as_dict(self) -> dict:
+    def as_dict(self) -> dict[str, Any]:
         return dict(self._data)
 
     def __repr__(self) -> str:
@@ -136,12 +157,12 @@ class IndicatorRow:
 class Indicators:
     """Per-strategy indicator accessor. See module docstring for usage."""
 
-    def __init__(self, strategy):
+    def __init__(self, strategy: Any) -> None:
         self._strategy = strategy
-        self._cache: dict = {}
+        self._cache: dict[CacheKey, CacheValue] = {}
         self._fallback_length: int = 10_000
 
-    def __getattr__(self, name: str):
+    def __getattr__(self, name: str) -> Callable[..., IndicatorValue | IndicatorRow | None]:
         if name.startswith("_"):
             raise AttributeError(name)
         ta = _get_ta_module()
@@ -151,7 +172,7 @@ class Indicators:
                 f"For user-defined indicators use self.indicators.custom(name, fn, asset, ...)."
             )
 
-        def _call(asset, timestep: str = "day", **kwargs):
+        def _call(asset: Any, timestep: str = "day", **kwargs: Any) -> IndicatorValue | IndicatorRow | None:
             return self._dispatch(asset, timestep, name, kwargs, custom_fn=None)
 
         _call.__name__ = f"indicators.{name}"
@@ -166,10 +187,10 @@ class Indicators:
         self,
         name: str,
         fn: Callable[..., Any],
-        asset,
+        asset: Any,
         timestep: str = "day",
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> IndicatorValue | IndicatorRow | None:
         """Register-and-evaluate a user-defined indicator.
 
         Parameters
@@ -188,12 +209,10 @@ class Indicators:
             Forwarded to ``fn`` and included in the cache key.
         """
         if not callable(fn):
-            raise TypeError(
-                f"custom indicator fn must be callable, got {type(fn).__name__}"
-            )
+            raise TypeError(f"custom indicator fn must be callable, got {type(fn).__name__}")
         return self._dispatch(asset, timestep, name, kwargs, custom_fn=fn)
 
-    def invalidate(self, asset=None) -> None:
+    def invalidate(self, asset: Any | None = None) -> None:
         """Drop memoized indicator results.
 
         With no argument, clears everything. With an asset, drops only that
@@ -212,7 +231,14 @@ class Indicators:
         """Number of memoized indicator results currently held."""
         return len(self._cache)
 
-    def _dispatch(self, asset, timestep, name, kwargs, custom_fn):
+    def _dispatch(
+        self,
+        asset: Any,
+        timestep: str,
+        name: str,
+        kwargs: Mapping[str, Any],
+        custom_fn: Callable[..., Any] | None,
+    ) -> IndicatorValue | IndicatorRow | None:
         key = self._cache_key(asset, timestep, name, kwargs)
         df = self._full_history(asset, timestep)
         if df is None or df.empty:
@@ -224,13 +250,13 @@ class Indicators:
             self._cache[key] = (data_tag, result)
         return self._at_current_bar(self._cache[key][1])
 
-    def _asset_key(self, asset):
+    def _asset_key(self, asset: Any) -> AssetKey:
         if hasattr(asset, "symbol"):
-            return (asset.symbol, getattr(asset, "asset_type", None))
+            return (str(asset.symbol), getattr(asset, "asset_type", None))
         return (str(asset), None)
 
-    def _cache_key(self, asset, timestep, name, kwargs):
-        kw_items = []
+    def _cache_key(self, asset: Any, timestep: str, name: str, kwargs: Mapping[str, Any]) -> CacheKey:
+        kw_items: list[tuple[str, Any]] = []
         for k, v in sorted(kwargs.items()):
             try:
                 hash(v)
@@ -239,7 +265,7 @@ class Indicators:
                 kw_items.append((k, repr(v)))
         return (self._asset_key(asset), timestep, name, tuple(kw_items))
 
-    def _full_history(self, asset, timestep) -> Optional[pd.DataFrame]:
+    def _full_history(self, asset: Any, timestep: str) -> PandasDataFrame | None:
         """Return the full known bar series DataFrame for ``asset``.
 
         In backtest mode (PANDAS-style data source) this returns the entire
@@ -258,9 +284,7 @@ class Indicators:
             return df
 
         try:
-            bars = self._strategy.get_historical_prices(
-                asset, length=self._fallback_length, timestep=timestep
-            )
+            bars = self._strategy.get_historical_prices(asset, length=self._fallback_length, timestep=timestep)
         except Exception as exc:
             logger.debug("indicators: get_historical_prices fallback failed for %s: %s", asset, exc)
             bars = None
@@ -273,7 +297,7 @@ class Indicators:
             return None
         return getattr(bars, "df", None)
 
-    def _read_store_df(self, data_source, asset, timestep) -> Optional[pd.DataFrame]:
+    def _read_store_df(self, data_source: Any, asset: Any, timestep: str) -> PandasDataFrame | None:
         if data_source is None or getattr(data_source, "_data_store", None) is None:
             return None
         data_obj = self._find_in_store(data_source, asset, timestep)
@@ -284,12 +308,16 @@ class Indicators:
             return None
         return df
 
-    def _find_in_store(self, data_source, asset, timestep=None):
+    def _find_in_store(self, data_source: Any, asset: Any, timestep: str | None = None) -> Any | None:
         store = data_source._data_store
         if hasattr(data_source, "find_asset_in_data_store"):
             for ts_arg in (timestep, None):
                 try:
-                    key = data_source.find_asset_in_data_store(asset, timestep=ts_arg) if ts_arg else data_source.find_asset_in_data_store(asset)
+                    key = (
+                        data_source.find_asset_in_data_store(asset, timestep=ts_arg)
+                        if ts_arg
+                        else data_source.find_asset_in_data_store(asset)
+                    )
                 except TypeError:
                     try:
                         key = data_source.find_asset_in_data_store(asset)
@@ -305,20 +333,26 @@ class Indicators:
                 return data
         return None
 
-    def _compute(self, df, name, kwargs, custom_fn):
+    def _compute(
+        self,
+        df: PandasDataFrame,
+        name: str,
+        kwargs: Mapping[str, Any],
+        custom_fn: Callable[..., Any] | None,
+    ) -> IndicatorResult:
         if custom_fn is not None:
             return custom_fn(df, **kwargs)
         ta = _get_ta_module()
         fn = getattr(ta, name)
-        call_args = {}
+        call_args: dict[str, Any] = {}
         for col in ("open", "high", "low", "close", "volume"):
             if col in df.columns:
                 call_args[col] = df[col]
         call_args.update(kwargs)
         return fn(**call_args)
 
-    def _at_current_bar(self, result):
-        now = self._strategy.get_datetime()
+    def _at_current_bar(self, result: IndicatorResult) -> IndicatorValue | IndicatorRow | None:
+        now = cast(datetime, self._strategy.get_datetime())
         if isinstance(result, pd.Series):
             return self._latest_scalar(result, now)
         if isinstance(result, pd.DataFrame):
@@ -329,7 +363,7 @@ class Indicators:
         return result
 
     @staticmethod
-    def _position_at(index: pd.Index, now) -> int:
+    def _position_at(index: PandasIndex, now: datetime) -> int:
         """Return the integer position of the most recent bar at-or-before ``now``.
 
         Uses ``searchsorted`` for O(log N) lookup without allocating a slice.
@@ -343,7 +377,7 @@ class Indicators:
         return int(pos)
 
     @staticmethod
-    def _latest_scalar(series: pd.Series, now):
+    def _latest_scalar(series: PandasSeries, now: datetime) -> IndicatorValue:
         if series.empty:
             return np.nan
         pos = Indicators._position_at(series.index, now)
@@ -352,7 +386,7 @@ class Indicators:
         return series.iloc[pos]
 
     @staticmethod
-    def _latest_row(df: pd.DataFrame, now):
+    def _latest_row(df: PandasDataFrame, now: datetime) -> PandasSeries | None:
         if df.empty:
             return None
         pos = Indicators._position_at(df.index, now)

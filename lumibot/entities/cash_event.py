@@ -2,12 +2,15 @@ import datetime as dt
 import hashlib
 import math
 from decimal import Decimal
+from typing import Any, ClassVar, TypeAlias, cast
+
+SerializedCashEvent: TypeAlias = dict[str, str | float | bool]  # noqa: UP040 - keep Python 3.11 parser compatibility.
 
 
 class CashEvent:
     """Normalized broker cash activity payload for cloud telemetry."""
 
-    VALID_EVENT_TYPES = {
+    VALID_EVENT_TYPES: ClassVar[set[str]] = {
         "deposit",
         "withdrawal",
         "interest",
@@ -18,15 +21,15 @@ class CashEvent:
         "tax",
         "other_cash",
     }
-    VALID_DIRECTIONS = {"in", "out", "neutral"}
+    VALID_DIRECTIONS: ClassVar[set[str]] = {"in", "out", "neutral"}
 
     def __init__(
         self,
         *,
         broker_name: str,
         event_type: str,
-        amount,
-        occurred_at,
+        amount: object,
+        occurred_at: object,
         event_id: str | None = None,
         broker_event_id: str | None = None,
         raw_type: str | None = None,
@@ -42,17 +45,13 @@ class CashEvent:
 
         normalized_event_type = str(event_type or "").strip().lower()
         if normalized_event_type not in self.VALID_EVENT_TYPES:
-            raise ValueError(
-                f"event_type must be one of {sorted(self.VALID_EVENT_TYPES)}, got {event_type!r}"
-            )
+            raise ValueError(f"event_type must be one of {sorted(self.VALID_EVENT_TYPES)}, got {event_type!r}")
 
         normalized_amount = self.coerce_amount(amount)
         normalized_occurred_at = self.coerce_datetime(occurred_at)
         normalized_direction = str(direction or self._infer_direction(normalized_amount)).strip().lower()
         if normalized_direction not in self.VALID_DIRECTIONS:
-            raise ValueError(
-                f"direction must be one of {sorted(self.VALID_DIRECTIONS)}, got {direction!r}"
-            )
+            raise ValueError(f"direction must be one of {sorted(self.VALID_DIRECTIONS)}, got {direction!r}")
 
         normalized_broker_event_id = self._clean_optional_str(broker_event_id)
         normalized_raw_type = self._clean_optional_str(raw_type)
@@ -84,7 +83,7 @@ class CashEvent:
         self.is_external_cash_flow = bool(is_external_cash_flow)
 
     @staticmethod
-    def _clean_optional_str(value) -> str | None:
+    def _clean_optional_str(value: object) -> str | None:
         if value is None:
             return None
         text = str(value).strip()
@@ -99,7 +98,7 @@ class CashEvent:
         return "neutral"
 
     @staticmethod
-    def coerce_amount(value) -> float:
+    def coerce_amount(value: object) -> float:
         if value is None:
             return 0.0
         if isinstance(value, Decimal):
@@ -110,7 +109,7 @@ class CashEvent:
                 return 0.0
 
         try:
-            amount = float(value)
+            amount = float(cast(Any, value))
         except (TypeError, ValueError) as exc:
             raise ValueError(f"amount must be numeric, got {value!r}") from exc
 
@@ -119,14 +118,14 @@ class CashEvent:
         return amount
 
     @staticmethod
-    def coerce_datetime(value) -> dt.datetime:
+    def coerce_datetime(value: object) -> dt.datetime:
         if value is None:
             raise ValueError("occurred_at is required")
 
         if isinstance(value, dt.datetime):
             normalized = value
         elif isinstance(value, dt.date):
-            normalized = dt.datetime.combine(value, dt.time.min, tzinfo=dt.timezone.utc)
+            normalized = dt.datetime.combine(value, dt.time.min, tzinfo=dt.UTC)
         elif isinstance(value, str):
             text = value.strip()
             if not text:
@@ -136,7 +135,7 @@ class CashEvent:
             try:
                 normalized = dt.datetime.fromisoformat(text)
             except ValueError:
-                parsed = None
+                parsed: dt.datetime | None = None
                 for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%m/%d/%Y", "%Y-%m-%d %H:%M:%S"):
                     try:
                         parsed = dt.datetime.strptime(text, fmt)
@@ -150,8 +149,8 @@ class CashEvent:
             raise ValueError(f"Unsupported occurred_at value {value!r}")
 
         if normalized.tzinfo is None or normalized.tzinfo.utcoffset(normalized) is None:
-            normalized = normalized.replace(tzinfo=dt.timezone.utc)
-        return normalized.astimezone(dt.timezone.utc)
+            normalized = normalized.replace(tzinfo=dt.UTC)
+        return normalized.astimezone(dt.UTC)
 
     @classmethod
     def build_event_id(
@@ -161,10 +160,10 @@ class CashEvent:
         broker_event_id: str | None = None,
         raw_type: str | None = None,
         raw_subtype: str | None = None,
-        occurred_at,
-        amount,
+        occurred_at: object,
+        amount: object,
         description: str | None = None,
-        extra_components: list[str | None] | tuple[str | None, ...] | None = None,
+        extra_components: list[object | None] | tuple[object | None, ...] | None = None,
     ) -> str:
         normalized_broker_name = str(broker_name or "").strip().lower() or "unknown"
         cleaned_broker_event_id = cls._clean_optional_str(broker_event_id)
@@ -181,17 +180,14 @@ class CashEvent:
                 normalized_occurred_at,
                 f"{normalized_amount:.12f}",
                 cls._clean_optional_str(description) or "",
-                *(
-                    cls._clean_optional_str(component) or ""
-                    for component in (extra_components or [])
-                ),
+                *(cls._clean_optional_str(component) or "" for component in (extra_components or [])),
             ]
         )
         digest = hashlib.sha256(digest_source.encode("utf-8")).hexdigest()[:24]
         return f"{normalized_broker_name}:synthetic:{digest}"
 
-    def to_dict(self) -> dict:
-        result = {
+    def to_dict(self) -> SerializedCashEvent:
+        result: SerializedCashEvent = {
             "event_id": self.event_id,
             "broker_name": self.broker_name,
             "event_type": self.event_type,

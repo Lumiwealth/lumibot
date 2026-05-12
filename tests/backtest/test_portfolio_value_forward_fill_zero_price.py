@@ -32,7 +32,7 @@ def test_update_portfolio_value_forward_fills_on_zero_price():
         get_tracked_positions=lambda _: [position],
         data_source=object(),
         option_source=None,
-        datetime=datetime.datetime(2019, 6, 9, 19, 0, 0, tzinfo=datetime.timezone.utc),
+        datetime=datetime.datetime(2019, 6, 9, 19, 0, 0, tzinfo=datetime.UTC),
     )
 
     strategy = _PortfolioValueZeroPriceStrategy.__new__(_PortfolioValueZeroPriceStrategy)
@@ -53,4 +53,3 @@ def test_update_portfolio_value_forward_fills_on_zero_price():
     pv = Strategy._update_portfolio_value(strategy)
     assert pv == 2000.0
     assert strategy._last_known_prices[gld] == 100.0
-

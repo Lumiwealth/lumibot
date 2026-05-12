@@ -1,19 +1,18 @@
-from decimal import Decimal
-from typing import List, Any
-from datetime import datetime, timedelta, time
-import pytz
-
-import pytest
+import datetime as dt
 import logging
-import datetime
+from datetime import datetime, time, timedelta
+from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
+import pytest
+import pytz
 
 from lumibot import LUMIBOT_SOURCE_PATH
-from lumibot.data_sources import DataSource
-from lumibot.entities import Data, Asset, Bars
 from lumibot.backtesting import PolygonDataBacktesting
+from lumibot.data_sources import DataSource
+from lumibot.entities import Asset, Bars, Data
 from lumibot.strategies import Strategy
 from lumibot.tools.helpers import (
     get_trading_days,
@@ -24,18 +23,18 @@ logger = logging.getLogger(__name__)
 
 @pytest.fixture
 def polygon_data_backtesting():
-    datetime_start = datetime.datetime(2023, 1, 1)
-    datetime_end = datetime.datetime(2023, 2, 1)
+    datetime_start = dt.datetime(2023, 1, 1)
+    datetime_end = dt.datetime(2023, 2, 1)
     api_key = "fake_api_key"
     pandas_data = []
-    
+
     polygon_data_instance = PolygonDataBacktesting(
         datetime_start=datetime_start,
         datetime_end=datetime_end,
         pandas_data=pandas_data,
         api_key=api_key,
     )
-    
+
     return polygon_data_instance
 
 
@@ -46,7 +45,7 @@ def pandas_data_fixture():
     """
     pandas_data = []
     symbols = ["SPY", "TLT", "GLD"]
-    quote = Asset(symbol='USD', asset_type="forex")
+    quote = Asset(symbol="USD", asset_type="forex")
 
     lumibot_git_dir = Path(LUMIBOT_SOURCE_PATH).parent
     data_dir = lumibot_git_dir / "data"
@@ -82,8 +81,8 @@ def pandas_data_fixture():
         data = Data(
             asset,
             df,
-            date_start=datetime.datetime(2019, 1, 2),
-            date_end=datetime.datetime(2019, 12, 31),
+            date_start=dt.datetime(2019, 1, 2),
+            date_end=dt.datetime(2019, 12, 31),
             timestep="day",
             quote=quote,
         )
@@ -91,12 +90,10 @@ def pandas_data_fixture():
     return pandas_data
 
 
-
 class BacktestingTestStrategy(Strategy):
-
     # noinspection PyAttributeOutsideInit
     def initialize(self, parameters: Any = None) -> None:
-        self.asset = self.parameters.get("asset", Asset('AMZN'))
+        self.asset = self.parameters.get("asset", Asset("AMZN"))
         self.set_market(self.parameters.get("market", "NYSE"))
         self.sleeptime = self.parameters.get("sleeptime", "1D")
         self.lookback_timestep = self.parameters.get("lookback_timestep", "day")
@@ -123,15 +120,11 @@ class BacktestingTestStrategy(Strategy):
 
         if self.lookback_length > 0:
             bars = self.get_historical_prices(
-                asset=self.asset,
-                length=self.lookback_length,
-                timestep=self.lookback_timestep,
-                quote=self.quote_asset
+                asset=self.asset, length=self.lookback_length, timestep=self.lookback_timestep, quote=self.quote_asset
             )
             self.historical_prices[now.isoformat()] = bars.df
 
         if len(self.order_tracker) == 0:
-
             if not current_asset_price:
                 return
 
@@ -153,7 +146,6 @@ class BacktestingTestStrategy(Strategy):
 
 
 class BaseDataSourceTester:
-
     def _create_data_source(self) -> DataSource:
         raise NotImplementedError()
 
@@ -169,14 +161,14 @@ class BaseDataSourceTester:
     # noinspection PyMethodMayBeStatic
     def check_index(self, bars: Bars, data_source_tz: pytz.tzinfo = None) -> None:
         assert isinstance(bars.df.index[-1], pd.Timestamp)
-        assert bars.df.index.name in ['timestamp', 'date', 'datetime', 'Date']
+        assert bars.df.index.name in ["timestamp", "date", "datetime", "Date"]
 
         if data_source_tz:
             assert bars.df.index[-1].tzinfo.zone == data_source_tz.zone
 
     # noinspection PyMethodMayBeStatic
     def check_columns(self, bars: Bars) -> None:
-        expected_columns = ['open', 'high', 'low', 'close', 'volume']
+        expected_columns = ["open", "high", "low", "close", "volume"]
         for column in expected_columns:
             assert column in bars.df.columns
 
@@ -184,14 +176,14 @@ class BaseDataSourceTester:
 
     # noinspection PyMethodMayBeStatic
     def check_daily_bars(
-            self,
-            *,
-            bars: Bars,
-            now: datetime,
-            data_source_tz: pytz.tzinfo = None,
-            time_check: time | None = None,
-            market: str = 'NYSE',
-            remove_incomplete_current_bar: bool = False,
+        self,
+        *,
+        bars: Bars,
+        now: datetime,
+        data_source_tz: pytz.tzinfo = None,
+        time_check: time | None = None,
+        market: str = "NYSE",
+        remove_incomplete_current_bar: bool = False,
     ):
         assert bars.df.index[-1] <= now
         timestamp = bars.df.index[-1]
@@ -203,12 +195,12 @@ class BaseDataSourceTester:
             market=market,
             start_date=today - timedelta(days=7),
             end_date=today + timedelta(days=1),
-            tzinfo=data_source_tz
+            tzinfo=data_source_tz,
         )
 
         if today in list(trading_days.index.date):
-            market_open = trading_days.loc[str(today), 'market_open']
-            market_close = trading_days.loc[str(today), 'market_close']
+            market_open = trading_days.loc[str(today), "market_open"]
+            market_close = trading_days.loc[str(today), "market_close"]
 
             if market_open <= now <= market_close:
                 # Only check during market hours since that when strategies run.
@@ -222,13 +214,13 @@ class BaseDataSourceTester:
 
     # noinspection PyMethodMayBeStatic
     def check_minute_bars(
-            self,
-            *,
-            bars: Bars,
-            now: datetime,
-            data_source_tz: pytz.tzinfo = None,
-            market: str = 'NYSE',
-            remove_incomplete_current_bar: bool = False,
+        self,
+        *,
+        bars: Bars,
+        now: datetime,
+        data_source_tz: pytz.tzinfo = None,
+        market: str = "NYSE",
+        remove_incomplete_current_bar: bool = False,
     ):
         assert bars.df.index[-1] <= now
 
@@ -237,12 +229,12 @@ class BaseDataSourceTester:
             market=market,
             start_date=today - timedelta(days=7),
             end_date=today + timedelta(days=1),
-            tzinfo=data_source_tz
+            tzinfo=data_source_tz,
         )
 
         if today in list(trading_days.index.date):
-            market_open = trading_days.loc[str(today), 'market_open']
-            market_close = trading_days.loc[str(today), 'market_close']
+            market_open = trading_days.loc[str(today), "market_open"]
+            market_close = trading_days.loc[str(today), "market_close"]
 
             if market_open <= now <= market_close:
                 # Only check during market hours since that when strategies run.

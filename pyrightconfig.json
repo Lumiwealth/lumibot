@@ -1,0 +1,16 @@
+{
+  "include": ["lumibot"],
+  "exclude": [
+    "**/__pycache__",
+    ".venv",
+    "build",
+    "dist",
+    "docs",
+    "data"
+  ],
+  "typeCheckingMode": "strict",
+  "pythonVersion": "3.14",
+  "venvPath": ".",
+  "venv": ".venv",
+  "reportMissingTypeStubs": "warning"
+}

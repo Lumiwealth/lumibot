@@ -12,6 +12,14 @@ pandas-ta-classic
 # Linting modules
 ruff
 isort
+pyright
+pandas-stubs
+types-appdirs
+types-python-dateutil
+types-pytz
+types-requests
+types-setuptools
+types-tabulate
 
 # Security checkers
 bandit

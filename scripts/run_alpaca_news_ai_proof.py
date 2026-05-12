@@ -29,7 +29,6 @@ from lumibot.components.agents import BuiltinTools
 from lumibot.entities import Asset, Data
 from lumibot.strategies import Strategy
 
-
 DEFAULT_MODEL = "gemini-3.1-pro-preview"
 
 

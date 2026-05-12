@@ -14,11 +14,13 @@ which we trust as our baseline for data accuracy.
 """
 
 import datetime
-import os
-import pytest
 import json
+import os
+
+import pytest
 from dotenv import load_dotenv
-from lumibot.backtesting import BacktestingBroker, ThetaDataBacktesting, PolygonDataBacktesting
+
+from lumibot.backtesting import BacktestingBroker, PolygonDataBacktesting, ThetaDataBacktesting
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
@@ -33,9 +35,9 @@ def detailed_comparison_report(theta_data, polygon_data, data_type):
     Any difference requires investigation - there is ZERO tolerance.
     """
     report = [
-        f"\n{'='*80}",
+        f"\n{'=' * 80}",
         f"PRICE MISMATCH DETECTED - {data_type.upper()}",
-        f"{'='*80}",
+        f"{'=' * 80}",
     ]
 
     for key in theta_data.keys():
@@ -49,19 +51,19 @@ def detailed_comparison_report(theta_data, polygon_data, data_type):
                 report.append(f"  ThetaData:  {theta_val}")
                 report.append(f"  Polygon:    {polygon_val}")
                 report.append(f"  Difference: {diff}")
-                report.append(f"  Diff %:     {(diff/polygon_val*100):.6f}%")
+                report.append(f"  Diff %:     {(diff / polygon_val * 100):.6f}%")
         else:
             report.append(f"\n{key}:")
             report.append(f"  ThetaData:  {theta_val}")
             report.append(f"  Polygon:    {polygon_val}")
 
-    report.append(f"\n{'='*80}")
+    report.append(f"\n{'=' * 80}")
     report.append("Full ThetaData:")
     report.append(json.dumps(theta_data, indent=2, default=str))
-    report.append(f"\n{'='*80}")
+    report.append(f"\n{'=' * 80}")
     report.append("Full Polygon:")
     report.append(json.dumps(polygon_data, indent=2, default=str))
-    report.append(f"\n{'='*80}\n")
+    report.append(f"\n{'=' * 80}\n")
 
     return "\n".join(report)
 
@@ -109,25 +111,27 @@ class ComparisonStrategy(Strategy):
 
             # Collect detailed information for diagnosis
             quote_dict = {
-                "price": quote.price if hasattr(quote, 'price') else None,
-                "bid": quote.bid if hasattr(quote, 'bid') else None,
-                "ask": quote.ask if hasattr(quote, 'ask') else None,
-                "open": quote.open if hasattr(quote, 'open') else None,
-                "high": quote.high if hasattr(quote, 'high') else None,
-                "low": quote.low if hasattr(quote, 'low') else None,
-                "close": quote.close if hasattr(quote, 'close') else None,
-                "volume": quote.volume if hasattr(quote, 'volume') else None,
-                "bid_size": quote.bid_size if hasattr(quote, 'bid_size') else None,
-                "ask_size": quote.ask_size if hasattr(quote, 'ask_size') else None,
-                "timestamp": str(quote.timestamp) if hasattr(quote, 'timestamp') else None,
+                "price": quote.price if hasattr(quote, "price") else None,
+                "bid": quote.bid if hasattr(quote, "bid") else None,
+                "ask": quote.ask if hasattr(quote, "ask") else None,
+                "open": quote.open if hasattr(quote, "open") else None,
+                "high": quote.high if hasattr(quote, "high") else None,
+                "low": quote.low if hasattr(quote, "low") else None,
+                "close": quote.close if hasattr(quote, "close") else None,
+                "volume": quote.volume if hasattr(quote, "volume") else None,
+                "bid_size": quote.bid_size if hasattr(quote, "bid_size") else None,
+                "ask_size": quote.ask_size if hasattr(quote, "ask_size") else None,
+                "timestamp": str(quote.timestamp) if hasattr(quote, "timestamp") else None,
             }
 
-            self.data_points["stock_prices"].append({
-                "price": price,
-                "quote": quote_dict,
-                "datetime": str(dt),
-                "datetime_obj": dt,
-            })
+            self.data_points["stock_prices"].append(
+                {
+                    "price": price,
+                    "quote": quote_dict,
+                    "datetime": str(dt),
+                    "datetime_obj": dt,
+                }
+            )
 
             # Buy 10 shares to test fill price
             order = self.create_order(asset, 10, "buy")
@@ -147,14 +151,18 @@ class ComparisonStrategy(Strategy):
             self.data_points["chains_data"] = {
                 "multiplier": chains.get("Multiplier"),
                 "exchange": chains.get("Exchange"),
-                "call_expirations_count": len(chains.calls()) if hasattr(chains, 'calls') else len(chains.get("Chains", {}).get("CALL", {})),
-                "put_expirations_count": len(chains.puts()) if hasattr(chains, 'puts') else len(chains.get("Chains", {}).get("PUT", {})),
+                "call_expirations_count": len(chains.calls())
+                if hasattr(chains, "calls")
+                else len(chains.get("Chains", {}).get("CALL", {})),
+                "put_expirations_count": len(chains.puts())
+                if hasattr(chains, "puts")
+                else len(chains.get("Chains", {}).get("PUT", {})),
             }
 
             # Try to create an option order
             try:
                 # Get first available expiration
-                if hasattr(chains, 'expirations'):
+                if hasattr(chains, "expirations"):
                     expirations = chains.expirations("CALL")
                 else:
                     call_chains = chains.get("Chains", {}).get("CALL", {})
@@ -165,7 +173,7 @@ class ComparisonStrategy(Strategy):
                     expiration = datetime.datetime.strptime(expiration_str, "%Y-%m-%d").date()
 
                     # Get strikes for this expiration
-                    if hasattr(chains, 'strikes'):
+                    if hasattr(chains, "strikes"):
                         strikes = chains.strikes(expiration_str, "CALL")
                     else:
                         strikes = chains.get("Chains", {}).get("CALL", {}).get(expiration_str, [])
@@ -174,21 +182,17 @@ class ComparisonStrategy(Strategy):
                         # Find ATM strike
                         strike = min(strikes, key=lambda x: abs(x - underlying_price))
 
-                        option = Asset(
-                            symbol,
-                            asset_type="option",
-                            expiration=expiration,
-                            strike=strike,
-                            right="CALL"
-                        )
+                        option = Asset(symbol, asset_type="option", expiration=expiration, strike=strike, right="CALL")
 
                         option_price = self.get_last_price(option)
-                        self.data_points["option_prices"].append({
-                            "price": option_price,
-                            "strike": strike,
-                            "expiration": expiration,
-                            "datetime": self.get_datetime(),
-                        })
+                        self.data_points["option_prices"].append(
+                            {
+                                "price": option_price,
+                                "strike": strike,
+                                "expiration": expiration,
+                                "datetime": self.get_datetime(),
+                            }
+                        )
 
                         # Buy 1 contract
                         order = self.create_order(option, 1, "buy")
@@ -207,23 +211,27 @@ class ComparisonStrategy(Strategy):
                 price = self.get_last_price(asset)
                 quote = self.get_quote(asset)
 
-                self.data_points["index_prices"].append({
-                    "symbol": index_symbol,
-                    "price": price,
-                    "quote": quote,
-                    "datetime": self.get_datetime(),
-                })
+                self.data_points["index_prices"].append(
+                    {
+                        "symbol": index_symbol,
+                        "price": price,
+                        "quote": quote,
+                        "datetime": self.get_datetime(),
+                    }
+                )
             except Exception as e:
                 self.log_message(f"Error getting index price for {index_symbol}: {e}")
 
     def on_filled_order(self, position, order, price, quantity, multiplier):
-        self.data_points["fill_prices"].append({
-            "price": price,
-            "quantity": quantity,
-            "multiplier": multiplier,
-            "asset": str(order.asset),
-            "datetime": self.get_datetime(),
-        })
+        self.data_points["fill_prices"].append(
+            {
+                "price": price,
+                "quantity": quantity,
+                "multiplier": multiplier,
+                "asset": str(order.asset),
+                "datetime": self.get_datetime(),
+            }
+        )
 
     def after_market_closes(self):
         self.data_points["portfolio_values"].append(self.portfolio_value)
@@ -352,47 +360,49 @@ class TestThetaDataVsPolygonComparison:
             ivl=900000,  # 15 minutes (900,000 ms) - VALUE plan supports this
             username=username,
             password=password,
-            datastyle='ohlc'
+            datastyle="ohlc",
         )
 
         # Verify data was returned
         if theta_df is None or len(theta_df) == 0:
             pytest.fail("ThetaData SPX data not available - check indices subscription is active")
 
-        print(f"\n✓ SPX Index Data Verification (15-minute intervals):")
+        print("\n✓ SPX Index Data Verification (15-minute intervals):")
         print(f"{'Time':<25} {'Open':<10} {'High':<10} {'Low':<10} {'Close':<10}")
-        print("="*80)
+        print("=" * 80)
 
         # Verify first few bars
         for i in range(min(5, len(theta_df))):
             bar = theta_df.iloc[i]
             timestamp = theta_df.index[i]
-            print(f"{str(timestamp):<25} ${bar['open']:<9.2f} ${bar['high']:<9.2f} ${bar['low']:<9.2f} ${bar['close']:<9.2f}")
+            print(
+                f"{str(timestamp):<25} ${bar['open']:<9.2f} ${bar['high']:<9.2f} ${bar['low']:<9.2f} ${bar['close']:<9.2f}"
+            )
 
         # Verify timestamps are 15 minutes apart
         for i in range(1, min(5, len(theta_df))):
-            time_diff = (theta_df.index[i] - theta_df.index[i-1]).total_seconds()
+            time_diff = (theta_df.index[i] - theta_df.index[i - 1]).total_seconds()
             assert time_diff == 900, f"Bar {i} is {time_diff}s after previous, expected 900s (15 min)"
 
         # Verify OHLC consistency
         for i in range(len(theta_df)):
             bar = theta_df.iloc[i]
-            assert bar['high'] >= bar['open'], f"Bar {i}: high < open"
-            assert bar['high'] >= bar['close'], f"Bar {i}: high < close"
-            assert bar['high'] >= bar['low'], f"Bar {i}: high < low"
-            assert bar['low'] <= bar['open'], f"Bar {i}: low > open"
-            assert bar['low'] <= bar['close'], f"Bar {i}: low > close"
-            assert 4000 < bar['close'] < 7000, f"Bar {i}: close ${bar['close']:.2f} outside reasonable range"
+            assert bar["high"] >= bar["open"], f"Bar {i}: high < open"
+            assert bar["high"] >= bar["close"], f"Bar {i}: high < close"
+            assert bar["high"] >= bar["low"], f"Bar {i}: high < low"
+            assert bar["low"] <= bar["open"], f"Bar {i}: low > open"
+            assert bar["low"] <= bar["close"], f"Bar {i}: low > close"
+            assert 4000 < bar["close"] < 7000, f"Bar {i}: close ${bar['close']:.2f} outside reasonable range"
 
         # Verify first bar starts at 9:30 or 9:29 (depending on timestamp alignment)
         first_time = theta_df.index[0]
         assert first_time.hour == 9, f"First bar hour is {first_time.hour}, expected 9"
         assert 29 <= first_time.minute <= 30, f"First bar minute is {first_time.minute}, expected 29 or 30"
 
-        print(f"\n✓ SPX index data is accessible and working correctly!")
+        print("\n✓ SPX index data is accessible and working correctly!")
         print(f"  - Got {len(theta_df)} bars of 15-minute data")
-        print(f"  - Timestamps are 15 minutes apart")
-        print(f"  - OHLC data is consistent")
+        print("  - Timestamps are 15 minutes apart")
+        print("  - OHLC data is consistent")
         print(f"  - First bar at {first_time}")
         print(f"  - Price range: ${theta_df['close'].min():.2f} - ${theta_df['close'].max():.2f}")
 

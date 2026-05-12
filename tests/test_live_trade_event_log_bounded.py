@@ -65,4 +65,3 @@ def test_live_trade_event_log_is_bounded():
 
     # Live brokers keep only the tail to prevent unbounded memory growth.
     assert len(broker._trade_event_log_rows) == 5000
-

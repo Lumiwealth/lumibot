@@ -6,21 +6,20 @@ for maximum performance. Comparison with the pandas version shows the full optim
 
 from __future__ import annotations
 
-import argparse
+import math
 import time
 from datetime import datetime
 from pathlib import Path
 
-import yappi
-import pytz
 import polars as pl
-import math
+import pytz
+import yappi
 
 from lumibot.backtesting import BacktestingBroker, DataBentoDataBacktestingPolars
+from lumibot.credentials import DATABENTO_CONFIG
 from lumibot.entities import Asset, Order, TradingFee
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
-from lumibot.credentials import DATABENTO_CONFIG
 
 OUTPUT_DIR = Path("tests/performance/logs")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -37,19 +36,17 @@ class MESMomentumSMA9PolarsNative(Strategy):
 
     parameters = {
         # Technicals
-        "sma_period": 9,                 # 9-minute SMA gate
-        "atr_period": 14,               # ATR lookback for volatility
-        "atr_stop_mult": 1.0,           # Stop distance = ATR * this multiplier
-        "rr_ratio": 3.0,                # Reward:Risk ratio (3:1)
-
+        "sma_period": 9,  # 9-minute SMA gate
+        "atr_period": 14,  # ATR lookback for volatility
+        "atr_stop_mult": 1.0,  # Stop distance = ATR * this multiplier
+        "rr_ratio": 3.0,  # Reward:Risk ratio (3:1)
         # Risk and sizing
-        "risk_per_trade_pct": 0.01,     # Risk 1% of portfolio per trade
-        "mes_point_value": 5.0,         # MES dollar value per 1.0 index point
-        "max_contracts": 5,             # Cap position size
-
+        "risk_per_trade_pct": 0.01,  # Risk 1% of portfolio per trade
+        "mes_point_value": 5.0,  # MES dollar value per 1.0 index point
+        "max_contracts": 5,  # Cap position size
         # Data & cadence
-        "bars_lookback": 200,           # Pull enough bars for indicators
-        "timestep": "minute",          # 1-minute bars
+        "bars_lookback": 200,  # Pull enough bars for indicators
+        "timestep": "minute",  # 1-minute bars
     }
 
     def initialize(self):
@@ -60,41 +57,40 @@ class MESMomentumSMA9PolarsNative(Strategy):
         self.vars.last_sma = None
         self.vars.last_price = None
 
-    def _compute_indicators_polars(self, df: pl.DataFrame, last_price: float, sma_period: int, atr_period: int) -> tuple:
+    def _compute_indicators_polars(
+        self, df: pl.DataFrame, last_price: float, sma_period: int, atr_period: int
+    ) -> tuple:
         """Calculate SMA and ATR indicators using polars operations.
 
         This replaces all pandas operations with polars equivalents for performance.
         """
         # Polars rolling operations
-        df = df.with_columns([
-            # SMA: rolling mean of close prices
-            pl.col("close").rolling_mean(window_size=sma_period).alias("sma"),
-
-            # Shifted close for True Range calculation
-            pl.col("close").shift(1).alias("prev_close"),
-        ])
+        df = df.with_columns(
+            [
+                # SMA: rolling mean of close prices
+                pl.col("close").rolling_mean(window_size=sma_period).alias("sma"),
+                # Shifted close for True Range calculation
+                pl.col("close").shift(1).alias("prev_close"),
+            ]
+        )
 
         # True Range components (polars operations)
-        df = df.with_columns([
-            # TR1: high - low
-            (pl.col("high") - pl.col("low")).alias("tr1"),
-
-            # TR2: |high - prev_close|
-            (pl.col("high") - pl.col("prev_close")).abs().alias("tr2"),
-
-            # TR3: |low - prev_close|
-            (pl.col("low") - pl.col("prev_close")).abs().alias("tr3"),
-        ])
+        df = df.with_columns(
+            [
+                # TR1: high - low
+                (pl.col("high") - pl.col("low")).alias("tr1"),
+                # TR2: |high - prev_close|
+                (pl.col("high") - pl.col("prev_close")).abs().alias("tr2"),
+                # TR3: |low - prev_close|
+                (pl.col("low") - pl.col("prev_close")).abs().alias("tr3"),
+            ]
+        )
 
         # True Range = max(TR1, TR2, TR3)
-        df = df.with_columns([
-            pl.max_horizontal(["tr1", "tr2", "tr3"]).alias("tr")
-        ])
+        df = df.with_columns([pl.max_horizontal(["tr1", "tr2", "tr3"]).alias("tr")])
 
         # ATR: rolling mean of True Range
-        df = df.with_columns([
-            pl.col("tr").rolling_mean(window_size=atr_period).alias("atr")
-        ])
+        df = df.with_columns([pl.col("tr").rolling_mean(window_size=atr_period).alias("atr")])
 
         # Get last values (polars way)
         last_row = df.tail(1)
@@ -128,7 +124,7 @@ class MESMomentumSMA9PolarsNative(Strategy):
             asset,
             params["bars_lookback"],
             params["timestep"],
-            return_polars=True  # This is the key optimization!
+            return_polars=True,  # This is the key optimization!
         )
 
         if bars is None or bars.df is None:
@@ -209,11 +205,11 @@ def run_polars_native_profile() -> float:
     start = tzinfo.localize(datetime(2024, 1, 3, 9, 30))
     end = tzinfo.localize(datetime(2024, 1, 5, 16, 0))
 
-    print(f"\n{'='*60}")
-    print(f"Starting POLARS-NATIVE backtest...")
+    print(f"\n{'=' * 60}")
+    print("Starting POLARS-NATIVE backtest...")
     print(f"Period: {start} to {end}")
-    print(f"Using return_polars=True with polars DataFrame operations")
-    print(f"{'='*60}")
+    print("Using return_polars=True with polars DataFrame operations")
+    print(f"{'=' * 60}")
 
     yappi.clear_stats()
     yappi.set_clock_type("wall")
@@ -239,7 +235,7 @@ def run_polars_native_profile() -> float:
 
     trader = Trader(logfile="", backtest=True)
     trader.add_strategy(strat)
-    results = trader.run_all(
+    trader.run_all(
         show_plot=False,
         show_tearsheet=False,
         show_indicators=False,
@@ -253,35 +249,35 @@ def run_polars_native_profile() -> float:
     yappi.get_func_stats().save(str(profile_path), type="pstat")
 
     # Print results
-    print(f"\n{'='*60}")
-    print(f"MODE: POLARS-NATIVE")
-    print(f"{'='*60}")
+    print(f"\n{'=' * 60}")
+    print("MODE: POLARS-NATIVE")
+    print(f"{'=' * 60}")
     print(f"Elapsed time: {elapsed:.2f}s")
     print(f"Profile saved: {profile_path}")
 
     # Show iteration count if available
-    if hasattr(strat.broker, 'iteration_count'):
+    if hasattr(strat.broker, "iteration_count"):
         print(f"Iterations: {strat.broker.iteration_count}")
 
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     return elapsed
 
 
 def main() -> None:
-    if not DATABENTO_API_KEY or DATABENTO_API_KEY == '<your key here>':
+    if not DATABENTO_API_KEY or DATABENTO_API_KEY == "<your key here>":
         print("ERROR: DATABENTO_API_KEY not configured")
         return
 
     elapsed = run_polars_native_profile()
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("POLARS-NATIVE PERFORMANCE")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Total time: {elapsed:.2f}s")
-    print(f"This uses return_polars=True and polars operations throughout")
-    print(f"Compare with standard profiler to see full speedup")
-    print(f"{'='*60}\n")
+    print("This uses return_polars=True and polars operations throughout")
+    print("Compare with standard profiler to see full speedup")
+    print(f"{'=' * 60}\n")
 
 
 if __name__ == "__main__":

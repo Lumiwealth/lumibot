@@ -32,7 +32,6 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LOG_DIR = Path("/tmp")
 LUMIBOT_LOGS = REPO_ROOT / "logs"

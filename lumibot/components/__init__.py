@@ -1,6 +1,8 @@
 """Lazy exports for optional component packages."""
+# pyright: reportUnsupportedDunderAll=false
 
 from importlib import import_module as _import_module
+from typing import Any
 
 _AGENT_EXPORTS = {
     "AgentManager",
@@ -9,17 +11,11 @@ _AGENT_EXPORTS = {
     "MCPServer",
     "agent_tool",
 }
-_SUBMODULES = {"agents"}
 
-__all__ = sorted(_AGENT_EXPORTS)
+__all__: list[str] = sorted(_AGENT_EXPORTS)
 
 
-def __getattr__(name):
-    if name in _SUBMODULES:
-        module = _import_module(f"{__name__}.{name}")
-        globals()[name] = module
-        return module
-
+def __getattr__(name: str) -> Any:
     if name in _AGENT_EXPORTS:
         agents = _import_module(f"{__name__}.agents")
         value = getattr(agents, name)
@@ -28,5 +24,5 @@ def __getattr__(name):
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-def __dir__():
-    return sorted(set(globals()) | set(__all__) | _SUBMODULES)
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(__all__))

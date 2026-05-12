@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from lumibot.entities import Asset, Position
 from lumibot.strategies.strategy_executor import StrategyExecutor
@@ -18,7 +18,7 @@ class _TraceStatsStubStrategy:
         return {}
 
     def get_datetime(self):
-        return datetime(2026, 1, 1, tzinfo=timezone.utc)
+        return datetime(2026, 1, 1, tzinfo=UTC)
 
     def get_positions(self):
         return [

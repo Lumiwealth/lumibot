@@ -4,8 +4,6 @@ from dataclasses import dataclass
 from datetime import date
 from types import SimpleNamespace
 
-import pytest
-
 from lumibot.brokers.alpaca import Alpaca
 from lumibot.entities import Asset, Order, SmartLimitConfig, SmartLimitPreset
 from lumibot.strategies.strategy import Strategy
@@ -175,7 +173,9 @@ def test_smart_limit_multileg_reprice_uses_submit_orders_on_modify_failure(mocke
     tracked_orders: list[Order] = []
     broker.get_tracked_orders = mocker.Mock(side_effect=lambda _name: tracked_orders)
     broker.cancel_order = mocker.Mock()
-    broker.submit_orders = mocker.Mock(return_value=[Order("unit", asset=Asset("SPY"), quantity=1, side=Order.OrderSide.BUY)])
+    broker.submit_orders = mocker.Mock(
+        return_value=[Order("unit", asset=Asset("SPY"), quantity=1, side=Order.OrderSide.BUY)]
+    )
     broker.modify_order = mocker.Mock(side_effect=RuntimeError("modify not supported"))
     broker.submit_order = mocker.Mock()
 
@@ -248,7 +248,9 @@ def test_alpaca_modify_order_updates_identifier_and_child_parent(mocker):
 
     child = Order("unit", asset=Asset("SPY"), quantity=1, side=Order.OrderSide.BUY)
     child.parent_identifier = old_id
-    parent = Order("unit", asset=Asset("SPY"), quantity=1, side=Order.OrderSide.BUY, identifier=old_id, child_orders=[child])
+    parent = Order(
+        "unit", asset=Asset("SPY"), quantity=1, side=Order.OrderSide.BUY, identifier=old_id, child_orders=[child]
+    )
 
     alpaca._modify_order(parent, limit_price=1.23)
 
@@ -263,7 +265,9 @@ def test_multileg_reprice_crosses_credit_to_even_uses_cancel_replace(mocker):
     tracked_orders: list[Order] = []
     broker.get_tracked_orders = mocker.Mock(side_effect=lambda _name: tracked_orders)
     broker.cancel_order = mocker.Mock()
-    broker.submit_orders = mocker.Mock(return_value=[Order("unit", asset=Asset("SPY"), quantity=1, side=Order.OrderSide.BUY)])
+    broker.submit_orders = mocker.Mock(
+        return_value=[Order("unit", asset=Asset("SPY"), quantity=1, side=Order.OrderSide.BUY)]
+    )
     broker.modify_order = mocker.Mock()
     broker.submit_order = mocker.Mock()
 

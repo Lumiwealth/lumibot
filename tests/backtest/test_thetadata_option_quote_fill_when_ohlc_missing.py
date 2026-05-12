@@ -58,7 +58,7 @@ def test_thetadata_option_market_order_fills_from_quote_when_ohlc_missing():
     - After this has been in the suite for ~1 year, treat it as LEGACY/high-authority: fix code first.
     """
 
-    now = datetime.datetime(2025, 1, 21, 15, 55, tzinfo=datetime.timezone.utc)
+    now = datetime.datetime(2025, 1, 21, 15, 55, tzinfo=datetime.UTC)
     data_source = _StubDataSource(now)
 
     broker = BacktestingBroker.__new__(BacktestingBroker)

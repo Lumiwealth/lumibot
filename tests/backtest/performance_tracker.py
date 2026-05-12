@@ -2,6 +2,7 @@
 Performance tracking for backtest tests.
 Automatically records execution time and key metrics to CSV for long-term tracking.
 """
+
 import csv
 import datetime
 from pathlib import Path
@@ -26,7 +27,7 @@ class PerformanceTracker:
         "start_date",
         "end_date",
         "sleeptime",
-        "notes"
+        "notes",
     ]
 
     def __init__(self, csv_path=None):
@@ -41,7 +42,7 @@ class PerformanceTracker:
     def _ensure_csv_exists(self):
         """Create CSV file with headers if it doesn't exist"""
         if not self.csv_path.exists():
-            with open(self.csv_path, 'w', newline='') as f:
+            with open(self.csv_path, "w", newline="") as f:
                 writer = csv.DictWriter(f, fieldnames=self.COLUMNS, lineterminator="\n")
                 writer.writeheader()
 
@@ -49,12 +50,8 @@ class PerformanceTracker:
         """Get current git commit hash, or None if not in git repo"""
         try:
             import subprocess
-            result = subprocess.run(
-                ["git", "rev-parse", "--short", "HEAD"],
-                capture_output=True,
-                text=True,
-                timeout=2
-            )
+
+            result = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, timeout=2)
             if result.returncode == 0:
                 return result.stdout.strip()
         except Exception:
@@ -65,6 +62,7 @@ class PerformanceTracker:
         """Get Lumibot version"""
         try:
             import lumibot
+
             return lumibot.__version__
         except Exception:
             return None
@@ -79,7 +77,7 @@ class PerformanceTracker:
         start_date=None,
         end_date=None,
         sleeptime=None,
-        notes=None
+        notes=None,
     ):
         """Record a backtest performance measurement
 
@@ -106,10 +104,10 @@ class PerformanceTracker:
             "start_date": str(start_date) if start_date else None,
             "end_date": str(end_date) if end_date else None,
             "sleeptime": sleeptime,
-            "notes": notes
+            "notes": notes,
         }
 
-        with open(self.csv_path, 'a', newline='') as f:
+        with open(self.csv_path, "a", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=self.COLUMNS, lineterminator="\n")
             writer.writerow(row)
 
@@ -126,13 +124,13 @@ class PerformanceTracker:
         if not self.csv_path.exists():
             return []
 
-        with open(self.csv_path, 'r') as f:
+        with open(self.csv_path) as f:
             reader = csv.DictReader(f)
             records = list(reader)
 
         # Filter by test name if provided
         if test_name:
-            records = [r for r in records if r['test_name'] == test_name]
+            records = [r for r in records if r["test_name"] == test_name]
 
         # Return most recent records
         return records[-limit:]

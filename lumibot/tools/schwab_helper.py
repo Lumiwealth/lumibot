@@ -2,18 +2,20 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import time
 import traceback
 import urllib.parse
 import webbrowser
-from pathlib import Path
-from termcolor import colored
-import re
 from datetime import datetime
+from pathlib import Path
+
+from termcolor import colored
 
 from .lumibot_logger import get_logger
 
 logger = get_logger(__name__)
+
 
 class SchwabHelper:
     @staticmethod
@@ -25,11 +27,13 @@ class SchwabHelper:
             "token": { ... }
         }
         """
-        import time, json
+        import json
+        import time
+
         if not token_path.exists():
             return
 
-        try: # Add try-except around file operations
+        try:  # Add try-except around file operations
             with token_path.open("r+", encoding="utf-8") as fp:
                 tok_raw = json.load(fp)
 
@@ -50,7 +54,7 @@ class SchwabHelper:
                 "issued_at": now_ms,
                 "refresh_token_issued_at": now_ms,
                 "expires_in": 1800,
-                "refresh_token_expires_in": 90 * 24 * 3600, # Changed from 7776000 for clarity (90 days)
+                "refresh_token_expires_in": 90 * 24 * 3600,  # Changed from 7776000 for clarity (90 days)
                 "token_type": "Bearer",
                 "scope": "api",
             }
@@ -67,7 +71,9 @@ class SchwabHelper:
             # Use 'w' mode to overwrite the file completely
             with token_path.open("w", encoding="utf-8") as fp:
                 json.dump(wrapped, fp)
-            logger.info(f"[DEBUG] Token file successfully written and wrapped by _ensure_token_metadata to {token_path}")
+            logger.info(
+                f"[DEBUG] Token file successfully written and wrapped by _ensure_token_metadata to {token_path}"
+            )
 
         except Exception as e:
             logger.error(f"[DEBUG] Error in _ensure_token_metadata: {e}")
@@ -75,7 +81,9 @@ class SchwabHelper:
             # If error occurs, try to delete the potentially corrupted file
             try:
                 token_path.unlink(missing_ok=True)
-                logger.warning(f"[DEBUG] Deleted potentially corrupted token file due to error in _ensure_token_metadata: {token_path}")
+                logger.warning(
+                    f"[DEBUG] Deleted potentially corrupted token file due to error in _ensure_token_metadata: {token_path}"
+                )
             except Exception as unlink_e:
                 logger.error(f"[DEBUG] Failed to delete token file after error in _ensure_token_metadata: {unlink_e}")
 
@@ -92,10 +100,10 @@ class SchwabHelper:
             "response_type": "code",
             "client_id": api_key,
             "redirect_uri": backend_callback_url,
-            "state": "lumibot_python_client_auth"
+            "state": "lumibot_python_client_auth",
         }
         auth_url = f"{auth_url_base}?{urllib.parse.urlencode(params)}"
-        
+
         print(colored("Schwab Authorization Needed:", "yellow"))
         print(colored("This script will attempt to guide you through Schwab's OAuth2 flow.", "cyan"))
         print(colored("If you already have a Schwab token payload string, you can skip the interactive steps", "cyan"))
@@ -104,25 +112,42 @@ class SchwabHelper:
 
         logger.info(f"Opening Schwab authorization URL in your browser: {auth_url}")
         logger.info(f"Using redirect_uri for Schwab: {backend_callback_url}")
-        
+
         try:
             webbrowser.open(auth_url)
         except Exception as e:
             logger.error(f"Could not open browser: {e}. Please manually open the URL above.")
-        
+
         print(colored("1. Your browser should have opened to the Schwab authorization page.", "yellow"))
         print(colored(f"   If not, please manually navigate to: {auth_url}", "yellow"))
-        print(colored(f"2. After authorizing Schwab, you will be redirected to a page (e.g., on your backend at '{backend_callback_url}').", "yellow"))
-        print(colored("3. Your backend will automatically exchange that code for tokens and redirect you to a \"Schwab connected\" success page.", "yellow"))
+        print(
+            colored(
+                f"2. After authorizing Schwab, you will be redirected to a page (e.g., on your backend at '{backend_callback_url}').",
+                "yellow",
+            )
+        )
+        print(
+            colored(
+                '3. Your backend will automatically exchange that code for tokens and redirect you to a "Schwab connected" success page.',
+                "yellow",
+            )
+        )
         print(colored("4. On that page, click Copy to grab the displayed code.", "yellow"))
         print(colored("   Paste that payload below (or set it as SCHWAB_TOKEN in your environment).", "yellow"))
-        
+
         payload_str = ""
         try:
             payload_str = input(colored("5. Paste the copied payload string here and press Enter: ", "green")).strip()
         except EOFError:
-            logger.error("EOFError: Cannot read input for Schwab token payload. Running in a non-interactive environment?")
-            print(colored("Cannot read input for Schwab token payload. If running non-interactively, ensure the SCHWAB_TOKEN environment variable is set with the token payload.", "red"))
+            logger.error(
+                "EOFError: Cannot read input for Schwab token payload. Running in a non-interactive environment?"
+            )
+            print(
+                colored(
+                    "Cannot read input for Schwab token payload. If running non-interactively, ensure the SCHWAB_TOKEN environment variable is set with the token payload.",
+                    "red",
+                )
+            )
             return False
         except KeyboardInterrupt:
             print(colored("\nSchwab authorization cancelled by user.", "yellow"))
@@ -153,6 +178,7 @@ class SchwabHelper:
         if not token_path.exists():
             return False
         import json
+
         try:
             with token_path.open("r", encoding="utf-8") as fp:
                 tok = json.load(fp)
@@ -168,7 +194,7 @@ class SchwabHelper:
             return False
 
     @staticmethod
-    def _parse_option_symbol(option_symbol):
+    def _parse_option_symbol(option_symbol: str):
         """
         Parse Schwab option symbol format (e.g., 'SPY   240801P00541000') into its components.
 
@@ -191,7 +217,7 @@ class SchwabHelper:
         try:
             # Define the regex pattern for the option symbol
             # Format is: symbol(spaces)YYMMDD(C|P)strike(with padding zeros)
-            pattern = r'^(?P<underlying>[A-Z]+)\s+(?P<expiry>\d{6})(?P<type>[CP])(?P<strike>\d{8})$'
+            pattern = r"^(?P<underlying>[A-Z]+)\s+(?P<expiry>\d{6})(?P<type>[CP])(?P<strike>\d{8})$"
 
             # Match the pattern with the option symbol
             match = re.match(pattern, option_symbol)
@@ -200,26 +226,26 @@ class SchwabHelper:
                 return None
 
             # Extract the parts from the regex match groups
-            underlying = match.group('underlying').strip()
-            expiry = match.group('expiry')
-            option_type = match.group('type')
-            strike_raw = match.group('strike')
+            underlying = match.group("underlying").strip()
+            expiry = match.group("expiry")
+            option_type = match.group("type")
+            strike_raw = match.group("strike")
 
             # Convert expiry date string to a date object
             # Format is YYMMDD, convert to YYYY-MM-DD
-            expiry_date = datetime.strptime(expiry, '%y%m%d').date()
+            expiry_date = datetime.strptime(expiry, "%y%m%d").date()
 
             # Convert strike price to a float (divide by 1000 to get actual price)
             strike_price = int(strike_raw) / 1000
 
             # Map option type to CALL or PUT
-            option_type_full = 'CALL' if option_type == 'C' else 'PUT'
+            option_type_full = "CALL" if option_type == "C" else "PUT"
 
             return {
-                'underlying': underlying,
-                'expiry_date': expiry_date,
-                'option_type': option_type_full,
-                'strike_price': strike_price
+                "underlying": underlying,
+                "expiry_date": expiry_date,
+                "option_type": option_type_full,
+                "strike_price": strike_price,
             }
 
         except Exception as e:
@@ -233,10 +259,10 @@ class SchwabHelper:
             raise ValueError("Empty payload string provided.")
         missing_padding = len(payload_str) % 4
         if missing_padding:
-            payload_str += '=' * (4 - missing_padding)
+            payload_str += "=" * (4 - missing_padding)
         try:
             decoded_bytes = base64.urlsafe_b64decode(payload_str)
-            token_data_from_payload = json.loads(decoded_bytes.decode('utf-8'))
+            token_data_from_payload = json.loads(decoded_bytes.decode("utf-8"))
         except Exception as e:
             raise ValueError(f"Failed to decode or parse payload string: {e}") from e
         now_ms = int(time.time() * 1000)
@@ -262,6 +288,7 @@ class SchwabHelper:
         with token_path.open("w", encoding="utf-8") as fp:
             json.dump(wrapped_token, fp)
         logger.info(f"Token payload processed and saved to {token_path}")
+
 
 __all__ = [
     "SchwabHelper",

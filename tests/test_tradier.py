@@ -1,6 +1,5 @@
-import datetime as dt
-import os
 import base64
+import datetime as dt
 import json
 import time
 from time import sleep
@@ -11,9 +10,8 @@ import pandas as pd
 import pytest
 
 from lumibot.brokers.tradier import Tradier
-from lumibot.data_sources.tradier_data import TradierData
-from lumibot.entities import Asset, Order, Position, SmartLimitConfig, SmartLimitPreset
 from lumibot.credentials import TRADIER_TEST_CONFIG
+from lumibot.entities import Asset, Order, Position, SmartLimitConfig, SmartLimitPreset
 from lumibot.strategies.strategy import Strategy
 
 
@@ -27,19 +25,19 @@ class _StubStrategy(Strategy):
 
 def pytest_collection_modifyitems(config, items):
     for item in items:
-        if 'API' in item.cls.__name__:
-            if not TRADIER_TEST_CONFIG['ACCESS_TOKEN'] or TRADIER_TEST_CONFIG['ACCESS_TOKEN'] == '<your key here>':
+        if "API" in item.cls.__name__:
+            if not TRADIER_TEST_CONFIG["ACCESS_TOKEN"] or TRADIER_TEST_CONFIG["ACCESS_TOKEN"] == "<your key here>":
                 item.add_marker(pytest.mark.skip(reason="These tests require a Tradier API key"))
 
 
 @pytest.fixture
 def tradier():
-    if not TRADIER_TEST_CONFIG['ACCESS_TOKEN'] or TRADIER_TEST_CONFIG['ACCESS_TOKEN'] == '<your key here>':
+    if not TRADIER_TEST_CONFIG["ACCESS_TOKEN"] or TRADIER_TEST_CONFIG["ACCESS_TOKEN"] == "<your key here>":
         pytest.skip("These tests require a Tradier API key")
     return Tradier(
-        account_number=TRADIER_TEST_CONFIG['ACCOUNT_NUMBER'],
-        access_token=TRADIER_TEST_CONFIG['ACCESS_TOKEN'],
-        paper=True
+        account_number=TRADIER_TEST_CONFIG["ACCOUNT_NUMBER"],
+        access_token=TRADIER_TEST_CONFIG["ACCESS_TOKEN"],
+        paper=True,
     )
 
 
@@ -58,7 +56,7 @@ class TestTradierBrokerAPI:
 
     def test_submit_order(self, tradier):
         asset = Asset("AAPL")
-        order = Order('strat_unittest', asset, 1, 'buy', order_type='market')
+        order = Order("strat_unittest", asset, 1, "buy", order_type="market")
         submitted_order = tradier._submit_order(order)
         assert submitted_order.status == "submitted"
         assert submitted_order.identifier > 0
@@ -199,12 +197,12 @@ class TestTradierBroker:
 
     def test_lumi_side2tradier(self, mocker):
         broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True, connect_stream=False)
-        mock_pull_positions = mocker.patch.object(broker, 'get_tracked_position', return_value=None)
+        mock_pull_positions = mocker.patch.object(broker, "get_tracked_position", return_value=None)
         strategy = "strat_unittest"
         stock_asset = Asset("SPY")
-        option_asset = Asset("SPY", asset_type='option')
-        stock_order = Order(strategy, stock_asset, 1, 'buy', order_type='market')
-        option_order = Order(strategy, option_asset, 1, 'buy', order_type='market')
+        option_asset = Asset("SPY", asset_type="option")
+        stock_order = Order(strategy, stock_asset, 1, "buy", order_type="market")
+        option_order = Order(strategy, option_asset, 1, "buy", order_type="market")
 
         # No Positions exist
         assert broker._lumi_side2tradier(stock_order) == "buy"
@@ -232,9 +230,9 @@ class TestTradierBroker:
         assert not broker._lumi_side2tradier(option_order)
 
         # Stoploss always submits as a "to_close" order
-        stop_stock_order = Order(strategy, stock_asset, 1, 'sell', order_type='stop', stop_price=100.0)
+        stop_stock_order = Order(strategy, stock_asset, 1, "sell", order_type="stop", stop_price=100.0)
         assert broker._lumi_side2tradier(stop_stock_order) == "sell"
-        stop_option_order = Order(strategy, option_asset, 1, 'sell', order_type='stop', stop_price=100.0)
+        stop_option_order = Order(strategy, option_asset, 1, "sell", order_type="stop", stop_price=100.0)
         assert broker._lumi_side2tradier(stop_option_order) == "sell_to_close"
 
         # TODO: Fix this test, it's commented out temporarily until we can figure out how to handle this case.
@@ -324,14 +322,34 @@ class TestTradierBroker:
         Test the _pull_broker_all_orders function by mocking the get_orders() call.
         """
         broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True, connect_stream=False)
-        mock_get_orders = mocker.patch.object(broker.tradier.orders, 'get_orders', return_value=pd.DataFrame([
-            {"id": 1, "symbol": "AAPL", "quantity": 10, "status": "filled", "side": "buy", "type": "market"},
-            {"id": 2, "symbol": "GOOGL", "quantity": 5, "status": "open", "side": "sell", "type": "market"},
-            {"id": 3, "symbol": "MSFT", "quantity": 15, "status": "open", "side": "buy",
-                "type": "limit", "price": 250.00003},
-            {"id": 4, "symbol": "TSLA", "quantity": 20, "status": "open", "side": "sell",
-                "type": "stop", "stop_price": 600.0091}
-        ]))
+        mock_get_orders = mocker.patch.object(
+            broker.tradier.orders,
+            "get_orders",
+            return_value=pd.DataFrame(
+                [
+                    {"id": 1, "symbol": "AAPL", "quantity": 10, "status": "filled", "side": "buy", "type": "market"},
+                    {"id": 2, "symbol": "GOOGL", "quantity": 5, "status": "open", "side": "sell", "type": "market"},
+                    {
+                        "id": 3,
+                        "symbol": "MSFT",
+                        "quantity": 15,
+                        "status": "open",
+                        "side": "buy",
+                        "type": "limit",
+                        "price": 250.00003,
+                    },
+                    {
+                        "id": 4,
+                        "symbol": "TSLA",
+                        "quantity": 20,
+                        "status": "open",
+                        "side": "sell",
+                        "type": "stop",
+                        "stop_price": 600.0091,
+                    },
+                ]
+            ),
+        )
 
         orders = broker._pull_broker_all_orders()
         assert len(orders) == 4
@@ -439,64 +457,64 @@ class TestTradierBroker:
         option_symbol = "SPY200101C00150000"
 
         response = {
-            'avg_fill_price': np.nan,
-            'class': 'oco',
-            'create_date': '2025-02-26T20:52:33.982Z',
-            'duration': np.nan,
-            'exec_quantity': np.nan,
-            'id': 16710952,
-            'last_fill_price': np.nan,
-            'last_fill_quantity': np.nan,
-            'leg': [
+            "avg_fill_price": np.nan,
+            "class": "oco",
+            "create_date": "2025-02-26T20:52:33.982Z",
+            "duration": np.nan,
+            "exec_quantity": np.nan,
+            "id": 16710952,
+            "last_fill_price": np.nan,
+            "last_fill_quantity": np.nan,
+            "leg": [
                 {
-                    'avg_fill_price': 3.34,
-                    'class': 'option',
-                    'create_date': '2025-02-26T20:52:33.982Z',
-                    'duration': 'gtc',
-                    'exec_quantity': 1.0,
-                    'id': 16710953,
-                    'last_fill_price': 3.34,
-                    'last_fill_quantity': 1.0,
-                    'option_symbol': option_symbol,
-                    'price': 3.34,
-                    'quantity': 1.0,
-                    'remaining_quantity': 0.0,
-                    'side': 'sell_to_close',
-                    'status': 'filled',
-                    'symbol': stock_symbol,
-                    'transaction_date': '2025-02-26T20:58:31.116Z',
-                    'type': 'limit'
+                    "avg_fill_price": 3.34,
+                    "class": "option",
+                    "create_date": "2025-02-26T20:52:33.982Z",
+                    "duration": "gtc",
+                    "exec_quantity": 1.0,
+                    "id": 16710953,
+                    "last_fill_price": 3.34,
+                    "last_fill_quantity": 1.0,
+                    "option_symbol": option_symbol,
+                    "price": 3.34,
+                    "quantity": 1.0,
+                    "remaining_quantity": 0.0,
+                    "side": "sell_to_close",
+                    "status": "filled",
+                    "symbol": stock_symbol,
+                    "transaction_date": "2025-02-26T20:58:31.116Z",
+                    "type": "limit",
                 },
                 {
-                    'avg_fill_price': 0.0,
-                    'class': 'option',
-                    'create_date': '2025-02-26T20:52:33.982Z',
-                    'duration': 'gtc',
-                    'exec_quantity': 0.0,
-                    'id': 16710954,
-                    'last_fill_price': 0.0,
-                    'last_fill_quantity': 0.0,
-                    'option_symbol': option_symbol,
-                    'quantity': 1.0,
-                    'remaining_quantity': 0.0,
-                    'side': 'sell_to_close',
-                    'status': 'canceled',
-                    'stop_price': 2.78,
-                    'symbol': stock_symbol,
-                    'transaction_date': '2025-02-26T20:58:31.259Z',
-                    'type': 'stop'
-                }
+                    "avg_fill_price": 0.0,
+                    "class": "option",
+                    "create_date": "2025-02-26T20:52:33.982Z",
+                    "duration": "gtc",
+                    "exec_quantity": 0.0,
+                    "id": 16710954,
+                    "last_fill_price": 0.0,
+                    "last_fill_quantity": 0.0,
+                    "option_symbol": option_symbol,
+                    "quantity": 1.0,
+                    "remaining_quantity": 0.0,
+                    "side": "sell_to_close",
+                    "status": "canceled",
+                    "stop_price": 2.78,
+                    "symbol": stock_symbol,
+                    "transaction_date": "2025-02-26T20:58:31.259Z",
+                    "type": "stop",
+                },
             ],
-            'option_symbol': np.nan,
-            'quantity': np.nan,
-            'remaining_quantity': np.nan,
-            'side': np.nan,
-            'status': 'filled',
-            'stop_price': np.nan,
-            'symbol': np.nan,
-            'tag': 'StressStrat',
-            'transaction_date': '2025-02-26T20:58:31.266Z',
-            'type': np.nan
+            "option_symbol": np.nan,
+            "quantity": np.nan,
+            "remaining_quantity": np.nan,
+            "side": np.nan,
+            "status": "filled",
+            "stop_price": np.nan,
+            "symbol": np.nan,
+            "tag": "StressStrat",
+            "transaction_date": "2025-02-26T20:58:31.266Z",
+            "type": np.nan,
         }
 
         # OCO Checks
@@ -557,19 +575,21 @@ class TestTradierBroker:
 
     @pytest.mark.skip(reason="Complex test that requires proper stream setup - skipping to fix CI timeout")
     def test_do_polling(self, mocker):
-        broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True, polling_interval=None, connect_stream=False)
+        broker = Tradier(
+            account_number="1234", access_token="a1b2c3", paper=True, polling_interval=None, connect_stream=False
+        )
         strategy = "strat_unittest"
         sleep_amt = 1.0  # Increased for CI stability
         broker._strategy_name = strategy
-        
+
         # Mock the stream object since connect_stream=False
         mock_stream = mocker.MagicMock()
         broker.stream = mock_stream
-        
-        mock_get_orders = mocker.patch.object(broker, '_pull_broker_all_orders', return_value=[])
-        submit_response = {'id': 123, 'status': 'ok'}
-        mock_submit_order = mocker.patch.object(broker.tradier.orders, 'order', return_value=submit_response)
-        mocker.patch.object(broker, 'sync_positions', return_value=None)
+
+        mock_get_orders = mocker.patch.object(broker, "_pull_broker_all_orders", return_value=[])
+        submit_response = {"id": 123, "status": "ok"}
+        mock_submit_order = mocker.patch.object(broker.tradier.orders, "order", return_value=submit_response)
+        mocker.patch.object(broker, "sync_positions", return_value=None)
 
         # Set to false for testing purposes
         broker._first_iteration = False
@@ -584,7 +604,7 @@ class TestTradierBroker:
         # Submit an order to test polling with
         stock_asset = Asset("SPY")
         stock_qty = 10
-        order = Order(strategy, stock_asset, stock_qty, 'buy', order_type='market')
+        order = Order(strategy, stock_asset, stock_qty, "buy", order_type="market")
         sub_order = broker._submit_order(order)
         assert sub_order.status == "submitted"
         assert sub_order.identifier == 123
@@ -631,8 +651,8 @@ class TestTradierBroker:
         assert order1.status == "open"
 
         # Add a 2nd order: stop loss
-        mock_submit_order.return_value = {'id': 124, 'status': 'ok'}
-        stop_order = Order(strategy, stock_asset, 1, 'sell', order_type='stop', stop_price=100.0)
+        mock_submit_order.return_value = {"id": 124, "status": "ok"}
+        stop_order = Order(strategy, stock_asset, 1, "sell", order_type="stop", stop_price=100.0)
         sub_order = broker._submit_order(stop_order)
         assert sub_order.status == "submitted"
         assert sub_order.identifier == 124
@@ -719,8 +739,8 @@ class TestTradierBroker:
         assert len(broker._canceled_orders) == 1
 
         # 3rd Order: Submit an order that causes a broker error
-        mock_submit_order.return_value = {'id': 125, 'status': 'ok'}
-        stop_order = Order(strategy, stock_asset, stock_qty, 'sell', order_type='limit', limit_price=1000.0)
+        mock_submit_order.return_value = {"id": 125, "status": "ok"}
+        stop_order = Order(strategy, stock_asset, stock_qty, "sell", order_type="limit", limit_price=1000.0)
         sub_order = broker._submit_order(stop_order)
         assert sub_order.status == "submitted"
         assert sub_order.identifier == 125
@@ -763,8 +783,8 @@ class TestTradierBroker:
         assert error_order.error_message == "API Error Msg"
 
         # There is a Lumibot order that is not tracked by the broker, so it should be canceled.
-        mock_submit_order.return_value = {'id': 126, 'status': 'ok'}
-        drop_order = Order(strategy, stock_asset, stock_qty, 'sell', order_type='market')
+        mock_submit_order.return_value = {"id": 126, "status": "ok"}
+        drop_order = Order(strategy, stock_asset, stock_qty, "sell", order_type="market")
         broker._submit_order(drop_order)
         assert len(broker._unprocessed_orders) == 1
         assert len(broker._new_orders) == 0
@@ -830,64 +850,69 @@ class TestTradierBroker:
         # Include an OCO order case.
         # Lumibot doesn't know about it, but the broker does. Add to Lumibot trackers
         fifth_response = {
-            'id': 128,
-            'type': 'oco',
-            'side': 'buy',
-            'symbol': "SPY",
-            'class': 'oco',
-            'quantity': 1,
-            'avg_fill_price': None,
-            'status': 'open',
-            'tag': strategy,
-            'duration': 'gtc',
-            'create_date': dt.datetime.today(),
-            'leg': [
+            "id": 128,
+            "type": "oco",
+            "side": "buy",
+            "symbol": "SPY",
+            "class": "oco",
+            "quantity": 1,
+            "avg_fill_price": None,
+            "status": "open",
+            "tag": strategy,
+            "duration": "gtc",
+            "create_date": dt.datetime.today(),
+            "leg": [
                 {
-                    'avg_fill_price': None,
-                    'class': 'equity',
-                    'create_date': dt.datetime.today(),
-                    'duration': 'gtc',
-                    'exec_quantity': None,
-                    'id': 129,
-                    'last_fill_price': None,
-                    'last_fill_quantity': None,
-                    'option_symbol': None,
-                    'price': 103.0,
-                    'quantity': 1.0,
-                    'remaining_quantity': 1.0,
-                    'side': 'buy_to_open',
-                    'status': 'open',
-                    'stop_price': None,
-                    'symbol': "SPY",
-                    'transaction_date': dt.datetime.today(),
-                    'type': 'limit',
-                    'tag': strategy,
+                    "avg_fill_price": None,
+                    "class": "equity",
+                    "create_date": dt.datetime.today(),
+                    "duration": "gtc",
+                    "exec_quantity": None,
+                    "id": 129,
+                    "last_fill_price": None,
+                    "last_fill_quantity": None,
+                    "option_symbol": None,
+                    "price": 103.0,
+                    "quantity": 1.0,
+                    "remaining_quantity": 1.0,
+                    "side": "buy_to_open",
+                    "status": "open",
+                    "stop_price": None,
+                    "symbol": "SPY",
+                    "transaction_date": dt.datetime.today(),
+                    "type": "limit",
+                    "tag": strategy,
                 },
                 {
-                    'avg_fill_price': None,
-                    'class': 'equity',
-                    'create_date': dt.datetime.today(),
-                    'duration': 'gtc',
-                    'exec_quantity': None,
-                    'id': 130,
-                    'last_fill_price': None,
-                    'last_fill_quantity': None,
-                    'option_symbol': "SPY",
-                    'price': None,
-                    'quantity': 1.0,
-                    'remaining_quantity': 1.0,
-                    'side': 'buy_to_open',
-                    'status': 'open',
-                    'stop_price': 101.0,
-                    'symbol': "SPY",
-                    'transaction_date': dt.datetime.today(),
-                    'type': 'stop',
-                    'tag': strategy,
-                }
+                    "avg_fill_price": None,
+                    "class": "equity",
+                    "create_date": dt.datetime.today(),
+                    "duration": "gtc",
+                    "exec_quantity": None,
+                    "id": 130,
+                    "last_fill_price": None,
+                    "last_fill_quantity": None,
+                    "option_symbol": "SPY",
+                    "price": None,
+                    "quantity": 1.0,
+                    "remaining_quantity": 1.0,
+                    "side": "buy_to_open",
+                    "status": "open",
+                    "stop_price": 101.0,
+                    "symbol": "SPY",
+                    "transaction_date": dt.datetime.today(),
+                    "type": "stop",
+                    "tag": strategy,
+                },
             ],
         }
-        mock_get_orders.return_value = [first_response, second_response, third_response,
-                                         fourth_response, fifth_response]
+        mock_get_orders.return_value = [
+            first_response,
+            second_response,
+            third_response,
+            fourth_response,
+            fifth_response,
+        ]
         broker.do_polling()
         sleep(sleep_amt)
         known_orders = broker.get_tracked_orders(strategy=strategy)
@@ -910,8 +935,13 @@ class TestTradierBroker:
         fifth_response["leg"][0]["exec_quantity"] = 1
         fifth_response["leg"][1]["status"] = "cancelled"
         fifth_response["leg"][1]["avg_fill_price"] = None
-        mock_get_orders.return_value = [first_response, second_response, third_response,
-                                            fourth_response, fifth_response]
+        mock_get_orders.return_value = [
+            first_response,
+            second_response,
+            third_response,
+            fourth_response,
+            fifth_response,
+        ]
         broker.do_polling()
         sleep(sleep_amt)
         known_orders = broker.get_tracked_orders(strategy=strategy)
@@ -930,8 +960,13 @@ class TestTradierBroker:
 
         # OCO now has a fill price and should finally get filled
         fifth_response["leg"][0]["avg_fill_price"] = 103.0
-        mock_get_orders.return_value = [first_response, second_response, third_response,
-                                            fourth_response, fifth_response]
+        mock_get_orders.return_value = [
+            first_response,
+            second_response,
+            third_response,
+            fourth_response,
+            fifth_response,
+        ]
         broker.do_polling()
         sleep(sleep_amt)
         known_orders = broker.get_tracked_orders(strategy=strategy)

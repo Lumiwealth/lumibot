@@ -68,7 +68,6 @@ import pytz
 
 from lumibot.entities import Asset, Bars, Data
 
-
 NY = pytz.timezone("America/New_York")
 
 
@@ -236,8 +235,13 @@ class TestPollutedFrameDoesNotLeakFutureBars:
         # Healthy frame (no poisoning): 5 consecutive trading days, sim_time
         # lands between day 2 and day 3 — must return day 2's close.
         asset = Asset("SPY", "stock")
-        closes = [("2022-07-01 16:00", 100.0), ("2022-07-05 16:00", 101.0), ("2022-07-06 16:00", 102.0),
-                  ("2022-07-07 16:00", 103.0), ("2022-07-08 16:00", 104.0)]
+        closes = [
+            ("2022-07-01 16:00", 100.0),
+            ("2022-07-05 16:00", 101.0),
+            ("2022-07-06 16:00", 102.0),
+            ("2022-07-07 16:00", 103.0),
+            ("2022-07-08 16:00", 104.0),
+        ]
         data = _make_daily_data(asset, closes)
 
         # Sim-time Tuesday 2022-07-05 10:30 AM: day 2 bar (close=101 stamped

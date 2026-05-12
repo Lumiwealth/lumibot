@@ -1,48 +1,58 @@
 import json
 import re
 import time
+from collections.abc import Mapping
+from typing import Any, cast
 
 from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
 
 
-def _openai_client_class():
+def _openai_client_class() -> Any:
     from openai import OpenAI
 
     return OpenAI
 
+
 class GrokHelper:
     """
     A helper for querying the Grok/xAI API via an OpenAI-compatible client.
-    
-    This helper supports general queries only. You may supply a custom JSON schema 
+
+    This helper supports general queries only. You may supply a custom JSON schema
     (as a dict or string) that thoroughly describes the expected JSON response.
     If no custom schema is provided, a default schema is used.
     """
 
-    def __init__(self, api_key: str):
+    api_key: str
+    client: Any
+
+    def __init__(self, api_key: str) -> None:
         """
         Initializes the GrokHelper with your API key and creates an OpenAI-compatible client.
-        
+
         Parameters
         ----------
         api_key : str
-            Your Grok/xAI API key. If not provided, the helper will attempt to read it from 
+            Your Grok/xAI API key. If not provided, the helper will attempt to read it from
             the environment variables 'GROK_API_KEY' or 'XAI_API_KEY'.
-        
+
         Raises
         ------
         ValueError
             If no API key is provided or found.
         """
-        if not api_key:
+        resolved_api_key = api_key
+        if not resolved_api_key:
             import os
-            api_key = os.getenv("GROK_API_KEY") or os.getenv("XAI_API_KEY")
-            if not api_key:
-                raise ValueError("API key is required for GrokHelper. Set it as GROK_API_KEY or XAI_API_KEY in your environment or pass it directly.")
 
-        self.api_key = api_key
+            resolved_api_key = os.getenv("GROK_API_KEY") or os.getenv("XAI_API_KEY") or ""
+            if not resolved_api_key:
+                raise ValueError(
+                    "API key is required for GrokHelper. Set it as GROK_API_KEY or XAI_API_KEY in your environment or pass it directly."
+                )
+
+        self.api_key = resolved_api_key
         self.client = _openai_client_class()(
             api_key=self.api_key,
             base_url="https://api.x.ai/v1",
@@ -50,14 +60,14 @@ class GrokHelper:
 
     def _clean_response(self, response_text: str) -> str:
         """
-        Cleans the raw API response by removing markdown code fences and any extraneous text 
+        Cleans the raw API response by removing markdown code fences and any extraneous text
         preceding the first '{', so that only a valid JSON object remains.
-        
+
         Parameters
         ----------
         response_text : str
             The raw response text from the API.
-        
+
         Returns
         -------
         str
@@ -75,25 +85,25 @@ class GrokHelper:
             response_text = response_text[first_brace:]
         return response_text
 
-    def _build_general_prompt(self, user_query: str, custom_schema=None) -> str:
+    def _build_general_prompt(self, user_query: str, custom_schema: Mapping[str, Any] | str | None = None) -> str:
         """
         Constructs a system prompt for general queries.
-        
+
         You can provide a custom JSON schema as either a Python dictionary or a string.
         It is recommended that the schema thoroughly describes the expected JSON output,
         including detailed explanations for each field.
-        
+
         The default schema (if no custom schema is provided) is:
-        
+
             {
               "query": "<string, echo the user's query>",
               "response_summary": "<string, brief answer (1-3 sentences)>",
               "detailed_response": "<string, optional extended details>",
               "symbols": ["<string, list of relevant symbols>"]
             }
-        
+
         A sample custom schema (different from the default) might be:
-        
+
             {
               "query": "<string, echo the user's query>",
               "stocks": [
@@ -105,35 +115,35 @@ class GrokHelper:
               ],
               "summary": "<string, overall summary of findings>"
             }
-        
+
         Instruct the model to output only the JSON object with no extra text or markdown.
-        
+
         Parameters
         ----------
         user_query : str
             The user's query.
         custom_schema : dict or str, optional
             The desired JSON schema for the response.
-        
+
         Returns
         -------
         str
             The system prompt to be sent to the API.
         """
         if custom_schema is None:
-            schema = {
+            schema: Mapping[str, Any] | str = {
                 "query": "<string, echo the user's query>",
                 "response_summary": "<string, brief answer (1-3 sentences)>",
                 "detailed_response": "<string, optional extended details>",
-                "symbols": ["<string, list of relevant symbols>"]
+                "symbols": ["<string, list of relevant symbols>"],
             }
-        elif isinstance(custom_schema, dict):
+        elif isinstance(custom_schema, Mapping):
             schema = custom_schema
         else:
             schema = custom_schema
 
-        if isinstance(schema, dict):
-            schema_str = json.dumps(schema, indent=2)
+        if isinstance(schema, Mapping):
+            schema_str = json.dumps(dict(schema), indent=2)
         else:
             schema_str = schema
 
@@ -159,12 +169,14 @@ Return only valid JSON following the schema.
 """
         return system_prompt
 
-    def _send_request(self, system_msg: str, user_query: str, model: str = "grok-2-latest", temperature: int = 0, retries: int = 3) -> str:
+    def _send_request(
+        self, system_msg: str, user_query: str, model: str = "grok-2-latest", temperature: int = 0, retries: int = 3
+    ) -> str:
         """
         Sends a request to the Grok/xAI API using the provided system message and user query.
         Implements a retry loop to mitigate transient failures.
         Additional parameters like 'max_tokens' and 'top_p' are included to encourage a complete output.
-        
+
         Parameters
         ----------
         system_msg : str
@@ -177,12 +189,12 @@ Return only valid JSON following the schema.
             The temperature setting (default is 0).
         retries : int, optional
             Number of retry attempts (default is 3).
-        
+
         Returns
         -------
         str
             The content of the API response.
-        
+
         Raises
         ------
         Exception
@@ -192,21 +204,20 @@ Return only valid JSON following the schema.
             try:
                 completion = self.client.chat.completions.create(
                     model=model,
-                    messages=[
-                        {"role": "system", "content": system_msg},
-                        {"role": "user", "content": user_query}
-                    ],
+                    messages=[{"role": "system", "content": system_msg}, {"role": "user", "content": user_query}],
                     temperature=temperature,
                     max_tokens=500,
                     top_p=0.9,
-                    stream=False
+                    stream=False,
                 )
-                if (not completion.choices or
-                    not hasattr(completion.choices[0], "message") or
-                    not hasattr(completion.choices[0].message, "content")):
+                if (
+                    not completion.choices
+                    or not hasattr(completion.choices[0], "message")
+                    or not hasattr(completion.choices[0].message, "content")
+                ):
                     raise ValueError("Invalid response structure from API.")
                 response_text = completion.choices[0].message.content
-                if not response_text.strip():
+                if not isinstance(response_text, str) or not response_text.strip():
                     raise ValueError("Received empty response from API.")
                 return response_text
             except Exception as e:
@@ -217,26 +228,31 @@ Return only valid JSON following the schema.
                 time.sleep(1)
         raise RuntimeError("Failed to get a valid response after retries.")
 
-    def execute_general_query(self, user_query: str, custom_schema=None, model: str = "grok-2-latest") -> dict:
+    def execute_general_query(
+        self,
+        user_query: str,
+        custom_schema: Mapping[str, Any] | str | None = None,
+        model: str = "grok-2-latest",
+    ) -> dict[str, Any]:
         """
         Executes a general query using the Grok/xAI API.
-        
+
         This method performs the following steps:
-        
-        1. **Prompt Construction:**  
-           Builds a system prompt using the `_build_general_prompt` method. You may supply a custom JSON schema 
-           (as a dict or string) that thoroughly describes the expected output. If no custom schema is provided, 
+
+        1. **Prompt Construction:**
+           Builds a system prompt using the `_build_general_prompt` method. You may supply a custom JSON schema
+           (as a dict or string) that thoroughly describes the expected output. If no custom schema is provided,
            the default schema is used. The default schema is:
-        
+
                {
                  "query": "<string, echo the user's query>",
                  "response_summary": "<string, brief answer (1-3 sentences)>",
                  "detailed_response": "<string, optional extended details>",
                  "symbols": ["<string, list of relevant symbols>"]
                }
-        
+
            A sample custom schema (different from the default) might be:
-        
+
                {
                  "query": "<string, echo the user's query>",
                  "stocks": [
@@ -248,15 +264,15 @@ Return only valid JSON following the schema.
                  ],
                  "summary": "<string, overall summary of findings>"
                }
-        
-        2. **API Request:**  
+
+        2. **API Request:**
            Sends the query to the Grok/xAI API using the `_send_request` method, which includes retry logic.
-        
-        3. **Response Parsing:**  
+
+        3. **Response Parsing:**
            Cleans the returned text using `_clean_response()` and parses it into a Python dictionary.
-           If JSON decoding fails, logs the raw cleaned response and returns a dictionary with an error message in 
+           If JSON decoding fails, logs the raw cleaned response and returns a dictionary with an error message in
            'response_summary' and default empty values for the other keys.
-        
+
         Parameters
         ----------
         user_query : str
@@ -266,23 +282,23 @@ Return only valid JSON following the schema.
         model : str, optional
             The model to use for the query. Supported models include "grok-2-latest", "grok-pro", etc.
             The default model is "grok-2-latest".
-        
+
         Returns
         -------
         dict
             A dictionary containing the API's response following the specified JSON schema.
             In case of an error, returns a dictionary with an error message in 'response_summary'
             and empty values for the other keys.
-        
+
         Raises
         ------
         Exception
             Propagates exceptions if the API call fails after the specified number of retries.
-        
+
         Examples
         --------
         Using the default schema:
-        
+
         >>> result = helper.execute_general_query("List some of the oldest technology stocks with their ticker symbols and founding years.")
         >>> print(result)
         {
@@ -291,9 +307,9 @@ Return only valid JSON following the schema.
           "detailed_response": "",
           "symbols": []
         }
-        
+
         Using a custom schema:
-        
+
         >>> custom_schema = {
         ...     "query": "<string, echo the user's query>",
         ...     "stocks": [
@@ -332,7 +348,7 @@ Return only valid JSON following the schema.
                 "query": user_query,
                 "response_summary": f"Error calling Grok/xAI API: {str(e)}",
                 "detailed_response": "",
-                "symbols": []
+                "symbols": [],
             }
 
         cleaned_text = self._clean_response(assistant_text)
@@ -344,10 +360,19 @@ Return only valid JSON following the schema.
                 "query": user_query,
                 "response_summary": f"Error: Output was not valid JSON. {str(e)}",
                 "detailed_response": "",
-                "symbols": []
+                "symbols": [],
             }
 
-        return data
+        if not isinstance(data, Mapping):
+            return {
+                "query": user_query,
+                "response_summary": "Error: Output was valid JSON but not a JSON object.",
+                "detailed_response": "",
+                "symbols": [],
+            }
+
+        return dict(cast(Mapping[str, Any], data))
+
 
 # ------------------------------------------------------------------------------
 # Example usage in a standalone script:
@@ -378,11 +403,15 @@ if __name__ == "__main__":
             {
                 "symbol": "<string, ticker symbol>",
                 "founding_year": "<integer, year founded>",
-                "sector": "<string, primary sector of the company>"
+                "sector": "<string, primary sector of the company>",
             }
         ],
-        "summary": "<string, overall summary of findings>"
+        "summary": "<string, overall summary of findings>",
     }
-    general_result_custom = helper.execute_general_query("List some well-known leveraged ETFs that track the technology sector, including their ticker symbols and leverage factors.", custom_schema, model="grok-2-latest")
+    general_result_custom = helper.execute_general_query(
+        "List some well-known leveraged ETFs that track the technology sector, including their ticker symbols and leverage factors.",
+        custom_schema,
+        model="grok-2-latest",
+    )
     print("\nGeneral Query Result (Custom Schema):")
     print(json.dumps(general_result_custom, indent=2))

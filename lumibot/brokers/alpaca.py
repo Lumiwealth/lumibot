@@ -1,58 +1,69 @@
 from __future__ import annotations
 
+# pyright: reportMissingParameterType=false, reportUnknownParameterType=false
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false
+# pyright: reportMissingTypeArgument=false, reportMissingTypeStubs=false
+# pyright: reportAttributeAccessIssue=false, reportArgumentType=false, reportCallIssue=false
+# pyright: reportIncompatibleMethodOverride=false, reportUnnecessaryComparison=false
+# pyright: reportUnnecessaryIsInstance=false, reportUnknownLambdaType=false
+# pyright: reportIndexIssue=false, reportOperatorIssue=false, reportAssignmentType=false
+# pyright: reportUnusedFunction=false, reportConstantRedefinition=false
 import datetime
 import time
 import traceback
 from collections import Counter
-from datetime import timezone
+from collections.abc import Callable
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from lumibot.entities import Asset, Order
+from lumibot.entities.asset import Asset
+from lumibot.entities.order import Order
 from lumibot.tools.lumibot_logger import get_logger
 
 from .broker import Broker
 
 if TYPE_CHECKING:
-    from lumibot.entities import CashEvent, Quote
+    from lumibot.entities.cash_event import CashEvent
+    from lumibot.entities.quote import Quote
 
 logger = get_logger(__name__)
 
-TradingClient = None
-TradingStream = None
-_HAS_MORE_THAN_N_DECIMAL_PLACES = None
-_CASH_EVENT_CLASS = None
-_COLORED_FN = None
+TradingClient: Any | None = None
+TradingStream: Any | None = None
+_has_more_than_n_decimal_places_cache: Callable[..., Any] | None = None
+_cash_event_class_cache: type[Any] | None = None
+_colored_fn: Callable[..., str] | None = None
 
 
-def colored(*args, **kwargs):
-    global _COLORED_FN
-    if _COLORED_FN is None:
+def colored(*args: Any, **kwargs: Any) -> str:
+    global _colored_fn
+    if _colored_fn is None:
         from termcolor import colored as _termcolor_colored
 
-        _COLORED_FN = _termcolor_colored
-    return _COLORED_FN(*args, **kwargs)
+        _colored_fn = _termcolor_colored
+    return _colored_fn(*args, **kwargs)
 
 
-def _cash_event_class():
-    global _CASH_EVENT_CLASS
-    if _CASH_EVENT_CLASS is None:
-        from lumibot.entities import CashEvent
+def _cash_event_class() -> type[Any]:
+    global _cash_event_class_cache
+    if _cash_event_class_cache is None:
+        from lumibot.entities.cash_event import CashEvent
 
-        _CASH_EVENT_CLASS = CashEvent
-    return _CASH_EVENT_CLASS
+        _cash_event_class_cache = CashEvent
+    assert _cash_event_class_cache is not None
+    return _cash_event_class_cache
 
 
-def _has_more_than_n_decimal_places(*args, **kwargs):
-    global _HAS_MORE_THAN_N_DECIMAL_PLACES
-    if _HAS_MORE_THAN_N_DECIMAL_PLACES is None:
+def _has_more_than_n_decimal_places(*args: Any, **kwargs: Any) -> Any:
+    global _has_more_than_n_decimal_places_cache
+    if _has_more_than_n_decimal_places_cache is None:
         from lumibot.tools.helpers import has_more_than_n_decimal_places
 
-        _HAS_MORE_THAN_N_DECIMAL_PLACES = has_more_than_n_decimal_places
-    return _HAS_MORE_THAN_N_DECIMAL_PLACES(*args, **kwargs)
+        _has_more_than_n_decimal_places_cache = has_more_than_n_decimal_places
+    return _has_more_than_n_decimal_places_cache(*args, **kwargs)
 
 
-def _get_trading_client_class():
+def _get_trading_client_class() -> Any:
     global TradingClient
     if TradingClient is None:
         from alpaca.trading.client import TradingClient as _TradingClient
@@ -61,7 +72,7 @@ def _get_trading_client_class():
     return TradingClient
 
 
-def _get_trading_stream_class():
+def _get_trading_stream_class() -> Any:
     global TradingStream
     if TradingStream is None:
         from alpaca.trading.stream import TradingStream as _TradingStream
@@ -73,10 +84,10 @@ def _get_trading_stream_class():
 # Create our own OrderData class to pass to the API because this is easier to work with
 # than the ones Alpaca provides, and because the new classes are missing bracket orders
 class OrderData:
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         self.__dict__.update(kwargs)
 
-    def to_request_fields(self):
+    def to_request_fields(self) -> dict[str, Any]:
         return self.__dict__
 
 
@@ -159,10 +170,42 @@ class Alpaca(Broker):
         crypto=["crypto", "CRYPTO"],  # Added support for crypto asset class names
     )
     CASH_ACTIVITY_TYPES = (
-        "ACATC", "ACATS", "CFEE", "CIL", "CSD", "CSW", "DIV", "DIVCGL", "DIVCGS", "DIVNRA",
-        "DIVROC", "DIVTXEX", "DIVWH", "EXTRD", "FEE", "FXTRD", "INT", "INTPNL", "JNLC", "JNLS",
-        "MA", "MEM", "NC", "OCT", "OPASN", "OPCSH", "OPEXC", "OPEXP", "OPTRD", "PTC", "REORG",
-        "SPIN", "SPLIT", "SWP", "VOF", "WH",
+        "ACATC",
+        "ACATS",
+        "CFEE",
+        "CIL",
+        "CSD",
+        "CSW",
+        "DIV",
+        "DIVCGL",
+        "DIVCGS",
+        "DIVNRA",
+        "DIVROC",
+        "DIVTXEX",
+        "DIVWH",
+        "EXTRD",
+        "FEE",
+        "FXTRD",
+        "INT",
+        "INTPNL",
+        "JNLC",
+        "JNLS",
+        "MA",
+        "MEM",
+        "NC",
+        "OCT",
+        "OPASN",
+        "OPCSH",
+        "OPEXC",
+        "OPEXP",
+        "OPTRD",
+        "PTC",
+        "REORG",
+        "SPIN",
+        "SPLIT",
+        "SWP",
+        "VOF",
+        "WH",
     )
     DIVIDEND_ACTIVITY_TYPES = {
         "DIV",
@@ -197,7 +240,9 @@ class Alpaca(Broker):
         "VOF",
     }
 
-    def __init__(self, config, max_workers=20, chunk_size=100, connect_stream=True, data_source=None, polling_interval=5.0):
+    def __init__(
+        self, config, max_workers=20, chunk_size=100, connect_stream=True, data_source=None, polling_interval=5.0
+    ):
         # Calling init methods
         self.api_key = ""
         self.api_secret = ""
@@ -212,7 +257,9 @@ class Alpaca(Broker):
         self.is_oauth_only = bool(self.oauth_token and not (self.api_key and self.api_secret))
 
         # Debug logging for OAuth detection
-        logger.debug(f"Alpaca Broker Init: oauth_token={'present' if self.oauth_token else 'missing'}, api_key={'present' if self.api_key else 'missing'}, api_secret={'present' if self.api_secret else 'missing'}")
+        logger.debug(
+            f"Alpaca Broker Init: oauth_token={'present' if self.oauth_token else 'missing'}, api_key={'present' if self.api_key else 'missing'}, api_secret={'present' if self.api_secret else 'missing'}"
+        )
         logger.debug(f"Alpaca Broker Init: is_oauth_only={self.is_oauth_only}")
 
         if not data_source:
@@ -262,7 +309,7 @@ class Alpaca(Broker):
                     )
                 error_msg += f"Original error: {e}"
                 logger.error(error_msg)
-                raise ValueError(error_msg)
+                raise ValueError(error_msg) from e
             else:
                 # Re-raise the original exception for other errors
                 raise e
@@ -277,7 +324,7 @@ class Alpaca(Broker):
         temp_api_key = ""
         temp_api_secret = ""
         temp_oauth_token = ""
-        
+
         # Extract all credential values
         for key in value_dict:
             if key == "OAUTH_TOKEN":
@@ -294,7 +341,7 @@ class Alpaca(Broker):
                 attr = key.lower()
                 if hasattr(self, attr):
                     setattr(self, attr, config[key])
-        
+
         # Apply precedence logic: API key/secret takes precedence over OAuth token
         if temp_api_key and temp_api_secret:
             self.api_key = temp_api_key
@@ -326,7 +373,7 @@ class Alpaca(Broker):
 
         """
         clock = self.api.get_clock()
-        curr_time = clock.timestamp.replace(tzinfo=timezone.utc).timestamp()
+        curr_time = clock.timestamp.replace(tzinfo=datetime.UTC).timestamp()
         return curr_time
 
     def is_market_open(self):
@@ -500,9 +547,10 @@ class Alpaca(Broker):
         position.current_price = float(broker_position.current_price) if broker_position.current_price else None
         from alpaca.trading.enums import PositionSide
 
-        position.side = Position.PositionSide.LONG if broker_position.side == PositionSide.LONG else Position.PositionSide.SHORT
+        position.side = (
+            Position.PositionSide.LONG if broker_position.side == PositionSide.LONG else Position.PositionSide.SHORT
+        )
         position.market_value = float(broker_position.market_value) if broker_position.market_value else None
-        
 
         return position
 
@@ -531,7 +579,7 @@ class Alpaca(Broker):
         position objects"""
         response = self._pull_broker_positions(strategy)
         # Handle case where strategy might be None
-        strategy_name = strategy.name if strategy and hasattr(strategy, 'name') else "default"
+        strategy_name = strategy.name if strategy and hasattr(strategy, "name") else "default"
         result = self._parse_broker_positions(response, strategy_name)
         return result
 
@@ -571,26 +619,26 @@ class Alpaca(Broker):
         # Handle missing symbol and fallback to raw if possible
         if isinstance(response, dict):
             resp_raw = response
-        elif hasattr(response, '_raw') and isinstance(response._raw, dict):
+        elif hasattr(response, "_raw") and isinstance(response._raw, dict):
             resp_raw = response._raw
         else:
             resp_raw = {}
 
         # Primary symbol from attribute or raw JSON
-        resp_symbol = getattr(response, 'symbol', None) or resp_raw.get('symbol')
+        resp_symbol = getattr(response, "symbol", None) or resp_raw.get("symbol")
 
         # Fallback: for multi-leg parent orders, use the first leg's symbol
         if resp_symbol is None:
             first_leg_symbol = None
-            legs = resp_raw.get('legs') if isinstance(resp_raw, dict) else None
-            if legs is None and hasattr(response, 'legs'):
+            legs = resp_raw.get("legs") if isinstance(resp_raw, dict) else None
+            if legs is None and hasattr(response, "legs"):
                 legs = response.legs
             if isinstance(legs, list) and legs:
                 first_leg = legs[0]
                 if isinstance(first_leg, dict):
-                    first_leg_symbol = first_leg.get('symbol')
+                    first_leg_symbol = first_leg.get("symbol")
                 else:
-                    first_leg_symbol = getattr(first_leg, 'symbol', None)
+                    first_leg_symbol = getattr(first_leg, "symbol", None)
             if first_leg_symbol:
                 resp_symbol = first_leg_symbol
             else:
@@ -599,24 +647,24 @@ class Alpaca(Broker):
         # Retrieve order fields, falling back to raw JSON for multi-leg legs
         if isinstance(response, dict):
             resp_raw = response
-        elif hasattr(response, '_raw') and isinstance(response._raw, dict):
+        elif hasattr(response, "_raw") and isinstance(response._raw, dict):
             resp_raw = response._raw
         else:
             resp_raw = {}
 
         # Asset class for mapping
-        asset_class_value = getattr(response, 'asset_class', None) or resp_raw.get('asset_class')
+        asset_class_value = getattr(response, "asset_class", None) or resp_raw.get("asset_class")
         # Fallback: try to get asset_class from first leg if missing
         if asset_class_value is None:
-            legs = resp_raw.get('legs') if isinstance(resp_raw, dict) else None
-            if legs is None and hasattr(response, 'legs'):
+            legs = resp_raw.get("legs") if isinstance(resp_raw, dict) else None
+            if legs is None and hasattr(response, "legs"):
                 legs = response.legs
             if isinstance(legs, list) and legs:
                 first_leg = legs[0]
                 if isinstance(first_leg, dict):
-                    asset_class_value = first_leg.get('asset_class')
+                    asset_class_value = first_leg.get("asset_class")
                 else:
-                    asset_class_value = getattr(first_leg, 'asset_class', None)
+                    asset_class_value = getattr(first_leg, "asset_class", None)
 
         mapped_asset_type = self.map_asset_type(asset_class_value)
 
@@ -630,12 +678,12 @@ class Alpaca(Broker):
         else:
             symbol = self._normalize_symbol_for_internal(resp_symbol, asset_type=mapped_asset_type)
         # Quantity and side
-        qty_value = getattr(response, 'qty', None) or resp_raw.get('qty')
-        side_value = getattr(response, 'side', None) or resp_raw.get('side')
+        qty_value = getattr(response, "qty", None) or resp_raw.get("qty")
+        side_value = getattr(response, "side", None) or resp_raw.get("side")
 
         # Determine order and class types
-        order_type_value = getattr(response, 'order_type', None) or resp_raw.get('type')
-        order_class_raw = getattr(response, 'order_class', None) or resp_raw.get('order_class')
+        order_type_value = getattr(response, "order_type", None) or resp_raw.get("type")
+        order_class_raw = getattr(response, "order_class", None) or resp_raw.get("order_class")
         # Default to simple order class if none was found
         if order_class_raw is None:
             order_class_value = Order.OrderClass.SIMPLE
@@ -643,29 +691,35 @@ class Alpaca(Broker):
             order_class_value = order_class_raw if order_class_raw != "mleg" else Order.OrderClass.MULTILEG
 
         # Prices and limits
-        limit_price_value = getattr(response, 'limit_price', None) or resp_raw.get('limit_price')
-        stop_price_value = getattr(response, 'stop_price', None) or resp_raw.get('stop_price')
-        trail_price_value = getattr(response, 'trail_price', None) or resp_raw.get('trail_price')
-        trail_percent_value = getattr(response, 'trail_percent', None) or resp_raw.get('trail_percent')
-        stop_limit_price = limit_price_value if order_type_value == Order.OrderType.STOP_LIMIT or order_type_value == "stop_limit" else None
+        limit_price_value = getattr(response, "limit_price", None) or resp_raw.get("limit_price")
+        stop_price_value = getattr(response, "stop_price", None) or resp_raw.get("stop_price")
+        trail_price_value = getattr(response, "trail_price", None) or resp_raw.get("trail_price")
+        trail_percent_value = getattr(response, "trail_percent", None) or resp_raw.get("trail_percent")
+        stop_limit_price = (
+            limit_price_value
+            if order_type_value == Order.OrderType.STOP_LIMIT or order_type_value == "stop_limit"
+            else None
+        )
         # Average fill price: prefer raw dict first, support both Alpaca field names,
         # then fall back to explicit attributes on the response object
         avg_fill_price_value = (
-            (resp_raw.get('filled_avg_price') if isinstance(resp_raw, dict) else None)
-            or (resp_raw.get('avg_fill_price') if isinstance(resp_raw, dict) else None)
-            or getattr(response, 'filled_avg_price', None)
-            or getattr(response, 'avg_fill_price', None)
+            (resp_raw.get("filled_avg_price") if isinstance(resp_raw, dict) else None)
+            or (resp_raw.get("avg_fill_price") if isinstance(resp_raw, dict) else None)
+            or getattr(response, "filled_avg_price", None)
+            or getattr(response, "avg_fill_price", None)
         )
 
         # Time in force and status
-        time_in_force_value = getattr(response, 'time_in_force', None) or resp_raw.get('time_in_force')
-        status_value = getattr(response, 'status', None) or resp_raw.get('status')
+        time_in_force_value = getattr(response, "time_in_force", None) or resp_raw.get("time_in_force")
+        status_value = getattr(response, "status", None) or resp_raw.get("status")
 
-        if status_value in ('filled', 'fill', 'partially_filled') and avg_fill_price_value is None:
-            logger.warning(f"Filled or partially filled order with no average price available for {resp_symbol}.\n{resp_raw}")
+        if status_value in ("filled", "fill", "partially_filled") and avg_fill_price_value is None:
+            logger.warning(
+                f"Filled or partially filled order with no average price available for {resp_symbol}.\n{resp_raw}"
+            )
 
         # Identifier
-        identifier_value = getattr(response, 'id', None) or resp_raw.get('id')
+        identifier_value = getattr(response, "id", None) or resp_raw.get("id")
 
         # Handle None quantity - skip invalid orders
         if qty_value is None:
@@ -695,13 +749,16 @@ class Alpaca(Broker):
             order_class=order_class_value,
             order_type=order_type_value if order_type_value != "trailing_stop" else Order.OrderType.TRAIL,
             # Prefer raw first to avoid MagicMock traps
-            date_created=(resp_raw.get('created_at') if isinstance(resp_raw, dict) else None) or getattr(response, 'created_at', None),
+            date_created=(resp_raw.get("created_at") if isinstance(resp_raw, dict) else None)
+            or getattr(response, "created_at", None),
             # TODO: remove hardcoding in case Alpaca allows crypto to crypto trading
             quote=Asset(symbol="USD", asset_type="forex"),
         )
         order.set_identifier(identifier_value)
-        order.broker_create_date = (resp_raw.get('created_at') if isinstance(resp_raw, dict) else None) or getattr(response, 'created_at', None)
-        order.broker_update_date = getattr(response, 'updated_at', None)
+        order.broker_create_date = (resp_raw.get("created_at") if isinstance(resp_raw, dict) else None) or getattr(
+            response, "created_at", None
+        )
+        order.broker_update_date = getattr(response, "updated_at", None)
         order.status = status_value
         order.update_raw(response)
         return order
@@ -733,9 +790,6 @@ class Alpaca(Broker):
                 orders.append(sub_order)
 
         return orders
-
-
-
 
     def _submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None):
         """
@@ -779,7 +833,7 @@ class Alpaca(Broker):
         for order in orders:
             # Format option symbol
             if order.asset.asset_type == Asset.AssetType.OPTION:
-                strike_formatted = f"{order.asset.strike:08.3f}".replace('.', '').rjust(8, '0')
+                strike_formatted = f"{order.asset.strike:08.3f}".replace(".", "").rjust(8, "0")
                 date = order.asset.expiration.strftime("%y%m%d")
                 option_symbol = f"{order.asset.symbol}{date}{order.asset.right[0]}{strike_formatted}"
             else:
@@ -807,27 +861,30 @@ class Alpaca(Broker):
             # Collect leg quantities for GCD check
             leg_qty = int(abs(order.quantity))
             leg_quantities.append(leg_qty)
-            legs.append({
-                "symbol": option_symbol,
-                "ratio_qty": str(order.quantity),
-                "side": leg_side,
-                "position_intent": position_intent
-            })
+            legs.append(
+                {
+                    "symbol": option_symbol,
+                    "ratio_qty": str(order.quantity),
+                    "side": leg_side,
+                    "position_intent": position_intent,
+                }
+            )
         # Ensure leg ratio quantities are relatively prime (GCD == 1)
         from functools import reduce
         from math import gcd
+
         if len(leg_quantities) > 1:
             leg_gcd = reduce(gcd, leg_quantities)
             if leg_gcd > 1:
                 # Divide all ratio_qty by GCD to make them relatively prime
-                for i, leg in enumerate(legs):
+                for _i, leg in enumerate(legs):
                     orig_qty = int(leg["ratio_qty"])
                     new_qty = int(orig_qty // leg_gcd)
                     leg["ratio_qty"] = str(new_qty)
                 qty = str(int(qty) // leg_gcd)
         # For multi-leg orders, we need to set the primary asset info from the first leg
         first_order = orders[0]
-        
+
         # Determine top-level side for Alpaca.
         # Alpaca mleg orders require a primary side; for debit/credit packages, this should
         # reflect the net debit/credit rather than the first leg ordering.
@@ -841,18 +898,18 @@ class Alpaca(Broker):
                 side = "buy"
             elif side in ("sell_to_open", "sell_to_close"):
                 side = "sell"
-        
+
         # multileg is not a valid order_class for Alpaca. It is mleg now, and cannot be combined with a symbol.
 
         # Compose order payload
         kwargs = {
             # "symbol": symbol,  # Required: Primary symbol.   Not allowed for mleg order
-            "qty": qty,        # Required: Total quantity
-            "side": side,      # Required: Primary side (buy/sell)
+            "qty": qty,  # Required: Total quantity
+            "side": side,  # Required: Primary side (buy/sell)
             "type": order_type or "limit",  # Required: Order type
-            "order_class": "mleg",      # Required: Must be "mleg" for multi-leg orders
-            "time_in_force": duration,      # Required: Duration
-            "legs": legs,      # Required: Individual legs
+            "order_class": "mleg",  # Required: Must be "mleg" for multi-leg orders
+            "time_in_force": duration,  # Required: Duration
+            "legs": legs,  # Required: Individual legs
         }
         # For limit/credit/debit orders, price is required
         if (order_type in ["limit", "credit", "debit", None]) and price is None:
@@ -876,7 +933,7 @@ class Alpaca(Broker):
                 time_in_force=duration,
                 limit_price=price,
                 tag=tag,
-                status=Order.OrderStatus.SUBMITTED
+                status=Order.OrderStatus.SUBMITTED,
             )
             for o in orders:
                 o.parent_identifier = parent_order.identifier
@@ -888,7 +945,6 @@ class Alpaca(Broker):
             for o in orders:
                 o.set_error(e)
             raise
-
 
     def _submit_order(self, order):
         """Submit an order for an asset (single-leg, including options)"""
@@ -902,11 +958,11 @@ class Alpaca(Broker):
         elif order.asset.asset_type == Asset.AssetType.OPTION:
             order.time_in_force = "day"
 
-        qty = str(order.quantity)
+        str(order.quantity)
 
         # Compose symbol for option
         if order.asset.asset_type == Asset.AssetType.OPTION:
-            strike_formatted = f"{order.asset.strike:08.3f}".replace('.', '').rjust(8, '0')
+            strike_formatted = f"{order.asset.strike:08.3f}".replace(".", "").rjust(8, "0")
             date = order.asset.expiration.strftime("%y%m%d")
             trade_symbol = f"{order.asset.symbol}{date}{order.asset.right[0]}{strike_formatted}"
         elif order.asset.asset_type == Asset.AssetType.CRYPTO:
@@ -922,7 +978,9 @@ class Alpaca(Broker):
             alpaca_type = Order.OrderType.MARKET
 
         # Validate stop-limit orders must have both stop and limit prices
-        if order.order_type == Order.OrderType.STOP_LIMIT and (order.stop_price is None or order.stop_limit_price is None):
+        if order.order_type == Order.OrderType.STOP_LIMIT and (
+            order.stop_price is None or order.stop_limit_price is None
+        ):
             raise ValueError("stop limit orders require both stop and limit price")
 
         # Determine raw prices
@@ -957,7 +1015,7 @@ class Alpaca(Broker):
         kwargs = {
             "symbol": trade_symbol,
             "qty": str(order.quantity),
-            "side": side, # Use the mapped side value
+            "side": side,  # Use the mapped side value
             "type": alpaca_type,
             "order_class": order.order_class,
             "time_in_force": order.time_in_force,
@@ -984,18 +1042,21 @@ class Alpaca(Broker):
             if child_limit:
                 kwargs["take_profit"] = {
                     "limit_price": float(round(child_limit.limit_price, 2))
-                    if isinstance(child_limit.limit_price, Decimal) else child_limit.limit_price,
+                    if isinstance(child_limit.limit_price, Decimal)
+                    else child_limit.limit_price,
                 }
 
             if child_stop:
                 kwargs["stop_loss"] = {
                     "stop_price": float(round(child_stop.stop_price, 2))
-                    if isinstance(child_stop.stop_price, Decimal) else child_stop.stop_price,
+                    if isinstance(child_stop.stop_price, Decimal)
+                    else child_stop.stop_price,
                 }
                 if child_stop.stop_limit_price:
                     kwargs["stop_loss"]["limit_price"] = float(
                         round(child_stop.stop_limit_price, 2)
-                        if isinstance(child_stop.stop_limit_price, Decimal) else child_stop.stop_limit_price
+                        if isinstance(child_stop.stop_limit_price, Decimal)
+                        else child_stop.stop_limit_price
                     )
 
         try:
@@ -1088,8 +1149,8 @@ class Alpaca(Broker):
             orig_price = order.limit_price
             conformed = False
             if order.limit_price >= 1.0 and _has_more_than_n_decimal_places(order.limit_price, 2):
-                    order.limit_price = round(order.limit_price, 2)
-                    conformed = True
+                order.limit_price = round(order.limit_price, 2)
+                conformed = True
             elif order.limit_price < 1.0 and _has_more_than_n_decimal_places(order.limit_price, 4):
                 order.limit_price = round(order.limit_price, 4)
                 conformed = True
@@ -1115,79 +1176,78 @@ class Alpaca(Broker):
         """
         self.api.cancel_order_by_id(order.identifier)
 
-
     def _modify_order(
-            self,
-            order: Order,
-            limit_price: float | None = None,
-            stop_price: float | None = None,
-        ):
-            """
-            Modify an existing Alpaca order via TradingClient.
-            No‑ops if already filled or canceled. Only limit and/or stop price
-            can be changed—quantity changes still require cancel + new submit.
-            """
-            # Must have been submitted
-            if not order.identifier:
-                raise ValueError(
-                    "Order identifier is missing; cannot modify. Did you submit the order?"
+        self,
+        order: Order,
+        limit_price: float | None = None,
+        stop_price: float | None = None,
+    ):
+        """
+        Modify an existing Alpaca order via TradingClient.
+        No‑ops if already filled or canceled. Only limit and/or stop price
+        can be changed—quantity changes still require cancel + new submit.
+        """
+        # Must have been submitted
+        if not order.identifier:
+            raise ValueError("Order identifier is missing; cannot modify. Did you submit the order?")
+
+        # Fetch latest order status from Alpaca
+        try:
+            latest_order = self.api.get_order_by_id(order.identifier)
+            latest_status = getattr(latest_order, "status", None)
+        except Exception as e:
+            logger.error(f"Could not fetch latest order status from Alpaca: {e}")
+            return
+
+        # Skip if done
+        if str(latest_status).lower() in ("filled", "canceled", "canceled_by_user"):
+            return
+
+        # Gather only provided fields
+        update_kwargs: dict[str, float] = {}
+        if limit_price is not None:
+            update_kwargs["limit_price"] = limit_price
+        if stop_price is not None:
+            update_kwargs["stop_price"] = stop_price
+
+        # Nothing to do?
+        if not update_kwargs:
+            return
+
+        # Build the replace request
+        from alpaca.trading.requests import ReplaceOrderRequest
+
+        replace_req = ReplaceOrderRequest(**update_kwargs)
+
+        # Try to replace the order on Alpaca, handle APIError for accepted status
+        try:
+            replaced = self.api.replace_order_by_id(
+                order_id=order.identifier,
+                order_data=replace_req,
+            )
+            # Alpaca can return a *new* order id when replacing. Keep LumiBot's order object
+            # aligned so SMART_LIMIT can continue repricing/canceling reliably.
+            new_id = getattr(replaced, "id", None)
+            if new_id:
+                order.identifier = new_id
+                try:
+                    for child in getattr(order, "child_orders", []) or []:
+                        child.parent_identifier = new_id
+                except Exception:
+                    pass
+                try:
+                    order.update_raw(replaced)
+                except Exception:
+                    pass
+        except Exception as e:
+            # If error is "cannot replace order in accepted status", just log and skip
+            if hasattr(e, "args") and e.args and "cannot replace order in accepted status" in str(e.args[0]):
+                logger.info(
+                    f"Order {order.identifier} cannot be modified because it is still in 'accepted' status (Alpaca)."
                 )
-
-            # Fetch latest order status from Alpaca
-            try:
-                latest_order = self.api.get_order_by_id(order.identifier)
-                latest_status = getattr(latest_order, "status", None)
-            except Exception as e:
-                logger.error(f"Could not fetch latest order status from Alpaca: {e}")
                 return
-
-            # Skip if done
-            if str(latest_status).lower() in ("filled", "canceled", "canceled_by_user"):
-                return
-
-            # Gather only provided fields
-            update_kwargs: dict[str, float] = {}
-            if limit_price is not None:
-                update_kwargs["limit_price"] = limit_price
-            if stop_price is not None:
-                update_kwargs["stop_price"] = stop_price
-
-            # Nothing to do?
-            if not update_kwargs:
-                return
-
-            # Build the replace request
-            from alpaca.trading.requests import ReplaceOrderRequest
-
-            replace_req = ReplaceOrderRequest(**update_kwargs)
-
-            # Try to replace the order on Alpaca, handle APIError for accepted status
-            try:
-                replaced = self.api.replace_order_by_id(
-                    order_id=order.identifier,
-                    order_data=replace_req,
-                )
-                # Alpaca can return a *new* order id when replacing. Keep LumiBot's order object
-                # aligned so SMART_LIMIT can continue repricing/canceling reliably.
-                new_id = getattr(replaced, "id", None)
-                if new_id:
-                    order.identifier = new_id
-                    try:
-                        for child in getattr(order, "child_orders", []) or []:
-                            child.parent_identifier = new_id
-                    except Exception:
-                        pass
-                    try:
-                        order.update_raw(replaced)
-                    except Exception:
-                        pass
-            except Exception as e:
-                # If error is "cannot replace order in accepted status", just log and skip
-                if hasattr(e, "args") and e.args and "cannot replace order in accepted status" in str(e.args[0]):
-                    logger.info(f"Order {order.identifier} cannot be modified because it is still in 'accepted' status (Alpaca).")
-                    return
-                else:
-                    raise
+            else:
+                raise
 
     # =======Account functions=========
 
@@ -1287,11 +1347,7 @@ class Alpaca(Broker):
 
         amount = CashEvent.coerce_amount(activity.get("net_amount"))
         event_type, is_external_cash_flow = cls._map_cash_event_type(raw_type, amount)
-        occurred_at = (
-            activity.get("date")
-            or activity.get("transaction_time")
-            or activity.get("created_at")
-        )
+        occurred_at = activity.get("date") or activity.get("transaction_time") or activity.get("created_at")
 
         return CashEvent(
             event_id=CashEvent.build_event_id(
@@ -1447,7 +1503,7 @@ class Alpaca(Broker):
                 try:
                     broker._process_trade_event(order, broker.NEW_ORDER)
                     return True
-                except:
+                except Exception:
                     logger.error(traceback.format_exc())
 
             @broker.stream.add_action(broker.FILLED_ORDER)
@@ -1463,7 +1519,7 @@ class Alpaca(Broker):
                         multiplier=order.asset.multiplier,
                     )
                     return True
-                except:
+                except Exception:
                     logger.error(traceback.format_exc())
 
             @broker.stream.add_action(broker.CANCELED_ORDER)
@@ -1472,7 +1528,7 @@ class Alpaca(Broker):
                 logger.info(f"Processing action for cancelled order {order}")
                 try:
                     broker._process_trade_event(order, broker.CANCELED_ORDER)
-                except:
+                except Exception:
                     logger.error(traceback.format_exc())
 
             @broker.stream.add_action(broker.ERROR_ORDER)
@@ -1491,7 +1547,7 @@ class Alpaca(Broker):
                         broker._process_trade_event(order, broker.ERROR_ORDER)
                     logger.error(error_msg)
                     order.set_error(error_msg)
-                except:
+                except Exception:
                     logger.error(traceback.format_exc())
         else:
             # For API key/secret, use traditional streaming (existing code)
@@ -1506,7 +1562,7 @@ class Alpaca(Broker):
         try:
             # Get the strategy from the broker's registered strategies
             strategy = None
-            if hasattr(self, '_strategies') and self._strategies:
+            if hasattr(self, "_strategies") and self._strategies:
                 strategy = list(self._strategies.values())[0] if self._strategies else None
 
             # Pull the current Alpaca positions and sync them with Lumibot's positions
@@ -1517,7 +1573,9 @@ class Alpaca(Broker):
             stored_orders = {x.identifier: x for x in self.get_all_orders()}
 
             # Only log summary, not detailed per-order processing
-            logger.debug(f"OAuth Polling: Found {len(raw_orders)} raw orders from Alpaca, {len(stored_orders)} stored orders in Lumibot")
+            logger.debug(
+                f"OAuth Polling: Found {len(raw_orders)} raw orders from Alpaca, {len(stored_orders)} stored orders in Lumibot"
+            )
 
             for alpaca_order in raw_orders:
                 # Use strategy name if available, otherwise use a default
@@ -1526,7 +1584,9 @@ class Alpaca(Broker):
 
                 # Skip if parsing returned None (invalid order data)
                 if order is None:
-                    logger.warning(f"OAuth Polling: Skipping invalid order from Alpaca - _parse_broker_order returned None")
+                    logger.warning(
+                        "OAuth Polling: Skipping invalid order from Alpaca - _parse_broker_order returned None"
+                    )
                     continue
 
                 logger.debug(f"OAuth Polling: Processing Alpaca order {order.identifier} with status {order.status}")
@@ -1537,16 +1597,17 @@ class Alpaca(Broker):
 
                     # Check if the status has changed
                     if stored_order.status != order.status:
-                        logger.debug(f"OAuth Polling: Order status changed - {order.identifier}: {stored_order.status} -> {order.status}")
+                        logger.debug(
+                            f"OAuth Polling: Order status changed - {order.identifier}: {stored_order.status} -> {order.status}"
+                        )
 
                         # Update the stored order with new data and dispatch the event
                         stored_order.update_raw(alpaca_order)
 
                         # Capture and propagate average filled price from Alpaca into the stored order
                         try:
-                            avg_price = (
-                                getattr(alpaca_order, 'filled_avg_price', None)
-                                or getattr(alpaca_order, 'avg_fill_price', None)
+                            avg_price = getattr(alpaca_order, "filled_avg_price", None) or getattr(
+                                alpaca_order, "avg_fill_price", None
                             )
                             if avg_price is not None:
                                 stored_order.avg_fill_price = avg_price
@@ -1554,24 +1615,36 @@ class Alpaca(Broker):
                             pass
 
                         # Dispatch the appropriate event based on the new status
-                        if order.status == "filled" or order.status == "fill": 
+                        if order.status == "filled" or order.status == "fill":
                             # Get price and quantity with proper fallbacks for Alpaca API
-                            price = (getattr(alpaca_order, 'filled_avg_price', None) or
-                                   getattr(alpaca_order, 'avg_fill_price', None) or
-                                   getattr(order, 'limit_price', None))
-                            filled_qty = (getattr(alpaca_order, 'filled_qty', None) or
-                                        getattr(alpaca_order, 'qty', None) or
-                                        getattr(order, 'quantity', None))
-                            self.stream.dispatch(self.FILLED_ORDER, order=stored_order, price=price, filled_quantity=filled_qty)
+                            price = (
+                                getattr(alpaca_order, "filled_avg_price", None)
+                                or getattr(alpaca_order, "avg_fill_price", None)
+                                or getattr(order, "limit_price", None)
+                            )
+                            filled_qty = (
+                                getattr(alpaca_order, "filled_qty", None)
+                                or getattr(alpaca_order, "qty", None)
+                                or getattr(order, "quantity", None)
+                            )
+                            self.stream.dispatch(
+                                self.FILLED_ORDER, order=stored_order, price=price, filled_quantity=filled_qty
+                            )
                         elif order.status == "partially_filled":
                             # Get price and quantity with proper fallbacks for Alpaca API
-                            price = (getattr(alpaca_order, 'filled_avg_price', None) or
-                                   getattr(alpaca_order, 'avg_fill_price', None) or
-                                   getattr(order, 'limit_price', None))
-                            filled_qty = (getattr(alpaca_order, 'filled_qty', None) or
-                                        getattr(alpaca_order, 'qty', None) or
-                                        getattr(order, 'quantity', None))
-                            self.stream.dispatch(self.PARTIALLY_FILLED_ORDER, order=stored_order, price=price, filled_quantity=filled_qty)
+                            price = (
+                                getattr(alpaca_order, "filled_avg_price", None)
+                                or getattr(alpaca_order, "avg_fill_price", None)
+                                or getattr(order, "limit_price", None)
+                            )
+                            filled_qty = (
+                                getattr(alpaca_order, "filled_qty", None)
+                                or getattr(alpaca_order, "qty", None)
+                                or getattr(order, "quantity", None)
+                            )
+                            self.stream.dispatch(
+                                self.PARTIALLY_FILLED_ORDER, order=stored_order, price=price, filled_quantity=filled_qty
+                            )
                         elif order.status == "canceled":
                             self.stream.dispatch(self.CANCELED_ORDER, order=stored_order)
                         elif order.status == "new":
@@ -1582,9 +1655,11 @@ class Alpaca(Broker):
 
             # Check for orders that are no longer in the broker's list
             tracked_orders = {x.identifier: x for x in self.get_tracked_orders()}
-            broker_ids = [getattr(o, 'id', None) for o in raw_orders if hasattr(o, 'id')]
+            broker_ids = [getattr(o, "id", None) for o in raw_orders if hasattr(o, "id")]
 
-            logger.debug(f"OAuth Polling: Checking {len(tracked_orders)} tracked orders against {len(broker_ids)} broker order IDs")
+            logger.debug(
+                f"OAuth Polling: Checking {len(tracked_orders)} tracked orders against {len(broker_ids)} broker order IDs"
+            )
 
             for order_id, order in tracked_orders.items():
                 if order_id not in broker_ids and order.is_active():
@@ -1593,18 +1668,21 @@ class Alpaca(Broker):
                     try:
                         # Try to fetch this specific order from Alpaca
                         individual_order = self.api.get_order_by_id(order_id)
-                        logger.debug(f"OAuth Polling: Individual lookup found order {order_id} with status {individual_order.status}")
+                        logger.debug(
+                            f"OAuth Polling: Individual lookup found order {order_id} with status {individual_order.status}"
+                        )
 
                         # Update status based on individual lookup
                         if individual_order.status != order.status:
-                            logger.debug(f"OAuth Polling: Individual order status changed - {order_id}: {order.status} -> {individual_order.status}")
+                            logger.debug(
+                                f"OAuth Polling: Individual order status changed - {order_id}: {order.status} -> {individual_order.status}"
+                            )
                             order.update_raw(individual_order)
 
                             # Capture and propagate average filled price for individual lookup
                             try:
-                                avg_price = (
-                                    getattr(individual_order, 'filled_avg_price', None)
-                                    or getattr(individual_order, 'avg_fill_price', None)
+                                avg_price = getattr(individual_order, "filled_avg_price", None) or getattr(
+                                    individual_order, "avg_fill_price", None
                                 )
                                 if avg_price is not None:
                                     order.avg_fill_price = avg_price
@@ -1614,13 +1692,19 @@ class Alpaca(Broker):
                             # Dispatch appropriate event based on new status
                             if individual_order.status in ["filled", "fill"]:
                                 # Get price and quantity with proper fallbacks for Alpaca API
-                                price = (getattr(individual_order, 'filled_avg_price', None) or
-                                       getattr(individual_order, 'avg_fill_price', None) or
-                                       getattr(order, 'limit_price', None))
-                                filled_qty = (getattr(individual_order, 'filled_qty', None) or
-                                            getattr(individual_order, 'qty', None) or
-                                            getattr(order, 'quantity', None))
-                                self.stream.dispatch(self.FILLED_ORDER, order=order, price=price, filled_quantity=filled_qty)
+                                price = (
+                                    getattr(individual_order, "filled_avg_price", None)
+                                    or getattr(individual_order, "avg_fill_price", None)
+                                    or getattr(order, "limit_price", None)
+                                )
+                                filled_qty = (
+                                    getattr(individual_order, "filled_qty", None)
+                                    or getattr(individual_order, "qty", None)
+                                    or getattr(order, "quantity", None)
+                                )
+                                self.stream.dispatch(
+                                    self.FILLED_ORDER, order=order, price=price, filled_quantity=filled_qty
+                                )
                             elif individual_order.status == "canceled":
                                 self.stream.dispatch(self.CANCELED_ORDER, order=order)
 
@@ -1657,7 +1741,7 @@ class Alpaca(Broker):
                     )
                 error_msg += f"Original error: {e}"
                 logger.error(error_msg)
-                raise ValueError(error_msg)
+                raise ValueError(error_msg) from e
             else:
                 is_rate_limited = (
                     "rate limit" in error_message
@@ -1700,13 +1784,13 @@ class Alpaca(Broker):
                     # Propagate average filled price to stored order if available
                     try:
                         # Prefer any available average fill price fields
-                        avg_price = getattr(logged_order, 'filled_avg_price', None)
+                        avg_price = getattr(logged_order, "filled_avg_price", None)
                         if avg_price is None:
-                            avg_price = getattr(logged_order, 'avg_fill_price', None)
+                            avg_price = getattr(logged_order, "avg_fill_price", None)
                         if avg_price is None:
-                            avg_price = getattr(trade_update, 'avg_fill_price', None)
+                            avg_price = getattr(trade_update, "avg_fill_price", None)
                         if avg_price is None:
-                            avg_price = getattr(trade_update, 'price', None)
+                            avg_price = getattr(trade_update, "price", None)
                         if avg_price is not None:
                             stored_order.avg_fill_price = avg_price
                     except Exception:

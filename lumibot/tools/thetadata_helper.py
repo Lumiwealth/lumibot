@@ -11,67 +11,77 @@ import re
 import signal
 import threading
 import time
+from collections.abc import Callable
 from contextlib import contextmanager
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from importlib import import_module
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, TypeAlias, cast
 from urllib.parse import urlencode, urlparse
 
 import pytz
 
 from lumibot import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_TIMEZONE
-from lumibot.entities import Asset
+from lumibot.entities.asset import Asset
 
-LUMIBOT_DEFAULT_PYTZ = pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE)
+PandasDataFrame: TypeAlias = Any  # noqa: UP040
+PandasDatetimeIndex: TypeAlias = Any  # noqa: UP040
+PandasSeries: TypeAlias = Any  # noqa: UP040
+
+LUMIBOT_DEFAULT_PYTZ: Any = pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE)
 
 
 class _LazyModule(ModuleType):
-    def __init__(self, module_name: str):
+    _module_name: str
+    _module: ModuleType | None
+
+    def __init__(self, module_name: str) -> None:
         super().__init__(module_name)
         object.__setattr__(self, "_module_name", module_name)
         object.__setattr__(self, "_module", None)
 
-    def _load(self):
+    def _load(self) -> ModuleType:
         module = object.__getattribute__(self, "_module")
         if module is None:
             module = import_module(object.__getattribute__(self, "_module_name"))
             object.__setattr__(self, "_module", module)
         return module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
         if name in {"_module_name", "_module"}:
             object.__setattr__(self, name, value)
         else:
             setattr(self._load(), name, value)
 
-    def __delattr__(self, name):
+    def __delattr__(self, name: str) -> None:
         if name in {"_module_name", "_module"}:
             object.__delattr__(self, name)
         else:
             delattr(self._load(), name)
 
 
-pd = _LazyModule("pandas")
-mcal = _LazyModule("pandas_market_calendars")
-requests = _LazyModule("requests")
-_TQDM_FUNC = None
-_BACKTEST_CACHE_MODE = None
-_BACKTEST_CACHE_GETTER = None
-_DATEUTIL_PARSE = None
+pd: Any = _LazyModule("pandas")
+mcal: Any = _LazyModule("pandas_market_calendars")
+requests: Any = _LazyModule("requests")
+_tqdm_func: Any | None = None
+_backtest_cache_mode: Any | None = None
+_backtest_cache_getter: Any | None = None
+_dateutil_parse_func: Any | None = None
 
 
 class _LazyLogger:
     __slots__ = ("_logger",)
 
-    def __init__(self):
+    _logger: Any | None
+
+    def __init__(self) -> None:
         object.__setattr__(self, "_logger", None)
 
-    def _load(self):
+    def _load(self) -> Any:
         logger = object.__getattribute__(self, "_logger")
         if logger is None:
             from lumibot.tools.lumibot_logger import get_logger
@@ -80,55 +90,58 @@ class _LazyLogger:
             object.__setattr__(self, "_logger", logger)
         return logger
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
 
-logger = _LazyLogger()
+logger: Any = _LazyLogger()
 
 
-def _dateutil_parse(value):
-    global _DATEUTIL_PARSE
-    if _DATEUTIL_PARSE is None:
+def _dateutil_parse(value: str | datetime) -> Any:
+    global _dateutil_parse_func
+    if isinstance(value, datetime):
+        return value
+    if _dateutil_parse_func is None:
         from dateutil import parser as dateutil_parser
 
-        _DATEUTIL_PARSE = dateutil_parser.parse
-    return _DATEUTIL_PARSE(value)
+        _dateutil_parse_func = dateutil_parser.parse
+    return _dateutil_parse_func(value)
 
 
 class _LazyCacheMode:
-    def __getattr__(self, name):
-        global _BACKTEST_CACHE_MODE
-        if _BACKTEST_CACHE_MODE is None:
+    def __getattr__(self, name: str) -> Any:
+        global _backtest_cache_mode
+        if _backtest_cache_mode is None:
             from lumibot.tools.backtest_cache import CacheMode as _CacheMode
 
-            _BACKTEST_CACHE_MODE = _CacheMode
-        return getattr(_BACKTEST_CACHE_MODE, name)
+            _backtest_cache_mode = _CacheMode
+        return getattr(_backtest_cache_mode, name)
 
 
-CacheMode = _LazyCacheMode()
+CacheMode: Any = _LazyCacheMode()
 
 
-def get_backtest_cache():
-    global _BACKTEST_CACHE_GETTER
-    if _BACKTEST_CACHE_GETTER is None:
+def get_backtest_cache() -> Any:
+    global _backtest_cache_getter
+    if _backtest_cache_getter is None:
         from lumibot.tools.backtest_cache import get_backtest_cache as _get_backtest_cache
 
-        _BACKTEST_CACHE_GETTER = _get_backtest_cache
-    return _BACKTEST_CACHE_GETTER()
+        _backtest_cache_getter = _get_backtest_cache
+    return _backtest_cache_getter()
 
 
-def _tqdm(*args, **kwargs):
-    global _TQDM_FUNC
-    if _TQDM_FUNC is None:
+def _tqdm(*args: Any, **kwargs: Any) -> Any:
+    global _tqdm_func
+    if _tqdm_func is None:
         from tqdm import tqdm
 
-        _TQDM_FUNC = tqdm
-    return _TQDM_FUNC(*args, **kwargs)
+        _tqdm_func = tqdm
+    return _tqdm_func(*args, **kwargs)
 
 
-def tqdm(*args, **kwargs):
+def tqdm(*args: Any, **kwargs: Any) -> Any:
     return _tqdm(*args, **kwargs)
+
 
 # ==============================================================================
 # Download Status Tracking
@@ -145,15 +158,15 @@ def tqdm(*args, **kwargs):
 _download_status_lock = threading.Lock()
 
 # Current download status - updated during active fetches
-_download_status = {
+_download_status: dict[str, Any] = {
     "active": False,
-    "asset": None,        # Asset.to_minimal_dict() of what's being downloaded
-    "quote": None,        # Quote asset symbol (e.g., "USD")
-    "data_type": None,    # Type of data being fetched (e.g., "ohlc")
-    "timespan": None,     # Timespan (e.g., "minute", "day")
-    "progress": 0,        # Progress percentage (0-100)
-    "current": 0,         # Current chunk number
-    "total": 0,           # Total chunks to download
+    "asset": None,  # Asset.to_minimal_dict() of what's being downloaded
+    "quote": None,  # Quote asset symbol (e.g., "USD")
+    "data_type": None,  # Type of data being fetched (e.g., "ohlc")
+    "timespan": None,  # Timespan (e.g., "minute", "day")
+    "progress": 0,  # Progress percentage (0-100)
+    "current": 0,  # Current chunk number
+    "total": 0,  # Total chunks to download
     # Queue diagnostics (best-effort; may be None if the caller doesn't go through queue mode)
     "request_id": None,
     "correlation_id": None,
@@ -168,7 +181,7 @@ _download_status = {
 }
 
 
-def get_download_status() -> dict:
+def get_download_status() -> dict[str, Any]:
     """
     Get the current ThetaData download status.
 
@@ -209,13 +222,13 @@ def get_download_status() -> dict:
 
 
 def set_download_status(
-    asset,
-    quote_asset,
+    asset: Any,
+    quote_asset: Any,
     data_type: str,
     timespan: str,
     current: int,
     total: int,
-    timeout_s: Optional[float] = None,
+    timeout_s: float | None = None,
 ) -> None:
     """
     Update the current download status.
@@ -241,7 +254,12 @@ def set_download_status(
     """
     with _download_status_lock:
         _download_status["active"] = True
-        _download_status["asset"] = asset.to_minimal_dict() if asset and hasattr(asset, 'to_minimal_dict') else {"symbol": str(asset)}
+        asset_payload: dict[str, Any]
+        if asset and hasattr(asset, "to_minimal_dict"):
+            asset_payload = cast(dict[str, Any], asset.to_minimal_dict())
+        else:
+            asset_payload = {"symbol": str(asset)}
+        _download_status["asset"] = asset_payload
         _download_status["quote"] = str(quote_asset) if quote_asset else None
         _download_status["data_type"] = data_type
         _download_status["timespan"] = timespan
@@ -258,14 +276,16 @@ def set_download_status(
         _download_status["last_error"] = None
         _download_status["submitted_at"] = None
         _download_status["last_poll_at"] = None
-        _download_status["timeout_at"] = (time.time() + timeout_s) if (timeout_s is not None and timeout_s > 0) else None
+        _download_status["timeout_at"] = (
+            (time.time() + timeout_s) if (timeout_s is not None and timeout_s > 0) else None
+        )
 
 
 def advance_download_status_progress(
     *,
-    asset: Optional[Asset] = None,
-    data_type: Optional[str] = None,
-    timespan: Optional[str] = None,
+    asset: Asset | None = None,
+    data_type: str | None = None,
+    timespan: str | None = None,
     step: int = 1,
 ) -> None:
     """Increment download progress counters without resetting queue diagnostics."""
@@ -283,7 +303,7 @@ def advance_download_status_progress(
 
         if asset is not None:
             try:
-                status_asset = _download_status.get("asset") or {}
+                status_asset = cast(dict[str, Any], _download_status.get("asset") or {})
                 status_symbol = status_asset.get("symbol")
                 asset_symbol = getattr(asset, "symbol", None)
                 if status_symbol is not None and asset_symbol is not None and str(status_symbol) != str(asset_symbol):
@@ -297,14 +317,22 @@ def advance_download_status_progress(
                     status_strike = status_asset.get("strike")
                     status_right = status_asset.get("right")
 
-                    asset_exp = getattr(asset, "expiration", None)
-                    asset_exp_str = asset_exp.isoformat() if hasattr(asset_exp, "isoformat") else (str(asset_exp) if asset_exp else None)
+                    asset_exp: Any = getattr(asset, "expiration", None)
+                    asset_exp_str = (
+                        asset_exp.isoformat()
+                        if hasattr(asset_exp, "isoformat")
+                        else (str(asset_exp) if asset_exp else None)
+                    )
                     asset_strike = getattr(asset, "strike", None)
                     asset_right = getattr(asset, "right", None)
 
                     if status_exp is not None and asset_exp_str is not None and str(status_exp) != str(asset_exp_str):
                         return
-                    if status_right is not None and asset_right is not None and str(status_right).upper() != str(asset_right).upper():
+                    if (
+                        status_right is not None
+                        and asset_right is not None
+                        and str(status_right).upper() != str(asset_right).upper()
+                    ):
                         return
                     if status_strike is not None and asset_strike is not None:
                         try:
@@ -338,13 +366,13 @@ def advance_download_status_progress(
 def update_download_status_queue_info(
     *,
     request_id: str,
-    correlation_id: Optional[str] = None,
-    queue_status: Optional[str] = None,
-    queue_position: Optional[int] = None,
-    estimated_wait: Optional[float] = None,
-    attempts: Optional[int] = None,
-    last_error: Optional[str] = None,
-    submitted_at: Optional[float] = None,
+    correlation_id: str | None = None,
+    queue_status: str | None = None,
+    queue_position: int | None = None,
+    estimated_wait: float | None = None,
+    attempts: int | None = None,
+    last_error: str | None = None,
+    submitted_at: float | None = None,
 ) -> None:
     """Best-effort update of queue diagnostics for the active download.
 
@@ -445,7 +473,7 @@ _downloader_base_env = (os.environ.get("DATADOWNLOADER_BASE_URL") or "").strip()
 _theta_fallback_base = os.environ.get("THETADATA_BASE_URL", DEFAULT_THETA_BASE)
 
 
-def _normalize_base_url(raw: Optional[str]) -> str:
+def _normalize_base_url(raw: str | None) -> str:
     if not raw:
         return DEFAULT_THETA_BASE
     raw = raw.strip()
@@ -468,7 +496,7 @@ def _is_loopback_url(raw: str) -> bool:
     return host in {"127.0.0.1", "localhost", "::1"}
 
 
-def _coerce_skip_flag(raw: Optional[str], base_url: str) -> bool:
+def _coerce_skip_flag(raw: str | None, base_url: str) -> bool:
     if raw:
         value = raw.strip().lower()
         if value in {"1", "true", "yes", "on"}:
@@ -489,7 +517,9 @@ DOWNLOADER_MODE = bool(_downloader_base_env)
 # - Default/public behavior: if DATADOWNLOADER_BASE_URL is NOT set, LumiBot manages a local ThetaTerminal.
 # - Internal behavior: if DATADOWNLOADER_BASE_URL IS set (even if it's localhost:8080), LumiBot must NEVER
 #   start/stop/kill a local ThetaTerminal process because it can steal/kill the single licensed session.
-REMOTE_DOWNLOADER_ENABLED = DOWNLOADER_MODE or _coerce_skip_flag(os.environ.get("DATADOWNLOADER_SKIP_LOCAL_START"), BASE_URL)
+REMOTE_DOWNLOADER_ENABLED = DOWNLOADER_MODE or _coerce_skip_flag(
+    os.environ.get("DATADOWNLOADER_SKIP_LOCAL_START"), BASE_URL
+)
 if DOWNLOADER_MODE:
     # Avoid leaking private infrastructure hostnames in logs. Loopback URLs are safe to print.
     if _is_loopback_url(BASE_URL):
@@ -505,7 +535,7 @@ if DOWNLOADER_MODE:
         logger.debug("[DOWNLOADER][CONFIG] Downloader API key not set at import time (DATADOWNLOADER_API_KEY)")
 HEALTHCHECK_SYMBOL = os.environ.get("THETADATA_HEALTHCHECK_SYMBOL", "SPY")
 READINESS_ENDPOINT = "/v3/terminal/mdds/status"
-READINESS_PROBES: Tuple[Tuple[str, Dict[str, str]], ...] = (
+READINESS_PROBES: tuple[tuple[str, dict[str, str]], ...] = (
     (READINESS_ENDPOINT, {"format": "json"}),
     ("/v3/option/list/expirations", {"symbol": HEALTHCHECK_SYMBOL, "format": "json"}),
 )
@@ -518,6 +548,8 @@ def _current_base_url() -> str:
         return _normalize_base_url(runtime_base)
     fallback = os.environ.get("THETADATA_BASE_URL", _theta_fallback_base)
     return _normalize_base_url(fallback)
+
+
 READINESS_TIMEOUT = float(os.environ.get("THETADATA_HEALTHCHECK_TIMEOUT", "1.0"))
 CONNECTION_RETRY_SLEEP = 1.0
 CONNECTION_MAX_RETRIES = 120
@@ -608,7 +640,7 @@ OPTION_LIST_ENDPOINTS = {
 THETADATA_CHAIN_CACHE_VERSION = 5
 
 DEFAULT_SESSION_HOURS = {
-    True: ("04:00:00", "20:00:00"),   # include extended hours
+    True: ("04:00:00", "20:00:00"),  # include extended hours
     False: ("09:30:00", "16:00:00"),  # regular session only
 }
 
@@ -628,8 +660,8 @@ def _acquire_theta_slot(label: str = "request"):
         THETA_REQUEST_SEMAPHORE.release()
 
 
-def _build_request_headers(base: Optional[Dict[str, str]] = None) -> Dict[str, str]:
-    request_headers: Dict[str, str] = dict(base or {})
+def _build_request_headers(base: dict[str, str] | None = None) -> dict[str, str]:
+    request_headers: dict[str, str] = dict(base or {})
     if DOWNLOADER_API_KEY:
         request_headers.setdefault(DOWNLOADER_KEY_HEADER, DOWNLOADER_API_KEY)
     return request_headers
@@ -642,23 +674,29 @@ def _interval_label_from_ms(interval_ms: int) -> str:
     return label
 
 
-def _coerce_json_payload(payload: Any) -> Dict[str, Any]:
+def _coerce_json_payload(payload: Any) -> dict[str, Any]:
     """Normalize ThetaData v2/v3 payloads into {'header':{'format':[...]}, 'response': [...] }."""
     if isinstance(payload, dict):
+        payload = cast(dict[str, Any], payload)
         # ThetaTerminal v3 sometimes returns a dict with ONLY `response`, where the response is
         # a list of row-dicts (already denormalized but without a header/format section).
         if set(payload.keys()) == {"response"} and isinstance(payload.get("response"), list):
-            resp_list = payload.get("response") or []
+            resp_list = cast(list[Any], payload.get("response") or [])
             if resp_list and isinstance(resp_list[0], dict):
+                first_row = cast(dict[str, Any], resp_list[0])
                 # Preserve the first row's key order for stable column ordering.
-                columns: List[str] = list(resp_list[0].keys())
+                columns: list[str] = list(first_row.keys())
                 # Add any new keys encountered later (rare) without reordering existing columns.
                 for row in resp_list[1:]:
                     if isinstance(row, dict):
-                        for k in row.keys():
+                        row_dict = cast(dict[str, Any], row)
+                        for k in row_dict.keys():
                             if k not in columns:
                                 columns.append(k)
-                rows = [[row.get(col) if isinstance(row, dict) else None for col in columns] for row in resp_list]
+                rows = [
+                    [cast(dict[str, Any], row).get(col) if isinstance(row, dict) else None for col in columns]
+                    for row in resp_list
+                ]
                 return {"header": {"format": columns}, "response": rows}
             # Unknown response shape; wrap and let downstream handle.
             return {"header": {"format": []}, "response": resp_list}
@@ -669,30 +707,34 @@ def _coerce_json_payload(payload: Any) -> Dict[str, Any]:
             # downstream callers can always build a DataFrame with `columns=header['format']`.
             resp = payload.get("response")
             if isinstance(resp, dict):
-                header = payload.get("header") or {}
-                header_format = header.get("format") if isinstance(header, dict) else None
-                columns = list(header_format) if isinstance(header_format, (list, tuple)) else list(resp.keys())
+                resp = cast(dict[str, Any], resp)
+                header = cast(dict[str, Any], payload.get("header") or {})
+                header_format: Any = header.get("format")
+                if isinstance(header_format, (list, tuple)):
+                    columns = [str(column) for column in cast(list[Any] | tuple[Any, ...], header_format)]
+                else:
+                    columns = [str(column) for column in resp.keys()]
                 if not columns:
                     return {"header": {"format": []}, "response": []}
 
                 lengths = []
                 for col in columns:
                     values = resp.get(col, [])
-                    lengths.append(len(values) if isinstance(values, list) else 0)
+                    lengths.append(len(cast(list[Any], values)) if isinstance(values, list) else 0)
                 num_rows = max(lengths) if lengths else 0
 
-                rows: List[List[Any]] = []
+                rows: list[list[Any]] = []
                 for idx in range(num_rows):
-                    row: List[Any] = []
+                    row: list[Any] = []
                     for col in columns:
                         values = resp.get(col, [])
-                        if isinstance(values, list) and idx < len(values):
-                            row.append(values[idx])
+                        if isinstance(values, list) and idx < len(cast(list[Any], values)):
+                            row.append(cast(list[Any], values)[idx])
                         else:
                             row.append(None)
                     rows.append(row)
 
-                merged_header = dict(header) if isinstance(header, dict) else {"format": columns}
+                merged_header = dict(header)
                 merged_header["format"] = columns
                 return {"header": merged_header, "response": rows}
 
@@ -701,12 +743,17 @@ def _coerce_json_payload(payload: Any) -> Dict[str, Any]:
         columns = list(payload.keys())
         if not columns:
             return {"header": {"format": []}, "response": []}
-        lengths = [len(payload[col]) for col in columns]
+        lengths: list[int] = []
+        for col in columns:
+            try:
+                lengths.append(len(payload[col]))
+            except TypeError:
+                lengths.append(0)
         length = max(lengths)
-        rows: List[List[Any]] = []
+        rows: list[list[Any]] = []
         for idx in range(length):
-            row = []
-            for col, col_values in payload.items():
+            row: list[Any] = []
+            for col_values in payload.values():
                 try:
                     row.append(col_values[idx])
                 except IndexError:
@@ -718,24 +765,24 @@ def _coerce_json_payload(payload: Any) -> Dict[str, Any]:
     return {"header": {"format": None}, "response": [payload]}
 
 
-def _columnar_payload_to_records(payload: Dict[str, List[Any]]) -> List[Dict[str, Any]]:
+def _columnar_payload_to_records(payload: dict[str, list[Any]]) -> list[dict[str, Any]]:  # pyright: ignore[reportUnusedFunction]
     if not payload:
         return []
     sample_key = next(iter(payload))
     length = len(payload[sample_key])
-    records: List[Dict[str, Any]] = []
+    records: list[dict[str, Any]] = []
     for idx in range(length):
-        row = {}
+        row: dict[str, Any] = {}
         for key, values in payload.items():
             try:
                 row[key] = values[idx]
             except IndexError:
-                raise ValueError(f"Column '{key}' length mismatch in ThetaData response")
+                raise ValueError(f"Column '{key}' length mismatch in ThetaData response") from None
         records.append(row)
     return records
 
 
-def _localize_timestamps(series: pd.Series) -> pd.DatetimeIndex:
+def _localize_timestamps(series: PandasSeries) -> PandasDatetimeIndex:  # pyright: ignore[reportUnusedFunction]
     dt_index = pd.to_datetime(series, errors="coerce")
     tz = LUMIBOT_DEFAULT_PYTZ
     if getattr(dt_index.dt, "tz", None) is None:
@@ -753,7 +800,7 @@ def _compute_session_bounds(
     end_dt: datetime,
     include_after_hours: bool,
     prefer_full_session: bool = False,
-) -> Tuple[str, str]:
+) -> tuple[str, str]:
     default_start, default_end = DEFAULT_SESSION_HOURS[include_after_hours]
     tz = LUMIBOT_DEFAULT_PYTZ
     start_default_naive = datetime.combine(day, datetime.strptime(default_start, "%H:%M:%S").time())
@@ -780,9 +827,9 @@ def _compute_session_bounds(
     return _format_time(session_start), _format_time(session_end)
 
 
-def _normalize_market_datetime(value: datetime) -> datetime:
+def _normalize_market_datetime(value: date | datetime) -> datetime:
     """Ensure datetimes are timezone-aware in the default market timezone."""
-    if isinstance(value, date) and not isinstance(value, datetime):
+    if not isinstance(value, datetime):
         value = datetime.combine(value, datetime.min.time())
     if value.tzinfo is None:
         return LUMIBOT_DEFAULT_PYTZ.localize(value)
@@ -800,7 +847,7 @@ def _format_option_strike(strike: float) -> str:
 # ThetaData uses distinct “root” symbols for some index option trading classes (e.g. SPXW),
 # but index *price/OHLC* history endpoints expect the index root (e.g. SPX).
 # This mapping is intentionally ThetaData-only and only applied for AssetType.INDEX history calls.
-_THETADATA_INDEX_ROOT_ALIASES: Dict[str, str] = {
+_THETADATA_INDEX_ROOT_ALIASES: dict[str, str] = {
     "SPXW": "SPX",
     # Common Cboe-style weekly/PM-settled roots (keep limited + safe; index history typically uses the base root).
     "RUTW": "RUT",
@@ -816,11 +863,11 @@ def _thetadata_index_root_symbol(asset: Asset) -> str:
 
 
 def _extract_timestamp_series(
-    df: pd.DataFrame,
-    target_tz: timezone = LUMIBOT_DEFAULT_PYTZ,
-) -> Tuple[Optional[pd.Series], List[str]]:
+    df: PandasDataFrame,
+    target_tz: Any = LUMIBOT_DEFAULT_PYTZ,
+) -> tuple[PandasSeries | None, list[str]]:
     """Return a timezone-localized timestamp series plus the source columns to drop."""
-    drop_cols: List[str] = []
+    drop_cols: list[str] = []
     timestamp_col = _detect_column(df, ("timestamp", "datetime", "time"))
     if timestamp_col:
         ts_series = pd.to_datetime(df[timestamp_col], errors="coerce")
@@ -848,13 +895,13 @@ def _extract_timestamp_series(
 
 
 def _finalize_history_dataframe(
-    df: pd.DataFrame,
+    df: PandasDataFrame,
     datastyle: str,
     asset: Asset,
-    target_tz: timezone = LUMIBOT_DEFAULT_PYTZ,
-) -> Optional[pd.DataFrame]:
+    target_tz: Any = LUMIBOT_DEFAULT_PYTZ,
+) -> PandasDataFrame | None:
     """Apply timestamp indexing and basic filtering so legacy callers keep working."""
-    if df is None or df.empty:
+    if df.empty:
         return df
 
     df = df.copy()
@@ -869,7 +916,7 @@ def _finalize_history_dataframe(
         datastyle_key = (datastyle or "").lower()
         index_series = pd.Series(df.index, index=df.index)
 
-        def _empty_timestamp_series() -> pd.Series:
+        def _empty_timestamp_series() -> PandasSeries:
             return pd.Series(pd.NaT, index=df.index, dtype=index_series.dtype)
 
         if datastyle_key == "ohlc":
@@ -1003,9 +1050,7 @@ def _ensure_java_runtime(min_major: int = 21) -> None:
         major = None
 
     if major is None or major < min_major:
-        raise RuntimeError(
-            f"ThetaData requires Java {min_major}+; detected version '{first_line or 'unknown'}'."
-        )
+        raise RuntimeError(f"ThetaData requires Java {min_major}+; detected version '{first_line or 'unknown'}'.")
 
 
 def _request_terminal_shutdown() -> bool:
@@ -1079,10 +1124,11 @@ def _normalize_folder_component(value: str, fallback: str) -> str:
     normalized = str(value or "").strip().lower().replace(" ", "_")
     return normalized or fallback
 
+
 # Global process tracking for ThetaTerminal
-THETA_DATA_PROCESS = None
-THETA_DATA_PID = None
-THETA_DATA_LOG_HANDLE = None
+THETA_DATA_PROCESS: Any | None = None
+THETA_DATA_PID: int | None = None
+THETA_DATA_LOG_HANDLE: Any | None = None
 
 
 class ThetaDataConnectionError(RuntimeError):
@@ -1100,20 +1146,23 @@ class ThetaDataSessionInvalidError(ThetaDataConnectionError):
 class ThetaRequestError(ValueError):
     """Raised when repeated ThetaData HTTP requests fail with transient errors."""
 
-    def __init__(self, message: str, status_code: Optional[int] = None, body: Optional[str] = None) -> None:
+    def __init__(self, message: str, status_code: int | None = None, body: str | None = None) -> None:
         super().__init__(message)
         self.status_code = status_code
         self.body = body
 
+
 def reset_connection_diagnostics():
     """Reset ThetaData connection counters (useful for tests)."""
-    CONNECTION_DIAGNOSTICS.update({
-        "check_connection_calls": 0,
-        "start_terminal_calls": 0,
-        "network_requests": 0,
-        "placeholder_writes": 0,
-        "terminal_restarts": 0,
-    })
+    CONNECTION_DIAGNOSTICS.update(
+        {
+            "check_connection_calls": 0,
+            "start_terminal_calls": 0,
+            "network_requests": 0,
+            "placeholder_writes": 0,
+            "terminal_restarts": 0,
+        }
+    )
 
 
 def _symbol_cache_component(asset: Asset) -> str:
@@ -1122,7 +1171,7 @@ def _symbol_cache_component(asset: Asset) -> str:
     return cleaned or "symbol"
 
 
-def _event_cache_paths(asset: Asset, event_type: str) -> Tuple[Path, Path]:
+def _event_cache_paths(asset: Asset, event_type: str) -> tuple[Path, Path]:
     provider_root = Path(LUMIBOT_CACHE_FOLDER) / CACHE_SUBFOLDER
     asset_folder = _resolve_asset_folder(asset)
     symbol_component = _symbol_cache_component(asset)
@@ -1132,7 +1181,7 @@ def _event_cache_paths(asset: Asset, event_type: str) -> Tuple[Path, Path]:
     return cache_path, meta_path
 
 
-def _load_event_cache_frame(cache_path: Path) -> pd.DataFrame:
+def _load_event_cache_frame(cache_path: Path) -> PandasDataFrame:
     # CI runners (and production-like backtest containers) start with empty disks.
     # If the S3 backtest cache is enabled, hydrate the on-disk event cache before deciding it
     # doesn't exist, so local == CI and we don't re-hit the downloader for warm-cache runs.
@@ -1140,7 +1189,7 @@ def _load_event_cache_frame(cache_path: Path) -> pd.DataFrame:
         from lumibot.tools.backtest_cache import get_backtest_cache
 
         cache_manager = get_backtest_cache()
-        if cache_manager is not None and not cache_path.exists():
+        if not cache_path.exists():
             cache_manager.ensure_local_file(cache_path)
     except Exception:
         # Ignore remote cache hydrate failures and fall back to local-only behavior.
@@ -1158,7 +1207,7 @@ def _load_event_cache_frame(cache_path: Path) -> pd.DataFrame:
     return df
 
 
-def _save_event_cache_frame(cache_path: Path, df: pd.DataFrame) -> None:
+def _save_event_cache_frame(cache_path: Path, df: PandasDataFrame) -> None:
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     df_to_save = df.copy()
     if "event_date" in df_to_save.columns:
@@ -1172,13 +1221,13 @@ def _save_event_cache_frame(cache_path: Path, df: pd.DataFrame) -> None:
         logger.debug("[THETA][EVENT_CACHE] Remote cache upload failed for %s", cache_path, exc_info=True)
 
 
-def _load_event_metadata(meta_path: Path) -> List[Tuple[date, date]]:
+def _load_event_metadata(meta_path: Path) -> list[tuple[date, date]]:
     # See `_load_event_cache_frame`: hydrate event metadata from remote cache when available.
     try:
         from lumibot.tools.backtest_cache import get_backtest_cache
 
         cache_manager = get_backtest_cache()
-        if cache_manager is not None and not meta_path.exists():
+        if not meta_path.exists():
             cache_manager.ensure_local_file(meta_path)
     except Exception:
         pass
@@ -1189,7 +1238,7 @@ def _load_event_metadata(meta_path: Path) -> List[Tuple[date, date]]:
         payload = json.loads(meta_path.read_text(encoding="utf-8"))
     except Exception:
         return []
-    ranges: List[Tuple[date, date]] = []
+    ranges: list[tuple[date, date]] = []
     for start_str, end_str in payload.get("ranges", []):
         try:
             start_dt = datetime.strptime(start_str, "%Y-%m-%d").date()
@@ -1202,12 +1251,9 @@ def _load_event_metadata(meta_path: Path) -> List[Tuple[date, date]]:
     return ranges
 
 
-def _write_event_metadata(meta_path: Path, ranges: List[Tuple[date, date]]) -> None:
+def _write_event_metadata(meta_path: Path, ranges: list[tuple[date, date]]) -> None:
     payload = {
-        "ranges": [
-            (start.isoformat(), end.isoformat())
-            for start, end in sorted(ranges, key=lambda pair: pair[0])
-        ]
+        "ranges": [(start.isoformat(), end.isoformat()) for start, end in sorted(ranges, key=lambda pair: pair[0])]
     }
     meta_path.parent.mkdir(parents=True, exist_ok=True)
     meta_path.write_text(json.dumps(payload), encoding="utf-8")
@@ -1219,11 +1265,11 @@ def _write_event_metadata(meta_path: Path, ranges: List[Tuple[date, date]]) -> N
         logger.debug("[THETA][EVENT_CACHE] Remote cache upload failed for %s", meta_path, exc_info=True)
 
 
-def _merge_coverage_ranges(ranges: List[Tuple[date, date]]) -> List[Tuple[date, date]]:
+def _merge_coverage_ranges(ranges: list[tuple[date, date]]) -> list[tuple[date, date]]:
     if not ranges:
         return []
     sorted_ranges = sorted(ranges, key=lambda pair: pair[0])
-    merged: List[Tuple[date, date]] = []
+    merged: list[tuple[date, date]] = []
     current_start, current_end = sorted_ranges[0]
     for start, end in sorted_ranges[1:]:
         if start <= current_end + timedelta(days=1):
@@ -1236,17 +1282,17 @@ def _merge_coverage_ranges(ranges: List[Tuple[date, date]]) -> List[Tuple[date, 
 
 
 def _calculate_missing_event_windows(
-    ranges: List[Tuple[date, date]],
+    ranges: list[tuple[date, date]],
     request_start: date,
     request_end: date,
-) -> List[Tuple[date, date]]:
+) -> list[tuple[date, date]]:
     if request_start > request_end:
         request_start, request_end = request_end, request_start
     if not ranges:
         return [(request_start, request_end)]
 
     merged = _merge_coverage_ranges(ranges)
-    missing: List[Tuple[date, date]] = []
+    missing: list[tuple[date, date]] = []
     cursor = request_start
     for start, end in merged:
         if end < cursor:
@@ -1263,7 +1309,7 @@ def _calculate_missing_event_windows(
     return [window for window in missing if window[0] <= window[1]]
 
 
-def _pad_event_window(window_start: date, window_end: date) -> Tuple[date, date]:
+def _pad_event_window(window_start: date, window_end: date) -> tuple[date, date]:
     pad = timedelta(days=max(EVENT_CACHE_PAD_DAYS, 0))
     padded_start = max(EVENT_CACHE_MIN_DATE, window_start - pad)
     padded_end = min(EVENT_CACHE_MAX_DATE, window_end + pad)
@@ -1272,12 +1318,12 @@ def _pad_event_window(window_start: date, window_end: date) -> Tuple[date, date]
     return padded_start, padded_end
 
 
-def _coerce_event_dataframe(json_resp: Optional[Dict[str, Any]]) -> pd.DataFrame:
+def _coerce_event_dataframe(json_resp: dict[str, Any] | None) -> PandasDataFrame:
     if not json_resp:
         return pd.DataFrame()
-    rows = json_resp.get("response") or []
-    header = json_resp.get("header", {})
-    fmt = header.get("format")
+    rows: list[Any] = cast(list[Any], json_resp.get("response") or [])
+    header = cast(dict[str, Any], json_resp.get("header") or {})
+    fmt: Any = header.get("format")
     if rows and fmt and isinstance(rows[0], (list, tuple)):
         return pd.DataFrame(rows, columns=fmt)
     if rows and isinstance(rows[0], dict):
@@ -1285,7 +1331,7 @@ def _coerce_event_dataframe(json_resp: Optional[Dict[str, Any]]) -> pd.DataFrame
     return pd.DataFrame(rows)
 
 
-def _coerce_event_timestamp(series: pd.Series) -> pd.Series:
+def _coerce_event_timestamp(series: PandasSeries) -> PandasSeries:
     """Coerce Theta event timestamps (string or numeric) into normalized UTC dates."""
     if series is None:
         return pd.Series(dtype="datetime64[ns, UTC]")
@@ -1303,7 +1349,7 @@ def _coerce_event_timestamp(series: pd.Series) -> pd.Series:
     return ts.dt.normalize()
 
 
-def _normalize_dividend_events(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
+def _normalize_dividend_events(df: PandasDataFrame, symbol: str) -> PandasDataFrame:
     if df is None or df.empty:
         return pd.DataFrame()
     working = df.copy()
@@ -1318,7 +1364,8 @@ def _normalize_dividend_events(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
             special_count = special_mask.sum()
             logger.info(
                 "[THETA][DIVIDENDS] Filtering %d special distribution(s) with less_amount > 0 for %s",
-                special_count, symbol
+                special_count,
+                symbol,
             )
             working = working[~special_mask].copy()
 
@@ -1359,13 +1406,14 @@ def _normalize_dividend_events(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
     if before_dedup > after_dedup:
         logger.info(
             "[THETA][DIVIDENDS] Deduplicated %d duplicate dividend(s) by ex_date for %s",
-            before_dedup - after_dedup, symbol
+            before_dedup - after_dedup,
+            symbol,
         )
 
     return normalized.sort_values("event_date")
 
 
-def _parse_ratio_value(raw: Any) -> Optional[float]:
+def _parse_ratio_value(raw: Any) -> float | None:
     if raw is None:
         return None
     if isinstance(raw, (int, float)):
@@ -1392,7 +1440,7 @@ def _parse_ratio_value(raw: Any) -> Optional[float]:
         return None
 
 
-def _normalize_split_events(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
+def _normalize_split_events(df: PandasDataFrame, symbol: str) -> PandasDataFrame:
     if df is None or df.empty:
         return pd.DataFrame()
     working = df.copy()
@@ -1411,10 +1459,7 @@ def _normalize_split_events(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
             trading_dates = pd.to_datetime(working[date_col].astype(str), format="%Y%m%d", errors="coerce")
             actual_split_mask = split_dates.dt.date == trading_dates.dt.date
             working = working[actual_split_mask].copy()
-            logger.debug(
-                "[THETA][SPLITS] Filtered %s to %d actual split event(s)",
-                symbol, len(working)
-            )
+            logger.debug("[THETA][SPLITS] Filtered %s to %d actual split event(s)", symbol, len(working))
         except Exception as e:
             logger.debug("[THETA][SPLITS] Could not filter split events for %s: %s", symbol, e)
 
@@ -1427,7 +1472,7 @@ def _normalize_split_events(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
     denominator_col = _detect_column(working, SPLIT_DENOMINATOR_COLUMNS)
     ratio_col = _detect_column(working, SPLIT_RATIO_COLUMNS)
 
-    def _resolve_ratio(row: pd.Series) -> float:
+    def _resolve_ratio(row: PandasSeries) -> float:
         numerator = row.get(numerator_col) if numerator_col else None
         denominator = row.get(denominator_col) if denominator_col else None
         ratio_value = _parse_ratio_value(row.get(ratio_col)) if ratio_col else None
@@ -1461,9 +1506,9 @@ def _download_corporate_events(
     event_type: str,
     window_start: date,
     window_end: date,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
-) -> pd.DataFrame:
+    username: str | None = None,
+    password: str | None = None,
+) -> PandasDataFrame:
     """Fetch corporate actions via Theta's v2 REST endpoints."""
 
     if event_type not in {"dividends", "splits"}:
@@ -1512,15 +1557,15 @@ def _ensure_event_cache(
     event_type: str,
     start_date: date,
     end_date: date,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
-) -> pd.DataFrame:
+    username: str | None = None,
+    password: str | None = None,
+) -> PandasDataFrame:
     cache_path, meta_path = _event_cache_paths(asset, event_type)
     cache_df = _load_event_cache_frame(cache_path)
     coverage = _load_event_metadata(meta_path)
     missing_windows = _calculate_missing_event_windows(coverage, start_date, end_date)
-    fetched_ranges: List[Tuple[date, date]] = []
-    new_frames: List[pd.DataFrame] = []
+    fetched_ranges: list[tuple[date, date]] = []
+    new_frames: list[PandasDataFrame] = []
     for window_start, window_end in missing_windows:
         padded_start, padded_end = _pad_event_window(window_start, window_end)
         data_frame = _download_corporate_events(
@@ -1535,7 +1580,11 @@ def _ensure_event_cache(
             new_frames.append(data_frame)
         fetched_ranges.append((padded_start, padded_end))
     if new_frames:
-        combined = pd.concat([cache_df] + new_frames, ignore_index=True) if not cache_df.empty else pd.concat(new_frames, ignore_index=True)
+        combined = (
+            pd.concat([cache_df] + new_frames, ignore_index=True)
+            if not cache_df.empty
+            else pd.concat(new_frames, ignore_index=True)
+        )
         dedupe_cols = ["event_date", "cash_amount"] if event_type == "dividends" else ["event_date", "ratio"]
         cache_df = combined.drop_duplicates(subset=dedupe_cols, keep="last").sort_values("event_date")
         _save_event_cache_frame(cache_path, cache_df)
@@ -1567,7 +1616,7 @@ def _ensure_event_cache(
 # strategy), and it also rate-limits repeated retries after transient failures.
 # ==============================================================================
 
-_event_cache_memory: Dict[Tuple[str, str], Dict[str, Any]] = {}
+_event_cache_memory: dict[tuple[str, str], dict[str, Any]] = {}
 
 
 def _event_cache_failure_ttl_s() -> float:
@@ -1584,9 +1633,9 @@ def _get_theta_events_cached(
     event_type: str,
     start_date: date,
     end_date: date,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
-) -> pd.DataFrame:
+    username: str | None = None,
+    password: str | None = None,
+) -> PandasDataFrame:
     """Return Theta corporate actions using an in-memory memoization layer."""
     if not asset.symbol:
         return pd.DataFrame()
@@ -1604,15 +1653,15 @@ def _get_theta_events_cached(
     if entry is not None:
         entry_start = entry.get("range_start")
         entry_end = entry.get("range_end")
-        cached_df = entry.get("df")
+        cached_df: Any = entry.get("df")
         if (
             isinstance(entry_start, date)
             and isinstance(entry_end, date)
-            and isinstance(cached_df, pd.DataFrame)
+            and cached_df is not None
             and entry_start <= range_start
             and entry_end >= range_end
         ):
-            if cached_df.empty:
+            if getattr(cached_df, "empty", True):
                 return pd.DataFrame()
             date_series = cached_df["event_date"].dt.date
             mask = (date_series >= range_start) & (date_series <= range_end)
@@ -1668,9 +1717,9 @@ def _get_theta_dividends(
     asset: Asset,
     start_date: date,
     end_date: date,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
-) -> pd.DataFrame:
+    username: str | None = None,
+    password: str | None = None,
+) -> PandasDataFrame:
     if str(getattr(asset, "asset_type", "stock")).lower() != "stock":
         return pd.DataFrame()
     events = _get_theta_events_cached(asset, "dividends", start_date, end_date, username, password)
@@ -1684,9 +1733,9 @@ def _get_theta_splits(
     asset: Asset,
     start_date: date,
     end_date: date,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
-) -> pd.DataFrame:
+    username: str | None = None,
+    password: str | None = None,
+) -> PandasDataFrame:
     """Fetch split data from ThetaData only. No fallback to other data sources.
 
     Note: this function is called from several hot paths (including option strike
@@ -1705,7 +1754,7 @@ def _get_theta_splits(
     return pd.DataFrame()
 
 
-def _get_option_query_strike(option_asset: Asset, sim_datetime: datetime = None) -> float:
+def _get_option_query_strike(option_asset: Asset, sim_datetime: date | datetime | None = None) -> float:
     """
     Convert a split-adjusted option strike back to the original (unadjusted) strike for ThetaData queries.
 
@@ -1752,16 +1801,21 @@ def _get_option_query_strike(option_asset: Asset, sim_datetime: datetime = None)
     # Get the underlying stock asset
     underlying_asset = Asset(option_asset.symbol, asset_type="stock")
 
-    today = _corporate_action_horizon_date()
+    from datetime import date as date_type
+
+    today = date_type.today()
 
     # FIX (2025-12-12): Use sim_datetime as the reference date for split lookup.
     # This ensures we catch all splits between the simulation date and the
     # corporate-action horizon (BACKTESTING_END for deterministic backtests, today otherwise).
     # Previously, we used option expiration, which missed splits that occurred
     # BEFORE the expiration but AFTER the sim_datetime.
-    if sim_datetime is not None:
+    as_of_date: date
+    if isinstance(sim_datetime, datetime):
         # Use the simulation date - this is the date we're "at" in the backtest
-        as_of_date = sim_datetime.date() if hasattr(sim_datetime, 'date') else sim_datetime
+        as_of_date = sim_datetime.date()
+    elif isinstance(sim_datetime, date):
+        as_of_date = sim_datetime
     elif option_asset.expiration:
         # Fallback to expiration (legacy behavior, but less accurate)
         as_of_date = option_asset.expiration
@@ -1776,7 +1830,9 @@ def _get_option_query_strike(option_asset: Asset, sim_datetime: datetime = None)
         if "event_date" in splits.columns:
             as_of_datetime = pd.Timestamp(as_of_date)
             # Convert event_date column to datetime if needed
-            if splits["event_date"].dtype != "datetime64[ns]" and not str(splits["event_date"].dtype).startswith("datetime64"):
+            if splits["event_date"].dtype != "datetime64[ns]" and not str(splits["event_date"].dtype).startswith(
+                "datetime64"
+            ):
                 splits["event_date"] = pd.to_datetime(splits["event_date"])
             # Make as_of_datetime timezone-aware to match event_date if needed
             if hasattr(splits["event_date"].dt, "tz") and splits["event_date"].dt.tz is not None:
@@ -1847,12 +1903,12 @@ def _thetadata_option_root_symbol(option_asset: Asset) -> str:
 
 def _apply_corporate_actions_to_frame(
     asset: Asset,
-    frame: pd.DataFrame,
+    frame: PandasDataFrame,
     start_day: date,
     end_day: date,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
-) -> pd.DataFrame:
+    username: str | None = None,
+    password: str | None = None,
+) -> PandasDataFrame:
     if frame is None or frame.empty:
         return frame
 
@@ -1868,10 +1924,7 @@ def _apply_corporate_actions_to_frame(
     # This prevents double/multiple adjustment when cached data is re-processed.
     # The marker column is set at the end of this function after successful adjustment.
     if "_split_adjusted" in frame.columns and frame["_split_adjusted"].any():
-        logger.debug(
-            "[THETA][SPLIT_ADJUST] Skipping adjustment for %s - data already split-adjusted",
-            asset.symbol
-        )
+        logger.debug("[THETA][SPLIT_ADJUST] Skipping adjustment for %s - data already split-adjusted", asset.symbol)
         return frame
 
     tz_index = frame.index
@@ -1922,7 +1975,7 @@ def _apply_corporate_actions_to_frame(
         split_ratios = applicable_splits["ratio"].tolist()
 
         cumulative_factor = pd.Series(1.0, index=frame.index)
-        for split_date, ratio in zip(reversed(split_dates), reversed(split_ratios)):
+        for split_date, ratio in zip(reversed(split_dates), reversed(split_ratios), strict=False):
             if ratio > 0 and ratio != 1.0:
                 mask = pd.Series(index_dates) < split_date
                 cumulative_factor.loc[mask.values] *= ratio
@@ -1946,7 +1999,9 @@ def _apply_corporate_actions_to_frame(
     # When fetching March 2020 data, we still need to know about the July 2022 split
     # so we can adjust historical prices to be comparable to current prices.
     # This matches Yahoo Finance behavior where Adj Close always reflects current splits.
-    today = _corporate_action_horizon_date()
+    from datetime import date as date_type
+
+    today = date_type.today()
     splits = _get_theta_splits(asset, start_day, today, username, password)
     if "dividend" not in frame.columns:
         frame["dividend"] = 0.0
@@ -2001,7 +2056,7 @@ def _apply_corporate_actions_to_frame(
             cumulative_factor = pd.Series(1.0, index=frame.index)
 
             # Work backwards through splits
-            for split_date, ratio in zip(reversed(split_dates), reversed(split_ratios)):
+            for split_date, ratio in zip(reversed(split_dates), reversed(split_ratios), strict=False):
                 if ratio > 0 and ratio != 1.0:
                     # All dates BEFORE the split date need to be divided by this ratio
                     mask = pd.Series(index_dates) < split_date
@@ -2016,7 +2071,10 @@ def _apply_corporate_actions_to_frame(
                     if max_adjustment > 1.1:  # More than 10% adjustment
                         logger.debug(
                             "[THETA][SPLIT_ADJUST] asset=%s col=%s max_factor=%.2f splits=%d",
-                            asset.symbol, col, max_adjustment, len(splits)
+                            asset.symbol,
+                            col,
+                            max_adjustment,
+                            len(splits),
                         )
 
             # Also adjust volume (multiply instead of divide for splits)
@@ -2029,10 +2087,7 @@ def _apply_corporate_actions_to_frame(
             # by the cumulative split factor to get the per-share amount in today's terms.
             if "dividend" in frame.columns:
                 frame["dividend"] = frame["dividend"] / cumulative_factor
-                logger.debug(
-                    "[THETA][SPLIT_ADJUST] Adjusted dividends for %s by cumulative split factor",
-                    asset.symbol
-                )
+                logger.debug("[THETA][SPLIT_ADJUST] Adjusted dividends for %s by cumulative split factor", asset.symbol)
     else:
         frame["stock_splits"] = 0.0
 
@@ -2042,7 +2097,7 @@ def _apply_corporate_actions_to_frame(
     return frame
 
 
-def ensure_missing_column(df: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
+def ensure_missing_column(df: PandasDataFrame | None) -> PandasDataFrame | None:
     """Ensure the dataframe includes a `missing` flag column (True for placeholders)."""
     if df is None or len(df) == 0:
         return df
@@ -2055,7 +2110,7 @@ def ensure_missing_column(df: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
     return df
 
 
-def restore_numeric_dtypes(df: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
+def restore_numeric_dtypes(df: PandasDataFrame | None) -> PandasDataFrame | None:
     """Try to convert object columns back to numeric types after placeholder removal."""
     if df is None or len(df) == 0:
         return df
@@ -2068,7 +2123,7 @@ def restore_numeric_dtypes(df: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]
     return df
 
 
-def _strip_placeholder_rows(df: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
+def _strip_placeholder_rows(df: PandasDataFrame | None) -> PandasDataFrame | None:
     """Drop placeholder rows (missing=True) from the dataframe."""
     if df is None or len(df) == 0 or "missing" not in df.columns:
         return df
@@ -2093,7 +2148,7 @@ def _market_close_utc_for_date(trading_date: date) -> datetime:
     return close_local.astimezone(pytz.UTC)
 
 
-def _align_day_index_to_market_close_utc(frame: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
+def _align_day_index_to_market_close_utc(frame: PandasDataFrame | None) -> PandasDataFrame | None:
     """Normalize a day-cadence ThetaData frame to market-close timestamps in UTC.
 
     This transform is date-keyed and idempotent: applying it multiple times yields the same
@@ -2102,20 +2157,21 @@ def _align_day_index_to_market_close_utc(frame: Optional[pd.DataFrame]) -> Optio
     if frame is None or frame.empty:
         return frame
 
-    if not isinstance(frame.index, pd.DatetimeIndex):
-        frame = frame.copy()
-        frame.index = pd.to_datetime(frame.index, utc=True)
+    frame_working: Any = frame
+    if not isinstance(frame_working.index, pd.DatetimeIndex):
+        frame_working = frame_working.copy()
+        frame_working.index = pd.to_datetime(frame_working.index, utc=True)
 
-    idx_utc = pd.to_datetime(frame.index, utc=True)
+    idx_utc = pd.to_datetime(frame_working.index, utc=True)
     new_index = pd.DatetimeIndex(
         [_market_close_utc_for_date(d) for d in idx_utc.date],
-        name=frame.index.name,
+        name=frame_working.index.name,
     )
 
-    if frame.index.equals(new_index):
-        return frame
+    if frame_working.index.equals(new_index):
+        return frame_working
 
-    aligned = frame.copy()
+    aligned = frame_working.copy()
     aligned.index = new_index
     if "datetime" in aligned.columns:
         aligned["datetime"] = new_index
@@ -2123,9 +2179,9 @@ def _align_day_index_to_market_close_utc(frame: Optional[pd.DataFrame]) -> Optio
 
 
 def append_missing_markers(
-    df_all: Optional[pd.DataFrame],
-    missing_dates: List[datetime.date],
-) -> Optional[pd.DataFrame]:
+    df_all: PandasDataFrame | None,
+    missing_dates: list[date],
+) -> PandasDataFrame | None:
     """Append placeholder rows for dates that returned no data."""
     if not missing_dates:
         if df_all is not None and not df_all.empty and "missing" in df_all.columns:
@@ -2136,10 +2192,12 @@ def append_missing_markers(
     base_columns = ["open", "high", "low", "close", "volume"]
 
     if df_all is None or len(df_all) == 0:
-        df_all = pd.DataFrame(columns=base_columns + ["missing"])
-        df_all.index = pd.DatetimeIndex([], name="datetime", tz="UTC")
+        df_working: Any = pd.DataFrame(columns=base_columns + ["missing"])
+        df_working.index = pd.DatetimeIndex([], name="datetime", tz="UTC")
+    else:
+        df_working = df_all
 
-    df_all = ensure_missing_column(df_all)
+    df_working = ensure_missing_column(df_working)
 
     placeholder_index = pd.DatetimeIndex(
         [_market_close_utc_for_date(d) for d in missing_dates],
@@ -2147,67 +2205,70 @@ def append_missing_markers(
     )
 
     if len(placeholder_index):
-        CONNECTION_DIAGNOSTICS["placeholder_writes"] = CONNECTION_DIAGNOSTICS.get("placeholder_writes", 0) + len(placeholder_index)
+        CONNECTION_DIAGNOSTICS["placeholder_writes"] = CONNECTION_DIAGNOSTICS.get("placeholder_writes", 0) + len(
+            placeholder_index
+        )
 
         # DEBUG-LOG: Placeholder injection
         logger.debug(
             "[THETA][DEBUG][PLACEHOLDER][INJECT] count=%d dates=%s",
             len(placeholder_index),
-            ", ".join(sorted({d.isoformat() for d in missing_dates}))
+            ", ".join(sorted({d.isoformat() for d in missing_dates})),
         )
 
         # PERF: Avoid pandas FutureWarning spam from concatenating all-NA placeholder frames.
         # Reindex onto the union of existing + placeholder timestamps instead.
         try:
-            df_all_index = df_all.index
+            df_all_index = df_working.index
             if not isinstance(df_all_index, pd.DatetimeIndex):
-                df_all = df_all.copy()
-                df_all.index = pd.to_datetime(df_all.index, utc=True)
+                df_working = df_working.copy()
+                df_working.index = pd.to_datetime(df_working.index, utc=True)
             elif getattr(df_all_index, "tz", None) is None:
-                df_all = df_all.copy()
-                df_all.index = pd.to_datetime(df_all.index, utc=True)
+                df_working = df_working.copy()
+                df_working.index = pd.to_datetime(df_working.index, utc=True)
         except Exception:
             pass
 
-        df_all = df_all.reindex(df_all.index.union(placeholder_index)).sort_index()
-        df_all.loc[placeholder_index, "missing"] = True
-        df_all = df_all[~df_all.index.duplicated(keep="last")]
+        df_working = df_working.reindex(df_working.index.union(placeholder_index)).sort_index()
+        df_working.loc[placeholder_index, "missing"] = True
+        df_working = df_working[~df_working.index.duplicated(keep="last")]
         logger.debug(
             "[THETA][DEBUG][THETADATA-CACHE] recorded %d placeholder day(s): %s",
             len(placeholder_index),
             ", ".join(sorted({d.isoformat() for d in missing_dates})),
         )
 
-    return df_all
+    return df_working
 
 
 def remove_missing_markers(
-    df_all: Optional[pd.DataFrame],
-    available_dates: List[datetime.date],
-) -> Optional[pd.DataFrame]:
+    df_all: PandasDataFrame | None,
+    available_dates: list[date],
+) -> PandasDataFrame | None:
     """Drop placeholder rows when real data becomes available."""
     if df_all is None or len(df_all) == 0 or not available_dates:
         return df_all
 
-    df_all = ensure_missing_column(df_all)
+    df_working: Any = ensure_missing_column(df_all)
     available_set = set(available_dates)
 
-    mask = df_all["missing"].eq(True) & df_all.index.map(
-        lambda ts: ts.date() in available_set
-    )
+    def _is_available_index(ts: Any) -> bool:
+        return ts.date() in available_set
+
+    mask = df_working["missing"].eq(True) & df_working.index.map(_is_available_index)
     if mask.any():
-        removed_dates = sorted({ts.date().isoformat() for ts in df_all.index[mask]})
-        df_all = df_all.loc[~mask]
+        removed_dates = sorted({ts.date().isoformat() for ts in df_working.index[mask]})
+        df_working = df_working.loc[~mask]
         logger.debug(
             "[THETA][DEBUG][THETADATA-CACHE] cleared %d placeholder row(s) for dates: %s",
             mask.sum(),
             ", ".join(removed_dates),
         )
 
-    return df_all
+    return df_working
 
 
-def _clamp_option_end(asset: Asset, dt: datetime) -> datetime:
+def _clamp_option_end(asset: Asset, dt: date | datetime) -> datetime:
     """Ensure intraday pulls for options never extend beyond expiration."""
     if isinstance(dt, datetime):
         end_dt = dt
@@ -2229,14 +2290,14 @@ def _clamp_option_end(asset: Asset, dt: datetime) -> datetime:
 def reset_theta_terminal_tracking():
     """Clear cached ThetaTerminal process references."""
     global THETA_DATA_PROCESS, THETA_DATA_PID, THETA_DATA_LOG_HANDLE
-    THETA_DATA_PROCESS = None
-    THETA_DATA_PID = None
+    THETA_DATA_PROCESS = None  # pyright: ignore[reportConstantRedefinition]
+    THETA_DATA_PID = None  # pyright: ignore[reportConstantRedefinition]
     if THETA_DATA_LOG_HANDLE is not None:
         try:
             THETA_DATA_LOG_HANDLE.close()
         except Exception:
             pass
-    THETA_DATA_LOG_HANDLE = None
+    THETA_DATA_LOG_HANDLE = None  # pyright: ignore[reportConstantRedefinition]
 
 
 CONNECTION_DIAGNOSTICS = {
@@ -2253,16 +2314,16 @@ def get_price_data(
     start: datetime,
     end: datetime,
     timespan: str = "minute",
-    quote_asset: Asset = None,
-    dt=None,
+    quote_asset: Asset | None = None,
+    dt: date | datetime | None = None,
     datastyle: str = "ohlc",
     include_after_hours: bool = True,
     return_polars: bool = False,
     preserve_full_history: bool = False,
     include_eod_nbbo: bool = False,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
-) -> Optional[pd.DataFrame]:
+    username: str | None = None,
+    password: str | None = None,
+) -> PandasDataFrame | None:
     """
     Queries ThetaData for pricing data for the given asset and returns a DataFrame with the data. Data will be
     cached in the LUMIBOT_CACHE_FOLDER/{CACHE_SUBFOLDER} folder so that it can be reused later and we don't have to query
@@ -2354,7 +2415,7 @@ def get_price_data(
     # to option expiration or applying offsets. Return an empty frame rather than crashing deep
     # inside calendar scheduling.
     try:
-        if start is not None and end is not None and start > end:
+        if start > end:
             logger.warning(
                 "[THETA][WARN][REQUEST] Ignoring inverted request window for %s: start=%s end=%s",
                 getattr(asset, "symbol", asset),
@@ -2403,7 +2464,7 @@ def get_price_data(
         timespan,
         datastyle,
         cache_file,
-        cache_file.exists()
+        cache_file.exists(),
     )
 
     if cache_file.exists():
@@ -2429,16 +2490,17 @@ def get_price_data(
             if "unexpected keyword argument" not in message:
                 raise
             df_cached = load_cache(cache_file)
-        if df_cached is not None and not df_cached.empty:
+        cached_frame: Any = df_cached
+        if cached_frame is not None and not getattr(cached_frame, "empty", True):
             if timespan == "day":
                 # Normalize cached day bars (and placeholders) to market-close timestamps to avoid lookahead.
-                df_cached = _align_day_index_to_market_close_utc(df_cached)
+                cached_frame = _align_day_index_to_market_close_utc(cached_frame)
             # Memory: avoid deep-copying large cached frames.
             #
             # Production backtests can reuse a cache namespace that already contains multi-year
             # intraday history for a symbol. Deep-copying here can double peak RSS and trigger
             # ECS OOMKills (which surface as BotManager ERROR_CODE_CRASH with no Python traceback).
-            df_all = df_cached.copy(deep=False)
+            df_all = cached_frame.copy(deep=False)
             # Ensure cached daily data is corporate-action adjusted BEFORE any merge/update.
             # This prevents mixing adjusted and unadjusted rows (and partial `_split_adjusted` markers)
             # when we append new EOD data over time, especially for options that span splits.
@@ -2466,17 +2528,17 @@ def get_price_data(
         asset,
         cached_rows,
         placeholder_rows,
-        cached_rows - placeholder_rows
+        cached_rows - placeholder_rows,
     )
 
     sidecar_data = _load_cache_sidecar(cache_file)
 
     def _validate_cache_frame(
-        frame: Optional[pd.DataFrame],
+        frame: PandasDataFrame | None,
         requested_start_dt: datetime,
         requested_end_dt: datetime,
         span: str,
-    ) -> Tuple[bool, str, bool]:
+    ) -> tuple[bool, str, bool]:
         """Return (is_valid, reason, is_integrity_failure).
 
         Integrity failures = corrupt/inconsistent data that MUST be deleted.
@@ -2492,10 +2554,10 @@ def get_price_data(
         if frame is None or frame.empty:
             return False, "empty", False  # Not an integrity failure - just no data
 
-        frame = ensure_missing_column(frame)
+        frame_working: Any = ensure_missing_column(frame)
 
         try:
-            frame_index = pd.to_datetime(frame.index)
+            frame_index = pd.to_datetime(frame_working.index)
         except Exception:
             return False, "unparseable_index", True  # INTEGRITY FAILURE
 
@@ -2509,8 +2571,12 @@ def get_price_data(
 
         min_ts = frame_index.min()
         max_ts = frame_index.max()
-        total_rows = len(frame)
-        placeholder_mask = frame["missing"].astype(bool) if "missing" in frame.columns else pd.Series(False, index=frame.index)
+        total_rows = len(frame_working)
+        placeholder_mask = (
+            frame_working["missing"].astype(bool)
+            if "missing" in frame_working.columns
+            else pd.Series(False, index=frame_working.index)
+        )
         placeholder_rows = int(placeholder_mask.sum()) if hasattr(placeholder_mask, "sum") else 0
 
         requested_start_date = requested_start_dt.date()
@@ -2518,10 +2584,19 @@ def get_price_data(
 
         # Validate sidecar alignment
         if sidecar_data:
-            rows_match = sidecar_data.get("rows") in (None, total_rows) or int(sidecar_data.get("rows", 0)) == total_rows
-            placeholders_match = sidecar_data.get("placeholders") in (None, placeholder_rows) or int(sidecar_data.get("placeholders", 0)) == placeholder_rows
-            min_match = sidecar_data.get("min") is None or sidecar_data.get("min") == (min_ts.isoformat() if hasattr(min_ts, "isoformat") else None)
-            max_match = sidecar_data.get("max") is None or sidecar_data.get("max") == (max_ts.isoformat() if hasattr(max_ts, "isoformat") else None)
+            rows_match = (
+                sidecar_data.get("rows") in (None, total_rows) or int(sidecar_data.get("rows", 0)) == total_rows
+            )
+            placeholders_match = (
+                sidecar_data.get("placeholders") in (None, placeholder_rows)
+                or int(sidecar_data.get("placeholders", 0)) == placeholder_rows
+            )
+            min_match = sidecar_data.get("min") is None or sidecar_data.get("min") == (
+                min_ts.isoformat() if hasattr(min_ts, "isoformat") else None
+            )
+            max_match = sidecar_data.get("max") is None or sidecar_data.get("max") == (
+                max_ts.isoformat() if hasattr(max_ts, "isoformat") else None
+            )
             # Checksum validation is intentionally skipped for performance. Parquet corruption is
             # surfaced at read time; the remaining fields catch most logical mismatches cheaply.
             if not all([rows_match, placeholders_match, min_match, max_match]):
@@ -2542,15 +2617,20 @@ def get_price_data(
         if span == "day":
             trading_days = get_trading_dates(asset, requested_start_dt, requested_end_dt)
             index_dates = pd.Index(frame_index.date)
-            placeholder_dates = set(pd.Index(frame_index[placeholder_mask].date)) if hasattr(frame_index, "__len__") else set()
+            placeholder_values: Any = (
+                pd.Index(frame_index[placeholder_mask].date) if hasattr(frame_index, "__len__") else []
+            )
+            placeholder_dates: set[date] = {
+                placeholder_date for placeholder_date in placeholder_values if isinstance(placeholder_date, date)
+            }
 
-            missing_required: List[date] = []
+            missing_required: list[date] = []
             for d in trading_days:
                 if d not in index_dates:
                     missing_required.append(d)
 
             # DEBUG: Log detailed cache validation info for OPTIONS
-            is_option = getattr(asset, 'asset_type', None) == 'option'
+            is_option = getattr(asset, "asset_type", None) == "option"
             if is_option or missing_required:
                 logger.debug(
                     "[THETA][DEBUG][CACHE_VALIDATION] asset=%s | "
@@ -2598,7 +2678,9 @@ def get_price_data(
                 return False, "too_few_rows", False  # COVERAGE FAILURE - can extend
         return True, "", False
 
-    cache_ok, cache_reason, is_integrity_failure = _validate_cache_frame(df_all, requested_start, requested_end, timespan)
+    cache_ok, cache_reason, is_integrity_failure = _validate_cache_frame(
+        df_all, requested_start, requested_end, timespan
+    )
     # Sidecar backfill intentionally skipped: sidecars are optional and should not add overhead for
     # option-heavy backtests.
 
@@ -2680,11 +2762,10 @@ def get_price_data(
 
     # Check if we need to get more data
     logger.debug(
-        "[THETA][DEBUG][CACHE][DECISION_START] asset=%s | "
-        "calling get_missing_dates(start=%s, end=%s)",
-        asset.symbol if hasattr(asset, 'symbol') else str(asset),
-        start.isoformat() if hasattr(start, 'isoformat') else start,
-        end.isoformat() if hasattr(end, 'isoformat') else end
+        "[THETA][DEBUG][CACHE][DECISION_START] asset=%s | calling get_missing_dates(start=%s, end=%s)",
+        asset.symbol if hasattr(asset, "symbol") else str(asset),
+        start.isoformat() if hasattr(start, "isoformat") else start,
+        end.isoformat() if hasattr(end, "isoformat") else end,
     )
 
     # CI/acceptance runs enforce a strict "no queue submissions" invariant and run with isolated
@@ -2709,13 +2790,7 @@ def get_price_data(
     else:
         missing_dates = get_missing_dates(df_all, asset, start, missing_end)
 
-    if (
-        timespan == "day"
-        and not cache_invalid
-        and df_all is not None
-        and "missing" in df_all.columns
-        and missing_dates
-    ):
+    if timespan == "day" and not cache_invalid and df_all is not None and "missing" in df_all.columns and missing_dates:
         placeholder_dates = set(pd.Index(df_all[df_all["missing"].astype(bool)].index.date))
         if placeholder_dates:
             today_utc = datetime.now(pytz.UTC).date()
@@ -2733,19 +2808,17 @@ def get_price_data(
                 after = len(missing_dates)
                 logger.debug(
                     "[THETA][DEBUG][CACHE][PLACEHOLDER_SUPPRESS] asset=%s timespan=%s removed=%d missing=%d",
-                    asset.symbol if hasattr(asset, 'symbol') else str(asset),
+                    asset.symbol if hasattr(asset, "symbol") else str(asset),
                     timespan,
                     before - after,
                     after,
                 )
 
     logger.debug(
-        "[THETA][DEBUG][CACHE][DECISION_RESULT] asset=%s | "
-        "missing_dates=%d | "
-        "decision=%s",
-        asset.symbol if hasattr(asset, 'symbol') else str(asset),
+        "[THETA][DEBUG][CACHE][DECISION_RESULT] asset=%s | missing_dates=%d | decision=%s",
+        asset.symbol if hasattr(asset, "symbol") else str(asset),
         len(missing_dates),
-        "CACHE_HIT" if not missing_dates else "CACHE_MISS"
+        "CACHE_HIT" if not missing_dates else "CACHE_MISS",
     )
 
     # Intraday coverage check: for non-day timespans, `get_missing_dates()` only reasons about full
@@ -2767,9 +2840,7 @@ def get_price_data(
         try:
             is_option = str(getattr(asset, "asset_type", "") or "").lower() == "option"
             placeholder_only_option = (
-                is_option
-                and "missing" in df_all.columns
-                and bool(df_all["missing"].fillna(False).astype(bool).all())
+                is_option and "missing" in df_all.columns and bool(df_all["missing"].fillna(False).astype(bool).all())
             )
         except Exception:
             placeholder_only_option = False
@@ -2807,21 +2878,26 @@ def get_price_data(
                         # end-exclusive so we don't incorrectly include the next trading day.
                         calendar_end = requested_end
                         try:
-                            if getattr(requested_end, "hour", None) == 0 and getattr(requested_end, "minute", None) == 0:
+                            if (
+                                getattr(requested_end, "hour", None) == 0
+                                and getattr(requested_end, "minute", None) == 0
+                            ):
                                 calendar_end = requested_end - timedelta(seconds=1)
                         except Exception:
                             calendar_end = requested_end
 
                         trading_dates = get_trading_dates(asset, requested_start, calendar_end)
                         if trading_dates:
+                            session_bounds_utc: Callable[[date], tuple[Any | None, Any | None]] | None
                             try:
-                                from lumibot.tools.helpers import get_trading_days
+                                helpers_mod: Any = import_module("lumibot.tools.helpers")
+                                get_trading_days_any: Any = helpers_mod.get_trading_days
 
-                                def _session_bounds_utc(day: date) -> Tuple[Optional[pd.Timestamp], Optional[pd.Timestamp]]:
-                                    schedule = get_trading_days(
+                                def _resolve_session_bounds_utc(day: date) -> tuple[Any | None, Any | None]:
+                                    schedule: Any = get_trading_days_any(
                                         market="NYSE",
-                                        start_date=day,
-                                        end_date=day + timedelta(days=1),
+                                        start_date=day.isoformat(),
+                                        end_date=(day + timedelta(days=1)).isoformat(),
                                         tzinfo=LUMIBOT_DEFAULT_PYTZ,
                                     )
                                     if schedule is None or schedule.empty:
@@ -2831,8 +2907,10 @@ def get_price_data(
                                     open_utc = pd.Timestamp(open_dt).tz_convert(pytz.UTC)
                                     close_utc = pd.Timestamp(close_dt).tz_convert(pytz.UTC)
                                     return open_utc, close_utc
+
+                                session_bounds_utc = _resolve_session_bounds_utc
                             except Exception:
-                                _session_bounds_utc = None
+                                session_bounds_utc = None
 
                             tolerance = timedelta(minutes=2)
                             first_day = trading_dates[0]
@@ -2841,8 +2919,8 @@ def get_price_data(
                             # Start-of-window: if caller requests midnight, we only require the cache to
                             # include the regular-session open (09:30 ET), not midnight/pre-market.
                             required_start = start_utc
-                            if _session_bounds_utc is not None:
-                                open_utc, _ = _session_bounds_utc(first_day)
+                            if session_bounds_utc is not None:
+                                open_utc, _ = session_bounds_utc(first_day)
                                 if open_utc is not None:
                                     required_start = max(required_start, open_utc)
                             if min_ts > required_start + tolerance:
@@ -2851,8 +2929,8 @@ def get_price_data(
                             # End-of-window: require coverage through the earlier of (dt, end) bounded by
                             # the regular-session close (16:00 ET) for that day.
                             required_end = end_check_utc
-                            if _session_bounds_utc is not None:
-                                _, close_utc = _session_bounds_utc(last_day)
+                            if session_bounds_utc is not None:
+                                _, close_utc = session_bounds_utc(last_day)
                                 if close_utc is not None:
                                     required_end = min(required_end, close_utc)
                             if max_ts < required_end - tolerance:
@@ -2882,16 +2960,16 @@ def get_price_data(
                 timespan,
                 datastyle,
                 len(df_all),
-                start.isoformat() if hasattr(start, 'isoformat') else start,
-                end.isoformat() if hasattr(end, 'isoformat') else end
+                start.isoformat() if hasattr(start, "isoformat") else start,
+                end.isoformat() if hasattr(end, "isoformat") else end,
             )
         # Filter cached data to requested date range before returning
         result_frame = df_all
         if result_frame is not None and not result_frame.empty:
             if timespan == "day" and not preserve_full_history:
                 df_dates = pd.to_datetime(result_frame.index).date
-                start_date = start.date() if hasattr(start, 'date') else start
-                end_date = end.date() if hasattr(end, 'date') else end
+                start_date = start.date() if hasattr(start, "date") else start
+                end_date = end.date() if hasattr(end, "date") else end
                 mask = (df_dates >= start_date) & (df_dates <= end_date)
                 result_frame = result_frame[mask]
             elif timespan != "day":
@@ -2903,54 +2981,37 @@ def get_price_data(
                     "[THETA][DEBUG][FILTER][INTRADAY_ENTRY] asset=%s | "
                     "rows_before=%d max_ts_before=%s | "
                     "start_param=%s end_param=%s dt_param=%s dt_type=%s",
-                    asset.symbol if hasattr(asset, 'symbol') else str(asset),
+                    asset.symbol if hasattr(asset, "symbol") else str(asset),
                     rows_before_any_filter,
                     max_ts_before_any_filter.isoformat() if max_ts_before_any_filter else None,
-                    start.isoformat() if hasattr(start, 'isoformat') else start,
-                    end.isoformat() if hasattr(end, 'isoformat') else end,
-                    dt.isoformat() if dt and hasattr(dt, 'isoformat') else dt,
-                    type(dt).__name__ if dt else None
+                    start.isoformat() if hasattr(start, "isoformat") else start,
+                    end.isoformat() if hasattr(end, "isoformat") else end,
+                    dt.isoformat() if dt and hasattr(dt, "isoformat") else dt,
+                    type(dt).__name__ if dt else None,
                 )
 
                 if not preserve_full_history:
-                    if isinstance(start, datetime_module.date) and not isinstance(start, datetime_module.datetime):
-                        start = datetime_module.datetime.combine(start, datetime_module.time.min)
-                        logger.debug(
-                            "[THETA][DEBUG][FILTER][DATE_CONVERSION] converted start from date to datetime: %s",
-                            start.isoformat()
-                        )
-                    if isinstance(end, datetime_module.date) and not isinstance(end, datetime_module.datetime):
-                        end = datetime_module.datetime.combine(end, datetime_module.time.max)
-                        logger.debug(
-                            "[THETA][DEBUG][FILTER][DATE_CONVERSION] converted end from date to datetime: %s",
-                            end.isoformat()
-                        )
-
-                    if isinstance(end, datetime_module.datetime) and end.time() == datetime_module.time.min:
+                    if end.time() == datetime_module.time.min:
                         end = datetime_module.datetime.combine(end.date(), datetime_module.time.max)
                         logger.debug(
                             "[THETA][DEBUG][FILTER][MIDNIGHT_FIX] converted end from midnight to end-of-day: %s",
-                            end.isoformat()
+                            end.isoformat(),
                         )
 
                     if start.tzinfo is None:
                         start = LUMIBOT_DEFAULT_PYTZ.localize(start).astimezone(pytz.UTC)
                         logger.debug(
-                            "[THETA][DEBUG][FILTER][TZ_LOCALIZE] localized start to UTC: %s",
-                            start.isoformat()
+                            "[THETA][DEBUG][FILTER][TZ_LOCALIZE] localized start to UTC: %s", start.isoformat()
                         )
                     if end.tzinfo is None:
                         end = LUMIBOT_DEFAULT_PYTZ.localize(end).astimezone(pytz.UTC)
-                        logger.debug(
-                            "[THETA][DEBUG][FILTER][TZ_LOCALIZE] localized end to UTC: %s",
-                            end.isoformat()
-                        )
+                        logger.debug("[THETA][DEBUG][FILTER][TZ_LOCALIZE] localized end to UTC: %s", end.isoformat())
 
                     logger.debug(
                         "[THETA][DEBUG][FILTER][NO_DT_FILTER] asset=%s | "
                         "using end=%s for upper bound (dt parameter ignored for cache retrieval)",
-                        asset.symbol if hasattr(asset, 'symbol') else str(asset),
-                        end.isoformat()
+                        asset.symbol if hasattr(asset, "symbol") else str(asset),
+                        end.isoformat(),
                     )
                     result_frame = result_frame[(result_frame.index >= start) & (result_frame.index <= end)]
 
@@ -2965,7 +3026,7 @@ def get_price_data(
                 asset,
                 len(result_frame),
                 result_frame.index.min().isoformat(),
-                result_frame.index.max().isoformat()
+                result_frame.index.max().isoformat(),
             )
 
         # Corporate actions: day bars have always been split-adjusted (Yahoo-style "Adj Close" behavior).
@@ -3004,9 +3065,8 @@ def get_price_data(
         datastyle,
         len(missing_dates),
         missing_dates[0] if missing_dates else None,
-        missing_dates[-1] if missing_dates else None
+        missing_dates[-1] if missing_dates else None,
     )
-
 
     fetch_start = missing_dates[0]  # Data will start at 8am UTC (4am EST)
     fetch_end = missing_dates[-1]  # Data will end at 23:59 UTC (7:59pm EST)
@@ -3032,7 +3092,7 @@ def get_price_data(
     if timespan == "day":
         requested_dates = list(missing_dates)
         today_utc = datetime.now(pytz.UTC).date()
-        future_dates: List[date] = []
+        future_dates: list[date] = []
         effective_start = fetch_start
         effective_end = fetch_end
 
@@ -3074,7 +3134,7 @@ def get_price_data(
 
         # Use EOD endpoint for official daily OHLC
         # Only pass include_nbbo when enabled to preserve backwards compatibility with mocks.
-        eod_kwargs = dict(
+        eod_kwargs: dict[str, Any] = dict(
             asset=asset,
             start_dt=effective_start,
             end_dt=effective_end,
@@ -3086,7 +3146,7 @@ def get_price_data(
             eod_kwargs["password"] = password
         if include_eod_nbbo:
             eod_kwargs["include_nbbo"] = True
-        result_df = get_historical_eod_data(**eod_kwargs)
+        result_df: Any = get_historical_eod_data(**eod_kwargs)
         logger.debug(
             "[THETA][DEBUG][THETADATA-EOD] fetched rows=%s for %s",
             0 if result_df is None else len(result_df),
@@ -3098,7 +3158,7 @@ def get_price_data(
                 result_df = result_df.copy()
                 result_df["datetime"] = pd.to_datetime(result_df["datetime"], utc=True, errors="coerce")
                 result_df = result_df.dropna(subset=["datetime"]).set_index("datetime").sort_index()
-            result_df = _align_day_index_to_market_close_utc(result_df)
+            result_df = cast(Any, _align_day_index_to_market_close_utc(result_df))
 
         if result_df is None or result_df.empty:
             expired_range = (
@@ -3146,12 +3206,7 @@ def get_price_data(
                 len(requested_dates),
             )
 
-            if (
-                not preserve_full_history
-                and df_clean is not None
-                and not df_clean.empty
-                and timespan == "day"
-            ):
+            if not preserve_full_history and df_clean is not None and not df_clean.empty and timespan == "day":
                 start_date = requested_start.date() if hasattr(requested_start, "date") else requested_start
                 end_date = requested_end.date() if hasattr(requested_end, "date") else requested_end
                 dates = pd.to_datetime(df_clean.index).date
@@ -3159,13 +3214,15 @@ def get_price_data(
 
             return df_clean if df_clean is not None else pd.DataFrame()
 
+        result_frame_eod: Any = result_df
+
         # EOD history results are already normalized to UTC market-close timestamps above
         # (`_align_day_index_to_market_close_utc`). Do NOT route them through `update_df()`,
         # which assumes naive datetimes are in the default market timezone and will shift
         # them incorrectly. That timezone shift can make a covered trading day look missing,
         # causing repeated downloader queue submissions for the same option/day.
         if result_df is not None and not result_df.empty:
-            df_merge = result_df
+            df_merge: Any = result_frame_eod
             if "datetime" in df_merge.columns:
                 df_merge = df_merge.copy()
                 df_merge["datetime"] = pd.to_datetime(df_merge["datetime"], utc=True, errors="coerce")
@@ -3176,27 +3233,27 @@ def get_price_data(
                 df_merge = df_merge.loc[~pd.isna(idx)]
                 df_merge.index = pd.DatetimeIndex(idx[~pd.isna(idx)], name="datetime")
                 df_merge = df_merge.sort_index()
-            df_merge = ensure_missing_column(df_merge)
+            df_merge = cast(Any, ensure_missing_column(df_merge))
             df_merge.loc[:, "missing"] = False
 
             if df_all is None or getattr(df_all, "empty", True):
                 df_all = df_merge
             else:
-                df_all = ensure_missing_column(df_all)
+                df_all = cast(Any, ensure_missing_column(df_all))
                 df_all = pd.concat([df_all, df_merge]).sort_index()
                 df_all = df_all[~df_all.index.duplicated(keep="last")]  # Keep newest data over placeholders
         logger.debug(
             "[THETA][DEBUG][THETADATA-EOD] merged cache rows=%d (cached=%d new=%d)",
             0 if df_all is None else len(df_all),
             0 if df_cached is None else len(df_cached),
-            len(result_df),
+            len(result_frame_eod),
         )
 
         trading_days = get_trading_dates(asset, effective_start, effective_end)
-        if "datetime" in result_df.columns:
-            covered_index = pd.DatetimeIndex(pd.to_datetime(result_df["datetime"], utc=True))
+        if "datetime" in result_frame_eod.columns:
+            covered_index = pd.DatetimeIndex(pd.to_datetime(result_frame_eod["datetime"], utc=True))
         else:
-            covered_index = pd.DatetimeIndex(result_df.index)
+            covered_index = pd.DatetimeIndex(result_frame_eod.index)
         if covered_index.tz is None:
             covered_index = covered_index.tz_localize(pytz.UTC)
         else:
@@ -3210,7 +3267,7 @@ def get_price_data(
         placeholder_count = len(missing_within_range)
 
         # DEBUG: Log placeholder creation for OPTIONS
-        is_option = getattr(asset, 'asset_type', None) == 'option'
+        is_option = getattr(asset, "asset_type", None) == "option"
         if is_option or placeholder_count > 0:
             logger.info(
                 "[THETA][DEBUG][PLACEHOLDER_CREATE] asset=%s | "
@@ -3227,8 +3284,8 @@ def get_price_data(
                 sorted(missing_within_range)[-5:] if missing_within_range else [],
                 sorted(covered_days)[:5] if covered_days else [],
                 sorted(covered_days)[-5:] if covered_days else [],
-                effective_start.date() if hasattr(effective_start, 'date') else effective_start,
-                effective_end.date() if hasattr(effective_end, 'date') else effective_end,
+                effective_start,
+                effective_end,
             )
 
         df_all = append_missing_markers(df_all, missing_within_range)
@@ -3257,12 +3314,7 @@ def get_price_data(
             placeholder_count,
         )
 
-        if (
-            not preserve_full_history
-            and df_clean is not None
-            and not df_clean.empty
-            and timespan == "day"
-        ):
+        if not preserve_full_history and df_clean is not None and not df_clean.empty and timespan == "day":
             start_date = requested_start.date() if hasattr(requested_start, "date") else requested_start
             end_date = requested_end.date() if hasattr(requested_end, "date") else requested_end
             dates = pd.to_datetime(df_clean.index).date
@@ -3285,12 +3337,9 @@ def get_price_data(
 
     interval_ms = TIMESPAN_TO_MS.get(timespan)
     if interval_ms is None:
-        raise ValueError(
-            f"Unsupported timespan '{timespan}'. "
-            f"Supported values: {list(TIMESPAN_TO_MS.keys())} or 'day'"
-        )
+        raise ValueError(f"Unsupported timespan '{timespan}'. Supported values: {list(TIMESPAN_TO_MS.keys())} or 'day'")
 
-    chunk_ranges: List[Tuple[datetime, datetime]] = []
+    chunk_ranges: list[tuple[date | datetime, date | datetime]] = []
     current_start = fetch_start
     current_end = fetch_start + delta
 
@@ -3345,8 +3394,8 @@ def get_price_data(
     # Set initial download status
     set_download_status(asset, quote_asset, datastyle, timespan, 0, total_download_units)
 
-    def _fetch_chunk(chunk_start: datetime, chunk_end: datetime):
-        kwargs = {
+    def _fetch_chunk(chunk_start: date | datetime, chunk_end: date | datetime) -> PandasDataFrame | None:
+        kwargs: dict[str, Any] = {
             "datastyle": datastyle,
             "include_after_hours": include_after_hours,
             "download_timespan": timespan,
@@ -3359,10 +3408,10 @@ def get_price_data(
 
     def _handle_chunk_result(
         *,
-        chunk_start: datetime,
-        chunk_end: datetime,
+        chunk_start: date | datetime,
+        chunk_end: date | datetime,
         submitted_at: float,
-        result_df: Optional[pd.DataFrame],
+        result_df: PandasDataFrame | None,
     ) -> None:
         nonlocal df_all
 
@@ -3371,9 +3420,7 @@ def get_price_data(
 
         if result_df is None or len(result_df) == 0:
             expired_chunk = (
-                asset.asset_type == "option"
-                and asset.expiration is not None
-                and clamped_end.date() >= asset.expiration
+                asset.asset_type == "option" and asset.expiration is not None and clamped_end.date() >= asset.expiration
             )
             if expired_chunk:
                 logger.debug(
@@ -3454,7 +3501,7 @@ def get_price_data(
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
         with ThreadPoolExecutor(max_workers=chunk_workers) as executor:
-            future_map: Dict[Any, Tuple[datetime, datetime, float]] = {}
+            future_map: dict[Any, tuple[date | datetime, date | datetime, float]] = {}
             for chunk_start, chunk_end in chunk_ranges:
                 submitted_at = time.perf_counter()
                 future = executor.submit(_fetch_chunk, chunk_start, chunk_end)
@@ -3497,12 +3544,7 @@ def get_price_data(
 
     # Apply corporate actions to intraday frames by default so underlying prices live in the same
     # split-adjusted space as option-chain strike normalization (see comment in cache-hit path).
-    if (
-        apply_intraday_corporate_actions
-        and df_all is not None
-        and not df_all.empty
-        and timespan != "day"
-    ):
+    if apply_intraday_corporate_actions and df_all is not None and not df_all.empty and timespan != "day":
         try:
             start_day = requested_start.date() if hasattr(requested_start, "date") else requested_start
             end_day = requested_end.date() if hasattr(requested_end, "date") else requested_end
@@ -3514,12 +3556,7 @@ def get_price_data(
                 exc_info=True,
             )
 
-    if (
-        not preserve_full_history
-        and df_all is not None
-        and not df_all.empty
-        and timespan == "day"
-    ):
+    if not preserve_full_history and df_all is not None and not df_all.empty and timespan == "day":
         start_date = requested_start.date() if hasattr(requested_start, "date") else requested_start
         end_date = requested_end.date() if hasattr(requested_end, "date") else requested_end
         dates = pd.to_datetime(df_all.index).date
@@ -3528,21 +3565,12 @@ def get_price_data(
     # Cache-miss path parity: intraday requests must be trimmed to [requested_start, requested_end]
     # just like the cache-hit path. Otherwise, callers (and tests) can receive bars outside the
     # requested window when the on-disk cache contains additional days.
-    if (
-        not preserve_full_history
-        and df_all is not None
-        and not df_all.empty
-        and timespan != "day"
-    ):
+    if not preserve_full_history and df_all is not None and not df_all.empty and timespan != "day":
         import datetime as datetime_module  # Avoid shadowing `dt` parameter.
 
         start_bound = requested_start
         end_bound = requested_end
-        if isinstance(start_bound, datetime_module.date) and not isinstance(start_bound, datetime_module.datetime):
-            start_bound = datetime_module.datetime.combine(start_bound, datetime_module.time.min)
-        if isinstance(end_bound, datetime_module.date) and not isinstance(end_bound, datetime_module.datetime):
-            end_bound = datetime_module.datetime.combine(end_bound, datetime_module.time.max)
-        if isinstance(end_bound, datetime_module.datetime) and end_bound.time() == datetime_module.time.min:
+        if end_bound.time() == datetime_module.time.min:
             end_bound = datetime_module.datetime.combine(end_bound.date(), datetime_module.time.max)
 
         if hasattr(start_bound, "tzinfo") and start_bound.tzinfo is None:
@@ -3555,8 +3583,6 @@ def get_price_data(
     return df_all
 
 
-
-
 # PERFORMANCE FIX (2025-12-07): Cache calendar objects to avoid rebuilding them.
 # mcal.get_calendar() is slow; caching the calendar objects saves significant time.
 #
@@ -3565,10 +3591,10 @@ def get_price_data(
 #   - full-year schedules (key: (calendar_name: str, year: int))
 # so that tests (and any debugging code) can clear *all* calendar-related caches by calling
 # `_CALENDAR_CACHE.clear()` once.
-_CALENDAR_CACHE: Dict[object, object] = {}
+_CALENDAR_CACHE: dict[object, Any] = {}
 
 
-def _get_cached_calendar(name: str):
+def _get_cached_calendar(name: str) -> Any:
     """Get or create a cached market calendar object."""
     # IMPORTANT (test isolation / monkeypatch safety):
     # Some unit tests monkeypatch `pandas_market_calendars.get_calendar` with a dummy implementation.
@@ -3598,7 +3624,7 @@ def _get_cached_calendar(name: str):
 #
 # NOTE: We store these schedules in `_CALENDAR_CACHE` so clearing that dict also clears
 # schedule caching (important for legacy tests that monkeypatch the calendar impl).
-def _cached_year_schedule(calendar_name: str, year: int) -> pd.DataFrame:
+def _cached_year_schedule(calendar_name: str, year: int) -> PandasDataFrame:
     # Include the calendar factory identity to avoid reusing schedules generated under a monkeypatched
     # calendar in later tests.
     key = (calendar_name, year, id(mcal.get_calendar))
@@ -3615,7 +3641,7 @@ def _cached_year_schedule(calendar_name: str, year: int) -> pd.DataFrame:
 
 
 @functools.lru_cache(maxsize=2048)  # Increased from 512 for longer backtests
-def _cached_trading_dates(asset_type: str, start_date: date, end_date: date, calendar_version: int) -> List[date]:
+def _cached_trading_dates(asset_type: str, start_date: date, end_date: date, calendar_version: int) -> list[date]:
     """Memoized trading-day resolver to avoid rebuilding calendars every call.
 
     PERFORMANCE FIX (2025-12-07): Increased cache size and use cached calendars.
@@ -3631,7 +3657,7 @@ def _cached_trading_dates(asset_type: str, start_date: date, end_date: date, cal
     else:
         raise ValueError(f"Unsupported asset type for thetadata: {asset_type}")
 
-    def _slice_year(year: int, start: date, end: date) -> List[date]:
+    def _slice_year(year: int, start: date, end: date) -> list[date]:
         schedule = _cached_year_schedule(calendar_name, year)
         # DatetimeIndex slicing accepts ISO date strings.
         df_slice = schedule.loc[str(start) : str(end)]
@@ -3640,7 +3666,7 @@ def _cached_trading_dates(asset_type: str, start_date: date, end_date: date, cal
     if start_date.year == end_date.year:
         return _slice_year(start_date.year, start_date, end_date)
 
-    dates_out: List[date] = []
+    dates_out: list[date] = []
     for year in range(start_date.year, end_date.year + 1):
         year_start = start_date if year == start_date.year else date(year, 1, 1)
         year_end = end_date if year == end_date.year else date(year, 12, 31)
@@ -3648,7 +3674,7 @@ def _cached_trading_dates(asset_type: str, start_date: date, end_date: date, cal
     return dates_out
 
 
-def get_trading_dates(asset: Asset, start: datetime, end: datetime):
+def get_trading_dates(asset: Asset, start: date | datetime, end: date | datetime) -> list[date]:
     """
     Get a list of trading days for the asset between the start and end dates
     Parameters
@@ -3664,8 +3690,8 @@ def get_trading_dates(asset: Asset, start: datetime, end: datetime):
     -------
 
     """
-    start_date = start.date() if hasattr(start, 'date') else start
-    end_date = end.date() if hasattr(end, 'date') else end
+    start_date = start.date() if isinstance(start, datetime) else start
+    end_date = end.date() if isinstance(end, datetime) else end
     try:
         if start_date > end_date:
             logger.debug(
@@ -3681,7 +3707,7 @@ def get_trading_dates(asset: Asset, start: datetime, end: datetime):
     return list(_cached_trading_dates(asset.asset_type, start_date, end_date, id(mcal.get_calendar)))
 
 
-def build_cache_filename(asset: Asset, timespan: str, datastyle: str = "ohlc"):
+def build_cache_filename(asset: Asset, timespan: str, datastyle: str = "ohlc") -> Path:
     """Helper function to create the cache filename for a given asset and timespan"""
 
     provider_root = Path(LUMIBOT_CACHE_FOLDER) / CACHE_SUBFOLDER
@@ -3706,9 +3732,9 @@ def build_cache_filename(asset: Asset, timespan: str, datastyle: str = "ohlc"):
     return cache_file
 
 
-def build_remote_cache_payload(asset: Asset, timespan: str, datastyle: str = "ohlc") -> Dict[str, object]:
+def build_remote_cache_payload(asset: Asset, timespan: str, datastyle: str = "ohlc") -> dict[str, object]:
     """Generate metadata describing the cache entry for remote storage."""
-    payload: Dict[str, object] = {
+    payload: dict[str, object] = {
         "provider": "thetadata",
         "timespan": timespan,
         "datastyle": datastyle,
@@ -3765,9 +3791,7 @@ def build_snapshot_cache_filename(
     day_string = trading_day.strftime("%Y%m%d")
     start_compact = str(start_time).replace(":", "")
     end_compact = str(end_time).replace(":", "")
-    cache_filename = (
-        f"{asset.asset_type}_{uniq_str}_snapshot_{day_string}_{interval_label}_{start_compact}_{end_compact}_{datastyle}.parquet"
-    )
+    cache_filename = f"{asset.asset_type}_{uniq_str}_snapshot_{day_string}_{interval_label}_{start_compact}_{end_compact}_{datastyle}.parquet"
     return base_folder / cache_filename
 
 
@@ -3780,9 +3804,9 @@ def get_historical_data_snapshot_cached(
     datastyle: str = "quote",
     include_after_hours: bool = True,
     prefer_full_session: bool = True,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
-) -> Optional[pd.DataFrame]:
+    username: str | None = None,
+    password: str | None = None,
+) -> PandasDataFrame | None:
     """Cache-backed wrapper for `get_historical_data()` for tiny single-day windows.
 
     This is primarily used by `ThetaDataBacktestingPandas.get_quote(snapshot_only=True)` to
@@ -3809,8 +3833,6 @@ def get_historical_data_snapshot_cached(
     # `get_historical_data` so we reuse warmed objects instead of attempting to create new
     # snapshot objects.
     try:
-        from lumibot.tools.backtest_cache import CacheMode, get_backtest_cache
-
         cache_manager = get_backtest_cache()
         if cache_manager.enabled and cache_manager.mode == CacheMode.S3_READONLY:
             return get_historical_data(
@@ -3993,7 +4015,12 @@ def get_historical_data_snapshot_cached(
     return result_df
 
 
-def get_missing_dates(df_all, asset, start, end):
+def get_missing_dates(
+    df_all: PandasDataFrame | None,
+    asset: Asset,
+    start: date | datetime,
+    end: date | datetime,
+) -> list[date]:
     """
     Check if we have data for the full range
     Later Query to Polygon will pad an extra full day to start/end dates so that there should never
@@ -4001,7 +4028,7 @@ def get_missing_dates(df_all, asset, start, end):
 
     Parameters
     ----------
-    df_all : pd.DataFrame
+    df_all : PandasDataFrame
         Data loaded from the cache file
     asset : Asset
         Asset we are getting data for
@@ -4017,13 +4044,11 @@ def get_missing_dates(df_all, asset, start, end):
     """
     # DEBUG-LOG: Entry to get_missing_dates
     logger.debug(
-        "[THETA][DEBUG][CACHE][MISSING_DATES_CHECK] asset=%s | "
-        "start=%s end=%s | "
-        "cache_rows=%d",
-        asset.symbol if hasattr(asset, 'symbol') else str(asset),
-        start.isoformat() if hasattr(start, 'isoformat') else start,
-        end.isoformat() if hasattr(end, 'isoformat') else end,
-        0 if df_all is None else len(df_all)
+        "[THETA][DEBUG][CACHE][MISSING_DATES_CHECK] asset=%s | start=%s end=%s | cache_rows=%d",
+        asset.symbol if hasattr(asset, "symbol") else str(asset),
+        start.isoformat() if hasattr(start, "isoformat") else start,
+        end.isoformat() if hasattr(end, "isoformat") else end,
+        0 if df_all is None else len(df_all),
     )
 
     # Backtesting end-date semantics: many callers (including acceptance backtests) represent an
@@ -4049,26 +4074,23 @@ def get_missing_dates(df_all, asset, start, end):
     trading_dates = get_trading_dates(asset, start, end_for_trading_dates)
 
     logger.debug(
-        "[THETA][DEBUG][CACHE][TRADING_DATES] asset=%s | "
-        "asset_type=%s | "
-        "trading_dates_count=%d first=%s last=%s",
-        asset.symbol if hasattr(asset, 'symbol') else str(asset),
+        "[THETA][DEBUG][CACHE][TRADING_DATES] asset=%s | asset_type=%s | trading_dates_count=%d first=%s last=%s",
+        asset.symbol if hasattr(asset, "symbol") else str(asset),
         getattr(asset, "asset_type", None),
         len(trading_dates),
         trading_dates[0] if trading_dates else None,
-        trading_dates[-1] if trading_dates else None
+        trading_dates[-1] if trading_dates else None,
     )
 
     if df_all is None or not len(df_all):
         logger.debug(
-            "[THETA][DEBUG][CACHE][EMPTY] asset=%s | "
-            "cache is EMPTY -> all %d trading days are missing",
-            asset.symbol if hasattr(asset, 'symbol') else str(asset),
-            len(trading_dates)
+            "[THETA][DEBUG][CACHE][EMPTY] asset=%s | cache is EMPTY -> all %d trading days are missing",
+            asset.symbol if hasattr(asset, "symbol") else str(asset),
+            len(trading_dates),
         )
         return trading_dates
 
-    df_working = ensure_missing_column(df_all.copy())
+    df_working = cast(PandasDataFrame, ensure_missing_column(df_all.copy()))
 
     # It is possible to have full day gap in the data if previous queries were far apart
     # Example: Query for 8/1/2023, then 8/31/2023, then 8/7/2023
@@ -4095,9 +4117,12 @@ def get_missing_dates(df_all, asset, start, end):
         # Fall back to the index-native dates if timezone conversion fails for any reason.
         dates_series = pd.Series(df_working.index.date, index=df_working.index)
     placeholder_mask = (
-        df_working["missing"].astype(bool) if "missing" in df_working.columns else pd.Series(False, index=df_working.index)
+        df_working["missing"].astype(bool)
+        if "missing" in df_working.columns
+        else pd.Series(False, index=df_working.index)
     )
-    placeholder_dates = set(dates_series[placeholder_mask].unique()) if hasattr(placeholder_mask, "__len__") else set()
+    placeholder_values: Any = dates_series[placeholder_mask].unique() if hasattr(placeholder_mask, "__len__") else []
+    placeholder_dates: set[date] = {placeholder_date for placeholder_date in placeholder_values if isinstance(placeholder_date, date)}
     if hasattr(placeholder_mask, "__len__") and bool(placeholder_mask.all()):
         # If the cache is *only* placeholders:
         # - For stocks/indices this almost always indicates a bad/incomplete cache (e.g., outage) and we
@@ -4108,30 +4133,30 @@ def get_missing_dates(df_all, asset, start, end):
         if asset.asset_type == "option":
             logger.info(
                 "[THETA][CACHE][PLACEHOLDER_ONLY] asset=%s | placeholder-only option cache detected; skipping refetch",
-                asset.symbol if hasattr(asset, 'symbol') else str(asset),
+                asset.symbol if hasattr(asset, "symbol") else str(asset),
             )
             return []
 
         logger.debug(
             "[THETA][DEBUG][CACHE][PLACEHOLDER_ONLY] asset=%s | placeholder-only cache detected; treating as missing coverage",
-            asset.symbol if hasattr(asset, 'symbol') else str(asset),
+            asset.symbol if hasattr(asset, "symbol") else str(asset),
         )
         return trading_dates
     # Placeholder rows should be treated as missing coverage for past dates so we can refetch real data
     # (e.g. when caches were populated during an outage). We suppress future/expired-placeholder refetch
     # later when computing missing_dates.
-    real_dates = dates_series[~placeholder_mask].unique()
+    real_values: Any = dates_series[~placeholder_mask].unique()
+    real_dates: list[date] = [real_date for real_date in real_values if isinstance(real_date, date)]
     cached_dates_count = len(real_dates)
     cached_first = min(real_dates) if len(real_dates) > 0 else None
     cached_last = max(real_dates) if len(real_dates) > 0 else None
 
     logger.debug(
-        "[THETA][DEBUG][CACHE][CACHED_DATES] asset=%s | "
-        "cached_dates_count=%d first=%s last=%s",
-        asset.symbol if hasattr(asset, 'symbol') else str(asset),
+        "[THETA][DEBUG][CACHE][CACHED_DATES] asset=%s | cached_dates_count=%d first=%s last=%s",
+        asset.symbol if hasattr(asset, "symbol") else str(asset),
         cached_dates_count,
         cached_first,
-        cached_last
+        cached_last,
     )
 
     missing_dates = sorted(set(trading_dates) - set(real_dates))
@@ -4153,7 +4178,7 @@ def get_missing_dates(df_all, asset, start, end):
                 logger.debug(
                     "[THETA][DEBUG][CACHE][TAIL_PLACEHOLDER_SUPPRESS] asset=%s | "
                     "suppressing %d tail placeholder day(s) beyond last_real=%s",
-                    asset.symbol if hasattr(asset, 'symbol') else str(asset),
+                    asset.symbol if hasattr(asset, "symbol") else str(asset),
                     len(suppress_tail),
                     cached_last,
                 )
@@ -4201,7 +4226,7 @@ def get_missing_dates(df_all, asset, start, end):
             missing_dates = [d for d in missing_dates if d not in suppress_dates]
 
     # For Options, don't need any dates passed the expiration date
-    if asset.asset_type == "option":
+    if asset.asset_type == "option" and asset.expiration is not None:
         before_expiry_filter = len(missing_dates)
         missing_dates = [x for x in missing_dates if x <= asset.expiration]
         after_expiry_filter = len(missing_dates)
@@ -4211,27 +4236,31 @@ def get_missing_dates(df_all, asset, start, end):
                 "[THETA][DEBUG][CACHE][OPTION_EXPIRY_FILTER] asset=%s | "
                 "filtered %d dates after expiration=%s | "
                 "missing_dates: %d -> %d",
-                asset.symbol if hasattr(asset, 'symbol') else str(asset),
+                asset.symbol if hasattr(asset, "symbol") else str(asset),
                 before_expiry_filter - after_expiry_filter,
                 asset.expiration,
                 before_expiry_filter,
-                after_expiry_filter
+                after_expiry_filter,
             )
 
     logger.debug(
-        "[THETA][DEBUG][CACHE][MISSING_RESULT] asset=%s | "
-        "missing_dates_count=%d | "
-        "first_missing=%s last_missing=%s",
-        asset.symbol if hasattr(asset, 'symbol') else str(asset),
+        "[THETA][DEBUG][CACHE][MISSING_RESULT] asset=%s | missing_dates_count=%d | first_missing=%s last_missing=%s",
+        asset.symbol if hasattr(asset, "symbol") else str(asset),
         len(missing_dates),
         missing_dates[0] if missing_dates else None,
-        missing_dates[-1] if missing_dates else None
+        missing_dates[-1] if missing_dates else None,
     )
 
     return missing_dates
 
 
-def load_cache(cache_file, *, start=None, end=None, preserve_full_history: bool = False):
+def load_cache(
+    cache_file: Path,
+    *,
+    start: date | datetime | None = None,
+    end: date | datetime | None = None,
+    preserve_full_history: bool = False,
+) -> PandasDataFrame | None:
     """Load the data from the cache file and return a DataFrame with a DateTimeIndex.
 
     Performance notes
@@ -4264,7 +4293,7 @@ def load_cache(cache_file, *, start=None, end=None, preserve_full_history: bool 
             size_bytes,
         )
 
-    df = None
+    df: Any = None
     use_arrow_filter = False
     if start is not None and end is not None and not preserve_full_history:
         # Use PyArrow filtering (predicate pushdown) when callers only need a slice.
@@ -4291,23 +4320,25 @@ def load_cache(cache_file, *, start=None, end=None, preserve_full_history: bool 
             from datetime import datetime as datetime_type
             from datetime import time as time_type
 
-            import pyarrow.dataset as ds
+            ds: Any = import_module("pyarrow.dataset")
 
-            def _coerce_bound(value, *, is_end: bool):
+            def _coerce_bound(value: Any, *, is_end: bool) -> Any | None:
                 if value is None:
                     return None
 
+                value_any: Any = value
                 # Support date-only inputs (common in day-mode backtests).
-                if isinstance(value, date_type) and not isinstance(value, datetime_type):
-                    value = datetime_type.combine(value, time_type.max if is_end else time_type.min)
+                if isinstance(value_any, date_type) and not isinstance(value_any, datetime_type):
+                    value_any = datetime_type.combine(value_any, time_type.max if is_end else time_type.min)
 
                 # Pandas Timestamp -> python datetime (keeps tzinfo).
-                if hasattr(value, "to_pydatetime"):
-                    value = value.to_pydatetime()
+                to_pydatetime: Any = getattr(value_any, "to_pydatetime", None)
+                if callable(to_pydatetime):
+                    value_any = to_pydatetime()
 
-                if getattr(value, "tzinfo", None) is None:
-                    return LUMIBOT_DEFAULT_PYTZ.localize(value).astimezone(pytz.UTC)
-                return value.astimezone(pytz.UTC)
+                if getattr(value_any, "tzinfo", None) is None:
+                    return LUMIBOT_DEFAULT_PYTZ.localize(value_any).astimezone(pytz.UTC)
+                return value_any.astimezone(pytz.UTC)
 
             start_bound = _coerce_bound(start, is_end=False)
             end_bound = _coerce_bound(end, is_end=True)
@@ -4354,11 +4385,10 @@ def load_cache(cache_file, *, start=None, end=None, preserve_full_history: bool 
 
     rows_after_read = len(df)
     logger.debug(
-        "[THETA][DEBUG][CACHE][LOAD_READ] cache_file=%s | "
-        "rows_read=%d columns=%s",
+        "[THETA][DEBUG][CACHE][LOAD_READ] cache_file=%s | rows_read=%d columns=%s",
         cache_file.name,
         rows_after_read,
-        list(df.columns)
+        list(df.columns),
     )
 
     # Set the 'datetime' column as the index of the DataFrame
@@ -4373,11 +4403,7 @@ def load_cache(cache_file, *, start=None, end=None, preserve_full_history: bool 
     if df.index.tzinfo is None:
         # Set the timezone to UTC
         df.index = df.index.tz_localize("UTC")
-        logger.debug(
-            "[THETA][DEBUG][CACHE][LOAD_TZ] cache_file=%s | "
-            "localized index to UTC",
-            cache_file.name
-        )
+        logger.debug("[THETA][DEBUG][CACHE][LOAD_TZ] cache_file=%s | localized index to UTC", cache_file.name)
 
     df = ensure_missing_column(df)
 
@@ -4444,7 +4470,7 @@ def load_cache(cache_file, *, start=None, end=None, preserve_full_history: bool 
         len(df) - placeholder_count,
         placeholder_count,
         min_ts.isoformat() if min_ts else None,
-        max_ts.isoformat() if max_ts else None
+        max_ts.isoformat() if max_ts else None,
     )
 
     return df
@@ -4463,10 +4489,10 @@ _ALLOWED_HISTORICAL_PLACEHOLDER_DATES = {
 
 # PERFORMANCE FIX (2025-12-07): Cache file hashes to avoid recomputing for same file.
 # Key: (str(path), mtime), Value: hash string
-_FILE_HASH_CACHE: Dict[Tuple[str, float], str] = {}
+_FILE_HASH_CACHE: dict[tuple[str, float], str] = {}
 
 
-def _hash_file(path: Path) -> Optional[str]:
+def _hash_file(path: Path) -> str | None:
     """Compute a SHA256 checksum for the given file.
 
     PERFORMANCE FIX (2025-12-07): Caches hash by (path, mtime) to avoid
@@ -4508,7 +4534,7 @@ def _hash_file(path: Path) -> Optional[str]:
         return None
 
 
-def _load_cache_sidecar(cache_file: Path) -> Optional[Dict[str, Any]]:
+def _load_cache_sidecar(cache_file: Path) -> dict[str, Any] | None:
     sidecar = _cache_sidecar_path(cache_file)
     if not sidecar.exists():
         return None
@@ -4519,30 +4545,30 @@ def _load_cache_sidecar(cache_file: Path) -> Optional[Dict[str, Any]]:
 
 
 def _build_sidecar_payload(
-    df_working: pd.DataFrame,
-    checksum: Optional[str],
-) -> Dict[str, Any]:
+    df_working: PandasDataFrame,
+    checksum: str | None,
+) -> dict[str, Any]:
     min_ts = df_working.index.min() if len(df_working) > 0 else None
     max_ts = df_working.index.max() if len(df_working) > 0 else None
     placeholder_count = int(df_working["missing"].sum()) if "missing" in df_working.columns else 0
     real_rows = len(df_working) - placeholder_count
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "version": 2,
         "rows": int(len(df_working)),
         "real_rows": int(real_rows),
         "placeholders": int(placeholder_count),
-        "min": min_ts.isoformat() if hasattr(min_ts, "isoformat") else None,
-        "max": max_ts.isoformat() if hasattr(max_ts, "isoformat") else None,
+        "min": min_ts.isoformat() if min_ts is not None and hasattr(min_ts, "isoformat") else None,
+        "max": max_ts.isoformat() if max_ts is not None and hasattr(max_ts, "isoformat") else None,
         "checksum": checksum,
-        "updated": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "updated": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
     }
     return payload
 
 
 def _write_cache_sidecar(
     cache_file: Path,
-    df_working: pd.DataFrame,
-    checksum: Optional[str],
+    df_working: PandasDataFrame,
+    checksum: str | None,
 ) -> None:
     sidecar = _cache_sidecar_path(cache_file)
     try:
@@ -4563,16 +4589,21 @@ def _write_cache_sidecar(
         )
 
 
-def update_cache(cache_file, df_all, df_cached, missing_dates=None, remote_payload=None):
+def update_cache(
+    cache_file: Path,
+    df_all: Any,
+    df_cached: Any,
+    missing_dates: list[date] | None = None,
+    remote_payload: dict[str, object] | None = None,
+) -> None:
     """Update the cache file with the new data and optional placeholder markers."""
     # DEBUG-LOG: Entry to update_cache
     logger.debug(
-        "[THETA][DEBUG][CACHE][UPDATE_ENTRY] cache_file=%s | "
-        "df_all_rows=%d df_cached_rows=%d missing_dates=%d",
+        "[THETA][DEBUG][CACHE][UPDATE_ENTRY] cache_file=%s | df_all_rows=%d df_cached_rows=%d missing_dates=%d",
         cache_file.name,
         0 if df_all is None else len(df_all),
         0 if df_cached is None else len(df_cached),
-        0 if not missing_dates else len(missing_dates)
+        0 if not missing_dates else len(missing_dates),
     )
 
     if df_all is None or len(df_all) == 0:
@@ -4580,16 +4611,15 @@ def update_cache(cache_file, df_all, df_cached, missing_dates=None, remote_paylo
             logger.debug(
                 "[THETA][DEBUG][CACHE][UPDATE_SKIP] cache_file=%s | "
                 "df_all is empty and no missing_dates, skipping cache update",
-                cache_file.name
+                cache_file.name,
             )
             return
         logger.debug(
-            "[THETA][DEBUG][CACHE][UPDATE_PLACEHOLDERS_ONLY] cache_file=%s | "
-            "df_all is empty, writing %d placeholders",
+            "[THETA][DEBUG][CACHE][UPDATE_PLACEHOLDERS_ONLY] cache_file=%s | df_all is empty, writing %d placeholders",
             cache_file.name,
-            len(missing_dates)
+            len(missing_dates),
         )
-        df_working = append_missing_markers(None, missing_dates)
+        df_working: Any = append_missing_markers(None, missing_dates)
     else:
         # Memory: avoid deep-copying large frames when updating cache files.
         #
@@ -4603,7 +4633,7 @@ def update_cache(cache_file, df_all, df_cached, missing_dates=None, remote_paylo
                 "appending %d placeholders to %d existing rows",
                 cache_file.name,
                 len(missing_dates),
-                len(df_working)
+                len(df_working),
             )
             df_working = append_missing_markers(df_working, missing_dates)
 
@@ -4611,13 +4641,14 @@ def update_cache(cache_file, df_all, df_cached, missing_dates=None, remote_paylo
         logger.debug(
             "[THETA][DEBUG][CACHE][UPDATE_SKIP_EMPTY] cache_file=%s | "
             "df_working is empty after processing, skipping write",
-            cache_file.name
+            cache_file.name,
         )
         return
 
     # CRITICAL FIX: Merge old cached data with new data to prevent data loss
     # Without this, cache would be overwritten with only new data, losing historical data
     # This is essential for LEAP options where ThetaData may return partial data
+    df_cached_normalized: Any = None
     if df_cached is not None and len(df_cached) > 0:
         df_cached_normalized = ensure_missing_column(df_cached.copy(deep=False))
         # Remove rows from cached that will be replaced by new data
@@ -4625,15 +4656,14 @@ def update_cache(cache_file, df_all, df_cached, missing_dates=None, remote_paylo
         cached_only = df_cached_normalized[~df_cached_normalized.index.isin(df_working.index)]
         if len(cached_only) > 0:
             logger.debug(
-                "[THETA][DEBUG][CACHE][UPDATE_MERGE] cache_file=%s | "
-                "merging %d cached rows with %d new rows",
+                "[THETA][DEBUG][CACHE][UPDATE_MERGE] cache_file=%s | merging %d cached rows with %d new rows",
                 cache_file.name,
                 len(cached_only),
-                len(df_working)
+                len(df_working),
             )
             df_working = pd.concat([cached_only, df_working]).sort_index()
 
-    df_cached_cmp = None
+    df_cached_cmp: Any = None
     if df_cached is not None and len(df_cached) > 0:
         # Reuse the normalized view if available; avoid another deep copy for large frames.
         try:
@@ -4646,7 +4676,7 @@ def update_cache(cache_file, df_all, df_cached, missing_dates=None, remote_paylo
             "[THETA][DEBUG][CACHE][UPDATE_NO_CHANGES] cache_file=%s | "
             "df_working equals df_cached (rows=%d), skipping write",
             cache_file.name,
-            len(df_working)
+            len(df_working),
         )
         return
 
@@ -4658,7 +4688,7 @@ def update_cache(cache_file, df_all, df_cached, missing_dates=None, remote_paylo
     min_ts = df_working.index.min() if len(df_working) > 0 else None
     max_ts = df_working.index.max() if len(df_working) > 0 else None
 
-    def _format_ts(value):
+    def _format_ts(value: Any) -> Any | None:
         if value is None:
             return None
         return value.isoformat() if hasattr(value, "isoformat") else value
@@ -4672,8 +4702,8 @@ def update_cache(cache_file, df_all, df_cached, missing_dates=None, remote_paylo
         real_rows,
         placeholder_count,
         _format_ts(min_ts),
-        _format_ts(max_ts)
-        )
+        _format_ts(max_ts),
+    )
 
     df_to_save.to_parquet(cache_file, engine="pyarrow", compression="snappy")
     checksum = _hash_file(cache_file)
@@ -4688,10 +4718,7 @@ def update_cache(cache_file, df_all, df_cached, missing_dates=None, remote_paylo
             cache_file.name,
         )
 
-    logger.debug(
-        "[THETA][DEBUG][CACHE][UPDATE_SUCCESS] cache_file=%s written successfully",
-        cache_file.name
-    )
+    logger.debug("[THETA][DEBUG][CACHE][UPDATE_SUCCESS] cache_file=%s written successfully", cache_file.name)
 
     cache_manager = get_backtest_cache()
 
@@ -4716,7 +4743,7 @@ def update_cache(cache_file, df_all, df_cached, missing_dates=None, remote_paylo
         if not bucket:
             return False
 
-        tmp_key = f"{remote_key}.tmp-{int(time.time())}-{random.randint(1000,9999)}"
+        tmp_key = f"{remote_key}.tmp-{int(time.time())}-{random.randint(1000, 9999)}"
         try:
             client.upload_file(str(local_path), bucket, tmp_key)
             client.copy({"Bucket": bucket, "Key": tmp_key}, bucket, remote_key)
@@ -4746,13 +4773,13 @@ def update_cache(cache_file, df_all, df_cached, missing_dates=None, remote_paylo
         _atomic_remote_upload(sidecar_path)
 
 
-def update_df(df_all, result):
+def update_df(df_all: Any, result: Any) -> Any:
     """
     Update the DataFrame with the new data from ThetaData
 
     Parameters
     ----------
-    df_all : pd.DataFrame
+    df_all : PandasDataFrame
         A DataFrame with the data we already have
     result : pandas DataFrame
         A List of dictionaries with the new data from Polygon
@@ -4778,7 +4805,9 @@ def update_df(df_all, result):
         if "datetime" not in df.index.names:
             # check if df has a column named "datetime", if not raise key error
             if "datetime" not in df.columns:
-                raise KeyError("KeyError: update_df function requires 'result' input with 'datetime' column, but not found")
+                raise KeyError(
+                    "KeyError: update_df function requires 'result' input with 'datetime' column, but not found"
+                )
 
             # if column "datetime" is not index set it as index
             df = df.set_index("datetime").sort_index()
@@ -4836,7 +4865,7 @@ def update_df(df_all, result):
 
         if df_all is not None:
             # set "datetime" column as index of df_all
-            if isinstance(df.index, pd.DatetimeIndex) and df.index.name == 'datetime':
+            if isinstance(df.index, pd.DatetimeIndex) and df.index.name == "datetime":
                 df_all = df_all.sort_index()
             else:
                 df_all = df_all.set_index("datetime").sort_index()
@@ -4889,8 +4918,9 @@ def is_process_alive():
     return False
 
 
-def start_theta_data_client(username: str, password: str):
+def start_theta_data_client(username: str | None, password: str | None) -> Any:
     import subprocess
+
     global THETA_DATA_PROCESS, THETA_DATA_PID
     CONNECTION_DIAGNOSTICS["start_terminal_calls"] += 1
 
@@ -4913,9 +4943,9 @@ def start_theta_data_client(username: str, password: str):
     existing_password = None
     if creds_file.exists():
         try:
-            with open(creds_file, 'r') as f:
-                existing_username = (f.readline().strip() or None)
-                existing_password = (f.readline().strip() or None)
+            with open(creds_file) as f:
+                existing_username = f.readline().strip() or None
+                existing_password = f.readline().strip() or None
         except Exception as exc:
             logger.warning(f"Could not read existing creds.txt: {exc}; will recreate the file.")
             existing_username = None
@@ -4931,15 +4961,11 @@ def start_theta_data_client(username: str, password: str):
             "ThetaData credentials are required to start ThetaTerminal. Provide them via backtest() or configure THETADATA_USERNAME/THETADATA_PASSWORD."
         )
 
-    should_write = (
-        not creds_file.exists()
-        or existing_username != username
-        or existing_password != password
-    )
+    should_write = not creds_file.exists() or existing_username != username or existing_password != password
 
     if should_write:
         logger.info(f"Writing creds.txt file for user: {username}")
-        with open(creds_file, 'w') as f:
+        with open(creds_file, "w") as f:
             f.write(f"{username}\n")
             f.write(f"{password}\n")
         os.chmod(creds_file, 0o600)
@@ -4974,7 +5000,7 @@ def start_theta_data_client(username: str, password: str):
                 "ThetaTerminal.jar not available. ThetaData support is optional and not installed by default. "
                 f"Searched for a bundled JAR at: {', '.join(str(path) for path in candidate_paths)}. "
                 "To enable ThetaData functionality, either:\n"
-                " - Install the optional extra: pip install \"lumibot[thetadata]\" (requires Java 11+), or\n"
+                ' - Install the optional extra: pip install "lumibot[thetadata]" (requires Java 11+), or\n'
                 f" - Manually download ThetaTerminal.jar from ThetaData and place it at: {jar_file}.\n"
                 "After installing, re-run your command."
             )
@@ -5015,33 +5041,31 @@ def start_theta_data_client(username: str, password: str):
     log_path = theta_dir / "lumibot_launch.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     log_handle = open(log_path, "ab")
-    launch_ts = datetime.now(timezone.utc)
+    launch_ts = datetime.now(UTC)
     log_handle.write(f"\n---- Launch {launch_ts.isoformat()} ----\n".encode())
     log_handle.flush()
 
     global THETA_DATA_LOG_HANDLE
-    THETA_DATA_LOG_HANDLE = log_handle
+    THETA_DATA_LOG_HANDLE = log_handle  # pyright: ignore[reportConstantRedefinition]
 
     try:
-        THETA_DATA_PROCESS = subprocess.Popen(
-            cmd,
-            stdout=log_handle,
-            stderr=subprocess.STDOUT,
-            cwd=str(theta_dir)
+        THETA_DATA_PROCESS = subprocess.Popen(  # pyright: ignore[reportConstantRedefinition]
+            cmd, stdout=log_handle, stderr=subprocess.STDOUT, cwd=str(theta_dir)
         )
     except Exception:
-        THETA_DATA_LOG_HANDLE = None
+        THETA_DATA_LOG_HANDLE = None  # pyright: ignore[reportConstantRedefinition]
         log_handle.close()
         raise
 
-    THETA_DATA_PID = THETA_DATA_PROCESS.pid
+    THETA_DATA_PID = THETA_DATA_PROCESS.pid  # pyright: ignore[reportConstantRedefinition]
     logger.info(f"ThetaTerminal started with PID: {THETA_DATA_PID}")
 
     # We don't return a ThetaClient object since we're launching manually
     # The connection will be established via HTTP on 127.0.0.1:25503 (and FPSS WebSocket on 25520)
     return THETA_DATA_PROCESS
 
-def check_connection(username: str, password: str, wait_for_connection: bool = False):
+
+def check_connection(username: str | None, password: str | None, wait_for_connection: bool = False) -> tuple[None, bool]:
     """Ensure ThetaTerminal is running and responsive."""
 
     CONNECTION_DIAGNOSTICS["check_connection_calls"] += 1
@@ -5060,7 +5084,7 @@ def check_connection(username: str, password: str, wait_for_connection: bool = F
             logger.warning("Proceeding despite remote downloader readiness probe failures.")
         return None, True
 
-    def ensure_process(force_restart: bool = False):
+    def ensure_process(force_restart: bool = False) -> None:
         alive = is_process_alive()
         if alive and not force_restart:
             return
@@ -5099,7 +5123,10 @@ def check_connection(username: str, password: str, wait_for_connection: bool = F
 
     raise ThetaDataConnectionError("ThetaTerminal did not become ready in time.")
 
-def _convert_columnar_to_row_format(columnar_data: dict) -> dict:
+
+def _convert_columnar_to_row_format(  # pyright: ignore[reportUnusedFunction]
+    columnar_data: dict[str, Any],
+) -> dict[str, Any]:
     """Convert ThetaData v3 columnar format to v2-style row format.
 
     ThetaData v3 returns COLUMNAR format:
@@ -5110,11 +5137,11 @@ def _convert_columnar_to_row_format(columnar_data: dict) -> dict:
 
     This function converts between the two formats.
     """
-    if not columnar_data or not isinstance(columnar_data, dict):
+    if not columnar_data:
         return {"header": {"format": []}, "response": []}
 
     # Get column names (keys) and ensure consistent ordering
-    columns = list(columnar_data.keys())
+    columns: list[str] = list(columnar_data.keys())
 
     # Check if this is actually columnar data (all values should be lists of same length)
     first_col = columnar_data.get(columns[0], [])
@@ -5122,24 +5149,26 @@ def _convert_columnar_to_row_format(columnar_data: dict) -> dict:
         # Not columnar data, return as-is wrapped
         return {"header": {"format": []}, "response": columnar_data}
 
-    num_rows = len(first_col)
+    first_col_values = cast(list[Any], first_col)
+    num_rows = len(first_col_values)
 
     # Verify all columns have the same length
     for col in columns:
-        if not isinstance(columnar_data[col], list) or len(columnar_data[col]) != num_rows:
+        column_values = columnar_data[col]
+        if not isinstance(column_values, list) or len(cast(list[Any], column_values)) != num_rows:
             logger.warning(
                 "[DOWNLOADER][QUEUE] Column %s has inconsistent length: expected %d, got %s",
                 col,
                 num_rows,
-                len(columnar_data[col]) if isinstance(columnar_data[col], list) else "not a list",
+                len(cast(list[Any], column_values)) if isinstance(column_values, list) else "not a list",
             )
             # Return as-is, let downstream handle the error
             return {"header": {"format": []}, "response": columnar_data}
 
     # Convert columns to rows by zipping
-    rows = []
+    rows: list[list[Any]] = []
     for i in range(num_rows):
-        row = [columnar_data[col][i] for col in columns]
+        row = [cast(list[Any], columnar_data[col])[i] for col in columns]
         rows.append(row)
 
     logger.debug(
@@ -5153,12 +5182,12 @@ def _convert_columnar_to_row_format(columnar_data: dict) -> dict:
 
 def get_request(
     url: str,
-    headers: dict,
-    querystring: dict,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
-    timeout: Optional[float] = None,
-):
+    headers: dict[str, str],
+    querystring: dict[str, Any],
+    username: str | None = None,
+    password: str | None = None,
+    timeout: float | None = None,
+) -> dict[str, Any] | None:
     """Make a ThetaData request using either the internal Data Downloader or a local ThetaTerminal.
 
     Selection rule (strict; no fallback on failure):
@@ -5206,14 +5235,14 @@ def get_request(
             else:
                 effective_timeout = default_timeout if default_timeout > 0 else None
 
-        all_responses = []
+        all_responses: list[Any] = []
         page_count = 0
-        next_page_url = None
-        processed_result = None
+        next_page_url: str | None = None
+        processed_result: Any = None
 
         while True:
             request_url = next_page_url if next_page_url else url
-            request_params = None if next_page_url else querystring
+            request_params: dict[str, Any] | None = None if next_page_url else querystring
 
             try:
                 result = queue_request(request_url, request_params, headers, timeout=effective_timeout)
@@ -5229,16 +5258,17 @@ def get_request(
                     return None
                 break
 
-            if isinstance(result, dict):
+            result_any: Any = result
+            if isinstance(result_any, dict):
                 # Normalize queue payloads into a consistent v2-style envelope:
                 # {"header":{"format":[...]}, "response":[[...], ...]}
                 #
                 # This must handle both:
                 # - v2/v3 columnar payloads (dict-of-lists)
                 # - v3 row payloads ({"response": [ {timestamp:..., ...}, ... ]})
-                processed_result = _coerce_json_payload(result)
+                processed_result = _coerce_json_payload(cast(dict[str, Any], result_any))
             else:
-                processed_result = result
+                processed_result = result_any
 
             if isinstance(processed_result, dict) and "response" in processed_result:
                 all_responses.append(processed_result["response"])
@@ -5249,10 +5279,11 @@ def get_request(
 
             next_page = None
             if isinstance(processed_result, dict) and "header" in processed_result:
-                next_page = processed_result["header"].get("next_page")
+                header = cast(dict[str, Any], processed_result["header"])
+                next_page = header.get("next_page")
 
             if next_page and next_page != "null" and next_page != "":
-                next_page_url = next_page
+                next_page_url = str(next_page)
             else:
                 break
 
@@ -5263,13 +5294,13 @@ def get_request(
             processed_result["response"] = []
             for page_response in all_responses:
                 if isinstance(page_response, list):
-                    processed_result["response"].extend(page_response)
+                    cast(list[Any], processed_result["response"]).extend(cast(list[Any], page_response))
                 else:
-                    processed_result["response"].append(page_response)
+                    cast(list[Any], processed_result["response"]).append(page_response)
         elif page_count == 1 and all_responses and isinstance(processed_result, dict):
             processed_result["response"] = all_responses[0]
 
-        return processed_result
+        return cast(dict[str, Any], processed_result)
 
     # -------------------------------------------------------------------------
     # Local ThetaTerminal mode (direct HTTP)
@@ -5285,8 +5316,8 @@ def get_request(
             "THETADATA_USERNAME/THETADATA_PASSWORD."
         )
 
-    all_responses = []
-    next_page_url = None
+    all_responses: list[Any] = []
+    next_page_url: str | None = None
     page_count = 0
     consecutive_disconnects = 0
     restart_budget = 3
@@ -5299,8 +5330,8 @@ def get_request(
     session_reset_in_progress = False
     awaiting_session_validation = False
     http_retry_limit = HTTP_RETRY_LIMIT
-    last_status_code: Optional[int] = None
-    last_failure_detail: Optional[str] = None
+    last_status_code: int | None = None
+    last_failure_detail: str | None = None
     queue_full_attempts = 0
     queue_full_wait_total = 0.0
     service_unavailable_attempts = 0
@@ -5311,8 +5342,8 @@ def get_request(
     while True:
         counter = 0
         request_url = next_page_url if next_page_url else url
-        request_params = None if next_page_url else querystring
-        json_resp = None
+        request_params: dict[str, Any] | None = None if next_page_url else querystring
+        json_resp: dict[str, Any] | None = None
 
         while True:
             sleep_duration = 0.0
@@ -5344,7 +5375,7 @@ def get_request(
                     else:
                         asset_desc = f"{symbol} (stock/index)"
 
-                    def format_date(d):
+                    def format_date(d: Any) -> str:
                         if not d or d == "?":
                             return "?"
                         d_str = str(d).replace("-", "")
@@ -5379,7 +5410,9 @@ def get_request(
                             raise ValueError("Cannot connect to Theta Data!")
                         restart_budget -= 1
                         start_theta_data_client(username=username, password=password)
-                        CONNECTION_DIAGNOSTICS["terminal_restarts"] = CONNECTION_DIAGNOSTICS.get("terminal_restarts", 0) + 1
+                        CONNECTION_DIAGNOSTICS["terminal_restarts"] = (
+                            CONNECTION_DIAGNOSTICS.get("terminal_restarts", 0) + 1
+                        )
                         check_connection(username=username, password=password, wait_for_connection=True)
                         time.sleep(max(BOOT_GRACE_PERIOD, CONNECTION_RETRY_SLEEP))
                         consecutive_disconnects = 0
@@ -5390,9 +5423,7 @@ def get_request(
                     continue
                 elif status_code == 500 and "BadSession" in (response.text or ""):
                     if awaiting_session_validation:
-                        raise ThetaDataSessionInvalidError(
-                            "ThetaData session remained invalid after a clean restart."
-                        )
+                        raise ThetaDataSessionInvalidError("ThetaData session remained invalid after a clean restart.")
                     if not session_reset_in_progress:
                         if session_reset_budget <= 0:
                             raise ValueError("ThetaData session invalid after multiple restarts.")
@@ -5400,7 +5431,9 @@ def get_request(
                         session_reset_in_progress = True
                         restart_started = time.monotonic()
                         start_theta_data_client(username=username, password=password)
-                        CONNECTION_DIAGNOSTICS["terminal_restarts"] = CONNECTION_DIAGNOSTICS.get("terminal_restarts", 0) + 1
+                        CONNECTION_DIAGNOSTICS["terminal_restarts"] = (
+                            CONNECTION_DIAGNOSTICS.get("terminal_restarts", 0) + 1
+                        )
                         while True:
                             try:
                                 check_connection(username=username, password=password, wait_for_connection=True)
@@ -5438,16 +5471,16 @@ def get_request(
                         f"ThetaData request rejected with status {status_code}: {response.text.strip()[:500]}"
                     )
                 elif status_code == 503:
-                    payload = {}
+                    payload: dict[str, Any] = {}
                     try:
-                        payload = response.json()
+                        payload = cast(dict[str, Any], response.json())
                     except ValueError:
                         payload = {}
 
-                    is_queue_full = isinstance(payload, dict) and payload.get("error") == "queue_full"
-                    active = payload.get("active") if isinstance(payload, dict) else None
-                    waiting = payload.get("waiting") if isinstance(payload, dict) else None
-                    error_detail = payload.get("detail") if isinstance(payload, dict) else response.text[:200]
+                    is_queue_full = payload.get("error") == "queue_full"
+                    active = payload.get("active")
+                    waiting = payload.get("waiting")
+                    error_detail = payload.get("detail", response.text[:200])
 
                     backoff_delay = min(
                         QUEUE_FULL_BACKOFF_MAX,
@@ -5568,28 +5601,28 @@ def get_request(
 
         next_page = json_resp["header"].get("next_page")
         if next_page and next_page != "null" and next_page != "":
-            next_page_url = next_page
+            next_page_url = str(next_page)
         else:
             break
 
     if page_count > 1:
         json_resp["response"] = []
         for page_response in all_responses:
-            json_resp["response"].extend(page_response)
+            cast(list[Any], json_resp["response"]).extend(cast(list[Any], page_response))
 
     return json_resp
 
 
 def get_historical_eod_data(
     asset: Asset,
-    start_dt: datetime,
-    end_dt: datetime,
+    start_dt: date | datetime,
+    end_dt: date | datetime,
     datastyle: str = "ohlc",
     apply_corporate_actions: bool = True,
     include_nbbo: bool = False,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
-):
+    username: str | None = None,
+    password: str | None = None,
+) -> PandasDataFrame | None:
     """
     Get EOD (End of Day) data from ThetaData using the /v3/.../history/eod endpoints.
 
@@ -5703,7 +5736,7 @@ def get_historical_eod_data(
         *,
         depth: int = 0,
         max_depth: int = 16,
-    ) -> List[Optional[Dict[str, Any]]]:
+    ) -> list[dict[str, Any] | None]:
         try:
             response = _execute_chunk_request(chunk_start, chunk_end)
             return [response]
@@ -5723,7 +5756,7 @@ def get_historical_eod_data(
             left_end = min(midpoint, chunk_end)
             right_start = min(midpoint + timedelta(days=1), chunk_end)
 
-            split_payloads: List[Optional[Dict[str, Any]]] = []
+            split_payloads: list[dict[str, Any] | None] = []
             if chunk_start <= left_end:
                 split_payloads.extend(
                     _collect_chunk_payloads(
@@ -5744,8 +5777,8 @@ def get_historical_eod_data(
                 )
             return split_payloads
 
-    aggregated_rows: List[List[Any]] = []
-    header_format: Optional[List[str]] = None
+    aggregated_rows: list[list[Any]] = []
+    header_format: list[str] | None = None
     windows = list(_chunk_windows())
 
     # Track progress for this single-asset EOD download operation.
@@ -5759,7 +5792,7 @@ def get_historical_eod_data(
         start_date,
         end_date,
         datastyle,
-        len(windows)
+        len(windows),
     )
 
     try:
@@ -5803,11 +5836,13 @@ def get_historical_eod_data(
                 if not json_resp:
                     continue
 
-                response_rows = json_resp.get("response") or []
+                response_rows = cast(list[list[Any]], json_resp.get("response") or [])
                 if response_rows:
                     aggregated_rows.extend(response_rows)
-                if not header_format and json_resp.get("header", {}).get("format"):
-                    header_format = json_resp["header"]["format"]
+                header = cast(dict[str, Any], json_resp.get("header") or {})
+                fmt = header.get("format")
+                if not header_format and isinstance(fmt, list):
+                    header_format = [str(column) for column in cast(list[Any], fmt)]
 
                 logger.debug(
                     "[THETA][DEBUG][EOD][RESPONSE][CHUNK] asset=%s chunk=%d/%d rows=%d",
@@ -5823,10 +5858,7 @@ def get_historical_eod_data(
         finalize_download_status()
 
     if not aggregated_rows or not header_format:
-        logger.debug(
-            "[THETA][DEBUG][EOD][RESPONSE] asset=%s result=NO_DATA",
-            asset
-        )
+        logger.debug("[THETA][DEBUG][EOD][RESPONSE] asset=%s result=NO_DATA", asset)
         return None
 
     # DEBUG-LOG: EOD data response - success
@@ -5838,24 +5870,25 @@ def get_historical_eod_data(
     )
 
     # Convert to pandas dataframe
-    df = pd.DataFrame(aggregated_rows, columns=header_format)
+    df: Any = pd.DataFrame(aggregated_rows, columns=header_format)
 
     if df is None or df.empty:
         return df
 
-    def combine_datetime(row):
+    def combine_datetime(row: Any) -> datetime:
         try:
-            row_dict = row.to_dict()
+            row_dict: dict[str, Any] = dict(row.to_dict())
         except Exception:
             row_dict = dict(row)
-        if isinstance(row_dict.get("response"), dict):
-            row_dict = row_dict["response"]
-        elif isinstance(row_dict.get("response"), list) and row_dict["response"]:
-            first = row_dict["response"][0]
+        response_value = row_dict.get("response")
+        if isinstance(response_value, dict):
+            row_dict = cast(dict[str, Any], response_value)
+        elif isinstance(response_value, list) and response_value:
+            first: Any = cast(list[Any], response_value)[0]
             if isinstance(first, dict):
-                row_dict = first
+                row_dict = cast(dict[str, Any], first)
 
-        def _coerce_timestamp(value: Any) -> Optional[pd.Timestamp]:
+        def _coerce_timestamp(value: Any) -> Any | None:
             if value is None or value == "":
                 return None
             ts = pd.to_datetime(value, utc=True, errors="coerce")
@@ -5919,7 +5952,7 @@ def get_historical_eod_data(
     # NOTE: We apply this only to stock/index EOD. For option EOD, OHLC may legitimately be 0 when only NBBO
     # fields are populated, and we don't want to mask that.
     if asset_type in {"stock", "index"} and {"open", "high", "low", "close"}.issubset(df.columns):
-        df = ensure_missing_column(df)
+        df = cast(Any, ensure_missing_column(df))
         for col in ["open", "high", "low", "close"]:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
@@ -5939,7 +5972,7 @@ def get_historical_eod_data(
             df.loc[zero_ohlc_mask, "missing"] = True
 
     # Drop the ms_of_day, ms_of_day2, and date columns (not needed for daily bars)
-    df = df.drop(columns=["ms_of_day", "ms_of_day2", "date"], errors='ignore')
+    df = df.drop(columns=["ms_of_day", "ms_of_day2", "date"], errors="ignore")
 
     # Drop bid/ask columns unless explicitly requested (EOD includes NBBO).
     if not include_nbbo:
@@ -5965,16 +5998,16 @@ def get_historical_eod_data(
 
 def get_historical_data(
     asset: Asset,
-    start_dt: datetime,
-    end_dt: datetime,
+    start_dt: date | datetime,
+    end_dt: date | datetime,
     ivl: int,
     datastyle: str = "ohlc",
     include_after_hours: bool = True,
-    session_time_override: Optional[Tuple[str, str]] = None,
-    download_timespan: Optional[str] = None,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
-):
+    session_time_override: tuple[str, str] | None = None,
+    download_timespan: str | None = None,
+    username: str | None = None,
+    password: str | None = None,
+) -> PandasDataFrame | None:
     """
     Fetch intraday history from ThetaData using the v3 REST endpoints.
 
@@ -5985,7 +6018,7 @@ def get_historical_data(
         (HH:MM:SS strings). Useful for requesting specific minute windows such as the 09:30 open.
     """
 
-    def _build_history_frame(json_resp: Any) -> Optional[pd.DataFrame]:
+    def _build_history_frame(json_resp: Any) -> PandasDataFrame | None:
         """Normalize ThetaData history payloads into a DataFrame.
 
         Theta's v3 REST surface is not fully stable across terminal versions:
@@ -6001,9 +6034,11 @@ def get_historical_data(
             return None
 
         if isinstance(json_resp, dict):
-            raw = json_resp.get("response")
-            header = json_resp.get("header") if isinstance(json_resp.get("header"), dict) else None
-            fmt = header.get("format") if header else None
+            json_dict = cast(dict[str, Any], json_resp)
+            raw: Any = json_dict.get("response")
+            header_obj = json_dict.get("header")
+            header = cast(dict[str, Any], header_obj) if isinstance(header_obj, dict) else None
+            fmt: Any = header.get("format") if header else None
         else:
             raw = json_resp
             fmt = None
@@ -6011,7 +6046,7 @@ def get_historical_data(
         if raw is None:
             return None
 
-        df: pd.DataFrame
+        df: Any
 
         # v3 row-style: list[dict]
         if isinstance(raw, list) and raw and isinstance(raw[0], dict):
@@ -6048,8 +6083,8 @@ def get_historical_data(
     url = f"{_current_base_url()}{endpoint}"
     headers = {"Accept": "application/json"}
 
-    start_is_date_only = isinstance(start_dt, date) and not isinstance(start_dt, datetime)
-    end_is_date_only = isinstance(end_dt, date) and not isinstance(end_dt, datetime)
+    start_is_date_only = not isinstance(start_dt, datetime)
+    end_is_date_only = not isinstance(end_dt, datetime)
 
     start_local = _normalize_market_datetime(start_dt)
     end_local = _normalize_market_datetime(end_dt)
@@ -6096,7 +6131,7 @@ def get_historical_data(
         except Exception:
             return
 
-    def build_option_params() -> Dict[str, str]:
+    def build_option_params() -> dict[str, str]:
         if not asset.expiration:
             raise ValueError(f"Expiration date missing for option asset {asset}")
         if asset.strike is None:
@@ -6138,7 +6173,7 @@ def get_historical_data(
             return None
         return _finalize_history_dataframe(df, datastyle, asset)
 
-    frames: List[pd.DataFrame] = []
+    frames: list[PandasDataFrame] = []
     option_params = build_option_params() if asset_type == "option" else None
 
     # DEBUG: Log option params to verify strike conversion (gated at DEBUG for perf).
@@ -6150,7 +6185,7 @@ def get_historical_data(
         )
 
     for trading_day in trading_days:
-        querystring: Dict[str, Any] = {
+        querystring: dict[str, Any] = {
             "symbol": query_symbol,
             "date": trading_day.strftime("%Y-%m-%d"),
             "interval": interval_label,
@@ -6201,7 +6236,7 @@ def get_historical_data(
     return result
 
 
-def _normalize_expiration_value(raw_value: object) -> Optional[str]:
+def _normalize_expiration_value(raw_value: object) -> str | None:
     """Convert ThetaData expiration payloads to ISO date strings."""
     if raw_value is None or (isinstance(raw_value, float) and pd.isna(raw_value)):
         return None
@@ -6239,7 +6274,7 @@ def _normalize_expiration_value(raw_value: object) -> Optional[str]:
 # provider's expected expiration representation.
 #
 # We learn this mapping from option chain payloads (which contain the provider expiry keys).
-_THETADATA_EXPIRY_MAP: Dict[Tuple[str, date], date] = {}
+_THETADATA_EXPIRY_MAP: dict[tuple[str, date], date] = {}
 _THETADATA_EXPIRY_MAP_LOCK = threading.Lock()
 
 
@@ -6258,23 +6293,25 @@ def _thetadata_option_query_expiration_heuristic(expiration: date) -> date:
     return expiration
 
 
-def _register_thetadata_expiry_map_from_chain(symbol: str, chains_dict: dict) -> None:
+def _register_thetadata_expiry_map_from_chain(symbol: str, chains_dict: dict[str, Any]) -> None:
     """Populate provider-expiry mapping from a chain payload (best-effort, in-process only)."""
     symbol_key = _normalize_symbol_key(symbol)
-    if not symbol_key or not isinstance(chains_dict, dict):
+    if not symbol_key:
         return
 
     chains_section = chains_dict.get("Chains")
     if not isinstance(chains_section, dict):
         return
+    chains_section = cast(dict[str, Any], chains_section)
 
     expiry_strings: set[str] = set()
     for side in ("CALL", "PUT"):
         side_map = chains_section.get(side)
         if isinstance(side_map, dict):
-            expiry_strings.update([str(k).strip() for k in side_map.keys() if k is not None])
+            side_map = cast(dict[Any, Any], side_map)
+            expiry_strings.update([str(key).strip() for key in side_map.keys() if key is not None])
 
-    def _parse_expiry(expiry_str: str) -> Optional[date]:
+    def _parse_expiry(expiry_str: str) -> date | None:
         cleaned = str(expiry_str or "").strip()
         if not cleaned:
             return None
@@ -6289,7 +6326,7 @@ def _register_thetadata_expiry_map_from_chain(symbol: str, chains_dict: dict) ->
                     return None
         return None
 
-    updates: Dict[Tuple[str, date], date] = {}
+    updates: dict[tuple[str, date], date] = {}
     for expiry_str in expiry_strings:
         provider_expiry = _parse_expiry(expiry_str)
         if provider_expiry is None:
@@ -6334,7 +6371,7 @@ def _register_thetadata_expiry_map_from_chain(symbol: str, chains_dict: dict) ->
                 _THETADATA_EXPIRY_MAP[key] = provider_expiry
 
 
-def _thetadata_option_query_expiration(expiration: date, *, symbol: Optional[str] = None) -> date:
+def _thetadata_option_query_expiration(expiration: date, *, symbol: str | None = None) -> date:
     """Map LumiBot's tradable option expiry to the value expected by ThetaData endpoints."""
     if isinstance(expiration, datetime):
         expiration = expiration.date()
@@ -6349,13 +6386,13 @@ def _thetadata_option_query_expiration(expiration: date, *, symbol: Optional[str
     return _thetadata_option_query_expiration_heuristic(expiration)
 
 
-def _normalize_strike_value(raw_value: object) -> Optional[float]:
+def _normalize_strike_value(raw_value: object) -> float | None:
     """Convert ThetaData strike payloads to float strikes in dollars."""
     if raw_value is None or (isinstance(raw_value, float) and pd.isna(raw_value)):
         return None
 
     try:
-        strike = float(raw_value)
+        strike = float(cast(Any, raw_value))
     except (TypeError, ValueError):
         return None
 
@@ -6372,7 +6409,7 @@ def _normalize_strike_value(raw_value: object) -> Optional[float]:
     return round(strike, 4)
 
 
-def _detect_column(df: pd.DataFrame, candidates: Tuple[str, ...]) -> Optional[str]:
+def _detect_column(df: PandasDataFrame, candidates: tuple[str, ...]) -> str | None:
     """Find the first column name matching the provided candidates (case-insensitive)."""
     normalized = {str(col).strip().lower(): col for col in df.columns}
     for candidate in candidates:
@@ -6389,11 +6426,11 @@ def _detect_column(df: pd.DataFrame, candidates: Tuple[str, ...]) -> Optional[st
 
 def build_historical_chain(
     asset: Asset,
-    as_of_date: date,
+    as_of_date: date | None,
     max_expirations: int = 250,
     max_consecutive_misses: int = 10,
-    chain_constraints: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Dict[str, List[float]]]:
+    chain_constraints: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
     """Build an option chain by fetching all future expirations and their strikes from ThetaData.
 
     This function queries ThetaData for all available expirations and strikes for a given
@@ -6444,17 +6481,17 @@ def build_historical_chain(
             self,
             underlying_symbol: str,
             *,
-            expiration: Optional[str] = None,
-            strike_symbol: Optional[str] = None,
-            as_of: Optional[date] = None,
+            expiration: str | None = None,
+            strike_symbol: str | None = None,
+            as_of: date | None = None,
         ):
             self._underlying_symbol = str(underlying_symbol or "")
             self._expiration = expiration
             self._strike_symbol = strike_symbol
             self._as_of = as_of
 
-        def to_minimal_dict(self) -> Dict[str, Any]:
-            payload: Dict[str, Any] = {"type": "option_chain", "symbol": self._underlying_symbol}
+        def to_minimal_dict(self) -> dict[str, Any]:
+            payload: dict[str, Any] = {"type": "option_chain", "symbol": self._underlying_symbol}
             if self._expiration is not None:
                 payload["exp"] = self._expiration
             if self._strike_symbol is not None and self._strike_symbol != self._underlying_symbol:
@@ -6463,7 +6500,7 @@ def build_historical_chain(
                 payload["as_of"] = self._as_of.isoformat()
             return payload
 
-    def _fetch_expiration_values(symbol: str) -> List[str]:
+    def _fetch_expiration_values(symbol: str) -> list[str]:
         expirations_resp = get_request(
             url=f"{_current_base_url()}{OPTION_LIST_ENDPOINTS['expirations']}",
             headers=headers,
@@ -6481,14 +6518,14 @@ def build_historical_chain(
             logger.warning("ThetaData expiration payload missing expected columns for %s.", symbol)
             return []
 
-        values: List[str] = []
+        values: list[str] = []
         for raw_value in exp_df[expiration_col].tolist():
             normalized = _normalize_expiration_value(raw_value)
             if normalized:
                 values.append(normalized)
         return sorted({value for value in values})
 
-    primary_symbol = asset.symbol
+    primary_symbol = _normalize_symbol_key(asset.symbol)
     symbols_to_merge = [primary_symbol]
     spxw_symbol = None
     if str(primary_symbol).upper() == "SPX":
@@ -6496,7 +6533,7 @@ def build_historical_chain(
         spxw_symbol = "SPXW"
         symbols_to_merge.append(spxw_symbol)
 
-    expirations_by_symbol: Dict[str, List[str]] = {
+    expirations_by_symbol: dict[str, list[str]] = {
         symbol: _fetch_expiration_values(symbol) for symbol in symbols_to_merge
     }
 
@@ -6509,8 +6546,8 @@ def build_historical_chain(
         )
         return None
 
-    spx_expirations = set(expirations_by_symbol.get(primary_symbol, []))
-    spxw_expirations = set(expirations_by_symbol.get(spxw_symbol, [])) if spxw_symbol else set()
+    spx_expirations: set[str] = set(expirations_by_symbol.get(primary_symbol, []))
+    spxw_expirations: set[str] = set(expirations_by_symbol.get(spxw_symbol, [])) if spxw_symbol is not None else set()
 
     as_of_int = int(as_of_date.strftime("%Y%m%d"))
 
@@ -6548,28 +6585,18 @@ def build_historical_chain(
         }
         days_out = index_days_out if is_index_like else default_days_out
 
-        if isinstance(days_out, int) and days_out > 0:
+        if days_out > 0:
             base_date = min_hint_date if isinstance(min_hint_date, date) else as_of_date
             max_hint_date = base_date + timedelta(days=days_out)
             constraints["max_expiration_date"] = max_hint_date
 
-    min_hint_int = (
-        int(min_hint_date.strftime("%Y%m%d"))
-        if isinstance(min_hint_date, date)
-        else None
-    )
-    max_hint_int = (
-        int(max_hint_date.strftime("%Y%m%d"))
-        if isinstance(max_hint_date, date)
-        else None
-    )
+    min_hint_int = int(min_hint_date.strftime("%Y%m%d")) if isinstance(min_hint_date, date) else None
+    max_hint_int = int(max_hint_date.strftime("%Y%m%d")) if isinstance(max_hint_date, date) else None
 
     # Start from as_of_date (only include future expirations), but allow callers to hint
     # that they only care about expirations at/after a later date (performance).
     effective_start_int = max(as_of_int, min_hint_int) if min_hint_int else as_of_int
-    effective_start_date = (
-        max(as_of_date, min_hint_date) if isinstance(min_hint_date, date) else as_of_date
-    )
+    effective_start_date = max(as_of_date, min_hint_date) if isinstance(min_hint_date, date) else as_of_date
 
     logger.info(
         "[ThetaData] Building chain for %s @ %s (min_hint=%s, max_hint=%s, expirations=%d)",
@@ -6581,7 +6608,7 @@ def build_historical_chain(
     )
 
     # Initialize the chain structure: {"CALL": {expiry: [strikes]}, "PUT": {expiry: [strikes]}}
-    chains: Dict[str, Dict[str, List[float]]] = {"CALL": {}, "PUT": {}}
+    chains: dict[str, dict[str, list[float]]] = {"CALL": {}, "PUT": {}}
     expirations_added = 0
 
     # Track consecutive failures to fetch strike data (API errors only, not quote availability).
@@ -6600,7 +6627,7 @@ def build_historical_chain(
     batch_size = configured_batch_size if configured_batch_size > 0 else getattr(queue_client, "max_concurrent", 8)
     batch_size = max(1, batch_size)
 
-    def _normalize_queue_payload(result: Optional[Any]) -> Optional[Dict[str, Any]]:
+    def _normalize_queue_payload(result: Any | None) -> dict[str, Any] | None:
         if result is None:
             return None
         if isinstance(result, dict):
@@ -6613,7 +6640,7 @@ def build_historical_chain(
             return _coerce_json_payload(result)
         return {"header": {"format": []}, "response": result}
 
-    expiration_candidates: List[Tuple[str, str]] = []
+    expiration_candidates: list[tuple[str, str]] = []
     for expiration_iso in expiration_values:
         expiration_int = int(expiration_iso.replace("-", ""))
 
@@ -6667,8 +6694,8 @@ def build_historical_chain(
 
         head = expiration_candidates[:14]
         tail = expiration_candidates[-14:] if len(expiration_candidates) > 14 else []
-        seen: set[Tuple[str, str]] = set()
-        pruned: List[Tuple[str, str]] = []
+        seen: set[tuple[str, str]] = set()
+        pruned: list[tuple[str, str]] = []
         for item in head + tail:
             if item in seen:
                 continue
@@ -6683,7 +6710,7 @@ def build_historical_chain(
         # terms of completed strike-list requests so the UI doesn't show download_status="{}"
         # during long strike scans (notably SPX/SPXW).
         set_download_status(
-            _OptionChainStatusAsset(asset.symbol, as_of=as_of_date),
+            _OptionChainStatusAsset(primary_symbol, as_of=as_of_date),
             quote_asset=None,
             data_type="option_chain",
             timespan="meta",
@@ -6705,13 +6732,13 @@ def build_historical_chain(
                 break
 
             remaining_needed = max_expirations - expirations_added
-            batch = expiration_candidates_for_strikes[idx: idx + min(batch_size, remaining_needed)]
+            batch = expiration_candidates_for_strikes[idx : idx + min(batch_size, remaining_needed)]
 
-            requests: List[Tuple[str, str, str]] = []  # (request_id, expiration_iso, strike_symbol)
+            requests: list[tuple[str, str, str]] = []  # (request_id, expiration_iso, strike_symbol)
             for expiration_iso, strike_symbol in batch:
                 set_download_status(
                     _OptionChainStatusAsset(
-                        asset.symbol,
+                        primary_symbol,
                         expiration=expiration_iso,
                         strike_symbol=strike_symbol,
                         as_of=as_of_date,
@@ -6741,7 +6768,7 @@ def build_historical_chain(
                     # Keep context aligned to the request we're currently waiting on.
                     set_download_status(
                         _OptionChainStatusAsset(
-                            asset.symbol,
+                            primary_symbol,
                             expiration=expiration_iso,
                             strike_symbol=strike_symbol,
                             as_of=as_of_date,
@@ -6808,9 +6835,7 @@ def build_historical_chain(
                 strike_values = sorted(
                     {
                         strike
-                        for strike in (
-                            _normalize_strike_value(value) for value in strike_df[strike_col].tolist()
-                        )
+                        for strike in (_normalize_strike_value(value) for value in strike_df[strike_col].tolist())
                         if strike
                     }
                 )
@@ -6852,7 +6877,7 @@ def build_historical_chain(
             "Multiplier": 100,
             "Exchange": "SMART",
             "Chains": chains,
-            "UnderlyingSymbol": asset.symbol,  # Add this for easier extraction later
+            "UnderlyingSymbol": primary_symbol,  # Add this for easier extraction later
             "_chain_cache_version": THETADATA_CHAIN_CACHE_VERSION,
         }
 
@@ -6865,8 +6890,10 @@ def build_historical_chain(
     # - Without this fix, the strategy tries to buy $1320 strike (wrong!)
     # - With this fix, strikes are adjusted: $1320 / 20 = $66 (correct!)
     #
-    # We fetch splits from as_of_date to the corporate-action horizon and apply the cumulative ratio.
-    today = _corporate_action_horizon_date()
+    # We fetch splits from as_of_date to TODAY and apply the cumulative ratio.
+    from datetime import date as date_type
+
+    today = date_type.today()
 
     # Fetch splits that occurred AFTER the backtest date
     splits = _get_theta_splits(asset, as_of_date, today)
@@ -6948,7 +6975,6 @@ def build_historical_chain(
                             normalized = {
                                 round(_select_normalized_strike(float(strike)), 5)
                                 for strike in strikes
-                                if strike is not None
                             }
                             chains[option_type][expiry_date] = sorted(normalized)
 
@@ -6963,12 +6989,12 @@ def build_historical_chain(
         "Multiplier": 100,
         "Exchange": "SMART",
         "Chains": chains,
-        "UnderlyingSymbol": asset.symbol,  # Add this for easier extraction later
+        "UnderlyingSymbol": primary_symbol,  # Add this for easier extraction later
         "_chain_cache_version": THETADATA_CHAIN_CACHE_VERSION,
     }
 
 
-def get_expirations(ticker: str, after_date: date):
+def get_expirations(ticker: str, after_date: date) -> list[str]:
     """Legacy helper retained for backward compatibility; prefer build_historical_chain."""
     logger.warning(
         "get_expirations is deprecated and provides live expirations only. "
@@ -6981,12 +7007,14 @@ def get_expirations(ticker: str, after_date: date):
     querystring = {"symbol": ticker, "format": "json"}
     headers = {"Accept": "application/json"}
     json_resp = get_request(url=url, headers=headers, querystring=querystring)
+    if json_resp is None:
+        return []
     df = pd.DataFrame(json_resp["response"], columns=json_resp["header"]["format"])
     expiration_col = _detect_column(df, ("expiration", "date", "exp"))
     if not expiration_col:
         return []
     after_date_int = int(after_date.strftime("%Y%m%d"))
-    expirations_final: List[str] = []
+    expirations_final: list[str] = []
     for raw_value in df[expiration_col].tolist():
         normalized = _normalize_expiration_value(raw_value)
         if not normalized:
@@ -7000,7 +7028,7 @@ def get_expirations(ticker: str, after_date: date):
     return expirations_final
 
 
-def get_strikes(ticker: str, expiration: datetime):
+def get_strikes(ticker: str, expiration: date | datetime) -> list[float]:
     """
     Get a list of strike prices for the given ticker and expiration date
 
@@ -7025,6 +7053,8 @@ def get_strikes(ticker: str, expiration: datetime):
 
     # Send the request
     json_resp = get_request(url=url, headers=headers, querystring=querystring)
+    if json_resp is None:
+        return []
 
     # Convert to pandas dataframe
     df = pd.DataFrame(json_resp["response"], columns=json_resp["header"]["format"])
@@ -7033,7 +7063,7 @@ def get_strikes(ticker: str, expiration: datetime):
     if not strike_col:
         return []
 
-    strikes = []
+    strikes: list[float] = []
     for raw in df[strike_col].tolist():
         strike = _normalize_strike_value(raw)
         if strike:
@@ -7044,9 +7074,9 @@ def get_strikes(ticker: str, expiration: datetime):
 
 def get_chains_cached(
     asset: Asset,
-    current_date: date = None,
-    chain_constraints: Optional[Dict[str, Any]] = None,
-) -> dict:
+    current_date: date | None = None,
+    chain_constraints: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
     """
     Retrieve option chain with caching (MATCHES POLYGON PATTERN).
 
@@ -7075,6 +7105,7 @@ def get_chains_cached(
     }
     """
     logger.debug(f"get_chains_cached called for {asset.symbol} on {current_date}")
+    symbol_key = _normalize_symbol_key(asset.symbol)
 
     # 1) If current_date is None => bail out
     if current_date is None:
@@ -7084,7 +7115,7 @@ def get_chains_cached(
     # 2) Build cache folder path
     chain_folder = Path(LUMIBOT_CACHE_FOLDER) / "thetadata" / _resolve_asset_folder(asset) / "option_chains"
     chain_folder.mkdir(parents=True, exist_ok=True)
-    cache_file = chain_folder / f"{asset.symbol}_{current_date.isoformat()}.parquet"
+    cache_file = chain_folder / f"{symbol_key}_{current_date.isoformat()}.parquet"
 
     # If the S3 remote cache is enabled, opportunistically hydrate the chain cache file for this
     # exact date. Production backtest containers start with empty disks; without this step every
@@ -7114,9 +7145,7 @@ def get_chains_cached(
         pass
 
     constraints = chain_constraints or {}
-    hint_present = any(
-        constraints.get(key) is not None for key in ("min_expiration_date", "max_expiration_date")
-    )
+    hint_present = any(constraints.get(key) is not None for key in ("min_expiration_date", "max_expiration_date"))
 
     # 3) Check for recent cached file (within RECENT_FILE_TOLERANCE_DAYS) unless hints require fresh data
     recent_days_default = 7
@@ -7130,7 +7159,7 @@ def get_chains_cached(
 
     min_expiration_date = constraints.get("min_expiration_date")
 
-    def _coerce_date(value: Any) -> Optional[date]:
+    def _coerce_date(value: Any) -> date | None:
         if value is None:
             return None
         if isinstance(value, date):
@@ -7155,7 +7184,7 @@ def get_chains_cached(
     should_scan_cache_files = True
 
     if should_scan_cache_files:
-        pattern = f"{asset.symbol}_*.parquet"
+        pattern = f"{symbol_key}_*.parquet"
         potential_files = sorted(chain_folder.glob(pattern), reverse=True)
 
         for fpath in potential_files:
@@ -7164,7 +7193,7 @@ def get_chains_cached(
             if len(parts) != 2:
                 continue
             file_symbol, date_str = parts
-            if file_symbol != asset.symbol:
+            if file_symbol != symbol_key:
                 continue
 
             try:
@@ -7191,37 +7220,41 @@ def get_chains_cached(
             logger.debug(f"Reusing chain file {fpath} (file_date={file_date})")
             df_cached = pd.read_parquet(fpath, engine="pyarrow")
 
-            data = df_cached["data"][0]
-            if isinstance(data, dict):
-                cache_version = int(data.get("_chain_cache_version", 0) or 0)
-                if cache_version < THETADATA_CHAIN_CACHE_VERSION:
-                    logger.debug(
-                        "Skipping outdated ThetaData chain cache %s (version=%s < %s)",
-                        fpath,
-                        cache_version,
-                        THETADATA_CHAIN_CACHE_VERSION,
-                    )
-                    continue
+            data: Any = df_cached["data"][0]
+            if not isinstance(data, dict):
+                continue
+            data_dict = cast(dict[str, Any], data)
 
-            if isinstance(data, dict):
-                try:
-                    call_chain = data.get("Chains", {}).get("CALL", {}) or {}
-                    expiries = [date.fromisoformat(exp) for exp in call_chain.keys()]
-                    if not expiries:
-                        continue
-                    if max(expiries) < current_date:
-                        continue
-                    if min_expiration_date_coerced is not None and max(expiries) < min_expiration_date_coerced:
-                        continue
-                except Exception:
+            cache_version = int(data_dict.get("_chain_cache_version", 0) or 0)
+            if cache_version < THETADATA_CHAIN_CACHE_VERSION:
+                logger.debug(
+                    "Skipping outdated ThetaData chain cache %s (version=%s < %s)",
+                    fpath,
+                    cache_version,
+                    THETADATA_CHAIN_CACHE_VERSION,
+                )
+                continue
+
+            try:
+                chains_payload = cast(dict[str, Any], data_dict.get("Chains", {}))
+                call_chain = cast(dict[str, Any], chains_payload.get("CALL", {}) or {})
+                expiries = [date.fromisoformat(str(exp)) for exp in call_chain.keys()]
+                if not expiries:
                     continue
+                if max(expiries) < current_date:
+                    continue
+                if min_expiration_date_coerced is not None and max(expiries) < min_expiration_date_coerced:
+                    continue
+            except Exception:
+                continue
 
             # Backfill for older cache files created before UnderlyingSymbol was added.
-            if isinstance(data, dict) and "UnderlyingSymbol" not in data:
-                data["UnderlyingSymbol"] = asset.symbol
-            for right in data["Chains"]:
-                for exp_date in data["Chains"][right]:
-                    data["Chains"][right][exp_date] = list(data["Chains"][right][exp_date])
+            if "UnderlyingSymbol" not in data_dict:
+                data_dict["UnderlyingSymbol"] = symbol_key
+            chains_data = cast(dict[str, dict[str, Any]], data_dict["Chains"])
+            for right, expirations in chains_data.items():
+                for exp_date, strikes in expirations.items():
+                    chains_data[right][exp_date] = list(strikes)
 
             # Best-effort: ensure locally-present chain cache files are also present in the remote
             # S3 cache. CI runners start from empty disks; without this, a "warm local" run can
@@ -7252,11 +7285,11 @@ def get_chains_cached(
             # Best-effort: learn provider-specific expiration representation from the chain keys so
             # option history queries can use the correct expiration value (Friday vs OCC Saturday).
             try:
-                _register_thetadata_expiry_map_from_chain(asset.symbol, data)
+                _register_thetadata_expiry_map_from_chain(symbol_key, data_dict)
             except Exception:
                 pass
 
-            return data
+            return data_dict
 
     # 4) No suitable file => fetch from ThetaData using exp=0 chain builder
     logger.debug(
@@ -7264,9 +7297,7 @@ def get_chains_cached(
         asset.symbol,
         current_date,
     )
-    print(
-        f"\nDownloading option chain for {asset} on {current_date}. This will be cached for future use."
-    )
+    print(f"\nDownloading option chain for {asset} on {current_date}. This will be cached for future use.")
 
     chains_dict = build_historical_chain(
         asset=asset,
@@ -7289,13 +7320,13 @@ def get_chains_cached(
     # Best-effort: learn provider-specific expiration representation from the chain keys so option
     # history queries can use the correct expiration value (Friday vs OCC Saturday).
     try:
-        _register_thetadata_expiry_map_from_chain(asset.symbol, chains_dict)
+        _register_thetadata_expiry_map_from_chain(symbol_key, chains_dict)
     except Exception:
         pass
 
     # 5) Save to cache file for future reuse
     df_to_cache = pd.DataFrame({"data": [chains_dict]})
-    df_to_cache.to_parquet(cache_file, compression='snappy', engine='pyarrow')
+    df_to_cache.to_parquet(cache_file, compression="snappy", engine="pyarrow")
     logger.debug(f"Saved chain cache: {cache_file}")
     try:
         from lumibot.tools.backtest_cache import get_backtest_cache

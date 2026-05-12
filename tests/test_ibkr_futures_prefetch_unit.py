@@ -2,8 +2,8 @@ import datetime as dt
 from unittest.mock import patch
 
 import pandas as pd
-import pytz
 import pytest
+import pytz
 
 from lumibot.backtesting import InteractiveBrokersRESTBacktesting
 from lumibot.entities import Asset

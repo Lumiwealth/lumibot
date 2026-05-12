@@ -8,28 +8,30 @@ Tests ACTUAL TRADING with multiple instruments, verifying:
 - Both buy and sell trades
 - Mark-to-market accounting during hold periods
 """
+
 import datetime
 import shutil
+from pathlib import Path
+
 import pytest
 import pytz
 from dotenv import load_dotenv
-from pathlib import Path
 
 # Load environment variables from .env file
 load_dotenv()
 
 from lumibot.backtesting import BacktestingBroker
-from lumibot.backtesting.databento_backtesting_polars import (
-    DataBentoDataBacktestingPolars as DataBentoDataPolarsBacktesting,
-)
 from lumibot.backtesting.databento_backtesting_pandas import (
     DataBentoDataBacktestingPandas,
 )
-from lumibot.tools.databento_helper_polars import LUMIBOT_DATABENTO_CACHE_FOLDER
+from lumibot.backtesting.databento_backtesting_polars import (
+    DataBentoDataBacktestingPolars as DataBentoDataPolarsBacktesting,
+)
+from lumibot.credentials import DATABENTO_CONFIG
 from lumibot.entities import Asset, TradingFee
 from lumibot.strategies import Strategy
+from lumibot.tools.databento_helper_polars import LUMIBOT_DATABENTO_CACHE_FOLDER
 from lumibot.traders import Trader
-from lumibot.credentials import DATABENTO_CONFIG
 
 DATABENTO_API_KEY = DATABENTO_CONFIG.get("API_KEY")
 
@@ -128,16 +130,18 @@ class MultiInstrumentTrader(Strategy):
 
     def on_filled_order(self, position, order, price, quantity, multiplier):
         """Track all fills"""
-        self.trades.append({
-            "datetime": self.get_datetime(),
-            "asset": position.asset.symbol,
-            "side": order.side,
-            "quantity": quantity,
-            "price": price,
-            "multiplier": multiplier,
-            "cash_after": self.get_cash(),
-            "portfolio_after": self.get_portfolio_value(),
-        })
+        self.trades.append(
+            {
+                "datetime": self.get_datetime(),
+                "asset": position.asset.symbol,
+                "side": order.side,
+                "quantity": quantity,
+                "price": price,
+                "multiplier": multiplier,
+                "cash_after": self.get_cash(),
+                "portfolio_after": self.get_portfolio_value(),
+            }
+        )
 
 
 def _clear_polars_cache():
@@ -151,8 +155,7 @@ class TestDatabentoComprehensiveTrading:
     """Comprehensive futures trading tests with full verification"""
 
     @pytest.mark.skipif(
-        not DATABENTO_API_KEY or DATABENTO_API_KEY == '<your key here>',
-        reason="This test requires a Databento API key"
+        not DATABENTO_API_KEY or DATABENTO_API_KEY == "<your key here>", reason="This test requires a Databento API key"
     )
     @pytest.mark.parametrize(
         "datasource_cls",
@@ -166,9 +169,9 @@ class TestDatabentoComprehensiveTrading:
         Test trading multiple futures instruments with minute data.
         Verifies: margin, fees, P&L, multipliers, cash, portfolio value.
         """
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("COMPREHENSIVE FUTURES TRADING TEST - MINUTE DATA")
-        print("="*80)
+        print("=" * 80)
 
         # Use 2 trading days for faster test
         tzinfo = pytz.timezone("America/New_York")
@@ -195,14 +198,9 @@ class TestDatabentoComprehensiveTrading:
 
         trader = Trader(logfile="", backtest=True)
         trader.add_strategy(strat)
-        results = trader.run_all(
-            show_plot=False,
-            show_tearsheet=False,
-            show_indicators=False,
-            save_tearsheet=False
-        )
+        trader.run_all(show_plot=False, show_tearsheet=False, show_indicators=False, save_tearsheet=False)
 
-        print(f"\n✓ Backtest completed")
+        print("\n✓ Backtest completed")
         print(f"  Snapshots: {len(strat.snapshots)}")
         print(f"  Trades: {len(strat.trades)}")
 
@@ -230,12 +228,12 @@ class TestDatabentoComprehensiveTrading:
 
         # Analyze each instrument's trades
         for symbol, trades in trades_by_instrument.items():
-            print(f"\n" + "-"*80)
+            print("\n" + "-" * 80)
             print(f"ANALYZING {symbol} TRADES")
-            print("-"*80)
+            print("-" * 80)
             print(f"Total trades for {symbol}: {len(trades)}")
             for i, t in enumerate(trades):
-                print(f"  Trade {i+1}: {t['side']} @ ${t['price']:.2f}, cash_after=${t['cash_after']:,.2f}")
+                print(f"  Trade {i + 1}: {t['side']} @ ${t['price']:.2f}, cash_after=${t['cash_after']:,.2f}")
 
             specs = CONTRACT_SPECS.get(symbol, {"multiplier": 1, "margin": 1000})
             expected_multiplier = specs["multiplier"]
@@ -247,20 +245,22 @@ class TestDatabentoComprehensiveTrading:
 
             if len(entries) > 0:
                 entry = entries[0]
-                print(f"\nENTRY TRADE:")
+                print("\nENTRY TRADE:")
                 print(f"  Price: ${entry['price']:.2f}")
                 print(f"  Multiplier: {entry['multiplier']} (expected: {expected_multiplier})")
                 print(f"  Cash after: ${entry['cash_after']:,.2f}")
                 print(f"  Portfolio after: ${entry['portfolio_after']:,.2f}")
 
                 # Verify multiplier in callback parameter
-                assert entry['multiplier'] == expected_multiplier, \
+                assert entry["multiplier"] == expected_multiplier, (
                     f"{symbol} multiplier should be {expected_multiplier}, got {entry['multiplier']}"
+                )
 
                 # CRITICAL: Verify the asset object itself has correct multiplier (not just callback)
                 actual_asset = [a for a in strat.instruments if a.symbol == symbol][0]
-                assert actual_asset.multiplier == expected_multiplier, \
+                assert actual_asset.multiplier == expected_multiplier, (
                     f"{symbol} asset.multiplier should be {expected_multiplier}, got {actual_asset.multiplier}"
+                )
 
                 symbol_snapshots = snapshots_by_symbol.get(symbol, [])
                 entry_snapshot = next((s for s in symbol_snapshots if s.get("phase") == "BUY"), None)
@@ -275,13 +275,12 @@ class TestDatabentoComprehensiveTrading:
                 margin_deposit = cash_before_entry - entry_cash_after - fee_amount
                 expected_margin_total = expected_margin * float(entry["quantity"])
 
-                print(f"\nCASH / MARGIN STATE:")
+                print("\nCASH / MARGIN STATE:")
                 print(f"  Cash before entry: ${cash_before_entry:,.2f}")
                 print(f"  Cash after entry: ${entry_cash_after:,.2f}")
                 print(f"  Margin captured: ${margin_deposit:,.2f} (expected ${expected_margin_total:,.2f})")
                 assert pytest.approx(margin_deposit, abs=0.01) == expected_margin_total, (
-                    f"{symbol} margin mismatch: expected ${expected_margin_total:,.2f}, "
-                    f"got ${margin_deposit:,.2f}"
+                    f"{symbol} margin mismatch: expected ${expected_margin_total:,.2f}, got ${margin_deposit:,.2f}"
                 )
 
                 # Verify mark-to-market during hold period is exact
@@ -298,27 +297,26 @@ class TestDatabentoComprehensiveTrading:
 
                 # Snapshot immediately before exit should have identical cash to post-entry state
                 assert pytest.approx(float(sell_snapshot["cash"]), abs=0.01) == entry_cash_after, (
-                    f"{symbol} cash prior to exit changed unexpectedly: "
-                    f"{sell_snapshot['cash']} vs {entry_cash_after}"
+                    f"{symbol} cash prior to exit changed unexpectedly: {sell_snapshot['cash']} vs {entry_cash_after}"
                 )
 
             if len(exits) > 0 and len(entries) > 0:
                 entry = entries[0]
                 exit_trade = exits[0]
 
-                print(f"\nEXIT TRADE:")
+                print("\nEXIT TRADE:")
                 print(f"  Price: ${exit_trade['price']:.2f}")
                 print(f"  Cash after: ${exit_trade['cash_after']:,.2f}")
                 print(f"  Portfolio after: ${exit_trade['portfolio_after']:,.2f}")
 
                 # Calculate P&L
-                entry_price = entry['price']
-                exit_price = exit_trade['price']
-                quantity = entry['quantity']
+                entry_price = entry["price"]
+                exit_price = exit_trade["price"]
+                quantity = entry["quantity"]
                 price_change = exit_price - entry_price
                 expected_pnl = price_change * quantity * expected_multiplier
 
-                print(f"\nP&L VERIFICATION:")
+                print("\nP&L VERIFICATION:")
                 print(f"  Entry price: ${entry_price:.2f}")
                 print(f"  Exit price: ${exit_price:.2f}")
                 print(f"  Quantity: {quantity}")
@@ -332,7 +330,7 @@ class TestDatabentoComprehensiveTrading:
                     - fee_amount  # exit fee
                     + expected_pnl
                 )
-                print(f"\nCASH RECONCILIATION:")
+                print("\nCASH RECONCILIATION:")
                 print(f"  Expected cash after exit: ${expected_cash_after_exit:,.2f}")
                 actual_cash_after_exit = float(exit_trade["cash_after"])
                 print(f"  Actual cash after exit:   ${actual_cash_after_exit:,.2f}")
@@ -341,26 +339,25 @@ class TestDatabentoComprehensiveTrading:
                     f"got ${actual_cash_after_exit:,.2f}"
                 )
 
-        print(f"\n" + "="*80)
+        print("\n" + "=" * 80)
         print("✓ ALL INSTRUMENTS VERIFIED")
-        print("="*80)
+        print("=" * 80)
 
 
 class TestDatabentoComprehensiveTradingDaily:
     """Comprehensive futures trading tests with daily data"""
 
     @pytest.mark.skipif(
-        not DATABENTO_API_KEY or DATABENTO_API_KEY == '<your key here>',
-        reason="This test requires a Databento API key"
+        not DATABENTO_API_KEY or DATABENTO_API_KEY == "<your key here>", reason="This test requires a Databento API key"
     )
     def test_multiple_instruments_daily_data(self):
         """
         Test trading multiple futures instruments with daily data.
         Similar to minute test but with daily bars.
         """
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("COMPREHENSIVE FUTURES TRADING TEST - DAILY DATA")
-        print("="*80)
+        print("=" * 80)
 
         # Use longer period for daily data
         tzinfo = pytz.timezone("America/New_York")
@@ -394,14 +391,16 @@ class TestDatabentoComprehensiveTradingDaily:
                 portfolio = self.get_portfolio_value()
                 position = self.get_position(asset)
 
-                self.snapshots.append({
-                    "day": self.day_count,
-                    "instrument": asset.symbol,
-                    "price": float(price) if price else None,
-                    "cash": cash,
-                    "portfolio": portfolio,
-                    "position_qty": position.quantity if position else 0,
-                })
+                self.snapshots.append(
+                    {
+                        "day": self.day_count,
+                        "instrument": asset.symbol,
+                        "price": float(price) if price else None,
+                        "cash": cash,
+                        "portfolio": portfolio,
+                        "position_qty": position.quantity if position else 0,
+                    }
+                )
 
                 # Buy on day 1, sell on day 5, move to next instrument
                 if self.day_count % 5 == 1:
@@ -413,14 +412,16 @@ class TestDatabentoComprehensiveTradingDaily:
                     self.current_idx += 1
 
             def on_filled_order(self, position, order, price, quantity, multiplier):
-                self.trades.append({
-                    "day": self.day_count,
-                    "asset": position.asset.symbol,
-                    "side": order.side,
-                    "price": price,
-                    "multiplier": multiplier,
-                    "cash_after": self.get_cash(),
-                })
+                self.trades.append(
+                    {
+                        "day": self.day_count,
+                        "asset": position.asset.symbol,
+                        "side": order.side,
+                        "price": price,
+                        "multiplier": multiplier,
+                        "cash_after": self.get_cash(),
+                    }
+                )
 
         data_source = DataBentoDataPolarsBacktesting(
             datetime_start=backtesting_start,
@@ -439,14 +440,9 @@ class TestDatabentoComprehensiveTradingDaily:
 
         trader = Trader(logfile="", backtest=True)
         trader.add_strategy(strat)
-        results = trader.run_all(
-            show_plot=False,
-            show_tearsheet=False,
-            show_indicators=False,
-            save_tearsheet=False
-        )
+        trader.run_all(show_plot=False, show_tearsheet=False, show_indicators=False, save_tearsheet=False)
 
-        print(f"\n✓ Daily backtest completed")
+        print("\n✓ Daily backtest completed")
         print(f"  Trading days: {strat.day_count}")
         print(f"  Trades: {len(strat.trades)}")
 
@@ -456,17 +452,17 @@ class TestDatabentoComprehensiveTradingDaily:
         for trade in strat.trades:
             symbol = trade["asset"]
             expected_mult = CONTRACT_SPECS.get(symbol, {}).get("multiplier", 1)
-            assert trade["multiplier"] == expected_mult, \
+            assert trade["multiplier"] == expected_mult, (
                 f"{symbol} multiplier should be {expected_mult}, got {trade['multiplier']}"
+            )
             print(f"  ✓ {symbol}: multiplier {trade['multiplier']} correct")
 
-        print(f"\n" + "="*80)
+        print("\n" + "=" * 80)
         print("✓ DAILY DATA TEST PASSED")
-        print("="*80)
+        print("=" * 80)
 
     @pytest.mark.skipif(
-        not DATABENTO_API_KEY or DATABENTO_API_KEY == '<your key here>',
-        reason="This test requires a Databento API key"
+        not DATABENTO_API_KEY or DATABENTO_API_KEY == "<your key here>", reason="This test requires a Databento API key"
     )
     def test_multiple_instruments_pandas_version(self):
         """
@@ -479,9 +475,9 @@ class TestDatabentoComprehensiveTradingDaily:
             DataBentoDataBacktestingPandas as DataBentoDataBacktesting,
         )
 
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("PANDAS VERSION TEST - Should expose multiplier bug")
-        print("="*80)
+        print("=" * 80)
 
         # Use 1 trading day for faster test
         tzinfo = pytz.timezone("America/New_York")
@@ -506,14 +502,9 @@ class TestDatabentoComprehensiveTradingDaily:
 
         trader = Trader(logfile="", backtest=True)
         trader.add_strategy(strat)
-        results = trader.run_all(
-            show_plot=False,
-            show_tearsheet=False,
-            show_indicators=False,
-            save_tearsheet=False
-        )
+        trader.run_all(show_plot=False, show_tearsheet=False, show_indicators=False, save_tearsheet=False)
 
-        print(f"\n✓ Backtest completed")
+        print("\n✓ Backtest completed")
         print(f"  Trades: {len(strat.trades)}")
 
         # Verify we got some trades
@@ -529,19 +520,21 @@ class TestDatabentoComprehensiveTradingDaily:
             print(f"  Actual multiplier: {trade['multiplier']}")
 
             # This assertion will expose the bug
-            assert trade["multiplier"] == expected_mult, \
+            assert trade["multiplier"] == expected_mult, (
                 f"{symbol} multiplier should be {expected_mult}, got {trade['multiplier']}"
+            )
 
         # Also verify asset objects have correct multipliers
         for asset in strat.instruments:
             expected_mult = CONTRACT_SPECS.get(asset.symbol, {}).get("multiplier", 1)
             print(f"  {asset.symbol} asset.multiplier: {asset.multiplier} (expected: {expected_mult})")
-            assert asset.multiplier == expected_mult, \
+            assert asset.multiplier == expected_mult, (
                 f"{asset.symbol} asset.multiplier should be {expected_mult}, got {asset.multiplier}"
+            )
 
-        print(f"\n" + "="*80)
+        print("\n" + "=" * 80)
         print("✓ PANDAS VERSION TEST PASSED")
-        print("="*80)
+        print("=" * 80)
 
 
 if __name__ == "__main__":

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, Callable, Optional
+from typing import Any
 
 import pandas as pd
 import pytest
@@ -13,7 +14,6 @@ from lumibot.credentials import POLYGON_API_KEY
 from lumibot.entities import Asset
 from lumibot.entities.order import Order
 from lumibot.strategies.strategy import Strategy
-
 
 pytestmark = pytest.mark.apitest
 
@@ -33,7 +33,7 @@ def _require_downloader() -> tuple[str, str, str]:
             timeout=5,
         )
         resp.raise_for_status()
-        payload = resp.json()
+        resp.json()
     except Exception as exc:
         pytest.skip(f"Downloader not reachable/healthy: {exc}")
 
@@ -42,13 +42,13 @@ def _require_downloader() -> tuple[str, str, str]:
 
 def _wrap_queue_request(monkeypatch) -> list[str]:
     """Capture urls passed to queue_request (IBKR + Theta both use this)."""
-    import lumibot.tools.ibkr_helper as ibkr_helper
     import lumibot.tools.data_downloader_queue_client as queue
+    import lumibot.tools.ibkr_helper as ibkr_helper
 
     calls: list[str] = []
     original = queue.queue_request
 
-    def wrapped(url: str, querystring: Optional[dict[str, Any]], headers=None, timeout=None):
+    def wrapped(url: str, querystring: dict[str, Any] | None, headers=None, timeout=None):
         calls.append(url)
         return original(url=url, querystring=querystring, headers=headers, timeout=timeout)
 
@@ -123,7 +123,7 @@ def test_router_crypto_ibkr_uses_ibkr_queue_paths(monkeypatch, tmp_path):
 
     calls = _wrap_queue_request(monkeypatch)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     base = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
     quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
     ibkr_helper.get_price_data(
@@ -184,8 +184,8 @@ def test_router_stock_thetadata_uses_theta_queue_paths(monkeypatch, tmp_path):
     calls = _wrap_queue_request(monkeypatch)
 
     # Use a fixed, known weekday during RTH to avoid weekend/holiday traps.
-    window_start = datetime(2025, 1, 2, 14, 35, tzinfo=timezone.utc)  # 09:35 ET
-    window_end = datetime(2025, 1, 2, 14, 50, tzinfo=timezone.utc)
+    window_start = datetime(2025, 1, 2, 14, 35, tzinfo=UTC)  # 09:35 ET
+    window_end = datetime(2025, 1, 2, 14, 50, tzinfo=UTC)
 
     results, strategy = _StockFetchOnly.run_backtest(
         datasource_class=None,
@@ -239,7 +239,7 @@ def test_router_crypto_polygon_calls_polygon_helper(monkeypatch, tmp_path):
     monkeypatch.setattr(polygon_helper, "get_price_data_from_polygon", wrapped)
 
     # Short window to keep it fast and avoid large downloads.
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     window_start = now - timedelta(hours=2)
     window_end = now - timedelta(hours=1)
 

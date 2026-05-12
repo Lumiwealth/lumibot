@@ -7,14 +7,14 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-import yappi
 import pytz
+import yappi
 
 from lumibot.backtesting import BacktestingBroker, DataBentoDataBacktestingPandas, DataBentoDataBacktestingPolars
+from lumibot.credentials import DATABENTO_CONFIG
 from lumibot.entities import Asset, TradingFee
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
-from lumibot.credentials import DATABENTO_CONFIG
 
 OUTPUT_DIR = Path("tests/performance/logs")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -43,10 +43,10 @@ class MultiInstrumentTrader(Strategy):
         asset = self.instruments[self.current_idx]
 
         # Get last price (tests get_last_price)
-        price = self.get_last_price(asset)
+        self.get_last_price(asset)
 
         # Get historical data (tests filtering)
-        bars = self.get_historical_prices(asset, 20, timestep="minute")
+        self.get_historical_prices(asset, 20, timestep="minute")
 
         # Simple trading logic
         position = self.get_position(asset)
@@ -97,7 +97,7 @@ def run_comprehensive_profile(mode: str) -> float:
 
     trader = Trader(logfile="", backtest=True)
     trader.add_strategy(strat)
-    results = trader.run_all(
+    trader.run_all(
         show_plot=False,
         show_tearsheet=False,
         show_indicators=False,
@@ -111,13 +111,13 @@ def run_comprehensive_profile(mode: str) -> float:
     yappi.get_func_stats().save(str(profile_path), type="pstat")
 
     # Print results
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"MODE: {mode.upper()}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Elapsed time: {elapsed:.2f}s")
     print(f"Iterations: {strat.broker.iteration_count if hasattr(strat.broker, 'iteration_count') else 'unknown'}")
     print(f"Profile saved: {profile_path}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     return elapsed
 
@@ -127,7 +127,7 @@ def main() -> None:
     parser.add_argument("--mode", choices=["pandas", "polars", "both"], default="both")
     args = parser.parse_args()
 
-    if not DATABENTO_API_KEY or DATABENTO_API_KEY == '<your key here>':
+    if not DATABENTO_API_KEY or DATABENTO_API_KEY == "<your key here>":
         print("ERROR: DATABENTO_API_KEY not configured")
         return
 
@@ -140,9 +140,9 @@ def main() -> None:
 
     # Print comparison
     if len(results) > 1:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("COMPARISON")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         pandas_time = results.get("pandas", 0)
         polars_time = results.get("polars", 0)
         if pandas_time > 0 and polars_time > 0:
@@ -150,7 +150,7 @@ def main() -> None:
             print(f"Pandas: {pandas_time:.2f}s")
             print(f"Polars: {polars_time:.2f}s")
             print(f"Speedup: {speedup:.2f}x")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
 
 
 if __name__ == "__main__":

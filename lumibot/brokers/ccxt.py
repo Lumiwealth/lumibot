@@ -1,36 +1,44 @@
 from __future__ import annotations
 
+# pyright: reportUnknownVariableType=false, reportUnknownMemberType=false, reportUnknownArgumentType=false
+# pyright: reportUnknownParameterType=false, reportMissingParameterType=false, reportMissingTypeArgument=false
+# pyright: reportConstantRedefinition=false, reportInvalidTypeForm=false, reportOptionalMemberAccess=false
+# pyright: reportAttributeAccessIssue=false, reportIncompatibleMethodOverride=false, reportReturnType=false
+# pyright: reportArgumentType=false, reportOperatorIssue=false, reportOptionalSubscript=false
+# pyright: reportCallIssue=false, reportPossiblyUnboundVariable=false, reportUnnecessaryComparison=false
 import datetime
 import os
+from collections.abc import Callable
 from decimal import ROUND_DOWN, Decimal, getcontext
-from typing import Union
+from typing import Any
 
-from lumibot.entities import Asset, Order
+from lumibot.entities.asset import Asset
+from lumibot.entities.order import Order
 from lumibot.tools.lumibot_logger import get_logger
 
 from .broker import Broker
 
 logger = get_logger(__name__)
-_CCXT_DATA_CLASS = None
-_COLORED_FN = None
+_ccxt_data_class_cache: type[Any] | None = None
+_colored_fn_cache: Callable[..., str] | None = None
 
 
-def colored(*args, **kwargs):
-    global _COLORED_FN
-    if _COLORED_FN is None:
+def colored(*args: Any, **kwargs: Any) -> str:
+    global _colored_fn_cache
+    if _colored_fn_cache is None:
         from termcolor import colored as _termcolor_colored
 
-        _COLORED_FN = _termcolor_colored
-    return _COLORED_FN(*args, **kwargs)
+        _colored_fn_cache = _termcolor_colored
+    return str(_colored_fn_cache(*args, **kwargs))
 
 
-def _ccxt_data_class():
-    global _CCXT_DATA_CLASS
-    if _CCXT_DATA_CLASS is None:
+def _ccxt_data_class() -> type[Any]:
+    global _ccxt_data_class_cache
+    if _ccxt_data_class_cache is None:
         from lumibot.data_sources import CcxtData
 
-        _CCXT_DATA_CLASS = CcxtData
-    return _CCXT_DATA_CLASS
+        _ccxt_data_class_cache = CcxtData
+    return _ccxt_data_class_cache
 
 
 class Ccxt(Broker):
@@ -38,7 +46,14 @@ class Ccxt(Broker):
     Crypto broker using CCXT.
     """
 
-    def __init__(self, config, data_source=None, max_workers=20, chunk_size=100, **kwargs):
+    def __init__(
+        self,
+        config: dict[str, Any] | None,
+        data_source: Any | None = None,
+        max_workers: int = 20,
+        chunk_size: int = 100,
+        **kwargs: Any,
+    ) -> None:
         CcxtData = _ccxt_data_class()
         if data_source is None:
             data_source = CcxtData(config, max_workers=max_workers, chunk_size=chunk_size)
@@ -374,8 +389,7 @@ class Ccxt(Broker):
                 )
                 if net_rate_limit > 0:
                     logger.info(
-                        f"Binance all order rate limit is being exceeded, bot sleeping for "
-                        f"{net_rate_limit} seconds."
+                        f"Binance all order rate limit is being exceeded, bot sleeping for {net_rate_limit} seconds."
                     )
                     self.sleep(net_rate_limit)
             self.fetch_open_orders_last_request_time = datetime.datetime.now()
@@ -428,11 +442,11 @@ class Ccxt(Broker):
         markets_error_message = "Only `market`, `limit`, or `stop_limit` orders work with crypto currency markets."
 
         if order.order_class != order_class:
-            logger.error(f"A compound order of {order.order_class} was entered. " f"{markets_error_message}")
+            logger.error(f"A compound order of {order.order_class} was entered. {markets_error_message}")
             return
 
         if order.order_type not in order_types:
-            logger.error(f"An order type of {order.order_type} was entered which is not " f"valid. {markets_error_message}")
+            logger.error(f"An order type of {order.order_type} was entered which is not valid. {markets_error_message}")
             return
 
         # Check order within limits.
@@ -509,8 +523,9 @@ class Ccxt(Broker):
             "stop_price",
         ]:
             if hasattr(order, price_type) and getattr(order, price_type) is not None:
-                precision_price = Decimal(str(10 ** -precision["price"])
-                                          ) if self.api.exchangeId == "binance" else precision["price"]
+                precision_price = (
+                    Decimal(str(10 ** -precision["price"])) if self.api.exchangeId == "binance" else precision["price"]
+                )
                 setattr(
                     order,
                     price_type,
@@ -792,8 +807,7 @@ class Ccxt(Broker):
         for order in self._pull_broker_all_orders():
             self.api.cancel_order(order["id"], symbol=order["symbol"])
 
-    def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
-                      stop_price: Union[float, None] = None):
+    def _modify_order(self, order: Order, limit_price: float | None = None, stop_price: float | None = None):
         """
         Modify an order at the broker. Nothing will be done for orders that are already cancelled or filled. You are
         only allowed to change the limit price and/or stop price. If you want to change the quantity,
@@ -802,7 +816,7 @@ class Ccxt(Broker):
         raise NotImplementedError("CCXTBroker modify order is not implemented.")
 
     def get_historical_account_value(self):
-        logger.error("The function get_historical_account_value is not " "implemented yet for CCXT.")
+        logger.error("The function get_historical_account_value is not implemented yet for CCXT.")
         return {"hourly": None, "daily": None}
 
     def wait_for_order_registration(self, order):

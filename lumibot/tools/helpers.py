@@ -1,38 +1,50 @@
 from __future__ import annotations
+
+# pyright: reportUnknownVariableType=false, reportUnknownMemberType=false, reportUnknownArgumentType=false
+# pyright: reportUnknownParameterType=false, reportMissingParameterType=false, reportMissingTypeArgument=false
+# pyright: reportMissingTypeStubs=false, reportInvalidTypeForm=false, reportIncompatibleMethodOverride=false
+# pyright: reportArgumentType=false, reportUnusedFunction=false, reportUnnecessaryIsInstance=false
+import datetime as dt
 import hashlib
 import os
 import re
 import sys
 import time
 import weakref
+from collections.abc import MutableSequence, Sequence
+from decimal import ROUND_HALF_EVEN, Decimal
 from functools import lru_cache
-from decimal import Decimal, ROUND_HALF_EVEN
 from importlib import import_module
 from types import ModuleType
+from typing import Any, TextIO, TypeAlias, TypeVar, cast
 
 import pytz
-import datetime as dt
-
 from termcolor import colored
 
 LUMIBOT_DEFAULT_TIMEZONE = "America/New_York"
 LUMIBOT_DEFAULT_PYTZ = pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE)
+PandasDataFrame: TypeAlias = Any  # noqa: UP040
+PandasDatetimeIndex: TypeAlias = Any  # noqa: UP040
+_T = TypeVar("_T")
 
 
 class _LazyModule(ModuleType):
-    def __init__(self, module_name: str):
+    _module_name: str
+    _module: ModuleType | None
+
+    def __init__(self, module_name: str) -> None:
         super().__init__(module_name)
         self._module_name = module_name
         self._module = None
 
-    def _load(self):
+    def _load(self) -> ModuleType:
         module = self._module
         if module is None:
             module = import_module(self._module_name)
             self._module = module
         return module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
 
@@ -40,27 +52,27 @@ pd = _LazyModule("pandas")
 
 
 class _PandasMarketCalendarsProxy:
-    def _module(self):
+    def _module(self) -> Any:
         import pandas_market_calendars as _mcal
 
         return _mcal
 
     @property
-    def __version__(self):
+    def __version__(self) -> str:
         return getattr(self._module(), "__version__", "unknown")
 
-    def get_calendar(self, *args, **kwargs):
+    def get_calendar(self, *args: Any, **kwargs: Any) -> Any:
         return self._module().get_calendar(*args, **kwargs)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._module(), name)
 
 
 mcal = _PandasMarketCalendarsProxy()
-_TWENTY_FOUR_SEVEN_CALENDAR_CLASS = None
+_twenty_four_seven_calendar_class_cache: type[Any] | None = None
 
 
-def __getattr__(name):
+def __getattr__(name: str) -> Any:
     if name == "MarketCalendar":
         from pandas_market_calendars.market_calendar import MarketCalendar
 
@@ -69,6 +81,7 @@ def __getattr__(name):
     if name == "TwentyFourSevenCalendar":
         return _twenty_four_seven_calendar_class()
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 # ============================================================================
 # PERFORMANCE CACHES - Critical for backtesting performance
@@ -85,17 +98,17 @@ def __getattr__(name):
 # Key: (market, year, tz_str)
 # Slice cache (best-effort; primarily avoids repeated `.loc[]` slicing for identical windows).
 # Key: (market, start_date_str, end_date_str, tz_str)
-_TRADING_CALENDAR_CACHE = {}
+_TRADING_CALENDAR_CACHE: dict[tuple[str, str, str, str], PandasDataFrame] = {}
 _TRADING_CALENDAR_DISK_CACHE_VERSION = "v1"
 
 # Progress bar throttling: when BACKTESTING_QUIET_LOGS=false we print progress as newline-separated
 # lines. For fast simulations this can spam thousands of lines in a single second and drown out
 # strategy logs. Throttle to at most ~1 line/second per (output, prefix) when not in quiet mode.
-_PROGRESS_LAST_PRINT: "weakref.WeakKeyDictionary[object, dict[str, tuple[float, str]]]" = weakref.WeakKeyDictionary()
+_PROGRESS_LAST_PRINT: weakref.WeakKeyDictionary[object, dict[str, tuple[float, str]]] = weakref.WeakKeyDictionary()
 _PROGRESS_LAST_PRINT_FALLBACK: dict[tuple[int, str], tuple[float, str]] = {}
 
 
-def _format_datetime_to_tz(dtm, tzinfo: pytz.BaseTzInfo):
+def _format_datetime_to_tz(dtm: Any, tzinfo: pytz.BaseTzInfo) -> Any:
     if pd.isna(dtm):
         return dtm
     ts = pd.Timestamp(dtm)
@@ -116,7 +129,7 @@ def _get_trading_days_cache_dir() -> str | None:
     return os.path.join(home, ".cache", "lumibot", "trading_days")
 
 
-def _get_trading_days_disk_cache_path(market: str, start_day, end_day, tz_name: str) -> str | None:
+def _get_trading_days_disk_cache_path(market: str, start_day: Any, end_day: Any, tz_name: str) -> str | None:
     cache_dir = _get_trading_days_cache_dir()
     if not cache_dir:
         return None
@@ -136,7 +149,7 @@ def _get_trading_days_disk_cache_path(market: str, start_day, end_day, tz_name: 
     return os.path.join(cache_dir, f"{digest}.pkl")
 
 
-def _normalize_schedule_index(schedule: pd.DataFrame, tzinfo: pytz.BaseTzInfo) -> pd.DataFrame:
+def _normalize_schedule_index(schedule: PandasDataFrame, tzinfo: pytz.BaseTzInfo) -> PandasDataFrame:
     idx = schedule.index
     if isinstance(idx, pd.DatetimeIndex):
         schedule.index = idx.tz_localize(tzinfo) if idx.tz is None else idx.tz_convert(tzinfo)
@@ -151,7 +164,7 @@ def _normalize_schedule_index(schedule: pd.DataFrame, tzinfo: pytz.BaseTzInfo) -
 
 
 @lru_cache(maxsize=256)
-def _get_trading_schedule_for_year(market: str, year: int, tz_name: str) -> pd.DataFrame:
+def _get_trading_schedule_for_year(market: str, year: int, tz_name: str) -> PandasDataFrame:
     """Return a cached trading schedule for a full calendar year.
 
     NOTE: This function is intentionally module-scoped and `lru_cache`'d (thread-safe) to
@@ -166,25 +179,23 @@ def _get_trading_schedule_for_year(market: str, year: int, tz_name: str) -> pd.D
     else:
         cal = mcal.get_calendar(market)
 
-    schedule = cal.schedule(start_date=year_start, end_date=year_end, tz=tzinfo)
+    schedule = cal.schedule(start_date=year_start, end_date=year_end, tz=tz_name)
     return _normalize_schedule_index(schedule, tzinfo)
 
 
-def get_chunks(l, chunk_size):
-    chunks = []
-    for i in range(0, len(l), chunk_size):
-        chunks.append(l[i: i + chunk_size])
+def get_chunks(items: Sequence[_T], chunk_size: int) -> list[Sequence[_T]]:  # noqa: UP047
+    chunks: list[Sequence[_T]] = []
+    for i in range(0, len(items), chunk_size):
+        chunks.append(items[i : i + chunk_size])
     return chunks
 
 
-def deduplicate_sequence(seq, key=""):
-    seen = set()
+def deduplicate_sequence(seq: MutableSequence[_T], key: str = "") -> MutableSequence[_T]:  # noqa: UP047
+    seen: set[Any] = set()
     pos = 0
 
-    if key:
-        get_ref = lambda item: getattr(item, key)
-    else:
-        get_ref = lambda item: item
+    def get_ref(item: _T) -> Any:
+        return getattr(item, key) if key else item
 
     for item in seq:
         ref = get_ref(item)
@@ -196,10 +207,10 @@ def deduplicate_sequence(seq, key=""):
     return seq
 
 
-def _twenty_four_seven_calendar_class():
-    global _TWENTY_FOUR_SEVEN_CALENDAR_CLASS
-    if _TWENTY_FOUR_SEVEN_CALENDAR_CLASS is not None:
-        return _TWENTY_FOUR_SEVEN_CALENDAR_CLASS
+def _twenty_four_seven_calendar_class() -> type[Any]:
+    global _twenty_four_seven_calendar_class_cache
+    if _twenty_four_seven_calendar_class_cache is not None:
+        return _twenty_four_seven_calendar_class_cache
 
     from pandas_market_calendars.market_calendar import MarketCalendar
 
@@ -210,54 +221,65 @@ def _twenty_four_seven_calendar_class():
         """
 
         regular_market_times = {
-            'market_open': [(None, dt.time(0, 0))],
-            'market_close': [(None, dt.time(23, 59, 59, 999999))],
+            "market_open": [(None, dt.time(0, 0))],
+            "market_close": [(None, dt.time(23, 59, 59, 999999))],
         }
 
-        def __init__(self, tzinfo: str | pytz.BaseTzInfo = 'UTC'):
+        def __init__(self, tzinfo: str | pytz.BaseTzInfo = "UTC") -> None:
             self._tzinfo = pytz.timezone(tzinfo) if isinstance(tzinfo, str) else tzinfo
             super().__init__()
 
         @property
-        def name(self):
+        def name(self) -> str:
             return "24/7"
 
         @property
-        def tz(self):
+        def tz(self) -> pytz.BaseTzInfo:
             return self._tzinfo
 
         @property
-        def open_time_default(self):
+        def open_time_default(self) -> dt.time:
             return dt.time(0, 0)
 
         @property
-        def close_time_default(self):
+        def close_time_default(self) -> dt.time:
             return dt.time(23, 59)
 
         @property
-        def regular_holidays(self):
+        def regular_holidays(self) -> list[Any]:
             return []
 
         @property
-        def special_closes(self):
+        def special_closes(self) -> list[Any]:
             return []
 
         @property
-        def special_closes_adherence(self):
+        def special_closes_adherence(self) -> list[Any]:
             return []
 
         @property
-        def special_opens(self):
+        def special_opens(self) -> list[Any]:
             return []
 
         @property
-        def special_opens_adherence(self):
+        def special_opens_adherence(self) -> list[Any]:
             return []
 
-        def valid_days(self, start_date, end_date, tz=None):
-            return pd.date_range(start=start_date, end=end_date, freq='D', tz=tz or self._tzinfo)
+        def valid_days(self, start_date: Any, end_date: Any, tz: Any = None) -> PandasDatetimeIndex:
+            return pd.date_range(start=start_date, end=end_date, freq="D", tz=tz or self._tzinfo)
 
-        def schedule(self, start_date, end_date, tz=None):
+        def schedule(
+            self,
+            start_date: Any,
+            end_date: Any,
+            tz: Any = None,
+            start: str = "market_open",
+            end: str = "market_close",
+            force_special_times: bool = True,
+            market_times: Any | None = None,
+            interruptions: bool = False,
+        ) -> PandasDataFrame:
+            del start, end, force_special_times, market_times, interruptions
             tzinfo = tz or self._tzinfo
             idx = self.valid_days(start_date, end_date, tz=tzinfo)
             return pd.DataFrame(
@@ -268,17 +290,17 @@ def _twenty_four_seven_calendar_class():
                 index=idx,
             )
 
-    _TWENTY_FOUR_SEVEN_CALENDAR_CLASS = TwentyFourSevenCalendar
+    _twenty_four_seven_calendar_class_cache = TwentyFourSevenCalendar
     globals()["TwentyFourSevenCalendar"] = TwentyFourSevenCalendar
     return TwentyFourSevenCalendar
 
 
 def get_trading_days(
-        market="NYSE",
-        start_date="1950-01-01",
-        end_date=None,
-        tzinfo: pytz.tzinfo = pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE)
-) -> pd.DataFrame:
+    market: str = "NYSE",
+    start_date: Any = "1950-01-01",
+    end_date: Any | None = None,
+    tzinfo: Any | None = None,
+) -> PandasDataFrame:
     """
     Gets a schedule of trading days and corresponding market open/close times
     for a specified market between given start and end dates, including proper
@@ -304,47 +326,31 @@ def get_trading_days(
             columns for 'market_open' and 'market_close', adjusted to the
             specified timezone.
     """
+    if tzinfo is None:
+        tzinfo = pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE)
     if not isinstance(tzinfo, pytz.BaseTzInfo):
-        raise TypeError('tzinfo must be a pytz.tzinfo object.')
+        raise TypeError("tzinfo must be a pytz.tzinfo object.")
 
     # More robust datetime conversion with explicit timezone handling
-    def format_datetime(dtm):
-        """
-        Convert dtm to a timezone-aware Python datetime in tzinfo.
-
-        Handles inputs that may be:
-        - tz-naive (localize to tzinfo)
-        - tz-aware (convert to tzinfo)
-        - pandas Timestamp or Python datetime
-        - NaT/None (returned as-is)
-        """
-        if pd.isna(dtm):
-            return dtm
-        ts = pd.Timestamp(dtm)
-        if ts.tz is None:
-            ts = ts.tz_localize(tzinfo)
-        else:
-            ts = ts.tz_convert(tzinfo)
-        return ts.to_pydatetime()
-    def ensure_tz_aware(dtm, tzinfo):
+    def ensure_tz_aware(dtm: Any, timezone_info: pytz.BaseTzInfo) -> Any:
         dtm = pd.to_datetime(dtm)
-        return dtm.tz_convert(tzinfo) if dtm.tz is not None else dtm.tz_localize(tzinfo)
+        return dtm.tz_convert(timezone_info) if dtm.tz is not None else dtm.tz_localize(timezone_info)
 
-    start_date = ensure_tz_aware(start_date, tzinfo)
+    start_dt = ensure_tz_aware(start_date, tzinfo)
     if end_date is not None:
-        end_date = ensure_tz_aware(end_date, tzinfo)
+        end_dt = ensure_tz_aware(end_date, tzinfo)
     else:
-        end_date = ensure_tz_aware(get_lumibot_datetime(), tzinfo)
+        end_dt = ensure_tz_aware(get_lumibot_datetime(), tzinfo)
 
     # Normalize to date-only boundaries, but ensure tz-awareness to match schedule index
     try:
-        start_day = pd.Timestamp(start_date.date(), tz=tzinfo)
+        start_day = pd.Timestamp(start_dt.date(), tz=tzinfo)
     except Exception:
-        start_day = pd.Timestamp(pd.to_datetime(start_date).date(), tz=tzinfo)
+        start_day = pd.Timestamp(pd.to_datetime(start_dt).date(), tz=tzinfo)
     try:
-        end_day_exclusive = pd.Timestamp(end_date.date(), tz=tzinfo)
+        end_day_exclusive = pd.Timestamp(end_dt.date(), tz=tzinfo)
     except Exception:
-        end_day_exclusive = pd.Timestamp(pd.to_datetime(end_date).date(), tz=tzinfo)
+        end_day_exclusive = pd.Timestamp(pd.to_datetime(end_dt).date(), tz=tzinfo)
 
     # Make end_date exclusive by moving it one day earlier.
     schedule_end_day = end_day_exclusive - pd.Timedelta(days=1)
@@ -352,12 +358,7 @@ def get_trading_days(
         return pd.DataFrame(columns=["market_open", "market_close"])
 
     # Create cache key from market, dates, and timezone
-    cache_key = (
-        market,
-        str(start_date.date()),
-        str(end_date.date()),
-        str(tzinfo)
-    )
+    cache_key = (market, str(start_dt.date()), str(end_dt.date()), str(tzinfo))
 
     # Check cache first
     if cache_key in _TRADING_CALENDAR_CACHE:
@@ -383,7 +384,7 @@ def get_trading_days(
         else:
             cal = mcal.get_calendar(market)
 
-        days = cal.schedule(start_date=start_day, end_date=schedule_end_day, tz=tzinfo)
+        days = cal.schedule(start_date=start_day, end_date=schedule_end_day, tz=tz_name)
         days = _normalize_schedule_index(days, tzinfo)
         _TRADING_CALENDAR_CACHE[cache_key] = days.copy()
         if disk_cache_path:
@@ -394,7 +395,7 @@ def get_trading_days(
                 pass
         return days
 
-    year_schedules = []
+    year_schedules: list[PandasDataFrame] = []
     for year in range(start_year, end_year + 1):
         year_schedules.append(_get_trading_schedule_for_year(market, int(year), tz_name))
 
@@ -413,10 +414,7 @@ def get_trading_days(
     return days
 
 
-def get_trading_times(
-        pcal: pd.DataFrame,
-        timestep: str = 'day'
-) -> pd.DatetimeIndex:
+def get_trading_times(pcal: PandasDataFrame, timestep: str = "day") -> PandasDatetimeIndex:
     """
     Generate a DatetimeIndex of trading times based on market calendar and timestep
 
@@ -432,25 +430,25 @@ def get_trading_times(
     pd.DatetimeIndex : Index of all trading times
     """
 
-    if timestep.lower() not in ['day', 'minute']:
+    if timestep.lower() not in ["day", "minute"]:
         raise ValueError("timestep must be 'day' or 'minute'")
 
-    if timestep.lower() == 'day':
-        dates = pd.DatetimeIndex(pcal['market_open'])
+    if timestep.lower() == "day":
+        dates = pd.DatetimeIndex(pcal["market_open"])
         return dates
 
     # For minute bars, we need to generate minutes between open and close
-    trading_minutes = []
+    trading_minutes: list[Any] = []
 
     for _, row in pcal.iterrows():
-        start = row['market_open']
-        end = row['market_close']
+        start = row["market_open"]
+        end = row["market_close"]
 
         # Check if it's a 24/7 market by checking if close time is 23:59
         is_24_7 = end.hour == 23 and end.minute == 59
 
         # Generate minute bars between open and close
-        minutes = pd.date_range(start=start, end=end, freq='min')
+        minutes = pd.date_range(start=start, end=end, freq="min")
 
         # Only remove the last minute for non-24/7 markets
         if not is_24_7:
@@ -461,11 +459,7 @@ def get_trading_times(
     return pd.DatetimeIndex(trading_minutes)
 
 
-def date_n_trading_days_from_date(
-        n_days: int,
-        start_datetime: dt.datetime,
-        market: str = "NYSE"
-) -> dt.date:
+def date_n_trading_days_from_date(n_days: int, start_datetime: dt.datetime, market: str = "NYSE") -> dt.date:
     """
     Get the trading date n_days from start_datetime.
     Positive n_days means going backwards in time (earlier dates).
@@ -518,13 +512,13 @@ def date_n_trading_days_from_date(
     # Determine reference index position based on session DATE (schedule index)
     session_idx = pd.DatetimeIndex(sched.index)
     # Build target date matching index tz-awareness
-    if getattr(session_idx, 'tz', None) is None:
+    if getattr(session_idx, "tz", None) is None:
         target_date_val = pd.Timestamp(start_datetime.astimezone(tzinfo).date())
     else:
         target_date_val = pd.Timestamp(start_datetime.astimezone(tzinfo).date(), tz=tzinfo)
 
     # Equivalent to bfill on dates: find first session with date >= target date
-    pos = session_idx.searchsorted(target_date_val, side='left')
+    pos = session_idx.searchsorted(target_date_val, side="left")
     if pos >= len(session_idx):
         pos = len(session_idx) - 1
 
@@ -544,11 +538,11 @@ def date_n_trading_days_from_date(
             return start_datetime.date()
         session_idx = pd.DatetimeIndex(sched.index)
         # Match tz-awareness again on retry
-        if getattr(session_idx, 'tz', None) is None:
+        if getattr(session_idx, "tz", None) is None:
             retry_target = pd.Timestamp(start_datetime.astimezone(tzinfo).date())
         else:
             retry_target = pd.Timestamp(start_datetime.astimezone(tzinfo).date(), tz=tzinfo)
-        pos = session_idx.searchsorted(retry_target, side='left')
+        pos = session_idx.searchsorted(retry_target, side="left")
         if pos >= len(session_idx):
             pos = len(session_idx) - 1
         target_index = pos - n_days
@@ -562,11 +556,7 @@ def date_n_trading_days_from_date(
     return session_date
 
 
-
-def is_market_open(
-        dtm: dt.datetime,
-        market: str = "NYSE"
-) -> bool:
+def is_market_open(dtm: dt.datetime, market: str = "NYSE") -> bool:
     """
     Checks if the market is open at a given timezone-aware datetime.
 
@@ -584,11 +574,7 @@ def is_market_open(
         return False
 
     try:
-        schedule = cal.schedule(
-            start_date=dtm - dt.timedelta(days=1),
-            end_date=dtm,
-            tz=dtm.tzinfo
-        )
+        schedule = cal.schedule(start_date=dtm - dt.timedelta(days=1), end_date=dtm, tz=dtm.tzinfo)
     except Exception as e:
         print(e)
         return False
@@ -599,51 +585,56 @@ def is_market_open(
         return False
     except Exception as e:
         print(e)
+        return False
 
 
 class ComparaisonMixin:
     COMPARAISON_PROP = "timestamp"
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return getattr(self, self.COMPARAISON_PROP) == getattr(other, self.COMPARAISON_PROP)
 
-    def __ne__(self, other):
+    def __ne__(self, other: object) -> bool:
         return getattr(self, self.COMPARAISON_PROP) != getattr(other, self.COMPARAISON_PROP)
 
-    def __gt__(self, other):
+    def __gt__(self, other: object) -> bool:
         return getattr(self, self.COMPARAISON_PROP) > getattr(other, self.COMPARAISON_PROP)
 
-    def __ge__(self, other):
+    def __ge__(self, other: object) -> bool:
         return getattr(self, self.COMPARAISON_PROP) >= getattr(other, self.COMPARAISON_PROP)
 
-    def __lt__(self, other):
+    def __lt__(self, other: object) -> bool:
         return getattr(self, self.COMPARAISON_PROP) < getattr(other, self.COMPARAISON_PROP)
 
-    def __le__(self, other):
-        return getattr(self, self.COMPARAISON_PROP) >= getattr(other, self.COMPARAISON_PROP)
+    def __le__(self, other: object) -> bool:
+        return getattr(self, self.COMPARAISON_PROP) <= getattr(other, self.COMPARAISON_PROP)
 
 
 def print_progress_bar(
-    value,
-    start_value,
-    end_value,
-    backtesting_started,
-    file=sys.stdout,
-    length=None,
-    prefix="Progress",
-    suffix="",
-    decimals=2,
-    fill=chr(9608),
-    cash=None,
-    portfolio_value=None,
-    eta_override=None,
-):
+    value: Any,
+    start_value: float,
+    end_value: float,
+    backtesting_started: dt.datetime,
+    file: TextIO = sys.stdout,
+    length: int | None = None,
+    prefix: str = "Progress",
+    suffix: str = "",
+    decimals: int = 2,
+    fill: str | None = None,
+    cash: float | None = None,
+    portfolio_value: float | None = None,
+    eta_override: dt.timedelta | None = None,
+) -> None:
+    del cash
+    if fill is None:
+        fill = chr(9608)
+
     # Progress bar should ALWAYS show, even with quiet logs
     # This is the ONLY output users want to see during quiet backtesting
     total_length = end_value - start_value
     current_length = value - start_value
     percent = min((current_length / total_length) * 100, 100)
-    percent_str = ("  {:.%df}" % decimals).format(percent)
+    percent_str = f"{percent:.{decimals}f}"
     percent_str = percent_str[-decimals - 4 :]
 
     # Check if quiet logs mode is enabled.
@@ -691,7 +682,7 @@ def print_progress_bar(
 
     # Make the simulation datetime string (value is the current backtest datetime)
     sim_date_str = ""
-    if hasattr(value, 'strftime'):
+    if hasattr(value, "strftime"):
         sim_date_str = f"| Sim Time: {value.strftime('%Y-%m-%d %H:%M')}"
 
     # Make the portfolio value string
@@ -704,9 +695,11 @@ def print_progress_bar(
         try:
             terminal_length, _ = os.get_terminal_size()
             # Calculate space needed for all components
-            fixed_chars = len(prefix) + len(suffix) + decimals + len(eta_str) + len(portfolio_value_str) + len(sim_date_str) + 20
+            fixed_chars = (
+                len(prefix) + len(suffix) + decimals + len(eta_str) + len(portfolio_value_str) + len(sim_date_str) + 20
+            )
             length = max(10, terminal_length - fixed_chars)
-        except:
+        except Exception:
             length = 30  # Default bar length if terminal size unavailable
 
     filled_length = int(length * percent / 100)
@@ -724,30 +717,35 @@ def print_progress_bar(
     file.flush()
 
 
-def get_lumibot_datetime():
+def get_lumibot_datetime() -> dt.datetime:
     return dt.datetime.now().astimezone(LUMIBOT_DEFAULT_PYTZ)
 
 
-def to_datetime_aware(dt_in):
+def to_datetime_aware(dt_in: Any) -> Any:
     """Convert naive time to datetime aware on default timezone."""
     if not dt_in:
         return dt_in
-    elif isinstance(dt_in, dt.datetime) and (dt_in.tzinfo is None):
-        return LUMIBOT_DEFAULT_PYTZ.localize(dt_in)
-    elif isinstance(dt_in, dt.datetime) and (dt_in.tzinfo.utcoffset(dt_in) is None):
-        # TODO: This will fail because an exception is thrown if tzinfo is not None.
-        return LUMIBOT_DEFAULT_PYTZ.localize(dt_in)
+    elif isinstance(dt_in, dt.datetime):
+        tzinfo = dt_in.tzinfo
+        if tzinfo is None or tzinfo.utcoffset(dt_in) is None:
+            return LUMIBOT_DEFAULT_PYTZ.localize(dt_in)
+        return dt_in
     else:
         return dt_in
 
 
-def parse_symbol(symbol):
+def parse_symbol(symbol: object) -> dict[str, Any]:
     from lumibot.tools.symbol_parser import parse_symbol as _parse_symbol
 
     return _parse_symbol(symbol)
 
 
-def create_options_symbol(stock_symbol, expiration_date, option_type, strike_price):
+def create_options_symbol(
+    stock_symbol: str,
+    expiration_date: str | dt.date | dt.datetime,
+    option_type: str,
+    strike_price: float,
+) -> str:
     """
     Create an option symbol string from its components.
 
@@ -811,7 +809,7 @@ def _parse_timestep_qty_and_unit_cached(timestep_str: str) -> tuple[int, str]:
     return quantity, canonical_unit
 
 
-def parse_timestep_qty_and_unit(timestep):
+def parse_timestep_qty_and_unit(timestep: Any) -> tuple[int, str]:
     """
     Parse the timestep string and return the quantity and unit.
 
@@ -828,11 +826,11 @@ def parse_timestep_qty_and_unit(timestep):
     return _parse_timestep_qty_and_unit_cached(str(timestep or ""))
 
 
-def get_decimals(number):
-    return len(str(number).split('.')[-1]) if '.' in str(number) else 0
+def get_decimals(number: Any) -> int:
+    return len(str(number).split(".")[-1]) if "." in str(number) else 0
 
 
-def quantize_to_num_decimals(num: float, num_decimals: int) -> float:
+def quantize_to_num_decimals(num: float | Decimal, num_decimals: int) -> float:
     if isinstance(num, Decimal):
         num = num
     elif isinstance(num, float):
@@ -841,7 +839,7 @@ def quantize_to_num_decimals(num: float, num_decimals: int) -> float:
         raise ValueError(f"{num} is not a Decimal or float")
 
     # Create the proper decimal format (e.g., '0.01' for 2 decimals)
-    decimal_format = Decimal('0.' + '0' * num_decimals)
+    decimal_format = Decimal("0." + "0" * num_decimals)
 
     # quantize num using ROUND_HALF_EVEN
     quantized_num = num.quantize(decimal_format, rounding=ROUND_HALF_EVEN)
@@ -855,15 +853,15 @@ def has_more_than_n_decimal_places(number: float, n: int) -> bool:
     number_str = str(number)
 
     # Split the string at the decimal point
-    if '.' in number_str:
-        decimal_part = number_str.split('.')[1]
+    if "." in number_str:
+        decimal_part = number_str.split(".")[1]
         # Check if the length of the decimal part is greater than n
         return len(decimal_part) > n
     else:
         return False
 
 
-def get_timezone_from_datetime(dtm: dt.datetime) -> pytz.timezone:
+def get_timezone_from_datetime(dtm: dt.datetime) -> pytz.BaseTzInfo:
     """Convert datetime's timezone to pytz.timezone, handling both pytz and zoneinfo cases"""
     if dtm.tzinfo is None:
         return LUMIBOT_DEFAULT_PYTZ
@@ -875,10 +873,10 @@ def get_timezone_from_datetime(dtm: dt.datetime) -> pytz.timezone:
     # Try different ways to get timezone name
     try:
         # Try key or zone attribute (works for both zoneinfo and pytz)
-        if hasattr(dtm.tzinfo, 'key'):
-            return pytz.timezone(dtm.tzinfo.key)
-        elif hasattr(dtm.tzinfo, 'zone'):
-            return pytz.timezone(dtm.tzinfo.zone)
+        if hasattr(dtm.tzinfo, "key"):
+            return pytz.timezone(cast(Any, dtm.tzinfo).key)
+        elif hasattr(dtm.tzinfo, "zone"):
+            return pytz.timezone(cast(Any, dtm.tzinfo).zone)
         # Try getting string representation (fallback)
         timezone_name = str(dtm.tzinfo)
         return pytz.timezone(timezone_name)

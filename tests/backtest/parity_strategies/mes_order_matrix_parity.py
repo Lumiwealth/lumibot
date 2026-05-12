@@ -99,7 +99,9 @@ class MesOrderMatrixParity(Strategy):
         # Phase 0: Market long entry
         if self.vars.phase == 0:
             self.vars.phase_started_at = now
-            self._submit(self.create_order(self.future, Decimal("1"), Order.OrderSide.BUY, order_type=Order.OrderType.MARKET))
+            self._submit(
+                self.create_order(self.future, Decimal("1"), Order.OrderSide.BUY, order_type=Order.OrderType.MARKET)
+            )
             self.vars.phase += 1
             return
 
@@ -168,7 +170,9 @@ class MesOrderMatrixParity(Strategy):
         # Phase 5: Short entry
         if self.vars.phase == 5 and qty == 0:
             self.vars.phase_started_at = now
-            self._submit(self.create_order(self.future, Decimal("1"), Order.OrderSide.SELL, order_type=Order.OrderType.MARKET))
+            self._submit(
+                self.create_order(self.future, Decimal("1"), Order.OrderSide.SELL, order_type=Order.OrderType.MARKET)
+            )
             self.vars.phase += 1
             return
 
@@ -200,4 +204,3 @@ class MesOrderMatrixParity(Strategy):
                 )
             )
             return
-

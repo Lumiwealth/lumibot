@@ -1,17 +1,22 @@
-import logging
-import os
-import pytest
-import math
 import datetime as dt
+import logging
+import math
+import os
 from datetime import timedelta
-import pytz
 from unittest.mock import MagicMock
 
-from lumibot.data_sources import AlpacaData, DataSource
-from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
-from lumibot.entities import Asset, Quote
-from lumibot.tools import get_trading_days, is_market_open
+import pytest
+import pytz
+
 from lumibot.credentials import ALPACA_TEST_CONFIG
+from lumibot.data_sources import AlpacaData, DataSource
+from lumibot.entities import Asset, Quote
+from lumibot.tools import (
+    get_trading_days,
+    is_market_open,
+    print_full_pandas_dataframes,
+    set_pandas_float_display_precision,
+)
 from tests.fixtures import BaseDataSourceTester
 
 logger = logging.getLogger(__name__)
@@ -20,24 +25,21 @@ set_pandas_float_display_precision()
 
 pytestmark = pytest.mark.apitest
 
-if not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>':
+if not ALPACA_TEST_CONFIG["API_KEY"] or ALPACA_TEST_CONFIG["API_KEY"] == "<your key here>":
     pytest.skip("These tests requires an Alpaca API key", allow_module_level=True)
 
 
 # @pytest.mark.skip()
 class TestAlpacaData(BaseDataSourceTester):
-
     def _create_data_source(self, tzinfo: pytz.tzinfo = None, remove_incomplete_current_bar=False) -> DataSource:
         return AlpacaData(
-            config=ALPACA_TEST_CONFIG,
-            tzinfo=tzinfo,
-            remove_incomplete_current_bar=remove_incomplete_current_bar
+            config=ALPACA_TEST_CONFIG, tzinfo=tzinfo, remove_incomplete_current_bar=remove_incomplete_current_bar
         )
 
     def test_get_last_price_crypto(self):
         data_source = self._create_data_source()
-        asset = Asset('BTC', asset_type='crypto')
-        quote_asset = Asset('USD', asset_type='forex')
+        asset = Asset("BTC", asset_type="crypto")
+        quote_asset = Asset("USD", asset_type="forex")
         self.check_get_last_price(data_source, asset, quote_asset)
         # test tuple
         asset_tuple = (asset, quote_asset)
@@ -45,8 +47,8 @@ class TestAlpacaData(BaseDataSourceTester):
 
     def test_get_last_price_stock(self):
         data_source = self._create_data_source()
-        asset = Asset('SPY', asset_type='stock')
-        quote_asset = Asset('USD', asset_type='forex')
+        asset = Asset("SPY", asset_type="stock")
+        quote_asset = Asset("USD", asset_type="forex")
         self.check_get_last_price(data_source, asset, quote_asset)
         # test tuple
         asset_tuple = (asset, quote_asset)
@@ -55,46 +57,34 @@ class TestAlpacaData(BaseDataSourceTester):
     def test_get_historical_prices_daily_bars_stock(self):
         data_source = self._create_data_source()
         asset = Asset("SPY")
-        quote_asset = Asset('USD', asset_type='forex')
+        quote_asset = Asset("USD", asset_type="forex")
         timestep = "day"
-        market = 'NYSE'
+        market = "NYSE"
         now = dt.datetime.now(data_source.tzinfo)
 
         for length in [1, 30]:
             bars = data_source.get_historical_prices(
-                asset=asset,
-                length=length,
-                timestep=timestep,
-                quote=quote_asset,
-                include_after_hours=True
+                asset=asset, length=length, timestep=timestep, quote=quote_asset, include_after_hours=True
             )
 
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
             self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_daily_bars(
-                bars=bars,
-                now=now,
-                data_source_tz=data_source.tzinfo,
-                time_check=dt.time(0,0),
-                market=market
+                bars=bars, now=now, data_source_tz=data_source.tzinfo, time_check=dt.time(0, 0), market=market
             )
 
     def test_get_historical_prices_daily_bars_stock_remove_incomplete_current_bar(self):
         data_source = self._create_data_source(remove_incomplete_current_bar=True)
         asset = Asset("SPY")
-        quote_asset = Asset('USD', asset_type='forex')
+        quote_asset = Asset("USD", asset_type="forex")
         timestep = "day"
-        market = 'NYSE'
+        market = "NYSE"
         now = dt.datetime.now(data_source.tzinfo)
 
         for length in [1, 30]:
             bars = data_source.get_historical_prices(
-                asset=asset,
-                length=length,
-                timestep=timestep,
-                quote=quote_asset,
-                include_after_hours=True
+                asset=asset, length=length, timestep=timestep, quote=quote_asset, include_after_hours=True
             )
 
             self.check_length(bars=bars, length=length)
@@ -104,46 +94,39 @@ class TestAlpacaData(BaseDataSourceTester):
                 bars=bars,
                 now=now,
                 data_source_tz=data_source.tzinfo,
-                time_check=dt.time(0,0),
+                time_check=dt.time(0, 0),
                 market=market,
-                remove_incomplete_current_bar=True
+                remove_incomplete_current_bar=True,
             )
 
     def test_get_historical_prices_daily_bars_stock_tuple(self):
         data_source = self._create_data_source()
         asset = Asset("SPY")
-        quote_asset = Asset('USD', asset_type='forex')
+        quote_asset = Asset("USD", asset_type="forex")
         timestep = "day"
-        market = 'NYSE'
+        market = "NYSE"
         now = dt.datetime.now(data_source.tzinfo)
 
         asset_tuple = (asset, quote_asset)
 
         for length in [1, 30]:
             bars = data_source.get_historical_prices(
-                asset=asset_tuple,
-                length=length,
-                timestep=timestep,
-                include_after_hours=True
+                asset=asset_tuple, length=length, timestep=timestep, include_after_hours=True
             )
 
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
             self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_daily_bars(
-                bars=bars,
-                now=now,
-                data_source_tz=data_source.tzinfo,
-                time_check=dt.time(0,0),
-                market=market
+                bars=bars, now=now, data_source_tz=data_source.tzinfo, time_check=dt.time(0, 0), market=market
             )
-
 
     def test_get_historical_prices_daily_bars_stock_split_adjusted(self):
         """Test that when get_historical_prices is called, it uses adjustment=Adjustment.ALL for stock bars."""
-        from unittest.mock import patch, Mock
-        from alpaca.data.enums import Adjustment
+        from unittest.mock import Mock
+
         import pandas as pd
+        from alpaca.data.enums import Adjustment
 
         # Create a data source with auto_adjust=True to ensure it uses Adjustment.ALL
         data_source = self._create_data_source(remove_incomplete_current_bar=True)
@@ -161,6 +144,7 @@ class TestAlpacaData(BaseDataSourceTester):
 
         # Store the original StockBarsRequest class
         import alpaca.data.requests
+
         original_stock_bars_request = alpaca.data.requests.StockBarsRequest
 
         # Replace StockBarsRequest with our test class
@@ -179,8 +163,8 @@ class TestAlpacaData(BaseDataSourceTester):
         data_source._get_stock_client = lambda: mock_client
 
         # Create test parameters
-        asset = Asset('UGL', asset_type='stock')
-        quote_asset = Asset('USD', asset_type='forex')
+        asset = Asset("UGL", asset_type="stock")
+        quote_asset = Asset("USD", asset_type="forex")
         timestep = "day"
         length = 10
 
@@ -211,8 +195,10 @@ class TestAlpacaData(BaseDataSourceTester):
             assert request_instance is not None, "No StockBarsRequest was created"
 
             # Verify that the request has the adjustment parameter set to Adjustment.ALL
-            assert hasattr(request_instance, 'adjustment'), "StockBarsRequest does not have an adjustment attribute"
-            assert request_instance.adjustment == Adjustment.ALL, f"Expected adjustment to be Adjustment.ALL, but got {request_instance.adjustment}"
+            assert hasattr(request_instance, "adjustment"), "StockBarsRequest does not have an adjustment attribute"
+            assert request_instance.adjustment == Adjustment.ALL, (
+                f"Expected adjustment to be Adjustment.ALL, but got {request_instance.adjustment}"
+            )
 
         finally:
             # Restore the original classes and methods
@@ -223,19 +209,15 @@ class TestAlpacaData(BaseDataSourceTester):
     @pytest.mark.xfail(reason="need to handle github timezone")
     def test_get_historical_prices_daily_bars_crypto(self):
         data_source = self._create_data_source()
-        asset = Asset('BTC', asset_type='crypto')
-        quote_asset = Asset('USD', asset_type='forex')
+        asset = Asset("BTC", asset_type="crypto")
+        quote_asset = Asset("USD", asset_type="forex")
         timestep = "day"
-        market = '24/7'
+        market = "24/7"
         now = dt.datetime.now(data_source.tzinfo)
 
         for length in [1, 30]:
             bars = data_source.get_historical_prices(
-                asset=asset,
-                length=length,
-                timestep=timestep,
-                quote=quote_asset,
-                include_after_hours=True
+                asset=asset, length=length, timestep=timestep, quote=quote_asset, include_after_hours=True
             )
 
             self.check_length(bars=bars, length=length)
@@ -245,29 +227,25 @@ class TestAlpacaData(BaseDataSourceTester):
                 bars=bars,
                 now=now,
                 data_source_tz=data_source.tzinfo,
-
                 # default crypto timezone is America/Chicago
-                time_check=dt.time(1,0),
-                market=market
+                time_check=dt.time(1, 0),
+                market=market,
             )
 
     @pytest.mark.xfail(reason="need to handle github timezone")
     def test_get_historical_prices_daily_bars_crypto_tuple(self):
         data_source = self._create_data_source()
-        asset = Asset('BTC', asset_type='crypto')
-        quote_asset = Asset('USD', asset_type='forex')
+        asset = Asset("BTC", asset_type="crypto")
+        quote_asset = Asset("USD", asset_type="forex")
         timestep = "day"
-        market = '24/7'
+        market = "24/7"
         now = dt.datetime.now(data_source.tzinfo)
 
         asset_tuple = (asset, quote_asset)
 
         for length in [1, 30]:
             bars = data_source.get_historical_prices(
-                asset=asset_tuple,
-                length=length,
-                timestep=timestep,
-                include_after_hours=True
+                asset=asset_tuple, length=length, timestep=timestep, include_after_hours=True
             )
 
             self.check_length(bars=bars, length=length)
@@ -277,48 +255,39 @@ class TestAlpacaData(BaseDataSourceTester):
                 bars=bars,
                 now=now,
                 data_source_tz=data_source.tzinfo,
-
                 # default crypto timezone is America/Chicago
-                time_check=dt.time(1 ,0),
-                market=market
+                time_check=dt.time(1, 0),
+                market=market,
             )
 
     @pytest.mark.xfail(reason="crypto timestamp precision varies between environments")
     def test_get_historical_prices_daily_bars_crypto_utc(self):
-        tzinfo = pytz.timezone('UTC')
+        tzinfo = pytz.timezone("UTC")
         data_source = self._create_data_source(tzinfo=tzinfo)
-        asset = Asset('BTC', asset_type='crypto')
-        quote_asset = Asset('USD', asset_type='forex')
+        asset = Asset("BTC", asset_type="crypto")
+        quote_asset = Asset("USD", asset_type="forex")
         timestep = "day"
-        market = '24/7'
+        market = "24/7"
         now = dt.datetime.now(data_source.tzinfo)
 
         for length in [1, 30]:
             bars = data_source.get_historical_prices(
-                asset=asset,
-                length=length,
-                timestep=timestep,
-                quote=quote_asset,
-                include_after_hours=True
+                asset=asset, length=length, timestep=timestep, quote=quote_asset, include_after_hours=True
             )
 
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
             self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
             self.check_daily_bars(
-                bars=bars,
-                now=now,
-                data_source_tz=data_source.tzinfo,
-                time_check=dt.time(0, 0),
-                market=market
+                bars=bars, now=now, data_source_tz=data_source.tzinfo, time_check=dt.time(0, 0), market=market
             )
 
     def test_get_historical_prices_minute_bars_stock_regular_hours(self):
         data_source = self._create_data_source()
-        asset = Asset('SPY', asset_type='stock')
-        quote_asset = Asset('USD', asset_type='forex')
+        asset = Asset("SPY", asset_type="stock")
+        quote_asset = Asset("USD", asset_type="forex")
         timestep = "minute"
-        market = 'NYSE'
+        market = "NYSE"
         now = dt.datetime.now(data_source.tzinfo)
 
         for length in [1, 30]:
@@ -340,21 +309,16 @@ class TestAlpacaData(BaseDataSourceTester):
             )
 
     def test_get_historical_prices_minute_bars_crypto_utc(self):
-        tzinfo = pytz.timezone('UTC')
+        tzinfo = pytz.timezone("UTC")
         data_source = self._create_data_source(tzinfo=tzinfo)
-        asset = Asset('BTC', asset_type='crypto')
-        quote_asset = Asset('USD', asset_type='forex')
+        asset = Asset("BTC", asset_type="crypto")
+        quote_asset = Asset("USD", asset_type="forex")
         timestep = "minute"
-        market = '24/7'
+        market = "24/7"
         now = dt.datetime.now(data_source.tzinfo)
 
         for length in [1, 30]:
-            bars = data_source.get_historical_prices(
-                asset=asset,
-                length=length,
-                timestep=timestep,
-                quote=quote_asset
-            )
+            bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep, quote=quote_asset)
             self.check_length(bars=bars, length=length)
             self.check_columns(bars=bars)
             self.check_index(bars=bars, data_source_tz=data_source.tzinfo)
@@ -367,22 +331,22 @@ class TestAlpacaData(BaseDataSourceTester):
 
     def test_get_historical_option_prices(self):
         length = 30
-        ticker = 'SPY'
+        ticker = "SPY"
         asset = Asset("SPY")
         timestep = "day"
         data_source = self._create_data_source()
-        now = dt.datetime.now(data_source.tzinfo)
+        dt.datetime.now(data_source.tzinfo)
 
         # Get a 0dte option
         # calculate the last calendar day before today
         trading_days = get_trading_days(
-            start_date=(dt.datetime.now() - dt.timedelta(days=5)).strftime('%Y-%m-%d'),
-            end_date=(dt.datetime.now() - dt.timedelta(days=1)).strftime('%Y-%m-%d')
+            start_date=(dt.datetime.now() - dt.timedelta(days=5)).strftime("%Y-%m-%d"),
+            end_date=(dt.datetime.now() - dt.timedelta(days=1)).strftime("%Y-%m-%d"),
         )
         dte = trading_days.index[-1]
 
         spy_price = data_source.get_last_price(asset=asset)
-        o_asset = Asset(ticker, Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price), right='CALL')
+        o_asset = Asset(ticker, Asset.AssetType.OPTION, expiration=dte, strike=math.floor(spy_price), right="CALL")
 
         bars = data_source.get_historical_prices(asset=o_asset, length=length, timestep=timestep)
         assert len(bars.df) > 0
@@ -390,19 +354,21 @@ class TestAlpacaData(BaseDataSourceTester):
     def check_quote_data(self, quote_data):
         """Helper method to check quote data structure"""
         from lumibot.entities import Quote
+
         assert quote_data is not None
         assert isinstance(quote_data, Quote)
-        assert hasattr(quote_data, 'bid') and quote_data.bid is not None
-        assert hasattr(quote_data, 'ask') and quote_data.ask is not None
-        assert hasattr(quote_data, 'price') and quote_data.price is not None
-        assert hasattr(quote_data, 'asset')
+        assert hasattr(quote_data, "bid") and quote_data.bid is not None
+        assert hasattr(quote_data, "ask") and quote_data.ask is not None
+        assert hasattr(quote_data, "price") and quote_data.price is not None
+        assert hasattr(quote_data, "asset")
 
     def test_get_quote_stock(self):
         """Test get_quote for stock assets"""
-        if not is_market_open(dt.datetime.now()): return
+        if not is_market_open(dt.datetime.now()):
+            return
         data_source = self._create_data_source()
-        asset = Asset('SPY', asset_type='stock')
-        quote_asset = Asset('USD', asset_type='forex')
+        asset = Asset("SPY", asset_type="stock")
+        quote_asset = Asset("USD", asset_type="forex")
 
         quote_data = data_source.get_quote(asset, quote_asset)
         self.check_quote_data(quote_data)
@@ -410,8 +376,8 @@ class TestAlpacaData(BaseDataSourceTester):
     def test_get_quote_crypto(self):
         """Test get_quote for crypto assets"""
         data_source = self._create_data_source()
-        asset = Asset('BTC', asset_type='crypto')
-        quote_asset = Asset('USD', asset_type='forex')
+        asset = Asset("BTC", asset_type="crypto")
+        quote_asset = Asset("USD", asset_type="forex")
 
         quote_data = data_source.get_quote(asset, quote_asset)
         self.check_quote_data(quote_data)
@@ -421,7 +387,7 @@ class TestAlpacaData(BaseDataSourceTester):
         from lumibot.entities import Quote
 
         data_source = self._create_data_source()
-        asset = Asset('SPY', asset_type='stock')
+        asset = Asset("SPY", asset_type="stock")
 
         # Create a mock for the quote object
         mock_quote = MagicMock()
@@ -460,7 +426,7 @@ class TestAlpacaData(BaseDataSourceTester):
         from lumibot.entities import Quote
 
         data_source = self._create_data_source()
-        asset = Asset('SPY', asset_type='stock')
+        asset = Asset("SPY", asset_type="stock")
 
         # Create a mock for the quote object
         mock_quote = MagicMock()
@@ -499,18 +465,13 @@ class TestAlpacaData(BaseDataSourceTester):
         from lumibot.entities import Quote
 
         data_source = self._create_data_source()
-        asset = Asset('SPY', asset_type='stock')
+        asset = Asset("SPY", asset_type="stock")
 
         # Store the original method
         original_get_quote = data_source.get_quote
 
         # Create a mock Quote object
-        mock_quote = Quote(
-            asset=asset,
-            price=None,
-            bid=0.0,
-            ask=100.0
-        )
+        mock_quote = Quote(asset=asset, price=None, bid=0.0, ask=100.0)
 
         # Replace the get_quote method temporarily
         data_source.get_quote = lambda a, q=None, e=None: mock_quote if a.symbol == asset.symbol else None
@@ -532,7 +493,7 @@ class TestAlpacaData(BaseDataSourceTester):
         from lumibot.entities import Quote
 
         data_source = self._create_data_source()
-        asset = Asset('SPY', asset_type='stock')
+        asset = Asset("SPY", asset_type="stock")
 
         # Store the original method
         original_get_quote = data_source.get_quote
@@ -542,7 +503,7 @@ class TestAlpacaData(BaseDataSourceTester):
             asset=asset,
             price=None,
             bid=100.0,  # Some non-zero value for bid
-            ask=0.0
+            ask=0.0,
         )
 
         # Replace the get_quote method temporarily
@@ -565,18 +526,13 @@ class TestAlpacaData(BaseDataSourceTester):
         from lumibot.entities import Quote
 
         data_source = self._create_data_source()
-        asset = Asset('SPY', asset_type='stock')
+        asset = Asset("SPY", asset_type="stock")
 
         # Store the original method
         original_get_quote = data_source.get_quote
 
         # Create a mock Quote object
-        mock_quote = Quote(
-            asset=asset,
-            price=100.5,
-            bid=100.0,
-            ask=101.0
-        )
+        mock_quote = Quote(asset=asset, price=100.5, bid=100.0, ask=101.0)
 
         # Replace the get_quote method temporarily
         data_source.get_quote = lambda a, q=None, e=None: mock_quote if a.symbol == asset.symbol else None
@@ -595,7 +551,7 @@ class TestAlpacaData(BaseDataSourceTester):
     def test_get_quote_when_stock_bid_and_ask(self):
         """Test get_quote when stock ask and ask"""
         data_source = self._create_data_source()
-        asset = Asset('SPY', asset_type='stock')
+        asset = Asset("SPY", asset_type="stock")
 
         # Create a mock for the quote object
         mock_quote = MagicMock()
@@ -632,23 +588,17 @@ class TestAlpacaData(BaseDataSourceTester):
 
     def test_oauth_data_source_initialization(self):
         """Test that AlpacaData can be initialized with OAuth token only."""
-        oauth_config = {
-            "OAUTH_TOKEN": "test_oauth_token_alpaca_data",
-            "PAPER": True
-        }
+        oauth_config = {"OAUTH_TOKEN": "test_oauth_token_alpaca_data", "PAPER": True}
 
         data_source = AlpacaData(oauth_config)
         assert data_source.oauth_token == "test_oauth_token_alpaca_data"
         assert data_source.api_key is None
         assert data_source.api_secret is None
-        assert data_source.is_paper == True
+        assert data_source.is_paper
 
     def test_oauth_client_initialization(self):
         """Test that OAuth clients are properly initialized."""
-        oauth_config = {
-            "OAUTH_TOKEN": "test_oauth_token_clients",
-            "PAPER": True
-        }
+        oauth_config = {"OAUTH_TOKEN": "test_oauth_token_clients", "PAPER": True}
 
         data_source = AlpacaData(oauth_config)
 
@@ -670,7 +620,7 @@ class TestAlpacaData(BaseDataSourceTester):
             "OAUTH_TOKEN": "should_not_be_used",
             "API_KEY": "priority_api_key",
             "API_SECRET": "priority_api_secret",
-            "PAPER": True
+            "PAPER": True,
         }
 
         data_source = AlpacaData(mixed_config)
@@ -684,7 +634,7 @@ class TestAlpacaData(BaseDataSourceTester):
             "OAUTH_TOKEN": "",  # Empty OAuth token
             "API_KEY": "fallback_key",
             "API_SECRET": "fallback_secret",
-            "PAPER": True
+            "PAPER": True,
         }
 
         data_source = AlpacaData(fallback_config)
@@ -698,7 +648,7 @@ class TestAlpacaData(BaseDataSourceTester):
             "OAUTH_TOKEN": None,  # None OAuth token
             "API_KEY": "fallback_key_none",
             "API_SECRET": "fallback_secret_none",
-            "PAPER": True
+            "PAPER": True,
         }
 
         data_source = AlpacaData(fallback_config)
@@ -708,19 +658,14 @@ class TestAlpacaData(BaseDataSourceTester):
 
     def test_oauth_no_credentials_error(self):
         """Test error when no authentication credentials provided."""
-        empty_config = {
-            "PAPER": True
-        }
+        empty_config = {"PAPER": True}
 
         with pytest.raises(ValueError, match="Either OAuth token or API key/secret must be provided"):
             AlpacaData(empty_config)
 
     def test_oauth_missing_api_secret_error(self):
         """Test error when API key provided but secret is missing."""
-        incomplete_config = {
-            "API_KEY": "key_without_secret",
-            "PAPER": True
-        }
+        incomplete_config = {"API_KEY": "key_without_secret", "PAPER": True}
 
         with pytest.raises(ValueError, match="API_SECRET not found in config when API_KEY is provided"):
             AlpacaData(incomplete_config)
@@ -739,7 +684,9 @@ class TestAlpacaData(BaseDataSourceTester):
             data_source = self._create_data_source()
 
             # Check that the delay is 16 minutes
-            assert data_source._delay == timedelta(minutes=16), f"Expected delay to be 16 minutes, but got {data_source._delay}"
+            assert data_source._delay == timedelta(minutes=16), (
+                f"Expected delay to be 16 minutes, but got {data_source._delay}"
+            )
 
         finally:
             # Restore the original environment variable value
@@ -762,8 +709,9 @@ class TestAlpacaData(BaseDataSourceTester):
             data_source = self._create_data_source()
 
             # Check that the delay matches the environment variable value
-            assert data_source._delay == timedelta(minutes=int(test_delay)), \
+            assert data_source._delay == timedelta(minutes=int(test_delay)), (
                 f"Expected delay to be {test_delay} minutes, but got {data_source._delay}"
+            )
 
         finally:
             # Restore the original environment variable value

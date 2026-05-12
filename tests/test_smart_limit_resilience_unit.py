@@ -4,8 +4,6 @@ from dataclasses import dataclass
 from datetime import date
 from types import SimpleNamespace
 
-import pytest
-
 from lumibot.entities import Asset, Order, SmartLimitConfig, SmartLimitPreset
 from lumibot.strategies.strategy import Strategy
 from lumibot.strategies.strategy_executor import StrategyExecutor
@@ -207,7 +205,9 @@ def test_multileg_cancel_replace_submit_failure_is_swallowed(mocker):
 def test_multileg_cross_even_to_debit_replaces_with_debit_price(mocker):
     broker = _BrokerStub(name="tradier")
     broker.cancel_order = mocker.Mock()
-    broker.submit_orders = mocker.Mock(return_value=[Order("unit", asset=Asset("SPY"), quantity=1, side=Order.OrderSide.BUY)])
+    broker.submit_orders = mocker.Mock(
+        return_value=[Order("unit", asset=Asset("SPY"), quantity=1, side=Order.OrderSide.BUY)]
+    )
     broker.modify_order = mocker.Mock()
 
     tracked: list[Order] = []
@@ -260,4 +260,3 @@ def test_multileg_cross_even_to_debit_replaces_with_debit_price(mocker):
     _, kwargs = broker.submit_orders.call_args
     assert kwargs["order_type"] == "debit"
     assert abs(float(kwargs["price"]) - 0.05) < 1e-9
-

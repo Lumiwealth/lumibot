@@ -3,8 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from types import SimpleNamespace
 
-import pytest
-
 from lumibot.entities import Asset, Order, SmartLimitConfig, SmartLimitPreset
 from lumibot.strategies.strategy import Strategy
 from lumibot.strategies.strategy_executor import StrategyExecutor

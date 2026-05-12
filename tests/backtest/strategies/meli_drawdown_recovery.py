@@ -1,18 +1,17 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from lumibot.strategies.strategy import Strategy
-from lumibot.traders import Trader
-from lumibot.entities import Asset, Order, TradingFee
+import math
+
 from lumibot.backtesting import YahooDataBacktesting
 from lumibot.credentials import IS_BACKTESTING
-
-from datetime import timedelta
-import math
+from lumibot.entities import Asset, Order, TradingFee
+from lumibot.strategies.strategy import Strategy
+from lumibot.traders import Trader
 
 """
 Strategy Description
@@ -22,15 +21,16 @@ Drawdown-Recovery Strategy for MELI (MercadoLibre)
 This code was generated based on the user prompt: 'Buy the MELI stock every time it has a drawdown of 25% or more and sell it when it recovers by 40% or more.'
 """
 
+
 class MELIDrawdownRecovery(Strategy):
     # User-tunable parameters kept here for convenience
     parameters = {
-        "symbol": "MELI",                 # The stock to trade
-        "drawdown_threshold": 0.25,        # Buy when price is down 25% or more from peak
-        "recovery_threshold": 0.40,        # Sell when price is up 40% or more from the lowest price seen while in position
-        "allocation_pct": 0.99,            # Use 99% of available cash for each buy to avoid cash rounding issues
-        "history_days_for_peak": 756,      # About 3 years of daily data to seed an initial peak
-        "sleeptime": "1D"                  # Run once per trading day
+        "symbol": "MELI",  # The stock to trade
+        "drawdown_threshold": 0.25,  # Buy when price is down 25% or more from peak
+        "recovery_threshold": 0.40,  # Sell when price is up 40% or more from the lowest price seen while in position
+        "allocation_pct": 0.99,  # Use 99% of available cash for each buy to avoid cash rounding issues
+        "history_days_for_peak": 756,  # About 3 years of daily data to seed an initial peak
+        "sleeptime": "1D",  # Run once per trading day
     }
 
     def initialize(self):
@@ -39,10 +39,10 @@ class MELIDrawdownRecovery(Strategy):
 
         # Persistent state stored in self.vars (safe across restarts/iterations)
         # These are easy-to-understand state variables used by traders
-        self.vars.in_position = False            # Are we currently holding MELI?
-        self.vars.peak_price = None              # Highest observed price used to measure drawdown (while in cash)
-        self.vars.dd_low_price = None            # Lowest price seen since entry (used to measure recovery)
-        self.vars.initialized_peak = False       # Track whether we've seeded peak from history
+        self.vars.in_position = False  # Are we currently holding MELI?
+        self.vars.peak_price = None  # Highest observed price used to measure drawdown (while in cash)
+        self.vars.dd_low_price = None  # Lowest price seen since entry (used to measure recovery)
+        self.vars.initialized_peak = False  # Track whether we've seeded peak from history
 
         # Friendly label for logs
         self.vars.strategy_label = "MELI Drawdown-Recovery"
@@ -123,7 +123,7 @@ class MELIDrawdownRecovery(Strategy):
 
             self.log_message(
                 f"Mode: CASH | Last: {last_price:.2f}, Peak: {peak_to_plot:.2f}, Drawdown: {drawdown:.2%}",
-                color="white"
+                color="white",
             )
 
             # If drawdown meets or exceeds threshold, buy using available cash
@@ -137,8 +137,7 @@ class MELIDrawdownRecovery(Strategy):
                 shares = int((cash * allocation_pct) // last_price)
                 if shares <= 0:
                     self.log_message(
-                        f"Calculated 0 shares with cash={cash:.2f} and price={last_price:.2f}; holding.",
-                        color="yellow"
+                        f"Calculated 0 shares with cash={cash:.2f} and price={last_price:.2f}; holding.", color="yellow"
                     )
                     return
 
@@ -148,17 +147,23 @@ class MELIDrawdownRecovery(Strategy):
                     self.vars.in_position = True
                     # Initialize dd_low with current price; it may go lower after entry and will be updated
                     self.vars.dd_low_price = last_price
-                    self.add_marker("DD Buy", float(last_price), color="green", symbol="arrow-up", size=10, detail_text="Drawdown Buy")
+                    self.add_marker(
+                        "DD Buy",
+                        float(last_price),
+                        color="green",
+                        symbol="arrow-up",
+                        size=10,
+                        detail_text="Drawdown Buy",
+                    )
                     self.log_message(
                         f"BUY {shares} MELI at ~{last_price:.2f} due to drawdown {drawdown:.2%} >= {drawdown_threshold:.2%}.",
-                        color="green"
+                        color="green",
                     )
                 else:
                     self.log_message("Order submission failed; staying in cash.", color="red")
             else:
                 self.log_message(
-                    f"Drawdown {drawdown:.2%} below threshold {drawdown_threshold:.2%}; waiting in cash.",
-                    color="white"
+                    f"Drawdown {drawdown:.2%} below threshold {drawdown_threshold:.2%}; waiting in cash.", color="white"
                 )
 
         else:
@@ -181,7 +186,7 @@ class MELIDrawdownRecovery(Strategy):
 
             self.log_message(
                 f"Mode: IN POSITION | Last: {last_price:.2f}, Trough: {self.vars.dd_low_price:.2f}, Recovery: {recovery:.2%}",
-                color="white"
+                color="white",
             )
 
             # If recovery meets or exceeds the threshold, sell everything
@@ -201,10 +206,17 @@ class MELIDrawdownRecovery(Strategy):
                 submitted = self.submit_order(order)
                 if submitted is not None:
                     self.vars.in_position = False
-                    self.add_marker("Recovery Sell", float(last_price), color="red", symbol="arrow-down", size=10, detail_text="Recovery Exit")
+                    self.add_marker(
+                        "Recovery Sell",
+                        float(last_price),
+                        color="red",
+                        symbol="arrow-down",
+                        size=10,
+                        detail_text="Recovery Exit",
+                    )
                     self.log_message(
                         f"SELL {quantity} MELI at ~{last_price:.2f} due to recovery {recovery:.2%} >= {recovery_threshold:.2%}.",
-                        color="green"
+                        color="green",
                     )
 
                     # After exiting, reset trough and set a fresh peak to current price, then we will update it while in cash
@@ -215,7 +227,7 @@ class MELIDrawdownRecovery(Strategy):
             else:
                 self.log_message(
                     f"Recovery {recovery:.2%} below threshold {recovery_threshold:.2%}; holding position.",
-                    color="white"
+                    color="white",
                 )
 
 

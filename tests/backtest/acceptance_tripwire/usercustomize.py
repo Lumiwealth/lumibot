@@ -92,7 +92,7 @@ def _install_tripwire() -> None:
         # Fail-fast in the subprocess.
         #
         # Some Strategy Library demos (and occasionally framework code) use broad exception handling.
-        # Even `SystemExit` can be swallowed by a bare `except:`; use a hard process-exit so the
+        # Even `SystemExit` can be swallowed by a bare `except Exception:`; use a hard process-exit so the
         # acceptance subprocess cannot "continue with missing data" and produce misleading results.
         sys.stderr.write(message + "\n")
         try:

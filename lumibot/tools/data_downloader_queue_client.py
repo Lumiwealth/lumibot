@@ -12,6 +12,7 @@ Features:
 - Query queue position and estimated wait time
 - Local tracking of all pending requests
 """
+
 from __future__ import annotations
 
 import base64
@@ -24,35 +25,40 @@ import threading
 import time
 from dataclasses import dataclass, field
 from importlib import import_module
-from typing import Any, Dict, List, Optional, Tuple
+from types import ModuleType
+from typing import Any, TypeAlias, cast
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
 
-class _LazyModule:
-    # Why: keep hot imports fast by deferring requests until first use.
-    # Invariant: existing requests.* and requests_exceptions.* call sites must
-    # behave like module attributes forwarded through _load/__getattr__.
+JsonDict: TypeAlias = dict[str, Any]  # noqa: UP040 - keep Python 3.11 parser compatibility.
+
+
+class _LazyModule(ModuleType):
+    _module_name: str
+    _module: ModuleType | None
+
     __slots__ = ("_module_name", "_module")
 
-    def __init__(self, module_name: str):
+    def __init__(self, module_name: str) -> None:
+        super().__init__(module_name)
         object.__setattr__(self, "_module_name", module_name)
         object.__setattr__(self, "_module", None)
 
-    def _load(self):
-        module = object.__getattribute__(self, "_module")
+    def _load(self) -> ModuleType:
+        module = cast(ModuleType | None, object.__getattribute__(self, "_module"))
         if module is None:
-            module = import_module(object.__getattribute__(self, "_module_name"))
+            module = import_module(cast(str, object.__getattribute__(self, "_module_name")))
             object.__setattr__(self, "_module", module)
         return module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
 
-requests = _LazyModule("requests")
-requests_exceptions = _LazyModule("requests.exceptions")
+requests: Any = _LazyModule("requests")
+requests_exceptions: Any = _LazyModule("requests.exceptions")
 
 # Lightweight, non-secret telemetry for backtest audit/debugging.
 #
@@ -64,7 +70,7 @@ requests_exceptions = _LazyModule("requests.exceptions")
 # IMPORTANT: This must never include secret values (API keys). Query params are safe to record
 # as key names only.
 _TELEMETRY_LOCK = threading.Lock()
-_TELEMETRY: Dict[str, Any] = {
+_TELEMETRY: dict[str, Any] = {
     "requests_total": 0,
     "submit_requests": 0,
     "status_requests": 0,
@@ -90,7 +96,7 @@ _SENSITIVE_PARAM_SUBSTRINGS = (
 _MAX_PARAM_VALUE_LEN = 200
 
 
-def _sanitize_query_params(query_params: Dict[str, Any]) -> Dict[str, Any]:
+def _sanitize_query_params(query_params: dict[str, Any]) -> dict[str, Any]:
     """Return a JSON-safe, non-secret snapshot of query param values.
 
     Notes:
@@ -98,7 +104,7 @@ def _sanitize_query_params(query_params: Dict[str, Any]) -> Dict[str, Any]:
       secret based on the param name.
     - Values are truncated to keep settings.json small and avoid CI log spam.
     """
-    safe: Dict[str, Any] = {}
+    safe: dict[str, Any] = {}
     for key, value in (query_params or {}).items():
         key_str = str(key)
         lowered = key_str.lower()
@@ -119,7 +125,51 @@ def _sanitize_query_params(query_params: Dict[str, Any]) -> Dict[str, Any]:
     return safe
 
 
-def _record_telemetry(kind: str, path: str, query_params: Optional[Dict[str, Any]] = None) -> None:
+def _json_dict(response: Any) -> JsonDict:
+    parsed = response.json()
+    if isinstance(parsed, dict):
+        return cast(JsonDict, parsed)
+    return {}
+
+
+def _str_value(value: Any, default: str = "") -> str:
+    if value is None:
+        return default
+    return str(value)
+
+
+def _int_or_none(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _int_value(value: Any, default: int = 0) -> int:
+    parsed = _int_or_none(value)
+    return default if parsed is None else parsed
+
+
+def _float_or_none(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _payload_size(payload: Any | None) -> int:
+    if isinstance(payload, list):
+        return len(cast(list[Any], payload))
+    if isinstance(payload, dict):
+        return len(cast(dict[Any, Any], payload))
+    return 0
+
+
+def _record_telemetry(kind: str, path: str, query_params: dict[str, Any] | None = None) -> None:
     with _TELEMETRY_LOCK:
         _TELEMETRY["requests_total"] = int(_TELEMETRY.get("requests_total") or 0) + 1
         key = f"{kind}_requests"
@@ -134,10 +184,11 @@ def _record_telemetry(kind: str, path: str, query_params: Optional[Dict[str, Any
                 _TELEMETRY["first_request_params"] = _sanitize_query_params(query_params)
 
 
-def queue_telemetry_snapshot() -> Dict[str, Any]:
+def queue_telemetry_snapshot() -> dict[str, Any]:
     """Return a copy of current queue client telemetry (numbers only; safe for settings/logs)."""
     with _TELEMETRY_LOCK:
         return dict(_TELEMETRY)
+
 
 # Configuration from environment
 # Queue mode is ALWAYS enabled: all provider requests (Theta/IBKR/etc.) go through the Data Downloader.
@@ -158,6 +209,7 @@ QUEUE_SUBMIT_MAX_WAIT = float(os.environ.get("THETADATA_QUEUE_SUBMIT_MAX_WAIT", 
 QUEUE_SUBMIT_BACKOFF_BASE = float(os.environ.get("THETADATA_QUEUE_SUBMIT_BACKOFF_BASE", "0.5"))
 QUEUE_SUBMIT_BACKOFF_MAX = float(os.environ.get("THETADATA_QUEUE_SUBMIT_BACKOFF_MAX", "30"))
 QUEUE_SUBMIT_BACKOFF_JITTER_PCT = float(os.environ.get("THETADATA_QUEUE_SUBMIT_BACKOFF_JITTER_PCT", "0.1"))
+
 
 def _normalize_downloader_base_url(base_url: str) -> str:
     """Normalize the downloader base URL.
@@ -207,18 +259,19 @@ def _redact_downloader_base_url_for_logs(base_url: str) -> str:
 @dataclass
 class QueuedRequestInfo:
     """Information about a request in the queue."""
+
     request_id: str
     correlation_id: str
     path: str
     status: str  # pending, processing, completed, failed, dead
-    queue_position: Optional[int] = None
-    estimated_wait: Optional[float] = None
+    queue_position: int | None = None
+    estimated_wait: float | None = None
     attempts: int = 0
     created_at: float = field(default_factory=time.time)
     last_checked: float = field(default_factory=time.time)
-    result: Optional[Any] = None
-    result_status_code: Optional[int] = None
-    error: Optional[str] = None
+    result: Any | None = None
+    result_status_code: int | None = None
+    error: str | None = None
 
 
 class QueueClient:
@@ -242,7 +295,7 @@ class QueueClient:
         poll_interval: float = QUEUE_POLL_INTERVAL,
         timeout: float = QUEUE_TIMEOUT,
         max_concurrent: int = MAX_CONCURRENT_REQUESTS,
-        client_id: Optional[str] = None,
+        client_id: str | None = None,
     ) -> None:
         """Initialize the queue client.
 
@@ -270,7 +323,7 @@ class QueueClient:
         self._session_generation = 0
         self._session_generation_lock = threading.Lock()
         self._last_session_reset_log = 0.0
-        self._last_status_refresh_error: Optional[str] = None
+        self._last_status_refresh_error: str | None = None
         self._last_status_refresh_error_time = 0.0
         self._status_refresh_error_streak = 0
 
@@ -280,11 +333,11 @@ class QueueClient:
         self._in_flight_lock = threading.Lock()
 
         # Local tracking of pending requests
-        self._pending_requests: Dict[str, QueuedRequestInfo] = {}  # correlation_id -> info
-        self._request_id_to_correlation: Dict[str, str] = {}  # request_id -> correlation_id
+        self._pending_requests: dict[str, QueuedRequestInfo] = {}  # correlation_id -> info
+        self._request_id_to_correlation: dict[str, str] = {}  # request_id -> correlation_id
         self._lock = threading.RLock()
 
-    def _build_session(self) -> requests.Session:
+    def _build_session(self) -> Any:
         session = requests.Session()
         adapter = requests.adapters.HTTPAdapter(
             pool_connections=max(10, self.max_concurrent),
@@ -295,7 +348,7 @@ class QueueClient:
         session.mount("https://", adapter)
         return session
 
-    def _get_session(self) -> requests.Session:
+    def _get_session(self) -> Any:
         session = getattr(self._session_local, "session", None)
         generation = getattr(self._session_local, "generation", None)
         if session is None or generation != self._session_generation:
@@ -315,7 +368,7 @@ class QueueClient:
         self,
         method: str,
         path: str,
-        query_params: Dict[str, Any],
+        query_params: dict[str, Any],
     ) -> str:
         """Build a deterministic correlation ID for idempotency."""
         sorted_params = sorted(query_params.items())
@@ -337,7 +390,7 @@ class QueueClient:
                 return False
             return info.status in ("pending", "processing")
 
-    def get_request_info(self, correlation_id: str) -> Optional[QueuedRequestInfo]:
+    def get_request_info(self, correlation_id: str) -> QueuedRequestInfo | None:
         """Get information about a request by correlation ID.
 
         Args:
@@ -349,17 +402,14 @@ class QueueClient:
         with self._lock:
             return self._pending_requests.get(correlation_id)
 
-    def get_pending_requests(self) -> List[QueuedRequestInfo]:
+    def get_pending_requests(self) -> list[QueuedRequestInfo]:
         """Get all currently pending requests.
 
         Returns:
             List of QueuedRequestInfo for pending/processing requests
         """
         with self._lock:
-            return [
-                info for info in self._pending_requests.values()
-                if info.status in ("pending", "processing")
-            ]
+            return [info for info in self._pending_requests.values() if info.status in ("pending", "processing")]
 
     def get_in_flight_count(self) -> int:
         """Get the number of requests currently in flight.
@@ -370,7 +420,7 @@ class QueueClient:
         with self._in_flight_lock:
             return self._in_flight_count
 
-    def get_queue_stats(self) -> Dict[str, Any]:
+    def get_queue_stats(self) -> dict[str, Any]:
         """Get statistics about the local request tracking.
 
         Returns:
@@ -393,7 +443,7 @@ class QueueClient:
                 "oldest_pending": min((i.created_at for i in pending), default=None),
             }
 
-    def fetch_server_queue_stats(self) -> Dict[str, Any]:
+    def fetch_server_queue_stats(self) -> dict[str, Any]:
         """Fetch queue statistics from the server.
 
         Returns:
@@ -407,7 +457,7 @@ class QueueClient:
                 timeout=(QUEUE_CONNECT_HTTP_TIMEOUT, QUEUE_STATUS_HTTP_TIMEOUT),
             )
             resp.raise_for_status()
-            return resp.json()
+            return _json_dict(resp)
         except Exception as exc:
             logger.warning("Failed to fetch server queue stats: %s", exc)
             return {"error": str(exc)}
@@ -416,11 +466,11 @@ class QueueClient:
         self,
         method: str,
         path: str,
-        query_params: Dict[str, Any],
-        headers: Optional[Dict[str, str]] = None,
-        body: Optional[bytes] = None,
-        correlation_id_override: Optional[str] = None,
-    ) -> Tuple[str, str, bool]:
+        query_params: dict[str, Any],
+        headers: dict[str, str] | None = None,
+        body: bytes | None = None,
+        correlation_id_override: str | None = None,
+    ) -> tuple[str, str, bool]:
         """Check if request exists in queue, submit if not.
 
         This is the primary method to use - it checks if the request is already
@@ -473,12 +523,12 @@ class QueueClient:
         base_delay: float,
         max_delay: float,
         jitter_pct: float,
-        retry_after: Optional[Any] = None,
+        retry_after: Any | None = None,
     ) -> float:
         """Compute exponential backoff delay with jitter and optional retry-after."""
         delay = min(max_delay, base_delay * (2 ** max(0, attempt - 1)))
 
-        retry_after_s: Optional[float] = None
+        retry_after_s: float | None = None
         if retry_after is not None:
             try:
                 retry_after_s = float(retry_after)
@@ -497,11 +547,11 @@ class QueueClient:
         self,
         method: str,
         path: str,
-        query_params: Dict[str, Any],
-        headers: Optional[Dict[str, str]],
-        body: Optional[bytes],
+        query_params: dict[str, Any],
+        headers: dict[str, str] | None,
+        body: bytes | None,
         correlation_id: str,
-    ) -> Tuple[str, str]:
+    ) -> tuple[str, str]:
         """Submit a new request to the queue."""
         body_encoded = None
         if body:
@@ -520,7 +570,7 @@ class QueueClient:
 
         start_time = time.time()
         attempt = 0
-        last_error: Optional[BaseException] = None
+        last_error: BaseException | None = None
 
         while True:
             attempt += 1
@@ -560,11 +610,9 @@ class QueueClient:
                 time.sleep(delay)
                 continue
 
-            data: Optional[Dict[str, Any]] = None
+            data: dict[str, Any] | None = None
             try:
-                parsed = resp.json()
-                if isinstance(parsed, dict):
-                    data = parsed
+                data = _json_dict(resp)
             except Exception:
                 data = None
 
@@ -615,9 +663,9 @@ class QueueClient:
             if not data:
                 raise ValueError(f"Downloader submit response was not JSON: {resp.text[:200]}")
 
-            request_id = data["request_id"]
-            status = data["status"]
-            queue_position = data.get("queue_position")
+            request_id = _str_value(data["request_id"])
+            status = _str_value(data["status"], "pending")
+            queue_position = _int_or_none(data.get("queue_position"))
             break
 
         # Track locally
@@ -662,7 +710,7 @@ class QueueClient:
             pass
         return request_id, status
 
-    def _refresh_status(self, request_id: str) -> Optional[QueuedRequestInfo]:
+    def _refresh_status(self, request_id: str) -> QueuedRequestInfo | None:
         """Refresh status of a request from the server."""
         try:
             _record_telemetry("status", f"/queue/status/{request_id}")
@@ -681,17 +729,17 @@ class QueueClient:
                 return None
 
             resp.raise_for_status()
-            data = resp.json()
+            data = _json_dict(resp)
 
             with self._lock:
                 correlation_id = self._request_id_to_correlation.get(request_id)
                 if correlation_id and correlation_id in self._pending_requests:
                     info = self._pending_requests[correlation_id]
-                    info.status = data.get("status", info.status)
-                    info.queue_position = data.get("queue_position")
-                    info.estimated_wait = data.get("estimated_wait")
-                    info.attempts = data.get("attempts", info.attempts)
-                    info.error = data.get("last_error")
+                    info.status = _str_value(data.get("status"), info.status)
+                    info.queue_position = _int_or_none(data.get("queue_position"))
+                    info.estimated_wait = _float_or_none(data.get("estimated_wait"))
+                    info.attempts = _int_value(data.get("attempts"), info.attempts)
+                    info.error = None if data.get("last_error") is None else str(data.get("last_error"))
                     info.last_checked = time.time()
                     # Best-effort: surface queue status into the progress UI.
                     try:  # pragma: no cover - UI plumbing
@@ -721,7 +769,7 @@ class QueueClient:
             logger.debug("Failed to refresh status for %s: %s", request_id, exc)
             return None
 
-    def get_result(self, request_id: str) -> Tuple[Optional[Any], int, str]:
+    def get_result(self, request_id: str) -> tuple[Any | None, int, str]:
         """Get the result of a request."""
         try:
             _record_telemetry("result", f"/queue/{request_id}/result")
@@ -730,17 +778,17 @@ class QueueClient:
                 headers={self.api_key_header: self.api_key},
                 timeout=(QUEUE_CONNECT_HTTP_TIMEOUT, QUEUE_RESULT_HTTP_TIMEOUT),
             )
-            data = resp.json()
-            status_code = resp.status_code
+            data = _json_dict(resp)
+            status_code = int(resp.status_code)
 
             if status_code == 200:
                 return data.get("result"), status_code, "completed"
             elif status_code == 202:
-                return None, status_code, data.get("status", "processing")
+                return None, status_code, _str_value(data.get("status"), "processing")
             elif status_code == 500:
                 return None, status_code, "dead"
             else:
-                return None, status_code, data.get("status", "unknown")
+                return None, status_code, _str_value(data.get("status"), "unknown")
         except Exception as exc:
             logger.warning("Failed to get result for %s: %s", request_id, exc)
             return None, 0, "error"
@@ -748,9 +796,9 @@ class QueueClient:
     def wait_for_result(
         self,
         request_id: str,
-        timeout: Optional[float] = None,
-        poll_interval: Optional[float] = None,
-    ) -> Tuple[Optional[Any], int]:
+        timeout: float | None = None,
+        poll_interval: float | None = None,
+    ) -> tuple[Any | None, int]:
         """Wait for a request to complete.
 
         Polls the queue for status updates and returns when complete.
@@ -791,16 +839,7 @@ class QueueClient:
                     last_estimated_wait = None
 
                 raise TimeoutError(
-                    "Timed out waiting for %s after %.1fs (status=%s position=%s attempts=%s est_wait=%s error=%s)"
-                    % (
-                        request_id,
-                        elapsed,
-                        last_status,
-                        last_position,
-                        last_attempts,
-                        last_estimated_wait,
-                        last_error,
-                    )
+                    f"Timed out waiting for {request_id} after {elapsed:.1f}s (status={last_status} position={last_position} attempts={last_attempts} est_wait={last_estimated_wait} error={last_error})"
                 )
 
             # Refresh status
@@ -887,7 +926,8 @@ class QueueClient:
                     else:
                         terminal_result_error_streak = 0
                         elapsed = time.time() - start_time
-                        result_size = len(result) if isinstance(result, (list, dict)) else 0
+                        result_payload: Any | None = result
+                        result_size = _payload_size(result_payload)
                         logger.info(
                             "[DOWNLOADER][QUEUE] Received result: request_id=%s status=%s elapsed=%.1fs status_code=%d size=%d",
                             request_id,
@@ -899,9 +939,9 @@ class QueueClient:
                         with self._lock:
                             if info.correlation_id in self._pending_requests:
                                 self._pending_requests[info.correlation_id].status = status
-                                self._pending_requests[info.correlation_id].result = result
+                                self._pending_requests[info.correlation_id].result = result_payload
                                 self._pending_requests[info.correlation_id].result_status_code = status_code
-                        return result, status_code
+                        return result_payload, status_code
 
                 elif status == "dead":
                     terminal_result_error_streak = 0
@@ -932,11 +972,11 @@ class QueueClient:
         self,
         method: str,
         path: str,
-        query_params: Dict[str, Any],
-        headers: Optional[Dict[str, str]] = None,
-        body: Optional[bytes] = None,
-        timeout: Optional[float] = None,
-    ) -> Tuple[Optional[Any], int]:
+        query_params: dict[str, Any],
+        headers: dict[str, str] | None = None,
+        body: bytes | None = None,
+        timeout: float | None = None,
+    ) -> tuple[Any | None, int]:
         """Submit a request and wait for result.
 
         This is the main method - it handles:
@@ -1000,10 +1040,10 @@ class QueueClient:
                 attempt_timeout = 900.0
 
             timeout_count = 0
-            correlation_override: Optional[str] = None
+            correlation_override: str | None = None
 
             while True:
-                request_id, status, was_pending = self.check_or_submit(
+                request_id, _status, was_pending = self.check_or_submit(
                     method=method,
                     path=path,
                     query_params=query_params,
@@ -1038,9 +1078,7 @@ class QueueClient:
                     # After repeated timeouts, force a resubmit with a new correlation id so we can
                     # recover from a wedged downloader queue entry.
                     if timeout_count >= 3:
-                        correlation_override = (
-                            f"{base_correlation_id}-retry-{timeout_count}-{int(time.time())}"
-                        )
+                        correlation_override = f"{base_correlation_id}-retry-{timeout_count}-{int(time.time())}"
                         logger.warning(
                             "[DOWNLOADER][QUEUE] Request %s timed out repeatedly; forcing resubmit (attempt=%d)",
                             request_id,
@@ -1076,7 +1114,8 @@ class QueueClient:
 
         with self._lock:
             to_remove = [
-                cid for cid, info in self._pending_requests.items()
+                cid
+                for cid, info in self._pending_requests.items()
                 if info.status in ("completed", "dead") and info.last_checked < cutoff
             ]
             for cid in to_remove:
@@ -1091,11 +1130,11 @@ class QueueClient:
 
 
 # Global client instance
-_queue_client: Optional[QueueClient] = None
+_queue_client: QueueClient | None = None
 _client_lock = threading.Lock()
 
 
-def _get_default_client_id() -> Optional[str]:
+def _get_default_client_id() -> str | None:
     """Get default client_id from environment or script name.
 
     Priority:
@@ -1125,7 +1164,7 @@ def _get_default_client_id() -> Optional[str]:
     return None
 
 
-def get_queue_client(client_id: Optional[str] = None) -> QueueClient:
+def get_queue_client(client_id: str | None = None) -> QueueClient:
     """Get or create the global queue client.
 
     Queue mode is ALWAYS enabled - this is the only way to connect to ThetaData.
@@ -1192,10 +1231,10 @@ def is_queue_enabled() -> bool:
 
 def queue_request(
     url: str,
-    querystring: Optional[Dict[str, Any]],
-    headers: Optional[Dict[str, str]] = None,
-    timeout: Optional[float] = None,
-) -> Optional[Dict[str, Any]]:
+    querystring: dict[str, Any] | None,
+    headers: dict[str, str] | None = None,
+    timeout: float | None = None,
+) -> dict[str, Any] | None:
     """Submit a request via queue and wait for result.
 
     This is the ONLY way to make ThetaData requests. It handles:
@@ -1221,10 +1260,11 @@ def queue_request(
 
     # Extract path from URL
     from urllib.parse import parse_qsl, urlparse
+
     parsed = urlparse(url)
     path = parsed.path.lstrip("/")
     url_query_params = dict(parse_qsl(parsed.query, keep_blank_values=True))
-    merged_query_params: Dict[str, Any] = {}
+    merged_query_params: dict[str, Any] = {}
     merged_query_params.update(url_query_params)
     if querystring:
         merged_query_params.update(querystring)
@@ -1241,7 +1281,7 @@ def queue_request(
     if status_code == 472:
         return None  # No data
     elif status_code == 200:
-        return result
+        return cast(dict[str, Any] | None, result)
     else:
         logger.warning("Queue request returned status %d: %s", status_code, result)
-        return result
+        return cast(dict[str, Any] | None, result)

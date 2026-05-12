@@ -1,4 +1,5 @@
 import datetime
+
 import pytest
 import pytz
 from dotenv import load_dotenv
@@ -13,15 +14,13 @@ from lumibot.backtesting.databento_backtesting_pandas import (
 from lumibot.backtesting.databento_backtesting_polars import (
     DataBentoDataBacktestingPolars,
 )
-from lumibot.tools.databento_helper import DataBentoAuthenticationError
+from lumibot.credentials import DATABENTO_CONFIG
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
+from lumibot.tools.databento_helper import DataBentoAuthenticationError
 from lumibot.traders import Trader
-from lumibot.credentials import DATABENTO_CONFIG
 
 DATABENTO_API_KEY = DATABENTO_CONFIG.get("API_KEY")
-
-
 
 
 def test_databento_auth_failure_propagates(monkeypatch):
@@ -46,6 +45,7 @@ def test_databento_auth_failure_propagates(monkeypatch):
 
     with pytest.raises(DataBentoAuthenticationError):
         data_source.get_historical_prices(asset, length=1, timestep="minute")
+
 
 class SimpleContinuousFutures(Strategy):
     """Simple strategy for testing continuous futures with minute-level data"""
@@ -83,14 +83,8 @@ class TestDatabentoBacktestFull:
     # (`-m "not apitest and not downloader"`) unless explicitly enabled.
     pytestmark = pytest.mark.apitest
 
-    @pytest.mark.skipif(
-        not DATABENTO_API_KEY,
-        reason="This test requires a Databento API key"
-    )
-    @pytest.mark.skipif(
-        DATABENTO_API_KEY == '<your key here>',
-        reason="This test requires a Databento API key"
-    )
+    @pytest.mark.skipif(not DATABENTO_API_KEY, reason="This test requires a Databento API key")
+    @pytest.mark.skipif(DATABENTO_API_KEY == "<your key here>", reason="This test requires a Databento API key")
     def test_databento_continuous_futures_minute_data(self):
         """
         Test Databento with continuous futures (ES) using minute-level data.
@@ -115,12 +109,7 @@ class TestDatabentoBacktestFull:
 
         trader = Trader(logfile="", backtest=True)
         trader.add_strategy(strat_obj)
-        results = trader.run_all(
-            show_plot=False,
-            show_tearsheet=False,
-            show_indicators=False,
-            save_tearsheet=False
-        )
+        results = trader.run_all(show_plot=False, show_tearsheet=False, show_indicators=False, save_tearsheet=False)
 
         # Verify results
         assert results is not None
@@ -136,14 +125,8 @@ class TestDatabentoBacktestFull:
         for price in strat_obj.prices:
             assert price is not None and price > 0, f"Expected valid price, got {price}"
 
-    @pytest.mark.skipif(
-        not DATABENTO_API_KEY,
-        reason="This test requires a Databento API key"
-    )
-    @pytest.mark.skipif(
-        DATABENTO_API_KEY == '<your key here>',
-        reason="This test requires a Databento API key"
-    )
+    @pytest.mark.skipif(not DATABENTO_API_KEY, reason="This test requires a Databento API key")
+    @pytest.mark.skipif(DATABENTO_API_KEY == "<your key here>", reason="This test requires a Databento API key")
     def test_databento_continuous_futures_minute_data_polars(self):
         """
         Test Databento with Polars implementation - minute-level data.
@@ -168,12 +151,7 @@ class TestDatabentoBacktestFull:
 
         trader = Trader(logfile="", backtest=True)
         trader.add_strategy(strat_obj)
-        results = trader.run_all(
-            show_plot=False,
-            show_tearsheet=False,
-            show_indicators=False,
-            save_tearsheet=False
-        )
+        results = trader.run_all(show_plot=False, show_tearsheet=False, show_indicators=False, save_tearsheet=False)
 
         # Verify results
         assert results is not None
@@ -187,14 +165,8 @@ class TestDatabentoBacktestFull:
         for price in strat_obj.prices:
             assert price is not None and price > 0, f"Expected valid price, got {price}"
 
-    @pytest.mark.skipif(
-        not DATABENTO_API_KEY,
-        reason="This test requires a Databento API key"
-    )
-    @pytest.mark.skipif(
-        DATABENTO_API_KEY == '<your key here>',
-        reason="This test requires a Databento API key"
-    )
+    @pytest.mark.skipif(not DATABENTO_API_KEY, reason="This test requires a Databento API key")
+    @pytest.mark.skipif(DATABENTO_API_KEY == "<your key here>", reason="This test requires a Databento API key")
     def test_databento_daily_continuous_futures(self):
         """
         Test Databento with continuous futures using daily data over a longer period.
@@ -227,15 +199,9 @@ class TestDatabentoBacktestFull:
         trader = Trader(logfile="", backtest=True)
         trader.add_strategy(strat_obj)
 
-        results = trader.run_all(
-            show_plot=False,
-            show_tearsheet=False,
-            show_indicators=False,
-            save_tearsheet=False
-        )
+        results = trader.run_all(show_plot=False, show_tearsheet=False, show_indicators=False, save_tearsheet=False)
 
         # Verify results
         assert results is not None
         # Should have around 88 trading days
-        assert strat_obj.broker.datetime == backtesting_end or \
-               (backtesting_end - strat_obj.broker.datetime).days <= 1
+        assert strat_obj.broker.datetime == backtesting_end or (backtesting_end - strat_obj.broker.datetime).days <= 1

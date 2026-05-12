@@ -1,11 +1,14 @@
-from _thread import RLock as rlock_type
+from __future__ import annotations
 
+from _thread import RLock as rlock_type
+from collections.abc import Iterable, Iterator
+from typing import Any
 
 _MISSING = object()
 
 
 class SafeList:
-    def __init__(self, lock, initial=None):
+    def __init__(self, lock: Any | None, initial: Iterable[Any] | None = None) -> None:
         # PERF: backtesting is single-threaded; allow `lock=None` to skip lock overhead.
         if lock is not None and not isinstance(lock, rlock_type):
             raise ValueError("lock must be a threading.RLock")
@@ -13,48 +16,48 @@ class SafeList:
         if initial is None:
             initial = []
         self.__lock = lock
-        self.__items = list(initial)
+        self.__items: list[Any] = list(initial)
         self.revision = 0
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return repr(self.__items)
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         lock = self.__lock
         if lock is None:
             return bool(self.__items)
         with lock:
             return bool(self.__items)
 
-    def __len__(self):
+    def __len__(self) -> int:
         lock = self.__lock
         if lock is None:
             return len(self.__items)
         with lock:
             return len(self.__items)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Any]:
         lock = self.__lock
         if lock is None:
             return iter(self.__items)
         with lock:
             return iter(self.__items)
 
-    def __contains__(self, val):
+    def __contains__(self, val: object) -> bool:
         lock = self.__lock
         if lock is None:
             return val in self.__items
         with lock:
             return val in self.__items
 
-    def __getitem__(self, n):
+    def __getitem__(self, n: int | slice) -> Any:
         lock = self.__lock
         if lock is None:
             return self.__items[n]
         with lock:
             return self.__items[n]
 
-    def __setitem__(self, n, val):
+    def __setitem__(self, n: int | slice, val: Any) -> None:
         lock = self.__lock
         if lock is None:
             self.__items[n] = val
@@ -64,7 +67,7 @@ class SafeList:
             self.__items[n] = val
             self.revision += 1
 
-    def __add__(self, val):
+    def __add__(self, val: SafeList) -> SafeList:
         lock = self.__lock
         if lock is None:
             result = SafeList(None)
@@ -75,7 +78,7 @@ class SafeList:
             result.__items = list(set(self.__items + val.__items))
             return result
 
-    def append(self, value):
+    def append(self, value: Any) -> None:
         lock = self.__lock
         if lock is None:
             self.__items.append(value)
@@ -85,7 +88,20 @@ class SafeList:
             self.__items.append(value)
             self.revision += 1
 
-    def remove(self, value, key=None):
+    def append_no_lock(self, value: Any) -> None:
+        self.__items.append(value)
+        self.revision += 1
+
+    def extend_no_lock(self, values: Iterable[Any] | None) -> None:
+        if values:
+            self.__items.extend(values)
+            self.revision += 1
+
+    def remove_no_lock(self, value: Any) -> None:
+        self.__items.remove(value)
+        self.revision += 1
+
+    def remove(self, value: Any, key: Any | None = None) -> None:
         lock = self.__lock
         if lock is None:
             if key is None:
@@ -139,7 +155,7 @@ class SafeList:
                             self.revision += 1
                             break
 
-    def extend(self, value):
+    def extend(self, value: Iterable[Any]) -> None:
         lock = self.__lock
         if lock is None:
             value_list = list(value)
@@ -153,14 +169,14 @@ class SafeList:
                 self.__items.extend(value_list)
                 self.revision += 1
 
-    def get_list(self):
+    def get_list(self) -> list[Any]:
         lock = self.__lock
         if lock is None:
             return self.__items
         with lock:
             return self.__items
 
-    def remove_all(self):
+    def remove_all(self) -> None:
         lock = self.__lock
         if lock is None:
             for item in self.__items:
@@ -221,18 +237,18 @@ class SafeOrderDict:
     NOTE: This is intended for backtesting-only order buckets. It does not provide list indexing.
     """
 
-    def __init__(self, lock=None, initial=None):
+    def __init__(self, lock: Any | None = None, initial: Iterable[Any] | None = None) -> None:
         if lock is not None and not isinstance(lock, rlock_type):
             raise ValueError("lock must be a threading.RLock")
         self.__lock = lock
-        self.__items: dict[str, object] = {}
+        self.__items: dict[str, Any] = {}
         self.revision = 0
         if initial:
             for item in initial:
                 self.append(item)
 
     @staticmethod
-    def _identifier_for(item):
+    def _identifier_for(item: Any) -> Any | None:
         identifier = getattr(item, "_identifier", _MISSING)
         if identifier is not _MISSING:
             return identifier
@@ -241,38 +257,38 @@ class SafeOrderDict:
             return identifier
         return None
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return repr(list(self.__items.values()))
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         lock = self.__lock
         if lock is None:
             return bool(self.__items)
         with lock:
             return bool(self.__items)
 
-    def __len__(self):
+    def __len__(self) -> int:
         lock = self.__lock
         if lock is None:
             return len(self.__items)
         with lock:
             return len(self.__items)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Any]:
         lock = self.__lock
         if lock is None:
             return iter(self.__items.values())
         with lock:
             return iter(list(self.__items.values()))
 
-    def __contains__(self, val):
+    def __contains__(self, val: object) -> bool:
         lock = self.__lock
         if lock is None:
             return self._contains_unlocked(val)
         with lock:
             return self._contains_unlocked(val)
 
-    def _contains_unlocked(self, val):
+    def _contains_unlocked(self, val: object) -> bool:
         if isinstance(val, str):
             return val in self.__items
         identifier = self._identifier_for(val)
@@ -280,7 +296,7 @@ class SafeOrderDict:
             return False
         return identifier in self.__items
 
-    def append(self, value):
+    def append(self, value: Any) -> None:
         identifier = self._identifier_for(value)
         if identifier is None:
             raise ValueError("SafeOrderDict items must have an identifier")
@@ -293,21 +309,21 @@ class SafeOrderDict:
             self.__items[str(identifier)] = value
             self.revision += 1
 
-    def remove(self, value, key=None):
+    def remove(self, value: Any, key: Any | None = None) -> None:
         lock = self.__lock
         if lock is None:
             return self._remove_unlocked(value, key=key)
         with lock:
             return self._remove_unlocked(value, key=key)
 
-    def get(self, identifier, default=None):
+    def get(self, identifier: object, default: Any = None) -> Any:
         lock = self.__lock
         if lock is None:
             return self.__items.get(str(identifier), default)
         with lock:
             return self.__items.get(str(identifier), default)
 
-    def _remove_unlocked(self, value, key=None):
+    def _remove_unlocked(self, value: Any, key: Any | None = None) -> None:
         if key is None:
             if isinstance(value, str):
                 removed = self.__items.pop(value, None)
@@ -338,7 +354,7 @@ class SafeOrderDict:
                     self.revision += 1
                 break
 
-    def extend(self, value):
+    def extend(self, value: Iterable[Any]) -> None:
         lock = self.__lock
         if lock is None:
             for item in value:
@@ -348,7 +364,7 @@ class SafeOrderDict:
             for item in value:
                 self.append(item)
 
-    def get_list(self):
+    def get_list(self) -> Iterable[Any]:
         lock = self.__lock
         if lock is None:
             return self.__items.values()

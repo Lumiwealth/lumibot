@@ -32,16 +32,16 @@ import os
 import re
 import subprocess
 import time
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Dict, Iterable, Optional, Set
 
 DEFAULT_DOTENV_PATH = Path.home() / "Documents/Development/botspot_node/.env-local"
 SAFE_TIMEOUT = Path.home() / "bin/safe-timeout"
 
 
-def _parse_dotenv(path: Path) -> Dict[str, str]:
+def _parse_dotenv(path: Path) -> dict[str, str]:
     text = path.read_text(encoding="utf-8")
-    values: Dict[str, str] = {}
+    values: dict[str, str] = {}
     for raw in text.splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
@@ -60,11 +60,11 @@ def _safe_mkdir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
 
-def _glob_set(pattern: str) -> Set[Path]:
+def _glob_set(pattern: str) -> set[Path]:
     return set(Path().glob(pattern))
 
 
-def _newest(paths: Iterable[Path]) -> Optional[Path]:
+def _newest(paths: Iterable[Path]) -> Path | None:
     paths = list(paths)
     if not paths:
         return None
@@ -84,13 +84,13 @@ class LocalRunSpec:
 class LocalRunResult:
     spec_name: str
     run_index: int
-    yappi_csv: Optional[str]
-    settings_json: Optional[str]
-    logs_csv: Optional[str]
+    yappi_csv: str | None
+    settings_json: str | None
+    logs_csv: str | None
     wall_s: float
 
 
-def _build_env(dotenv: Dict[str, str], *, lumibot_path: Path) -> Dict[str, str]:
+def _build_env(dotenv: dict[str, str], *, lumibot_path: Path) -> dict[str, str]:
     required_keys = (
         "DATADOWNLOADER_BASE_URL",
         "DATADOWNLOADER_API_KEY",
@@ -248,7 +248,7 @@ def main() -> int:
                 flush=True,
             )
 
-    summary_path = out_dir / f"bench_summary_{dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json"
+    summary_path = out_dir / f"bench_summary_{dt.datetime.now(dt.UTC).strftime('%Y%m%dT%H%M%SZ')}.json"
     summary_path.write_text(json.dumps([dataclasses.asdict(r) for r in all_results], indent=2, sort_keys=True), encoding="utf-8")
     print(f"Wrote local benchmark summary: {summary_path}")
     return 0

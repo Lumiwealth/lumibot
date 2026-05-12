@@ -1,20 +1,19 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 import pytest
 import requests
 
-from lumibot.credentials import POLYGON_API_KEY
 from lumibot.backtesting import PolygonDataBacktesting
 from lumibot.backtesting.interactive_brokers_rest_backtesting import InteractiveBrokersRESTBacktesting
+from lumibot.credentials import POLYGON_API_KEY
 from lumibot.entities import Asset
-from lumibot.tools import polygon_helper
 from lumibot.entities.order import Order
 from lumibot.strategies.strategy import Strategy
-
+from lumibot.tools import polygon_helper
 
 pytestmark = pytest.mark.apitest
 
@@ -65,7 +64,7 @@ def test_ibkr_crypto_minute_close_series_matches_polygon_reasonably(monkeypatch,
     base = Asset(symbol, asset_type=Asset.AssetType.CRYPTO)
     quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     # Seed cache with latest available bars.
     ibkr_helper.get_price_data(
         asset=base,
@@ -197,7 +196,7 @@ def test_ibkr_crypto_buyhold_return_is_close_to_polygon(monkeypatch, tmp_path, s
     base = Asset(symbol, asset_type=Asset.AssetType.CRYPTO)
     quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     # Seed and derive a window that overlaps known IBKR data.
     ibkr_helper.get_price_data(
         asset=base,
@@ -279,4 +278,6 @@ def test_ibkr_crypto_buyhold_return_is_close_to_polygon(monkeypatch, tmp_path, s
     poly_return = (df_poly_stats["portfolio_value"].iloc[-1] / df_poly_stats["portfolio_value"].iloc[0]) - 1
 
     # Not identical (different feeds + different quote-fill semantics), but should be directionally close.
-    assert abs(ibkr_return - poly_return) <= 0.02, f"Return mismatch too large: ibkr={ibkr_return:.4%} poly={poly_return:.4%}"
+    assert abs(ibkr_return - poly_return) <= 0.02, (
+        f"Return mismatch too large: ibkr={ibkr_return:.4%} poly={poly_return:.4%}"
+    )

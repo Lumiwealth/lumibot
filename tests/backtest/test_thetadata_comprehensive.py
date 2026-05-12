@@ -5,15 +5,15 @@ Tests the essentials without going overboard.
 
 import datetime
 import os
-from typing import Tuple
 
 import pytest
 import pytz
 from dotenv import load_dotenv
+
+from lumibot.backtesting import PolygonDataBacktesting, ThetaDataBacktesting
 from lumibot.entities import Asset
 from lumibot.tools import thetadata_helper
 from lumibot.tools.helpers import to_datetime_aware
-from lumibot.backtesting import ThetaDataBacktesting, PolygonDataBacktesting
 
 # Load environment variables from .env file
 load_dotenv()
@@ -21,7 +21,7 @@ load_dotenv()
 pytestmark = [pytest.mark.downloader]
 
 
-def _require_theta_credentials() -> Tuple[str, str]:
+def _require_theta_credentials() -> tuple[str, str]:
     """Fetch ThetaData credentials or skip when unavailable."""
     username = os.environ.get("THETADATA_USERNAME")
     password = os.environ.get("THETADATA_PASSWORD")
@@ -68,44 +68,46 @@ class TestThetaDataStocks:
             asset=asset,
             start=datetime.datetime(2024, 8, 1, 9, 30),
             end=datetime.datetime(2024, 8, 1, 9, 40),
-            timespan="minute"
+            timespan="minute",
         )
 
         assert df is not None and len(df) > 0, "No bars returned"
 
-        print(f"\nFirst 10 minutes of SPY:")
+        print("\nFirst 10 minutes of SPY:")
         print(f"{'Time':<25} {'Open':<10} {'High':<10} {'Low':<10} {'Close':<10} {'Volume':<15}")
         print("=" * 100)
 
         for i in range(min(10, len(df))):
             idx = df.index[i]
             row = df.iloc[i]
-            print(f"{str(idx):<25} {row['open']:<10.2f} {row['high']:<10.2f} {row['low']:<10.2f} {row['close']:<10.2f} {row['volume']:<15,.0f}")
+            print(
+                f"{str(idx):<25} {row['open']:<10.2f} {row['high']:<10.2f} {row['low']:<10.2f} {row['close']:<10.2f} {row['volume']:<15,.0f}"
+            )
 
         # Verify timestamps are 60 seconds apart
         for i in range(1, min(10, len(df))):
-            time_diff = (df.index[i] - df.index[i-1]).total_seconds()
-            assert time_diff == 60, f"Bar {i} is {time_diff}s after bar {i-1}, expected 60s"
+            time_diff = (df.index[i] - df.index[i - 1]).total_seconds()
+            assert time_diff == 60, f"Bar {i} is {time_diff}s after bar {i - 1}, expected 60s"
 
         # Verify market open spike
         # ThetaData has 1-minute offset (9:29 instead of 9:30), so check both first and second bar
-        first_bar = df.iloc[0]
-        second_bar = df.iloc[1]
+        df.iloc[0]
+        df.iloc[1]
 
         # Find the bar with highest volume in first 3 bars (market open spike)
-        max_volume_idx = df.iloc[:3]['volume'].idxmax()
+        max_volume_idx = df.iloc[:3]["volume"].idxmax()
         max_volume_bar = df.loc[max_volume_idx]
 
         # Market open spike should have >100k volume
-        assert max_volume_bar['volume'] > 100000, \
-            f"Market open spike has low volume ({max_volume_bar['volume']:,.0f})"
+        assert max_volume_bar["volume"] > 100000, f"Market open spike has low volume ({max_volume_bar['volume']:,.0f})"
 
-        print(f"\n✓ Timestamp verification PASSED")
+        print("\n✓ Timestamp verification PASSED")
         print(f"  - Market open spike at {max_volume_bar.name}: {max_volume_bar['volume']:,.0f} volume")
 
     def test_noon_period_accuracy(self, theta_credentials):
         """Test pricing accuracy at noon (different market conditions)."""
         import os
+
         POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY")
 
         if not POLYGON_API_KEY:
@@ -135,26 +137,22 @@ class TestThetaDataStocks:
             datetime.datetime(2024, 8, 1, 12, 10),
         ]
 
-        print(f"\nNoon period comparison for SPY:")
+        print("\nNoon period comparison for SPY:")
         print(f"{'Time':<25} {'ThetaData':<12} {'Polygon':<12} {'Diff':<10} {'Status'}")
         print("=" * 80)
 
         for test_time in test_times:
             # ThetaData
             theta_ds._datetime = to_datetime_aware(test_time)
-            theta_bars = theta_ds.get_historical_prices(
-                asset=asset, length=1, timestep="minute"
-            )
-            theta_df = theta_bars.df if hasattr(theta_bars, 'df') else theta_bars
-            theta_price = theta_df.iloc[-1]['close'] if len(theta_df) > 0 else None
+            theta_bars = theta_ds.get_historical_prices(asset=asset, length=1, timestep="minute")
+            theta_df = theta_bars.df if hasattr(theta_bars, "df") else theta_bars
+            theta_price = theta_df.iloc[-1]["close"] if len(theta_df) > 0 else None
 
             # Polygon
             polygon_ds._datetime = to_datetime_aware(test_time)
-            polygon_bars = polygon_ds.get_historical_prices(
-                asset=asset, length=1, timestep="minute"
-            )
-            polygon_df = polygon_bars.df if hasattr(polygon_bars, 'df') else polygon_bars
-            polygon_price = polygon_df.iloc[-1]['close'] if len(polygon_df) > 0 else None
+            polygon_bars = polygon_ds.get_historical_prices(asset=asset, length=1, timestep="minute")
+            polygon_df = polygon_bars.df if hasattr(polygon_bars, "df") else polygon_bars
+            polygon_price = polygon_df.iloc[-1]["close"] if len(polygon_df) > 0 else None
 
             if theta_price and polygon_price:
                 diff = abs(theta_price - polygon_price)
@@ -163,7 +161,7 @@ class TestThetaDataStocks:
 
                 assert diff <= 0.01, f"Price difference ${diff:.4f} exceeds 1¢ tolerance"
 
-        print(f"\n✓ Noon period accuracy PASSED")
+        print("\n✓ Noon period accuracy PASSED")
 
     def test_multiple_symbols(self, theta_credentials):
         """Test 2-3 symbols with different price ranges."""
@@ -184,7 +182,7 @@ class TestThetaDataStocks:
             ("AMD", "Stock ~$160"),
         ]
 
-        print(f"\nMultiple symbol test at market open:")
+        print("\nMultiple symbol test at market open:")
         print(f"{'Symbol':<10} {'Description':<20} {'Open':<10} {'Close':<10} {'Volume':<15} {'Status'}")
         print("=" * 90)
 
@@ -194,28 +192,26 @@ class TestThetaDataStocks:
             # Set datetime to market open
             theta._datetime = to_datetime_aware(datetime.datetime(2024, 8, 1, 9, 30))
 
-            bars = theta.get_historical_prices(
-                asset=asset,
-                length=1,
-                timestep="minute"
-            )
+            bars = theta.get_historical_prices(asset=asset, length=1, timestep="minute")
 
-            df = bars.df if hasattr(bars, 'df') else bars
+            df = bars.df if hasattr(bars, "df") else bars
             assert df is not None and len(df) > 0, f"No data for {symbol}"
 
             bar = df.iloc[0]
 
             # Verify OHLC consistency
-            assert bar['high'] >= bar['open'], f"{symbol}: high < open"
-            assert bar['high'] >= bar['close'], f"{symbol}: high < close"
-            assert bar['low'] <= bar['open'], f"{symbol}: low > open"
-            assert bar['low'] <= bar['close'], f"{symbol}: low > close"
-            assert bar['volume'] > 0, f"{symbol}: zero volume"
+            assert bar["high"] >= bar["open"], f"{symbol}: high < open"
+            assert bar["high"] >= bar["close"], f"{symbol}: high < close"
+            assert bar["low"] <= bar["open"], f"{symbol}: low > open"
+            assert bar["low"] <= bar["close"], f"{symbol}: low > close"
+            assert bar["volume"] > 0, f"{symbol}: zero volume"
 
             status = "✓ PASS"
-            print(f"{symbol:<10} {description:<20} ${bar['open']:<9.2f} ${bar['close']:<9.2f} {bar['volume']:<15,.0f} {status}")
+            print(
+                f"{symbol:<10} {description:<20} ${bar['open']:<9.2f} ${bar['close']:<9.2f} {bar['volume']:<15,.0f} {status}"
+            )
 
-        print(f"\n✓ Multiple symbols PASSED")
+        print("\n✓ Multiple symbols PASSED")
 
 
 class TestThetaDataMethods:
@@ -237,7 +233,7 @@ class TestThetaDataMethods:
         asset = Asset("SPY", asset_type="stock")
         quote = theta.get_quote(asset, quote_asset=Asset("USD", asset_type="forex"))
 
-        print(f"\nget_quote() test for SPY:")
+        print("\nget_quote() test for SPY:")
         print(f"  Price: ${quote.price:.2f}")
         print(f"  Bid: ${quote.bid:.2f}" if quote.bid else "  Bid: None")
         print(f"  Ask: ${quote.ask:.2f}" if quote.ask else "  Ask: None")
@@ -248,7 +244,7 @@ class TestThetaDataMethods:
         assert quote.price > 0, "Quote price is zero or negative"
         assert quote.volume > 0, "Quote volume is zero"
 
-        print(f"\n✓ get_quote() PASSED")
+        print("\n✓ get_quote() PASSED")
 
     def test_get_chains(self, theta_credentials):
         """Test get_chains() returns option chains."""
@@ -265,12 +261,12 @@ class TestThetaDataMethods:
         asset = Asset("SPY", asset_type="stock")
         chains = theta.get_chains(asset)
 
-        print(f"\nget_chains() test for SPY:")
+        print("\nget_chains() test for SPY:")
 
         assert chains is not None, "get_chains returned None"
 
         # Get expirations
-        if hasattr(chains, 'expirations'):
+        if hasattr(chains, "expirations"):
             expirations = chains.expirations()
         else:
             expirations = chains.get("Chains", {}).get("CALL", {}).keys()
@@ -281,7 +277,7 @@ class TestThetaDataMethods:
 
         # Get strikes for first expiration
         first_exp = expirations_list[0]
-        if hasattr(chains, 'strikes'):
+        if hasattr(chains, "strikes"):
             strikes = chains.strikes(first_exp, "CALL")
         else:
             strikes = chains.get("Chains", {}).get("CALL", {}).get(first_exp, [])
@@ -292,7 +288,7 @@ class TestThetaDataMethods:
         assert len(expirations_list) > 0, "No expirations found"
         assert len(strikes) > 0, "No strikes found"
 
-        print(f"\n✓ get_chains() PASSED")
+        print("\n✓ get_chains() PASSED")
 
 
 class TestThetaDataOptions:
@@ -317,14 +313,14 @@ class TestThetaDataOptions:
         underlying = Asset("SPY", asset_type="stock")
         underlying_price = theta.get_last_price(underlying)
 
-        print(f"\nOptions test for SPY:")
+        print("\nOptions test for SPY:")
         print(f"  Underlying price: ${underlying_price:.2f}")
 
         # Get chains
         chains = theta.get_chains(underlying)
 
         # Get first expiration
-        if hasattr(chains, 'expirations'):
+        if hasattr(chains, "expirations"):
             expirations = list(chains.expirations())
         else:
             expirations = list(chains.get("Chains", {}).get("CALL", {}).keys())
@@ -333,7 +329,7 @@ class TestThetaDataOptions:
         expiration_date = datetime.datetime.strptime(first_exp, "%Y-%m-%d").date()
 
         # Get ATM strike
-        if hasattr(chains, 'strikes'):
+        if hasattr(chains, "strikes"):
             strikes = chains.strikes(first_exp, "CALL")
         else:
             strikes = chains.get("Chains", {}).get("CALL", {}).get(first_exp, [])
@@ -344,23 +340,11 @@ class TestThetaDataOptions:
         print(f"  ATM strike: ${atm_strike:.2f}")
 
         # Test ATM CALL
-        call_option = Asset(
-            "SPY",
-            asset_type="option",
-            expiration=expiration_date,
-            strike=atm_strike,
-            right="CALL"
-        )
+        call_option = Asset("SPY", asset_type="option", expiration=expiration_date, strike=atm_strike, right="CALL")
         call_price = theta.get_last_price(call_option)
 
         # Test ATM PUT
-        put_option = Asset(
-            "SPY",
-            asset_type="option",
-            expiration=expiration_date,
-            strike=atm_strike,
-            right="PUT"
-        )
+        put_option = Asset("SPY", asset_type="option", expiration=expiration_date, strike=atm_strike, right="PUT")
         put_price = theta.get_last_price(put_option)
 
         print(f"  ATM Call price: ${call_price:.2f}")
@@ -371,7 +355,7 @@ class TestThetaDataOptions:
         assert call_price > 0.05, "Call price suspiciously low (< $0.05)"
         assert put_price > 0.05, "Put price suspiciously low (< $0.05)"
 
-        print(f"\n✓ Options pricing PASSED")
+        print("\n✓ Options pricing PASSED")
 
 
 class TestThetaDataIndexes:
@@ -395,13 +379,13 @@ class TestThetaDataIndexes:
         # Test at market open
         open_price = theta.get_last_price(asset, quote_asset=Asset("USD", asset_type="forex"))
 
-        print(f"\nSPX index test:")
+        print("\nSPX index test:")
         print(f"  Market open (9:30): ${open_price:.2f}")
 
         assert open_price > 0, "SPX price is zero or negative"
         assert 4000 < open_price < 7000, f"SPX price ${open_price:.2f} is outside reasonable range"
 
-        print(f"\n✓ Index pricing PASSED")
+        print("\n✓ Index pricing PASSED")
 
 
 class TestThetaDataExtendedHours:
@@ -424,25 +408,21 @@ class TestThetaDataExtendedHours:
         # Set datetime to pre-market
         theta._datetime = to_datetime_aware(datetime.datetime(2024, 8, 1, 9, 0))
 
-        bars = theta.get_historical_prices(
-            asset=asset,
-            length=5,
-            timestep="minute"
-        )
+        bars = theta.get_historical_prices(asset=asset, length=5, timestep="minute")
 
-        df = bars.df if hasattr(bars, 'df') else bars
+        df = bars.df if hasattr(bars, "df") else bars
 
-        print(f"\nPre-market data test for SPY:")
-        print(f"  Bars from 9:00-9:05:")
+        print("\nPre-market data test for SPY:")
+        print("  Bars from 9:00-9:05:")
         for i in range(min(5, len(df))):
             bar = df.iloc[i]
             print(f"    {df.index[i]}: Open=${bar['open']:.2f}, Volume={bar['volume']:,.0f}")
 
         # Pre-market should have much lower volume than regular hours
         if len(df) > 0:
-            avg_volume = df['volume'].mean()
+            avg_volume = df["volume"].mean()
             print(f"  Average pre-market volume: {avg_volume:,.0f}")
-            print(f"  ✓ Pre-market data available")
+            print("  ✓ Pre-market data available")
         else:
             pytest.skip("Pre-market data not available")
 
@@ -460,11 +440,7 @@ class TestThetaDataQuoteContinuity:
 
         # Test a liquid option over multiple trading days (keep CI runtime reasonable).
         asset = Asset(
-            symbol="SPY",
-            asset_type="option",
-            expiration=datetime.date(2024, 9, 20),
-            strike=550,
-            right="CALL"
+            symbol="SPY", asset_type="option", expiration=datetime.date(2024, 9, 20), strike=550, right="CALL"
         )
 
         start = datetime.datetime(2024, 8, 1)
@@ -686,10 +662,11 @@ class TestThetaDataPagination:
         Test pagination logic by verifying the get_request function can handle
         multiple pages. This is a basic test to ensure the code structure is correct.
         """
-        from lumibot.tools import thetadata_helper
-
         # Just verify the function signature accepts the parameters and has pagination logic
         import inspect
+
+        from lumibot.tools import thetadata_helper
+
         source = inspect.getsource(thetadata_helper.get_request)
 
         # Check for pagination keywords in the source

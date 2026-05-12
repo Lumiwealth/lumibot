@@ -1,17 +1,20 @@
-import re
+from __future__ import annotations
+
 import datetime as dt
-from decimal import Decimal
-from typing import Union, Tuple, Optional
+import re
+from typing import TypeAlias
 
-from lumibot.entities import Asset
 from lumibot.constants import LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL, LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE
+from lumibot.entities.asset import Asset
 
-_OPTION_SYMBOL_RE = re.compile(r'^([A-Z]+)(\d{6})([CP])(\d{8})$')
+_OPTION_SYMBOL_RE = re.compile(r"^([A-Z]+)(\d{6})([CP])(\d{8})$")
+AssetInput: TypeAlias = str | Asset  # noqa: UP040 - keep Python 3.11 parser compatibility.
+
 
 def sanitize_base_and_quote_asset(
-    base_asset: Union[str, Asset, Tuple[Union[str, Asset], Union[str, Asset]]],
-    quote_asset: Optional[Union[str, Asset]] = None
-) -> Tuple[Asset, Asset]:
+    base_asset: AssetInput | tuple[AssetInput, AssetInput],
+    quote_asset: AssetInput | None = None,
+) -> tuple[Asset, Asset]:
     """
     Normalize base_asset and quote_asset to Asset instances.
 
@@ -28,8 +31,11 @@ def sanitize_base_and_quote_asset(
     - If not provided, the default quote asset (USD CASH) is used.
     """
     # Handle tuple input
-    if isinstance(base_asset, tuple) and len(base_asset) == 2:
-        asset_input, quote_input = base_asset
+    if isinstance(base_asset, tuple):
+        if len(base_asset) != 2:
+            raise TypeError(f"Expected a 2-item asset pair tuple, got {len(base_asset)} items")
+        asset_input: AssetInput = base_asset[0]
+        quote_input: AssetInput | None = base_asset[1]
     else:
         asset_input = base_asset
         quote_input = quote_asset
@@ -38,33 +44,26 @@ def sanitize_base_and_quote_asset(
     if isinstance(asset_input, Asset):
         parsed_asset = asset_input
 
-    elif isinstance(asset_input, str):
+    else:
         # Crypto pair case, e.g. "BTC/USD"
-        if '/' in asset_input:
-            base_sym, quote_sym = asset_input.split('/', 1)
+        if "/" in asset_input:
+            base_sym, quote_sym = asset_input.split("/", 1)
             parsed_asset = Asset(base_sym, Asset.AssetType.CRYPTO)
             quote_input = quote_sym
 
         else:
             m = _OPTION_SYMBOL_RE.match(asset_input)
             if m:
-                underlying, exp_str, right_char, strike_str = m.groups()
-                expiration = dt.datetime.strptime(exp_str, '%y%m%d').date()
-                strike = Decimal(int(strike_str)) / Decimal('1000')
-                right = 'call' if right_char.upper() == 'C' else 'put'
+                _underlying, exp_str, right_char, strike_str = m.groups()
+                expiration = dt.datetime.strptime(exp_str, "%y%m%d").date()
+                strike = int(strike_str) / 1000
+                right = "call" if right_char.upper() == "C" else "put"
                 # Use the full option symbol as the Asset.symbol
                 parsed_asset = Asset(
-                    asset_input,
-                    Asset.AssetType.OPTION,
-                    expiration=expiration,
-                    strike=strike,
-                    right=right
+                    asset_input, Asset.AssetType.OPTION, expiration=expiration, strike=strike, right=right
                 )
             else:
                 parsed_asset = Asset(asset_input, Asset.AssetType.STOCK)
-
-    else:
-        raise TypeError(f"Unsupported type for base_asset: {type(asset_input)}")
 
     # Parse quote asset
     if isinstance(quote_input, Asset):
@@ -72,10 +71,7 @@ def sanitize_base_and_quote_asset(
     elif isinstance(quote_input, str):
         parsed_quote = Asset(quote_input, Asset.AssetType.FOREX)
     elif quote_input is None:
-        parsed_quote = Asset(
-            LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL,
-            LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE
-        )
+        parsed_quote = Asset(LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL, LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE)
     else:
         raise TypeError(f"Unsupported type for quote_asset: {type(quote_input)}")
 

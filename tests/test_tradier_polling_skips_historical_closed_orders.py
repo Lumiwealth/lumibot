@@ -51,7 +51,9 @@ def test_first_poll_does_not_track_mass_historical_closed_orders(monkeypatch):
 
     # Simulate a large historical order list returned by Tradier (closed orders).
     rows = 5000
-    df = pd.DataFrame([{"id": str(i), "status": "filled", "avg_fill_price": 1.0, "exec_quantity": 1.0} for i in range(rows)])
+    df = pd.DataFrame(
+        [{"id": str(i), "status": "filled", "avg_fill_price": 1.0, "exec_quantity": 1.0} for i in range(rows)]
+    )
     broker.tradier = SimpleNamespace(orders=SimpleNamespace(get_orders=lambda: df))
 
     monkeypatch.setattr(
@@ -66,4 +68,3 @@ def test_first_poll_does_not_track_mass_historical_closed_orders(monkeypatch):
     # We should NOT have tracked thousands of closed orders after first poll.
     assert len(broker.get_all_orders()) == 0
     assert broker._first_iteration is False
-

@@ -16,7 +16,6 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
@@ -41,10 +40,10 @@ class _FillResult:
     ok: bool
     seconds: float
     reprices: int
-    submit_bid: Optional[float]
-    submit_ask: Optional[float]
-    submit_mid: Optional[float]
-    fill_price: Optional[float]
+    submit_bid: float | None
+    submit_ask: float | None
+    submit_mid: float | None
+    fill_price: float | None
 
 
 def _alpaca() -> Alpaca:
@@ -105,7 +104,7 @@ def _get_crypto_position_qty(broker: Alpaca, base_symbol: str) -> float:
     return 0.0
 
 
-def _quote_snapshot(strategy: _BenchStrategy, base: Asset, quote: Asset) -> tuple[Optional[float], Optional[float], Optional[float]]:
+def _quote_snapshot(strategy: _BenchStrategy, base: Asset, quote: Asset) -> tuple[float | None, float | None, float | None]:
     q = strategy.get_quote(base, quote=quote)
     bid = getattr(q, "bid", None)
     ask = getattr(q, "ask", None)
@@ -129,7 +128,7 @@ def _wait_fill(
     *,
     timeout_seconds: int,
     drive_smart_limit: bool,
-) -> tuple[bool, int, float, Optional[float]]:
+) -> tuple[bool, int, float, float | None]:
     start = time.time()
     last_limit = None
     reprices = 0
@@ -181,7 +180,7 @@ def _wait_fill(
     return False, reprices, time.time() - start, None
 
 
-def _slippage_vs_mid(side: str, fill_price: Optional[float], mid: Optional[float]) -> Optional[float]:
+def _slippage_vs_mid(side: str, fill_price: float | None, mid: float | None) -> float | None:
     if fill_price is None or mid is None:
         return None
     side = side.lower()

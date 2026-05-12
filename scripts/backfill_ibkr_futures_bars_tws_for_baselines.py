@@ -36,14 +36,13 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any
 
 import pandas as pd
 import pytz
 from ibapi.client import EClient  # type: ignore
-from ibapi.wrapper import EWrapper  # type: ignore
 from ibapi.contract import Contract  # type: ignore
-
+from ibapi.wrapper import EWrapper  # type: ignore
 
 LUMIBOT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DOTENV = Path.home() / "Documents/Development/botspot_node/.env-local"
@@ -57,10 +56,10 @@ class BaselineSpec:
     root_symbol: str
     exchange: str
     asset_type: str = "cont_future"  # "cont_future" | "future"
-    expiration_yyyymmdd: Optional[str] = None
+    expiration_yyyymmdd: str | None = None
 
 
-BASELINES: Tuple[BaselineSpec, ...] = (
+BASELINES: tuple[BaselineSpec, ...] = (
     BaselineSpec(
         name="MESFlipStrategy",
         baseline_prefix=Path(
@@ -103,12 +102,12 @@ BASELINES: Tuple[BaselineSpec, ...] = (
 )
 
 
-def _read_json(path: Path) -> Dict[str, Any]:
+def _read_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8", errors="replace"))
 
 
-def _load_dotenv(path: Path) -> Dict[str, str]:
-    out: Dict[str, str] = {}
+def _load_dotenv(path: Path) -> dict[str, str]:
+    out: dict[str, str] = {}
     for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
         line = raw.strip()
         if not line or line.startswith("#") or "=" not in line:
@@ -126,7 +125,7 @@ def _parse_dt(value: Any) -> datetime:
     raise ValueError(f"Unable to parse datetime: {value!r}")
 
 
-def _baseline_window(prefix: Path) -> Tuple[datetime, datetime]:
+def _baseline_window(prefix: Path) -> tuple[datetime, datetime]:
     settings = _read_json(prefix.with_name(prefix.name + "_settings.json"))
     start = _parse_dt(settings.get("backtesting_start"))
     end = _parse_dt(settings.get("backtesting_end"))
@@ -136,7 +135,7 @@ def _baseline_window(prefix: Path) -> Tuple[datetime, datetime]:
 _CONTRACT_RE = re.compile(r"^([A-Z]+)([FGHJKMNQUVXZ])(\d{1,2})$")
 
 
-def _contract_symbol_to_year_month(contract_symbol: str, *, reference_year: int) -> Tuple[int, int]:
+def _contract_symbol_to_year_month(contract_symbol: str, *, reference_year: int) -> tuple[int, int]:
     from lumibot.tools import futures_roll
 
     m = _CONTRACT_RE.match(contract_symbol.strip().upper())
@@ -171,7 +170,7 @@ def _expiration_yyyymmdd_for(root_symbol: str, *, year: int, month: int) -> str:
 
 def _conid_from_registry(
     *,
-    mapping: Dict[str, int],
+    mapping: dict[str, int],
     root_symbol: str,
     exchange: str,
     expiration_yyyymmdd: str,
@@ -189,8 +188,8 @@ def _conid_from_registry(
 class _HistApp(EWrapper, EClient):
     def __init__(self) -> None:
         EClient.__init__(self, wrapper=self)
-        self._q: "queue.Queue[Tuple[str, Any]]" = queue.Queue()
-        self._next_id: Optional[int] = None
+        self._q: queue.Queue[tuple[str, Any]] = queue.Queue()
+        self._next_id: int | None = None
 
     def nextValidId(self, orderId: int) -> None:  # noqa: N802
         self._next_id = int(orderId)
@@ -281,7 +280,7 @@ def _fetch_history_tws(
         return pd.DataFrame()
 
     cursor_end = end_local
-    chunks: List[pd.DataFrame] = []
+    chunks: list[pd.DataFrame] = []
 
     while cursor_end > start_local:
         req_id = int(app._next_id or 1)
@@ -301,7 +300,7 @@ def _fetch_history_tws(
             chartOptions=[],
         )
 
-        bars: List[Dict[str, Any]] = []
+        bars: list[dict[str, Any]] = []
         done = False
         no_data = False
         deadline = time.time() + 30.0
@@ -370,7 +369,7 @@ def _fetch_history_tws(
 
 
 def _set_cache_env(
-    dotenv: Dict[str, str],
+    dotenv: dict[str, str],
     *,
     cache_folder: Path,
     cache_version: str,
@@ -451,10 +450,10 @@ def main() -> int:
     if not selected:
         raise SystemExit("No baselines selected")
 
+    from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
     from lumibot.entities.asset import Asset
     from lumibot.tools import futures_roll, ibkr_helper
     from lumibot.tools.parquet_series_cache import ParquetSeriesCache
-    from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 
     tws = _tws_connect(host=args.host, port=args.port, client_id=int(time.time()) % 100000)
 

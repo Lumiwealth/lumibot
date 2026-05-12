@@ -9,6 +9,7 @@ This module tests the enhanced progress bar functionality that includes:
 
 TDD approach: These tests are written first, before implementation.
 """
+
 import csv
 import json
 import os
@@ -30,7 +31,7 @@ class TestProgressDataStructure(unittest.TestCase):
             "symbol": "AAPL",
             "qty": 50,
             "val": 9115.00,  # market_value
-            "pnl": 340.00,   # unrealized P&L
+            "pnl": 340.00,  # unrealized P&L
         }
 
         # Should only have these 4 fields - nothing else
@@ -41,14 +42,14 @@ class TestProgressDataStructure(unittest.TestCase):
         """Verify heavy fields are NOT included in minimal structure."""
         # These fields should NOT be in the minimal structure
         heavy_fields = [
-            "expiration",      # Options/futures
-            "strike",          # Options
-            "multiplier",      # Futures
-            "asset_type",      # Not needed for display
-            "avg_price",       # Not critical
-            "current_price",   # Not critical
-            "exchange",        # Not needed
-            "currency",        # Not needed
+            "expiration",  # Options/futures
+            "strike",  # Options
+            "multiplier",  # Futures
+            "asset_type",  # Not needed for display
+            "avg_price",  # Not critical
+            "current_price",  # Not critical
+            "exchange",  # Not needed
+            "currency",  # Not needed
         ]
 
         minimal_position = {
@@ -123,6 +124,7 @@ class TestDataSourceBacktestingProgress(unittest.TestCase):
     def tearDown(self):
         """Clean up temp files."""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_log_backtest_progress_includes_simulation_date(self):
@@ -145,13 +147,13 @@ class TestDataSourceBacktestingProgress(unittest.TestCase):
             simulation_date=simulation_date.strftime("%Y-%m-%d"),
             cash=25000.00,
             total_return_pct=5.23,
-            positions_json="[]"
+            positions_json="[]",
         )
 
         # Read and verify CSV
         self.assertTrue(os.path.exists(self.progress_csv_path))
 
-        with open(self.progress_csv_path, 'r') as f:
+        with open(self.progress_csv_path) as f:
             reader = csv.DictReader(f)
             row = next(reader)
 
@@ -174,10 +176,10 @@ class TestDataSourceBacktestingProgress(unittest.TestCase):
             simulation_date="2024-06-15",
             cash=25000.00,
             total_return_pct=5.23,
-            positions_json="[]"
+            positions_json="[]",
         )
 
-        with open(self.progress_csv_path, 'r') as f:
+        with open(self.progress_csv_path) as f:
             reader = csv.DictReader(f)
             row = next(reader)
 
@@ -200,10 +202,10 @@ class TestDataSourceBacktestingProgress(unittest.TestCase):
             simulation_date="2024-06-15",
             cash=25000.00,
             total_return_pct=5.23,
-            positions_json="[]"
+            positions_json="[]",
         )
 
-        with open(self.progress_csv_path, 'r') as f:
+        with open(self.progress_csv_path) as f:
             reader = csv.DictReader(f)
             row = next(reader)
 
@@ -232,10 +234,10 @@ class TestDataSourceBacktestingProgress(unittest.TestCase):
             simulation_date="2024-06-15",
             cash=25000.00,
             total_return_pct=5.23,
-            positions_json=positions_json
+            positions_json=positions_json,
         )
 
-        with open(self.progress_csv_path, 'r') as f:
+        with open(self.progress_csv_path) as f:
             reader = csv.DictReader(f)
             row = next(reader)
 
@@ -256,6 +258,7 @@ class TestUpdateDatetimeWithPositions(unittest.TestCase):
     def tearDown(self):
         """Clean up temp files."""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_update_datetime_accepts_positions_parameter(self):
@@ -272,11 +275,7 @@ class TestUpdateDatetimeWithPositions(unittest.TestCase):
 
         # Update datetime with positions - should accept the parameter
         ds._update_datetime(
-            new_datetime,
-            cash=25000.00,
-            portfolio_value=105234.56,
-            positions=positions,
-            initial_budget=100000.00
+            new_datetime, cash=25000.00, portfolio_value=105234.56, positions=positions, initial_budget=100000.00
         )
 
         # Verify datetime was updated
@@ -293,6 +292,7 @@ class TestBackwardCompatibility(unittest.TestCase):
     def tearDown(self):
         """Clean up temp files."""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_log_backtest_progress_works_without_new_params(self):
@@ -306,10 +306,7 @@ class TestBackwardCompatibility(unittest.TestCase):
         # Old-style call without new parameters should still work
         try:
             ds.log_backtest_progress_to_csv(
-                percent=50.0,
-                elapsed=timedelta(hours=1),
-                log_eta=timedelta(hours=1),
-                portfolio_value="105234.56"
+                percent=50.0, elapsed=timedelta(hours=1), log_eta=timedelta(hours=1), portfolio_value="105234.56"
             )
         except TypeError as e:
             self.fail(f"Backward compatibility broken: {e}")
@@ -323,6 +320,7 @@ class TestProgressHeartbeatDuringDownload(unittest.TestCase):
 
     def tearDown(self):
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_download_heartbeat_writes_download_status_when_active(self):
@@ -349,7 +347,7 @@ class TestProgressHeartbeatDuringDownload(unittest.TestCase):
                 orders=[],
             )
 
-        with open(ds._progress_csv_path, "r") as f:
+        with open(ds._progress_csv_path) as f:
             reader = csv.DictReader(f)
             row = next(reader)
             self.assertIn("download_status", row)
@@ -370,7 +368,7 @@ class TestProgressHeartbeatDuringDownload(unittest.TestCase):
             wrote = ds._write_progress_heartbeat_if_downloading()
             self.assertTrue(wrote)
 
-        with open(ds._progress_csv_path, "r") as f:
+        with open(ds._progress_csv_path) as f:
             reader = csv.DictReader(f)
             row = next(reader)
             parsed = json.loads(row["download_status"])

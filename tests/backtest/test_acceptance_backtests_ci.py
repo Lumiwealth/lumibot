@@ -250,7 +250,9 @@ def _baseline(slug: str) -> _BaselineCase:
     try:
         return _BASELINES_BY_SLUG[slug]
     except KeyError as exc:
-        raise AssertionError(f"Unknown acceptance baseline slug {slug!r}. Update {_baselines_path(_repo_root())}.") from exc
+        raise AssertionError(
+            f"Unknown acceptance baseline slug {slug!r}. Update {_baselines_path(_repo_root())}."
+        ) from exc
 
 
 def _runs_root(repo_root: Path) -> Path:
@@ -268,7 +270,9 @@ def _assert_settings_match_window(case: _BaselineCase, payload: dict[str, object
     end = str(payload.get("backtesting_end") or "")
 
     if not start.startswith(case.start_date):
-        raise AssertionError(f"{case.slug}: settings backtesting_start={start!r} does not start with {case.start_date!r}")
+        raise AssertionError(
+            f"{case.slug}: settings backtesting_start={start!r} does not start with {case.start_date!r}"
+        )
 
     expected_end_date = _expected_settings_end_date(case.end_date)
     if not re.match(rf"^{re.escape(expected_end_date)}\s+23:59:00", end):
@@ -480,7 +484,9 @@ def test_acceptance_leaps_alpha_picks() -> None:
     trades = pd.read_csv(trades_csv)
     symbols = set(str(s).upper() for s in trades.get("symbol", pd.Series(dtype=str)).dropna().tolist())
     for required in ("UBER", "CLS", "MFC"):
-        assert required in symbols, f"Expected {required} to be traded in short window; got symbols={sorted(symbols)[:25]}"
+        assert required in symbols, (
+            f"Expected {required} to be traded in short window; got symbols={sorted(symbols)[:25]}"
+        )
 
 
 def test_acceptance_tqqq_sma200() -> None:

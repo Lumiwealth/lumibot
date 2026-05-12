@@ -6,10 +6,10 @@ import json
 import os
 import sys
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Callable, Iterable
 
 import pandas as pd
 
@@ -18,7 +18,6 @@ from lumibot.backtesting.interactive_brokers_rest_backtesting import Interactive
 from lumibot.entities import Asset
 from lumibot.strategies.strategy import Strategy
 from lumibot.tools import databento_helper, ibkr_helper
-
 from tests.backtest.parity_strategies.mes_order_matrix_parity import MesOrderMatrixParity, MesParityConfig
 
 
@@ -36,8 +35,8 @@ def _utc(s: str) -> datetime:
     else:
         dt = datetime.fromisoformat(raw + "T00:00:00")
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 def _require_env(keys: Iterable[str]) -> None:

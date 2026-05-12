@@ -3,35 +3,41 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import importlib
-import logging
-import json
 import inspect
+import json
+import logging
 import math
 import os
 import re
 import sys
 import time
 import warnings
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
-from typing import Any
+from datetime import UTC, date, datetime
+from typing import Any, cast
 from uuid import uuid4
 
 from .schemas import AgentRunResult, AgentTraceEvent, BoundTool, MCPServer
 
+# Agent runtime handles dynamic ADK/MCP/provider payloads. Keep the boundary explicit here instead
+# of forcing casts into every event-normalization path.
+# pyright: reportConstantRedefinition=false, reportFunctionMemberAccess=false, reportMissingParameterType=false
+# pyright: reportUnknownArgumentType=false, reportUnknownMemberType=false, reportUnknownParameterType=false
+# pyright: reportUnknownVariableType=false
 
-_GOOGLE_SDK_NOISE_FILTERS_CONFIGURED = False
-ClientSession = None
-StdioServerParameters = None
-stdio_client = None
-streamablehttp_client = None
+_google_sdk_noise_filters_configured = False
+ClientSession: Any | None = None
+StdioServerParameters: Any | None = None
+stdio_client: Any | None = None
+streamablehttp_client: Any | None = None
 
 
-def _ensure_mcp_client_imports():
+def _ensure_mcp_client_imports() -> tuple[Any, Any, Any, Any]:
     global ClientSession, StdioServerParameters, stdio_client, streamablehttp_client
     if ClientSession is None or StdioServerParameters is None:
-        from mcp import ClientSession as _ClientSession, StdioServerParameters as _StdioServerParameters
+        from mcp import ClientSession as _ClientSession
+        from mcp import StdioServerParameters as _StdioServerParameters
 
         ClientSession = _ClientSession
         StdioServerParameters = _StdioServerParameters
@@ -40,9 +46,10 @@ def _ensure_mcp_client_imports():
 
         stdio_client = _stdio_client
     if streamablehttp_client is None:
-        from mcp.client.streamable_http import streamablehttp_client as _streamablehttp_client
+        from mcp.client.streamable_http import streamable_http_client as _streamable_http_client
 
-        streamablehttp_client = _streamablehttp_client
+        streamablehttp_client = _streamable_http_client
+    return ClientSession, StdioServerParameters, stdio_client, streamablehttp_client
 
 
 class _GoogleGenAITypesNoiseFilter(logging.Filter):
@@ -52,8 +59,8 @@ class _GoogleGenAITypesNoiseFilter(logging.Filter):
 
 
 def _configure_google_sdk_noise_filters() -> None:
-    global _GOOGLE_SDK_NOISE_FILTERS_CONFIGURED
-    if _GOOGLE_SDK_NOISE_FILTERS_CONFIGURED:
+    global _google_sdk_noise_filters_configured
+    if _google_sdk_noise_filters_configured:
         return
     warnings.filterwarnings(
         "ignore",
@@ -69,7 +76,7 @@ def _configure_google_sdk_noise_filters() -> None:
     )
     logging.getLogger("google.genai.types").addFilter(_GoogleGenAITypesNoiseFilter())
     logging.getLogger("google_genai.types").addFilter(_GoogleGenAITypesNoiseFilter())
-    _GOOGLE_SDK_NOISE_FILTERS_CONFIGURED = True
+    _google_sdk_noise_filters_configured = True
 
 
 def _tool_error_payload(tool_name: str, args: dict[str, Any], exc: Exception) -> dict[str, Any]:
@@ -86,7 +93,7 @@ def _tool_error_payload(tool_name: str, args: dict[str, Any], exc: Exception) ->
 
 
 def _utc_iso_timestamp() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _tool_function_name(value: str) -> str:
@@ -98,10 +105,10 @@ def _tool_function_name(value: str) -> str:
     return normalized
 
 
-def _wrap_tool_callable(tool: BoundTool):
+def _wrap_tool_callable(tool: BoundTool) -> Callable[..., Any]:
     original = tool.function
 
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         try:
             return _json_safe_value(original(*args, **kwargs))
         except Exception as exc:
@@ -172,7 +179,12 @@ def _to_serializable_dict(value: Any) -> dict[str, Any] | None:
 
 def _extract_structured_content(result: Any) -> dict[str, Any]:
     if isinstance(result, dict):
-        structured = result.get("structuredContent") or result.get("structured_content") or result.get("output") or result.get("result")
+        structured = (
+            result.get("structuredContent")
+            or result.get("structured_content")
+            or result.get("output")
+            or result.get("result")
+        )
         if isinstance(structured, dict):
             return structured
         content = result.get("content")
@@ -193,10 +205,9 @@ def _extract_structured_content(result: Any) -> dict[str, Any]:
 
 
 def _quiet_backtest_logs_enabled() -> bool:
-    return (
-        str(os.environ.get("IS_BACKTESTING", "")).strip().lower() == "true"
-        and str(os.environ.get("BACKTESTING_QUIET_LOGS", "")).strip().lower() in {"1", "true", "yes", "on"}
-    )
+    return str(os.environ.get("IS_BACKTESTING", "")).strip().lower() == "true" and str(
+        os.environ.get("BACKTESTING_QUIET_LOGS", "")
+    ).strip().lower() in {"1", "true", "yes", "on"}
 
 
 @contextlib.contextmanager
@@ -307,7 +318,7 @@ class RuntimeRequest:
     provider_prompt_cache_key: str | None = None
 
 
-_LITELLM_CONFIGURED = False
+_litellm_configured = False
 
 
 # Error classification for AI agent calls.
@@ -460,13 +471,13 @@ def _configure_litellm_quietly() -> None:
     # routinely ship before LiteLLM's static registry catches up, so this
     # banner would fire on every agent call for current-generation models.
     # suppress_debug_info mutes the banner without suppressing exceptions.
-    global _LITELLM_CONFIGURED
-    if _LITELLM_CONFIGURED:
+    global _litellm_configured
+    if _litellm_configured:
         return
     try:
-        import litellm
+        litellm = cast(Any, importlib.import_module("litellm"))
     except ImportError:
-        _LITELLM_CONFIGURED = True
+        _litellm_configured = True
         return
     try:
         litellm.suppress_debug_info = True
@@ -491,7 +502,7 @@ def _configure_litellm_quietly() -> None:
         litellm.num_retries = 3
     except Exception:
         pass
-    _LITELLM_CONFIGURED = True
+    _litellm_configured = True
 
 
 def _sync_xai_api_key_alias() -> None:
@@ -558,8 +569,7 @@ def _resolve_model_for_adk(model: Any, *, prompt_cache_key: str | None = None) -
         from google.adk.models.lite_llm import LiteLlm
     except ImportError as exc:
         raise ImportError(
-            f"Agent model '{model}' requires the 'litellm' package. "
-            "Install it with: pip install litellm"
+            f"Agent model '{model}' requires the 'litellm' package. Install it with: pip install litellm"
         ) from exc
     kwargs: dict[str, Any] = {}
     if prompt_cache_key:
@@ -617,9 +627,11 @@ class GoogleADKRuntime:
 
         self._llm_agent_type = llm_agent_module.LlmAgent
         self._runner_type = runners_module.InMemoryRunner
-        self._function_tool_type = getattr(function_tool_module, "FunctionTool")
+        self._function_tool_type = function_tool_module.FunctionTool
         self._genai_types = google_genai_types
         self._google_genai_types = google_genai_types
+        assert self._llm_agent_type is not None
+        assert self._runner_type is not None
         return self._llm_agent_type, self._runner_type, self._genai_types, self._function_tool_type
 
     @staticmethod
@@ -677,7 +689,9 @@ class GoogleADKRuntime:
         if request.task_prompt:
             sections.append(f"Task:\n{request.task_prompt.strip()}")
         if request.context:
-            sections.append(f"User Context JSON:\n{json.dumps(_json_safe_value(request.context), sort_keys=True, default=str)}")
+            sections.append(
+                f"User Context JSON:\n{json.dumps(_json_safe_value(request.context), sort_keys=True, default=str)}"
+            )
         if not sections:
             sections.append("Task:\nDo your normal job for the current market state.")
         return "\n\n".join(sections)
@@ -753,9 +767,7 @@ class GoogleADKRuntime:
             ended_at=ended_at,
             latency_ms=max(int((ended_perf - started_perf) * 1000), 0),
             first_event_latency_ms=(
-                max(int((first_event_perf - started_perf) * 1000), 0)
-                if first_event_perf is not None
-                else None
+                max(int((first_event_perf - started_perf) * 1000), 0) if first_event_perf is not None else None
             ),
         )
 
@@ -792,6 +804,8 @@ class GoogleADKRuntime:
         last_exc: BaseException | None = None
         for attempt in range(1, self._MAX_RUN_ATTEMPTS + 1):
             try:
+                import asyncio
+
                 return asyncio.run(self._run_async(request))
             except (KeyboardInterrupt, SystemExit):
                 raise
@@ -909,38 +923,55 @@ def _jsonable(value: Any) -> Any:
     return str(value)
 
 
-async def _with_mcp_session(server: MCPServer, callback):
-    _ensure_mcp_client_imports()
+async def _with_mcp_session(server: MCPServer, callback: Callable[[Any], Awaitable[Any]]) -> Any:
+    client_session_type, stdio_parameters_type, stdio_client_func, streamable_http_client_func = (
+        _ensure_mcp_client_imports()
+    )
     transport = (server.transport or "http").lower().replace("-", "_")
     if transport == "stdio":
-        parameters = StdioServerParameters(
+        parameters = stdio_parameters_type(
             command=str(server.command),
             args=list(server.args or []),
             env=dict(server.env) if server.env else None,
             cwd=server.cwd,
         )
         with _mcp_errlog_stream() as errlog:
-            async with stdio_client(parameters, errlog=errlog) as (read_stream, write_stream):
-                async with ClientSession(read_stream, write_stream) as session:
+            async with stdio_client_func(parameters, errlog=errlog) as (read_stream, write_stream):
+                async with client_session_type(read_stream, write_stream) as session:
                     await session.initialize()
                     return await callback(session)
 
     headers = _mcp_headers(server)
     timeout = server.timeout_seconds
     sse_timeout = server.sse_read_timeout_seconds
-    async with streamablehttp_client(
+    streamable_signature = inspect.signature(streamable_http_client_func)
+    if "http_client" in streamable_signature.parameters:
+        import httpx
+
+        client_timeout = httpx.Timeout(timeout=timeout, read=sse_timeout)
+        async with httpx.AsyncClient(headers=headers, timeout=client_timeout) as http_client:
+            async with streamable_http_client_func(
+                str(server.url),
+                http_client=http_client,
+                terminate_on_close=server.terminate_on_close,
+            ) as (read_stream, write_stream, _get_session_id):
+                async with client_session_type(read_stream, write_stream) as session:
+                    await session.initialize()
+                    return await callback(session)
+
+    async with streamable_http_client_func(
         str(server.url),
         headers=headers,
         timeout=timeout,
         sse_read_timeout=sse_timeout,
         terminate_on_close=server.terminate_on_close,
     ) as (read_stream, write_stream, _get_session_id):
-        async with ClientSession(read_stream, write_stream) as session:
+        async with client_session_type(read_stream, write_stream) as session:
             await session.initialize()
             return await callback(session)
 
 
-def _run_mcp_sync(async_fn, *args):
+def _run_mcp_sync(async_fn: Callable[..., Awaitable[Any]], *args: Any) -> Any:
     import asyncio
 
     try:
@@ -957,7 +988,8 @@ def _run_mcp_sync(async_fn, *args):
 
 async def _list_mcp_tools_async(server: MCPServer) -> list[dict[str, Any]]:
     transport = (server.transport or "http").lower().replace("-", "_")
-    async def callback(session: ClientSession) -> list[dict[str, Any]]:
+
+    async def callback(session: Any) -> list[dict[str, Any]]:
         result = await session.list_tools()
         tools = getattr(result, "tools", None) or []
         normalized: list[dict[str, Any]] = []
@@ -974,7 +1006,8 @@ async def _list_mcp_tools_async(server: MCPServer) -> list[dict[str, Any]]:
 
 async def _call_mcp_tool_async(server: MCPServer, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     transport = (server.transport or "http").lower().replace("-", "_")
-    async def callback(session: ClientSession) -> dict[str, Any]:
+
+    async def callback(session: Any) -> dict[str, Any]:
         result = await session.call_tool(name, arguments or {})
         dumped = _jsonable(result)
         if not isinstance(dumped, dict):

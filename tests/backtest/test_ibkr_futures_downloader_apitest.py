@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pandas as pd
@@ -54,7 +54,7 @@ def test_ibkr_futures_can_fetch_minute_bars_via_downloader(monkeypatch, tmp_path
     # Use auto-expiry so this remains valid over time (apitest is allowed to be non-deterministic).
     fut = Asset("MES", asset_type=Asset.AssetType.FUTURE, auto_expiry=Asset.AutoExpiry.FRONT_MONTH)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     df = ibkr_helper.get_price_data(
         asset=fut,
         quote=None,
@@ -131,8 +131,8 @@ def test_ibkr_futures_warm_backtest_does_not_touch_downloader(monkeypatch, tmp_p
     log_dir.mkdir(parents=True, exist_ok=True)
 
     # Fixed, deterministic window so this test is stable across weekdays/weekends.
-    window_start = datetime(2025, 12, 8, 15, 0, tzinfo=timezone.utc)
-    window_end = datetime(2025, 12, 8, 16, 0, tzinfo=timezone.utc)
+    window_start = datetime(2025, 12, 8, 15, 0, tzinfo=UTC)
+    window_end = datetime(2025, 12, 8, 16, 0, tzinfo=UTC)
 
     fut = Asset("MES", asset_type=Asset.AssetType.FUTURE, expiration=datetime(2025, 12, 19).date())
     warmed = ibkr_helper.get_price_data(
@@ -194,7 +194,9 @@ def test_ibkr_futures_contract_info_includes_trading_hours(monkeypatch, tmp_path
     assert isinstance(info, dict) and info, "Empty IBKR contract info payload"
     # IBKR contract info payloads typically include a 'tradingHours' field, but field naming can
     # vary across instruments/gateways. Accept either direct or nested representations.
-    has_hours = "tradingHours" in info or "trading_hours" in info or any(
-        isinstance(v, dict) and ("tradingHours" in v or "trading_hours" in v) for v in info.values()
+    has_hours = (
+        "tradingHours" in info
+        or "trading_hours" in info
+        or any(isinstance(v, dict) and ("tradingHours" in v or "trading_hours" in v) for v in info.values())
     )
     assert has_hours, f"IBKR contract info missing trading hours fields (keys={sorted(info.keys())[:20]})"

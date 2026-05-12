@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import datetime
+from collections.abc import Callable
 from decimal import Decimal
 from importlib import import_module
 from types import ModuleType
-from typing import Optional, Union
+from typing import Any, ClassVar, TypeAlias, cast
 
 from lumibot.tools.lumibot_logger import get_logger
 
@@ -23,7 +26,7 @@ _DATA_QUOTE_COLS = (
     "bid_exchange",
     "ask_exchange",
 )
-_DATA_QUOTE_FIELDS = {
+_DATA_QUOTE_FIELDS: dict[str, tuple[str, int | None]] = {
     "open": ("open", 2),
     "high": ("high", 2),
     "low": ("low", 2),
@@ -41,32 +44,43 @@ _DATA_QUOTE_FIELDS = {
 
 # PERF: module-level sentinel used to avoid eager-evaluating fallbacks in `getattr()` hot paths.
 _MISSING = object()
-_LAZY_PANDAS_SLICE_FRAME_CLASS = None
-_DEFAULT_PYTZ = None
-_PARSE_TIMESTEP_QTY_AND_UNIT = None
-_TO_DATETIME_AWARE = None
+_lazy_pandas_slice_frame_class_cache: type[Any] | None = None
+_default_pytz_cache: Any | None = None
+_parse_timestep_qty_and_unit_cache: Callable[..., Any] | None = None
+_to_datetime_aware_cache: Callable[..., Any] | None = None
+_pd_timestamp_type_cache: type[Any] | None = None
+_np_searchsorted_cache: Callable[..., Any] | None = None
+_ITER_INDEX_DICT_MAX_ROWS = 120_000
+_ITER_INDEX_DAY_DICT_MAX_ROWS = 10_000
+_ITER_INDEX_CRYPTO_MINUTE_DICT_MAX_ROWS = 10_000
+_dt_ns_cache_key: Any | None = None
+_dt_ns_cache_value: int | None = None
+_IterIndexLookup: TypeAlias = "dict[Any, int] | _DatetimeIndexLookup"  # noqa: UP040 - keep Python 3.11 parser compatibility.
 
 
 class _LazyModule(ModuleType):
-    def __init__(self, module_name: str):
+    _module_name: str
+    _module: ModuleType | None
+
+    def __init__(self, module_name: str) -> None:
         super().__init__(module_name)
         self._module_name = module_name
         self._module = None
 
-    def _load(self):
+    def _load(self) -> ModuleType:
         module = self._module
         if module is None:
             module_name = self._module_name
             module = import_module(module_name)
             if module_name == "pandas":
                 try:
-                    module.set_option('future.no_silent_downcasting', True)
+                    module.set_option("future.no_silent_downcasting", True)
                 except (module._config.config.OptionError, AttributeError):
                     pass
             self._module = module
         return module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
 
@@ -74,37 +88,112 @@ np = _LazyModule("numpy")
 pd = _LazyModule("pandas")
 
 
-def _default_pytz():
-    global _DEFAULT_PYTZ
-    if _DEFAULT_PYTZ is None:
+def _pd_timestamp_type() -> type[Any]:
+    global _pd_timestamp_type_cache
+    if _pd_timestamp_type_cache is None:
+        _pd_timestamp_type_cache = pd.Timestamp
+    assert _pd_timestamp_type_cache is not None
+    return _pd_timestamp_type_cache
+
+
+def _np_searchsorted() -> Callable[..., Any]:
+    global _np_searchsorted_cache
+    if _np_searchsorted_cache is None:
+        _np_searchsorted_cache = np.searchsorted
+    assert _np_searchsorted_cache is not None
+    return _np_searchsorted_cache
+
+
+def _datetime_to_ns(dt_key: Any) -> int | None:
+    global _dt_ns_cache_key, _dt_ns_cache_value
+    if dt_key is _dt_ns_cache_key or dt_key == _dt_ns_cache_key:
+        return _dt_ns_cache_value
+    value = int(dt_key.timestamp() * 1_000_000_000)
+    _dt_ns_cache_key = dt_key
+    _dt_ns_cache_value = value
+    return value
+
+
+class _DatetimeIndexLookup:
+    """Small exact-lookup facade for Data datetime indexes.
+
+    Avoids materializing ``{python_datetime: row_number}`` for every loaded series.
+    Large minute backtests can otherwise duplicate hundreds of thousands of
+    timestamp objects per asset.
+    """
+
+    __slots__ = ("_data",)
+
+    def __init__(self, data: Data) -> None:
+        self._data = data
+
+    def _exact(self, key: Any) -> int | None:
+        return cast(Callable[[Any], int | None], getattr(self._data, "_get_exact_iter_count"))(key)  # noqa: B009 - avoids protected-member access noise.
+
+    def get(self, key: Any, default: Any = None) -> Any:
+        result = self._exact(key)
+        return default if result is None else result
+
+    def __contains__(self, key: Any) -> bool:
+        return self._exact(key) is not None
+
+    def __getitem__(self, key: Any) -> Any:
+        result = self._exact(key)
+        if result is None:
+            raise KeyError(key)
+        return result
+
+    def __len__(self) -> int:
+        data_len = getattr(self._data, "_data_len", None)
+        if data_len is not None:
+            return int(data_len)
+        return len(self._data.df.index)
+
+
+def _make_iter_index_lookup(data: Data, idx_values: Any) -> _IterIndexLookup:
+    timestep = getattr(data, "timestep", None)
+    if timestep == "day":
+        max_rows = _ITER_INDEX_DAY_DICT_MAX_ROWS
+    elif timestep == "minute" and getattr(getattr(data, "asset", None), "_cached_asset_type_key", None) == "crypto":
+        max_rows = _ITER_INDEX_CRYPTO_MINUTE_DICT_MAX_ROWS
+    else:
+        max_rows = _ITER_INDEX_DICT_MAX_ROWS
+    if len(idx_values) <= max_rows:
+        return dict(zip(idx_values.to_pydatetime(), range(len(idx_values)), strict=False))
+    return _DatetimeIndexLookup(data)
+
+
+def _default_pytz() -> Any:
+    global _default_pytz_cache
+    if _default_pytz_cache is None:
         from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 
-        _DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ
-    return _DEFAULT_PYTZ
+        _default_pytz_cache = LUMIBOT_DEFAULT_PYTZ
+    return _default_pytz_cache
 
 
-def parse_timestep_qty_and_unit(*args, **kwargs):
-    global _PARSE_TIMESTEP_QTY_AND_UNIT
-    if _PARSE_TIMESTEP_QTY_AND_UNIT is None:
-        from lumibot.tools.helpers import parse_timestep_qty_and_unit as _parse_timestep_qty_and_unit
-
-        _PARSE_TIMESTEP_QTY_AND_UNIT = _parse_timestep_qty_and_unit
-    return _PARSE_TIMESTEP_QTY_AND_UNIT(*args, **kwargs)
-
-
-def to_datetime_aware(*args, **kwargs):
-    global _TO_DATETIME_AWARE
-    if _TO_DATETIME_AWARE is None:
-        from lumibot.tools.helpers import to_datetime_aware as _to_datetime_aware
-
-        _TO_DATETIME_AWARE = _to_datetime_aware
-    return _TO_DATETIME_AWARE(*args, **kwargs)
+def parse_timestep_qty_and_unit(*args: Any, **kwargs: Any) -> Any:
+    global _parse_timestep_qty_and_unit_cache
+    if _parse_timestep_qty_and_unit_cache is None:
+        helpers = import_module("lumibot.tools.helpers")
+        _parse_timestep_qty_and_unit_cache = cast(Callable[..., Any], cast(Any, helpers).parse_timestep_qty_and_unit)
+    return _parse_timestep_qty_and_unit_cache(*args, **kwargs)
 
 
-def _lazy_pandas_slice_frame_class():
-    global _LAZY_PANDAS_SLICE_FRAME_CLASS
-    if _LAZY_PANDAS_SLICE_FRAME_CLASS is not None:
-        return _LAZY_PANDAS_SLICE_FRAME_CLASS
+def to_datetime_aware(*args: Any, **kwargs: Any) -> datetime.datetime:
+    global _to_datetime_aware_cache
+    if _to_datetime_aware_cache is None:
+        helpers = import_module("lumibot.tools.helpers")
+        _to_datetime_aware_cache = cast(Callable[..., Any], cast(Any, helpers).to_datetime_aware)
+    return cast(datetime.datetime, _to_datetime_aware_cache(*args, **kwargs))
+
+
+def _lazy_pandas_slice_frame_class() -> type[Any]:
+    global _lazy_pandas_slice_frame_class_cache
+    if _lazy_pandas_slice_frame_class_cache is not None:
+        return _lazy_pandas_slice_frame_class_cache
+
+    object_setattr = object.__setattr__
 
     class _LazyPandasSliceFrame(pd.DataFrame):
         """Pandas-compatible lazy row slice for hot backtesting bars.
@@ -123,14 +212,14 @@ def _lazy_pandas_slice_frame_class():
             "_lumibot_virtual_return",
         ]
 
-        def __init__(self, source_df, slice_obj, length, virtual_return=False):
-            object.__setattr__(self, "_lumibot_source_df", source_df)
-            object.__setattr__(self, "_lumibot_slice", slice_obj)
-            object.__setattr__(self, "_lumibot_len", int(length))
-            object.__setattr__(self, "_lumibot_real_df", None)
-            object.__setattr__(self, "_lumibot_virtual_return", bool(virtual_return))
+        def __init__(self, source_df: Any, slice_obj: slice, length: int, virtual_return: bool = False) -> None:
+            object_setattr(self, "_lumibot_source_df", source_df)
+            object_setattr(self, "_lumibot_slice", slice_obj)
+            object_setattr(self, "_lumibot_len", int(length))
+            object_setattr(self, "_lumibot_real_df", None)
+            object_setattr(self, "_lumibot_virtual_return", bool(virtual_return))
 
-        def _lumibot_return_values(self):
+        def _lumibot_return_values(self) -> Any:
             source_df = object.__getattribute__(self, "_lumibot_source_df")
             slice_obj = object.__getattribute__(self, "_lumibot_slice")
             start = 0 if slice_obj.start is None else int(slice_obj.start)
@@ -150,7 +239,7 @@ def _lazy_pandas_slice_frame_class():
                     values[1:] = (window[1:] - window[:-1]) / window[:-1]
             return values
 
-        def _lumibot_materialize(self):
+        def _lumibot_materialize(self) -> Any:
             df = object.__getattribute__(self, "_lumibot_real_df")
             if df is None:
                 source_df = object.__getattribute__(self, "_lumibot_source_df")
@@ -167,53 +256,56 @@ def _lazy_pandas_slice_frame_class():
             return df
 
         @property
-        def _mgr(self):
+        def _mgr(self) -> Any:
             return self._lumibot_materialize()._mgr
 
         @_mgr.setter
-        def _mgr(self, value):
+        def _mgr(self, value: Any) -> None:
             object.__setattr__(self, "_lumibot_real_df", pd.DataFrame._from_mgr(value, axes=value.axes))
 
         @property
-        def _constructor(self):
+        def _constructor(self) -> type[Any]:
             return pd.DataFrame
 
-        def __len__(self):
+        def __len__(self) -> int:
             return object.__getattribute__(self, "_lumibot_len")
 
         @property
-        def empty(self):
+        def empty(self) -> bool:
             return object.__getattribute__(self, "_lumibot_len") == 0
 
         @property
-        def columns(self):
+        def columns(self) -> Any:
             columns = object.__getattribute__(self, "_lumibot_source_df").columns
             if object.__getattribute__(self, "_lumibot_virtual_return") and "return" not in columns:
                 return columns.append(pd.Index(["return"]))
             return columns
 
         @property
-        def index(self):
+        def index(self) -> Any:
             return self._lumibot_materialize().index
 
         @property
-        def attrs(self):
+        def attrs(self) -> Any:
             return self._lumibot_materialize().attrs
 
-        def __getitem__(self, key):
+        def __getitem__(self, key: Any) -> Any:
             if isinstance(key, str) and key == "return" and object.__getattribute__(self, "_lumibot_virtual_return"):
                 index = self._lumibot_materialize().index
                 return pd.Series(self._lumibot_return_values(), index=index, name="return")
             return self._lumibot_materialize().__getitem__(key)
 
-        def __getattr__(self, name):
+        def __getattr__(self, name: str) -> Any:
             return getattr(self._lumibot_materialize(), name)
 
-        def __repr__(self):
+        def __repr__(self) -> str:
             return repr(self._lumibot_materialize())
 
-    _LAZY_PANDAS_SLICE_FRAME_CLASS = _LazyPandasSliceFrame
-    return _LAZY_PANDAS_SLICE_FRAME_CLASS
+    _lazy_pandas_slice_frame_class_cache = _LazyPandasSliceFrame
+    return _lazy_pandas_slice_frame_class_cache
+
+
+_lazy_pandas_slice_frame_class()
 
 
 class Data:
@@ -306,26 +398,68 @@ class Data:
         Returns bars in the form of a dataframe.
     """
 
-    MIN_TIMESTEP = "minute"
-    TIMESTEP_MAPPING = [
+    MIN_TIMESTEP: ClassVar[str] = "minute"
+    TIMESTEP_MAPPING: ClassVar[list[dict[str, list[str] | str]]] = [
         {"timestep": "day", "representations": ["1D", "day"]},
         {"timestep": "hour", "representations": ["1H", "hour"]},
         {"timestep": "minute", "representations": ["1M", "minute"]},
     ]
 
+    asset: Asset
+    symbol: str | None
+    quote: Asset | None
+    timestep: str
+    df: Any
+    trading_hours_start: datetime.time
+    trading_hours_end: datetime.time
+    date_start: datetime.datetime
+    date_end: datetime.datetime
+    datetime_start: Any
+    datetime_end: Any
+    datalines: dict[str, Dataline]
+    iter_index: Any | None
+    iter_index_dict: _IterIndexLookup | None
+    _iter_index_dict_get: Callable[..., Any] | None
+    _index_is_unique: bool
+    _data_len: int | None
+    _ohlc_has_nan: bool
+    _volume_has_nan: bool
+    _dividend_has_nan: bool
+    _bars_cols: list[str]
+    _bars_df: Any | None
+    _bars_has_volume: bool
+    _bars_has_dividend: bool
+    _bars_required_cols: list[str]
+    _index_values_ns: Any | None
+    _iter_count_cursor_ns: int | None
+    _iter_count_cursor_i: int | None
+    _iter_count_last_dt_key: Any | None
+    _exact_lookup_cursor_ns: int | None
+    _exact_lookup_cursor_i: int
+    _last_price_fast_lines: tuple[Any, Any] | None
+    _return_is_deferred: bool
+    _quote_required_cols_present: bool
+    _quote_missing_cols: list[str]
+    _quote_presence_logged: bool
+    open: Any | None
+    close: Any | None
+    _get_bars_slice_cache_key: Any | None
+    _get_bars_slice_cache_df: Any | None
+    _native_day_bars_fast_cache: tuple[Any, int, Any] | None
+
     def __init__(
         self,
-        asset,
-        df,
-        date_start=None,
-        date_end=None,
-        trading_hours_start=datetime.time(0, 0),
-        trading_hours_end=datetime.time(23, 59),
-        timestep="minute",
-        quote=None,
-        timezone=None,
-        assume_clean=False,
-    ):
+        asset: Asset,
+        df: Any,
+        date_start: datetime.datetime | None = None,
+        date_end: datetime.datetime | None = None,
+        trading_hours_start: datetime.time = datetime.time(0, 0),
+        trading_hours_end: datetime.time = datetime.time(23, 59),
+        timestep: str = "minute",
+        quote: Any | None = None,
+        timezone: str | None = None,
+        assume_clean: bool = False,
+    ) -> None:
         self.asset = asset
         self.symbol = self.asset.symbol
 
@@ -336,23 +470,19 @@ class Data:
                 f"`BTCUSD` to data, you would need to add `USD` as the quote asset."
                 f"Quote must be provided for crypto assets."
             )
-        else:
-            self.quote = quote
-
         # Throw an error if the quote is not an asset object
-        if self.quote is not None and not isinstance(self.quote, Asset):
-            raise ValueError(
-                f"The quote asset for Data must be an Asset object. You provided a {type(self.quote)} object."
-            )
+        if quote is not None and not isinstance(quote, Asset):
+            raise ValueError(f"The quote asset for Data must be an Asset object. You provided a {type(quote)} object.")
+        self.quote = quote
 
         if timestep not in ["minute", "hour", "day"]:
-            raise ValueError(
-                f"Timestep must be one of 'minute', 'hour', or 'day'. You entered: {timestep}"
-            )
+            raise ValueError(f"Timestep must be one of 'minute', 'hour', or 'day'. You entered: {timestep}")
 
         self.timestep = timestep
 
-        if assume_clean and self._initialize_clean_constructor_state(df, date_start, date_end, trading_hours_start, trading_hours_end):
+        if assume_clean and self._initialize_clean_constructor_state(
+            df, date_start, date_end, trading_hours_start, trading_hours_end
+        ):
             return
 
         self.df = self.columns(df)
@@ -379,7 +509,8 @@ class Data:
             self.df.index = self.df.index.tz_localize(timezone)
 
         self.df = self.set_date_format(self.df)
-        self.df = self.df.sort_index()
+        if not self.df.index.is_monotonic_increasing:
+            self.df = self.df.sort_index()
         # PERF: many hot paths (quotes/bars) assume the underlying index is unique. Cache this once.
         # When the index is unique and we're not resampling, we can return bars without expensive resample/agg work.
         self._index_is_unique = bool(getattr(self.df.index, "is_unique", False))
@@ -446,14 +577,24 @@ class Data:
         self._bars_has_volume = "volume" in self._bars_cols
         self._bars_has_dividend = "dividend" in self._bars_cols
         self._bars_required_cols = [c for c in ("open", "high", "low", "close") if c in self._bars_cols]
+        self.iter_index = None
+        self.iter_index_dict = None
+        self._iter_index_dict_get = None
+        self._index_values_ns = None
+        self._iter_count_cursor_ns = None
+        self._iter_count_cursor_i = 0
+        self._iter_count_last_dt_key = None
+        self._exact_lookup_cursor_ns = None
+        self._exact_lookup_cursor_i = 0
+        self._last_price_fast_lines = None
 
     def _initialize_clean_constructor_state(
         self,
-        df,
-        date_start=None,
-        date_end=None,
-        trading_hours_start=datetime.time(0, 0),
-        trading_hours_end=datetime.time(23, 59),
+        df: Any,
+        date_start: datetime.datetime | None = None,
+        date_end: datetime.datetime | None = None,
+        trading_hours_start: datetime.time = datetime.time(0, 0),
+        trading_hours_end: datetime.time = datetime.time(23, 59),
     ) -> bool:
         if not isinstance(df, pd.DataFrame):
             return False
@@ -472,13 +613,6 @@ class Data:
         self._index_is_unique = bool(getattr(self.df.index, "is_unique", False))
         self.trading_hours_start, self.trading_hours_end = self.set_times(trading_hours_start, trading_hours_end)
         self.date_start, self.date_end = self.set_dates(date_start, date_end)
-        self.df = self.trim_data(
-            self.df,
-            self.date_start,
-            self.date_end,
-            self.trading_hours_start,
-            self.trading_hours_end,
-        )
         try:
             self._data_len = int(len(self.df.index))
         except Exception:
@@ -492,17 +626,6 @@ class Data:
         self._ohlc_has_nan = False
         self._volume_has_nan = False
         self._dividend_has_nan = "dividend" in self.df.columns
-        try:
-            required_with_data = [c for c in ("open", "high", "low", "close") if c in self.df.columns]
-            if required_with_data:
-                self._ohlc_has_nan = bool(pd.isna(self.df[required_with_data].to_numpy(copy=False)).any())
-            self._volume_has_nan = bool(pd.isna(self.df["volume"].to_numpy(copy=False)).any())
-            if "dividend" in self.df.columns:
-                self._dividend_has_nan = bool(pd.isna(self.df["dividend"].to_numpy(copy=False)).any())
-        except Exception:
-            self._ohlc_has_nan = True
-            self._volume_has_nan = True
-            self._dividend_has_nan = True
         bars_cols = ["open", "high", "low", "close", "volume"]
         if "dividend" in self.df.columns:
             bars_cols.append("dividend")
@@ -511,9 +634,23 @@ class Data:
         self._bars_has_volume = True
         self._bars_has_dividend = "dividend" in self._bars_cols
         self._bars_required_cols = ["open", "high", "low", "close"]
-        return self._initialize_clean_repaired_state()
+        self.iter_index = None
+        self.iter_index_dict = None
+        self._iter_index_dict_get = None
+        self._index_values_ns = None
+        self._iter_count_cursor_ns = None
+        self._iter_count_cursor_i = 0
+        self._iter_count_last_dt_key = None
+        self._exact_lookup_cursor_ns = None
+        self._exact_lookup_cursor_i = 0
+        self._last_price_fast_lines = None
+        return True
 
-    def set_times(self, trading_hours_start, trading_hours_end):
+    def set_times(
+        self,
+        trading_hours_start: datetime.time,
+        trading_hours_end: datetime.time,
+    ) -> tuple[datetime.time, datetime.time]:
         """Set the start and end times for the data. The default is 0001 hrs to 2359 hrs.
 
         Parameters
@@ -541,7 +678,7 @@ class Data:
             te = datetime.time(23, 59, 59, 999999)
         return ts, te
 
-    def columns(self, df):
+    def columns(self, df: Any) -> Any:
         # Select columns to use, change to lower case, rename `date` if necessary.
         df.columns = [
             col.lower() if col.lower() in ["open", "high", "low", "close", "volume"] else col for col in df.columns
@@ -549,7 +686,7 @@ class Data:
 
         return df
 
-    def set_date_format(self, df):
+    def set_date_format(self, df: Any) -> Any:
         df.index.name = "datetime"
         df.index = pd.to_datetime(df.index)
         if not df.index.tzinfo:
@@ -558,29 +695,40 @@ class Data:
             df.index = df.index.tz_convert(_default_pytz())
         return df
 
-    def set_dates(self, date_start, date_end):
+    def set_dates(
+        self,
+        date_start: Any | None,
+        date_end: Any | None,
+    ) -> tuple[datetime.datetime, datetime.datetime]:
         # Set the start and end dates of the data.
         for dt in [date_start, date_end]:
             if dt and not isinstance(dt, datetime.datetime):
-                raise TypeError(f"Start and End dates must be entries as full datetimes. {dt} " f"was entered")
+                raise TypeError(f"Start and End dates must be entries as full datetimes. {dt} was entered")
 
         if not date_start:
             date_start = self.df.index.min()
         if not date_end:
             date_end = self.df.index.max()
 
-        date_start = to_datetime_aware(date_start)
-        date_end = to_datetime_aware(date_end)
+        date_start_aware = to_datetime_aware(date_start)
+        date_end_aware = to_datetime_aware(date_end)
 
-        date_start = date_start.replace(hour=0, minute=0, second=0, microsecond=0)
-        date_end = date_end.replace(hour=23, minute=59, second=59, microsecond=999999)
+        date_start_aware = date_start_aware.replace(hour=0, minute=0, second=0, microsecond=0)
+        date_end_aware = date_end_aware.replace(hour=23, minute=59, second=59, microsecond=999999)
 
         return (
-            date_start,
-            date_end,
+            date_start_aware,
+            date_end_aware,
         )
 
-    def trim_data(self, df, date_start, date_end, trading_hours_start, trading_hours_end):
+    def trim_data(
+        self,
+        df: Any,
+        date_start: datetime.datetime,
+        date_end: datetime.datetime,
+        trading_hours_start: datetime.time,
+        trading_hours_end: datetime.time,
+    ) -> Any:
         # Trim the dataframe to match the desired backtesting dates.
 
         df = df.loc[(df.index >= date_start) & (df.index <= date_end), :]
@@ -603,17 +751,17 @@ class Data:
     # Call result.infer_objects(copy=False) instead.
     # To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
 
-    def repair_times_and_fill(self, idx):
+    def repair_times_and_fill(self, idx: Any) -> None:
         # OPTIMIZATION: Use searchsorted instead of expensive boolean indexing
         # Replace: idx[(idx >= self.datetime_start) & (idx <= self.datetime_end)]
-        start_pos = idx.searchsorted(self.datetime_start, side='left')
-        end_pos = idx.searchsorted(self.datetime_end, side='right')
+        start_pos = idx.searchsorted(self.datetime_start, side="left")
+        end_pos = idx.searchsorted(self.datetime_end, side="right")
         idx = idx[start_pos:end_pos]
 
         # OPTIMIZATION: More efficient duplicate removal
         has_duplicates = bool(self.df.index.has_duplicates)
         if has_duplicates:
-            self.df = self.df[~self.df.index.duplicated(keep='first')]
+            self.df = self.df[~self.df.index.duplicated(keep="first")]
 
         # Reindex the DataFrame with the new index and forward-fill missing values. Lazy-loaded
         # backtesting data frequently passes its existing clean index here; avoid an identical
@@ -708,6 +856,8 @@ class Data:
         # NOTE: This intentionally favors speed. When slices include `return`, the first row's
         # `return` value reflects the prior row from the full series (not NaN as if computed on the
         # slice). This is generally acceptable and avoids repeated DataFrame column insertions.
+        self._return_is_deferred = False
+        defer_returns = bool(getattr(self, "_defer_clean_returns", False))
         try:
             if "dividend" in df.columns:
                 missing = any(c not in df.columns for c in ("price_change", "dividend_yield", "return"))
@@ -739,20 +889,23 @@ class Data:
                     df["return"] = dividend_yield + price_change
             else:
                 if "return" not in df.columns and "close" in df.columns:
-                    close_series = df["close"]
-                    try:
-                        close = close_series.to_numpy(dtype="float64", copy=False)
-                    except Exception:
-                        close = pd.to_numeric(close_series, errors="coerce").to_numpy(dtype="float64", copy=False)
+                    if defer_returns:
+                        self._return_is_deferred = True
+                    else:
+                        close_series = df["close"]
+                        try:
+                            close = close_series.to_numpy(dtype="float64", copy=False)
+                        except Exception:
+                            close = pd.to_numeric(close_series, errors="coerce").to_numpy(dtype="float64", copy=False)
 
-                    returns = np.empty(len(close), dtype="float64")
-                    returns[:] = np.nan
-                    if len(close) > 1:
-                        prev = close[:-1]
-                        curr = close[1:]
-                        with np.errstate(divide="ignore", invalid="ignore"):
-                            returns[1:] = (curr - prev) / prev
-                    df["return"] = returns
+                        returns = np.empty(len(close), dtype="float64")
+                        returns[:] = np.nan
+                        if len(close) > 1:
+                            prev = close[:-1]
+                            curr = close[1:]
+                            with np.errstate(divide="ignore", invalid="ignore"):
+                                returns[1:] = (curr - prev) / prev
+                        df["return"] = returns
         except Exception:
             logger.debug("[DATA][REPAIR] failed to precompute derived columns", exc_info=True)
 
@@ -765,12 +918,10 @@ class Data:
         # Set up iter_index and iter_index_dict for later use.
         idx_values = df.index
         self.iter_index = None
-        # PERF: `to_dict()` produces keys as `pd.Timestamp`, which do not hash-equal to
-        # `datetime.datetime` objects. Many hot paths pass python datetimes, causing dictionary
-        # misses and forcing an expensive `Series.asof()` fallback.
-        #
-        # Store a second mapping keyed by python datetimes so `dt in iter_index_dict` is fast.
-        self.iter_index_dict = dict(zip(idx_values.to_pydatetime(), range(len(idx_values))))
+        # PERF: keep the legacy `iter_index_dict.get(dt)` surface. Small/medium series use
+        # a real dict for max CPU speed; large series use a lazy exact lookup to avoid
+        # duplicating hundreds of thousands of python datetime objects per asset.
+        self.iter_index_dict = _make_iter_index_lookup(self, idx_values)
         self._iter_index_dict_get = self.iter_index_dict.get
 
         # PERF: Precompute an integer nanoseconds view of the datetime index so `get_iter_count()`
@@ -808,6 +959,9 @@ class Data:
         self._iter_count_cursor_ns = None
         self._iter_count_cursor_i = 0
         self._iter_count_last_dt_key = None
+        self._exact_lookup_cursor_ns = None
+        self._exact_lookup_cursor_i = 0
+        self._last_price_fast_lines = None
 
         # Populate the datalines dictionary (assuming to_datalines is defined elsewhere).
         self.datalines = dict()
@@ -877,7 +1031,7 @@ class Data:
 
         idx_values = self.df.index
         self.iter_index = None
-        self.iter_index_dict = dict(zip(idx_values.to_pydatetime(), range(len(idx_values))))
+        self.iter_index_dict = _make_iter_index_lookup(self, idx_values)
         self._iter_index_dict_get = self.iter_index_dict.get
 
         try:
@@ -893,28 +1047,18 @@ class Data:
         self._iter_count_cursor_ns = None
         self._iter_count_cursor_i = 0
         self._iter_count_last_dt_key = None
+        self._exact_lookup_cursor_ns = None
+        self._exact_lookup_cursor_i = 0
 
         self.datalines = {}
         if getattr(self, "_skip_clean_datalines", False):
-            # Keep the legacy datalines contract even on the clean fast path so
-            # get_last_price/get_quote/_get_bars_dict can still index columns.
-            self.datalines["datetime"] = Dataline(
-                self.asset,
-                "datetime",
-                idx_values.to_numpy(),
-                idx_values.dtype,
-            )
-            self.datetime = self.datalines["datetime"].dataline
+            # IBKR native daily bars are used for direct slicing/last-price reads; full Dataline
+            # wrappers add load-time CPU/RSS with no benefit on that path.
+            self.datetime = idx_values
             for column in self.df.columns:
-                self.datalines[column] = Dataline(
-                    self.asset,
-                    column,
-                    self.df[column].to_numpy(),
-                    self.df[column].dtype,
-                )
-                setattr(self, column, self.datalines[column].dataline)
-            self._quote_required_cols_present = all(col in self.datalines for col in _DATA_REQUIRED_PRICE_COLS)
-            self._quote_missing_cols = [col for col in _DATA_QUOTE_COLS if col not in self.datalines]
+                setattr(self, column, self.df[column].to_numpy())
+            self._quote_required_cols_present = False
+            self._quote_missing_cols = list(_DATA_QUOTE_COLS)
             self._quote_presence_logged = False
         else:
             self.to_datalines()
@@ -930,68 +1074,102 @@ class Data:
         return True
 
     def to_datalines(self):
-        self.datalines.update(
-            {
-                "datetime": Dataline(
-                    self.asset,
-                    "datetime",
-                    self.df.index.to_numpy(),
-                    self.df.index.dtype,
-                )
-            }
+        datalines = self.datalines
+        asset = self.asset
+        df = self.df
+        datetime_line = Dataline(
+            asset,
+            "datetime",
+            df.index,
+            df.index.dtype,
         )
-        self.datetime = self.datalines["datetime"].dataline
+        datalines["datetime"] = datetime_line
+        self.datetime = datetime_line.dataline
 
-        for column in self.df.columns:
-            self.datalines.update(
-                {
-                    column: Dataline(
-                        self.asset,
-                        column,
-                        self.df[column].to_numpy(),
-                        self.df[column].dtype,
-                    )
-                }
+        for column in df.columns:
+            series = df[column]
+            dataline = Dataline(
+                asset,
+                column,
+                series.to_numpy(),
+                series.dtype,
             )
-            setattr(self, column, self.datalines[column].dataline)
+            datalines[column] = dataline
+            setattr(self, column, dataline.dataline)
 
         # Cache column presence flags for `get_quote()` which is called extremely frequently.
         self._quote_required_cols_present = all(col in self.datalines for col in _DATA_REQUIRED_PRICE_COLS)
         self._quote_missing_cols = [col for col in _DATA_QUOTE_COLS if col not in self.datalines]
         self._quote_presence_logged = False
 
-    def get_iter_count(self, dt):
+    def get_iter_count(self, dt: Any) -> int:
         # Return the index location for a given datetime.
 
         # Check if the date is in the dataframe, if not then get the last
         # known data (this speeds up the process)
         i = None
 
-        iter_index_get = getattr(self, "_iter_index_dict_get", None)
+        # Hot backtest loops often ask the same Data object for multiple views at the same
+        # clock tick (last price, minute bars, day bars). Avoid timestamp normalization and
+        # dict/search work when the exact same datetime object was just resolved.
+        if self._iter_count_last_dt_key is dt:
+            cursor_i = self._iter_count_cursor_i
+            if cursor_i is not None:
+                return cursor_i
+
+        iter_index_get = self._iter_index_dict_get
         if iter_index_get is None:
             # Check if we have the iter_index_dict, if not then repair the times and fill (which will create the iter_index_dict)
             if getattr(self, "iter_index_dict", None) is None:
                 self.repair_times_and_fill(self.df.index)
+            if self.iter_index_dict is None:
+                raise RuntimeError("iter_index_dict was not initialized")
             iter_index_get = self.iter_index_dict.get
             self._iter_index_dict_get = iter_index_get
 
         # Normalize dt to a python datetime for fast dict lookups.
         # Callers can pass `pd.Timestamp` (common in pandas-heavy code paths); mixing Timestamp and
         # datetime keys leads to misses and forces an expensive `asof()` fallback.
-        dt_key = dt.to_pydatetime() if dt.__class__ is pd.Timestamp else dt
+        dt_key = dt.to_pydatetime() if dt.__class__ is _pd_timestamp_type() else dt
 
         # PERF: repeated calls in the same iteration commonly ask for the same `(data, dt)`.
         # Short-circuit before any dict membership/search work.
-        last_dt_key = getattr(self, "_iter_count_last_dt_key", None)
+        last_dt_key = self._iter_count_last_dt_key
         if last_dt_key == dt_key:
-            cursor_i = getattr(self, "_iter_count_cursor_i", None)
+            cursor_i = self._iter_count_cursor_i
             if cursor_i is not None:
                 return cursor_i
+
+        # Fast-path: backtest clocks usually move forward one bar at a time. Use the integer
+        # datetime cursor before the exact timestamp dict lookup; this avoids repeated Python
+        # datetime hashing for the dominant sequential scan path.
+        index_ns = self._index_values_ns
+        dt_ns: int | None = None
+        if index_ns is not None:
+            try:
+                dt_ns = _datetime_to_ns(dt_key)
+            except Exception:
+                dt_ns = None
+
+            if dt_ns is not None:
+                cursor_ns = self._iter_count_cursor_ns
+                cursor_i = self._iter_count_cursor_i
+                if cursor_ns is not None and cursor_i is not None and dt_ns >= int(cursor_ns):
+                    i = int(cursor_i)
+                    n = len(index_ns)
+                    if (i + 64) < n and int(index_ns[i + 64]) <= dt_ns:
+                        i = int(_np_searchsorted()(index_ns, dt_ns, side="right")) - 1
+                    else:
+                        while (i + 1) < n and int(index_ns[i + 1]) <= dt_ns:
+                            i += 1
+                    self._iter_count_cursor_ns = dt_ns
+                    self._iter_count_cursor_i = i
+                    self._iter_count_last_dt_key = dt_key
+                    return i
 
         # Fast-path: exact bar timestamp lookup.
         i = iter_index_get(dt_key)
         if i is not None:
-            index_ns = getattr(self, "_index_values_ns", None)
             if index_ns is not None:
                 try:
                     # Cursor uses the index's own value to avoid timestamp() float math.
@@ -1003,28 +1181,10 @@ class Data:
             return i
 
         # Fast-path: monotonic cursor (common in backtests where dt advances by 1 bar).
-        index_ns = getattr(self, "_index_values_ns", None)
         if index_ns is not None:
-            try:
-                dt_ns = int(dt_key.timestamp() * 1_000_000_000)
-            except Exception:
-                dt_ns = None
-
             if dt_ns is not None:
-                cursor_ns = getattr(self, "_iter_count_cursor_ns", None)
-                cursor_i = getattr(self, "_iter_count_cursor_i", None)
-                if cursor_ns is not None and cursor_i is not None and dt_ns >= int(cursor_ns):
-                    i = int(cursor_i)
-                    n = len(index_ns)
-                    while (i + 1) < n and int(index_ns[i + 1]) <= dt_ns:
-                        i += 1
-                    self._iter_count_cursor_ns = dt_ns
-                    self._iter_count_cursor_i = i
-                    self._iter_count_last_dt_key = dt_key
-                    return i
-
                 # Fallback: binary search on the integer index.
-                i = int(np.searchsorted(index_ns, dt_ns, side="right")) - 1
+                i = int(_np_searchsorted()(index_ns, dt_ns, side="right")) - 1
                 self._iter_count_cursor_ns = dt_ns
                 self._iter_count_cursor_i = i
                 self._iter_count_last_dt_key = dt_key
@@ -1037,15 +1197,57 @@ class Data:
         self._iter_count_last_dt_key = dt_key
         return i
 
-    def check_data(func):
+    def _get_exact_iter_count(self, dt: Any) -> int | None:
+        index_ns = getattr(self, "_index_values_ns", None)
+        if index_ns is None:
+            return None
+
+        dt_key = dt.to_pydatetime() if dt.__class__ is _pd_timestamp_type() else dt
+        try:
+            dt_ns = _datetime_to_ns(dt_key)
+        except Exception:
+            return None
+        if dt_ns is None:
+            return None
+
+        cursor_ns = getattr(self, "_exact_lookup_cursor_ns", None)
+        cursor_i = getattr(self, "_exact_lookup_cursor_i", None)
+        if cursor_ns is not None and cursor_i is not None and dt_ns >= int(cursor_ns):
+            i = int(cursor_i)
+            n = len(index_ns)
+            if (i + 64) < n and int(index_ns[i + 64]) <= dt_ns:
+                i = int(_np_searchsorted()(index_ns, dt_ns, side="right")) - 1
+            else:
+                while (i + 1) < n and int(index_ns[i + 1]) <= dt_ns:
+                    i += 1
+            self._exact_lookup_cursor_ns = dt_ns
+            self._exact_lookup_cursor_i = i
+            try:
+                return i if int(index_ns[i]) == dt_ns else None
+            except Exception:
+                return None
+
+        i = int(_np_searchsorted()(index_ns, dt_ns, side="left"))
+        if i < 0 or i >= len(index_ns):
+            return None
+        self._exact_lookup_cursor_ns = dt_ns
+        self._exact_lookup_cursor_i = i
+        try:
+            if int(index_ns[i]) == dt_ns:
+                return i
+        except Exception:
+            return None
+        return None
+
+    def check_data(func: Callable[..., Any]) -> Callable[..., Any]:  # pyright: ignore[reportGeneralTypeIssues, reportSelfClsParameterName]
         # Validates if the provided date, length, timeshift, and timestep
         # will return data. Runs function if data, returns None if no data.
-        def checker(self, *args, **kwargs):
+        def checker(self: Data, *args: Any, **kwargs: Any) -> Any:
             if type(kwargs.get("length", 1)) not in [int, float]:
                 raise TypeError(f"Length must be an integer. {type(kwargs.get('length', 1))} was provided.")
 
             dt = args[0]
-            dt_key = dt.to_pydatetime() if isinstance(dt, pd.Timestamp) else dt
+            dt_key = dt.to_pydatetime() if isinstance(dt, _pd_timestamp_type()) else dt
             length = kwargs.get("length", 1)
             timeshift = kwargs.get("timeshift", 0)
             if timeshift is None:
@@ -1066,7 +1268,9 @@ class Data:
             # Check if the iter date is outside of this data's date range.
             if dt_key < self.datetime_start:
                 raise ValueError(
-                    f"The date you are looking for ({dt_key}) for ({self.asset}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end}). This could be because the data for this asset does not exist for the date you are looking for, or something else."
+                    f"The date you are looking for ({dt_key}) for ({self.asset}) is outside of the data's date range "
+                    f"({self.datetime_start} to {self.datetime_end}). This could be because the data for this asset "
+                    "does not exist for the date you are looking for, or something else."
                 )
 
             # For daily data, compare dates (not timestamps) to handle timezone issues.
@@ -1077,8 +1281,9 @@ class Data:
             if self.timestep == "day":
                 # Convert datetime_end to UTC to get the actual date the bar represents
                 import pytz
+
                 utc = pytz.UTC
-                if hasattr(self.datetime_end, 'astimezone'):
+                if hasattr(self.datetime_end, "astimezone"):
                     datetime_end_utc = self.datetime_end.astimezone(utc)
                 else:
                     datetime_end_utc = self.datetime_end
@@ -1121,7 +1326,10 @@ class Data:
             if not is_data:
                 # Log a warning
                 logger.warning(
-                    f"The date you are looking for ({dt_key}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end}) after accounting for a length of {kwargs.get('length', 1)} and a timeshift of {kwargs.get('timeshift', 0)}. Keep in mind that the length you are requesting must also be available in your data, in this case we are {data_index} rows away from the data you need."
+                    f"The date you are looking for ({dt_key}) is outside of the data's date range "
+                    f"({self.datetime_start} to {self.datetime_end}) after accounting for a length of "
+                    f"{kwargs.get('length', 1)} and a timeshift of {kwargs.get('timeshift', 0)}. Keep in mind that "
+                    f"the requested length must also be available in your data; we are {data_index} rows away."
                 )
                 try:
                     idx_vals = self.df.index
@@ -1149,7 +1357,12 @@ class Data:
         return checker
 
     @check_data
-    def get_last_price(self, dt, length=1, timeshift=0) -> Union[float, Decimal, None]:
+    def get_last_price(
+        self,
+        dt: Any,
+        length: int = 1,
+        timeshift: int | datetime.timedelta | None = 0,
+    ) -> float | Decimal | None:
         """Returns the last known price of the data.
 
         Parameters
@@ -1167,7 +1380,7 @@ class Data:
         -------
         float or Decimal or None
             Returns the close price (or open price for intraday before bar completion).
-            
+
             IMPORTANT: This method is trade/bar based only. It never falls back to bid/ask
             quotes. Use `get_quote()` / `get_price_snapshot()` for quote/mark pricing.
         """
@@ -1190,32 +1403,58 @@ class Data:
 
         return price
 
-    def get_last_price_fast(self, dt) -> Union[float, Decimal, None]:
+    def get_last_price_fast(self, dt: Any) -> float | Decimal | None:
         """Fast current-bar last price read for already-validated backtesting data."""
         iter_count = self.get_iter_count(dt)
         if iter_count < 0:
             return None
 
-        lines = getattr(self, "_last_price_fast_lines", None)
+        lines = self._last_price_fast_lines
         if lines is None:
-            open_line = getattr(self, "open", None)
-            close_line = getattr(self, "close", None)
-            datetime_line = getattr(self, "datetime", None)
-            if open_line is None or close_line is None or datetime_line is None:
+            open_line = self.open
+            close_line = self.close
+            if open_line is None or close_line is None:
                 open_line = self.datalines["open"].dataline
                 close_line = self.datalines["close"].dataline
-                datetime_line = self.datalines["datetime"].dataline
-            lines = (open_line, close_line, datetime_line)
+            lines = (open_line, close_line)
             self._last_price_fast_lines = lines
         else:
-            open_line, close_line, datetime_line = lines
+            open_line, close_line = lines
 
         open_price = open_line[iter_count]
         close_price = close_line[iter_count]
         if self.timestep == "day":
             price = close_price
         else:
-            price = close_price if dt > datetime_line[iter_count] else open_price
+            index_ns = self._index_values_ns
+            if index_ns is not None:
+                try:
+                    last_dt_key = self._iter_count_last_dt_key
+                    if last_dt_key is dt:
+                        dt_ns = self._iter_count_cursor_ns
+                        if dt_ns is None:
+                            dt_ns = _datetime_to_ns(dt)
+                    else:
+                        dt_key = dt.to_pydatetime() if dt.__class__ is _pd_timestamp_type() else dt
+                        if last_dt_key == dt_key:
+                            dt_ns = self._iter_count_cursor_ns
+                            if dt_ns is None:
+                                dt_ns = _datetime_to_ns(dt_key)
+                        else:
+                            dt_ns = _datetime_to_ns(dt_key)
+                    if dt_ns is None:
+                        raise ValueError("Unable to normalize datetime")
+                    price = close_price if int(dt_ns) > int(index_ns[int(iter_count)]) else open_price
+                except Exception:
+                    datetime_line = getattr(self, "datetime", None)
+                    if datetime_line is None:
+                        datetime_line = self.datalines["datetime"].dataline
+                    price = close_price if dt > datetime_line[iter_count] else open_price
+            else:
+                datetime_line = getattr(self, "datetime", None)
+                if datetime_line is None:
+                    datetime_line = self.datalines["datetime"].dataline
+                price = close_price if dt > datetime_line[iter_count] else open_price
 
         if price is None:
             return None
@@ -1228,33 +1467,43 @@ class Data:
                     return None
             except (TypeError, ValueError):
                 pass
-        return price
+        return cast(float | Decimal | None, price)
 
-    def get_previous_bar_close_fast(self, dt) -> Union[float, Decimal, None]:
+    def get_previous_bar_close_fast(self, dt: Any) -> float | Decimal | None:
         """Fast previous-bar close for exact-clock backtesting reads."""
+        dt_key = dt.to_pydatetime() if dt.__class__ is _pd_timestamp_type() else dt
         iter_index_get = getattr(self, "_iter_index_dict_get", None)
-        if iter_index_get is None:
-            return None
-        dt_key = dt.to_pydatetime() if dt.__class__ is pd.Timestamp else dt
-        i = iter_index_get(dt_key)
+        if getattr(self, "iter_index_dict", None).__class__ is dict and iter_index_get is not None:
+            i = iter_index_get(dt_key)
+        else:
+            if getattr(self, "_index_values_ns", None) is None:
+                return None
+            i = self._get_exact_iter_count(dt)
         if i is None or i <= 0:
             return None
+        i = int(i)
+        self._iter_count_cursor_i = i
+        self._iter_count_last_dt_key = dt_key
+        index_ns = getattr(self, "_index_values_ns", None)
+        if index_ns is not None:
+            try:
+                self._iter_count_cursor_ns = int(index_ns[i])
+            except Exception:
+                self._iter_count_cursor_ns = None
 
         lines = getattr(self, "_last_price_fast_lines", None)
         if lines is None:
             open_line = getattr(self, "open", None)
             close_line = getattr(self, "close", None)
-            datetime_line = getattr(self, "datetime", None)
-            if open_line is None or close_line is None or datetime_line is None:
+            if open_line is None or close_line is None:
                 open_line = self.datalines["open"].dataline
                 close_line = self.datalines["close"].dataline
-                datetime_line = self.datalines["datetime"].dataline
-            lines = (open_line, close_line, datetime_line)
+            lines = (open_line, close_line)
             self._last_price_fast_lines = lines
         else:
-            _, close_line, _ = lines
+            close_line = lines[1]
 
-        price = close_line[int(i) - 1]
+        price = close_line[i - 1]
         if price is None:
             return None
         try:
@@ -1268,29 +1517,32 @@ class Data:
                 pass
         return price
 
-    def get_native_bars_fast(self, dt, length=1, timestep=MIN_TIMESTEP, mark_timezone=True):
+    def get_native_bars_fast(
+        self,
+        dt: Any,
+        length: int = 1,
+        timestep: str = MIN_TIMESTEP,
+        mark_timezone: bool = True,
+    ) -> Any:
         """Fast native minute/day bar slice for warm-cache backtesting paths."""
-        if (
-            not self._index_is_unique
-            or timestep not in {"minute", "day"}
-            or timestep != self.timestep
-        ):
+        if not self._index_is_unique or timestep not in {"minute", "day"} or timestep != self.timestep:
             return self.get_bars(dt, length=length, timestep=timestep, timeshift=None)
 
+        length_i = length if type(length) is int else int(length)
+        dt_date: Any | None = None
         if timestep == "day":
             try:
                 dt_date = dt.date()
             except Exception:
                 dt_date = None
             day_cache = getattr(self, "_native_day_bars_fast_cache", None)
-            if day_cache is not None and day_cache[0] == dt_date and day_cache[1] == int(length):
+            if day_cache is not None and day_cache[0] == dt_date and day_cache[1] == length_i:
                 cached_df = day_cache[2]
                 if cached_df is not None and len(cached_df) != 0:
                     return cached_df
 
         iter_count = self.get_iter_count(dt)
-        if iter_count is None:
-            iter_count = 0
+        iter_i = int(iter_count)
 
         df_source = getattr(self, "_bars_df", None)
         if df_source is None:
@@ -1299,19 +1551,19 @@ class Data:
             if bars_cols:
                 self._bars_df = df_source
 
-        if timestep == "minute" and iter_count > 0:
-            end_row = int(iter_count)
-            start_row = end_row - int(length)
+        if timestep == "minute" and iter_i > 0:
+            end_row = iter_i
+            start_row = end_row - length_i
             if start_row < 0:
                 start_row = 0
         else:
-            end_row = int(iter_count) + 1 if timestep == "day" else int(iter_count)
+            end_row = iter_i + 1 if timestep == "day" else iter_i
             data_len = getattr(self, "_data_len", None)
             if data_len is None:
                 data_len = int(len(df_source.index))
                 self._data_len = data_len
             end_row = max(0, min(end_row, data_len))
-            start_row = max(0, end_row - int(length))
+            start_row = max(0, end_row - length_i)
             if start_row > end_row:
                 start_row = end_row
             if start_row == end_row and end_row > 0:
@@ -1319,7 +1571,7 @@ class Data:
 
         cache_key = None
         if timestep == "day":
-            cache_key = ("native_fast", timestep, int(length), int(start_row), int(end_row))
+            cache_key = ("native_fast", timestep, length_i, start_row, end_row)
             if getattr(self, "_get_bars_slice_cache_key", None) == cache_key:
                 cached_df = getattr(self, "_get_bars_slice_cache_df", None)
                 if cached_df is not None and len(cached_df) != 0:
@@ -1329,15 +1581,15 @@ class Data:
         if (
             not mark_timezone
             and timestep in {"minute", "day"}
-            and not getattr(self, "_ohlc_has_nan", True)
-            and not getattr(self, "_volume_has_nan", False)
-            and not getattr(self, "_dividend_has_nan", False)
+            and not self._ohlc_has_nan
+            and not self._volume_has_nan
+            and not self._dividend_has_nan
         ):
             df = _lazy_pandas_slice_frame_class()(
                 df_source,
                 slice_obj,
                 end_row - start_row,
-                virtual_return=getattr(self, "_return_is_deferred", False),
+                virtual_return=self._return_is_deferred,
             )
             if cache_key is not None:
                 self._get_bars_slice_cache_key = cache_key
@@ -1354,9 +1606,8 @@ class Data:
         if mark_timezone:
             df.attrs["_lumibot_skip_timezone"] = True
 
-        if (
-            (getattr(self, "_bars_has_volume", False) and getattr(self, "_volume_has_nan", False))
-            or (getattr(self, "_bars_has_dividend", False) and getattr(self, "_dividend_has_nan", False))
+        if (getattr(self, "_bars_has_volume", False) and getattr(self, "_volume_has_nan", False)) or (
+            getattr(self, "_bars_has_dividend", False) and getattr(self, "_dividend_has_nan", False)
         ):
             df = df.copy()
             if getattr(self, "_bars_has_volume", False) and getattr(self, "_volume_has_nan", False):
@@ -1375,16 +1626,21 @@ class Data:
         return df
 
     @check_data
-    def get_price_snapshot(self, dt, length=1, timeshift=0):
+    def get_price_snapshot(
+        self,
+        dt: Any,
+        length: int = 1,
+        timeshift: int | datetime.timedelta | None = 0,
+    ) -> dict[str, Any]:
         """Return OHLC, bid/ask, and timestamp metadata for the provided datetime."""
         iter_count = self.get_iter_count(dt)
 
-        def _get_value(column: str):
+        def _get_value(column: str) -> Any:
             if column not in self.datalines:
                 return None
             return self.datalines[column].dataline[iter_count]
 
-        def _get_timestamp(column: str) -> Optional[datetime.datetime]:
+        def _get_timestamp(column: str) -> datetime.datetime | None:
             if column not in self.datalines:
                 return None
             raw_value = self.datalines[column].dataline[iter_count]
@@ -1395,7 +1651,7 @@ class Data:
             if pd.isna(raw_value):
                 return None
             if isinstance(raw_value, pd.Timestamp):
-                return raw_value.to_pydatetime()
+                return cast(datetime.datetime, cast(Any, raw_value).to_pydatetime())
             if isinstance(raw_value, datetime.datetime):
                 return raw_value
             try:
@@ -1418,7 +1674,12 @@ class Data:
         return snapshot
 
     @check_data
-    def get_quote(self, dt, length=1, timeshift=0):
+    def get_quote(
+        self,
+        dt: Any,
+        length: int = 1,
+        timeshift: int | datetime.timedelta | None = 0,
+    ) -> dict[str, Any]:
         """Returns the last known price of the data.
 
         Parameters
@@ -1462,7 +1723,7 @@ class Data:
 
         iter_count = self.get_iter_count(dt)
 
-        def _get_value(column: str, round_digits: Optional[int]):
+        def _get_value(column: str, round_digits: int | None) -> Any:
             if column not in self.datalines:
                 return None
             value = self.datalines[column].dataline[iter_count]
@@ -1478,7 +1739,13 @@ class Data:
         return quote_dict
 
     @check_data
-    def _get_bars_dict(self, dt, length=1, timestep=None, timeshift=0):
+    def _get_bars_dict(
+        self,
+        dt: Any,
+        length: int = 1,
+        timestep: str | None = None,
+        timeshift: int | datetime.timedelta | None = 0,
+    ) -> dict[str, Any]:
         """Returns a dictionary of the data.
 
         Parameters
@@ -1544,13 +1811,18 @@ class Data:
         start_row = int(start_row)
         end_row = int(end_row)
 
-        dict = {}
+        bars_data: dict[str, Any] = {}
         for dl_name, dl in self.datalines.items():
-            dict[dl_name] = dl.dataline[start_row:end_row]
+            bars_data[dl_name] = dl.dataline[start_row:end_row]
 
-        return dict
+        return bars_data
 
-    def _get_bars_between_dates_dict(self, timestep=None, start_date=None, end_date=None):
+    def _get_bars_between_dates_dict(
+        self,
+        timestep: str | None = None,
+        start_date: Any | None = None,
+        end_date: Any | None = None,
+    ) -> dict[str, Any]:
         """Returns a dictionary of all the data available between the start and end dates.
 
         Parameters
@@ -1577,13 +1849,19 @@ class Data:
         start_row = int(start_row)
         end_row = int(end_row)
 
-        dict = {}
+        bars_data: dict[str, Any] = {}
         for dl_name, dl in self.datalines.items():
-            dict[dl_name] = dl.dataline[start_row:end_row]
+            bars_data[dl_name] = dl.dataline[start_row:end_row]
 
-        return dict
+        return bars_data
 
-    def get_bars(self, dt, length=1, timestep=MIN_TIMESTEP, timeshift=0):
+    def get_bars(
+        self,
+        dt: Any,
+        length: int = 1,
+        timestep: str = MIN_TIMESTEP,
+        timeshift: int | datetime.timedelta | None = 0,
+    ) -> Any:
         """Returns a dataframe of the data.
 
         Parameters
@@ -1640,8 +1918,6 @@ class Data:
         ):
             try:
                 iter_count = self.get_iter_count(dt)
-                if iter_count is None:
-                    iter_count = 0
             except Exception:
                 iter_count = self.get_iter_count(dt)
 
@@ -1746,18 +2022,13 @@ class Data:
         if (
             quantity == 1
             and self._index_is_unique
-            and (
-                (timestep == "minute" and self.timestep == "minute")
-                or (timestep == "day" and self.timestep == "day")
-            )
+            and ((timestep == "minute" and self.timestep == "minute") or (timestep == "day" and self.timestep == "day"))
         ):
             # PERF: avoid reconstructing a DataFrame from datalines on every call.
             # The underlying `self.df` is already indexed by datetime, so we can slice by
             # row bounds in O(1) and return a stable OHLCV schema.
             try:
                 iter_count = self.get_iter_count(dt)
-                if iter_count is None:
-                    iter_count = 0
             except Exception:
                 iter_count = self.get_iter_count(dt)
 
@@ -1774,8 +2045,6 @@ class Data:
             if isinstance(timeshift, datetime.timedelta):
                 if self.timestep == "day":
                     timeshift = int(timeshift.total_seconds() / (24 * 3600))
-                elif self.timestep == "hour":
-                    timeshift = int(timeshift.total_seconds() / 3600)
                 else:
                     timeshift = int(timeshift.total_seconds() / 60)
 
@@ -1866,7 +2135,7 @@ class Data:
             unit = "D"
             data = self._get_bars_dict(dt, length=length, timestep="hour", timeshift=timeshift)
 
-        elif timestep == 'day' and self.timestep == 'day':
+        elif timestep == "day" and self.timestep == "day":
             unit = "D"
             data = self._get_bars_dict(dt, length=length, timestep=timestep, timeshift=timeshift)
 
@@ -1889,7 +2158,9 @@ class Data:
         if data is None:
             return None
 
-        df = pd.DataFrame(data).assign(datetime=lambda df: pd.to_datetime(df['datetime'])).set_index('datetime')
+        df = pd.DataFrame(data)
+        df["datetime"] = pd.to_datetime(df["datetime"])
+        df = df.set_index("datetime")
         if "dividend" in df.columns:
             agg_column_map["dividend"] = "sum"
         df_result = df.resample(f"{quantity}{unit}").agg(agg_column_map)
@@ -1907,7 +2178,13 @@ class Data:
 
         return df_result
 
-    def get_bars_between_dates(self, timestep=MIN_TIMESTEP, exchange=None, start_date=None, end_date=None):
+    def get_bars_between_dates(
+        self,
+        timestep: str = MIN_TIMESTEP,
+        exchange: Any | None = None,
+        start_date: Any | None = None,
+        end_date: Any | None = None,
+    ) -> Any:
         """Returns a dataframe of all the data available between the start and end dates.
 
         Parameters
@@ -1940,11 +2217,9 @@ class Data:
             raise ValueError(f"Only minute, hour, and day are supported for timestep. You provided: {timestep}")
 
         data = self._get_bars_between_dates_dict(timestep=timestep, start_date=start_date, end_date=end_date)
-        if data is None:
-            return None
 
         df = pd.DataFrame(data).set_index("datetime")
-        if df is None or df.empty:
+        if df.empty:
             return df
 
         if timestep == "minute" and int(quantity) == 1:

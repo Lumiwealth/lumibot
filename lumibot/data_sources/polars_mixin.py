@@ -5,13 +5,46 @@ This mixin provides common polars operations without disrupting inheritance.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+# pyright: reportUnknownVariableType=false, reportUnknownMemberType=false, reportUnknownArgumentType=false
+# pyright: reportUnknownParameterType=false, reportMissingParameterType=false, reportMissingTypeArgument=false
+# pyright: reportInvalidTypeForm=false, reportUnnecessaryComparison=false, reportArgumentType=false
+# pyright: reportOptionalMemberAccess=false, reportOptionalSubscript=false, reportPrivateUsage=false
+# pyright: reportUnknownLambdaType=false, reportAttributeAccessIssue=false
+from datetime import UTC, datetime, timedelta
+from importlib import import_module
+from types import ModuleType
+from typing import Any, TypeAlias, cast
 
-from lumibot.entities import Asset, Bars
+from lumibot.entities.asset import Asset
+from lumibot.entities.bars import Bars
 from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
+PolarsDataFrame: TypeAlias = Any  # noqa: UP040
+PolarsLazyFrame: TypeAlias = Any  # noqa: UP040
+
+
+class _LazyPolars(ModuleType):
+    _module: ModuleType | None
+
+    __slots__ = ("_module",)
+
+    def __init__(self) -> None:
+        super().__init__("polars")
+        object.__setattr__(self, "_module", None)
+
+    def _load(self) -> ModuleType:
+        module = cast(ModuleType | None, object.__getattribute__(self, "_module"))
+        if module is None:
+            module = import_module("polars")
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._load(), name)
+
+
+pl = _LazyPolars()
 
 
 class _LazyPolars:
@@ -37,18 +70,20 @@ _THETA_PARITY_DEBUG = False
 class PolarsMixin:
     """Mixin for polars-based data sources with common functionality."""
 
-    def _init_polars_storage(self):
+    def _init_polars_storage(self) -> None:
         """Initialize common polars data storage structures."""
-        self._data_store: Dict[Asset, pl.LazyFrame] = {}
-        self._last_price_cache = {}
-        self._cache_datetime = None
-        self._filtered_data_cache: Dict[tuple, pl.DataFrame] = {}
-        self._column_indices: Dict[Asset, Dict[str, int]] = {}
-        self._cache_date = None
+        self._data_store: dict[Any, PolarsLazyFrame] = {}
+        self._last_price_cache: dict[tuple[Any, ...], float] = {}
+        self._cache_datetime: datetime | None = None
+        self._filtered_data_cache: dict[tuple[Any, ...], PolarsDataFrame] = {}
+        self._column_indices: dict[Any, dict[str, int]] = {}
+        self._cache_date: Any | None = None
 
-    def _store_data_polars(self, asset: Asset, df: pl.DataFrame, rename_columns: bool = True) -> pl.LazyFrame:
+    def _store_data_polars(
+        self, asset: Asset, df: PolarsDataFrame | None, rename_columns: bool = True
+    ) -> PolarsLazyFrame | None:
         """Store data as lazy frame with standardized column names.
-        
+
         Parameters
         ----------
         asset : Asset
@@ -64,11 +99,24 @@ class PolarsMixin:
         if rename_columns:
             # Standardized column mapping
             rename_map = {
-                "Open": "open", "High": "high", "Low": "low", "Close": "close",
-                "Volume": "volume", "Dividends": "dividend", "Stock Splits": "stock_splits",
-                "Adj Close": "adj_close", "index": "datetime", "Date": "datetime",
-                "Datetime": "datetime", "timestamp": "datetime", "time": "datetime",
-                "o": "open", "h": "high", "l": "low", "c": "close", "v": "volume"
+                "Open": "open",
+                "High": "high",
+                "Low": "low",
+                "Close": "close",
+                "Volume": "volume",
+                "Dividends": "dividend",
+                "Stock Splits": "stock_splits",
+                "Adj Close": "adj_close",
+                "index": "datetime",
+                "Date": "datetime",
+                "Datetime": "datetime",
+                "timestamp": "datetime",
+                "time": "datetime",
+                "o": "open",
+                "h": "high",
+                "l": "low",
+                "c": "close",
+                "v": "volume",
             }
 
             # Apply renaming
@@ -90,7 +138,7 @@ class PolarsMixin:
 
         return lazy_data
 
-    def _get_data_lazy(self, asset: Asset) -> Optional[pl.LazyFrame]:
+    def _get_data_lazy(self, asset: Any) -> PolarsLazyFrame | None:
         """Get lazy frame for asset.
 
         Parameters
@@ -109,12 +157,12 @@ class PolarsMixin:
 
     def _parse_source_symbol_bars_polars(
         self,
-        response: pl.DataFrame,
+        response: PolarsDataFrame | None,
         asset: Asset,
         source: str,
-        quote: Optional[Asset] = None,
-        length: Optional[int] = None,
-        return_polars: bool = False
+        quote: Asset | None = None,
+        length: int | None = None,
+        return_polars: bool = False,
     ) -> Bars:
         """Parse bars from polars DataFrame.
 
@@ -140,12 +188,14 @@ class PolarsMixin:
         if _THETA_PARITY_DEBUG:
             logger.debug(
                 "[POLARS_MIXIN][PARSE][ENTRY] asset=%s source=%s response_type=%s response_is_none=%s response_shape=%s return_polars=%s",
-                getattr(asset, 'symbol', asset),
+                getattr(asset, "symbol", asset),
                 source,
                 type(response).__name__,
                 response is None,
-                (response.height, len(response.columns)) if response is not None and hasattr(response, 'height') else 'NO_SHAPE',
-                return_polars
+                (response.height, len(response.columns))
+                if response is not None and hasattr(response, "height")
+                else "NO_SHAPE",
+                return_polars,
             )
 
         # DEBUG-LOG: Check for empty response
@@ -153,10 +203,10 @@ class PolarsMixin:
             if _THETA_PARITY_DEBUG:
                 logger.warning(
                     "[POLARS_MIXIN][PARSE][EMPTY_INPUT] asset=%s source=%s response_is_none=%s response_is_empty=%s returning_empty_bars=True",
-                    getattr(asset, 'symbol', asset),
+                    getattr(asset, "symbol", asset),
                     source,
                     response is None,
-                    response.is_empty() if response is not None else 'N/A'
+                    response.is_empty() if response is not None else "N/A",
                 )
             return Bars(response, source, asset, raw=response)
 
@@ -166,40 +216,40 @@ class PolarsMixin:
             if _THETA_PARITY_DEBUG:
                 logger.debug(
                     "[POLARS_MIXIN][PARSE][BEFORE_LENGTH_LIMIT] asset=%s source=%s height=%s length=%s will_truncate=True",
-                    getattr(asset, 'symbol', asset),
+                    getattr(asset, "symbol", asset),
                     source,
                     response.height,
-                    length
+                    length,
                 )
             response = response.tail(length)
             if _THETA_PARITY_DEBUG:
                 logger.debug(
                     "[POLARS_MIXIN][PARSE][AFTER_LENGTH_LIMIT] asset=%s source=%s new_height=%s",
-                    getattr(asset, 'symbol', asset),
+                    getattr(asset, "symbol", asset),
                     source,
-                    response.height
+                    response.height,
                 )
 
         # Filter to only keep OHLCV + datetime columns (remove DataBento metadata like rtype, publisher_id, etc.)
         # Required columns for strategies
-        required_cols = ['open', 'high', 'low', 'close', 'volume']
+        required_cols = ["open", "high", "low", "close", "volume"]
         optional_cols = [
-            'datetime',
-            'timestamp',
-            'date',
-            'time',
-            'dividend',
-            'stock_splits',
-            'symbol',
-            'bid',
-            'ask',
-            'bid_size',
-            'ask_size',
-            'bid_condition',
-            'ask_condition',
-            'bid_exchange',
-            'ask_exchange',
-            'missing',
+            "datetime",
+            "timestamp",
+            "date",
+            "time",
+            "dividend",
+            "stock_splits",
+            "symbol",
+            "bid",
+            "ask",
+            "bid_size",
+            "ask_size",
+            "bid_condition",
+            "ask_condition",
+            "bid_exchange",
+            "ask_exchange",
+            "missing",
         ]
 
         # Determine which columns to keep
@@ -216,21 +266,17 @@ class PolarsMixin:
         if _THETA_PARITY_DEBUG:
             logger.debug(
                 "[POLARS_MIXIN][PARSE][AFTER_COLUMN_SELECT] asset=%s source=%s shape=%s columns=%s has_datetime=%s has_missing=%s",
-                getattr(asset, 'symbol', asset),
+                getattr(asset, "symbol", asset),
                 source,
                 (response.height, len(response.columns)),
                 response.columns,
-                'datetime' in response.columns,
-                'missing' in response.columns
+                "datetime" in response.columns,
+                "missing" in response.columns,
             )
 
         # Create bars object
         tzinfo = getattr(self, "tzinfo", None)
-        if (
-            tzinfo is not None
-            and isinstance(response, pl.DataFrame)
-            and "datetime" in response.columns
-        ):
+        if tzinfo is not None and isinstance(response, pl.DataFrame) and "datetime" in response.columns:
             target_tz = getattr(tzinfo, "zone", None) or getattr(tzinfo, "key", None)
             if target_tz:
                 current_dtype = response.schema.get("datetime")
@@ -241,31 +287,27 @@ class PolarsMixin:
                 if current_tz != target_tz:
                     datetime_col = pl.col("datetime")
                     if current_tz is None:
-                        response = response.with_columns(
-                            datetime_col.dt.replace_time_zone(target_tz)
-                        )
+                        response = response.with_columns(datetime_col.dt.replace_time_zone(target_tz))
                     else:
-                        response = response.with_columns(
-                            datetime_col.dt.convert_time_zone(target_tz)
-                        )
+                        response = response.with_columns(datetime_col.dt.convert_time_zone(target_tz))
 
         # DEBUG-LOG: Creating Bars object
         if _THETA_PARITY_DEBUG:
             sample_data = {}
-            for col in ['open', 'high', 'low', 'close', 'volume', 'missing']:
+            for col in ["open", "high", "low", "close", "volume", "missing"]:
                 if col in response.columns:
                     try:
                         sample_data[col] = response[col][:3].to_list()
                     except Exception:
-                        sample_data[col] = 'ERROR'
+                        sample_data[col] = "ERROR"
             logger.debug(
                 "[POLARS_MIXIN][PARSE][BEFORE_BARS] asset=%s source=%s response_type=%s response_shape=%s return_polars=%s sample_data=%s",
-                getattr(asset, 'symbol', asset),
+                getattr(asset, "symbol", asset),
                 source,
                 type(response).__name__,
                 (response.height, len(response.columns)),
                 return_polars,
-                sample_data
+                sample_data,
             )
 
         bars = Bars(
@@ -282,19 +324,23 @@ class PolarsMixin:
         if _THETA_PARITY_DEBUG:
             logger.debug(
                 "[POLARS_MIXIN][PARSE][AFTER_BARS] asset=%s source=%s bars_type=%s bars._df_type=%s bars._df_shape=%s bars._return_polars=%s",
-                getattr(asset, 'symbol', asset),
+                getattr(asset, "symbol", asset),
                 source,
                 type(bars).__name__,
-                type(bars._df).__name__ if hasattr(bars, '_df') else 'NO_DF',
-                (bars._df.height, len(bars._df.columns)) if hasattr(bars, '_df') and hasattr(bars._df, 'height') else bars._df.shape if hasattr(bars, '_df') and hasattr(bars._df, 'shape') else 'NO_SHAPE',
-                bars._return_polars if hasattr(bars, '_return_polars') else 'NO_ATTR'
+                type(bars._df).__name__ if hasattr(bars, "_df") else "NO_DF",
+                (bars._df.height, len(bars._df.columns))
+                if hasattr(bars, "_df") and hasattr(bars._df, "height")
+                else bars._df.shape
+                if hasattr(bars, "_df") and hasattr(bars._df, "shape")
+                else "NO_SHAPE",
+                bars._return_polars if hasattr(bars, "_return_polars") else "NO_ATTR",
             )
 
         return bars
 
-    def _clear_cache_polars(self, asset: Optional[Asset] = None):
+    def _clear_cache_polars(self, asset: Asset | None = None) -> None:
         """Clear cached data.
-        
+
         Parameters
         ----------
         asset : Optional[Asset]
@@ -315,9 +361,11 @@ class PolarsMixin:
             self._cache_datetime = None
             self._cache_date = None
 
-    def _get_cached_last_price_polars(self, asset: Asset, current_dt: datetime, timestep: str = "minute") -> Optional[float]:
+    def _get_cached_last_price_polars(
+        self, asset: Asset, current_dt: datetime, timestep: str = "minute"
+    ) -> float | None:
         """Get last price from cache if valid.
-        
+
         Parameters
         ----------
         asset : Asset
@@ -326,14 +374,14 @@ class PolarsMixin:
             Current datetime for cache validation
         timestep : str
             The timestep (for cache key generation)
-            
+
         Returns
         -------
         Optional[float]
             Cached price or None if not valid
         """
         # Build cache key based on timestep
-        current_date = current_dt.date() if hasattr(current_dt, 'date') else current_dt
+        current_date = current_dt.date() if hasattr(current_dt, "date") else current_dt
 
         if timestep == "day":
             cache_key = (asset, timestep, None, None, current_date)
@@ -341,7 +389,7 @@ class PolarsMixin:
             cache_key = (asset, timestep, None, None, current_dt)
 
         # Check if we need to clear cache
-        if timestep == "day" and hasattr(self, '_cache_date') and self._cache_date != current_date:
+        if timestep == "day" and hasattr(self, "_cache_date") and self._cache_date != current_date:
             self._last_price_cache.clear()
             self._cache_date = current_date
         elif timestep != "day" and self._cache_datetime != current_dt:
@@ -350,9 +398,11 @@ class PolarsMixin:
 
         return self._last_price_cache.get(cache_key)
 
-    def _cache_last_price_polars(self, asset: Asset, price: float, current_dt: datetime, timestep: str = "minute"):
+    def _cache_last_price_polars(
+        self, asset: Asset, price: float, current_dt: datetime, timestep: str = "minute"
+    ) -> None:
         """Cache the last price for an asset.
-        
+
         Parameters
         ----------
         asset : Asset
@@ -364,7 +414,7 @@ class PolarsMixin:
         timestep : str
             The timestep (for cache key generation)
         """
-        current_date = current_dt.date() if hasattr(current_dt, 'date') else current_dt
+        current_date = current_dt.date() if hasattr(current_dt, "date") else current_dt
 
         if timestep == "day":
             cache_key = (asset, timestep, None, None, current_date)
@@ -375,7 +425,7 @@ class PolarsMixin:
 
         self._last_price_cache[cache_key] = price
 
-    def _convert_datetime_for_filtering(self, dt: Any) -> datetime:
+    def _convert_datetime_for_filtering(self, dt: Any) -> Any:
         """Convert datetime to naive UTC datetime for filtering.
 
         CRITICAL FIX: Must convert to UTC BEFORE stripping timezone!
@@ -401,26 +451,25 @@ class PolarsMixin:
         datetime
             Naive UTC datetime object
         """
-        from datetime import timezone
 
         # First convert to UTC if timezone-aware
-        if hasattr(dt, 'tzinfo') and dt.tzinfo is not None:
+        if hasattr(dt, "tzinfo") and dt.tzinfo is not None:
             # Convert to UTC
-            dt_utc = dt.astimezone(timezone.utc)
+            dt_utc = dt.astimezone(UTC)
             # Then strip timezone
             return dt_utc.replace(tzinfo=None)
-        elif hasattr(dt, 'tz_localize'):
+        elif hasattr(dt, "tz_localize"):
             # Pandas Timestamp
-            return dt.tz_convert('UTC').tz_localize(None)
-        elif hasattr(dt, 'replace'):
+            return dt.tz_convert("UTC").tz_localize(None)
+        elif hasattr(dt, "replace"):
             # Already naive
             return dt
         else:
             return dt
 
-    def _enforce_storage_limit_polars(self, max_memory: Optional[int] = None):
+    def _enforce_storage_limit_polars(self, max_memory: int | None = None) -> None:
         """Enforce memory storage limit by removing oldest data.
-        
+
         Parameters
         ----------
         max_memory : Optional[int]
@@ -441,7 +490,7 @@ class PolarsMixin:
                 bytes_per_row = len(schema.names()) * 8
                 asset_memory[asset] = estimated_rows * bytes_per_row
                 total_memory += asset_memory[asset]
-            except:
+            except Exception:
                 continue
 
         # Remove data if over limit
@@ -470,12 +519,12 @@ class PolarsMixin:
     def _filter_data_polars(
         self,
         asset: Asset,
-        lazy_data: pl.LazyFrame,
+        lazy_data: PolarsLazyFrame,
         end_filter: datetime,
         length: int,
         timestep: str = "minute",
-        use_strict_less_than: bool = False
-    ) -> Optional[pl.DataFrame]:
+        use_strict_less_than: bool = False,
+    ) -> PolarsDataFrame | None:
         """Filter data up to end_filter and return last length rows.
 
         Parameters
@@ -502,16 +551,18 @@ class PolarsMixin:
         if _THETA_PARITY_DEBUG:
             logger.debug(
                 "[POLARS_MIXIN][FILTER][ENTRY] asset=%s end_filter=%s end_filter_tz=%s length=%s timestep=%s use_strict_less_than=%s",
-                getattr(asset, 'symbol', asset),
+                getattr(asset, "symbol", asset),
                 end_filter,
-                end_filter.tzinfo if hasattr(end_filter, 'tzinfo') else 'N/A',
+                end_filter.tzinfo if hasattr(end_filter, "tzinfo") else "N/A",
                 length,
                 timestep,
-                use_strict_less_than
+                use_strict_less_than,
             )
 
         # DEBUG
-        logger.debug(f"[POLARS FILTER] end_filter={end_filter}, tzinfo={end_filter.tzinfo if hasattr(end_filter, 'tzinfo') else 'N/A'}, length={length}")
+        logger.debug(
+            f"[POLARS FILTER] end_filter={end_filter}, tzinfo={end_filter.tzinfo if hasattr(end_filter, 'tzinfo') else 'N/A'}, length={length}"
+        )
 
         # Convert end_filter to naive
         end_filter_naive = self._convert_datetime_for_filtering(end_filter)
@@ -520,8 +571,8 @@ class PolarsMixin:
         if _THETA_PARITY_DEBUG:
             logger.debug(
                 "[POLARS_MIXIN][FILTER][END_FILTER_NAIVE] asset=%s end_filter_naive=%s",
-                getattr(asset, 'symbol', asset),
-                end_filter_naive
+                getattr(asset, "symbol", asset),
+                end_filter_naive,
             )
 
         # DEBUG
@@ -529,7 +580,7 @@ class PolarsMixin:
 
         # Derive naive UTC end filter and compute matching start filter
         if timestep == "day":
-            current_date = end_filter.date() if hasattr(end_filter, 'date') else end_filter
+            current_date = end_filter.date() if hasattr(end_filter, "date") else end_filter
             cache_key = (asset, current_date, timestep)
         else:
             current_date = None
@@ -539,7 +590,7 @@ class PolarsMixin:
         schema = lazy_data.collect_schema()
         dt_col = None
         for col_name in schema.names():
-            if col_name in ['datetime', 'date', 'timestamp']:
+            if col_name in ["datetime", "date", "timestamp"]:
                 dt_col = col_name
                 break
 
@@ -548,11 +599,14 @@ class PolarsMixin:
             return None
 
         dt_dtype = schema[dt_col]
-        if hasattr(dt_dtype, 'time_zone') and dt_dtype.time_zone:
+        dt_time_zone = getattr(dt_dtype, "time_zone", None)
+        if dt_time_zone:
             import pytz
-            df_tz = pytz.timezone(dt_dtype.time_zone)
+
+            df_tz = pytz.timezone(dt_time_zone)
             end_filter_with_tz = pytz.utc.localize(end_filter_naive).astimezone(df_tz)
         else:
+            df_tz = None
             end_filter_with_tz = end_filter_naive
 
         start_filter_with_tz = None
@@ -576,8 +630,9 @@ class PolarsMixin:
                 start_candidate = end_filter - delta
 
             start_naive = self._convert_datetime_for_filtering(start_candidate)
-            if hasattr(dt_dtype, 'time_zone') and dt_dtype.time_zone:
+            if df_tz is not None:
                 import pytz
+
                 start_filter_with_tz = pytz.utc.localize(start_naive).astimezone(df_tz)
             else:
                 start_filter_with_tz = start_naive
@@ -587,7 +642,6 @@ class PolarsMixin:
             if len(cached) >= length:
                 return cached.tail(length)
 
-        dt_time_zone = getattr(dt_dtype, "time_zone", None)
         target_dtype = pl.Datetime(time_unit="ns", time_zone=dt_time_zone)
         end_literal = pl.lit(end_filter_with_tz).cast(target_dtype)
         filter_expr = pl.col(dt_col) <= end_literal
@@ -604,18 +658,17 @@ class PolarsMixin:
         if _THETA_PARITY_DEBUG:
             logger.debug(
                 "[POLARS_MIXIN][FILTER][BEFORE_FILTER_EXPR] asset=%s start_filter_with_tz=%s end_filter_with_tz=%s use_strict_less_than=%s dt_col=%s",
-                getattr(asset, 'symbol', asset),
+                getattr(asset, "symbol", asset),
                 start_filter_with_tz,
                 end_filter_with_tz,
                 use_strict_less_than,
-                dt_col
+                dt_col,
             )
 
         result = (
-            lazy_data
-            .filter(filter_expr)
+            lazy_data.filter(filter_expr)
             .sort(dt_col)
-            .unique(subset=[dt_col], keep='last', maintain_order=True)
+            .unique(subset=[dt_col], keep="last", maintain_order=True)
             .collect()
         )
 
@@ -623,9 +676,9 @@ class PolarsMixin:
         if _THETA_PARITY_DEBUG:
             logger.debug(
                 "[POLARS_MIXIN][FILTER][AFTER_FILTER_EXPR] asset=%s result_shape=%s result_is_empty=%s",
-                getattr(asset, 'symbol', asset),
+                getattr(asset, "symbol", asset),
                 (result.height, len(result.columns)),
-                result.is_empty()
+                result.is_empty(),
             )
 
         if result.is_empty() and length and length > 0:
@@ -633,20 +686,16 @@ class PolarsMixin:
             if _THETA_PARITY_DEBUG:
                 logger.warning(
                     "[POLARS_MIXIN][FILTER][FALLBACK_TRIGGERED] asset=%s length=%s reason=empty_result_after_filter",
-                    getattr(asset, 'symbol', asset),
-                    length
+                    getattr(asset, "symbol", asset),
+                    length,
                 )
             fallback = (
-                lazy_data
-                .sort(dt_col)
-                .unique(subset=[dt_col], keep='last', maintain_order=True)
-                .tail(length)
-                .collect()
+                lazy_data.sort(dt_col).unique(subset=[dt_col], keep="last", maintain_order=True).tail(length).collect()
             )
             if not fallback.is_empty():
                 logger.debug(
-                    '[POLARS-FILTER][FALLBACK] asset=%s timestep=%s length=%s rows=%s',
-                    getattr(asset, 'symbol', asset) if hasattr(asset, 'symbol') else asset,
+                    "[POLARS-FILTER][FALLBACK] asset=%s timestep=%s length=%s rows=%s",
+                    getattr(asset, "symbol", asset) if hasattr(asset, "symbol") else asset,
                     timestep,
                     length,
                     fallback.height,
@@ -655,8 +704,8 @@ class PolarsMixin:
                 if _THETA_PARITY_DEBUG:
                     logger.debug(
                         "[POLARS_MIXIN][FILTER][FALLBACK_SUCCESS] asset=%s fallback_shape=%s",
-                        getattr(asset, 'symbol', asset),
-                        (fallback.height, len(fallback.columns))
+                        getattr(asset, "symbol", asset),
+                        (fallback.height, len(fallback.columns)),
                     )
                 result = fallback
             else:
@@ -664,7 +713,7 @@ class PolarsMixin:
                 if _THETA_PARITY_DEBUG:
                     logger.warning(
                         "[POLARS_MIXIN][FILTER][FALLBACK_EMPTY] asset=%s lazy_data_has_no_rows=True",
-                        getattr(asset, 'symbol', asset)
+                        getattr(asset, "symbol", asset),
                     )
 
         has_price_columns = {"open", "high", "low", "close"} <= set(result.columns)
@@ -673,9 +722,9 @@ class PolarsMixin:
         if _THETA_PARITY_DEBUG:
             logger.debug(
                 "[POLARS_MIXIN][FILTER][BEFORE_MISSING_FLAG] asset=%s has_price_columns=%s result_columns=%s",
-                getattr(asset, 'symbol', asset),
+                getattr(asset, "symbol", asset),
                 has_price_columns,
-                result.columns
+                result.columns,
             )
 
         if has_price_columns:
@@ -683,16 +732,14 @@ class PolarsMixin:
             # Pandas uses .isna().all(axis=1) which means ALL OHLCV must be NaN for missing=True
             # NOT any single column - this is a critical difference from previous implementation
             missing_price_expr = (
-                (pl.col("open").is_null() | pl.col("open").is_nan()) &
-                (pl.col("high").is_null() | pl.col("high").is_nan()) &
-                (pl.col("low").is_null() | pl.col("low").is_nan()) &
-                (pl.col("close").is_null() | pl.col("close").is_nan())
+                (pl.col("open").is_null() | pl.col("open").is_nan())
+                & (pl.col("high").is_null() | pl.col("high").is_nan())
+                & (pl.col("low").is_null() | pl.col("low").is_nan())
+                & (pl.col("close").is_null() | pl.col("close").is_nan())
             )
             # Add volume check if it exists (pandas does this too)
             if "volume" in result.columns:
-                missing_price_expr = missing_price_expr & (
-                    pl.col("volume").is_null() | pl.col("volume").is_nan()
-                )
+                missing_price_expr = missing_price_expr & (pl.col("volume").is_null() | pl.col("volume").is_nan())
         else:
             missing_price_expr = pl.lit(False)
 
@@ -704,15 +751,15 @@ class PolarsMixin:
                 missing_count = int(result.select(pl.col("_lumibot_missing_price").cast(pl.Int64).sum()).item())
                 logger.debug(
                     "[POLARS_MIXIN][FILTER][AFTER_MISSING_FLAG] asset=%s missing_count=%s total_rows=%s",
-                    getattr(asset, 'symbol', asset),
+                    getattr(asset, "symbol", asset),
                     missing_count,
-                    result.height
+                    result.height,
                 )
             except Exception as e:
                 logger.debug(
                     "[POLARS_MIXIN][FILTER][AFTER_MISSING_FLAG] asset=%s missing_count=ERROR error=%s",
-                    getattr(asset, 'symbol', asset),
-                    str(e)
+                    getattr(asset, "symbol", asset),
+                    str(e),
                 )
 
         if timestep != "day":
@@ -721,9 +768,7 @@ class PolarsMixin:
                 high_ffill = pl.col("high").fill_nan(None).fill_null(strategy="forward")
                 low_ffill = pl.col("low").fill_nan(None).fill_null(strategy="forward")
                 close_ffill = pl.col("close").fill_nan(None).fill_null(strategy="forward")
-                close_fallback = pl.coalesce(
-                    [close_ffill, open_ffill, high_ffill, low_ffill]
-                )
+                close_fallback = pl.coalesce([close_ffill, open_ffill, high_ffill, low_ffill])
                 missing_price_mask = pl.col("_lumibot_missing_price")
                 price_null_mask = (
                     pl.col("open").is_null()
@@ -744,29 +789,19 @@ class PolarsMixin:
                         & pl.col("ask").is_not_null()
                         & ~pl.col("ask").is_nan()
                     )
-                    mid_price_expr = pl.when(valid_mid_mask).then((pl.col("bid") + pl.col("ask")) / 2.0).otherwise(close_fallback)
+                    mid_price_expr = (
+                        pl.when(valid_mid_mask).then((pl.col("bid") + pl.col("ask")) / 2.0).otherwise(close_fallback)
+                    )
                 else:
                     valid_mid_mask = pl.lit(False)
                     mid_price_expr = close_fallback
                 adjust_condition = missing_price_mask | price_null_mask | ((normalized_volume <= 0) & valid_mid_mask)
                 result = result.with_columns(
                     [
-                        pl.when(adjust_condition)
-                        .then(mid_price_expr)
-                        .otherwise(pl.col("open"))
-                        .alias("open"),
-                        pl.when(adjust_condition)
-                        .then(mid_price_expr)
-                        .otherwise(pl.col("high"))
-                        .alias("high"),
-                        pl.when(adjust_condition)
-                        .then(mid_price_expr)
-                        .otherwise(pl.col("low"))
-                        .alias("low"),
-                        pl.when(adjust_condition)
-                        .then(mid_price_expr)
-                        .otherwise(pl.col("close"))
-                        .alias("close"),
+                        pl.when(adjust_condition).then(mid_price_expr).otherwise(pl.col("open")).alias("open"),
+                        pl.when(adjust_condition).then(mid_price_expr).otherwise(pl.col("high")).alias("high"),
+                        pl.when(adjust_condition).then(mid_price_expr).otherwise(pl.col("low")).alias("low"),
+                        pl.when(adjust_condition).then(mid_price_expr).otherwise(pl.col("close")).alias("close"),
                         pl.when(missing_price_mask | normalized_volume.is_null())
                         .then(pl.lit(0.0))
                         .otherwise(normalized_volume)
@@ -778,16 +813,11 @@ class PolarsMixin:
                 high_ffill = pl.col("high").fill_nan(None).fill_null(strategy="forward")
                 low_ffill = pl.col("low").fill_nan(None).fill_null(strategy="forward")
                 close_ffill = pl.col("close").fill_nan(None).fill_null(strategy="forward")
-                close_fallback = pl.coalesce(
-                    [close_ffill, open_ffill, high_ffill, low_ffill]
-                )
+                close_fallback = pl.coalesce([close_ffill, open_ffill, high_ffill, low_ffill])
                 missing_price_mask = pl.col("_lumibot_missing_price")
                 result = result.with_columns(
                     [
-                        pl.when(missing_price_mask)
-                        .then(close_fallback)
-                        .otherwise(pl.col(col_name))
-                        .alias(col_name)
+                        pl.when(missing_price_mask).then(close_fallback).otherwise(pl.col(col_name)).alias(col_name)
                         for col_name in ["open", "high", "low", "close"]
                         if col_name in result.columns
                     ]
@@ -800,26 +830,15 @@ class PolarsMixin:
             ]
             if forward_fill_columns:
                 result = result.with_columns(
-                    [
-                        pl.col(col_name)
-                        .fill_nan(None)
-                        .fill_null(strategy="forward")
-                        for col_name in forward_fill_columns
-                    ]
+                    [pl.col(col_name).fill_nan(None).fill_null(strategy="forward") for col_name in forward_fill_columns]
                 )
 
         if "return" in result.columns:
-            result = result.with_columns(
-                pl.col("return").fill_null(0.0).fill_nan(0.0)
-            )
+            result = result.with_columns(pl.col("return").fill_null(0.0).fill_nan(0.0))
         if "price_change" in result.columns:
-            result = result.with_columns(
-                pl.col("price_change").fill_null(0.0).fill_nan(0.0)
-            )
+            result = result.with_columns(pl.col("price_change").fill_null(0.0).fill_nan(0.0))
         if "dividend_yield" in result.columns:
-            result = result.with_columns(
-                pl.col("dividend_yield").fill_null(0.0).fill_nan(0.0)
-            )
+            result = result.with_columns(pl.col("dividend_yield").fill_null(0.0).fill_nan(0.0))
 
         if timestep == "day" and cache_key:
             self._filtered_data_cache[cache_key] = result
@@ -828,10 +847,7 @@ class PolarsMixin:
             missing_flag = pl.col("_lumibot_missing_price").cast(pl.Boolean)
             if "missing" in result.columns:
                 result = result.with_columns(
-                    pl.when(pl.col("missing").cast(pl.Boolean))
-                    .then(True)
-                    .otherwise(missing_flag)
-                    .alias("missing")
+                    pl.when(pl.col("missing").cast(pl.Boolean)).then(True).otherwise(missing_flag).alias("missing")
                 )
             else:
                 result = result.with_columns(missing_flag.alias("missing"))
@@ -851,9 +867,7 @@ class PolarsMixin:
         missing_true = None
         if "missing" in result.columns and len(result):
             try:
-                missing_true = int(
-                    result.select(pl.col("missing").cast(pl.Int64).sum()).item()
-                )
+                missing_true = int(result.select(pl.col("missing").cast(pl.Int64).sum()).item())
             except Exception:
                 missing_true = None
         logger.debug(

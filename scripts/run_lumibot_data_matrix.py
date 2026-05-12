@@ -7,10 +7,12 @@ import json
 import math
 import os
 import sys
-from dataclasses import asdict, dataclass
-from datetime import datetime, time as dt_time, timedelta, timezone
+from collections.abc import Iterable
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from datetime import time as dt_time
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any
 
 import pandas as pd
 import requests
@@ -46,7 +48,6 @@ from lumibot.backtesting.interactive_brokers_rest_backtesting import Interactive
 from lumibot.entities import Asset
 from lumibot.strategies.strategy import Strategy
 from lumibot.tools import ibkr_helper
-
 
 WINDOWS_BY_INTERVAL: dict[str, list[str]] = {
     "minute": ["1d", "5d", "30d", "90d", "180d", "1y", "3y", "5y", "10y", "15y", "20y", "30y"],
@@ -84,7 +85,7 @@ class CellConfig:
     symbol: str
     asset_type: str
     market: str
-    quote_symbol: Optional[str] = None
+    quote_symbol: str | None = None
 
 
 class _HistoricalSeriesArtifactStrategy(Strategy):
@@ -94,7 +95,7 @@ class _HistoricalSeriesArtifactStrategy(Strategy):
         self.include_cash_positions = True
         self.completed = False
         self.validation: dict[str, Any] = {}
-        self.exact_window_df: Optional[pd.DataFrame] = None
+        self.exact_window_df: pd.DataFrame | None = None
 
     def on_trading_iteration(self):
         if self.completed:
@@ -109,7 +110,7 @@ class _HistoricalSeriesArtifactStrategy(Strategy):
         exchange = params.get("exchange")
 
         self.validation["lumibot_file"] = str(Path(lumibot.__file__).resolve())
-        self.validation["strategy_datetime"] = self.get_datetime().astimezone(timezone.utc).isoformat()
+        self.validation["strategy_datetime"] = self.get_datetime().astimezone(UTC).isoformat()
 
         public_probe = self.get_historical_prices(
             asset,
@@ -170,7 +171,7 @@ class _HistoricalSeriesArtifactStrategy(Strategy):
 
 
 def _iso_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _load_repo_env() -> None:
@@ -204,7 +205,7 @@ def _build_asset(symbol: str, asset_type: str) -> Asset:
     return Asset(symbol, asset_type=Asset.AssetType.CRYPTO)
 
 
-def _build_quote_asset(quote_symbol: Optional[str]) -> Optional[Asset]:
+def _build_quote_asset(quote_symbol: str | None) -> Asset | None:
     if not quote_symbol:
         return None
     return Asset(quote_symbol, asset_type=Asset.AssetType.FOREX)
@@ -280,7 +281,7 @@ def _fetch_exact_window_frame(
     interval: str,
     start_dt: datetime,
     end_dt: datetime,
-    exchange: Optional[str],
+    exchange: str | None,
 ) -> pd.DataFrame:
     data_source = strategy.broker.data_source
     asset_arg: Asset | tuple[Asset, Asset]
@@ -325,7 +326,7 @@ def _fetch_exact_window_frame(
     return sliced
 
 
-def _safe_float(value: Any) -> Optional[float]:
+def _safe_float(value: Any) -> float | None:
     try:
         number = float(value)
     except Exception:
@@ -335,7 +336,7 @@ def _safe_float(value: Any) -> Optional[float]:
     return number
 
 
-def _run_lengths(values: list[Any]) -> tuple[int, Optional[int], Optional[int]]:
+def _run_lengths(values: list[Any]) -> tuple[int, int | None, int | None]:
     if not values:
         return 0, None, None
     best = 1
@@ -361,9 +362,9 @@ def _normalize_price_frame(df: pd.DataFrame) -> pd.DataFrame:
     frame.columns = [str(col).strip().lower() for col in frame.columns]
     index = pd.DatetimeIndex(frame.index)
     if index.tz is None:
-        index = index.tz_localize(timezone.utc)
+        index = index.tz_localize(UTC)
     else:
-        index = index.tz_convert(timezone.utc)
+        index = index.tz_convert(UTC)
     frame.index = index
     frame = frame.sort_index()
     return frame
@@ -391,6 +392,7 @@ def _quality_issues_for_frame(
             frame.get("high", pd.Series(dtype=float)).tolist(),
             frame.get("low", pd.Series(dtype=float)).tolist(),
             frame.get("close", pd.Series(dtype=float)).tolist(),
+            strict=False,
         )
     )
     close_values = [value for value in pd.to_numeric(frame.get("close"), errors="coerce").dropna().tolist()]
@@ -436,7 +438,7 @@ def _explicit_support_limit(error_text: str) -> bool:
     return any(marker in lowered for marker in markers)
 
 
-def _derive_failure_bucket(record: dict[str, Any]) -> Optional[str]:
+def _derive_failure_bucket(record: dict[str, Any]) -> str | None:
     outcome = str(record.get("outcome") or "")
     if outcome in {"pass", "support-limit"}:
         return None
@@ -464,13 +466,13 @@ def _stable_end_datetime(asset_type: str, now_utc: datetime) -> datetime:
     local_now = now_utc.astimezone(US_EASTERN)
     close_today = datetime.combine(local_now.date(), dt_time(hour=16, minute=0), tzinfo=US_EASTERN)
     if local_now.weekday() < 5 and local_now >= close_today:
-        return close_today.astimezone(timezone.utc)
+        return close_today.astimezone(UTC)
 
     cursor = local_now.date() - timedelta(days=1)
     while cursor.weekday() >= 5:
         cursor -= timedelta(days=1)
     previous_close = datetime.combine(cursor, dt_time(hour=16, minute=0), tzinfo=US_EASTERN)
-    return previous_close.astimezone(timezone.utc)
+    return previous_close.astimezone(UTC)
 
 
 def _assert_repo_lumibot_import_path() -> str:
@@ -508,7 +510,7 @@ def _require_prod_downloader() -> dict[str, str]:
     }
 
 
-def _load_downloader_targets(path: Optional[str]) -> dict[tuple[str, str], dict[str, Any]]:
+def _load_downloader_targets(path: str | None) -> dict[tuple[str, str], dict[str, Any]]:
     if not path:
         return {}
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -646,9 +648,14 @@ def _build_markdown(report: dict[str, Any]) -> str:
         "| Provider | Symbol | Asset | Interval | Status | Backend | Class | Cache | Max Reach | First Support Limit | Rows | First Timestamp | Last Timestamp | Quality Issues | Failure Bucket | Confidence | Artifact |",
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- |",
     ]
+    row_template = (
+        "| {provider} | {symbol} | {asset_type} | {interval} | {status} | {backend} | {classification} | "
+        "{cache_write_policy} | {max_reachable_window} | {first_support_limit_window} | {row_count} | "
+        "{first_timestamp} | {last_timestamp} | {quality_issues} | {failure_bucket} | {confidence} | {artifact_path} |"
+    )
     for row in report["lumibot_matrix"]:
         lines.append(
-            "| {provider} | {symbol} | {asset_type} | {interval} | {status} | {backend} | {classification} | {cache_write_policy} | {max_reachable_window} | {first_support_limit_window} | {row_count} | {first_timestamp} | {last_timestamp} | {quality_issues} | {failure_bucket} | {confidence} | {artifact_path} |".format(
+            row_template.format(
                 **{k: ("" if v is None else str(v).replace("|", "/")) for k, v in row.items()}
             )
         )
@@ -728,9 +735,9 @@ def _write_runner_state(
     *,
     outdir: Path,
     state: str,
-    current_case: Optional[dict[str, Any]] = None,
-    completed_case: Optional[dict[str, Any]] = None,
-    report_path: Optional[Path] = None,
+    current_case: dict[str, Any] | None = None,
+    completed_case: dict[str, Any] | None = None,
+    report_path: Path | None = None,
 ) -> None:
     payload = {
         "updated_at": _iso_now(),
@@ -1030,11 +1037,11 @@ def main() -> int:
         cells = [cell for cell in cells if cell.provider in provider_filter]
     if symbol_filter:
         cells = [cell for cell in cells if cell.symbol.upper() in symbol_filter]
-    now_utc = datetime.now(timezone.utc) if not args.end_time_utc else datetime.fromisoformat(args.end_time_utc)
+    now_utc = datetime.now(UTC) if not args.end_time_utc else datetime.fromisoformat(args.end_time_utc)
     if now_utc.tzinfo is None:
-        now_utc = now_utc.replace(tzinfo=timezone.utc)
+        now_utc = now_utc.replace(tzinfo=UTC)
     else:
-        now_utc = now_utc.astimezone(timezone.utc)
+        now_utc = now_utc.astimezone(UTC)
 
     cases: list[dict[str, Any]] = []
     existing_cases_by_key: dict[tuple[str, str, str, str], dict[str, Any]] = {}

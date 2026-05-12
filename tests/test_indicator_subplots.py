@@ -7,12 +7,9 @@ import plotly.graph_objects as go
 import pytest
 
 from lumibot.backtesting import PandasDataBacktesting
-from lumibot.strategies.strategy import Strategy
 from lumibot.entities import Asset
+from lumibot.strategies.strategy import Strategy
 from lumibot.tools.indicators import _build_trade_marker_tooltip, plot_indicators, plot_returns
-
-from tests.fixtures import pandas_data_fixture
-
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +18,7 @@ class TestDefaultIndicatorStrategy(Strategy):
     """
     A strategy that adds the closing prices of each asset to a line.
     """
+
     __test__ = False
 
     def initialize(self):
@@ -31,9 +29,8 @@ class TestDefaultIndicatorStrategy(Strategy):
         self.assets = [
             Asset(symbol="SPY", asset_type="stock"),
             Asset(symbol="TLT", asset_type="stock"),
-            Asset(symbol="GLD", asset_type="stock")
+            Asset(symbol="GLD", asset_type="stock"),
         ]
-
 
     def on_trading_iteration(self):
         # Get the current datetime
@@ -47,17 +44,9 @@ class TestDefaultIndicatorStrategy(Strategy):
             # Add the closing price to a line
             if price_data is not None:
                 close_price = price_data
-                self.add_line(
-                    name=f"{asset.symbol} Close",
-                    value=close_price,
-                    dt=dt
-                )
+                self.add_line(name=f"{asset.symbol} Close", value=close_price, dt=dt)
 
-                self.add_line(
-                    name=f"{asset.symbol} Close price 2",
-                    value=close_price,
-                    dt=dt
-                )
+                self.add_line(name=f"{asset.symbol} Close price 2", value=close_price, dt=dt)
 
                 # Add a green up triangle on Mondays
                 if dt.weekday() == 0:  # Monday is 0
@@ -84,6 +73,7 @@ class TestIndicatorStrategy(Strategy):
     """
     A strategy that adds the closing prices of each asset to a line.
     """
+
     __test__ = False
 
     def initialize(self):
@@ -94,14 +84,10 @@ class TestIndicatorStrategy(Strategy):
         self.assets = [
             Asset(symbol="SPY", asset_type="stock"),
             Asset(symbol="TLT", asset_type="stock"),
-            Asset(symbol="GLD", asset_type="stock")
+            Asset(symbol="GLD", asset_type="stock"),
         ]
 
-        self.colors = {
-            "SPY": "lightblue",
-            "TLT": "pink",
-            "GLD": "yellow"
-        }
+        self.colors = {"SPY": "lightblue", "TLT": "pink", "GLD": "yellow"}
 
     def on_trading_iteration(self):
         # Get the current datetime
@@ -120,7 +106,7 @@ class TestIndicatorStrategy(Strategy):
                     value=close_price,
                     color=self.colors[asset.symbol],
                     dt=dt,
-                    plot_name=asset.symbol
+                    plot_name=asset.symbol,
                 )
 
                 self.add_line(
@@ -128,7 +114,7 @@ class TestIndicatorStrategy(Strategy):
                     value=close_price,
                     color=self.colors[asset.symbol],
                     dt=dt,
-                    plot_name=f"{asset.symbol} line 2"
+                    plot_name=f"{asset.symbol} line 2",
                 )
 
                 # Add a green up triangle on Mondays
@@ -139,7 +125,7 @@ class TestIndicatorStrategy(Strategy):
                         color="green",
                         symbol="triangle-up",
                         dt=dt,
-                        plot_name=asset.symbol
+                        plot_name=asset.symbol,
                     )
 
                 # Add a red upside-down triangle on Fridays
@@ -150,12 +136,11 @@ class TestIndicatorStrategy(Strategy):
                         color="red",
                         symbol="triangle-down",
                         dt=dt,
-                        plot_name=asset.symbol
+                        plot_name=asset.symbol,
                     )
 
 
 class TestIndicators:
-
     def test_default_lines(self, pandas_data_fixture):
         """Test the default behavior (unnamed lines)"""
         strategy_name = "TestDefaultIndicatorStrategy"
@@ -220,9 +205,7 @@ def test_plot_returns_preserves_cash_settled_status(tmp_path, monkeypatch):
 
     monkeypatch.setattr(go.Figure, "write_html", _fake_write_html, raising=False)
 
-    idx = pd.to_datetime(
-        ["2025-09-04 00:00:00-04:00", "2025-09-20 00:00:00-04:00"]
-    ).tz_convert("UTC")
+    idx = pd.to_datetime(["2025-09-04 00:00:00-04:00", "2025-09-20 00:00:00-04:00"]).tz_convert("UTC")
 
     strategy_df = pd.DataFrame(
         {
@@ -293,9 +276,7 @@ def test_plot_returns_preserves_assignment_and_exercise_statuses(tmp_path, monke
 
     monkeypatch.setattr(go.Figure, "write_html", _fake_write_html, raising=False)
 
-    idx = pd.to_datetime(
-        ["2025-09-20 00:00:00-04:00", "2025-09-21 00:00:00-04:00"]
-    ).tz_convert("UTC")
+    idx = pd.to_datetime(["2025-09-20 00:00:00-04:00", "2025-09-21 00:00:00-04:00"]).tz_convert("UTC")
 
     strategy_df = pd.DataFrame(
         {
@@ -460,7 +441,6 @@ def _make_strategy_stub():
 
 
 class TestAddMarkerAndLineGuards:
-
     def test_add_marker_rejects_nan(self, caplog):
         strat = _make_strategy_stub()
         with caplog.at_level(logging.WARNING):
@@ -561,13 +541,7 @@ class TestAddMarkerAndLineGuards:
     def test_add_marker_option_asset_fields(self):
         """Test that add_marker correctly stores option asset fields."""
         strat = _make_strategy_stub()
-        asset = Asset(
-            symbol="AAPL",
-            asset_type="option",
-            expiration="2024-12-20",
-            strike=150,
-            right="CALL"
-        )
+        asset = Asset(symbol="AAPL", asset_type="option", expiration="2024-12-20", strike=150, right="CALL")
         strat.add_marker("iv_marker", 0.25, asset=asset)
 
         marker = strat._chart_markers_list[0]
@@ -581,11 +555,7 @@ class TestAddMarkerAndLineGuards:
     def test_add_line_future_asset_fields(self):
         """Test that add_line correctly stores future asset fields."""
         strat = _make_strategy_stub()
-        asset = Asset(
-            symbol="ES",
-            asset_type="future",
-            expiration="2024-12-20"
-        )
+        asset = Asset(symbol="ES", asset_type="future", expiration="2024-12-20")
         strat.add_line("price", 5000.0, asset=asset)
 
         line = strat._chart_lines_list[0]
@@ -619,7 +589,6 @@ class TestAddMarkerAndLineGuards:
 
 
 class TestAddOHLCGuards:
-
     def test_add_ohlc_basic(self):
         strat = _make_strategy_stub()
         result = strat.add_ohlc("Test", open=100, high=105, low=98, close=102)

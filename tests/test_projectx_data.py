@@ -1,10 +1,11 @@
-import pytest
-from unittest.mock import MagicMock, patch
-import pandas as pd
 import datetime as dt
+from unittest.mock import MagicMock, patch
 
-from lumibot.entities import Asset, Bars
+import pandas as pd
+import pytest
+
 from lumibot.data_sources.projectx_data import ProjectXData
+from lumibot.entities import Asset, Bars
 
 
 @pytest.fixture
@@ -13,17 +14,17 @@ def mock_projectx_config():
     return {
         "firm": "TEST",
         "api_key": "test_api_key",
-        "username": "test_user", 
+        "username": "test_user",
         "base_url": "https://test.projectx.com",
         "preferred_account_name": "TestAccount",
-        "streaming_base_url": "wss://test.projectx.com/hub"
+        "streaming_base_url": "wss://test.projectx.com/hub",
     }
 
 
 @pytest.fixture
 def projectx_data_source(mock_projectx_config):
     """Create ProjectX data source with mocked dependencies"""
-    with patch('lumibot.data_sources.projectx_data.ProjectXClient'):
+    with patch("lumibot.data_sources.projectx_data.ProjectXClient"):
         data_source = ProjectXData(mock_projectx_config)
         data_source.client = MagicMock()
         return data_source
@@ -37,7 +38,7 @@ class TestProjectXDataSource:
 
     def test_data_source_initialization(self, mock_projectx_config):
         """Test basic data source initialization"""
-        with patch('lumibot.data_sources.projectx_data.ProjectXClient'):
+        with patch("lumibot.data_sources.projectx_data.ProjectXClient"):
             data_source = ProjectXData(mock_projectx_config)
             assert data_source.name == "data_source"  # Inherited from parent DataSource class
             assert data_source.firm == "TEST"
@@ -65,7 +66,9 @@ class TestProjectXDataSource:
         for timespan, expected_unit, expected_number in test_cases:
             unit, unit_number = projectx_data_source._parse_timespan(timespan)
             assert unit == expected_unit, f"Failed for {timespan}: expected {expected_unit}, got {unit}"
-            assert unit_number == expected_number, f"Failed for {timespan}: expected {expected_number}, got {unit_number}"
+            assert unit_number == expected_number, (
+                f"Failed for {timespan}: expected {expected_number}, got {unit_number}"
+            )
 
     def test_projectx_unit_mapping(self, projectx_data_source):
         """Test ProjectX unit mapping"""
@@ -102,9 +105,7 @@ class TestProjectXDataSource:
         projectx_data_source._get_contract_id_from_asset = MagicMock(return_value="test_contract_id")
 
         # Mock client.history_retrieve_bars to return bars with price data
-        mock_df = pd.DataFrame({
-            'close': [5150.25]
-        })
+        mock_df = pd.DataFrame({"close": [5150.25]})
         projectx_data_source.client.history_retrieve_bars = MagicMock(return_value=mock_df)
 
         asset = Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
@@ -125,7 +126,9 @@ class TestProjectXDataSource:
         """Test that option chains are not supported for futures broker"""
         asset = Asset(symbol="SPY", asset_type=Asset.AssetType.STOCK)
 
-        with pytest.raises(NotImplementedError, match="ProjectX is a futures data source - options chains are not supported"):
+        with pytest.raises(
+            NotImplementedError, match="ProjectX is a futures data source - options chains are not supported"
+        ):
             projectx_data_source.get_chains(asset)
 
     def test_get_bars_with_contract_found(self, projectx_data_source):
@@ -135,14 +138,16 @@ class TestProjectXDataSource:
         projectx_data_source._get_contract_id_from_asset = MagicMock(return_value="CON.F.US.MES.U25")
 
         # Mock successful bars retrieval
-        mock_df = pd.DataFrame({
-            'time': pd.date_range('2024-01-15 09:30:00', periods=2, freq='1min'),
-            'open': [5150.0, 5152.0],
-            'high': [5155.0, 5157.0],
-            'low': [5148.0, 5151.0],
-            'close': [5152.0, 5156.0],
-            'volume': [1000, 1200]
-        })
+        mock_df = pd.DataFrame(
+            {
+                "time": pd.date_range("2024-01-15 09:30:00", periods=2, freq="1min"),
+                "open": [5150.0, 5152.0],
+                "high": [5155.0, 5157.0],
+                "low": [5148.0, 5151.0],
+                "close": [5152.0, 5156.0],
+                "volume": [1000, 1200],
+            }
+        )
         projectx_data_source.client.history_retrieve_bars = MagicMock(return_value=mock_df)
 
         asset = Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
@@ -161,10 +166,10 @@ class TestProjectXDataSource:
         """
 
         # Mock Asset class to return multiple potential formats
-        with patch.object(Asset, 'get_potential_futures_contracts') as mock_contracts:
+        with patch.object(Asset, "get_potential_futures_contracts") as mock_contracts:
             with patch.object(projectx_data_source.client, "find_contract_by_symbol") as mock_api_lookup:
                 mock_api_lookup.return_value = "CON.F.US.MES.Z25"
-                mock_contracts.return_value = ['MESU25', 'MES.U25', 'MESU2025']
+                mock_contracts.return_value = ["MESU25", "MES.U25", "MESU2025"]
 
                 # Mock client method to return valid contract
                 assert not projectx_data_source._contract_cache
@@ -197,7 +202,7 @@ class TestProjectXDataSource:
         # Mock empty contract lookup - need to mock both Asset method and client method
         projectx_data_source.client.find_contract_by_symbol = MagicMock(return_value=None)
 
-        with patch.object(Asset, 'get_potential_futures_contracts') as mock_contracts:
+        with patch.object(Asset, "get_potential_futures_contracts") as mock_contracts:
             mock_contracts.side_effect = Exception("Asset resolution failed")  # Force fallback to client
 
             asset = Asset(symbol="UNKNOWN", asset_type=Asset.AssetType.CONT_FUTURE)
@@ -217,10 +222,10 @@ class TestProjectXDataSource:
             "success": True,
             "contract": {
                 "ContractId": "CON.F.US.MES.U25",
-                "Symbol": "MES", 
+                "Symbol": "MES",
                 "Description": "E-mini S&P 500 Future",
-                "TickSize": 0.25
-            }
+                "TickSize": 0.25,
+            },
         }
         projectx_data_source.client.contract_search_id = MagicMock(return_value=mock_response)
 
@@ -236,13 +241,7 @@ class TestProjectXDataSource:
         # Mock contract search response
         mock_response = {
             "success": True,
-            "contracts": [
-                {
-                    "ContractId": "CON.F.US.MES.U25",
-                    "Symbol": "MES",
-                    "Description": "E-mini S&P 500 Future"
-                }
-            ]
+            "contracts": [{"ContractId": "CON.F.US.MES.U25", "Symbol": "MES", "Description": "E-mini S&P 500 Future"}],
         }
         projectx_data_source.client.contract_search = MagicMock(return_value=mock_response)
 
@@ -275,14 +274,16 @@ class TestProjectXDataSource:
         projectx_data_source._get_contract_id_from_asset = MagicMock(return_value="CON.F.US.MES.U25")
 
         # Mock successful bars retrieval
-        mock_df = pd.DataFrame({
-            'time': pd.date_range('2024-01-15 09:30:00', periods=1, freq='1min'),
-            'open': [5150.0],
-            'high': [5155.0],
-            'low': [5148.0],
-            'close': [5152.0],
-            'volume': [1000]
-        })
+        mock_df = pd.DataFrame(
+            {
+                "time": pd.date_range("2024-01-15 09:30:00", periods=1, freq="1min"),
+                "open": [5150.0],
+                "high": [5155.0],
+                "low": [5148.0],
+                "close": [5152.0],
+                "volume": [1000],
+            }
+        )
         projectx_data_source.client.history_retrieve_bars = MagicMock(return_value=mock_df)
 
         asset = Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
@@ -309,14 +310,16 @@ class TestProjectXDataSourceIntegration:
         projectx_data_source._get_contract_id_from_asset = MagicMock(return_value="CON.F.US.MES.U25")
 
         # Mock historical data
-        mock_df = pd.DataFrame({
-            'time': pd.date_range('2024-01-15 09:30:00', periods=2, freq='1min'),
-            'open': [5150.0, 5152.0],
-            'high': [5155.0, 5157.0],
-            'low': [5148.0, 5151.0],
-            'close': [5152.0, 5156.0],
-            'volume': [1000, 1200]
-        })
+        mock_df = pd.DataFrame(
+            {
+                "time": pd.date_range("2024-01-15 09:30:00", periods=2, freq="1min"),
+                "open": [5150.0, 5152.0],
+                "high": [5155.0, 5157.0],
+                "low": [5148.0, 5151.0],
+                "close": [5152.0, 5156.0],
+                "volume": [1000, 1200],
+            }
+        )
         projectx_data_source.client.history_retrieve_bars = MagicMock(return_value=mock_df)
 
         # Test full workflow

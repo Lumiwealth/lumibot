@@ -1,3 +1,9 @@
+# pyright: reportMissingParameterType=false, reportUnknownParameterType=false
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false
+# pyright: reportPrivateUsage=false, reportMissingTypeArgument=false
+# pyright: reportAttributeAccessIssue=false, reportOptionalMemberAccess=false
+# pyright: reportUnnecessaryComparison=false, reportUnnecessaryIsInstance=false
+
 import logging
 import math
 import warnings
@@ -6,10 +12,11 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from statistics import NormalDist
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
-from lumibot.entities import Asset, Order
+from lumibot.entities.asset import Asset
 from lumibot.entities.chains import Chains
+from lumibot.entities.order import Order
 
 logger = logging.getLogger(__name__)
 
@@ -18,19 +25,19 @@ logger = logging.getLogger(__name__)
 class OptionMarketEvaluation:
     """Structured result from evaluate_option_market."""
 
-    bid: Optional[float]
-    ask: Optional[float]
-    last_price: Optional[float]
-    spread_pct: Optional[float]
+    bid: float | None
+    ask: float | None
+    last_price: float | None
+    spread_pct: float | None
     has_bid_ask: bool
     spread_too_wide: bool
     missing_bid_ask: bool
     missing_last_price: bool
-    buy_price: Optional[float]
-    sell_price: Optional[float]
+    buy_price: float | None
+    sell_price: float | None
     used_last_price_fallback: bool
-    max_spread_pct: Optional[float]
-    data_quality_flags: List[str]
+    max_spread_pct: float | None
+    data_quality_flags: list[str]
 
 
 class OptionsHelper:
@@ -47,7 +54,7 @@ class OptionsHelper:
     - Additional utility functions for liquidity checking and order detail summaries
     """
 
-    def __init__(self, strategy) -> None:
+    def __init__(self, strategy: Any) -> None:
         """
         Initialize the OptionsHelper.
 
@@ -59,24 +66,24 @@ class OptionsHelper:
         """
         self.strategy = strategy
         # Cache for expiries known to yield no valid option
-        self.non_existing_expiry_dates: List[Dict[str, Union[str, date]]] = []
+        self.non_existing_expiry_dates: list[dict[str, str | date | None]] = []
         # For risk management in condor orders
-        self.last_condor_prices: Optional[Dict[Order, float]] = None
-        self.last_call_sell_strike: Optional[float] = None
-        self.last_put_sell_strike: Optional[float] = None
+        self.last_condor_prices: dict[Order, float] | None = None
+        self.last_call_sell_strike: float | None = None
+        self.last_put_sell_strike: float | None = None
         self._liquidity_deprecation_warned = False
 
         # PERF: Option-heavy strategies often call quote/greeks helpers multiple times per bar.
         # In backtesting, quotes are immutable within a bar, so cache derived values keyed by the
         # current strategy datetime to avoid repeated get_quote()/get_greeks() work.
-        self._per_bar_cache_dt: Optional[datetime] = None
-        self._per_bar_option_mark_cache: Dict[Asset, Tuple[Optional[float], Optional[float], Optional[float]]] = {}
-        self._per_bar_delta_cache: Dict[Tuple[Asset, Optional[float]], Optional[float]] = {}
-        self._per_bar_greeks_cache: Dict[Tuple[Asset, Optional[float], Optional[float]], Optional[Dict[str, Any]]] = {}
+        self._per_bar_cache_dt: datetime | None = None
+        self._per_bar_option_mark_cache: dict[tuple[Asset, bool], tuple[float | None, float | None, float | None]] = {}
+        self._per_bar_delta_cache: dict[tuple[Asset, float | None], float | None] = {}
+        self._per_bar_greeks_cache: dict[tuple[Asset, float | None, float | None], dict[str, Any] | None] = {}
 
         # PERF: When quote-based expiration validation fails repeatedly in long-window backtests,
         # temporarily disable that validation per underlying to avoid day-after-day probe storms.
-        self._expiration_validation_disabled_until: Dict[str, date] = {}
+        self._expiration_validation_disabled_until: dict[str, date] = {}
         self.strategy.log_message("OptionsHelper initialized.", color="blue")
 
     def _reset_per_bar_caches_if_needed(self) -> None:
@@ -93,7 +100,7 @@ class OptionsHelper:
             self._per_bar_greeks_cache = {}
 
     @staticmethod
-    def _coerce_price(value: Any, field_name: str, flags: List[str], notes: List[str]) -> Optional[float]:
+    def _coerce_price(value: Any, field_name: str, flags: list[str], notes: list[str]) -> float | None:
         """Normalize quote values and record data quality issues."""
         raw_value = value
 
@@ -124,7 +131,7 @@ class OptionsHelper:
         return value
 
     @staticmethod
-    def has_actionable_price(evaluation: Optional["OptionMarketEvaluation"]) -> bool:
+    def has_actionable_price(evaluation: OptionMarketEvaluation | None) -> bool:
         """Return True when the evaluation contains usable buy and sell prices.
 
         A quote can be "one-sided" (ask-only or bid-only). In that case we cannot
@@ -153,7 +160,7 @@ class OptionsHelper:
         )
 
     @staticmethod
-    def _float_positive(value: Any) -> Optional[float]:
+    def _float_positive(value: Any) -> float | None:
         try:
             numeric = float(value)
         except (TypeError, ValueError):
@@ -167,7 +174,7 @@ class OptionsHelper:
         option_asset: Asset,
         *,
         snapshot: bool = False,
-    ) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+    ) -> tuple[float | None, float | None, float | None]:
         """Return (mark_price, bid, ask) derived from quotes; never calls get_last_price()."""
         self._reset_per_bar_caches_if_needed()
 
@@ -237,8 +244,8 @@ class OptionsHelper:
         rounded_underlying_price: float,
         expiry: date,
         put_or_call: str = "call",
-        chains: Optional[Any] = None,
-    ) -> Optional[Asset]:
+        chains: Any | None = None,
+    ) -> Asset | None:
         """
         Find a valid option with the given expiry and strike.
         First tries the requested strike, then searches nearby strikes from the option chain.
@@ -550,7 +557,9 @@ class OptionsHelper:
                     # need broader search should do so explicitly.
                     max_strikes_to_try = 5
                     try:
-                        if not self._is_index_like_underlying(underlying_asset, getattr(underlying_asset, "symbol", None)):
+                        if not self._is_index_like_underlying(
+                            underlying_asset, getattr(underlying_asset, "symbol", None)
+                        ):
                             max_strikes_to_try = 3
                     except Exception:
                         max_strikes_to_try = 3
@@ -597,7 +606,9 @@ class OptionsHelper:
                     # spend most of their time re-probing known-empty periods.
                     if is_backtesting and not saw_any_mark_price:
                         retry_days = max(retry_days, 30)
-                    cooldown[(underlying_asset.symbol, exp_date, put_or_call.upper())] = current_dt + timedelta(days=retry_days)
+                    cooldown[(underlying_asset.symbol, exp_date, put_or_call.upper())] = current_dt + timedelta(
+                        days=retry_days
+                    )
                 continue
 
             closest_strike = strikes_sorted[0]
@@ -641,7 +652,7 @@ class OptionsHelper:
         return expiry
 
     @staticmethod
-    def _get_chain_expirations(*, chains: Any, side: str) -> List[date]:
+    def _get_chain_expirations(*, chains: Any, side: str) -> list[date]:
         """Return sorted expiration dates for the given side ("call"/"put")."""
         side_key = str(side).upper()
         if side_key.startswith("C"):
@@ -654,7 +665,7 @@ class OptionsHelper:
         except Exception:
             _normalise_expiry = None
 
-        expirations: List[date] = []
+        expirations: list[date] = []
         chain_map = None
         if isinstance(chains, dict):
             chain_map = chains.get("Chains", {}).get(side_key, {})
@@ -678,9 +689,15 @@ class OptionsHelper:
         expirations = sorted({OptionsHelper._normalize_to_trading_expiry(d) for d in expirations})
         return expirations
 
-    def get_strike_deltas(self, underlying_asset: Asset, expiry: date, strikes: List[float],
-                          right: str, stop_greater_than: Optional[float] = None,
-                          stop_less_than: Optional[float] = None) -> Dict[float, Optional[float]]:
+    def get_strike_deltas(
+        self,
+        underlying_asset: Asset,
+        expiry: date,
+        strikes: list[float],
+        right: str,
+        stop_greater_than: float | None = None,
+        stop_less_than: float | None = None,
+    ) -> dict[float, float | None]:
         """
         Compute the delta for each strike in a given list.
 
@@ -704,8 +721,10 @@ class OptionsHelper:
         Dict[float, Optional[float]]
             Mapping from strike price to its delta.
         """
-        self.strategy.log_message(f"Computing strike deltas for {underlying_asset.symbol} at expiry {expiry}.", color="blue")
-        strike_deltas: Dict[float, Optional[float]] = {}
+        self.strategy.log_message(
+            f"Computing strike deltas for {underlying_asset.symbol} at expiry {expiry}.", color="blue"
+        )
+        strike_deltas: dict[float, float | None] = {}
 
         underlying_price = self.strategy.get_last_price(underlying_asset)
         if underlying_price is None:
@@ -721,7 +740,7 @@ class OptionsHelper:
         # / target_put_delta) and the strike list is large, evaluate only O(log N)
         # candidates using a bounded binary search over strikes.
         # ------------------------------------------------------------------
-        target_delta: Optional[float] = None
+        target_delta: float | None = None
         if stop_greater_than is None and stop_less_than is None and len(strikes) >= 80:
             right_norm = str(right).strip().lower()
             if right_norm.startswith("c"):
@@ -750,7 +769,7 @@ class OptionsHelper:
                 target_delta = None
 
         if target_delta is not None:
-            strikes_sorted: List[float] = []
+            strikes_sorted: list[float] = []
             for value in strikes:
                 try:
                     strikes_sorted.append(float(value))
@@ -769,13 +788,13 @@ class OptionsHelper:
                 visited: set[int] = set()
                 max_iters = int(math.ceil(math.log2(len(strikes_sorted) + 1))) + 8
 
-                best_idx: Optional[int] = None
-                best_delta: Optional[float] = None
+                best_idx: int | None = None
+                best_delta: float | None = None
 
                 # PERF: Seed strike evaluation near the target delta using a Black–Scholes delta
                 # inversion estimate and probe only a small neighborhood. This avoids the full
                 # binary-walk (and its many quote probes) for option-heavy strategies.
-                strike_estimate: Optional[float] = None
+                strike_estimate: float | None = None
                 try:
                     right_norm = str(right).strip().lower()
                     is_call = right_norm.startswith("c")
@@ -971,7 +990,9 @@ class OptionsHelper:
                 # Some unit tests (and custom strategy stubs) mock get_greeks without the asset_price kwarg.
                 greeks = self.strategy.get_greeks(option, underlying_price=underlying_price)
             if greeks is None:
-                self.strategy.log_message(f"Could not calculate Greeks for {option.symbol} at strike {strike}", color="yellow")
+                self.strategy.log_message(
+                    f"Could not calculate Greeks for {option.symbol} at strike {strike}", color="yellow"
+                )
                 continue
             delta = greeks.get("delta")
             strike_deltas[float(strike)] = delta
@@ -990,8 +1011,9 @@ class OptionsHelper:
                 break
         return strike_deltas
 
-    def get_delta_for_strike(self, underlying_asset: Asset, underlying_price: float,
-                             strike: float, expiry: date, right: str) -> Optional[float]:
+    def get_delta_for_strike(
+        self, underlying_asset: Asset, underlying_price: float, strike: float, expiry: date, right: str
+    ) -> float | None:
         """
         Retrieve the delta for an option with a specific strike.
 
@@ -1024,7 +1046,7 @@ class OptionsHelper:
             underlying_asset=underlying_asset,
         )
 
-        cache_underlying: Optional[float]
+        cache_underlying: float | None
         try:
             cache_underlying = float(underlying_price) if underlying_price is not None else None
         except Exception:
@@ -1034,7 +1056,7 @@ class OptionsHelper:
         if delta_cache_key in self._per_bar_delta_cache:
             return self._per_bar_delta_cache[delta_cache_key]
 
-        def _coerce_price(value: Any) -> Optional[float]:
+        def _coerce_price(value: Any) -> float | None:
             try:
                 numeric = float(value)
             except (TypeError, ValueError):
@@ -1159,7 +1181,7 @@ class OptionsHelper:
         t_years: float,
         sigma: float,
         is_call: bool,
-    ) -> Optional[float]:
+    ) -> float | None:
         """Cheap Black-Scholes-style delta approximation used to avoid expensive strike probes."""
         if underlying_price <= 0 or strike <= 0 or t_years <= 0 or sigma <= 0:
             return None
@@ -1181,9 +1203,9 @@ class OptionsHelper:
         expiry: date,
         option_type: str,
         target_delta: float,
-        candidate_strikes: List[float],
-        as_of: Optional[date],
-    ) -> Optional[float]:
+        candidate_strikes: list[float],
+        as_of: date | None,
+    ) -> float | None:
         """Pick the chain strike closest to target delta using a model-only approximation."""
         if not candidate_strikes:
             return None
@@ -1199,9 +1221,9 @@ class OptionsHelper:
             is_index_like = False
         sigma = 0.25 if is_index_like else 0.35
 
-        best_strike: Optional[float] = None
-        best_delta: Optional[float] = None
-        best_diff: Optional[float] = None
+        best_strike: float | None = None
+        best_delta: float | None = None
+        best_diff: float | None = None
 
         for strike in candidate_strikes:
             delta = self._model_delta_for_strike(
@@ -1233,8 +1255,8 @@ class OptionsHelper:
         target_delta: float,
         expiry: date,
         right: str,
-        chains: Optional[Any] = None,
-    ) -> Optional[float]:
+        chains: Any | None = None,
+    ) -> float | None:
         """
         Find the strike whose delta is closest to the target delta using binary search.
         (This function replaces the older "find_strike_for_delta_original".)
@@ -1259,21 +1281,23 @@ class OptionsHelper:
         """
         self.strategy.log_message(
             f"🎯 STRIKE SEARCH: Finding strike for {underlying_asset.symbol} "
-            f"(underlying_price=${underlying_price}, target_delta={target_delta}, right={right}, expiry={expiry})", 
-            color="blue"
+            f"(underlying_price=${underlying_price}, target_delta={target_delta}, right={right}, expiry={expiry})",
+            color="blue",
         )
-        
+
         # Validate input parameters
         if underlying_price <= 0:
             self.strategy.log_message(f"❌ ERROR: Invalid underlying price {underlying_price}", color="red")
             return None
-            
+
         if target_delta is None:
             self.strategy.log_message("❌ ERROR: target_delta is None", color="red")
             return None
-            
+
         if abs(target_delta) > 1:
-            self.strategy.log_message(f"❌ ERROR: Invalid target delta {target_delta} (should be between -1 and 1)", color="red")
+            self.strategy.log_message(
+                f"❌ ERROR: Invalid target delta {target_delta} (should be between -1 and 1)", color="red"
+            )
             return None
 
         strike_min = max(1.0, float(underlying_price) - 20.0)
@@ -1281,7 +1305,7 @@ class OptionsHelper:
 
         # Prefer the actual strikes from the option chain to avoid querying non-existent strikes
         # (e.g., contracts that only list strikes every $5.00).
-        candidate_strikes: List[float] = []
+        candidate_strikes: list[float] = []
         chains_data = chains
         if chains_data is None:
             try:
@@ -1343,7 +1367,7 @@ class OptionsHelper:
         # PERF: In intraday option backtests, strategies often re-request the same strike-for-delta
         # multiple times per trading day. Cache per (underlying, date, expiry, side, delta, underlying_price)
         # so we don't redo the delta search.
-        cache_date: Optional[date] = None
+        cache_date: date | None = None
         try:
             now = self.strategy.get_datetime()
             if isinstance(now, datetime):
@@ -1356,7 +1380,7 @@ class OptionsHelper:
         strike_cache = getattr(self, "_strike_for_delta_cache", None)
         if not isinstance(strike_cache, dict):
             strike_cache = {}
-            setattr(self, "_strike_for_delta_cache", strike_cache)
+            self._strike_for_delta_cache = strike_cache
 
         cache_key = None
         if cache_date is not None:
@@ -1390,8 +1414,8 @@ class OptionsHelper:
                     strike_cache[cache_key] = float(modeled)
                 return float(modeled)
 
-        best_strike: Optional[float] = None
-        best_delta: Optional[float] = None
+        best_strike: float | None = None
+        best_delta: float | None = None
 
         # ------------------------------------------------------------------
         # PERF: The existing binary search is O(log N) but still triggers 8-20
@@ -1400,7 +1424,7 @@ class OptionsHelper:
         # strike and probe a small neighborhood, falling back to binary search only when
         # the estimate fails.
         # ------------------------------------------------------------------
-        strike_estimate: Optional[float] = None
+        strike_estimate: float | None = None
         try:
             call_delta = float(normalized_target_delta) if is_call else float(normalized_target_delta) + 1.0
             if 0.01 < call_delta < 0.99:
@@ -1409,7 +1433,9 @@ class OptionsHelper:
                 t_years = max(1.0 / 365.0, float(days_to_expiry) / 365.0)
 
                 try:
-                    is_index_like = self._is_index_like_underlying(underlying_asset, getattr(underlying_asset, "symbol", None))
+                    is_index_like = self._is_index_like_underlying(
+                        underlying_asset, getattr(underlying_asset, "symbol", None)
+                    )
                 except Exception:
                     is_index_like = False
                 sigma = 0.25 if is_index_like else 0.35
@@ -1425,7 +1451,7 @@ class OptionsHelper:
 
         visited: set[int] = set()
 
-        def _try_strike(idx: int) -> Optional[Tuple[float, float]]:
+        def _try_strike(idx: int) -> tuple[float, float] | None:
             if idx < 0 or idx >= len(candidate_strikes) or idx in visited:
                 return None
             visited.add(idx)
@@ -1472,7 +1498,9 @@ class OptionsHelper:
                             normalized_target_delta,
                         )
 
-                    if best_delta is None or abs(mid_delta - normalized_target_delta) < abs(best_delta - normalized_target_delta):
+                    if best_delta is None or abs(mid_delta - normalized_target_delta) < abs(
+                        best_delta - normalized_target_delta
+                    ):
                         best_delta = mid_delta
                         best_strike = strike
 
@@ -1548,7 +1576,9 @@ class OptionsHelper:
                     hi,
                 )
 
-            if best_delta is None or abs(mid_delta - normalized_target_delta) < abs(best_delta - normalized_target_delta):
+            if best_delta is None or abs(mid_delta - normalized_target_delta) < abs(
+                best_delta - normalized_target_delta
+            ):
                 best_delta = mid_delta
                 best_strike = float(strike)
 
@@ -1575,7 +1605,9 @@ class OptionsHelper:
                     hi = mid - 1
 
         if best_strike is None:
-            self.strategy.log_message(f"❌ No valid strike found for target delta {normalized_target_delta}", color="red")
+            self.strategy.log_message(
+                f"❌ No valid strike found for target delta {normalized_target_delta}", color="red"
+            )
             return None
 
         self.strategy.log_message(
@@ -1593,7 +1625,7 @@ class OptionsHelper:
 
         return best_strike
 
-    def calculate_multileg_limit_price(self, orders: List[Order], limit_type: str) -> Optional[float]:
+    def calculate_multileg_limit_price(self, orders: list[Order], limit_type: str) -> float | None:
         """
         Calculate an aggregate limit price for a multi-leg order by combining quotes from each leg.
 
@@ -1610,7 +1642,7 @@ class OptionsHelper:
             The aggregated limit price, or None if quotes are missing.
         """
         self.strategy.log_message("Calculating multi-leg limit price.", color="blue")
-        quotes: List[float] = []
+        quotes: list[float] = []
         for order in orders:
             asset = order.asset
             if asset.asset_type != Asset.AssetType.OPTION:
@@ -1641,7 +1673,7 @@ class OptionsHelper:
     def evaluate_option_market(
         self,
         option_asset: Asset,
-        max_spread_pct: Optional[float] = None,
+        max_spread_pct: float | None = None,
     ) -> OptionMarketEvaluation:
         """Evaluate available quote data for an option and produce execution anchors.
 
@@ -1683,27 +1715,29 @@ class OptionsHelper:
         # of building large f-strings. Gate string construction in this hot path.
         should_log_info = False
         try:
-            should_log_info = bool(getattr(self.strategy, "logger", None) and self.strategy.logger.isEnabledFor(logging.INFO))
+            should_log_info = bool(
+                getattr(self.strategy, "logger", None) and self.strategy.logger.isEnabledFor(logging.INFO)
+            )
         except Exception:
             should_log_info = False
 
         data_source = getattr(getattr(self.strategy, "broker", None), "data_source", None)
         allow_fallback = bool(getattr(data_source, "option_quote_fallback_allowed", False))
 
-        bid: Optional[float] = None
-        ask: Optional[float] = None
-        last_price: Optional[float] = None
-        spread_pct: Optional[float] = None
+        bid: float | None = None
+        ask: float | None = None
+        last_price: float | None = None
+        spread_pct: float | None = None
         has_bid_ask = False
         spread_too_wide = False
         missing_bid_ask = False
         missing_last_price = False
         used_last_price_fallback = False
-        buy_price: Optional[float] = None
-        sell_price: Optional[float] = None
+        buy_price: float | None = None
+        sell_price: float | None = None
 
-        data_quality_flags: List[str] = []
-        sanitization_notes: List[str] = []
+        data_quality_flags: list[str] = []
+        sanitization_notes: list[str] = []
 
         quote = None
         broker = getattr(self.strategy, "broker", None)
@@ -1738,7 +1772,11 @@ class OptionsHelper:
         #
         # Prefer snapshot NBBO first. Only fall back to the regular quote path when the snapshot is
         # missing so we avoid unnecessary downloader/cache churn.
-        if getattr(option_asset, "asset_type", None) == Asset.AssetType.OPTION and is_theta_backtest and is_daily_cadence:
+        if (
+            getattr(option_asset, "asset_type", None) == Asset.AssetType.OPTION
+            and is_theta_backtest
+            and is_daily_cadence
+        ):
             _, snap_bid, snap_ask = self._get_option_mark_from_quote(option_asset, snapshot=True)
             if snap_bid is not None and snap_ask is not None:
                 bid = snap_bid
@@ -1756,9 +1794,13 @@ class OptionsHelper:
                         )
                 if quote is not None:
                     if getattr(quote, "bid", None) is not None:
-                        bid = self._coerce_price(getattr(quote, "bid", None), "bid", data_quality_flags, sanitization_notes)
+                        bid = self._coerce_price(
+                            getattr(quote, "bid", None), "bid", data_quality_flags, sanitization_notes
+                        )
                     if getattr(quote, "ask", None) is not None:
-                        ask = self._coerce_price(getattr(quote, "ask", None), "ask", data_quality_flags, sanitization_notes)
+                        ask = self._coerce_price(
+                            getattr(quote, "ask", None), "ask", data_quality_flags, sanitization_notes
+                        )
                     if (bid is None or ask is None) and (snap_bid is not None or snap_ask is not None):
                         data_quality_flags.append("snapshot_nbbo_partial")
                         if bid is None and snap_bid is not None:
@@ -1783,7 +1825,7 @@ class OptionsHelper:
                     ask = self._coerce_price(getattr(quote, "ask", None), "ask", data_quality_flags, sanitization_notes)
 
             if getattr(option_asset, "asset_type", None) == Asset.AssetType.OPTION and is_theta_backtest:
-                if (bid is None or ask is None):
+                if bid is None or ask is None:
                     # Prefer actionable NBBO from a point-in-time snapshot when bar-aligned quotes omit
                     # bid/ask (common in historical option backtests). Only fall back to `quote.price`
                     # or last-trade pricing when NBBO is unavailable.
@@ -1870,8 +1912,10 @@ class OptionsHelper:
         if should_log_info:
             spread_str = f"{spread_pct:.2%}" if spread_pct is not None else "None"
             max_spread_str = f"{max_spread_pct:.2%}" if max_spread_pct is not None else "None"
-            log_color = "red" if spread_too_wide else (
-                "yellow" if (missing_bid_ask or missing_last_price or used_last_price_fallback) else "blue"
+            log_color = (
+                "red"
+                if spread_too_wide
+                else ("yellow" if (missing_bid_ask or missing_last_price or used_last_price_fallback) else "blue")
             )
             if sanitization_notes:
                 note_summary = "; ".join(sanitization_notes)
@@ -1933,8 +1977,7 @@ class OptionsHelper:
         """
         if not self._liquidity_deprecation_warned:
             warnings.warn(
-                "OptionsHelper.check_option_liquidity is deprecated. "
-                "Use OptionsHelper.evaluate_option_market instead.",
+                "OptionsHelper.check_option_liquidity is deprecated. Use OptionsHelper.evaluate_option_market instead.",
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -1947,7 +1990,7 @@ class OptionsHelper:
 
         return evaluation.has_bid_ask and not evaluation.spread_too_wide
 
-    def get_order_details(self, order: Order) -> Dict[str, Optional[Union[str, float, date]]]:
+    def get_order_details(self, order: Order) -> dict[str, str | float | date | None]:
         """
         Return a summary of key details of an order for logging and debugging.
 
@@ -1965,15 +2008,15 @@ class OptionsHelper:
         mark_price = None
         bid = None
         ask = None
-        if getattr(asset, "asset_type", None) == Asset.AssetType.OPTION:
+        if isinstance(asset, Asset) and getattr(asset, "asset_type", None) == Asset.AssetType.OPTION:
             mark_price, bid, ask = self._get_option_mark_from_quote(asset)
         details = {
-            "symbol": asset.symbol,
+            "symbol": asset.symbol if isinstance(asset, Asset) else None,
             "strike": getattr(asset, "strike", None),
             "expiration": getattr(asset, "expiration", None),
             "right": getattr(asset, "right", None),
             "side": order.side,
-            "last_price": self.strategy.get_last_price(asset) if mark_price is None else None,
+            "last_price": self.strategy.get_last_price(asset) if asset is not None and mark_price is None else None,
             "bid": bid,
             "ask": ask,
             "mark_price": mark_price,
@@ -1984,7 +2027,7 @@ class OptionsHelper:
     def _default_chain_max_expiration_date(
         self,
         *,
-        underlying_asset: Optional[Asset],
+        underlying_asset: Asset | None,
         min_expiration_date: date,
     ) -> date:
         """Return a conservative max-expiration hint to avoid chain-scan storms.
@@ -2003,7 +2046,7 @@ class OptionsHelper:
         days_out = 45 if is_index_like else 60
         return min_expiration_date + timedelta(days=days_out)
 
-    def _chain_hint(self, min_expiration_date: date, max_expiration_date: Optional[date] = None):
+    def _chain_hint(self, min_expiration_date: date, max_expiration_date: date | None = None):
         """Temporarily set chain constraints on the underlying data source."""
         broker = getattr(self.strategy, "broker", None)
         data_source = getattr(broker, "data_source", None) if broker else None
@@ -2036,7 +2079,7 @@ class OptionsHelper:
         return _ChainHintContext(data_source, min_expiration_date)
 
     @staticmethod
-    def _is_index_like_underlying(underlying_asset: Optional[Asset], symbol: Optional[str]) -> bool:
+    def _is_index_like_underlying(underlying_asset: Asset | None, symbol: str | None) -> bool:
         """Return True when the underlying behaves like an index for option-liquidity heuristics.
 
         Some strategies represent indices as plain stock Assets (asset_type="stock"). We treat a
@@ -2076,12 +2119,12 @@ class OptionsHelper:
 
     def get_expiration_on_or_after_date(
         self,
-        dt: Union[date, datetime],
-        chains: Union[Dict[str, Any], Chains],
+        dt: date | datetime,
+        chains: dict[str, Any] | Chains,
         call_or_put: str,
-        underlying_asset: Optional[Asset] = None,
+        underlying_asset: Asset | None = None,
         allow_prior: bool = False,
-    ) -> Optional[date]:
+    ) -> date | None:
         """
         Get the expiration date that is on or after a given date, validating that the option has tradeable data.
 
@@ -2113,7 +2156,7 @@ class OptionsHelper:
 
         # Current "as-of" date for quote validation in backtests. This is NOT the same as `dt`,
         # which is the target expiration date to search for.
-        as_of_date: Optional[date] = None
+        as_of_date: date | None = None
         try:
             as_of_dt = self.strategy.get_datetime()
             if isinstance(as_of_dt, datetime):
@@ -2143,11 +2186,12 @@ class OptionsHelper:
             )
             return None
 
-        def _try_resolve_expiration(chain_map: Dict[str, Any]) -> List[Tuple[str, date]]:
-            expiration_dates: List[Tuple[str, date]] = []
+        def _try_resolve_expiration(chain_map: dict[str, Any]) -> list[tuple[str, date]]:
+            expiration_dates: list[tuple[str, date]] = []
             for expiry_str in chain_map.keys():
                 try:
                     from lumibot.entities.chains import _normalise_expiry
+
                     expiry_date = _normalise_expiry(expiry_str)
                     # Many providers represent option expirations as the OCC "Saturday" date.
                     # LumiBot backtesting expects the last tradable session (Friday). Normalize
@@ -2166,10 +2210,10 @@ class OptionsHelper:
         underlying_symbol = None
         if underlying_asset:
             underlying_symbol = underlying_asset.symbol
-        elif hasattr(chains, 'underlying_symbol'):
+        elif hasattr(chains, "underlying_symbol"):
             underlying_symbol = chains.underlying_symbol
-        elif 'UnderlyingSymbol' in chains_map:
-            underlying_symbol = chains_map['UnderlyingSymbol']
+        elif "UnderlyingSymbol" in chains_map:
+            underlying_symbol = chains_map["UnderlyingSymbol"]
 
         # PERF: Intraday strategies often request the "next valid expiration" on every bar, even
         # though the answer is stable for the trading day. Cache per (underlying, date, side, chain
@@ -2230,14 +2274,14 @@ class OptionsHelper:
         #
         # Cache validation outcomes per (underlying, expiration, side) with a small TTL for
         # negative results so we don't re-probe the same expirations day after day.
-        as_of_date_for_cache: Optional[date] = None
-        quote_validation_cache: Optional[Dict[Tuple[str, date, str], Dict[str, Any]]] = None
+        as_of_date_for_cache: date | None = None
+        quote_validation_cache: dict[tuple[str, date, str], dict[str, Any]] | None = None
         if is_backtesting and underlying_symbol and as_of_date is not None:
             as_of_date_for_cache = as_of_date
             existing_cache = getattr(self, "_expiration_quote_validation_cache", None)
             if not isinstance(existing_cache, dict):
                 existing_cache = {}
-                setattr(self, "_expiration_quote_validation_cache", existing_cache)
+                self._expiration_quote_validation_cache = existing_cache
             quote_validation_cache = existing_cache
 
         cache_dt = getattr(self, "_expiration_cache_dt", None)
@@ -2254,8 +2298,8 @@ class OptionsHelper:
         # (e.g., 270D out). In that pattern, `dt` changes every day but the resolved expiration is
         # typically stable until the chain itself changes. Cache resolution by horizon-days with a
         # short TTL and invalidate automatically when the chain fingerprint changes.
-        horizon_cache: Optional[Dict[Tuple[str, str, int, bool], Dict[str, Any]]] = None
-        horizon_cache_key: Optional[Tuple[str, str, int, bool]] = None
+        horizon_cache: dict[tuple[str, str, int, bool], dict[str, Any]] | None = None
+        horizon_cache_key: tuple[str, str, int, bool] | None = None
         horizon_cache_ttl_future_days = 180
         horizon_cache_ttl_fallback_days = 30
         if is_backtesting and underlying_symbol and as_of_date is not None:
@@ -2268,7 +2312,7 @@ class OptionsHelper:
                 existing_horizon_cache = getattr(self, "_expiration_horizon_cache", None)
                 if not isinstance(existing_horizon_cache, dict):
                     existing_horizon_cache = {}
-                    setattr(self, "_expiration_horizon_cache", existing_horizon_cache)
+                    self._expiration_horizon_cache = existing_horizon_cache
                 horizon_cache = existing_horizon_cache
                 horizon_cache_key = (underlying_symbol, call_or_put_caps, horizon_days, bool(allow_prior))
 
@@ -2315,7 +2359,7 @@ class OptionsHelper:
             return expiration_cache[expiration_cache_key]
 
         # Convert string expiries to dates for comparison
-        expiration_dates: List[Tuple[str, date]] = _try_resolve_expiration(specific_chain)
+        expiration_dates: list[tuple[str, date]] = _try_resolve_expiration(specific_chain)
         future_candidates = [(s, d) for s, d in expiration_dates if d >= dt]
 
         # PERF (intraday 0DTE index strategies):
@@ -2338,8 +2382,12 @@ class OptionsHelper:
                     return exp_date
 
         # Log chain search (DEBUG level for details)
-        logger.debug("[OptionsHelper] Finding expiration >= %s: %d candidates from %d total expirations",
-                     dt, len(future_candidates), len(expiration_dates))
+        logger.debug(
+            "[OptionsHelper] Finding expiration >= %s: %d candidates from %d total expirations",
+            dt,
+            len(future_candidates),
+            len(expiration_dates),
+        )
 
         # If we couldn't find any expirations beyond the requested date, attempt a deeper fetch
         if not future_candidates and underlying_asset is not None:
@@ -2362,7 +2410,11 @@ class OptionsHelper:
                 chains_map = refreshed_chains if isinstance(refreshed_chains, dict) else {}
                 options_map = chains_map.get("Chains") if isinstance(chains_map.get("Chains"), dict) else None
                 if options_map:
-                    specific_chain = options_map.get(call_or_put_caps) if isinstance(options_map.get(call_or_put_caps), dict) else None
+                    specific_chain = (
+                        options_map.get(call_or_put_caps)
+                        if isinstance(options_map.get(call_or_put_caps), dict)
+                        else None
+                    )
                     if specific_chain:
                         expiration_dates = _try_resolve_expiration(specific_chain)
                         future_candidates = [(s, d) for s, d in expiration_dates if d >= dt]
@@ -2413,7 +2465,7 @@ class OptionsHelper:
         # 3. ACCURACY: We can now return the FIRST valid expiration, rather than pre-filtering
         #    and potentially missing valid options.
         # =====================================================================================
-        underlying_price: Optional[float] = None
+        underlying_price: float | None = None
         if underlying_symbol:
             try:
                 validation_underlying = (
@@ -2432,11 +2484,11 @@ class OptionsHelper:
         quote_validation_attempted = False
 
         def _validate_candidates(
-            candidates: List[Tuple[str, date]],
+            candidates: list[tuple[str, date]],
             *,
             validate_quotes: bool = True,
             scan_mode: str = "future",
-        ) -> Optional[date]:
+        ) -> date | None:
             # In historical backtests (especially long windows), validating tradeable quote data
             # for every expiration can be extremely expensive when the provider has sparse quote
             # history. Keep a bounded validation budget (quote probes) and fall back to "closest by date"
@@ -2453,7 +2505,7 @@ class OptionsHelper:
                 # probe order so we can quickly reach far-dated expirations that may be the first
                 # historically listed contracts, while still checking the nearest expiries.
                 try:
-                    indices: List[int] = list(range(min(3, len(candidates))))
+                    indices: list[int] = list(range(min(3, len(candidates))))
                     idx = 4
                     while idx < len(candidates) and len(indices) < max_checks:
                         indices.append(idx)
@@ -2475,7 +2527,7 @@ class OptionsHelper:
                 # Prefer a strike near the underlying's current price for validation.
                 # Middle-of-chain can be far OTM when chains include very wide strike ranges,
                 # leading to false "no data" results during backtests.
-                strike_candidates: List[float] = []
+                strike_candidates: list[float] = []
                 try:
                     iterable = strikes if isinstance(strikes, (list, tuple, set)) else list(strikes)
                 except Exception:
@@ -2489,10 +2541,11 @@ class OptionsHelper:
                     continue
                 strike_candidates.sort()
                 if underlying_price is not None:
+                    underlying_price_value = underlying_price
                     near_strikes = [
                         s
                         for s in strike_candidates
-                        if (underlying_price * 0.5) <= s <= (underlying_price * 1.5)
+                        if (underlying_price_value * 0.5) <= s <= (underlying_price_value * 1.5)
                     ]
                     if not near_strikes:
                         continue
@@ -2502,8 +2555,8 @@ class OptionsHelper:
                     # especially for long-dated options. Validating only the nearest-to-underlying
                     # strike can produce false negatives (expiry rejected even though an OTM strike
                     # has data). Probe a small ATM+OTM set to reduce churn.
-                    atm_strike = min(near_strikes, key=lambda s: abs(s - underlying_price))
-                    strike_probe_candidates: List[float] = []
+                    atm_strike = min(near_strikes, key=lambda s: abs(s - underlying_price_value))
+                    strike_probe_candidates: list[float] = []
 
                     target_mult = 1.2 if call_or_put_caps == "CALL" else 0.8
                     target_strike = underlying_price * target_mult
@@ -2524,17 +2577,16 @@ class OptionsHelper:
                     if not validate_quotes:
                         return exp_date
 
-                    cache_key: Optional[Tuple[str, date, str]] = None
-                    if (
-                        quote_validation_cache is not None
-                        and as_of_date_for_cache is not None
-                        and underlying_symbol
-                    ):
+                    cache_key: tuple[str, date, str] | None = None
+                    if quote_validation_cache is not None and as_of_date_for_cache is not None and underlying_symbol:
                         cache_key = (underlying_symbol, exp_date, call_or_put_caps)
                         cached = quote_validation_cache.get(cache_key)
                         if isinstance(cached, dict):
                             cached_available_from = cached.get("available_from")
-                            if isinstance(cached_available_from, date) and as_of_date_for_cache >= cached_available_from:
+                            if (
+                                isinstance(cached_available_from, date)
+                                and as_of_date_for_cache >= cached_available_from
+                            ):
                                 return exp_date
                             cached_disabled_until = cached.get("disabled_until")
                             if isinstance(cached_disabled_until, date) and as_of_date_for_cache < cached_disabled_until:
@@ -2603,7 +2655,11 @@ class OptionsHelper:
                                     f"Found valid expiry {exp_date} with quote data for {call_or_put_caps}",
                                     color="blue",
                                 )
-                                if cache_key is not None and as_of_date_for_cache is not None and quote_validation_cache is not None:
+                                if (
+                                    cache_key is not None
+                                    and as_of_date_for_cache is not None
+                                    and quote_validation_cache is not None
+                                ):
                                     existing = quote_validation_cache.get(cache_key)
                                     if isinstance(existing, dict) and isinstance(existing.get("available_from"), date):
                                         available_from = existing["available_from"]
@@ -2616,7 +2672,11 @@ class OptionsHelper:
                                     f"Found valid expiry {exp_date} with quote-derived price data for {call_or_put_caps}",
                                     color="blue",
                                 )
-                                if cache_key is not None and as_of_date_for_cache is not None and quote_validation_cache is not None:
+                                if (
+                                    cache_key is not None
+                                    and as_of_date_for_cache is not None
+                                    and quote_validation_cache is not None
+                                ):
                                     existing = quote_validation_cache.get(cache_key)
                                     if isinstance(existing, dict) and isinstance(existing.get("available_from"), date):
                                         available_from = existing["available_from"]
@@ -2625,7 +2685,11 @@ class OptionsHelper:
                                     quote_validation_cache[cache_key] = {"available_from": available_from}
                                 return exp_date
 
-                        if cache_key is not None and as_of_date_for_cache is not None and quote_validation_cache is not None:
+                        if (
+                            cache_key is not None
+                            and as_of_date_for_cache is not None
+                            and quote_validation_cache is not None
+                        ):
                             existing = quote_validation_cache.get(cache_key)
                             if not (isinstance(existing, dict) and isinstance(existing.get("available_from"), date)):
                                 quote_validation_cache[cache_key] = {
@@ -2673,7 +2737,9 @@ class OptionsHelper:
                 # thrash (repeated selection attempts every bar).
                 prior_candidates = [(s, d) for s, d in prior_candidates if d >= as_of_date]
             prior_candidates.sort(key=lambda x: x[1], reverse=True)
-            resolved = _validate_candidates(prior_candidates, validate_quotes=not skip_quote_validation, scan_mode="prior")
+            resolved = _validate_candidates(
+                prior_candidates, validate_quotes=not skip_quote_validation, scan_mode="prior"
+            )
             if resolved is not None:
                 self.strategy.log_message(
                     f"Falling back to prior valid expiry {resolved} (< {dt}) for {call_or_put_caps}.",
@@ -2729,8 +2795,9 @@ class OptionsHelper:
     # Order Building Functions (Build orders without submission)
     # ============================================================
 
-    def build_call_orders(self, underlying_asset: Asset, expiry: date, call_strike: float,
-                          quantity_to_trade: int, wing_size: float) -> Tuple[Optional[Order], Optional[Order]]:
+    def build_call_orders(
+        self, underlying_asset: Asset, expiry: date, call_strike: float, quantity_to_trade: int, wing_size: float
+    ) -> tuple[Order | None, Order | None]:
         """
         Build call orders for a spread without submitting them.
         This builds a sell order at the given call_strike and a buy order at (call_strike + wing_size).
@@ -2753,18 +2820,28 @@ class OptionsHelper:
         Tuple[Optional[Order], Optional[Order]]
             (call_sell_order, call_buy_order) or (None, None) if prices are unavailable.
         """
-        self.strategy.log_message(f"Building call orders for strike {call_strike} with wing size {wing_size}", color="blue")
+        self.strategy.log_message(
+            f"Building call orders for strike {call_strike} with wing size {wing_size}", color="blue"
+        )
         call_sell_asset = Asset(
-            underlying_asset.symbol, asset_type="option", expiration=expiry,
-            strike=call_strike, right="call", underlying_asset=underlying_asset
+            underlying_asset.symbol,
+            asset_type="option",
+            expiration=expiry,
+            strike=call_strike,
+            right="call",
+            underlying_asset=underlying_asset,
         )
         call_sell_price, _, _ = self._get_option_mark_from_quote(call_sell_asset)
         if call_sell_price is None:
             call_sell_price = self.strategy.get_last_price(call_sell_asset)
         call_sell_order = self.strategy.create_order(call_sell_asset, quantity_to_trade, "sell")
         call_buy_asset = Asset(
-            underlying_asset.symbol, asset_type="option", expiration=expiry,
-            strike=call_strike + wing_size, right="call", underlying_asset=underlying_asset
+            underlying_asset.symbol,
+            asset_type="option",
+            expiration=expiry,
+            strike=call_strike + wing_size,
+            right="call",
+            underlying_asset=underlying_asset,
         )
         call_buy_price, _, _ = self._get_option_mark_from_quote(call_buy_asset)
         if call_buy_price is None:
@@ -2775,8 +2852,9 @@ class OptionsHelper:
             return None, None
         return call_sell_order, call_buy_order
 
-    def build_put_orders(self, underlying_asset: Asset, expiry: date, put_strike: float,
-                         quantity_to_trade: int, wing_size: float) -> Tuple[Optional[Order], Optional[Order]]:
+    def build_put_orders(
+        self, underlying_asset: Asset, expiry: date, put_strike: float, quantity_to_trade: int, wing_size: float
+    ) -> tuple[Order | None, Order | None]:
         """
         Build put orders for a spread without submitting them.
         This builds a sell order at the given put_strike and a buy order at (put_strike - wing_size).
@@ -2799,18 +2877,28 @@ class OptionsHelper:
         Tuple[Optional[Order], Optional[Order]]
             (put_sell_order, put_buy_order) or (None, None) if prices are unavailable.
         """
-        self.strategy.log_message(f"Building put orders for strike {put_strike} with wing size {wing_size}", color="blue")
+        self.strategy.log_message(
+            f"Building put orders for strike {put_strike} with wing size {wing_size}", color="blue"
+        )
         put_sell_asset = Asset(
-            underlying_asset.symbol, asset_type="option", expiration=expiry,
-            strike=put_strike, right="put", underlying_asset=underlying_asset
+            underlying_asset.symbol,
+            asset_type="option",
+            expiration=expiry,
+            strike=put_strike,
+            right="put",
+            underlying_asset=underlying_asset,
         )
         put_sell_price, _, _ = self._get_option_mark_from_quote(put_sell_asset)
         if put_sell_price is None:
             put_sell_price = self.strategy.get_last_price(put_sell_asset)
         put_sell_order = self.strategy.create_order(put_sell_asset, quantity_to_trade, "sell")
         put_buy_asset = Asset(
-            underlying_asset.symbol, asset_type="option", expiration=expiry,
-            strike=put_strike - wing_size, right="put", underlying_asset=underlying_asset
+            underlying_asset.symbol,
+            asset_type="option",
+            expiration=expiry,
+            strike=put_strike - wing_size,
+            right="put",
+            underlying_asset=underlying_asset,
         )
         put_buy_price, _, _ = self._get_option_mark_from_quote(put_buy_asset)
         if put_buy_price is None:
@@ -2821,9 +2909,9 @@ class OptionsHelper:
             return None, None
         return put_sell_order, put_buy_order
 
-    def build_call_vertical_spread_orders(self, underlying_asset: Asset, expiry: date,
-                                          lower_strike: float, upper_strike: float,
-                                          quantity: int) -> List[Order]:
+    def build_call_vertical_spread_orders(
+        self, underlying_asset: Asset, expiry: date, lower_strike: float, upper_strike: float, quantity: int
+    ) -> list[Order]:
         """
         Build orders for a call vertical spread (bull call spread) without submitting them.
         The spread consists of buying a call at lower_strike and selling a call at upper_strike.
@@ -2846,18 +2934,32 @@ class OptionsHelper:
         List[Order]
             A list containing the buy order (long call) and the sell order (short call).
         """
-        self.strategy.log_message(f"Building call vertical spread orders: Buy at {lower_strike}, Sell at {upper_strike}", color="blue")
-        buy_call = Asset(underlying_asset.symbol, asset_type="option", expiration=expiry,
-                         strike=lower_strike, right="call", underlying_asset=underlying_asset)
-        sell_call = Asset(underlying_asset.symbol, asset_type="option", expiration=expiry,
-                          strike=upper_strike, right="call", underlying_asset=underlying_asset)
+        self.strategy.log_message(
+            f"Building call vertical spread orders: Buy at {lower_strike}, Sell at {upper_strike}", color="blue"
+        )
+        buy_call = Asset(
+            underlying_asset.symbol,
+            asset_type="option",
+            expiration=expiry,
+            strike=lower_strike,
+            right="call",
+            underlying_asset=underlying_asset,
+        )
+        sell_call = Asset(
+            underlying_asset.symbol,
+            asset_type="option",
+            expiration=expiry,
+            strike=upper_strike,
+            right="call",
+            underlying_asset=underlying_asset,
+        )
         buy_order = self.strategy.create_order(buy_call, quantity, "buy")
         sell_order = self.strategy.create_order(sell_call, quantity, "sell")
         return [buy_order, sell_order]
 
-    def build_put_vertical_spread_orders(self, underlying_asset: Asset, expiry: date,
-                                         upper_strike: float, lower_strike: float,
-                                         quantity: int) -> List[Order]:
+    def build_put_vertical_spread_orders(
+        self, underlying_asset: Asset, expiry: date, upper_strike: float, lower_strike: float, quantity: int
+    ) -> list[Order]:
         """
         Build orders for a put vertical spread (bull put spread) without submitting them.
         The spread consists of selling a put at upper_strike and buying a put at lower_strike.
@@ -2880,18 +2982,32 @@ class OptionsHelper:
         List[Order]
             A list containing the sell order (short put) and the buy order (long put).
         """
-        self.strategy.log_message(f"Building put vertical spread orders: Sell at {upper_strike}, Buy at {lower_strike}", color="blue")
-        sell_put = Asset(underlying_asset.symbol, asset_type="option", expiration=expiry,
-                         strike=upper_strike, right="put", underlying_asset=underlying_asset)
-        buy_put = Asset(underlying_asset.symbol, asset_type="option", expiration=expiry,
-                        strike=lower_strike, right="put", underlying_asset=underlying_asset)
+        self.strategy.log_message(
+            f"Building put vertical spread orders: Sell at {upper_strike}, Buy at {lower_strike}", color="blue"
+        )
+        sell_put = Asset(
+            underlying_asset.symbol,
+            asset_type="option",
+            expiration=expiry,
+            strike=upper_strike,
+            right="put",
+            underlying_asset=underlying_asset,
+        )
+        buy_put = Asset(
+            underlying_asset.symbol,
+            asset_type="option",
+            expiration=expiry,
+            strike=lower_strike,
+            right="put",
+            underlying_asset=underlying_asset,
+        )
         sell_order = self.strategy.create_order(sell_put, quantity, "sell")
         buy_order = self.strategy.create_order(buy_put, quantity, "buy")
         return [sell_order, buy_order]
 
-    def build_calendar_spread_orders(self, underlying_asset: Asset, strike: float,
-                                     near_expiry: date, far_expiry: date,
-                                     quantity: int, right: str) -> List[Order]:
+    def build_calendar_spread_orders(
+        self, underlying_asset: Asset, strike: float, near_expiry: date, far_expiry: date, quantity: int, right: str
+    ) -> list[Order]:
         """
         Build orders for a calendar spread (same strike, different expiries) without submitting them.
         Typically, the near expiry option is sold and the far expiry option is bought.
@@ -2916,18 +3032,40 @@ class OptionsHelper:
         List[Order]
             A list containing the sell order and the buy order.
         """
-        self.strategy.log_message(f"Building calendar spread orders at strike {strike} with near expiry {near_expiry} and far expiry {far_expiry}", color="blue")
-        sell_option = Asset(underlying_asset.symbol, asset_type="option", expiration=near_expiry,
-                              strike=strike, right=right, underlying_asset=underlying_asset)
-        buy_option  = Asset(underlying_asset.symbol, asset_type="option", expiration=far_expiry,
-                              strike=strike, right=right, underlying_asset=underlying_asset)
+        self.strategy.log_message(
+            f"Building calendar spread orders at strike {strike} with near expiry {near_expiry} and far expiry {far_expiry}",
+            color="blue",
+        )
+        sell_option = Asset(
+            underlying_asset.symbol,
+            asset_type="option",
+            expiration=near_expiry,
+            strike=strike,
+            right=right,
+            underlying_asset=underlying_asset,
+        )
+        buy_option = Asset(
+            underlying_asset.symbol,
+            asset_type="option",
+            expiration=far_expiry,
+            strike=strike,
+            right=right,
+            underlying_asset=underlying_asset,
+        )
         sell_order = self.strategy.create_order(sell_option, quantity, "sell")
-        buy_order  = self.strategy.create_order(buy_option, quantity, "buy")
+        buy_order = self.strategy.create_order(buy_option, quantity, "buy")
         return [sell_order, buy_order]
 
-    def build_butterfly_spread_orders(self, underlying_asset: Asset, expiry: date,
-                                      lower_strike: float, middle_strike: float, upper_strike: float,
-                                      quantity: int, right: str) -> List[Order]:
+    def build_butterfly_spread_orders(
+        self,
+        underlying_asset: Asset,
+        expiry: date,
+        lower_strike: float,
+        middle_strike: float,
+        upper_strike: float,
+        quantity: int,
+        right: str,
+    ) -> list[Order]:
         """
         Build orders for a butterfly spread without submitting them.
         For a call butterfly: buy 1 call at lower_strike, sell 2 calls at middle_strike, and buy 1 call at upper_strike.
@@ -2955,20 +3093,40 @@ class OptionsHelper:
         List[Order]
             A list of orders representing the butterfly spread.
         """
-        self.strategy.log_message(f"Building butterfly spread orders: Long at {lower_strike} and {upper_strike}, Short at {middle_strike}", color="blue")
-        long_lower = Asset(underlying_asset.symbol, asset_type="option", expiration=expiry,
-                           strike=lower_strike, right=right, underlying_asset=underlying_asset)
-        short_middle = Asset(underlying_asset.symbol, asset_type="option", expiration=expiry,
-                             strike=middle_strike, right=right, underlying_asset=underlying_asset)
-        long_upper = Asset(underlying_asset.symbol, asset_type="option", expiration=expiry,
-                           strike=upper_strike, right=right, underlying_asset=underlying_asset)
+        self.strategy.log_message(
+            f"Building butterfly spread orders: Long at {lower_strike} and {upper_strike}, Short at {middle_strike}",
+            color="blue",
+        )
+        long_lower = Asset(
+            underlying_asset.symbol,
+            asset_type="option",
+            expiration=expiry,
+            strike=lower_strike,
+            right=right,
+            underlying_asset=underlying_asset,
+        )
+        short_middle = Asset(
+            underlying_asset.symbol,
+            asset_type="option",
+            expiration=expiry,
+            strike=middle_strike,
+            right=right,
+            underlying_asset=underlying_asset,
+        )
+        long_upper = Asset(
+            underlying_asset.symbol,
+            asset_type="option",
+            expiration=expiry,
+            strike=upper_strike,
+            right=right,
+            underlying_asset=underlying_asset,
+        )
         order_long_lower = self.strategy.create_order(long_lower, quantity, "buy")
         order_short_middle = self.strategy.create_order(short_middle, 2 * quantity, "sell")
         order_long_upper = self.strategy.create_order(long_upper, quantity, "buy")
         return [order_long_lower, order_short_middle, order_long_upper]
 
-    def build_straddle_orders(self, underlying_asset: Asset, expiry: date, strike: float,
-                              quantity: int) -> List[Order]:
+    def build_straddle_orders(self, underlying_asset: Asset, expiry: date, strike: float, quantity: int) -> list[Order]:
         """
         Build orders for a straddle without submitting them by buying both a call and a put at the same strike.
 
@@ -2989,17 +3147,29 @@ class OptionsHelper:
             A list containing the call order and the put order.
         """
         self.strategy.log_message(f"Building straddle orders at strike {strike}", color="blue")
-        call_option = Asset(underlying_asset.symbol, asset_type="option", expiration=expiry,
-                            strike=strike, right="call", underlying_asset=underlying_asset)
-        put_option = Asset(underlying_asset.symbol, asset_type="option", expiration=expiry,
-                           strike=strike, right="put", underlying_asset=underlying_asset)
+        call_option = Asset(
+            underlying_asset.symbol,
+            asset_type="option",
+            expiration=expiry,
+            strike=strike,
+            right="call",
+            underlying_asset=underlying_asset,
+        )
+        put_option = Asset(
+            underlying_asset.symbol,
+            asset_type="option",
+            expiration=expiry,
+            strike=strike,
+            right="put",
+            underlying_asset=underlying_asset,
+        )
         call_order = self.strategy.create_order(call_option, quantity, "buy")
         put_order = self.strategy.create_order(put_option, quantity, "buy")
         return [call_order, put_order]
 
-    def build_strangle_orders(self, underlying_asset: Asset, expiry: date,
-                              lower_strike: float, upper_strike: float,
-                              quantity: int) -> List[Order]:
+    def build_strangle_orders(
+        self, underlying_asset: Asset, expiry: date, lower_strike: float, upper_strike: float, quantity: int
+    ) -> list[Order]:
         """
         Build orders for a strangle without submitting them by buying a put at a lower strike
         and a call at a higher strike.
@@ -3022,18 +3192,39 @@ class OptionsHelper:
         List[Order]
             A list containing the put order and the call order.
         """
-        self.strategy.log_message(f"Building strangle orders: Put at {lower_strike}, Call at {upper_strike}", color="blue")
-        call_option = Asset(underlying_asset.symbol, asset_type="option", expiration=expiry,
-                            strike=upper_strike, right="call", underlying_asset=underlying_asset)
-        put_option = Asset(underlying_asset.symbol, asset_type="option", expiration=expiry,
-                           strike=lower_strike, right="put", underlying_asset=underlying_asset)
+        self.strategy.log_message(
+            f"Building strangle orders: Put at {lower_strike}, Call at {upper_strike}", color="blue"
+        )
+        call_option = Asset(
+            underlying_asset.symbol,
+            asset_type="option",
+            expiration=expiry,
+            strike=upper_strike,
+            right="call",
+            underlying_asset=underlying_asset,
+        )
+        put_option = Asset(
+            underlying_asset.symbol,
+            asset_type="option",
+            expiration=expiry,
+            strike=lower_strike,
+            right="put",
+            underlying_asset=underlying_asset,
+        )
         call_order = self.strategy.create_order(call_option, quantity, "buy")
         put_order = self.strategy.create_order(put_option, quantity, "buy")
         return [put_order, call_order]
 
-    def build_diagonal_spread_orders(self, underlying_asset: Asset, near_expiry: date, far_expiry: date,
-                                     near_strike: float, far_strike: float, quantity: int,
-                                     right: str) -> List[Order]:
+    def build_diagonal_spread_orders(
+        self,
+        underlying_asset: Asset,
+        near_expiry: date,
+        far_expiry: date,
+        near_strike: float,
+        far_strike: float,
+        quantity: int,
+        right: str,
+    ) -> list[Order]:
         """
         Build orders for a diagonal spread without submitting them.
         For example, for a call diagonal spread, sell a near-expiry call at near_strike and buy a far-expiry call at far_strike.
@@ -3060,17 +3251,40 @@ class OptionsHelper:
         List[Order]
             A list containing the sell order and the buy order.
         """
-        self.strategy.log_message(f"Building diagonal spread orders: Sell at {near_strike} (expiry {near_expiry}), Buy at {far_strike} (expiry {far_expiry})", color="blue")
-        sell_option = Asset(underlying_asset.symbol, asset_type="option", expiration=near_expiry,
-                            strike=near_strike, right=right, underlying_asset=underlying_asset)
-        buy_option = Asset(underlying_asset.symbol, asset_type="option", expiration=far_expiry,
-                           strike=far_strike, right=right, underlying_asset=underlying_asset)
+        self.strategy.log_message(
+            f"Building diagonal spread orders: Sell at {near_strike} (expiry {near_expiry}), Buy at {far_strike} (expiry {far_expiry})",
+            color="blue",
+        )
+        sell_option = Asset(
+            underlying_asset.symbol,
+            asset_type="option",
+            expiration=near_expiry,
+            strike=near_strike,
+            right=right,
+            underlying_asset=underlying_asset,
+        )
+        buy_option = Asset(
+            underlying_asset.symbol,
+            asset_type="option",
+            expiration=far_expiry,
+            strike=far_strike,
+            right=right,
+            underlying_asset=underlying_asset,
+        )
         sell_order = self.strategy.create_order(sell_option, quantity, "sell")
         buy_order = self.strategy.create_order(buy_option, quantity, "buy")
         return [sell_order, buy_order]
 
-    def build_ratio_spread_orders(self, underlying_asset: Asset, expiry: date, buy_strike: float, sell_strike: float,
-                                  buy_qty: int, sell_qty: int, right: str) -> List[Order]:
+    def build_ratio_spread_orders(
+        self,
+        underlying_asset: Asset,
+        expiry: date,
+        buy_strike: float,
+        sell_strike: float,
+        buy_qty: int,
+        sell_qty: int,
+        right: str,
+    ) -> list[Order]:
         """
         Build orders for a ratio spread without submitting them.
         For example, buy one option at buy_strike and sell a different number at sell_strike.
@@ -3097,11 +3311,26 @@ class OptionsHelper:
         List[Order]
             A list containing the long order and the short order.
         """
-        self.strategy.log_message(f"Building ratio spread orders: Long at {buy_strike} ({buy_qty}), Short at {sell_strike} ({sell_qty})", color="blue")
-        long_leg = Asset(underlying_asset.symbol, asset_type="option", expiration=expiry,
-                         strike=buy_strike, right=right, underlying_asset=underlying_asset)
-        short_leg = Asset(underlying_asset.symbol, asset_type="option", expiration=expiry,
-                          strike=sell_strike, right=right, underlying_asset=underlying_asset)
+        self.strategy.log_message(
+            f"Building ratio spread orders: Long at {buy_strike} ({buy_qty}), Short at {sell_strike} ({sell_qty})",
+            color="blue",
+        )
+        long_leg = Asset(
+            underlying_asset.symbol,
+            asset_type="option",
+            expiration=expiry,
+            strike=buy_strike,
+            right=right,
+            underlying_asset=underlying_asset,
+        )
+        short_leg = Asset(
+            underlying_asset.symbol,
+            asset_type="option",
+            expiration=expiry,
+            strike=sell_strike,
+            right=right,
+            underlying_asset=underlying_asset,
+        )
         long_order = self.strategy.create_order(long_leg, buy_qty, "buy")
         short_order = self.strategy.create_order(short_leg, sell_qty, "sell")
         return [long_order, short_order]
@@ -3119,7 +3348,7 @@ class OptionsHelper:
         if limit_price is None:
             self.strategy.log_message("Warning: limit_price is None, defaulting to 'even' order type", color="yellow")
             return "even"
-            
+
         if limit_price > 0:
             return "debit"
         elif limit_price < 0:
@@ -3127,7 +3356,7 @@ class OptionsHelper:
         else:
             return "even"
 
-    def execute_orders(self, orders: List[Order], limit_type: Optional[str] = None) -> bool:
+    def execute_orders(self, orders: list[Order], limit_type: str | None = None) -> bool:
         """
         Submit a list of orders as a multi-leg order.
         If a limit_type is provided, calculate a limit price and submit with that price.
@@ -3151,23 +3380,22 @@ class OptionsHelper:
                 self.strategy.log_message("Failed to calculate limit price - cannot execute orders", color="red")
                 return False
             order_type = self._determine_multileg_order_type(limit_price)
-            self.strategy.log_message(
-                f"Submitting multileg order at price {limit_price} as {order_type}", color="blue"
-            )
-            self.strategy.submit_orders(
-                orders,
-                is_multileg=True,
-                order_type=order_type,
-                price=abs(limit_price)
-            )
+            self.strategy.log_message(f"Submitting multileg order at price {limit_price} as {order_type}", color="blue")
+            self.strategy.submit_orders(orders, is_multileg=True, order_type=order_type, price=abs(limit_price))
         else:
             self.strategy.log_message("Submitting orders without a limit price.", color="blue")
             self.strategy.submit_orders(orders, is_multileg=True)
         return True
 
-    def execute_call_vertical_spread(self, underlying_asset: Asset, expiry: date,
-                                     lower_strike: float, upper_strike: float,
-                                     quantity: int, limit_type: Optional[str] = None) -> bool:
+    def execute_call_vertical_spread(
+        self,
+        underlying_asset: Asset,
+        expiry: date,
+        lower_strike: float,
+        upper_strike: float,
+        quantity: int,
+        limit_type: str | None = None,
+    ) -> bool:
         """
         Build and submit orders for a call vertical spread.
 
@@ -3195,9 +3423,15 @@ class OptionsHelper:
         orders = self.build_call_vertical_spread_orders(underlying_asset, expiry, lower_strike, upper_strike, quantity)
         return self.execute_orders(orders, limit_type)
 
-    def execute_put_vertical_spread(self, underlying_asset: Asset, expiry: date,
-                                    upper_strike: float, lower_strike: float,
-                                    quantity: int, limit_type: Optional[str] = None) -> bool:
+    def execute_put_vertical_spread(
+        self,
+        underlying_asset: Asset,
+        expiry: date,
+        upper_strike: float,
+        lower_strike: float,
+        quantity: int,
+        limit_type: str | None = None,
+    ) -> bool:
         """
         Build and submit orders for a put vertical spread.
 
@@ -3225,9 +3459,16 @@ class OptionsHelper:
         orders = self.build_put_vertical_spread_orders(underlying_asset, expiry, upper_strike, lower_strike, quantity)
         return self.execute_orders(orders, limit_type)
 
-    def execute_calendar_spread(self, underlying_asset: Asset, strike: float,
-                                near_expiry: date, far_expiry: date,
-                                quantity: int, right: str, limit_type: Optional[str] = None) -> bool:
+    def execute_calendar_spread(
+        self,
+        underlying_asset: Asset,
+        strike: float,
+        near_expiry: date,
+        far_expiry: date,
+        quantity: int,
+        right: str,
+        limit_type: str | None = None,
+    ) -> bool:
         """
         Build and submit orders for a calendar spread.
 
@@ -3257,9 +3498,17 @@ class OptionsHelper:
         orders = self.build_calendar_spread_orders(underlying_asset, strike, near_expiry, far_expiry, quantity, right)
         return self.execute_orders(orders, limit_type)
 
-    def execute_butterfly_spread(self, underlying_asset: Asset, expiry: date,
-                                 lower_strike: float, middle_strike: float, upper_strike: float,
-                                 quantity: int, right: str, limit_type: Optional[str] = None) -> bool:
+    def execute_butterfly_spread(
+        self,
+        underlying_asset: Asset,
+        expiry: date,
+        lower_strike: float,
+        middle_strike: float,
+        upper_strike: float,
+        quantity: int,
+        right: str,
+        limit_type: str | None = None,
+    ) -> bool:
         """
         Build and submit orders for a butterfly spread.
 
@@ -3288,11 +3537,14 @@ class OptionsHelper:
             True if orders are submitted successfully.
         """
         self.strategy.log_message("Executing butterfly spread.", color="blue")
-        orders = self.build_butterfly_spread_orders(underlying_asset, expiry, lower_strike, middle_strike, upper_strike, quantity, right)
+        orders = self.build_butterfly_spread_orders(
+            underlying_asset, expiry, lower_strike, middle_strike, upper_strike, quantity, right
+        )
         return self.execute_orders(orders, limit_type)
 
-    def execute_straddle(self, underlying_asset: Asset, expiry: date, strike: float,
-                         quantity: int, limit_type: Optional[str] = None) -> bool:
+    def execute_straddle(
+        self, underlying_asset: Asset, expiry: date, strike: float, quantity: int, limit_type: str | None = None
+    ) -> bool:
         """
         Build and submit orders for a straddle.
 
@@ -3318,8 +3570,15 @@ class OptionsHelper:
         orders = self.build_straddle_orders(underlying_asset, expiry, strike, quantity)
         return self.execute_orders(orders, limit_type)
 
-    def execute_strangle(self, underlying_asset: Asset, expiry: date, lower_strike: float, upper_strike: float,
-                         quantity: int, limit_type: Optional[str] = None) -> bool:
+    def execute_strangle(
+        self,
+        underlying_asset: Asset,
+        expiry: date,
+        lower_strike: float,
+        upper_strike: float,
+        quantity: int,
+        limit_type: str | None = None,
+    ) -> bool:
         """
         Build and submit orders for a strangle.
 
@@ -3347,9 +3606,17 @@ class OptionsHelper:
         orders = self.build_strangle_orders(underlying_asset, expiry, lower_strike, upper_strike, quantity)
         return self.execute_orders(orders, limit_type)
 
-    def execute_diagonal_spread(self, underlying_asset: Asset, near_expiry: date, far_expiry: date,
-                                near_strike: float, far_strike: float, quantity: int,
-                                right: str, limit_type: Optional[str] = None) -> bool:
+    def execute_diagonal_spread(
+        self,
+        underlying_asset: Asset,
+        near_expiry: date,
+        far_expiry: date,
+        near_strike: float,
+        far_strike: float,
+        quantity: int,
+        right: str,
+        limit_type: str | None = None,
+    ) -> bool:
         """
         Build and submit orders for a diagonal spread.
 
@@ -3378,11 +3645,22 @@ class OptionsHelper:
             True if orders are submitted successfully.
         """
         self.strategy.log_message("Executing diagonal spread.", color="blue")
-        orders = self.build_diagonal_spread_orders(underlying_asset, near_expiry, far_expiry, near_strike, far_strike, quantity, right)
+        orders = self.build_diagonal_spread_orders(
+            underlying_asset, near_expiry, far_expiry, near_strike, far_strike, quantity, right
+        )
         return self.execute_orders(orders, limit_type)
 
-    def execute_ratio_spread(self, underlying_asset: Asset, expiry: date, buy_strike: float, sell_strike: float,
-                             buy_qty: int, sell_qty: int, right: str, limit_type: Optional[str] = None) -> bool:
+    def execute_ratio_spread(
+        self,
+        underlying_asset: Asset,
+        expiry: date,
+        buy_strike: float,
+        sell_strike: float,
+        buy_qty: int,
+        sell_qty: int,
+        right: str,
+        limit_type: str | None = None,
+    ) -> bool:
         """
         Build and submit orders for a ratio spread.
 
@@ -3411,14 +3689,16 @@ class OptionsHelper:
             True if orders are submitted successfully.
         """
         self.strategy.log_message("Executing ratio spread.", color="blue")
-        orders = self.build_ratio_spread_orders(underlying_asset, expiry, buy_strike, sell_strike, buy_qty, sell_qty, right)
+        orders = self.build_ratio_spread_orders(
+            underlying_asset, expiry, buy_strike, sell_strike, buy_qty, sell_qty, right
+        )
         return self.execute_orders(orders, limit_type)
 
     # ============================================================
     # Advanced / Risk Management Functions
     # ============================================================
 
-    def aggregate_portfolio_greeks(self, positions: List, underlying_asset: Asset) -> Dict[str, float]:
+    def aggregate_portfolio_greeks(self, positions: list, underlying_asset: Asset) -> dict[str, float]:
         """
         Aggregate the Greeks (delta, gamma, theta, and vega) for a list of option positions.
         Useful for obtaining an overall risk profile of the options portfolio.
@@ -3449,17 +3729,14 @@ class OptionsHelper:
             total_delta += greeks.get("delta", 0) * quantity
             total_gamma += greeks.get("gamma", 0) * quantity
             total_theta += greeks.get("theta", 0) * quantity
-            total_vega  += greeks.get("vega", 0) * quantity
-        aggregated = {
-            "delta": total_delta,
-            "gamma": total_gamma,
-            "theta": total_theta,
-            "vega": total_vega
-        }
+            total_vega += greeks.get("vega", 0) * quantity
+        aggregated = {"delta": total_delta, "gamma": total_gamma, "theta": total_theta, "vega": total_vega}
         self.strategy.log_message(f"Aggregated Greeks: {aggregated}", color="blue")
         return aggregated
 
-    def check_spread_profit(self, initial_cost: float, orders: List[Order], contract_multiplier: int = 100) -> Optional[float]:
+    def check_spread_profit(
+        self, initial_cost: float, orders: list[Order], contract_multiplier: int = 100
+    ) -> float | None:
         """
         Calculate the current profit or loss percentage of a spread based on updated market prices.
 
@@ -3470,7 +3747,7 @@ class OptionsHelper:
         orders : List[Order]
             The list of orders that constitute the spread.
         contract_multiplier : int, optional
-            The Option contract multiplier to use (default is 100) 
+            The Option contract multiplier to use (default is 100)
 
         Returns
         -------
@@ -3481,12 +3758,16 @@ class OptionsHelper:
         current_value = 0.0
         for order in orders:
             price = None
-            if getattr(order.asset, "asset_type", None) == Asset.AssetType.OPTION:
-                price, _, _ = self._get_option_mark_from_quote(order.asset)
+            asset = order.asset
+            if isinstance(asset, Asset) and getattr(asset, "asset_type", None) == Asset.AssetType.OPTION:
+                price, _, _ = self._get_option_mark_from_quote(asset)
             if price is None:
-                price = self.strategy.get_last_price(order.asset)
+                price = self.strategy.get_last_price(asset)
             if price is None:
-                self.strategy.log_message(f"Price unavailable for {order.asset.symbol}; cannot calculate spread profit.", color="red")
+                self.strategy.log_message(
+                    f"Price unavailable for {getattr(asset, 'symbol', asset)}; cannot calculate spread profit.",
+                    color="red",
+                )
                 return None
             current_value += price * order.quantity * contract_multiplier
         profit_pct = ((current_value - initial_cost) / initial_cost) * 100

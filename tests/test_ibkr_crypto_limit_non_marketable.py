@@ -41,7 +41,9 @@ def test_ibkr_crypto_non_marketable_limit_does_not_fill_until_crossed(monkeypatc
         index=idx,
     )
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)

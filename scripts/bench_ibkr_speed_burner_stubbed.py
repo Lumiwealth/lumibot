@@ -10,9 +10,9 @@ bench_ibkr_speed_burner_stubbed.py
 `lumibot` package) so the numbers track current branch changes.
 """
 
+import logging
 import os
 import sys
-import logging
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -76,12 +76,12 @@ def main() -> int:
     logging.basicConfig(level=logging.WARNING)
     logging.getLogger("lumibot").setLevel(logging.WARNING)
 
+    import lumibot.tools.ibkr_helper as ibkr_helper
     from lumibot.backtesting import BacktestingBroker
     from lumibot.backtesting.interactive_brokers_rest_backtesting import InteractiveBrokersRESTBacktesting
     from lumibot.entities import Asset
     from lumibot.entities.order import Order
     from lumibot.strategies.strategy import Strategy
-    import lumibot.tools.ibkr_helper as ibkr_helper
 
     class _SpeedBurnerBase(Strategy):
         def initialize(self, parameters=None):

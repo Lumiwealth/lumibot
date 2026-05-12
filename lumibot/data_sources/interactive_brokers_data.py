@@ -1,14 +1,24 @@
 from __future__ import annotations
 
+# pyright: reportUnknownVariableType=false, reportUnknownMemberType=false, reportUnknownArgumentType=false
+# pyright: reportUnknownParameterType=false, reportMissingParameterType=false, reportMissingTypeArgument=false
+# pyright: reportConstantRedefinition=false, reportInvalidTypeForm=false, reportOptionalMemberAccess=false
+# pyright: reportAttributeAccessIssue=false, reportIncompatibleMethodOverride=false, reportReturnType=false
+# pyright: reportArgumentType=false
 import datetime
 import math
 from decimal import Decimal
 from importlib import import_module
-from typing import Union
+from types import ModuleType
+from typing import TYPE_CHECKING, Any, TypeAlias
 
-from lumibot.entities import Asset, Quote
+from lumibot.entities.asset import Asset
+from lumibot.entities.quote import Quote
 
 from .data_source import DataSource
+
+if TYPE_CHECKING:
+    from lumibot.entities.bars import Bars
 
 TYPE_MAP = dict(
     stock="STK",
@@ -18,6 +28,43 @@ TYPE_MAP = dict(
     index="IND",
     multileg="BAG",
 )
+PandasDataFrame: TypeAlias = Any  # noqa: UP040
+AssetInput: TypeAlias = Asset | str  # noqa: UP040
+
+
+class _LazyModule(ModuleType):
+    _module_name: str
+    _module: ModuleType | None
+
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str) -> None:
+        super().__init__(module_name)
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self) -> ModuleType:
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+_bars_class_cache: type[Any] | None = None
+
+
+def _bars_class() -> type[Any]:
+    global _bars_class_cache
+    if _bars_class_cache is None:
+        from lumibot.entities.bars import Bars
+
+        _bars_class_cache = Bars
+    return _bars_class_cache
 
 
 class _LazyModule:
@@ -123,22 +170,29 @@ class InteractiveBrokersData(DataSource):
         },
     ]
 
-    def __init__(self, config, max_workers=20, chunk_size=100, **kwargs):
+    def __init__(
+        self,
+        config: dict[str, Any] | None,
+        max_workers: int = 20,
+        chunk_size: int = 100,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.name = "interactivebrokers"
+        self.config = config or {}
         self.max_workers = min(max_workers, 200)
         self.chunk_size = min(chunk_size, 100)
-        self.ib = None
+        self.ib: Any | None = None
 
     @staticmethod
-    def _format_datetime(dt):
+    def _format_datetime(dt: Any) -> str:
         return pd.Timestamp(dt).isoformat()
 
     @staticmethod
-    def _format_ib_datetime(dt):
+    def _format_ib_datetime(dt: Any) -> str:
         return pd.Timestamp(dt).strftime("%Y%m%d %H:%M:%S")
 
-    def _parse_duration(self, length, timestep):
+    def _parse_duration(self, length: int, timestep: str) -> str:
         # If the timestemp includes a number, then separate it from the unit.
         if timestep[0].isdigit():
             x = timestep.split(" ")
@@ -173,14 +227,14 @@ class InteractiveBrokersData(DataSource):
 
     def _pull_source_symbol_bars(
         self,
-        asset,
-        length,
-        timestep=MIN_TIMESTEP,
-        timeshift=None,
-        quote=None,
-        exchange=None,
-        include_after_hours=True,
-    ):
+        asset: Asset,
+        length: int,
+        timestep: str = MIN_TIMESTEP,
+        timeshift: datetime.timedelta | None = None,
+        quote: Asset | None = None,
+        exchange: str | None = None,
+        include_after_hours: bool = True,
+    ) -> Any | None:
         """pull broker bars for a given asset"""
         response = self._pull_source_bars(
             [asset],
@@ -195,20 +249,20 @@ class InteractiveBrokersData(DataSource):
 
     def _pull_source_bars(
         self,
-        assets,
-        length,
-        timestep=MIN_TIMESTEP,
-        timeshift=None,
-        quote=None,
-        exchange=None,
-        include_after_hours=True,
-    ):
+        assets: list[Asset],
+        length: int,
+        timestep: str = MIN_TIMESTEP,
+        timeshift: datetime.timedelta | None = None,
+        quote: Asset | None = None,
+        exchange: str | None = None,
+        include_after_hours: bool = True,
+    ) -> dict[Asset, PandasDataFrame]:
         """pull broker bars for a list assets"""
 
         if exchange is None:
             exchange = "SMART"
 
-        response = dict()
+        response: dict[Asset, PandasDataFrame] = {}
 
         parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
 
@@ -216,10 +270,10 @@ class InteractiveBrokersData(DataSource):
             end = datetime.datetime.now() - timeshift
             end = self.to_default_timezone(end)
             end_date_time = self._format_ib_datetime(end)
-            type = "TRADES"
+            data_type = "TRADES"
         else:
             end_date_time = ""
-            type = "TRADES"
+            data_type = "TRADES"
 
         # Call data.
         reqId = 0
@@ -236,7 +290,7 @@ class InteractiveBrokersData(DataSource):
                     end_date_time,
                     self._parse_duration(length, timestep),
                     parsed_timestep,
-                    type,
+                    data_type,
                     0 if include_after_hours else 1,  # useRTH
                     2,
                     False,
@@ -258,7 +312,7 @@ class InteractiveBrokersData(DataSource):
                 try:
                     df = df[cols]
                     get_data_attempt = max_attempts
-                except:
+                except Exception:
                     get_data_attempt += 1
                     # Add one day in minutes.
                     length += 1339
@@ -288,7 +342,13 @@ class InteractiveBrokersData(DataSource):
                 response[asset] = df
         return response
 
-    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
+    def _parse_source_symbol_bars(
+        self,
+        response: Any,
+        asset: Asset,
+        quote: Asset | None = None,
+        length: int | None = None,
+    ) -> Bars:
         # Catch empty dataframe.
         if isinstance(response, float) or response.empty:
             bars = _bars_class()(response, self.SOURCE, asset, raw=response)
@@ -321,21 +381,26 @@ class InteractiveBrokersData(DataSource):
         bars = _bars_class()(df, self.SOURCE, asset, raw=response, quote=quote)
         return bars
 
-    def _start_realtime_bars(self, asset, keep_bars=12):
+    def _start_realtime_bars(self, asset: Asset, keep_bars: int = 12) -> Any:
         return self.ib.start_realtime_bars(asset=asset, keep_bars=keep_bars)
 
-    def _get_realtime_bars(self, asset):
+    def _get_realtime_bars(self, asset: Asset) -> Any | None:
         rtb = self.ib.realtime_bars[asset]
         if len(rtb) == 0:
             return None
         else:
             return rtb
 
-    def _cancel_realtime_bars(self, asset):
+    def _cancel_realtime_bars(self, asset: Asset) -> int:
         self.ib.cancel_realtime_bars(asset)
         return 0
 
-    def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):
+    def get_chains(
+        self,
+        asset: Asset,
+        quote: Asset | None = None,
+        exchange: str | None = None,
+    ) -> dict[str, Any]:
         """
         For InteractiveBrokers, this function is defined in the broker because the broker object has access
         to additional API calls that are not available in the data source object because of the way IBClient and
@@ -348,8 +413,17 @@ class InteractiveBrokersData(DataSource):
         )
 
     def get_historical_prices(
-        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True, return_polars: bool = False
-    ):
+        self,
+        asset: AssetInput,
+        length: int,
+        timestep: str = "",
+        timeshift: datetime.timedelta | None = None,
+        quote: Asset | None = None,
+        exchange: str | None = None,
+        include_after_hours: bool = True,
+        return_polars: bool = False,
+        **kwargs: Any,
+    ) -> Bars | None:
         """Get bars for a given asset"""
         if isinstance(asset, str):
             asset = Asset(symbol=asset)
@@ -374,11 +448,18 @@ class InteractiveBrokersData(DataSource):
         bars = self._parse_source_symbol_bars(response, asset, quote=quote, length=length)
         return bars
 
-    def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
+    def get_last_price(
+        self,
+        asset: Asset,
+        timestep: str | None = None,
+        quote: Asset | None = None,
+        exchange: str | None = None,
+        **kwargs: Any,
+    ) -> float | Decimal | None:
         if exchange is None:
             exchange = "SMART"
 
-        response = dict()
+        response: dict[Asset, float | Decimal | None] = {}
         get_data_attempt = 0
         max_attempts = 2
         while get_data_attempt < max_attempts:
@@ -397,25 +478,30 @@ class InteractiveBrokersData(DataSource):
                     response[asset] = result["price"]
                     break
                 get_data_attempt += 1
-            except:
+            except Exception:
                 get_data_attempt += 1
         if asset not in response:
             response[asset] = None
         return response[asset]
 
-    def _get_tick(self, asset):
+    def _get_tick(self, asset: Asset) -> Any:
         result = self.ib.get_tick(asset, greek=False)
         return result
 
-    def get_yesterday_dividend(self, asset, quote=None):
+    def get_yesterday_dividend(self, asset: Asset, quote: Asset | None = None) -> int:
         """Unavailable"""
         return 0
 
-    def get_yesterday_dividends(self, asset, quote=None):
+    def get_yesterday_dividends(self, asset: Asset, quote: Asset | None = None) -> None:
         """Unavailable"""
         return None
 
-    def get_quote(self, asset, quote=None, exchange=None) -> Quote:
+    def get_quote(
+        self,
+        asset: Asset,
+        quote: Asset | None = None,
+        exchange: str | None = None,
+    ) -> Quote:
         """
         This function returns the quote of an asset. The quote includes the bid and ask price.
 
@@ -433,8 +519,6 @@ class InteractiveBrokersData(DataSource):
         Quote
            Quote object containing bid, ask, price and other information
         """
-        from lumibot.entities import Quote
-
         if exchange is None:
             exchange = "SMART"
 
@@ -455,11 +539,11 @@ class InteractiveBrokersData(DataSource):
                         bid=bid,
                         ask=ask,
                         volume=result.get("volume"),
-                        timestamp=datetime.datetime.now(datetime.timezone.utc),
-                        raw_data=result
+                        timestamp=datetime.datetime.now(datetime.UTC),
+                        raw_data=result,
                     )
                 get_data_attempt += 1
-            except:
+            except Exception:
                 get_data_attempt += 1
 
         # Return empty Quote if we couldn't get data

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Tuple
 
 import pytest
 
@@ -39,9 +38,9 @@ def test_settings_from_env_requires_bucket():
 
 
 class StubS3Client:
-    def __init__(self, objects: Dict[Tuple[str, str], bytes] | None = None):
+    def __init__(self, objects: dict[tuple[str, str], bytes] | None = None):
         self.objects = objects or {}
-        self.uploads: Dict[Tuple[str, str], bytes] = {}
+        self.uploads: dict[tuple[str, str], bytes] = {}
 
     def download_file(self, bucket: str, key: str, destination: str) -> None:
         lookup = (bucket, key)
@@ -128,7 +127,7 @@ def test_on_local_update_uploads_file(tmp_path, monkeypatch):
 
     uploaded = manager.on_local_update(local_file)
     assert uploaded is True
-    assert stub.uploads[( "test-bucket", remote_key)] == b"new-data"
+    assert stub.uploads[("test-bucket", remote_key)] == b"new-data"
 
 
 def test_manager_disabled_skip_upload(tmp_path, monkeypatch):

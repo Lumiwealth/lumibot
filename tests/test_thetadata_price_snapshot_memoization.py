@@ -47,4 +47,3 @@ def test_thetadata_price_snapshot_memoized_within_dt(monkeypatch):
     assert update_calls["count"] == 1
     assert dummy_data.calls == 1
     assert snap1 == snap2
-

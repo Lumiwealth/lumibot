@@ -5,30 +5,24 @@ if True:
     import sys
 
     myPath = os.path.dirname(os.path.abspath(__file__))
-    sys.path.insert(
-        0, 
-        "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot"
-    )
+    sys.path.insert(0, "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot")
     sys.path.insert(
         0,
         "/Users/robertgrzesik/Development/lumiwealth_tradier/",
     )
-    sys.path.insert(
-        0,
-        "/Users/robertgrzesik/Development/quantstats_lumi/"
-    )
+    sys.path.insert(0, "/Users/robertgrzesik/Development/quantstats_lumi/")
 ################################################################################
 
-from datetime import timedelta, date
 import math
-from decimal import Decimal
+from datetime import date, timedelta
 
+from lumibot.backtesting import PolygonDataBacktesting
+from lumibot.components.options_helper import OptionsHelper
+from lumibot.credentials import IS_BACKTESTING
+from lumibot.entities import Asset, Order, TradingFee
 from lumibot.strategies.strategy import Strategy
 from lumibot.traders import Trader
-from lumibot.entities import Asset, Order, TradingFee
-from lumibot.backtesting import PolygonDataBacktesting
-from lumibot.credentials import IS_BACKTESTING
-from lumibot.components.options_helper import OptionsHelper
+
 
 class AAPLDeepDipCalls(Strategy):
     """
@@ -42,18 +36,18 @@ class AAPLDeepDipCalls(Strategy):
 
     # User-tunable parameters kept together for easy changes
     parameters = {
-        "symbol": "GOOG",                # CHANGED: Underlying stock switched from AAPL to GOOG
-        "decline_trigger_pct": 0.25,      # Buy trigger: 25% drop from running high
+        "symbol": "GOOG",  # CHANGED: Underlying stock switched from AAPL to GOOG
+        "decline_trigger_pct": 0.25,  # Buy trigger: 25% drop from running high
         # RECOVERY EXIT REMOVED per request
-        "hold_duration_days": 365,        # Sell after holding for ~1 year
-        "otm_pct": 0.20,                  # Target 20% OTM for the call strike
-        "target_exp_days": 680,           # ~22.5 months to target January LEAPS (2022-01-21 from March 2020)
-        "risk_per_trade": 0.95,           # Use up to 95% of available cash for contracts
-        "max_contracts": 50,              # Safety cap on number of contracts
-        "stop_loss_pct": 0.50,            # Exit if the option premium is down 50%
-        "min_days_to_expiry_exit": 30,    # Exit 30 days before expiration if still open
-        "max_spread_pct": 0.35,           # Skip illiquid options with very wide spreads (when quotes are available)
-        "sleeptime": "1D",               # Check once per trading day
+        "hold_duration_days": 365,  # Sell after holding for ~1 year
+        "otm_pct": 0.20,  # Target 20% OTM for the call strike
+        "target_exp_days": 680,  # ~22.5 months to target January LEAPS (2022-01-21 from March 2020)
+        "risk_per_trade": 0.95,  # Use up to 95% of available cash for contracts
+        "max_contracts": 50,  # Safety cap on number of contracts
+        "stop_loss_pct": 0.50,  # Exit if the option premium is down 50%
+        "min_days_to_expiry_exit": 30,  # Exit 30 days before expiration if still open
+        "max_spread_pct": 0.35,  # Skip illiquid options with very wide spreads (when quotes are available)
+        "sleeptime": "1D",  # Check once per trading day
     }
 
     def initialize(self):
@@ -63,12 +57,12 @@ class AAPLDeepDipCalls(Strategy):
         self.options_helper = OptionsHelper(self)
 
         # Persistent state for tracking signals and positions
-        self.vars.ath_price = None                  # Running all-time high of underlying since bot start
-        self.vars.option_asset = None               # The specific option we own (if any)
-        self.vars.entry_stock_price = None          # Underlying stock price at the time we bought the calls (kept for logs)
-        self.vars.entry_option_price = None         # Option fill price when we bought
-        self.vars.entry_datetime = None             # Timestamp of entry
-        self.vars.contracts = 0                     # Number of option contracts held
+        self.vars.ath_price = None  # Running all-time high of underlying since bot start
+        self.vars.option_asset = None  # The specific option we own (if any)
+        self.vars.entry_stock_price = None  # Underlying stock price at the time we bought the calls (kept for logs)
+        self.vars.entry_option_price = None  # Option fill price when we bought
+        self.vars.entry_datetime = None  # Timestamp of entry
+        self.vars.contracts = 0  # Number of option contracts held
 
         # Small label for logs and chart usage
         self.vars.label = "GOOG 2Y 20% OTM Calls on 25% Dip (1Y Hold)"  # CHANGED: label to GOOG
@@ -87,7 +81,9 @@ class AAPLDeepDipCalls(Strategy):
         underlying = Asset(symbol, asset_type=Asset.AssetType.STOCK)
         last = self.get_last_price(underlying)
         if last is None:
-            self.log_message(f"No price available for {symbol} right now. Will try again next iteration.", color="yellow")
+            self.log_message(
+                f"No price available for {symbol} right now. Will try again next iteration.", color="yellow"
+            )
             return
 
         # Draw simple lines for context: price and the running high
@@ -116,7 +112,7 @@ class AAPLDeepDipCalls(Strategy):
                 self.log_message(
                     f"DEBUG 2022: {current_date} | Price={last:.2f} | ATH={self.vars.ath_price:.2f} | "
                     f"Dip trigger={buy_trigger_price:.2f} | Below trigger={last <= buy_trigger_price}",
-                    color="cyan"
+                    color="cyan",
                 )
 
             if last <= buy_trigger_price:
@@ -133,9 +129,7 @@ class AAPLDeepDipCalls(Strategy):
         if self.vars.entry_datetime is not None:
             days_held = (self.get_datetime().date() - self.vars.entry_datetime.date()).days
             if days_held >= hold_duration_days:
-                self.log_message(
-                    f"Exit on 1-year hold: Held {days_held} days (>= {hold_duration_days})", color="blue"
-                )
+                self.log_message(f"Exit on 1-year hold: Held {days_held} days (>= {hold_duration_days})", color="blue")
                 self._close_option_position()
                 return
 
@@ -313,11 +307,16 @@ class AAPLDeepDipCalls(Strategy):
             return
 
         # If we just bought the option, capture entry details
-        if order.side in [Order.OrderSide.BUY, Order.OrderSide.BUY_TO_OPEN] and asset.asset_type == Asset.AssetType.OPTION:
+        if (
+            order.side in [Order.OrderSide.BUY, Order.OrderSide.BUY_TO_OPEN]
+            and asset.asset_type == Asset.AssetType.OPTION
+        ):
             self.vars.option_asset = asset
             self.vars.contracts = int(quantity) if quantity is not None else self.vars.contracts
             self.vars.entry_option_price = float(price) if price is not None else self._get_option_mid(asset)
-            self.vars.entry_stock_price = self.get_last_price(Asset(self.parameters["symbol"], asset_type=Asset.AssetType.STOCK))
+            self.vars.entry_stock_price = self.get_last_price(
+                Asset(self.parameters["symbol"], asset_type=Asset.AssetType.STOCK)
+            )
             self.vars.entry_datetime = self.get_datetime()
 
             # Add a visual marker for the buy signal
@@ -331,7 +330,7 @@ class AAPLDeepDipCalls(Strategy):
                 color="green",
                 symbol="arrow-up",
                 size=10,
-                detail_text=f"Buy: {asset.symbol} {asset.expiration} {asset.strike}C x{self.vars.contracts} at ~${self.vars.entry_option_price:.2f}"
+                detail_text=f"Buy: {asset.symbol} {asset.expiration} {asset.strike}C x{self.vars.contracts} at ~${self.vars.entry_option_price:.2f}",
             )
             self.log_message(
                 f"FILLED BUY: {asset.symbol} {asset.expiration} {asset.strike:.2f}C x{self.vars.contracts} at ${self.vars.entry_option_price:.2f}",
@@ -339,7 +338,10 @@ class AAPLDeepDipCalls(Strategy):
             )
 
         # If we sold the option, clear state and mark the event
-        if order.side in [Order.OrderSide.SELL, Order.OrderSide.SELL_TO_CLOSE] and asset.asset_type == Asset.AssetType.OPTION:
+        if (
+            order.side in [Order.OrderSide.SELL, Order.OrderSide.SELL_TO_CLOSE]
+            and asset.asset_type == Asset.AssetType.OPTION
+        ):
             try:
                 underlying_last = self.get_last_price(self.parameters["symbol"]) or 0
             except Exception:
@@ -350,7 +352,7 @@ class AAPLDeepDipCalls(Strategy):
                 color="red",
                 symbol="arrow-down",
                 size=10,
-                detail_text=f"Sell: {asset.symbol} {asset.expiration} {asset.strike}C x{quantity} at ~${float(price) if price else 0:.2f}"
+                detail_text=f"Sell: {asset.symbol} {asset.expiration} {asset.strike}C x{quantity} at ~${float(price) if price else 0:.2f}",
             )
             self.log_message(
                 f"FILLED SELL: {asset.symbol} {asset.expiration} {asset.strike:.2f}C x{int(quantity) if quantity else 0} at ${float(price) if price else 0:.2f}",
@@ -365,7 +367,7 @@ if __name__ == "__main__":
         "symbol": "GOOG",  # CHANGED: from AAPL to GOOG
         "decline_trigger_pct": 0.25,
         # "recovery_exit_pct": 0.25,  # Removed per request
-        "hold_duration_days": 365,     # exit after ~1 year hold
+        "hold_duration_days": 365,  # exit after ~1 year hold
         "otm_pct": 0.20,
         "target_exp_days": 680,  # ~22.5 months to target January LEAPS (2022-01-21 from March 2020)
         "risk_per_trade": 0.95,

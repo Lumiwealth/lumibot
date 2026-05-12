@@ -9,15 +9,15 @@ It is designed to be run manually during market hours.
 
 from __future__ import annotations
 
-import sys
 import argparse
 import csv
 import random
+import sys
 import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 # Ensure the repo root is importable when running as a script (sys.path[0] == scripts/).
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -102,9 +102,9 @@ class _BenchStrategy(Strategy):
 class _FillSnapshot:
     ts: float
     status: str
-    limit_price: Optional[float]
-    avg_fill_price: Optional[float]
-    filled_qty: Optional[float]
+    limit_price: float | None
+    avg_fill_price: float | None
+    filled_qty: float | None
 
 
 def _make_broker(name: str):
@@ -170,7 +170,7 @@ def _wait_for_fill(
 ) -> tuple[bool, list[_FillSnapshot]]:
     snapshots: list[_FillSnapshot] = []
     start = time.time()
-    last_limit: Optional[float] = None
+    last_limit: float | None = None
 
     while time.time() - start < timeout_seconds:
         snap = _poll_order(strategy.broker, order)
@@ -279,7 +279,7 @@ def _build_single_call(
     days_out: int,
     otm_points: float,
     order_type: str,
-    smart_limit: Optional[SmartLimitConfig],
+    smart_limit: SmartLimitConfig | None,
 ) -> tuple[Order, Order]:
     underlying = _pick_underlying(underlying_symbol)
     expiry = _pick_expiry(strategy, underlying, days_out)
@@ -317,7 +317,7 @@ def _build_iron_condor(
     short_distance: float,
     wing_width: float,
     order_type: str,
-    smart_limit: Optional[SmartLimitConfig],
+    smart_limit: SmartLimitConfig | None,
 ) -> tuple[list[Order], list[Order]]:
     underlying = _pick_underlying(underlying_symbol)
     expiry = _pick_expiry(strategy, underlying, days_out)

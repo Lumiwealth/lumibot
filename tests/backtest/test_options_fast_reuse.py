@@ -10,9 +10,8 @@ Purpose: Prevent regression of the options fast-reuse bug where backtests would 
          without waiting for options data because the cache check incorrectly matched
          different option contracts.
 """
-import pytest
-from datetime import datetime, date
-from unittest.mock import Mock, patch, MagicMock
+
+from datetime import date
 
 from lumibot.entities import Asset
 
@@ -26,20 +25,8 @@ class TestOptionsFastReuse:
         the fast-reuse path should return None (use cache).
         """
         # Create two identical option assets
-        option1 = Asset(
-            symbol="SPY",
-            asset_type="option",
-            expiration=date(2025, 1, 17),
-            strike=500.0,
-            right="CALL"
-        )
-        option2 = Asset(
-            symbol="SPY",
-            asset_type="option",
-            expiration=date(2025, 1, 17),
-            strike=500.0,
-            right="CALL"
-        )
+        option1 = Asset(symbol="SPY", asset_type="option", expiration=date(2025, 1, 17), strike=500.0, right="CALL")
+        option2 = Asset(symbol="SPY", asset_type="option", expiration=date(2025, 1, 17), strike=500.0, right="CALL")
 
         # Verify they're considered equal for caching purposes
         assert option1.strike == option2.strike
@@ -52,18 +39,14 @@ class TestOptionsFastReuse:
         the fast-reuse path should NOT match (fetch fresh data).
         """
         option_cached = Asset(
-            symbol="SPY",
-            asset_type="option",
-            expiration=date(2025, 1, 17),
-            strike=500.0,
-            right="CALL"
+            symbol="SPY", asset_type="option", expiration=date(2025, 1, 17), strike=500.0, right="CALL"
         )
         option_requested = Asset(
             symbol="SPY",
             asset_type="option",
             expiration=date(2025, 1, 17),
             strike=510.0,  # Different strike
-            right="CALL"
+            right="CALL",
         )
 
         # These should NOT be considered equal for caching
@@ -75,18 +58,14 @@ class TestOptionsFastReuse:
         the fast-reuse path should NOT match (fetch fresh data).
         """
         option_cached = Asset(
-            symbol="SPY",
-            asset_type="option",
-            expiration=date(2025, 1, 17),
-            strike=500.0,
-            right="CALL"
+            symbol="SPY", asset_type="option", expiration=date(2025, 1, 17), strike=500.0, right="CALL"
         )
         option_requested = Asset(
             symbol="SPY",
             asset_type="option",
             expiration=date(2025, 2, 21),  # Different expiration
             strike=500.0,
-            right="CALL"
+            right="CALL",
         )
 
         # These should NOT be considered equal for caching
@@ -98,18 +77,14 @@ class TestOptionsFastReuse:
         the fast-reuse path should NOT match (fetch fresh data).
         """
         option_cached = Asset(
-            symbol="SPY",
-            asset_type="option",
-            expiration=date(2025, 1, 17),
-            strike=500.0,
-            right="CALL"
+            symbol="SPY", asset_type="option", expiration=date(2025, 1, 17), strike=500.0, right="CALL"
         )
         option_requested = Asset(
             symbol="SPY",
             asset_type="option",
             expiration=date(2025, 1, 17),
             strike=500.0,
-            right="PUT"  # Different right
+            right="PUT",  # Different right
         )
 
         # These should NOT be considered equal for caching
@@ -131,18 +106,12 @@ class TestOptionsFastReuse:
         """
         Verify that option assets have the necessary attributes for cache validation.
         """
-        option = Asset(
-            symbol="SPY",
-            asset_type="option",
-            expiration=date(2025, 1, 17),
-            strike=500.0,
-            right="CALL"
-        )
+        option = Asset(symbol="SPY", asset_type="option", expiration=date(2025, 1, 17), strike=500.0, right="CALL")
 
-        assert hasattr(option, 'strike')
-        assert hasattr(option, 'expiration')
-        assert hasattr(option, 'right')
-        assert hasattr(option, 'asset_type')
+        assert hasattr(option, "strike")
+        assert hasattr(option, "expiration")
+        assert hasattr(option, "right")
+        assert hasattr(option, "asset_type")
 
         assert option.strike == 500.0
         assert option.expiration == date(2025, 1, 17)
@@ -157,24 +126,10 @@ class TestOptionsCacheKeyGeneration:
         """
         Two options with different strikes should have different cache keys.
         """
-        option1 = Asset(
-            symbol="SPY",
-            asset_type="option",
-            expiration=date(2025, 1, 17),
-            strike=500.0,
-            right="CALL"
-        )
-        option2 = Asset(
-            symbol="SPY",
-            asset_type="option",
-            expiration=date(2025, 1, 17),
-            strike=510.0,
-            right="CALL"
-        )
+        option1 = Asset(symbol="SPY", asset_type="option", expiration=date(2025, 1, 17), strike=500.0, right="CALL")
+        option2 = Asset(symbol="SPY", asset_type="option", expiration=date(2025, 1, 17), strike=510.0, right="CALL")
 
         # The tuple (asset, timespan) used as dataset_key should be different
-        key1 = (option1, "day")
-        key2 = (option2, "day")
 
         # Assets are different objects, but we need to ensure they're not
         # incorrectly matched by the fast-reuse logic
@@ -184,20 +139,8 @@ class TestOptionsCacheKeyGeneration:
         """
         Two options with different expirations should have different cache keys.
         """
-        option1 = Asset(
-            symbol="SPY",
-            asset_type="option",
-            expiration=date(2025, 1, 17),
-            strike=500.0,
-            right="CALL"
-        )
-        option2 = Asset(
-            symbol="SPY",
-            asset_type="option",
-            expiration=date(2025, 2, 21),
-            strike=500.0,
-            right="CALL"
-        )
+        option1 = Asset(symbol="SPY", asset_type="option", expiration=date(2025, 1, 17), strike=500.0, right="CALL")
+        option2 = Asset(symbol="SPY", asset_type="option", expiration=date(2025, 2, 21), strike=500.0, right="CALL")
 
         assert option1.expiration != option2.expiration
 
@@ -245,10 +188,10 @@ class TestCacheValidation:
         """
         # This is a conceptual test - the actual implementation is in
         # thetadata_helper.py's coverage checking logic
-        cached_start = date(2024, 1, 1)
+        date(2024, 1, 1)
         cached_end = date(2024, 6, 30)
 
-        requested_start = date(2024, 1, 1)
+        date(2024, 1, 1)
         requested_end = date(2024, 12, 31)  # Beyond cached end
 
         # Coverage should fail because requested_end > cached_end

@@ -1,15 +1,24 @@
 from __future__ import annotations
 
+# pyright: reportUnknownVariableType=false, reportUnknownMemberType=false, reportUnknownArgumentType=false
+# pyright: reportUnknownParameterType=false, reportMissingParameterType=false, reportMissingTypeArgument=false
+# pyright: reportInvalidTypeForm=false, reportUnnecessaryComparison=false, reportArgumentType=false
+# pyright: reportOptionalMemberAccess=false, reportOptionalSubscript=false, reportAttributeAccessIssue=false
+# pyright: reportPrivateUsage=false, reportUnknownLambdaType=false, reportConstantRedefinition=false
+# pyright: reportUnnecessaryIsInstance=false, reportUnusedFunction=false
 import os
 import time
 import traceback
 from decimal import Decimal
 from importlib import import_module
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from types import ModuleType
+from typing import TYPE_CHECKING, Any, cast
+
+from lumibot.entities.asset import Asset
+from lumibot.entities.order import Order
+from lumibot.tools.lumibot_logger import get_logger
 
 from .broker import Broker, LumibotBrokerAPIError
-from lumibot.entities import Asset, Order
-from lumibot.tools.lumibot_logger import get_logger
 
 if TYPE_CHECKING:
     from lumibot.entities import Position
@@ -17,21 +26,25 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-class _LazyModule:
+class _LazyModule(ModuleType):
+    _module_name: str
+    _module: ModuleType | None
+
     __slots__ = ("_module_name", "_module")
 
-    def __init__(self, module_name: str):
-        self._module_name = module_name
-        self._module = None
+    def __init__(self, module_name: str) -> None:
+        super().__init__(module_name)
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
 
-    def _load(self):
-        module = self._module
+    def _load(self) -> ModuleType:
+        module = cast(ModuleType | None, object.__getattribute__(self, "_module"))
         if module is None:
-            module = import_module(self._module_name)
-            self._module = module
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
         return module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
 
@@ -62,7 +75,9 @@ class Bitunix(Broker):
     """
     A broker class that connects to the Bitunix exchange for crypto futures trading.
 
-    This broker is designed specifically for Bitunix's perpetual futures API. It supports submitting, tracking, and closing positions for crypto futures contracts (e.g., BTCUSDT perpetual). The broker uses Bitunix's REST API for all trading operations.
+    This broker is designed specifically for Bitunix's perpetual futures API. It supports submitting, tracking, and
+    closing positions for crypto futures contracts (e.g., BTCUSDT perpetual). The broker uses Bitunix's REST API for
+    all trading operations.
 
     Key Features:
     - Only supports crypto futures (TRADING_MODE must be "FUTURES").
@@ -80,7 +95,7 @@ class Bitunix(Broker):
         stock=[],
         option=[],
         future=["future"],
-        crypto_future=["future"],    # new crypto‐futures
+        crypto_future=["future"],  # new crypto‐futures
         forex=[],
         crypto=["crypto"],
     )
@@ -90,7 +105,15 @@ class Bitunix(Broker):
 
     DEFAULT_POLL_INTERVAL = 5  # seconds between polling cycles
 
-    def __init__(self, config, max_workers: int = 1, chunk_size: int = 100, connect_stream: bool = True, poll_interval: Optional[float] = None, data_source=None):
+    def __init__(
+        self,
+        config: Any,
+        max_workers: int = 1,
+        chunk_size: int = 100,
+        connect_stream: bool = True,
+        poll_interval: float | None = None,
+        data_source: Any | None = None,
+    ) -> None:
         # --- Bitunix trading mode check ---
         trading_mode = None
         if isinstance(config, dict):
@@ -98,7 +121,9 @@ class Bitunix(Broker):
         else:
             trading_mode = getattr(config, "TRADING_MODE", "FUTURES")
         if str(trading_mode).upper() != "FUTURES":
-            print(f"Bitunix TRADING_MODE '{trading_mode}' is not supported yet. Please use another broker for spot trading.")
+            print(
+                f"Bitunix TRADING_MODE '{trading_mode}' is not supported yet. Please use another broker for spot trading."
+            )
 
         # Ensure _stream_loop exists before calling super, so _launch_stream doesn't error
         self._stream_loop = None
@@ -110,9 +135,13 @@ class Bitunix(Broker):
             api_secret = getattr(config, "API_SECRET", None)
 
         # Track current leverage per symbol to avoid redundant API calls
-        self.current_leverage: Dict[str, int] = {}
+        self.current_leverage: dict[str, int] = {}
         # Override default market setting for to be 24/7, but still respect config/env if set
-        self.market = (config.get("MARKET") if config else None) or os.environ.get("MARKET") or "24/7"
+        if isinstance(config, dict):
+            configured_market = config.get("MARKET")
+        else:
+            configured_market = getattr(config, "MARKET", None) if config else None
+        self.market = configured_market or os.environ.get("MARKET") or "24/7"
 
         if not api_key or not api_secret:
             raise ValueError("API_KEY and API_SECRET must be provided in config")
@@ -128,16 +157,12 @@ class Bitunix(Broker):
         try:
             response = self.api.change_position_mode("HEDGE")
             if response and response.get("code") == 0:
-                mode = response.get('data', [{}])[0].get('positionMode')
+                mode = response.get("data", [{}])[0].get("positionMode")
                 logger.info("Default position mode set to %s", mode)
             else:
-                logger.warning(
-                    "Failed to set default position mode to HEDGE. API response: %s", response
-                )
+                logger.warning("Failed to set default position mode to HEDGE. API response: %s", response)
         except Exception as exc:
-            logger.warning(
-                "Failed to set default position mode to HEDGE due to an exception: %s", exc
-            )
+            logger.warning("Failed to set default position mode to HEDGE due to an exception: %s", exc)
             logger.debug(traceback.format_exc())
 
         if not data_source:
@@ -150,13 +175,13 @@ class Bitunix(Broker):
         self.poll_interval = poll_interval or self.DEFAULT_POLL_INTERVAL
         super().__init__(
             name="bitunix",
-            connect_stream=connect_stream, # Use connect_stream to enable _run_stream thread
+            connect_stream=connect_stream,  # Use connect_stream to enable _run_stream thread
             data_source=data_source,
             config=config,
             max_workers=max_workers,
         )
 
-    def get_quote_asset(self):
+    def get_quote_asset(self) -> Asset:
         # Only clear and set quote_assets if USDT is not the only asset
         if not (len(self.quote_assets) == 1 and Asset("USDT", Asset.AssetType.CRYPTO) in self.quote_assets):
             self.quote_assets.clear()
@@ -164,19 +189,19 @@ class Bitunix(Broker):
 
         return Asset("USDT", Asset.AssetType.CRYPTO)
 
-    def get_timestamp(self):
+    def get_timestamp(self) -> float:
         return time.time()
 
-    def is_market_open(self):
+    def is_market_open(self) -> bool:
         return True
 
-    def get_time_to_open(self):
+    def get_time_to_open(self) -> int:
         return 0
 
-    def get_time_to_close(self):
+    def get_time_to_close(self) -> float:
         return float("inf")
 
-    def _get_balances_at_broker(self, quote_asset: Asset, strategy) -> Optional[Tuple[float, float, float]]:
+    def _get_balances_at_broker(self, quote_asset: Asset, strategy: Any) -> tuple[float, float, float]:
         """
         Returns (cash, positions_value, total_liquidation_value)
         """
@@ -213,7 +238,7 @@ class Bitunix(Broker):
 
         return cash, positions_value, net_liquidation
 
-    def _pull_positions(self, strategy) -> List[Position]:
+    def _pull_positions(self, strategy: Any) -> list[Position]:
         """
         Retrieves FUTURES positions.
         Futures positions are fetched from the open positions endpoint.
@@ -267,13 +292,20 @@ class Bitunix(Broker):
             return "MARKET"  # Default to MARKET for unknown types
 
     # --- Multi-leg, OCO, OTO, Bracket, Trailing Stop ---
-    def _submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None):
+    def _submit_orders(
+        self,
+        orders: Any,
+        **_kwargs: Any,
+    ) -> list[Order]:
         """
         Submit multiple orders. Bitunix does not support multi-leg, OCO, OTO, Bracket, or trailing stop natively.
         """
-        if is_multileg or (orders and getattr(orders[0], "order_class", None) in [
-            Order.OrderClass.MULTILEG, Order.OrderClass.OCO, Order.OrderClass.OTO, Order.OrderClass.BRACKET
-        ]):
+        is_multileg = bool(_kwargs.get("is_multileg", False))
+        if is_multileg or (
+            orders
+            and getattr(orders[0], "order_class", None)
+            in [Order.OrderClass.MULTILEG, Order.OrderClass.OCO, Order.OrderClass.OTO, Order.OrderClass.BRACKET]
+        ):
             raise NotImplementedError("Bitunix does not support multi-leg, OCO, OTO, or Bracket orders natively.")
         return [self._submit_order(order) for order in orders]
 
@@ -285,14 +317,18 @@ class Bitunix(Broker):
         # Flag set by close_position() – when True we send a reduce‑only order
         reduce_only = getattr(order, "reduce_only", False)
 
-
         # Determine symbol format based on asset type
-        if order.asset.asset_type in (Asset.AssetType.CRYPTO_FUTURE):
+        if order.asset.asset_type == Asset.AssetType.CRYPTO_FUTURE:
             symbol = order.asset.symbol
         else:
             error_msg = "Invalid asset type: asset can only be CRYPTO_FUTURE"
             order.set_error(LumibotBrokerAPIError(error_msg))
             order.status = Order.OrderStatus.ERROR  # ensure status is enum
+            return order
+        if symbol is None:
+            error_msg = "Invalid asset: symbol is required for Bitunix futures orders"
+            order.set_error(LumibotBrokerAPIError(error_msg))
+            order.status = Order.OrderStatus.ERROR
             return order
 
         # Prepare quantity and price
@@ -307,7 +343,9 @@ class Bitunix(Broker):
             leverage = order.asset.leverage
             try:
                 if self.current_leverage.get(symbol) != leverage:
-                    lev_resp = self.api.change_leverage(symbol=symbol, leverage=leverage, margin_coin=self.get_quote_asset().symbol) # Use quote_asset.symbol
+                    lev_resp = self.api.change_leverage(
+                        symbol=symbol, leverage=leverage, margin_coin=self.get_quote_asset().symbol
+                    )  # Use quote_asset.symbol
                     if not lev_resp or lev_resp.get("code") != 0:
                         logger.warning(f"Failed to set leverage for {symbol} to {leverage}x: {lev_resp}")
                     else:
@@ -378,7 +416,7 @@ class Bitunix(Broker):
     # ------------------------------------------------------------------
     # Position‑closing helper using Bitunix reduce‑only orders
     # ------------------------------------------------------------------
-    def close_position(self, strategy_name: str, asset: Asset, fraction: float = 1.0):
+    def close_position(self, strategy_name: str, asset: Asset, fraction: float = 1.0) -> Order | None:
         """
         Close all or part of an existing position using a reduce‑only
         market order (tradeSide="CLOSE").
@@ -419,7 +457,7 @@ class Bitunix(Broker):
 
         return self.submit_order(order)
 
-    def cancel_order(self, order: Order):
+    def cancel_order(self, order: Order) -> None:
         """
         Cancels a FUTURES order.
         """
@@ -442,15 +480,21 @@ class Bitunix(Broker):
                 # Log error but don't raise, let polling handle final state
                 logger.error(f"Failed to cancel order {order.identifier}: {response}")
                 # Dispatch an error event if immediate feedback is needed
-                self._process_trade_event(order, self.ERROR_ORDER, error=LumibotBrokerAPIError(f"Failed to cancel order: {response}"))
+                self._process_trade_event(
+                    order, self.ERROR_ORDER, error=LumibotBrokerAPIError(f"Failed to cancel order: {response}")
+                )
         except Exception as e:
-             # Log error but don't raise, let polling handle final state
+            # Log error but don't raise, let polling handle final state
             logger.error(f"Error canceling order {order.identifier}: {str(e)}")
             # Dispatch an error event
-            self._process_trade_event(order, self.ERROR_ORDER, error=LumibotBrokerAPIError(f"Error canceling order: {str(e)}"))
+            self._process_trade_event(
+                order, self.ERROR_ORDER, error=LumibotBrokerAPIError(f"Error canceling order: {str(e)}")
+            )
             pass
 
-    def _pull_broker_order(self, identifier: str, asset_type: Asset.AssetType=Asset.AssetType.CRYPTO) -> Optional[Dict]:
+    def _pull_broker_order(
+        self, identifier: str, asset_type: Asset.AssetType = Asset.AssetType.CRYPTO
+    ) -> dict[str, Any] | None:
         """
         Fetches a single order by ID from BitUnix.
         """
@@ -463,13 +507,12 @@ class Bitunix(Broker):
             logger.error(f"Error getting order details for {identifier}")
             return None
 
-    def _pull_broker_all_orders(self, symbol: Optional[str] = None, status: Optional[str] = None) -> List[Dict]:
-        all_orders = []
+    def _pull_broker_all_orders(self, symbol: str | None = None, status: str | None = None) -> list[dict[str, Any]]:
+        all_orders: list[dict[str, Any]] = []
         # Fetch FUTURES open orders
         try:
             fut_open_resp = self.api.get_pending_orders(symbol=symbol)
             if fut_open_resp and fut_open_resp.get("code") == 0:
-
                 data = fut_open_resp.get("data") or {}
                 fut_orders = data.get("orderList", [])
                 if len(fut_orders) > 0:
@@ -478,31 +521,33 @@ class Bitunix(Broker):
             logger.warning("Error fetching futures open orders")
         return all_orders
 
-    def _map_status_from_bitunix(self, broker_status) -> Order.OrderStatus:
+    def _map_status_from_bitunix(self, broker_status: Any) -> Order.OrderStatus:
         """Maps BitUnix order status string to Lumibot OrderStatus enum."""
         # Ensure broker_status is a string before uppercasing and strip trailing underscores and whitespace
-        status_str = str(broker_status).upper().rstrip('_').strip()
+        status_str = str(broker_status).upper().rstrip("_").strip()
 
         status_map = {
-            "NEW":               Order.OrderStatus.SUBMITTED,
-            "PARTIALLY_FILLED":  Order.OrderStatus.PARTIALLY_FILLED,
-            "FILLED":            Order.OrderStatus.FILLED,
-            "CANCELED":          Order.OrderStatus.CANCELED,
-            "REJECTED":          Order.OrderStatus.ERROR,
-            "EXPIRED":           Order.OrderStatus.CANCELED,
-            "PENDING_CANCEL":    Order.OrderStatus.CANCELED,    # mapped to CANCELED since PENDING_CANCEL isn't defined
+            "NEW": Order.OrderStatus.SUBMITTED,
+            "PARTIALLY_FILLED": Order.OrderStatus.PARTIALLY_FILLED,
+            "FILLED": Order.OrderStatus.FILLED,
+            "CANCELED": Order.OrderStatus.CANCELED,
+            "REJECTED": Order.OrderStatus.ERROR,
+            "EXPIRED": Order.OrderStatus.CANCELED,
+            "PENDING_CANCEL": Order.OrderStatus.CANCELED,  # mapped to CANCELED since PENDING_CANCEL isn't defined
         }
         mapped_status = status_map.get(status_str)
 
         if mapped_status is None:
-            logger.warning(f"Unmapped Bitunix order status received: '{broker_status}' (processed as '{status_str}'). Defaulting to ERROR.")
+            logger.warning(
+                f"Unmapped Bitunix order status received: '{broker_status}' (processed as '{status_str}'). Defaulting to ERROR."
+            )
             # Return ERROR status for unrecognized states
             return Order.OrderStatus.ERROR
         return mapped_status
 
     def _parse_broker_order(
-        self, response: Dict, strategy_name: str, strategy_object: Any = None
-    ) -> Optional[Order]:
+        self, response: dict[str, Any], strategy_name: str, strategy_object: Any | None = None
+    ) -> Order | None:
         """Converts BitUnix order response to Lumibot Order object."""
         if not response:
             return None
@@ -517,8 +562,8 @@ class Bitunix(Broker):
 
             # Extract quantities and prices
             # fields use 'qty'/'tradeQty' for BitUnix
-            qty_original = Decimal(str(response.get("qty",     "0")))
-            qty_executed = Decimal(str(response.get("tradeQty","0")))
+            qty_original = Decimal(str(response.get("qty", "0")))
+            qty_executed = Decimal(str(response.get("tradeQty", "0")))
             # parse limit price only if numeric
             price_limit = None
             ps = response.get("price")
@@ -530,7 +575,7 @@ class Bitunix(Broker):
             if ap:
                 price_avg = Decimal(str(ap))
 
-            leverage=int(str(response.get("leverage", "1")))
+            leverage = int(str(response.get("leverage", "1")))
 
             asset = Asset(symbol, Asset.AssetType.CRYPTO_FUTURE, leverage=leverage)
             quote = None
@@ -563,7 +608,7 @@ class Bitunix(Broker):
                 limit_price=price_limit,
                 status=order_status,
                 identifier=order_id,
-                quote=quote
+                quote=quote,
             )
 
             # Set filled info
@@ -573,7 +618,7 @@ class Bitunix(Broker):
             # Set creation time if available
             create_time = response.get("time") or response.get("createTime")
             if create_time:
-                order.broker_create_date = pd.to_datetime(create_time, unit='ms', utc=True)
+                order.broker_create_date = pd.to_datetime(create_time, unit="ms", utc=True)
 
             # Store raw response for reference
             order.update_raw(response)
@@ -586,7 +631,7 @@ class Bitunix(Broker):
 
     # --- Polling-based stream implementation ---
 
-    def do_polling(self):
+    def do_polling(self) -> None:
         """
         Polls Bitunix for order status updates and dispatches events.
         """
@@ -604,11 +649,18 @@ class Bitunix(Broker):
             if order.identifier not in stored_orders:
                 if self._first_iteration:
                     if order.status == Order.OrderStatus.FILLED:
-                        self._process_trade_event(order, self.FILLED_ORDER, price=order.avg_fill_price, filled_quantity=order.quantity)
+                        self._process_trade_event(
+                            order, self.FILLED_ORDER, price=order.avg_fill_price, filled_quantity=order.quantity
+                        )
                     elif order.status == Order.OrderStatus.CANCELED:
                         self._process_trade_event(order, self.CANCELED_ORDER)
                     elif order.status == Order.OrderStatus.PARTIALLY_FILLED:
-                        self._process_trade_event(order, self.PARTIALLY_FILLED_ORDER, price=order.avg_fill_price, filled_quantity=order.quantity)
+                        self._process_trade_event(
+                            order,
+                            self.PARTIALLY_FILLED_ORDER,
+                            price=order.avg_fill_price,
+                            filled_quantity=order.quantity,
+                        )
                     elif order.status == Order.OrderStatus.SUBMITTED:
                         self._process_trade_event(order, self.NEW_ORDER)
                     elif order.status == Order.OrderStatus.ERROR:
@@ -627,13 +679,25 @@ class Bitunix(Broker):
                     if order.status == Order.OrderStatus.SUBMITTED:
                         self.stream.dispatch(self.NEW_ORDER, order=stored_order)
                     elif order.status == Order.OrderStatus.PARTIALLY_FILLED:
-                        self.stream.dispatch(self.PARTIALLY_FILLED_ORDER, order=stored_order, price=order.avg_fill_price, filled_quantity=order.quantity)
+                        self.stream.dispatch(
+                            self.PARTIALLY_FILLED_ORDER,
+                            order=stored_order,
+                            price=order.avg_fill_price,
+                            filled_quantity=order.quantity,
+                        )
                     elif order.status == Order.OrderStatus.FILLED:
-                        self.stream.dispatch(self.FILLED_ORDER, order=stored_order, price=order.avg_fill_price, filled_quantity=order.quantity)
+                        self.stream.dispatch(
+                            self.FILLED_ORDER,
+                            order=stored_order,
+                            price=order.avg_fill_price,
+                            filled_quantity=order.quantity,
+                        )
                     elif order.status == Order.OrderStatus.CANCELED:
                         self.stream.dispatch(self.CANCELED_ORDER, order=stored_order)
                     elif order.status == Order.OrderStatus.ERROR:
-                        msg = order_row.get("msg", f"{self.name} encountered an error with order {order.identifier} | {order}")
+                        msg = order_row.get(
+                            "msg", f"{self.name} encountered an error with order {order.identifier} | {order}"
+                        )
                         self.stream.dispatch(self.ERROR_ORDER, order=stored_order, error_msg=msg)
                 else:
                     stored_order.status = order.status
@@ -649,22 +713,22 @@ class Bitunix(Broker):
                 if order.is_active():
                     self.stream.dispatch(self.CANCELED_ORDER, order=order)
 
-    def _get_stream_object(self):
+    def _get_stream_object(self) -> Any:
         """Returns the polling stream object."""
         from lumibot.trading_builtins import PollingStream
 
         return PollingStream(self.poll_interval)
 
-    def _register_stream_events(self):
+    def _register_stream_events(self) -> None:
         """Register polling event for Bitunix."""
         broker = self
 
         @broker.stream.add_action("poll")
-        def on_trade_event_poll():
+        def on_trade_event_poll() -> None:
             self.do_polling()
 
         @broker.stream.add_action(broker.NEW_ORDER)
-        def on_trade_event_new(order):
+        def on_trade_event_new(order: Order) -> bool | None:
             logger.info(f"Processing action for new order {order}")
             try:
                 broker._process_trade_event(order, broker.NEW_ORDER)
@@ -673,7 +737,7 @@ class Bitunix(Broker):
                 logger.error(traceback.format_exc())
 
         @broker.stream.add_action(broker.FILLED_ORDER)
-        def on_trade_event_fill(order, price, filled_quantity):
+        def on_trade_event_fill(order: Order, price: float, filled_quantity: Decimal | float) -> bool | None:
             logger.info(f"Processing action for filled order {order} | {price} | {filled_quantity}")
             try:
                 broker._process_trade_event(order, broker.FILLED_ORDER, price=price, filled_quantity=filled_quantity)
@@ -682,7 +746,7 @@ class Bitunix(Broker):
                 logger.error(traceback.format_exc())
 
         @broker.stream.add_action(broker.CANCELED_ORDER)
-        def on_trade_event_cancel(order):
+        def on_trade_event_cancel(order: Order) -> None:
             logger.info(f"Processing action for cancelled order {order}")
             try:
                 broker._process_trade_event(order, broker.CANCELED_ORDER)
@@ -690,7 +754,7 @@ class Bitunix(Broker):
                 logger.error(traceback.format_exc())
 
         @broker.stream.add_action(broker.ERROR_ORDER)
-        def on_trade_event_error(order, error_msg):
+        def on_trade_event_error(order: Order, error_msg: Any) -> None:
             logger.error(f"Processing action for error order {order} | {error_msg}")
             try:
                 if order.is_active():
@@ -700,7 +764,7 @@ class Bitunix(Broker):
             except Exception:
                 logger.error(traceback.format_exc())
 
-    def _run_stream(self):
+    def _run_stream(self) -> None:
         self._stream_established()
         try:
             self.stream._run()
@@ -709,7 +773,9 @@ class Bitunix(Broker):
 
     # ...existing code...
 
-    def _modify_order(self, order: Order, price: float = None, quantity: float = None):
+    def _modify_order(
+        self, order: Any, limit_price: float | None = None, stop_price: float | None = None
+    ) -> Order:
         """
         Modifies an existing order (if supported by BitUnix).
         """
@@ -723,18 +789,17 @@ class Bitunix(Broker):
             else:
                 logger.error(f"Cannot modify order for asset type {order.asset.asset_type}")
                 return order
+            if symbol is None:
+                raise LumibotBrokerAPIError("Cannot modify Bitunix order without an asset symbol")
 
             # Prepare modification parameters
-            params = {
-                "orderId": order.identifier,
-                "symbol": symbol
-            }
+            params = {"orderId": order.identifier, "symbol": symbol}
 
             # Add optional modifications
-            if price is not None:
-                params["price"] = str(price)
-            if quantity is not None:
-                params["quantity"] = str(quantity)
+            if limit_price is not None:
+                params["price"] = str(limit_price)
+            if stop_price is not None:
+                params["stopPrice"] = str(stop_price)
 
             # Send modification request
             response = self.api.modify_order(**params)
@@ -742,10 +807,10 @@ class Bitunix(Broker):
             # Process response
             if response and response.get("code") == 0:
                 # Update the order object with new values
-                if price is not None:
-                    order.limit_price = Decimal(str(price))
-                if quantity is not None:
-                    order.quantity = Decimal(str(quantity))
+                if limit_price is not None:
+                    order.limit_price = Decimal(str(limit_price))
+                if stop_price is not None:
+                    order.stop_price = Decimal(str(stop_price))
 
                 # Update raw data
                 order.update_raw(response)
@@ -753,9 +818,9 @@ class Bitunix(Broker):
             else:
                 raise LumibotBrokerAPIError(f"Failed to modify order: {response}")
         except Exception as e:
-            raise LumibotBrokerAPIError(f"Error modifying order: {str(e)}")
+            raise LumibotBrokerAPIError(f"Error modifying order: {str(e)}") from e
 
-    def _pull_position(self, strategy, asset: Asset) -> Optional[Position]:
+    def _pull_position(self, strategy: Any, asset: Asset) -> Position | None:
         """
         Fetch a single position by asset.
         """
@@ -766,14 +831,22 @@ class Bitunix(Broker):
                 return pos
         return None
 
-    def get_historical_account_value(self, start_date=None, end_date=None, frequency=None) -> dict:
+    def get_historical_account_value(
+        self, start_date: Any | None = None, end_date: Any | None = None, frequency: Any | None = None
+    ) -> dict[str, Any]:
         """
         Not implemented: Bitunix does not support historical account value retrieval.
         """
         self.logger.error("get_historical_account_value is not implemented for Bitunix broker.")
         return {}
 
-    def sell_all(self, strategy_name, cancel_open_orders: bool = True, strategy=None, is_multileg: bool = False):
+    def sell_all(
+        self,
+        strategy_name: str,
+        cancel_open_orders: bool = True,
+        strategy: Any | None = None,
+        is_multileg: bool = False,
+    ) -> None:
         """Override sell_all to use flash_close_position for futures."""
         # Optional: cancel any open orders first
         if cancel_open_orders:
@@ -782,7 +855,7 @@ class Bitunix(Broker):
         positions = self._pull_positions(strategy)
         # Flash-close all futures positions
         for pos in positions:
-            if pos.asset.asset_type in (Asset.AssetType.CRYPTO_FUTURE) and pos.quantity != 0:
+            if pos.asset.asset_type == Asset.AssetType.CRYPTO_FUTURE and pos.quantity != 0:
                 raw = getattr(pos, "_raw", {})
                 position_id = raw.get("positionId")
                 if not position_id:
@@ -800,22 +873,26 @@ class Bitunix(Broker):
         Convert Lumibot timestep to BitUnix interval format.
         Delegates to the data source's implementation.
         """
-        if hasattr(self.data_source, '_parse_source_timestep'):
+        if hasattr(self.data_source, "_parse_source_timestep"):
             return self.data_source._parse_source_timestep(timestep)
 
         # Fallback implementation if data source doesn't have the method
         normalized = timestep.lower().strip()
 
         timestep_map = {
-            "1m": "1m", "minute": "1m",
+            "1m": "1m",
+            "minute": "1m",
             "3m": "3m",
             "5m": "5m",
             "15m": "15m",
             "30m": "30m",
-            "1h": "1h", "hour": "1h",
+            "1h": "1h",
+            "hour": "1h",
             "2h": "2h",
             "4h": "4h",
-            "1d": "1d", "day": "1d", "d": "1d"
+            "1d": "1d",
+            "day": "1d",
+            "d": "1d",
         }
 
         return timestep_map.get(normalized, "1m")  # Default to 1m if unknown

@@ -2,10 +2,12 @@
 Pytest configuration for backtest tests.
 Automatically tracks performance of all backtest tests.
 """
+
 import os
 import time
-import pytest
 from pathlib import Path
+
+import pytest
 
 # Import the performance tracker
 from .performance_tracker import record_backtest_performance
@@ -24,9 +26,9 @@ def track_backtest_performance(request):
         return
 
     # Skip if test is being skipped
-    if hasattr(request.node, 'get_closest_marker'):
-        skip_marker = request.node.get_closest_marker('skip')
-        skipif_marker = request.node.get_closest_marker('skipif')
+    if hasattr(request.node, "get_closest_marker"):
+        skip_marker = request.node.get_closest_marker("skip")
+        skipif_marker = request.node.get_closest_marker("skipif")
         if skip_marker or (skipif_marker and skipif_marker.args[0]):
             yield
             return
@@ -63,7 +65,7 @@ def track_backtest_performance(request):
                 test_name=test_name,
                 data_source=data_source,
                 execution_time_seconds=execution_time,
-                notes=f"Auto-tracked from {test_module}"
+                notes=f"Auto-tracked from {test_module}",
             )
         except Exception as e:
             # Don't fail tests if performance tracking fails

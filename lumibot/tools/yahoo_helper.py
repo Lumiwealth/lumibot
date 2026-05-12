@@ -1,20 +1,103 @@
 from __future__ import annotations
 
+# pyright: reportMissingTypeStubs=false
 import os
 import pickle
-import time
 import random
-from importlib import import_module
+import time
+from collections.abc import Callable
 from datetime import datetime, timedelta
+from functools import partial
+from importlib import import_module
+from logging import Logger
 from pathlib import Path
+from types import ModuleType
+from typing import Any, TypeAlias, cast
 
 from lumibot import LUMIBOT_CACHE_FOLDER
 
-_DEFAULT_PYTZ = None
-_GET_LUMIBOT_DATETIME = None
+PandasDataFrame: TypeAlias = Any  # noqa: UP040
+PandasSeries: TypeAlias = Any  # noqa: UP040
+YahooInfo: TypeAlias = dict[str, Any]  # noqa: UP040
+
+_default_pytz_cache: Any | None = None
+_get_lumibot_datetime_func: Callable[[], datetime] | None = None
 
 INFO_DATA = "info"
-INVALID_SYMBOLS = set()
+INVALID_SYMBOLS: set[str] = set()
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self) -> ModuleType:
+        module = cast(ModuleType | None, object.__getattribute__(self, "_module"))
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+
+
+class _LazyLogger:
+    __slots__ = ("_logger",)
+
+    def __init__(self):
+        object.__setattr__(self, "_logger", None)
+
+    def _load(self) -> Logger:
+        logger = cast(Logger | None, object.__getattribute__(self, "_logger"))
+        if logger is None:
+            from .lumibot_logger import get_logger
+
+            logger = get_logger(__name__)
+            object.__setattr__(self, "_logger", logger)
+        return logger
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._load(), name)
+
+
+logger = _LazyLogger()
+
+
+def _default_pytz() -> Any:
+    global _default_pytz_cache
+    if _default_pytz_cache is None:
+        from ..constants import LUMIBOT_DEFAULT_PYTZ
+
+        _default_pytz_cache = LUMIBOT_DEFAULT_PYTZ
+    return _default_pytz_cache
+
+
+def _get_lumibot_datetime() -> datetime:
+    global _get_lumibot_datetime_func
+    get_datetime = _get_lumibot_datetime_func
+    if get_datetime is None:
+        from .helpers import get_lumibot_datetime
+
+        get_datetime = get_lumibot_datetime
+        _get_lumibot_datetime_func = get_datetime
+    return get_datetime()
+
+
+def _get_yfinance() -> Any:
+    import yfinance as yf
+
+    return yf
+
+
+def _replace_timestamp_time(timestamp: Any, *, hour: int, minute: int) -> Any:
+    return timestamp.replace(hour=hour, minute=minute)
 
 
 class _LazyModule:
@@ -85,17 +168,17 @@ def _get_yfinance():
 
 
 class _YahooData:
-    def __init__(self, symbol, type, data):
+    def __init__(self, symbol: str, data_type: str, data: Any) -> None:
         self.symbol = symbol
-        self.type = type.lower()
+        self.type = data_type.lower()
         self.data = data
-        self.file_name = f"{symbol}_{type.lower()}.pickle"
+        self.file_name = f"{symbol}_{data_type.lower()}.pickle"
 
-    def is_up_to_date(self, last_needed_datetime=None):
+    def is_up_to_date(self, last_needed_datetime: datetime | None = None) -> bool:
         if last_needed_datetime is None:
             last_needed_datetime = _get_lumibot_datetime()
 
-        if self.type == '1d':
+        if self.type == "1d":
             last_needed_date = last_needed_datetime.date()
             last_day = self.data.index[-1].to_pydatetime().date()
 
@@ -107,8 +190,12 @@ class _YahooData:
             if self.data.get("error"):
                 return False
 
+            last_update = self.data.get("last_update")
+            if not isinstance(last_update, datetime):
+                return False
+
             last_needed_date = last_needed_datetime.date()
-            last_day = self.data.get("last_update").date()
+            last_day = last_update.date()
 
             return last_day >= last_needed_date
 
@@ -126,14 +213,14 @@ class YahooHelper:
     if not os.path.exists(LUMIBOT_YAHOO_CACHE_FOLDER):
         try:
             os.makedirs(LUMIBOT_YAHOO_CACHE_FOLDER)
-            CACHING_ENABLED = True
-        except Exception as e:
+            CACHING_ENABLED = True  # pyright: ignore[reportConstantRedefinition]
+        except Exception:
             pass
     else:
-        CACHING_ENABLED = True
+        CACHING_ENABLED = True  # pyright: ignore[reportConstantRedefinition]
 
     @staticmethod
-    def sleep_and_get_proxy():
+    def sleep_and_get_proxy() -> str | None:
         """
         This sleeps and optionally returns a proxy if PROXY_ENABLED is True, otherwise returns None.
         The most important thing this does is sleep. This prevents rate limiting by yahoo.
@@ -143,15 +230,15 @@ class YahooHelper:
         if YahooHelper.YAHOO_FREE_PROXY_ENABLED:
             from fp.fp import FreeProxy
 
-            return FreeProxy(timeout=5).get()
+            return cast(str, FreeProxy(timeout=5).get())
         return None
 
     # ====================Caching methods=================================
 
     @staticmethod
-    def check_pickle_file(symbol, type):
+    def check_pickle_file(symbol: str, data_type: str) -> _YahooData | None:
         if YahooHelper.CACHING_ENABLED:
-            file_name = f"{symbol}_{type.lower()}.pickle"
+            file_name = f"{symbol}_{data_type.lower()}.pickle"
             pickle_file_path = os.path.join(YahooHelper.LUMIBOT_YAHOO_CACHE_FOLDER, file_name)
 
             # CI/prod-like backtests start with empty disks. If the remote S3 cache is enabled,
@@ -160,7 +247,7 @@ class YahooHelper:
             try:
                 from lumibot.tools.backtest_cache import get_backtest_cache
 
-                cache = get_backtest_cache()
+                cache = cast(Any, get_backtest_cache())
                 if cache is not None and cache.enabled and not os.path.exists(pickle_file_path):
                     cache.ensure_local_file(Path(pickle_file_path))
             except Exception:
@@ -169,9 +256,13 @@ class YahooHelper:
             if os.path.exists(pickle_file_path):
                 try:
                     with open(pickle_file_path, "rb") as f:
-                        return pickle.load(f)
+                        cached_data = pickle.load(f)
+                    if isinstance(cached_data, _YahooData):
+                        return cached_data
+                    logger.error(f"Unexpected Yahoo cache payload in {pickle_file_path}: {type(cached_data)!r}")
+                    return None
                 except Exception as e:
-                    logger.error("Error while loading pickle file %s: %s" % (pickle_file_path, e))
+                    logger.error(f"Error while loading pickle file {pickle_file_path}: {e}")
                     # Remove the file because it is corrupted.  This will enable re-download.
                     os.remove(pickle_file_path)
                     return None
@@ -179,17 +270,17 @@ class YahooHelper:
         return None
 
     @staticmethod
-    def dump_pickle_file(symbol, type, data):
+    def dump_pickle_file(symbol: str, data_type: str, data: Any) -> None:
         if YahooHelper.CACHING_ENABLED:
-            yahoo_data = _YahooData(symbol, type, data)
-            file_name = "%s_%s.pickle" % (symbol, type.lower())
+            yahoo_data = _YahooData(symbol, data_type, data)
+            file_name = f"{symbol}_{data_type.lower()}.pickle"
             pickle_file_path = os.path.join(YahooHelper.LUMIBOT_YAHOO_CACHE_FOLDER, file_name)
             with open(pickle_file_path, "wb") as f:
                 pickle.dump(yahoo_data, f)
             try:
                 from lumibot.tools.backtest_cache import get_backtest_cache
 
-                cache = get_backtest_cache()
+                cache = cast(Any, get_backtest_cache())
                 if cache is not None and cache.enabled:
                     cache.on_local_update(Path(pickle_file_path))
             except Exception:
@@ -198,7 +289,7 @@ class YahooHelper:
     # ====================Formatters methods===============================
 
     @staticmethod
-    def format_df(df, auto_adjust):
+    def format_df(df: PandasDataFrame | None, auto_adjust: bool) -> PandasDataFrame | None:
         # Check if df is empty
         if df is None or df.empty:
             return df
@@ -225,7 +316,8 @@ class YahooHelper:
         return df
 
     @staticmethod
-    def process_df(df, asset_info=None):
+    def process_df(df: PandasDataFrame, asset_info: YahooInfo | None = None) -> PandasDataFrame:
+        del asset_info
         df = df.dropna().copy()
 
         # If the df is empty, return it
@@ -245,7 +337,7 @@ class YahooHelper:
     # ===================Data download method=============================
 
     @staticmethod
-    def download_symbol_info(symbol):
+    def download_symbol_info(symbol: str) -> YahooInfo:
         yf = _get_yfinance()
         proxy = YahooHelper.sleep_and_get_proxy()
         if proxy:
@@ -272,7 +364,7 @@ class YahooHelper:
         }
 
     @staticmethod
-    def get_symbol_last_price(symbol):
+    def get_symbol_last_price(symbol: str) -> float | None:
         yf = _get_yfinance()
         proxy = YahooHelper.sleep_and_get_proxy()
         if proxy:
@@ -284,10 +376,10 @@ class YahooHelper:
         if df.empty:
             return None
 
-        return df["Close"].iloc[-1]
+        return float(df["Close"].iloc[-1])
 
     @staticmethod
-    def download_symbol_data(symbol, interval="1d"):
+    def download_symbol_data(symbol: str, interval: str = "1d") -> PandasDataFrame | None:
         """
         Attempts to download historical data from yfinance for the specified symbol and interval.
         Retries on empty/None data in case of transient rate limits.
@@ -315,22 +407,14 @@ class YahooHelper:
                     yf.set_config(proxy=proxy)
                 if interval == "1m":
                     df = ticker.history(
-                        interval=interval,
-                        start=_get_lumibot_datetime() - timedelta(days=7),
-                        auto_adjust=False
+                        interval=interval, start=_get_lumibot_datetime() - timedelta(days=7), auto_adjust=False
                     )
                 elif interval == "15m":
                     df = ticker.history(
-                        interval=interval,
-                        start=_get_lumibot_datetime() - timedelta(days=60),
-                        auto_adjust=False
+                        interval=interval, start=_get_lumibot_datetime() - timedelta(days=60), auto_adjust=False
                     )
                 else:
-                    df = ticker.history(
-                        interval=interval,
-                        period="max",
-                        auto_adjust=False
-                    )
+                    df = ticker.history(interval=interval, period="max", auto_adjust=False)
             except Exception as e:
                 logger.debug(f"{symbol}: Exception from ticker.history(): {e}")
                 if attempt < max_retries:
@@ -357,8 +441,13 @@ class YahooHelper:
                 # Successfully got data, so break out of the loop
                 break
 
+        if df is None or df.empty:
+            logger.debug(f"{symbol}: No data available after retry loop. Marking invalid.")
+            INVALID_SYMBOLS.add(symbol)
+            return None
+
         # --- SYMBOL INFO (OPTIONAL) ---
-        info = None
+        info: YahooInfo | None = None
         try:
             info = YahooHelper.get_symbol_info(symbol)
         except Exception as e:
@@ -366,11 +455,13 @@ class YahooHelper:
 
         # If we have valid info, handle timezone adjustments.
         # Using sub_info to avoid accessing .get() on None.
-        if info and isinstance(info, dict):
-            sub_info = info.get("info", {})
+        if info:
+            sub_info = info.get("info")
             if isinstance(sub_info, dict):
-                market = sub_info.get("market", "")
-                tz_name = sub_info.get("exchangeTimezoneName", None)
+                sub_info_dict = cast(dict[str, Any], sub_info)
+                market = str(sub_info_dict.get("market", ""))
+                tz_value = sub_info_dict.get("exchangeTimezoneName")
+                tz_name = str(tz_value) if tz_value else None
 
                 # US market
                 if market == "us_market" and tz_name:
@@ -378,7 +469,7 @@ class YahooHelper:
                         df.index = df.index.tz_localize(tz_name)
                     else:
                         df.index = df.index.tz_convert(tz_name)
-                    df.index = df.index.map(lambda t: t.replace(hour=16, minute=0))
+                    df.index = df.index.map(partial(_replace_timestamp_time, hour=16, minute=0))
 
                 # Crypto/CCC market
                 elif market == "ccc_market" and tz_name:
@@ -386,30 +477,25 @@ class YahooHelper:
                         df.index = df.index.tz_localize(tz_name)
                     else:
                         df.index = df.index.tz_convert(tz_name)
-                    df.index = df.index.map(lambda t: t.replace(hour=23, minute=59))
+                    df.index = df.index.map(partial(_replace_timestamp_time, hour=23, minute=59))
 
         # Finally, run any custom DataFrame processing
         df = YahooHelper.process_df(df, asset_info=info)
         return df
 
     @staticmethod
-    def download_symbols_data(symbols, interval="1d"):
+    def download_symbols_data(symbols: list[str], interval: str = "1d") -> dict[str, PandasDataFrame | None]:
         if len(symbols) == 1:
             item = YahooHelper.download_symbol_data(symbols[0], interval)
             return {symbols[0]: item}
 
-        result = {}
+        result: dict[str, PandasDataFrame | None] = {}
         yf = _get_yfinance()
         proxy = YahooHelper.sleep_and_get_proxy()
         if proxy:
             yf.set_config(proxy=proxy)
         tickers = yf.Tickers(" ".join(symbols))
-        df_yf = tickers.history(
-            period="max",
-            group_by="ticker",
-            auto_adjust=False,
-            progress=False
-        )
+        df_yf = tickers.history(period="max", group_by="ticker", auto_adjust=False, progress=False)
 
         for i in df_yf.columns.levels[0]:
             result[i] = YahooHelper.process_df(df_yf[i])
@@ -419,7 +505,11 @@ class YahooHelper:
     # ===================Cache retrieval and dumping=====================
 
     @staticmethod
-    def fetch_symbol_info(symbol, caching=True, last_needed_datetime=None):
+    def fetch_symbol_info(
+        symbol: str,
+        caching: bool = True,
+        last_needed_datetime: datetime | None = None,
+    ) -> YahooInfo:
         if caching:
             cached_data = YahooHelper.check_pickle_file(symbol, INFO_DATA)
             if cached_data:
@@ -433,7 +523,12 @@ class YahooHelper:
         return data
 
     @staticmethod
-    def fetch_symbol_data(symbol, caching=True, last_needed_datetime=None, interval="1d"):
+    def fetch_symbol_data(
+        symbol: str,
+        caching: bool = True,
+        last_needed_datetime: datetime | None = None,
+        interval: str = "1d",
+    ) -> PandasDataFrame | None:
         if caching:
             cached_data = YahooHelper.check_pickle_file(symbol, interval)
             if cached_data:
@@ -452,8 +547,12 @@ class YahooHelper:
         return data
 
     @staticmethod
-    def fetch_symbols_data(symbols, interval, caching=True):
-        result = {}
+    def fetch_symbols_data(
+        symbols: list[str],
+        interval: str,
+        caching: bool = True,
+    ) -> dict[str, PandasDataFrame | None]:
+        result: dict[str, PandasDataFrame | None] = {}
         missing_symbols = symbols.copy()
 
         if caching:
@@ -475,17 +574,17 @@ class YahooHelper:
     # ======Shortcut methods==================================
 
     @staticmethod
-    def get_symbol_info(symbol, caching=True):
+    def get_symbol_info(symbol: str, caching: bool = True) -> YahooInfo:
         return YahooHelper.fetch_symbol_info(symbol, caching=caching)
 
     @staticmethod
     def get_symbol_data(
-        symbol,
-        interval="1d",
-        caching=True,
-        auto_adjust=False, # Keep parameter name consistent
-        last_needed_datetime=None,
-    ):
+        symbol: str,
+        interval: str = "1d",
+        caching: bool = True,
+        auto_adjust: bool = False,  # Keep parameter name consistent
+        last_needed_datetime: datetime | None = None,
+    ) -> PandasDataFrame | None:
         if interval in ["1m", "15m", "1d"]:
             df = YahooHelper.fetch_symbol_data(
                 symbol,
@@ -496,82 +595,99 @@ class YahooHelper:
             # Pass the received auto_adjust value to format_df
             return YahooHelper.format_df(df, auto_adjust)
         else:
-            raise ValueError("Unknown interval %s" % interval)
+            raise ValueError(f"Unknown interval {interval}")
 
     @staticmethod
-    def get_symbols_data(symbols, interval="1d", auto_adjust=True, caching=True):
+    def get_symbols_data(
+        symbols: list[str],
+        interval: str = "1d",
+        auto_adjust: bool = True,
+        caching: bool = True,
+    ) -> dict[str, PandasDataFrame | None]:
         result = YahooHelper.fetch_symbols_data(symbols, interval=interval, caching=caching)
         for key, df in result.items():
             result[key] = YahooHelper.format_df(df, auto_adjust)
         return result
 
     @staticmethod
-    def get_symbols_data(symbols, interval="1d", auto_adjust=True, caching=True):
-        if interval in ["1m", "15m", "1d"]:
-            return YahooHelper.get_symbols_data(symbols, interval=interval, auto_adjust=auto_adjust, caching=caching)
-        else:
-            raise ValueError("Unknown interval %s" % interval)
-
-    @staticmethod
-    def get_symbol_dividends(symbol, caching=True):
+    def get_symbol_dividends(symbol: str, caching: bool = True) -> PandasSeries:
         """https://github.com/ranaroussi/yfinance/blob/main/yfinance/base.py"""
         history = YahooHelper.get_symbol_data(symbol, caching=caching)
+        if history is None:
+            return pd.Series(dtype=float)
         dividends = history["Dividends"]
         return dividends[dividends != 0].dropna()
 
     @staticmethod
-    def get_symbols_dividends(symbols, caching=True):
-        result = {}
+    def get_symbols_dividends(symbols: list[str], caching: bool = True) -> dict[str, PandasSeries]:
+        result: dict[str, PandasSeries] = {}
         data = YahooHelper.get_symbols_data(symbols, caching=caching)
         for symbol, df in data.items():
+            if df is None:
+                result[symbol] = pd.Series(dtype=float)
+                continue
             dividends = df["Dividends"]
             result[symbol] = dividends[dividends != 0].dropna()
 
         return result
 
     @staticmethod
-    def get_symbol_splits(symbol, caching=True):
+    def get_symbol_splits(symbol: str, caching: bool = True) -> PandasSeries:
         """https://github.com/ranaroussi/yfinance/blob/main/yfinance/base.py"""
         history = YahooHelper.get_symbol_data(symbol, caching=caching)
+        if history is None:
+            return pd.Series(dtype=float)
         splits = history["Stock Splits"]
         return splits[splits != 0].dropna()
 
     @staticmethod
-    def get_symbols_splits(symbols, caching=True):
-        result = {}
+    def get_symbols_splits(symbols: list[str], caching: bool = True) -> dict[str, PandasSeries]:
+        result: dict[str, PandasSeries] = {}
         data = YahooHelper.get_symbols_data(symbols, caching=caching)
         for symbol, df in data.items():
+            if df is None:
+                result[symbol] = pd.Series(dtype=float)
+                continue
             splits = df["Stock Splits"]
             result[symbol] = splits[splits != 0].dropna()
 
         return result
 
     @staticmethod
-    def get_symbol_actions(symbol, caching=True):
+    def get_symbol_actions(symbol: str, caching: bool = True) -> PandasDataFrame:
         """https://github.com/ranaroussi/yfinance/blob/main/yfinance/base.py"""
         history = YahooHelper.get_symbol_data(symbol, caching=caching)
+        if history is None:
+            return pd.DataFrame(columns=["Dividends", "Stock Splits"])
         actions = history[["Dividends", "Stock Splits"]]
         return actions[actions != 0].dropna(how="all").fillna(0)
 
     @staticmethod
-    def get_symbols_actions(symbols, caching=True):
-        result = {}
+    def get_symbols_actions(symbols: list[str], caching: bool = True) -> dict[str, PandasDataFrame]:
+        result: dict[str, PandasDataFrame] = {}
         data = YahooHelper.get_symbols_data(symbols, caching=caching)
         for symbol, df in data.items():
+            if df is None:
+                result[symbol] = pd.DataFrame(columns=["Dividends", "Stock Splits"])
+                continue
             actions = df[["Dividends", "Stock Splits"]]
             result[symbol] = actions[actions != 0].dropna(how="all").fillna(0)
 
         return result
 
     @staticmethod
-    def get_risk_free_rate(with_logging: bool = False, caching: bool = True, dt: datetime = None):
+    def get_risk_free_rate(
+        with_logging: bool = False,
+        caching: bool = True,
+        dt: datetime | None = None,
+    ) -> float | None:
         # 13 Week Treasury Rate (^IRX)
         if dt is None:
             # If we don't have a datetime, we will get the latest value
             irx_price = YahooHelper.get_symbol_last_price("^IRX")
         else:
             # If we do have a datetime, we will get the value at that datetime
-            irx_df = YahooHelper.get_symbol_data("^IRX", last_needed_datetime=dt)
+            irx_df = YahooHelper.get_symbol_data("^IRX", caching=caching, last_needed_datetime=dt)
 
             if irx_df is None or irx_df.empty:
                 return None
@@ -592,7 +708,10 @@ class YahooHelper:
             # Get the close price
             irx_price = irx_row["Close"]
 
-        risk_free_rate = irx_price / 100
+        if irx_price is None:
+            return None
+
+        risk_free_rate = float(irx_price) / 100
         if with_logging:
             logger.info(f"Risk Free Rate {risk_free_rate * 100:0.2f}%")
 
@@ -601,7 +720,7 @@ class YahooHelper:
     # ==========Appending Data====================================
 
     @staticmethod
-    def append_actions_data(symbol, df, caching=True):
+    def append_actions_data(symbol: str, df: PandasDataFrame, caching: bool = True) -> PandasDataFrame:
         if df.empty:
             return df
 

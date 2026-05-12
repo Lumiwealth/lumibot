@@ -1,31 +1,45 @@
+from __future__ import annotations
+
 from collections import UserDict
+from collections.abc import Mapping
 from datetime import date, datetime
 from enum import Enum
+from typing import Any, Self
 
 from lumibot.tools.symbol_parser import parse_symbol
 
-
 FUTURES_MONTH_CODES = {
-    1: "F", 2: "G", 3: "H", 4: "J", 5: "K", 6: "M",
-    7: "N", 8: "Q", 9: "U", 10: "V", 11: "X", 12: "Z"
+    1: "F",
+    2: "G",
+    3: "H",
+    4: "J",
+    5: "K",
+    6: "M",
+    7: "N",
+    8: "Q",
+    9: "U",
+    10: "V",
+    11: "X",
+    12: "Z",
 }
 
 
 # Custom string enum implementation for Python 3.9 compatibility
-class StrEnum(str, Enum):
+class StrEnum(str, Enum):  # noqa: UP042 - Custom equality/hash behavior is intentional for hot paths.
     """
     A string enum implementation that works with Python 3.9+
-    
+
     This class extends str and Enum to create string enums that:
     1. Can be used like strings (string methods, comparison)
     2. Are hashable (for use in dictionaries, sets, etc.)
     3. Can be used in string comparisons without explicit conversion
     """
-    def __str__(self):
+
+    def __str__(self) -> str:
         # Avoid Enum.value property lookups in hot paths; StrEnum members are already `str`.
         return str.__str__(self)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         # PERF: Enum members are singletons. Fast-path identity equality before any type checks.
         # This avoids repeated string compares for hot paths like `asset.asset_type == Asset.AssetType.CRYPTO`.
         if self is other:
@@ -39,7 +53,7 @@ class StrEnum(str, Enum):
             return self is other
         return super().__eq__(other)
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         # Use the hash of the enum member, not the string value
         # This ensures proper hashability while maintaining enum identity
         return super().__hash__()
@@ -157,15 +171,15 @@ class Asset:
         PUT = "PUT"
 
     class AssetType(StrEnum):
-        STOCK = "stock" # Stock
-        OPTION = "option" # Option
-        FUTURE = "future" # Future
-        CRYPTO_FUTURE = "crypto_future" # Crypto Future
-        CONT_FUTURE = "cont_future" # Continuous future
-        FOREX = "forex" # Forex or cash
-        CRYPTO = "crypto" # Crypto
-        INDEX = "index" # Index
-        MULTILEG = "multileg" # Multileg option
+        STOCK = "stock"  # Stock
+        OPTION = "option"  # Option
+        FUTURE = "future"  # Future
+        CRYPTO_FUTURE = "crypto_future"  # Crypto Future
+        CONT_FUTURE = "cont_future"  # Continuous future
+        FOREX = "forex"  # Forex or cash
+        CRYPTO = "crypto"  # Crypto
+        INDEX = "index"  # Index
+        MULTILEG = "multileg"  # Multileg option
 
     class AutoExpiry(StrEnum):
         FRONT_MONTH = "front_month"  # Front month (rolling; determined by broker/data source)
@@ -173,24 +187,39 @@ class Asset:
         AUTO = "auto"  # Alias for FRONT_MONTH
 
     # Pull the rights from the OptionRight class
-    _right: list = [v for k, v in OptionRight.__dict__.items() if not k.startswith("__")]
-    _asset_type_aliases = {
+    _right: list[Any] = [v for k, v in OptionRight.__dict__.items() if not k.startswith("__")]
+    _asset_type_aliases: dict[str, AssetType] = {
         "us_equity": AssetType.STOCK,
     }
 
+    symbol: str | None
+    asset_type: AssetType | None
+    expiration: date | None
+    strike: float | None
+    right: OptionRight | None
+    multiplier: int
+    leverage: int
+    precision: str | None
+    underlying_asset: Asset | None
+    auto_expiry: str | AutoExpiry | bool | None
+    _cached_asset_type_key: str
+    _cached_hash: int
+    _cached_minimal_dict: dict[str, object]
+    _lumibot_quote_pair_cache: dict[str | None, str]
+
     def __init__(
         self,
-        symbol: str,
-        asset_type: str = AssetType.STOCK,
-        expiration: date = None,
-        strike: float = 0.0,
-        right: str = None,
+        symbol: str | None,
+        asset_type: str | AssetType | None = AssetType.STOCK,
+        expiration: date | datetime | None = None,
+        strike: float | None = 0.0,
+        right: str | OptionRight | None = None,
         multiplier: int = 1,
         leverage: int = 1,
-        precision: str = None,
-        underlying_asset: "Asset" = None,
-        auto_expiry: str = None,
-    ):
+        precision: str | None = None,
+        underlying_asset: Asset | None = None,
+        auto_expiry: str | AutoExpiry | bool | None = None,
+    ) -> None:
         """
         Parameters
         ----------
@@ -234,14 +263,14 @@ class Asset:
         """
         # Capitalize the symbol because some brokers require it
         self.symbol = symbol.upper() if symbol is not None else None
-        self.asset_type = asset_type
+        self.asset_type = self.asset_type_must_be_one_of(asset_type)
         self.strike = strike
         self.multiplier = multiplier
         self.precision = precision
         self.underlying_asset = underlying_asset
 
         # Leverage for futures assets (ignored for other asset types)
-        self.leverage = leverage if asset_type == self.AssetType.FUTURE else 1
+        self.leverage = leverage if self.asset_type == self.AssetType.FUTURE else 1
 
         # If the underlying asset is set but the symbol is not, set the symbol to the underlying asset symbol
         if self.underlying_asset is not None and self.symbol is None:
@@ -261,7 +290,7 @@ class Asset:
         # NOTE: This also avoids `date.today()` skew when backtesting historical periods.
 
         # Multiplier for options must always be 100
-        if asset_type == self.AssetType.OPTION:
+        if self.asset_type == self.AssetType.OPTION:
             self.multiplier = 100
 
         # Note: Futures multipliers should be fetched from data provider (e.g., DataBento)
@@ -269,20 +298,20 @@ class Asset:
         # as a parameter if the data source provides it.
 
         # Make sure right is upper case
-        if right is not None:
-            self.right = right.upper()
-
-        self.asset_type = self.asset_type_must_be_one_of(asset_type)
         self.right = self.right_must_be_one_of(right)
         raw_asset_type = getattr(self.asset_type, "value", self.asset_type)
         self._cached_asset_type_key = str(raw_asset_type).lower() if raw_asset_type is not None else ""
         # Cache the hash: Asset objects are used heavily as dict keys during backtests (quotes, bars,
         # chains, positions). Recomputing tuple hashes millions of times dominates CPU in option-heavy
         # strategies; caching preserves correctness as long as identity fields remain unchanged.
-        auto_expiry_key = self.auto_expiry if (self.asset_type == self.AssetType.FUTURE and self.expiration is None) else None
-        self._cached_hash = hash((self.symbol, self.asset_type, self.expiration, self.strike, self.right, auto_expiry_key))
+        auto_expiry_key = (
+            self.auto_expiry if (self.asset_type == self.AssetType.FUTURE and self.expiration is None) else None
+        )
+        self._cached_hash = hash(
+            (self.symbol, self.asset_type, self.expiration, self.strike, self.right, auto_expiry_key)
+        )
         minimal_type = str(self.asset_type) if self.asset_type else "stock"
-        minimal_dict = {
+        minimal_dict: dict[str, object] = {
             "symbol": self.symbol,
             "type": minimal_type,
         }
@@ -290,7 +319,9 @@ class Asset:
             if self.strike:
                 minimal_dict["strike"] = float(self.strike)
             if self.expiration:
-                minimal_dict["exp"] = self.expiration.isoformat() if hasattr(self.expiration, "isoformat") else str(self.expiration)
+                minimal_dict["exp"] = (
+                    self.expiration.isoformat() if hasattr(self.expiration, "isoformat") else str(self.expiration)
+                )
             if self.right:
                 minimal_dict["right"] = str(self.right)
             if self.multiplier:
@@ -304,13 +335,15 @@ class Asset:
             "crypto_future",
         ):
             if self.expiration:
-                minimal_dict["exp"] = self.expiration.isoformat() if hasattr(self.expiration, "isoformat") else str(self.expiration)
+                minimal_dict["exp"] = (
+                    self.expiration.isoformat() if hasattr(self.expiration, "isoformat") else str(self.expiration)
+                )
             if self.multiplier and self.multiplier != 1:
                 minimal_dict["mult"] = self.multiplier
         self._cached_minimal_dict = minimal_dict
 
     @classmethod
-    def symbol2asset(cls, symbol: str):
+    def symbol2asset(cls, symbol: str) -> Asset:
         """
         Convert a symbol string to an Asset object. This is particularly useful for converting option symbols.
 
@@ -347,7 +380,7 @@ class Asset:
         else:
             return Asset(symbol=None)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self.asset_type == "future":
             if self.expiration is not None:
                 return f"{self.symbol} {self.expiration}"
@@ -359,7 +392,7 @@ class Asset:
         else:
             return f"{self.symbol}"
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.asset_type == "future":
             if self.expiration is not None:
                 return f"{self.symbol} {self.expiration}"
@@ -371,7 +404,7 @@ class Asset:
         else:
             return f"{self.symbol}"
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if self is other:
             return True
 
@@ -411,11 +444,11 @@ class Asset:
 
         return True
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         """Make Asset hashable for use in sets and dicts."""
         return self._cached_hash
 
-    def asset_type_must_be_one_of(self, v):
+    def asset_type_must_be_one_of(self, v: str | AssetType | None) -> AssetType | None:
         if v is None or isinstance(v, self.AssetType):
             return v
 
@@ -429,7 +462,7 @@ class Asset:
             raise ValueError(f"`asset_type` must be one of {valid_asset_types}") from None
         return asset_type
 
-    def right_must_be_one_of(self, v):
+    def right_must_be_one_of(self, v: str | OptionRight | None) -> OptionRight | None:
         if v is None or isinstance(v, self.OptionRight):
             return v
 
@@ -441,7 +474,7 @@ class Asset:
             raise ValueError(f"`right` must be one of {valid_rights}, uppercase") from None
         return right
 
-    def is_valid(self):
+    def is_valid(self) -> bool:
         # All assets should have a symbol
         if self.symbol is None:
             return False
@@ -462,7 +495,7 @@ class Asset:
         return True
 
     # ========= Serialization methods ===========
-    def to_minimal_dict(self) -> dict:
+    def to_minimal_dict(self) -> dict[str, object]:
         """
         Return a minimal dictionary representation of the asset for progress logging.
 
@@ -491,7 +524,7 @@ class Asset:
         """
         return dict(self._cached_minimal_dict)
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, object]:
         return {
             "symbol": self.symbol,
             "asset_type": self.asset_type,
@@ -505,7 +538,7 @@ class Asset:
         }
 
     @classmethod
-    def from_dict(cls, data):
+    def from_dict(cls, data: Mapping[str, Any]) -> Self:
         return cls(
             symbol=data["symbol"],
             asset_type=data["asset_type"],
@@ -518,15 +551,15 @@ class Asset:
             underlying_asset=cls.from_dict(data["underlying_asset"]) if data["underlying_asset"] else None,
         )
 
-    def _calculate_auto_expiry(self, auto_expiry):
+    def _calculate_auto_expiry(self, auto_expiry: str | AutoExpiry | bool | None) -> date:
         """
         Calculate automatic expiry date for futures contracts
-        
+
         Parameters
         ----------
         auto_expiry : str
             Type of auto expiry: 'front_month', 'next_quarter', 'auto', or True
-            
+
         Returns
         -------
         datetime.date
@@ -545,7 +578,7 @@ class Asset:
             # Default to front month if unrecognized option
             return self._get_front_month_expiry(current_date)
 
-    def _get_front_month_expiry(self, current_date):
+    def _get_front_month_expiry(self, current_date: date) -> date:
         """Get the front month (nearest) futures expiry"""
         # Standard futures expiry: 3rd Friday of the month
         # For active months, use quarterly cycle: Mar, Jun, Sep, Dec
@@ -583,12 +616,12 @@ class Asset:
 
         return third_friday
 
-    def _get_next_quarterly_expiry(self, current_date):
+    def _get_next_quarterly_expiry(self, current_date: date) -> date:
         """Get the next quarterly expiry (Mar, Jun, Sep, Dec)"""
         # This is the same as front month for most futures since they follow quarterly cycles
         return self._get_front_month_expiry(current_date)
 
-    def _get_third_friday(self, year, month):
+    def _get_third_friday(self, year: int, month: int) -> date:
         """Calculate the 3rd Friday of a given month/year"""
         from datetime import date, timedelta
 
@@ -608,7 +641,7 @@ class Asset:
 
     def resolve_continuous_futures_contract(
         self,
-        reference_date: datetime = None,
+        reference_date: datetime | None = None,
         year_digits: int = 2,
     ) -> str:
         """
@@ -638,15 +671,11 @@ class Asset:
         variants = self.resolve_continuous_futures_contract_variants(reference_date)
 
         if year_digits not in variants:
-            raise ValueError(
-                f"Unsupported year_digits={year_digits} for futures contract formatting"
-            )
+            raise ValueError(f"Unsupported year_digits={year_digits} for futures contract formatting")
 
         return variants[year_digits]
 
-    def resolve_continuous_futures_contract_variants(
-        self, reference_date: datetime = None
-    ) -> dict:
+    def resolve_continuous_futures_contract_variants(self, reference_date: datetime | None = None) -> dict[Any, Any]:
         """
         Resolve a continuous futures contract and return multiple formatting variants.
 
@@ -668,15 +697,13 @@ class Asset:
             If invoked on a non-continuous futures asset.
         """
         if self.asset_type != self.AssetType.CONT_FUTURE:
-            raise ValueError(
-                "resolve_continuous_futures_contract_variants() can only be called on CONT_FUTURE assets"
-            )
+            raise ValueError("resolve_continuous_futures_contract_variants() can only be called on CONT_FUTURE assets")
 
-        base_contract, target_year, target_month, effective_reference = (
-            self._determine_continuous_contract_components(reference_date)
+        base_contract, target_year, target_month, effective_reference = self._determine_continuous_contract_components(
+            reference_date
         )
 
-        variants = self._build_contract_variants(base_contract, target_year)
+        variants: dict[Any, Any] = self._build_contract_variants(base_contract, target_year)
         variants["base"] = base_contract
         variants["target_year"] = target_year
         variants["target_month"] = target_month
@@ -685,18 +712,18 @@ class Asset:
 
         return variants
 
-    def get_potential_futures_contracts(self, reference_date: datetime = None) -> list:
+    def get_potential_futures_contracts(self, reference_date: datetime | None = None) -> list[str]:
         """
         Get a list of potential futures contracts in order of preference.
-        
+
         This is useful for data sources or brokers that need to try multiple
         contract symbols to find available data.
-        
+
         Returns
         -------
         list
             List of potential contract symbols in order of preference
-            
+
         Raises
         ------
         ValueError
@@ -709,15 +736,15 @@ class Asset:
 
         return self._generate_potential_contracts(reference_date)
 
-    def _generate_current_futures_contract(self, reference_date: datetime = None) -> str:
+    def _generate_current_futures_contract(self, reference_date: datetime | None = None) -> str:
         """
         Generate the most appropriate futures contract for the given date.
-        
+
         Parameters
         ----------
         reference_date : datetime, optional
             Reference date for contract resolution. If None, uses current date.
-        
+
         Returns
         -------
         str
@@ -726,10 +753,10 @@ class Asset:
         variants = self.resolve_continuous_futures_contract_variants(reference_date)
         return variants[2]
 
-    def _generate_potential_contracts(self, reference_date: datetime = None) -> list:
+    def _generate_potential_contracts(self, reference_date: datetime | None = None) -> list[str]:
         """
         Generate potential contract symbols in order of preference.
-        
+
         Returns
         -------
         list
@@ -758,7 +785,7 @@ class Asset:
         q1_month, q1_year = quarter_months[idx], y
 
         # Helper to advance N quarters ahead
-        def advance_quarter(month: int, year: int, steps: int = 1):
+        def advance_quarter(month: int, year: int, steps: int = 1) -> tuple[int, int]:
             i = quarter_months.index(month)
             new_i = i + steps
             return quarter_months[new_i % 4], year + (new_i // 4)
@@ -768,7 +795,7 @@ class Asset:
         q3_month, q3_year = advance_quarter(q2_month, q2_year, 1)
         target_quarters = [(q1_month, q1_year), (q2_month, q2_year), (q3_month, q3_year)]
 
-        potential_contracts = []
+        potential_contracts: list[str] = []
 
         # Local helper to generate all standard variants for a given month code/year
         # Add quarterly contracts in multiple formats
@@ -788,7 +815,7 @@ class Asset:
             while tm > 12:
                 tm -= 12
                 ty += 1
-            mc = FUTURES_MONTH_CODES.get(tm, 'H')
+            mc = FUTURES_MONTH_CODES.get(tm, "H")
             base = f"{self.symbol}{mc}"
             variants = self._build_contract_variants(base, ty)
             for variant in (variants[2], variants[1]):
@@ -796,8 +823,8 @@ class Asset:
                     potential_contracts.append(variant)
 
         # De-duplicate preserving order
-        seen = set()
-        unique = []
+        seen: set[str] = set()
+        unique: list[str] = []
         for c in potential_contracts:
             if c not in seen:
                 seen.add(c)
@@ -816,7 +843,7 @@ class Asset:
         return unique
 
     def _determine_continuous_contract_components(
-        self, reference_date: datetime = None
+        self, reference_date: datetime | None = None
     ) -> tuple[str, int, int, datetime]:
         """Return base symbol, target year/month, and effective reference date."""
         if reference_date is None:
@@ -829,7 +856,7 @@ class Asset:
         from lumibot.tools import futures_roll
 
         target_year, target_month = futures_roll.determine_contract_year_month(
-            self.symbol,
+            str(self.symbol or ""),
             reference_date,
         )
 
@@ -839,7 +866,7 @@ class Asset:
         return base_contract, target_year, target_month, reference_date
 
     @staticmethod
-    def _build_contract_variants(contract_base: str, target_year: int) -> dict:
+    def _build_contract_variants(contract_base: str, target_year: int) -> dict[int, str]:
         """Build contract variants for different year digit formats."""
         two_digit = target_year % 100
         variants = {
@@ -857,9 +884,7 @@ class Asset:
         contract: str,
     ) -> None:
         """Emit a warning if the resolved contract is significantly in the past."""
-        contract_age_months = (
-            (reference_date.year - target_year) * 12 + (reference_date.month - target_month)
-        )
+        contract_age_months = (reference_date.year - target_year) * 12 + (reference_date.month - target_month)
 
         if contract_age_months > 6:
             import logging
@@ -875,24 +900,27 @@ class Asset:
                 target_month,
             )
 
-class AssetsMapping(UserDict):
-    def __init__(self, mapping):
-        UserDict.__init__(self, mapping)
-        symbols_mapping = {k.symbol: v for k, v in mapping.items()}
+
+class AssetsMapping(UserDict[Asset, Any]):
+    _symbols_mapping: dict[str, Any]
+
+    def __init__(self, mapping: Mapping[Asset, Any]) -> None:
+        super().__init__(mapping)
+        symbols_mapping = {k.symbol: v for k, v in mapping.items() if k.symbol is not None}
         self._symbols_mapping = symbols_mapping
 
-    def __missing__(self, key):
+    def __missing__(self, key: object) -> Any:
         if isinstance(key, str):
             if key in self._symbols_mapping:
                 return self._symbols_mapping[key]
         raise KeyError(key)
 
-    def __contains__(self, key):
+    def __contains__(self, key: object) -> bool:
         if isinstance(key, str):
             return key in self._symbols_mapping
         return key in self.data
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: Asset | str, value: Any) -> None:
         if isinstance(key, str):
             self.data[Asset(symbol=key)] = value
         else:

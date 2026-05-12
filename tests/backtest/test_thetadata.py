@@ -1,17 +1,18 @@
 import datetime
 import os
+import subprocess
 from collections import defaultdict
 from datetime import timedelta
-from dotenv import load_dotenv
+from unittest.mock import patch
+
 import pandas_market_calendars as mcal
-import subprocess
-from unittest.mock import MagicMock, patch
+import pytest
+from dotenv import load_dotenv
+
 from lumibot.backtesting import BacktestingBroker, ThetaDataBacktesting
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
-import psutil
-import pytest
 
 # Load environment variables from .env file
 load_dotenv()
@@ -19,15 +20,13 @@ load_dotenv()
 pytestmark = [pytest.mark.downloader]
 
 # Define the keyword globally
-keyword = 'ThetaTerminal.jar'
-
-
+keyword = "ThetaTerminal.jar"
 
 
 def find_git_root(path):
     # Traverse the directories upwards until a .git directory is found
     original_path = path
-    while not os.path.isdir(os.path.join(path, '.git')):
+    while not os.path.isdir(os.path.join(path, ".git")):
         parent_path = os.path.dirname(path)
         if parent_path == path:
             # Reached the root of the filesystem, .git directory not found
@@ -39,14 +38,14 @@ def find_git_root(path):
 def kill_processes_by_name(keyword):
     try:
         # Find all processes related to the keyword
-        result = subprocess.run(['pgrep', '-f', keyword], capture_output=True, text=True)
-        pids = result.stdout.strip().split('\n')
+        result = subprocess.run(["pgrep", "-f", keyword], capture_output=True, text=True)
+        pids = result.stdout.strip().split("\n")
 
         if pids:
             for pid in pids:
                 if pid:  # Ensure the PID is not empty
                     print(f"Killing process with PID: {pid}")
-                    subprocess.run(['kill', '-9', pid])
+                    subprocess.run(["kill", "-9", pid])
             print(f"All processes related to '{keyword}' have been killed.")
         else:
             print(f"No processes found related to '{keyword}'.")
@@ -148,7 +147,7 @@ class ThetadataBacktestStrat(Strategy):
                 return trading_day
 
         raise ValueError(
-            f"Could not find an option expiration date for {days_to_expiration} day(s) " f"from today({today})"
+            f"Could not find an option expiration date for {days_to_expiration} day(s) from today({today})"
         )
 
     def before_market_opens(self):
@@ -360,13 +359,12 @@ class TestThetaDataBacktestFull:
     def test_intraday_daterange(self):
         """Test intraday date range bar counts"""
         import pytz
+
         tzinfo = pytz.timezone("America/New_York")
         start = tzinfo.localize(datetime.datetime(2024, 8, 1, 9, 30))
         end = tzinfo.localize(datetime.datetime(2024, 8, 1, 16, 0))
 
-        data_source = ThetaDataBacktesting(
-            start, end, username=THETADATA_USERNAME, password=THETADATA_PASSWORD
-        )
+        data_source = ThetaDataBacktesting(start, end, username=THETADATA_USERNAME, password=THETADATA_PASSWORD)
 
         # Get minute bars for full trading day
         asset = Asset(symbol="SPY", asset_type="stock")
@@ -389,15 +387,14 @@ class TestThetaDataSource:
     def test_get_historical_prices(self):
         """Test get_historical_prices for various scenarios"""
         import pytz
+
         tzinfo = pytz.timezone("America/New_York")
         start = tzinfo.localize(datetime.datetime(2024, 8, 1))
         # DataSourceBacktesting treats datetime_end as an exclusive bound by subtracting 1 minute.
         # Use 2024-08-06 so the Aug 5 session is in-range when dt is set to 2024-08-05 10:00.
         end = tzinfo.localize(datetime.datetime(2024, 8, 6))
 
-        data_source = ThetaDataBacktesting(
-            start, end, username=THETADATA_USERNAME, password=THETADATA_PASSWORD
-        )
+        data_source = ThetaDataBacktesting(start, end, username=THETADATA_USERNAME, password=THETADATA_PASSWORD)
         data_source._datetime = tzinfo.localize(datetime.datetime(2024, 8, 5, 10))
 
         # Test minute bars
@@ -417,13 +414,12 @@ class TestThetaDataSource:
     def test_get_chains_spy_expected_data(self):
         """Test options chain retrieval for SPY"""
         import pytz
+
         tzinfo = pytz.timezone("America/New_York")
         start = tzinfo.localize(datetime.datetime(2024, 8, 1))
         end = tzinfo.localize(datetime.datetime(2024, 8, 5))
 
-        data_source = ThetaDataBacktesting(
-            start, end, username=THETADATA_USERNAME, password=THETADATA_PASSWORD
-        )
+        data_source = ThetaDataBacktesting(start, end, username=THETADATA_USERNAME, password=THETADATA_PASSWORD)
         # CI/runtime guard: building a full SPY chain can include hundreds of expirations (each requires a strike-list
         # request). We only need a representative near-dated chain for this test, so bound the expiry window.
         data_source._chain_constraints = {"max_expiration_date": start.date() + timedelta(days=30)}
@@ -450,13 +446,12 @@ class TestThetaDataSource:
     def test_get_last_price_unchanged(self):
         """Verify price caching works"""
         import pytz
+
         tzinfo = pytz.timezone("America/New_York")
         start = tzinfo.localize(datetime.datetime(2024, 8, 1))
         end = tzinfo.localize(datetime.datetime(2024, 8, 5))
 
-        data_source = ThetaDataBacktesting(
-            start, end, username=THETADATA_USERNAME, password=THETADATA_PASSWORD
-        )
+        data_source = ThetaDataBacktesting(start, end, username=THETADATA_USERNAME, password=THETADATA_PASSWORD)
 
         asset = Asset(symbol="AAPL", asset_type="stock")
 
@@ -474,16 +469,13 @@ class TestThetaDataSource:
     def test_get_historical_prices_unchanged_for_amzn(self):
         """Reproducibility test - same parameters should give same results"""
         import pytz
+
         tzinfo = pytz.timezone("America/New_York")
         start = tzinfo.localize(datetime.datetime(2024, 8, 1))
         end = tzinfo.localize(datetime.datetime(2024, 8, 5))
 
-        data_source1 = ThetaDataBacktesting(
-            start, end, username=THETADATA_USERNAME, password=THETADATA_PASSWORD
-        )
-        data_source2 = ThetaDataBacktesting(
-            start, end, username=THETADATA_USERNAME, password=THETADATA_PASSWORD
-        )
+        data_source1 = ThetaDataBacktesting(start, end, username=THETADATA_USERNAME, password=THETADATA_PASSWORD)
+        data_source2 = ThetaDataBacktesting(start, end, username=THETADATA_USERNAME, password=THETADATA_PASSWORD)
 
         asset = Asset(symbol="AMZN", asset_type="stock")
 
@@ -493,7 +485,7 @@ class TestThetaDataSource:
 
         assert len(prices1.df) == len(prices2.df)
         # Prices should be identical
-        assert (prices1.df['close'].values == prices2.df['close'].values).all()
+        assert (prices1.df["close"].values == prices2.df["close"].values).all()
 
     @pytest.mark.skipif(
         secrets_not_found,
@@ -501,22 +493,17 @@ class TestThetaDataSource:
     )
     def test_pull_source_symbol_bars_with_api_call(self, mocker):
         """Test that thetadata_helper.get_price_data() is called with correct parameters"""
-        import pytz
         import pandas as pd
+        import pytz
+
         tzinfo = pytz.timezone("America/New_York")
         start = tzinfo.localize(datetime.datetime(2024, 8, 1))
         end = tzinfo.localize(datetime.datetime(2024, 8, 5))
 
-        data_source = ThetaDataBacktesting(
-            start, end, username=THETADATA_USERNAME, password=THETADATA_PASSWORD
-        )
+        data_source = ThetaDataBacktesting(start, end, username=THETADATA_USERNAME, password=THETADATA_PASSWORD)
 
         # Mock the datetime to first date
-        mocker.patch.object(
-            data_source,
-            'get_datetime',
-            return_value=data_source.datetime_start
-        )
+        mocker.patch.object(data_source, "get_datetime", return_value=data_source.datetime_start)
 
         # Mock the helper function with a non-empty DataFrame so the backtesting code can proceed.
         # The point of this test is to validate call parameters, not to exercise live downloader IO.
@@ -543,13 +530,8 @@ class TestThetaDataSource:
         timestep = "day"
         START_BUFFER = timedelta(days=5)
 
-        with patch('lumibot.backtesting.thetadata_backtesting.START_BUFFER', new=START_BUFFER):
-            data_source._pull_source_symbol_bars(
-                asset=asset,
-                length=length,
-                timestep=timestep,
-                quote=quote
-            )
+        with patch("lumibot.backtesting.thetadata_backtesting.START_BUFFER", new=START_BUFFER):
+            data_source._pull_source_symbol_bars(asset=asset, length=length, timestep=timestep, quote=quote)
 
             # Verify the function was called with expected parameters
             assert mocked_get_price_data.called
@@ -557,8 +539,9 @@ class TestThetaDataSource:
 
             # Check that the asset was passed in the call (either as positional or keyword arg)
             # The function signature may have username as first parameter
-            assert asset in call_args[0] or call_args[1].get('asset') == asset, \
+            assert asset in call_args[0] or call_args[1].get("asset") == asset, (
                 f"Asset {asset} not found in call args: {call_args}"
+            )
 
 
 # This will ensure the function runs before any test in this file.

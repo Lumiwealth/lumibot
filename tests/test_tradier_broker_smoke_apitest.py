@@ -6,7 +6,6 @@ from lumibot.brokers.tradier import Tradier
 from lumibot.credentials import TRADIER_CONFIG, TRADIER_TEST_CONFIG
 from lumibot.entities import Asset, CashEvent, Order
 
-
 pytestmark = pytest.mark.apitest
 
 
@@ -21,6 +20,7 @@ def _tradier() -> Tradier:
         paper=True,
         connect_stream=False,
     )
+
 
 def _tradier_live_or_skip() -> Tradier:
     if not TRADIER_CONFIG.get("ACCOUNT_NUMBER") or not TRADIER_CONFIG.get("ACCESS_TOKEN"):
@@ -40,7 +40,9 @@ def _tradier_live_or_skip() -> Tradier:
 def test_tradier_smoke_balances_positions_orders():
     broker = _tradier()
     try:
-        cash, positions_value, portfolio_value = broker._get_balances_at_broker(Asset("USD", asset_type=Asset.AssetType.FOREX), None)
+        cash, positions_value, portfolio_value = broker._get_balances_at_broker(
+            Asset("USD", asset_type=Asset.AssetType.FOREX), None
+        )
         assert isinstance(cash, float)
         assert isinstance(positions_value, float)
         assert isinstance(portfolio_value, float)

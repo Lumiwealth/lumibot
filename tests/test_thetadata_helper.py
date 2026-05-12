@@ -1,31 +1,32 @@
 import copy
 import datetime
 import json
-from datetime import date
-import json
 import logging
-import numpy as np
 import os
-import pandas as pd
+import subprocess
+import time
+from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+
+import numpy as np
+import pandas as pd
 import pytest
 import pytz
 import requests
-import subprocess
-import time
-from types import SimpleNamespace
-from unittest.mock import patch, MagicMock
+
+from lumibot.backtesting import ThetaDataBacktestingPandas
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset, Data
 from lumibot.tools import thetadata_helper
-from lumibot.backtesting import ThetaDataBacktestingPandas
 from lumibot.tools.backtest_cache import CacheMode
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "thetadata_v3"
 
 
 def _load_fixture_payload(name: str):
-    with open(FIXTURE_DIR / name, "r", encoding="utf-8") as handle:
+    with open(FIXTURE_DIR / name, encoding="utf-8") as handle:
         return json.load(handle)
 
 
@@ -154,14 +155,21 @@ def test_timestamp_metadata_forward_fills_when_merging_quotes():
 
     df_ohlc = thetadata_helper._finalize_history_dataframe(ohlc_raw, "ohlc", asset)
     df_quote = thetadata_helper._finalize_history_dataframe(quote_raw, "quote", asset)
-    timestamp_columns = ['last_trade_time', 'last_bid_time', 'last_ask_time']
+    timestamp_columns = ["last_trade_time", "last_bid_time", "last_ask_time"]
     merged = pd.concat([df_ohlc, df_quote], axis=1, join="outer")
     merged = ThetaDataBacktestingPandas._combine_duplicate_columns(merged, timestamp_columns)
 
-    quote_columns = ['bid', 'ask', 'bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']
-    forward_fill_columns = [
-        col for col in quote_columns + timestamp_columns if col in merged.columns
+    quote_columns = [
+        "bid",
+        "ask",
+        "bid_size",
+        "ask_size",
+        "bid_condition",
+        "ask_condition",
+        "bid_exchange",
+        "ask_exchange",
     ]
+    forward_fill_columns = [col for col in quote_columns + timestamp_columns if col in merged.columns]
     merged[forward_fill_columns] = merged[forward_fill_columns].ffill()
 
     quote_only_time = pd.Timestamp("2024-10-16T09:31:00", tz=LUMIBOT_DEFAULT_PYTZ)
@@ -263,6 +271,8 @@ def test_apply_corporate_actions_populates_columns(mock_splits, mock_dividends):
     # This is correct behavior - pre-split dividends must be adjusted
     assert enriched["dividend"].tolist() == [0.125, 0.0]
     assert enriched["stock_splits"].tolist() == [0.0, 2.0]
+
+
 @patch("lumibot.tools.thetadata_helper.get_request")
 def test_get_historical_data_filters_zero_quotes(mock_get_request):
     asset = Asset(
@@ -436,9 +446,7 @@ def test_get_historical_eod_data_skips_open_fix_on_invalid_window(monkeypatch, c
             "format": ["date", "open", "high", "low", "close", "volume", "ms_of_day", "ms_of_day2", "created"],
             "error_type": "null",
         },
-        "response": [
-            ["20241122", 10.0, 11.0, 9.5, 10.5, 1000, 0, 0, "2024-11-22T16:00:00"]
-        ],
+        "response": [["20241122", 10.0, 11.0, 9.5, 10.5, 1000, 0, 0, "2024-11-22T16:00:00"]],
     }
     monkeypatch.setattr(thetadata_helper, "get_request", lambda **_: copy.deepcopy(eod_payload))
 
@@ -629,28 +637,41 @@ def test_get_historical_data_accepts_date_inputs(mock_get_trading_dates, mock_ge
     assert query["end_time"] == "20:00:00"
 
 
-@patch('lumibot.tools.thetadata_helper.update_cache')
-@patch('lumibot.tools.thetadata_helper.update_df')
-@patch('lumibot.tools.thetadata_helper.get_historical_data')
-@patch('lumibot.tools.thetadata_helper.get_missing_dates')
-@patch('lumibot.tools.thetadata_helper.load_cache')
-@patch('lumibot.tools.thetadata_helper.build_cache_filename')
-@patch('lumibot.tools.thetadata_helper.tqdm')
-def test_get_price_data_with_cached_data(mock_tqdm, mock_build_cache_filename, mock_load_cache, mock_get_missing_dates, mock_get_historical_data, mock_update_df, mock_update_cache):
+@patch("lumibot.tools.thetadata_helper.update_cache")
+@patch("lumibot.tools.thetadata_helper.update_df")
+@patch("lumibot.tools.thetadata_helper.get_historical_data")
+@patch("lumibot.tools.thetadata_helper.get_missing_dates")
+@patch("lumibot.tools.thetadata_helper.load_cache")
+@patch("lumibot.tools.thetadata_helper.build_cache_filename")
+@patch("lumibot.tools.thetadata_helper.tqdm")
+def test_get_price_data_with_cached_data(
+    mock_tqdm,
+    mock_build_cache_filename,
+    mock_load_cache,
+    mock_get_missing_dates,
+    mock_get_historical_data,
+    mock_update_df,
+    mock_update_cache,
+):
     # Arrange
     mock_build_cache_filename.return_value.exists.return_value = True
     # Create DataFrame with proper datetime objects with Lumibot default timezone
     from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
-    df_cache = pd.DataFrame({
-        "datetime": pd.to_datetime([
+
+    df_cache = pd.DataFrame(
+        {
+            "datetime": pd.to_datetime(
+                [
                     "2025-09-02 09:30:00",
                     "2025-09-02 09:31:00",
                     "2025-09-02 09:32:00",
                     "2025-09-02 09:33:00",
                     "2025-09-02 09:34:00",
-                ]).tz_localize(LUMIBOT_DEFAULT_PYTZ),
-        "price": [100, 101, 102, 103, 104]
-    })
+                ]
+            ).tz_localize(LUMIBOT_DEFAULT_PYTZ),
+            "price": [100, 101, 102, 103, 104],
+        }
+    )
     df_cache.set_index("datetime", inplace=True)
     mock_load_cache.return_value = df_cache
 
@@ -665,7 +686,7 @@ def test_get_price_data_with_cached_data(mock_tqdm, mock_build_cache_filename, m
     # Act
     df = thetadata_helper.get_price_data(asset, start, end, timespan, dt=dt)
     df.index = pd.to_datetime(df.index)
-    
+
     # Assert
     assert mock_load_cache.called
     assert df is not None
@@ -676,26 +697,29 @@ def test_get_price_data_with_cached_data(mock_tqdm, mock_build_cache_filename, m
     mock_get_historical_data.assert_not_called()  # No need to fetch new data
 
 
-@patch('lumibot.tools.thetadata_helper.update_cache')
-@patch('lumibot.tools.thetadata_helper.update_df')
-@patch('lumibot.tools.thetadata_helper.get_historical_data')
-@patch('lumibot.tools.thetadata_helper.get_missing_dates')
-@patch('lumibot.tools.thetadata_helper.build_cache_filename')
-def test_get_price_data_without_cached_data(mock_build_cache_filename, mock_get_missing_dates, 
-                                            mock_get_historical_data, mock_update_df, mock_update_cache):
+@patch("lumibot.tools.thetadata_helper.update_cache")
+@patch("lumibot.tools.thetadata_helper.update_df")
+@patch("lumibot.tools.thetadata_helper.get_historical_data")
+@patch("lumibot.tools.thetadata_helper.get_missing_dates")
+@patch("lumibot.tools.thetadata_helper.build_cache_filename")
+def test_get_price_data_without_cached_data(
+    mock_build_cache_filename, mock_get_missing_dates, mock_get_historical_data, mock_update_df, mock_update_cache
+):
     # Arrange
     mock_build_cache_filename.return_value.exists.return_value = False
     mock_get_missing_dates.return_value = [datetime.datetime(2025, 9, 2)]
     # NOTE(legacy): `get_price_data()` now trims intraday results to the requested [start, end] window
     # even on a cache miss (parity with the cache-hit path). Keep the fixture timestamps aligned with
     # the requested window so we assert on the returned content instead of an out-of-range slice.
-    raw_df = pd.DataFrame({
-        "datetime": pd.date_range("2025-09-02 09:30:00", periods=5, freq="min", tz="UTC"),
-        "price": [100, 101, 102, 103, 104]
-    }).set_index("datetime")
+    raw_df = pd.DataFrame(
+        {
+            "datetime": pd.date_range("2025-09-02 09:30:00", periods=5, freq="min", tz="UTC"),
+            "price": [100, 101, 102, 103, 104],
+        }
+    ).set_index("datetime")
     mock_get_historical_data.return_value = raw_df.reset_index()
     mock_update_df.return_value = raw_df
-    
+
     asset = Asset(asset_type="stock", symbol="AAPL")
     start = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2025, 9, 2))
     end = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2025, 9, 3))
@@ -703,7 +727,7 @@ def test_get_price_data_without_cached_data(mock_build_cache_filename, mock_get_
     dt = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2025, 9, 2, 9, 30))
 
     # Act
-    df = thetadata_helper.get_price_data(asset, start, end, timespan,dt=dt)
+    df = thetadata_helper.get_price_data(asset, start, end, timespan, dt=dt)
 
     # Assert
     assert df is not None
@@ -713,33 +737,42 @@ def test_get_price_data_without_cached_data(mock_build_cache_filename, mock_get_
     mock_update_df.assert_called_once()
 
 
-@patch('lumibot.tools.thetadata_helper.update_cache')
-@patch('lumibot.tools.thetadata_helper.update_df')
-@patch('lumibot.tools.thetadata_helper.get_historical_data')
-@patch('lumibot.tools.thetadata_helper.get_missing_dates')
-@patch('lumibot.tools.thetadata_helper.load_cache')
-@patch('lumibot.tools.thetadata_helper.build_cache_filename')
-
-def test_get_price_data_partial_cache_hit(mock_build_cache_filename, mock_load_cache, mock_get_missing_dates, 
-                                          mock_get_historical_data, mock_update_df, mock_update_cache):
+@patch("lumibot.tools.thetadata_helper.update_cache")
+@patch("lumibot.tools.thetadata_helper.update_df")
+@patch("lumibot.tools.thetadata_helper.get_historical_data")
+@patch("lumibot.tools.thetadata_helper.get_missing_dates")
+@patch("lumibot.tools.thetadata_helper.load_cache")
+@patch("lumibot.tools.thetadata_helper.build_cache_filename")
+def test_get_price_data_partial_cache_hit(
+    mock_build_cache_filename,
+    mock_load_cache,
+    mock_get_missing_dates,
+    mock_get_historical_data,
+    mock_update_df,
+    mock_update_cache,
+):
     # Arrange
-    cached_data = pd.DataFrame({
-        "datetime": pd.date_range("2025-09-02 09:30:00", periods=5, freq='min', tz="UTC"),
-        "price": [100, 101, 102, 103, 104],
-        "missing": [False] * 5,
-    }).set_index("datetime")
+    cached_data = pd.DataFrame(
+        {
+            "datetime": pd.date_range("2025-09-02 09:30:00", periods=5, freq="min", tz="UTC"),
+            "price": [100, 101, 102, 103, 104],
+            "missing": [False] * 5,
+        }
+    ).set_index("datetime")
     mock_build_cache_filename.return_value.exists.return_value = True
     mock_load_cache.return_value = cached_data
     mock_get_missing_dates.return_value = [datetime.datetime(2025, 9, 3)]
-    new_chunk = pd.DataFrame({
-        "datetime": pd.date_range("2025-09-03 09:30:00", periods=5, freq='min', tz="UTC"),
-        "price": [110, 111, 112, 113, 114],
-        "missing": [False] * 5,
-    }).set_index("datetime")
+    new_chunk = pd.DataFrame(
+        {
+            "datetime": pd.date_range("2025-09-03 09:30:00", periods=5, freq="min", tz="UTC"),
+            "price": [110, 111, 112, 113, 114],
+            "missing": [False] * 5,
+        }
+    ).set_index("datetime")
     mock_get_historical_data.return_value = new_chunk.reset_index()
     updated_data = pd.concat([cached_data, new_chunk]).sort_index()
     mock_update_df.return_value = updated_data
-    
+
     asset = Asset(asset_type="stock", symbol="AAPL")
     start = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2025, 9, 2))
     end = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2025, 9, 3))
@@ -747,7 +780,7 @@ def test_get_price_data_partial_cache_hit(mock_build_cache_filename, mock_load_c
     dt = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2025, 9, 2, 9, 30))
 
     # Act
-    df = thetadata_helper.get_price_data(asset, start, end, timespan,dt=dt)
+    df = thetadata_helper.get_price_data(asset, start, end, timespan, dt=dt)
 
     # Assert
     assert df is not None
@@ -761,14 +794,14 @@ def test_get_price_data_partial_cache_hit(mock_build_cache_filename, mock_load_c
     mock_update_cache.assert_called_once()
 
 
-@patch('lumibot.tools.thetadata_helper.get_trading_dates')
-@patch('lumibot.tools.thetadata_helper.update_cache')
-@patch('lumibot.tools.thetadata_helper.update_df')
-@patch('lumibot.tools.thetadata_helper.get_historical_data')
-@patch('lumibot.tools.thetadata_helper.get_missing_dates')
-@patch('lumibot.tools.thetadata_helper.load_cache')
-@patch('lumibot.tools.thetadata_helper.build_cache_filename')
-@patch('lumibot.tools.thetadata_helper.tqdm')
+@patch("lumibot.tools.thetadata_helper.get_trading_dates")
+@patch("lumibot.tools.thetadata_helper.update_cache")
+@patch("lumibot.tools.thetadata_helper.update_df")
+@patch("lumibot.tools.thetadata_helper.get_historical_data")
+@patch("lumibot.tools.thetadata_helper.get_missing_dates")
+@patch("lumibot.tools.thetadata_helper.load_cache")
+@patch("lumibot.tools.thetadata_helper.build_cache_filename")
+@patch("lumibot.tools.thetadata_helper.tqdm")
 def test_get_price_data_preserve_full_history_returns_full_cache(
     mock_tqdm,
     mock_build_cache_filename,
@@ -825,10 +858,13 @@ def test_get_price_data_daily_placeholders_trigger_refetch(monkeypatch, tmp_path
     class DisabledCacheManager:
         enabled = False
         mode = None  # Not using S3 mode
+
         def ensure_local_file(self, *args, **kwargs):
             return False
+
         def on_local_update(self, *args, **kwargs):
             return False
+
     monkeypatch.setattr(thetadata_helper, "get_backtest_cache", lambda: DisabledCacheManager())
 
     asset = Asset(asset_type="stock", symbol="PLTR")
@@ -851,10 +887,20 @@ def test_get_price_data_daily_placeholders_trigger_refetch(monkeypatch, tmp_path
     # Return 9 of 10 trading days - missing data for Jan 15
     partial_df = pd.DataFrame(
         {
-            "datetime": pd.to_datetime([
-                "2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05",
-                "2024-01-08", "2024-01-09", "2024-01-10", "2024-01-11", "2024-01-12"
-            ], utc=True),
+            "datetime": pd.to_datetime(
+                [
+                    "2024-01-02",
+                    "2024-01-03",
+                    "2024-01-04",
+                    "2024-01-05",
+                    "2024-01-08",
+                    "2024-01-09",
+                    "2024-01-10",
+                    "2024-01-11",
+                    "2024-01-12",
+                ],
+                utc=True,
+            ),
             "open": [10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0],
             "high": [11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0],
             "low": [9.5, 10.5, 11.5, 12.5, 13.5, 14.5, 15.5, 16.5, 17.5],
@@ -867,8 +913,9 @@ def test_get_price_data_daily_placeholders_trigger_refetch(monkeypatch, tmp_path
     progress_stub.update.return_value = None
     progress_stub.close.return_value = None
 
-    with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), \
-         patch("lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days):
+    with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), patch(
+        "lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days
+    ):
         eod_mock = MagicMock(return_value=partial_df)
         with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock):
             first = thetadata_helper.get_price_data(
@@ -881,9 +928,15 @@ def test_get_price_data_daily_placeholders_trigger_refetch(monkeypatch, tmp_path
             assert eod_mock.call_count == 1
             assert len(first) == 9  # 9 real data rows (excluding missing Jan 15)
             expected_dates = {
-                datetime.date(2024, 1, 2), datetime.date(2024, 1, 3), datetime.date(2024, 1, 4),
-                datetime.date(2024, 1, 5), datetime.date(2024, 1, 8), datetime.date(2024, 1, 9),
-                datetime.date(2024, 1, 10), datetime.date(2024, 1, 11), datetime.date(2024, 1, 12),
+                datetime.date(2024, 1, 2),
+                datetime.date(2024, 1, 3),
+                datetime.date(2024, 1, 4),
+                datetime.date(2024, 1, 5),
+                datetime.date(2024, 1, 8),
+                datetime.date(2024, 1, 9),
+                datetime.date(2024, 1, 10),
+                datetime.date(2024, 1, 11),
+                datetime.date(2024, 1, 12),
             }
             assert set(first.index.date) == expected_dates
 
@@ -897,9 +950,9 @@ def test_get_price_data_daily_placeholders_trigger_refetch(monkeypatch, tmp_path
 
         # Second run should attempt to refetch the placeholder day (for past dates).
         eod_second_mock = MagicMock(return_value=partial_df)
-        with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), \
-             patch("lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days), \
-             patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_second_mock):
+        with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), patch(
+            "lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days
+        ), patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_second_mock):
             second = thetadata_helper.get_price_data(
                 asset,
                 start,
@@ -912,18 +965,19 @@ def test_get_price_data_daily_placeholders_trigger_refetch(monkeypatch, tmp_path
             assert set(second.index.date) == expected_dates
 
 
-@patch('lumibot.tools.thetadata_helper.update_cache')
-@patch('lumibot.tools.thetadata_helper.update_df')
-@patch('lumibot.tools.thetadata_helper.get_historical_data')
-@patch('lumibot.tools.thetadata_helper.get_missing_dates')
-@patch('lumibot.tools.thetadata_helper.build_cache_filename')
-def test_get_price_data_empty_response(mock_build_cache_filename, mock_get_missing_dates, 
-                                       mock_get_historical_data, mock_update_df, mock_update_cache):
+@patch("lumibot.tools.thetadata_helper.update_cache")
+@patch("lumibot.tools.thetadata_helper.update_df")
+@patch("lumibot.tools.thetadata_helper.get_historical_data")
+@patch("lumibot.tools.thetadata_helper.get_missing_dates")
+@patch("lumibot.tools.thetadata_helper.build_cache_filename")
+def test_get_price_data_empty_response(
+    mock_build_cache_filename, mock_get_missing_dates, mock_get_historical_data, mock_update_df, mock_update_cache
+):
     # Arrange
     mock_build_cache_filename.return_value.exists.return_value = False
     mock_get_historical_data.return_value = pd.DataFrame()
     mock_get_missing_dates.return_value = [datetime.datetime(2025, 9, 2)]
-    
+
     asset = Asset(asset_type="stock", symbol="AAPL")
     start = datetime.datetime(2025, 9, 2)
     end = datetime.datetime(2025, 9, 3)
@@ -946,6 +1000,7 @@ def test_get_price_data_empty_response(mock_build_cache_filename, mock_get_missi
 # - COVERAGE failures (incomplete range): KEEP cache, extend with missing dates
 # =========================================================================
 
+
 def test_cache_fidelity_coverage_failure_logs_extend_message(monkeypatch, tmp_path, caplog):
     """Test that coverage failures (stale_max_date) log COVERAGE_EXTEND, not INTEGRITY_FAILURE.
 
@@ -953,6 +1008,7 @@ def test_cache_fidelity_coverage_failure_logs_extend_message(monkeypatch, tmp_pa
     being deleted when it simply didn't cover the requested date range.
     """
     import logging
+
     from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 
     cache_root = tmp_path / "cache_root"
@@ -963,10 +1019,13 @@ def test_cache_fidelity_coverage_failure_logs_extend_message(monkeypatch, tmp_pa
     class DisabledCacheManager:
         enabled = False
         mode = None
+
         def ensure_local_file(self, *args, **kwargs):
             return False
+
         def on_local_update(self, *args, **kwargs):
             return False
+
     monkeypatch.setattr(thetadata_helper, "get_backtest_cache", lambda: DisabledCacheManager())
 
     asset = Asset(asset_type="stock", symbol="COVTEST")
@@ -974,21 +1033,30 @@ def test_cache_fidelity_coverage_failure_logs_extend_message(monkeypatch, tmp_pa
     # First request: populate cache
     start1 = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 1, 2))
     end1 = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 1, 5))
-    trading_days1 = [datetime.date(2024, 1, 2), datetime.date(2024, 1, 3),
-                     datetime.date(2024, 1, 4), datetime.date(2024, 1, 5)]
-    df1 = pd.DataFrame({
-        "datetime": pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"], utc=True),
-        "open": [100.0, 101.0, 102.0, 103.0], "high": [101.0, 102.0, 103.0, 104.0],
-        "low": [99.0, 100.0, 101.0, 102.0], "close": [100.5, 101.5, 102.5, 103.5],
-        "volume": [1000, 1100, 1200, 1300],
-    })
+    trading_days1 = [
+        datetime.date(2024, 1, 2),
+        datetime.date(2024, 1, 3),
+        datetime.date(2024, 1, 4),
+        datetime.date(2024, 1, 5),
+    ]
+    df1 = pd.DataFrame(
+        {
+            "datetime": pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"], utc=True),
+            "open": [100.0, 101.0, 102.0, 103.0],
+            "high": [101.0, 102.0, 103.0, 104.0],
+            "low": [99.0, 100.0, 101.0, 102.0],
+            "close": [100.5, 101.5, 102.5, 103.5],
+            "volume": [1000, 1100, 1200, 1300],
+        }
+    )
 
     progress_stub = MagicMock()
     progress_stub.update.return_value = None
     progress_stub.close.return_value = None
 
-    with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), \
-         patch("lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days1):
+    with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), patch(
+        "lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days1
+    ):
         eod_mock1 = MagicMock(return_value=df1)
         with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock1):
             thetadata_helper.get_price_data(asset, start1, end1, "day")
@@ -997,15 +1065,22 @@ def test_cache_fidelity_coverage_failure_logs_extend_message(monkeypatch, tmp_pa
     start2 = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 1, 2))
     end2 = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 1, 8))
     trading_days2 = trading_days1 + [datetime.date(2024, 1, 8)]
-    df_new = pd.DataFrame({
-        "datetime": pd.to_datetime(["2024-01-08"], utc=True),
-        "open": [104.0], "high": [105.0], "low": [103.0], "close": [104.5], "volume": [1400],
-    })
+    df_new = pd.DataFrame(
+        {
+            "datetime": pd.to_datetime(["2024-01-08"], utc=True),
+            "open": [104.0],
+            "high": [105.0],
+            "low": [103.0],
+            "close": [104.5],
+            "volume": [1400],
+        }
+    )
 
     caplog.clear()
     with caplog.at_level(logging.INFO, logger="lumibot.tools.thetadata_helper"):
-        with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), \
-             patch("lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days2):
+        with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), patch(
+            "lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days2
+        ):
             eod_mock2 = MagicMock(return_value=df_new)
             with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock2):
                 thetadata_helper.get_price_data(asset, start2, end2, "day")
@@ -1022,6 +1097,7 @@ def test_cache_fidelity_coverage_failure_logs_extend_message(monkeypatch, tmp_pa
 def test_cache_fidelity_integrity_failure_logs_integrity_message(monkeypatch, tmp_path, caplog):
     """Test that integrity failures (duplicate_index) log INTEGRITY_FAILURE and delete cache."""
     import logging
+
     from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 
     cache_root = tmp_path / "cache_root"
@@ -1032,41 +1108,54 @@ def test_cache_fidelity_integrity_failure_logs_integrity_message(monkeypatch, tm
     class DisabledCacheManager:
         enabled = False
         mode = None
+
         def ensure_local_file(self, *args, **kwargs):
             return False
+
         def on_local_update(self, *args, **kwargs):
             return False
+
     monkeypatch.setattr(thetadata_helper, "get_backtest_cache", lambda: DisabledCacheManager())
 
     asset = Asset(asset_type="stock", symbol="INTTEST")
     start = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 1, 2))
     end = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 1, 5))
-    trading_days = [datetime.date(2024, 1, 2), datetime.date(2024, 1, 3),
-                    datetime.date(2024, 1, 4), datetime.date(2024, 1, 5)]
+    trading_days = [
+        datetime.date(2024, 1, 2),
+        datetime.date(2024, 1, 3),
+        datetime.date(2024, 1, 4),
+        datetime.date(2024, 1, 5),
+    ]
 
     # Create cache file with DUPLICATE INDEX (integrity failure)
     # Note: Use the actual parquet format that load_cache expects
     cache_file = thetadata_helper.build_cache_filename(asset, "day", "ohlc")
     cache_file.parent.mkdir(parents=True, exist_ok=True)
 
-    bad_df = pd.DataFrame({
-        "datetime": pd.to_datetime(["2024-01-02", "2024-01-02", "2024-01-03", "2024-01-04"], utc=True),
-        "open": [100.0, 100.0, 101.0, 102.0],
-        "high": [101.0, 101.0, 102.0, 103.0],
-        "low": [99.0, 99.0, 100.0, 101.0],
-        "close": [100.5, 100.5, 101.5, 102.5],
-        "volume": [1000, 1000, 1100, 1200],
-        "missing": [False, False, False, False],
-    })
+    bad_df = pd.DataFrame(
+        {
+            "datetime": pd.to_datetime(["2024-01-02", "2024-01-02", "2024-01-03", "2024-01-04"], utc=True),
+            "open": [100.0, 100.0, 101.0, 102.0],
+            "high": [101.0, 101.0, 102.0, 103.0],
+            "low": [99.0, 99.0, 100.0, 101.0],
+            "close": [100.5, 100.5, 101.5, 102.5],
+            "volume": [1000, 1000, 1100, 1200],
+            "missing": [False, False, False, False],
+        }
+    )
     bad_df.to_parquet(cache_file, index=False)
 
     # Good data to return when fetching
-    good_df = pd.DataFrame({
-        "datetime": pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"], utc=True),
-        "open": [100.0, 101.0, 102.0, 103.0], "high": [101.0, 102.0, 103.0, 104.0],
-        "low": [99.0, 100.0, 101.0, 102.0], "close": [100.5, 101.5, 102.5, 103.5],
-        "volume": [1000, 1100, 1200, 1300],
-    })
+    good_df = pd.DataFrame(
+        {
+            "datetime": pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"], utc=True),
+            "open": [100.0, 101.0, 102.0, 103.0],
+            "high": [101.0, 102.0, 103.0, 104.0],
+            "low": [99.0, 100.0, 101.0, 102.0],
+            "close": [100.5, 101.5, 102.5, 103.5],
+            "volume": [1000, 1100, 1200, 1300],
+        }
+    )
 
     progress_stub = MagicMock()
     progress_stub.update.return_value = None
@@ -1074,8 +1163,9 @@ def test_cache_fidelity_integrity_failure_logs_integrity_message(monkeypatch, tm
 
     caplog.clear()
     with caplog.at_level(logging.WARNING, logger="lumibot.tools.thetadata_helper"):
-        with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), \
-             patch("lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days):
+        with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), patch(
+            "lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days
+        ):
             eod_mock = MagicMock(return_value=good_df)
             with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock):
                 result = thetadata_helper.get_price_data(asset, start, end, "day")
@@ -1097,18 +1187,19 @@ def test_get_trading_dates():
     start = datetime.datetime(2024, 8, 5)
     end = datetime.datetime(2024, 8, 11)
     dt = datetime.datetime(2024, 8, 6, 13, 30)
-    #convert dt from tz-navie to tz-aware
-    timezone = pytz.timezone('America/New_York')
+    # convert dt from tz-navie to tz-aware
+    timezone = pytz.timezone("America/New_York")
     dt = timezone.localize(dt)
-
 
     trading_dates = thetadata_helper.get_trading_dates(asset, start, end)
     assert isinstance(trading_dates, list)
-    assert trading_dates == [datetime.date(2024, 8, 5), 
-                             datetime.date(2024, 8, 6), 
-                             datetime.date(2024, 8, 7), 
-                             datetime.date(2024, 8, 8), 
-                             datetime.date(2024, 8, 9)]
+    assert trading_dates == [
+        datetime.date(2024, 8, 5),
+        datetime.date(2024, 8, 6),
+        datetime.date(2024, 8, 7),
+        datetime.date(2024, 8, 8),
+        datetime.date(2024, 8, 9),
+    ]
     assert all(date not in trading_dates for date in [datetime.date(2024, 8, 10), datetime.date(2024, 8, 11)])
 
     # Unsupported Asset Type
@@ -1164,8 +1255,8 @@ def test_get_trading_dates():
 @pytest.mark.parametrize(
     "datastyle",
     [
-        ('ohlc'),
-        ('quote'),
+        ("ohlc"),
+        ("quote"),
     ],
 )
 def test_build_cache_filename(mocker, tmpdir, datastyle):
@@ -1187,96 +1278,97 @@ def test_build_cache_filename(mocker, tmpdir, datastyle):
 
 
 def test_missing_dates():
-        # Setup some basics
-        asset = Asset("SPY")
-        start_date = datetime.datetime(2023, 8, 1, 9, 30)  # Tuesday
-        end_date = datetime.datetime(2023, 8, 1, 10, 0)
+    # Setup some basics
+    asset = Asset("SPY")
+    start_date = datetime.datetime(2023, 8, 1, 9, 30)  # Tuesday
+    end_date = datetime.datetime(2023, 8, 1, 10, 0)
 
-        # Empty DataFrame
-        missing_dates = thetadata_helper.get_missing_dates(pd.DataFrame(), asset, start_date, end_date)
-        assert len(missing_dates) == 1
-        assert datetime.date(2023, 8, 1) in missing_dates
+    # Empty DataFrame
+    missing_dates = thetadata_helper.get_missing_dates(pd.DataFrame(), asset, start_date, end_date)
+    assert len(missing_dates) == 1
+    assert datetime.date(2023, 8, 1) in missing_dates
 
-        # Small dataframe that meets start/end criteria
-        index = pd.date_range(start_date, end_date, freq="1min")
-        df_all = pd.DataFrame(
-            {
-                "open": np.random.uniform(0, 100, len(index)).round(2),
-                "close": np.random.uniform(0, 100, len(index)).round(2),
-                "volume": np.random.uniform(0, 10000, len(index)).round(2),
-            },
-            index=index,
-        )
-        missing_dates = thetadata_helper.get_missing_dates(df_all, asset, start_date, end_date)
-        assert not missing_dates
+    # Small dataframe that meets start/end criteria
+    index = pd.date_range(start_date, end_date, freq="1min")
+    df_all = pd.DataFrame(
+        {
+            "open": np.random.uniform(0, 100, len(index)).round(2),
+            "close": np.random.uniform(0, 100, len(index)).round(2),
+            "volume": np.random.uniform(0, 10000, len(index)).round(2),
+        },
+        index=index,
+    )
+    missing_dates = thetadata_helper.get_missing_dates(df_all, asset, start_date, end_date)
+    assert not missing_dates
 
-        # Small dataframe that does not meet start/end criteria
-        end_date = datetime.datetime(2023, 8, 2, 13, 0)  # Weds
-        missing_dates = thetadata_helper.get_missing_dates(df_all, asset, start_date, end_date)
-        assert missing_dates
-        assert datetime.date(2023, 8, 2) in missing_dates
+    # Small dataframe that does not meet start/end criteria
+    end_date = datetime.datetime(2023, 8, 2, 13, 0)  # Weds
+    missing_dates = thetadata_helper.get_missing_dates(df_all, asset, start_date, end_date)
+    assert missing_dates
+    assert datetime.date(2023, 8, 2) in missing_dates
 
-        # Asking for data beyond option expiration - We have all the data
-        end_date = datetime.datetime(2023, 8, 3, 13, 0)
-        expire_date = datetime.date(2023, 8, 2)
-        index = pd.date_range(start_date, end_date, freq="1min")
-        df_all = pd.DataFrame(
-            {
-                "open": np.random.uniform(0, 100, len(index)).round(2),
-                "close": np.random.uniform(0, 100, len(index)).round(2),
-                "volume": np.random.uniform(0, 10000, len(index)).round(2),
-            },
-            index=index,
-        )
-        option_asset = Asset("SPY", asset_type="option", expiration=expire_date, strike=100, right="CALL")
-        missing_dates = thetadata_helper.get_missing_dates(df_all, option_asset, start_date, end_date)
-        assert not missing_dates
+    # Asking for data beyond option expiration - We have all the data
+    end_date = datetime.datetime(2023, 8, 3, 13, 0)
+    expire_date = datetime.date(2023, 8, 2)
+    index = pd.date_range(start_date, end_date, freq="1min")
+    df_all = pd.DataFrame(
+        {
+            "open": np.random.uniform(0, 100, len(index)).round(2),
+            "close": np.random.uniform(0, 100, len(index)).round(2),
+            "volume": np.random.uniform(0, 10000, len(index)).round(2),
+        },
+        index=index,
+    )
+    option_asset = Asset("SPY", asset_type="option", expiration=expire_date, strike=100, right="CALL")
+    missing_dates = thetadata_helper.get_missing_dates(df_all, option_asset, start_date, end_date)
+    assert not missing_dates
 
 
 @pytest.mark.parametrize(
     "df_all, df_cached, datastyle",
     [
         # case 1
-        (pd.DataFrame(), 
-         
-         pd.DataFrame(
-            {
-                "close": [2, 3, 4, 5, 6],
-                "open": [1, 2, 3, 4, 5],
-                "datetime": [
-                    "2023-07-01 09:30:00-04:00",
-                    "2023-07-01 09:31:00-04:00",
-                    "2023-07-01 09:32:00-04:00",
-                    "2023-07-01 09:33:00-04:00",
-                    "2023-07-01 09:34:00-04:00",
-                ],
-            }
-        ), 
-        
-        'ohlc'),
-        # case 2
-        (pd.DataFrame(), 
-         
-         pd.DataFrame(
-            {
-                "ask": [2, 3, 4, 5, 6],
-                "bid": [1, 2, 3, 4, 5],
-                "datetime": [
-                    "2023-07-01 09:30:00-04:00",
-                    "2023-07-01 09:31:00-04:00",
-                    "2023-07-01 09:32:00-04:00",
-                    "2023-07-01 09:33:00-04:00",
-                    "2023-07-01 09:34:00-04:00",
-                ],
-            }
+        (
+            pd.DataFrame(),
+            pd.DataFrame(
+                {
+                    "close": [2, 3, 4, 5, 6],
+                    "open": [1, 2, 3, 4, 5],
+                    "datetime": [
+                        "2023-07-01 09:30:00-04:00",
+                        "2023-07-01 09:31:00-04:00",
+                        "2023-07-01 09:32:00-04:00",
+                        "2023-07-01 09:33:00-04:00",
+                        "2023-07-01 09:34:00-04:00",
+                    ],
+                }
+            ),
+            "ohlc",
         ),
-        'quote'),
+        # case 2
+        (
+            pd.DataFrame(),
+            pd.DataFrame(
+                {
+                    "ask": [2, 3, 4, 5, 6],
+                    "bid": [1, 2, 3, 4, 5],
+                    "datetime": [
+                        "2023-07-01 09:30:00-04:00",
+                        "2023-07-01 09:31:00-04:00",
+                        "2023-07-01 09:32:00-04:00",
+                        "2023-07-01 09:33:00-04:00",
+                        "2023-07-01 09:34:00-04:00",
+                    ],
+                }
+            ),
+            "quote",
+        ),
     ],
 )
 def test_update_cache(mocker, tmpdir, df_all, df_cached, datastyle):
     mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmpdir))
     cache_file = thetadata_helper.build_cache_filename(Asset("SPY"), "1D", datastyle)
-    
+
     # Empty DataFrame of df_all, don't write cache file
     thetadata_helper.update_cache(cache_file, df_all, df_cached)
     assert not cache_file.exists()
@@ -1310,24 +1402,28 @@ class TestUpdateCacheMerge:
         cache_file.parent.mkdir(parents=True, exist_ok=True)
 
         # Old cached data: Jan 2-3, 2025
-        df_cached = pd.DataFrame({
-            "datetime": pd.to_datetime(["2025-01-02", "2025-01-03"]),
-            "open": [100.0, 101.0],
-            "high": [102.0, 103.0],
-            "low": [99.0, 100.0],
-            "close": [101.0, 102.0],
-            "volume": [1000, 1100],
-        }).set_index("datetime")
+        df_cached = pd.DataFrame(
+            {
+                "datetime": pd.to_datetime(["2025-01-02", "2025-01-03"]),
+                "open": [100.0, 101.0],
+                "high": [102.0, 103.0],
+                "low": [99.0, 100.0],
+                "close": [101.0, 102.0],
+                "volume": [1000, 1100],
+            }
+        ).set_index("datetime")
 
         # New data: Jan 6, 2025 (doesn't overlap with cached)
-        df_all = pd.DataFrame({
-            "datetime": pd.to_datetime(["2025-01-06"]),
-            "open": [105.0],
-            "high": [107.0],
-            "low": [104.0],
-            "close": [106.0],
-            "volume": [1500],
-        }).set_index("datetime")
+        df_all = pd.DataFrame(
+            {
+                "datetime": pd.to_datetime(["2025-01-06"]),
+                "open": [105.0],
+                "high": [107.0],
+                "low": [104.0],
+                "close": [106.0],
+                "volume": [1500],
+            }
+        ).set_index("datetime")
 
         # Update cache with new data and old cached data
         thetadata_helper.update_cache(cache_file, df_all, df_cached)
@@ -1341,10 +1437,10 @@ class TestUpdateCacheMerge:
         assert len(df_result) == 3, f"Expected 3 rows, got {len(df_result)}"
 
         # Verify specific dates are present
-        dates = df_result.index.date if hasattr(df_result.index, 'date') else df_result.index
-        assert pd.Timestamp("2025-01-02").date() in [d.date() if hasattr(d, 'date') else d for d in dates]
-        assert pd.Timestamp("2025-01-03").date() in [d.date() if hasattr(d, 'date') else d for d in dates]
-        assert pd.Timestamp("2025-01-06").date() in [d.date() if hasattr(d, 'date') else d for d in dates]
+        dates = df_result.index.date if hasattr(df_result.index, "date") else df_result.index
+        assert pd.Timestamp("2025-01-02").date() in [d.date() if hasattr(d, "date") else d for d in dates]
+        assert pd.Timestamp("2025-01-03").date() in [d.date() if hasattr(d, "date") else d for d in dates]
+        assert pd.Timestamp("2025-01-06").date() in [d.date() if hasattr(d, "date") else d for d in dates]
 
     def test_merge_prefers_new_data_over_cached(self, tmp_path, monkeypatch):
         """When new data overlaps with cached data, new data should take precedence."""
@@ -1353,24 +1449,28 @@ class TestUpdateCacheMerge:
         cache_file.parent.mkdir(parents=True, exist_ok=True)
 
         # Old cached data: Jan 2, 2025 with old price
-        df_cached = pd.DataFrame({
-            "datetime": pd.to_datetime(["2025-01-02"]),
-            "open": [100.0],
-            "high": [102.0],
-            "low": [99.0],
-            "close": [101.0],
-            "volume": [1000],
-        }).set_index("datetime")
+        df_cached = pd.DataFrame(
+            {
+                "datetime": pd.to_datetime(["2025-01-02"]),
+                "open": [100.0],
+                "high": [102.0],
+                "low": [99.0],
+                "close": [101.0],
+                "volume": [1000],
+            }
+        ).set_index("datetime")
 
         # New data: Jan 2, 2025 with updated price (same date, different values)
-        df_all = pd.DataFrame({
-            "datetime": pd.to_datetime(["2025-01-02"]),
-            "open": [200.0],  # Different value
-            "high": [202.0],
-            "low": [199.0],
-            "close": [201.0],
-            "volume": [2000],
-        }).set_index("datetime")
+        df_all = pd.DataFrame(
+            {
+                "datetime": pd.to_datetime(["2025-01-02"]),
+                "open": [200.0],  # Different value
+                "high": [202.0],
+                "low": [199.0],
+                "close": [201.0],
+                "volume": [2000],
+            }
+        ).set_index("datetime")
 
         thetadata_helper.update_cache(cache_file, df_all, df_cached)
 
@@ -1389,14 +1489,16 @@ class TestUpdateCacheMerge:
 
         df_cached = None  # No cached data
 
-        df_all = pd.DataFrame({
-            "datetime": pd.to_datetime(["2025-01-06"]),
-            "open": [105.0],
-            "high": [107.0],
-            "low": [104.0],
-            "close": [106.0],
-            "volume": [1500],
-        }).set_index("datetime")
+        df_all = pd.DataFrame(
+            {
+                "datetime": pd.to_datetime(["2025-01-06"]),
+                "open": [105.0],
+                "high": [107.0],
+                "low": [104.0],
+                "close": [106.0],
+                "volume": [1500],
+            }
+        ).set_index("datetime")
 
         thetadata_helper.update_cache(cache_file, df_all, df_cached)
 
@@ -1411,25 +1513,29 @@ class TestUpdateCacheMerge:
         cache_file.parent.mkdir(parents=True, exist_ok=True)
 
         # Cached data with a placeholder row
-        df_cached = pd.DataFrame({
-            "datetime": pd.to_datetime(["2025-01-02", "2025-01-03"]),
-            "open": [100.0, None],
-            "high": [102.0, None],
-            "low": [99.0, None],
-            "close": [101.0, None],
-            "volume": [1000, 0],
-            "missing": [False, True],  # Jan 3 is a placeholder
-        }).set_index("datetime")
+        df_cached = pd.DataFrame(
+            {
+                "datetime": pd.to_datetime(["2025-01-02", "2025-01-03"]),
+                "open": [100.0, None],
+                "high": [102.0, None],
+                "low": [99.0, None],
+                "close": [101.0, None],
+                "volume": [1000, 0],
+                "missing": [False, True],  # Jan 3 is a placeholder
+            }
+        ).set_index("datetime")
 
         # New data for Jan 6
-        df_all = pd.DataFrame({
-            "datetime": pd.to_datetime(["2025-01-06"]),
-            "open": [105.0],
-            "high": [107.0],
-            "low": [104.0],
-            "close": [106.0],
-            "volume": [1500],
-        }).set_index("datetime")
+        df_all = pd.DataFrame(
+            {
+                "datetime": pd.to_datetime(["2025-01-06"]),
+                "open": [105.0],
+                "high": [107.0],
+                "low": [104.0],
+                "close": [106.0],
+                "volume": [1500],
+            }
+        ).set_index("datetime")
 
         thetadata_helper.update_cache(cache_file, df_all, df_cached)
 
@@ -1446,24 +1552,28 @@ class TestUpdateCacheMerge:
         cache_file.parent.mkdir(parents=True, exist_ok=True)
 
         # Cached data: Jan 6, 2025
-        df_cached = pd.DataFrame({
-            "datetime": pd.to_datetime(["2025-01-06"]),
-            "open": [105.0],
-            "high": [107.0],
-            "low": [104.0],
-            "close": [106.0],
-            "volume": [1500],
-        }).set_index("datetime")
+        df_cached = pd.DataFrame(
+            {
+                "datetime": pd.to_datetime(["2025-01-06"]),
+                "open": [105.0],
+                "high": [107.0],
+                "low": [104.0],
+                "close": [106.0],
+                "volume": [1500],
+            }
+        ).set_index("datetime")
 
         # New data: Jan 2, 2025 (earlier date)
-        df_all = pd.DataFrame({
-            "datetime": pd.to_datetime(["2025-01-02"]),
-            "open": [100.0],
-            "high": [102.0],
-            "low": [99.0],
-            "close": [101.0],
-            "volume": [1000],
-        }).set_index("datetime")
+        df_all = pd.DataFrame(
+            {
+                "datetime": pd.to_datetime(["2025-01-02"]),
+                "open": [100.0],
+                "high": [102.0],
+                "low": [99.0],
+                "close": [101.0],
+                "volume": [1000],
+            }
+        ).set_index("datetime")
 
         thetadata_helper.update_cache(cache_file, df_all, df_cached)
 
@@ -1544,37 +1654,39 @@ def test_get_price_data_invokes_remote_cache_manager(tmp_path, monkeypatch):
     "df_cached, datastyle",
     [
         # case 1
-        (pd.DataFrame(
-            {
-                "close": [2, 3, 4, 5, 6],
-                "open": [1, 2, 3, 4, 5],
-                "datetime": [
-                    "2023-07-01 09:30:00-04:00",
-                    "2023-07-01 09:31:00-04:00",
-                    "2023-07-01 09:32:00-04:00",
-                    "2023-07-01 09:33:00-04:00",
-                    "2023-07-01 09:34:00-04:00",
-                ],
-            }
-        ), 
-        
-        'ohlc'),
-        
-        # case 2
-        (pd.DataFrame(
-            {
-                "ask": [2, 3, 4, 5, 6],
-                "bid": [1, 2, 3, 4, 5],
-                "datetime": [
-                    "2023-07-01 09:30:00-04:00",
-                    "2023-07-01 09:31:00-04:00",
-                    "2023-07-01 09:32:00-04:00",
-                    "2023-07-01 09:33:00-04:00",
-                    "2023-07-01 09:34:00-04:00",
-                ],
-            }
+        (
+            pd.DataFrame(
+                {
+                    "close": [2, 3, 4, 5, 6],
+                    "open": [1, 2, 3, 4, 5],
+                    "datetime": [
+                        "2023-07-01 09:30:00-04:00",
+                        "2023-07-01 09:31:00-04:00",
+                        "2023-07-01 09:32:00-04:00",
+                        "2023-07-01 09:33:00-04:00",
+                        "2023-07-01 09:34:00-04:00",
+                    ],
+                }
+            ),
+            "ohlc",
         ),
-        'quote'),
+        # case 2
+        (
+            pd.DataFrame(
+                {
+                    "ask": [2, 3, 4, 5, 6],
+                    "bid": [1, 2, 3, 4, 5],
+                    "datetime": [
+                        "2023-07-01 09:30:00-04:00",
+                        "2023-07-01 09:31:00-04:00",
+                        "2023-07-01 09:32:00-04:00",
+                        "2023-07-01 09:33:00-04:00",
+                        "2023-07-01 09:34:00-04:00",
+                    ],
+                }
+            ),
+            "quote",
+        ),
     ],
 )
 def test_load_data_from_cache(mocker, tmpdir, df_cached, datastyle):
@@ -1588,30 +1700,30 @@ def test_load_data_from_cache(mocker, tmpdir, df_cached, datastyle):
 
     # Cache file exists
     cache_file.parent.mkdir(parents=True, exist_ok=True)
-    df_cached.to_parquet(cache_file, engine='pyarrow', compression='snappy')
+    df_cached.to_parquet(cache_file, engine="pyarrow", compression="snappy")
     df_loaded = thetadata_helper.load_cache(cache_file)
     assert len(df_loaded)
     assert df_loaded.index[0] == pd.DatetimeIndex(["2023-07-01 09:30:00-04:00"])[0]
-    if datastyle == 'ohlc':
+    if datastyle == "ohlc":
         assert df_loaded["close"].iloc[0] == 2
-    elif datastyle == 'quote':
+    elif datastyle == "quote":
         assert df_loaded["bid"].iloc[0] == 1
-        
+
 
 def test_update_df_with_empty_result():
     df_all = pd.DataFrame(
-            {
-                "close": [2, 3, 4, 5, 6],
-                "open": [1, 2, 3, 4, 5],
-                "datetime": [
-                    "2023-07-01 09:30:00-04:00",
-                    "2023-07-01 09:31:00-04:00",
-                    "2023-07-01 09:32:00-04:00",
-                    "2023-07-01 09:33:00-04:00",
-                    "2023-07-01 09:34:00-04:00",
-                ],
-            }
-        )
+        {
+            "close": [2, 3, 4, 5, 6],
+            "open": [1, 2, 3, 4, 5],
+            "datetime": [
+                "2023-07-01 09:30:00-04:00",
+                "2023-07-01 09:31:00-04:00",
+                "2023-07-01 09:32:00-04:00",
+                "2023-07-01 09:33:00-04:00",
+                "2023-07-01 09:34:00-04:00",
+            ],
+        }
+    )
     result = []
     updated_df = thetadata_helper.update_df(df_all, result)
     assert isinstance(updated_df, pd.DataFrame)
@@ -1627,6 +1739,7 @@ def test_update_df_empty_df_all_and_empty_result():
     df_new = thetadata_helper.update_df(df_all, result)
     assert df_new is None or df_new.empty
 
+
 def test_update_df_empty_df_all_and_result_no_datetime():
     # Test with empty dataframe and no new data
     df_all = None
@@ -1641,18 +1754,18 @@ def test_update_df_empty_df_all_and_result_no_datetime():
 def test_update_df_empty_df_all_with_new_data():
     # Updated to September 2025 dates
     result = pd.DataFrame(
-            {
-                "close": [2, 3, 4, 5, 6],
-                "open": [1, 2, 3, 4, 5],
-                "datetime": [
-                    "2025-09-02 09:30:00",
-                    "2025-09-02 09:31:00",
-                    "2025-09-02 09:32:00",
-                    "2025-09-02 09:33:00",
-                    "2025-09-02 09:34:00",
-                ],
-            }
-        )
+        {
+            "close": [2, 3, 4, 5, 6],
+            "open": [1, 2, 3, 4, 5],
+            "datetime": [
+                "2025-09-02 09:30:00",
+                "2025-09-02 09:31:00",
+                "2025-09-02 09:32:00",
+                "2025-09-02 09:33:00",
+                "2025-09-02 09:34:00",
+            ],
+        }
+    )
 
     result["datetime"] = pd.to_datetime(result["datetime"])
     df_all = None
@@ -1673,8 +1786,8 @@ def test_update_df_existing_df_all_with_new_data():
         {"o": 5, "h": 8, "l": 3, "c": 7, "v": 100, "t": 1756819860000},
     ]
     for r in initial_data:
-        r["datetime"] = pd.to_datetime(r.pop("t"), unit='ms', utc=True)
-    
+        r["datetime"] = pd.to_datetime(r.pop("t"), unit="ms", utc=True)
+
     df_all = pd.DataFrame(initial_data).set_index("datetime")
 
     new_data = [
@@ -1682,8 +1795,8 @@ def test_update_df_existing_df_all_with_new_data():
         {"o": 13, "h": 16, "l": 11, "c": 14, "v": 100, "t": 1756819980000},
     ]
     for r in new_data:
-        r["datetime"] = pd.to_datetime(r.pop("t"), unit='ms', utc=True)
-    
+        r["datetime"] = pd.to_datetime(r.pop("t"), unit="ms", utc=True)
+
     new_data = pd.DataFrame(new_data)
     df_new = thetadata_helper.update_df(df_all, new_data)
 
@@ -1694,6 +1807,7 @@ def test_update_df_existing_df_all_with_new_data():
     assert df_new.index[0] == pd.DatetimeIndex(["2025-09-02 13:30:00+00:00"])[0]
     assert df_new.index[2] == pd.DatetimeIndex(["2025-09-02 13:32:00+00:00"])[0]
 
+
 def test_update_df_with_overlapping_data():
     # Test with some overlapping rows
     initial_data = [
@@ -1703,8 +1817,8 @@ def test_update_df_with_overlapping_data():
         {"o": 13, "h": 16, "l": 11, "c": 14, "v": 100, "t": 1756819980000},
     ]
     for r in initial_data:
-        r["datetime"] = pd.to_datetime(r.pop("t"), unit='ms', utc=True)
-    
+        r["datetime"] = pd.to_datetime(r.pop("t"), unit="ms", utc=True)
+
     df_all = pd.DataFrame(initial_data).set_index("datetime")
 
     overlapping_data = [
@@ -1712,7 +1826,7 @@ def test_update_df_with_overlapping_data():
         {"o": 21, "h": 24, "l": 19, "c": 22, "v": 100, "t": 1756820040000},
     ]
     for r in overlapping_data:
-        r["datetime"] = pd.to_datetime(r.pop("t"), unit='ms', utc=True)
+        r["datetime"] = pd.to_datetime(r.pop("t"), unit="ms", utc=True)
     overlapping_data = pd.DataFrame(overlapping_data).set_index("datetime")
     df_new = thetadata_helper.update_df(df_all, overlapping_data)
 
@@ -1727,25 +1841,23 @@ def test_update_df_with_overlapping_data():
     assert df_new.index[3] == pd.DatetimeIndex(["2025-09-02 13:33:00+00:00"])[0]
     assert df_new.index[4] == pd.DatetimeIndex(["2025-09-02 13:34:00+00:00"])[0]
 
+
 def test_update_df_with_timezone_awareness():
     # Test that timezone awareness is properly handled
     result = [
         {"o": 1, "h": 4, "l": 1, "c": 2, "v": 100, "t": 1756819800000},
     ]
     for r in result:
-        r["datetime"] = pd.to_datetime(r.pop("t"), unit='ms', utc=True)
+        r["datetime"] = pd.to_datetime(r.pop("t"), unit="ms", utc=True)
 
     df_all = None
     df_new = thetadata_helper.update_df(df_all, result)
-    
+
     assert df_new.index.tzinfo is not None
-    assert df_new.index.tzinfo.zone == 'UTC'
+    assert df_new.index.tzinfo.zone == "UTC"
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="Requires ThetaData Terminal (not available in CI)"
-)
+@pytest.mark.skipif(os.environ.get("CI") == "true", reason="Requires ThetaData Terminal (not available in CI)")
 @pytest.mark.skipif(
     os.environ.get("ALLOW_LOCAL_THETA_TERMINAL") != "true",
     reason="Local ThetaTerminal is disabled on this environment",
@@ -1760,7 +1872,7 @@ def test_start_theta_data_client():
     thetadata_helper.THETA_DATA_PID = None
 
     # Start real client
-    client = thetadata_helper.start_theta_data_client(username, password)
+    thetadata_helper.start_theta_data_client(username, password)
 
     # Verify process started
     assert thetadata_helper.THETA_DATA_PID is not None, "PID should be set"
@@ -1775,10 +1887,8 @@ def test_start_theta_data_client():
     )
     assert res.status_code in (200, 571), f"Unexpected readiness status: {res.status_code} ({res.text})"
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="Requires ThetaData Terminal (not available in CI)"
-)
+
+@pytest.mark.skipif(os.environ.get("CI") == "true", reason="Requires ThetaData Terminal (not available in CI)")
 @pytest.mark.skipif(
     os.environ.get("ALLOW_LOCAL_THETA_TERMINAL") != "true",
     reason="Local ThetaTerminal is disabled on this environment",
@@ -1808,10 +1918,7 @@ def test_check_connection():
     assert res.status_code in (200, 571), f"Unexpected readiness status: {res.status_code} ({res.text})"
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="Requires ThetaData Terminal (not available in CI)"
-)
+@pytest.mark.skipif(os.environ.get("CI") == "true", reason="Requires ThetaData Terminal (not available in CI)")
 @pytest.mark.skipif(
     os.environ.get("ALLOW_LOCAL_THETA_TERMINAL") != "true",
     reason="Local ThetaTerminal is disabled on this environment",
@@ -1834,10 +1941,7 @@ def test_check_connection_with_exception():
     assert connected is True, "Should be connected"
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="Requires ThetaData Terminal (not available in CI)"
-)
+@pytest.mark.skipif(os.environ.get("CI") == "true", reason="Requires ThetaData Terminal (not available in CI)")
 @pytest.mark.skipif(
     os.environ.get("ALLOW_LOCAL_THETA_TERMINAL") != "true",
     reason="Local ThetaTerminal is disabled on this environment",
@@ -1858,21 +1962,14 @@ def test_get_request_successful():
     end = datetime.datetime(2025, 9, 2)
 
     # This should succeed with real data
-    df = thetadata_helper.get_price_data(
-        asset=asset,
-        start=start,
-        end=end,
-        timespan="minute"
-    )
+    df = thetadata_helper.get_price_data(asset=asset, start=start, end=end, timespan="minute")
 
     # Verify we got data
     assert df is not None, "Should get data from ThetaData"
     assert len(df) > 0, "Should have data rows"
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="Requires ThetaData Terminal (not available in CI)"
-)
+
+@pytest.mark.skipif(os.environ.get("CI") == "true", reason="Requires ThetaData Terminal (not available in CI)")
 @pytest.mark.skipif(
     os.environ.get("ALLOW_LOCAL_THETA_TERMINAL") != "true",
     reason="Local ThetaTerminal is disabled on this environment",
@@ -1889,23 +1986,20 @@ def test_get_request_non_200_status_code():
     # Simply verify we can make a request without crashing
     # The actual response doesn't matter - we're testing that the connection works
     try:
-        response = thetadata_helper.get_price_data(
+        thetadata_helper.get_price_data(
             asset=Asset("SPY", asset_type="stock"),
             start=datetime.datetime(2025, 9, 1),
             end=datetime.datetime(2025, 9, 2),
-            timespan="minute"
+            timespan="minute",
         )
         # If we get here without exception, the test passes
         assert True, "Request completed without error"
     except Exception as e:
         # Should not raise exception - function should handle errors gracefully
-        assert False, f"Should not raise exception, got: {e}"
+        raise AssertionError(f"Should not raise exception, got: {e}") from e
 
 
-@pytest.mark.skipif(
-    os.environ.get("CI") == "true",
-    reason="Requires ThetaData Terminal (not available in CI)"
-)
+@pytest.mark.skipif(os.environ.get("CI") == "true", reason="Requires ThetaData Terminal (not available in CI)")
 def test_build_historical_chain_live_option_list(theta_terminal_cleanup):
     """Exercise option list endpoints via real ThetaTerminal to guard v3 regressions."""
     if thetadata_helper.REMOTE_DOWNLOADER_ENABLED:
@@ -1941,17 +2035,15 @@ def test_build_historical_chain_live_option_list(theta_terminal_cleanup):
 # - If DATADOWNLOADER_BASE_URL is set, it uses the downloader queue client (queue_request).
 # - Otherwise it uses direct HTTP to a locally-managed ThetaTerminal.
 # The test below is skipped as error_type handling has been removed from get_request.
-@pytest.mark.skip(reason="Obsolete: error_type handling removed from get_request - queue system handles errors differently")
-@patch('lumibot.tools.data_downloader_queue_client.queue_request')
+@pytest.mark.skip(
+    reason="Obsolete: error_type handling removed from get_request - queue system handles errors differently"
+)
+@patch("lumibot.tools.data_downloader_queue_client.queue_request")
 def test_get_request_error_in_json(mock_queue_request):
     """Test that get_request raises ValueError when response contains error_type."""
     # Mock queue_request to return a response with error_type
     # queue_request returns just the response dict (not a tuple)
-    mock_queue_request.return_value = {
-        "header": {
-            "error_type": "SomeError"
-        }
-    }
+    mock_queue_request.return_value = {"header": {"error_type": "SomeError"}}
 
     url = "http://test.com"
     headers = {"Authorization": "Bearer test_token"}
@@ -1965,7 +2057,7 @@ def test_get_request_error_in_json(mock_queue_request):
     assert mock_queue_request.called
 
 
-@patch('lumibot.tools.data_downloader_queue_client.queue_request')
+@patch("lumibot.tools.data_downloader_queue_client.queue_request")
 def test_get_request_exception_handling(mock_queue_request, monkeypatch):
     """Test that downloader-mode get_request propagates exceptions from queue_request."""
     monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://test-server:8080")
@@ -2051,14 +2143,30 @@ def test_get_historical_data_accepts_v3_row_style_payload(mock_queue_request, mo
 
     mock_queue_request.return_value = {
         "response": [
-            {"timestamp": "2025-04-11T09:30:00", "open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1, "count": 1},
-            {"timestamp": "2025-04-11T09:31:00", "open": 1.1, "high": 1.1, "low": 1.1, "close": 1.1, "volume": 1, "count": 1},
+            {
+                "timestamp": "2025-04-11T09:30:00",
+                "open": 1.0,
+                "high": 1.0,
+                "low": 1.0,
+                "close": 1.0,
+                "volume": 1,
+                "count": 1,
+            },
+            {
+                "timestamp": "2025-04-11T09:31:00",
+                "open": 1.1,
+                "high": 1.1,
+                "low": 1.1,
+                "close": 1.1,
+                "volume": 1,
+                "count": 1,
+            },
         ]
     }
 
     asset = Asset("QQQ", asset_type="stock")
-    start = dt.datetime(2025, 4, 11, 13, 0, tzinfo=dt.timezone.utc)
-    end = dt.datetime(2025, 4, 11, 20, 0, tzinfo=dt.timezone.utc)
+    start = dt.datetime(2025, 4, 11, 13, 0, tzinfo=dt.UTC)
+    end = dt.datetime(2025, 4, 11, 20, 0, tzinfo=dt.UTC)
 
     out = thetadata_helper.get_historical_data(
         asset,
@@ -2101,9 +2209,11 @@ def test_get_historical_data_flattens_v3_nested_option_quote_payload(mock_queue_
         ]
     }
 
-    asset = Asset("NDX", asset_type=Asset.AssetType.OPTION, expiration=dt.date(2024, 6, 21), strike=18250.0, right="call")
-    start = dt.datetime(2024, 6, 3, 17, 55, tzinfo=dt.timezone.utc)
-    end = dt.datetime(2024, 6, 3, 17, 57, tzinfo=dt.timezone.utc)
+    asset = Asset(
+        "NDX", asset_type=Asset.AssetType.OPTION, expiration=dt.date(2024, 6, 21), strike=18250.0, right="call"
+    )
+    start = dt.datetime(2024, 6, 3, 17, 55, tzinfo=dt.UTC)
+    end = dt.datetime(2024, 6, 3, 17, 57, tzinfo=dt.UTC)
 
     out = thetadata_helper.get_historical_data(
         asset,
@@ -2191,7 +2301,7 @@ def test_build_historical_chain_accepts_v3_row_style_strikes(monkeypatch):
 # etc.) are now obsolete because get_request ONLY uses queue mode. The queue system handles
 # retries and error handling internally. These tests can be removed in a future cleanup.
 @pytest.mark.skip(reason="Obsolete: get_request now uses queue mode only, which handles retries internally")
-@patch('lumibot.tools.thetadata_helper.check_connection')
+@patch("lumibot.tools.thetadata_helper.check_connection")
 def test_get_request_raises_theta_request_error_after_transient_status(mock_check_connection, monkeypatch):
     """Ensure repeated 5xx responses raise ThetaRequestError with the status code."""
     # Disable remote downloader for this test
@@ -2201,8 +2311,7 @@ def test_get_request_raises_theta_request_error_after_transient_status(mock_chec
     mock_check_connection.return_value = (None, True)
 
     responses = [
-        SimpleNamespace(status_code=503, text="Service unavailable")
-        for _ in range(thetadata_helper.HTTP_RETRY_LIMIT)
+        SimpleNamespace(status_code=503, text="Service unavailable") for _ in range(thetadata_helper.HTTP_RETRY_LIMIT)
     ]
 
     def fake_get(*args, **kwargs):
@@ -2220,30 +2329,29 @@ def test_get_request_raises_theta_request_error_after_transient_status(mock_chec
     assert mock_check_connection.call_count >= thetadata_helper.HTTP_RETRY_LIMIT
 
 
-
 @pytest.mark.skip(reason="Obsolete: get_request now uses queue mode only, so direct HTTP restart tests no longer apply")
-@patch('lumibot.tools.thetadata_helper.start_theta_data_client')
-@patch('lumibot.tools.thetadata_helper.check_connection')
+@patch("lumibot.tools.thetadata_helper.start_theta_data_client")
+@patch("lumibot.tools.thetadata_helper.check_connection")
 def test_get_request_consecutive_474_triggers_restarts(mock_check_connection, mock_start_client, monkeypatch):
     mock_check_connection.return_value = (object(), True)
 
-    responses = [MagicMock(status_code=474, text='Connection lost to Theta Data MDDS.') for _ in range(9)]
+    responses = [MagicMock(status_code=474, text="Connection lost to Theta Data MDDS.") for _ in range(9)]
 
     def fake_get(*args, **kwargs):
         if not responses:
-            raise AssertionError('Test exhausted mock responses unexpectedly')
+            raise AssertionError("Test exhausted mock responses unexpectedly")
         return responses.pop(0)
 
-    monkeypatch.setattr(thetadata_helper.requests, 'get', fake_get)
-    monkeypatch.setattr(thetadata_helper.time, 'sleep', lambda *args, **kwargs: None)
-    monkeypatch.setattr(thetadata_helper, 'BOOT_GRACE_PERIOD', 0, raising=False)
-    monkeypatch.setattr(thetadata_helper, 'CONNECTION_RETRY_SLEEP', 0, raising=False)
+    monkeypatch.setattr(thetadata_helper.requests, "get", fake_get)
+    monkeypatch.setattr(thetadata_helper.time, "sleep", lambda *args, **kwargs: None)
+    monkeypatch.setattr(thetadata_helper, "BOOT_GRACE_PERIOD", 0, raising=False)
+    monkeypatch.setattr(thetadata_helper, "CONNECTION_RETRY_SLEEP", 0, raising=False)
 
-    with pytest.raises(ValueError, match='Cannot connect to Theta Data!'):
+    with pytest.raises(ValueError, match="Cannot connect to Theta Data!"):
         thetadata_helper.get_request(
-            url='http://test.com',
-            headers={'Authorization': 'Bearer test_token'},
-            querystring={'param1': 'value1'},
+            url="http://test.com",
+            headers={"Authorization": "Bearer test_token"},
+            querystring={"param1": "value1"},
         )
 
     assert mock_start_client.call_count == 3
@@ -2265,7 +2373,7 @@ def test_probe_terminal_ready_success(monkeypatch):
 
 
 @pytest.mark.skip(reason="Obsolete: get_request now uses queue mode only, so direct HTTP retry tests no longer apply")
-@patch('lumibot.tools.thetadata_helper.check_connection')
+@patch("lumibot.tools.thetadata_helper.check_connection")
 def test_get_request_retries_on_571(mock_check_connection, monkeypatch):
     """ThetaData should retry when the terminal returns SERVER_STARTING."""
     mock_check_connection.return_value = (None, True)
@@ -2293,8 +2401,10 @@ def test_get_request_retries_on_571(mock_check_connection, monkeypatch):
     assert responses == []
 
 
-@pytest.mark.skip(reason="Obsolete: get_request now uses queue mode only, so direct HTTP error translation tests no longer apply")
-@patch('lumibot.tools.thetadata_helper.check_connection')
+@pytest.mark.skip(
+    reason="Obsolete: get_request now uses queue mode only, so direct HTTP error translation tests no longer apply"
+)
+@patch("lumibot.tools.thetadata_helper.check_connection")
 def test_get_request_raises_on_410(mock_check_connection, monkeypatch):
     """v2 requests hitting v3 terminal should raise a helpful error."""
     mock_check_connection.return_value = (None, True)
@@ -2310,7 +2420,9 @@ def test_get_request_raises_on_410(mock_check_connection, monkeypatch):
     assert "410" in str(excinfo.value)
 
 
-@pytest.mark.skip(reason="Obsolete: get_request now uses queue mode only; header injection is covered in queue client tests")
+@pytest.mark.skip(
+    reason="Obsolete: get_request now uses queue mode only; header injection is covered in queue client tests"
+)
 def test_get_request_attaches_downloader_header(monkeypatch):
     headers_seen = {}
 
@@ -2333,7 +2445,9 @@ def test_get_request_attaches_downloader_header(monkeypatch):
     assert headers_seen["X-Downloader-Key"] == "secret-key"
 
 
-@pytest.mark.skip(reason="Obsolete: get_request now uses queue mode only; queue_full backoff is handled by the queue client")
+@pytest.mark.skip(
+    reason="Obsolete: get_request now uses queue mode only; queue_full backoff is handled by the queue client"
+)
 def test_get_request_remote_queue_full_backoff(monkeypatch):
     payload_queue = {"error": "queue_full", "active": 8, "waiting": 12}
     payload_success = {"header": {"format": [], "error_type": "null", "next_page": None}, "response": []}
@@ -2369,19 +2483,17 @@ def test_get_request_remote_queue_full_backoff(monkeypatch):
     assert sleeps, "Queue-full response should trigger a sleep before retrying"
 
 
-def test_get_historical_eod_data_handles_missing_date(monkeypatch):
+def test_get_historical_eod_data_handles_missing_date_fixture(monkeypatch):
     sample_response = {
         "header": {"format": ["open", "close", "created"]},
-        "response": [
-            [439.5, 445.23, "2025-11-10T17:15:01.116"]
-        ]
+        "response": [[439.5, 445.23, "2025-11-10T17:15:01.116"]],
     }
 
     monkeypatch.setattr(thetadata_helper, "get_request", lambda **_: sample_response)
     monkeypatch.setattr(thetadata_helper, "get_historical_data", lambda **_: None)
 
     asset = Asset("TSLA", asset_type="stock")
-    start = datetime.datetime(2025, 11, 10, tzinfo=datetime.timezone.utc)
+    start = datetime.datetime(2025, 11, 10, tzinfo=datetime.UTC)
 
     df = thetadata_helper.get_historical_eod_data(asset, start, start)
     assert not df.empty
@@ -2430,7 +2542,7 @@ def test_get_historical_eod_data_split_failure_bubbles(monkeypatch):
 
     def fake_get_request(url, headers, querystring):
         start = querystring["start_date"]
-        end = querystring["end_date"]
+        querystring["end_date"]
         # Fail any window that starts on 2024-01-01 so even recursive splitting cannot recover.
         if start == "2024-01-01":
             raise thetadata_helper.ThetaRequestError("still failing", status_code=503)
@@ -2469,19 +2581,37 @@ def test_check_connection_remote_downloader(monkeypatch):
     assert probe_calls["count"] == 2
 
 
-@patch('lumibot.tools.thetadata_helper.get_request')
+@patch("lumibot.tools.thetadata_helper.get_request")
 def test_get_historical_data_stock(mock_get_request):
     # Arrange
     mock_json_response = {
         "header": {"format": ["date", "ms_of_day", "open", "high", "low", "close", "volume", "count"]},
         "response": [
-            {"date": 20230701, "ms_of_day": 3600000, "open": 100, "high": 110, "low": 95, "close": 105, "volume": 1000, "count": 10},
-            {"date": 20230702, "ms_of_day": 7200000, "open": 110, "high": 120, "low": 105, "close": 115, "volume": 2000, "count": 20}
-        ]
+            {
+                "date": 20230701,
+                "ms_of_day": 3600000,
+                "open": 100,
+                "high": 110,
+                "low": 95,
+                "close": 105,
+                "volume": 1000,
+                "count": 10,
+            },
+            {
+                "date": 20230702,
+                "ms_of_day": 7200000,
+                "open": 110,
+                "high": 120,
+                "low": 105,
+                "close": 115,
+                "volume": 2000,
+                "count": 20,
+            },
+        ],
     }
     mock_get_request.return_value = mock_json_response
-    
-    #asset = MockAsset(asset_type="stock", symbol="AAPL")
+
+    # asset = MockAsset(asset_type="stock", symbol="AAPL")
     asset = Asset("AAPL")
     start_dt = datetime.datetime(2025, 9, 2)
     end_dt = datetime.datetime(2025, 9, 3)
@@ -2512,22 +2642,41 @@ def test_get_historical_data_stock(mock_get_request):
     assert df.index[0].day == 1
     assert df.index[0].hour == 1
     assert df.index[0].tzinfo is not None
-    assert 'date' not in df.columns
-    assert 'ms_of_day' not in df.columns
+    assert "date" not in df.columns
+    assert "ms_of_day" not in df.columns
     assert df["open"].iloc[1] == 110
 
-@patch('lumibot.tools.thetadata_helper.get_request')
+
+@patch("lumibot.tools.thetadata_helper.get_request")
 def test_get_historical_data_option(mock_get_request):
     # Arrange
     mock_json_response = {
         "header": {"format": ["date", "ms_of_day", "open", "high", "low", "close", "volume", "count"]},
         "response": [
-            {"date": 20230701, "ms_of_day": 3600000, "open": 1, "high": 1.1, "low": 0.95, "close": 1.05, "volume": 100, "count": 10},
-            {"date": 20230702, "ms_of_day": 7200000, "open": 1.1, "high": 1.2, "low": 1.05, "close": 1.15, "volume": 200, "count": 20}
-        ]
+            {
+                "date": 20230701,
+                "ms_of_day": 3600000,
+                "open": 1,
+                "high": 1.1,
+                "low": 0.95,
+                "close": 1.05,
+                "volume": 100,
+                "count": 10,
+            },
+            {
+                "date": 20230702,
+                "ms_of_day": 7200000,
+                "open": 1.1,
+                "high": 1.2,
+                "low": 1.05,
+                "close": 1.15,
+                "volume": 200,
+                "count": 20,
+            },
+        ],
     }
     mock_get_request.return_value = mock_json_response
-    
+
     asset = Asset(
         asset_type="option", symbol="AAPL", expiration=datetime.datetime(2025, 9, 30), strike=140, right="CALL"
     )
@@ -2563,11 +2712,11 @@ def test_get_historical_data_option(mock_get_request):
     assert df["open"].iloc[1] == 1.1
 
 
-@patch('lumibot.tools.thetadata_helper.get_request')
+@patch("lumibot.tools.thetadata_helper.get_request")
 def test_get_historical_data_empty_response(mock_get_request):
     # Arrange
     mock_get_request.return_value = None
-    
+
     asset = Asset(asset_type="stock", symbol="AAPL")
     start_dt = datetime.datetime(2025, 9, 2)
     end_dt = datetime.datetime(2025, 9, 3)
@@ -2614,17 +2763,42 @@ def test_get_historical_data_applies_session_override(mock_get_request, mock_get
         assert qs["start_time"] == "09:30:00"
         assert qs["end_time"] == "09:31:00"
 
-@patch('lumibot.tools.thetadata_helper.get_request')
+
+@patch("lumibot.tools.thetadata_helper.get_request")
 def test_get_historical_data_quote_style(mock_get_request):
     # Arrange
     mock_json_response = {
-        "header": {"format": ["date", "ms_of_day", "bid_size","bid_condition","bid","bid_exchange","ask_size","ask_condition","ask","ask_exchange"]},
+        "header": {
+            "format": [
+                "date",
+                "ms_of_day",
+                "bid_size",
+                "bid_condition",
+                "bid",
+                "bid_exchange",
+                "ask_size",
+                "ask_condition",
+                "ask",
+                "ask_exchange",
+            ]
+        },
         "response": [
-            {"date": 20230701, "ms_of_day": 3600000, "bid_size": 0, "bid_condition": 0, "bid": 100, "bid_exchange": 110, "ask_size": 0, "ask_condition": 105, "ask": 1000, "ask_exchange": 10}
-        ]
+            {
+                "date": 20230701,
+                "ms_of_day": 3600000,
+                "bid_size": 0,
+                "bid_condition": 0,
+                "bid": 100,
+                "bid_exchange": 110,
+                "ask_size": 0,
+                "ask_condition": 105,
+                "ask": 1000,
+                "ask_exchange": 10,
+            }
+        ],
     }
     mock_get_request.return_value = mock_json_response
-    
+
     asset = Asset(asset_type="stock", symbol="AAPL")
     start_dt = datetime.datetime(2025, 9, 2)
     end_dt = datetime.datetime(2025, 9, 3)
@@ -2650,17 +2824,27 @@ def test_get_historical_data_quote_style(mock_get_request):
         "last_ask_time",
     ]
 
-@patch('lumibot.tools.thetadata_helper.get_request')
+
+@patch("lumibot.tools.thetadata_helper.get_request")
 def test_get_historical_data_ohlc_style_with_zero_in_response(mock_get_request):
     # Arrange
     mock_json_response = {
         "header": {"format": ["date", "ms_of_day", "open", "high", "low", "close", "volume", "count"]},
         "response": [
-            {"date": 20230701, "ms_of_day": 3600000, "open": 0, "high": 0, "low": 0, "close": 0, "volume": 0, "count": 0}
-        ]
+            {
+                "date": 20230701,
+                "ms_of_day": 3600000,
+                "open": 0,
+                "high": 0,
+                "low": 0,
+                "close": 0,
+                "volume": 0,
+                "count": 0,
+            }
+        ],
     }
     mock_get_request.return_value = mock_json_response
-    
+
     asset = Asset(asset_type="stock", symbol="AAPL")
     start_dt = datetime.datetime(2025, 9, 2)
     end_dt = datetime.datetime(2025, 9, 3)
@@ -2673,19 +2857,15 @@ def test_get_historical_data_ohlc_style_with_zero_in_response(mock_get_request):
     assert df is None  # The DataFrame should be None because no valid rows remain
 
 
-@patch('lumibot.tools.thetadata_helper.get_request')
+@patch("lumibot.tools.thetadata_helper.get_request")
 def test_get_expirations_normal_operation(mock_get_request):
     # Arrange
     mock_json_response = {
         "header": {"format": ["expiration_date"]},
-        "response": [
-            {"expiration_date": 20230721},
-            {"expiration_date": 20230728},
-            {"expiration_date": 20230804}
-        ]
+        "response": [{"expiration_date": 20230721}, {"expiration_date": 20230728}, {"expiration_date": 20230804}],
     }
     mock_get_request.return_value = mock_json_response
-    
+
     ticker = "AAPL"
     after_date = datetime.date(2023, 7, 25)
 
@@ -2696,15 +2876,13 @@ def test_get_expirations_normal_operation(mock_get_request):
     expected = ["2023-07-28", "2023-08-04"]
     assert expirations == expected
 
-@patch('lumibot.tools.thetadata_helper.get_request')
+
+@patch("lumibot.tools.thetadata_helper.get_request")
 def test_get_expirations_empty_response(mock_get_request):
     # Arrange
-    mock_json_response = {
-        "header": {"format": ["expiration_date"]},
-        "response": []
-    }
+    mock_json_response = {"header": {"format": ["expiration_date"]}, "response": []}
     mock_get_request.return_value = mock_json_response
-    
+
     ticker = "AAPL"
     after_date = datetime.date(2023, 7, 25)
 
@@ -2714,18 +2892,16 @@ def test_get_expirations_empty_response(mock_get_request):
     # Assert
     assert expirations == []
 
-@patch('lumibot.tools.thetadata_helper.get_request')
+
+@patch("lumibot.tools.thetadata_helper.get_request")
 def test_get_expirations_dates_before_after_date(mock_get_request):
     # Arrange
     mock_json_response = {
         "header": {"format": ["expiration_date"]},
-        "response": [
-            {"expiration_date": 20230714},
-            {"expiration_date": 20230721}
-        ]
+        "response": [{"expiration_date": 20230714}, {"expiration_date": 20230721}],
     }
     mock_get_request.return_value = mock_json_response
-    
+
     ticker = "AAPL"
     after_date = datetime.date(2023, 7, 25)
 
@@ -2736,20 +2912,15 @@ def test_get_expirations_dates_before_after_date(mock_get_request):
     assert expirations == []  # All dates are before the after_date, so the result should be empty
 
 
-
-@patch('lumibot.tools.thetadata_helper.get_request')
+@patch("lumibot.tools.thetadata_helper.get_request")
 def test_get_strikes_normal_operation(mock_get_request):
     # Arrange
     mock_json_response = {
         "header": {"format": ["strike_price"]},
-        "response": [
-            {"strike_price": 140000},
-            {"strike_price": 145000},
-            {"strike_price": 150000}
-        ]
+        "response": [{"strike_price": 140000}, {"strike_price": 145000}, {"strike_price": 150000}],
     }
     mock_get_request.return_value = mock_json_response
-    
+
     ticker = "AAPL"
     expiration = datetime.datetime(2023, 9, 15)
 
@@ -2760,15 +2931,13 @@ def test_get_strikes_normal_operation(mock_get_request):
     expected = [140.0, 145.0, 150.0]
     assert strikes == expected
 
-@patch('lumibot.tools.thetadata_helper.get_request')
+
+@patch("lumibot.tools.thetadata_helper.get_request")
 def test_get_strikes_empty_response(mock_get_request):
     # Arrange
-    mock_json_response = {
-        "header": {"format": ["strike_price"]},
-        "response": []
-    }
+    mock_json_response = {"header": {"format": ["strike_price"]}, "response": []}
     mock_get_request.return_value = mock_json_response
-    
+
     ticker = "AAPL"
     expiration = datetime.datetime(2023, 9, 15)
 
@@ -2787,7 +2956,7 @@ def test_get_strikes_empty_response(mock_get_request):
 # Data Downloader proxy (DATADOWNLOADER_BASE_URL), there's no local process to manage.
 @pytest.mark.skipif(
     bool(os.environ.get("DATADOWNLOADER_BASE_URL")),
-    reason="Process health tests require local ThetaTerminal, not Data Downloader"
+    reason="Process health tests require local ThetaTerminal, not Data Downloader",
 )
 class TestThetaDataProcessHealthCheck:
     """
@@ -2817,7 +2986,7 @@ class TestThetaDataProcessHealthCheck:
 
         # Verify actual process is running
         pid = thetadata_helper.THETA_DATA_PID
-        result = subprocess.run(['ps', '-p', str(pid)], capture_output=True)
+        result = subprocess.run(["ps", "-p", str(pid)], capture_output=True)
         assert result.returncode == 0, f"Process {pid} should be running"
 
     def test_force_kill_and_auto_restart(self):
@@ -2832,7 +3001,7 @@ class TestThetaDataProcessHealthCheck:
         assert thetadata_helper.is_process_alive() is True, "Initial process should be alive"
 
         # FORCE KILL the Java process
-        subprocess.run(['kill', '-9', str(initial_pid)], check=True)
+        subprocess.run(["kill", "-9", str(initial_pid)], check=True)
         time.sleep(1)
 
         # Verify is_process_alive() detects it's dead
@@ -2848,7 +3017,7 @@ class TestThetaDataProcessHealthCheck:
         assert thetadata_helper.is_process_alive() is True, "New process should be alive"
 
         # Verify new process is actually running
-        result = subprocess.run(['ps', '-p', str(new_pid)], capture_output=True)
+        result = subprocess.run(["ps", "-p", str(new_pid)], capture_output=True)
         assert result.returncode == 0, f"New process {new_pid} should be running"
 
     def test_data_fetch_after_process_restart(self):
@@ -2866,17 +3035,12 @@ class TestThetaDataProcessHealthCheck:
         initial_pid = thetadata_helper.THETA_DATA_PID
 
         # FORCE KILL it
-        subprocess.run(['kill', '-9', str(initial_pid)], check=True)
+        subprocess.run(["kill", "-9", str(initial_pid)], check=True)
         time.sleep(1)
         assert thetadata_helper.is_process_alive() is False
 
         # Try to fetch data - may use cache OR restart process
-        df = thetadata_helper.get_price_data(
-            asset=asset,
-            start=start,
-            end=end,
-            timespan="minute"
-        )
+        df = thetadata_helper.get_price_data(asset=asset, start=start, end=end, timespan="minute")
 
         # Verify we got data (from cache or after restart)
         assert df is not None, "Should get data (from cache or after restart)"
@@ -2897,7 +3061,7 @@ class TestThetaDataProcessHealthCheck:
             pid = thetadata_helper.THETA_DATA_PID
 
             # Kill it
-            subprocess.run(['kill', '-9', str(pid)], check=True)
+            subprocess.run(["kill", "-9", str(pid)], check=True)
             time.sleep(0.5)
 
             # Verify detection
@@ -3288,7 +3452,7 @@ def test_build_historical_chain_returns_none_when_no_dates(monkeypatch, caplog):
     asset = Asset("NONE", asset_type="stock")
     as_of_date = date(2024, 11, 28)
 
-    as_of_int = int(as_of_date.strftime("%Y%m%d"))
+    int(as_of_date.strftime("%Y%m%d"))
 
     def fake_get_request(url, headers, querystring):
         if url.endswith(thetadata_helper.OPTION_LIST_ENDPOINTS["expirations"]):
@@ -3327,6 +3491,7 @@ def test_build_historical_chain_returns_none_when_no_dates(monkeypatch, caplog):
     assert result["Chains"]["CALL"]["2024-11-29"] == [150.0, 155.0]
     assert result["Chains"]["PUT"]["2024-11-29"] == [150.0, 155.0]
 
+
 def test_build_historical_chain_empty_response(monkeypatch, caplog):
     asset = Asset("EMPTY", asset_type="stock")
     as_of_date = date(2024, 11, 9)
@@ -3352,7 +3517,7 @@ def test_build_historical_chain_empty_response(monkeypatch, caplog):
 # to local ThetaTerminal mode. The Data Downloader handles connection management on the server side.
 @pytest.mark.skipif(
     bool(os.environ.get("DATADOWNLOADER_BASE_URL")),
-    reason="Connection supervision tests require local ThetaTerminal, not Data Downloader"
+    reason="Connection supervision tests require local ThetaTerminal, not Data Downloader",
 )
 class TestThetaDataConnectionSupervision:
     """
@@ -3757,47 +3922,47 @@ def test_probe_terminal_ready_handles_server_starting(mock_requests):
     mock_requests.assert_called_once()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pytest.main()
 
 
 def test_thetadata_no_future_minutes(monkeypatch):
-    tz = pytz.timezone('America/New_York')
+    tz = pytz.timezone("America/New_York")
     now = tz.localize(datetime.datetime(2025, 1, 6, 9, 30))
     frame = pd.DataFrame(
         {
-            'datetime': [
+            "datetime": [
                 tz.localize(datetime.datetime(2025, 1, 6, 9, 29)),
                 tz.localize(datetime.datetime(2025, 1, 6, 9, 31)),
             ],
-            'open': [4330.0, 4332.0],
-            'high': [4331.0, 4333.0],
-            'low': [4329.5, 4331.5],
-            'close': [4330.5, 4332.5],
-            'volume': [1_200, 1_250],
-            'missing': [False, False],
+            "open": [4330.0, 4332.0],
+            "high": [4331.0, 4333.0],
+            "low": [4329.5, 4331.5],
+            "close": [4330.5, 4332.5],
+            "volume": [1_200, 1_250],
+            "missing": [False, False],
         }
     )
 
-    monkeypatch.setattr(thetadata_helper, 'get_price_data', lambda *args, **kwargs: frame.copy())
-    monkeypatch.setattr(thetadata_helper, 'reset_theta_terminal_tracking', lambda: None)
+    monkeypatch.setattr(thetadata_helper, "get_price_data", lambda *args, **kwargs: frame.copy())
+    monkeypatch.setattr(thetadata_helper, "reset_theta_terminal_tracking", lambda: None)
 
     data_source = ThetaDataBacktestingPandas(
         datetime_start=now - datetime.timedelta(days=1),
         datetime_end=now + datetime.timedelta(days=1),
-        username='user',
-        password='pass',
+        username="user",
+        password="pass",
         use_quote_data=False,
     )
     data_source._datetime = now
 
-    asset = Asset('MES', asset_type=Asset.AssetType.CONT_FUTURE)
+    asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
 
     bars = data_source.get_historical_prices(
         asset,
         length=1,
-        timestep='minute',
-        quote=Asset('USD', asset_type=Asset.AssetType.FOREX),
+        timestep="minute",
+        quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
         timeshift=datetime.timedelta(minutes=-1),
     )
 
@@ -4367,27 +4532,28 @@ class TestZeroPriceFiltering:
     def test_filter_zero_ohlc_rows_removes_bad_data(self):
         """Test that rows with all-zero OHLC values are filtered out."""
         # Create DataFrame with some valid data and some zero-price rows
-        index = pd.to_datetime([
-            "2024-01-15 09:30",
-            "2024-01-16 09:30",  # Bad data - all zeros
-            "2024-01-17 09:30",
-        ], utc=True)
+        index = pd.to_datetime(
+            [
+                "2024-01-15 09:30",
+                "2024-01-16 09:30",  # Bad data - all zeros
+                "2024-01-17 09:30",
+            ],
+            utc=True,
+        )
 
-        df = pd.DataFrame({
-            "open": [100.0, 0.0, 102.0],
-            "high": [101.0, 0.0, 103.0],
-            "low": [99.0, 0.0, 101.0],
-            "close": [100.5, 0.0, 102.5],
-            "volume": [1000, 0, 1200],
-        }, index=index)
+        df = pd.DataFrame(
+            {
+                "open": [100.0, 0.0, 102.0],
+                "high": [101.0, 0.0, 103.0],
+                "low": [99.0, 0.0, 101.0],
+                "close": [100.5, 0.0, 102.5],
+                "volume": [1000, 0, 1200],
+            },
+            index=index,
+        )
 
         # Apply the filtering logic (same as in update_df)
-        all_zero = (
-            (df["open"] == 0) &
-            (df["high"] == 0) &
-            (df["low"] == 0) &
-            (df["close"] == 0)
-        )
+        all_zero = (df["open"] == 0) & (df["high"] == 0) & (df["low"] == 0) & (df["close"] == 0)
         df_filtered = df[~all_zero]
 
         # Verify: only 2 rows remain
@@ -4396,25 +4562,26 @@ class TestZeroPriceFiltering:
 
     def test_filter_preserves_valid_zero_volume(self):
         """Test that rows with zero volume but valid prices are preserved."""
-        index = pd.to_datetime([
-            "2024-01-15 09:30",
-            "2024-01-16 09:30",  # Valid data - has prices, just zero volume
-        ], utc=True)
-
-        df = pd.DataFrame({
-            "open": [100.0, 50.0],
-            "high": [101.0, 51.0],
-            "low": [99.0, 49.0],
-            "close": [100.5, 50.5],
-            "volume": [1000, 0],  # Zero volume is fine
-        }, index=index)
-
-        all_zero = (
-            (df["open"] == 0) &
-            (df["high"] == 0) &
-            (df["low"] == 0) &
-            (df["close"] == 0)
+        index = pd.to_datetime(
+            [
+                "2024-01-15 09:30",
+                "2024-01-16 09:30",  # Valid data - has prices, just zero volume
+            ],
+            utc=True,
         )
+
+        df = pd.DataFrame(
+            {
+                "open": [100.0, 50.0],
+                "high": [101.0, 51.0],
+                "low": [99.0, 49.0],
+                "close": [100.5, 50.5],
+                "volume": [1000, 0],  # Zero volume is fine
+            },
+            index=index,
+        )
+
+        all_zero = (df["open"] == 0) & (df["high"] == 0) & (df["low"] == 0) & (df["close"] == 0)
         df_filtered = df[~all_zero]
 
         # Both rows should be preserved
@@ -4428,26 +4595,27 @@ class TestZeroPriceFiltering:
         This is the actual bug we fixed - ThetaData returned Saturday 2019-06-08
         with all zeros for MELI, causing the backtest to fail.
         """
-        index = pd.to_datetime([
-            "2019-06-07 09:30",  # Friday - valid
-            "2019-06-08 00:00",  # Saturday - bad (all zeros)
-            "2019-06-10 09:30",  # Monday - valid
-        ], utc=True)
-
-        df = pd.DataFrame({
-            "open": [495.0, 0.0, 500.0],
-            "high": [500.0, 0.0, 505.0],
-            "low": [490.0, 0.0, 495.0],
-            "close": [498.0, 0.0, 502.0],
-            "volume": [10000, 0, 12000],
-        }, index=index)
-
-        all_zero = (
-            (df["open"] == 0) &
-            (df["high"] == 0) &
-            (df["low"] == 0) &
-            (df["close"] == 0)
+        index = pd.to_datetime(
+            [
+                "2019-06-07 09:30",  # Friday - valid
+                "2019-06-08 00:00",  # Saturday - bad (all zeros)
+                "2019-06-10 09:30",  # Monday - valid
+            ],
+            utc=True,
         )
+
+        df = pd.DataFrame(
+            {
+                "open": [495.0, 0.0, 500.0],
+                "high": [500.0, 0.0, 505.0],
+                "low": [490.0, 0.0, 495.0],
+                "close": [498.0, 0.0, 502.0],
+                "volume": [10000, 0, 12000],
+            },
+            index=index,
+        )
+
+        all_zero = (df["open"] == 0) & (df["high"] == 0) & (df["low"] == 0) & (df["close"] == 0)
         df_filtered = df[~all_zero]
 
         # Only Friday and Monday should remain
@@ -4465,24 +4633,25 @@ class TestZeroPriceFiltering:
         E.g., a stock that opened at 0 (bug) but has valid high/low/close
         should still be preserved as it's usable data.
         """
-        index = pd.to_datetime([
-            "2024-01-15 09:30",
-        ], utc=True)
-
-        df = pd.DataFrame({
-            "open": [0.0],  # Zero open
-            "high": [101.0],
-            "low": [99.0],
-            "close": [100.5],
-            "volume": [1000],
-        }, index=index)
-
-        all_zero = (
-            (df["open"] == 0) &
-            (df["high"] == 0) &
-            (df["low"] == 0) &
-            (df["close"] == 0)
+        index = pd.to_datetime(
+            [
+                "2024-01-15 09:30",
+            ],
+            utc=True,
         )
+
+        df = pd.DataFrame(
+            {
+                "open": [0.0],  # Zero open
+                "high": [101.0],
+                "low": [99.0],
+                "close": [100.5],
+                "volume": [1000],
+            },
+            index=index,
+        )
+
+        all_zero = (df["open"] == 0) & (df["high"] == 0) & (df["low"] == 0) & (df["close"] == 0)
         df_filtered = df[~all_zero]
 
         # Row should be preserved - only close being 0 is what matters
@@ -4490,46 +4659,44 @@ class TestZeroPriceFiltering:
 
     def test_filter_empty_df_returns_empty(self):
         """Test that filtering an empty DataFrame returns empty."""
-        df = pd.DataFrame({
-            "open": [],
-            "high": [],
-            "low": [],
-            "close": [],
-            "volume": [],
-        })
+        df = pd.DataFrame(
+            {
+                "open": [],
+                "high": [],
+                "low": [],
+                "close": [],
+                "volume": [],
+            }
+        )
 
         # Should not raise an error
-        all_zero = (
-            (df["open"] == 0) &
-            (df["high"] == 0) &
-            (df["low"] == 0) &
-            (df["close"] == 0)
-        )
+        all_zero = (df["open"] == 0) & (df["high"] == 0) & (df["low"] == 0) & (df["close"] == 0)
         df_filtered = df[~all_zero]
 
         assert len(df_filtered) == 0
 
     def test_filter_all_zero_returns_empty(self):
         """Test that a DataFrame with only zero-price rows returns empty."""
-        index = pd.to_datetime([
-            "2024-01-15 09:30",
-            "2024-01-16 09:30",
-        ], utc=True)
-
-        df = pd.DataFrame({
-            "open": [0.0, 0.0],
-            "high": [0.0, 0.0],
-            "low": [0.0, 0.0],
-            "close": [0.0, 0.0],
-            "volume": [0, 0],
-        }, index=index)
-
-        all_zero = (
-            (df["open"] == 0) &
-            (df["high"] == 0) &
-            (df["low"] == 0) &
-            (df["close"] == 0)
+        index = pd.to_datetime(
+            [
+                "2024-01-15 09:30",
+                "2024-01-16 09:30",
+            ],
+            utc=True,
         )
+
+        df = pd.DataFrame(
+            {
+                "open": [0.0, 0.0],
+                "high": [0.0, 0.0],
+                "low": [0.0, 0.0],
+                "close": [0.0, 0.0],
+                "volume": [0, 0],
+            },
+            index=index,
+        )
+
+        all_zero = (df["open"] == 0) & (df["high"] == 0) & (df["low"] == 0) & (df["close"] == 0)
         df_filtered = df[~all_zero]
 
         assert len(df_filtered) == 0
@@ -4541,6 +4708,7 @@ class TestZeroPriceFiltering:
 # Data gaps are normal for options that don't trade every day.
 # See: thetadata_backtesting_pandas.py lines 1569-1643
 # =========================================================================
+
 
 class TestCoverageGapGracefulHandling:
     """
@@ -4565,8 +4733,8 @@ class TestCoverageGapGracefulHandling:
         Expected: Warning logged, no exception raised
         """
         import logging
+
         from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
-        from lumibot.backtesting import ThetaDataBacktesting
 
         # Create a minimal mock setup
         cache_root = tmp_path / "cache_root"
@@ -4577,10 +4745,13 @@ class TestCoverageGapGracefulHandling:
         class DisabledCacheManager:
             enabled = False
             mode = None
+
             def ensure_local_file(self, *args, **kwargs):
                 return False
+
             def on_local_update(self, *args, **kwargs):
                 return False
+
         monkeypatch.setattr(thetadata_helper, "get_backtest_cache", lambda: DisabledCacheManager())
 
         # Create a CALL option asset (these frequently have data gaps)
@@ -4598,23 +4769,34 @@ class TestCoverageGapGracefulHandling:
 
         # Create mock data that ends at Nov 20
         trading_days = [
-            datetime.date(2024, 11, 1), datetime.date(2024, 11, 4), datetime.date(2024, 11, 5),
-            datetime.date(2024, 11, 6), datetime.date(2024, 11, 7), datetime.date(2024, 11, 8),
-            datetime.date(2024, 11, 11), datetime.date(2024, 11, 12), datetime.date(2024, 11, 13),
-            datetime.date(2024, 11, 14), datetime.date(2024, 11, 15), datetime.date(2024, 11, 18),
-            datetime.date(2024, 11, 19), datetime.date(2024, 11, 20),
+            datetime.date(2024, 11, 1),
+            datetime.date(2024, 11, 4),
+            datetime.date(2024, 11, 5),
+            datetime.date(2024, 11, 6),
+            datetime.date(2024, 11, 7),
+            datetime.date(2024, 11, 8),
+            datetime.date(2024, 11, 11),
+            datetime.date(2024, 11, 12),
+            datetime.date(2024, 11, 13),
+            datetime.date(2024, 11, 14),
+            datetime.date(2024, 11, 15),
+            datetime.date(2024, 11, 18),
+            datetime.date(2024, 11, 19),
+            datetime.date(2024, 11, 20),
             # Missing: Nov 21-30 (these would be placeholders/missing data)
         ]
 
         date_strs = [d.strftime("%Y-%m-%d") for d in trading_days]
-        df_data = pd.DataFrame({
-            "datetime": pd.to_datetime(date_strs, utc=True),
-            "open": [100.0 + i for i in range(len(trading_days))],
-            "high": [101.0 + i for i in range(len(trading_days))],
-            "low": [99.0 + i for i in range(len(trading_days))],
-            "close": [100.5 + i for i in range(len(trading_days))],
-            "volume": [1000 + i * 100 for i in range(len(trading_days))],
-        })
+        df_data = pd.DataFrame(
+            {
+                "datetime": pd.to_datetime(date_strs, utc=True),
+                "open": [100.0 + i for i in range(len(trading_days))],
+                "high": [101.0 + i for i in range(len(trading_days))],
+                "low": [99.0 + i for i in range(len(trading_days))],
+                "close": [100.5 + i for i in range(len(trading_days))],
+                "volume": [1000 + i * 100 for i in range(len(trading_days))],
+            }
+        )
 
         progress_stub = MagicMock()
         progress_stub.update.return_value = None
@@ -4622,8 +4804,9 @@ class TestCoverageGapGracefulHandling:
 
         caplog.clear()
         with caplog.at_level(logging.WARNING):
-            with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), \
-                 patch("lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days):
+            with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), patch(
+                "lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days
+            ):
                 eod_mock = MagicMock(return_value=df_data)
                 with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock):
                     # This should NOT raise ValueError - it should log warning and continue
@@ -4654,10 +4837,13 @@ class TestCoverageGapGracefulHandling:
         class DisabledCacheManager:
             enabled = False
             mode = None
+
             def ensure_local_file(self, *args, **kwargs):
                 return False
+
             def on_local_update(self, *args, **kwargs):
                 return False
+
         monkeypatch.setattr(thetadata_helper, "get_backtest_cache", lambda: DisabledCacheManager())
 
         asset = Asset(asset_type="stock", symbol="ILLIQUID")
@@ -4665,10 +4851,16 @@ class TestCoverageGapGracefulHandling:
         end = LUMIBOT_DEFAULT_PYTZ.localize(datetime.datetime(2024, 1, 10))
 
         # Return empty DataFrame (no data available)
-        empty_df = pd.DataFrame({
-            "datetime": pd.to_datetime([], utc=True),
-            "open": [], "high": [], "low": [], "close": [], "volume": [],
-        })
+        empty_df = pd.DataFrame(
+            {
+                "datetime": pd.to_datetime([], utc=True),
+                "open": [],
+                "high": [],
+                "low": [],
+                "close": [],
+                "volume": [],
+            }
+        )
 
         progress_stub = MagicMock()
         progress_stub.update.return_value = None
@@ -4676,8 +4868,9 @@ class TestCoverageGapGracefulHandling:
 
         caplog.clear()
         with caplog.at_level(logging.WARNING):
-            with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), \
-                 patch("lumibot.tools.thetadata_helper.get_trading_dates", return_value=[]):
+            with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), patch(
+                "lumibot.tools.thetadata_helper.get_trading_dates", return_value=[]
+            ):
                 eod_mock = MagicMock(return_value=empty_df)
                 with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock):
                     try:
@@ -4688,8 +4881,7 @@ class TestCoverageGapGracefulHandling:
 
         # Should not crash even with empty/no data
         assert not exception_raised, (
-            "Empty data response should not crash. "
-            "Should log warning and continue with available (empty) data."
+            "Empty data response should not crash. Should log warning and continue with available (empty) data."
         )
 
     def test_tail_placeholder_does_not_crash(self, monkeypatch, tmp_path, caplog):
@@ -4708,10 +4900,13 @@ class TestCoverageGapGracefulHandling:
         class DisabledCacheManager:
             enabled = False
             mode = None
+
             def ensure_local_file(self, *args, **kwargs):
                 return False
+
             def on_local_update(self, *args, **kwargs):
                 return False
+
         monkeypatch.setattr(thetadata_helper, "get_backtest_cache", lambda: DisabledCacheManager())
 
         asset = Asset(asset_type="stock", symbol="TAILTEST")
@@ -4720,20 +4915,26 @@ class TestCoverageGapGracefulHandling:
 
         # Data for first 3 days only, then 4 placeholder days at the end
         trading_days = [
-            datetime.date(2024, 1, 2), datetime.date(2024, 1, 3), datetime.date(2024, 1, 4),
-            datetime.date(2024, 1, 5), datetime.date(2024, 1, 8), datetime.date(2024, 1, 9),
+            datetime.date(2024, 1, 2),
+            datetime.date(2024, 1, 3),
+            datetime.date(2024, 1, 4),
+            datetime.date(2024, 1, 5),
+            datetime.date(2024, 1, 8),
+            datetime.date(2024, 1, 9),
             datetime.date(2024, 1, 10),
         ]
 
         # Only return data for first 3 days - rest will become placeholders
-        partial_df = pd.DataFrame({
-            "datetime": pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04"], utc=True),
-            "open": [100.0, 101.0, 102.0],
-            "high": [101.0, 102.0, 103.0],
-            "low": [99.0, 100.0, 101.0],
-            "close": [100.5, 101.5, 102.5],
-            "volume": [1000, 1100, 1200],
-        })
+        partial_df = pd.DataFrame(
+            {
+                "datetime": pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04"], utc=True),
+                "open": [100.0, 101.0, 102.0],
+                "high": [101.0, 102.0, 103.0],
+                "low": [99.0, 100.0, 101.0],
+                "close": [100.5, 101.5, 102.5],
+                "volume": [1000, 1100, 1200],
+            }
+        )
 
         progress_stub = MagicMock()
         progress_stub.update.return_value = None
@@ -4741,8 +4942,9 @@ class TestCoverageGapGracefulHandling:
 
         caplog.clear()
         with caplog.at_level(logging.WARNING):
-            with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), \
-                 patch("lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days):
+            with patch("lumibot.tools.thetadata_helper.tqdm", return_value=progress_stub), patch(
+                "lumibot.tools.thetadata_helper.get_trading_dates", return_value=trading_days
+            ):
                 eod_mock = MagicMock(return_value=partial_df)
                 with patch("lumibot.tools.thetadata_helper.get_historical_eod_data", eod_mock):
                     try:
@@ -4752,7 +4954,4 @@ class TestCoverageGapGracefulHandling:
                         exception_raised = True
 
         # Should not crash with tail placeholders
-        assert not exception_raised, (
-            "Tail placeholders should not crash. "
-            "This is normal for assets that stop trading."
-        )
+        assert not exception_raised, "Tail placeholders should not crash. This is normal for assets that stop trading."

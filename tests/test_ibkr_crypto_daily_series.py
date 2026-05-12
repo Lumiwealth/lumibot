@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 
-from lumibot.entities import Asset
 import lumibot.tools.ibkr_helper as ibkr_helper
+from lumibot.entities import Asset
 
 
 def test_ibkr_crypto_daily_bounds_exclusive_end_midnight():
@@ -60,10 +60,10 @@ def test_ibkr_fetch_history_between_dates_does_not_break_early_on_short_chunks(m
     # Return 2-hour chunks each call, so len(df) < 1000 but we still need multiple calls to reach start.
     def _fake_history_request(**kwargs):
         calls["history"] += 1
-        cursor_end = kwargs["start_time"].astimezone(timezone.utc)
+        cursor_end = kwargs["start_time"].astimezone(UTC)
         cursor_start = cursor_end - timedelta(hours=2)
-        if cursor_start < start.astimezone(timezone.utc):
-            cursor_start = start.astimezone(timezone.utc)
+        if cursor_start < start.astimezone(UTC):
+            cursor_start = start.astimezone(UTC)
         idx = pd.date_range(
             start=cursor_start,
             end=cursor_end,
@@ -119,8 +119,8 @@ def test_ibkr_fetch_history_between_dates_keeps_prior_chunks_when_later_page_is_
             # coverage in a single page the function no longer paginates, so
             # only one history call is expected.
             idx = pd.date_range(
-                start=start.astimezone(timezone.utc),
-                end=end.astimezone(timezone.utc),
+                start=start.astimezone(UTC),
+                end=end.astimezone(UTC),
                 freq="1h",
                 tz="UTC",
             )
@@ -174,7 +174,7 @@ def test_ibkr_fetch_history_keeps_chunks_when_mid_paging_page_is_empty(monkeypat
 
     def _fake_history_request(**kwargs):
         calls["history"] += 1
-        cursor_end = kwargs["start_time"].astimezone(timezone.utc)
+        cursor_end = kwargs["start_time"].astimezone(UTC)
         # Call 3 simulates the weekend/holiday gap: IBKR returns empty even though
         # earlier pages were valid.
         if calls["history"] >= 3:
@@ -214,8 +214,8 @@ def test_ibkr_crypto_get_price_data_derives_daily_for_1d_like_timesteps(monkeypa
     base = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
     quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
 
-    start = datetime(2025, 1, 1, tzinfo=timezone.utc)
-    end = datetime(2025, 1, 2, tzinfo=timezone.utc)
+    start = datetime(2025, 1, 1, tzinfo=UTC)
+    end = datetime(2025, 1, 2, tzinfo=UTC)
 
     called = {"count": 0}
 

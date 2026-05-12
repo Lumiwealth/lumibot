@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 
@@ -10,8 +10,8 @@ from lumibot.entities import Asset
 
 
 def test_router_routes_crypto_to_ibkr(monkeypatch):
-    import lumibot.tools.thetadata_helper as thetadata_helper
     import lumibot.tools.ibkr_helper as ibkr_helper
+    import lumibot.tools.thetadata_helper as thetadata_helper
 
     monkeypatch.setattr(ThetaDataBacktestingPandas, "kill_processes_by_name", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(thetadata_helper, "reset_theta_terminal_tracking", lambda *_args, **_kwargs: None)
@@ -22,8 +22,8 @@ def test_router_routes_crypto_to_ibkr(monkeypatch):
         calls["ibkr"] += 1
         idx = pd.DatetimeIndex(
             [
-                datetime(2025, 1, 1, 0, 0, tzinfo=timezone.utc),
-                datetime(2025, 1, 1, 0, 1, tzinfo=timezone.utc),
+                datetime(2025, 1, 1, 0, 0, tzinfo=UTC),
+                datetime(2025, 1, 1, 0, 1, tzinfo=UTC),
             ]
         ).tz_convert("America/New_York")
         return pd.DataFrame(
@@ -34,8 +34,8 @@ def test_router_routes_crypto_to_ibkr(monkeypatch):
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
 
     ds = RoutedBacktestingPandas(
-        datetime_start=datetime(2025, 1, 1, tzinfo=timezone.utc),
-        datetime_end=datetime(2025, 1, 2, tzinfo=timezone.utc),
+        datetime_start=datetime(2025, 1, 1, tzinfo=UTC),
+        datetime_end=datetime(2025, 1, 2, tzinfo=UTC),
         config={"backtesting_data_routing": {"crypto": "ibkr", "default": "thetadata"}},
         username="dev",
         password="dev",
@@ -46,27 +46,31 @@ def test_router_routes_crypto_to_ibkr(monkeypatch):
 
     asset = Asset(symbol="BTC", asset_type="crypto")
     quote = Asset(symbol="USD", asset_type="forex")
-    ds._update_pandas_data(asset, quote, length=2, timestep="minute", start_dt=datetime(2025, 1, 2, tzinfo=timezone.utc))
+    ds._update_pandas_data(
+        asset, quote, length=2, timestep="minute", start_dt=datetime(2025, 1, 2, tzinfo=UTC)
+    )
 
     assert calls["ibkr"] == 1
     assert ds._data_store
 
 
 def test_router_accepts_futures_key_alias(monkeypatch):
-    import lumibot.tools.thetadata_helper as thetadata_helper
     import lumibot.tools.ibkr_helper as ibkr_helper
+    import lumibot.tools.thetadata_helper as thetadata_helper
 
     monkeypatch.setattr(ThetaDataBacktestingPandas, "kill_processes_by_name", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(thetadata_helper, "reset_theta_terminal_tracking", lambda *_args, **_kwargs: None)
 
     calls = {"ibkr": 0}
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         calls["ibkr"] += 1
         idx = pd.DatetimeIndex(
             [
-                datetime(2025, 1, 1, 0, 0, tzinfo=timezone.utc),
-                datetime(2025, 1, 1, 0, 1, tzinfo=timezone.utc),
+                datetime(2025, 1, 1, 0, 0, tzinfo=UTC),
+                datetime(2025, 1, 1, 0, 1, tzinfo=UTC),
             ]
         ).tz_convert("America/New_York")
         return pd.DataFrame(
@@ -77,8 +81,8 @@ def test_router_accepts_futures_key_alias(monkeypatch):
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
 
     ds = RoutedBacktestingPandas(
-        datetime_start=datetime(2025, 1, 1, tzinfo=timezone.utc),
-        datetime_end=datetime(2025, 1, 2, tzinfo=timezone.utc),
+        datetime_start=datetime(2025, 1, 1, tzinfo=UTC),
+        datetime_end=datetime(2025, 1, 2, tzinfo=UTC),
         config={"backtesting_data_routing": {"futures": "ibkr", "default": "thetadata"}},
         username="dev",
         password="dev",
@@ -89,14 +93,14 @@ def test_router_accepts_futures_key_alias(monkeypatch):
 
     fut = Asset(symbol="MES", asset_type="future")
     quote = Asset(symbol="USD", asset_type="forex")
-    ds._update_pandas_data(fut, quote, length=2, timestep="minute", start_dt=datetime(2025, 1, 2, tzinfo=timezone.utc))
+    ds._update_pandas_data(fut, quote, length=2, timestep="minute", start_dt=datetime(2025, 1, 2, tzinfo=UTC))
 
     assert calls["ibkr"] == 1
 
 
 def test_router_uses_rth_for_ibkr_stock_daily(monkeypatch):
-    import lumibot.tools.thetadata_helper as thetadata_helper
     import lumibot.tools.ibkr_helper as ibkr_helper
+    import lumibot.tools.thetadata_helper as thetadata_helper
 
     monkeypatch.setattr(ThetaDataBacktestingPandas, "kill_processes_by_name", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(thetadata_helper, "reset_theta_terminal_tracking", lambda *_args, **_kwargs: None)
@@ -108,8 +112,8 @@ def test_router_uses_rth_for_ibkr_stock_daily(monkeypatch):
         captured["include_after_hours"] = bool(include_after_hours)
         idx = pd.DatetimeIndex(
             [
-                datetime(2025, 1, 1, 0, 0, tzinfo=timezone.utc),
-                datetime(2025, 1, 2, 0, 0, tzinfo=timezone.utc),
+                datetime(2025, 1, 1, 0, 0, tzinfo=UTC),
+                datetime(2025, 1, 2, 0, 0, tzinfo=UTC),
             ]
         ).tz_convert("America/New_York")
         return pd.DataFrame(
@@ -126,8 +130,8 @@ def test_router_uses_rth_for_ibkr_stock_daily(monkeypatch):
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
 
     ds = RoutedBacktestingPandas(
-        datetime_start=datetime(2025, 1, 1, tzinfo=timezone.utc),
-        datetime_end=datetime(2025, 1, 5, tzinfo=timezone.utc),
+        datetime_start=datetime(2025, 1, 1, tzinfo=UTC),
+        datetime_end=datetime(2025, 1, 5, tzinfo=UTC),
         config={"backtesting_data_routing": {"stock": "ibkr", "default": "thetadata"}},
         username="dev",
         password="dev",
@@ -138,7 +142,7 @@ def test_router_uses_rth_for_ibkr_stock_daily(monkeypatch):
 
     stock = Asset(symbol="TQQQ", asset_type="stock")
     quote = Asset(symbol="USD", asset_type="forex")
-    ds._update_pandas_data(stock, quote, length=2, timestep="day", start_dt=datetime(2025, 1, 2, tzinfo=timezone.utc))
+    ds._update_pandas_data(stock, quote, length=2, timestep="day", start_dt=datetime(2025, 1, 2, tzinfo=UTC))
 
     assert captured["calls"] == 1
     assert captured["include_after_hours"] is False
@@ -151,7 +155,7 @@ def test_router_get_quote_aligns_non_theta_daily_mode(monkeypatch):
     routed._observed_intraday_cadence = False  # type: ignore[attr-defined]
     routed._effective_day_mode = True  # type: ignore[attr-defined]
     routed._update_cadence_from_dt = lambda _dt: None  # type: ignore[attr-defined]
-    routed.get_datetime = lambda: datetime(2025, 1, 2, tzinfo=timezone.utc)  # type: ignore[attr-defined]
+    routed.get_datetime = lambda: datetime(2025, 1, 2, tzinfo=UTC)  # type: ignore[attr-defined]
 
     captured = {}
 
@@ -175,7 +179,7 @@ def test_router_get_quote_aligns_snapshot_only_for_non_theta_daily_mode(monkeypa
     routed._observed_intraday_cadence = False  # type: ignore[attr-defined]
     routed._effective_day_mode = True  # type: ignore[attr-defined]
     routed._update_cadence_from_dt = lambda _dt: None  # type: ignore[attr-defined]
-    routed.get_datetime = lambda: datetime(2025, 1, 2, tzinfo=timezone.utc)  # type: ignore[attr-defined]
+    routed.get_datetime = lambda: datetime(2025, 1, 2, tzinfo=UTC)  # type: ignore[attr-defined]
 
     captured = {}
 
@@ -196,9 +200,9 @@ def test_update_cadence_daily_mode_does_not_mark_intraday():
     routed = RoutedBacktestingPandas.__new__(RoutedBacktestingPandas)
     routed._timestep = "day"  # type: ignore[attr-defined]
     routed._observed_intraday_cadence = False  # type: ignore[attr-defined]
-    routed._cadence_last_dt = datetime(2025, 1, 2, 8, 30, tzinfo=timezone.utc)  # type: ignore[attr-defined]
+    routed._cadence_last_dt = datetime(2025, 1, 2, 8, 30, tzinfo=UTC)  # type: ignore[attr-defined]
 
-    routed._update_cadence_from_dt(datetime(2025, 1, 2, 9, 30, tzinfo=timezone.utc))
+    routed._update_cadence_from_dt(datetime(2025, 1, 2, 9, 30, tzinfo=UTC))
 
     assert routed._observed_intraday_cadence is False  # type: ignore[attr-defined]
     assert routed._effective_day_mode is True  # type: ignore[attr-defined]
@@ -208,7 +212,7 @@ def test_update_cadence_intraday_mode_marks_intraday():
     routed = RoutedBacktestingPandas.__new__(RoutedBacktestingPandas)
     routed._timestep = "minute"  # type: ignore[attr-defined]
     routed._observed_intraday_cadence = False  # type: ignore[attr-defined]
-    start_dt = datetime(2025, 1, 2, 14, 0, tzinfo=timezone.utc)
+    start_dt = datetime(2025, 1, 2, 14, 0, tzinfo=UTC)
     routed._cadence_last_dt = start_dt  # type: ignore[attr-defined]
 
     routed._update_cadence_from_dt(start_dt + timedelta(minutes=1))
@@ -220,9 +224,9 @@ def test_update_cadence_daily_lifecycle_pattern_does_not_mark_intraday():
     routed = RoutedBacktestingPandas.__new__(RoutedBacktestingPandas)
     routed._timestep = "minute"  # type: ignore[attr-defined]
     routed._observed_intraday_cadence = False  # type: ignore[attr-defined]
-    routed._cadence_last_dt = datetime(2025, 1, 2, 8, 30, tzinfo=timezone.utc)  # type: ignore[attr-defined]
+    routed._cadence_last_dt = datetime(2025, 1, 2, 8, 30, tzinfo=UTC)  # type: ignore[attr-defined]
 
-    routed._update_cadence_from_dt(datetime(2025, 1, 2, 9, 30, tzinfo=timezone.utc))
+    routed._update_cadence_from_dt(datetime(2025, 1, 2, 9, 30, tzinfo=UTC))
 
     assert routed._observed_intraday_cadence is False  # type: ignore[attr-defined]
     assert routed._effective_day_mode is True  # type: ignore[attr-defined]

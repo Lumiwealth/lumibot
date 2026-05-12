@@ -55,9 +55,7 @@ def test_repair_terminal_split_spike_without_next_day_reversion():
 
 
 def test_align_stock_index_daily_to_session_close_from_early_morning_timestamps():
-    idx = pd.to_datetime(
-        ["2024-01-02 04:00:00-05:00", "2024-01-03 04:00:00-05:00", "2024-01-04 04:00:00-05:00"]
-    )
+    idx = pd.to_datetime(["2024-01-02 04:00:00-05:00", "2024-01-03 04:00:00-05:00", "2024-01-04 04:00:00-05:00"])
     frame = pd.DataFrame(
         {
             "open": [10.0, 11.0, 12.0],
@@ -76,9 +74,7 @@ def test_align_stock_index_daily_to_session_close_from_early_morning_timestamps(
 
 
 def test_align_stock_index_daily_to_session_close_is_idempotent():
-    idx = pd.to_datetime(
-        ["2024-01-02 16:00:00-05:00", "2024-01-03 16:00:00-05:00", "2024-01-04 16:00:00-05:00"]
-    )
+    idx = pd.to_datetime(["2024-01-02 16:00:00-05:00", "2024-01-03 16:00:00-05:00", "2024-01-04 16:00:00-05:00"])
     frame = pd.DataFrame(
         {
             "open": [20.0, 21.0, 22.0],

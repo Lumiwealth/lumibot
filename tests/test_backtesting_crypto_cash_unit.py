@@ -1,13 +1,13 @@
+from datetime import date, timedelta
+from decimal import Decimal
+
 import pandas as pd
 import pytest
-from datetime import timedelta, date
-from decimal import Decimal
 
 from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting
 from lumibot.entities import Asset, Data, TradingFee
 from lumibot.entities.order import Order
 from lumibot.strategies.strategy import Strategy
-
 
 DEFAULT_START = "2025-01-13 00:00"
 DEFAULT_FREQ = "1min"

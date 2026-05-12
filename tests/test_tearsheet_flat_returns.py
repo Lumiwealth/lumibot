@@ -28,4 +28,3 @@ def test_create_tearsheet_does_not_crash_on_flat_returns(tmp_path):
 
     assert out.exists()
     assert "Tearsheet not generated" in out.read_text(encoding="utf-8", errors="ignore")
-

@@ -4,8 +4,10 @@ The old package initializer imported every helper module at once. That made
 basic imports pay for plotting, broker caches, Yahoo, CCXT, and analytics even
 when callers only needed one small helper.
 """
+# pyright: reportUnsupportedDunderAll=false
 
 from importlib import import_module as _import_module
+from typing import Any
 
 _SUBMODULES = {
     "backtest_cache",
@@ -142,10 +144,10 @@ for _name in ("PerfCounters", "perf_counter", "perf_counters"):
 
 _NAME_TO_MODULE["ROUND_HALF_EVEN"] = "helpers"
 
-__all__ = sorted(_SUBMODULES | set(_NAME_TO_MODULE))
+__all__: list[str] = sorted(_SUBMODULES | set(_NAME_TO_MODULE))
 
 
-def __getattr__(name):
+def __getattr__(name: str) -> Any:
     if name in _SUBMODULES:
         module = _import_module(f"{__name__}.{name}")
         globals()[name] = module
@@ -161,5 +163,5 @@ def __getattr__(name):
     return value
 
 
-def __dir__():
+def __dir__() -> list[str]:
     return sorted(set(globals()) | set(__all__))

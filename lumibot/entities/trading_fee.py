@@ -1,10 +1,20 @@
 from decimal import Decimal
+from typing import SupportsFloat
+
+DecimalLike = Decimal | SupportsFloat | str | int
 
 
 class TradingFee:
     """TradingFee class. Used to define the trading fees for a broker in a strategy/backtesting."""
 
-    def __init__(self, flat_fee=0.0, percent_fee=0.0, per_contract_fee=0.0, maker=True, taker=True):
+    def __init__(
+        self,
+        flat_fee: DecimalLike = 0.0,
+        percent_fee: DecimalLike = 0.0,
+        per_contract_fee: DecimalLike = 0.0,
+        maker: bool = True,
+        taker: bool = True,
+    ) -> None:
         """
         Parameters
         ----------

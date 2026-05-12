@@ -1,21 +1,20 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+import os
+from datetime import time, timedelta
+
+from lumibot.backtesting import PolygonDataBacktesting
+from lumibot.components.options_helper import OptionsHelper
+from lumibot.credentials import IS_BACKTESTING
+from lumibot.entities import Asset, Order, TradingFee
 from lumibot.strategies.strategy import Strategy
 from lumibot.traders import Trader
-from lumibot.entities import Asset, Order, TradingFee
-from lumibot.backtesting import PolygonDataBacktesting
-from lumibot.credentials import IS_BACKTESTING
 
-from lumibot.components.options_helper import OptionsHelper
-
-from datetime import time, timedelta
-import math
-import os
 
 class IronCondor0DTE(Strategy):
     """
@@ -76,7 +75,9 @@ class IronCondor0DTE(Strategy):
         self.options_helper = OptionsHelper(self)
 
         # Use persistent storage for state that must survive restarts and across lifecycle hooks
-        self.vars.underlying_asset = Asset("SPX", asset_type=Asset.AssetType.INDEX)  # SPX index as the underlying for SPX options
+        self.vars.underlying_asset = Asset(
+            "SPX", asset_type=Asset.AssetType.INDEX
+        )  # SPX index as the underlying for SPX options
         self.vars.vix_asset = Asset("VIX", asset_type=Asset.AssetType.INDEX)  # Provider-backed VIX index feed
         self.vars.opened_today = 0  # how many positions opened today
         self.vars.underlying_ref_price = None  # reference price for SPX to compute daily % change filter
@@ -117,7 +118,9 @@ class IronCondor0DTE(Strategy):
         # Get the expiration that is today (0DTE). If not available, return None.
         dt = self.get_datetime()
         target_date = dt.date()
-        expiry = self.options_helper.get_expiration_on_or_after_date(target_date, chains, call_or_put, underlying_asset=self.vars.underlying_asset)
+        expiry = self.options_helper.get_expiration_on_or_after_date(
+            target_date, chains, call_or_put, underlying_asset=self.vars.underlying_asset
+        )
         if expiry and expiry == target_date:
             return expiry
         return None
@@ -180,11 +183,19 @@ class IronCondor0DTE(Strategy):
         # Build the vertical spreads (short call spread + short put spread)
         # For call spread (short): lower_strike = short_call, upper_strike = long_call
         call_spread_orders = self.options_helper.build_call_vertical_spread_orders(
-            self.vars.underlying_asset, expiry, lower_strike=short_call_strike, upper_strike=long_call_strike, quantity=quantity
+            self.vars.underlying_asset,
+            expiry,
+            lower_strike=short_call_strike,
+            upper_strike=long_call_strike,
+            quantity=quantity,
         )
         # For put spread (short): upper_strike = short_put, lower_strike = long_put
         put_spread_orders = self.options_helper.build_put_vertical_spread_orders(
-            self.vars.underlying_asset, expiry, upper_strike=short_put_strike, lower_strike=long_put_strike, quantity=quantity
+            self.vars.underlying_asset,
+            expiry,
+            upper_strike=short_put_strike,
+            lower_strike=long_put_strike,
+            quantity=quantity,
         )
 
         if not call_spread_orders or not put_spread_orders:
@@ -220,9 +231,7 @@ class IronCondor0DTE(Strategy):
             # Create a mirror order on the same asset with the opposite side
             # We don't set limit prices here; helper will compute mid later when submitting
             close_orders.append(
-                self.create_order(
-                    o.asset, o.quantity, self._reverse_side(o.side), order_type=Order.OrderType.MARKET
-                )
+                self.create_order(o.asset, o.quantity, self._reverse_side(o.side), order_type=Order.OrderType.MARKET)
             )
         return close_orders
 
@@ -491,7 +500,7 @@ if __name__ == "__main__":
         results = IronCondor0DTE.backtest(
             datasource_class=PolygonDataBacktesting,
             backtesting_start=None,  # Set via environment when running backtests
-            backtesting_end=None,    # Set via environment when running backtests
+            backtesting_end=None,  # Set via environment when running backtests
             benchmark_asset=Asset("SPY", Asset.AssetType.STOCK),
             buy_trading_fees=[trading_fee],
             sell_trading_fees=[trading_fee],

@@ -1,6 +1,6 @@
 import json
 import threading
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pandas as pd
@@ -13,7 +13,7 @@ from lumibot.strategies import Strategy
 
 
 def _utc_iso_timestamp() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _event(kind: str, *, text: str | None = None, tool_name: str | None = None, payload: dict | None = None):
@@ -111,7 +111,7 @@ class _MCPHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(encoded)
 
-    def log_message(self, format, *args):  # noqa: A003
+    def log_message(self, format, *args):  # noqa: A002 - Matches BaseHTTPRequestHandler signature.
         return
 
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pandas as pd
 
@@ -15,14 +15,20 @@ def test_data_supports_hour_timestep_and_get_bars():
 
     idx = pd.DatetimeIndex(
         [
-            datetime(2025, 1, 1, 10, 0, tzinfo=timezone.utc),
-            datetime(2025, 1, 1, 11, 0, tzinfo=timezone.utc),
-            datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc),
-            datetime(2025, 1, 1, 13, 0, tzinfo=timezone.utc),
+            datetime(2025, 1, 1, 10, 0, tzinfo=UTC),
+            datetime(2025, 1, 1, 11, 0, tzinfo=UTC),
+            datetime(2025, 1, 1, 12, 0, tzinfo=UTC),
+            datetime(2025, 1, 1, 13, 0, tzinfo=UTC),
         ]
     ).tz_convert("America/New_York")
     df = pd.DataFrame(
-        {"open": [1.0, 2.0, 3.0, 4.0], "high": [1.1, 2.1, 3.1, 4.1], "low": [0.9, 1.9, 2.9, 3.9], "close": [1.0, 2.0, 3.0, 4.0], "volume": [10, 11, 12, 13]},
+        {
+            "open": [1.0, 2.0, 3.0, 4.0],
+            "high": [1.1, 2.1, 3.1, 4.1],
+            "low": [0.9, 1.9, 2.9, 3.9],
+            "close": [1.0, 2.0, 3.0, 4.0],
+            "volume": [10, 11, 12, 13],
+        },
         index=idx,
     )
 
@@ -35,15 +41,17 @@ def test_data_supports_hour_timestep_and_get_bars():
 
 
 def test_routed_backtesting_allows_hour_history_for_futures(monkeypatch):
-    import lumibot.tools.thetadata_helper as thetadata_helper
     import lumibot.tools.ibkr_helper as ibkr_helper
+    import lumibot.tools.thetadata_helper as thetadata_helper
 
     monkeypatch.setattr(ThetaDataBacktestingPandas, "kill_processes_by_name", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(thetadata_helper, "reset_theta_terminal_tracking", lambda *_args, **_kwargs: None)
 
     calls = {"ibkr": 0}
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         calls["ibkr"] += 1
         idx = pd.date_range(start=start_dt, end=end_dt, freq="h")
         if idx.tz is None:
@@ -57,8 +65,8 @@ def test_routed_backtesting_allows_hour_history_for_futures(monkeypatch):
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
 
     ds = RoutedBacktestingPandas(
-        datetime_start=datetime(2025, 1, 1, tzinfo=timezone.utc),
-        datetime_end=datetime(2025, 1, 2, tzinfo=timezone.utc),
+        datetime_start=datetime(2025, 1, 1, tzinfo=UTC),
+        datetime_end=datetime(2025, 1, 2, tzinfo=UTC),
         config={"backtesting_data_routing": {"future": "ibkr", "default": "thetadata"}},
         username="dev",
         password="dev",
@@ -66,7 +74,7 @@ def test_routed_backtesting_allows_hour_history_for_futures(monkeypatch):
         show_progress_bar=False,
         log_backtest_progress_to_file=False,
     )
-    ds._datetime = datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc)
+    ds._datetime = datetime(2025, 1, 1, 12, 0, tzinfo=UTC)
 
     asset = Asset(symbol="MES", asset_type="future")
     quote = Asset(symbol="USD", asset_type="forex")

@@ -28,7 +28,7 @@ import random
 import re
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import requests
 
@@ -38,9 +38,9 @@ DEFAULT_DOTENV_PATHS = (
 )
 
 
-def _parse_dotenv(path: Path) -> Dict[str, str]:
+def _parse_dotenv(path: Path) -> dict[str, str]:
     text = path.read_text(encoding="utf-8")
-    values: Dict[str, str] = {}
+    values: dict[str, str] = {}
     for raw in text.splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
@@ -55,7 +55,7 @@ def _parse_dotenv(path: Path) -> Dict[str, str]:
     return values
 
 
-def _load_config(dotenv_path: Optional[Path]) -> Dict[str, str]:
+def _load_config(dotenv_path: Path | None) -> dict[str, str]:
     if dotenv_path is not None:
         return _parse_dotenv(dotenv_path)
 
@@ -75,20 +75,20 @@ def _random_suffix(length: int = 8) -> str:
 
 
 def _iso_utc(ts: float) -> str:
-    return dt.datetime.fromtimestamp(ts, tz=dt.timezone.utc).isoformat().replace("+00:00", "Z")
+    return dt.datetime.fromtimestamp(ts, tz=dt.UTC).isoformat().replace("+00:00", "Z")
 
 
-def _http_headers(api_key: str) -> Dict[str, str]:
+def _http_headers(api_key: str) -> dict[str, str]:
     return {"x-api-key": api_key}
 
 
-def _request_json(session: requests.Session, method: str, url: str, *, headers: Dict[str, str], json_body: Any = None, timeout_s: int = 45) -> Any:
+def _request_json(session: requests.Session, method: str, url: str, *, headers: dict[str, str], json_body: Any = None, timeout_s: int = 45) -> Any:
     resp = session.request(method, url, headers=headers, json=json_body, timeout=timeout_s)
     resp.raise_for_status()
     return resp.json()
 
 
-def _download_text(session: requests.Session, url: str, *, headers: Dict[str, str], timeout_s: int = 60) -> str:
+def _download_text(session: requests.Session, url: str, *, headers: dict[str, str], timeout_s: int = 60) -> str:
     resp = session.get(url, headers=headers, timeout=timeout_s)
     resp.raise_for_status()
     return resp.text
@@ -98,7 +98,7 @@ def _safe_mkdir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
 
-def _build_backtest_env(dotenv: Dict[str, str], *, profile: Optional[str], audit: bool, cache_version: Optional[str]) -> Dict[str, str]:
+def _build_backtest_env(dotenv: dict[str, str], *, profile: str | None, audit: bool, cache_version: str | None) -> dict[str, str]:
     required_keys = (
         "DATADOWNLOADER_BASE_URL",
         "DATADOWNLOADER_API_KEY",
@@ -116,7 +116,7 @@ def _build_backtest_env(dotenv: Dict[str, str], *, profile: Optional[str], audit
     if missing:
         raise RuntimeError(f"Missing required env vars in dotenv: {', '.join(missing)}")
 
-    env: Dict[str, str] = {
+    env: dict[str, str] = {
         "IS_BACKTESTING": "True",
         "BACKTESTING_DATA_SOURCE": "thetadata",
         # Production backtests rely on injected env vars; recursive .env scanning is both slow and risky.
@@ -157,7 +157,7 @@ def _wait_for_terminal_status(
     *,
     poll_s: float = 3.0,
     timeout_s: int = 60 * 60,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     headers = _http_headers(api_key)
     url = f"{base_url}/status?bot_id={bot_id}"
     started = time.time()
@@ -181,11 +181,11 @@ def _download_artifacts(
     api_key: str,
     bot_id: str,
     out_dir: Path,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     headers = _http_headers(api_key)
     _safe_mkdir(out_dir)
 
-    artifacts: Dict[str, str] = {}
+    artifacts: dict[str, str] = {}
 
     def _save(file_type: str, suffix: str) -> None:
         url = f"{base_url}/backtest_results?bot_id={bot_id}&file={file_type}"

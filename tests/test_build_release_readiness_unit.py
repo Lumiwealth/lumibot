@@ -4,7 +4,6 @@ import importlib.util
 import sys
 from pathlib import Path
 
-
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "build_release_readiness.py"
 
 
@@ -22,35 +21,41 @@ def test_merge_lumibot_reports_replaces_duplicate_cells_with_latest_report():
     module = _load_module()
     merged = module._merge_lumibot_reports(
         [
-            (Path("/tmp/first.json"), {
-                "lumibot_file": "/repo/lumibot/__init__.py",
-                "lumibot_matrix": [
-                    {
-                        "provider": "ibkr",
-                        "symbol": "VIX",
-                        "interval": "day",
-                        "status": "fail",
-                        "artifact_path": "/tmp/old.html",
-                    }
-                ],
-                "cases": [],
-                "failure_buckets": [],
-                "unsupported_limits": [],
-            }),
-            (Path("/tmp/second.json"), {
-                "lumibot_matrix": [
-                    {
-                        "provider": "ibkr",
-                        "symbol": "VIX",
-                        "interval": "day",
-                        "status": "pass",
-                        "artifact_path": "/tmp/new.html",
-                    }
-                ],
-                "cases": [],
-                "failure_buckets": [],
-                "unsupported_limits": [],
-            }),
+            (
+                Path("/tmp/first.json"),
+                {
+                    "lumibot_file": "/repo/lumibot/__init__.py",
+                    "lumibot_matrix": [
+                        {
+                            "provider": "ibkr",
+                            "symbol": "VIX",
+                            "interval": "day",
+                            "status": "fail",
+                            "artifact_path": "/tmp/old.html",
+                        }
+                    ],
+                    "cases": [],
+                    "failure_buckets": [],
+                    "unsupported_limits": [],
+                },
+            ),
+            (
+                Path("/tmp/second.json"),
+                {
+                    "lumibot_matrix": [
+                        {
+                            "provider": "ibkr",
+                            "symbol": "VIX",
+                            "interval": "day",
+                            "status": "pass",
+                            "artifact_path": "/tmp/new.html",
+                        }
+                    ],
+                    "cases": [],
+                    "failure_buckets": [],
+                    "unsupported_limits": [],
+                },
+            ),
         ]
     )
 
@@ -114,7 +119,9 @@ def test_compute_release_readiness_flags_missing_cells_and_artifacts(tmp_path):
             "symbol": symbol,
             "interval": interval,
             "status": "pass",
-            "artifact_path": str((artifact_root / f"{symbol}-{interval}.html").resolve()) if symbol in module.REQUIRED_IBKR_INDEXES else "",
+            "artifact_path": str((artifact_root / f"{symbol}-{interval}.html").resolve())
+            if symbol in module.REQUIRED_IBKR_INDEXES
+            else "",
         }
         for symbol in module.REQUIRED_IBKR_SYMBOLS
         for interval in module.REQUIRED_INTERVALS

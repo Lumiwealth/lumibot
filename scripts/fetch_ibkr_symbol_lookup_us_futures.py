@@ -5,12 +5,12 @@ import argparse
 import csv
 import json
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any
 
 import requests
-
 
 IBKR_SYMBOL_LOOKUP_ENDPOINT = "https://www.interactivebrokers.com/webrest/search/products-by-filters"
 
@@ -22,7 +22,7 @@ class ProductKey:
     currency: str
 
 
-def _post_products(*, page_number: int, page_size: int, country: str, domain: str) -> List[Dict[str, Any]]:
+def _post_products(*, page_number: int, page_size: int, country: str, domain: str) -> list[dict[str, Any]]:
     headers = {
         "Content-Type": "application/json",
         "Origin": "https://www.interactivebrokers.com",
@@ -49,7 +49,7 @@ def _post_products(*, page_number: int, page_size: int, country: str, domain: st
     return products
 
 
-def _iter_pages(*, page_size: int, country: str, domain: str, sleep_s: float) -> Iterable[Tuple[int, List[Dict[str, Any]]]]:
+def _iter_pages(*, page_size: int, country: str, domain: str, sleep_s: float) -> Iterable[tuple[int, list[dict[str, Any]]]]:
     page = 1
     while True:
         products = _post_products(page_number=page, page_size=page_size, country=country, domain=domain)
@@ -61,7 +61,7 @@ def _iter_pages(*, page_size: int, country: str, domain: str, sleep_s: float) ->
             time.sleep(sleep_s)
 
 
-def _to_key(product: Dict[str, Any]) -> Optional[ProductKey]:
+def _to_key(product: dict[str, Any]) -> ProductKey | None:
     symbol = str(product.get("symbol") or "").strip().upper()
     exchange = str(product.get("exchangeId") or "").strip().upper()
     currency = str(product.get("currency") or "").strip().upper()
@@ -90,7 +90,7 @@ def main() -> int:
     roots_csv = out_dir / f"{args.country.lower()}_futures_roots.csv"
 
     seen_roots: set[ProductKey] = set()
-    root_rows: List[Dict[str, str]] = []
+    root_rows: list[dict[str, str]] = []
 
     total_products = 0
     total_pages = 0

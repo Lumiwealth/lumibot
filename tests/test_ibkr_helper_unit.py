@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 
 import pandas as pd
 import pytest
@@ -72,8 +72,8 @@ def test_ibkr_helper_caches_history_and_reuses_cache(monkeypatch, tmp_path):
 
     asset = Asset(symbol="BTC", asset_type="crypto")
     quote = Asset(symbol="USD", asset_type="forex")
-    start = datetime.fromtimestamp(1700000000, tz=timezone.utc)
-    end = datetime.fromtimestamp(1700000060, tz=timezone.utc)
+    start = datetime.fromtimestamp(1700000000, tz=UTC)
+    end = datetime.fromtimestamp(1700000060, tz=UTC)
 
     df1 = ibkr_helper.get_price_data(
         asset=asset,
@@ -145,8 +145,8 @@ def test_ibkr_helper_persists_fetched_bars_even_when_requested_window_has_no_ove
     quote = Asset(symbol="USD", asset_type="forex")
 
     # Request a time window that is strictly AFTER the returned bars.
-    start = datetime.fromtimestamp(1700000000 + 3600, tz=timezone.utc)
-    end = datetime.fromtimestamp(1700000060 + 7200, tz=timezone.utc)
+    start = datetime.fromtimestamp(1700000000 + 3600, tz=UTC)
+    end = datetime.fromtimestamp(1700000060 + 7200, tz=UTC)
 
     df = ibkr_helper.get_price_data(
         asset=asset,
@@ -186,8 +186,8 @@ def test_ibkr_fetch_history_between_dates_keeps_chunks_on_later_empty_page(monke
 
     asset = Asset(symbol="TSLA", asset_type=Asset.AssetType.STOCK)
     quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
-    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
-    end = datetime(2026, 3, 2, tzinfo=timezone.utc)
+    start = datetime(2026, 1, 1, tzinfo=UTC)
+    end = datetime(2026, 3, 2, tzinfo=UTC)
 
     monkeypatch.setattr(ibkr_helper, "_resolve_conid", lambda **kwargs: 76792991)
     page_one = {
@@ -200,7 +200,7 @@ def test_ibkr_fetch_history_between_dates_keeps_chunks_on_later_empty_page(monke
                 "c": 400.5 + i,
                 "v": 100 + i,
             }
-            for i, ts in enumerate(pd.date_range(end=end, periods=7, freq="B", tz=timezone.utc))
+            for i, ts in enumerate(pd.date_range(end=end, periods=7, freq="B", tz=UTC))
         ]
     }
     calls = {"count": 0}
@@ -237,8 +237,8 @@ def test_ibkr_frame_covers_requested_window_rejects_underfilled_daily_series_and
     import lumibot.tools.ibkr_helper as ibkr_helper
 
     asset = Asset(symbol="TSLA", asset_type=Asset.AssetType.STOCK)
-    start = datetime(2026, 2, 20, tzinfo=timezone.utc)
-    end = datetime(2026, 3, 13, tzinfo=timezone.utc)
+    start = datetime(2026, 2, 20, tzinfo=UTC)
+    end = datetime(2026, 3, 13, tzinfo=UTC)
 
     underfilled_end = pd.Timestamp(end).tz_convert("America/New_York") - pd.Timedelta(days=10)
     underfilled_idx = pd.date_range(end=underfilled_end, periods=5, freq="B")
@@ -326,15 +326,17 @@ def test_ibkr_downloader_payload_contract_rejects_partial_or_uncacheable_history
         )
 
 
-def test_ibkr_get_price_data_returns_real_cached_bars_when_window_stays_underfilled_after_refresh_error(monkeypatch, tmp_path):
+def test_ibkr_get_price_data_returns_real_cached_bars_when_window_stays_underfilled_after_refresh_error(
+    monkeypatch, tmp_path
+):
     import lumibot.tools.ibkr_helper as ibkr_helper
 
     monkeypatch.setattr(ibkr_helper, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
 
     asset = Asset(symbol="VIX", asset_type=Asset.AssetType.INDEX)
     quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
-    start = datetime(2026, 3, 1, tzinfo=timezone.utc)
-    end = datetime(2026, 3, 20, tzinfo=timezone.utc)
+    start = datetime(2026, 3, 1, tzinfo=UTC)
+    end = datetime(2026, 3, 20, tzinfo=UTC)
 
     cache_file = ibkr_helper._cache_file_for(
         asset=asset,
@@ -417,9 +419,7 @@ def test_history_period_for_request_daily_stock_index_uses_cap():
 
     for asset_type in ("stock", "index"):
         for bar in ("1d", "1D"):
-            period = ibkr_helper._history_period_for_request(
-                asset_type=asset_type, bar=bar, source="Trades"
-            )
+            period = ibkr_helper._history_period_for_request(asset_type=asset_type, bar=bar, source="Trades")
             assert period == ibkr_helper.IBKR_STOCK_INDEX_DAILY_MAX_PERIOD, (
                 f"asset_type={asset_type} bar={bar} period={period}"
             )

@@ -24,6 +24,7 @@ as `datetime64[us, America/New_York]`. Older caches written by older pandas
 (the local dev cache) deserialize as `datetime64[ns]` and accidentally
 worked, hiding the bug.
 """
+
 from __future__ import annotations
 
 import pandas as pd
@@ -48,10 +49,10 @@ def _make_frame(unit: str) -> pd.DataFrame:
     ).as_unit(unit)
     return pd.DataFrame(
         {
-            "open":   [95.00, 96.00, 88.00, 90.00, 89.00, 96.00],
-            "high":   [96.00, 97.00, 91.00, 91.00, 90.00, 97.92],
-            "low":    [94.00, 95.00, 87.00, 88.00, 88.00, 95.40],
-            "close":  [95.22, 91.46, 89.81, 90.98, 88.65, 97.43],
+            "open": [95.00, 96.00, 88.00, 90.00, 89.00, 96.00],
+            "high": [96.00, 97.00, 91.00, 91.00, 90.00, 97.92],
+            "low": [94.00, 95.00, 87.00, 88.00, 88.00, 95.40],
+            "close": [95.22, 91.46, 89.81, 90.98, 88.65, 97.43],
             "volume": [1.0] * 6,
         },
         index=idx,
@@ -134,3 +135,120 @@ def test_asi8_microsecond_index_has_smaller_magnitude_than_nanoseconds():
         f"({v_us}). If this assertion fails, pandas changed behavior and the "
         f"unit-mismatch fix in Data.__init__ needs to be reviewed."
     )
+
+
+def test_large_iter_index_uses_lazy_exact_lookup(monkeypatch):
+    """Large data sets should not materialize a python-datetime dict per row."""
+    import lumibot.entities.data as data_module
+
+    monkeypatch.setattr(data_module, "_ITER_INDEX_DICT_MAX_ROWS", 2)
+    ny = pytz.timezone("America/New_York")
+    idx = pd.date_range(ny.localize(pd.Timestamp("2024-01-02 09:30")), periods=3, freq="1min")
+    df = pd.DataFrame(
+        {
+            "open": [1.0, 2.0, 3.0],
+            "high": [1.0, 2.0, 3.0],
+            "low": [1.0, 2.0, 3.0],
+            "close": [1.0, 2.0, 3.0],
+            "volume": [1.0, 1.0, 1.0],
+        },
+        index=idx,
+    )
+    data = Data(Asset("SPY"), df, timestep="minute")
+    data.repair_times_and_fill(df.index)
+
+    assert type(data.iter_index_dict).__name__ == "_DatetimeIndexLookup"
+    assert data.iter_index_dict.get(idx[1].to_pydatetime()) == 1
+    assert idx[2].to_pydatetime() in data.iter_index_dict
+    assert data.get_previous_bar_close_fast(idx[2].to_pydatetime()) == 2.0
+
+
+def test_large_daily_iter_index_uses_lower_lazy_threshold(monkeypatch):
+    """Large daily series can use lazy exact lookup without slowing hot minute scans."""
+    import lumibot.entities.data as data_module
+
+    monkeypatch.setattr(data_module, "_ITER_INDEX_DICT_MAX_ROWS", 100)
+    monkeypatch.setattr(data_module, "_ITER_INDEX_DAY_DICT_MAX_ROWS", 2)
+    ny = pytz.timezone("America/New_York")
+    minute_idx = pd.date_range(ny.localize(pd.Timestamp("2024-01-02 09:30")), periods=3, freq="1min")
+    day_idx = pd.date_range(ny.localize(pd.Timestamp("2024-01-02 16:00")), periods=3, freq="1D")
+
+    def frame(idx):
+        return pd.DataFrame(
+            {
+                "open": [1.0, 2.0, 3.0],
+                "high": [1.0, 2.0, 3.0],
+                "low": [1.0, 2.0, 3.0],
+                "close": [1.0, 2.0, 3.0],
+                "volume": [1.0, 1.0, 1.0],
+            },
+            index=idx,
+        )
+
+    minute_data = Data(Asset("SPY"), frame(minute_idx), timestep="minute")
+    minute_data.repair_times_and_fill(minute_idx)
+    day_data = Data(Asset("SPY"), frame(day_idx), timestep="day")
+    day_data.repair_times_and_fill(day_idx)
+
+    assert type(minute_data.iter_index_dict) is dict
+    assert type(day_data.iter_index_dict).__name__ == "_DatetimeIndexLookup"
+    assert day_data.iter_index_dict.get(day_idx[2].to_pydatetime()) == 2
+
+
+def test_large_crypto_minute_iter_index_uses_lower_lazy_threshold(monkeypatch):
+    """Crypto minute data can avoid datetime dicts without changing non-crypto minute data."""
+    import lumibot.entities.data as data_module
+
+    monkeypatch.setattr(data_module, "_ITER_INDEX_DICT_MAX_ROWS", 100)
+    monkeypatch.setattr(data_module, "_ITER_INDEX_CRYPTO_MINUTE_DICT_MAX_ROWS", 2)
+    ny = pytz.timezone("America/New_York")
+    idx = pd.date_range(ny.localize(pd.Timestamp("2024-01-02 09:30")), periods=3, freq="1min")
+    frame = pd.DataFrame(
+        {
+            "open": [1.0, 2.0, 3.0],
+            "high": [1.0, 2.0, 3.0],
+            "low": [1.0, 2.0, 3.0],
+            "close": [1.0, 2.0, 3.0],
+            "volume": [1.0, 1.0, 1.0],
+        },
+        index=idx,
+    )
+
+    stock_data = Data(Asset("SPY"), frame, timestep="minute")
+    stock_data.repair_times_and_fill(idx)
+    crypto_data = Data(
+        Asset("BTC", asset_type=Asset.AssetType.CRYPTO),
+        frame,
+        timestep="minute",
+        quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
+    )
+    crypto_data.repair_times_and_fill(idx)
+
+    assert type(stock_data.iter_index_dict) is dict
+    assert type(crypto_data.iter_index_dict).__name__ == "_DatetimeIndexLookup"
+    assert crypto_data.iter_index_dict.get(idx[2].to_pydatetime()) == 2
+
+
+def test_lazy_iter_index_handles_large_forward_jumps(monkeypatch):
+    """Lazy exact lookup should not depend on a small monotonic cursor step."""
+    import lumibot.entities.data as data_module
+
+    monkeypatch.setattr(data_module, "_ITER_INDEX_DICT_MAX_ROWS", 2)
+    ny = pytz.timezone("America/New_York")
+    idx = pd.date_range(ny.localize(pd.Timestamp("2024-01-02 09:30")), periods=200, freq="1min")
+    df = pd.DataFrame(
+        {
+            "open": range(200),
+            "high": range(200),
+            "low": range(200),
+            "close": range(200),
+            "volume": [1.0] * 200,
+        },
+        index=idx,
+    )
+    data = Data(Asset("SPY"), df, timestep="minute")
+    data.repair_times_and_fill(df.index)
+
+    assert data.iter_index_dict.get(idx[1].to_pydatetime()) == 1
+    assert data.iter_index_dict.get(idx[180].to_pydatetime()) == 180
+    assert data.iter_index_dict.get(idx[40].to_pydatetime()) == 40

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import numpy as np
 import pandas as pd
@@ -103,10 +103,10 @@ def test_stats_summary_supports_datetime64_us_index():
         ),
         pd.Index(
             [
-                datetime(2026, 1, 1, tzinfo=timezone.utc),
-                datetime(2026, 1, 2, tzinfo=timezone.utc),
-                datetime(2026, 1, 3, tzinfo=timezone.utc),
-                datetime(2026, 1, 4, tzinfo=timezone.utc),
+                datetime(2026, 1, 1, tzinfo=UTC),
+                datetime(2026, 1, 2, tzinfo=UTC),
+                datetime(2026, 1, 3, tzinfo=UTC),
+                datetime(2026, 1, 4, tzinfo=UTC),
             ],
             dtype="object",
         ),

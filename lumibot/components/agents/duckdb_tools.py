@@ -4,15 +4,70 @@ import hashlib
 import re
 import time
 from collections import defaultdict
+from collections.abc import Callable
+from datetime import date, datetime
 from importlib import import_module
-from typing import Any
+from types import ModuleType
+from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
 from lumibot.tools.helpers import parse_timestep_qty_and_unit
 
-from .asset_resolution import resolve_asset_and_quote
-
-
 _READ_ONLY_SQL_RE = re.compile(r"^\s*(select|with|show|describe|pragma|explain)\b", re.IGNORECASE)
+
+if TYPE_CHECKING:
+    from pandas import DataFrame as PandasDataFrame
+else:
+    PandasDataFrame = Any
+
+SourceEntry: TypeAlias = tuple[Any, Any, PandasDataFrame]  # noqa: UP040
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str) -> None:
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self) -> ModuleType:
+        module = cast(ModuleType | None, object.__getattribute__(self, "_module"))
+        if module is None:
+            module = import_module(cast(str, object.__getattribute__(self, "_module_name")))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._load(), name)
+
+
+duckdb = _LazyModule("duckdb")
+pd = _LazyModule("pandas")
+
+
+def _resolve_asset_and_quote(
+    strategy: Any,
+    *,
+    symbol: str,
+    asset_type: str,
+    expiration: date | datetime | None,
+    strike: float | None,
+    right: str | None,
+    quote_symbol: str | None,
+) -> tuple[Any, Any | None]:
+    asset_resolution_module: Any = import_module("lumibot.components.agents.asset_resolution")
+    resolver = cast(
+        Callable[..., tuple[Any, Any | None]],
+        asset_resolution_module.resolve_asset_and_quote,
+    )
+    return resolver(
+        strategy,
+        symbol=symbol,
+        asset_type=asset_type,
+        expiration=expiration,
+        strike=strike,
+        right=right,
+        quote_symbol=quote_symbol,
+    )
 
 
 class _LazyModule:
@@ -47,7 +102,7 @@ class DuckDBQueryLayer:
     def __init__(self, strategy: Any) -> None:
         self.strategy = strategy
         self.connection = duckdb.connect(database=":memory:")
-        self._frames: dict[str, pd.DataFrame] = {}
+        self._frames: dict[str, PandasDataFrame] = {}
         self._table_meta: dict[str, dict[str, Any]] = {}
         self._source_tables: dict[tuple[Any, ...], dict[str, Any]] = {}
         self._history_cache: dict[tuple[Any, ...], dict[str, Any]] = {}
@@ -68,7 +123,7 @@ class DuckDBQueryLayer:
         slug = re.sub(r"[^a-zA-Z0-9_]+", "_", value).strip("_").lower()
         return slug or "table"
 
-    def _normalize_index(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _normalize_index(self, df: PandasDataFrame) -> PandasDataFrame:
         normalized = df.copy()
         if normalized.index.name:
             index_name = normalized.index.name
@@ -121,16 +176,23 @@ class DuckDBQueryLayer:
         broker = getattr(self.strategy, "broker", None)
         return getattr(broker, "data_source", None)
 
-    def _lookup_source_frame(self, *, asset: Any, quote: Any, timestep: str) -> tuple[tuple[Any, ...], Any, pd.DataFrame] | None:
+    @staticmethod
+    def _is_dataframe(value: object) -> bool:
+        dataframe_type: Any = pd.DataFrame
+        return isinstance(value, dataframe_type)
+
+    def _lookup_source_frame(self, *, asset: Any, quote: Any, timestep: str) -> SourceEntry | None:
         data_source = self._data_source()
         store = getattr(data_source, "_data_store", None)
         finder = getattr(data_source, "find_asset_in_data_store", None)
         if not isinstance(store, dict) or not callable(finder):
             return None
-        store_key = finder(asset, quote, timestep)
-        if store_key not in store:
+        store_dict = cast(dict[object, object], store)
+        find_asset = cast(Callable[[Any, Any, str], object], finder)
+        store_key = find_asset(asset, quote, timestep)
+        if store_key not in store_dict:
             return None
-        data = store[store_key]
+        data = store_dict[store_key]
         if data is None:
             return None
         source_timestep = self._normalize_timestep(getattr(data, "timestep", ""))
@@ -138,16 +200,16 @@ class DuckDBQueryLayer:
         if source_timestep != requested_timestep:
             return None
         frame = getattr(data, "df", None)
-        if not isinstance(frame, pd.DataFrame):
+        if not self._is_dataframe(frame):
             return None
-        return store_key, data, frame
+        return store_key, data, cast(PandasDataFrame, frame)
 
     def _source_table_name(self, *, symbol: str, asset_type: str, timestep: str, store_key: Any) -> str:
         digest = hashlib.sha1(repr(store_key).encode("utf-8")).hexdigest()[:10]
         slug = self._slugify(f"{symbol}_{asset_type}_{timestep}_{digest}")
         return f"source_{slug}"
 
-    def _register_frame(self, table_name: str, frame: pd.DataFrame, meta: dict[str, Any]) -> dict[str, Any]:
+    def _register_frame(self, table_name: str, frame: PandasDataFrame, meta: dict[str, Any]) -> dict[str, Any]:
         self._frames[table_name] = frame
         self.connection.register(table_name, frame)
         info = {
@@ -166,7 +228,7 @@ class DuckDBQueryLayer:
         asset_type: str,
         timestep: str,
         store_key: Any,
-        frame: pd.DataFrame,
+        frame: PandasDataFrame,
     ) -> dict[str, Any]:
         cache_key = (store_key, self._normalize_timestep(timestep))
         cached = self._source_tables.get(cache_key)
@@ -174,11 +236,15 @@ class DuckDBQueryLayer:
             self.metrics["history_bind_cache_hits"] += 1.0
             return cached
         normalized = self._normalize_index(frame)
-        datetime_column = next((col for col in normalized.columns if "date" in str(col).lower() or "time" in str(col).lower()), None)
+        datetime_column = next(
+            (col for col in normalized.columns if "date" in str(col).lower() or "time" in str(col).lower()), None
+        )
         if datetime_column is None:
             datetime_column = normalized.columns[0]
         normalized[datetime_column] = pd.to_datetime(normalized[datetime_column])
-        table_name = self._source_table_name(symbol=symbol, asset_type=asset_type, timestep=timestep, store_key=store_key)
+        table_name = self._source_table_name(
+            symbol=symbol, asset_type=asset_type, timestep=timestep, store_key=store_key
+        )
         info = self._register_frame(
             table_name,
             normalized,
@@ -193,6 +259,12 @@ class DuckDBQueryLayer:
         self._source_tables[cache_key] = info
         self.metrics["history_bind_calls"] += 1.0
         return info
+
+    @staticmethod
+    def _expiration_for_asset(value: str | None) -> date | datetime | None:
+        if value is None:
+            return None
+        return cast(date, pd.Timestamp(value).date())
 
     def _create_visible_view(
         self,
@@ -225,9 +297,7 @@ class DuckDBQueryLayer:
         )
         self.connection.execute(sql)
         row_count = int(
-            self.connection.execute(
-                f"SELECT COUNT(*) FROM {self._quote_identifier(table_name)}"
-            ).fetchone()[0]
+            self.connection.execute(f"SELECT COUNT(*) FROM {self._quote_identifier(table_name)}").fetchone()[0]
         )
         info = {
             "table_name": table_name,
@@ -280,11 +350,11 @@ class DuckDBQueryLayer:
         if cached is not None:
             self.metrics["history_cache_hits"] += 1.0
             return dict(cached)
-        asset, quote = resolve_asset_and_quote(
+        asset, quote = _resolve_asset_and_quote(
             self.strategy,
             symbol=symbol,
             asset_type=asset_type,
-            expiration=expiration,
+            expiration=self._expiration_for_asset(expiration),
             strike=strike,
             right=right,
             quote_symbol=quote_symbol,
@@ -339,7 +409,9 @@ class DuckDBQueryLayer:
                     "symbol": symbol,
                     "asset_type": asset_type,
                     "timestep": timestep,
-                    "loaded_at": self.strategy.get_datetime().isoformat() if hasattr(self.strategy, "get_datetime") else None,
+                    "loaded_at": self.strategy.get_datetime().isoformat()
+                    if hasattr(self.strategy, "get_datetime")
+                    else None,
                     "kind": "slice_frame",
                 },
             )

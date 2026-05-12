@@ -48,4 +48,3 @@ def test_repair_times_and_fill_keeps_daily_quotes_ffilled_across_gaps():
     assert not np.isnan(data.df.loc[idx[1], "ask"])
     assert data.df.loc[idx[1], "bid"] == 110.0
     assert data.df.loc[idx[1], "ask"] == 112.0
-

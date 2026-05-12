@@ -73,14 +73,26 @@ class IbkrCryptoAcceptance(Strategy):
         # Phase 0: market buy
         if self.vars.phase == 0:
             self.vars.phase_started_at = now
-            self._submit(self.create_order(self.base, Decimal("0.01"), Order.OrderSide.BUY, order_type=Order.OrderType.MARKET, quote=self.quote))
+            self._submit(
+                self.create_order(
+                    self.base, Decimal("0.01"), Order.OrderSide.BUY, order_type=Order.OrderType.MARKET, quote=self.quote
+                )
+            )
             self.vars.phase += 1
             return
 
         # Phase 1: hold exposure across day boundaries (QuantStats is daily-resampled) then sell.
         if self.vars.phase == 1 and (now - self.vars.phase_started_at) >= timedelta(hours=36):
             self.vars.phase_started_at = now
-            self._submit(self.create_order(self.base, Decimal("0.01"), Order.OrderSide.SELL, order_type=Order.OrderType.MARKET, quote=self.quote))
+            self._submit(
+                self.create_order(
+                    self.base,
+                    Decimal("0.01"),
+                    Order.OrderSide.SELL,
+                    order_type=Order.OrderType.MARKET,
+                    quote=self.quote,
+                )
+            )
             self.vars.phase += 1
             return
 

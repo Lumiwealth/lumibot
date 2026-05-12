@@ -1,7 +1,5 @@
 from datetime import datetime
 
-import pytest
-
 from lumibot.entities import Asset
 from lumibot.tools import thetadata_helper
 
@@ -34,16 +32,12 @@ def test_advance_download_status_progress_is_contract_specific_for_options():
     )
 
     # Same underlying symbol, different strike -> must not advance.
-    thetadata_helper.advance_download_status_progress(
-        asset=other_contract, data_type="quote", timespan="day", step=1
-    )
+    thetadata_helper.advance_download_status_progress(asset=other_contract, data_type="quote", timespan="day", step=1)
     status = thetadata_helper.get_download_status()
     assert status["current"] == 0
 
     # Matching contract -> advances.
-    thetadata_helper.advance_download_status_progress(
-        asset=active_contract, data_type="quote", timespan="day", step=1
-    )
+    thetadata_helper.advance_download_status_progress(asset=active_contract, data_type="quote", timespan="day", step=1)
     status = thetadata_helper.get_download_status()
     assert status["current"] == 1
 

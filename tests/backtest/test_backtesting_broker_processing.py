@@ -1,15 +1,15 @@
-import pandas as pd
-import pytest
 from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import MagicMock
 
+import pandas as pd
+import pytest
+
 from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting
 from lumibot.entities import Asset, Data, SmartLimitConfig, SmartLimitPreset, TradingFee, TradingSlippage
-from lumibot.tools.smart_limit_utils import build_price_ladder, round_to_tick
 from lumibot.entities.order import Order
 from lumibot.strategies.strategy import Strategy
-
+from lumibot.tools.smart_limit_utils import build_price_ladder, round_to_tick
 
 DEFAULT_START = "2025-01-13 09:30"
 DEFAULT_FREQ = "1min"
@@ -355,6 +355,7 @@ def test_oco_order_exit_cancels_other_child():
     canceled = [child for child in oco.child_orders if child.is_canceled()]
     assert len(filled) == 1
     assert len(canceled) == 1
+
 
 @pytest.mark.parametrize(
     "order_type, bars, quantity, order_kwargs, expected_price",

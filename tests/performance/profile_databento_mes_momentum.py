@@ -6,20 +6,20 @@ This uses a real trading strategy (not a toy test) to find actual bottlenecks.
 from __future__ import annotations
 
 import argparse
+import math
 import time
 from datetime import datetime
 from pathlib import Path
 
-import yappi
-import pytz
 import pandas as pd
-import math
+import pytz
+import yappi
 
 from lumibot.backtesting import BacktestingBroker, DataBentoDataBacktestingPandas, DataBentoDataBacktestingPolars
+from lumibot.credentials import DATABENTO_CONFIG
 from lumibot.entities import Asset, Order, TradingFee
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
-from lumibot.credentials import DATABENTO_CONFIG
 
 OUTPUT_DIR = Path("tests/performance/logs")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -32,19 +32,17 @@ class MESMomentumSMA9(Strategy):
 
     parameters = {
         # Technicals
-        "sma_period": 9,                 # 9-minute SMA gate
-        "atr_period": 14,               # ATR lookback for volatility
-        "atr_stop_mult": 1.0,           # Stop distance = ATR * this multiplier
-        "rr_ratio": 3.0,                # Reward:Risk ratio (3:1)
-
+        "sma_period": 9,  # 9-minute SMA gate
+        "atr_period": 14,  # ATR lookback for volatility
+        "atr_stop_mult": 1.0,  # Stop distance = ATR * this multiplier
+        "rr_ratio": 3.0,  # Reward:Risk ratio (3:1)
         # Risk and sizing
-        "risk_per_trade_pct": 0.01,     # Risk 1% of portfolio per trade
-        "mes_point_value": 5.0,         # MES dollar value per 1.0 index point
-        "max_contracts": 5,             # Cap position size
-
+        "risk_per_trade_pct": 0.01,  # Risk 1% of portfolio per trade
+        "mes_point_value": 5.0,  # MES dollar value per 1.0 index point
+        "max_contracts": 5,  # Cap position size
         # Data & cadence
-        "bars_lookback": 200,           # Pull enough bars for indicators
-        "timestep": "minute",          # 1-minute bars
+        "bars_lookback": 200,  # Pull enough bars for indicators
+        "timestep": "minute",  # 1-minute bars
     }
 
     def initialize(self):
@@ -73,7 +71,7 @@ class MESMomentumSMA9(Strategy):
 
         # Blend SMA with latest price
         if last_price is not None and len(df) >= sma_period:
-            closes = df["close"].iloc[-(sma_period-1):].tolist()
+            closes = df["close"].iloc[-(sma_period - 1) :].tolist()
             closes.append(last_price)
             sma_live = sum(closes) / sma_period
         else:
@@ -173,10 +171,10 @@ def run_mes_momentum_profile(mode: str) -> float:
     start = tzinfo.localize(datetime(2024, 1, 3, 9, 30))
     end = tzinfo.localize(datetime(2024, 1, 5, 16, 0))
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Starting {mode.upper()} backtest...")
     print(f"Period: {start} to {end}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     yappi.clear_stats()
     yappi.set_clock_type("wall")
@@ -205,7 +203,7 @@ def run_mes_momentum_profile(mode: str) -> float:
     logfile = str(OUTPUT_DIR / f"mes_diag_{mode}")
     trader = Trader(logfile=logfile, backtest=True)
     trader.add_strategy(strat)
-    results = trader.run_all(
+    trader.run_all(
         show_plot=False,
         show_tearsheet=False,
         show_indicators=False,
@@ -219,17 +217,17 @@ def run_mes_momentum_profile(mode: str) -> float:
     yappi.get_func_stats().save(str(profile_path), type="pstat")
 
     # Print results
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"MODE: {mode.upper()}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Elapsed time: {elapsed:.2f}s")
     print(f"Profile saved: {profile_path}")
 
     # Show iteration count if available
-    if hasattr(strat.broker, 'iteration_count'):
+    if hasattr(strat.broker, "iteration_count"):
         print(f"Iterations: {strat.broker.iteration_count}")
 
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     return elapsed
 
@@ -239,7 +237,7 @@ def main() -> None:
     parser.add_argument("--mode", choices=["pandas", "polars", "both"], default="both")
     args = parser.parse_args()
 
-    if not DATABENTO_API_KEY or DATABENTO_API_KEY == '<your key here>':
+    if not DATABENTO_API_KEY or DATABENTO_API_KEY == "<your key here>":
         print("ERROR: DATABENTO_API_KEY not configured")
         return
 
@@ -252,9 +250,9 @@ def main() -> None:
 
     # Print comparison
     if len(results) > 1:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("COMPARISON")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         pandas_time = results.get("pandas", 0)
         polars_time = results.get("polars", 0)
         if pandas_time > 0 and polars_time > 0:
@@ -262,7 +260,7 @@ def main() -> None:
             print(f"Pandas: {pandas_time:.2f}s")
             print(f"Polars: {polars_time:.2f}s")
             print(f"Speedup: {speedup:.2f}x")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
 
 
 if __name__ == "__main__":

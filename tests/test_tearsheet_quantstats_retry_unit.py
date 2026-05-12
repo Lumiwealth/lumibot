@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pandas as pd
 
@@ -56,4 +56,3 @@ def test_tearsheet_retries_on_gaussian_kde_failure(monkeypatch, tmp_path):
     assert calls["n"] == 2
     text = out.read_text(encoding="utf-8")
     assert "Tearsheet not generated" not in text
-

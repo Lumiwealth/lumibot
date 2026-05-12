@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-import pytest
-
 from lumibot.strategies.strategy import Strategy
 from lumibot.strategies.strategy_executor import StrategyExecutor
 
@@ -47,4 +45,3 @@ def test_smart_limit_processing_uses_active_orders_fast_path(mocker):
 
     broker.get_active_tracked_orders.assert_called_once_with(strategy=strategy.name)
     broker.get_tracked_orders.assert_not_called()
-

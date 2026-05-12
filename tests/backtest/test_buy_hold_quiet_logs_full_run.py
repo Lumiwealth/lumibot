@@ -6,14 +6,15 @@ Test version of stock_buy_and_hold.py specifically for testing quiet logs functi
 # Test version - imports local lumibot for development
 
 import datetime as dt
-from dotenv import load_dotenv
 from pathlib import Path
+
 import pytz
+from dotenv import load_dotenv
 
 from lumibot.backtesting import BacktestingBroker
-from lumibot.traders import Trader
-from lumibot.strategies.strategy import Strategy
 from lumibot.credentials import ALPACA_TEST_CONFIG
+from lumibot.strategies.strategy import Strategy
+from lumibot.traders import Trader
 
 
 class BuyAndHoldQuietLogsTest(Strategy):
@@ -64,29 +65,28 @@ if __name__ == "__main__":
     # Set environment variable for quiet logs testing
     os.environ["BACKTESTING_QUIET_LOGS"] = "true"
 
-    from lumibot.backtesting import AlpacaBacktesting
     from lumibot.backtesting import PolygonDataBacktesting
 
     if not ALPACA_TEST_CONFIG:
         print("This strategy requires an ALPACA_TEST_CONFIG config file to be set.")
         exit()
 
-    if not ALPACA_TEST_CONFIG['PAPER']:
+    if not ALPACA_TEST_CONFIG["PAPER"]:
         print(
             "Even though this is a backtest, and only uses the alpaca keys for the data source"
             "you should use paper keys."
         )
         exit()
 
-    secrets_path = Path(__file__).parent.parent.parent / '.secrets'
+    secrets_path = Path(__file__).parent.parent.parent / ".secrets"
     if secrets_path.exists():
-        for secret_file in list(secrets_path.glob('*.env')) + list(secrets_path.glob('*.env.example')):
+        for secret_file in list(secrets_path.glob("*.env")) + list(secrets_path.glob("*.env.example")):
             load_dotenv(secret_file)
 
-    tzinfo = pytz.timezone('America/New_York')
+    tzinfo = pytz.timezone("America/New_York")
     backtesting_start = tzinfo.localize(dt.datetime(2025, 1, 6))
     backtesting_end = tzinfo.localize(dt.datetime(2025, 1, 8))  # Short test period
-    timestep = 'day'
+    timestep = "day"
     auto_adjust = True
     warm_up_trading_days = 0
     refresh_cache = False

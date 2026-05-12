@@ -1,18 +1,14 @@
-import os
 import datetime
 import logging
+import os
 from typing import Any
 
-import pytest
-
 import pandas as pd
+import pytest
 from pandas.testing import assert_series_equal
 
+from lumibot.backtesting import PandasDataBacktesting, YahooDataBacktesting
 from lumibot.strategies import Strategy
-from lumibot.backtesting import PandasDataBacktesting, YahooDataBacktesting, PolygonDataBacktesting
-from tests.fixtures import pandas_data_fixture
-from lumibot.tools import print_full_pandas_dataframes, set_pandas_float_display_precision
-
 
 logger = logging.getLogger(__name__)
 # print_full_pandas_dataframes()
@@ -21,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 class MomoTester(Strategy):
     """This strategy saves the momentum values calculated each trading iteration, so we can compare them later."""
+
     symbol: str = ""
     lookback_period: int = 0
     actual_df: pd.DataFrame = None
@@ -66,14 +63,14 @@ class TestMomentum:
         cls.df["date"] = pd.to_datetime(cls.df["Date"])
         cls.df.set_index("date", inplace=True)
         # Filter data to match the backtest range (plus some buffer for lookback)
-        start_buffer = cls.backtesting_start - datetime.timedelta(days=60) # Buffer for max lookback
+        start_buffer = cls.backtesting_start - datetime.timedelta(days=60)  # Buffer for max lookback
         cls.df = cls.df[(cls.df.index >= start_buffer) & (cls.df.index <= cls.backtesting_end)]
 
     # noinspection PyMethodMayBeStatic
     def calculate_expected_momo(self, df_orig, lookback_period) -> pd.DataFrame:
         # Calculate expected momentum using the 'Adj Close' column from the CSV
         df = df_orig.copy()
-        df['expected_momo'] = df['Adj Close'].pct_change(lookback_period)
+        df["expected_momo"] = df["Adj Close"].pct_change(lookback_period)
         return df
 
     def build_comparison_df(self, strat_obj) -> pd.DataFrame:
@@ -82,7 +79,7 @@ class TestMomentum:
         # and puts them side by side for comparison.
         actual_df = strat_obj.actual_df
         # Drop duplicate dates before setting the index, keeping the last entry for each date
-        actual_df = actual_df.drop_duplicates(subset=['date'], keep='last')
+        actual_df = actual_df.drop_duplicates(subset=["date"], keep="last")
         actual_df.set_index("date", inplace=True)
         expected_df = self.calculate_expected_momo(self.df, strat_obj.lookback_period)
 
@@ -93,7 +90,9 @@ class TestMomentum:
         print(f"\n{expected_df}")
 
         # make a new dataframe with the actual and expected momentum values side by side but for the dates in the actual_df
-        comparison_df = pd.concat([actual_df["actual_momo"], expected_df["expected_momo"]], axis=1).reindex(actual_df.index)
+        comparison_df = pd.concat([actual_df["actual_momo"], expected_df["expected_momo"]], axis=1).reindex(
+            actual_df.index
+        )
         return comparison_df
 
     def test_momo_pandas_lookback_2(self, pandas_data_fixture):
@@ -118,11 +117,7 @@ class TestMomentum:
         # print(f"\n{comparison_df}")
 
         assert_series_equal(
-            comparison_df["actual_momo"],
-            comparison_df["expected_momo"],
-            check_names=False,
-            atol=1e-4,
-            rtol=0
+            comparison_df["actual_momo"], comparison_df["expected_momo"], check_names=False, atol=1e-4, rtol=0
         )
 
     def test_momo_pandas_lookback_30(self, pandas_data_fixture):
@@ -147,11 +142,7 @@ class TestMomentum:
         # print(f"\n{comparison_df}")
 
         assert_series_equal(
-            comparison_df["actual_momo"],
-            comparison_df["expected_momo"],
-            check_names=False,
-            atol=1e-4,
-            rtol=0
+            comparison_df["actual_momo"], comparison_df["expected_momo"], check_names=False, atol=1e-4, rtol=0
         )
 
     @pytest.mark.apitest
@@ -172,24 +163,26 @@ class TestMomentum:
             show_indicators=False,
             save_logfile=False,
             show_progress_bar=False,
-            quiet_logs=True  # Explicitly set quiet_logs
+            quiet_logs=True,  # Explicitly set quiet_logs
         )
         comparison_df = self.build_comparison_df(strat_obj)
 
         # Add print statements for the comparison_df
         print(f"\n{comparison_df}")
-        
+
         # Calculate and print difference
         diff_series = (comparison_df["actual_momo"] - comparison_df["expected_momo"]).abs()
         print(f"\nDifference Series (test_momo_yahoo_lookback_2):\n{diff_series.dropna().head()}")
-        print(f"Difference Stats (min/max/mean): {diff_series.min():.6f} / {diff_series.max():.6f} / {diff_series.mean():.6f}")
+        print(
+            f"Difference Stats (min/max/mean): {diff_series.min():.6f} / {diff_series.max():.6f} / {diff_series.mean():.6f}"
+        )
 
         assert_series_equal(
             comparison_df["actual_momo"],
             comparison_df["expected_momo"],
             check_names=False,
             atol=1e-3,  # Keep increased tolerance
-            rtol=0
+            rtol=0,
         )
 
     @pytest.mark.apitest
@@ -210,19 +203,21 @@ class TestMomentum:
             show_indicators=False,
             save_logfile=False,
             show_progress_bar=False,
-            quiet_logs=True  # Explicitly set quiet_logs
+            quiet_logs=True,  # Explicitly set quiet_logs
         )
         comparison_df = self.build_comparison_df(strat_obj)
 
         # Calculate and print difference
         diff_series = (comparison_df["actual_momo"] - comparison_df["expected_momo"]).abs()
         print(f"\nDifference Series (test_momo_yahoo_lookback_30):\n{diff_series.dropna().head()}")
-        print(f"Difference Stats (min/max/mean): {diff_series.min():.6f} / {diff_series.max():.6f} / {diff_series.mean():.6f}")
+        print(
+            f"Difference Stats (min/max/mean): {diff_series.min():.6f} / {diff_series.max():.6f} / {diff_series.mean():.6f}"
+        )
 
         assert_series_equal(
             comparison_df["actual_momo"],
             comparison_df["expected_momo"],
             check_names=False,
             atol=1e-3,  # Keep increased tolerance
-            rtol=0
+            rtol=0,
         )

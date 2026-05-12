@@ -6,6 +6,7 @@ pin down: compute-once semantics, argument-keyed memo, custom-indicator
 dispatch, IndicatorRow access, and edge cases (empty input, missing
 indicator name, different arg combos).
 """
+
 from __future__ import annotations
 
 import types
@@ -15,8 +16,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from lumibot.indicators import Indicators, IndicatorRow
-import lumibot.indicators.indicators as indicators_module
+from lumibot.indicators import IndicatorRow, Indicators
 
 
 def _make_strategy(df: pd.DataFrame, now):
@@ -107,9 +107,7 @@ def test_sma_returns_scalar_at_current_bar(strategy_with_daily_bars):
 def test_sma_matches_manual_calculation(strategy_with_daily_bars):
     ind = Indicators(strategy_with_daily_bars)
     val = ind.sma(strategy_with_daily_bars.asset, length=20)
-    df = strategy_with_daily_bars.broker.data_source._data_store[
-        (strategy_with_daily_bars.asset, None)
-    ].df
+    df = strategy_with_daily_bars.broker.data_source._data_store[(strategy_with_daily_bars.asset, None)].df
     expected = df["close"].rolling(20).mean().iloc[-1]
     assert np.isclose(val, expected), f"indicators.sma={val}, rolling.mean={expected}"
 
@@ -126,9 +124,7 @@ def test_cache_hit_does_not_recompute(strategy_with_daily_bars):
 
 def test_current_bar_changes_as_strategy_time_advances(strategy_with_daily_bars):
     ind = Indicators(strategy_with_daily_bars)
-    df = strategy_with_daily_bars.broker.data_source._data_store[
-        (strategy_with_daily_bars.asset, None)
-    ].df
+    df = strategy_with_daily_bars.broker.data_source._data_store[(strategy_with_daily_bars.asset, None)].df
     strategy_with_daily_bars.set_now(df.index[100])
     v100 = ind.sma(strategy_with_daily_bars.asset, length=20)
     strategy_with_daily_bars.set_now(df.index[200])

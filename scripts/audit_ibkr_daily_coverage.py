@@ -35,7 +35,7 @@ class CoverageRow:
 def _fetch_daily(symbol: str, asset_type: str, start_dt: datetime, end_dt: datetime):
     asset = Asset(symbol, asset_type=asset_type)
     quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
-    include_after_hours = not (asset_type in {"stock", "index"})
+    include_after_hours = asset_type not in {"stock", "index"}
     return ibkr_helper.get_price_data(
         asset=asset,
         quote=quote,

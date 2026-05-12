@@ -1,8 +1,8 @@
 import datetime
 from unittest.mock import MagicMock
 
-from lumibot.strategies import strategy as strategy_module
 from lumibot.strategies import _strategy as base_strategy_module
+from lumibot.strategies import strategy as strategy_module
 
 
 class _DummyOrder:
@@ -63,7 +63,7 @@ def test_cancel_open_orders_reuses_prefetched_orders():
 def test_format_stats_reuses_dataframe(monkeypatch):
     harness = _build_stats_harness()
     row = {
-        "datetime": datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc),
+        "datetime": datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC),
         "portfolio_value": 100_000.0,
         "cash": 100_000.0,
         "positions": [],
@@ -89,7 +89,7 @@ def test_format_stats_reuses_dataframe(monkeypatch):
     # Mutate stats and ensure DataFrame is rebuilt exactly once more.
     harness._append_row(
         {
-            "datetime": datetime.datetime(2024, 1, 1, 0, 1, tzinfo=datetime.timezone.utc),
+            "datetime": datetime.datetime(2024, 1, 1, 0, 1, tzinfo=datetime.UTC),
             "portfolio_value": 100_010.0,
             "cash": 100_010.0,
             "positions": [],
@@ -97,3 +97,29 @@ def test_format_stats_reuses_dataframe(monkeypatch):
     )
     harness._format_stats()
     assert call_counter["count"] == 2
+
+
+def test_format_stats_sorts_only_when_rows_are_out_of_order():
+    harness = _build_stats_harness()
+    second = datetime.datetime(2024, 1, 1, 0, 1, tzinfo=datetime.UTC)
+    first = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
+    harness._append_row(
+        {
+            "datetime": second,
+            "portfolio_value": 100_010.0,
+            "cash": 100_010.0,
+            "positions": [],
+        }
+    )
+    harness._append_row(
+        {
+            "datetime": first,
+            "portfolio_value": 100_000.0,
+            "cash": 100_000.0,
+            "positions": [],
+        }
+    )
+
+    stats = harness._format_stats()
+
+    assert list(stats.index) == [first, second]

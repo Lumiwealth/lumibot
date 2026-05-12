@@ -93,4 +93,3 @@ def test_get_strike_deltas_fast_path_uses_few_calls_for_puts():
     chosen = _closest_strike(deltas, -0.4)
     # For the linear mapping, strike=90 yields delta=-0.4
     assert abs(chosen - 90.0) <= 2.0
-

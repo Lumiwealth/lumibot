@@ -1,6 +1,9 @@
-import datetime
+from __future__ import annotations
 
-from lumibot.entities import Asset
+import datetime as dt
+from typing import Any
+
+from lumibot.entities.asset import Asset
 
 
 class Quote:
@@ -40,17 +43,48 @@ class Quote:
     raw_data : dict
         The raw data from the data source.
     """
-    def __init__(self, asset: Asset, price: float = None, bid: float = None, ask: float = None,
-                 volume: float = None, timestamp: datetime.datetime = None, bid_size: float = None,
-                 ask_size: float = None, change: float = None, percent_change: float = None,
-                 quote_time: datetime.datetime = None, bid_time: datetime.datetime = None,
-                 ask_time: datetime.datetime = None, raw_data: dict = None, mid_price: float = None, **kwargs):
+
+    asset: Asset
+    price: float | None
+    bid: float | None
+    ask: float | None
+    volume: float | None
+    timestamp: dt.datetime
+    bid_size: float | None
+    ask_size: float | None
+    change: float | None
+    percent_change: float | None
+    quote_time: dt.datetime | None
+    bid_time: dt.datetime | None
+    ask_time: dt.datetime | None
+    raw_data: dict[str, Any] | None
+    _mid_price: float | None
+
+    def __init__(
+        self,
+        asset: Asset,
+        price: float | None = None,
+        bid: float | None = None,
+        ask: float | None = None,
+        volume: float | None = None,
+        timestamp: dt.datetime | None = None,
+        bid_size: float | None = None,
+        ask_size: float | None = None,
+        change: float | None = None,
+        percent_change: float | None = None,
+        quote_time: dt.datetime | None = None,
+        bid_time: dt.datetime | None = None,
+        ask_time: dt.datetime | None = None,
+        raw_data: dict[str, Any] | None = None,
+        mid_price: float | None = None,
+        **kwargs: Any,
+    ) -> None:
         self.asset = asset
         self.price = price
         self.bid = bid
         self.ask = ask
         self.volume = volume
-        self.timestamp = timestamp or datetime.datetime.now(datetime.timezone.utc)
+        self.timestamp = timestamp or dt.datetime.now(dt.UTC)
         self.bid_size = bid_size
         self.ask_size = ask_size
         self.change = change
@@ -60,7 +94,6 @@ class Quote:
         self.ask_time = ask_time
         self.raw_data = raw_data
 
-        # Calculate mid_price if not provided
         if mid_price is not None:
             self._mid_price = mid_price
         elif self.bid is not None and self.ask is not None:
@@ -68,38 +101,34 @@ class Quote:
         else:
             self._mid_price = None
 
-        # Store any additional attributes passed in kwargs
         for key, value in kwargs.items():
             setattr(self, key, value)
 
     @property
-    def mid_price(self):
-        """Calculate the mid price between bid and ask"""
-        # Return cached value if available
-        if hasattr(self, '_mid_price') and self._mid_price is not None:
+    def mid_price(self) -> float | None:
+        """Calculate the mid price between bid and ask."""
+        if self._mid_price is not None:
             return self._mid_price
-        # Calculate on the fly if bid/ask are available
         if self.bid is not None and self.ask is not None:
             return (self.bid + self.ask) / 2
         return self.price
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> Any:
         """
         Allow dictionary-style access to Quote attributes for backward compatibility.
         Tries to get the attribute first, then falls back to raw_data if available.
         """
-        # Try to get as an attribute first
         if hasattr(self, key):
             return getattr(self, key)
-        # Fall back to raw_data if it exists
-        elif self.raw_data and key in self.raw_data:
+        if self.raw_data and key in self.raw_data:
             return self.raw_data[key]
-        else:
-            raise KeyError(f"'{key}' not found in Quote object or raw_data")
+        raise KeyError(f"'{key}' not found in Quote object or raw_data")
 
-    def __str__(self):
-        return (f"Quote(asset={self.asset}, price={self.price}, bid={self.bid}, ask={self.ask}, "
-                f"volume={self.volume}, timestamp={self.timestamp})")
+    def __str__(self) -> str:
+        return (
+            f"Quote(asset={self.asset}, price={self.price}, bid={self.bid}, ask={self.ask}, "
+            f"volume={self.volume}, timestamp={self.timestamp})"
+        )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self)

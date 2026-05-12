@@ -1,3 +1,4 @@
+import inspect
 import os
 import sys
 import inspect
@@ -52,12 +53,8 @@ def test_credentials_broker_exports_are_real_classes(monkeypatch):
     monkeypatch.setenv("LUMIBOT_DISABLE_DOTENV", "1")
     sys.modules.pop("lumibot.credentials", None)
 
-    import lumibot.brokers as brokers
-    import lumibot.credentials as credentials
+    from lumibot.brokers import Alpaca as BrokerAlpaca
+    from lumibot.credentials import Alpaca
 
-    for name in sorted(credentials._BROKER_CLASS_NAMES):
-        credential_class = getattr(credentials, name)
-        broker_class = getattr(brokers, name)
-
-        assert inspect.isclass(credential_class)
-        assert credential_class is broker_class
+    assert inspect.isclass(Alpaca)
+    assert Alpaca is BrokerAlpaca

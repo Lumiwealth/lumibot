@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Optional
-
+from collections.abc import Mapping
+from typing import cast
 
 IBKR_US_FUTURES_EXCHANGES = {"CME", "CBOT", "COMEX", "NYMEX"}
 
@@ -10,12 +10,16 @@ class IbkrFuturesExchangeAmbiguousError(RuntimeError):
     """Raised when IBKR secdef search returns multiple equally-good FUT exchanges."""
 
 
+def _upper_string(value: object) -> str:
+    return str(value or "").strip().upper()
+
+
 def select_futures_exchange_from_secdef_search_payload(
     symbol: str,
-    payload: Any,
+    payload: object,
     *,
     prefer_currency: str = "USD",
-    prefer_exchanges: Optional[set[str]] = None,
+    prefer_exchanges: set[str] | None = None,
 ) -> str:
     """Select the best FUT exchange from an IBKR `iserver/secdef/search` response.
 
@@ -34,22 +38,26 @@ def select_futures_exchange_from_secdef_search_payload(
         raise RuntimeError(f"IBKR secdef/search returned no results for FUT symbol={symbol_upper!r}")
 
     candidates: list[tuple[str, str]] = []  # (exchange, currency)
-    for entry in payload:
-        if not isinstance(entry, dict):
+    payload_entries = cast(list[object], payload)
+    for entry_obj in payload_entries:
+        if not isinstance(entry_obj, Mapping):
             continue
-        entry_currency = str(entry.get("currency") or "").strip().upper()
-        sections = entry.get("sections") or []
-        if not isinstance(sections, list):
+        entry = cast(Mapping[str, object], entry_obj)
+        entry_currency = _upper_string(entry.get("currency"))
+        sections_obj = entry.get("sections")
+        if not isinstance(sections_obj, list):
             continue
-        for section in sections:
-            if not isinstance(section, dict):
+        sections = cast(list[object], sections_obj)
+        for section_obj in sections:
+            if not isinstance(section_obj, Mapping):
                 continue
-            if str(section.get("secType") or "").strip().upper() != "FUT":
+            section = cast(Mapping[str, object], section_obj)
+            if _upper_string(section.get("secType")) != "FUT":
                 continue
-            exch = str(section.get("exchange") or "").strip().upper()
+            exch = _upper_string(section.get("exchange"))
             if not exch:
                 continue
-            section_currency = str(section.get("currency") or "").strip().upper()
+            section_currency = _upper_string(section.get("currency"))
             currency = section_currency or entry_currency
             candidates.append((exch, currency))
 
@@ -72,8 +80,6 @@ def select_futures_exchange_from_secdef_search_payload(
 
     if len(best) != 1:
         raise IbkrFuturesExchangeAmbiguousError(
-            f"Ambiguous IBKR FUT exchange for {symbol_upper}: {sorted(best)}. "
-            "Pass exchange=... explicitly."
+            f"Ambiguous IBKR FUT exchange for {symbol_upper}: {sorted(best)}. Pass exchange=... explicitly."
         )
     return next(iter(best))
-

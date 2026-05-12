@@ -3,17 +3,88 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from decimal import Decimal
 from importlib import import_module
-from typing import TYPE_CHECKING, Optional, Union
+from types import ModuleType
+from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
-from .data_source import DataSource
-from lumibot.entities import Asset, Quote
+from lumibot.entities.asset import Asset
+from lumibot.entities.quote import Quote
 from lumibot.tools.lumibot_logger import get_logger
 
+from .data_source import DataSource
+
 if TYPE_CHECKING:
-    from lumibot.entities import Bars
+    from lumibot.entities.bars import Bars
+
     from .databento_data_polars import DataBentoDataPolars
 
 logger = get_logger(__name__)
+PandasDataFrame: TypeAlias = Any  # noqa: UP040 - keep Python 3.11 parser compatibility.
+PolarsDataFrame: TypeAlias = Any  # noqa: UP040 - keep Python 3.11 parser compatibility.
+BarsEntity: TypeAlias = Any  # noqa: UP040 - keep Python 3.11 parser compatibility.
+
+
+class _LazyModule(ModuleType):
+    _module_name: str
+    _module: ModuleType | None
+
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str) -> None:
+        super().__init__(module_name)
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self) -> ModuleType:
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._load(), name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in {"_module_name", "_module"}:
+            object.__setattr__(self, name, value)
+            return
+        setattr(self._load(), name, value)
+
+    def __delattr__(self, name: str) -> None:
+        if name in {"_module_name", "_module"}:
+            object.__delattr__(self, name)
+        else:
+            delattr(self._load(), name)
+
+
+pd: Any = _LazyModule("pandas")
+pl: Any = _LazyModule("polars")
+databento_helper: Any = _LazyModule("lumibot.tools.databento_helper")
+databento_helper_polars: Any = _LazyModule("lumibot.tools.databento_helper_polars")
+_bars_class_cache: type[Any] | None = None
+_databento_data_polars_class_cache: type[Any] | None = None
+
+
+def _bars_class() -> type[Any]:
+    global _bars_class_cache
+    if _bars_class_cache is None:
+        from lumibot.entities import Bars
+
+        _bars_class_cache = Bars
+    assert _bars_class_cache is not None
+    return _bars_class_cache
+
+
+def _databento_data_polars_class() -> type[Any] | None:
+    global _databento_data_polars_class_cache
+    if _databento_data_polars_class_cache is None:
+        try:
+            from .databento_data_polars import DataBentoDataPolars
+        except Exception:  # pragma: no cover - optional dependency path
+            return None
+
+        _databento_data_polars_class_cache = DataBentoDataPolars
+    return _databento_data_polars_class_cache
 
 
 class _LazyModule:
@@ -75,7 +146,7 @@ def _databento_data_polars_class():
 class DataBentoDataPandas(DataSource):
     """
     DataBento data source for historical market data
-    
+
     This data source provides access to DataBento's institutional-grade market data,
     with a focus on futures data and support for multiple asset types.
     """
@@ -88,16 +159,19 @@ class DataBentoDataPandas(DataSource):
         {"timestep": "day", "representations": ["1d", "day", "1 day"]},
     ]
 
-    def __init__(
-        self,
-        api_key: str,
-        timeout: int = 30,
-        max_retries: int = 3,
-        **kwargs
-    ):
+    _api_key: str
+    _timeout: int
+    _max_retries: int
+    _data_store: dict[tuple[Asset, Asset], BarsEntity]
+    _live_delegate: Any | None
+    _default_quote_asset: Asset
+    is_backtesting_mode: bool
+    enable_live_stream: bool
+
+    def __init__(self, api_key: str, timeout: int = 30, max_retries: int = 3, **kwargs: Any) -> None:
         """
         Initialize DataBento data source
-        
+
         Parameters
         ----------
         api_key : str
@@ -109,7 +183,7 @@ class DataBentoDataPandas(DataSource):
         **kwargs
             Additional parameters passed to parent class
         """
-        enable_live_stream = kwargs.pop("enable_live_stream", False)
+        enable_live_stream = bool(kwargs.pop("enable_live_stream", False))
 
         # Initialize parent class
         super().__init__(api_key=api_key, **kwargs)
@@ -117,8 +191,8 @@ class DataBentoDataPandas(DataSource):
         self._api_key = api_key
         self._timeout = timeout
         self._max_retries = max_retries
-        self._data_store = {}
-        self._live_delegate = None
+        self._data_store: dict[tuple[Asset, Asset], BarsEntity] = {}
+        self._live_delegate: Any | None = None
         self._default_quote_asset = Asset("USD", "forex")
 
         # For live trading, this is a live data source
@@ -135,15 +209,16 @@ class DataBentoDataPandas(DataSource):
         asset: Asset,
         length: int,
         timestep: str = "minute",
-        timeshift: timedelta = None,
-        quote: Asset = None,
-        exchange: str = None,
+        timeshift: timedelta | None = None,
+        quote: Asset | None = None,
+        exchange: str | None = None,
         include_after_hours: bool = True,
-        return_polars: bool = False
-    ) -> Bars:
+        return_polars: bool = False,
+        **kwargs: Any,
+    ) -> Bars | None:
         """
         Get historical price data for an asset
-        
+
         Parameters
         ----------
         asset : Asset
@@ -160,7 +235,7 @@ class DataBentoDataPandas(DataSource):
             Exchange/venue filter
         include_after_hours : bool, optional
             Whether to include after-hours data, default True
-            
+
         Returns
         -------
         Bars
@@ -180,7 +255,9 @@ class DataBentoDataPandas(DataSource):
             return None
 
         # Additional logging for debugging
-        logger.debug(f"DataBento request - Asset: {asset.symbol}, Type: {asset.asset_type}, Length: {length}, Timestep: {timestep}")
+        logger.debug(
+            f"DataBento request - Asset: {asset.symbol}, Type: {asset.asset_type}, Length: {length}, Timestep: {timestep}"
+        )
         logger.debug(f"DataBento live trading mode: Requesting data for futures asset {asset.symbol}")
 
         # Calculate the date range for data retrieval
@@ -244,12 +321,7 @@ class DataBentoDataPandas(DataSource):
 
         try:
             df = databento_helper_polars.get_price_data_from_databento_polars(
-                api_key=self._api_key,
-                asset=asset,
-                start=start_dt,
-                end=end_dt,
-                timestep=timestep,
-                venue=exchange
+                api_key=self._api_key, asset=asset, start=start_dt, end=end_dt, timestep=timestep, venue=exchange
             )
         except Exception as e:
             logger.error(f"Error getting data from DataBento for {asset.symbol}: {e}")
@@ -279,10 +351,11 @@ class DataBentoDataPandas(DataSource):
 
         # Filter data to the current time (for live trading)
         # Handle timezone consistency for comparison
-        if hasattr(df.index, 'tz') and df.index.tz is not None:
+        if hasattr(df.index, "tz") and df.index.tz is not None:
             # DataFrame has timezone-aware index, convert current_dt to match
             if current_dt.tzinfo is None:
                 import pytz
+
                 current_dt = current_dt.replace(tzinfo=pytz.UTC)
         else:
             # DataFrame has timezone-naive index, ensure current_dt is also naive
@@ -301,13 +374,7 @@ class DataBentoDataPandas(DataSource):
             return None
 
         # Create and return Bars object
-        bars = _bars_class()(
-            df=df_result,
-            source=self.SOURCE,
-            asset=asset,
-            quote=quote,
-            return_polars=return_polars
-        )
+        bars = _bars_class()(df=df_result, source=self.SOURCE, asset=asset, quote=quote, return_polars=return_polars)
         quote_asset = quote if quote is not None else self._default_quote_asset
         self._data_store[(asset, quote_asset)] = bars
 
@@ -317,12 +384,12 @@ class DataBentoDataPandas(DataSource):
     def get_last_price(
         self,
         asset: Asset,
-        quote: Asset = None,
-        exchange: str = None
-    ) -> Union[float, Decimal, None]:
+        quote: Asset | None = None,
+        exchange: str | None = None,
+    ) -> float | Decimal | None:
         """
         Get the last known price for an asset
-        
+
         Parameters
         ----------
         asset : Asset
@@ -331,7 +398,7 @@ class DataBentoDataPandas(DataSource):
             Quote asset (not used for DataBento)
         exchange : str, optional
             Exchange/venue filter
-            
+
         Returns
         -------
         float, Decimal, or None
@@ -350,7 +417,9 @@ class DataBentoDataPandas(DataSource):
         cached_bars = self._data_store.get((asset, quote_asset))
         if cached_bars is None:
             try:
-                self.get_historical_prices(asset, length=1, timestep=self.MIN_TIMESTEP, quote=quote, return_polars=False)
+                self.get_historical_prices(
+                    asset, length=1, timestep=self.MIN_TIMESTEP, quote=quote, return_polars=False
+                )
             except Exception:
                 pass
             cached_bars = self._data_store.get((asset, quote_asset))
@@ -361,9 +430,7 @@ class DataBentoDataPandas(DataSource):
 
         try:
             last_price = databento_helper.get_last_price_from_databento(
-                api_key=self._api_key,
-                asset=asset,
-                venue=exchange
+                api_key=self._api_key, asset=asset, venue=exchange
             )
 
             if last_price is not None:
@@ -377,20 +444,20 @@ class DataBentoDataPandas(DataSource):
             logger.error(f"Error getting last price for {asset.symbol}: {e}")
             return None
 
-    def get_chains(self, asset: Asset, quote: Asset = None) -> dict:
+    def get_chains(self, asset: Asset, quote: Asset | None = None) -> dict[str, Any]:
         """
         Get option chains for an asset
-        
+
         Note: DataBento primarily focuses on market data rather than options chains.
         This method returns an empty dict as DataBento doesn't provide options chain data.
-        
+
         Parameters
         ----------
         asset : Asset
             The asset to get option chains for
         quote : Asset, optional
             Quote asset
-            
+
         Returns
         -------
         dict
@@ -399,20 +466,25 @@ class DataBentoDataPandas(DataSource):
         logger.warning("DataBento does not provide options chain data")
         return {}
 
-    def get_quote(self, asset: Asset, quote: Asset = None) -> Union[float, Decimal, None]:
+    def get_quote(
+        self,
+        asset: Asset,
+        quote: Asset | None = None,
+        exchange: str | None = None,
+    ) -> Quote | None:
         """
         Get current quote for an asset
-        
+
         For DataBento, this returns the last known price since real-time quotes
         may not be available for all assets.
-        
+
         Parameters
         ----------
         asset : Asset
             The asset to get the quote for
         quote : Asset, optional
             Quote asset (not used for DataBento)
-            
+
         Returns
         -------
         float, Decimal, or None
@@ -420,14 +492,17 @@ class DataBentoDataPandas(DataSource):
         """
         delegate = self._ensure_live_delegate()
         if delegate:
-            quote_obj = delegate.get_quote(asset, quote=quote, exchange=None)
+            quote_obj = delegate.get_quote(asset, quote=quote, exchange=exchange)
             if quote_obj:
                 return quote_obj
 
         price = self.get_last_price(asset, quote=quote)
-        return Quote(asset=asset, price=price, bid=price, ask=price)
+        if price is None:
+            return None
+        quote_price = float(price)
+        return Quote(asset=asset, price=quote_price, bid=quote_price, ask=quote_price)
 
-    def _ensure_live_delegate(self) -> Optional['DataBentoDataPolars']:
+    def _ensure_live_delegate(self) -> DataBentoDataPolars | None:
         if not self.enable_live_stream:
             return None
         databento_data_polars_class = _databento_data_polars_class()
@@ -447,9 +522,15 @@ class DataBentoDataPandas(DataSource):
                 logger.error(f"Failed to initialize live DataBento delegate: {e}")
                 self._live_delegate = None
 
-        return self._live_delegate
+        return cast("DataBentoDataPolars | None", self._live_delegate)
 
-    def _parse_source_symbol_bars(self, response, asset, quote=None, return_polars: bool = False):
+    def _parse_source_symbol_bars(
+        self,
+        response: PandasDataFrame | None,
+        asset: Asset,
+        quote: Asset | None = None,
+        return_polars: bool = False,
+    ) -> Bars | None:
         """
         Parse source data for a single asset into Bars format
 
@@ -474,19 +555,13 @@ class DataBentoDataPandas(DataSource):
                 return None
 
             # Check if required columns exist
-            required_columns = ['open', 'high', 'low', 'close', 'volume']
+            required_columns = ["open", "high", "low", "close", "volume"]
             if not all(col in response.columns for col in required_columns):
                 logger.warning(f"Missing required columns in DataBento data for {asset.symbol}")
                 return None
 
             # Create Bars object
-            bars = _bars_class()(
-                df=response,
-                source=self.SOURCE,
-                asset=asset,
-                quote=quote,
-                return_polars=return_polars
-            )
+            bars = _bars_class()(df=response, source=self.SOURCE, asset=asset, quote=quote, return_polars=return_polars)
 
             return bars
 

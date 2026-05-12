@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 import hashlib
 import json
 import os
 import re
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +15,12 @@ from lumibot import LUMIBOT_CACHE_FOLDER
 from .schemas import AgentRunResult, AgentTraceEvent, BoundTool, MCPServer, ToolDefinition
 from .tools import bind_callable_tool
 
+# Agent manager handles dynamic JSON/tool/runtime payloads from ADK, MCP, replay cache, and parquet sinks.
+# Keep that integration boundary explicit instead of forcing large `Any` casts through every event path.
+# pyright: reportConstantRedefinition=false, reportIndexIssue=false, reportMissingParameterType=false
+# pyright: reportOptionalMemberAccess=false, reportPrivateUsage=false, reportUnknownArgumentType=false
+# pyright: reportUnknownMemberType=false, reportUnknownParameterType=false, reportUnknownVariableType=false
+# pyright: reportUnnecessaryIsInstance=false
 
 _TIMESTAMP_HINT_RE = re.compile(
     r"(time|date|datetime|published|updated|created|accepted|released|release|as_of|realtime)",
@@ -38,7 +46,8 @@ def _get_pandas():
 def _get_replay_imports():
     global _REPLAY_IMPORTS
     if _REPLAY_IMPORTS is None:
-        from .replay_cache import AgentReplayCache, _normalize_json as normalize_json
+        from .replay_cache import AgentReplayCache
+        from .replay_cache import _normalize_json as normalize_json
 
         _REPLAY_IMPORTS = (AgentReplayCache, normalize_json)
     return _REPLAY_IMPORTS
@@ -139,9 +148,7 @@ def _serialize_recent_trade_events(strategy: Any, limit: int = 10) -> list[dict[
 
     broker = getattr(strategy, "broker", None)
     rows = list(getattr(broker, "_trade_event_log_rows", []) or [])
-    expand_rows = getattr(broker, "expand_trade_event_rows", None)
-    if expand_rows is None:
-        expand_rows = getattr(broker, "_expand_trade_event_rows", None)
+    expand_rows = getattr(broker, "_expand_trade_event_rows", None)
     if callable(expand_rows):
         rows = expand_rows(rows)
     columns = list(getattr(broker, "_trade_event_log_columns", []) or [])
@@ -175,8 +182,8 @@ def _parse_datetime_like(value: Any) -> datetime | None:
     else:
         return None
     if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def _truncate_text(value: Any, limit: int = 240) -> str:
@@ -405,25 +412,29 @@ def _summarize_tool_payload(tool_name: str | None, payload: Any) -> str:
             headline = article.get("headline") or "untitled"
             prefix = f"{symbols} " if symbols else ""
             headline_parts.append(f"{prefix}@ {published_at}: {headline}")
-        return _sanitize_csv_text(_truncate_text(
-            f"count={payload.get('count', len(articles))} "
-            f"window=({payload.get('window_start')} -> {payload.get('window_end')}) "
-            f"headlines={headline_parts}"
-        ))
+        return _sanitize_csv_text(
+            _truncate_text(
+                f"count={payload.get('count', len(articles))} "
+                f"window=({payload.get('window_start')} -> {payload.get('window_end')}) "
+                f"headlines={headline_parts}"
+            )
+        )
 
     if "row_count" in payload and "table_name" in payload:
-        return _sanitize_csv_text(_truncate_text(
-            f"table={payload.get('table_name')} symbol={payload.get('symbol')} "
-            f"rows={payload.get('row_count')} timestep={payload.get('timestep')} "
-            f"loaded_at={payload.get('loaded_at')}"
-        ))
+        return _sanitize_csv_text(
+            _truncate_text(
+                f"table={payload.get('table_name')} symbol={payload.get('symbol')} "
+                f"rows={payload.get('row_count')} timestep={payload.get('timestep')} "
+                f"loaded_at={payload.get('loaded_at')}"
+            )
+        )
 
     if "rows" in payload and "row_count" in payload:
         rows = payload.get("rows") or []
         sample = rows[0] if rows else {}
-        return _sanitize_csv_text(_truncate_text(
-            f"rows={payload.get('row_count')} sample={_compact_json(sample, limit=140)}"
-        ))
+        return _sanitize_csv_text(
+            _truncate_text(f"rows={payload.get('row_count')} sample={_compact_json(sample, limit=140)}")
+        )
 
     if "positions" in payload and isinstance(payload["positions"], list):
         labels: list[str] = []
@@ -436,16 +447,20 @@ def _summarize_tool_payload(tool_name: str | None, payload: Any) -> str:
         return _sanitize_csv_text(_truncate_text(f"positions={labels}"))
 
     if "cash" in payload and "portfolio_value" in payload:
-        return _sanitize_csv_text(_truncate_text(
-            f"cash={payload.get('cash')} portfolio_value={payload.get('portfolio_value')} "
-            f"datetime={payload.get('datetime')}"
-        ))
+        return _sanitize_csv_text(
+            _truncate_text(
+                f"cash={payload.get('cash')} portfolio_value={payload.get('portfolio_value')} "
+                f"datetime={payload.get('datetime')}"
+            )
+        )
 
     if "identifier" in payload or "status" in payload:
-        return _sanitize_csv_text(_truncate_text(
-            f"identifier={payload.get('identifier')} status={payload.get('status')} "
-            f"symbol={payload.get('symbol')} side={payload.get('side')} quantity={payload.get('quantity')}"
-        ))
+        return _sanitize_csv_text(
+            _truncate_text(
+                f"identifier={payload.get('identifier')} status={payload.get('status')} "
+                f"symbol={payload.get('symbol')} side={payload.get('side')} quantity={payload.get('quantity')}"
+            )
+        )
 
     return _flatten_csv_value(payload) or _sanitize_csv_text(_compact_json(payload))
 
@@ -550,7 +565,7 @@ class AgentHandle:
     def __init__(
         self,
         *,
-        manager: "AgentManager",
+        manager: AgentManager,
         name: str,
         system_prompt: str,
         default_model: str,
@@ -563,6 +578,7 @@ class AgentHandle:
         self.system_prompt = system_prompt
         self.default_model = default_model
         from .builtins import BuiltinTools
+
         builtin_tools = BuiltinTools.all()
         if tools is None:
             self._tool_inputs = builtin_tools
@@ -606,12 +622,14 @@ class AgentHandle:
         current_dt = _current_strategy_datetime(self.manager.strategy)
         if current_dt is not None and hasattr(current_dt, "isoformat"):
             return current_dt.isoformat()
-        return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
     def _serialize_positions(self) -> list[dict[str, Any]]:
         if not hasattr(self.manager.strategy, "get_positions"):
             return []
-        positions = _safe_call(lambda: self.manager.strategy.get_positions(include_cash_positions=True), default=[]) or []
+        positions = (
+            _safe_call(lambda: self.manager.strategy.get_positions(include_cash_positions=True), default=[]) or []
+        )
         _order_to_dict, _position_to_dict = _get_builtin_serializers()
         return [_position_to_dict(position) for position in positions]
 
@@ -677,12 +695,16 @@ class AgentHandle:
             "Do not overtrade. Each round-trip has a cost, so the expected gain from a trade should clearly exceed the expected friction.",
             "",
             "RISK AND DRAWDOWN DISCIPLINE:",
-            "Your objective is the best risk-adjusted return over time, not the highest raw return. A smoother equity curve with a lower max drawdown is more valuable than a jagged one with a slightly higher end value, because compounding is damaged by deep drawdowns and because real users abandon strategies that hurt too much.",
-            "Remember the recovery math: a 20% drawdown requires a 25% gain to get back to even, a 50% drawdown requires a 100% gain, and an 80% drawdown requires a 400% gain. Small losses compound gently, large losses compound painfully. Limiting downside is almost always more valuable than squeezing out the last bit of upside.",
-            "Protect the downside as seriously as you pursue the upside. Size positions relative to conviction and expected volatility, not just available cash. A high-conviction low-volatility idea can take a larger share than a speculative high-volatility one.",
+            "Your objective is the best risk-adjusted return over time, not the highest raw return. A smoother equity "
+            "curve with a lower max drawdown is more valuable than a jagged one with a slightly higher end value.",
+            "Remember the recovery math: a 20% drawdown requires a 25% gain to get back to even, a 50% drawdown "
+            "requires a 100% gain, and an 80% drawdown requires a 400% gain.",
+            "Protect the downside as seriously as you pursue the upside. Size positions relative to conviction and "
+            "expected volatility, not just available cash.",
             "Cut losing positions when the thesis is broken. Do not average down into a losing trade just to lower your cost basis. Reassess the thesis first, and exit if the evidence no longer supports the position.",
             "Do not chase returns after a drawdown by increasing size or taking more aggressive exposure. That is how small drawdowns become large ones.",
-            "Think in terms of return per unit of volatility (Sharpe), return per unit of downside volatility (Sortino), and return relative to max drawdown (Calmar). The goal is compounding you can actually live with, not a headline number.",
+            "Think in terms of return per unit of volatility (Sharpe), return per unit of downside volatility "
+            "(Sortino), and return relative to max drawdown (Calmar).",
             "",
             "POSITION SIZING AND ORDER EXECUTION:",
             "Do not buy token one-share positions. Use account cash, portfolio value, current position size, and last price to calculate a sensible whole-share quantity.",
@@ -712,7 +734,8 @@ class AgentHandle:
                     "Incorrect example: saying 'the market later sold off' or 'inflation kept rising after this' unless that fact is explicitly visible in current tool output at or before the simulated datetime.",
                     "Incorrect example: relying on what you remember happened historically when that information is not yet present in the runtime context or tool results.",
                     "CRITICAL: When calling ANY external tool, if the tool has ANY parameter that controls a time range, date filter, or temporal bound, you MUST set it so that no data after the current simulated datetime can be returned.",
-                    "This applies regardless of what the parameter is named. Common names include: end, end_date, time_to, observation_end, before, until, to, date, timestamp, coed, realtime_end - but ANY parameter that limits the time range must be set.",
+                    "This applies regardless of what the parameter is named. Common names include: end, end_date, "
+                    "time_to, observation_end, before, until, to, date, timestamp, coed, realtime_end.",
                     "If a tool has a start/end date range and you only set start without setting end, the tool will likely return data up to today, which is in the future. ALWAYS set the end bound.",
                     "Correct example: if the current simulated date is 2024-01-22 and a tool accepts end, end_date, time_to, or observation_end, pass 2024-01-22 (or the current simulated datetime) in that field.",
                     "Incorrect example: calling a news, macro, or data tool with only a start parameter and no end parameter, allowing it to return future data by default.",
@@ -778,9 +801,12 @@ class AgentHandle:
                 description = f"Remote MCP tool {exposed_name} on server {server.name}."
 
                 def make_remote_tool(_server: MCPServer, _tool_name: str):
-                    def remote_tool(payload: dict[str, Any]) -> dict[str, Any]:
+                    def _remote_tool(payload: dict[str, Any]) -> dict[str, Any]:
                         warning_key = (_server.name, _tool_name)
-                        if bool(getattr(self.manager.strategy, "is_backtesting", False)) and warning_key not in self.manager._warned_backtest_mcp_tools:
+                        if (
+                            bool(getattr(self.manager.strategy, "is_backtesting", False))
+                            and warning_key not in self.manager._warned_backtest_mcp_tools
+                        ):
                             log_message = getattr(self.manager.strategy, "log_message", None)
                             if callable(log_message):
                                 log_message(
@@ -792,14 +818,14 @@ class AgentHandle:
                         _GoogleADKRuntime, _RuntimeRequest, _StubAgentRuntime, call_mcp_tool = _get_runtime_imports()
                         return call_mcp_tool(_server, _tool_name, payload)
 
-                    return remote_tool
+                    return _remote_tool
 
-                remote_tool = make_remote_tool(server, exposed_name)
+                bound_remote_tool = make_remote_tool(server, exposed_name)
                 remote_tools.append(
                     BoundTool(
                         name=exposed_name,
                         description=description,
-                        function=remote_tool,
+                        function=bound_remote_tool,
                         source="mcp",
                         metadata={
                             "kind": "mcp",
@@ -840,11 +866,23 @@ class AgentHandle:
         without decoding a raw provider stack trace."""
         # Map provider prefix -> (env var, billing url).
         provider_hints = {
-            "openai/": ("OPENAI_API_KEY", "https://platform.openai.com/api-keys", "https://platform.openai.com/account/billing"),
+            "openai/": (
+                "OPENAI_API_KEY",
+                "https://platform.openai.com/api-keys",
+                "https://platform.openai.com/account/billing",
+            ),
             "xai/": ("XAI_API_KEY or GROK_API_KEY", "https://console.x.ai/", "https://console.x.ai/team"),
-            "anthropic/": ("ANTHROPIC_API_KEY", "https://console.anthropic.com/", "https://console.anthropic.com/settings/billing"),
+            "anthropic/": (
+                "ANTHROPIC_API_KEY",
+                "https://console.anthropic.com/",
+                "https://console.anthropic.com/settings/billing",
+            ),
         }
-        env_var, key_url, billing_url = ("GEMINI_API_KEY", "https://aistudio.google.com/apikey", "https://aistudio.google.com/")
+        env_var, key_url, billing_url = (
+            "GEMINI_API_KEY",
+            "https://aistudio.google.com/apikey",
+            "https://aistudio.google.com/",
+        )
         for prefix, (ev, ku, bu) in provider_hints.items():
             if isinstance(model, str) and model.startswith(prefix):
                 env_var, key_url, billing_url = ev, ku, bu
@@ -860,31 +898,39 @@ class AgentHandle:
             "",
         ]
         if category == "auth":
-            lines.extend([
-                f"Likely cause: {env_var} is missing or invalid.",
-                f"  Get a key at: {key_url}",
-                f"  Then:         export {env_var}='your-key-here'",
-            ])
+            lines.extend(
+                [
+                    f"Likely cause: {env_var} is missing or invalid.",
+                    f"  Get a key at: {key_url}",
+                    f"  Then:         export {env_var}='your-key-here'",
+                ]
+            )
         elif category == "billing":
-            lines.extend([
-                f"Likely cause: provider billing issue (out of credits, quota exceeded).",
-                f"  Check billing at: {billing_url}",
-            ])
+            lines.extend(
+                [
+                    "Likely cause: provider billing issue (out of credits, quota exceeded).",
+                    f"  Check billing at: {billing_url}",
+                ]
+            )
         elif category == "config":
-            lines.extend([
-                "Likely cause: bad model id, malformed request, or context-window exceeded.",
-                f"  Current model:      {model}",
-                "  Verify the model id is on your provider's /models list.",
-                "  If context-window: reduce runtime context / memory / tool count.",
-            ])
-        lines.extend([
-            "",
-            "Backtest stopped intentionally so you can fix this and re-run.",
-            "Note: live trading does NOT stop on this error category — it logs and",
-            "skips the iteration so the bot stays alive for operator intervention.",
-            "=" * 78,
-            "",
-        ])
+            lines.extend(
+                [
+                    "Likely cause: bad model id, malformed request, or context-window exceeded.",
+                    f"  Current model:      {model}",
+                    "  Verify the model id is on your provider's /models list.",
+                    "  If context-window: reduce runtime context / memory / tool count.",
+                ]
+            )
+        lines.extend(
+            [
+                "",
+                "Backtest stopped intentionally so you can fix this and re-run.",
+                "Note: live trading does NOT stop on this error category — it logs and",
+                "skips the iteration so the bot stays alive for operator intervention.",
+                "=" * 78,
+                "",
+            ]
+        )
         try:
             sys.stderr.write("\n".join(lines))
             sys.stderr.flush()
@@ -937,7 +983,10 @@ class AgentHandle:
         return trace_dir
 
     def _write_trace(self, result: AgentRunResult, trace_payload: dict[str, Any]) -> Path:
-        trace_path = self._trace_dir() / f"{result.cache_key or 'live'}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}.json"
+        trace_path = (
+            self._trace_dir()
+            / f"{result.cache_key or 'live'}-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}.json"
+        )
         trace_path.write_text(json.dumps(_normalize_json(trace_payload), indent=2, sort_keys=True), encoding="utf-8")
         return trace_path
 
@@ -1030,7 +1079,10 @@ class AgentHandle:
             )
         tool_names = [event.tool_name for event in result.tool_calls if event.tool_name]
         used_data_tool = any(
-            name.startswith("market_") or name.startswith("duckdb_") or name.startswith("account_") or name in {"get_news", "alpaca_news", "fred_search", "fred_get_series"}
+            name.startswith("market_")
+            or name.startswith("duckdb_")
+            or name.startswith("account_")
+            or name in {"get_news", "alpaca_news", "fred_search", "fred_get_series"}
             for name in tool_names
         )
         used_order_tool = any(name.startswith("orders_") for name in tool_names)
@@ -1103,9 +1155,7 @@ class AgentHandle:
         )
         log_message(message, color="yellow")
         if result.tool_calls:
-            tool_sequence = " -> ".join(
-                event.tool_name or "unknown_tool" for event in result.tool_calls
-            )
+            tool_sequence = " -> ".join(event.tool_name or "unknown_tool" for event in result.tool_calls)
             log_message(f"[agents][tools] {tool_sequence}", color="yellow")
         for idx, event in enumerate(result.tool_calls, start=1):
             preview = _summarize_tool_payload(event.tool_name, event.payload)
@@ -1239,7 +1289,7 @@ class AgentHandle:
         #     user can act on.
         #
         # The _classify_agent_error helper (runtime.py) handles the taxonomy.
-        started_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        started_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         started_perf = time.perf_counter()
         try:
             result = self._runtime.run(request)
@@ -1247,6 +1297,7 @@ class AgentHandle:
             raise
         except BaseException as exc:  # noqa: BLE001 - intentional broad catch
             import traceback as _tb
+
             from .runtime import _classify_agent_error
             from .schemas import AgentRunResult, AgentTraceEvent
 
@@ -1269,7 +1320,7 @@ class AgentHandle:
                 sys.stderr.flush()
             except Exception:
                 pass
-            now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            now_iso = datetime.now(UTC).isoformat().replace("+00:00", "Z")
             fallback_summary = (
                 f"RESULT: Skipped this iteration. Agent call failed "
                 f"(category={category}): {error_detail}. "
@@ -1314,7 +1365,7 @@ class AgentHandle:
                 result,
                 started_at=started_at,
                 started_perf=started_perf,
-                ended_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                ended_at=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
                 ended_perf=time.perf_counter(),
             )
             # Record this skipped run in the agent's memory so the model on
@@ -1333,7 +1384,7 @@ class AgentHandle:
             result,
             started_at=started_at,
             started_perf=started_perf,
-            ended_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            ended_at=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             ended_perf=time.perf_counter(),
         )
         result.cache_key = cache_key
@@ -1409,7 +1460,7 @@ class AgentManager:
         self.strategy = strategy
         self._agents: dict[str, AgentHandle] = {}
         self._warned_backtest_mcp_tools: set[tuple[str, str]] = set()
-        agent_replay_cache_class, _ = _get_replay_imports()
+        agent_replay_cache_class, _normalize_json_func = _get_replay_imports()
         self.replay_cache = agent_replay_cache_class()
         self.duckdb = _get_duckdb_query_layer_class()(strategy)
         self._observability_totals: dict[str, dict[str, int]] = {}
@@ -1451,7 +1502,9 @@ class AgentManager:
         normalized_events = result.events or [AgentTraceEvent(kind="text", text=result.summary or "")]
         thinking_texts = _thinking_texts(result)
         final_texts = _visible_model_texts(result)
-        final_text = " || ".join(final_texts) if final_texts else _sanitize_csv_text(result.summary or result.text or "")
+        final_text = (
+            " || ".join(final_texts) if final_texts else _sanitize_csv_text(result.summary or result.text or "")
+        )
         thinking_text = " || ".join(thinking_texts)
         tool_sequence = " -> ".join(event.tool_name or "unknown_tool" for event in result.tool_calls)
         task_prompt = _sanitize_csv_text(cache_payload.get("task_prompt") or "")

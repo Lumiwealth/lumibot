@@ -2,31 +2,40 @@
 
 from __future__ import annotations
 
-from typing import Iterable, Optional, Sequence, Set
+from collections.abc import Iterable, Sequence
+from types import ModuleType
+from typing import Any, TypeAlias, cast
+
+PolarsDataFrame: TypeAlias = Any  # noqa: UP040 - keep Python 3.11 parser compatibility.
+PolarsExpr: TypeAlias = Any  # noqa: UP040
 
 
-class _LazyPolars:
-    _module = None
+class _LazyPolars(ModuleType):
+    _module: ModuleType | None
 
-    def _load(self):
+    def __init__(self) -> None:
+        super().__init__("polars")
+        self._module = None
+
+    def _load(self) -> ModuleType:
         if self._module is None:
             import polars as pl
 
             self._module = pl
         return self._module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
 
-pl = _LazyPolars()
+pl: Any = _LazyPolars()
 
 
 class PolarsResampleError(Exception):
     """Raised when a Polars resample operation cannot be completed."""
 
 
-def _ensure_datetime_column(df: pl.DataFrame) -> str:
+def _ensure_datetime_column(df: PolarsDataFrame) -> str:
     """Return the datetime-like column name used for grouping."""
     if "datetime" in df.columns:
         return "datetime"
@@ -38,10 +47,10 @@ def _ensure_datetime_column(df: pl.DataFrame) -> str:
     raise PolarsResampleError("Polars DataFrame lacks a datetime-like column required for resampling.")
 
 
-def _aggregate_expressions(existing_cols: Sequence[str]) -> list[pl.Expr]:
+def _aggregate_expressions(existing_cols: Sequence[str]) -> list[PolarsExpr]:
     """Build aggregation expressions for OHLC-style resampling."""
-    exprs: list[pl.Expr] = []
-    handled: Set[str] = {"datetime", "timestamp", "date", "time"}
+    exprs: list[PolarsExpr] = []
+    handled: set[str] = {"datetime", "timestamp", "date", "time"}
 
     if "open" in existing_cols:
         exprs.append(pl.col("open").first().alias("open"))
@@ -76,12 +85,12 @@ def _aggregate_expressions(existing_cols: Sequence[str]) -> list[pl.Expr]:
 
 
 def resample_polars_ohlc(
-    df: pl.DataFrame,
+    df: PolarsDataFrame,
     multiplier: int,
     base_unit: str,
-    length: Optional[int] = None,
-    label_offset: Optional[str] = None,
-) -> pl.DataFrame:
+    length: int | None = None,
+    label_offset: str | None = None,
+) -> PolarsDataFrame:
     """Resample a Polars DataFrame containing OHLC-like data.
 
     Parameters
@@ -120,7 +129,7 @@ def resample_polars_ohlc(
     datetime_column = _ensure_datetime_column(df)
     sorted_df = df.sort(datetime_column)
 
-    agg_exprs = _aggregate_expressions(sorted_df.columns)
+    agg_exprs = _aggregate_expressions(cast(Sequence[str], sorted_df.columns))
 
     group_kwargs = {
         "every": every,
@@ -136,14 +145,10 @@ def resample_polars_ohlc(
         lazy_grouped = lazy_frame.group_by_dynamic(datetime_column, **group_kwargs)
     else:  # pragma: no cover - backward compatibility
         lazy_grouped = lazy_frame.groupby_dynamic(datetime_column, **group_kwargs)
-    resampled = (
-        lazy_grouped
-        .agg(agg_exprs)
-        .sort(datetime_column)
-        .collect()
-    )
+    resampled = lazy_grouped.agg(agg_exprs).sort(datetime_column).collect()
 
-    required_cols: Iterable[str] = [c for c in ("open", "high", "low", "close") if c in resampled.columns]
+    resampled_columns = cast(Sequence[str], resampled.columns)
+    required_cols: Iterable[str] = [c for c in ("open", "high", "low", "close") if c in resampled_columns]
     if required_cols:
         condition = None
         for col in required_cols:

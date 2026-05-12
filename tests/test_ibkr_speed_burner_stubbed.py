@@ -137,7 +137,9 @@ def test_ibkr_speed_burner_prefetches_once_and_slices_forever(monkeypatch):
 
     calls: dict[tuple[str, str], int] = {}
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         sym = getattr(asset, "symbol", "")
         key = (sym, str(timestep))
         calls[key] = calls.get(key, 0) + 1
@@ -166,6 +168,10 @@ def test_ibkr_speed_burner_prefetches_once_and_slices_forever(monkeypatch):
         return broker
 
     futures_broker = _make_broker()
+    futures_broker._cleanup_config["cleanup_interval_iterations"] = 10
+    futures_broker._cleanup_config["retention_policies"]["filled_orders"].update(
+        {"max_age_days": None, "max_count": 20, "min_keep": 0}
+    )
 
     futures = _FuturesSpeedBurnerStrategy(
         broker=futures_broker,
@@ -213,6 +219,10 @@ def test_ibkr_speed_burner_prefetches_once_and_slices_forever(monkeypatch):
         futures_broker._update_datetime(60)
 
     crypto_broker = _make_broker()
+    crypto_broker._cleanup_config["cleanup_interval_iterations"] = 10
+    crypto_broker._cleanup_config["retention_policies"]["filled_orders"].update(
+        {"max_age_days": None, "max_count": 20, "min_keep": 0}
+    )
     crypto = _CryptoSpeedBurnerStrategy(
         broker=crypto_broker,
         budget=100_000.0,
@@ -244,9 +254,7 @@ def test_ibkr_speed_burner_prefetches_once_and_slices_forever(monkeypatch):
     futures_positions = [
         p for p in futures_broker.get_tracked_positions(futures.name) if p.asset != futures.quote_asset
     ]
-    crypto_positions = [
-        p for p in crypto_broker.get_tracked_positions(crypto.name) if p.asset != crypto.quote_asset
-    ]
+    crypto_positions = [p for p in crypto_broker.get_tracked_positions(crypto.name) if p.asset != crypto.quote_asset]
     assert futures_positions == []
     assert crypto_positions == []
 
@@ -270,6 +278,7 @@ def test_ibkr_speed_burner_prefetches_once_and_slices_forever(monkeypatch):
     trade_events_fut = futures_broker._trade_event_log_df
     orders_total_fut = iterations * len([fut_mes, fut_mnq])
     assert len(trade_events_fut) == 2 * orders_total_fut  # one "new" and one "fill" per order
+    assert len(futures_broker._filled_orders.get_list()) <= 40
     fills_fut = trade_events_fut[trade_events_fut["status"] == "fill"].reset_index(drop=True)
     assert len(fills_fut) == orders_total_fut
 
@@ -317,8 +326,10 @@ def test_ibkr_speed_burner_prefetches_once_and_slices_forever(monkeypatch):
     crypto_fills = trade_events_crypto[trade_events_crypto["status"] == "fill"].reset_index(drop=True)
     assert len(crypto_fills) == orders_total_crypto
     assert list(crypto_fills.iloc[:3]["symbol"]) == ["BTC", "ETH", "SOL"]
+    assert len(crypto_broker._filled_orders.get_list()) <= 40
     assert len(getattr(crypto_broker, "_filled_order_identifiers", ())) == 0
     for order in crypto_broker._filled_orders.get_list()[:6]:
+        assert isinstance(order.identifier, int)
         assert not hasattr(order, "_fast_trade_event_pair_row")
         assert not hasattr(order, "_fast_trade_event_pair_row_index")
         assert not hasattr(order, "_fast_trade_event_static")

@@ -5,34 +5,26 @@ if True:
     import sys
 
     myPath = os.path.dirname(os.path.abspath(__file__))
-    sys.path.insert(
-        0, 
-        "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot"
-    )
+    sys.path.insert(0, "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot")
     sys.path.insert(
         0,
         "/Users/robertgrzesik/Development/lumiwealth_tradier/",
     )
-    sys.path.insert(
-        0,
-        "/Users/robertgrzesik/Development/quantstats_lumi/"
-    )
+    sys.path.insert(0, "/Users/robertgrzesik/Development/quantstats_lumi/")
 ################################################################################
 
-from lumibot.strategies.strategy import Strategy
-from lumibot.entities import Asset, Order, TradingFee
-from lumibot.traders import Trader
-from lumibot.credentials import IS_BACKTESTING
+import math
+
+import pytz  # (1) Added for explicit ET conversion
 
 # NOTE: Minute-level strategy. For minute-level backtesting, use Polygon per framework guidance.
 # Yahoo backtesting does not support options.
 from lumibot.backtesting import PolygonDataBacktesting
-
 from lumibot.components.options_helper import OptionsHelper
-
-from datetime import timedelta
-import math
-import pytz  # (1) Added for explicit ET conversion
+from lumibot.credentials import IS_BACKTESTING
+from lumibot.entities import Asset, Order, TradingFee
+from lumibot.strategies.strategy import Strategy
+from lumibot.traders import Trader
 
 """
 Strategy Description
@@ -116,7 +108,12 @@ class SPXShortStraddle(Strategy):
     def _get_option_mark_price(self, option_asset: Asset):
         """Prefer quote.mid_price; fallback to last trade. Returns None if not actionable."""
         q = self.get_quote(option_asset)
-        if q is not None and self._is_finite_positive(q.bid) and self._is_finite_positive(q.ask) and self._is_finite_positive(q.mid_price):
+        if (
+            q is not None
+            and self._is_finite_positive(q.bid)
+            and self._is_finite_positive(q.ask)
+            and self._is_finite_positive(q.mid_price)
+        ):
             return float(q.mid_price)
 
         last = self.get_last_price(option_asset)
@@ -177,7 +174,12 @@ class SPXShortStraddle(Strategy):
         entry_premium = self.vars.current_straddle.get("entry_premium")
         stop_thr = self.vars.current_straddle.get("stop_loss_threshold")
 
-        if call_asset is None or put_asset is None or not self._is_finite_positive(entry_premium) or not self._is_finite_positive(stop_thr):
+        if (
+            call_asset is None
+            or put_asset is None
+            or not self._is_finite_positive(entry_premium)
+            or not self._is_finite_positive(stop_thr)
+        ):
             self.log_message("Stop-loss check skipped: missing straddle state.", color="red")
             return
 
@@ -215,7 +217,10 @@ class SPXShortStraddle(Strategy):
             return
 
         # Verbose: show the ET datetime we are using for 0DTE comparisons
-        self.log_message(f"[_enter_short_straddle] Entry attempt at ET={current_dt_et.strftime('%Y-%m-%d %H:%M:%S %Z%z')}", color="blue")
+        self.log_message(
+            f"[_enter_short_straddle] Entry attempt at ET={current_dt_et.strftime('%Y-%m-%d %H:%M:%S %Z%z')}",
+            color="blue",
+        )
 
         # Start with SPXW per original intent
         primary_underlying = self.vars.underlying_spxw
@@ -239,7 +244,10 @@ class SPXShortStraddle(Strategy):
             )
             return
 
-        self.log_message(f"[_enter_short_straddle] Underlying price: {underlying_for_entry.symbol}={underlying_price:.2f}", color="blue")
+        self.log_message(
+            f"[_enter_short_straddle] Underlying price: {underlying_for_entry.symbol}={underlying_price:.2f}",
+            color="blue",
+        )
 
         # 2) Fetch option chain for SPXW, fallback to SPX if empty
         self.log_message(f"[_enter_short_straddle] Fetching chains for {primary_underlying.symbol}...", color="blue")
@@ -259,10 +267,14 @@ class SPXShortStraddle(Strategy):
 
             # If SPX chains exist, use SPX for option selection.
             underlying_for_chain = fallback_underlying
-            self.log_message(f"[_enter_short_straddle] Using {underlying_for_chain.symbol} chains for this entry.", color="blue")
+            self.log_message(
+                f"[_enter_short_straddle] Using {underlying_for_chain.symbol} chains for this entry.", color="blue"
+            )
         else:
             underlying_for_chain = primary_underlying
-            self.log_message(f"[_enter_short_straddle] Using {underlying_for_chain.symbol} chains for this entry.", color="blue")
+            self.log_message(
+                f"[_enter_short_straddle] Using {underlying_for_chain.symbol} chains for this entry.", color="blue"
+            )
 
         # 3) Filter for 0DTE (expiration = today)
         today_et = current_dt_et.date()
@@ -292,7 +304,10 @@ class SPXShortStraddle(Strategy):
             )
             return
 
-        self.log_message(f"[_enter_short_straddle] Found tradeable 0DTE expiry={expiry} for {underlying_for_chain.symbol}.", color="blue")
+        self.log_message(
+            f"[_enter_short_straddle] Found tradeable 0DTE expiry={expiry} for {underlying_for_chain.symbol}.",
+            color="blue",
+        )
 
         # 4) Find ATM call and put
         rounded_atm = round(float(underlying_price) / 5.0) * 5.0
@@ -335,7 +350,9 @@ class SPXShortStraddle(Strategy):
         self.log_message(f"Call market eval: {call_eval}", color="blue")
         self.log_message(f"Put market eval: {put_eval}", color="blue")
 
-        if (not self.vars.options_helper.has_actionable_price(call_eval)) or (not self.vars.options_helper.has_actionable_price(put_eval)):
+        if (not self.vars.options_helper.has_actionable_price(call_eval)) or (
+            not self.vars.options_helper.has_actionable_price(put_eval)
+        ):
             self.log_message(
                 f"Entry skipped: non-actionable prices. Call flags={call_eval.data_quality_flags}, Put flags={put_eval.data_quality_flags}",
                 color="yellow",
@@ -412,7 +429,9 @@ class SPXShortStraddle(Strategy):
             if self.vars.current_straddle.get("open", False):
                 self._close_straddle_if_open(reason=f"EOD close time {self.vars.eod_close_time} ET")
             else:
-                self.log_message(f"EOD time {self.vars.eod_close_time} ET reached; no open straddle to close.", color="white")
+                self.log_message(
+                    f"EOD time {self.vars.eod_close_time} ET reached; no open straddle to close.", color="white"
+                )
             return
 
         # Stop loss monitoring (every minute)
@@ -430,7 +449,10 @@ class SPXShortStraddle(Strategy):
         else:
             # Keep the log minimal (not every minute), only occasionally.
             if current_dt_et.minute in (0, 30):
-                self.log_message(f"No entry this minute (ET {current_time_et}). Next entry times: {self.vars.entry_times}.", color="white")
+                self.log_message(
+                    f"No entry this minute (ET {current_time_et}). Next entry times: {self.vars.entry_times}.",
+                    color="white",
+                )
 
 
 if __name__ == "__main__":

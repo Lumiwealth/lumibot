@@ -17,4 +17,3 @@ def test_clean_order_records_rounds_floats_and_nulls():
     assert out[1]["avg_fill_price"] is None
     assert out[1]["exec_quantity"] == 3.33
     assert out[1]["x"] is None
-

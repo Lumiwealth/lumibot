@@ -13,12 +13,14 @@ Run once indices subscription is active.
 
 import datetime
 import os
+
 import pytest
 from dotenv import load_dotenv
+
+from lumibot.backtesting import PolygonDataBacktesting, ThetaDataBacktesting
 from lumibot.entities import Asset
 from lumibot.tools import thetadata_helper
 from lumibot.tools.helpers import to_datetime_aware
-from lumibot.backtesting import ThetaDataBacktesting, PolygonDataBacktesting
 
 # Load environment variables from .env file
 load_dotenv()
@@ -33,10 +35,7 @@ def require_thetadata_credentials():
     username = os.environ.get("THETADATA_USERNAME")
     password = os.environ.get("THETADATA_PASSWORD")
     if not username or not password or username == "uname":
-        pytest.skip(
-            "Skipping due to missing/placeholder ThetaData credentials: "
-            "THETADATA_USERNAME/THETADATA_PASSWORD"
-        )
+        pytest.skip("Skipping due to missing/placeholder ThetaData credentials: THETADATA_USERNAME/THETADATA_PASSWORD")
 
 
 @pytest.mark.apitest
@@ -58,7 +57,7 @@ class TestIndexDataVerification:
             asset=asset,
             start=datetime.datetime(2024, 8, 1, 9, 30),
             end=datetime.datetime(2024, 8, 1, 10, 0),
-            timespan="minute"
+            timespan="minute",
         )
 
         assert df is not None, "SPX data should be accessible with indices subscription"
@@ -80,7 +79,7 @@ class TestIndexDataVerification:
             asset=asset,
             start=datetime.datetime(2024, 8, 1, 9, 30),
             end=datetime.datetime(2024, 8, 1, 10, 0),
-            timespan="minute"
+            timespan="minute",
         )
 
         assert df is not None, "VIX data should be accessible with indices subscription"
@@ -106,14 +105,14 @@ class TestIndexDataVerification:
             asset=asset,
             start=datetime.datetime(2024, 8, 1, 9, 30),
             end=datetime.datetime(2024, 8, 1, 9, 40),
-            timespan="minute"
+            timespan="minute",
         )
 
         assert df is not None and len(df) > 0, "No bars returned for SPX"
 
-        print(f"\n✓ Timestamp verification for SPX:")
+        print("\n✓ Timestamp verification for SPX:")
         print(f"{'Time':<25} {'Close':<10}")
-        print("="*40)
+        print("=" * 40)
 
         for i in range(min(10, len(df))):
             idx = df.index[i]
@@ -123,7 +122,7 @@ class TestIndexDataVerification:
         # Verify first bar is at exactly 9:30 ET (or 9:29 due to known timestamp offset bug)
         first_time = df.index[0]
         # Convert to ET timezone for comparison
-        first_time_et = first_time.tz_convert('America/New_York')
+        first_time_et = first_time.tz_convert("America/New_York")
         assert first_time_et.hour == 9, f"First bar hour is {first_time_et.hour} ET, expected 9"
         # Known issue: ThetaData index bars have 1-minute offset (start at 9:29 instead of 9:30)
         assert first_time_et.minute in [29, 30], f"First bar minute is {first_time_et.minute} ET, expected 29 or 30"
@@ -131,13 +130,13 @@ class TestIndexDataVerification:
         # Verify all bars within the same day are exactly 60 seconds apart
         # (skip overnight gaps)
         for i in range(1, min(len(df), 100)):  # Only check first 100 bars to avoid overnight gaps
-            time_diff = (df.index[i] - df.index[i-1]).total_seconds()
+            time_diff = (df.index[i] - df.index[i - 1]).total_seconds()
             # Skip if this is an overnight gap (more than 1 hour)
             if time_diff > 3600:
                 continue
-            assert time_diff == 60, f"Bar {i} is {time_diff}s after bar {i-1}, expected 60s"
+            assert time_diff == 60, f"Bar {i} is {time_diff}s after bar {i - 1}, expected 60s"
 
-        print(f"\n✓ Timestamps verified: First bar at 9:30, all bars 60s apart")
+        print("\n✓ Timestamps verified: First bar at 9:30, all bars 60s apart")
 
     def test_spx_vs_polygon_comparison(self):
         """
@@ -173,9 +172,9 @@ class TestIndexDataVerification:
             datetime.datetime(2024, 8, 1, 10, 0),
         ]
 
-        print(f"\n✓ SPX price comparison:")
+        print("\n✓ SPX price comparison:")
         print(f"{'Time':<25} {'ThetaData':<12} {'Polygon':<12} {'Diff':<10} {'Status'}")
-        print("="*80)
+        print("=" * 80)
 
         max_diff = 0.0
 
@@ -195,22 +194,14 @@ class TestIndexDataVerification:
             polygon_ds._datetime = to_datetime_aware(test_time)
 
             # ThetaData
-            theta_bars = theta_ds.get_historical_prices(
-                asset=asset, length=1, timestep="minute", timeshift=None
-            )
-            theta_df = theta_bars.df if hasattr(theta_bars, 'df') else theta_bars
-            theta_price = theta_df.iloc[-1]['close'] if len(theta_df) > 0 else None
+            theta_bars = theta_ds.get_historical_prices(asset=asset, length=1, timestep="minute", timeshift=None)
+            theta_df = theta_bars.df if hasattr(theta_bars, "df") else theta_bars
+            theta_price = theta_df.iloc[-1]["close"] if len(theta_df) > 0 else None
 
             # Polygon
-            polygon_bars = polygon_ds.get_historical_prices(
-                asset=asset, length=1, timestep="minute", timeshift=None
-            )
-            polygon_df = polygon_bars.df if hasattr(polygon_bars, 'df') else polygon_bars
-            polygon_price = (
-                polygon_df.iloc[-1]["close"]
-                if polygon_df is not None and len(polygon_df) > 0
-                else None
-            )
+            polygon_bars = polygon_ds.get_historical_prices(asset=asset, length=1, timestep="minute", timeshift=None)
+            polygon_df = polygon_bars.df if hasattr(polygon_bars, "df") else polygon_bars
+            polygon_price = polygon_df.iloc[-1]["close"] if polygon_df is not None and len(polygon_df) > 0 else None
 
             if theta_price and polygon_price:
                 diff = abs(theta_price - polygon_price)
@@ -260,9 +251,9 @@ class TestIndexDataVerification:
             datetime.datetime(2024, 8, 1, 10, 0),
         ]
 
-        print(f"\n✓ VIX price comparison:")
+        print("\n✓ VIX price comparison:")
         print(f"{'Time':<25} {'ThetaData':<12} {'Polygon':<12} {'Diff':<10} {'Status'}")
-        print("="*80)
+        print("=" * 80)
 
         max_diff = 0.0
 
@@ -282,22 +273,14 @@ class TestIndexDataVerification:
             polygon_ds._datetime = to_datetime_aware(test_time)
 
             # ThetaData
-            theta_bars = theta_ds.get_historical_prices(
-                asset=asset, length=1, timestep="minute", timeshift=None
-            )
-            theta_df = theta_bars.df if hasattr(theta_bars, 'df') else theta_bars
-            theta_price = theta_df.iloc[-1]['close'] if len(theta_df) > 0 else None
+            theta_bars = theta_ds.get_historical_prices(asset=asset, length=1, timestep="minute", timeshift=None)
+            theta_df = theta_bars.df if hasattr(theta_bars, "df") else theta_bars
+            theta_price = theta_df.iloc[-1]["close"] if len(theta_df) > 0 else None
 
             # Polygon
-            polygon_bars = polygon_ds.get_historical_prices(
-                asset=asset, length=1, timestep="minute", timeshift=None
-            )
-            polygon_df = polygon_bars.df if hasattr(polygon_bars, 'df') else polygon_bars
-            polygon_price = (
-                polygon_df.iloc[-1]["close"]
-                if polygon_df is not None and len(polygon_df) > 0
-                else None
-            )
+            polygon_bars = polygon_ds.get_historical_prices(asset=asset, length=1, timestep="minute", timeshift=None)
+            polygon_df = polygon_bars.df if hasattr(polygon_bars, "df") else polygon_bars
+            polygon_price = polygon_df.iloc[-1]["close"] if polygon_df is not None and len(polygon_df) > 0 else None
 
             if theta_price and polygon_price:
                 diff = abs(theta_price - polygon_price)
@@ -324,7 +307,7 @@ class TestIndexDataVerification:
             asset=asset,
             start=datetime.datetime(2024, 8, 1, 9, 30),
             end=datetime.datetime(2024, 8, 1, 16, 0),
-            timespan="minute"
+            timespan="minute",
         )
 
         assert df is not None and len(df) > 0, "No bars returned for SPX"
@@ -335,22 +318,22 @@ class TestIndexDataVerification:
             timestamp = df.index[i]
 
             # High >= Open, Close, Low
-            assert bar['high'] >= bar['open'], f"Bar {timestamp}: high < open"
-            assert bar['high'] >= bar['close'], f"Bar {timestamp}: high < close"
-            assert bar['high'] >= bar['low'], f"Bar {timestamp}: high < low"
+            assert bar["high"] >= bar["open"], f"Bar {timestamp}: high < open"
+            assert bar["high"] >= bar["close"], f"Bar {timestamp}: high < close"
+            assert bar["high"] >= bar["low"], f"Bar {timestamp}: high < low"
 
             # Low <= Open, Close, High
-            assert bar['low'] <= bar['open'], f"Bar {timestamp}: low > open"
-            assert bar['low'] <= bar['close'], f"Bar {timestamp}: low > close"
+            assert bar["low"] <= bar["open"], f"Bar {timestamp}: low > open"
+            assert bar["low"] <= bar["close"], f"Bar {timestamp}: low > close"
 
             # All prices > 0
-            assert bar['open'] > 0, f"Bar {timestamp}: open <= 0"
-            assert bar['high'] > 0, f"Bar {timestamp}: high <= 0"
-            assert bar['low'] > 0, f"Bar {timestamp}: low <= 0"
-            assert bar['close'] > 0, f"Bar {timestamp}: close <= 0"
+            assert bar["open"] > 0, f"Bar {timestamp}: open <= 0"
+            assert bar["high"] > 0, f"Bar {timestamp}: high <= 0"
+            assert bar["low"] > 0, f"Bar {timestamp}: low <= 0"
+            assert bar["close"] > 0, f"Bar {timestamp}: close <= 0"
 
             # Reasonable range (SPX ~5000, not 50 or 50000)
-            assert 3000 < bar['close'] < 7000, f"Bar {timestamp}: close {bar['close']} outside reasonable range"
+            assert 3000 < bar["close"] < 7000, f"Bar {timestamp}: close {bar['close']} outside reasonable range"
 
         print(f"\n✓ OHLC consistency verified for {len(df)} bars")
 
@@ -368,13 +351,14 @@ class TestIndexDataVerification:
             asset=asset,
             start=datetime.datetime(2024, 8, 1, 9, 30),
             end=datetime.datetime(2024, 8, 1, 16, 0),
-            timespan="minute"
+            timespan="minute",
         )
 
         assert df is not None and len(df) > 0, "No bars returned for SPX"
 
         # Filter to only the requested date (cache might have multiple days)
         import pandas as pd
+
         target_date = pd.Timestamp("2024-08-01").date()
         df = df[df.index.date == target_date]
 
@@ -383,8 +367,9 @@ class TestIndexDataVerification:
         actual_bars = len(df)
 
         # Allow small tolerance for market data timing
-        assert abs(actual_bars - expected_bars) <= 5, \
+        assert abs(actual_bars - expected_bars) <= 5, (
             f"Expected ~{expected_bars} bars, got {actual_bars} (difference: {abs(actual_bars - expected_bars)})"
+        )
 
         print(f"\n✓ No missing bars: {actual_bars} bars (expected ~{expected_bars})")
 

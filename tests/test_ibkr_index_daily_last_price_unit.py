@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from lumibot.backtesting.interactive_brokers_rest_backtesting import InteractiveBrokersRESTBacktesting
 from lumibot.entities import Asset
@@ -25,8 +25,8 @@ class _FakeDayData:
 
 
 def _make_data_source() -> InteractiveBrokersRESTBacktesting:
-    start = datetime(2026, 4, 9, 20, 0, tzinfo=timezone.utc)
-    end = datetime(2026, 4, 10, 20, 0, tzinfo=timezone.utc)
+    start = datetime(2026, 4, 9, 20, 0, tzinfo=UTC)
+    end = datetime(2026, 4, 10, 20, 0, tzinfo=UTC)
     data_source = InteractiveBrokersRESTBacktesting(
         datetime_start=start,
         datetime_end=end,

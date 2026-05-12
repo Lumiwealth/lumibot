@@ -90,7 +90,9 @@ class IbkrMesFuturesAcceptance(Strategy):
         # Phase 0: Market long entry
         if self.vars.phase == 0:
             self.vars.phase_started_at = now
-            self._submit(self.create_order(self.future, Decimal("1"), Order.OrderSide.BUY, order_type=Order.OrderType.MARKET))
+            self._submit(
+                self.create_order(self.future, Decimal("1"), Order.OrderSide.BUY, order_type=Order.OrderType.MARKET)
+            )
             self.vars.phase += 1
             return
 
@@ -144,7 +146,11 @@ class IbkrMesFuturesAcceptance(Strategy):
         # If trailing stop didn't trigger within a reasonable time, force-flatten and continue.
         if self.vars.phase == 4 and qty != 0 and (now - self.vars.phase_started_at) >= timedelta(minutes=120):
             self.vars.phase_started_at = now
-            self._submit(self.create_order(self.future, Decimal(str(abs(qty))), Order.OrderSide.SELL, order_type=Order.OrderType.MARKET))
+            self._submit(
+                self.create_order(
+                    self.future, Decimal(str(abs(qty))), Order.OrderSide.SELL, order_type=Order.OrderType.MARKET
+                )
+            )
             self.vars.phase += 1
             return
         if self.vars.phase == 4 and qty == 0:
@@ -187,14 +193,20 @@ class IbkrMesFuturesAcceptance(Strategy):
         # Phase 7: Short market entry
         if self.vars.phase == 7 and qty == 0:
             self.vars.phase_started_at = now
-            self._submit(self.create_order(self.future, Decimal("1"), Order.OrderSide.SELL, order_type=Order.OrderType.MARKET))
+            self._submit(
+                self.create_order(self.future, Decimal("1"), Order.OrderSide.SELL, order_type=Order.OrderType.MARKET)
+            )
             self.vars.phase += 1
             return
 
         # Phase 8: Market cover
         if self.vars.phase == 8 and qty < 0 and (now - self.vars.phase_started_at) >= timedelta(minutes=60):
             self.vars.phase_started_at = now
-            self._submit(self.create_order(self.future, Decimal(str(abs(qty))), Order.OrderSide.BUY, order_type=Order.OrderType.MARKET))
+            self._submit(
+                self.create_order(
+                    self.future, Decimal(str(abs(qty))), Order.OrderSide.BUY, order_type=Order.OrderType.MARKET
+                )
+            )
             self.vars.phase += 1
             return
 
@@ -235,7 +247,14 @@ class IbkrMesFuturesAcceptance(Strategy):
 
         # Final: ensure flat.
         if self.vars.phase >= 11 and qty != 0:
-            self._submit(self.create_order(self.future, Decimal(str(abs(qty))), Order.OrderSide.SELL if qty > 0 else Order.OrderSide.BUY, order_type=Order.OrderType.MARKET))
+            self._submit(
+                self.create_order(
+                    self.future,
+                    Decimal(str(abs(qty))),
+                    Order.OrderSide.SELL if qty > 0 else Order.OrderSide.BUY,
+                    order_type=Order.OrderType.MARKET,
+                )
+            )
             return
 
         return

@@ -1,15 +1,24 @@
-import os
-import time
-from typing import Dict, Any, Optional
 import hashlib
 import json
+import os
+import time
+from collections.abc import Mapping
+from typing import Any, cast
+
 from lumibot.tools.lumibot_logger import get_logger
 
 
-def _requests():
+def _requests() -> Any:
     import requests
 
     return requests
+
+
+def _json_dict(value: object) -> dict[str, Any]:
+    if isinstance(value, Mapping):
+        return dict(cast(Mapping[str, Any], value))
+    return {"data": value}
+
 
 class BitUnixClient:
     """
@@ -23,7 +32,7 @@ class BitUnixClient:
         "Content-Type": "application/json",
     }
 
-    def __init__(self, api_key: str, secret_key: str, timeout: float = 10.0):
+    def __init__(self, api_key: str, secret_key: str, timeout: float = 10.0) -> None:
         self.api_key = api_key
         self.secret_key = secret_key
         self.timeout = timeout
@@ -34,7 +43,7 @@ class BitUnixClient:
     def _timestamp(self) -> str:
         return str(int(time.time() * 1000))
 
-    def _sign(self, params: Dict[str, Any], body: Optional[Dict[str, Any]], nonce: str, timestamp: str) -> str:
+    def _sign(self, params: dict[str, Any], body: dict[str, Any] | None, nonce: str, timestamp: str) -> str:
         """
         Generate signature per BitUnix API docs:
         digest = SHA256(nonce + timestamp + apiKey + queryParams + bodyJson)
@@ -42,45 +51,46 @@ class BitUnixClient:
         """
         # Prepare logger
         from lumibot.tools.lumibot_logger import get_logger
+
         logger = get_logger(__name__)
         # Prepare sorted query string: concatenated key and value, sorted by key
-        qp = ''.join(f"{k}{params[k]}" for k in sorted(params)) if params else ""
+        qp = "".join(f"{k}{params[k]}" for k in sorted(params)) if params else ""
         # Prepare compact JSON body string without spaces
-        body_str = json.dumps(body, separators=(',', ':'), ensure_ascii=False) if body else ""
+        body_str = json.dumps(body, separators=(",", ":"), ensure_ascii=False) if body else ""
         # Construct digest input and log it
         digest_input = nonce + timestamp + self.api_key + qp + body_str
         logger.debug("digest_input: %s", digest_input)
         # First SHA-256 hash
-        digest = hashlib.sha256(digest_input.encode('utf-8')).hexdigest()
+        digest = hashlib.sha256(digest_input.encode("utf-8")).hexdigest()
         logger.debug("digest: %s", digest)
         # Final signature input and log it
         sign_input = digest + self.secret_key
         logger.debug("sign_input: %s", sign_input)
         # Second SHA-256 hash and return
-        signature = hashlib.sha256(sign_input.encode('utf-8')).hexdigest()
+        signature = hashlib.sha256(sign_input.encode("utf-8")).hexdigest()
         logger.debug("signature: %s", signature)
         return signature
 
-    def _headers(self, params: Dict[str, Any], body: Optional[Dict[str, Any]]) -> Dict[str, str]:
-        nonce     = self._nonce()
+    def _headers(self, params: dict[str, Any], body: dict[str, Any] | None) -> dict[str, str]:
+        nonce = self._nonce()
         timestamp = self._timestamp()
-        sign      = self._sign(params, body, nonce, timestamp)
+        sign = self._sign(params, body, nonce, timestamp)
 
         return {
             **self.DEFAULT_HEADERS,
-            "api-key":   self.api_key,
-            "nonce":     nonce,
+            "api-key": self.api_key,
+            "nonce": nonce,
             "timestamp": timestamp,
-            "sign":      sign,
+            "sign": sign,
         }
 
     def _request(
         self,
         method: str,
         endpoint: str,
-        params: Optional[Dict[str, Any]] = None,
-        json_body:   Optional[Dict[str, Any]] = None,
-    ) -> Any:
+        params: dict[str, Any] | None = None,
+        json_body: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         Generic request to BitUnix.
 
@@ -104,7 +114,7 @@ class BitUnixClient:
             )
         else:
             # Serialize body without spaces to match signature
-            body_str = json.dumps(json_body, separators=(',', ':'), ensure_ascii=False) if json_body is not None else ""
+            body_str = json.dumps(json_body, separators=(",", ":"), ensure_ascii=False) if json_body is not None else ""
             resp = _requests().request(
                 method=method.upper(),
                 url=url,
@@ -115,20 +125,19 @@ class BitUnixClient:
         resp.raise_for_status()
         # If the business code is non‑zero, emit a debug log with details
         try:
-            payload = resp.json()
-            if isinstance(payload, dict) and payload.get("code") not in (0, None):
+            payload = _json_dict(resp.json())
+            if payload.get("code") not in (0, None):
                 get_logger(__name__).debug(
-                    "BitUnix business error %s on %s %s: %s",
-                    payload.get("code"), method.upper(), endpoint, payload
+                    "BitUnix business error %s on %s %s: %s", payload.get("code"), method.upper(), endpoint, payload
                 )
         except Exception:
             # Wasn't JSON or other error – ignore, will be caught by caller if needed
             pass
-        return resp.json()
+        return _json_dict(resp.json())
 
     # ——— Example wrappers ———
 
-    def get_account(self, margin_coin: str = "USDT") -> Dict[str, Any]:
+    def get_account(self, margin_coin: str = "USDT") -> dict[str, Any]:
         """
         Retrieve FUTURES account metrics for the specified quote asset (`margin_coin`).
         This might also include spot balances depending on the API implementation.
@@ -145,7 +154,7 @@ class BitUnixClient:
             params={"marginCoin": margin_coin},
         )
 
-    def get_positions(self) -> Dict[str, Any]:
+    def get_positions(self) -> dict[str, Any]:
         """
         List all open positions under the given quote asset (`margin_coin`).
 
@@ -155,10 +164,7 @@ class BitUnixClient:
         Returns:
             Dict[str, Any]: ``{"code": int, "msg": str, "data": [ {...position...}, ... ]}``
         """
-        return self._request(
-            method="GET",
-            endpoint="/api/v1/futures/position/get_pending_positions"
-        )
+        return self._request(method="GET", endpoint="/api/v1/futures/position/get_pending_positions")
 
     def place_order(
         self,
@@ -166,13 +172,13 @@ class BitUnixClient:
         side: str,
         orderType: str,
         qty: float,
-        take_profit_price: Optional[float] = None,
-        stop_loss_price: Optional[float] = None,
-        price: Optional[float] = None,
-        clientId: Optional[str] = None,
+        take_profit_price: float | None = None,
+        stop_loss_price: float | None = None,
+        price: float | None = None,
+        clientId: str | None = None,
         tradeSide: str = "OPEN",
-        **kwargs,
-    ) -> Dict[str, Any]:
+        **kwargs: Any,
+    ) -> dict[str, Any]:
         """
         Place a single futures order.
 
@@ -181,13 +187,13 @@ class BitUnixClient:
             - If **reduceOnly** is True, Bitunix will reject the order if it would increase position size.
         Optionally include take_profit_price and/or stop_loss_price to attach TP/SL triggers in the same request.
         """
-        body = {
-            "symbol":    symbol,
-            "side":      side,
+        body: dict[str, Any] = {
+            "symbol": symbol,
+            "side": side,
             "tradeSide": tradeSide,
             "orderType": orderType,
-            "qty":       qty,
-            **({"price": price}      if price is not None else {}),
+            "qty": qty,
+            **({"price": price} if price is not None else {}),
             **({"clientId": clientId} if clientId is not None else {}),
             **({"tpPrice": take_profit_price} if take_profit_price is not None else {}),
             **({"slPrice": stop_loss_price} if stop_loss_price is not None else {}),
@@ -201,11 +207,11 @@ class BitUnixClient:
 
     def cancel_order(
         self,
-        order=None,
+        order: Any | None = None,
         *,
-        order_id: Optional[str] = None,
-        symbol: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        order_id: str | None = None,
+        symbol: str | None = None,
+    ) -> dict[str, Any]:
         """
         Cancel a single FUTURES order.
         """
@@ -232,9 +238,9 @@ class BitUnixClient:
         symbol: str,
         amount: str,
         margin_coin: str = "USDT",
-        side: Optional[str] = None,
-        position_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        side: str | None = None,
+        position_id: str | None = None,
+    ) -> dict[str, Any]:
         """
         Add or remove margin from an existing position.
 
@@ -266,7 +272,7 @@ class BitUnixClient:
         symbol: str,
         leverage: int,
         margin_coin: str = "USDT",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Change leverage for one symbol.
 
@@ -290,7 +296,7 @@ class BitUnixClient:
         symbol: str,
         margin_mode: str,
         margin_coin: str = "USDT",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Switch isolated / cross margin for a symbol.
 
@@ -309,7 +315,7 @@ class BitUnixClient:
             json_body=body,
         )
 
-    def change_position_mode(self, position_mode: str) -> Dict[str, Any]:
+    def change_position_mode(self, position_mode: str) -> dict[str, Any]:
         """
         Switch hedge / one‑way mode for ALL symbols.
 
@@ -327,7 +333,7 @@ class BitUnixClient:
         self,
         symbol: str,
         margin_coin: str = "USDT",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Query current leverage setting and margin mode.
 
@@ -344,7 +350,7 @@ class BitUnixClient:
             params={"symbol": symbol, "marginCoin": margin_coin},
         )
 
-    def get_depth(self, symbol: str, limit: Optional[str] = None) -> Dict[str, Any]:
+    def get_depth(self, symbol: str, limit: str | None = None) -> dict[str, Any]:
         """
         Order‑book snapshot for `symbol`.
 
@@ -360,7 +366,7 @@ class BitUnixClient:
             params=params,
         )
 
-    def get_funding_rate(self, symbol: str) -> Dict[str, Any]:
+    def get_funding_rate(self, symbol: str) -> dict[str, Any]:
         """
         Current funding rate for `symbol`.
 
@@ -377,40 +383,48 @@ class BitUnixClient:
         self,
         symbol: str,
         interval: str,
-        start_time: Optional[int] = None,
-        end_time: Optional[int] = None,
-        limit: Optional[int] = None,
-        type: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        start_time: int | None = None,
+        end_time: int | None = None,
+        limit: int | None = None,
+        kline_type: str | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
         """
         Historical OHLCV candles.
 
         Returns:
             Dict[str, Any]: ``{"code": int, "msg": str, "data": [ {...kline...}, ... ]}``
         """
-        params = {"symbol": symbol, "interval": interval}
+        if "type" in kwargs:
+            raw_kline_type = kwargs.pop("type")
+            kline_type = None if raw_kline_type is None else str(raw_kline_type)
+        if kwargs:
+            unexpected = ", ".join(str(key) for key in kwargs)
+            raise TypeError(f"Unexpected get_klines keyword argument(s): {unexpected}")
+
+        params: dict[str, Any] = {"symbol": symbol, "interval": interval}
         if start_time is not None:
             params["startTime"] = start_time
         if end_time is not None:
             params["endTime"] = end_time
         if limit is not None:
             params["limit"] = limit
-        if type is not None:
-            params["type"] = type
+        if kline_type is not None:
+            params["type"] = kline_type
         return self._request(
             method="GET",
             endpoint="/api/v1/futures/market/kline",
             params=params,
         )
 
-    def get_tickers(self, symbols: Optional[str] = None) -> Dict[str, Any]:
+    def get_tickers(self, symbols: str | None = None) -> dict[str, Any]:
         """
         24‑hour rolling statistics for one or many symbols.
 
         Returns:
             Dict[str, Any]: ``{"code": int, "msg": str, "data": [ {...ticker...}, ... ]}``
         """
-        params = {}
+        params: dict[str, Any] = {}
         if symbols is not None:
             params["symbols"] = symbols
         return self._request(
@@ -419,14 +433,14 @@ class BitUnixClient:
             params=params,
         )
 
-    def get_trading_pairs(self, symbols: Optional[str] = None) -> Dict[str, Any]:
+    def get_trading_pairs(self, symbols: str | None = None) -> dict[str, Any]:
         """
         Static information for trading pairs.
 
         Returns:
             Dict[str, Any]: ``{"code": int, "msg": str, "data": [ {...pairInfo...}, ... ]}``
         """
-        params = {}
+        params: dict[str, Any] = {}
         if symbols is not None:
             params["symbols"] = symbols
         return self._request(
@@ -435,7 +449,7 @@ class BitUnixClient:
             params=params,
         )
 
-    def get_open_interest(self, symbol: str) -> Dict[str, Any]:
+    def get_open_interest(self, symbol: str) -> dict[str, Any]:
         """
         Open interest for `symbol`.
 
@@ -448,7 +462,7 @@ class BitUnixClient:
             params={"symbol": symbol},
         )
 
-    def get_mark_price(self, symbol: str) -> Dict[str, Any]:
+    def get_mark_price(self, symbol: str) -> dict[str, Any]:
         """
         Current mark price and funding details for `symbol`.
 
@@ -461,7 +475,7 @@ class BitUnixClient:
             params={"symbol": symbol},
         )
 
-    def get_index_price(self, symbol: str) -> Dict[str, Any]:
+    def get_index_price(self, symbol: str) -> dict[str, Any]:
         """
         Index price for `symbol`.
 
@@ -476,20 +490,20 @@ class BitUnixClient:
 
     def get_history_positions(
         self,
-        symbol: Optional[str] = None,
-        position_id: Optional[str] = None,
-        start_time: Optional[int] = None,
-        end_time: Optional[int] = None,
-        skip: Optional[int] = None,
-        limit: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        symbol: str | None = None,
+        position_id: str | None = None,
+        start_time: int | None = None,
+        end_time: int | None = None,
+        skip: int | None = None,
+        limit: int | None = None,
+    ) -> dict[str, Any]:
         """
         Historical (closed) positions.
 
         Returns:
             Dict[str, Any]: ``{"code": int, "msg": str, "data": [ {...position...}, ... ]}``
         """
-        params = {}
+        params: dict[str, Any] = {}
         if symbol is not None:
             params["symbol"] = symbol
         if position_id is not None:
@@ -508,7 +522,7 @@ class BitUnixClient:
             params=params,
         )
 
-    def get_position_tiers(self, symbol: str) -> Dict[str, Any]:
+    def get_position_tiers(self, symbol: str) -> dict[str, Any]:
         """
         Risk tier ladder for a symbol.
 
@@ -523,23 +537,23 @@ class BitUnixClient:
 
     def get_history_orders(
         self,
-        symbol: Optional[str] = None,
-        order_id: Optional[str] = None,
-        client_id: Optional[str] = None,
-        status: Optional[str] = None,
-        order_type: Optional[str] = None,
-        start_time: Optional[int] = None,
-        end_time: Optional[int] = None,
-        skip: Optional[int] = None,
-        limit: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        symbol: str | None = None,
+        order_id: str | None = None,
+        client_id: str | None = None,
+        status: str | None = None,
+        order_type: str | None = None,
+        start_time: int | None = None,
+        end_time: int | None = None,
+        skip: int | None = None,
+        limit: int | None = None,
+    ) -> dict[str, Any]:
         """
         Query past orders.
 
         Returns:
             Dict[str, Any]: ``{"code": int, "msg": str, "data": [ {...order...}, ... ]}``
         """
-        params = {}
+        params: dict[str, Any] = {}
         if symbol is not None:
             params["symbol"] = symbol
         if order_id is not None:
@@ -566,21 +580,21 @@ class BitUnixClient:
 
     def get_history_trades(
         self,
-        symbol: Optional[str] = None,
-        order_id: Optional[str] = None,
-        position_id: Optional[str] = None,
-        start_time: Optional[int] = None,
-        end_time: Optional[int] = None,
-        skip: Optional[int] = None,
-        limit: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        symbol: str | None = None,
+        order_id: str | None = None,
+        position_id: str | None = None,
+        start_time: int | None = None,
+        end_time: int | None = None,
+        skip: int | None = None,
+        limit: int | None = None,
+    ) -> dict[str, Any]:
         """
         Query trade fills.
 
         Returns:
             Dict[str, Any]: ``{"code": int, "msg": str, "data": [ {...trade...}, ... ]}``
         """
-        params = {}
+        params: dict[str, Any] = {}
         if symbol is not None:
             params["symbol"] = symbol
         if order_id is not None:
@@ -603,16 +617,16 @@ class BitUnixClient:
 
     def get_order_detail(
         self,
-        order_id: Optional[str] = None,
-        client_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        order_id: str | None = None,
+        client_id: str | None = None,
+    ) -> dict[str, Any]:
         """
         Retrieve one order by `order_id` or `client_id`.
 
         Returns:
             Dict[str, Any]: ``{"code": int, "msg": str, "data": {...order detail...}}``
         """
-        params = {}
+        params: dict[str, Any] = {}
         if order_id is not None:
             params["orderId"] = order_id
         if client_id is not None:
@@ -625,22 +639,22 @@ class BitUnixClient:
 
     def get_pending_orders(
         self,
-        symbol: Optional[str] = None,
-        order_id: Optional[str] = None,
-        client_id: Optional[str] = None,
-        status: Optional[str] = None,
-        start_time: Optional[int] = None,
-        end_time: Optional[int] = None,
-        skip: Optional[int] = None,
-        limit: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        symbol: str | None = None,
+        order_id: str | None = None,
+        client_id: str | None = None,
+        status: str | None = None,
+        start_time: int | None = None,
+        end_time: int | None = None,
+        skip: int | None = None,
+        limit: int | None = None,
+    ) -> dict[str, Any]:
         """
         Open (unfilled) orders.
 
         Returns:
             Dict[str, Any]: ``{"code": int, "msg": str, "data": [ {...order...}, ... ]}``
         """
-        params = {}
+        params: dict[str, Any] = {}
         if symbol is not None:
             params["symbol"] = symbol
         if order_id is not None:
@@ -665,16 +679,16 @@ class BitUnixClient:
 
     def get_pending_positions(
         self,
-        symbol: Optional[str] = None,
-        position_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        symbol: str | None = None,
+        position_id: str | None = None,
+    ) -> dict[str, Any]:
         """
         List positions that are not yet fully opened/closed (i.e. in‑flight).
 
         Returns:
             Dict[str, Any]: ``{"code": int, "msg": str, "data": [ {...position...}, ... ]}``
         """
-        params: Dict[str, Any] = {}
+        params: dict[str, Any] = {}
         if symbol is not None:
             params["symbol"] = symbol
         if position_id is not None:
@@ -685,7 +699,7 @@ class BitUnixClient:
             params=params,
         )
 
-    def batch_order(self, orders: list[Dict[str, Any]]) -> Dict[str, Any]:
+    def batch_order(self, orders: list[dict[str, Any]]) -> dict[str, Any]:
         """
         Submit up to 20 orders in one request.
 
@@ -700,7 +714,7 @@ class BitUnixClient:
             json_body={"orders": orders},
         )
 
-    def cancel_orders(self, order_ids: list[str]) -> Dict[str, Any]:
+    def cancel_orders(self, order_ids: list[str]) -> dict[str, Any]:
         """
         Cancel multiple orders by id.
 
@@ -713,7 +727,7 @@ class BitUnixClient:
             json_body={"orderIds": ",".join(order_ids)},
         )
 
-    def cancel_all_orders(self, symbol: Optional[str] = None) -> Dict[str, Any]:
+    def cancel_all_orders(self, symbol: str | None = None) -> dict[str, Any]:
         """
         Cancel **all** open orders; optionally only those for `symbol`.
 
@@ -731,7 +745,7 @@ class BitUnixClient:
         order_id: str,
         symbol: str,
         **changes: Any,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Amend a pending order (price / quantity / TP‑SL).
 
@@ -747,7 +761,7 @@ class BitUnixClient:
             json_body=body,
         )
 
-    def close_all_position(self, symbol: str) -> Dict[str, Any]:
+    def close_all_position(self, symbol: str) -> dict[str, Any]:
         """
         Market‑close all size in `symbol`.
 
@@ -764,7 +778,7 @@ class BitUnixClient:
         self,
         position_id: str,
         side: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Fast‑close one position by `position_id`.
 
@@ -777,7 +791,8 @@ class BitUnixClient:
             json_body={"positionId": position_id, "side": side},
         )
 
-'''
+
+"""
 # ---- usage ----
 if __name__ == "__main__":
     client = BitUnixClient(api_key="YOUR_API_KEY", secret_key="YOUR_SECRET_KEY")
@@ -801,4 +816,4 @@ if __name__ == "__main__":
     # 4) Cancel that order
     cancel = client.cancel_order(order_id=order["data"]["orderId"], symbol="BTCUSDT")
     print("Cancelled:", cancel)
-'''
+"""

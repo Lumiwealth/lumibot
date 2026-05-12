@@ -12,7 +12,6 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
@@ -37,8 +36,8 @@ class _Harness(Strategy):
 class _Snapshot:
     ts: float
     status: str
-    limit_price: Optional[float]
-    avg_fill_price: Optional[float]
+    limit_price: float | None
+    avg_fill_price: float | None
 
 
 def _make_broker(name: str):

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -41,8 +41,8 @@ def test_ibkr_helper_future_requires_expiration(monkeypatch, tmp_path):
     monkeypatch.setattr(ibkr_helper, "queue_request", fake_queue_request)
 
     asset = Asset(symbol="MES", asset_type="future")
-    start = datetime(2025, 1, 1, tzinfo=timezone.utc)
-    end = datetime(2025, 1, 1, 0, 1, tzinfo=timezone.utc)
+    start = datetime(2025, 1, 1, tzinfo=UTC)
+    end = datetime(2025, 1, 1, 0, 1, tzinfo=UTC)
 
     with pytest.raises(ValueError, match="futures require an explicit expiration"):
         ibkr_helper.get_price_data(asset=asset, quote=None, timestep="minute", start_dt=start, end_dt=end)
@@ -110,10 +110,10 @@ def test_ibkr_helper_resolve_conid_accepts_usd_key_for_futures(monkeypatch, tmp_
 @pytest.mark.parametrize(
     "root",
     [
-        "BRR",        # CME CF Bitcoin Reference Rate (IBKR root; 'regular' BTC futures)
-        "MBT",        # Micro Bitcoin
-        "ETHUSDRR",   # CME CF Ether-Dollar Reference Rate (IBKR root; 'regular' ETH futures)
-        "MET",        # Micro Ether
+        "BRR",  # CME CF Bitcoin Reference Rate (IBKR root; 'regular' BTC futures)
+        "MBT",  # Micro Bitcoin
+        "ETHUSDRR",  # CME CF Ether-Dollar Reference Rate (IBKR root; 'regular' ETH futures)
+        "MET",  # Micro Ether
         # EUR variants
         "BTCEURRR",
         "ETHEURRR",
@@ -135,7 +135,7 @@ def test_ibkr_helper_crypto_futures_contract_expirations_use_last_friday(root):
 def test_ibkr_helper_cont_future_segments_resolve_crypto_futures_expirations(monkeypatch, tmp_path):
     """Regression: IBKR cont_future must not compute third-Friday expirations for crypto futures."""
     import json
-    from datetime import date, datetime, timezone
+    from datetime import date, datetime
 
     import lumibot.tools.ibkr_helper as ibkr_helper
     from lumibot.tools import futures_roll
@@ -171,8 +171,8 @@ def test_ibkr_helper_cont_future_segments_resolve_crypto_futures_expirations(mon
 
     segments = ibkr_helper._resolve_cont_future_segments(
         asset=Asset("MBT", asset_type=Asset.AssetType.CONT_FUTURE),
-        start_dt=datetime(2024, 12, 1, tzinfo=timezone.utc),
-        end_dt=datetime(2024, 12, 2, tzinfo=timezone.utc),
+        start_dt=datetime(2024, 12, 1, tzinfo=UTC),
+        end_dt=datetime(2024, 12, 2, tzinfo=UTC),
         exchange="CME",
     )
 
@@ -221,7 +221,7 @@ def test_ibkr_helper_future_conid_uses_same_month_ibkr_listing_for_holiday_misma
 
     assert conid == 770561201
     assert calls, "A future-dated stale negative cache entry must not block a fresh IBKR lookup"
-    assert getattr(asset, "_ibkr_resolved_expiration") == date(2026, 6, 18)
+    assert asset._ibkr_resolved_expiration == date(2026, 6, 18)
     assert mapping["future|MNQ||CME|20260618"] == 770561201
     assert mapping["future|MNQ|USD|CME|20260618"] == 770561201
     assert mapping["future|MNQ||CME|20260619"] == 770561201
@@ -254,8 +254,8 @@ def test_ibkr_helper_cont_future_segments_use_ibkr_listed_mnq_expiration(monkeyp
 
     segments = ibkr_helper._resolve_cont_future_segments(
         asset=Asset("MNQ", asset_type=Asset.AssetType.CONT_FUTURE),
-        start_dt=datetime(2026, 4, 22, tzinfo=timezone.utc),
-        end_dt=datetime(2026, 4, 29, tzinfo=timezone.utc),
+        start_dt=datetime(2026, 4, 22, tzinfo=UTC),
+        end_dt=datetime(2026, 4, 29, tzinfo=UTC),
         exchange="CME",
     )
 
@@ -263,5 +263,5 @@ def test_ibkr_helper_cont_future_segments_use_ibkr_listed_mnq_expiration(monkeyp
     contract_asset, seg_start, seg_end = segments[0]
     assert contract_asset.asset_type == "future"
     assert contract_asset.expiration == date(2026, 6, 18)
-    assert seg_start == datetime(2026, 4, 22, tzinfo=timezone.utc)
-    assert seg_end == datetime(2026, 4, 29, tzinfo=timezone.utc)
+    assert seg_start == datetime(2026, 4, 22, tzinfo=UTC)
+    assert seg_end == datetime(2026, 4, 29, tzinfo=UTC)

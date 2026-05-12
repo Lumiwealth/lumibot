@@ -2,9 +2,10 @@
 Test that Position.to_dict() properly excludes problematic fields
 that can cause DynamoDB 400KB limit errors.
 """
+
 import unittest
-from decimal import Decimal
-from lumibot.entities import Position, Asset, Order
+
+from lumibot.entities import Asset, Order, Position
 
 
 class TestPositionSerialization(unittest.TestCase):
@@ -13,12 +14,7 @@ class TestPositionSerialization(unittest.TestCase):
     def setUp(self):
         """Set up test position with asset"""
         self.asset = Asset("AAPL", "stock")
-        self.position = Position(
-            strategy="test_strategy",
-            asset=self.asset,
-            quantity=100,
-            avg_fill_price=150.00
-        )
+        self.position = Position(strategy="test_strategy", asset=self.asset, quantity=100, avg_fill_price=150.00)
 
     def test_to_dict_excludes_internal_fields(self):
         """Test that to_dict() doesn't include internal Python fields"""
@@ -34,36 +30,36 @@ class TestPositionSerialization(unittest.TestCase):
         result = self.position.to_dict()
 
         # Verify problematic fields are NOT included
-        self.assertNotIn('_bars', result, "_bars should not be in to_dict() output")
-        self.assertNotIn('_raw', result, "_raw should not be in to_dict() output")
-        self.assertNotIn('_asset', result, "_asset should not be in to_dict() output")
-        self.assertNotIn('_broker', result, "_broker should not be in to_dict() output")
-        self.assertNotIn('_transmitted', result, "_transmitted should not be in to_dict() output")
-        self.assertNotIn('_error', result, "_error should not be in to_dict() output")
+        self.assertNotIn("_bars", result, "_bars should not be in to_dict() output")
+        self.assertNotIn("_raw", result, "_raw should not be in to_dict() output")
+        self.assertNotIn("_asset", result, "_asset should not be in to_dict() output")
+        self.assertNotIn("_broker", result, "_broker should not be in to_dict() output")
+        self.assertNotIn("_transmitted", result, "_transmitted should not be in to_dict() output")
+        self.assertNotIn("_error", result, "_error should not be in to_dict() output")
 
         # Verify no field starting with underscore is included
         for key in result.keys():
-            self.assertFalse(key.startswith('_'), f"Field {key} starts with underscore and should not be included")
+            self.assertFalse(key.startswith("_"), f"Field {key} starts with underscore and should not be included")
 
     def test_to_dict_includes_essential_fields(self):
         """Test that to_dict() includes all essential fields"""
         result = self.position.to_dict()
 
         # Verify essential fields ARE included
-        self.assertIn('strategy', result)
-        self.assertIn('asset', result)
-        self.assertIn('quantity', result)
-        self.assertIn('orders', result)
-        self.assertIn('hold', result)
-        self.assertIn('available', result)
-        self.assertIn('avg_fill_price', result)
+        self.assertIn("strategy", result)
+        self.assertIn("asset", result)
+        self.assertIn("quantity", result)
+        self.assertIn("orders", result)
+        self.assertIn("hold", result)
+        self.assertIn("available", result)
+        self.assertIn("avg_fill_price", result)
 
         # Verify values are correct
-        self.assertEqual(result['strategy'], "test_strategy")
-        self.assertEqual(result['quantity'], 100.0)
-        self.assertEqual(result['avg_fill_price'], 150.0)
-        self.assertIsInstance(result['asset'], dict)
-        self.assertEqual(result['asset']['symbol'], "AAPL")
+        self.assertEqual(result["strategy"], "test_strategy")
+        self.assertEqual(result["quantity"], 100.0)
+        self.assertEqual(result["avg_fill_price"], 150.0)
+        self.assertIsInstance(result["asset"], dict)
+        self.assertEqual(result["asset"]["symbol"], "AAPL")
 
     def test_to_dict_size_reduction(self):
         """Test that to_dict() significantly reduces data size"""
@@ -78,7 +74,7 @@ class TestPositionSerialization(unittest.TestCase):
 
         # Check that serialized size is reasonable (not megabytes)
         json_str = json.dumps(result)
-        size_kb = len(json_str.encode('utf-8')) / 1024
+        size_kb = len(json_str.encode("utf-8")) / 1024
 
         self.assertLess(size_kb, 10, f"Serialized position should be < 10KB, got {size_kb:.2f}KB")
 
@@ -95,10 +91,10 @@ class TestPositionSerialization(unittest.TestCase):
 
         result = self.position.to_dict()
 
-        self.assertIn('orders', result)
-        self.assertIsInstance(result['orders'], list)
-        self.assertEqual(len(result['orders']), 2)
+        self.assertIn("orders", result)
+        self.assertIsInstance(result["orders"], list)
+        self.assertEqual(len(result["orders"]), 2)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -1,7 +1,11 @@
+from __future__ import annotations
+
 import datetime
 import io
 import os
 import time
+from collections.abc import Iterable
+from typing import Any, Protocol, TypeAlias, cast
 
 import pandas as pd
 import requests
@@ -20,13 +24,29 @@ if api_token is None:
 # QuiverQuant API URL
 bulk_congress_trading_url = "https://api.quiverquant.com/beta/bulk/congresstrading"
 bulk_congress_trading_data_csv = "bulk_congress_trading_data.csv"
+CongressTradeRecord: TypeAlias = dict[str, Any]  # noqa: UP040
+
+
+class _StrategyLogger(Protocol):
+    def log_message(self, message: str, *args: Any, **kwargs: Any) -> Any: ...
+
+
+def _record_list(value: object) -> list[CongressTradeRecord]:
+    if not isinstance(value, list):
+        return []
+    items = cast(list[object], value)
+    return [cast(CongressTradeRecord, item) for item in items if isinstance(item, dict)]
+
+
+def _transaction_date(record: CongressTradeRecord) -> datetime.date:
+    return datetime.datetime.strptime(str(record.get("TransactionDate", "")), "%Y-%m-%d").date()
 
 """
     Description
     -----------
     This module interacts with QuiverQuant's bulk Congress trading endpoint to fetch,
     store, and process congressional trading data for specific Bioguide IDs.
-    
+
     The `QuiverHelper` class helps download data from QuiverQuant, caches the data in a CSV file,
     and provides methods for retrieving and calculating portfolios based on transaction histories.
 """
@@ -41,15 +61,19 @@ class QuiverHelper:
     strategy : Strategy
         The parent strategy that this helper is part of.
     bulk_congress_trading_downloads : list
-        A list that keeps track of dictionary objects representing 
-        downloaded Congress trading data (including bioguide_id, 
+        A list that keeps track of dictionary objects representing
+        downloaded Congress trading data (including bioguide_id,
         download datetime, and the list of transaction data).
     bulk_congress_trading_df : pd.DataFrame
-        A pandas DataFrame that stores all downloaded Congress trading data 
+        A pandas DataFrame that stores all downloaded Congress trading data
         from CSV or newly fetched from QuiverQuant.
     """
 
-    def __init__(self, strategy):
+    strategy: _StrategyLogger
+    bulk_congress_trading_downloads: list[dict[str, Any]]
+    bulk_congress_trading_df: pd.DataFrame
+
+    def __init__(self, strategy: _StrategyLogger) -> None:
         """
         Initialize the QuiverHelper component.
 
@@ -57,7 +81,7 @@ class QuiverHelper:
         ----------
         strategy : Strategy
             The strategy that this component belongs to.
-        
+
         Returns
         -------
         None
@@ -97,7 +121,7 @@ class QuiverHelper:
         # Load bulk congress trading data from CSV file if it exists
         self.load_bulk_congress_trading_data()
 
-    def load_bulk_congress_trading_data(self):
+    def load_bulk_congress_trading_data(self) -> None:
         """
         Load existing Congress trading data from a CSV file into a pandas DataFrame.
         If the file does not exist, creates an empty DataFrame with predefined columns.
@@ -110,16 +134,19 @@ class QuiverHelper:
         if os.path.exists(bulk_congress_trading_data_csv):
             # Read the CSV file into a DataFrame; parse 'download_datetime' as dates
             self.bulk_congress_trading_df = pd.read_csv(
-                bulk_congress_trading_data_csv,
-                parse_dates=["download_datetime"]
+                bulk_congress_trading_data_csv, parse_dates=["download_datetime"]
             )
         else:
             # Create an empty DataFrame with the desired columns if CSV doesn't exist
-            self.bulk_congress_trading_df = pd.DataFrame(
-                columns=["bioguide_id", "download_datetime", "data"]
-            )
+            self.bulk_congress_trading_df = pd.DataFrame(columns=["bioguide_id", "download_datetime", "data"])
 
-    def fetch_congress_trading_data(self, bioguide_id, page=1, page_size=50, max_retries=5):
+    def fetch_congress_trading_data(
+        self,
+        bioguide_id: str,
+        page: int = 1,
+        page_size: int = 50,
+        max_retries: int = 5,
+    ) -> list[CongressTradeRecord]:
         """
         Fetch paginated Congress trading data with improved error handling and retry logic.
 
@@ -144,16 +171,13 @@ class QuiverHelper:
         Exception
             If the data cannot be fetched successfully after all retries are exhausted.
         """
-        headers = {
-            "Authorization": f"Bearer {api_token}",
-            "Accept": "application/json"
-        }
+        headers: dict[str, str] = {"Authorization": f"Bearer {api_token}", "Accept": "application/json"}
 
-        params = {
+        params: dict[str, int | str] = {
             "page": page,
             "page_size": page_size,
             "bioguide_id": bioguide_id,
-            "version": "V1"
+            "version": "V1",
         }
 
         for attempt in range(max_retries):
@@ -161,20 +185,20 @@ class QuiverHelper:
                 # Add a small delay between requests to avoid rate limiting
                 if attempt > 0:
                     # Exponential backoff: 2^attempt seconds (1, 2, 4, 8, 16...)
-                    wait_time = min(2 ** attempt, 60)  # Cap at 60 seconds
-                    self.strategy.log_message(f"Retry attempt {attempt+1}, waiting {wait_time} seconds...")
+                    wait_time = min(2**attempt, 60)  # Cap at 60 seconds
+                    self.strategy.log_message(f"Retry attempt {attempt + 1}, waiting {wait_time} seconds...")
                     time.sleep(wait_time)
 
                 response = requests.get(
                     bulk_congress_trading_url,
                     headers=headers,
                     params=params,
-                    timeout=30  # Add timeout to prevent hanging
+                    timeout=30,  # Add timeout to prevent hanging
                 )
 
                 # Handle different status codes
                 if response.status_code == 200:
-                    return response.json()
+                    return _record_list(response.json())
                 elif response.status_code == 429:  # Rate limit
                     self.strategy.log_message("Rate limit exceeded. Waiting before retry...")
                     time.sleep(60)
@@ -190,24 +214,28 @@ class QuiverHelper:
                     response.raise_for_status()
 
             except requests.exceptions.Timeout:
-                self.strategy.log_message(f"Request timed out on attempt {attempt+1}")
+                self.strategy.log_message(f"Request timed out on attempt {attempt + 1}")
                 if attempt == max_retries - 1:
                     return []
             except requests.exceptions.RequestException as e:
-                self.strategy.log_message(f"Request error on attempt {attempt+1}: {str(e)}")
+                self.strategy.log_message(f"Request error on attempt {attempt + 1}: {str(e)}")
                 if attempt == max_retries - 1:
                     return []
             except Exception as e:
-                self.strategy.log_message(f"Unexpected error on attempt {attempt+1}: {str(e)}")
+                self.strategy.log_message(f"Unexpected error on attempt {attempt + 1}: {str(e)}")
                 if attempt == max_retries - 1:
                     return []
 
         return []  # Return empty list if all retries failed
 
-    def get_trading_data_for_bioguide(self, bioguide_id, as_of_date):
+    def get_trading_data_for_bioguide(
+        self,
+        bioguide_id: str,
+        as_of_date: datetime.date,
+    ) -> list[CongressTradeRecord]:
         """
-        Fetch paginated results for a specific congressperson by bioguide_id and 
-        filter transactions by 'as_of_date'. Uses local caching to avoid repeated 
+        Fetch paginated results for a specific congressperson by bioguide_id and
+        filter transactions by 'as_of_date'. Uses local caching to avoid repeated
         downloads within a 24-hour window.
 
         Parameters
@@ -223,34 +251,25 @@ class QuiverHelper:
             A list of trading record dictionaries filtered by 'as_of_date'.
         """
         # Check if data for this bioguide_id already exists in our DataFrame
-        existing_entry = self.bulk_congress_trading_df[
-            self.bulk_congress_trading_df["bioguide_id"] == bioguide_id
-        ]
+        existing_entry = self.bulk_congress_trading_df[self.bulk_congress_trading_df["bioguide_id"] == bioguide_id]
         if not existing_entry.empty:
             # If found, check how long it's been since the last download
-            last_download_time = existing_entry["download_datetime"].iloc[0]
+            last_download_time = pd.Timestamp(existing_entry["download_datetime"].iloc[0]).to_pydatetime()
             if (datetime.datetime.now() - last_download_time).days < 1:
                 # If it has been less than 24 hours, use the cached data
-                self.strategy.log_message(
-                    f"Data for {bioguide_id} already fetched within the last 24 hours."
-                )
+                self.strategy.log_message(f"Data for {bioguide_id} already fetched within the last 24 hours.")
                 # The "data" column is stored as a JSON string; we read it in from a StringIO
-                json_data = io.StringIO(existing_entry["data"].iloc[0])
-                data = pd.read_json(json_data, typ="series").to_list()
+                json_data = io.StringIO(str(existing_entry["data"].iloc[0]))
+                data = _record_list(pd.read_json(json_data, typ="series").to_list())
 
                 # Filter based on the 'as_of_date'
-                data = [
-                    result for result in data
-                    if datetime.datetime.strptime(
-                        result["TransactionDate"], "%Y-%m-%d"
-                    ).date() <= as_of_date
-                ]
+                data = [result for result in data if _transaction_date(result) <= as_of_date]
                 return data
 
         # If the data is older than 24 hours or not found, we fetch from the API
         page = 1
         page_size = 50
-        total_results = []
+        total_results: list[CongressTradeRecord] = []
 
         while True:
             # Fetch the data for this page
@@ -271,12 +290,16 @@ class QuiverHelper:
             page += 1
 
         # Create a one-row DataFrame containing the new entry
-        new_entry = pd.DataFrame([{
-            "bioguide_id": bioguide_id,
-            "download_datetime": datetime.datetime.now(),
-            # Store the entire results list as a JSON string
-            "data": pd.Series(total_results).to_json()
-        }])
+        new_entry = pd.DataFrame(
+            [
+                {
+                    "bioguide_id": bioguide_id,
+                    "download_datetime": datetime.datetime.now(),
+                    # Store the entire results list as a JSON string
+                    "data": pd.Series(total_results).to_json(),
+                }
+            ]
+        )
 
         # If there's already an entry, update it. Otherwise, append a new one.
         if not existing_entry.empty:
@@ -287,37 +310,35 @@ class QuiverHelper:
             mask = self.bulk_congress_trading_df["bioguide_id"] == bioguide_id
 
             # 3) Assign only the shared columns (this avoids mismatched column errors)
-            self.bulk_congress_trading_df.loc[mask, shared_cols] = (
-                new_entry.loc[:, shared_cols].iloc[0].values
-            )
+            self.bulk_congress_trading_df.loc[mask, shared_cols] = new_entry.loc[:, shared_cols].iloc[0].values
         else:
-            self.bulk_congress_trading_df = pd.concat(
-                [self.bulk_congress_trading_df, new_entry],
-                ignore_index=True
-            )
+            self.bulk_congress_trading_df = pd.concat([self.bulk_congress_trading_df, new_entry], ignore_index=True)
 
         # Save the updated DataFrame to CSV
         self.bulk_congress_trading_df.to_csv(bulk_congress_trading_data_csv, index=False)
 
         # Filter total_results based on 'as_of_date'
         total_results = [
-            result for result in total_results
-            if datetime.datetime.strptime(
-                result["TransactionDate"], "%Y-%m-%d"
-            ).date() <= as_of_date
+            result
+            for result in total_results
+            if _transaction_date(result) <= as_of_date
         ]
 
         return total_results
 
-    def calculate_portfolio(self, transactions, as_of_date):
+    def calculate_portfolio(
+        self,
+        transactions: Iterable[CongressTradeRecord],
+        as_of_date: datetime.date,
+    ) -> dict[str, float]:
         """
-        Calculate the portfolio of a given congressperson (or set of transactions) 
+        Calculate the portfolio of a given congressperson (or set of transactions)
         up to a specified date. Only includes tickers with positive holdings.
 
         Parameters
         ----------
         transactions : list
-            A list of dictionaries, each representing a single transaction 
+            A list of dictionaries, each representing a single transaction
             with keys like 'Ticker', 'TransactionDate', 'Transaction', and 'Amount'.
         as_of_date : datetime.date
             Only include transactions on or before this date.
@@ -325,33 +346,27 @@ class QuiverHelper:
         Returns
         -------
         dict
-            A dictionary where the keys are tickers and the values are the 
+            A dictionary where the keys are tickers and the values are the
             cumulative holding amounts (only if positive).
-        
+
         Raises
         ------
         ValueError
             If 'as_of_date' is not a datetime.date object.
         """
-        # Ensure the given as_of_date is indeed a datetime.date object
-        if not isinstance(as_of_date, datetime.date):
-            raise ValueError("as_of_date must be a datetime.date object")
-
         # Initialize a dictionary to keep track of holdings by ticker
-        portfolio = {}
+        portfolio: dict[str, float] = {}
 
         # Go through each transaction
         for transaction in transactions:
             # Convert the string date into an actual date object
-            transaction_date = datetime.datetime.strptime(
-                transaction["TransactionDate"], "%Y-%m-%d"
-            ).date()
+            transaction_date = _transaction_date(transaction)
 
             # Only consider transactions on or before the specified date
             if transaction_date <= as_of_date:
-                ticker = transaction["Ticker"]
-                amount = float(transaction["Amount"])
-                action = transaction["Transaction"]
+                ticker = str(transaction.get("Ticker", ""))
+                amount = float(transaction.get("Amount", 0.0))
+                action = str(transaction.get("Transaction", ""))
 
                 # If the ticker is not in the portfolio yet, initialize to 0
                 if ticker not in portfolio:
@@ -364,10 +379,6 @@ class QuiverHelper:
                     portfolio[ticker] -= amount
 
         # Filter out tickers with zero or negative holdings
-        portfolio = {
-            ticker: holdings
-            for ticker, holdings in portfolio.items()
-            if holdings > 0
-        }
+        portfolio = {ticker: holdings for ticker, holdings in portfolio.items() if holdings > 0}
 
         return portfolio

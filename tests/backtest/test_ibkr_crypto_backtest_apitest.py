@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Optional
 
 import pandas as pd
 import pytest
@@ -14,7 +13,6 @@ from lumibot.backtesting.interactive_brokers_rest_backtesting import Interactive
 from lumibot.entities import Asset
 from lumibot.entities.order import Order
 from lumibot.strategies.strategy import Strategy
-
 
 pytestmark = pytest.mark.apitest
 
@@ -68,7 +66,7 @@ def test_ibkr_crypto_backtest_smoke_local_fills_market_order(monkeypatch, tmp_pa
     quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
 
     # Seed the cache with "latest available" bars (may not overlap now on weekends).
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     ibkr_helper.get_price_data(
         asset=base,
         quote=quote,
@@ -85,7 +83,7 @@ def test_ibkr_crypto_backtest_smoke_local_fills_market_order(monkeypatch, tmp_pa
     assert not cached.empty, "Expected cached bars to contain data"
 
     # Pick a window that is guaranteed to overlap cached bars.
-    window_end: Optional[pd.Timestamp] = cached.index.max() if isinstance(cached.index, pd.DatetimeIndex) else None
+    window_end: pd.Timestamp | None = cached.index.max() if isinstance(cached.index, pd.DatetimeIndex) else None
     assert window_end is not None
     window_start = window_end - pd.Timedelta(minutes=30)
 
@@ -147,7 +145,7 @@ def test_ibkr_crypto_backtest_smoke_local_fills_market_order(monkeypatch, tmp_pa
 
     # Capture the quote at submit time so we can assert market orders fill at ask.
     quote_snapshot = broker.get_quote(base, quote=quote)
-    expected_ask = float(getattr(quote_snapshot, "ask"))
+    expected_ask = float(quote_snapshot.ask)
 
     strategy.submit_order(order)
     broker.process_pending_orders(strategy)
@@ -174,7 +172,7 @@ def test_ibkr_crypto_backtest_smoke_local_fills_marketable_limit_orders(monkeypa
     base = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
     quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     ibkr_helper.get_price_data(
         asset=base,
         quote=quote,
@@ -190,7 +188,7 @@ def test_ibkr_crypto_backtest_smoke_local_fills_marketable_limit_orders(monkeypa
     cached = pd.read_parquet(parquet_files[0])
     assert not cached.empty, "Expected cached bars to contain data"
 
-    window_end: Optional[pd.Timestamp] = cached.index.max() if isinstance(cached.index, pd.DatetimeIndex) else None
+    window_end: pd.Timestamp | None = cached.index.max() if isinstance(cached.index, pd.DatetimeIndex) else None
     assert window_end is not None
     window_start = window_end - pd.Timedelta(minutes=30)
 
@@ -225,7 +223,7 @@ def test_ibkr_crypto_backtest_smoke_local_fills_marketable_limit_orders(monkeypa
 
     # Marketable BUY limit should fill at ask.
     quote0 = broker.get_quote(base, quote=quote)
-    expected_ask = float(getattr(quote0, "ask"))
+    expected_ask = float(quote0.ask)
     buy = strategy.create_order(
         base,
         Decimal("0.01"),
@@ -243,7 +241,7 @@ def test_ibkr_crypto_backtest_smoke_local_fills_marketable_limit_orders(monkeypa
     # Advance one minute then marketable SELL limit should fill at bid.
     broker._update_datetime(broker.datetime + timedelta(minutes=1))
     quote1 = broker.get_quote(base, quote=quote)
-    expected_bid = float(getattr(quote1, "bid"))
+    expected_bid = float(quote1.bid)
     sell = strategy.create_order(
         base,
         Decimal("0.01"),

@@ -2,7 +2,6 @@
 """Generate llms.txt index file for AI discoverability."""
 
 import datetime
-import sys
 from pathlib import Path
 
 LLMS_TXT_CONTENT = '''# Lumibot

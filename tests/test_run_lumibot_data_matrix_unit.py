@@ -3,11 +3,10 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
-
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "run_lumibot_data_matrix.py"
 
@@ -24,25 +23,25 @@ def _load_module():
 
 def test_window_to_start_supports_years_and_days():
     module = _load_module()
-    end_dt = datetime(2026, 4, 10, tzinfo=timezone.utc)
+    end_dt = datetime(2026, 4, 10, tzinfo=UTC)
 
-    assert module._window_to_start(end_dt, "30d") == datetime(2026, 3, 11, tzinfo=timezone.utc)
-    assert module._window_to_start(end_dt, "1y") == datetime(2025, 4, 10, tzinfo=timezone.utc)
+    assert module._window_to_start(end_dt, "30d") == datetime(2026, 3, 11, tzinfo=UTC)
+    assert module._window_to_start(end_dt, "1y") == datetime(2025, 4, 10, tzinfo=UTC)
 
 
 def test_backtest_bounds_end_at_requested_timestamp():
     module = _load_module()
-    requested_end = datetime(2026, 4, 10, 20, 0, tzinfo=timezone.utc)
+    requested_end = datetime(2026, 4, 10, 20, 0, tzinfo=UTC)
 
     minute_start, minute_end = module._backtest_bounds_for_requested_end(requested_end=requested_end, interval="minute")
     hour_start, hour_end = module._backtest_bounds_for_requested_end(requested_end=requested_end, interval="hour")
     day_start, day_end = module._backtest_bounds_for_requested_end(requested_end=requested_end, interval="day")
 
-    assert minute_start == datetime(2026, 4, 10, 18, 0, tzinfo=timezone.utc)
+    assert minute_start == datetime(2026, 4, 10, 18, 0, tzinfo=UTC)
     assert minute_end == requested_end
-    assert hour_start == datetime(2026, 4, 10, 18, 0, tzinfo=timezone.utc)
+    assert hour_start == datetime(2026, 4, 10, 18, 0, tzinfo=UTC)
     assert hour_end == requested_end
-    assert day_start == datetime(2026, 4, 8, 20, 0, tzinfo=timezone.utc)
+    assert day_start == datetime(2026, 4, 8, 20, 0, tzinfo=UTC)
     assert day_end == requested_end
 
 
@@ -73,9 +72,9 @@ def test_fetch_exact_window_frame_falls_back_to_public_history_slice():
     asset = module.Asset("VIX", asset_type=module.Asset.AssetType.INDEX)
     idx = pd.DatetimeIndex(
         [
-            datetime(2026, 4, 8, 20, 0, tzinfo=timezone.utc),
-            datetime(2026, 4, 9, 20, 0, tzinfo=timezone.utc),
-            datetime(2026, 4, 10, 20, 0, tzinfo=timezone.utc),
+            datetime(2026, 4, 8, 20, 0, tzinfo=UTC),
+            datetime(2026, 4, 9, 20, 0, tzinfo=UTC),
+            datetime(2026, 4, 10, 20, 0, tzinfo=UTC),
         ]
     )
     df = pd.DataFrame(
@@ -104,8 +103,8 @@ def test_fetch_exact_window_frame_falls_back_to_public_history_slice():
         asset=asset,
         quote=None,
         interval="day",
-        start_dt=datetime(2026, 4, 9, 20, 0, tzinfo=timezone.utc),
-        end_dt=datetime(2026, 4, 10, 20, 0, tzinfo=timezone.utc),
+        start_dt=datetime(2026, 4, 9, 20, 0, tzinfo=UTC),
+        end_dt=datetime(2026, 4, 10, 20, 0, tzinfo=UTC),
         exchange=None,
     )
 
@@ -126,16 +125,19 @@ def test_windows_for_ibkr_prefer_downloader_targets():
         "180d",
         "1y",
     ]
-    assert module._windows_for_cell(provider="yahoo", symbol="VIX", interval="minute", downloader_targets=targets) == module.WINDOWS_BY_INTERVAL["minute"]
+    assert (
+        module._windows_for_cell(provider="yahoo", symbol="VIX", interval="minute", downloader_targets=targets)
+        == module.WINDOWS_BY_INTERVAL["minute"]
+    )
 
 
 def test_quality_issues_detect_duplicates_and_coverage_shortfall():
     module = _load_module()
     idx = pd.DatetimeIndex(
         [
-            datetime(2026, 4, 10, 19, 56, tzinfo=timezone.utc),
-            datetime(2026, 4, 10, 19, 57, tzinfo=timezone.utc),
-            datetime(2026, 4, 10, 19, 57, tzinfo=timezone.utc),
+            datetime(2026, 4, 10, 19, 56, tzinfo=UTC),
+            datetime(2026, 4, 10, 19, 57, tzinfo=UTC),
+            datetime(2026, 4, 10, 19, 57, tzinfo=UTC),
         ]
     )
     frame = pd.DataFrame(
@@ -152,8 +154,8 @@ def test_quality_issues_detect_duplicates_and_coverage_shortfall():
         frame=frame,
         interval="minute",
         asset_type="index",
-        requested_start=datetime(2026, 4, 10, 19, 30, tzinfo=timezone.utc),
-        requested_end=datetime(2026, 4, 10, 20, 0, tzinfo=timezone.utc),
+        requested_start=datetime(2026, 4, 10, 19, 30, tzinfo=UTC),
+        requested_end=datetime(2026, 4, 10, 20, 0, tzinfo=UTC),
     )
 
     assert coverage_ok is False

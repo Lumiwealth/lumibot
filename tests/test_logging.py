@@ -1,13 +1,13 @@
 import datetime
 import logging
+
 import pytest
 
-from lumibot.example_strategies.lifecycle_logger import LifecycleLogger
 from lumibot.backtesting import YahooDataBacktesting
+from lumibot.example_strategies.lifecycle_logger import LifecycleLogger
 
 
 class TestLogging:
-
     def test_logging(self, caplog):
         caplog.set_level(logging.INFO)
         logger = logging.getLogger()

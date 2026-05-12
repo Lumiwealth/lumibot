@@ -36,4 +36,3 @@ def test_get_last_price_accepts_timeshift_none():
     data, idx = _minute_data()
     dt = idx[-1]
     assert data.get_last_price(dt, timeshift=None) == 104.0
-

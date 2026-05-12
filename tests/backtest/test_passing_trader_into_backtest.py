@@ -1,18 +1,15 @@
 import datetime
 import logging
 
-from lumibot.traders.trader import Trader
-from lumibot.traders.debug_log_trader import DebugLogTrader
 from lumibot.backtesting import PandasDataBacktesting
 from lumibot.example_strategies.lifecycle_logger import LifecycleLogger
-
-from tests.fixtures import pandas_data_fixture
+from lumibot.traders.debug_log_trader import DebugLogTrader
+from lumibot.traders.trader import Trader
 
 logger = logging.getLogger(__name__)
 
 
 class TestPassingTraderIntoBacktest:
-
     def test_not_passing_trader_class_into_backtest_creates_generic_trader(self, pandas_data_fixture):
         # When we create a backtest and don't pass in a trader_class, the trader it creates should be a Trader object
         strategy_name = "LifecycleLogger_with_default_trader"

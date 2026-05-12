@@ -42,9 +42,7 @@ def test_append_equity_corporate_actions_daily_populates_columns(monkeypatch):
     monkeypatch.setattr(
         YahooHelper,
         "get_symbol_data",
-        staticmethod(
-            lambda symbol, interval="1d", caching=True, auto_adjust=False, last_needed_datetime=None: actions
-        ),
+        staticmethod(lambda symbol, interval="1d", caching=True, auto_adjust=False, last_needed_datetime=None: actions),
     )
 
     enriched, changed = ibkr_helper._append_equity_corporate_actions_daily(frame, Asset("AAPL", asset_type="stock"))

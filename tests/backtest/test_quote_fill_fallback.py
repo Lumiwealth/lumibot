@@ -46,7 +46,7 @@ def test_try_fill_with_quote_returns_ask_for_buy_order():
         asset=Asset("CVNA"),
         bid=44.0,
         ask=45.0,
-        timestamp=datetime.datetime.now(datetime.timezone.utc),
+        timestamp=datetime.datetime.now(datetime.UTC),
     )
     broker = _build_broker(quote)
     order = _build_order(Order.OrderSide.BUY, limit_price=60.0)
@@ -81,7 +81,7 @@ def test_market_order_prefers_quote_fill_without_ohlc():
         asset=Asset("SPXW", asset_type=Asset.AssetType.OPTION, expiration=None, strike=None, right="CALL"),
         bid=10.0,
         ask=11.0,
-        timestamp=datetime.datetime.now(datetime.timezone.utc),
+        timestamp=datetime.datetime.now(datetime.UTC),
     )
 
     broker = BacktestingBroker.__new__(BacktestingBroker)
@@ -101,7 +101,7 @@ def test_market_order_prefers_quote_fill_without_ohlc():
         _timestep = "minute"
 
         def get_datetime(self):
-            return datetime.datetime(2024, 1, 2, 9, 30, tzinfo=datetime.timezone.utc)
+            return datetime.datetime(2024, 1, 2, 9, 30, tzinfo=datetime.UTC)
 
         def get_historical_prices(self, *args, **kwargs):
             raise AssertionError("OHLC should not be fetched when quote fill succeeds")
@@ -141,11 +141,11 @@ def test_smart_limit_uses_quotes_with_polygon_source():
         asset=Asset("SPY", asset_type=Asset.AssetType.STOCK),
         bid=100.0,
         ask=102.0,
-        timestamp=datetime.datetime.now(datetime.timezone.utc),
+        timestamp=datetime.datetime.now(datetime.UTC),
     )
     broker = BacktestingBroker.__new__(BacktestingBroker)
     broker.logger = get_logger("polygon_quote_test")
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
     broker.data_source = type(
         "PolygonStub",
         (),

@@ -1,33 +1,38 @@
 from __future__ import annotations
 
 from collections import OrderedDict, defaultdict
+from collections.abc import Callable, Iterable
 from datetime import timedelta
 from decimal import Decimal
 from importlib import import_module
-from typing import Union
+from types import ModuleType
+from typing import Any, ClassVar, cast
 
 from lumibot.data_sources import DataSourceBacktesting
-from lumibot.entities import Asset, Quote
+from lumibot.entities.asset import Asset
+from lumibot.entities.quote import Quote
 
-_BARS_CLASS = None
-_PARSE_TIMESTEP_QTY_AND_UNIT = None
+_bars_class_cache: type[Any] | None = None
+_parse_timestep_qty_and_unit_cache: Callable[..., Any] | None = None
 
 
-class _LazyModule:
-    __slots__ = ("_module_name", "_module")
+class _LazyModule(ModuleType):
+    _module_name: str
+    _module: ModuleType | None
 
-    def __init__(self, module_name: str):
+    def __init__(self, module_name: str) -> None:
+        super().__init__(module_name)
         self._module_name = module_name
         self._module = None
 
-    def _load(self):
+    def _load(self) -> ModuleType:
         module = self._module
         if module is None:
             module = import_module(self._module_name)
             self._module = module
         return module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
 
@@ -36,40 +41,43 @@ pd = _LazyModule("pandas")
 
 class _LazyLogger:
     __slots__ = ("_logger",)
+    _logger: Any | None
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._logger = None
 
-    def _load(self):
+    def _load(self) -> Any:
         if self._logger is None:
             from lumibot.tools.lumibot_logger import get_logger
 
             self._logger = get_logger(__name__)
         return self._logger
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
 
 logger = _LazyLogger()
 
 
-def _bars_class():
-    global _BARS_CLASS
-    if _BARS_CLASS is None:
-        from lumibot.entities import Bars
+def _bars_class() -> type[Any]:
+    global _bars_class_cache
+    if _bars_class_cache is None:
+        from lumibot.entities.bars import Bars
 
-        _BARS_CLASS = Bars
-    return _BARS_CLASS
+        _bars_class_cache = Bars
+    assert _bars_class_cache is not None
+    return _bars_class_cache
 
 
-def _parse_timestep_qty_and_unit(*args, **kwargs):
-    global _PARSE_TIMESTEP_QTY_AND_UNIT
-    if _PARSE_TIMESTEP_QTY_AND_UNIT is None:
-        from lumibot.tools.helpers import parse_timestep_qty_and_unit
+def _parse_timestep_qty_and_unit(*args: Any, **kwargs: Any) -> Any:
+    global _parse_timestep_qty_and_unit_cache
+    if _parse_timestep_qty_and_unit_cache is None:
+        helpers = import_module("lumibot.tools.helpers")
+        _parse_timestep_qty_and_unit_cache = cast(Callable[..., Any], cast(Any, helpers).parse_timestep_qty_and_unit)
 
-        _PARSE_TIMESTEP_QTY_AND_UNIT = parse_timestep_qty_and_unit
-    return _PARSE_TIMESTEP_QTY_AND_UNIT(*args, **kwargs)
+    return _parse_timestep_qty_and_unit_cache(*args, **kwargs)
+
 
 # PERF: `find_asset_in_data_store()` is called in tight loops (often 200K+ times per backtest). It
 # constructs `Asset("USD", "forex")` as the default quote on every call, which shows up as ~3s of
@@ -84,20 +92,38 @@ class PandasData(DataSourceBacktesting):
     data for a backtest run. It is not possible to use this class to run a live trading strategy.
     """
 
-    SOURCE = "PANDAS"
+    SOURCE: ClassVar[str] = "PANDAS"
     # Provider-specific day-bar policy:
     #
     # Some providers (IBKR stock/index) require native day bars for correctness because provider-
     # specific day normalization/repairs are applied before storage. Others (e.g., Polygon) rely on
     # minute->day resampling and should continue to allow minute datasets to satisfy day requests.
-    PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX = False
-    TIMESTEP_MAPPING = [
+    PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX: ClassVar[bool] = False
+    TIMESTEP_MAPPING: ClassVar[list[dict[str, list[str] | str]]] = [
         {"timestep": "day", "representations": ["1D", "day"]},
         {"timestep": "minute", "representations": ["1M", "minute"]},
     ]
 
-    def __init__(self, *args, pandas_data=None, auto_adjust=True, allow_option_quote_fallback: bool = False, **kwargs):
-        super().__init__(*args, **kwargs)
+    option_quote_fallback_allowed: bool
+    name: str
+    pandas_data: OrderedDict[Any, Any]
+    auto_adjust: bool
+    _data_store: OrderedDict[Any, Any]
+    _date_index: Any | None
+    _date_supply: Any | None
+    _timestep: str
+    _find_asset_in_data_store_cache: dict[Any, Any]
+    _missing_asset_warned: set[Any]
+
+    def __init__(
+        self,
+        *args: Any,
+        pandas_data: Any | None = None,
+        auto_adjust: bool = True,
+        allow_option_quote_fallback: bool = False,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)  # pyright: ignore[reportUnknownMemberType]
         self.option_quote_fallback_allowed = allow_option_quote_fallback
         self.name = "pandas"
         self.pandas_data = self._set_pandas_data_keys(pandas_data)
@@ -115,46 +141,49 @@ class PandasData(DataSourceBacktesting):
         self._missing_asset_warned = set()
 
     @staticmethod
-    def _set_pandas_data_keys(pandas_data):
+    def _set_pandas_data_keys(pandas_data: Any) -> OrderedDict[Any, Any]:
         # OrderedDict tracks the LRU dataframes for when it comes time to do evictions.
-        new_pandas_data = OrderedDict()
+        new_pandas_data: OrderedDict[Any, Any] = OrderedDict()
 
-        def _get_new_pandas_data_key(data):
+        def _get_new_pandas_data_key(data: Any) -> Any:
             # Always save the asset as a tuple of Asset and quote
-            if isinstance(data.asset, tuple):
-                return data.asset
-            elif isinstance(data.asset, Asset):
+            data_asset: Any = data.asset
+            data_quote: Any = data.quote
+            if isinstance(data_asset, tuple):
+                return cast(tuple[Any, ...], data_asset)
+            elif isinstance(data_asset, Asset):
                 # If quote is not specified, use USD as the quote
-                if data.quote is None:
+                if data_quote is None:
                     # Warn that USD is being used as the quote
-                    logger.warning(f"No quote specified for {data.asset}. Using USD as the quote.")
-                    return data.asset, Asset(symbol="USD", asset_type="forex")
-                return data.asset, data.quote
+                    logger.warning(f"No quote specified for {data_asset}. Using USD as the quote.")
+                    return data_asset, _USD_FOREX
+                return data_asset, data_quote
             else:
                 raise ValueError("Asset must be an Asset or a tuple of Asset and quote")
 
         # Check if pandas_data is a dictionary
         if isinstance(pandas_data, dict):
-            for k, data in pandas_data.items():
+            for _k, data in cast(dict[Any, Any], pandas_data).items():
                 key = _get_new_pandas_data_key(data)
                 new_pandas_data[key] = data
 
         # Check if pandas_data is a list
         elif isinstance(pandas_data, list):
-            for data in pandas_data:
+            for data in cast(list[Any], pandas_data):
                 key = _get_new_pandas_data_key(data)
                 new_pandas_data[key] = data
 
         return new_pandas_data
 
-    def load_data(self):
+    def load_data(self) -> Any:
         self._data_store = self.pandas_data
         self._date_index = self.update_date_index()
         # Invalidate lookup cache whenever we reload/replace the underlying data store.
         self._find_asset_in_data_store_cache.clear()
 
         if len(self._data_store.values()) > 0:
-            self._timestep = list(self._data_store.values())[0].timestep
+            first_data: Any = next(iter(self._data_store.values()))
+            self._timestep = first_data.timestep
 
         pcal = self.get_trading_days_pandas()
         self._date_index = self.clean_trading_times(self._date_index, pcal)
@@ -162,7 +191,7 @@ class PandasData(DataSourceBacktesting):
             data.repair_times_and_fill(self._date_index)
         return pcal
 
-    def clean_trading_times(self, dt_index, pcal):
+    def clean_trading_times(self, dt_index: Any, pcal: Any) -> Any:
         """Fill gaps within trading days using the supplied market calendar.
 
         Parameters
@@ -181,20 +210,16 @@ class PandasData(DataSourceBacktesting):
         dt_index = pd.to_datetime(dt_index).drop_duplicates()
 
         # Create a DataFrame with dt_index as the index and sort it
-        df = pd.DataFrame(range(len(dt_index)), index=dt_index)
-        df = df.sort_index()
+        df: Any = pd.DataFrame(range(len(dt_index)), index=dt_index)
+        if not df.index.is_monotonic_increasing:
+            df = df.sort_index()
 
         # Create a column for the date portion only (normalize to date, keeping as datetime64 type)
         df["dates"] = df.index.normalize()
 
         # Merge with the trading calendar on the 'dates' column to get market open/close times.
         # Use a left join to keep all rows from the original index.
-        df = df.merge(
-            pcal[["market_open", "market_close"]],
-            left_on="dates",
-            right_index=True,
-            how="left"
-        )
+        df = df.merge(pcal[["market_open", "market_close"]], left_on="dates", right_index=True, how="left")
 
         if self._timestep == "minute":
             # Resample to a 1-minute frequency, using pad to fill missing times.
@@ -202,9 +227,7 @@ class PandasData(DataSourceBacktesting):
             df = df.asfreq("1min", method="pad")
 
             # Filter to include only the rows that fall within market open and close times.
-            result_index = df.loc[
-                (df.index >= df["market_open"]) & (df.index <= df["market_close"])
-            ].index
+            result_index = df.loc[(df.index >= df["market_open"]) & (df.index <= df["market_close"])].index
         else:
             result_index = df.index
 
@@ -216,8 +239,8 @@ class PandasData(DataSourceBacktesting):
 
         return result_index
 
-    def get_trading_days_pandas(self):
-        pcal = pd.DataFrame(self._date_index)
+    def get_trading_days_pandas(self) -> Any:
+        pcal: Any = pd.DataFrame(self._date_index)
 
         if pcal.empty:
             # Create a dummy dataframe that spans the entire date range with market_open and market_close
@@ -246,13 +269,13 @@ class PandasData(DataSourceBacktesting):
             )
             return result
 
-    def get_assets(self):
+    def get_assets(self) -> list[Any]:
         return list(self._data_store.keys())
 
-    def get_asset_by_name(self, name):
+    def get_asset_by_name(self, name: str) -> list[Any]:
         return [asset for asset in self.get_assets() if asset.name == name]
 
-    def get_asset_by_symbol(self, symbol, asset_type=None):
+    def get_asset_by_symbol(self, symbol: str, asset_type: str | None = None) -> list[Any]:
         """Finds the assets that match the symbol. If type is specified
         finds the assets matching symbol and type.
 
@@ -277,11 +300,11 @@ class PandasData(DataSourceBacktesting):
         else:
             return [asset for asset in store_assets if (asset.symbol == symbol and asset.asset_type == asset_type)]
 
-    def update_date_index(self):
-        dt_index = None
-        for asset, data in self._data_store.items():
+    def update_date_index(self) -> Any:
+        dt_index: Any | None = None
+        for _asset, data in self._data_store.items():
             if dt_index is None:
-                df = data.df
+                df: Any = data.df
                 dt_index = df.index
             else:
                 dt_index = dt_index.join(data.df.index, how="outer")
@@ -307,7 +330,12 @@ class PandasData(DataSourceBacktesting):
 
         return dt_index
 
-    def get_last_price(self, asset, quote=None, exchange=None) -> Union[float, Decimal, None]:
+    def get_last_price(
+        self,
+        asset: Asset,
+        quote: Asset | None = None,
+        exchange: str | None = None,
+    ) -> float | Decimal | None:
         # Takes an asset and returns the last known price
         tuple_to_find = self.find_asset_in_data_store(asset, quote)
 
@@ -323,15 +351,15 @@ class PandasData(DataSourceBacktesting):
             tuple_to_find = self.find_asset_in_data_store(asset, quote)
 
         if tuple_to_find in self._data_store:
-            data = self._data_store[tuple_to_find]
+            data: Any = self._data_store[tuple_to_find]
             try:
                 dt = self.get_datetime()
-                price = data.get_last_price(dt)
+                price: Any = data.get_last_price(dt)
 
                 # Check if price is NaN
                 if pd.isna(price):
                     # Provide more specific error message for index assets
-                    if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.INDEX:
+                    if hasattr(asset, "asset_type") and asset.asset_type == Asset.AssetType.INDEX:
                         logger.warning(
                             "Index asset `%s` returned a NaN price. This data source did not provide usable "
                             "index data for the requested window. Verify that index coverage and any required "
@@ -359,13 +387,13 @@ class PandasData(DataSourceBacktesting):
                     )
                     return None
 
-                return price
+                return cast(float | Decimal | None, price)
             except Exception as e:
                 logger.info(f"Error getting last price for {tuple_to_find}: {e}")
                 return None
         else:
             # Provide more specific error message when asset not found in data store
-            if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.INDEX:
+            if hasattr(asset, "asset_type") and asset.asset_type == Asset.AssetType.INDEX:
                 logger.warning(
                     "The index asset `%s` does not exist or has no data in this data source. Verify that the "
                     "active provider supports index data for this symbol and that any required subscriptions "
@@ -374,7 +402,7 @@ class PandasData(DataSourceBacktesting):
                 )
             return None
 
-    def get_quote(self, asset, quote=None, exchange=None) -> Quote:
+    def get_quote(self, asset: Asset, quote: Asset | None = None, exchange: str | None = None) -> Quote:
         """
         Get the latest quote for an asset.
         Returns a Quote object with bid, ask, last, and other fields if available.
@@ -393,15 +421,13 @@ class PandasData(DataSourceBacktesting):
         Quote
             A Quote object with the quote information.
         """
-        from lumibot.entities import Quote
-
         # Takes an asset and returns the last known price
         tuple_to_find = self.find_asset_in_data_store(asset, quote)
 
         if tuple_to_find in self._data_store:
-            data = self._data_store[tuple_to_find]
+            data: Any = self._data_store[tuple_to_find]
             dt = self.get_datetime()
-            ohlcv_bid_ask_dict = data.get_quote(dt)
+            ohlcv_bid_ask_dict: Any = data.get_quote(dt)
 
             # Check if ohlcv_bid_ask_dict is NaN
             if pd.isna(ohlcv_bid_ask_dict):
@@ -421,25 +447,36 @@ class PandasData(DataSourceBacktesting):
             # Convert dictionary to Quote object
             return Quote(
                 asset=asset,
-                price=ohlcv_bid_ask_dict.get('close'),
-                bid=ohlcv_bid_ask_dict.get('bid'),
-                ask=ohlcv_bid_ask_dict.get('ask'),
-                volume=ohlcv_bid_ask_dict.get('volume'),
+                price=ohlcv_bid_ask_dict.get("close"),
+                bid=ohlcv_bid_ask_dict.get("bid"),
+                ask=ohlcv_bid_ask_dict.get("ask"),
+                volume=ohlcv_bid_ask_dict.get("volume"),
                 timestamp=dt,
-                bid_size=ohlcv_bid_ask_dict.get('bid_size'),
-                ask_size=ohlcv_bid_ask_dict.get('ask_size'),
-                raw_data=ohlcv_bid_ask_dict
+                bid_size=ohlcv_bid_ask_dict.get("bid_size"),
+                ask_size=ohlcv_bid_ask_dict.get("ask_size"),
+                raw_data=ohlcv_bid_ask_dict,
             )
         else:
             return Quote(asset=asset)
 
-    def get_last_prices(self, assets, quote=None, exchange=None, **kwargs):
-        result = {}
+    def get_last_prices(
+        self,
+        assets: Iterable[Asset],
+        quote: Asset | None = None,
+        exchange: str | None = None,
+        **kwargs: Any,
+    ) -> dict[Asset, float | Decimal | None]:
+        result: dict[Asset, float | Decimal | None] = {}
         for asset in assets:
             result[asset] = self.get_last_price(asset, quote=quote, exchange=exchange)
         return result
 
-    def find_asset_in_data_store(self, asset, quote=None, timestep=None):
+    def find_asset_in_data_store(
+        self,
+        asset: Asset | tuple[Any, ...] | str,
+        quote: Asset | None = None,
+        timestep: str | None = None,
+    ) -> Any | None:
         # PERF: Avoid rebuilding candidate lists and repeatedly probing `_data_store` when the same
         # `(asset, quote, timestep)` is requested every iteration (common in backtests).
         #
@@ -457,13 +494,14 @@ class PandasData(DataSourceBacktesting):
         except Exception:
             cache_key = None
 
-        requested_unit = None
-        normalized_key = None
-        asset_for_type = asset[0] if isinstance(asset, tuple) else asset
-        asset_lookup = asset_for_type
-        quote_lookup = quote
-        if isinstance(asset, tuple) and len(asset) >= 2 and quote_lookup is None:
-            tuple_quote = asset[1]
+        requested_unit: str | None = None
+        normalized_key: str | None = None
+        asset_tuple: tuple[Any, ...] | None = asset if isinstance(asset, tuple) else None
+        asset_for_type: Any = asset_tuple[0] if asset_tuple else asset
+        asset_lookup: Any = asset_for_type
+        quote_lookup: Asset | None = quote
+        if asset_tuple is not None and len(asset_tuple) >= 2 and quote_lookup is None:
+            tuple_quote: Any = asset_tuple[1]
             if isinstance(tuple_quote, Asset):
                 quote_lookup = tuple_quote
         requested_asset_type = str(getattr(asset_for_type, "asset_type", "") or "").strip().lower()
@@ -495,7 +533,7 @@ class PandasData(DataSourceBacktesting):
             else:
                 normalized_key = str(timestep)
 
-        def _accepts_timestep(data_obj) -> bool:
+        def _accepts_timestep(data_obj: Any) -> bool:
             if requested_unit is None:
                 return True
             data_ts = str(getattr(data_obj, "timestep", "") or "").strip().lower()
@@ -508,16 +546,15 @@ class PandasData(DataSourceBacktesting):
                 # IMPORTANT:
                 # Keep day requests pinned to native day datasets only for providers that opt into
                 # this behavior (IBKR stock/index correctness path).
-                if (
-                    requested_asset_type in {"stock", "index"}
-                    and bool(getattr(self, "PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX", False))
+                if requested_asset_type in {"stock", "index"} and bool(
+                    getattr(self, "PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX", False)
                 ):
                     return data_ts == "day"
                 return data_ts in {"day", "minute"}
             # Fallback: require exact match for other timesteps.
             return data_ts == requested_unit
 
-        candidates = []
+        candidates: list[Any] = []
 
         if timestep is not None:
             base_quote = quote_lookup if quote_lookup is not None else _USD_FOREX
@@ -532,7 +569,13 @@ class PandasData(DataSourceBacktesting):
         if quote_lookup is not None:
             candidates.append((asset_lookup, quote_lookup))
 
-        if isinstance(asset_lookup, Asset) and asset_lookup.asset_type in ["option", "future", "cont_future", "stock", "index"]:
+        if isinstance(asset_lookup, Asset) and asset_lookup.asset_type in [
+            "option",
+            "future",
+            "cont_future",
+            "stock",
+            "index",
+        ]:
             candidates.append((asset_lookup, _USD_FOREX))
 
         candidates.append(asset_lookup)
@@ -552,14 +595,14 @@ class PandasData(DataSourceBacktesting):
 
     def _pull_source_symbol_bars(
         self,
-        asset,
-        length,
-        timestep="",
-        timeshift=0,
-        quote=None,
-        exchange=None,
-        include_after_hours=True,
-    ):
+        asset: Asset,
+        length: int,
+        timestep: str = "",
+        timeshift: int | timedelta | None = 0,
+        quote: Asset | None = None,
+        exchange: str | None = None,
+        include_after_hours: bool = True,
+    ) -> Any | None:
         timestep = timestep if timestep else self.MIN_TIMESTEP
         if exchange is not None:
             logger.warning(
@@ -572,14 +615,14 @@ class PandasData(DataSourceBacktesting):
         asset_to_find = self.find_asset_in_data_store(asset, quote, timestep)
 
         if asset_to_find in self._data_store:
-            data = self._data_store[asset_to_find]
+            data: Any = self._data_store[asset_to_find]
         else:
             # PERF: Gate to first-encounter per (asset, timestep). In 1-min backtests this warning
             # fired ~65K times/run with no new info, costing ~4s of logger overhead.
             warn_key = (asset, str(timestep))
             if warn_key not in self._missing_asset_warned:
                 self._missing_asset_warned.add(warn_key)
-                if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.INDEX:
+                if hasattr(asset, "asset_type") and asset.asset_type == Asset.AssetType.INDEX:
                     logger.warning(
                         "The index asset `%s` does not exist or has no data in this data source. Verify that the "
                         "active provider supports index data for this symbol and that any required subscriptions "
@@ -602,26 +645,26 @@ class PandasData(DataSourceBacktesting):
 
     def _pull_source_symbol_bars_between_dates(
         self,
-        asset,
-        timestep="",
-        quote=None,
-        exchange=None,
-        include_after_hours=True,
-        start_date=None,
-        end_date=None,
-    ):
+        asset: Asset,
+        timestep: str = "",
+        quote: Asset | None = None,
+        exchange: str | None = None,
+        include_after_hours: bool = True,
+        start_date: Any | None = None,
+        end_date: Any | None = None,
+    ) -> Any | None:
         """Pull all bars for an asset"""
         timestep = timestep if timestep else self.MIN_TIMESTEP
         asset_to_find = self.find_asset_in_data_store(asset, quote, timestep)
 
         if asset_to_find in self._data_store:
-            data = self._data_store[asset_to_find]
+            data: Any = self._data_store[asset_to_find]
         else:
             # PERF: Gate to first-encounter per (asset, timestep). See _pull_source_symbol_bars.
             warn_key = (asset, str(timestep))
             if warn_key not in self._missing_asset_warned:
                 self._missing_asset_warned.add(warn_key)
-                if hasattr(asset, 'asset_type') and asset.asset_type == Asset.AssetType.INDEX:
+                if hasattr(asset, "asset_type") and asset.asset_type == Asset.AssetType.INDEX:
                     logger.warning(
                         "The index asset `%s` does not exist or has no data in this data source. Verify that the "
                         "active provider supports index data for this symbol and that any required subscriptions "
@@ -642,18 +685,18 @@ class PandasData(DataSourceBacktesting):
 
     def _pull_source_bars(
         self,
-        assets,
-        length,
-        timestep="",
-        timeshift=None,
-        quote=None,
-        include_after_hours=True,
-    ):
+        assets: Iterable[Asset],
+        length: int,
+        timestep: str = "",
+        timeshift: int | timedelta | None = None,
+        quote: Asset | None = None,
+        include_after_hours: bool = True,
+    ) -> dict[Asset, Any]:
         """pull broker bars for a list assets"""
         timestep = timestep if timestep else self.MIN_TIMESTEP
         self._parse_source_timestep(timestep, reverse=True)
 
-        result = {}
+        result: dict[Asset, Any] = {}
         for asset in assets:
             result[asset] = self._pull_source_symbol_bars(
                 asset, length, timestep=timestep, timeshift=timeshift, quote=quote
@@ -664,20 +707,27 @@ class PandasData(DataSourceBacktesting):
 
         return result
 
-    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None, return_polars: bool = False):
+    def _parse_source_symbol_bars(
+        self,
+        response: Any,
+        asset: Asset | tuple[Any, Any],
+        quote: Asset | None = None,
+        length: int | None = None,
+        return_polars: bool = False,
+    ) -> Any:
         """parse broker response for a single asset
 
         CRITICAL: return_polars defaults to False for backwards compatibility.
         PandasData always returns pandas-backed Bars for consistency.
         """
-        asset1 = asset
-        asset2 = quote
+        asset1: Any = asset
+        asset2: Any = quote
         if isinstance(asset, tuple):
             asset1, asset2 = asset
         skip_timezone = bool(getattr(response, "attrs", {}).get("_lumibot_skip_timezone", False))
         if not skip_timezone and getattr(self, "IS_BACKTESTING_DATA_SOURCE", False):
             response_index = getattr(response, "index", None)
-            skip_timezone = bool(hasattr(response_index, "tz") and response_index.tz is not None)
+            skip_timezone = getattr(response_index, "tz", None) is not None
         if (
             skip_timezone
             and not return_polars
@@ -685,9 +735,6 @@ class PandasData(DataSourceBacktesting):
             and "return" in response.columns
             and "dividend" not in response.columns
         ):
-            # Fast path invariant: only preprocessed Data.get_bars() frames hit
-            # this branch. They already carry tz-aware indexes and derived returns;
-            # Bars.from_pandas_fast intentionally skips Bars.__init__ validation.
             return _bars_class().from_pandas_fast(response, self.SOURCE, asset1, quote=asset2, raw=response)
         bars = _bars_class()(
             response,
@@ -700,14 +747,21 @@ class PandasData(DataSourceBacktesting):
         )
         return bars
 
-    def get_yesterday_dividend(self, asset, quote=None):
-        return super().get_yesterday_dividend(asset, quote=quote)
+    def get_yesterday_dividend(self, asset: Asset, quote: Asset | None = None) -> Any:
+        base: Any = super()
+        return base.get_yesterday_dividend(asset, quote=quote)
 
-    def get_yesterday_dividends(self, assets, quote=None):
-        return super().get_yesterday_dividends(assets, quote=quote)
+    def get_yesterday_dividends(self, assets: Iterable[Asset], quote: Asset | None = None) -> Any:
+        base: Any = super()
+        return base.get_yesterday_dividends(assets, quote=quote)
 
     # =======Options methods.=================
-    def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):
+    def get_chains(
+        self,
+        asset: Asset,
+        quote: Asset | None = None,
+        exchange: str | None = None,
+    ) -> dict[str, Any]:
         """Returns option chains.
 
         Obtains option chain information for the asset (stock) from each
@@ -731,14 +785,16 @@ class PandasData(DataSourceBacktesting):
             ``Chains`` is a nested dictionary where expiration dates map to strike lists,
             e.g. ``chains['Chains']['CALL']['2023-07-31'] = [strike1, strike2, ...]``.
         """
-        chains = dict(
+        chains: dict[str, Any] = dict(
             Multiplier=100,
             Exchange="SMART",
-            Chains={"CALL": defaultdict(list), "PUT": defaultdict(list)},
+            Chains={"CALL": defaultdict[str, list[Any]](list), "PUT": defaultdict[str, list[Any]](list)},
         )
 
-        for store_item, data in self._data_store.items():
-            store_asset = store_item[0]
+        for store_item, _data in self._data_store.items():
+            if not isinstance(store_item, tuple) or not store_item:
+                continue
+            store_asset: Any = cast(tuple[Any, ...], store_item)[0]
             if store_asset.asset_type != "option":
                 continue
             if store_asset.symbol != asset.symbol:
@@ -747,7 +803,13 @@ class PandasData(DataSourceBacktesting):
 
         return chains
 
-    def get_start_datetime_and_ts_unit(self, length, timestep, start_dt=None, start_buffer=timedelta(days=5)):
+    def get_start_datetime_and_ts_unit(
+        self,
+        length: int,
+        timestep: str,
+        start_dt: Any | None = None,
+        start_buffer: timedelta = timedelta(days=5),
+    ) -> tuple[Any, str]:
         """
         Get the start datetime for the data.
 
@@ -767,7 +829,7 @@ class PandasData(DataSourceBacktesting):
             The timestep unit.
         """
         # Convert timestep string to timedelta and get start datetime
-        td, ts_unit = self.convert_timestep_str_to_timedelta(timestep)
+        td, ts_unit = cast(tuple[timedelta, str], self.convert_timestep_str_to_timedelta(timestep))
 
         if ts_unit == "day":
             weeks_requested = length // 5  # Full trading week is 5 days
@@ -789,27 +851,26 @@ class PandasData(DataSourceBacktesting):
 
     def get_historical_prices(
         self,
-        asset: Asset,
+        asset: Asset | str,
         length: int,
-        timestep: str = None,
-        timeshift: int = None,
-        quote: Asset = None,
-        exchange: str = None,
+        timestep: str | None = None,
+        timeshift: int | timedelta | None = None,
+        quote: Asset | None = None,
+        exchange: str | None = None,
         include_after_hours: bool = True,
         # Accept `return_polars` for API compatibility with other data sources.
         # PandasData always returns pandas-backed Bars, so this flag is ignored.
         return_polars: bool = False,
-    ):
+    ) -> Any:
         """Get bars for a given asset"""
         if isinstance(asset, str):
             asset = Asset(symbol=asset)
 
-        if not timestep:
-            timestep = self.get_timestep()
+        timestep_value = timestep or str(self.get_timestep())
         response = self._pull_source_symbol_bars(
             asset,
             length,
-            timestep=timestep,
+            timestep=timestep_value,
             timeshift=timeshift,
             quote=quote,
             exchange=exchange,

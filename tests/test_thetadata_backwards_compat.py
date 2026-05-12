@@ -6,13 +6,14 @@ error when callers request polars output (which is intentionally unsupported
 in this branch).
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 import pandas as pd
 import pytest
-import os
 
 from lumibot.entities import Asset
 from lumibot.tools import thetadata_helper
+
 
 def _mock_cache_frame(start: datetime, rows: int = 8) -> pd.DataFrame:
     index = pd.date_range(start=start, periods=rows, freq="1min", tz="UTC")
@@ -35,17 +36,20 @@ def test_get_price_data_returns_pandas_when_cache_hit(monkeypatch, tmp_path):
     cache_file = tmp_path / "spy.minute.ohlc.parquet"
     cache_file.write_text("placeholder")
 
-    mock_df = _mock_cache_frame(datetime(2025, 1, 1, tzinfo=timezone.utc))
+    mock_df = _mock_cache_frame(datetime(2025, 1, 1, tzinfo=UTC))
 
     # NOTE (2025-11-28): Mock the backtest cache to disable S3 remote cache interference.
     # When S3 cache is enabled in the environment, it can affect test behavior.
     class DisabledCacheManager:
         enabled = False
         mode = None
+
         def ensure_local_file(self, *args, **kwargs):
             return False
+
         def on_local_update(self, *args, **kwargs):
             return False
+
     monkeypatch.setattr(thetadata_helper, "get_backtest_cache", lambda: DisabledCacheManager())
 
     monkeypatch.setattr(
@@ -63,8 +67,8 @@ def test_get_price_data_returns_pandas_when_cache_hit(monkeypatch, tmp_path):
         username="demo",
         password="demo",
         asset=asset,
-        start=datetime(2025, 1, 1, tzinfo=timezone.utc),
-        end=datetime(2025, 1, 2, tzinfo=timezone.utc),
+        start=datetime(2025, 1, 1, tzinfo=UTC),
+        end=datetime(2025, 1, 2, tzinfo=UTC),
         timespan="minute",
         datastyle="ohlc",
         include_after_hours=True,
@@ -80,7 +84,7 @@ def test_get_price_data_polars_request_rejected(monkeypatch, tmp_path):
     cache_file = tmp_path / "spy.minute.ohlc.parquet"
     cache_file.write_text("placeholder")
 
-    mock_df = _mock_cache_frame(datetime(2025, 1, 1, tzinfo=timezone.utc))
+    mock_df = _mock_cache_frame(datetime(2025, 1, 1, tzinfo=UTC))
 
     monkeypatch.setattr(
         thetadata_helper,
@@ -97,8 +101,8 @@ def test_get_price_data_polars_request_rejected(monkeypatch, tmp_path):
             username="demo",
             password="demo",
             asset=asset,
-            start=datetime(2025, 1, 1, tzinfo=timezone.utc),
-            end=datetime(2025, 1, 2, tzinfo=timezone.utc),
+            start=datetime(2025, 1, 1, tzinfo=UTC),
+            end=datetime(2025, 1, 2, tzinfo=UTC),
             timespan="minute",
             datastyle="ohlc",
             include_after_hours=True,

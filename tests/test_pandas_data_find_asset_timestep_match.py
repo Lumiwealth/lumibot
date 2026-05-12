@@ -8,12 +8,16 @@ from lumibot.entities import Asset, Data
 
 def _minute_df(tz: str = "America/New_York") -> pd.DataFrame:
     idx = pd.date_range("2025-01-01", periods=3, freq="1min", tz=tz)
-    return pd.DataFrame({"open": [1, 2, 3], "high": [1, 2, 3], "low": [1, 2, 3], "close": [1, 2, 3], "volume": [0, 0, 0]}, index=idx)
+    return pd.DataFrame(
+        {"open": [1, 2, 3], "high": [1, 2, 3], "low": [1, 2, 3], "close": [1, 2, 3], "volume": [0, 0, 0]}, index=idx
+    )
 
 
 def _day_df(tz: str = "America/New_York") -> pd.DataFrame:
     idx = pd.date_range("2025-01-01", periods=3, freq="D", tz=tz)
-    return pd.DataFrame({"open": [1, 2, 3], "high": [1, 2, 3], "low": [1, 2, 3], "close": [1, 2, 3], "volume": [0, 0, 0]}, index=idx)
+    return pd.DataFrame(
+        {"open": [1, 2, 3], "high": [1, 2, 3], "low": [1, 2, 3], "close": [1, 2, 3], "volume": [0, 0, 0]}, index=idx
+    )
 
 
 def test_find_asset_in_data_store_does_not_return_daily_for_minute_requests():

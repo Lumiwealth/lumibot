@@ -64,4 +64,3 @@ def test_projectx_can_auth_and_list_accounts():
     assert isinstance(payload, dict)
     assert payload.get("success") is True
     assert "accounts" in payload
-

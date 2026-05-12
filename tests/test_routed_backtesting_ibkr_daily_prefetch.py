@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import MethodType
 
 import pandas as pd
@@ -12,7 +12,9 @@ from lumibot.entities import Asset
 def test_routed_backtesting_prefetches_ibkr_crypto_daily_window_once(monkeypatch):
     calls: list[tuple[datetime, datetime, str]] = []
 
-    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def _fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         calls.append((start_dt, end_dt, str(timestep)))
         idx = pd.date_range(start=start_dt, end=end_dt, freq="D")
         df = pd.DataFrame(
@@ -40,8 +42,8 @@ def test_routed_backtesting_prefetches_ibkr_crypto_daily_window_once(monkeypatch
     routed._ibkr_fully_loaded_series = set()
     routed._data_store = {}
 
-    backtest_start = datetime(2025, 1, 1, tzinfo=timezone.utc)
-    backtest_end = datetime(2025, 12, 1, tzinfo=timezone.utc)
+    backtest_start = datetime(2025, 1, 1, tzinfo=UTC)
+    backtest_end = datetime(2025, 12, 1, tzinfo=UTC)
     routed.datetime_start = backtest_start
     routed.datetime_end = backtest_end
 
@@ -79,7 +81,9 @@ def test_routed_backtesting_prefetches_ibkr_crypto_daily_window_once(monkeypatch
 
 
 def test_routed_backtesting_crypto_daily_tuple_lookup_uses_prefetched_canonical_key(monkeypatch):
-    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def _fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         idx = pd.date_range(start=start_dt, end=end_dt, freq="D")
         df = pd.DataFrame(
             {
@@ -101,8 +105,8 @@ def test_routed_backtesting_crypto_daily_tuple_lookup_uses_prefetched_canonical_
     monkeypatch.setattr(ibkr_helper, "get_price_data", _fake_get_price_data)
 
     source = RoutedBacktestingPandas(
-        datetime_start=datetime(2025, 4, 23, tzinfo=timezone.utc),
-        datetime_end=datetime(2025, 5, 5, tzinfo=timezone.utc),
+        datetime_start=datetime(2025, 4, 23, tzinfo=UTC),
+        datetime_end=datetime(2025, 5, 5, tzinfo=UTC),
         market="24/7",
         show_progress_bar=False,
         log_backtest_progress_to_file=False,
@@ -123,7 +127,9 @@ def test_routed_backtesting_crypto_daily_tuple_lookup_uses_prefetched_canonical_
 def test_routed_backtesting_prefetches_ibkr_stock_daily_with_full_lookback(monkeypatch):
     calls: list[tuple[datetime, datetime, str]] = []
 
-    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def _fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         calls.append((start_dt, end_dt, str(timestep)))
         idx = pd.date_range(start=start_dt, end=end_dt, freq="D")
         df = pd.DataFrame(
@@ -150,8 +156,8 @@ def test_routed_backtesting_prefetches_ibkr_stock_daily_with_full_lookback(monke
     routed._ibkr_fully_loaded_series = set()
     routed._data_store = {}
 
-    backtest_start = datetime(2021, 1, 1, tzinfo=timezone.utc)
-    backtest_end = datetime(2022, 12, 31, tzinfo=timezone.utc)
+    backtest_start = datetime(2021, 1, 1, tzinfo=UTC)
+    backtest_end = datetime(2022, 12, 31, tzinfo=UTC)
     routed.datetime_start = backtest_start
     routed.datetime_end = backtest_end
 
@@ -192,7 +198,9 @@ def test_routed_backtesting_prefetches_ibkr_stock_daily_with_full_lookback(monke
 def test_routed_backtesting_stock_daily_prefetch_stays_unloaded_when_coverage_fails(monkeypatch):
     calls: list[tuple[datetime, datetime, str]] = []
 
-    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def _fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         calls.append((start_dt, end_dt, str(timestep)))
         idx = pd.date_range(start=start_dt, periods=5, freq="D")
         df = pd.DataFrame(
@@ -221,8 +229,8 @@ def test_routed_backtesting_stock_daily_prefetch_stays_unloaded_when_coverage_fa
     routed._fully_loaded_series = set()
     routed._data_store = {}
 
-    backtest_start = datetime(2021, 1, 1, tzinfo=timezone.utc)
-    backtest_end = datetime(2022, 12, 31, tzinfo=timezone.utc)
+    backtest_start = datetime(2021, 1, 1, tzinfo=UTC)
+    backtest_end = datetime(2022, 12, 31, tzinfo=UTC)
     routed.datetime_start = backtest_start
     routed.datetime_end = backtest_end
 
@@ -257,7 +265,9 @@ def test_routed_backtesting_stock_daily_prefetch_stays_unloaded_when_coverage_fa
 def test_routed_backtesting_stock_minute_prefetch_stays_unloaded_when_coverage_fails(monkeypatch):
     calls: list[tuple[datetime, datetime, str]] = []
 
-    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def _fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         calls.append((start_dt, end_dt, str(timestep)))
         idx = pd.date_range(start=start_dt, periods=5, freq="1min")
         df = pd.DataFrame(
@@ -284,8 +294,8 @@ def test_routed_backtesting_stock_minute_prefetch_stays_unloaded_when_coverage_f
     routed._fully_loaded_series = set()
     routed._data_store = {}
 
-    backtest_start = datetime(2025, 1, 1, tzinfo=timezone.utc)
-    backtest_end = datetime(2025, 1, 2, tzinfo=timezone.utc)
+    backtest_start = datetime(2025, 1, 1, tzinfo=UTC)
+    backtest_end = datetime(2025, 1, 2, tzinfo=UTC)
     routed.datetime_start = backtest_start
     routed.datetime_end = backtest_end
 
@@ -320,7 +330,9 @@ def test_routed_backtesting_stock_minute_prefetch_stays_unloaded_when_coverage_f
 def test_routed_backtesting_future_minute_prefetch_stays_unloaded_when_coverage_fails(monkeypatch):
     calls: list[tuple[datetime, datetime, str]] = []
 
-    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def _fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         calls.append((start_dt, end_dt, str(timestep)))
         idx = pd.date_range(start=start_dt, periods=5, freq="1min")
         df = pd.DataFrame(
@@ -347,8 +359,8 @@ def test_routed_backtesting_future_minute_prefetch_stays_unloaded_when_coverage_
     routed._fully_loaded_series = set()
     routed._data_store = {}
 
-    backtest_start = datetime(2025, 1, 1, tzinfo=timezone.utc)
-    backtest_end = datetime(2025, 1, 2, tzinfo=timezone.utc)
+    backtest_start = datetime(2025, 1, 1, tzinfo=UTC)
+    backtest_end = datetime(2025, 1, 2, tzinfo=UTC)
     routed.datetime_start = backtest_start
     routed.datetime_end = backtest_end
 
@@ -383,7 +395,9 @@ def test_routed_backtesting_future_minute_prefetch_stays_unloaded_when_coverage_
 def test_routed_backtesting_crypto_daily_prefetch_stays_unloaded_when_coverage_fails(monkeypatch):
     calls: list[tuple[datetime, datetime, str]] = []
 
-    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def _fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         calls.append((start_dt, end_dt, str(timestep)))
         idx = pd.date_range(start=start_dt, periods=5, freq="D")
         df = pd.DataFrame(
@@ -410,8 +424,8 @@ def test_routed_backtesting_crypto_daily_prefetch_stays_unloaded_when_coverage_f
     routed._fully_loaded_series = set()
     routed._data_store = {}
 
-    backtest_start = datetime(2025, 1, 1, tzinfo=timezone.utc)
-    backtest_end = datetime(2025, 1, 10, tzinfo=timezone.utc)
+    backtest_start = datetime(2025, 1, 1, tzinfo=UTC)
+    backtest_end = datetime(2025, 1, 10, tzinfo=UTC)
     routed.datetime_start = backtest_start
     routed.datetime_end = backtest_end
 

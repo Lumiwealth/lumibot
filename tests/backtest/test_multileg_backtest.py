@@ -120,7 +120,7 @@ def test_multileg_spread_backtest_cash_and_parent_fill():
 
     fills = strategy.broker._trade_event_log_df
     # Filter for actual fills (not new orders)
-    actual_fills = fills[fills['status'] == 'fill']
+    actual_fills = fills[fills["status"] == "fill"]
     assert len(actual_fills) == 2
 
     # Parent fill should not move cash beyond the sum of the legs.
@@ -142,7 +142,7 @@ def test_multileg_spread_backtest_cash_and_parent_fill():
     # Check that both child orders were filled (no parent fill event currently generated)
     assert len(actual_fills) == 2
     assert float(actual_fills.iloc[0]["filled_quantity"]) == pytest.approx(10.0)  # AAA buy
-    assert float(actual_fills.iloc[1]["filled_quantity"]) == pytest.approx(5.0)   # BBB sell
+    assert float(actual_fills.iloc[1]["filled_quantity"]) == pytest.approx(5.0)  # BBB sell
 
 
 def test_multileg_parent_limit_order_fills_in_backtest():

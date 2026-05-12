@@ -337,8 +337,7 @@ class TestBacktestingDataSourceEnv:
             )
 
         assert not any(
-            "Using BACKTESTING_DATA_SOURCE setting for backtest data:" in record.message
-            for record in caplog.records
+            "Using BACKTESTING_DATA_SOURCE setting for backtest data:" in record.message for record in caplog.records
         )
 
     def test_default_thetadata_when_no_env_set(self, monkeypatch, caplog):

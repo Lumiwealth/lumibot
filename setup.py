@@ -36,7 +36,7 @@ class BuildWithThetaJar(_build_py):
             f"(size={dest.stat().st_size} bytes)"
         )
 
-with open("README.md", "r", encoding="utf-8") as fh:
+with open("README.md", encoding="utf-8") as fh:
     long_description = fh.read()
 
 theta_jar_path = PROJECT_ROOT / "lumibot" / "resources" / "ThetaTerminal.jar"

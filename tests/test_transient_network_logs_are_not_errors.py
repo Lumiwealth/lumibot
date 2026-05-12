@@ -26,9 +26,7 @@ def test_update_broker_balances_exception_logs_info(monkeypatch, caplog):
         for record in caplog.records
     )
     assert any(
-        record.levelno == logging.INFO
-        and "Error getting broker balances" in record.getMessage()
-        and record.exc_info
+        record.levelno == logging.INFO and "Error getting broker balances" in record.getMessage() and record.exc_info
         for record in caplog.records
     )
     assert all(record.levelno < logging.ERROR for record in caplog.records)
@@ -64,6 +62,4 @@ def test_tradier_pull_orders_exception_logs_info(monkeypatch):
     assert result == []
     assert error_calls == []
     assert any("Error pulling orders from Tradier" in msg for msg, _kwargs in info_calls)
-    assert any(
-        "Error pulling orders from Tradier" in msg and kwargs.get("exc_info") for msg, kwargs in info_calls
-    )
+    assert any("Error pulling orders from Tradier" in msg and kwargs.get("exc_info") for msg, kwargs in info_calls)

@@ -1,6 +1,5 @@
-import os
-import time
 import logging
+import time
 
 from lumibot.tools.lumibot_logger import BotspotErrorHandler
 
@@ -58,7 +57,9 @@ def test_botspot_handler_dedup_and_aggregation(monkeypatch):
     assert len(call_payloads) == 2
     second_payload = call_payloads[1]
     assert second_payload.get("count") == 3, second_payload
-    assert second_payload["message"].startswith("[") or second_payload["message"].startswith("Order submission failed"), "Message preserved"
+    assert second_payload["message"].startswith("[") or second_payload["message"].startswith(
+        "Order submission failed"
+    ), "Message preserved"
 
     # Ensure full details (with uuids / order_ids) are retained in the second send
     assert "uuid=jkl" in second_payload.get("details", "") or "uuid=jkl" in second_payload.get("message", "")

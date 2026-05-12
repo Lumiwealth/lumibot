@@ -11,7 +11,7 @@ import requests
 from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting
 from lumibot.brokers.alpaca import Alpaca
 from lumibot.brokers.tradier import Tradier
-from lumibot.entities import Asset, CashEvent
+from lumibot.entities import CashEvent
 from lumibot.strategies._strategy import _Strategy
 
 
@@ -310,9 +310,7 @@ def test_tradier_history_normalization_uses_nested_fields_for_stable_synthetic_i
 
     event_one = Tradier._normalize_history_row_to_cash_event(base_row)
     event_two = Tradier._normalize_history_row_to_cash_event(dict(base_row))
-    event_three = Tradier._normalize_history_row_to_cash_event(
-        {**base_row, "adjustment.symbol": "XYZ"}
-    )
+    event_three = Tradier._normalize_history_row_to_cash_event({**base_row, "adjustment.symbol": "XYZ"})
 
     assert event_one is not None
     assert event_two is not None

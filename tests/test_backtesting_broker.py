@@ -1,25 +1,37 @@
 import datetime
 import os
 import unittest
+from datetime import datetime as dt  # Renamed datetime to dt to avoid conflict
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
-import pandas as pd
-from datetime import datetime as dt # Renamed datetime to dt to avoid conflict
-import pytz
 
+import pandas as pd
+import pytz
 
 # Assuming the BacktestingBroker class is importable like this
 # Adjust the import path if necessary based on your project structure
 try:
     from lumibot.backtesting.backtesting_broker import BacktestingBroker
+    from lumibot.brokers.broker import (
+        _FAST_TRADE_EVENT_MARKER,
+        _FAST_TRADE_PAIR_EVENT_MARKER,
+        TRADE_EVENT_LOG_COLUMNS,
+    )
     from lumibot.data_sources import PandasData
-    from lumibot.entities import Asset, Order, Position, Quote # Import Asset if needed by mocked methods
+    from lumibot.entities import Asset, Order, Position, Quote  # Import Asset if needed by mocked methods
 except ImportError:
     # Add path modification if running tests directly and lumibot is not installed
-    import sys
     import os
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+    import sys
+
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
     from lumibot.backtesting.backtesting_broker import BacktestingBroker
+    from lumibot.brokers.broker import (
+        _FAST_TRADE_EVENT_MARKER,
+        _FAST_TRADE_PAIR_EVENT_MARKER,
+        TRADE_EVENT_LOG_COLUMNS,
+    )
     from lumibot.data_sources import PandasData
     from lumibot.entities import Asset, Order, Position, Quote
 
@@ -53,67 +65,67 @@ class _OptionSettlementStrategyStub:
 
 class TestBacktestingBroker:
     def test_limit_fills(self):
-        start = dt(2023, 8, 1) # Use dt alias
-        end = dt(2023, 8, 2) # Use dt alias
+        start = dt(2023, 8, 1)  # Use dt alias
+        end = dt(2023, 8, 2)  # Use dt alias
         data_source = PandasData(datetime_start=start, datetime_end=end, pandas_data={})
         broker = BacktestingBroker(data_source=data_source)
 
         # Limit triggered by candle body
         limit_price = 105
-        assert broker.limit_order(limit_price, 'sell', open_=100, high=110, low=90) == limit_price
+        assert broker.limit_order(limit_price, "sell", open_=100, high=110, low=90) == limit_price
 
         # Limit triggered by candle wick
         limit_price = 109
-        assert broker.limit_order(limit_price, 'sell', open_=100, high=110, low=90) == limit_price
+        assert broker.limit_order(limit_price, "sell", open_=100, high=110, low=90) == limit_price
 
         # Limit Sell Triggered by a gap up candle
         limit_price = 85
-        assert broker.limit_order(limit_price, 'sell', open_=100, high=110, low=90) == 100
+        assert broker.limit_order(limit_price, "sell", open_=100, high=110, low=90) == 100
 
         # Limit Buy Triggered by a gap down candle
         limit_price = 115
-        assert broker.limit_order(limit_price, 'buy', open_=100, high=110, low=90) == 100
+        assert broker.limit_order(limit_price, "buy", open_=100, high=110, low=90) == 100
 
         # Limit not triggered
         limit_price = 120
-        assert not broker.limit_order(limit_price, 'sell', open_=100, high=110, low=90)
+        assert not broker.limit_order(limit_price, "sell", open_=100, high=110, low=90)
 
     def test_stop_fills(self):
-        start = dt(2023, 8, 1) # Use dt alias
-        end = dt(2023, 8, 2) # Use dt alias
+        start = dt(2023, 8, 1)  # Use dt alias
+        end = dt(2023, 8, 2)  # Use dt alias
         data_source = PandasData(datetime_start=start, datetime_end=end, pandas_data={})
         broker = BacktestingBroker(data_source=data_source)
 
         # Stop triggered by candle body
         stop_price = 95
-        assert broker.stop_order(stop_price, 'sell', open_=100, high=110, low=90) == stop_price
+        assert broker.stop_order(stop_price, "sell", open_=100, high=110, low=90) == stop_price
 
         # Stop triggered by candle wick
         stop_price = 91
-        assert broker.stop_order(stop_price, 'sell', open_=100, high=110, low=90) == stop_price
+        assert broker.stop_order(stop_price, "sell", open_=100, high=110, low=90) == stop_price
 
         # Stop Sell Triggered by a gap down candle
         stop_price = 115
-        assert broker.stop_order(stop_price, 'sell', open_=100, high=110, low=90) == 100
+        assert broker.stop_order(stop_price, "sell", open_=100, high=110, low=90) == 100
 
         # Stop Buy Triggered by a gap up candle
         stop_price = 85
-        assert broker.stop_order(stop_price, 'buy', open_=100, high=110, low=90) == 100
+        assert broker.stop_order(stop_price, "buy", open_=100, high=110, low=90) == 100
 
         # Stop not triggered
         stop_price = 80
-        assert not broker.stop_order(stop_price, 'sell', open_=100, high=110, low=90)
+        assert not broker.stop_order(stop_price, "sell", open_=100, high=110, low=90)
 
     def test_submit_order_calls_conform_order(self):
-        start = dt(2023, 8, 1) # Use dt alias
-        end = dt(2023, 8, 2) # Use dt alias
+        start = dt(2023, 8, 1)  # Use dt alias
+        end = dt(2023, 8, 2)  # Use dt alias
         data_source = PandasData(datetime_start=start, datetime_end=end, pandas_data={})
         broker = BacktestingBroker(data_source=data_source)
 
         # mock _conform_order method
         broker._conform_order = MagicMock()
-        Order(asset=Asset("SPY"), quantity=10, side="buy", strategy='abc')
-        broker.submit_order(Order(asset=Asset("SPY"), quantity=10, side="buy", strategy='abc'))
+        Order(asset=Asset("SPY"), quantity=10, side="buy", strategy="abc")
+        broker.submit_order(Order(asset=Asset("SPY"), quantity=10, side="buy", strategy="abc"))
         broker._conform_order.assert_called_once()
 
     def test_market_order_prefers_quote_when_missing_ohlc(self):
@@ -385,6 +397,146 @@ class TestBacktestingBroker:
         assert "time" in parquet_df.columns
         assert "status" in parquet_df.columns
 
+    def test_compact_trade_event_rows_materialize_without_row_expansion(self):
+        broker = BacktestingBroker.__new__(BacktestingBroker)
+        broker._trade_event_log_enabled = True
+        broker._trade_event_log_columns = TRADE_EVENT_LOG_COLUMNS
+        broker._trade_event_log_df_cache = None
+        new_time = dt(2025, 1, 1, 10, 0)
+        fill_time = dt(2025, 1, 1, 10, 1)
+        cancel_time = dt(2025, 1, 1, 10, 2)
+        broker._trade_event_log_rows = [
+            (
+                _FAST_TRADE_PAIR_EVENT_MARKER,
+                new_time,
+                fill_time,
+                "strategy",
+                "order-1",
+                "SPY",
+                "buy",
+                "market",
+                "new",
+                "fill",
+                101.0,
+                2.0,
+                1.0,
+                202.0,
+                0.0,
+                "day",
+                1.0,
+                "stock",
+                "quote",
+            ),
+            (
+                _FAST_TRADE_EVENT_MARKER,
+                cancel_time,
+                "strategy",
+                "order-2",
+                "MSFT",
+                "sell",
+                "limit",
+                "canceled",
+                None,
+                None,
+                1.0,
+                None,
+                0.0,
+                "day",
+                1.0,
+                "stock",
+                None,
+            ),
+            (
+                _FAST_TRADE_PAIR_EVENT_MARKER,
+                new_time,
+                fill_time,
+                "strategy",
+                "order-3",
+                "MES",
+                "buy",
+                "market",
+                "new",
+                "fill",
+                6400.0,
+                1.0,
+                5,
+                7.0,
+                0.0,
+                "day",
+                5,
+                "future",
+                "ohlc_fast_open",
+            ),
+        ]
+        broker._expand_trade_event_rows = MagicMock(side_effect=AssertionError("fallback should not run"))
+
+        events = broker._trade_event_log_df
+
+        assert list(events["status"]) == ["new", "fill", "canceled", "new", "fill"]
+        assert list(events["symbol"]) == ["SPY", "SPY", "MSFT", "MES", "MES"]
+        assert events.loc[1, "price"] == 101.0
+        assert events.loc[1, "trade_cost"] == 202.0
+        assert events.loc[2, "type"] == "limit"
+        assert events.loc[4, "price"] == 6400.0
+        assert events.loc[4, "trade_cost"] == 7.0
+        assert events.loc[4, "multiplier"] == 5
+        assert events.loc[4, "price_source"] == "ohlc_fast_open"
+
+    def test_compact_simple_filled_order_preserves_public_fields(self):
+        broker = BacktestingBroker.__new__(BacktestingBroker)
+        asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+        quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+        order = Order.simple_market_backtest(
+            "strategy",
+            asset,
+            Decimal("0.01"),
+            Order.OrderSide.BUY,
+            quote=quote,
+            date_created=dt(2025, 1, 1, 9, 30),
+            identifier="bt_1",
+        )
+        order._status = "fill"
+        order._avg_fill_price = 101.25
+        order.transactions = Order.SimpleBacktestTransactions(0.01, 101.25)
+        order.trade_cost = 0.0
+
+        broker._compact_simple_filled_order(order)
+
+        assert order.identifier == "bt_1"
+        assert order.status == "fill"
+        assert order.asset is asset
+        assert order.quote is quote
+        assert order.symbol == "BTC"
+        assert order.pair == "BTC/USD"
+        assert order.quantity == Decimal("0.01")
+        assert order.avg_fill_price == 101.25
+        assert order.transactions[0].price == 101.25
+        assert order.trade_cost == 0.0
+        assert "_simple_quantity_float" not in order.__dict__
+        assert "_fast_trade_event_static" not in order.__dict__
+
+    def test_simple_submit_fast_cache_still_respects_audit_toggle(self):
+        broker = BacktestingBroker.__new__(BacktestingBroker)
+        broker.stream = SimpleNamespace(_actions_mapping={broker.NEW_ORDER: object()})
+        broker._default_new_order_stream_action = broker.stream._actions_mapping[broker.NEW_ORDER]
+        broker._backtest_audit_enabled = False
+        broker._simple_new_orders_by_strategy = {}
+        broker._simple_new_orders_revision = 0
+        broker._skip_default_new_callback_by_strategy = {"strategy": True}
+        broker._trade_event_log_enabled = False
+
+        asset = Asset("SPY")
+        order = Order.simple_market_backtest("strategy", asset, Decimal("1"), Order.OrderSide.BUY)
+        broker._submit_simple_backtest_order(order)
+        assert broker._simple_submit_fast_enabled is True
+
+        broker._backtest_audit_enabled = True
+        broker._submit_order = MagicMock(return_value="fallback")
+        audited_order = Order.simple_market_backtest("strategy", asset, Decimal("1"), Order.OrderSide.BUY)
+
+        assert broker._submit_simple_backtest_order(audited_order) == "fallback"
+        broker._submit_order.assert_called_once_with(audited_order)
+
     def test_option_expiry_short_put_assignment_delivers_stock(self):
         start = dt(2023, 8, 1)
         end = dt(2023, 8, 2)
@@ -621,46 +773,48 @@ class TestBacktestingBroker:
 
 # New Test Class for Time Advancement Logic
 class TestBacktestingBrokerTimeAdvance(unittest.TestCase):
-
     def setUp(self):
         """Set up a mock BacktestingBroker instance for testing."""
         # Use patch to mock the data_source during instantiation or assign afterwards
-        with patch('lumibot.backtesting.backtesting_broker.DataSourceBacktesting') as MockDataSource:
+        with patch("lumibot.backtesting.backtesting_broker.DataSourceBacktesting") as MockDataSource:
             # Prevent __init__ from running fully if it causes issues
             self.broker = BacktestingBroker.__new__(BacktestingBroker)
             # Mock necessary attributes that would normally be set in __init__
-            self.broker._trading_days = pd.DataFrame() # Initialize attribute
-            self.broker.data_source = MockDataSource() # Assign mock data_source
+            self.broker._trading_days = pd.DataFrame()  # Initialize attribute
+            self.broker.data_source = MockDataSource()  # Assign mock data_source
 
         self.broker.logger = MagicMock()
         # Mock the get_datetime method on the data_source
-        self.mock_datetime = pd.Timestamp('2023-01-01 10:00:00', tz='America/New_York')
+        self.mock_datetime = pd.Timestamp("2023-01-01 10:00:00", tz="America/New_York")
         self.broker.data_source.get_datetime = MagicMock(return_value=self.mock_datetime)
 
         # Setup trading days directly on the broker instance for testing internal logic
         # Ensure _trading_days is set correctly after __new__
-        self.broker._trading_days = pd.DataFrame({
-            'market_open': [pd.Timestamp('2023-01-01 09:30:00', tz='America/New_York')],
-            'market_close': [pd.Timestamp('2023-01-01 16:00:00', tz='America/New_York')]
-        }, index=[pd.Timestamp('2023-01-01 16:00:00', tz='America/New_York')]) # Index is market_close_time
+        self.broker._trading_days = pd.DataFrame(
+            {
+                "market_open": [pd.Timestamp("2023-01-01 09:30:00", tz="America/New_York")],
+                "market_close": [pd.Timestamp("2023-01-01 16:00:00", tz="America/New_York")],
+            },
+            index=[pd.Timestamp("2023-01-01 16:00:00", tz="America/New_York")],
+        )  # Index is market_close_time
 
         # Mock other methods used by the tested logic
         self.broker.get_time_to_close = MagicMock()
-        self.broker.get_time_to_open = MagicMock() # Mock get_time_to_open
+        self.broker.get_time_to_open = MagicMock()  # Mock get_time_to_open
         self.broker._update_datetime = MagicMock()
         self.broker.process_pending_orders = MagicMock()
-        self.mock_strategy = MagicMock() # Mock strategy object
+        self.mock_strategy = MagicMock()  # Mock strategy object
 
     def _set_current_time(self, timestamp_str):
         """Helper to set the mock time."""
-        self.mock_datetime = pd.Timestamp(timestamp_str, tz='America/New_York')
+        self.mock_datetime = pd.Timestamp(timestamp_str, tz="America/New_York")
         self.broker.data_source.get_datetime.return_value = self.mock_datetime
 
     def test_await_close_during_market_hours_no_buffer(self):
         """Test _await_market_to_close during market hours without buffer."""
-        self._set_current_time('2023-01-01 15:30:00')
-        market_close_time = pd.Timestamp('2023-01-01 16:00:00', tz='America/New_York')
-        expected_time_to_close_seconds = (market_close_time - self.mock_datetime).total_seconds() # 1800
+        self._set_current_time("2023-01-01 15:30:00")
+        market_close_time = pd.Timestamp("2023-01-01 16:00:00", tz="America/New_York")
+        expected_time_to_close_seconds = (market_close_time - self.mock_datetime).total_seconds()  # 1800
 
         # Mock get_time_to_close to return the calculated value
         self.broker.get_time_to_close.return_value = expected_time_to_close_seconds
@@ -676,10 +830,10 @@ class TestBacktestingBrokerTimeAdvance(unittest.TestCase):
     def test_await_close_get_time_to_close_returns_none(self):
         """Test _await_market_to_close when get_time_to_close returns None (e.g., market closed)."""
         # Simulate a time when market might be considered closed or get_time_to_close fails
-        self._set_current_time('2023-01-01 17:00:00')
+        self._set_current_time("2023-01-01 17:00:00")
 
         # Mock get_time_to_close returning None
-        self.broker.get_time_to_close.return_value = None # Simulate market closed or error
+        self.broker.get_time_to_close.return_value = None  # Simulate market closed or error
 
         # Call the method under test
         self.broker._await_market_to_close(strategy=self.mock_strategy)
@@ -692,11 +846,11 @@ class TestBacktestingBrokerTimeAdvance(unittest.TestCase):
 
     def test_await_close_with_buffer(self):
         """Test _await_market_to_close with a timedelta buffer."""
-        self._set_current_time('2023-01-01 15:00:00')
-        market_close_time = pd.Timestamp('2023-01-01 16:00:00', tz='America/New_York')
-        base_time_to_close = (market_close_time - self.mock_datetime).total_seconds() # 3600 seconds
+        self._set_current_time("2023-01-01 15:00:00")
+        market_close_time = pd.Timestamp("2023-01-01 16:00:00", tz="America/New_York")
+        base_time_to_close = (market_close_time - self.mock_datetime).total_seconds()  # 3600 seconds
         buffer_minutes = 5
-        expected_update_time = base_time_to_close - (buffer_minutes * 60) # 3300 seconds
+        expected_update_time = base_time_to_close - (buffer_minutes * 60)  # 3300 seconds
 
         # Mock get_time_to_close returning the base value
         self.broker.get_time_to_close.return_value = base_time_to_close
@@ -711,7 +865,7 @@ class TestBacktestingBrokerTimeAdvance(unittest.TestCase):
 
     def test_await_close_when_already_past_close_no_buffer(self):
         """Test _await_market_to_close when current time is past market close (no buffer)."""
-        self._set_current_time('2023-01-01 16:01:00')
+        self._set_current_time("2023-01-01 16:01:00")
 
         # Mock get_time_to_close returning 0 or negative
         self.broker.get_time_to_close.return_value = -60
@@ -729,9 +883,9 @@ class TestBacktestingBrokerTimeAdvance(unittest.TestCase):
 
     def test_await_open_before_market_opens_no_buffer(self):
         """Test _await_market_to_open before market opens without buffer."""
-        self._set_current_time('2023-01-01 09:00:00')
-        market_open_time = pd.Timestamp('2023-01-01 09:30:00', tz='America/New_York')
-        expected_time_to_open_seconds = (market_open_time - self.mock_datetime).total_seconds() # 1800
+        self._set_current_time("2023-01-01 09:00:00")
+        market_open_time = pd.Timestamp("2023-01-01 09:30:00", tz="America/New_York")
+        expected_time_to_open_seconds = (market_open_time - self.mock_datetime).total_seconds()  # 1800
 
         # Mock get_time_to_open to return the calculated value
         self.broker.get_time_to_open.return_value = expected_time_to_open_seconds
@@ -746,11 +900,11 @@ class TestBacktestingBrokerTimeAdvance(unittest.TestCase):
 
     def test_await_open_with_buffer(self):
         """Test _await_market_to_open with a timedelta buffer."""
-        self._set_current_time('2023-01-01 08:00:00')
-        market_open_time = pd.Timestamp('2023-01-01 09:30:00', tz='America/New_York')
-        base_time_to_open = (market_open_time - self.mock_datetime).total_seconds() # 5400 seconds
+        self._set_current_time("2023-01-01 08:00:00")
+        market_open_time = pd.Timestamp("2023-01-01 09:30:00", tz="America/New_York")
+        base_time_to_open = (market_open_time - self.mock_datetime).total_seconds()  # 5400 seconds
         buffer_minutes = 5
-        expected_update_time = base_time_to_open - (buffer_minutes * 60) # 5100 seconds
+        expected_update_time = base_time_to_open - (buffer_minutes * 60)  # 5100 seconds
 
         # Mock get_time_to_open returning the base value
         self.broker.get_time_to_open.return_value = base_time_to_open
@@ -765,7 +919,7 @@ class TestBacktestingBrokerTimeAdvance(unittest.TestCase):
 
     def test_await_open_when_market_already_open(self):
         """Test _await_market_to_open when the market is already open (time_to_open is 0)."""
-        self._set_current_time('2023-01-01 10:00:00') # Time is during market hours
+        self._set_current_time("2023-01-01 10:00:00")  # Time is during market hours
 
         # Mock get_time_to_open returning 0
         self.broker.get_time_to_open.return_value = 0
@@ -781,10 +935,10 @@ class TestBacktestingBrokerTimeAdvance(unittest.TestCase):
 
     def test_await_open_with_buffer_making_time_negative(self):
         """Test _await_market_to_open when buffer makes time_to_open non-positive."""
-        self._set_current_time('2023-01-01 09:28:00') # 2 minutes before open
-        market_open_time = pd.Timestamp('2023-01-01 09:30:00', tz='America/New_York')
-        base_time_to_open = (market_open_time - self.mock_datetime).total_seconds() # 120 seconds
-        buffer_minutes = 3 # 180 seconds buffer
+        self._set_current_time("2023-01-01 09:28:00")  # 2 minutes before open
+        market_open_time = pd.Timestamp("2023-01-01 09:30:00", tz="America/New_York")
+        base_time_to_open = (market_open_time - self.mock_datetime).total_seconds()  # 120 seconds
+        buffer_minutes = 3  # 180 seconds buffer
 
         # Mock get_time_to_open returning the base value
         self.broker.get_time_to_open.return_value = base_time_to_open
@@ -799,5 +953,5 @@ class TestBacktestingBrokerTimeAdvance(unittest.TestCase):
         self.broker._update_datetime.assert_not_called()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -125,6 +125,5 @@ def test_tearsheet_prepends_anchor_when_first_day_has_non_zero_return():
         f"starts the Strategy line at first-day return instead of 0%."
     )
     assert abs(first_row["benchmark"]) < 1e-9, (
-        f"First day's benchmark return is {first_row['benchmark']} but should "
-        f"be 0 (anchor)."
+        f"First day's benchmark return is {first_row['benchmark']} but should be 0 (anchor)."
     )

@@ -1,19 +1,30 @@
 import pytest
-from types import SimpleNamespace
-from unittest.mock import patch
 
 from lumibot.brokers.projectx import ProjectX
-from lumibot.entities import Asset, Order
 from lumibot.data_sources.data_source import DataSource
+from lumibot.entities import Asset, Order
 
 
 class DummyDataSource(DataSource):
     def get_chains(self, asset, quote: Asset = None):
         return {}
-    def get_historical_prices(self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True, return_polars=False):
+
+    def get_historical_prices(
+        self,
+        asset,
+        length,
+        timestep="",
+        timeshift=None,
+        quote=None,
+        exchange=None,
+        include_after_hours=True,
+        return_polars=False,
+    ):
         return None
+
     def get_last_price(self, asset, quote=None, exchange=None):
         return 0.0
+
     def _get_contract_id_from_asset(self, asset):
         return f"CON.F.US.{asset.symbol}.Z25"
 
@@ -23,21 +34,27 @@ class StubClient:
         self.next_id = 1000
         self.placed = []
         self._tick = 0.25
+
     def get_preferred_account_id(self):
         return 1
+
     def get_contract_tick_size(self, contract_id):
         return self._tick
+
     def round_to_tick_size(self, price, tick_size):
         if price is None:
             return None
         return round(price / tick_size) * tick_size
+
     def find_contract_by_symbol(self, symbol):
         return f"CON.F.US.{symbol}.Z25"
+
     def order_place(self, **kwargs):
         self.next_id += 1
         oid = self.next_id
         self.placed.append({"orderId": oid, **kwargs})
         return {"success": True, "orderId": oid}
+
     def order_cancel(self, account_id, order_id):
         return {"success": True}
 
@@ -55,6 +72,7 @@ def broker():
     data = DummyDataSource()
     # Monkeypatch ProjectXClient before broker init
     import lumibot.brokers.projectx as projectx_module
+
     original_client_cls = projectx_module.ProjectXClient
     projectx_module.ProjectXClient = lambda cfg: StubClient()
     try:
@@ -74,7 +92,14 @@ def mes():
 
 
 def _make_bracket_entry(asset, side="buy", qty=1, limit=None, tp=None, sl=None):
-    o = Order(asset=asset, quantity=qty, order_type="limit" if limit is not None else "market", side=side, limit_price=limit, strategy="Strat")
+    o = Order(
+        asset=asset,
+        quantity=qty,
+        order_type="limit" if limit is not None else "market",
+        side=side,
+        limit_price=limit,
+        strategy="Strat",
+    )
     # Lumibot bracket order class marker
     o.order_class = Order.OrderClass.BRACKET
     # place intended TP/SL on secondary_* as per broker logic
@@ -116,8 +141,8 @@ def test_bracket_children_spawn_on_fill_and_tagging(broker, mes):
     assert len(child_orders) >= 2
     # Find children in broker cache via meta map
     meta = parent._synthetic_bracket
-    tp_id = meta.get('children', {}).get('tp')
-    sl_id = meta.get('children', {}).get('sl')
+    tp_id = meta.get("children", {}).get("tp")
+    sl_id = meta.get("children", {}).get("sl")
     assert tp_id and sl_id
     # Check tags
     tp_order = broker.get_order(tp_id)
@@ -126,9 +151,9 @@ def test_bracket_children_spawn_on_fill_and_tagging(broker, mes):
     assert sl_order.tag.startswith("BRK_STOP_")
     # Child price assignment
     assert tp_order.limit_price == 5050.0
-    assert getattr(sl_order, 'stop_price', None) == 4975.0
+    assert getattr(sl_order, "stop_price", None) == 4975.0
     assert tp_order.order_type == Order.OrderType.LIMIT
-    assert getattr(sl_order, 'order_type', None) in {
+    assert getattr(sl_order, "order_type", None) in {
         Order.OrderType.STOP,
         Order.OrderType.STOP_LIMIT,
         Order.OrderType.TRAIL,
@@ -148,8 +173,8 @@ def test_bracket_child_fill_cancels_sibling(broker, mes):
     broker._dispatch_status_change(parent, filled)
 
     meta = parent._synthetic_bracket
-    tp_id = meta['children']['tp']
-    sl_id = meta['children']['sl']
+    tp_id = meta["children"]["tp"]
+    sl_id = meta["children"]["sl"]
 
     # Ensure children exist in cache
     assert broker.get_order(tp_id) is not None
@@ -162,7 +187,13 @@ def test_bracket_child_fill_cancels_sibling(broker, mes):
 
     # SL sibling should be canceled or marked terminal
     sl_order = broker.get_order(sl_id)
-    assert (getattr(sl_order, 'status', '') or '').lower() in {"canceled", "cancelled", "cancelling",
-                                                               "fill", "filled", "error"}
+    assert (getattr(sl_order, "status", "") or "").lower() in {
+        "canceled",
+        "cancelled",
+        "cancelling",
+        "fill",
+        "filled",
+        "error",
+    }
     # Bracket deactivated
-    assert meta['active'] is False
+    assert meta["active"] is False

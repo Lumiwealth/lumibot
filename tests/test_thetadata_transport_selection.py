@@ -7,8 +7,8 @@ import pytest
 
 
 def test_get_request_uses_downloader_when_base_url_set(monkeypatch):
-    import lumibot.tools.thetadata_helper as thetadata_helper
     import lumibot.tools.data_downloader_queue_client as queue_client
+    import lumibot.tools.thetadata_helper as thetadata_helper
 
     monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://example:8080")
     monkeypatch.setenv("DATADOWNLOADER_API_KEY", "test-key")
@@ -28,7 +28,9 @@ def test_get_request_uses_downloader_when_base_url_set(monkeypatch):
     monkeypatch.setattr(
         thetadata_helper,
         "check_connection",
-        lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("check_connection should not be called in downloader mode")),
+        lambda *_a, **_k: (_ for _ in ()).throw(
+            AssertionError("check_connection should not be called in downloader mode")
+        ),
     )
 
     result = thetadata_helper.get_request(
@@ -57,8 +59,8 @@ def test_get_request_raises_when_downloader_base_url_set_but_api_key_missing(mon
 
 
 def test_get_request_uses_local_theta_terminal_when_base_url_unset(monkeypatch):
-    import lumibot.tools.thetadata_helper as thetadata_helper
     import lumibot.tools.data_downloader_queue_client as queue_client
+    import lumibot.tools.thetadata_helper as thetadata_helper
 
     monkeypatch.delenv("DATADOWNLOADER_BASE_URL", raising=False)
     monkeypatch.delenv("DATADOWNLOADER_API_KEY", raising=False)

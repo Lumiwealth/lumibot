@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 
@@ -28,8 +28,8 @@ def test_dump_stats_end_to_end_regression_for_datetime_indexes():
     - Strategy._append_row() -> _format_stats() -> day_deduplicate() -> stats_summary()
     """
     broker = PandasDataBacktesting(
-        datetime_start=datetime(2026, 1, 1, tzinfo=timezone.utc),
-        datetime_end=datetime(2026, 1, 5, tzinfo=timezone.utc),
+        datetime_start=datetime(2026, 1, 1, tzinfo=UTC),
+        datetime_end=datetime(2026, 1, 5, tzinfo=UTC),
     )
     backtesting_broker = BacktestingBroker(data_source=broker)
     strat = _StatsOnlyStrategy(broker=backtesting_broker)
@@ -38,7 +38,7 @@ def test_dump_stats_end_to_end_regression_for_datetime_indexes():
     strat._benchmark_asset = None
     strat._stats_file = None
 
-    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    start = datetime(2026, 1, 1, tzinfo=UTC)
     portfolio_values = [100_000.0, 150_000.0, 75_000.0, 90_000.0]
     for i, value in enumerate(portfolio_values):
         strat._append_row(
@@ -76,8 +76,8 @@ def test_dump_stats_end_to_end_regression_for_datetime_indexes():
 
 def test_dump_stats_emits_parquet_file_when_stats_file_is_set(tmp_path) -> None:
     broker = PandasDataBacktesting(
-        datetime_start=datetime(2026, 1, 1, tzinfo=timezone.utc),
-        datetime_end=datetime(2026, 1, 5, tzinfo=timezone.utc),
+        datetime_start=datetime(2026, 1, 1, tzinfo=UTC),
+        datetime_end=datetime(2026, 1, 5, tzinfo=UTC),
     )
     backtesting_broker = BacktestingBroker(data_source=broker)
     strat = _StatsOnlyStrategy(broker=backtesting_broker)
@@ -85,7 +85,7 @@ def test_dump_stats_emits_parquet_file_when_stats_file_is_set(tmp_path) -> None:
     strat._benchmark_asset = None
     strat._stats_file = str(tmp_path / "stats.csv")
 
-    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    start = datetime(2026, 1, 1, tzinfo=UTC)
     for i, value in enumerate([100_000.0, 101_000.0, 99_000.0]):
         strat._append_row(
             {
@@ -114,8 +114,8 @@ def test_dump_stats_parquet_is_resilient_to_object_positions(tmp_path) -> None:
     parquet export so backtests fail loudly only in required/contract mode.
     """
     broker = PandasDataBacktesting(
-        datetime_start=datetime(2026, 1, 1, tzinfo=timezone.utc),
-        datetime_end=datetime(2026, 1, 5, tzinfo=timezone.utc),
+        datetime_start=datetime(2026, 1, 1, tzinfo=UTC),
+        datetime_end=datetime(2026, 1, 5, tzinfo=UTC),
     )
     backtesting_broker = BacktestingBroker(data_source=broker)
     strat = _StatsOnlyStrategy(broker=backtesting_broker)
@@ -123,7 +123,7 @@ def test_dump_stats_parquet_is_resilient_to_object_positions(tmp_path) -> None:
     strat._benchmark_asset = None
     strat._stats_file = str(tmp_path / "stats.csv")
 
-    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    start = datetime(2026, 1, 1, tzinfo=UTC)
     strat._append_row(
         {
             "datetime": start,

@@ -55,7 +55,9 @@ def test_ibkr_rest_backtesting_exchange_override_is_respected_in_quote_and_last_
     df = _make_minute_df()
     captured: list[str | None] = []
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         captured.append(exchange)
         return df
 

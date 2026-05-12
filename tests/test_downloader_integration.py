@@ -4,7 +4,6 @@ import subprocess
 import sys
 import textwrap
 from pathlib import Path
-from typing import Optional
 from urllib.parse import urlparse
 
 import pytest
@@ -13,7 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DOWNLOADER_BASE_URL = "http://localhost:8080"
 
 
-def _normalize_downloader_base_url(value: Optional[str]) -> str:
+def _normalize_downloader_base_url(value: str | None) -> str:
     if not value:
         return DEFAULT_DOWNLOADER_BASE_URL
 

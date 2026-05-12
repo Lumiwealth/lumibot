@@ -1,17 +1,15 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
-from decimal import Decimal
+from datetime import UTC, datetime
 
 import pandas as pd
 import pytest
 
-from lumibot.backtesting.interactive_brokers_rest_backtesting import InteractiveBrokersRESTBacktesting
 from lumibot.backtesting.databento_backtesting_pandas import DataBentoDataBacktestingPandas
+from lumibot.backtesting.interactive_brokers_rest_backtesting import InteractiveBrokersRESTBacktesting
 from lumibot.entities import Asset
 from lumibot.tools import databento_helper, ibkr_helper
-
 from tests.backtest.parity_strategies.mes_order_matrix_parity import MesOrderMatrixParity, MesParityConfig
 
 pytestmark = pytest.mark.apitest
@@ -25,7 +23,9 @@ def _require_env(name: str) -> str:
 
 
 def _parse_tearsheet_metrics(logs_dir: str, strategy_name: str) -> dict[str, float]:
-    candidates = sorted([p for p in os.listdir(logs_dir) if p.startswith(strategy_name + "_") and p.endswith("_tearsheet.csv")])
+    candidates = sorted(
+        [p for p in os.listdir(logs_dir) if p.startswith(strategy_name + "_") and p.endswith("_tearsheet.csv")]
+    )
     assert len(candidates) == 1, f"Expected 1 tearsheet.csv for {strategy_name}, got {candidates}"
     path = os.path.join(logs_dir, candidates[0])
     df = pd.read_csv(path)
@@ -49,8 +49,8 @@ def test_ibkr_vs_databento_mes_minute_bars_and_backtest_are_close(tmp_path, monk
     # Explicit contract for deterministic parity (Dec 2025 MES).
     fut = Asset("MES", asset_type=Asset.AssetType.FUTURE, expiration=datetime(2025, 12, 19).date())
 
-    start = datetime(2025, 12, 8, 14, 0, tzinfo=timezone.utc)
-    end = datetime(2025, 12, 8, 20, 0, tzinfo=timezone.utc)
+    start = datetime(2025, 12, 8, 14, 0, tzinfo=UTC)
+    end = datetime(2025, 12, 8, 20, 0, tzinfo=UTC)
 
     # --- Bar parity (1m close series) ---
     ibkr_df = ibkr_helper.get_price_data(

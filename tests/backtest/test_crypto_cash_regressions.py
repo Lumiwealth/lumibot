@@ -110,7 +110,7 @@ def test_crypto_cash_regression_no_fees(price_map):
     manual_value = float(strategy.cash)
     for position in strategy.positions:
         # Skip USD positions as they represent cash and are already included in strategy.cash
-        if position.asset.symbol == 'USD':
+        if position.asset.symbol == "USD":
             continue
         final_price = price_map[position.asset.symbol][-1]
         manual_value += float(position.quantity) * final_price
@@ -119,7 +119,7 @@ def test_crypto_cash_regression_no_fees(price_map):
     # Only two fills should have occurred (one per asset).
     fills = strategy.broker._trade_event_log_df
     # Filter for actual fills (not new orders)
-    actual_fills = fills[fills['status'] == 'fill']
+    actual_fills = fills[fills["status"] == "fill"]
     assert len(actual_fills) == 2
 
 
@@ -142,7 +142,7 @@ def test_crypto_cash_regression_with_fees():
 
     fills = strategy.broker._trade_event_log_df
     # Filter for actual fills (not new orders)
-    actual_fills = fills[fills['status'] == 'fill']
+    actual_fills = fills[fills["status"] == "fill"]
     assert len(actual_fills) == 2
 
     total_notional = sum(float(row["filled_quantity"]) * float(row["price"]) for _, row in actual_fills.iterrows())
@@ -155,11 +155,10 @@ def test_crypto_cash_regression_with_fees():
     manual_value = float(strategy.cash)
     for position in strategy.positions:
         # Skip USD positions as they represent cash and are already included in strategy.cash
-        if position.asset.symbol == 'USD':
+        if position.asset.symbol == "USD":
             continue
         final_price = price_map[position.asset.symbol][-1]
         manual_value += float(position.quantity) * final_price
 
     final_value = strategy.stats["portfolio_value"].iloc[-1]
     assert final_value == pytest.approx(manual_value, rel=1e-6)
-

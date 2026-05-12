@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 import pytest
@@ -12,7 +12,6 @@ from lumibot.strategies._strategy import _Strategy
 from lumibot.strategies.strategy import Strategy
 from lumibot.strategies.strategy_executor import StrategyExecutor
 from lumibot.tools.indicators import create_tearsheet
-from tests.fixtures import pandas_data_fixture
 
 
 class _CashFrameworkStrategy(Strategy):
@@ -282,7 +281,7 @@ class _TraceStatsCashStubStrategy:
         return {}
 
     def get_datetime(self):
-        return datetime(2026, 1, 1, tzinfo=timezone.utc)
+        return datetime(2026, 1, 1, tzinfo=UTC)
 
     def get_positions(self):
         return [
@@ -333,17 +332,17 @@ class _StatsReturnAdjustmentStubStrategy:
         self._stats = None
         self._stats_list = [
             {
-                "datetime": datetime(2026, 1, 1, tzinfo=timezone.utc),
+                "datetime": datetime(2026, 1, 1, tzinfo=UTC),
                 "portfolio_value": 100_000.0,
                 "cash_adjustments_net_total": 0.0,
             },
             {
-                "datetime": datetime(2026, 1, 2, tzinfo=timezone.utc),
+                "datetime": datetime(2026, 1, 2, tzinfo=UTC),
                 "portfolio_value": 104_000.0,
                 "cash_adjustments_net_total": 0.0,
             },
             {
-                "datetime": datetime(2026, 1, 3, tzinfo=timezone.utc),
+                "datetime": datetime(2026, 1, 3, tzinfo=UTC),
                 "portfolio_value": 103_000.0,
                 "cash_adjustments_net_total": -1_000.0,
             },

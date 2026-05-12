@@ -43,4 +43,3 @@ def test_load_cache_filters_large_parquet_without_full_read(tmp_path, monkeypatc
     assert len(sliced) == 100
     assert sliced.index.min() >= start
     assert sliced.index.max() <= end
-

@@ -1,15 +1,50 @@
 """Optimized Yahoo finance helper using pure polars with minimal conversions."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
 from importlib import import_module
 from pathlib import Path
-from typing import Any, Dict, Optional
+from types import ModuleType
+from typing import TYPE_CHECKING, Any
 
 from lumibot.constants import LUMIBOT_CACHE_FOLDER
 from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
+
+if TYPE_CHECKING:
+    from polars import DataFrame as PolarsDataFrame
+    from polars import LazyFrame as PolarsLazyFrame
+else:
+    PolarsDataFrame = Any
+    PolarsLazyFrame = Any
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    _module_name: str
+    _module: ModuleType | None
+
+    def __init__(self, module_name: str) -> None:
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self) -> ModuleType:
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._load(), name)
+
+
+pl = _LazyModule("polars")
+yf = _LazyModule("yfinance")
 
 
 class _LazyModule:
@@ -39,13 +74,13 @@ class YahooHelperPolarsOptimized:
 
     CACHE_DIR = Path(LUMIBOT_CACHE_FOLDER) / "yahoo_data_polars"
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Create cache directory if it doesn't exist
         self.CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
         # In-memory cache for frequently accessed data
-        self._memory_cache: Dict[str, pl.LazyFrame] = {}
-        self._cache_metadata: Dict[str, Dict[str, Any]] = {}
+        self._memory_cache: dict[str, PolarsLazyFrame] = {}
+        self._cache_metadata: dict[str, dict[str, Any]] = {}
 
     @classmethod
     def _get_cache_key(cls, symbol: str, interval: str, start: datetime, end: datetime) -> str:
@@ -57,7 +92,7 @@ class YahooHelperPolarsOptimized:
         """Get cache file path."""
         return cls.CACHE_DIR / f"{cache_key}.parquet"
 
-    def _load_from_cache(self, cache_key: str) -> Optional[pl.LazyFrame]:
+    def _load_from_cache(self, cache_key: str) -> PolarsLazyFrame | None:
         """Load data from cache if available and valid."""
         # Check memory cache first
         if cache_key in self._memory_cache:
@@ -68,7 +103,7 @@ class YahooHelperPolarsOptimized:
         if cache_path.exists():
             try:
                 # Use lazy loading for efficiency
-                lazy_df = pl.scan_parquet(cache_path)
+                lazy_df: PolarsLazyFrame = pl.scan_parquet(cache_path)
                 self._memory_cache[cache_key] = lazy_df
                 return lazy_df
             except Exception as e:
@@ -77,7 +112,7 @@ class YahooHelperPolarsOptimized:
 
         return None
 
-    def _save_to_cache(self, cache_key: str, data: pl.DataFrame):
+    def _save_to_cache(self, cache_key: str, data: PolarsDataFrame) -> None:
         """Save data to cache."""
         cache_path = self._get_cache_path(cache_key)
         try:
@@ -85,7 +120,7 @@ class YahooHelperPolarsOptimized:
             data.write_parquet(
                 cache_path,
                 compression="snappy",  # Faster than zstd for our use case
-                statistics=True,       # Enable statistics for faster queries
+                statistics=True,  # Enable statistics for faster queries
             )
             # Store lazy version in memory cache
             self._memory_cache[cache_key] = pl.scan_parquet(cache_path)
@@ -97,15 +132,15 @@ class YahooHelperPolarsOptimized:
         cls,
         symbol: str,
         interval: str = "1d",
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
         auto_adjust: bool = True,
         prepost: bool = True,
         actions: bool = True,
-    ) -> Optional[pl.DataFrame]:
+    ) -> PolarsDataFrame | None:
         """
         Get historical data for a symbol with optimized polars processing.
-        
+
         This method minimizes pandas usage and maximizes polars efficiency:
         1. Direct yfinance to polars conversion
         2. Lazy evaluation where possible
@@ -116,7 +151,7 @@ class YahooHelperPolarsOptimized:
 
         # Set default dates if not provided
         if end is None:
-            end = datetime.now(timezone.utc)
+            end = datetime.now(UTC)
         if start is None:
             start = end - timedelta(days=365)
 
@@ -135,12 +170,21 @@ class YahooHelperPolarsOptimized:
 
             # Map interval to yfinance format
             yf_interval_map = {
-                "day": "1d", "1day": "1d", "1d": "1d",
-                "minute": "1m", "1minute": "1m", "1m": "1m",
-                "5minutes": "5m", "5m": "5m",
-                "15minutes": "15m", "15m": "15m",
-                "30minutes": "30m", "30m": "30m",
-                "hour": "1h", "1hour": "1h", "1h": "1h",
+                "day": "1d",
+                "1day": "1d",
+                "1d": "1d",
+                "minute": "1m",
+                "1minute": "1m",
+                "1m": "1m",
+                "5minutes": "5m",
+                "5m": "5m",
+                "15minutes": "15m",
+                "15m": "15m",
+                "30minutes": "30m",
+                "30m": "30m",
+                "hour": "1h",
+                "1hour": "1h",
+                "1h": "1h",
             }
             yf_interval = yf_interval_map.get(interval, interval)
 
@@ -163,7 +207,7 @@ class YahooHelperPolarsOptimized:
             hist_reset = hist.reset_index()
 
             # Direct conversion - more efficient than column-by-column
-            df = pl.from_pandas(hist_reset)
+            df: PolarsDataFrame = pl.from_pandas(hist_reset)
 
             # Set proper column types and names
             datetime_col = "Date" if "Date" in df.columns else "Datetime"
@@ -178,7 +222,7 @@ class YahooHelperPolarsOptimized:
                 "Volume": "volume",
                 "Dividends": "dividend",
                 "Stock Splits": "stock_splits",
-                "Adj Close": "adj_close"
+                "Adj Close": "adj_close",
             }
 
             df = df.rename({k: v for k, v in rename_map.items() if k in df.columns})
@@ -187,9 +231,7 @@ class YahooHelperPolarsOptimized:
             if "datetime" in df.columns:
                 # Cast to datetime if not already
                 if not isinstance(df["datetime"].dtype, pl.Datetime):
-                    df = df.with_columns(
-                        pl.col("datetime").cast(pl.Datetime("us"))
-                    )
+                    df = df.with_columns(pl.col("datetime").cast(pl.Datetime("us")))
 
             # Sort by datetime for efficient time-based operations
             df = df.sort("datetime")
@@ -204,7 +246,7 @@ class YahooHelperPolarsOptimized:
             return None
 
     @classmethod
-    def clear_cache(cls, older_than_days: Optional[int] = None):
+    def clear_cache(cls, older_than_days: int | None = None) -> None:
         """Clear cache files."""
         if older_than_days is None:
             # Clear all cache

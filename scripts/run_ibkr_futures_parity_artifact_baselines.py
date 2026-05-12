@@ -28,10 +28,9 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import pandas as pd
-
 
 LUMIBOT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DOTENV = Path.home() / "Documents/Development/botspot_node/.env-local"
@@ -50,11 +49,11 @@ def _now_id() -> str:
     return time.strftime("%Y%m%d_%H%M%S")
 
 
-def _read_json(path: Path) -> Dict[str, Any]:
+def _read_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8", errors="replace"))
 
 
-def _baseline_settings(prefix: Path) -> Dict[str, Any]:
+def _baseline_settings(prefix: Path) -> dict[str, Any]:
     return _read_json(prefix.with_name(prefix.name + "_settings.json"))
 
 
@@ -62,8 +61,8 @@ def _ensure_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
 
-def _read_dotenv(path: Path) -> Dict[str, str]:
-    payload: Dict[str, str] = {}
+def _read_dotenv(path: Path) -> dict[str, str]:
+    payload: dict[str, str] = {}
     try:
         for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
             line = raw.strip()
@@ -76,7 +75,7 @@ def _read_dotenv(path: Path) -> Dict[str, str]:
     return payload
 
 
-def _ensure_conids_seeded(*, cache_root: Path, dotenv: Path, cache_version: Optional[str]) -> None:
+def _ensure_conids_seeded(*, cache_root: Path, dotenv: Path, cache_version: str | None) -> None:
     """
     Ensure the IBKR conid registry exists under the per-run cache folder.
 
@@ -108,7 +107,7 @@ def _ensure_conids_seeded(*, cache_root: Path, dotenv: Path, cache_version: Opti
     try:
         shutil.copy2(seed, dst)
     except Exception as e:
-        raise SystemExit(f"Failed to seed conids.json into parity cache folder: {e}")
+        raise SystemExit(f"Failed to seed conids.json into parity cache folder: {e}") from e
 
     # If the remote cache backend is enabled (S3), `ensure_local_file()` will delete-and-redownload
     # files without a matching `.s3key` marker. Seed the marker so the subprocess can reuse this
@@ -125,7 +124,7 @@ def _ensure_conids_seeded(*, cache_root: Path, dotenv: Path, cache_version: Opti
             pass
 
 
-def _newest_prefix(log_dir: Path) -> Optional[str]:
+def _newest_prefix(log_dir: Path) -> str | None:
     candidates = sorted(log_dir.glob("*_settings.json"), key=lambda p: p.stat().st_mtime)
     if not candidates:
         return None
@@ -171,13 +170,13 @@ def _compare_indicators(
     *,
     symbol: str,
     tick: float,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     base = _load_price_line_from_indicators(baseline_path, symbol=symbol)
     run = _load_price_line_from_indicators(ibkr_path, symbol=symbol)
 
     joined = pd.DataFrame({"baseline": base, "ibkr": run}).dropna()
     overlap = int(len(joined))
-    out: Dict[str, Any] = {
+    out: dict[str, Any] = {
         "baseline_points": int(len(base)),
         "ibkr_points": int(len(run)),
         "overlap_points": overlap,
@@ -201,13 +200,13 @@ def _compare_trades(
     ibkr_path: Path,
     *,
     tick: float,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     base = _load_fills(baseline_path)
     run = _load_fills(ibkr_path)
 
     # Canonical compare columns (best-effort; tolerate extra columns).
     cols = [c for c in ["time", "side", "type", "symbol", "price", "filled_quantity"] if c in base.columns and c in run.columns]
-    out: Dict[str, Any] = {
+    out: dict[str, Any] = {
         "baseline_fills": int(len(base)),
         "ibkr_fills": int(len(run)),
         "compare_cols": cols,
@@ -264,7 +263,7 @@ def _compare_trades(
 def _compare_stats(
     baseline_path: Path,
     ibkr_path: Path,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     base = pd.read_csv(baseline_path)
     run = pd.read_csv(ibkr_path)
     if "datetime" not in base.columns or "datetime" not in run.columns:
@@ -319,11 +318,11 @@ def _run_prodlike(
     workdir: Path,
     cache_folder: Path,
     dotenv: Path,
-    cache_version: Optional[str],
+    cache_version: str | None,
     ibkr_futures_exchange: str,
-    profile: Optional[str],
+    profile: str | None,
     timeout_s: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     _ensure_dir(workdir)
     _ensure_dir(cache_folder)
 
@@ -365,7 +364,7 @@ def _run_prodlike(
     elapsed_s = time.time() - started
 
     prefix = _newest_prefix(workdir / "logs")
-    artifacts: Dict[str, Optional[str]] = {}
+    artifacts: dict[str, str | None] = {}
     if prefix:
         for suffix in [
             "_settings.json",
@@ -401,7 +400,7 @@ def _run_prodlike(
     }
 
 
-def _analyze_yappi(path: Path) -> Optional[Dict[str, Any]]:
+def _analyze_yappi(path: Path) -> dict[str, Any] | None:
     if not path.exists():
         return None
     try:
@@ -420,9 +419,9 @@ def _analyze_yappi(path: Path) -> Optional[Dict[str, Any]]:
         return None
 
 
-def _load_existing_run(*, name: str, workdir: Path, cache_folder: Path, start: str, end: str) -> Dict[str, Any]:
+def _load_existing_run(*, name: str, workdir: Path, cache_folder: Path, start: str, end: str) -> dict[str, Any]:
     prefix = _newest_prefix(workdir / "logs")
-    artifacts: Dict[str, Optional[str]] = {}
+    artifacts: dict[str, str | None] = {}
     if prefix:
         for suffix in [
             "_settings.json",
@@ -542,7 +541,7 @@ def main() -> int:
             except Exception:
                 pass
 
-    all_results: Dict[str, Any] = {}
+    all_results: dict[str, Any] = {}
     for b in baselines:
         if not args.include_non_cme and str(b.ibkr_futures_exchange).strip().upper() != "CME":
             all_results[b.name] = {
@@ -622,7 +621,7 @@ def main() -> int:
 
         # Parity comparisons use the warm run (deterministic, cache hit).
         run_prefix = warm.get("prefix")
-        parity: Dict[str, Any] = {"pass": False, "strict_pass": False}
+        parity: dict[str, Any] = {"pass": False, "strict_pass": False}
         if run_prefix:
             base_ind = b.baseline_prefix.with_name(b.baseline_prefix.name + "_indicators.csv")
             base_trades = b.baseline_prefix.with_name(b.baseline_prefix.name + "_trades.csv")

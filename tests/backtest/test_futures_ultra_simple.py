@@ -4,16 +4,20 @@ ULTRA SIMPLE futures test - checking ONE thing at a time.
 No complex strategies, no indicators, no bracket orders.
 Just: Buy 1 contract → hold → sell → verify numbers match reality.
 """
+
 import datetime
+
 import pytest
 import pytz
 
 from lumibot.backtesting import BacktestingBroker
-from lumibot.backtesting.databento_backtesting_polars import DataBentoDataBacktestingPolars as DataBentoDataPolarsBacktesting
+from lumibot.backtesting.databento_backtesting_polars import (
+    DataBentoDataBacktestingPolars as DataBentoDataPolarsBacktesting,
+)
+from lumibot.credentials import DATABENTO_CONFIG
 from lumibot.entities import Asset, TradingFee
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
-from lumibot.credentials import DATABENTO_CONFIG
 
 DATABENTO_API_KEY = DATABENTO_CONFIG.get("API_KEY")
 
@@ -42,14 +46,16 @@ class UltraSimpleStrategy(Strategy):
         position = self.get_position(self.mes)
 
         # Save snapshot
-        self.snapshots.append({
-            "iteration": self.iteration,
-            "datetime": self.get_datetime(),
-            "price": float(price) if price else None,
-            "cash": cash,
-            "portfolio": portfolio,
-            "position_qty": position.quantity if position else 0,
-        })
+        self.snapshots.append(
+            {
+                "iteration": self.iteration,
+                "datetime": self.get_datetime(),
+                "price": float(price) if price else None,
+                "cash": cash,
+                "portfolio": portfolio,
+                "position_qty": position.quantity if position else 0,
+            }
+        )
 
         # Buy on iteration 1
         if self.iteration == 1:
@@ -71,8 +77,8 @@ class UltraSimpleStrategy(Strategy):
 
 
 @pytest.mark.skipif(
-    not DATABENTO_API_KEY or DATABENTO_API_KEY == '<your key here>',
-    reason="Requires DataBento API key for futures data"
+    not DATABENTO_API_KEY or DATABENTO_API_KEY == "<your key here>",
+    reason="Requires DataBento API key for futures data",
 )
 def test_ultra_simple_buy_hold_sell():
     """
@@ -83,9 +89,9 @@ def test_ultra_simple_buy_hold_sell():
     4. Sell 1 MES contract
     5. Print everything and manually verify it makes sense
     """
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("ULTRA SIMPLE FUTURES TEST")
-    print("="*80)
+    print("=" * 80)
 
     # Single day
     tzinfo = pytz.timezone("America/New_York")
@@ -109,16 +115,11 @@ def test_ultra_simple_buy_hold_sell():
 
     trader = Trader(logfile="", backtest=True)
     trader.add_strategy(strat)
-    results = trader.run_all(
-        show_plot=False,
-        show_tearsheet=False,
-        show_indicators=False,
-        save_tearsheet=False
-    )
+    trader.run_all(show_plot=False, show_tearsheet=False, show_indicators=False, save_tearsheet=False)
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("SNAPSHOT ANALYSIS")
-    print("="*80)
+    print("=" * 80)
 
     for snap in strat.snapshots:
         print(f"\nIteration {snap['iteration']} @ {snap['datetime']}")
@@ -128,57 +129,57 @@ def test_ultra_simple_buy_hold_sell():
         print(f"  Position: {snap['position_qty']} contracts")
 
         # Calculate what we expect
-        if snap['iteration'] == 1:
-            print(f"  ✓ Starting state (no position yet)")
+        if snap["iteration"] == 1:
+            print("  ✓ Starting state (no position yet)")
 
-        elif snap['iteration'] == 2:
+        elif snap["iteration"] == 2:
             # After buy
-            print(f"  → After BUY:")
-            print(f"    - Cash should drop by margin (~$1,300) + fee ($0.50)")
-            print(f"    - Portfolio should equal Cash (not cash + notional value)")
+            print("  → After BUY:")
+            print("    - Cash should drop by margin (~$1,300) + fee ($0.50)")
+            print("    - Portfolio should equal Cash (not cash + notional value)")
 
-        elif snap['position_qty'] > 0:
+        elif snap["position_qty"] > 0:
             # Holding position
-            print(f"  → HOLDING position:")
-            print(f"    - Portfolio should track price movements")
-            print(f"    - Portfolio should equal Cash (mark-to-market)")
+            print("  → HOLDING position:")
+            print("    - Portfolio should track price movements")
+            print("    - Portfolio should equal Cash (mark-to-market)")
 
-        elif snap['iteration'] > 5 and snap['position_qty'] == 0:
+        elif snap["iteration"] > 5 and snap["position_qty"] == 0:
             # After sell
-            print(f"  → After SELL:")
-            print(f"    - Margin should be released")
-            print(f"    - Cash should reflect total P&L minus fees")
+            print("  → After SELL:")
+            print("    - Margin should be released")
+            print("    - Cash should reflect total P&L minus fees")
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("MANUAL CHECKS TO DO:")
-    print("="*80)
+    print("=" * 80)
     print("1. Does cash drop by ~$1,300 after buying? (margin)")
     print("2. Does portfolio equal cash while holding? (not cash + $23,000 notional)")
     print("3. Does portfolio move with price changes?")
     print("4. Does final cash = starting cash + price_change*5 - $1.00 in fees?")
-    print("="*80)
+    print("=" * 80)
 
     # Calculate final P&L
     if len(strat.snapshots) >= 6:
         entry_snap = strat.snapshots[1]  # After buy
-        exit_snap = strat.snapshots[5]   # After sell
+        exit_snap = strat.snapshots[5]  # After sell
 
         # Get prices from the snapshots when we had position
-        entry_price = entry_snap['price']
-        exit_price = exit_snap['price']
+        entry_price = entry_snap["price"]
+        exit_price = exit_snap["price"]
 
         price_change = exit_price - entry_price
         expected_pnl = price_change * 5  # MES multiplier
         expected_final_cash = 100000 + expected_pnl - 1.00  # Starting + P&L - fees
 
-        actual_final_cash = exit_snap['cash']
+        actual_final_cash = exit_snap["cash"]
 
-        print(f"\nFINAL P&L CALCULATION:")
+        print("\nFINAL P&L CALCULATION:")
         print(f"  Entry price: ${entry_price:.2f}")
         print(f"  Exit price: ${exit_price:.2f}")
         print(f"  Price change: ${price_change:.2f}")
         print(f"  Expected P&L: ${expected_pnl:.2f} (price_change * 5)")
-        print(f"  Total fees: $1.00 (2 * $0.50)")
+        print("  Total fees: $1.00 (2 * $0.50)")
         print(f"  Expected final cash: ${expected_final_cash:,.2f}")
         print(f"  Actual final cash: ${actual_final_cash:,.2f}")
         print(f"  Difference: ${abs(expected_final_cash - actual_final_cash):.2f}")

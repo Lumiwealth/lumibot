@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from lumibot.components.agents import BuiltinTools
 
@@ -7,7 +7,7 @@ class _Strategy:
     is_backtesting = True
 
     def get_datetime(self):
-        return datetime(2026, 4, 28, 15, 30, tzinfo=timezone.utc)
+        return datetime(2026, 4, 28, 15, 30, tzinfo=UTC)
 
 
 class _Response:

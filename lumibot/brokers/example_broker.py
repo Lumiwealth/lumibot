@@ -1,12 +1,19 @@
-from typing import TYPE_CHECKING, Union
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 from termcolor import colored
 
-from .broker import Broker
-from lumibot.entities import Asset, Order, Position
+from lumibot.data_sources.example_broker_data import ExampleBrokerData
+from lumibot.entities.asset import Asset
+from lumibot.entities.order import Order
+from lumibot.entities.position import Position
 from lumibot.tools.lumibot_logger import get_logger
 
+from .broker import Broker
+
 if TYPE_CHECKING:
+    from lumibot.data_sources.data_source import DataSource
     from lumibot.strategies.strategy import Strategy
 
 logger = get_logger(__name__)
@@ -21,6 +28,7 @@ def _example_broker_data_class():
         _EXAMPLE_BROKER_DATA_CLASS = ExampleBrokerData
     return _EXAMPLE_BROKER_DATA_CLASS
 
+
 class ExampleBroker(Broker):
     """
     Example broker that demonstrates how to connect to an API.
@@ -29,10 +37,10 @@ class ExampleBroker(Broker):
     NAME = "ExampleBroker"
 
     def __init__(
-            self,
-            config=None,
-            data_source=None,
-        ):
+        self,
+        config: Any | None = None,
+        data_source: DataSource | None = None,
+    ) -> None:
         # Check if the user has provided a data source, if not, create one
         if data_source is None:
             # Resolve the class lazily, then instantiate it; this keeps broker import cheap.
@@ -45,10 +53,10 @@ class ExampleBroker(Broker):
         )
 
     # Method stubs with logging for not yet implemented methods
-    def _get_balances_at_broker(self, quote_asset: Asset, strategy) -> tuple:
+    def _get_balances_at_broker(self, quote_asset: Asset, strategy: Strategy | None) -> tuple[float, float, float]:
         """
         Get the actual cash balance at the broker.
-        
+
         Parameters
         ----------
         quote_asset : Asset
@@ -72,11 +80,11 @@ class ExampleBroker(Broker):
 
         return cash, positions_value, portfolio_value
 
-    def _get_stream_object(self):
+    def _get_stream_object(self) -> None:
         """
-        Get the broker stream connection. This method should return an object that handles 
+        Get the broker stream connection. This method should return an object that handles
         the streaming connection to the broker's API.
-        
+
         Returns
         -------
         object
@@ -85,7 +93,12 @@ class ExampleBroker(Broker):
         logger.info(colored("Method '_get_stream_object' is not yet implemented.", "yellow"))
         return None  # Return None as a placeholder
 
-    def _parse_broker_order(self, response: dict, strategy_name: str, strategy_object: 'Strategy' = None) -> Order:
+    def _parse_broker_order(
+        self,
+        response: dict[str, Any],
+        strategy_name: str,
+        strategy_object: Strategy | None = None,
+    ) -> Order | None:
         """
         Parse a broker order representation to an order object.
 
@@ -106,20 +119,20 @@ class ExampleBroker(Broker):
         logger.error(colored("Method '_parse_broker_order' is not yet implemented.", "red"))
         return None  # Return None as a placeholder
 
-    def _pull_broker_all_orders(self) -> list:
+    def _pull_broker_all_orders(self) -> list[dict[str, Any]]:
         """
         Get the broker's open orders.
 
         Returns
         -------
         list
-            A list of order responses from the broker query. These will be passed to 
+            A list of order responses from the broker query. These will be passed to
             _parse_broker_order() to be converted to Order objects.
         """
         logger.error(colored("Method '_pull_broker_all_orders' is not yet implemented.", "red"))
         return []  # Return an empty list as a placeholder
 
-    def _pull_broker_order(self, identifier: str) -> dict:
+    def _pull_broker_order(self, identifier: str) -> dict[str, Any] | None:
         """
         Get a broker order representation by its id.
 
@@ -136,7 +149,7 @@ class ExampleBroker(Broker):
         logger.error(colored(f"Method '_pull_broker_order' for order_id {identifier} is not yet implemented.", "red"))
         return None  # Return None as a placeholder
 
-    def _pull_position(self, strategy: 'Strategy', asset: Asset) -> Position:
+    def _pull_position(self, strategy: Strategy, asset: Asset) -> Position | None:
         """
         Pull a single position from the broker that matches the asset and strategy. If no position is found, None is
         returned.
@@ -156,7 +169,7 @@ class ExampleBroker(Broker):
         logger.error(colored(f"Method '_pull_position' for asset {asset} is not yet implemented.", "red"))
         return None  # Return None as a placeholder
 
-    def _pull_positions(self, strategy: 'Strategy') -> list[Position]:
+    def _pull_positions(self, strategy: Strategy) -> list[Position]:
         """
         Get the account positions. Returns a list of position objects.
 
@@ -173,7 +186,7 @@ class ExampleBroker(Broker):
         logger.error(colored("Method '_pull_positions' is not yet implemented.", "red"))
         return []  # Return an empty list as a placeholder
 
-    def _register_stream_events(self):
+    def _register_stream_events(self) -> None:
         """
         Register the function on_trade_event to be executed on each trade_update event.
         This method should set up callbacks for various order events from the broker's stream.
@@ -181,7 +194,7 @@ class ExampleBroker(Broker):
         logger.error(colored("Method '_register_stream_events' is not yet implemented.", "red"))
         return None  # Return None as a placeholder
 
-    def _run_stream(self):
+    def _run_stream(self) -> None:
         """
         Start and run the broker's data stream. This method is typically executed in a separate thread
         and manages the connection to the broker's streaming API.
@@ -189,10 +202,10 @@ class ExampleBroker(Broker):
         logger.error(colored("Method '_run_stream' is not yet implemented.", "red"))
         return None  # Return None as a placeholder
 
-    def _submit_order(self, order: Order) -> Order:
+    def _submit_order(self, order: Order) -> Order | None:
         """
         Submit an order to the broker after necessary checks and input sanitization.
-        
+
         Parameters
         ----------
         order : Order
@@ -209,7 +222,7 @@ class ExampleBroker(Broker):
     def cancel_order(self, order: Order) -> None:
         """
         Cancel an order at the broker. Nothing will be done for orders that are already cancelled or filled.
-        
+
         Parameters
         ----------
         order : Order
@@ -222,13 +235,14 @@ class ExampleBroker(Broker):
         logger.error(colored(f"Method 'cancel_order' for order {order} is not yet implemented.", "red"))
         return None  # Explicitly return None
 
-    def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
-                      stop_price: Union[float, None] = None):
+    def _modify_order(
+        self, order: Order, limit_price: float | None = None, stop_price: float | None = None
+    ) -> None:
         """
         Modify an order at the broker. Nothing will be done for orders that are already cancelled or filled. You are
         only allowed to change the limit price and/or stop price. If you want to change the quantity,
         you must cancel the order and submit a new one.
-        
+
         Parameters
         ----------
         order : Order
@@ -245,10 +259,10 @@ class ExampleBroker(Broker):
         logger.error(colored(f"Method '_modify_order' for order {order} is not yet implemented.", "red"))
         return None
 
-    def get_historical_account_value(self) -> dict:
+    def get_historical_account_value(self) -> dict[str, Any]:
         """
         Get the historical account value of the account.
-        
+
         Returns
         -------
         dict

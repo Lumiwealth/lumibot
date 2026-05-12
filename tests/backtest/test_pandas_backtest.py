@@ -12,14 +12,10 @@ from lumibot.example_strategies.lifecycle_logger import LifecycleLogger
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
 
-from tests.fixtures import pandas_data_fixture
-
-
 logger = logging.getLogger(__name__)
 
 
 class TestPandasBacktest:
-
     def test_pandas_data_fixture(self, pandas_data_fixture):
         assert pandas_data_fixture is not None
 

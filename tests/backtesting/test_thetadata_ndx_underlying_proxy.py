@@ -1,19 +1,19 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pandas as pd
 
-from lumibot.entities import Asset
-from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestingPandas
 from lumibot.backtesting import thetadata_backtesting_pandas as tdp_module
+from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestingPandas
+from lumibot.entities import Asset
 
 
 def _make_df(columns: dict[str, list[float]]):
     idx = pd.DatetimeIndex(
         [
-            datetime(2025, 1, 2, 14, 30, tzinfo=timezone.utc),
-            datetime(2025, 1, 2, 14, 31, tzinfo=timezone.utc),
+            datetime(2025, 1, 2, 14, 30, tzinfo=UTC),
+            datetime(2025, 1, 2, 14, 31, tzinfo=UTC),
         ]
     )
     return pd.DataFrame(columns, index=idx)
@@ -39,8 +39,8 @@ def test_ndx_index_ohlc_is_proxied_via_qqq_and_scaled(monkeypatch):
 
     monkeypatch.setattr(tdp_module.thetadata_helper, "get_price_data", fake_get_price_data)
 
-    start = datetime(2025, 1, 2, 0, 0, tzinfo=timezone.utc)
-    end = datetime(2025, 1, 3, 0, 0, tzinfo=timezone.utc)
+    start = datetime(2025, 1, 2, 0, 0, tzinfo=UTC)
+    end = datetime(2025, 1, 3, 0, 0, tzinfo=UTC)
     ds = ThetaDataBacktestingPandas(datetime_start=start, datetime_end=end, use_quote_data=False)
     ds._datetime = start
 
@@ -72,8 +72,8 @@ def test_ndx_stock_symbol_is_not_proxied(monkeypatch):
 
     monkeypatch.setattr(tdp_module.thetadata_helper, "get_price_data", fake_get_price_data)
 
-    start = datetime(2025, 1, 2, 0, 0, tzinfo=timezone.utc)
-    end = datetime(2025, 1, 3, 0, 0, tzinfo=timezone.utc)
+    start = datetime(2025, 1, 2, 0, 0, tzinfo=UTC)
+    end = datetime(2025, 1, 3, 0, 0, tzinfo=UTC)
     ds = ThetaDataBacktestingPandas(datetime_start=start, datetime_end=end, use_quote_data=False)
     ds._datetime = start
 
@@ -95,8 +95,8 @@ def test_ndx_default_asset_type_is_stock_and_not_proxied(monkeypatch):
 
     monkeypatch.setattr(tdp_module.thetadata_helper, "get_price_data", fake_get_price_data)
 
-    start = datetime(2025, 1, 2, 0, 0, tzinfo=timezone.utc)
-    end = datetime(2025, 1, 3, 0, 0, tzinfo=timezone.utc)
+    start = datetime(2025, 1, 2, 0, 0, tzinfo=UTC)
+    end = datetime(2025, 1, 3, 0, 0, tzinfo=UTC)
     ds = ThetaDataBacktestingPandas(datetime_start=start, datetime_end=end, use_quote_data=False)
     ds._datetime = start
 
@@ -120,8 +120,8 @@ def test_ndxp_index_is_proxied_via_qqq(monkeypatch):
 
     monkeypatch.setattr(tdp_module.thetadata_helper, "get_price_data", fake_get_price_data)
 
-    start = datetime(2025, 1, 2, 0, 0, tzinfo=timezone.utc)
-    end = datetime(2025, 1, 3, 0, 0, tzinfo=timezone.utc)
+    start = datetime(2025, 1, 2, 0, 0, tzinfo=UTC)
+    end = datetime(2025, 1, 3, 0, 0, tzinfo=UTC)
     ds = ThetaDataBacktestingPandas(datetime_start=start, datetime_end=end, use_quote_data=False)
     ds._datetime = start
 
@@ -143,8 +143,8 @@ def test_ndx_quote_is_proxied_and_scaled(monkeypatch):
 
     monkeypatch.setattr(tdp_module.thetadata_helper, "get_price_data", fake_get_price_data)
 
-    start = datetime(2025, 1, 2, 0, 0, tzinfo=timezone.utc)
-    end = datetime(2025, 1, 3, 0, 0, tzinfo=timezone.utc)
+    start = datetime(2025, 1, 2, 0, 0, tzinfo=UTC)
+    end = datetime(2025, 1, 3, 0, 0, tzinfo=UTC)
     ds = ThetaDataBacktestingPandas(datetime_start=start, datetime_end=end, use_quote_data=True)
     ds._datetime = start
 

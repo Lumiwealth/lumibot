@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pandas as pd
 
@@ -26,7 +26,7 @@ def test_get_price_data_intraday_is_split_adjusted_in_backtests(monkeypatch, tmp
     cache_file = tmp_path / "nvda.minute.ohlc.parquet"
     cache_file.write_text("placeholder")
 
-    idx = pd.date_range(start=datetime(2022, 1, 3, tzinfo=timezone.utc), periods=3, freq="1min", tz="UTC")
+    idx = pd.date_range(start=datetime(2022, 1, 3, tzinfo=UTC), periods=3, freq="1min", tz="UTC")
     raw = pd.DataFrame(
         {
             "open": [300.0, 301.0, 302.0],
@@ -93,4 +93,3 @@ def test_get_price_data_intraday_is_split_adjusted_in_backtests(monkeypatch, tmp
     assert result["open"].tolist() == [30.0, 30.1, 30.2]
     assert result["close"].tolist() == [30.025, 30.125, 30.225]
     assert result["_split_adjusted"].all()
-

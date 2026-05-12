@@ -11,7 +11,9 @@ Tests a SINGLE trade from start to finish:
 
 This test should give us confidence that the basic mechanics are correct.
 """
+
 import datetime
+
 import pytest
 import pytz
 from dotenv import load_dotenv
@@ -20,11 +22,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from lumibot.backtesting import BacktestingBroker
-from lumibot.backtesting.databento_backtesting_polars import DataBentoDataBacktestingPolars as DataBentoDataPolarsBacktesting
+from lumibot.backtesting.databento_backtesting_polars import (
+    DataBentoDataBacktestingPolars as DataBentoDataPolarsBacktesting,
+)
+from lumibot.credentials import DATABENTO_CONFIG
 from lumibot.entities import Asset, TradingFee
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
-from lumibot.credentials import DATABENTO_CONFIG
 
 DATABENTO_API_KEY = DATABENTO_CONFIG.get("API_KEY")
 
@@ -108,8 +112,7 @@ class TestFuturesSingleTrade:
     """Test a single futures trade from start to finish"""
 
     @pytest.mark.skipif(
-        not DATABENTO_API_KEY or DATABENTO_API_KEY == '<your key here>',
-        reason="This test requires a Databento API key"
+        not DATABENTO_API_KEY or DATABENTO_API_KEY == "<your key here>", reason="This test requires a Databento API key"
     )
     def test_single_mes_trade_tracking(self):
         """
@@ -143,19 +146,14 @@ class TestFuturesSingleTrade:
 
         trader = Trader(logfile="", backtest=True)
         trader.add_strategy(strat)
-        results = trader.run_all(
-            show_plot=False,
-            show_tearsheet=False,
-            show_indicators=False,
-            save_tearsheet=False
-        )
+        trader.run_all(show_plot=False, show_tearsheet=False, show_indicators=False, save_tearsheet=False)
 
         # Verify we got snapshots
         assert len(strat.snapshots) >= 8, f"Expected at least 8 iterations, got {len(strat.snapshots)}"
 
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("SINGLE TRADE ANALYSIS")
-        print("="*80)
+        print("=" * 80)
 
         # Analyze snapshots
         for i, snap in enumerate(strat.snapshots):
@@ -167,47 +165,51 @@ class TestFuturesSingleTrade:
 
             if i == 0:
                 # Before trade
-                assert snap['cash'] == 100000, "Starting cash should be $100k"
-                assert snap['portfolio'] == 100000, "Starting portfolio should be $100k"
-                assert not snap['has_position'], "Should have no position initially"
+                assert snap["cash"] == 100000, "Starting cash should be $100k"
+                assert snap["portfolio"] == 100000, "Starting portfolio should be $100k"
+                assert not snap["has_position"], "Should have no position initially"
 
             elif i == 1:
                 # Just after entry
                 # Cash should have decreased by margin + fee
                 expected_cash_change = -(MES_MARGIN + 0.50)
-                actual_cash_change = snap['cash'] - strat.snapshots[0]['cash']
+                actual_cash_change = snap["cash"] - strat.snapshots[0]["cash"]
                 cash_diff = abs(expected_cash_change - actual_cash_change)
 
                 print(f"  Expected cash change: ${expected_cash_change:,.2f}")
                 print(f"  Actual cash change: ${actual_cash_change:,.2f}")
                 print(f"  Difference: ${cash_diff:,.2f}")
 
-                assert cash_diff < 10, f"Cash change after entry should be ~${expected_cash_change}, got ${actual_cash_change}"
-                assert snap['has_position'], "Should have position after entry"
+                assert cash_diff < 10, (
+                    f"Cash change after entry should be ~${expected_cash_change}, got ${actual_cash_change}"
+                )
+                assert snap["has_position"], "Should have position after entry"
 
                 # Portfolio should equal cash + margin + unrealized P&L
                 # At entry, unrealized P&L should be near 0, so portfolio ≈ cash + margin
-                expected_portfolio = snap['cash'] + MES_MARGIN
-                portfolio_diff = abs(snap['portfolio'] - expected_portfolio)
+                expected_portfolio = snap["cash"] + MES_MARGIN
+                portfolio_diff = abs(snap["portfolio"] - expected_portfolio)
                 print(f"  Portfolio: ${snap['portfolio']:,.2f}")
                 print(f"  Expected (cash + margin): ${expected_portfolio:,.2f}")
                 print(f"  Difference: ${portfolio_diff:,.2f}")
-                assert portfolio_diff < 500, f"Portfolio should equal cash + margin at entry, diff was ${portfolio_diff}"
+                assert portfolio_diff < 500, (
+                    f"Portfolio should equal cash + margin at entry, diff was ${portfolio_diff}"
+                )
 
-            elif snap['has_position']:
+            elif snap["has_position"]:
                 # During hold period - verify mark-to-market is working
                 # Get the entry snapshot (iteration 2, right after entry)
                 entry_snap = strat.snapshots[1]  # First snapshot with position
-                entry_fill_price = entry_snap['price']  # This should be close to fill price
+                entry_snap["price"]  # This should be close to fill price
 
                 # Calculate unrealized P&L from actual fill
-                price_change = snap['price'] - strat.entry_price
+                price_change = snap["price"] - strat.entry_price
                 expected_pnl = price_change * MES_MULTIPLIER
 
                 # Portfolio should be: Cash + Margin + Unrealized P&L
                 # (Cash has margin deducted, so portfolio adds it back plus unrealized P&L)
-                expected_portfolio = snap['cash'] + MES_MARGIN + expected_pnl
-                actual_portfolio = snap['portfolio']
+                expected_portfolio = snap["cash"] + MES_MARGIN + expected_pnl
+                actual_portfolio = snap["portfolio"]
                 portfolio_diff = abs(expected_portfolio - actual_portfolio)
 
                 print(f"  Price change since entry: ${price_change:.2f}")
@@ -224,32 +226,32 @@ class TestFuturesSingleTrade:
         # Find exit snapshot (last one or when position closes)
         exit_snap = None
         for i in range(len(strat.snapshots) - 1, 0, -1):
-            if not strat.snapshots[i]['has_position'] and strat.snapshots[i-1]['has_position']:
+            if not strat.snapshots[i]["has_position"] and strat.snapshots[i - 1]["has_position"]:
                 exit_snap = strat.snapshots[i]
                 entry_snap = strat.snapshots[1]  # Right after entry
                 break
 
         if exit_snap:
-            print("\n" + "="*80)
+            print("\n" + "=" * 80)
             print("EXIT ANALYSIS")
-            print("="*80)
+            print("=" * 80)
 
             # Calculate expected P&L
             entry_price = strat.entry_price
-            exit_price = strat.snapshots[-2]['price']  # Price before exit
+            exit_price = strat.snapshots[-2]["price"]  # Price before exit
             price_change = exit_price - entry_price
             expected_pnl = price_change * MES_MULTIPLIER
 
             # Final cash should be: starting cash + P&L - fees
             expected_final_cash = 100000 + expected_pnl - 1.00  # 2 fees ($0.50 each)
-            actual_final_cash = exit_snap['cash']
+            actual_final_cash = exit_snap["cash"]
             cash_diff = abs(expected_final_cash - actual_final_cash)
 
             print(f"Entry price: ${entry_price:.2f}")
             print(f"Exit price: ${exit_price:.2f}")
             print(f"Price change: ${price_change:.2f}")
             print(f"Expected P&L: ${expected_pnl:.2f}")
-            print(f"Fees: $1.00")
+            print("Fees: $1.00")
             print(f"Expected final cash: ${expected_final_cash:,.2f}")
             print(f"Actual final cash: ${actual_final_cash:,.2f}")
             print(f"Difference: ${cash_diff:,.2f}")
@@ -258,13 +260,13 @@ class TestFuturesSingleTrade:
             assert cash_diff < 150, f"Final cash should match expected P&L, diff was ${cash_diff}"
 
             # Verify portfolio equals cash at end
-            portfolio_diff = abs(exit_snap['portfolio'] - exit_snap['cash'])
+            portfolio_diff = abs(exit_snap["portfolio"] - exit_snap["cash"])
             print(f"Final portfolio-cash diff: ${portfolio_diff:,.2f}")
             assert portfolio_diff < 10, f"Final portfolio should equal cash, diff was ${portfolio_diff}"
 
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("✓ ALL CHECKS PASSED")
-        print("="*80)
+        print("=" * 80)
 
 
 if __name__ == "__main__":

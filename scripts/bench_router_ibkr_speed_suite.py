@@ -27,7 +27,6 @@ from pathlib import Path
 from statistics import median
 from typing import Any
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 DEFAULT_LEDGER_MD = REPO_ROOT / "docs/investigations/2026-01-27_ROUTER_IBKR_SPEED.md"

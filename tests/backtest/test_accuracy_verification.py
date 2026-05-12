@@ -11,9 +11,11 @@ Goals:
 
 import datetime
 import os
-import pytest
+
 import pandas as pd
+import pytest
 from dotenv import load_dotenv
+
 from lumibot.entities import Asset
 from lumibot.tools import polygon_helper, thetadata_helper
 
@@ -88,12 +90,12 @@ class TestAccuracyVerification:
         backtesting_start = datetime.datetime(2024, 8, 1)
         backtesting_end = datetime.datetime(2024, 8, 9)  # ~1 week
 
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("TEST 1: ACCURACY VERIFICATION - AMZN")
-        print("="*80)
+        print("=" * 80)
         print(f"Period: {backtesting_start.date()} to {backtesting_end.date()}")
-        print(f"Symbol: AMZN")
-        print(f"Trading days: ~5-7")
+        print("Symbol: AMZN")
+        print("Trading days: ~5-7")
 
         theta_df = _fetch_day_ohlc_theta("AMZN", backtesting_start, backtesting_end)
         polygon_df = _fetch_day_ohlc_polygon("AMZN", backtesting_start, backtesting_end)
@@ -112,9 +114,9 @@ class TestAccuracyVerification:
         difference = abs(theta_return - polygon_return)
         percent_diff = difference * 100.0
 
-        print("\n" + "-"*80)
+        print("\n" + "-" * 80)
         print("RESULTS:")
-        print("-"*80)
+        print("-" * 80)
         print(f"ThetaData Total Return:           {theta_return:.4%}")
         print(f"Polygon Total Return:             {polygon_return:.4%}")
         print(f"Absolute Return Difference:       {difference:.4%}")
@@ -127,7 +129,7 @@ class TestAccuracyVerification:
         )
 
         print(f"\n✓ TEST PASSED: Variance {percent_diff:.4f}% is within acceptable range")
-        print("="*80 + "\n")
+        print("=" * 80 + "\n")
 
     def test_multi_symbol_price_ranges(self):
         """
@@ -147,14 +149,14 @@ class TestAccuracyVerification:
         backtesting_end = datetime.datetime(2024, 8, 9)
 
         symbols = [
-            ("AMZN", 10, 180),   # ~$180/share, 10 shares
-            ("SPY", 10, 450),    # ~$450/share, 10 shares
-            ("BRK.B", 5, 420),   # ~$420/share, 5 shares
+            ("AMZN", 10, 180),  # ~$180/share, 10 shares
+            ("SPY", 10, 450),  # ~$450/share, 10 shares
+            ("BRK.B", 5, 420),  # ~$420/share, 5 shares
         ]
 
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("TEST 2: MULTI-SYMBOL PRICE RANGE VERIFICATION")
-        print("="*80)
+        print("=" * 80)
         print(f"Period: {backtesting_start.date()} to {backtesting_end.date()}")
         print(f"Symbols: {len(symbols)}")
 
@@ -180,15 +182,17 @@ class TestAccuracyVerification:
             difference = abs(theta_return - polygon_return)
             percent_diff = difference * 100.0
 
-            results_table.append({
-                "symbol": symbol,
-                "price": approx_price,
-                "qty": qty,
-                "theta": theta_return,
-                "polygon": polygon_return,
-                "diff": difference,
-                "pct": percent_diff
-            })
+            results_table.append(
+                {
+                    "symbol": symbol,
+                    "price": approx_price,
+                    "qty": qty,
+                    "theta": theta_return,
+                    "polygon": polygon_return,
+                    "diff": difference,
+                    "pct": percent_diff,
+                }
+            )
 
             print(f"  ThetaData:  {theta_return:.4%}")
             print(f"  Polygon:    {polygon_return:.4%}")
@@ -200,11 +204,11 @@ class TestAccuracyVerification:
             )
 
         # Summary table
-        print("\n" + "-"*80)
+        print("\n" + "-" * 80)
         print("SUMMARY TABLE:")
-        print("-"*80)
+        print("-" * 80)
         print(f"{'Symbol':<8} {'Price':<8} {'Qty':<5} {'ThetaRet':<10} {'PolyRet':<10} {'AbsDiff':<10} {'Diff%':<8}")
-        print("-"*80)
+        print("-" * 80)
 
         for r in results_table:
             print(
@@ -213,10 +217,10 @@ class TestAccuracyVerification:
             )
 
         # Calculate average variance
-        avg_pct = sum(r['pct'] for r in results_table) / len(results_table)
-        max_pct = max(r['pct'] for r in results_table)
+        avg_pct = sum(r["pct"] for r in results_table) / len(results_table)
+        max_pct = max(r["pct"] for r in results_table)
 
-        print("-"*80)
+        print("-" * 80)
         print(f"Average Variance: {avg_pct:.4f}%")
         print(f"Maximum Variance: {max_pct:.4f}%")
         print(f"Threshold:        {MAX_PORTFOLIO_VARIANCE_PCT:.2f}%")
@@ -228,8 +232,8 @@ class TestAccuracyVerification:
             f"Max variance {max_pct:.4f}% exceeds {MAX_PORTFOLIO_VARIANCE_PCT:.2f}%"
         )
 
-        print(f"\n✓ TEST PASSED: All symbols within acceptable variance")
-        print("="*80 + "\n")
+        print("\n✓ TEST PASSED: All symbols within acceptable variance")
+        print("=" * 80 + "\n")
 
 
 if __name__ == "__main__":

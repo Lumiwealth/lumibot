@@ -1,7 +1,8 @@
 import datetime
+
 import pandas as pd
-import pytz
 import pytest
+import pytz
 
 from lumibot.backtesting import BacktestingBroker, YahooDataBacktesting
 from lumibot.strategies import Strategy
@@ -36,30 +37,31 @@ class YahooPriceTest(Strategy):
 # by the BACKTESTING_DATA_SOURCE environment variable.
 @pytest.mark.usefixtures("disable_datasource_override")
 class TestYahooBacktestFull:
-
     def test_yahoo_no_future_bars_before_open(self, monkeypatch):
-        tz = pytz.timezone('America/New_York')
-        asset = 'SPY'
-        index = pd.DatetimeIndex([
-            tz.localize(datetime.datetime(2023, 10, 31, 16, 0)),
-            tz.localize(datetime.datetime(2023, 11, 1, 16, 0)),
-        ])
+        tz = pytz.timezone("America/New_York")
+        asset = "SPY"
+        index = pd.DatetimeIndex(
+            [
+                tz.localize(datetime.datetime(2023, 10, 31, 16, 0)),
+                tz.localize(datetime.datetime(2023, 11, 1, 16, 0)),
+            ]
+        )
 
         frame = pd.DataFrame(
             {
-                'Open': [416.18, 419.20],
-                'High': [416.50, 420.10],
-                'Low': [415.80, 418.90],
-                'Close': [418.53, 419.54],
-                'Volume': [1_000_000, 1_100_000],
-                'Dividends': [0.0, 0.0],
-                'Stock Splits': [0.0, 0.0],
+                "Open": [416.18, 419.20],
+                "High": [416.50, 420.10],
+                "Low": [415.80, 418.90],
+                "Close": [418.53, 419.54],
+                "Volume": [1_000_000, 1_100_000],
+                "Dividends": [0.0, 0.0],
+                "Stock Splits": [0.0, 0.0],
             },
             index=index,
         )
 
         monkeypatch.setattr(
-            'lumibot.tools.YahooHelper.get_symbol_data',
+            "lumibot.tools.YahooHelper.get_symbol_data",
             lambda *args, **kwargs: frame,
         )
 
@@ -69,10 +71,10 @@ class TestYahooBacktestFull:
         )
         data_source._datetime = tz.localize(datetime.datetime(2023, 11, 1, 8, 45))
 
-        price = data_source.get_last_price(asset, timestep='day')
+        price = data_source.get_last_price(asset, timestep="day")
         assert round(price, 2) == 416.18
 
-        bars = data_source.get_historical_prices(asset, 1, timestep='day')
+        bars = data_source.get_historical_prices(asset, 1, timestep="day")
         # The bar timestamp must be strictly before the current backtest clock to avoid lookahead.
         assert bars.df.index[-1] < data_source._datetime
 
@@ -101,7 +103,9 @@ class TestYahooBacktestFull:
 
         trader = Trader(logfile="", backtest=True)
         trader.add_strategy(poly_strat_obj)
-        results = trader.run_all(show_plot=False, show_tearsheet=False, show_indicators=False, save_tearsheet=False, tearsheet_file="")
+        results = trader.run_all(
+            show_plot=False, show_tearsheet=False, show_indicators=False, save_tearsheet=False, tearsheet_file=""
+        )
 
         assert results
 
@@ -110,4 +114,3 @@ class TestYahooBacktestFull:
         last_price = round(last_price, 2)
 
         assert last_price == 416.18  # This is the correct price for 2023-11-01 (the open price)
-

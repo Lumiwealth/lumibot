@@ -1,22 +1,33 @@
+from __future__ import annotations
+
 import csv
 import datetime as dt
 import os
 import threading
 from abc import ABC
 from collections import deque
+from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
+from typing import Any, TypeAlias, cast
 
-from lumibot.data_sources import DataSource
+from lumibot.data_sources.data_source import DataSource
 
-_HELPER_FUNCS = {}
+HelperFunc: TypeAlias = Callable[..., Any]  # noqa: UP040
+DateTimeInput: TypeAlias = datetime | str | None  # noqa: UP040
+JsonPayload: TypeAlias = Sequence[dict[str, Any]] | None  # noqa: UP040
+ProgressSnapshot: TypeAlias = dict[str, Any]  # noqa: UP040
+PortfolioValue: TypeAlias = float | int | str | None  # noqa: UP040
+
+_HELPER_FUNCS: dict[str, HelperFunc] = {}
+_ONE_MICROSECOND = timedelta(microseconds=1)
 
 
-def _helper_func(name):
+def _helper_func(name: str) -> HelperFunc:
     func = _HELPER_FUNCS.get(name)
     if func is None:
         from lumibot import tools
 
-        func = getattr(tools, name)
+        func = cast(HelperFunc, getattr(tools, name))
         _HELPER_FUNCS[name] = func
     return func
 
@@ -29,6 +40,9 @@ class DataSourceBacktesting(DataSource, ABC):
     """
 
     IS_BACKTESTING_DATA_SOURCE = True
+
+    datetime_start: datetime
+    datetime_end: datetime | None
 
     _PROGRESS_CSV_HEADER = (
         "timestamp",
@@ -45,27 +59,27 @@ class DataSourceBacktesting(DataSource, ABC):
     )
 
     def __init__(
-             self,
-            datetime_start: datetime | None = None,
-            datetime_end: datetime | None = None,
-            backtesting_started: datetime | None = None,
-            config: dict | None = None,
-            api_key: str | None = None,
-            show_progress_bar: bool = True,
-            log_backtest_progress_to_file = False,
-            progress_csv_path: str | None = None,
-            delay: int | None = None,
-            pandas_data: dict | list = None,
-            **kwargs
-    ):
+        self,
+        datetime_start: DateTimeInput = None,
+        datetime_end: DateTimeInput = None,
+        backtesting_started: datetime | None = None,
+        config: dict[str, Any] | None = None,
+        api_key: str | None = None,
+        show_progress_bar: bool = True,
+        log_backtest_progress_to_file: bool = False,
+        progress_csv_path: str | None = None,
+        delay: int | None = None,
+        pandas_data: dict[Any, Any] | list[Any] | None = None,
+        **kwargs: Any,
+    ) -> None:
         # Pass only api_key to parent class, not datetime_start and datetime_end
         # Remove any datetime_start or datetime_end from kwargs to avoid them being passed twice
-        if 'datetime_start' in kwargs:
+        if "datetime_start" in kwargs:
             # If datetime_start was also passed as a keyword arg, prioritize the keyword arg value
-            datetime_start = kwargs.pop('datetime_start')
-        if 'datetime_end' in kwargs:
+            datetime_start = cast(DateTimeInput, kwargs.pop("datetime_start"))
+        if "datetime_end" in kwargs:
             # If datetime_end was also passed as a keyword arg, prioritize the keyword arg value
-            datetime_end = kwargs.pop('datetime_end')
+            datetime_end = cast(DateTimeInput, kwargs.pop("datetime_end"))
 
         # Initialize parent class
         super().__init__(api_key=api_key, delay=delay, config=config, **kwargs)
@@ -75,17 +89,19 @@ class DataSourceBacktesting(DataSource, ABC):
         else:
             _backtesting_started = backtesting_started
 
-        self.datetime_start = _helper_func("to_datetime_aware")(datetime_start)
-        self.datetime_end = _helper_func("to_datetime_aware")(datetime_end)
-        self._datetime = self.datetime_start
-        self._iter_count = None
-        self.backtesting_started = _backtesting_started
-        self.log_backtest_progress_to_file = log_backtest_progress_to_file
+        to_datetime_aware = _helper_func("to_datetime_aware")
+        self.datetime_start = cast(datetime, to_datetime_aware(datetime_start))
+        self.datetime_end = cast(datetime | None, to_datetime_aware(datetime_end))
+        self._datetime: datetime | None = self.datetime_start
+        self._datetime_minus_microsecond: datetime | None = None
+        self._iter_count: int | None = None
+        self.backtesting_started: datetime = _backtesting_started
+        self.log_backtest_progress_to_file: bool = log_backtest_progress_to_file
         self.tzinfo = _helper_func("get_timezone_from_datetime")(self.datetime_start)
-        self._eta_history = deque()
-        self._eta_window_seconds = 30
-        self._eta_calibration_seconds = 25
-        self._eta_calibration_progress = 4  # percent
+        self._eta_history: deque[tuple[datetime, float]] = deque()
+        self._eta_window_seconds: float = 30.0
+        self._eta_calibration_seconds: float = 25.0
+        self._eta_calibration_progress: float = 4.0  # percent
 
         # Subtract one minute from ``datetime_end`` for most providers so backtests stop
         # *just before* the configured end bound.
@@ -103,23 +119,23 @@ class DataSourceBacktesting(DataSource, ABC):
 
         # Legacy strategy.backtest code will always pass in a config even for DataSources that don't need it, so
         # catch it here and ignore it in this class. Child classes that need it should error check it themselves.
-        self._config = config
+        self._config: dict[str, Any] | None = config
 
         # Progress bar should always show when enabled, regardless of quiet_logs
         # Quiet logs only affects INFO/WARNING/ERROR logging, not progress bar
-        self._show_progress_bar = show_progress_bar
-        self._progress_bar_interval_seconds = float(
+        self._show_progress_bar: bool = show_progress_bar
+        self._progress_bar_interval_seconds: float = float(
             os.environ.get("BACKTESTING_PROGRESS_BAR_INTERVAL_SECONDS", "0.25")
         )
-        self._last_progress_bar_update = None
+        self._last_progress_bar_update: datetime | None = None
 
         self._progress_csv_path = progress_csv_path or "logs/progress.csv"
         # Add initialization for the logging timer attribute
-        self._last_logging_time = None
-        self._portfolio_value = None
+        self._last_logging_time: datetime | None = None
+        self._portfolio_value: PortfolioValue = None
         self._progress_csv_lock = threading.Lock()
         self._progress_snapshot_lock = threading.Lock()
-        self._last_progress_snapshot = {
+        self._last_progress_snapshot: ProgressSnapshot = {
             "percent": 0.0,
             "elapsed": timedelta(0),
             "log_eta": None,
@@ -130,12 +146,14 @@ class DataSourceBacktesting(DataSource, ABC):
             "positions_json": "[]",
             "orders_json": "[]",
         }
-        self._progress_heartbeat_enabled = os.environ.get("BACKTESTING_PROGRESS_HEARTBEAT", "true").strip().lower() != "false"
+        self._progress_heartbeat_enabled = (
+            os.environ.get("BACKTESTING_PROGRESS_HEARTBEAT", "true").strip().lower() != "false"
+        )
         self._progress_heartbeat_interval_seconds = float(
             os.environ.get("BACKTESTING_PROGRESS_HEARTBEAT_SECONDS", "2.0")
         )
         self._progress_heartbeat_stop_event = threading.Event()
-        self._progress_heartbeat_thread = None
+        self._progress_heartbeat_thread: threading.Thread | None = None
 
         # Startup latency (production backtests):
         #
@@ -154,7 +172,7 @@ class DataSourceBacktesting(DataSource, ABC):
         if self.log_backtest_progress_to_file and self._progress_heartbeat_enabled:
             self._start_progress_heartbeat_thread()
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         """Cleanup any background resources (thread pools, progress heartbeat)."""
         self.stop_progress_heartbeat()
         super().shutdown()
@@ -256,7 +274,12 @@ class DataSourceBacktesting(DataSource, ABC):
         return True
 
     @staticmethod
-    def estimate_requested_length(length=None, start_date=None, end_date=None, timestep="minute"):
+    def estimate_requested_length(
+        length: int | str | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+        timestep: str = "minute",
+    ) -> int:
         """
         Infer the number of rows required to satisfy a backtest data request.
         """
@@ -285,7 +308,7 @@ class DataSourceBacktesting(DataSource, ABC):
         total_seconds = max((end_date - start_date).total_seconds(), 0)
         return max(int(total_seconds // interval_seconds) + 1, 1)
 
-    def get_datetime(self, adjust_for_delay=False):
+    def get_datetime(self, adjust_for_delay: bool = False) -> datetime:
         """
         Get the current datetime of the backtest.
 
@@ -299,10 +322,17 @@ class DataSourceBacktesting(DataSource, ABC):
         datetime
             The current datetime of the backtest.
         """
+        if self._datetime is None:
+            raise ValueError("Backtesting datetime has not been initialized")
         return self._datetime
 
-    def get_datetime_range(self, length, timestep="minute", timeshift=None):
-        backtesting_timeshift = datetime.now() - self._datetime
+    def get_datetime_range(
+        self,
+        length: int,
+        timestep: str = "minute",
+        timeshift: timedelta | None = None,
+    ) -> tuple[datetime, datetime]:
+        backtesting_timeshift = datetime.now() - self.get_datetime()
         if timeshift:
             backtesting_timeshift += timeshift
 
@@ -316,7 +346,15 @@ class DataSourceBacktesting(DataSource, ABC):
         start_date = end_date - period_length
         return start_date, end_date
 
-    def _update_datetime(self, new_datetime, cash=None, portfolio_value=None, positions=None, initial_budget=None, orders=None):
+    def _update_datetime(
+        self,
+        new_datetime: datetime,
+        cash: PortfolioValue = None,
+        portfolio_value: PortfolioValue = None,
+        positions: JsonPayload = None,
+        initial_budget: float | int | None = None,
+        orders: JsonPayload = None,
+    ) -> None:
         """
         Update the current datetime of the backtest and optionally log progress.
 
@@ -337,22 +375,24 @@ class DataSourceBacktesting(DataSource, ABC):
             List of minimal order dicts from Order.to_minimal_dict():
             [{"asset": {"symbol": "AAPL", "type": "stock"}, "side": "buy", "qty": 100, "type": "market", "status": "new"}, ...]
         """
-        import json
-
         self._datetime = new_datetime
         try:
-            self._datetime_minus_microsecond = new_datetime - timedelta(microseconds=1)
+            self._datetime_minus_microsecond = new_datetime - _ONE_MICROSECOND
         except Exception:
             self._datetime_minus_microsecond = None
 
         if not self._show_progress_bar and not self.log_backtest_progress_to_file:
             return
 
-        total_seconds = max((self.datetime_end - self.datetime_start).total_seconds(), 1)
+        import json
+
+        total_seconds = 1.0
+        if self.datetime_end is not None:
+            total_seconds = max((self.datetime_end - self.datetime_start).total_seconds(), 1.0)
         current_seconds = max((new_datetime - self.datetime_start).total_seconds(), 0)
         percent = min((current_seconds / total_seconds) * 100, 100)
         now_wall = dt.datetime.now()
-        eta_override = None
+        eta_override: timedelta | None = None
 
         if percent > 0:
             self._eta_history.append((now_wall, percent))
@@ -360,10 +400,9 @@ class DataSourceBacktesting(DataSource, ABC):
                 self._eta_history.popleft()
 
             elapsed_seconds = (now_wall - self.backtesting_started).total_seconds()
-            if (
-                elapsed_seconds >= self._eta_calibration_seconds
-                or percent >= self._eta_calibration_progress
-            ) and len(self._eta_history) >= 2:
+            if (elapsed_seconds >= self._eta_calibration_seconds or percent >= self._eta_calibration_progress) and len(
+                self._eta_history
+            ) >= 2:
                 earliest_time, earliest_percent = self._eta_history[0]
                 delta_percent = percent - earliest_percent
                 delta_time = (now_wall - earliest_time).total_seconds()
@@ -408,10 +447,10 @@ class DataSourceBacktesting(DataSource, ABC):
                 log_eta = eta_override
                 if portfolio_value is not None:
                     if isinstance(portfolio_value, (int, float)):
-                        log_portfolio_value = f'{portfolio_value:,.2f}'
+                        log_portfolio_value = f"{portfolio_value:,.2f}"
                     else:
                         try:
-                            log_portfolio_value = f'{float(portfolio_value):,.2f}'
+                            log_portfolio_value = f"{float(portfolio_value):,.2f}"
                         except (ValueError, TypeError):
                             log_portfolio_value = str(portfolio_value)
                 else:
@@ -421,10 +460,10 @@ class DataSourceBacktesting(DataSource, ABC):
                 simulation_date = new_datetime.strftime("%Y-%m-%d %H:%M:%S") if new_datetime else None
 
                 # Calculate total return percentage
-                total_return_pct = None
+                total_return_pct: float | None = None
                 if portfolio_value is not None and initial_budget is not None and initial_budget > 0:
                     try:
-                        pv = float(str(portfolio_value).replace(',', ''))
+                        pv = float(str(portfolio_value).replace(",", ""))
                         total_return_pct = ((pv / initial_budget) - 1) * 100
                     except (ValueError, TypeError):
                         pass
@@ -455,21 +494,21 @@ class DataSourceBacktesting(DataSource, ABC):
                     cash=cash,
                     total_return_pct=total_return_pct,
                     positions_json=positions_json,
-                    orders_json=orders_json
+                    orders_json=orders_json,
                 )
 
     def log_backtest_progress_to_csv(
         self,
-        percent,
-        elapsed,
-        log_eta,
-        portfolio_value,
-        simulation_date=None,
-        cash=None,
-        total_return_pct=None,
-        positions_json=None,
-        orders_json=None
-    ):
+        percent: float,
+        elapsed: timedelta,
+        log_eta: timedelta | None,
+        portfolio_value: PortfolioValue,
+        simulation_date: str | None = None,
+        cash: PortfolioValue = None,
+        total_return_pct: float | None = None,
+        positions_json: str | None = None,
+        orders_json: str | None = None,
+    ) -> None:
         """
         Log backtest progress to CSV file.
 
@@ -509,9 +548,11 @@ class DataSourceBacktesting(DataSource, ABC):
         download_status_json = "{}"
         try:
             from lumibot.tools.thetadata_helper import get_download_status
+
             download_status = get_download_status()
             if download_status.get("active"):
                 import json
+
                 download_status_json = json.dumps(download_status)
         except ImportError:
             # ThetaData helper not available, skip download status
@@ -524,15 +565,15 @@ class DataSourceBacktesting(DataSource, ABC):
         row = [
             current_time,
             f"{percent:.2f}",
-            str(elapsed).split('.')[0],
-            str(log_eta).split('.')[0] if log_eta else "",
+            str(elapsed).split(".")[0],
+            str(log_eta).split(".")[0] if log_eta else "",
             portfolio_value,
             simulation_date if simulation_date else "",
             f"{cash:.2f}" if cash is not None else "",
             f"{total_return_pct:.2f}" if total_return_pct is not None else "",
             positions_json if positions_json else "[]",
             orders_json if orders_json else "[]",
-            download_status_json
+            download_status_json,
         ]
 
         with self._progress_csv_lock:

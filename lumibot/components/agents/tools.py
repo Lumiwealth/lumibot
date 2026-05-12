@@ -1,7 +1,8 @@
 import inspect
 import logging
 import textwrap
-from typing import Any, Callable
+from collections.abc import Callable, Mapping
+from typing import Any, cast
 
 from .schemas import BoundTool, ToolDefinition
 
@@ -22,7 +23,7 @@ def _get_clean_source(func: Callable[..., Any]) -> str | None:
     lines = source.split("\n")
 
     # Strip @agent_tool decorator lines from the top
-    clean_lines = []
+    clean_lines: list[str] = []
     past_decorator = False
     for line in lines:
         stripped = line.strip()
@@ -63,7 +64,7 @@ def _build_description(func: Callable[..., Any], explicit_description: str | Non
     # Fallback: at least show the signature
     try:
         sig = inspect.signature(func)
-        params = []
+        params: list[str] = []
         for name, param in sig.parameters.items():
             if name == "self":
                 continue
@@ -81,16 +82,14 @@ def _build_description(func: Callable[..., Any], explicit_description: str | Non
     return base
 
 
-def agent_tool(*, name: str | None = None, description: str | None = None) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+def agent_tool(
+    *, name: str | None = None, description: str | None = None
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-        setattr(
-            func,
-            "_lumibot_agent_tool",
-            {
-                "name": name or func.__name__,
-                "description": _build_description(func, description),
-            },
-        )
+        cast(Any, func)._lumibot_agent_tool = {
+            "name": name or func.__name__,
+            "description": _build_description(func, description),
+        }
         return func
 
     return decorator
@@ -101,9 +100,10 @@ def is_agent_tool(value: Any) -> bool:
 
 
 def bind_callable_tool(callable_obj: Callable[..., Any]) -> ToolDefinition:
-    metadata = getattr(callable_obj, "_lumibot_agent_tool", None) or {}
-    tool_name = metadata.get("name") or getattr(callable_obj, "__name__", "tool")
-    tool_description = metadata.get("description") or _build_description(callable_obj, None)
+    raw_metadata = getattr(callable_obj, "_lumibot_agent_tool", None)
+    metadata = dict(cast(Mapping[str, Any], raw_metadata)) if isinstance(raw_metadata, Mapping) else {}
+    tool_name = str(metadata.get("name") or getattr(callable_obj, "__name__", "tool"))
+    tool_description = str(metadata.get("description") or _build_description(callable_obj, None))
 
     def binder(strategy: Any, manager: Any) -> BoundTool:
         return BoundTool(

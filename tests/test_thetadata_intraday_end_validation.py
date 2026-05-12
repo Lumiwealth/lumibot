@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 import pandas as pd
-import pytz
 import pytest
+import pytz
 
 from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestingPandas
 from lumibot.entities import Asset
@@ -63,7 +63,9 @@ def test_intraday_cache_end_validation_does_not_reuse_stale_prior_day_data(monke
     monkeypatch.setattr(thetadata_helper, "get_price_data", _fetch_called)
 
     with pytest.raises(RuntimeError, match="fetch_called"):
-        source._update_pandas_data(asset, quote_asset, 5, "minute", dt, require_quote_data=False, require_ohlc_data=True)
+        source._update_pandas_data(
+            asset, quote_asset, 5, "minute", dt, require_quote_data=False, require_ohlc_data=True
+        )
 
 
 def test_intraday_index_minute_ohlc_clamps_end_requirement_to_session_close(monkeypatch, caplog):
@@ -118,7 +120,9 @@ def test_intraday_index_minute_ohlc_clamps_end_requirement_to_session_close(monk
     monkeypatch.setattr(thetadata_helper, "get_price_data", _fetch_called)
 
     with caplog.at_level("INFO"):
-        source._update_pandas_data(asset, quote_asset, 5, "minute", dt, require_quote_data=False, require_ohlc_data=True)
+        source._update_pandas_data(
+            asset, quote_asset, 5, "minute", dt, require_quote_data=False, require_ohlc_data=True
+        )
 
     assert "[THETA][CACHE][STALE]" not in caplog.text
 
@@ -168,7 +172,9 @@ def test_intraday_index_minute_quote_clamps_end_requirement_to_session_close(mon
     monkeypatch.setattr(thetadata_helper, "get_price_data", _fetch_called)
 
     with caplog.at_level("INFO"):
-        source._update_pandas_data(asset, quote_asset, 5, "minute", dt, require_quote_data=True, require_ohlc_data=False)
+        source._update_pandas_data(
+            asset, quote_asset, 5, "minute", dt, require_quote_data=True, require_ohlc_data=False
+        )
 
     assert "[THETA][CACHE][STALE]" not in caplog.text
 
@@ -220,7 +226,9 @@ def test_intraday_index_minute_clamps_end_requirement_to_last_trading_session_cl
     monkeypatch.setattr(thetadata_helper, "get_price_data", _fetch_called)
 
     with caplog.at_level("INFO"):
-        source._update_pandas_data(asset, quote_asset, 5, "minute", dt, require_quote_data=False, require_ohlc_data=True)
+        source._update_pandas_data(
+            asset, quote_asset, 5, "minute", dt, require_quote_data=False, require_ohlc_data=True
+        )
 
     assert "[THETA][CACHE][STALE]" not in caplog.text
 

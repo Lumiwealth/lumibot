@@ -27,4 +27,3 @@ def test_is_pandas_daily_data_source_only_matches_pure_pandas():
 
     thetadata_executor = _make_executor(ThetaDataBacktestingPandas())
     assert thetadata_executor._is_pandas_daily_data_source() is False
-

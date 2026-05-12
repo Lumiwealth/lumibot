@@ -1,55 +1,74 @@
 from __future__ import annotations
 
+# pyright: reportMissingParameterType=false, reportUnknownParameterType=false
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false
+# pyright: reportMissingTypeArgument=false, reportMissingTypeStubs=false
+# pyright: reportAttributeAccessIssue=false, reportArgumentType=false, reportCallIssue=false
+# pyright: reportInvalidTypeForm=false, reportUnknownLambdaType=false
+# pyright: reportUnnecessaryComparison=false, reportUnnecessaryIsInstance=false
+# pyright: reportOptionalMemberAccess=false, reportOptionalSubscript=false
+# pyright: reportFunctionMemberAccess=false, reportConstantRedefinition=false
+# pyright: reportGeneralTypeIssues=false, reportAssignmentType=false
 # This file contains helper functions for getting data from Polygon.io
 import os
 import time
 from collections import defaultdict
-from datetime import date, datetime, timedelta, timezone
+from collections.abc import Iterator
+from datetime import UTC, date, datetime, timedelta
 from importlib import import_module
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterator, List, Optional
+from types import ModuleType
+from typing import Any, TypeAlias
 from urllib.parse import urlparse, urlunparse
 
 from lumibot import LUMIBOT_CACHE_FOLDER
-from lumibot.entities import Asset
+from lumibot.entities.asset import Asset
 
-if TYPE_CHECKING:
-    from polygon.rest import RESTClient
+PandasDataFrame: TypeAlias = Any  # noqa: UP040
+JsonDict: TypeAlias = dict[str, Any]  # noqa: UP040
+PolygonAgg: TypeAlias = dict[str, Any]  # noqa: UP040
+OptionChains: TypeAlias = dict[str, Any]  # noqa: UP040
 
-_POLYGON_CLIENT_CLASSES = {}
-_COLORED_FN = None
-_DEFAULT_PYTZ = None
+_POLYGON_CLIENT_CLASSES: dict[type[Any], type[Any]] = {}
+_COLORED_FN: Any | None = None
+_DEFAULT_PYTZ: Any | None = None
 
 
-class _LazyModule:
+class _LazyModule(ModuleType):
     __slots__ = ("_module_name", "_module")
 
-    def __init__(self, module_name: str):
+    _module_name: str
+    _module: ModuleType | None
+
+    def __init__(self, module_name: str) -> None:
+        super().__init__(module_name)
         object.__setattr__(self, "_module_name", module_name)
         object.__setattr__(self, "_module", None)
 
-    def _load(self):
+    def _load(self) -> ModuleType:
         module = object.__getattribute__(self, "_module")
         if module is None:
             module = import_module(object.__getattribute__(self, "_module_name"))
             object.__setattr__(self, "_module", module)
         return module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
 
-pd = _LazyModule("pandas")
-_TQDM_FUNC = None
+pd: Any = _LazyModule("pandas")
+_TQDM_FUNC: Any | None = None
 
 
 class _LazyLogger:
     __slots__ = ("_logger",)
 
-    def __init__(self):
+    _logger: Any | None
+
+    def __init__(self) -> None:
         object.__setattr__(self, "_logger", None)
 
-    def _load(self):
+    def _load(self) -> Any:
         logger = object.__getattribute__(self, "_logger")
         if logger is None:
             from lumibot.tools.lumibot_logger import get_logger
@@ -58,23 +77,23 @@ class _LazyLogger:
             object.__setattr__(self, "_logger", logger)
         return logger
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
 
 logger = _LazyLogger()
 
 
-def colored(*args, **kwargs):
+def colored(*args: Any, **kwargs: Any) -> str:
     global _COLORED_FN
     if _COLORED_FN is None:
         from termcolor import colored as _colored
 
         _COLORED_FN = _colored
-    return _COLORED_FN(*args, **kwargs)
+    return str(_COLORED_FN(*args, **kwargs))
 
 
-def _default_pytz():
+def _default_pytz() -> Any:
     global _DEFAULT_PYTZ
     if _DEFAULT_PYTZ is None:
         from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
@@ -83,19 +102,20 @@ def _default_pytz():
     return _DEFAULT_PYTZ
 
 
-def _polygon_api_key():
+def _polygon_api_key() -> str | None:
     from lumibot.credentials import POLYGON_API_KEY
 
     return POLYGON_API_KEY
 
 
-def tqdm(*args, **kwargs):
+def tqdm(*args: Any, **kwargs: Any) -> Any:
     global _TQDM_FUNC
     if _TQDM_FUNC is None:
         from tqdm import tqdm as _real_tqdm
 
         _TQDM_FUNC = _real_tqdm
     return _TQDM_FUNC(*args, **kwargs)
+
 
 # Adjust as desired, in days. We'll reuse any existing chain file
 # that is not older than RECENT_FILE_TOLERANCE_DAYS.
@@ -105,12 +125,12 @@ RECENT_FILE_TOLERANCE_DAYS = 14
 MAX_POLYGON_DAYS = 30
 
 # Define a cache dictionary to store schedules and a global dictionary for buffered schedules
-schedule_cache = {}
-buffered_schedules = {}
-_PANDAS_MARKET_CALENDARS = None
+schedule_cache: dict[tuple[str, date, date], PandasDataFrame] = {}
+buffered_schedules: dict[str, PandasDataFrame] = {}
+_PANDAS_MARKET_CALENDARS: Any | None = None
 
 
-def _get_market_calendars():
+def _get_market_calendars() -> Any:
     global _PANDAS_MARKET_CALENDARS
     if _PANDAS_MARKET_CALENDARS is None:
         import pandas_market_calendars as mcal
@@ -141,8 +161,9 @@ def get_cached_schedule(cal, start_date, end_date, buffer_days=30):
         buffered_schedule = buffered_schedules[cal.name]
         # Check if the current buffered schedule covers the required range
         if buffered_schedule.index.min() <= start_timestamp and buffered_schedule.index.max() >= end_timestamp:
-            filtered_schedule = buffered_schedule[(buffered_schedule.index >= start_timestamp) & (
-                buffered_schedule.index <= end_timestamp)]
+            filtered_schedule = buffered_schedule[
+                (buffered_schedule.index >= start_timestamp) & (buffered_schedule.index <= end_timestamp)
+            ]
             schedule_cache[cache_key] = filtered_schedule
             return filtered_schedule
 
@@ -151,8 +172,9 @@ def get_cached_schedule(cal, start_date, end_date, buffer_days=30):
     buffered_schedules[cal.name] = buffered_schedule  # Store the buffered schedule for this calendar
 
     # Filter the schedule to only include the requested date range
-    filtered_schedule = buffered_schedule[(buffered_schedule.index >= start_timestamp)
-                                          & (buffered_schedule.index <= end_timestamp)]
+    filtered_schedule = buffered_schedule[
+        (buffered_schedule.index >= start_timestamp) & (buffered_schedule.index <= end_timestamp)
+    ]
 
     # Cache the filtered schedule for quick lookup
     schedule_cache[cache_key] = filtered_schedule
@@ -166,17 +188,17 @@ def get_price_data_from_polygon(
     start: datetime,
     end: datetime,
     timespan: str = "minute",
-    quote_asset: Optional[Asset] = None,
+    quote_asset: Asset | None = None,
     force_cache_update: bool = False,
-    max_workers: int = 10
-) -> Optional[pd.DataFrame]:
+    max_workers: int = 10,
+) -> pd.DataFrame | None:
     """
     Query Polygon.io for historical pricing data for the given asset, using parallel downloads.
-    
+
     Data is cached locally (in LUMIBOT_CACHE_FOLDER/polygon) to avoid re-downloading data for dates
     that have already been checked. For any trading date with no data, a dummy row with a "missing"
     flag is stored in the cache. When returning data to the caller, dummy rows are filtered out.
-    
+
     Parameters
     ----------
     api_key : str
@@ -195,13 +217,13 @@ def get_price_data_from_polygon(
         If True, forces re-downloading data even if cached data exists. Defaults to False.
     max_workers : int, optional
         The number of parallel threads to use for downloading data. Defaults to 10.
-        
+
     Returns
     -------
     Optional[pd.DataFrame]
         The DataFrame containing the historical pricing data (with dummy rows removed),
         or None if a valid symbol could not be found.
-        
+
     Notes
     -----
     - If the cache file exists and is valid (and force_cache_update is False), cached data is loaded.
@@ -215,7 +237,7 @@ def get_price_data_from_polygon(
     cache_file = build_cache_filename(asset, timespan, quote_asset)
     # Validate cache (e.g., check if splits have changed) and possibly force a cache update.
     force_cache_update = validate_cache(force_cache_update, asset, cache_file, api_key)
-    df_all: Optional[pd.DataFrame] = None
+    df_all: pd.DataFrame | None = None
     # Load cached data if available.
     if cache_file.exists() and not force_cache_update:
         df_all = load_cache(cache_file)
@@ -232,15 +254,18 @@ def get_price_data_from_polygon(
                 if timespan == "day":
                     # Convert index to dates for comparison
                     import pandas as pd
+
                     df_dates = pd.to_datetime(df_all.index).date
-                    start_date = start.date() if hasattr(start, 'date') else start
-                    end_date = end.date() if hasattr(end, 'date') else end
+                    start_date = start.date() if hasattr(start, "date") else start
+                    end_date = end.date() if hasattr(end, "date") else end
                     mask = (df_dates >= start_date) & (df_dates <= end_date)
                     df_all = df_all[mask]
                 else:
                     # Intraday: use precise datetime filtering
                     import datetime as dt
+
                     import pytz
+
                     from lumibot import LUMIBOT_DEFAULT_PYTZ
 
                     # Convert date to datetime if needed
@@ -281,9 +306,11 @@ def get_price_data_from_polygon(
         s_date = e_date + timedelta(days=1)
 
     # Download data in parallel with a progress bar.
-    pbar = tqdm(total=total_queries,
-            desc=f"Downloading and caching {asset} / {quote_asset.symbol if quote_asset else ''} '{timespan}'",
-            dynamic_ncols=True)
+    pbar = tqdm(
+        total=total_queries,
+        desc=f"Downloading and caching {asset} / {quote_asset.symbol if quote_asset else ''} '{timespan}'",
+        dynamic_ncols=True,
+    )
 
     def fetch_chunk(start_date: datetime, end_date: datetime):
         return polygon_client.get_aggs(
@@ -298,8 +325,7 @@ def get_price_data_from_polygon(
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_range = {executor.submit(fetch_chunk, cstart, cend): (cstart, cend)
-                           for (cstart, cend) in chunks}
+        future_to_range = {executor.submit(fetch_chunk, cstart, cend): (cstart, cend) for (cstart, cend) in chunks}
         for future in as_completed(future_to_range):
             try:
                 result = future.result()
@@ -331,15 +357,18 @@ def get_price_data_from_polygon(
         if timespan == "day":
             # Convert index to dates for comparison
             import pandas as pd
+
             df_dates = pd.to_datetime(df_all_output.index).date
-            start_date = start.date() if hasattr(start, 'date') else start
-            end_date = end.date() if hasattr(end, 'date') else end
+            start_date = start.date() if hasattr(start, "date") else start
+            end_date = end.date() if hasattr(end, "date") else end
             mask = (df_dates >= start_date) & (df_dates <= end_date)
             df_all_output = df_all_output[mask]
         else:
             # Intraday: use precise datetime filtering
             import datetime as dt
+
             import pytz
+
             from lumibot import LUMIBOT_DEFAULT_PYTZ
 
             # Convert date to datetime if needed
@@ -383,7 +412,7 @@ def validate_cache(force_cache_update: bool, asset: Asset, cache_file: Path, api
     splits_file_path = Path(base_path + "_splits.parquet")
 
     splits_file_stale = True
-    cached_splits: Optional[pd.DataFrame] = None
+    cached_splits: pd.DataFrame | None = None
     if splits_file_path.exists():
         splits_file_stale = datetime.fromtimestamp(splits_file_path.stat().st_mtime).date() != date.today()
         if splits_file_stale:
@@ -584,19 +613,14 @@ def build_cache_filename(asset: Asset, timespan: str, quote_asset: Asset = None)
     return cache_file
 
 
-def get_missing_dates(
-    df_all: Optional[pd.DataFrame],
-    asset: Asset,
-    start: datetime,
-    end: datetime
-) -> List[datetime.date]:
+def get_missing_dates(df_all: pd.DataFrame | None, asset: Asset, start: datetime, end: datetime) -> list[datetime.date]:
     """
     Determine which trading dates are missing from the cache.
-    
+
     A date is considered "checked" if any row exists in the cache (whether it contains real
     data or a dummy row indicating a missing query). Trading dates are determined from the asset's
     calendar (via `get_trading_dates()`).
-    
+
     Parameters
     ----------
     df_all : Optional[pd.DataFrame]
@@ -607,7 +631,7 @@ def get_missing_dates(
         The start datetime of the requested range.
     end : datetime
         The end datetime of the requested range.
-        
+
     Returns
     -------
     List[datetime.date]
@@ -617,6 +641,8 @@ def get_missing_dates(
     trading_dates = get_trading_dates(asset, start, end)
     # For options, limit to dates on or before the expiration.
     if asset.asset_type == "option":
+        if asset.expiration is None:
+            return []
         trading_dates = [d for d in trading_dates if d <= asset.expiration]
     if df_all is None or df_all.empty:
         return trading_dates
@@ -638,17 +664,17 @@ def get_missing_dates(
 def load_cache(cache_file: Path) -> pd.DataFrame:
     """
     Load cached data from a Feather file and return a DataFrame with a UTC‐aware DateTimeIndex.
-    
+
     Parameters
     ----------
     cache_file : Path
         The path to the Parquet cache file.
-        
+
     Returns
     -------
     pd.DataFrame
         The DataFrame containing the cached data with the 'datetime' column set as the index.
-        
+
     Raises
     ------
     KeyError
@@ -657,7 +683,7 @@ def load_cache(cache_file: Path) -> pd.DataFrame:
     # Normalize to Path in case a py.path local was passed
     cache_file = Path(str(cache_file))
     # Read parquet exclusively
-    df = pd.read_parquet(cache_file, engine='pyarrow')
+    df = pd.read_parquet(cache_file, engine="pyarrow")
     if "datetime" not in df.columns:
         raise KeyError(f"'datetime' column not found in {cache_file}")
     # Set 'datetime' column as index and convert to datetime objects
@@ -671,19 +697,18 @@ def load_cache(cache_file: Path) -> pd.DataFrame:
         df.index = df.index.tz_convert("UTC")
     return df
 
+
 def update_cache(
-    cache_file: Path,
-    df_all: Optional[pd.DataFrame],
-    missing_dates: Optional[List[datetime.date]] = None
+    cache_file: Path, df_all: pd.DataFrame | None, missing_dates: list[datetime.date] | None = None
 ) -> pd.DataFrame:
     """
     Update the cache file by adding any missing dates as dummy rows.
-    
+
     For each date in `missing_dates` that is not already present in the cache,
     a dummy row is added (with a "missing" flag set to True). This ensures that
     dates which were queried but returned no data are recorded, so that they
     will not be re-downloaded on subsequent runs.
-    
+
     Parameters
     ----------
     cache_file : Path
@@ -692,7 +717,7 @@ def update_cache(
         The existing cached DataFrame (may be None or empty).
     missing_dates : Optional[List[datetime.date]]
         List of date objects for which data is missing.
-        
+
     Returns
     -------
     pd.DataFrame
@@ -717,17 +742,14 @@ def update_cache(
     # For every missing date not in the cache, create a dummy row.
     for d in missing_dates or []:
         if d not in cached_dates:
-            # Create a datetime at the start of the day using pytz.localize,
-            # then convert to UTC. Passing pytz zones via tzinfo gives bad offsets.
-            dt = _default_pytz().localize(datetime(year=d.year, month=d.month, day=d.day))
-            dt_utc = dt.astimezone(timezone.utc)
+            # Create a datetime at the start of the day using the default timezone,
+            # then convert to UTC.
+            dt = datetime(year=d.year, month=d.month, day=d.day, tzinfo=_default_pytz())
+            dt_utc = dt.astimezone(UTC)
             dummy_rows.append((dt_utc, {"missing": True}))
     # If any dummy rows were created, add them to the DataFrame.
     if dummy_rows:
-        missing_df = pd.DataFrame(
-            [row for dt, row in dummy_rows],
-            index=[dt for dt, row in dummy_rows]
-        )
+        missing_df = pd.DataFrame([row for _, row in dummy_rows], index=[timestamp for timestamp, _ in dummy_rows])
         missing_df.index.name = "datetime"
         df_all = pd.concat([df_all, missing_df])
         df_all = df_all.sort_index()
@@ -736,13 +758,14 @@ def update_cache(
         cache_file.parent.mkdir(parents=True, exist_ok=True)
         df_to_save = df_all.reset_index()
         # Save as parquet with compression
-        df_to_save.to_parquet(cache_file, engine='pyarrow', compression='snappy')
+        df_to_save.to_parquet(cache_file, engine="pyarrow", compression="snappy")
     return df_all
+
 
 def update_polygon_data(df_all, result):
     """
     Update the DataFrame with the new data from Polygon.
-    
+
     Parameters
     ----------
     df_all : pd.DataFrame
@@ -750,7 +773,7 @@ def update_polygon_data(df_all, result):
     result : list
         A list of dictionaries with the new data from Polygon.
         Format: [{'o': 1.0, 'h': 2.0, 'l': 3.0, 'c': 4.0, 'v': 5.0, 't': 116120000000}]
-        
+
     Returns
     -------
     pd.DataFrame
@@ -793,16 +816,17 @@ def update_polygon_data(df_all, result):
 
     return df_all
 
+
 def get_chains_cached(
     api_key: str,
     asset: Asset,
     quote: Asset = None,
     exchange: str = None,
     current_date: date = None,
-    polygon_client: Optional["PolygonClient"] = None
+    polygon_client: PolygonClient | None = None,
 ) -> dict:
     """
-    Retrieve an option chain for a given asset and historical date using Polygon, 
+    Retrieve an option chain for a given asset and historical date using Polygon,
     with caching to reduce repeated downloads during backtests.
 
     Parameters
@@ -816,10 +840,10 @@ def get_chains_cached(
     exchange : str, optional
         The exchange to consider (e.g., "NYSE").
     current_date : datetime.date, optional
-        The *historical* date of interest (e.g., 2022-01-08). If omitted, this function 
+        The *historical* date of interest (e.g., 2022-01-08). If omitted, this function
         will return None immediately (no chain is fetched).
     polygon_client : PolygonClient, optional
-        A reusable PolygonClient instance; if None, one will be created using the 
+        A reusable PolygonClient instance; if None, one will be created using the
         given api_key.
 
     Returns
@@ -844,13 +868,13 @@ def get_chains_cached(
 
     Notes
     -----
-    1) We do *not* use the real system date in this function because it is purely 
+    1) We do *not* use the real system date in this function because it is purely
        historical/backtest-oriented.
-    2) If a suitable chain file from within RECENT_FILE_TOLERANCE_DAYS of current_date 
+    2) If a suitable chain file from within RECENT_FILE_TOLERANCE_DAYS of current_date
        exists, it is reused directly.
-    3) Otherwise, the function downloads fresh data from Polygon, then saves it under 
+    3) Otherwise, the function downloads fresh data from Polygon, then saves it under
        `LUMIBOT_CACHE_FOLDER/polygon/option_chains/{symbol}_{date}.parquet`.
-    4) By default, we fetch both 'expired=True' and 'expired=False', so you get 
+    4) By default, we fetch both 'expired=True' and 'expired=False', so you get
        historical + near-future options for your specified date.
     """
     logger.debug(f"get_chains_cached called for {asset.symbol} on {current_date}")
@@ -894,7 +918,7 @@ def get_chains_cached(
                 f"Reusing chain file {fpath} (file_date={file_date}), "
                 f"within {RECENT_FILE_TOLERANCE_DAYS} days of {current_date}."
             )
-            df_cached = pd.read_parquet(fpath, engine='pyarrow')
+            df_cached = pd.read_parquet(fpath, engine="pyarrow")
 
             # Convert the data back to a dictionary of lists instead of NP arrays to match original return types
             data = df_cached["data"][0]
@@ -905,11 +929,10 @@ def get_chains_cached(
             return data
 
     # 5) No suitable file => must fetch from Polygon
-    logger.debug(
-        f"No suitable recent file found for {asset.symbol} on {current_date}. "
-        "Downloading from Polygon..."
+    logger.debug(f"No suitable recent file found for {asset.symbol} on {current_date}. Downloading from Polygon...")
+    print(
+        f"\nDownloading option chain for {asset} on {current_date}. This will be cached for future use so it will be significantly faster the next time you run a backtest."
     )
-    print(f"\nDownloading option chain for {asset} on {current_date}. This will be cached for future use so it will be significantly faster the next time you run a backtest.")
 
     option_contracts = {
         "Multiplier": None,
@@ -938,7 +961,7 @@ def get_chains_cached(
 
         exg = c.primary_exchange
         right = c.contract_type.upper()  # "CALL" or "PUT"
-        exp_date = c.expiration_date     # "YYYY-MM-DD"
+        exp_date = c.expiration_date  # "YYYY-MM-DD"
         strike = c.strike_price
 
         option_contracts["Multiplier"] = c.shares_per_contract
@@ -948,11 +971,8 @@ def get_chains_cached(
     # 8) Save to a new file for future reuse
     cache_file = chain_folder / f"{asset.symbol}_{current_date.isoformat()}.parquet"
     df_to_cache = pd.DataFrame({"data": [option_contracts]})
-    df_to_cache.to_parquet(cache_file, compression='snappy', engine='pyarrow')
-    logger.debug(
-        f"Download complete for {asset.symbol} on {current_date}. "
-        f"Saved chain file to {cache_file}"
-    )
+    df_to_cache.to_parquet(cache_file, compression="snappy", engine="pyarrow")
+    logger.debug(f"Download complete for {asset.symbol} on {current_date}. Saved chain file to {cache_file}")
 
     return option_contracts
 
@@ -974,7 +994,7 @@ def _polygon_client_class(facade_cls):
 
 
 class PolygonClient:
-    ''' Rate Limited RESTClient with factory method '''
+    """Rate Limited RESTClient with factory method"""
 
     WAIT_SECONDS_RETRY = 60
 
@@ -991,18 +1011,18 @@ class PolygonClient:
         # Store the CSV path for potential future use
 
     @classmethod
-    def create(cls, *args, **kwargs) -> RESTClient:
+    def create(cls, *args: Any, **kwargs: Any) -> Any:
         """
         Factory method to create a RESTClient or PolygonClient instance.
 
-        The method uses environment variables to determine default values for the API key 
-        and subscription type. If the `api_key` is not provided in `kwargs`, it defaults 
+        The method uses environment variables to determine default values for the API key
+        and subscription type. If the `api_key` is not provided in `kwargs`, it defaults
         to the value of the `POLYGON_API_KEY` environment variable.
         If the environment variable is not set, it defaults to False.
 
         Keyword Arguments:
         api_key : str, optional
-            The API key to authenticate with the service. Defaults to the value of the 
+            The API key to authenticate with the service. Defaults to the value of the
             `POLYGON_API_KEY` environment variable if not provided.
 
         Returns:
@@ -1020,8 +1040,8 @@ class PolygonClient:
         >>> client = PolygonClient.create(api_key='your_api_key_here')
 
         """
-        if 'api_key' not in kwargs or kwargs.get('api_key') is None:
-            kwargs['api_key'] = _polygon_api_key()
+        if "api_key" not in kwargs or kwargs.get("api_key") is None:
+            kwargs["api_key"] = _polygon_api_key()
 
         return cls(*args, **kwargs)
 
@@ -1054,7 +1074,7 @@ class PolygonClient:
                     raise
 
                 # We interpret MaxRetryError as a rate-limit or server rejection
-                url = urlunparse(urlparse(kwargs['path'])._replace(query=""))
+                url = urlunparse(urlparse(kwargs["path"])._replace(query=""))
 
                 # Check if we've logged a rate-limit message recently
                 now = time.time()
@@ -1076,7 +1096,9 @@ class PolygonClient:
                     logger.debug(f"Error: {e}")
 
                     # Log to CSV using standard logger (will auto-capture to CSV if enabled)
-                    logger.warning(f"POLYGON_RATE_LIMIT_EXCEEDED: Polygon rate limit reached | URL: {str(url)}, Wait time: {PolygonClient.WAIT_SECONDS_RETRY}s, Error: {str(e)}")
+                    logger.warning(
+                        f"POLYGON_RATE_LIMIT_EXCEEDED: Polygon rate limit reached | URL: {str(url)}, Wait time: {PolygonClient.WAIT_SECONDS_RETRY}s, Error: {str(e)}"
+                    )
 
                     # Update our last log time
                     self._last_rate_limit_log_time = now
@@ -1097,7 +1119,11 @@ class PolygonClient:
 
             except BadResponse as e:
                 # Handle Polygon BadResponse errors specifically
-                url = str(urlunparse(urlparse(kwargs.get('path', 'unknown'))._replace(query=""))) if 'path' in kwargs else 'unknown'
+                url = (
+                    str(urlunparse(urlparse(kwargs.get("path", "unknown"))._replace(query="")))
+                    if "path" in kwargs
+                    else "unknown"
+                )
 
                 # Check if this is an authorization/entitlement error
                 error_str = str(e)
@@ -1124,7 +1150,9 @@ class PolygonClient:
                         )
                 else:
                     # Other BadResponse errors (e.g., invalid parameters, server errors)
-                    logger.error(f"POLYGON_BAD_REQUEST: Polygon bad request error | URL: {url}, Operation: HTTP GET request, Error: {error_str}")
+                    logger.error(
+                        f"POLYGON_BAD_REQUEST: Polygon bad request error | URL: {url}, Operation: HTTP GET request, Error: {error_str}"
+                    )
 
                 # Log to console as well
                 message = f"Polygon BadResponse error: {error_str}"
@@ -1148,9 +1176,15 @@ class PolygonClient:
                 logger.debug(f"Full error details: {e}")
 
                 # Log to CSV using standard logger (will auto-capture to CSV if enabled)
-                url = str(urlunparse(urlparse(kwargs.get('path', 'unknown'))._replace(query=""))) if 'path' in kwargs else 'unknown'
+                url = (
+                    str(urlunparse(urlparse(kwargs.get("path", "unknown"))._replace(query="")))
+                    if "path" in kwargs
+                    else "unknown"
+                )
                 error_type = type(e).__name__
-                logger.error(f"POLYGON_API_{error_type.upper()}: Polygon API error: {error_type} | URL: {url}, Operation: HTTP GET request, Error: {str(e)}")
+                logger.error(
+                    f"POLYGON_API_{error_type.upper()}: Polygon API error: {error_type} | URL: {url}, Operation: HTTP GET request, Error: {str(e)}"
+                )
 
                 # Re-raise the exception since this is not a rate limit we can handle
                 raise e

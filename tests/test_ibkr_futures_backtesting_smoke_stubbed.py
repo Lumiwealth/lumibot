@@ -62,7 +62,7 @@ def _make_df(*, bid0: float, ask0: float, bid1: float, ask1: float) -> pd.DataFr
 
 def _make_quote_only_df(*, bids: list[float], asks: list[float]) -> pd.DataFrame:
     idx = pd.date_range("2025-12-08 09:31", periods=len(bids), freq="1min", tz="America/New_York")
-    mids = [(b + a) / 2 for b, a in zip(bids, asks)]
+    mids = [(b + a) / 2 for b, a in zip(bids, asks, strict=False)]
     df = pd.DataFrame(
         {
             # Force quote-based fill model by making OHLC incomplete.
@@ -84,7 +84,9 @@ def test_ibkr_rest_backtesting_futures_market_roundtrip_uses_bid_ask_and_multipl
 
     df = _make_quote_only_df(bids=[100.00, 100.75], asks=[100.25, 101.00])
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
@@ -111,7 +113,7 @@ def test_ibkr_rest_backtesting_futures_market_roundtrip_uses_bid_ask_and_multipl
     strategy._first_iteration = False
 
     fut = Asset("MES", asset_type=Asset.AssetType.FUTURE, expiration=date(2025, 12, 19), multiplier=5)
-    setattr(fut, "min_tick", 0.25)
+    fut.min_tick = 0.25
 
     data_source.get_historical_prices_between_dates(
         (fut, Asset("USD", asset_type=Asset.AssetType.FOREX)),
@@ -122,8 +124,8 @@ def test_ibkr_rest_backtesting_futures_market_roundtrip_uses_bid_ask_and_multipl
     )
 
     q0 = broker.get_quote(fut, quote=None)
-    assert float(getattr(q0, "ask")) == pytest.approx(100.25)
-    assert float(getattr(q0, "bid")) == pytest.approx(100.00)
+    assert float(q0.ask) == pytest.approx(100.25)
+    assert float(q0.bid) == pytest.approx(100.00)
 
     buy = strategy.create_order(fut, Decimal("1"), Order.OrderSide.BUY, order_type=Order.OrderType.MARKET)
     strategy.submit_order(buy)
@@ -137,7 +139,7 @@ def test_ibkr_rest_backtesting_futures_market_roundtrip_uses_bid_ask_and_multipl
 
     broker._update_datetime(df.index[1].to_pydatetime())
     q1 = broker.get_quote(fut, quote=None)
-    assert float(getattr(q1, "bid")) == pytest.approx(100.75)
+    assert float(q1.bid) == pytest.approx(100.75)
 
     sell = strategy.create_order(fut, Decimal("1"), Order.OrderSide.SELL, order_type=Order.OrderType.MARKET)
     strategy.submit_order(sell)
@@ -157,7 +159,9 @@ def test_ibkr_rest_backtesting_futures_market_fill_preserves_custom_callback(mon
 
     df = _make_quote_only_df(bids=[100.00, 100.75], asks=[100.25, 101.00])
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
@@ -216,7 +220,9 @@ def test_ibkr_rest_backtesting_futures_smart_limit_uses_asset_min_tick(monkeypat
     # With bid=100.00 and ask=100.25, mid=100.125. Futures tick=0.25 should round BUY fill up to 100.25.
     df = _make_df(bid0=100.00, ask0=100.25, bid1=100.00, ask1=100.25)
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
@@ -243,7 +249,7 @@ def test_ibkr_rest_backtesting_futures_smart_limit_uses_asset_min_tick(monkeypat
     strategy._first_iteration = False
 
     fut = Asset("MES", asset_type=Asset.AssetType.FUTURE, expiration=date(2025, 12, 19), multiplier=5)
-    setattr(fut, "min_tick", 0.25)
+    fut.min_tick = 0.25
 
     data_source.get_historical_prices_between_dates(
         (fut, Asset("USD", asset_type=Asset.AssetType.FOREX)),
@@ -254,7 +260,9 @@ def test_ibkr_rest_backtesting_futures_smart_limit_uses_asset_min_tick(monkeypat
     )
 
     cfg = SmartLimitConfig(preset=SmartLimitPreset.FAST, final_price_pct=1.0, slippage=0.0)
-    order = strategy.create_order(fut, Decimal("1"), Order.OrderSide.BUY, order_type=Order.OrderType.SMART_LIMIT, smart_limit=cfg)
+    order = strategy.create_order(
+        fut, Decimal("1"), Order.OrderSide.BUY, order_type=Order.OrderType.SMART_LIMIT, smart_limit=cfg
+    )
     strategy.submit_order(order)
 
     broker.process_pending_orders(strategy)
@@ -281,7 +289,9 @@ def test_ibkr_rest_backtesting_futures_stop_and_stop_limit_orders_fill(monkeypat
         index=idx,
     )
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
@@ -308,7 +318,7 @@ def test_ibkr_rest_backtesting_futures_stop_and_stop_limit_orders_fill(monkeypat
     strategy._first_iteration = False
 
     fut = Asset("MES", asset_type=Asset.AssetType.FUTURE, expiration=date(2025, 12, 19), multiplier=5)
-    setattr(fut, "min_tick", 0.25)
+    fut.min_tick = 0.25
 
     data_source.get_historical_prices_between_dates(
         (fut, Asset("USD", asset_type=Asset.AssetType.FOREX)),
@@ -377,7 +387,9 @@ def test_ibkr_rest_backtesting_futures_market_order_does_not_fill_inside_large_s
         index=idx,
     )
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
@@ -404,7 +416,7 @@ def test_ibkr_rest_backtesting_futures_market_order_does_not_fill_inside_large_s
     strategy._first_iteration = False
 
     fut = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE, multiplier=5)
-    setattr(fut, "min_tick", 0.25)
+    fut.min_tick = 0.25
 
     data_source.get_historical_prices_between_dates(
         (fut, Asset("USD", asset_type=Asset.AssetType.FOREX)),
@@ -452,7 +464,9 @@ def test_ibkr_rest_backtesting_futures_stop_does_not_trigger_inside_intraday_gap
         index=idx,
     )
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
@@ -479,7 +493,7 @@ def test_ibkr_rest_backtesting_futures_stop_does_not_trigger_inside_intraday_gap
     strategy._first_iteration = False
 
     fut = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE, multiplier=5)
-    setattr(fut, "min_tick", 0.25)
+    fut.min_tick = 0.25
 
     data_source.get_historical_prices_between_dates(
         (fut, Asset("USD", asset_type=Asset.AssetType.FOREX)),
@@ -540,7 +554,9 @@ def test_ibkr_rest_backtesting_futures_gap_one_bar_before_open_waits_for_reopen(
         index=idx,
     )
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
@@ -567,7 +583,7 @@ def test_ibkr_rest_backtesting_futures_gap_one_bar_before_open_waits_for_reopen(
     strategy._first_iteration = False
 
     fut = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE, multiplier=5)
-    setattr(fut, "min_tick", 0.25)
+    fut.min_tick = 0.25
 
     data_source.get_historical_prices_between_dates(
         (fut, Asset("USD", asset_type=Asset.AssetType.FOREX)),
@@ -622,7 +638,9 @@ def test_ibkr_rest_backtesting_futures_trailing_stop_triggers(monkeypatch):
         index=idx,
     )
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
@@ -649,7 +667,7 @@ def test_ibkr_rest_backtesting_futures_trailing_stop_triggers(monkeypatch):
     strategy._first_iteration = False
 
     fut = Asset("MES", asset_type=Asset.AssetType.FUTURE, expiration=date(2025, 12, 19), multiplier=5)
-    setattr(fut, "min_tick", 0.25)
+    fut.min_tick = 0.25
 
     data_source.get_historical_prices_between_dates(
         (fut, Asset("USD", asset_type=Asset.AssetType.FOREX)),
@@ -702,7 +720,9 @@ def test_ibkr_rest_backtesting_futures_oco_and_oto_orders_execute(monkeypatch):
         index=idx,
     )
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
@@ -730,7 +750,7 @@ def test_ibkr_rest_backtesting_futures_oco_and_oto_orders_execute(monkeypatch):
     strategy._first_iteration = False
 
     fut = Asset("MES", asset_type=Asset.AssetType.FUTURE, expiration=date(2025, 12, 19), multiplier=5)
-    setattr(fut, "min_tick", 0.25)
+    fut.min_tick = 0.25
 
     data_source.get_historical_prices_between_dates(
         (fut, Asset("USD", asset_type=Asset.AssetType.FOREX)),
@@ -793,7 +813,9 @@ def test_ibkr_rest_backtesting_futures_bracket_order_executes_children(monkeypat
         index=idx,
     )
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
@@ -821,7 +843,7 @@ def test_ibkr_rest_backtesting_futures_bracket_order_executes_children(monkeypat
     strategy._first_iteration = False
 
     fut = Asset("MES", asset_type=Asset.AssetType.FUTURE, expiration=date(2025, 12, 19), multiplier=5)
-    setattr(fut, "min_tick", 0.25)
+    fut.min_tick = 0.25
 
     data_source.get_historical_prices_between_dates(
         (fut, Asset("USD", asset_type=Asset.AssetType.FOREX)),

@@ -24,4 +24,3 @@ def test_backtesting_data_source_env_common_prod_json():
     normalized = RoutedBacktestingPandas._normalize_routing(routing)
     assert normalized["future"] == "ibkr"
     assert normalized["cont_future"] == "ibkr"
-

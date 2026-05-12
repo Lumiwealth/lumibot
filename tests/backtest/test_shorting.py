@@ -1,18 +1,17 @@
 import datetime as dt
+from decimal import Decimal
 
 import pytest
 
-from decimal import Decimal
-
-from lumibot.entities import Asset
-from lumibot.strategies.strategy import Strategy
 from lumibot.backtesting import AlpacaBacktesting
-from lumibot.credentials import ALPACA_TEST_CONFIG
-from lumibot.example_strategies.drift_rebalancer import DriftRebalancer
 from lumibot.components.drift_rebalancer_logic import DriftType
+from lumibot.credentials import ALPACA_TEST_CONFIG
+from lumibot.entities import Asset
+from lumibot.example_strategies.drift_rebalancer import DriftRebalancer
+from lumibot.strategies.strategy import Strategy
 
 # Skip these tests if Alpaca test credentials are not available
-if not ALPACA_TEST_CONFIG.get('API_KEY') or ALPACA_TEST_CONFIG.get('API_KEY') == '<your key here>':
+if not ALPACA_TEST_CONFIG.get("API_KEY") or ALPACA_TEST_CONFIG.get("API_KEY") == "<your key here>":
     pytest.skip("These tests require an Alpaca API key", allow_module_level=True)
 
 

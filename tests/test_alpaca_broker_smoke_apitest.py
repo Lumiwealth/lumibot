@@ -7,7 +7,6 @@ from lumibot.brokers.alpaca import Alpaca
 from lumibot.credentials import ALPACA_TEST_CONFIG
 from lumibot.entities import Asset, CashEvent, Order
 
-
 pytestmark = pytest.mark.apitest
 
 
@@ -22,7 +21,9 @@ def _alpaca() -> Alpaca:
 def test_alpaca_smoke_balances_positions_orders():
     broker = _alpaca()
     try:
-        cash, positions_value, portfolio_value = broker._get_balances_at_broker(Asset("USD", asset_type=Asset.AssetType.FOREX), None)
+        cash, positions_value, portfolio_value = broker._get_balances_at_broker(
+            Asset("USD", asset_type=Asset.AssetType.FOREX), None
+        )
         assert isinstance(cash, float)
         assert isinstance(positions_value, float)
         assert isinstance(portfolio_value, float)

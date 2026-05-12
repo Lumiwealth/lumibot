@@ -84,4 +84,3 @@ def test_tradier_polling_large_orders_does_not_accumulate_orders_or_events(monke
 
     # Trade-event history in live is bounded; should not grow here anyway since no dispatch.
     assert len(broker._trade_event_log_rows) == 0
-

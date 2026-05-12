@@ -1,62 +1,120 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+from datetime import timedelta
 from importlib import import_module
-from typing import TYPE_CHECKING, Optional
+from types import ModuleType
+from typing import TYPE_CHECKING, Any, ClassVar, Protocol, TypeAlias, cast
 
 import pytz
 
-from lumibot.data_sources.data_source import DataSource
-from lumibot.entities import Asset
+from lumibot.data_sources.data_source import ChainMap, DataSource
+from lumibot.entities.asset import Asset
+from lumibot.tools.lumibot_logger import get_logger
 
 if TYPE_CHECKING:
-    from lumibot.entities import Bars
+    from lumibot.entities.bars import Bars
+
+PandasDataFrame: TypeAlias = Any  # noqa: UP040 - keep Python 3.11 parser compatibility.
+AssetInput: TypeAlias = Asset | str | tuple[Asset | str, Asset | str | None]  # noqa: UP040
+QuoteInput: TypeAlias = Asset | str | None  # noqa: UP040
+
+logger = get_logger(__name__)
 
 
-class _LazyModule:
+class _LazyModule(ModuleType):
+    _module_name: str
+    _module: ModuleType | None
+
     __slots__ = ("_module_name", "_module")
 
-    def __init__(self, module_name: str):
+    def __init__(self, module_name: str) -> None:
+        super().__init__(module_name)
         self._module_name = module_name
         self._module = None
 
-    def _load(self):
+    def _load(self) -> ModuleType:
         module = self._module
         if module is None:
             module = import_module(self._module_name)
             self._module = module
         return module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
 
 pd = _LazyModule("pandas")
-BitUnixClient = None
-_BARS_CLASS = None
+_MISSING = object()
 
 
-def _bitunix_client_class():
+class _BitunixClientProtocol(Protocol):
+    def get_funding_rate(self, symbol: str) -> dict[str, Any]: ...
+
+    def get_kline(
+        self,
+        symbol: str,
+        interval: str,
+        start_time: int | None = None,
+        end_time: int | None = None,
+        limit: int | None = None,
+        kline_type: str | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]: ...
+
+
+class _BitunixClientFactory(Protocol):
+    def __call__(self, api_key: str, secret_key: str) -> _BitunixClientProtocol: ...
+
+
+BitUnixClient: _BitunixClientFactory | None = None
+_bars_class_cache: type[Bars] | None = None
+
+
+def _bitunix_client_class() -> _BitunixClientFactory:
     global BitUnixClient
     if BitUnixClient is None:
         from lumibot.tools.bitunix_helpers import BitUnixClient as _BitUnixClient
 
-        BitUnixClient = _BitUnixClient
+        BitUnixClient = cast(_BitunixClientFactory, _BitUnixClient)
     return BitUnixClient
 
 
-def _bars_class():
-    global _BARS_CLASS
-    if _BARS_CLASS is None:
-        from lumibot.entities import Bars
+def _bars_class() -> type[Bars]:
+    global _bars_class_cache
+    if _bars_class_cache is None:
+        from lumibot.entities.bars import Bars
 
-        _BARS_CLASS = Bars
-    return _BARS_CLASS
+        _bars_class_cache = Bars
+    return _bars_class_cache
+
+
+def _read_config_value(config: object, key: str) -> str:
+    if isinstance(config, Mapping):
+        config_map = cast(Mapping[str, object], config)
+        value = config_map.get(key, _MISSING)
+        if value is _MISSING:
+            raise ValueError("API_KEY and API_SECRET must be provided in config")
+    else:
+        value = getattr(config, key, None)
+        if not value:
+            raise ValueError("API_KEY and API_SECRET must be provided in config")
+    return str(value)
+
+
+def _float_or_none(value: object) -> float | None:
+    if value in (None, ""):
+        return None
+    try:
+        return float(cast(Any, value))
+    except (TypeError, ValueError):
+        return None
 
 
 class BitunixData(DataSource):
-    SOURCE = "BITUNIX"
-    MIN_TIMESTEP = "minute"
-    TIMESTEP_MAPPING = [
+    SOURCE: str = "BITUNIX"
+    MIN_TIMESTEP: str = "minute"
+    TIMESTEP_MAPPING: list[dict[str, Any]] = [
         {"timestep": "minute", "representations": ["1", "1m", "minute"]},
         {"timestep": "3 minutes", "representations": ["3", "3m"]},
         {"timestep": "5 minutes", "representations": ["5", "5m"]},
@@ -67,31 +125,45 @@ class BitunixData(DataSource):
         {"timestep": "4 hours", "representations": ["240", "240m", "4h"]},
         {"timestep": "day", "representations": ["D", "1d", "day"]},
     ]
+    _FUTURE_ASSET_TYPES: ClassVar[frozenset[Asset.AssetType]] = frozenset(
+        {Asset.AssetType.FUTURE, Asset.AssetType.CRYPTO_FUTURE}
+    )
 
-    def __init__(self, config: dict, max_workers: int = 1, chunk_size: int = 100, tzinfo: Optional[pytz.timezone] = None):
-        super().__init__(delay=0, tzinfo=tzinfo)
-        # Ensure we have a timezone
+    def __init__(self, config: object, max_workers: int = 1, chunk_size: int = 100, tzinfo: Any | None = None) -> None:
+        super().__init__(delay=0, tzinfo=tzinfo, max_workers=max_workers)
         if self.tzinfo is None:
             self.tzinfo = pytz.utc
+
         self.name = "bitunix"
         self.chunk_size = chunk_size
-        # Parse API keys
-        if isinstance(config, dict):
-            try:
-                self.api_key = config["API_KEY"]
-                self.api_secret = config["API_SECRET"]
-            except KeyError:
-                raise ValueError("API_KEY and API_SECRET must be provided in config")
-        else:
-            self.api_key = getattr(config, "API_KEY", None)
-            self.api_secret = getattr(config, "API_SECRET", None)
-            if not self.api_key or not self.api_secret:
-                raise ValueError("API_KEY and API_SECRET must be provided in config")
-        self.client = _bitunix_client_class()(self.api_key, self.api_secret)
-        # Track symbols we're interested in for WebSocket subscriptions
-        self.client_symbols = set()
+        self.api_key = _read_config_value(config, "API_KEY")
+        self.api_secret = _read_config_value(config, "API_SECRET")
+        self.client: _BitunixClientProtocol = _bitunix_client_class()(
+            api_key=self.api_key,
+            secret_key=self.api_secret,
+        )
+        self.client_symbols: set[str] = set()
 
-    def _sanitize_base_and_quote_asset(self, base_asset, quote_asset) -> tuple[Asset, Asset]:
+    @classmethod
+    def _is_futures_asset(cls, asset: Asset) -> bool:
+        return asset.asset_type in cls._FUTURE_ASSET_TYPES
+
+    @classmethod
+    def _asset_symbol(cls, asset: Asset) -> str:
+        symbol = asset.symbol
+        if not symbol:
+            raise ValueError("BitUnix assets must have a symbol")
+        return symbol
+
+    @classmethod
+    def _symbol_for_asset(cls, asset: Asset, quote: Asset | None) -> str:
+        if cls._is_futures_asset(asset):
+            return cls._asset_symbol(asset)
+        if quote is None:
+            raise ValueError(f"BitUnix spot asset {asset} requires a quote asset")
+        return f"{cls._asset_symbol(asset)}{cls._asset_symbol(quote)}"
+
+    def _sanitize_base_and_quote_asset(self, base_asset: AssetInput, quote_asset: QuoteInput) -> tuple[Asset, Asset | None]:
         """Ensure base and quote are Asset and set defaults for spot/futures."""
         if isinstance(base_asset, tuple):
             asset, quote = base_asset
@@ -100,160 +172,151 @@ class BitunixData(DataSource):
 
         if not isinstance(asset, Asset):
             asset = Asset(symbol=str(asset), asset_type=Asset.AssetType.CRYPTO)
-        if quote and not isinstance(quote, Asset):
+        if quote is not None and not isinstance(quote, Asset):
             quote = Asset(symbol=str(quote), asset_type=Asset.AssetType.CRYPTO)
 
-        if asset.asset_type == Asset.AssetType.FUTURE:
-            # futures do not need explicit quote asset
+        if self._is_futures_asset(asset):
             quote = None
         elif asset.asset_type == Asset.AssetType.CRYPTO and quote is None:
-            # default spot quote
             quote = Asset(symbol="USDT", asset_type=Asset.AssetType.CRYPTO)
         return asset, quote
 
-    def get_last_price(self, asset: Asset, quote: Asset = Asset("USDT", Asset.AssetType.CRYPTO), **kwargs) -> Optional[float]:
+    def get_last_price(self, asset: Asset, quote: Any = None, exchange: str | None = None) -> float | None:
+        if quote is None:
+            quote = Asset("USDT", Asset.AssetType.CRYPTO)
         asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
-        if asset.asset_type == Asset.AssetType.FUTURE:
-            symbol = asset.symbol
-        else:
-            symbol = f"{asset.symbol}USDT"
+        symbol = self._symbol_for_asset(asset, quote)
 
-        # For futures, use mark price
         try:
             resp = self.client.get_funding_rate(symbol)
             if resp and resp.get("code") == 0:
-                price_str = resp.get("data", {}).get("markPrice")
-                return float(price_str) if price_str else None
-        except Exception as e:
-            print(e)
+                data = resp.get("data", {})
+                if not isinstance(data, Mapping):
+                    return None
+                data_map = cast(Mapping[str, object], data)
+                return _float_or_none(data_map.get("markPrice"))
+        except Exception:
+            logger.debug("Failed to get BitUnix last price for %s", symbol, exc_info=True)
             return None
 
         return None
 
-    def _parse_source_timestep(self, timestep: str) -> str:
+    def _parse_source_timestep(self, timestep: str, reverse: bool = False) -> str:
         """Convert Lumibot timestep to BitUnix interval format."""
         normalized = self.get_timestep_from_string(timestep)
+        if reverse:
+            return normalized
 
         if normalized == "minute":
             return "1m"
-        elif normalized == "3 minutes":
+        if normalized == "3 minutes":
             return "3m"
-        elif normalized == "5 minutes":
+        if normalized == "5 minutes":
             return "5m"
-        elif normalized == "15 minutes":
+        if normalized == "15 minutes":
             return "15m"
-        elif normalized == "30 minutes":
+        if normalized == "30 minutes":
             return "30m"
-        elif normalized == "hour":
+        if normalized == "hour":
             return "1h"
-        elif normalized == "2 hours":
+        if normalized == "2 hours":
             return "2h"
-        elif normalized == "4 hours":
+        if normalized == "4 hours":
             return "4h"
-        elif normalized == "day":
+        if normalized == "day":
             return "1d"
-        else:
-            # Default to 1m if unknown
-            return "1m"
+        return "1m"
 
     def get_historical_prices(
         self,
         asset: Asset,
         length: int,
         timestep: str = "",
-        timeshift=None,
-        quote: Asset = None,
-        exchange: str = None,
-        include_after_hours: bool = True
-    ) -> Optional[Bars]:
+        timeshift: timedelta | None = None,
+        quote: Any = None,
+        exchange: str | None = None,
+        include_after_hours: bool = True,
+        **kwargs: Any,
+    ) -> Bars | None:
         asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
         if not timestep:
             timestep = self.get_timestep()
 
-        # Determine symbol format based on asset type
-        if asset.asset_type == Asset.AssetType.FUTURE:
-            symbol = asset.symbol
-        else:
-            symbol = f"{asset.symbol}{quote.symbol}"
-
-        # Add to tracked symbols
+        symbol = self._symbol_for_asset(asset, quote)
         self.client_symbols.add(symbol)
-
-        # Convert Lumibot timestep to BitUnix interval format
         interval = self._parse_source_timestep(timestep)
 
         try:
-            # Calculate limit - request more than needed to ensure we get enough data
-            limit = min(1000, length * 2)  # BitUnix might limit to 1000 candles
-
+            limit = min(1000, length * 2)
             resp = self.client.get_kline(symbol=symbol, interval=interval, limit=limit)
             if resp and resp.get("code") == 0:
                 bars_data = resp.get("data", [])
                 if not bars_data:
                     return None
 
-                # Construct DataFrame from candle data
-                df = pd.DataFrame(bars_data)
-
-                # Expected format from documentation - adjust if needed
-                if "t" in df.columns:  # Timestamp
+                df: PandasDataFrame = pd.DataFrame(bars_data)
+                if "t" in df.columns:
                     df["ts"] = df["t"]
-                elif "time" in df.columns:  # Also handle 'time' column
+                elif "time" in df.columns:
                     df["ts"] = df["time"]
-                if "o" in df.columns:  # Open
+                if "o" in df.columns:
                     df["open"] = df["o"]
-                if "h" in df.columns:  # High
+                if "h" in df.columns:
                     df["high"] = df["h"]
-                if "l" in df.columns:  # Low
+                if "l" in df.columns:
                     df["low"] = df["l"]
-                if "c" in df.columns:  # Close
+                if "c" in df.columns:
                     df["close"] = df["c"]
-                if "baseVol" in df.columns:  # Volume
+                if "baseVol" in df.columns:
                     df["volume"] = df["baseVol"]
 
-                # Ensure numeric columns
                 for col in ("open", "high", "low", "close", "volume"):
                     if col in df.columns:
                         df[col] = pd.to_numeric(df[col], errors="coerce")
 
-                # Set timestamp as index
                 if "ts" in df.columns:
                     df.index = pd.to_datetime(pd.to_numeric(df["ts"], errors="coerce"), unit="ms")
-                    # Convert timezone
                     df.index = df.index.tz_localize(pytz.utc).tz_convert(self.tzinfo)
 
-                # Select only required columns
                 required_cols = ["open", "high", "low", "close", "volume"]
                 for col in required_cols:
                     if col not in df.columns:
                         df[col] = 0.0
 
-                # Limit to the requested length
                 df = df.sort_index()
                 if len(df) > length:
                     df = df.tail(length)
 
-                # Wrap in Bars object
                 return self._parse_source_symbol_bars(
                     df[required_cols],
                     asset,
-                    quote=None if asset.asset_type == Asset.AssetType.FUTURE else quote,
-                    length=length
+                    quote=None if self._is_futures_asset(asset) else quote,
                 )
-
         except Exception:
-            import traceback
-            traceback.print_exc()
+            logger.exception("Failed to fetch BitUnix historical prices for %s", symbol)
             return None
 
+        return None
 
-    def _parse_source_symbol_bars(self, df: pd.DataFrame, asset: Asset, quote: Asset = None, length: int = None) -> Bars:
+    def _parse_source_symbol_bars(
+        self,
+        response: PandasDataFrame,
+        asset: Asset,
+        quote: Any = None,
+    ) -> Bars:
         """
         Wraps the raw DataFrame into a Bars entity with source metadata.
         """
-        return _bars_class()(df, self.SOURCE, asset, raw=df, quote=quote)
+        quote_asset = cast(Asset | None, quote)
+        return _bars_class()(response, self.SOURCE, asset, raw=response, quote=quote_asset)
 
-    def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None, strike_count: int = 100) -> dict:
+    def get_chains(
+        self,
+        asset: Any,
+        quote: Any = None,
+        exchange: str | None = None,
+        strike_count: int = 100,
+    ) -> ChainMap:
         """Option chains not supported by BitUnix."""
         return {"Multiplier": 1, "Exchange": exchange or "", "Chains": {}}
 
@@ -263,7 +326,7 @@ class BitunixData(DataSource):
         """
         ts = timestep.lower().strip()
         for mapping in self.TIMESTEP_MAPPING:
-            if ts in [r.lower() for r in mapping["representations"]]:
-                return mapping["timestep"]
-        # Default to "minute" if not found
+            representations = cast(list[str], mapping["representations"])
+            if ts in [representation.lower() for representation in representations]:
+                return cast(str, mapping["timestep"])
         return "minute"

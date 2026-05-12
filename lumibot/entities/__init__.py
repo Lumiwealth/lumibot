@@ -1,6 +1,26 @@
 """Compatibility exports for entity classes without importing every entity."""
+# pyright: reportUnsupportedDunderAll=false
 
 from importlib import import_module as _import_module
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .asset import Asset as Asset
+    from .asset import AssetsMapping as AssetsMapping
+    from .bar import Bar as Bar
+    from .bars import Bars as Bars
+    from .cash_event import CashEvent as CashEvent
+    from .chains import Chains as Chains
+    from .data import Data as Data
+    from .data_polars import DataPolars as DataPolars
+    from .dataline import Dataline as Dataline
+    from .order import Order as Order
+    from .position import Position as Position
+    from .quote import Quote as Quote
+    from .smart_limit import SmartLimitConfig as SmartLimitConfig
+    from .smart_limit import SmartLimitPreset as SmartLimitPreset
+    from .trading_fee import TradingFee as TradingFee
+    from .trading_slippage import TradingSlippage as TradingSlippage
 
 _NAME_TO_MODULE = {
     "Asset": "asset",
@@ -21,10 +41,10 @@ _NAME_TO_MODULE = {
     "SmartLimitPreset": "smart_limit",
 }
 
-__all__ = sorted(_NAME_TO_MODULE)
+__all__: list[str] = sorted(_NAME_TO_MODULE)
 
 
-def __getattr__(name):
+def __getattr__(name: str) -> Any:
     module_name = _NAME_TO_MODULE.get(name)
     if module_name is None:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
@@ -35,5 +55,5 @@ def __getattr__(name):
     return value
 
 
-def __dir__():
+def __dir__() -> list[str]:
     return sorted(set(globals()) | set(__all__))

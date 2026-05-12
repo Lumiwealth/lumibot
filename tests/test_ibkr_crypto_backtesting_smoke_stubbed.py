@@ -60,7 +60,9 @@ def test_ibkr_rest_backtesting_crypto_market_orders_fill_at_ask_and_bid(monkeypa
         index=idx,
     )
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
@@ -99,8 +101,8 @@ def test_ibkr_rest_backtesting_crypto_market_orders_fill_at_ask_and_bid(monkeypa
     )
 
     q0 = broker.get_quote(base, quote=quote)
-    expected_ask_0 = float(getattr(q0, "ask"))
-    expected_bid_0 = float(getattr(q0, "bid"))
+    expected_ask_0 = float(q0.ask)
+    expected_bid_0 = float(q0.bid)
     assert expected_ask_0 > expected_bid_0
 
     buy = strategy.create_order(
@@ -123,8 +125,8 @@ def test_ibkr_rest_backtesting_crypto_market_orders_fill_at_ask_and_bid(monkeypa
 
     broker._update_datetime(idx[1].to_pydatetime())
     q1 = broker.get_quote(base, quote=quote)
-    expected_bid_1 = float(getattr(q1, "bid"))
-    expected_ask_1 = float(getattr(q1, "ask"))
+    expected_bid_1 = float(q1.bid)
+    expected_ask_1 = float(q1.ask)
     assert expected_ask_1 > expected_bid_1
 
     sell = strategy.create_order(
@@ -159,7 +161,9 @@ def test_ibkr_rest_backtesting_crypto_market_fill_preserves_custom_callback(monk
         index=idx,
     )
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
@@ -196,7 +200,7 @@ def test_ibkr_rest_backtesting_crypto_market_fill_preserves_custom_callback(monk
         start_date=idx[0].to_pydatetime(),
         end_date=idx[-1].to_pydatetime(),
     )
-    expected_ask = float(getattr(broker.get_quote(base, quote=quote), "ask"))
+    expected_ask = float(broker.get_quote(base, quote=quote).ask)
 
     order = strategy.create_order(
         base,
@@ -238,7 +242,9 @@ def test_ibkr_rest_backtesting_crypto_limit_orders_fill_against_quotes(monkeypat
         index=idx,
     )
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
@@ -277,8 +283,8 @@ def test_ibkr_rest_backtesting_crypto_limit_orders_fill_against_quotes(monkeypat
 
     broker._update_datetime(idx[0].to_pydatetime())
     q0 = broker.get_quote(base, quote=quote)
-    expected_ask_0 = float(getattr(q0, "ask"))
-    expected_bid_0 = float(getattr(q0, "bid"))
+    expected_ask_0 = float(q0.ask)
+    expected_bid_0 = float(q0.bid)
     assert expected_ask_0 > expected_bid_0
 
     buy_marketable = strategy.create_order(
@@ -298,8 +304,8 @@ def test_ibkr_rest_backtesting_crypto_limit_orders_fill_against_quotes(monkeypat
 
     broker._update_datetime(idx[1].to_pydatetime())
     q1 = broker.get_quote(base, quote=quote)
-    expected_bid_1 = float(getattr(q1, "bid"))
-    expected_ask_1 = float(getattr(q1, "ask"))
+    expected_bid_1 = float(q1.bid)
+    expected_ask_1 = float(q1.ask)
     assert expected_ask_1 > expected_bid_1
 
     sell_marketable = strategy.create_order(
@@ -336,7 +342,9 @@ def test_ibkr_rest_backtesting_crypto_stop_and_stop_limit_orders_fill(monkeypatc
         index=idx,
     )
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
@@ -420,7 +428,9 @@ def test_ibkr_rest_backtesting_crypto_trailing_stop_triggers(monkeypatch):
         index=idx,
     )
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
@@ -501,7 +511,9 @@ def test_ibkr_rest_backtesting_crypto_oco_and_oto_orders_execute(monkeypatch):
         index=idx,
     )
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
@@ -592,7 +604,9 @@ def test_ibkr_rest_backtesting_crypto_bracket_order_executes_children(monkeypatc
         index=idx,
     )
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)

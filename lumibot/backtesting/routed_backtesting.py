@@ -1,45 +1,50 @@
 from __future__ import annotations
 
+# pyright: reportPrivateUsage=false
 import logging
 import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from importlib import import_module
-from typing import Any, Dict, Optional
+from typing import Any, TypeAlias, cast
 
 from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestingPandas
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
-from lumibot.entities import Asset
+from lumibot.entities.asset import Asset
 from lumibot.tools.helpers import parse_timestep_qty_and_unit
 
 logger = logging.getLogger(__name__)
 
 _DEFAULT_QUOTE_ASSET = Asset("USD", "forex")
-_DATA_CLASS = None
+PandasDataFrame: TypeAlias = Any  # noqa: UP040
+PandasTimestamp: TypeAlias = Any  # noqa: UP040
+DatasetKey: TypeAlias = Any  # noqa: UP040
+
+_data_class_cache: type[Any] | None = None
 
 
 class _LazyModule:
     __slots__ = ("_module_name", "_module")
 
-    def __init__(self, module_name: str):
+    def __init__(self, module_name: str) -> None:
         object.__setattr__(self, "_module_name", module_name)
         object.__setattr__(self, "_module", None)
 
-    def _load(self):
+    def _load(self) -> Any:
         module = object.__getattribute__(self, "_module")
         if module is None:
             module = import_module(object.__getattribute__(self, "_module_name"))
             object.__setattr__(self, "_module", module)
         return module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
         setattr(self._load(), name, value)
 
-    def __delattr__(self, name):
+    def __delattr__(self, name: str) -> None:
         if name in {"_module_name", "_module"}:
             object.__delattr__(self, name)
         else:
@@ -51,19 +56,19 @@ ibkr_helper = _LazyModule("lumibot.tools.ibkr_helper")
 polygon_helper = _LazyModule("lumibot.tools.polygon_helper")
 
 
-def _credential(name: str):
+def _credential(name: str) -> Any:
     import lumibot.credentials as credentials
 
-    return getattr(credentials, name, None)
+    return getattr(credentials, name)
 
 
-def _data_class():
-    global _DATA_CLASS
-    if _DATA_CLASS is None:
-        from lumibot.entities import Data
+def _data_class() -> type[Any]:
+    global _data_class_cache
+    if _data_class_cache is None:
+        from lumibot.entities.data import Data
 
-        _DATA_CLASS = Data
-    return _DATA_CLASS
+        _data_class_cache = Data
+    return _data_class_cache
 
 
 class RoutingProviderError(ValueError):
@@ -126,14 +131,14 @@ def _infer_default_ccxt_exchange_id() -> str:
         if resolved:
             return resolved
 
-    if ((_credential("COINBASE_CONFIG") or {}).get("apiKey") or "").strip():
+    if (_credential("COINBASE_CONFIG").get("apiKey") or "").strip():
         return "coinbase"
-    if ((_credential("KRAKEN_CONFIG") or {}).get("apiKey") or "").strip():
+    if (_credential("KRAKEN_CONFIG").get("apiKey") or "").strip():
         return "kraken"
     return "binance"
 
 
-def _align_timestamp_to_index_tz(ts_value: datetime, ref_index_ts: pd.Timestamp) -> pd.Timestamp:
+def _align_timestamp_to_index_tz(ts_value: datetime, ref_index_ts: PandasTimestamp) -> PandasTimestamp:
     """Return a comparable timestamp aligned to the timezone mode of `ref_index_ts`."""
     ts = pd.Timestamp(ts_value)
     ref = pd.Timestamp(ref_index_ts)
@@ -165,7 +170,7 @@ def _is_day_like_timestep(value: str) -> bool:
 class _RoutingAdapter:
     provider_key: str
 
-    def __init__(self, router: "RoutedBacktestingPandas"):
+    def __init__(self, router: RoutedBacktestingPandas) -> None:
         self._router = router
 
     def update_pandas_data(
@@ -180,7 +185,7 @@ class _RoutingAdapter:
         require_ohlc_data: bool,
         snapshot_only: bool,
         provider_spec: ProviderSpec,
-    ):
+    ) -> None:
         raise NotImplementedError
 
 
@@ -199,7 +204,7 @@ class _ThetaDataRoutingAdapter(_RoutingAdapter):
         require_ohlc_data: bool,
         snapshot_only: bool,
         provider_spec: ProviderSpec,
-    ):
+    ) -> None:
         if snapshot_only:
             return None
         return ThetaDataBacktestingPandas._update_pandas_data(
@@ -220,14 +225,14 @@ class _DataFrameRoutingAdapter(_RoutingAdapter):
 
     _default_start_buffer = timedelta(days=5)
 
-    def __init__(self, router: "RoutedBacktestingPandas"):
+    def __init__(self, router: RoutedBacktestingPandas) -> None:
         super().__init__(router)
-        self._fully_loaded_series: set[Any] = set()
+        self._fully_loaded_series: set[DatasetKey] = set()
         # Canonical keys whose full-window prefetch returned empty. Without this, strategies that
         # request a timestep the cache has no data for (e.g., TQQQ minute when only daily is
         # available) re-call get_price_data on every iteration — burning tens of thousands of
         # redundant parquet reads. See `update_pandas_data` early-exit below.
-        self._empty_prefetch_series: set[Any] = set()
+        self._empty_prefetch_series: set[DatasetKey] = set()
 
     def _start_buffer(self, asset: Asset, provider_spec: ProviderSpec) -> timedelta:
         return self._default_start_buffer
@@ -241,11 +246,11 @@ class _DataFrameRoutingAdapter(_RoutingAdapter):
         start_datetime: datetime,
         end_dt: datetime,
         length: int,
-        canonical_key: Any,
+        canonical_key: DatasetKey,
         provider_spec: ProviderSpec,
         require_quote_data: bool,
         require_ohlc_data: bool,
-    ) -> pd.DataFrame | None:
+    ) -> PandasDataFrame | None:
         raise NotImplementedError
 
     def update_pandas_data(
@@ -260,7 +265,7 @@ class _DataFrameRoutingAdapter(_RoutingAdapter):
         require_ohlc_data: bool,
         snapshot_only: bool,
         provider_spec: ProviderSpec,
-    ):
+    ) -> None:
         if snapshot_only:
             return None
 
@@ -359,7 +364,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         require_ohlc_data: bool,
         snapshot_only: bool,
         provider_spec: ProviderSpec,
-    ):
+    ) -> None:
         """IBKR routing adapter with native multi-minute support.
 
         Key differences vs the generic DataFrame adapter:
@@ -422,7 +427,11 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         # times. In the router data source, IBKR history fetches must be amortized by prefetching
         # the full backtest window once, then slicing in-memory thereafter (same principle as the
         # IBKR-only backtesting data source).
-        if asset_type in {"stock", "index"} and unit in {"minute", "hour"} and canonical_key not in self._fully_loaded_series:
+        if (
+            asset_type in {"stock", "index"}
+            and unit in {"minute", "hour"}
+            and canonical_key not in self._fully_loaded_series
+        ):
             # Perf: routed minute/index strategies (for example SPX intraday options) can call
             # `get_historical_prices()` every loop iteration. Prefetch the full window once, then
             # serve slices from in-memory Data to avoid one downloader roundtrip per minute.
@@ -451,7 +460,11 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                 end_dt=prefetch_end,
             ):
                 self._fully_loaded_series.add(canonical_key)
-        elif asset_type in {"future", "cont_future"} and unit in {"minute", "hour", "day"} and canonical_key not in self._fully_loaded_series:
+        elif (
+            asset_type in {"future", "cont_future"}
+            and unit in {"minute", "hour", "day"}
+            and canonical_key not in self._fully_loaded_series
+        ):
             # PERF: IBKR frequently returns empty 1-minute history for CONT_FUTURE requests with
             # source=Trades (across-contract stitching is lossy). The empty fetch still takes ~7s
             # per chunk (the downloader makes multiple IBKR API roundtrips before concluding that
@@ -462,11 +475,11 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             if qty == 1 and unit == "minute":
                 has_coarser_loaded = any(
                     isinstance(key, tuple)
-                    and len(key) >= 3
-                    and key[0] is asset
-                    and key[1] is quote_asset
-                    and isinstance(key[2], str)
-                    and key[2] not in {"day", "minute"}
+                    and len(key_tuple := cast(tuple[Any, ...], key)) >= 3
+                    and key_tuple[0] is asset
+                    and key_tuple[1] is quote_asset
+                    and isinstance(key_tuple[2], str)
+                    and key_tuple[2] not in {"day", "minute"}
                     for key in self._fully_loaded_series
                 )
                 if has_coarser_loaded:
@@ -476,7 +489,9 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             try:
                 from lumibot.backtesting.interactive_brokers_rest_backtesting import InteractiveBrokersRESTBacktesting
 
-                prev_open = InteractiveBrokersRESTBacktesting._previous_us_futures_session_open(self._router.datetime_start)
+                prev_open = InteractiveBrokersRESTBacktesting._previous_us_futures_session_open(
+                    self._router.datetime_start
+                )
             except Exception:
                 prev_open = None
 
@@ -644,11 +659,11 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         start_datetime: datetime,
         end_dt: datetime,
         length: int,
-        canonical_key: Any,
+        canonical_key: DatasetKey,
         provider_spec: ProviderSpec,
         require_quote_data: bool,
         require_ohlc_data: bool,
-    ) -> pd.DataFrame | None:
+    ) -> PandasDataFrame | None:
         asset_type = _normalize_asset_type(getattr(asset, "asset_type", ""))
         include_after_hours = _ibkr_include_after_hours(asset_type, ts_unit)
 
@@ -665,7 +680,9 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             try:
                 from lumibot.backtesting.interactive_brokers_rest_backtesting import InteractiveBrokersRESTBacktesting
 
-                prev_open = InteractiveBrokersRESTBacktesting._previous_us_futures_session_open(self._router.datetime_start)
+                prev_open = InteractiveBrokersRESTBacktesting._previous_us_futures_session_open(
+                    self._router.datetime_start
+                )
             except Exception:
                 prev_open = None
 
@@ -759,11 +776,11 @@ class _PolygonRoutingAdapter(_DataFrameRoutingAdapter):
         start_datetime: datetime,
         end_dt: datetime,
         length: int,
-        canonical_key: Any,
+        canonical_key: DatasetKey,
         provider_spec: ProviderSpec,
         require_quote_data: bool,
         require_ohlc_data: bool,
-    ) -> pd.DataFrame | None:
+    ) -> PandasDataFrame | None:
         polygon_key = (os.environ.get("POLYGON_API_KEY") or _credential("POLYGON_API_KEY") or "").strip()
         if not polygon_key:
             raise RoutingProviderError("Routing selected Polygon but POLYGON_API_KEY is not configured.")
@@ -822,9 +839,9 @@ class _PolygonRoutingAdapter(_DataFrameRoutingAdapter):
 class _AlpacaRoutingAdapter(_DataFrameRoutingAdapter):
     provider_key = "alpaca"
 
-    def __init__(self, router: "RoutedBacktestingPandas"):
+    def __init__(self, router: RoutedBacktestingPandas) -> None:
         super().__init__(router)
-        self._source = None
+        self._source: Any | None = None
 
     def _fetch_df(
         self,
@@ -835,16 +852,15 @@ class _AlpacaRoutingAdapter(_DataFrameRoutingAdapter):
         start_datetime: datetime,
         end_dt: datetime,
         length: int,
-        canonical_key: Any,
+        canonical_key: DatasetKey,
         provider_spec: ProviderSpec,
         require_quote_data: bool,
         require_ohlc_data: bool,
-    ) -> pd.DataFrame | None:
+    ) -> PandasDataFrame | None:
         if self._source is None:
-            alpaca_config = _credential("ALPACA_CONFIG") or {}
+            alpaca_config = _credential("ALPACA_CONFIG")
             if not (
-                alpaca_config.get("OAUTH_TOKEN")
-                or (alpaca_config.get("API_KEY") and alpaca_config.get("API_SECRET"))
+                alpaca_config.get("OAUTH_TOKEN") or (alpaca_config.get("API_KEY") and alpaca_config.get("API_SECRET"))
             ):
                 raise RoutingProviderError(
                     "Routing selected Alpaca but Alpaca credentials are not configured. "
@@ -878,7 +894,7 @@ class _CcxtRoutingAdapter(_DataFrameRoutingAdapter):
     provider_key = "ccxt"
     _default_start_buffer = timedelta(0)
 
-    def __init__(self, router: "RoutedBacktestingPandas"):
+    def __init__(self, router: RoutedBacktestingPandas) -> None:
         super().__init__(router)
         self._cache_by_exchange: dict[str, Any] = {}
 
@@ -891,11 +907,11 @@ class _CcxtRoutingAdapter(_DataFrameRoutingAdapter):
         start_datetime: datetime,
         end_dt: datetime,
         length: int,
-        canonical_key: Any,
+        canonical_key: DatasetKey,
         provider_spec: ProviderSpec,
         require_quote_data: bool,
         require_ohlc_data: bool,
-    ) -> pd.DataFrame | None:
+    ) -> PandasDataFrame | None:
         exchange_id = provider_spec.ccxt_exchange_id or _infer_default_ccxt_exchange_id()
 
         try:
@@ -916,7 +932,7 @@ class _CcxtRoutingAdapter(_DataFrameRoutingAdapter):
         else:
             raise RoutingProviderError(f"CCXT routing only supports minute/day timesteps, got {ts_unit!r}.")
 
-        symbol = f"{asset.symbol.upper()}/{quote_asset.symbol.upper()}"
+        symbol = f"{str(asset.symbol or '').upper()}/{str(quote_asset.symbol or '').upper()}"
         df = cache_db.download_ohlcv(symbol, timeframe, start_datetime, end_dt)
         if df is None or df.empty:
             return None
@@ -926,7 +942,7 @@ class _CcxtRoutingAdapter(_DataFrameRoutingAdapter):
 
 
 class _ProviderRegistry:
-    def __init__(self, router: "RoutedBacktestingPandas"):
+    def __init__(self, router: RoutedBacktestingPandas) -> None:
         self._router = router
         self._adapters: dict[str, _RoutingAdapter] = {
             "thetadata": _ThetaDataRoutingAdapter(router),
@@ -976,7 +992,7 @@ class _ProviderRegistry:
             raise RoutingProviderError(f"No routing adapter registered for provider={spec.provider!r}.")
         return self._adapters[spec.provider]
 
-    def validate_routing(self, routing: Dict[str, str]) -> None:
+    def validate_routing(self, routing: dict[str, str]) -> None:
         for _, provider in routing.items():
             self.resolve_provider_spec(provider)
 
@@ -997,25 +1013,32 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
     """
 
     _CONFIG_KEY = "backtesting_data_routing"
+    _registry: _ProviderRegistry
+    _routing: dict[str, str]
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._registry = _ProviderRegistry(self)
         self._routing = self._normalize_routing(self._extract_routing_config(getattr(self, "_config", None)))
         self._registry.validate_routing(self._routing)
 
     @staticmethod
-    def _extract_routing_config(config: Any) -> Optional[Dict[str, str]]:
+    def _extract_routing_config(config: Any) -> dict[Any, Any] | None:
         if config is None:
             return None
         if isinstance(config, dict):
-            raw = config.get(RoutedBacktestingPandas._CONFIG_KEY)
-            return raw if isinstance(raw, dict) else None
+            config_dict = cast(dict[Any, Any], config)
+            raw = config_dict.get(RoutedBacktestingPandas._CONFIG_KEY)
+            if isinstance(raw, dict):
+                return cast(dict[Any, Any], raw)
+            return None
         raw = getattr(config, RoutedBacktestingPandas._CONFIG_KEY, None)
-        return raw if isinstance(raw, dict) else None
+        if isinstance(raw, dict):
+            return cast(dict[Any, Any], raw)
+        return None
 
     @staticmethod
-    def _normalize_routing(routing: Optional[Dict[str, str]]) -> Dict[str, str]:
+    def _normalize_routing(routing: dict[Any, Any] | None) -> dict[str, str]:
         if not routing:
             return {
                 "default": "thetadata",
@@ -1024,7 +1047,7 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                 "crypto": "ibkr",
             }
 
-        normalized: Dict[str, str] = {}
+        normalized: dict[str, str] = {}
         for key, value in routing.items():
             if key is None:
                 continue
@@ -1057,15 +1080,15 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
 
     def _update_pandas_data(
         self,
-        asset,
-        quote,
-        length,
-        timestep,
-        start_dt=None,
+        asset: Asset | tuple[Asset, Asset],
+        quote: Asset | None,
+        length: int,
+        timestep: str,
+        start_dt: datetime | None = None,
         require_quote_data: bool = False,
         require_ohlc_data: bool = True,
         snapshot_only: bool = False,
-    ):
+    ) -> None:
         asset_separated = asset
         quote_asset = quote if quote is not None else _DEFAULT_QUOTE_ASSET
         if isinstance(asset_separated, tuple):
@@ -1085,7 +1108,14 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
             provider_spec=provider_spec,
         )
 
-    def get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs):
+    def get_last_price(
+        self,
+        asset: Asset | tuple[Asset, Asset],
+        timestep: str = "minute",
+        quote: Asset | None = None,
+        exchange: str | None = None,
+        **kwargs: Any,
+    ) -> Any:
         """Align routed daily backtests away from minute bars for performance.
 
         ThetaDataBacktestingPandas already aligns get_last_price() to day bars when the data source
@@ -1114,7 +1144,14 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
 
         return super().get_last_price(asset, timestep=timestep, quote=quote, exchange=exchange, **kwargs)
 
-    def get_quote(self, asset, quote=None, exchange=None, timestep="minute", **kwargs):
+    def get_quote(
+        self,
+        asset: Asset | tuple[Asset, Asset],
+        quote: Asset | None = None,
+        exchange: str | None = None,
+        timestep: str = "minute",
+        **kwargs: Any,
+    ) -> Any:
         """Align routed quote lookups away from minute bars in daily non-Theta runs.
 
         In daily stock/index backtests routed to IBKR, market-order fills can call get_quote()

@@ -11,31 +11,36 @@ import time
 import traceback
 import uuid
 from collections import deque
+from collections.abc import Callable, Iterable
 from decimal import Decimal
 from importlib import import_module
-from typing import TYPE_CHECKING, Dict, List, Union
+from types import ModuleType
+from typing import Any, TypeAlias, cast
 
 from lumibot.tools.lumibot_logger import get_logger, get_strategy_logger
 
 from ..entities import Asset, Order
 
-if TYPE_CHECKING:
-    from ..entities import CashEvent, Data
+_ParquetUtils: TypeAlias = tuple[  # noqa: UP040 - keep Python 3.11 parser compatibility.
+    Callable[[Any], tuple[Any, list[str]]],
+    Callable[[], bool],
+    Callable[..., Any],
+]
 
 # Set the stats table name for when storing stats in a database, defined by db_connection_str
 STATS_TABLE_NAME = "strategy_tracker"
 _COMPAT_SENTINEL = object()
-_BACKTESTING_IMPORTS_READY = False
-_REQUESTS_MODULE = None
-_SQLALCHEMY_IMPORTS = None
-_POLARS_MODULE = None
-_TOOL_FUNC_CACHE = {}
-_PARQUET_UTILS = None
-_STRATEGY_EXECUTOR_CLASS = None
-_TRADER_CLASS = None
-_LUMIBOT_DEFAULT_PYTZ = None
-_CREDENTIALS_MODULE = None
-_COLORED_FN = None
+_BACKTESTING_IMPORTS_READY: bool = False
+_REQUESTS_MODULE: ModuleType | None = None
+_SQLALCHEMY_IMPORTS: tuple[Any, Any, Any, Any] | None = None
+_POLARS_MODULE: ModuleType | None = None
+_TOOL_FUNC_CACHE: dict[str, Callable[..., Any]] = {}
+_PARQUET_UTILS: _ParquetUtils | None = None
+_STRATEGY_EXECUTOR_CLASS: type[Any] | None = None
+_TRADER_CLASS: type[Any] | None = None
+_LUMIBOT_DEFAULT_PYTZ: Any | None = None
+_CREDENTIALS_MODULE: ModuleType | None = None
+_COLORED_FN: Callable[..., str] | None = None
 Trader = _COMPAT_SENTINEL
 BROKER = _COMPAT_SENTINEL
 DATA_SOURCE = _COMPAT_SENTINEL
@@ -69,45 +74,45 @@ ThetaDataBacktestingPandas = None
 YahooDataBacktesting = None
 
 
-def colored(*args, **kwargs):
+def colored(*args: Any, **kwargs: Any) -> str:
     global _COLORED_FN
     if _COLORED_FN is None:
         from termcolor import colored as _termcolor_colored
 
-        _COLORED_FN = _termcolor_colored
+        _COLORED_FN = _termcolor_colored  # pyright: ignore[reportConstantRedefinition]
     return _COLORED_FN(*args, **kwargs)
 
 
-def _strategy_executor_class():
+def _strategy_executor_class() -> type[Any]:
     global _STRATEGY_EXECUTOR_CLASS
     if _STRATEGY_EXECUTOR_CLASS is None:
         from .strategy_executor import StrategyExecutor
 
-        _STRATEGY_EXECUTOR_CLASS = StrategyExecutor
+        _STRATEGY_EXECUTOR_CLASS = StrategyExecutor  # pyright: ignore[reportConstantRedefinition]
     return _STRATEGY_EXECUTOR_CLASS
 
 
-def _trader_class():
+def _trader_class() -> type[Any] | object:
     global _TRADER_CLASS, Trader
     if Trader is not _COMPAT_SENTINEL:
         return Trader
     if _TRADER_CLASS is None:
         from ..traders import Trader as _Trader
 
-        _TRADER_CLASS = _Trader
+        _TRADER_CLASS = _Trader  # pyright: ignore[reportConstantRedefinition]
     return _TRADER_CLASS
 
 
-def _default_pytz():
+def _default_pytz() -> Any:
     global _LUMIBOT_DEFAULT_PYTZ
     if _LUMIBOT_DEFAULT_PYTZ is None:
         from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 
-        _LUMIBOT_DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ
+        _LUMIBOT_DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ  # pyright: ignore[reportConstantRedefinition]
     return _LUMIBOT_DEFAULT_PYTZ
 
 
-def _credential(name):
+def _credential(name: str) -> Any:
     override = globals().get(name, _COMPAT_SENTINEL)
     if override is not _COMPAT_SENTINEL:
         return override
@@ -115,44 +120,53 @@ def _credential(name):
     if _CREDENTIALS_MODULE is None:
         from .. import credentials
 
-        _CREDENTIALS_MODULE = credentials
+        _CREDENTIALS_MODULE = credentials  # pyright: ignore[reportConstantRedefinition]
     return getattr(_CREDENTIALS_MODULE, name)
+
+
+def _dynamic_attr(obj: Any, name: str, default: Any = _COMPAT_SENTINEL) -> Any:
+    if default is _COMPAT_SENTINEL:
+        return getattr(obj, name)
+    return getattr(obj, name, default)
 
 
 class _LazyModule:
     __slots__ = ("_module_name", "_module")
 
-    def __init__(self, module_name: str):
+    _module_name: str
+    _module: ModuleType | None
+
+    def __init__(self, module_name: str) -> None:
         self._module_name = module_name
         self._module = None
 
-    def _load(self):
+    def _load(self) -> ModuleType:
         module = self._module
         if module is None:
             module = import_module(self._module_name)
             self._module = module
         return module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
         if name in {"_module_name", "_module"}:
             object.__setattr__(self, name, value)
         else:
             setattr(self._load(), name, value)
 
-    def __delattr__(self, name):
+    def __delattr__(self, name: str) -> None:
         if name in {"_module_name", "_module"}:
             object.__delattr__(self, name)
         else:
             delattr(self._load(), name)
 
 
-pd = _LazyModule("pandas")
+pd: Any = _LazyModule("pandas")
 
 
-def _call_tool_func(name, *args, **kwargs):
+def _call_tool_func(name: str, *args: Any, **kwargs: Any) -> Any:
     fn = _TOOL_FUNC_CACHE.get(name)
     if fn is None:
         tools = import_module("lumibot.tools")
@@ -161,84 +175,80 @@ def _call_tool_func(name, *args, **kwargs):
     return fn(*args, **kwargs)
 
 
-def _get_parquet_utils():
+def _get_parquet_utils() -> _ParquetUtils:
     global _PARQUET_UTILS
     if _PARQUET_UTILS is None:
-        from lumibot.tools.parquet_utils import (
-            coerce_object_columns_to_json_strings,
-            is_parquet_required,
-            write_parquet_with_logging,
-        )
+        parquet_utils: Any = import_module("lumibot.tools.parquet_utils")
 
-        _PARQUET_UTILS = (
-            coerce_object_columns_to_json_strings,
-            is_parquet_required,
-            write_parquet_with_logging,
+        _PARQUET_UTILS = (  # pyright: ignore[reportConstantRedefinition]
+            cast(Callable[[Any], tuple[Any, list[str]]], parquet_utils.coerce_object_columns_to_json_strings),
+            cast(Callable[[], bool], parquet_utils.is_parquet_required),
+            cast(Callable[..., Any], parquet_utils.write_parquet_with_logging),
         )
     return _PARQUET_UTILS
 
 
-def cash_flow_adjusted_returns(*args, **kwargs):
+def cash_flow_adjusted_returns(*args: Any, **kwargs: Any) -> Any:
     return _call_tool_func("cash_flow_adjusted_returns", *args, **kwargs)
 
 
-def create_tearsheet(*args, **kwargs):
+def create_tearsheet(*args: Any, **kwargs: Any) -> Any:
     return _call_tool_func("create_tearsheet", *args, **kwargs)
 
 
-def cumulative_to_period_flows(*args, **kwargs):
+def cumulative_to_period_flows(*args: Any, **kwargs: Any) -> Any:
     return _call_tool_func("cumulative_to_period_flows", *args, **kwargs)
 
 
-def day_deduplicate(*args, **kwargs):
+def day_deduplicate(*args: Any, **kwargs: Any) -> Any:
     return _call_tool_func("day_deduplicate", *args, **kwargs)
 
 
-def get_symbol_returns(*args, **kwargs):
+def get_symbol_returns(*args: Any, **kwargs: Any) -> Any:
     return _call_tool_func("get_symbol_returns", *args, **kwargs)
 
 
-def plot_indicators(*args, **kwargs):
+def plot_indicators(*args: Any, **kwargs: Any) -> Any:
     return _call_tool_func("plot_indicators", *args, **kwargs)
 
 
-def plot_returns(*args, **kwargs):
+def plot_returns(*args: Any, **kwargs: Any) -> Any:
     return _call_tool_func("plot_returns", *args, **kwargs)
 
 
-def stats_summary(*args, **kwargs):
+def stats_summary(*args: Any, **kwargs: Any) -> Any:
     return _call_tool_func("stats_summary", *args, **kwargs)
 
 
-def to_datetime_aware(*args, **kwargs):
+def to_datetime_aware(*args: Any, **kwargs: Any) -> Any:
     return _call_tool_func("to_datetime_aware", *args, **kwargs)
 
 
-def _get_requests_module():
+def _get_requests_module() -> Any:
     global _REQUESTS_MODULE
     if _REQUESTS_MODULE is None:
         import requests as _requests
 
-        _REQUESTS_MODULE = _requests
+        _REQUESTS_MODULE = _requests  # pyright: ignore[reportConstantRedefinition]
     return _REQUESTS_MODULE
 
 
-def _get_sqlalchemy_imports():
+def _get_sqlalchemy_imports() -> tuple[Any, Any, Any, Any]:
     global _SQLALCHEMY_IMPORTS
     if _SQLALCHEMY_IMPORTS is None:
         from sqlalchemy import create_engine, inspect, text
         from sqlalchemy.exc import OperationalError
 
-        _SQLALCHEMY_IMPORTS = (create_engine, inspect, text, OperationalError)
+        _SQLALCHEMY_IMPORTS = (create_engine, inspect, text, OperationalError)  # pyright: ignore[reportConstantRedefinition]
     return _SQLALCHEMY_IMPORTS
 
 
-def _get_polars_module():
+def _get_polars_module() -> Any:
     global _POLARS_MODULE
     if _POLARS_MODULE is None:
         import polars as _pl
 
-        _POLARS_MODULE = _pl
+        _POLARS_MODULE = _pl  # pyright: ignore[reportConstantRedefinition]
     return _POLARS_MODULE
 
 
@@ -247,11 +257,11 @@ class _LazyAgentManager:
 
     __slots__ = ("_strategy", "_manager")
 
-    def __init__(self, strategy):
+    def __init__(self, strategy: Any) -> None:
         self._strategy = strategy
         self._manager = None
 
-    def _get_manager(self):
+    def _get_manager(self) -> Any:
         manager = self._manager
         if manager is None:
             from ..components.agents import AgentManager
@@ -264,22 +274,22 @@ class _LazyAgentManager:
                 pass
         return manager
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._get_manager(), name)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Any) -> Any:
         return self._get_manager()[key]
 
-    def __contains__(self, key):
+    def __contains__(self, key: Any) -> bool:
         return key in self._get_manager()
 
-    def __iter__(self):
+    def __iter__(self) -> Any:
         return iter(self._get_manager())
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._get_manager())
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         manager = self._manager
         if manager is None:
             return "<LazyAgentManager unloaded>"
@@ -291,11 +301,11 @@ class _LazyIndicators:
 
     __slots__ = ("_strategy", "_indicators")
 
-    def __init__(self, strategy):
+    def __init__(self, strategy: Any) -> None:
         self._strategy = strategy
         self._indicators = None
 
-    def _get_indicators(self):
+    def _get_indicators(self) -> Any:
         indicators = self._indicators
         if indicators is None:
             from lumibot.indicators import Indicators
@@ -308,10 +318,10 @@ class _LazyIndicators:
                 pass
         return indicators
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._get_indicators(), name)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         indicators = self._indicators
         if indicators is None:
             return "<LazyIndicators unloaded>"
@@ -327,85 +337,163 @@ def _ensure_backtesting_imports():
     if _BACKTESTING_IMPORTS_READY:
         return
 
-    backtesting = import_module("lumibot.backtesting")
+    from ..backtesting import (
+        AlpacaBacktesting as _AlpacaBacktesting,
+    )
+    from ..backtesting import (
+        BacktestingBroker as _BacktestingBroker,
+    )
+    from ..backtesting import (
+        CcxtBacktesting as _CcxtBacktesting,
+    )
+    from ..backtesting import (
+        DataBentoDataBacktesting as _DataBentoDataBacktesting,
+    )
+    from ..backtesting import (
+        InteractiveBrokersRESTBacktesting as _InteractiveBrokersRESTBacktesting,
+    )
+    from ..backtesting import (
+        PolygonDataBacktesting as _PolygonDataBacktesting,
+    )
+    from ..backtesting import (
+        RoutedBacktestingPandas as _RoutedBacktestingPandas,
+    )
+    from ..backtesting import (
+        ThetaDataBacktesting as _ThetaDataBacktesting,
+    )
+    from ..backtesting import (
+        ThetaDataBacktestingPandas as _ThetaDataBacktestingPandas,
+    )
+    from ..backtesting import (
+        YahooDataBacktesting as _YahooDataBacktesting,
+    )
 
     if AlpacaBacktesting is None:
-        AlpacaBacktesting = backtesting.AlpacaBacktesting
+        AlpacaBacktesting = _AlpacaBacktesting
     if BacktestingBroker is None:
-        BacktestingBroker = backtesting.BacktestingBroker
+        BacktestingBroker = _BacktestingBroker
     if CcxtBacktesting is None:
-        CcxtBacktesting = backtesting.CcxtBacktesting
+        CcxtBacktesting = _CcxtBacktesting
     if DataBentoDataBacktesting is None:
-        DataBentoDataBacktesting = backtesting.DataBentoDataBacktesting
+        DataBentoDataBacktesting = _DataBentoDataBacktesting
     if InteractiveBrokersRESTBacktesting is None:
-        InteractiveBrokersRESTBacktesting = backtesting.InteractiveBrokersRESTBacktesting
+        InteractiveBrokersRESTBacktesting = _InteractiveBrokersRESTBacktesting
     if PolygonDataBacktesting is None:
-        PolygonDataBacktesting = backtesting.PolygonDataBacktesting
+        PolygonDataBacktesting = _PolygonDataBacktesting
     if RoutedBacktestingPandas is None:
-        RoutedBacktestingPandas = backtesting.RoutedBacktestingPandas
+        RoutedBacktestingPandas = _RoutedBacktestingPandas
     if ThetaDataBacktesting is None:
-        ThetaDataBacktesting = backtesting.ThetaDataBacktesting
+        ThetaDataBacktesting = _ThetaDataBacktesting
     if ThetaDataBacktestingPandas is None:
-        ThetaDataBacktestingPandas = backtesting.ThetaDataBacktestingPandas
+        ThetaDataBacktestingPandas = _ThetaDataBacktestingPandas
     if YahooDataBacktesting is None:
-        YahooDataBacktesting = backtesting.YahooDataBacktesting
-    _BACKTESTING_IMPORTS_READY = True
+        YahooDataBacktesting = _YahooDataBacktesting
+    _BACKTESTING_IMPORTS_READY = True  # pyright: ignore[reportConstantRedefinition]
+
 
 class SafeJSONEncoder(json.JSONEncoder):
     """Custom JSON encoder for Lumibot objects.
-    
+
     Handles:
-    - Objects with to_dict() method -> dictionary 
+    - Objects with to_dict() method -> dictionary
     - datetime.date and datetime.datetime -> ISO format string
     - Decimal -> float
     - Sets -> list
     """
-    def default(self, obj):
+
+    def default(self, o: Any) -> Any:
         # Handle objects with to_dict method (Asset, Order, Position etc)
-        if hasattr(obj, 'to_dict'):
-            return obj.to_dict()
+        if hasattr(o, "to_dict"):
+            return o.to_dict()
 
         # Handle dates and times
-        if isinstance(obj, (datetime.date, datetime.datetime)):
-            return obj.isoformat()
+        if isinstance(o, (datetime.date, datetime.datetime)):
+            return o.isoformat()
 
         # Handle Decimal
-        if isinstance(obj, Decimal):
-            return float(obj)
+        if isinstance(o, Decimal):
+            return float(o)
 
         # Handle sets
-        if isinstance(obj, set):
-            return list(obj)
+        if isinstance(o, set):
+            return list(cast(set[Any], o))
 
-        return super().default(obj)
+        return super().default(o)
+
 
 class Vars:
-    def __init__(self):
-        super().__setattr__('_vars_dict', {})
+    _vars_dict: dict[str, Any]
 
-    def __getattr__(self, name):
+    def __init__(self) -> None:
+        super().__setattr__("_vars_dict", {})
+
+    def __getattr__(self, name: str) -> Any:
         try:
             return self._vars_dict[name]
         except KeyError:
-            raise AttributeError(f"'Vars' object has no attribute '{name}'")
+            raise AttributeError(f"'Vars' object has no attribute '{name}'") from None
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
         self._vars_dict[name] = value
 
-    def set(self, name, value):
+    def set(self, name: str, value: Any) -> None:
         self._vars_dict[name] = value
 
-    def get(self, name, default=None):
+    def get(self, name: str, default: Any = None) -> Any:
         """Gets the value of a variable, returning a default value if it doesn't exist."""
         return self._vars_dict.get(name, default)
 
-    def all(self):
+    def all(self) -> dict[str, Any]:
         return self._vars_dict.copy()
 
 
 class _Strategy:
+    broker: Any
+    logger: Any
+    parameters: dict[str, Any]
+    _name: str
+    _data_source: Any
+    _quote_asset: Any
+    _benchmark_asset: Any
+    _cash_position: Any
+    _portfolio_value: Any
+    _position_value: Any
+    _executor: Any
+    _last_known_prices: dict[Any, float]
+    _forward_fill_warning_cache: set[str]
+    _sanitized_string_asset_cache: dict[str, Any]
+    _stats: Any
+    _stats_file: str | None
+    _stats_list: list[Any]
+    _stats_dirty: bool
+    _analysis: dict[str, Any]
+    _risk_free_rate: float | None
+    _backtesting_start: Any
+    _backtesting_end: Any
+    _dividends_applied_tracker: set[tuple[Any, str]]
+    _cash_deposits_total: float
+    _cash_withdrawals_total: float
+    _cash_adjustments_net_total: float
+    _cash_financing_enabled: bool
+    _cash_financing_account_mode: str
+    _cash_financing_day_count_basis: int
+    _cash_financing_missing_rate_policy: str
+    _cash_financing_credit_rate_annual: float | None
+    _cash_financing_debit_rate_annual: float | None
+    _cash_financing_last_valid_credit_rate_annual: float | None
+    _cash_financing_last_valid_debit_rate_annual: float | None
+    _cash_financing_last_accrual_date: datetime.date | None
+    _cash_financing_credit_total: float
+    _cash_financing_debit_total: float
+    _cash_financing_net_total: float
+    _cash_financing_days_accrued: int
+    _cash_financing_events: int
+    _cash_financing_last_credit_rate_used: float | None
+    _cash_financing_last_debit_rate_used: float | None
+    last_broker_balances_update: datetime.datetime | None
+
     @staticmethod
-    def _normalize_backtest_datetime(value):
+    def _normalize_backtest_datetime(value: Any) -> Any:
         """Ensure backtest boundary datetimes are timezone-aware.
 
         Naive datetimes are localized to the LumiBot default timezone; timezone-aware
@@ -430,46 +518,50 @@ class _Strategy:
     def is_backtesting(self, value: bool) -> None:
         self._is_backtesting = bool(value)
 
+    @property
+    def risk_free_rate(self) -> float:
+        return self._risk_free_rate if self._risk_free_rate is not None else 0.0
+
     IS_BACKTESTABLE = True
-    _trader = None
+    _trader: Any = None
 
     def __init__(
         self,
-        broker=None,
-        data_source=None,
-        minutes_before_closing=1,
-        minutes_before_opening=60,
-        minutes_after_closing=0,
-        sleeptime="1M",
-        stats_file=None,
-        risk_free_rate=None,
-        benchmark_asset: str | Asset | None = "SPY",
+        broker: Any = None,
+        data_source: Any = None,
+        minutes_before_closing: int = 1,
+        minutes_before_opening: int = 60,
+        minutes_after_closing: int = 0,
+        sleeptime: str | int | float = "1M",
+        stats_file: str | None = None,
+        risk_free_rate: float | None = None,
+        benchmark_asset: Any = "SPY",
         analyze_backtest: bool = True,
-        backtesting_start=None,
-        backtesting_end=None,
-        quote_asset=Asset(symbol="USD", asset_type="forex"),
-        starting_positions=None,
-        filled_order_callback=None,
-        name=None,
-        budget=None,
-        parameters={},
-        buy_trading_fees=[],
-        sell_trading_fees=[],
-        buy_trading_slippages=[],
-        sell_trading_slippages=[],
-        force_start_immediately=False,
-        discord_webhook_url=None,
-        account_history_db_connection_str=None,
-        db_connection_str=None,
-        strategy_id=None,
-        discord_account_summary_footer=None,
-        should_backup_variables_to_database=True,
-        should_send_summary_to_discord=True,
-        save_logfile=False,
-        lumiwealth_api_key=None,
-        include_cash_positions=False,
-        **kwargs,
-    ):
+        backtesting_start: Any = None,
+        backtesting_end: Any = None,
+        quote_asset: Any = None,
+        starting_positions: dict[Any, Any] | None = None,
+        filled_order_callback: Callable[..., Any] | None = None,
+        name: str | None = None,
+        budget: float | Decimal | None = None,
+        parameters: dict[str, Any] | None = None,
+        buy_trading_fees: list[Any] | None = None,
+        sell_trading_fees: list[Any] | None = None,
+        buy_trading_slippages: list[Any] | None = None,
+        sell_trading_slippages: list[Any] | None = None,
+        force_start_immediately: bool = False,
+        discord_webhook_url: str | None = None,
+        account_history_db_connection_str: str | None = None,
+        db_connection_str: str | None = None,
+        strategy_id: str | None = None,
+        discord_account_summary_footer: str | None = None,
+        should_backup_variables_to_database: bool = True,
+        should_send_summary_to_discord: bool = True,
+        save_logfile: bool = False,
+        lumiwealth_api_key: str | None = None,
+        include_cash_positions: bool = False,
+        **kwargs: Any,
+    ) -> None:
         """Initializes a Strategy object.
 
         Parameters
@@ -568,6 +660,16 @@ class _Strategy:
         """
         # TODO: Break up this function, too long!
 
+        if sell_trading_slippages is None:
+            sell_trading_slippages = []
+        if buy_trading_slippages is None:
+            buy_trading_slippages = []
+        if sell_trading_fees is None:
+            sell_trading_fees = []
+        if buy_trading_fees is None:
+            buy_trading_fees = []
+        if parameters is None:
+            parameters = {}
         self.buy_trading_fees = buy_trading_fees
         self.sell_trading_fees = sell_trading_fees
         self.buy_trading_slippages = buy_trading_slippages
@@ -605,9 +707,9 @@ class _Strategy:
         self._cash_event_fetch_limit = 100
         self._cash_event_dedupe_capacity = 1000
         self._cash_event_last_poll_at = None
-        self._cash_event_pending_for_cloud = []
-        self._cash_event_sent_ids = set()
-        self._cash_event_sent_id_order = deque()
+        self._cash_event_pending_for_cloud: list[Any] = []
+        self._cash_event_sent_ids: set[Any] = set()
+        self._cash_event_sent_id_order: deque[Any] = deque()
 
         # Only log one message about cloud API key being missing
         self._logged_missing_lumiwealth_api_key = False
@@ -622,16 +724,22 @@ class _Strategy:
             self._name = self.__class__.__name__
 
         # Create an adapter with 'strategy_name' set to the instance's name
-        if not hasattr(self, "logger") or self.logger is None:
+        existing_logger: Any = getattr(self, "logger", None)
+        if existing_logger is None:
             self.logger = get_strategy_logger(__name__, self._name)
 
         # Don't set log level here - let the logger hierarchy and quiet logs setting handle it
         # The StrategyLoggerAdapter will check BACKTESTING_QUIET_LOGS in its methods
 
         # Track which assets we've logged "Getting historical prices" for to reduce noise
-        self._logged_get_historical_prices_assets = set()
+        self._logged_get_historical_prices_assets: set[Any] = set()
+        self._ibkr_native_hist_request_cache = None
+        self._ibkr_native_hist_request_cache_default_quote = None
+        self._ibkr_native_day_bars_cache = None
+        self._ibkr_native_minute_bars_context_cache = None
+        self._ibkr_native_hist_data_cache = None
 
-        if self.broker == None:
+        if self.broker is None:
             self.broker = _credential("BROKER")
 
         # Handle data source initialization
@@ -657,14 +765,18 @@ class _Strategy:
             # Log the market being used
             colored_message = colored(f"Using market from environment variables: {market}", "green")
             self.logger.info(colored_message)
-            self.set_market(market)
+            _dynamic_attr(self, "set_market")(market)
 
         self.live_config = _credential("LIVE_CONFIG")
-        self.discord_webhook_url = discord_webhook_url if discord_webhook_url is not None else _credential("DISCORD_WEBHOOK_URL")
+        self.discord_webhook_url = (
+            discord_webhook_url if discord_webhook_url is not None else _credential("DISCORD_WEBHOOK_URL")
+        )
 
         if account_history_db_connection_str:
             self.db_connection_str = account_history_db_connection_str
-            get_logger(__name__).warning("account_history_db_connection_str is deprecated and will be removed in future versions, please use db_connection_str instead")
+            get_logger(__name__).warning(
+                "account_history_db_connection_str is deprecated and will be removed in future versions, please use db_connection_str instead"
+            )
         elif db_connection_str:
             self.db_connection_str = db_connection_str
         else:
@@ -672,7 +784,7 @@ class _Strategy:
             self.db_connection_str = env_db_connection_str if env_db_connection_str else None
 
         self.discord_account_summary_footer = discord_account_summary_footer
-        self.backup_table_name="vars_backup"
+        self.backup_table_name = "vars_backup"
 
         # Set the LumiWealth API key
         if lumiwealth_api_key:
@@ -708,48 +820,55 @@ class _Strategy:
             self.logger.error(colored(error_message, "red"))
             raise ValueError(error_message)
 
-        self._quote_asset = quote_asset if self.broker.name != "bitunix" else Asset("USDT", Asset.AssetType.CRYPTO)
+        broker_obj: Any = self.broker
+
+        if quote_asset is None:
+            quote_asset = Asset(symbol="USD", asset_type="forex")
+        self._quote_asset = quote_asset if broker_obj.name != "bitunix" else Asset("USDT", Asset.AssetType.CRYPTO)
 
         # Check if the quote_assets exists on the broker
-        if not hasattr(self.broker, "quote_assets"):
-            self.broker.quote_assets = set()
+        if not hasattr(broker_obj, "quote_assets"):
+            broker_obj.quote_assets = set()
 
-        self.broker.quote_assets.add(self._quote_asset)
+        quote_assets = cast(set[Any], _dynamic_attr(broker_obj, "quote_assets"))
+        quote_assets.add(self._quote_asset)
 
         # Setting the broker object
-        if self.broker == None:
+        if self.broker is None:
             self.is_backtesting = True
         else:
-            self.is_backtesting = self.broker.IS_BACKTESTING_BROKER
+            self.is_backtesting = broker_obj.IS_BACKTESTING_BROKER
 
         self._benchmark_asset = benchmark_asset
         self._analyze_backtest = analyze_backtest
 
         # Get the backtesting start and end dates from the broker data source if we are backtesting
         if self.is_backtesting:
-            if self.broker.data_source.datetime_start is not None and self.broker.data_source.datetime_end is not None:
-                self._backtesting_start = self.broker.data_source.datetime_start
-                self._backtesting_end = self.broker.data_source.datetime_end
+            broker_data_source: Any = broker_obj.data_source
+            if broker_data_source.datetime_start is not None and broker_data_source.datetime_end is not None:
+                self._backtesting_start = broker_data_source.datetime_start
+                self._backtesting_end = broker_data_source.datetime_end
 
         # Force start immediately if we are backtesting
         self.force_start_immediately = force_start_immediately
 
         # Initialize the chart markers list
-        self._chart_markers_list = []
+        self._chart_markers_list: list[Any] = []
 
         # Initialize the chart lines list
-        self._chart_lines_list = []
+        self._chart_lines_list: list[Any] = []
 
         # Initialize the chart OHLC list
-        self._chart_ohlc_list = []
+        self._chart_ohlc_list: list[Any] = []
 
         # Hold the asset objects for strings for stocks only.
-        self._asset_mapping = dict()
+        self._asset_mapping: dict[Any, Any] = {}
 
         # Setting the data provider
         if self.is_backtesting:
-            if self.broker.data_source.SOURCE == "PANDAS":
-                self.broker.data_source.load_data()
+            broker_data_source = broker_obj.data_source
+            if broker_data_source.SOURCE == "PANDAS":
+                broker_data_source.load_data()
 
             # Create initial starting positions.
             self.starting_positions = starting_positions
@@ -765,7 +884,7 @@ class _Strategy:
                         hold=0,
                         available=Decimal(quantity),
                     )
-                    self.broker._filled_positions.append(position)
+                    broker_obj._filled_positions.append(position)
 
         # Set the the state of first iteration to True. This will later be updated to False by the strategy executor
         self._first_iteration = True
@@ -776,7 +895,7 @@ class _Strategy:
             self.update_broker_balances()
 
             # Set initial positions if live trading.
-            self.broker._set_initial_positions(self)
+            broker_obj._set_initial_positions(self)
         else:
             # Determine initial cash ("budget") for backtesting.
             # NOTE: In BotSpot/BotManager runs we often inject settings via environment variables.
@@ -787,12 +906,7 @@ class _Strategy:
             if env_budget_raw is not None:
                 trimmed = env_budget_raw.strip()
                 if trimmed and trimmed.lower() not in ("none", "null"):
-                    normalized = (
-                        trimmed.replace("$", "")
-                        .replace(",", "")
-                        .replace("_", "")
-                        .strip()
-                    )
+                    normalized = trimmed.replace("$", "").replace(",", "").replace("_", "").strip()
                     multiplier = 1.0
                     suffix = normalized[-1:].lower()
                     if suffix in ("k", "m", "b") and len(normalized) > 1:
@@ -828,24 +942,25 @@ class _Strategy:
                 effective_budget = 100000  # Default budget
 
             self._set_cash_position(effective_budget)
-            self._initial_budget = effective_budget # Store the budget used
+            self._initial_budget = effective_budget  # Store the budget used
 
             # ## TODO: Should all this just use _update_portfolio_value()?
             # ## START
             # Portfolio value should start with the cash set by the budget
-            self._portfolio_value = self.cash # Calls property, should reflect effective_budget now
+            self._portfolio_value = self.cash  # Calls property, should reflect effective_budget now
 
-            store_assets = list(self.broker.data_source._data_store.keys())
+            store_assets = list(broker_obj.data_source._data_store.keys())
             if len(store_assets) > 0:
-                positions_value = 0
-                for position in self.get_positions():
+                positions_value = 0.0
+                positions: Iterable[Any] = cast(Iterable[Any], _dynamic_attr(self, "get_positions")())
+                for position in positions:
                     price = None
                     if position.asset == self._quote_asset:
                         # Don't include the quote asset since it's already included with cash
                         price = 0
                     else:
-                        price = self.get_last_price(position.asset, quote=self._quote_asset)
-                    value = float(position.quantity) * price
+                        price = _dynamic_attr(self, "get_last_price")(position.asset, quote=self._quote_asset)
+                    value = float(position.quantity) * float(price)
                     positions_value += value
 
                 self._portfolio_value = self._portfolio_value + positions_value
@@ -862,14 +977,14 @@ class _Strategy:
         self._sleeptime = sleeptime
         self._risk_free_rate = risk_free_rate
         self._executor = _strategy_executor_class()(self)
-        self.broker._add_subscriber(self._executor)
+        broker_obj._add_subscriber(self._executor)
 
         # Stats related variables
         self._stats_file = stats_file
         self._stats = None
-        self._stats_list = []
+        self._stats_list: list[Any] = []
         self._stats_dirty = False
-        self._analysis = {}
+        self._analysis: dict[str, Any] = {}
 
         # Variable backup related variables
         self.should_backup_variables_to_database = should_backup_variables_to_database
@@ -881,34 +996,36 @@ class _Strategy:
         self.indicators = _LazyIndicators(self)
 
         # Storing parameters for the initialize method
-        if not hasattr(self, "parameters") or not isinstance(self.parameters, dict) or self.parameters is None:
-            self.parameters = {}
-        self.parameters = {**self.parameters, **kwargs}
-        if parameters is not None and isinstance(self.parameters, dict):
-            self.parameters = {**self.parameters, **parameters}
+        existing_parameters = _dynamic_attr(self, "parameters", None)
+        if not isinstance(existing_parameters, dict):
+            existing_parameters = {}
+        self.parameters = {**cast(dict[str, Any], existing_parameters), **kwargs}
+        self.parameters = {**self.parameters, **parameters}
 
         # Apply BACKTESTING_PARAMETERS env var override (highest priority, wins over code-level params)
-        from lumibot.credentials import BACKTESTING_PARAMETERS
-        if BACKTESTING_PARAMETERS is not None and isinstance(BACKTESTING_PARAMETERS, dict):
-            self.parameters = {**self.parameters, **BACKTESTING_PARAMETERS}
+        backtesting_parameters: Any = _credential("BACKTESTING_PARAMETERS")
+        if isinstance(backtesting_parameters, dict):
+            backtesting_parameters_dict = cast(dict[str, Any], backtesting_parameters)
+            self.parameters = {**self.parameters, **backtesting_parameters_dict}
             self.logger.info(
                 colored(
-                    f"Applied BACKTESTING_PARAMETERS override: {list(BACKTESTING_PARAMETERS.keys())}",
+                    f"Applied BACKTESTING_PARAMETERS override: {list(backtesting_parameters_dict.keys())}",
                     "green",
                 )
             )
 
         cash_financing_cfg = self.parameters.get("cash_financing")
         if isinstance(cash_financing_cfg, dict):
+            cash_financing_config = cast(dict[str, Any], cash_financing_cfg)
             self._configure_cash_financing(
-                enabled=cash_financing_cfg.get("enabled", True),
-                account_mode=cash_financing_cfg.get("account_mode", "margin"),
-                day_count_basis=cash_financing_cfg.get("day_count_basis", 360),
-                missing_rate_policy=cash_financing_cfg.get("missing_rate_policy", "carry_forward"),
+                enabled=cash_financing_config.get("enabled", True),
+                account_mode=cash_financing_config.get("account_mode", "margin"),
+                day_count_basis=cash_financing_config.get("day_count_basis", 360),
+                missing_rate_policy=cash_financing_config.get("missing_rate_policy", "carry_forward"),
             )
             self._set_cash_financing_rates(
-                credit_rate_annual=cash_financing_cfg.get("credit_rate_annual"),
-                debit_rate_annual=cash_financing_cfg.get("debit_rate_annual"),
+                credit_rate_annual=cash_financing_config.get("credit_rate_annual"),
+                debit_rate_annual=cash_financing_config.get("debit_rate_annual"),
             )
 
         self._strategy_returns_df = None
@@ -917,8 +1034,8 @@ class _Strategy:
         self._filled_order_callback = filled_order_callback
 
     # =============Internal functions===================
-    def _copy_dict(self):
-        result = {}
+    def _copy_dict(self) -> dict[str, Any]:
+        result: dict[str, Any] = {}
         ignored_fields = ["broker", "data_source", "trading_pairs", "asset_gen"]
         for key in self.__dict__:
             if key[0] != "_" and key not in ignored_fields:
@@ -943,7 +1060,7 @@ class _Strategy:
 
         return result
 
-    def _validate_order(self, order):
+    def _validate_order(self, order: Any) -> bool:
         """
         Validates an order to ensure it meets the necessary criteria before submission.
 
@@ -968,28 +1085,22 @@ class _Strategy:
 
         # Check if the order is an Order object
         if not isinstance(order, Order):
-            self.logger.error(
-                f"Order must be an Order object. You entered {order}."
-            )
+            self.logger.error(f"Order must be an Order object. You entered {order}.")
             return False
 
         # Check if the order quantity is None
         if order.quantity is None:
-            self.logger.error(
-                "Order quantity cannot be None. Please provide a valid quantity value."
-            )
+            self.logger.error("Order quantity cannot be None. Please provide a valid quantity value.")
             return False
 
         # Check if the order does not have a quantity of zero
         if order.quantity == 0:
-            self.logger.error(
-                f"Order quantity cannot be zero. You entered {order.quantity}."
-            )
+            self.logger.error(f"Order quantity cannot be zero. You entered {order.quantity}.")
             return False
 
         return True
 
-    def _set_cash_position(self, cash: float):
+    def _set_cash_position(self, cash: float | int | Decimal) -> None:
         # Check if cash is in the list of positions yet
         for x in range(len(self.broker._filled_positions.get_list())):
             position = self.broker._filled_positions[x]
@@ -1013,7 +1124,7 @@ class _Strategy:
         self.broker._filled_positions.append(position)
         self._cash_position = position
 
-    def _get_cash_position(self):
+    def _get_cash_position(self) -> Any:
         cash_position = getattr(self, "_cash_position", None)
         cash_asset = getattr(cash_position, "asset", None) if cash_position is not None else None
         if (
@@ -1028,13 +1139,13 @@ class _Strategy:
         return cash_position
 
     @staticmethod
-    def _coerce_cash_rate(value, field_name):
+    def _coerce_cash_rate(value: Any, field_name: str) -> float | None:
         if value is None:
             return None
         try:
             rate = float(value)
         except (TypeError, ValueError):
-            raise ValueError(f"{field_name} must be a finite non-negative number")
+            raise ValueError(f"{field_name} must be a finite non-negative number") from None
         if not math.isfinite(rate) or rate < 0:
             raise ValueError(f"{field_name} must be a finite non-negative number")
         return rate
@@ -1060,7 +1171,7 @@ class _Strategy:
             try:
                 basis = int(day_count_basis)
             except (TypeError, ValueError):
-                raise ValueError("day_count_basis must be a positive integer")
+                raise ValueError("day_count_basis must be a positive integer") from None
             if basis <= 0:
                 raise ValueError("day_count_basis must be a positive integer")
             self._cash_financing_day_count_basis = basis
@@ -1103,10 +1214,7 @@ class _Strategy:
         if self._cash_financing_missing_rate_policy == "carry_forward" and fallback_rate is not None:
             return float(fallback_rate)
 
-        raise ValueError(
-            f"Missing {side} financing rate for {self._name}. "
-            "Set rates via set_cash_financing_rates()."
-        )
+        raise ValueError(f"Missing {side} financing rate for {self._name}. Set rates via set_cash_financing_rates().")
 
     def _apply_cash_adjustment(
         self,
@@ -1122,15 +1230,13 @@ class _Strategy:
         try:
             delta = float(delta_cash)
         except (TypeError, ValueError):
-            raise ValueError("delta_cash must be a finite number")
+            raise ValueError("delta_cash must be a finite number") from None
 
         if not math.isfinite(delta):
             raise ValueError("delta_cash must be a finite number")
 
         allow_negative_effective = (
-            self._cash_financing_account_mode == "margin"
-            if allow_negative is None
-            else bool(allow_negative)
+            self._cash_financing_account_mode == "margin" if allow_negative is None else bool(allow_negative)
         )
 
         current_cash = float(self.cash or 0.0)
@@ -1138,8 +1244,7 @@ class _Strategy:
 
         if (not allow_negative_effective) and updated_cash < 0:
             raise ValueError(
-                f"Cash adjustment '{reason}' would create negative cash "
-                f"({updated_cash:.2f}) while account_mode='cash'"
+                f"Cash adjustment '{reason}' would create negative cash ({updated_cash:.2f}) while account_mode='cash'"
             )
 
         self._set_cash_position(updated_cash)
@@ -1180,7 +1285,7 @@ class _Strategy:
         if not math.isfinite(normalized_amount) or abs(normalized_amount) < 1e-12:
             return
 
-        current_dt = self.get_datetime()
+        current_dt: Any = _dynamic_attr(self, "get_datetime")()
         if current_dt is None:
             return
 
@@ -1214,10 +1319,13 @@ class _Strategy:
         if not self.is_backtesting or not self._cash_financing_enabled:
             return
 
-        current_dt = self.get_datetime()
+        current_dt: Any = _dynamic_attr(self, "get_datetime")()
         if current_dt is None:
             return
-        current_date = current_dt.date() if hasattr(current_dt, "date") else current_dt
+        current_date_candidate = current_dt.date() if hasattr(current_dt, "date") else current_dt
+        if not isinstance(current_date_candidate, datetime.date):
+            return
+        current_date = current_date_candidate
 
         if self._cash_financing_last_accrual_date == current_date:
             return
@@ -1266,8 +1374,7 @@ class _Strategy:
         if abs(delta_cash) >= 1e-12:
             financing_reason = "cash_financing_credit" if delta_cash >= 0 else "cash_financing_debit"
             financing_description = (
-                f"Daily cash financing {'credit' if delta_cash >= 0 else 'debit'} "
-                f"for {days_to_accrue} day(s)"
+                f"Daily cash financing {'credit' if delta_cash >= 0 else 'debit'} for {days_to_accrue} day(s)"
             )
             self._record_backtest_cash_event(
                 event_type="interest",
@@ -1279,15 +1386,15 @@ class _Strategy:
                 raw_subtype=f"annual_rate={annual_rate:.12f}",
             )
 
-    def _sanitize_user_asset(self, asset):
+    def _sanitize_user_asset(self, asset: Any) -> Any:
         if isinstance(asset, Asset):
             return asset
         elif isinstance(asset, tuple):
-            return asset
+            return cast(tuple[Any, ...], asset)
         elif isinstance(asset, str):
             # Make sure the asset is uppercase for consistency (and because some brokers require it)
             asset = asset.upper()
-            cache = getattr(self, "_sanitized_string_asset_cache", None)
+            cache: dict[str, Any] | None = _dynamic_attr(self, "_sanitized_string_asset_cache", None)
             if cache is None:
                 cache = {}
                 self._sanitized_string_asset_cache = cache
@@ -1301,7 +1408,7 @@ class _Strategy:
             return sanitized
         else:
             if self.broker.data_source.SOURCE != "CCXT":
-                raise ValueError(f"You must enter a symbol string or an asset object. You " f"entered {asset}")
+                raise ValueError(f"You must enter a symbol string or an asset object. You entered {asset}")
             else:
                 raise ValueError(
                     "You must enter symbol string or an asset object. If you "
@@ -1311,9 +1418,19 @@ class _Strategy:
 
     def _log_strat_name(self):
         """Returns the name of the strategy as a string if not default"""
-        return f"{self._name} " if self._name is not None else ""
+        return f"{self._name} "
 
-    def update_broker_balances(self, force_update=True):
+    @staticmethod
+    def _format_asset_details(asset: Any) -> str:
+        return (
+            f"symbol: {_dynamic_attr(asset, 'symbol', asset)}, "
+            f"type: {_dynamic_attr(asset, 'asset_type', None)}, "
+            f"right: {_dynamic_attr(asset, 'right', None)}, "
+            f"expiration: {_dynamic_attr(asset, 'expiration', None)}, "
+            f"strike: {_dynamic_attr(asset, 'strike', None)}"
+        )
+
+    def update_broker_balances(self, force_update: bool = True) -> bool | None:
         """Updates the broker's balances, including cash and portfolio value
 
         Parameters
@@ -1367,10 +1484,11 @@ class _Strategy:
                 return False
         else:
             self.logger.debug("Balances already updated recently. Skipping update.")
+            return None
 
     # =============Auto updating functions=============
 
-    def _update_portfolio_value(self):
+    def _update_portfolio_value(self) -> Any:
         """updates self.portfolio_value"""
         # Live runs don't need to recalculate portfolio value here, as the broker sync should handle it
         if not self.is_backtesting:
@@ -1386,7 +1504,7 @@ class _Strategy:
         with self._executor.lock:
             # Initialize last known prices tracker for forward-fill fallback.
             # This is used when OHLC data is missing (common for illiquid options like LEAPS).
-            if not hasattr(self, '_last_known_prices'):
+            if not hasattr(self, "_last_known_prices"):
                 self._last_known_prices = {}
 
             # Option quotes are frequently sparse/unreliable outside regular session hours.
@@ -1408,7 +1526,7 @@ class _Strategy:
                 t_local = option_mark_time_local.time()
                 option_marking_allowed = (t_local >= datetime.time(9, 30)) and (t_local <= datetime.time(16, 0))
 
-            def _asset_type_key(asset_obj):
+            def _asset_type_key(asset_obj: Any) -> str:
                 cached_asset_type_key = getattr(asset_obj, "_cached_asset_type_key", None)
                 if cached_asset_type_key is not None:
                     return cached_asset_type_key
@@ -1421,17 +1539,17 @@ class _Strategy:
             quote_asset = self._quote_asset
             data_source = self.broker.data_source
             option_source = self.broker.option_source
-            positions = self.broker.get_tracked_positions(self._name)
+            positions: list[Any] = list(cast(Iterable[Any], self.broker.get_tracked_positions(self._name)))
 
             # Set the base currency for crypto valuations.
 
-            prices = {}
+            prices: dict[Any, float | None] = {}
             if not hasattr(self, "_forward_fill_warning_cache"):
                 # Throttle repetitive backtest forward-fill warnings (asset, day) to keep
                 # valuation logs informative without dominating runtime.
                 self._forward_fill_warning_cache = set()
             for position in positions:
-                asset = position.asset
+                asset: Any = position.asset
                 if asset != quote_asset:
                     asset_is_option = False
                     asset_type_key = _asset_type_key(asset)
@@ -1451,12 +1569,10 @@ class _Strategy:
                 position_asset_type = _asset_type_key(position_asset)
                 # Turn the asset into a tuple if it's a crypto asset
                 asset = (
-                    position_asset
-                    if position_asset_type not in {"crypto", "forex"}
-                    else (position_asset, quote_asset)
+                    position_asset if position_asset_type not in {"crypto", "forex"} else (position_asset, quote_asset)
                 )
-                quantity = position.quantity
-                price = prices.get(asset)
+                quantity: Any = position.quantity
+                price: float | None = prices.get(asset)
                 is_option_asset = isinstance(asset, Asset) and position_asset_type == "option"
 
                 # If the asset is the quote asset, then we already have included it from cash
@@ -1496,8 +1612,8 @@ class _Strategy:
                     # This is critical for illiquid options (LEAPS) that may not trade for days.
                     if asset in self._last_known_prices:
                         price = self._last_known_prices[asset]
-                        base_asset = asset[0] if isinstance(asset, tuple) else asset
-                        asset_symbol = getattr(base_asset, 'symbol', str(base_asset))
+                        base_asset: Any = cast(Any, asset[0] if isinstance(asset, tuple) else asset)
+                        asset_symbol = _dynamic_attr(base_asset, "symbol", str(base_asset))
                         # Throttle noisy forward-fill warnings to once per contract/symbol per run.
                         # Daily option strategies can otherwise emit thousands of lines that materially
                         # slow long backtests and bloat logs.
@@ -1506,39 +1622,41 @@ class _Strategy:
                             self._forward_fill_warning_cache.add(warn_key)
                             self.logger.warning(
                                 "Using forward-filled price %.4f for %s at %s (no current price available).",
-                                price, asset_symbol, self.broker.datetime,
+                                price,
+                                asset_symbol,
+                                self.broker.datetime,
                             )
                     else:
                         # No price history - must skip this position
                         if isinstance(asset, Asset):
-                            asset_details = (
-                                f"symbol: {asset.symbol}, type: {asset.asset_type}, right: {asset.right}, "
-                                f"expiration: {asset.expiration}, strike: {asset.strike}"
-                            )
+                            asset_details = self._format_asset_details(asset)
                             self.logger.warning(
                                 "Skipping valuation for asset (%s) because no price was available at %s.",
                                 asset_details,
                                 self.broker.datetime,
                             )
                         elif isinstance(asset, tuple):
-                            base_asset = asset[0] if asset else None
+                            base_asset: Any = cast(Any, asset[0] if asset else None)
                             if isinstance(base_asset, Asset):
-                                asset_details = (
-                                    f"symbol: {base_asset.symbol}, type: {base_asset.asset_type}, right: {base_asset.right}, "
-                                    f"expiration: {base_asset.expiration}, strike: {base_asset.strike}"
-                                )
+                                asset_details = self._format_asset_details(base_asset)
                             else:
-                                asset_details = str(asset)
+                                asset_details = str(cast(Any, asset))
                             self.logger.warning(
                                 "Skipping valuation for pair (%s) because no price was available at %s.",
                                 asset_details,
                                 self.broker.datetime,
                             )
                         continue
+                if price is None:
+                    continue
                 if isinstance(asset, tuple):
-                    multiplier = 1
+                    multiplier = 1.0
                 else:
-                    multiplier = asset.multiplier if position_asset_type in {"option", "future", "cont_future"} else 1
+                    multiplier = (
+                        float(_dynamic_attr(asset, "multiplier", 1))
+                        if position_asset_type in {"option", "future", "cont_future"}
+                        else 1.0
+                    )
 
                 # BACKTESTING ONLY: Special handling for futures portfolio value
                 # In backtesting, cash has margin deducted, so we need to add it back
@@ -1557,7 +1675,8 @@ class _Strategy:
                     portfolio_value += total_margin
 
                     # Add unrealized P&L = (current_price - entry_price) × quantity × multiplier
-                    entry_price = position.avg_fill_price if (hasattr(position, 'avg_fill_price') and position.avg_fill_price) else price
+                    raw_entry_price = _dynamic_attr(position, "avg_fill_price", None)
+                    entry_price = raw_entry_price if raw_entry_price else price
                     unrealized_pnl = (float(price) - float(entry_price)) * float(quantity) * multiplier
                     portfolio_value += unrealized_pnl
                 else:
@@ -1570,36 +1689,37 @@ class _Strategy:
             self._portfolio_value_cache_value = portfolio_value
         return portfolio_value
 
-    def _get_price_from_source(self, source, asset):
+    def _get_price_from_source(self, source: Any, asset: Any) -> float | None:
         """Return best available price from the provided data source."""
         if source is None:
             return None
 
-        snapshot_price = None
-        timestep_hint = None
-        base_asset = asset[0] if isinstance(asset, tuple) else asset
-        base_asset_type = getattr(base_asset, "_cached_asset_type_key", None)
+        snapshot_price: float | None = None
+        timestep_hint: str | None = None
+        base_asset: Any = cast(Any, asset[0] if isinstance(asset, tuple) else asset)
+        base_asset_type: Any = _dynamic_attr(base_asset, "_cached_asset_type_key", None)
         if base_asset_type is None:
-            base_asset_type = getattr(base_asset, "asset_type", None)
-            base_asset_type = getattr(base_asset_type, "value", base_asset_type)
+            base_asset_type = _dynamic_attr(base_asset, "asset_type", None)
+            base_asset_type = _dynamic_attr(base_asset_type, "value", base_asset_type)
         base_asset_type = str(base_asset_type).lower()
         is_option_asset = base_asset_type == "option"
         if self.is_backtesting and is_option_asset:
             _ensure_backtesting_imports()
-        is_thetadata_option_backtest = (
-            self.is_backtesting
-            and is_option_asset
-            and isinstance(source, ThetaDataBacktestingPandas)
-        )
+        theta_data_backtesting_pandas: Any = ThetaDataBacktestingPandas
+        is_thetadata_option_backtest = False
+        if theta_data_backtesting_pandas is not None:
+            is_thetadata_option_backtest = (
+                self.is_backtesting and is_option_asset and isinstance(source, theta_data_backtesting_pandas)
+            )
 
-        def _thetadata_quote_mark(quote_obj):
+        def _thetadata_quote_mark(quote_obj: Any) -> float | None:
             if quote_obj is None:
                 return None
-            bid = getattr(quote_obj, "bid", None)
-            ask = getattr(quote_obj, "ask", None)
-            price = getattr(quote_obj, "price", None)
+            bid = _dynamic_attr(quote_obj, "bid", None)
+            ask = _dynamic_attr(quote_obj, "ask", None)
+            price = _dynamic_attr(quote_obj, "price", None)
 
-            def _coerce(val):
+            def _coerce(val: Any) -> float | None:
                 try:
                     numeric = float(val)
                 except (TypeError, ValueError):
@@ -1620,7 +1740,7 @@ class _Strategy:
 
         # Determine if this strategy is effectively daily cadence.
         try:
-            cadence_seconds = self._get_sleeptime_seconds()
+            cadence_seconds: Any = _dynamic_attr(self, "_get_sleeptime_seconds")()
             if cadence_seconds is not None and cadence_seconds >= 20 * 3600:
                 timestep_hint = "day"
         except Exception:
@@ -1663,8 +1783,12 @@ class _Strategy:
                         # `snapshot_only`. For non-bound callables (e.g., instance-level stubs used
                         # by tests), allow the fallback.
                         can_try_snapshot = True
-                        func = getattr(get_quote, "__func__", None)
-                        if func is not None and func is not ThetaDataBacktestingPandas.get_quote:
+                        func = _dynamic_attr(get_quote, "__func__", None)
+                        if (
+                            func is not None
+                            and theta_data_backtesting_pandas is not None
+                            and func is not theta_data_backtesting_pandas.get_quote
+                        ):
                             can_try_snapshot = False
                         if can_try_snapshot:
                             quote_kwargs = {"timestep": "minute", "snapshot_only": True}
@@ -1681,7 +1805,7 @@ class _Strategy:
                         # This prevents stale day quotes from creating artificial intraday MTM cliffs.
                         has_last_known_price = False
                         try:
-                            has_last_known_price = base_asset in getattr(self, "_last_known_prices", {})
+                            has_last_known_price = base_asset in self._last_known_prices
                         except Exception:
                             has_last_known_price = False
 
@@ -1693,12 +1817,13 @@ class _Strategy:
                 self.logger.debug("ThetaData quote-mark lookup failed for %s: %s", base_asset, e)
             return None
 
-        if hasattr(source, "get_price_snapshot"):
+        get_price_snapshot = _dynamic_attr(source, "get_price_snapshot", None)
+        if callable(get_price_snapshot):
             try:
                 if timestep_hint:
-                    snapshot = source.get_price_snapshot(asset, timestep=timestep_hint)
+                    snapshot = get_price_snapshot(asset, timestep=timestep_hint)
                 else:
-                    snapshot = source.get_price_snapshot(asset)
+                    snapshot = get_price_snapshot(asset)
             except Exception:
                 self.logger.exception(
                     "Error retrieving price snapshot for %s from %s; falling back to last trade.",
@@ -1716,24 +1841,28 @@ class _Strategy:
         if snapshot_price is not None:
             return snapshot_price
 
-        get_last_price = getattr(source, "get_last_price", None)
+        get_last_price = _dynamic_attr(source, "get_last_price", None)
         if callable(get_last_price):
-            price = get_last_price(asset)
+            get_last_price_func = cast(Callable[[Any], Any], get_last_price)
+            price: Any = get_last_price_func(asset)
             if price is not None:
-                return price
+                try:
+                    return float(price)
+                except (TypeError, ValueError):
+                    return None
 
         # Quote fallback for options when OHLC is missing.
         # Options often have sparse OHLC data (LEAPS may not trade for days),
         # but bid/ask quotes from market makers are typically available.
         # This calls get_quote() which loads minute-level quote data.
-        if hasattr(base_asset, 'asset_type') and base_asset.asset_type == 'option':
+        if _dynamic_attr(base_asset, "asset_type", None) == "option":
             try:
-                get_quote = getattr(source, 'get_quote', None)
+                get_quote = _dynamic_attr(source, "get_quote", None)
                 if callable(get_quote):
                     quote = get_quote(base_asset, timestep=timestep_hint or "minute")
                     if quote is not None:
-                        bid = getattr(quote, 'bid', None)
-                        ask = getattr(quote, 'ask', None)
+                        bid = getattr(quote, "bid", None)
+                        ask = getattr(quote, "ask", None)
                         try:
                             bid_val = float(bid) if bid is not None else None
                             ask_val = float(ask) if ask is not None else None
@@ -1753,7 +1882,10 @@ class _Strategy:
                         if mid_price > 0:
                             self.logger.debug(
                                 "Using quote mid-price %.4f for %s (bid=%.4f, ask=%.4f)",
-                                mid_price, base_asset, bid_val, ask_val
+                                mid_price,
+                                base_asset,
+                                bid_val,
+                                ask_val,
                             )
                             return mid_price
             except Exception as e:
@@ -1766,12 +1898,12 @@ class _Strategy:
         )
         return None
 
-    def _pick_thetadata_option_mark_price(self, option_asset: Asset, snapshot):
+    def _pick_thetadata_option_mark_price(self, option_asset: Any, snapshot: Any) -> float | None:
         """ThetaData backtests: prefer mark (NBBO mid) for option MTM when available."""
         if not snapshot:
             return None
 
-        def _positive(value):
+        def _positive(value: Any) -> float | None:
             value = self._coerce_snapshot_price(value)
             if value is None:
                 return None
@@ -1807,7 +1939,7 @@ class _Strategy:
 
         return None
 
-    def _pick_snapshot_price(self, asset, snapshot):
+    def _pick_snapshot_price(self, asset: Any, snapshot: Any) -> float | None:
         """Decide which figure to use from a Theta snapshot."""
         if not snapshot:
             return None
@@ -1825,7 +1957,7 @@ class _Strategy:
         bid_time = self._normalize_snapshot_datetime(snapshot.get("last_bid_time"))
         ask_time = self._normalize_snapshot_datetime(snapshot.get("last_ask_time"))
 
-        def _is_fresh(ts):
+        def _is_fresh(ts: datetime.datetime | None) -> bool:
             if ts is None or now is None:
                 return False
             return (now - ts).total_seconds() <= threshold
@@ -1836,7 +1968,7 @@ class _Strategy:
         bid_fresh = bid_price is not None and _is_fresh(bid_time)
         ask_fresh = ask_price is not None and _is_fresh(ask_time)
 
-        if bid_fresh and ask_fresh:
+        if bid_fresh and ask_fresh and bid_price is not None and ask_price is not None:
             mid_price = (bid_price + ask_price) / 2.0
             self.logger.debug(
                 "Using bid/ask mid price for %s because last trade at %s is older than %ss.",
@@ -1878,7 +2010,7 @@ class _Strategy:
         return None
 
     @staticmethod
-    def _coerce_snapshot_price(value):
+    def _coerce_snapshot_price(value: Any) -> float | None:
         if value is None:
             return None
         try:
@@ -1889,7 +2021,7 @@ class _Strategy:
             return None
         return numeric
 
-    def _normalize_snapshot_datetime(self, dt_value):
+    def _normalize_snapshot_datetime(self, dt_value: Any) -> datetime.datetime | None:
         if dt_value is None:
             return None
         if isinstance(dt_value, pd.Timestamp):
@@ -1909,14 +2041,14 @@ class _Strategy:
         return None
 
     @staticmethod
-    def _snapshot_stale_threshold_seconds():
+    def _snapshot_stale_threshold_seconds() -> int:
         try:
             return int(os.environ.get("THETADATA_MTM_STALE_SECONDS", "120"))
         except (TypeError, ValueError):
             return 120
 
     @staticmethod
-    def _is_buy_side(side):
+    def _is_buy_side(side: Any) -> bool:
         if side is None:
             return False
         if isinstance(side, Order.OrderSide):
@@ -1926,7 +2058,7 @@ class _Strategy:
         return normalized in ("buy", "buy_to_open", "buy_to_cover", "buy_to_close")
 
     @staticmethod
-    def _is_sell_side(side):
+    def _is_sell_side(side: Any) -> bool:
         if side is None:
             return False
         if isinstance(side, Order.OrderSide):
@@ -1935,51 +2067,52 @@ class _Strategy:
             normalized = str(side).lower()
         return normalized in ("sell", "sell_short", "sell_to_close", "sell_to_open")
 
-    def _update_cash(self, order_or_side, quantity, price, multiplier):
+    def _update_cash(self, order_or_side: Any, quantity: Any, price: Any, multiplier: Any) -> float:
         """update the self.cash"""
         with self._executor.lock:
-            cash_val = self.cash # Calls property
-            if cash_val is None: # Handle if property somehow still returns None despite the fix in its getter
+            cash_val: Any = self.cash  # Calls property
+            if cash_val is None:  # Handle if property somehow still returns None despite the fix in its getter
                 # self.logger.warning("_update_cash: self.cash (property) returned None. Defaulting to 0.0 for calculation.")
                 cash_val = 0.0
 
-            current_cash = Decimal(str(cash_val)) # Convert to Decimal robustly
+            current_cash = Decimal(str(cash_val))  # Convert to Decimal robustly
 
             # Ensure all operands are Decimal for precision
             quantity_dec = Decimal(str(quantity))
             price_dec = Decimal(str(price))
             multiplier_dec = Decimal(str(multiplier))
 
-            order_obj = order_or_side if isinstance(order_or_side, Order) else None
-            side = getattr(order_obj, "side", order_or_side)
+            order_obj: Any = order_or_side if isinstance(order_or_side, Order) else None
+            side: Any = _dynamic_attr(order_obj, "side", order_or_side)
 
-            is_buy = order_obj.is_buy_order() if order_obj is not None else self._is_buy_side(side)
-            is_sell = order_obj.is_sell_order() if order_obj is not None else self._is_sell_side(side)
+            is_buy = _dynamic_attr(order_obj, "is_buy_order")() if order_obj is not None else self._is_buy_side(side)
+            is_sell = _dynamic_attr(order_obj, "is_sell_order")() if order_obj is not None else self._is_sell_side(side)
 
             if is_buy:
                 current_cash -= quantity_dec * price_dec * multiplier_dec
             if is_sell:
                 current_cash += quantity_dec * price_dec * multiplier_dec
 
-            self._set_cash_position(float(current_cash)) # _set_cash_position expects float
+            self._set_cash_position(float(current_cash))  # _set_cash_position expects float
 
             # Todo also update the cash asset in positions?
 
-            return self.cash # Return the updated cash by calling the property again
+            return self.cash  # Return the updated cash by calling the property again
 
-    def _update_cash_with_dividends(self):
+    def _update_cash_with_dividends(self) -> float:
         with self._executor.lock:
             # IDEMPOTENCY CHECK: Track which (date, asset) combinations have already had dividends applied.
             # This prevents double/multiple dividend application when this method is called multiple times
             # per day from different locations in strategy_executor.py.
-            if not hasattr(self, '_dividends_applied_tracker'):
+            if not hasattr(self, "_dividends_applied_tracker"):
                 self._dividends_applied_tracker = set()
 
-            current_date = self.get_datetime().date() if hasattr(self.get_datetime(), 'date') else self.get_datetime()
+            current_datetime: Any = _dynamic_attr(self, "get_datetime")()
+            current_date = current_datetime.date() if hasattr(current_datetime, "date") else current_datetime
 
-            positions = self.broker.get_tracked_positions(self._name)
+            positions: list[Any] = list(cast(Iterable[Any], self.broker.get_tracked_positions(self._name)))
 
-            assets = []
+            assets: list[Any] = []
             for position in positions:
                 if position.asset != self._quote_asset and position.asset.asset_type != "option":
                     assets.append(position.asset)
@@ -1988,22 +2121,23 @@ class _Strategy:
             if not assets:
                 return self.cash
 
-            dividends_per_share = self.get_yesterday_dividends(assets)
+            dividends_per_share: dict[Any, Any] | None = _dynamic_attr(self, "get_yesterday_dividends")(assets)
             cash_position = self._get_cash_position()
-            cash = cash_position.quantity if cash_position is not None else 0.0
+            cash = float(cash_position.quantity) if cash_position is not None else 0.0
             cash_delta = 0.0
             cash_updated = False
 
             for position in positions:
                 asset = position.asset
                 quantity = position.quantity
-                dividend_per_share = 0 if dividends_per_share is None else dividends_per_share.get(asset, 0)
+                dividend_per_share = 0.0 if dividends_per_share is None else float(dividends_per_share.get(asset, 0))
 
                 # Skip if no dividend or already applied for this (date, asset) combination
                 if dividend_per_share == 0:
                     continue
 
-                tracker_key = (current_date, getattr(asset, 'symbol', str(asset)))
+                asset_symbol = str(_dynamic_attr(asset, "symbol", str(asset)))
+                tracker_key = (current_date, asset_symbol)
                 if tracker_key in self._dividends_applied_tracker:
                     continue  # Already applied dividend for this asset on this date
 
@@ -2015,11 +2149,11 @@ class _Strategy:
                     amount=dividend_amount,
                     reason="dividend",
                     description=(
-                        f"{getattr(asset, 'symbol', str(asset))} dividend "
+                        f"{asset_symbol} dividend "
                         f"{float(dividend_per_share):.6f} x {float(quantity):.6f}"
                     ),
                     raw_type="dividend",
-                    raw_subtype=getattr(asset, "symbol", None),
+                    raw_subtype=asset_symbol,
                 )
 
                 # Mark as applied
@@ -2034,18 +2168,22 @@ class _Strategy:
 
     # =============Stats functions=====================
 
-    def _append_row(self, row):
+    def _append_row(self, row: Any) -> None:
         self._stats_list.append(row)
         self._stats_dirty = True
 
-    def _format_stats(self):
+    def _format_stats(self) -> Any:
         if not self._stats_dirty and self._stats is not None:
             return self._stats
 
         self._stats = pd.DataFrame(self._stats_list)
         if "datetime" in self._stats.columns:
             self._stats = self._stats.set_index("datetime")
-            self._stats = self._stats.sort_index()
+            # Backtesting appends stats in clock order. Avoid an unnecessary full-index sort
+            # during the common final stats dump, while preserving historical behavior for
+            # callers that append out-of-order rows.
+            if not self._stats.index.is_monotonic_increasing:
+                self._stats = self._stats.sort_index()
 
         cumulative_period_columns = (
             ("cash_deposits_total", "cash_deposits_period"),
@@ -2061,9 +2199,7 @@ class _Strategy:
                 self._stats[period_col] = cumulative_to_period_flows(self._stats[total_col])
 
         external_flow_totals = (
-            self._stats["cash_adjustments_net_total"]
-            if "cash_adjustments_net_total" in self._stats.columns
-            else None
+            self._stats["cash_adjustments_net_total"] if "cash_adjustments_net_total" in self._stats.columns else None
         )
         self._stats["return"] = cash_flow_adjusted_returns(
             self._stats["portfolio_value"],
@@ -2074,13 +2210,13 @@ class _Strategy:
             if external_flow_totals is not None:
                 adjusted_base -= float(external_flow_totals.iloc[0])
             self._stats["cash_adjusted_portfolio_value"] = (
-                (1.0 + self._stats["return"].fillna(0.0)).cumprod() * adjusted_base
-            )
+                1.0 + self._stats["return"].fillna(0.0)
+            ).cumprod() * adjusted_base
         self._stats_dirty = False
 
         return self._stats
 
-    def _dump_stats(self):
+    def _dump_stats(self) -> None:
         # Don't change logger levels - respect the configured quiet logs setting
         if len(self._stats_list) > 0:
             self._format_stats()
@@ -2094,7 +2230,9 @@ class _Strategy:
 
                 self._stats.to_csv(self._stats_file)
                 stats_parquet_file = (
-                    self._stats_file[:-4] + ".parquet" if self._stats_file.lower().endswith(".csv") else self._stats_file + ".parquet"
+                    self._stats_file[:-4] + ".parquet"
+                    if self._stats_file.lower().endswith(".csv")
+                    else self._stats_file + ".parquet"
                 )
                 (
                     coerce_object_columns_to_json_strings,
@@ -2120,24 +2258,25 @@ class _Strategy:
             # Get performance for the benchmark asset
             self._dump_benchmark_stats()
 
-
-    def _dump_benchmark_stats(self):
+    def _dump_benchmark_stats(self) -> None:
         if not self.is_backtesting or not self._benchmark_asset:
             return
         if self._backtesting_start is not None and self._backtesting_end is not None:
             _ensure_backtesting_imports()
+            broker_data_source: Any = self.broker.data_source
 
             # Need to adjust the backtesting end date because the data from Yahoo
             # is at the start of the day, so the graph cuts short. This may be needed
             # for other timeframes as well
             backtesting_end_adjusted = self._backtesting_end
             try:
-                from lumibot.backtesting.routed_backtesting import RoutedBacktestingPandas
+                from lumibot.backtesting.routed_backtesting import RoutedBacktestingPandas as _RoutedBacktestingPandas
             except Exception:
-                RoutedBacktestingPandas = None  # type: ignore[misc,assignment]
+                _RoutedBacktestingPandas = None  # type: ignore[misc,assignment]
+            routed_backtesting_pandas_cls: Any = _RoutedBacktestingPandas
 
             # If we are using the polgon data source, then get the benchmark returns from polygon
-            if type(self.broker.data_source) == PolygonDataBacktesting:
+            if type(broker_data_source) is PolygonDataBacktesting:
                 benchmark_asset = self._benchmark_asset
                 # If the benchmark asset is a string, then convert it to an Asset object
                 if isinstance(benchmark_asset, str):
@@ -2148,7 +2287,7 @@ class _Strategy:
                 if "D" in str(self._sleeptime):
                     timestep = "day"
 
-                bars = self.broker.data_source.get_historical_prices_between_dates(
+                bars = broker_data_source.get_historical_prices_between_dates(
                     benchmark_asset,
                     timestep,
                     start_date=self._backtesting_start,
@@ -2158,7 +2297,7 @@ class _Strategy:
                 df = bars.df
 
                 # Add returns column
-                if hasattr(df, 'select'):  # Polars DataFrame
+                if hasattr(df, "select"):  # Polars DataFrame
                     pl = _get_polars_module()
                     df = df.with_columns(pl.col("close").pct_change().alias("return"))
                     # Add the symbol_cumprod column for polars
@@ -2171,14 +2310,16 @@ class _Strategy:
                 self._benchmark_returns_df = df
 
             # For data sources of type CCXT, benchmark_asset gets bechmark_asset from the CCXT backtest data source.
-            elif self.broker.data_source.SOURCE.upper() == "CCXT":
+            elif broker_data_source.SOURCE.upper() == "CCXT":
                 benchmark_asset = self._benchmark_asset
                 # If the benchmark asset is a string, then convert it to an Asset object
                 if isinstance(benchmark_asset, str):
                     asset_quote = benchmark_asset.split("/")
                     if len(asset_quote) == 2:
-                        benchmark_asset = (Asset(symbol=asset_quote[0], asset_type="crypto"),
-                                           Asset(symbol=asset_quote[1], asset_type="crypto"))
+                        benchmark_asset = (
+                            Asset(symbol=asset_quote[0], asset_type="crypto"),
+                            Asset(symbol=asset_quote[1], asset_type="crypto"),
+                        )
                     else:
                         benchmark_asset = Asset(symbol=benchmark_asset, asset_type="crypto")
 
@@ -2187,7 +2328,7 @@ class _Strategy:
                 if "D" in str(self._sleeptime):
                     timestep = "day"
 
-                bars = self.broker.data_source.get_historical_prices_between_dates(
+                bars = broker_data_source.get_historical_prices_between_dates(
                     benchmark_asset,
                     timestep,
                     start_date=self._backtesting_start,
@@ -2205,8 +2346,9 @@ class _Strategy:
             # - For crypto benchmarks, prefer the IBKR data source (Yahoo crypto tickers are inconsistent).
             # - For equity benchmarks (e.g., SPY), prefer Yahoo to avoid IBKR history flakiness impacting
             #   tearsheet generation (benchmark is cosmetic; strategy stats are authoritative).
-            elif str(getattr(self.broker.data_source, "SOURCE", "") or "").upper() == "INTERACTIVEBROKERSREST":
-                def _fallback_benchmark() -> None:
+            elif str(_dynamic_attr(broker_data_source, "SOURCE", "") or "").upper() == "INTERACTIVEBROKERSREST":
+
+                def _fallback_ibkr_benchmark() -> None:
                     """Avoid benchmark contamination by leaving benchmark empty on fetch failure."""
                     self.logger.warning(
                         "IBKR benchmark bars unavailable; leaving benchmark empty (no strategy-equity fallback)."
@@ -2230,9 +2372,12 @@ class _Strategy:
                                 backtesting_end_adjusted,
                             )
                         except Exception:
-                            _fallback_benchmark()
+                            _fallback_ibkr_benchmark()
                         return
-                elif isinstance(benchmark_asset, Asset) and str(getattr(benchmark_asset, "asset_type", "")).lower() == "stock":
+                elif (
+                    isinstance(benchmark_asset, Asset)
+                    and str(getattr(benchmark_asset, "asset_type", "")).lower() == "stock"
+                ):
                     try:
                         self._benchmark_returns_df = get_symbol_returns(
                             benchmark_asset.symbol,
@@ -2240,14 +2385,14 @@ class _Strategy:
                             backtesting_end_adjusted,
                         )
                     except Exception:
-                        _fallback_benchmark()
+                        _fallback_ibkr_benchmark()
                     return
 
                 timestep = "minute"
                 if "D" in str(self._sleeptime):
                     timestep = "day"
 
-                bars = self.broker.data_source.get_historical_prices_between_dates(
+                bars = broker_data_source.get_historical_prices_between_dates(
                     benchmark_asset,
                     timestep,
                     start_date=self._backtesting_start,
@@ -2256,12 +2401,12 @@ class _Strategy:
                 )
                 if bars is None or getattr(bars, "df", None) is None:
                     self.logger.error(f"Couldn't get benchmark bars from IBKR data source: {benchmark_asset}")
-                    _fallback_benchmark()
+                    _fallback_ibkr_benchmark()
                     return
                 df = bars.df
                 if df is None or df.empty or "close" not in df.columns:
                     self.logger.error(f"IBKR benchmark bars empty/invalid: {benchmark_asset}")
-                    _fallback_benchmark()
+                    _fallback_ibkr_benchmark()
                     return
                 df = df.copy()
                 df["return"] = df["close"].pct_change(fill_method=None)
@@ -2271,8 +2416,9 @@ class _Strategy:
             # Router backtests (prod-like Theta+IBKR routing):
             # Prefer the routed data source over Yahoo so benchmarks remain cacheable and don't
             # require external network access (Yahoo can be rate-limited and slow).
-            elif RoutedBacktestingPandas is not None and isinstance(self.broker.data_source, RoutedBacktestingPandas):
-                def _fallback_benchmark(local_benchmark_asset) -> None:
+            elif routed_backtesting_pandas_cls is not None and isinstance(broker_data_source, routed_backtesting_pandas_cls):
+
+                def _fallback_router_benchmark(local_benchmark_asset: Any) -> None:
                     """Fallback for router benchmark failures without using strategy-equity returns.
 
                     Why:
@@ -2290,7 +2436,7 @@ class _Strategy:
                         isinstance(local_benchmark_asset, Asset)
                         and str(getattr(local_benchmark_asset, "asset_type", "")).lower() == "stock"
                     ):
-                        fallback_symbol = local_benchmark_asset.symbol
+                        fallback_symbol = str(_dynamic_attr(local_benchmark_asset, "symbol"))
 
                     if fallback_symbol:
                         try:
@@ -2330,7 +2476,7 @@ class _Strategy:
                 timestep = "day"
 
                 try:
-                    bars = self.broker.data_source.get_historical_prices_between_dates(
+                    bars = broker_data_source.get_historical_prices_between_dates(
                         benchmark_asset,
                         timestep,
                         start_date=self._backtesting_start,
@@ -2342,30 +2488,28 @@ class _Strategy:
 
                 if bars is None or getattr(bars, "df", None) is None:
                     self.logger.error(f"Couldn't get benchmark bars from Router data source: {benchmark_asset}")
-                    _fallback_benchmark(benchmark_asset)
+                    _fallback_router_benchmark(benchmark_asset)
                     return
                 df = bars.df
                 if df is None or df.empty or "close" not in df.columns:
                     self.logger.error(f"Router benchmark bars empty/invalid: {benchmark_asset}")
-                    _fallback_benchmark(benchmark_asset)
+                    _fallback_router_benchmark(benchmark_asset)
                     return
                 df = df.copy()
                 df["return"] = df["close"].pct_change(fill_method=None)
                 df["symbol_cumprod"] = (1 + df["return"]).cumprod()
                 self._benchmark_returns_df = df
 
-            elif type(self.broker.data_source) == AlpacaBacktesting:
+            elif type(broker_data_source) is AlpacaBacktesting:
                 benchmark_asset = self._benchmark_asset
 
-                df = self.broker.data_source.get_historical_prices_between_dates(
-                    base_asset=benchmark_asset
-                )
+                df = broker_data_source.get_historical_prices_between_dates(base_asset=benchmark_asset)
 
                 if df is None or df.empty:
                     self.logger.error(f"Couldn't get_historical_prices_between_dates: {benchmark_asset}")
                     return
-                df = df.loc[self._backtesting_start:self._backtesting_end].copy()
-                if hasattr(df, 'select'):  # Polars DataFrame
+                df = df.loc[self._backtesting_start : self._backtesting_end].copy()
+                if hasattr(df, "select"):  # Polars DataFrame
                     pl = _get_polars_module()
                     df = df.with_columns(pl.col("close").pct_change().alias("return"))
                     df = df.with_columns((1 + pl.col("return")).cumprod().alias("symbol_cumprod"))
@@ -2377,16 +2521,24 @@ class _Strategy:
             # If we are using any other data source, then get the benchmark returns from yahoo
             else:
                 benchmark_asset = self._benchmark_asset
+                benchmark_symbol: str | None = None
 
                 # If the benchmark asset is a string, then just use the string as the symbol
                 if isinstance(benchmark_asset, str):
                     benchmark_symbol = benchmark_asset
                 # If the benchmark asset is an Asset object, then use the symbol of the asset
                 elif isinstance(benchmark_asset, Asset):
-                    benchmark_symbol = benchmark_asset.symbol
+                    benchmark_symbol = str(_dynamic_attr(benchmark_asset, "symbol"))
                 # If the benchmark asset is a tuple, then use the symbols of the assets in the tuple
                 elif isinstance(benchmark_asset, tuple):
-                    benchmark_symbol = f"{benchmark_asset[0].symbol}/{benchmark_asset[1].symbol}"
+                    benchmark_symbol = (
+                        f"{_dynamic_attr(benchmark_asset[0], 'symbol', benchmark_asset[0])}/"
+                        f"{_dynamic_attr(benchmark_asset[1], 'symbol', benchmark_asset[1])}"
+                    )
+
+                if benchmark_symbol is None:
+                    self.logger.warning("Cannot get benchmark returns for unsupported benchmark asset: %s", benchmark_asset)
+                    return
 
                 self._benchmark_returns_df = get_symbol_returns(
                     benchmark_symbol,
@@ -2396,11 +2548,11 @@ class _Strategy:
 
     def plot_returns_vs_benchmark(
         self,
-        plot_file_html="backtest_result.html",
-        trades_file=None,
-        trades_df=None,
-        show_plot=True,
-    ):
+        plot_file_html: str = "backtest_result.html",
+        trades_file: str | None = None,
+        trades_df: Any = None,
+        show_plot: bool = True,
+    ) -> None:
         if self._strategy_returns_df is None:
             self.logger.warning("Cannot plot returns because the strategy returns are missing")
         elif self._benchmark_returns_df is None:
@@ -2419,9 +2571,9 @@ class _Strategy:
             )
 
     @staticmethod
-    def _extract_returns_series(frame, returns_col: str = "return", value_col: str | None = None) -> pd.Series:
+    def _extract_returns_series(frame: Any, returns_col: str = "return", value_col: str | None = None) -> Any:
         """Extract a clean returns series from a strategy/benchmark dataframe."""
-        if frame is None or not isinstance(frame, pd.DataFrame) or frame.empty:
+        if frame is None or not hasattr(frame, "empty") or frame.empty:
             return pd.Series(dtype=float)
 
         if returns_col in frame.columns:
@@ -2447,7 +2599,7 @@ class _Strategy:
         return series
 
     @staticmethod
-    def _build_drawdown_inputs(strategy_returns: pd.Series) -> tuple[pd.Series, pd.DataFrame]:
+    def _build_drawdown_inputs(strategy_returns: Any) -> tuple[Any, Any]:
         """Build drawdown series/details passed to custom tearsheet metric hooks."""
         if strategy_returns is None or strategy_returns.empty:
             return pd.Series(dtype=float), pd.DataFrame()
@@ -2459,7 +2611,7 @@ class _Strategy:
 
         drawdown_details = pd.DataFrame()
         try:
-            import quantstats_lumi as _qs
+            _qs: Any = import_module("quantstats_lumi")
 
             drawdown_details = _qs.stats.drawdown_details(drawdown)
         except Exception:
@@ -2467,16 +2619,16 @@ class _Strategy:
 
         return drawdown, drawdown_details
 
-    def _default_cash_tearsheet_metrics(self) -> dict:
-        metrics = {
-            "Cash Deposits Total": float(getattr(self, "_cash_deposits_total", 0.0)),
-            "Cash Withdrawals Total": float(getattr(self, "_cash_withdrawals_total", 0.0)),
-            "Cash Adjustments Net Total": float(getattr(self, "_cash_adjustments_net_total", 0.0)),
-            "Cash Financing Credit Total": float(getattr(self, "_cash_financing_credit_total", 0.0)),
-            "Cash Financing Debit Total": float(getattr(self, "_cash_financing_debit_total", 0.0)),
-            "Cash Financing Net Total": float(getattr(self, "_cash_financing_net_total", 0.0)),
-            "Cash Financing Days Accrued": int(getattr(self, "_cash_financing_days_accrued", 0)),
-            "Cash Financing Events": int(getattr(self, "_cash_financing_events", 0)),
+    def _default_cash_tearsheet_metrics(self) -> dict[str, Any]:
+        metrics: dict[str, Any] = {
+            "Cash Deposits Total": float(_dynamic_attr(self, "_cash_deposits_total", 0.0)),
+            "Cash Withdrawals Total": float(_dynamic_attr(self, "_cash_withdrawals_total", 0.0)),
+            "Cash Adjustments Net Total": float(_dynamic_attr(self, "_cash_adjustments_net_total", 0.0)),
+            "Cash Financing Credit Total": float(_dynamic_attr(self, "_cash_financing_credit_total", 0.0)),
+            "Cash Financing Debit Total": float(_dynamic_attr(self, "_cash_financing_debit_total", 0.0)),
+            "Cash Financing Net Total": float(_dynamic_attr(self, "_cash_financing_net_total", 0.0)),
+            "Cash Financing Days Accrued": int(_dynamic_attr(self, "_cash_financing_days_accrued", 0)),
+            "Cash Financing Events": int(_dynamic_attr(self, "_cash_financing_events", 0)),
         }
 
         has_non_zero_flow = any(
@@ -2490,7 +2642,7 @@ class _Strategy:
                 "Cash Financing Net Total",
             )
         )
-        has_financing_config = bool(getattr(self, "_cash_financing_enabled", False))
+        has_financing_config = bool(_dynamic_attr(self, "_cash_financing_enabled", False))
         has_financing_activity = bool(metrics["Cash Financing Days Accrued"] or metrics["Cash Financing Events"])
 
         if not (has_non_zero_flow or has_financing_config or has_financing_activity):
@@ -2498,14 +2650,14 @@ class _Strategy:
 
         return metrics
 
-    def _collect_custom_tearsheet_metrics(self) -> dict:
+    def _collect_custom_tearsheet_metrics(self) -> dict[str, Any]:
         """Invoke Strategy.tearsheet_custom_metrics() if implemented."""
         base_metrics = self._default_cash_tearsheet_metrics()
-        hook = getattr(self, "tearsheet_custom_metrics", None)
+        hook = _dynamic_attr(self, "tearsheet_custom_metrics", None)
         if not callable(hook):
             return base_metrics
 
-        stats_df = self._stats.copy(deep=True) if isinstance(self._stats, pd.DataFrame) else None
+        stats_df = self._stats.copy(deep=True) if hasattr(self._stats, "copy") else None
         strategy_returns = self._extract_returns_series(
             self._strategy_returns_df,
             returns_col="return",
@@ -2519,7 +2671,7 @@ class _Strategy:
         drawdown, drawdown_details = self._build_drawdown_inputs(strategy_returns)
 
         try:
-            custom_metrics = hook(
+            custom_metrics: Any = hook(
                 stats_df=stats_df,
                 strategy_returns=strategy_returns,
                 benchmark_returns=benchmark_returns if not benchmark_returns.empty else None,
@@ -2544,11 +2696,11 @@ class _Strategy:
 
     def tearsheet(
         self,
-        save_tearsheet=True,
-        tearsheet_file=None,
-        show_tearsheet=True,
-        tearsheet_metrics_file=None,
-    ):
+        save_tearsheet: bool = True,
+        tearsheet_file: str | None = None,
+        show_tearsheet: bool = True,
+        tearsheet_metrics_file: str | None = None,
+    ) -> Any:
         if not save_tearsheet and not show_tearsheet:
             return None
 
@@ -2559,7 +2711,7 @@ class _Strategy:
             self.logger.warning("Cannot create a tearsheet because the strategy returns are missing")
         else:
             # Get the strategy parameters
-            strategy_parameters = dict(self.parameters) if isinstance(self.parameters, dict) else {}
+            strategy_parameters = dict(self.parameters)
 
             # Remove pandas_data from the strategy parameters if it exists
             if "pandas_data" in strategy_parameters:
@@ -2582,7 +2734,7 @@ class _Strategy:
                 # Never fail tearsheet generation due to metadata/diagnostics.
                 pass
 
-            strat_name = self._name if self._name is not None else "Strategy"
+            strat_name = self._name
 
             lumibot_version = None
             backtesting_data_sources = None
@@ -2636,54 +2788,54 @@ class _Strategy:
             return result
 
     @classmethod
-    def run_backtest(
-        self,
-        datasource_class=None,
-        backtesting_start: datetime = None,
-        backtesting_end: datetime = None,
-        minutes_before_closing = 5,
-        minutes_before_opening = 60,
-        sleeptime = 1,
-        stats_file = None,
-        risk_free_rate = None,
-        logfile = None,
-        config = None,
-        auto_adjust = False,
-        name = None,
-        budget = None,
-        benchmark_asset: str | Asset | None="SPY",
+    def run_backtest(  # pyright: ignore[reportSelfClsParameterName]
+        self,  # pyright: ignore[reportSelfClsParameterName]
+        datasource_class: Any = None,
+        backtesting_start: datetime.datetime | None = None,
+        backtesting_end: datetime.datetime | None = None,
+        minutes_before_closing: int = 5,
+        minutes_before_opening: int = 60,
+        sleeptime: str | int | float = 1,
+        stats_file: str | None = None,
+        risk_free_rate: float | None = None,
+        logfile: str | None = None,
+        config: Any = None,
+        auto_adjust: bool = False,
+        name: str | None = None,
+        budget: float | Decimal | None = None,
+        benchmark_asset: Any = "SPY",
         analyze_backtest: bool = True,
-        plot_file_html = None,
-        trades_file = None,
-        settings_file = None,
-        pandas_data: Union[List, Dict[Asset, Data]] = None,
-        quote_asset = Asset(symbol="USD", asset_type="forex"),
-        starting_positions = None,
-        show_plot = None,
-        tearsheet_file = None,
-        tearsheet_metrics_file = None,
-        save_tearsheet = True,
-        show_tearsheet = None,
-        parameters = {},
-        buy_trading_fees = [],
-        sell_trading_fees = [],
-        buy_trading_slippages = [],
-        sell_trading_slippages = [],
-        polygon_api_key = None,
-        use_other_option_source = False,
-        thetadata_username = None,
-        thetadata_password = None,
-        indicators_file = None,
-        show_indicators = None,
-        save_logfile = False,
-        use_quote_data = False,
-        show_progress_bar = True,
-        quiet_logs = False,
-        trader_class = None,
-        include_cash_positions=False,
-        save_stats_file = True,
-        **kwargs,
-    ):
+        plot_file_html: str | None = None,
+        trades_file: str | None = None,
+        settings_file: str | None = None,
+        pandas_data: list[Any] | dict[Any, Any] | None = None,
+        quote_asset: Any = None,
+        starting_positions: dict[Any, Any] | None = None,
+        show_plot: bool | None = None,
+        tearsheet_file: str | None = None,
+        tearsheet_metrics_file: str | None = None,
+        save_tearsheet: bool = True,
+        show_tearsheet: bool | None = None,
+        parameters: dict[str, Any] | None = None,
+        buy_trading_fees: list[Any] | None = None,
+        sell_trading_fees: list[Any] | None = None,
+        buy_trading_slippages: list[Any] | None = None,
+        sell_trading_slippages: list[Any] | None = None,
+        polygon_api_key: str | None = None,
+        use_other_option_source: bool = False,
+        thetadata_username: str | None = None,
+        thetadata_password: str | None = None,
+        indicators_file: str | None = None,
+        show_indicators: bool | None = None,
+        save_logfile: bool = False,
+        use_quote_data: bool = False,
+        show_progress_bar: bool = True,
+        quiet_logs: bool = False,
+        trader_class: Any = None,
+        include_cash_positions: bool = False,
+        save_stats_file: bool = True,
+        **kwargs: Any,
+    ) -> tuple[Any, Any] | None:
         """Backtest a strategy.
 
         Parameters
@@ -2777,7 +2929,7 @@ class _Strategy:
         -------
         tuple of (dict, Strategy)
             A tuple of the analysis dictionary and the strategy object. The analysis dictionary contains the
-            analysis of the strategy returns. The strategy object is the strategy object that was backtested, where 
+            analysis of the strategy returns. The strategy object is the strategy object that was backtested, where
             you can access the strategy returns and other attributes.
 
         Examples
@@ -2809,6 +2961,16 @@ class _Strategy:
         >>> )
         """
 
+        if sell_trading_slippages is None:
+            sell_trading_slippages = []
+        if buy_trading_slippages is None:
+            buy_trading_slippages = []
+        if sell_trading_fees is None:
+            sell_trading_fees = []
+        if buy_trading_fees is None:
+            buy_trading_fees = []
+        if parameters is None:
+            parameters = {}
         if name is None:
             name = self.__name__
         if trader_class is None:
@@ -2825,10 +2987,10 @@ class _Strategy:
         else:
             backtesting_start = datetime.datetime.now() - datetime.timedelta(days=365)
             get_logger(__name__).warning(
-            colored(
-                "backtesting_start is set to one year ago by default. You can set it to a specific date by passing in the backtesting_start parameter or by setting the BACKTESTING_START environment variable.",
-                "yellow"
-            )
+                colored(
+                    "backtesting_start is set to one year ago by default. You can set it to a specific date by passing in the backtesting_start parameter or by setting the BACKTESTING_START environment variable.",
+                    "yellow",
+                )
             )
 
         # Set backtesting_end: priority 1 - passed argument, 2 - BACKTESTING_END env var, 3 - default to yesterday
@@ -2839,14 +3001,15 @@ class _Strategy:
         else:
             backtesting_end = datetime.datetime.now() - datetime.timedelta(days=1)
             get_logger(__name__).warning(
-            colored(
-                "backtesting_end is set to the current date by default. You can set it to a specific date by passing in the backtesting_end parameter or by setting the BACKTESTING_END environment variable.",
-                "yellow"
-            )
+                colored(
+                    "backtesting_end is set to the current date by default. You can set it to a specific date by passing in the backtesting_end parameter or by setting the BACKTESTING_END environment variable.",
+                    "yellow",
+                )
             )
 
         # Create an adapter with 'strategy_name' set to the instance's name
-        if not hasattr(self, "logger") or self.logger is None:
+        existing_logger: Any = _dynamic_attr(self, "logger", None)
+        if existing_logger is None:
             self.logger = get_strategy_logger(__name__, self._name)
 
         # If show_plot is None, then set it to True
@@ -2864,12 +3027,14 @@ class _Strategy:
         from lumibot.credentials import BACKTESTING_DATA_SOURCE as _DEFAULT_BACKTESTING_DATA_SOURCE
         _ensure_backtesting_imports()
 
+        _ensure_backtesting_imports()
+
         # Determine whether an environment override exists. When BACKTESTING_DATA_SOURCE
         # is set (and not blank/\"none\"), it should take precedence even if a
         # datasource_class argument was provided.
         env_override_raw = os.environ.get("BACKTESTING_DATA_SOURCE")
         env_override_name = None
-        env_override_routing = None
+        env_override_routing: Any = None
 
         if env_override_raw is not None:
             trimmed = env_override_raw.strip()
@@ -2881,7 +3046,7 @@ class _Strategy:
                         parsed = None
                     if isinstance(parsed, dict):
                         env_override_name = "router"
-                        env_override_routing = parsed
+                        env_override_routing = cast(dict[str, Any], parsed)
                     else:
                         env_override_name = trimmed.lower()
                 else:
@@ -2900,7 +3065,7 @@ class _Strategy:
                 env_override_label = "<redacted BACKTESTING_DATA_SOURCE>"
 
         if env_override_name is not None:
-            datasource_map = {
+            datasource_map: dict[str, Any] = {
                 "polygon": PolygonDataBacktesting,
                 "thetadata": ThetaDataBacktesting,
                 "yahoo": YahooDataBacktesting,
@@ -2915,10 +3080,10 @@ class _Strategy:
                 "theta_ibkr": RoutedBacktestingPandas,
             }
 
+            label = env_override_raw or _DEFAULT_BACKTESTING_DATA_SOURCE
             if env_override_name not in datasource_map:
                 raise ValueError(
-                    f"Unknown BACKTESTING_DATA_SOURCE: '{env_override_label}'. "
-                    f"Valid options: {list(datasource_map.keys())}"
+                    f"Unknown BACKTESTING_DATA_SOURCE: '{label}'. Valid options: {list(datasource_map.keys())}"
                 )
 
             datasource_class = datasource_map[env_override_name]
@@ -2927,28 +3092,22 @@ class _Strategy:
                 if config is None:
                     config = {}
                 if isinstance(config, dict):
-                    merged = dict(config)
+                    merged: dict[str, Any] = dict(cast(dict[str, Any], config))
                     merged["backtesting_data_routing"] = env_override_routing
                     config = merged
                 else:
                     try:
-                        setattr(config, "backtesting_data_routing", env_override_routing)
+                        config.backtesting_data_routing = env_override_routing
                     except Exception:
                         pass
 
             if quiet_logs:
                 get_logger(__name__).debug(
-                    colored(
-                        f"Using BACKTESTING_DATA_SOURCE setting for backtest data: {env_override_label}",
-                        "green"
-                    )
+                    colored(f"Using BACKTESTING_DATA_SOURCE setting for backtest data: {label}", "green")
                 )
             else:
                 get_logger(__name__).info(
-                    colored(
-                        f"Using BACKTESTING_DATA_SOURCE setting for backtest data: {env_override_label}",
-                        "green"
-                    )
+                    colored(f"Using BACKTESTING_DATA_SOURCE setting for backtest data: {label}", "green")
                 )
         elif datasource_class is None:
             raise ValueError(
@@ -2958,7 +3117,8 @@ class _Strategy:
 
         # Make sure polygon_api_key is set if using PolygonDataBacktesting
         polygon_api_key = polygon_api_key if polygon_api_key is not None else _credential("POLYGON_API_KEY")
-        if getattr(datasource_class, "__name__", None) == 'PolygonDataBacktesting' and polygon_api_key is None:
+        datasource_class_name = str(_dynamic_attr(datasource_class, "__name__", ""))
+        if datasource_class_name == "PolygonDataBacktesting" and polygon_api_key is None:
             raise ValueError(
                 "Please set `POLYGON_API_KEY` to your API key from polygon.io as an environment variable if "
                 "you are using PolygonDataBacktesting. If you don't have one, you can get a free API key "
@@ -2968,22 +3128,41 @@ class _Strategy:
         # Make sure thetadata_username and thetadata_password are set if using ThetaDataBacktesting
         if thetadata_username is None or thetadata_password is None:
             # Try getting the Theta Data credentials from credentials
-            thetadata_config = _credential("THETADATA_CONFIG")
-            if isinstance(thetadata_config, dict):
-                if thetadata_username is None:
-                    thetadata_username = thetadata_config.get('THETADATA_USERNAME')
-                if thetadata_password is None:
-                    thetadata_password = thetadata_config.get('THETADATA_PASSWORD')
+            thetadata_config: Any = _credential("THETADATA_CONFIG")
+            thetadata_username = thetadata_config.get("THETADATA_USERNAME")
+            thetadata_password = thetadata_config.get("THETADATA_PASSWORD")
+
+            # Check again if theta data username and pass are set (before checking dict)
+            datasource_class_name = str(_dynamic_attr(datasource_class, "__name__", ""))
+            if datasource_class_name == "ThetaDataBacktesting" and (
+                thetadata_username is None or thetadata_password is None
+            ):
+                raise ValueError(
+                    "Please set `thetadata_username` and `thetadata_password` in the backtest() function if "
+                    "you are using ThetaDataBacktesting. If you don't have one, you can do registeration "
+                    "from https://www.thetadata.net/."
+                )
 
         # check if datasource_class is a class or a dictionary
         if isinstance(datasource_class, dict):
-            optionsource_class = datasource_class["OPTION"]
-            datasource_class = datasource_class["STOCK"]
+            datasource_mapping = cast(dict[str, Any], datasource_class)
+            optionsource_class: Any = datasource_mapping["OPTION"]
+            datasource_class = datasource_mapping["STOCK"]
             # check if optionsource_class and datasource_class are the same type of class
             if optionsource_class == datasource_class:
                 use_other_option_source = False
             else:
                 use_other_option_source = True
+
+            # Check ThetaData credentials for optionsource_class after dict extraction
+            if str(_dynamic_attr(optionsource_class, "__name__", "")) == "ThetaDataBacktesting" and (
+                thetadata_username is None or thetadata_password is None
+            ):
+                raise ValueError(
+                    "Please set `thetadata_username` and `thetadata_password` in the backtest() function if "
+                    "you are using ThetaDataBacktesting. If you don't have one, you can do registeration "
+                    "from https://www.thetadata.net/."
+                )
         else:
             optionsource_class = None
             use_other_option_source = False
@@ -3004,7 +3183,7 @@ class _Strategy:
         random_string = "".join(random.choices(string.ascii_letters + string.digits, k=6))
 
         datestring = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")
-        base_filename = f"{name + '_' if name is not None else ''}{datestring}_{random_string}"
+        base_filename = f"{name}_{datestring}_{random_string}"
 
         logdir = "logs"
         env_save_logfile = os.environ.get("SAVE_LOGFILE")
@@ -3042,7 +3221,12 @@ class _Strategy:
             )
             return None
 
-        backtesting_start, backtesting_end = self.verify_backtest_inputs(backtesting_start, backtesting_end)
+        backtesting_start, backtesting_end = _dynamic_attr(self, "verify_backtest_inputs")(
+            backtesting_start,
+            backtesting_end,
+        )
+        backtesting_start = cast(datetime.datetime, backtesting_start)
+        backtesting_end = cast(datetime.datetime, backtesting_end)
 
         quiet_logs_env = os.environ.get("BACKTESTING_QUIET_LOGS")
         if quiet_logs_env is not None:
@@ -3067,12 +3251,15 @@ class _Strategy:
             logger.info("Backtest end = %s", backtesting_end)
 
             if not self.IS_BACKTESTABLE:
-                logger.warning(f"Strategy {name + ' ' if name is not None else ''}cannot be " f"backtested at the moment")
+                logger.warning(f"Strategy {name} cannot be backtested at the moment")
                 return None
 
             self._trader = trader_class(logfile=logfile, backtest=True, quiet_logs=quiet_logs)
 
-            if datasource_class.__name__ == 'PolygonDataBacktesting':
+            datasource_class_name = str(_dynamic_attr(datasource_class, "__name__", ""))
+            theta_data_backtesting_pandas: Any = ThetaDataBacktestingPandas
+            backtesting_broker_class: Any = BacktestingBroker
+            if datasource_class_name == "PolygonDataBacktesting":
                 data_source = datasource_class(
                     backtesting_start,
                     backtesting_end,
@@ -3085,8 +3272,9 @@ class _Strategy:
                     log_backtest_progress_to_file=_credential("LOG_BACKTEST_PROGRESS_TO_FILE"),
                     **kwargs,
                 )
-            elif issubclass(datasource_class, ThetaDataBacktestingPandas) or (
-                optionsource_class and issubclass(optionsource_class, ThetaDataBacktestingPandas)
+            elif theta_data_backtesting_pandas is not None and (
+                issubclass(datasource_class, theta_data_backtesting_pandas)
+                or (optionsource_class and issubclass(optionsource_class, theta_data_backtesting_pandas))
             ):
                 data_source = datasource_class(
                     backtesting_start,
@@ -3125,9 +3313,9 @@ class _Strategy:
                 )
 
             if not use_other_option_source:
-                backtesting_broker = BacktestingBroker(data_source)
+                backtesting_broker = backtesting_broker_class(data_source)
             else:
-                options_source = optionsource_class(
+                options_source: Any = optionsource_class(
                     backtesting_start,
                     backtesting_end,
                     config=config,
@@ -3138,9 +3326,9 @@ class _Strategy:
                     show_progress_bar=show_progress_bar,
                     **kwargs,
                 )
-                backtesting_broker = BacktestingBroker(data_source, options_source)
+                backtesting_broker = backtesting_broker_class(data_source, options_source)
 
-            strategy = self(
+            strategy: Any = self(
                 backtesting_broker,
                 minutes_before_closing=minutes_before_closing,
                 minutes_before_opening=minutes_before_opening,
@@ -3203,7 +3391,7 @@ class _Strategy:
                 else:
                     os.environ[key] = previous_value
 
-    def write_backtest_settings(self, settings_file):
+    def write_backtest_settings(self, settings_file: str | None) -> None:
         """
         Redefined in the Strategy class to that it has access to all the needed variables.
         """
@@ -3211,21 +3399,21 @@ class _Strategy:
 
     def backtest_analysis(
         self,
-        logdir=None,
-        show_plot=True,
-        show_tearsheet=True,
-        show_indicators=True,
-        save_tearsheet=True,
-        plot_file_html=None,
-        tearsheet_file=None,
-        trades_file=None,
-        trade_events_file=None,
-        settings_file=None,
-        indicators_file=None,
-        tearsheet_csv_file=None,
-        tearsheet_metrics_file=None,
-        base_filename=None
-    ):
+        logdir: str | None = None,
+        show_plot: bool = True,
+        show_tearsheet: bool = True,
+        show_indicators: bool = True,
+        save_tearsheet: bool = True,
+        plot_file_html: str | None = None,
+        tearsheet_file: str | None = None,
+        trades_file: str | None = None,
+        trade_events_file: str | None = None,
+        settings_file: str | None = None,
+        indicators_file: str | None = None,
+        tearsheet_csv_file: str | None = None,
+        tearsheet_metrics_file: str | None = None,
+        base_filename: str | None = None,
+    ) -> Any:
         if not self._analyze_backtest:
             return
 
@@ -3312,7 +3500,11 @@ class _Strategy:
         return tearsheet_result
 
     @classmethod
-    def verify_backtest_inputs(cls, backtesting_start, backtesting_end):
+    def verify_backtest_inputs(
+        cls,
+        backtesting_start: Any,
+        backtesting_end: Any,
+    ) -> tuple[datetime.datetime, datetime.datetime]:
         """
         Helper function to check that the inputs are set correctly for BackTest.
         Parameters
@@ -3346,8 +3538,7 @@ class _Strategy:
         # Check that backtesting end is after backtesting start
         if end_dt <= start_dt:
             raise ValueError(
-                f"`backtesting_end` must be after `backtesting_start`. You passed in "
-                f"{end_dt} and {start_dt}"
+                f"`backtesting_end` must be after `backtesting_start`. You passed in {end_dt} and {start_dt}"
             )
 
         # If backtesting_end is in the future, clamp it to now. This avoids hard failures when
@@ -3366,19 +3557,17 @@ class _Strategy:
         # After clamping, ensure end is still after start.
         if end_dt <= start_dt:
             raise ValueError(
-                f"`backtesting_end` must be after `backtesting_start`. You passed in "
-                f"{end_dt} and {start_dt}"
+                f"`backtesting_end` must be after `backtesting_start`. You passed in {end_dt} and {start_dt}"
             )
 
         return start_dt, end_dt
 
-    @staticmethod
     def _remember_sent_cash_event_id(self, event_id: str) -> None:
         if not event_id:
             return
 
-        sent_ids = getattr(self, "_cash_event_sent_ids", None)
-        sent_queue = getattr(self, "_cash_event_sent_id_order", None)
+        sent_ids = cast(set[Any] | None, _dynamic_attr(self, "_cash_event_sent_ids", None))
+        sent_queue = cast(deque[Any] | None, _dynamic_attr(self, "_cash_event_sent_id_order", None))
         if sent_ids is None or sent_queue is None:
             return
 
@@ -3393,21 +3582,20 @@ class _Strategy:
         sent_queue.append(event_id)
         sent_ids.add(event_id)
 
-    @staticmethod
-    def _collect_cash_events_for_cloud(self) -> list[CashEvent]:
-        pending_events = list(getattr(self, "_cash_event_pending_for_cloud", []) or [])
+    def _collect_cash_events_for_cloud(self) -> list[Any]:
+        pending_events: list[Any] = list(_dynamic_attr(self, "_cash_event_pending_for_cloud", []) or [])
         emit_limit = int(getattr(self, "_cash_event_cloud_emit_limit", 50) or 50)
         if pending_events:
             return pending_events[:emit_limit]
 
-        broker = getattr(self, "broker", None)
-        get_cash_events = getattr(broker, "get_cash_events", None)
+        broker: Any = _dynamic_attr(self, "broker", None)
+        get_cash_events = _dynamic_attr(broker, "get_cash_events", None)
         if not callable(get_cash_events):
             return []
 
         last_poll_at = getattr(self, "_cash_event_last_poll_at", None)
         poll_interval_seconds = int(getattr(self, "_cash_event_poll_interval_seconds", 300) or 300)
-        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        now_utc = datetime.datetime.now(datetime.UTC)
         if (
             isinstance(last_poll_at, datetime.datetime)
             and (now_utc - last_poll_at).total_seconds() < poll_interval_seconds
@@ -3420,33 +3608,34 @@ class _Strategy:
         self._cash_event_last_poll_at = now_utc
 
         try:
-            fetched_events = get_cash_events(since=fetch_since, limit=fetch_limit)
+            fetched_events = cast(Iterable[Any], get_cash_events(since=fetch_since, limit=fetch_limit) or [])
         except Exception as exc:
             broker_name = getattr(broker, "name", None) or broker.__class__.__name__
             self.logger.warning(
-                f"Failed to load broker cash events from {broker_name} "
-                f"({broker.__class__.__name__}): {exc}"
+                f"Failed to load broker cash events from {broker_name} ({broker.__class__.__name__}): {exc}"
             )
             self.logger.debug(traceback.format_exc())
             return []
 
-        sent_ids = getattr(self, "_cash_event_sent_ids", set())
-        pending_ids = {
-            getattr(event, "event_id", None)
-            for event in getattr(self, "_cash_event_pending_for_cloud", []) or []
-        }
+        sent_ids = cast(set[Any], _dynamic_attr(self, "_cash_event_sent_ids", set()))
+        pending_ids: set[Any] = set()
+        for pending_event in cast(Iterable[Any], _dynamic_attr(self, "_cash_event_pending_for_cloud", []) or []):
+            pending_ids.add(_dynamic_attr(pending_event, "event_id", None))
 
-        normalized_events = []
+        normalized_events: list[Any] = []
         from ..entities import CashEvent
 
-        for event in fetched_events or []:
+        for event in fetched_events:
             if not isinstance(event, CashEvent):
                 continue
             if event.event_id in sent_ids or event.event_id in pending_ids:
                 continue
             normalized_events.append(event)
 
-        normalized_events.sort(key=lambda event: (event.occurred_at, event.event_id))
+        def _cash_event_sort_key(event: Any) -> tuple[Any, Any]:
+            return _dynamic_attr(event, "occurred_at", None), _dynamic_attr(event, "event_id", None)
+
+        normalized_events.sort(key=_cash_event_sort_key)
         if normalized_events:
             self.logger.debug(
                 "Loaded %s new cash events from broker '%s'",
@@ -3455,28 +3644,28 @@ class _Strategy:
             )
             self._cash_event_pending_for_cloud.extend(normalized_events)
 
-        pending_events = list(getattr(self, "_cash_event_pending_for_cloud", []) or [])
+        pending_events = list(_dynamic_attr(self, "_cash_event_pending_for_cloud", []) or [])
         return pending_events[:emit_limit]
 
-    @staticmethod
-    def _mark_cash_events_sent(self, emitted_events: list[CashEvent]) -> None:
+    def _mark_cash_events_sent(self, emitted_events: list[Any]) -> None:
         if not emitted_events:
             return
 
-        emitted_event_ids = {event.event_id for event in emitted_events if getattr(event, "event_id", None)}
+        emitted_event_ids = {_dynamic_attr(event, "event_id") for event in emitted_events if _dynamic_attr(event, "event_id", None)}
         if not emitted_event_ids:
             return
 
-        remaining_pending_events = []
-        for event in getattr(self, "_cash_event_pending_for_cloud", []) or []:
-            if getattr(event, "event_id", None) in emitted_event_ids:
-                _Strategy._remember_sent_cash_event_id(self, event.event_id)
+        remaining_pending_events: list[Any] = []
+        for event in cast(Iterable[Any], _dynamic_attr(self, "_cash_event_pending_for_cloud", []) or []):
+            event_id = _dynamic_attr(event, "event_id", None)
+            if event_id in emitted_event_ids:
+                _Strategy._remember_sent_cash_event_id(self, event_id)
             else:
                 remaining_pending_events.append(event)
 
         self._cash_event_pending_for_cloud = remaining_pending_events
 
-    def send_update_to_cloud(self):
+    def send_update_to_cloud(self) -> bool | None:
         """
         Sends an update to the LumiWealth cloud server with the current portfolio value, cash, positions, and any outstanding orders.
         There is an API Key that is required to send the update to the cloud.
@@ -3488,22 +3677,27 @@ class _Strategy:
             return
 
         # Check if self.lumiwealth_api_key has been set, if not, return
-        if not hasattr(self, "lumiwealth_api_key") or self.lumiwealth_api_key is None or self.lumiwealth_api_key == "":
+        lumiwealth_api_key = str(_dynamic_attr(self, "lumiwealth_api_key", "") or "")
+        if not lumiwealth_api_key:
             # Log that we are not sending the update to the cloud
             if not self._logged_missing_lumiwealth_api_key:
-                self.logger.warning("LUMIWEALTH_API_KEY not set. Not sending an update to the cloud because "
-                                    "lumiwealth_api_key is not set. If you would like to be able to track your bot "
-                                    "performance on www.botspot.trade, please set the lumiwealth_api_key parameter "
-                                    "in the strategy initialization or the LUMIWEALTH_API_KEY environment variable.")
+                self.logger.warning(
+                    "LUMIWEALTH_API_KEY not set. Not sending an update to the cloud because "
+                    "lumiwealth_api_key is not set. If you would like to be able to track your bot "
+                    "performance on www.botspot.trade, please set the lumiwealth_api_key parameter "
+                    "in the strategy initialization or the LUMIWEALTH_API_KEY environment variable."
+                )
                 self._logged_missing_lumiwealth_api_key = True
             return
 
         # Log that we're starting to send data
-        self.logger.debug(f"Starting cloud update for strategy '{self._name}' with API key: {self.lumiwealth_api_key[:10]}...")
+        self.logger.debug(
+            f"Starting cloud update for strategy '{self._name}' with API key: {lumiwealth_api_key[:10]}..."
+        )
 
         # Get the current portfolio value
         try:
-            portfolio_value = self.get_portfolio_value()
+            portfolio_value: Any = _dynamic_attr(self, "get_portfolio_value")()
             self.logger.debug(f"Portfolio value: {portfolio_value}")
         except Exception as e:
             self.logger.error(f"Failed to get portfolio value: {e}")
@@ -3512,7 +3706,7 @@ class _Strategy:
 
         # Get the current cash
         try:
-            cash = self.get_cash()
+            cash: Any = _dynamic_attr(self, "get_cash")()
             self.logger.debug(f"Cash: {cash}")
         except Exception as e:
             self.logger.error(f"Failed to get cash: {e}")
@@ -3521,14 +3715,21 @@ class _Strategy:
 
         # Get the current positions
         try:
-            positions = self.get_positions()
+            positions: list[Any] = list(cast(Iterable[Any], _dynamic_attr(self, "get_positions")()))
             self.logger.debug(f"Number of positions: {len(positions)}")
             # DEBUG: Log position details
             for pos in positions:
-                self.logger.debug(f"[DEBUG] Position: {pos.symbol}, qty: {pos.quantity}, has_price: {hasattr(pos, 'current_price')}")
-                if hasattr(pos, '__dict__'):
-                    attrs = {k: v for k, v in pos.__dict__.items() if not k.startswith('_')}
-                    self.logger.debug(f"[DEBUG] Position attrs for {pos.symbol}: {list(attrs.keys())}")
+                pos_symbol = _dynamic_attr(pos, "symbol", str(pos))
+                self.logger.debug(
+                    f"[DEBUG] Position: {pos_symbol}, qty: {_dynamic_attr(pos, 'quantity', None)}, has_price: {hasattr(pos, 'current_price')}"
+                )
+                if hasattr(pos, "__dict__"):
+                    attrs = {
+                        str(k): v
+                        for k, v in _dynamic_attr(pos, "__dict__", {}).items()
+                        if not str(k).startswith("_")
+                    }
+                    self.logger.debug(f"[DEBUG] Position attrs for {pos_symbol}: {list(attrs.keys())}")
         except Exception as e:
             self.logger.error(f"Failed to get positions: {e}")
             self.logger.error(traceback.format_exc())
@@ -3536,7 +3737,7 @@ class _Strategy:
 
         # Get the current orders
         try:
-            orders = self.get_orders()
+            orders: list[Any] = list(cast(Iterable[Any], _dynamic_attr(self, "get_orders")()))
             self.logger.debug(f"Number of orders: {len(orders)}")
         except Exception as e:
             self.logger.error(f"Failed to get orders: {e}")
@@ -3549,20 +3750,20 @@ class _Strategy:
         LUMIWEALTH_URL = "https://listener.lumiwealth.com/portfolio_events"
 
         headers = {
-            "x-api-key": f"{self.lumiwealth_api_key}",
+            "x-api-key": lumiwealth_api_key,
             "Content-Type": "application/json",
         }
 
         # Create the data to send to the cloud
-        positions_data = [position.to_dict() for position in positions]
+        positions_data = [_dynamic_attr(position, "to_dict")() for position in positions]
 
-        data = {
+        data: dict[str, Any] = {
             "data_type": "portfolio_event",
             "portfolio_value": portfolio_value,
             "cash": cash,
             "positions": positions_data,
-            "orders": [order.to_dict() for order in orders],
-            "cash_events": [event.to_dict() for event in cash_events],
+            "orders": [_dynamic_attr(order, "to_dict")() for order in orders],
+            "cash_events": [_dynamic_attr(event, "to_dict")() for event in cash_events],
             "strategy_name": self._name,
             "broker_name": self.broker.name,
         }
@@ -3573,24 +3774,25 @@ class _Strategy:
         )
 
         # Helper function to recursively replace NaN in dictionaries
-        def replace_nan(value):
+        def replace_nan(value: Any) -> Any:
             if isinstance(value, float) and math.isnan(value):
                 return None  # or 0 if you prefer
             elif isinstance(value, dict):
-                return {k: replace_nan(v) for k, v in value.items()}
+                return {k: replace_nan(v) for k, v in cast(dict[Any, Any], value).items()}
             elif isinstance(value, list):
-                return [replace_nan(v) for v in value]
+                return [replace_nan(v) for v in cast(list[Any], value)]
             else:
                 return value
 
         # Apply to your data dictionary
         data = replace_nan(data)
 
-        requests = _get_requests_module()
+        requests: Any = _get_requests_module()
+        response: Any
         try:
             # Send the data to the cloud
             json_data = json.dumps(data, default=str)
-            data_size_kb = len(json_data.encode('utf-8')) / 1024
+            data_size_kb = len(json_data.encode("utf-8")) / 1024
             self.logger.debug(f"Sending {data_size_kb:.2f} KB of data to {LUMIWEALTH_URL}")
             self.logger.debug(f"Request headers: {headers}")
 
@@ -3618,7 +3820,7 @@ class _Strategy:
             self.logger.debug(f"Portfolio update sent successfully to cloud for strategy '{self._name}'")
             return True
         elif response.status_code == 401:
-            self.logger.error(f"❌ Authentication failed - Invalid API key: {self.lumiwealth_api_key[:10]}...")
+            self.logger.error(f"❌ Authentication failed - Invalid API key: {lumiwealth_api_key[:10]}...")
             self.logger.error(f"Response: {response.text}")
             return False
         elif response.status_code == 400:
@@ -3640,7 +3842,8 @@ class _Strategy:
         if not hasattr(self, "db_connection_str"):
             # Log that we are not sending the account summary to Discord
             self.logger.info(
-                "Not sending account summary to Discord because self does not have db_connection_str attribute")
+                "Not sending account summary to Discord because self does not have db_connection_str attribute"
+            )
             return False
 
         if self.db_connection_str is None or self.db_connection_str == "":
@@ -3658,7 +3861,8 @@ class _Strategy:
         if not self.should_send_summary_to_discord:
             # Log that we are not sending the account summary to Discord
             self.logger.info(
-                f"Not sending account summary to Discord because should_send_summary_to_discord is False or not set. The value is: {self.should_send_summary_to_discord}")
+                f"Not sending account summary to Discord because should_send_summary_to_discord is False or not set. The value is: {self.should_send_summary_to_discord}"
+            )
             return False
 
         # Check if last_account_summary_dt has been set, if not, set it to None
@@ -3675,7 +3879,13 @@ class _Strategy:
             time_since_last_account_summary = None
 
         # Check if it has been at least 24 hours since the last account summary
-        if self.last_account_summary_dt is None or time_since_last_account_summary.total_seconds() >= 86400: # 24 hours
+        if (
+            self.last_account_summary_dt is None
+            or (
+                time_since_last_account_summary is not None
+                and time_since_last_account_summary.total_seconds() >= 86400
+            )
+        ):  # 24 hours
             # Set the last account summary datetime to now
             self.last_account_summary_dt = now
 
@@ -3687,14 +3897,18 @@ class _Strategy:
 
         else:
             # Log that we are not sending the account summary to Discord
-            self.logger.info(f"Not sending account summary to Discord because it has not been at least 24 hours since the last account summary. It is currently {now} and the last account summary was at: {self.last_account_summary_dt}, which was {time_since_last_account_summary} ago.")
+            self.logger.info(
+                "Not sending account summary to Discord because it has not been at least 24 hours since the last "
+                f"account summary. It is currently {now} and the last account summary was at: "
+                f"{self.last_account_summary_dt}, which was {time_since_last_account_summary} ago."
+            )
 
             # Return False because we should not send the account summary to Discord
             return False
 
     # ====== Messaging Methods ========================
 
-    def send_discord_message(self, message, image_buf=None, silent=True):
+    def send_discord_message(self, message: str | None, image_buf: Any = None, silent: bool = True) -> Any:
         """
         Sends a message to Discord
         """
@@ -3725,13 +3939,13 @@ class _Strategy:
         webhook_url = self.discord_webhook_url
 
         # The payload for text content
-        payload = {"content": message}
+        payload: dict[str, Any] = {"content": message}
 
         # If silent is true, set the discord message to be silent
         if silent:
             payload["flags"] = [4096]
 
-        requests = _get_requests_module()
+        requests: Any = _get_requests_module()
         # Check if we have an image
         if image_buf is not None:
             # The files that you want to send
@@ -3751,13 +3965,19 @@ class _Strategy:
                 f"Failed to send message to Discord. Status code: {response.status_code}, message: {response.text}"
             )
 
-    def send_spark_chart_to_discord(self, stats_df, portfolio_value, now, days=1095):
-        import matplotlib
+    def send_spark_chart_to_discord(
+        self,
+        stats_df: Any,
+        portfolio_value: float,
+        now: datetime.datetime,
+        days: int = 1095,
+    ) -> None:
+        matplotlib: Any = import_module("matplotlib")
 
         matplotlib.use("Agg")
-        import matplotlib.dates as mdates
-        import matplotlib.pyplot as plt
-        import matplotlib.ticker as ticker
+        mdates: Any = import_module("matplotlib.dates")
+        plt: Any = import_module("matplotlib.pyplot")
+        ticker: Any = import_module("matplotlib.ticker")
 
         # Check if we are in backtesting mode, if so, don't send the message
         if self.is_backtesting:
@@ -3799,7 +4019,7 @@ class _Strategy:
         ax = plt.axes(facecolor="white")
 
         # Convert 'datetime' to Matplotlib's numeric format right after cleaning
-        stats_df['mpl_datetime'] = mdates.date2num(stats_df['datetime'])
+        stats_df["mpl_datetime"] = mdates.date2num(stats_df["datetime"])
 
         # Plotting with a thicker line
         ax = stats_df.plot(
@@ -3820,11 +4040,14 @@ class _Strategy:
         # ax.tick_params(axis="both", which="major", labelsize=18)
 
         # Use a custom formatter for currency
-        formatter = ticker.FuncFormatter(lambda x, pos: f"${int(x):1,}")
+        def _currency_formatter(x: Any, pos: Any) -> str:
+            return f"${int(x):1,}"
+
+        formatter = ticker.FuncFormatter(_currency_formatter)
         ax.yaxis.set_major_formatter(formatter)
 
         # Custom formatter function
-        def custom_date_formatter(x, pos):
+        def custom_date_formatter(x: Any, pos: int) -> str:
             try:
                 date = mdates.num2date(x)
                 if pos % 2 == 0:  # Every second tick
@@ -3860,7 +4083,7 @@ class _Strategy:
         # Send the image to Discord
         self.send_discord_message("-----------\n", buf)
 
-    def send_result_text_to_discord(self, returns_text, portfolio_value, cash):
+    def send_result_text_to_discord(self, returns_text: str, portfolio_value: float | None, cash: float | None) -> None:
         # Check if we are in backtesting mode, if so, don't send the message
         if self.is_backtesting:
             return
@@ -3874,60 +4097,65 @@ class _Strategy:
             positions_text = "Positions are hidden"
         else:
             # Get the current positions
-            positions = self.get_positions()
+            positions: list[Any] = list(cast(Iterable[Any], _dynamic_attr(self, "get_positions")()))
+            portfolio_value_number = float(portfolio_value or 0.0)
 
             # Log the positions
             self.logger.info(f"Positions for send_result_text_to_discord: {positions}")
 
             # Create the positions text
-            positions_details_list = []
+            positions_details_list: list[dict[str, Any]] = []
             for position in positions:
                 # Check if the position asset is the quote asset
+                asset = _dynamic_attr(position, "asset", None)
+                quantity = _dynamic_attr(position, "quantity", 0)
 
-                if position.asset == self._quote_asset:
+                if asset == self._quote_asset:
                     last_price = 1
                 else:
                     # Get the last price
-                    last_price = self.get_last_price(position.asset)
+                    last_price = _dynamic_attr(self, "get_last_price")(asset)
 
                 # Make sure last_price is a number
                 if last_price is None or not isinstance(last_price, (int, float, Decimal)):
-                    self.logger.info(f"Last price for {position.asset} is not a number: {last_price}")
+                    self.logger.info(f"Last price for {asset} is not a number: {last_price}")
                     continue
 
                 # Calculate the value of the position
-                position_value = position.quantity * last_price
+                position_value = float(quantity) * float(last_price)
 
                 # If option, multiply % of portfolio by 100
-                if position.asset.asset_type == "option":
+                if _dynamic_attr(asset, "asset_type", None) == "option":
                     position_value = position_value * 100
 
-                if position_value > 0 and portfolio_value > 0:
+                if position_value > 0 and portfolio_value_number > 0:
                     # Calculate the percent of the portfolio that this position represents
-                    percent_of_portfolio = position_value / portfolio_value
+                    percent_of_portfolio = position_value / portfolio_value_number
                 else:
                     percent_of_portfolio = 0
 
                 # Add the position details to the list
                 positions_details_list.append(
                     {
-                        "asset": position.asset,
-                        "quantity": position.quantity,
+                        "asset": asset,
+                        "quantity": quantity,
                         "value": position_value,
                         "percent_of_portfolio": percent_of_portfolio,
                     }
                 )
 
             # Sort the positions by the percent of the portfolio
-            positions_details_list = sorted(positions_details_list, key=lambda x: x["percent_of_portfolio"], reverse=True)
+            positions_details_list = sorted(
+                positions_details_list,
+                key=lambda item: float(item["percent_of_portfolio"]),
+                reverse=True,
+            )
 
             # Create the positions text
             positions_text = ""
             for position in positions_details_list:
                 # positions_text += f"{position.quantity:,.2f} {position.asset} (${position.value:,.0f} or {position.percent_of_portfolio:,.0%})\n"
-                positions_text += (
-                    f"{position['quantity']:,.2f} {position['asset']} (${position['value']:,.0f} or {position['percent_of_portfolio']:,.0%})\n"
-                )
+                positions_text += f"{position['quantity']:,.2f} {position['asset']} (${position['value']:,.0f} or {position['percent_of_portfolio']:,.0%})\n"
 
         # Create a message to send to Discord (round the values to 2 decimal places)
         cash_str = f"{cash:,.2f}" if cash is not None else "N/A"
@@ -3955,7 +4183,7 @@ class _Strategy:
         # Send the message to Discord
         self.send_discord_message(message, None)
 
-    def send_account_summary_to_discord(self):
+    def send_account_summary_to_discord(self) -> None:
         # Log that we are sending the account summary to Discord
         self.logger.debug("Considering sending account summary to Discord")
 
@@ -3979,16 +4207,16 @@ class _Strategy:
         self.logger.info("Sending account summary to Discord")
 
         # Get the current portfolio value
-        portfolio_value = self.get_portfolio_value()
+        portfolio_value: Any = _dynamic_attr(self, "get_portfolio_value")()
 
         # Get the current cash
-        cash = self.get_cash()
+        cash: Any = _dynamic_attr(self, "get_cash")()
 
         # # Get the datetime
         now = pd.Timestamp(datetime.datetime.now()).tz_localize(_default_pytz())
 
         # Get the returns
-        returns_text, stats_df = self.calculate_returns()
+        returns_text, stats_df = _dynamic_attr(self, "calculate_returns")()
 
         # Send a spark chart to Discord
         self.send_spark_chart_to_discord(stats_df, portfolio_value, now)
@@ -3996,13 +4224,13 @@ class _Strategy:
         # Send the results text to Discord
         self.send_result_text_to_discord(returns_text, portfolio_value, cash)
 
-    def get_stats_from_database(self, stats_table_name, retries=5, delay=5):
+    def get_stats_from_database(self, stats_table_name: str, retries: int = 5, delay: int = 5) -> Any:
         create_engine, inspect, text, OperationalError = _get_sqlalchemy_imports()
         attempt = 0
         while attempt < retries:
             try:
                 # Create or verify the database connection
-                if not hasattr(self, 'db_engine') or not self.db_engine:
+                if not hasattr(self, "db_engine") or not self.db_engine:
                     self.db_engine = create_engine(self.db_connection_str)
                 else:
                     # Verify the connection
@@ -4024,8 +4252,8 @@ class _Strategy:
                             "id": [str(uuid.uuid4())],
                             "datetime": [now],
                             "portfolio_value": [0.0],  # Default or initial value
-                            "cash": [0.0],             # Default or initial value
-                            "strategy_id": ["INITIAL VALUE"], # Default or initial value
+                            "cash": [0.0],  # Default or initial value
+                            "strategy_id": ["INITIAL VALUE"],  # Default or initial value
                         }
                     )
 
@@ -4033,7 +4261,7 @@ class _Strategy:
                     stats_new.set_index("id", inplace=True)
 
                     # Create the table by saving this empty DataFrame to the database
-                    self.to_sql(stats_new, stats_table_name, if_exists='replace', index=True)
+                    self.to_sql(stats_new, stats_table_name, if_exists="replace", index=True)
 
                 # Load the stats dataframe from the database
                 stats_df = pd.read_sql_table(stats_table_name, self.db_engine)
@@ -4050,7 +4278,15 @@ class _Strategy:
                     self.logger.error("Max retries reached for get_stats_from_database. Failing operation.")
                     raise
 
-    def to_sql(self, stats_df, stats_table_name, if_exists='replace', index=True, retries=5, delay=5):
+    def to_sql(
+        self,
+        stats_df: Any,
+        stats_table_name: str,
+        if_exists: str = "replace",
+        index: bool = True,
+        retries: int = 5,
+        delay: int = 5,
+    ) -> None:
         create_engine, _inspect, _text, OperationalError = _get_sqlalchemy_imports()
         attempt = 0
         while attempt < retries:
@@ -4072,12 +4308,17 @@ class _Strategy:
         if self.is_backtesting:
             return
 
-        if not hasattr(self, "db_connection_str") or self.db_connection_str is None or self.db_connection_str == "" or not self.should_backup_variables_to_database:
+        if (
+            not hasattr(self, "db_connection_str")
+            or self.db_connection_str is None
+            or self.db_connection_str == ""
+            or not self.should_backup_variables_to_database
+        ):
             return
 
         create_engine, inspect, text, _OperationalError = _get_sqlalchemy_imports()
         # Ensure we have a self.db_engine
-        if not hasattr(self, 'db_engine') or not self.db_engine:
+        if not hasattr(self, "db_engine") or not self.db_engine:
             self.db_engine = create_engine(self.db_connection_str)
 
         # Get the current time in New York
@@ -4094,7 +4335,7 @@ class _Strategy:
                     "id": [str(uuid.uuid4())],
                     "last_updated": [now],
                     "variables": ["INITIAL VALUE"],
-                    "strategy_id": ["INITIAL VALUE"]
+                    "strategy_id": ["INITIAL VALUE"],
                 }
             )
 
@@ -4102,7 +4343,7 @@ class _Strategy:
             stats_new.set_index("id", inplace=True)
 
             # Create the table by saving this empty DataFrame to the database
-            stats_new.to_sql(self.backup_table_name, self.db_engine, if_exists='replace', index=True)
+            stats_new.to_sql(self.backup_table_name, self.db_engine, if_exists="replace", index=True)
 
         current_state = json.dumps(self.vars.all(), sort_keys=True, cls=SafeJSONEncoder)
         if current_state == self._last_backup_state:
@@ -4119,7 +4360,7 @@ class _Strategy:
                         check_query = text(f"""
                             SELECT 1 FROM {self.backup_table_name} WHERE strategy_id = :strategy_id
                         """)
-                        result = connection.execute(check_query, {'strategy_id': self._name}).fetchone()
+                        result = connection.execute(check_query, {"strategy_id": self._name}).fetchone()
 
                         if result:
                             # Update the existing row
@@ -4128,23 +4369,25 @@ class _Strategy:
                                 SET last_updated = :last_updated, variables = :variables
                                 WHERE strategy_id = :strategy_id
                             """)
-                            connection.execute(update_query, {
-                                'last_updated': now,
-                                'variables': json_data_to_save,
-                                'strategy_id': self._name
-                            })
+                            connection.execute(
+                                update_query,
+                                {"last_updated": now, "variables": json_data_to_save, "strategy_id": self._name},
+                            )
                         else:
                             # Insert a new row
                             insert_query = text(f"""
                                 INSERT INTO {self.backup_table_name} (id, last_updated, variables, strategy_id)
                                 VALUES (:id, :last_updated, :variables, :strategy_id)
                             """)
-                            connection.execute(insert_query, {
-                                'id': str(uuid.uuid4()),
-                                'last_updated': now,
-                                'variables': json_data_to_save,
-                                'strategy_id': self._name
-                            })
+                            connection.execute(
+                                insert_query,
+                                {
+                                    "id": str(uuid.uuid4()),
+                                    "last_updated": now,
+                                    "variables": json_data_to_save,
+                                    "strategy_id": self._name,
+                                },
+                            )
 
                 self._last_backup_state = current_state
                 self.logger.info("Variables backed up successfully")
@@ -4157,44 +4400,48 @@ class _Strategy:
     def load_variables_from_db(self):
         if self.is_backtesting:
             return
-    
-        if not hasattr(self, "db_connection_str") or self.db_connection_str is None or not self.should_backup_variables_to_database:
+
+        if (
+            not hasattr(self, "db_connection_str")
+            or self.db_connection_str is None
+            or not self.should_backup_variables_to_database
+        ):
             return
-    
+
         try:
             create_engine, inspect, text, _OperationalError = _get_sqlalchemy_imports()
-            if not hasattr(self, 'db_engine') or not self.db_engine:
+            if not hasattr(self, "db_engine") or not self.db_engine:
                 self.db_engine = create_engine(self.db_connection_str)
-    
+
             # Check if backup table exists
             inspector = inspect(self.db_engine)
             if not inspector.has_table(self.backup_table_name):
                 self.logger.info(f"Backup for {self._name} does not exist in the database. Not restoring")
                 return
-    
+
             # Query the latest entry from the backup table
             query = text(
-                f'SELECT * FROM {self.backup_table_name} WHERE strategy_id = :strategy_id ORDER BY last_updated DESC LIMIT 1'
+                f"SELECT * FROM {self.backup_table_name} WHERE strategy_id = :strategy_id ORDER BY last_updated DESC LIMIT 1"
             )
-    
-            params = {'strategy_id': self._name}
+
+            params = {"strategy_id": self._name}
             df = pd.read_sql_query(query, self.db_engine, params=params)
-    
+
             if df.empty:
                 self.logger.debug("No data found in the backup")
                 return
-    
-            json_data = df['variables'].iloc[0]
-    
+
+            json_data = df["variables"].iloc[0]
+
             import re
-    
-            iso_dt_re = re.compile(r"^\d{4}-\d{2}-\d{2}T")      # datetime prefix
-            iso_date_re = re.compile(r"^\d{4}-\d{2}-\d{2}$")    # date only
-    
-            def _coerce_value(v):
+
+            iso_dt_re = re.compile(r"^\d{4}-\d{2}-\d{2}T")  # datetime prefix
+            iso_date_re = re.compile(r"^\d{4}-\d{2}-\d{2}$")  # date only
+
+            def _coerce_value(v: Any) -> Any:
                 if not isinstance(v, str):
                     return v
-    
+
                 # ISO datetime (support trailing Z)
                 if iso_dt_re.match(v):
                     try:
@@ -4202,33 +4449,36 @@ class _Strategy:
                         return datetime.datetime.fromisoformat(v2)
                     except Exception:
                         return v
-    
+
                 # ISO date (YYYY-MM-DD)
                 if iso_date_re.match(v):
                     try:
                         return datetime.datetime.strptime(v, "%Y-%m-%d").date()
                     except Exception:
                         return v
-    
+
                 return v
-    
+
             # Decode any special types we stored using our SafeJSONEncoder,
             # but only parse strings that actually look like ISO dates/datetimes.
-            data = json.loads(json_data, object_hook=lambda d: {k: _coerce_value(v) for k, v in d.items()})
-    
+            def _object_hook(row: dict[Any, Any]) -> dict[Any, Any]:
+                return {k: _coerce_value(v) for k, v in row.items()}
+
+            data: dict[Any, Any] = json.loads(json_data, object_hook=_object_hook)
+
             # Update self.vars dictionary
             for key, value in data.items():
                 self.vars.set(key, value)
-    
+
             current_state = json.dumps(self.vars.all(), sort_keys=True, cls=SafeJSONEncoder)
             self._last_backup_state = current_state
-    
+
             self.logger.info("Variables loaded successfully from database")
-    
+
         except Exception as e:
             self.logger.error(f"Error loading variables from database: {e}", exc_info=True)
 
-    def calculate_returns(self):
+    def calculate_returns(self) -> tuple[str, Any] | None:
         # Check if we are in backtesting mode, if so, don't send the message
         if self.is_backtesting:
             return
@@ -4242,7 +4492,7 @@ class _Strategy:
         now = datetime.datetime.now(ny_tz)
 
         # Load the stats dataframe from the database
-        stats_df = self.get_stats_from_database(STATS_TABLE_NAME)
+        stats_df: Any = self.get_stats_from_database(STATS_TABLE_NAME)
 
         # Only keep the stats for this strategy ID
         stats_df = stats_df.loc[stats_df["strategy_id"] == self.strategy_id]
@@ -4251,21 +4501,21 @@ class _Strategy:
         stats_df["datetime"] = pd.to_datetime(stats_df["datetime"])  # , utc=True)
 
         # Check if the datetime column is timezone-aware
-        if stats_df['datetime'].dt.tz is None:
+        if stats_df["datetime"].dt.tz is None:
             # If the datetime is timezone-naive, directly localize it to "America/New_York"
-            stats_df["datetime"] = stats_df["datetime"].dt.tz_localize(_default_pytz(), ambiguous='infer')
+            stats_df["datetime"] = stats_df["datetime"].dt.tz_localize(_default_pytz(), ambiguous="infer")
         else:
             # If the datetime is already timezone-aware, first remove timezone and then localize
             stats_df["datetime"] = stats_df["datetime"].dt.tz_localize(None)
-            stats_df["datetime"] = stats_df["datetime"].dt.tz_localize(_default_pytz(), ambiguous='infer')
+            stats_df["datetime"] = stats_df["datetime"].dt.tz_localize(_default_pytz(), ambiguous="infer")
 
         # Get the stats
         stats_new = pd.DataFrame(
             {
                 "id": str(uuid.uuid4()),
                 "datetime": [now],
-                "portfolio_value": [self.get_portfolio_value()],
-                "cash": [self.get_cash()],
+                "portfolio_value": [_dynamic_attr(self, "get_portfolio_value")()],
+                "cash": [_dynamic_attr(self, "get_cash")()],
                 "strategy_id": [self.strategy_id],
             }
         )
@@ -4302,7 +4552,7 @@ class _Strategy:
             self.to_sql(stats_new, STATS_TABLE_NAME, "append", index=True)
 
             # Get the current portfolio value
-            portfolio_value = self.get_portfolio_value()
+            portfolio_value = float(_dynamic_attr(self, "get_portfolio_value")())
 
             # Initialize the results
             results_text = ""
@@ -4392,7 +4642,7 @@ class _Strategy:
             return "Not enough data to calculate returns", stats_df
 
     @property
-    def cash(self):
+    def cash(self) -> float:
         """Returns the current cash. This is the money that is not used for positions or
         orders (in other words, the money that is available to buy new assets, or cash).
 
@@ -4414,7 +4664,7 @@ class _Strategy:
 
         self.update_broker_balances(force_update=False)
 
-        cash_position = self.get_position(self._quote_asset)
+        cash_position: Any = _dynamic_attr(self, "get_position")(self._quote_asset)
         quantity = cash_position.quantity if cash_position else None
 
         # This is not really true:
@@ -4424,7 +4674,7 @@ class _Strategy:
 
         if type(quantity) is Decimal:
             quantity = float(quantity)
-        elif quantity is None: # Ensure we return a float if cash position doesn't exist
+        elif quantity is None:  # Ensure we return a float if cash position doesn't exist
             quantity = 0.0
 
-        return quantity
+        return float(quantity)

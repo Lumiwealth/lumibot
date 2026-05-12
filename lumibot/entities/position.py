@@ -1,7 +1,12 @@
-from decimal import Decimal
+from __future__ import annotations
 
-import lumibot.entities as entities
-from lumibot.entities.asset import StrEnum #todo: this should be centralized, and not repeated in Asset and Position
+from decimal import Decimal
+from typing import TYPE_CHECKING, Any, Self, cast
+
+from lumibot.entities.asset import Asset, StrEnum  # todo: this should be centralized, and not repeated in Asset and Position
+
+if TYPE_CHECKING:
+    from lumibot.entities.order import Order
 
 
 class Position:
@@ -57,16 +62,27 @@ class Position:
         LONG = "LONG"
         SHORT = "SHORT"
 
+    strategy: Any
+    asset: Asset
+    symbol: str | None
+    orders: list[Order]
+    avg_fill_price: Any | None
+    _quantity: Decimal
+    _quantity_float: float
+    _hold: Decimal | int | None
+    _available: Decimal | int | None
+    _raw: Any | None
+
     def __init__(
-            self,
-            strategy,
-            asset,
-            quantity,
-            orders=None,
-            hold=0,
-            available=0,
-            avg_fill_price=None
-        ):
+        self,
+        strategy: Any,
+        asset: Asset,
+        quantity: Any,
+        orders: Any | None = None,
+        hold: Any = 0,
+        available: Any = 0,
+        avg_fill_price: Any | None = None,
+    ) -> None:
         """Creates a position.
 
         NOTE: There are some properties that can be assigned to a position entity outside of the constructor (pnl, current_price, etc)
@@ -75,7 +91,6 @@ class Position:
         self.strategy = strategy
         self.asset = asset
         self.symbol = self.asset.symbol
-        self.orders = None
         self.avg_fill_price = avg_fill_price
 
         # Quantity is the total number of shares/units owned in the position.
@@ -91,23 +106,29 @@ class Position:
         self._raw = None
 
         if orders is not None and not isinstance(orders, list):
-            raise ValueError(
-                "orders parameter must be a list of orders. received type %s"
-                % type(orders)
-            )
+            raise ValueError(f"orders parameter must be a list of orders. received type {type(orders)}")
         if orders is None:
             self.orders = []
         else:
-            for order in orders:
-                if not isinstance(order, entities.Order):
-                    raise ValueError(
-                        "orders must be a list of Order object, found %s object."
-                        % type(order)
-                    )
-            self.orders = orders
+            from lumibot.entities.order import Order
+
+            validated_orders: list[Order] = []
+            for order in cast(list[Any], orders):
+                if not isinstance(order, Order):
+                    raise ValueError(f"orders must be a list of Order object, found {type(order)} object.")
+                validated_orders.append(order)
+            self.orders = validated_orders
 
     @classmethod
-    def simple_backtest(cls, strategy, asset, quantity, order, avg_fill_price=None):
+    def simple_backtest(
+        cls,
+        strategy: Any,
+        asset: Asset,
+        quantity: Any,
+        order: Order,
+        avg_fill_price: Any | None = None,
+        quantity_float: Any | None = None,
+    ) -> Self:
         """Create a Position for the validated simple backtest fill hot path."""
         position = cls.__new__(cls)
         position.strategy = strategy
@@ -116,9 +137,10 @@ class Position:
         position.orders = [order]
         position.avg_fill_price = avg_fill_price
         position._quantity = quantity if type(quantity) is Decimal else Decimal(quantity)
-        position._quantity_float = float(position._quantity)
-        asset_type_value = getattr(order, "_simple_asset_type_value", None)
-        if asset_type_value is None:
+        position._quantity_float = float(position._quantity) if quantity_float is None else float(quantity_float)
+        try:
+            asset_type_value = str(getattr(order, "_simple_asset_type_value"))  # noqa: B009 - avoids protected-member access noise.
+        except AttributeError:
             asset_type = getattr(asset, "asset_type", None)
             asset_type_value = str.__str__(asset_type) if isinstance(asset_type, str) else str(asset_type or "")
         if asset_type_value == "crypto":
@@ -130,11 +152,11 @@ class Position:
         position._raw = None
         return position
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.strategy} Position: {self.quantity} shares of {self.asset} ({len(self.orders)} orders)"
 
     @property
-    def quantity(self):
+    def quantity(self) -> float:
         result = self._quantity_float
 
         # If result is less than 0.000001, return 0.0 to avoid rounding errors.
@@ -144,51 +166,47 @@ class Position:
         return result
 
     @quantity.setter
-    def quantity(self, value):
+    def quantity(self, value: Any) -> None:
         self._quantity = Decimal(value)
         self._quantity_float = float(self._quantity)
 
     @property
-    def hold(self):
+    def hold(self) -> Decimal | int | None:
         return self._hold
 
     @hold.setter
-    def hold(self, value):
+    def hold(self, value: Any) -> None:
         self._hold = self.value_type(value)
 
     @hold.deleter
-    def hold(self):
+    def hold(self) -> int | None:
         if self.asset.asset_type != "crypto":
             return 0
         else:
             self._available = Decimal("0")
 
     @property
-    def available(self):
+    def available(self) -> Decimal | int | None:
         return self._available
 
     @available.setter
-    def available(self, value):
+    def available(self, value: Any) -> None:
         self._available = self.value_type(value)
 
     @available.deleter
-    def available(self):
+    def available(self) -> int | None:
         if self.asset.asset_type != "crypto":
             return 0
         else:
             self._available = Decimal("0")
 
-    def value_type(self, value):
+    def value_type(self, value: Any) -> Decimal | int | None:
         # Used to check the number types for hold and available.
         if self.asset.asset_type != "crypto":
             return 0
 
         default_precision = 8
-        precision = (
-            self.asset.precision
-            if hasattr(self, "asset.precision")
-            else default_precision
-        )
+        precision = self.asset.precision or default_precision
         if isinstance(value, Decimal):
             return value.quantize(Decimal(precision))
         elif isinstance(
@@ -201,7 +219,7 @@ class Position:
         ):
             return Decimal(str(value)).quantize(Decimal(precision))
 
-    def get_selling_order(self, quote_asset=None):
+    def get_selling_order(self, quote_asset: Asset | None = None) -> Order | None:
         """Returns an order that can be used to sell this position.
 
         Parameters
@@ -217,21 +235,24 @@ class Position:
         # Prevent use for crypto futures
         if getattr(self.asset, "asset_type", None) == "crypto_future":
             from lumibot.tools.lumibot_logger import get_logger
+
             logger = get_logger(__name__)
-            logger.warning("get_selling_order is not supported for crypto futures. Use the broker's close_position method instead.")
+            logger.warning(
+                "get_selling_order is not supported for crypto futures. Use the broker's close_position method instead."
+            )
             return None
         order = None
         if self.quantity < 0:
-            order = entities.Order(
-                self.strategy, self.asset, abs(self.quantity), "buy", quote=quote_asset
-            )
+            from lumibot.entities.order import Order
+
+            order = Order(self.strategy, self.asset, abs(self.quantity), "buy", quote=quote_asset)
         else:
-            order = entities.Order(
-                self.strategy, self.asset, self.quantity, "sell", quote=quote_asset
-            )
+            from lumibot.entities.order import Order
+
+            order = Order(self.strategy, self.asset, self.quantity, "sell", quote=quote_asset)
         return order
 
-    def add_order(self, order: entities.Order, quantity: Decimal = Decimal(0)):
+    def add_order(self, order: Order, quantity: Decimal = Decimal(0)) -> None:
         qty = Decimal(quantity)
 
         if order.is_buy_order():
@@ -246,17 +267,14 @@ class Position:
         if order not in self.orders:
             self.orders.append(order)
 
-    def add_simple_order(self, order: entities.Order, quantity: Decimal, is_buy: bool):
-        # Preserve the one-entry-per-order invariant used by add_order.
-        if order in self.orders:
-            return
+    def add_simple_order(self, order: Order, quantity: Decimal, is_buy: bool) -> None:
         qty = Decimal(quantity)
         self._quantity += qty if is_buy else -qty
         self._quantity_float = float(self._quantity)
         self.orders.append(order)
 
     # ========= Serialization methods ===========
-    def to_minimal_dict(self) -> dict:
+    def to_minimal_dict(self) -> dict[str, Any]:
         """
         Return a minimal dictionary representation of the position for progress logging.
 
@@ -280,23 +298,27 @@ class Position:
         """
         # Get market value
         market_value = 0.0
-        if hasattr(self, 'market_value') and self.market_value is not None:
+        market_value_raw = getattr(self, "market_value", None)
+        if market_value_raw is not None:
             try:
-                market_value = float(self.market_value)
+                market_value = float(market_value_raw)
             except (TypeError, ValueError):
                 pass
 
         # Get unrealized P&L
         pnl = 0.0
-        if hasattr(self, 'pnl') and self.pnl is not None:
+        pnl_raw = getattr(self, "pnl", None)
+        if pnl_raw is not None:
             try:
-                pnl = float(self.pnl)
+                pnl = float(pnl_raw)
             except (TypeError, ValueError):
                 pass
 
         # Build minimal dict
-        result = {
-            "asset": self.asset.to_minimal_dict() if self.asset and hasattr(self.asset, 'to_minimal_dict') else {"symbol": str(self.symbol)},
+        result: dict[str, Any] = {
+            "asset": self.asset.to_minimal_dict()
+            if self.asset and hasattr(self.asset, "to_minimal_dict")
+            else {"symbol": str(self.symbol)},
             "qty": self.quantity if self.quantity else 0,
             "val": round(market_value, 2),
             "pnl": round(pnl, 2),
@@ -304,7 +326,7 @@ class Position:
 
         return result
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert position to dictionary for serialization.
 
@@ -320,42 +342,48 @@ class Position:
 
         # Only return the essential fields - no dynamic attributes
         # This is a WHITELIST approach - only include what we explicitly want
-        result = {
+        orders_payload: list[Any] = []
+        result: dict[str, Any] = {
             "strategy": self.strategy,
             "asset": self.asset.to_dict() if self.asset else None,
             "symbol": self.symbol,  # Added symbol field
             "quantity": float(self.quantity),
-            "orders": [],  # We'll handle orders specially below
+            "orders": orders_payload,  # We'll handle orders specially below
             "hold": self.hold,
             "available": float(self.available) if self.available else None,
             "avg_fill_price": float(self.avg_fill_price) if self.avg_fill_price else None,
         }
 
         # Add dynamically set fields if they exist (from broker)
-        if hasattr(self, 'current_price'):
-            result['current_price'] = float(self.current_price) if self.current_price else None
-        if hasattr(self, 'market_value'):
-            result['market_value'] = float(self.market_value) if self.market_value else None
-        if hasattr(self, 'pnl'):
-            result['pnl'] = float(self.pnl) if self.pnl else None
-        if hasattr(self, 'pnl_percent'):
-            result['pnl_percent'] = float(self.pnl_percent) if self.pnl_percent else None
-        if hasattr(self, 'asset_type'):
-            result['asset_type'] = self.asset_type
-        if hasattr(self, 'exchange'):
-            result['exchange'] = self.exchange
-        if hasattr(self, 'currency'):
-            result['currency'] = self.currency
-        if hasattr(self, 'multiplier'):
-            result['multiplier'] = self.multiplier
-        if hasattr(self, 'expiration'):  #should probably use position.asset instead
-            result['expiration'] = str(self.expiration) if self.expiration else None
-        if hasattr(self, 'strike'): #should probably use position.asset instead
-            result['strike'] = float(self.strike) if self.strike else None
-        if hasattr(self, 'option_type'): #should probably use position.asset instead
-            result['option_type'] = self.option_type
-        if hasattr(self, 'underlying_symbol'): #should probably use position.asset instead
-            result['underlying_symbol'] = self.underlying_symbol
+        current_price = getattr(self, "current_price", None)
+        if current_price is not None:
+            result["current_price"] = float(current_price)
+        market_value = getattr(self, "market_value", None)
+        if market_value is not None:
+            result["market_value"] = float(market_value)
+        pnl = getattr(self, "pnl", None)
+        if pnl is not None:
+            result["pnl"] = float(pnl)
+        pnl_percent = getattr(self, "pnl_percent", None)
+        if pnl_percent is not None:
+            result["pnl_percent"] = float(pnl_percent)
+        for key in (
+            "asset_type",
+            "exchange",
+            "currency",
+            "multiplier",
+            "option_type",
+            "underlying_symbol",
+        ):
+            value = getattr(self, key, None)
+            if value is not None:
+                result[key] = value
+        expiration = getattr(self, "expiration", None)
+        if expiration is not None:  # should probably use position.asset instead
+            result["expiration"] = str(expiration)
+        strike = getattr(self, "strike", None)
+        if strike is not None:  # should probably use position.asset instead
+            result["strike"] = float(strike)
 
         # Handle orders carefully - ensure to_dict() is called properly
         if self.orders:
@@ -363,20 +391,22 @@ class Position:
 
         # DEFENSIVE: Double-check we're not including any underscore fields
         # This shouldn't be necessary with the whitelist approach, but being safe
-        keys_to_remove = [k for k in result.keys() if k.startswith('_')]
+        keys_to_remove = [k for k in result.keys() if k.startswith("_")]
         for key in keys_to_remove:
             del result[key]
 
         return result
 
     @classmethod
-    def from_dict(cls, data):
-        asset = entities.Asset.from_dict(data["asset"])
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        from lumibot.entities.order import Order
+
+        asset = Asset.from_dict(data["asset"])
         return cls(
             strategy=data["strategy"],
             asset=asset,
             quantity=Decimal(data["quantity"]),
-            orders=[entities.Order.from_dict(order) for order in data["orders"]],
+            orders=[Order.from_dict(order) for order in data["orders"]],
             hold=Decimal(data["hold"]),
             available=Decimal(data["available"]),
             avg_fill_price=Decimal(data["avg_fill_price"]),

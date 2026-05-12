@@ -5,19 +5,20 @@ Strategy-dependent tests are skipped on GitHub CI where no broker/backtesting en
 """
 
 import os
-import pytest
 from datetime import date, datetime
-from unittest.mock import Mock, MagicMock
+from unittest.mock import MagicMock, Mock
+
+import pytest
 
 from lumibot.entities import Asset
 from lumibot.strategies.strategy import Strategy
 from lumibot.tools.futures_symbols import (
-    parse_contract_symbol,
-    symbol_matches_root,
+    build_ib_contract_variants,
     from_ib_expiration_to_code,
     generate_symbol_variants,
     get_contract_priority_key,
-    build_ib_contract_variants,
+    parse_contract_symbol,
+    symbol_matches_root,
 )
 
 
@@ -149,25 +150,34 @@ class TestContinuousFuturesPositionMatching:
         def __init__(self):
             self.name = "fake"
             self.IS_BACKTESTING_BROKER = True
+
             class _DS:
                 SOURCE = "MEMORY"
                 datetime_start = None
                 datetime_end = None
                 _data_store = {}
+
             self.data_source = _DS()
+
             class _FilledPositions:
                 def __init__(self):
                     self._list = []
+
                 def get_list(self):
                     return self._list
+
                 def __len__(self):
                     return len(self._list)
+
                 def __getitem__(self, idx):
                     return self._list[idx]
+
                 def __setitem__(self, idx, val):
                     self._list[idx] = val
+
                 def append(self, val):
                     self._list.append(val)
+
             self._filled_positions = _FilledPositions()
             self._add_subscriber = lambda _: None
             self.quote_assets = set()
@@ -198,7 +208,8 @@ class TestContinuousFuturesPositionMatching:
     def test_continuous_future_single_contract_match(self):
         self.mock_broker.get_tracked_position.return_value = None
         tradovate_asset = Asset("MNQU5", asset_type=Asset.AssetType.FUTURE)
-        mock_position = Mock(); mock_position.asset = tradovate_asset
+        mock_position = Mock()
+        mock_position.asset = tradovate_asset
         self.mock_broker.get_tracked_positions.return_value = [mock_position]
         result = self.strategy.get_position(self.cont_future_asset)
         assert result == mock_position
@@ -207,8 +218,10 @@ class TestContinuousFuturesPositionMatching:
         self.mock_broker.get_tracked_position.return_value = None
         sep_asset = Asset("MNQU5", asset_type=Asset.AssetType.FUTURE)
         dec_asset = Asset("MNQZ5", asset_type=Asset.AssetType.FUTURE)
-        sep_position = Mock(); sep_position.asset = sep_asset
-        dec_position = Mock(); dec_position.asset = dec_asset
+        sep_position = Mock()
+        sep_position.asset = sep_asset
+        dec_position = Mock()
+        dec_position.asset = dec_asset
         self.mock_broker.get_tracked_positions.return_value = [dec_position, sep_position]
         self.strategy.log_message = Mock()
         result = self.strategy.get_position(self.cont_future_asset)
@@ -221,7 +234,8 @@ class TestContinuousFuturesPositionMatching:
     def test_continuous_future_ib_style_positions(self):
         self.mock_broker.get_tracked_position.return_value = None
         ib_asset = Asset("MNQ", asset_type=Asset.AssetType.FUTURE, expiration=date(2025, 9, 19))
-        mock_position = Mock(); mock_position.asset = ib_asset
+        mock_position = Mock()
+        mock_position.asset = ib_asset
         self.mock_broker.get_tracked_positions.return_value = [mock_position]
         result = self.strategy.get_position(self.cont_future_asset)
         assert result == mock_position
@@ -229,7 +243,8 @@ class TestContinuousFuturesPositionMatching:
     def test_continuous_future_no_matches(self):
         self.mock_broker.get_tracked_position.return_value = None
         other_asset = Asset("ESU5", asset_type=Asset.AssetType.FUTURE)
-        mock_position = Mock(); mock_position.asset = other_asset
+        mock_position = Mock()
+        mock_position.asset = other_asset
         self.mock_broker.get_tracked_positions.return_value = [mock_position]
         result = self.strategy.get_position(self.cont_future_asset)
         assert result is None
@@ -237,7 +252,8 @@ class TestContinuousFuturesPositionMatching:
     def test_continuous_future_ignores_non_futures(self):
         self.mock_broker.get_tracked_position.return_value = None
         stock_asset = Asset("MNQ", asset_type=Asset.AssetType.STOCK)
-        mock_position = Mock(); mock_position.asset = stock_asset
+        mock_position = Mock()
+        mock_position.asset = stock_asset
         self.mock_broker.get_tracked_positions.return_value = [mock_position]
         result = self.strategy.get_position(self.cont_future_asset)
         assert result is None

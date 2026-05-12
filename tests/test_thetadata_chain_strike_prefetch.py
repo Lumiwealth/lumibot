@@ -1,7 +1,5 @@
 from datetime import date, timedelta
 
-import pytest
-
 from lumibot.entities import Asset
 from lumibot.tools import thetadata_helper
 
@@ -66,4 +64,3 @@ def test_build_historical_chain_prefetches_head_and_tail_only(monkeypatch):
             assert strikes
         else:
             assert strikes == []
-

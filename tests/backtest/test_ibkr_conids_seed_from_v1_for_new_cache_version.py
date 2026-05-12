@@ -47,7 +47,11 @@ def test_ibkr_conids_seed_falls_back_to_v1_when_cache_version_missing(tmp_path: 
     called = {"uploaded": 0, "lookups": 0}
 
     monkeypatch.setattr(ibkr_helper, "_download_remote_conids_json", lambda *args, **kwargs: dict(seed_mapping))
-    monkeypatch.setattr(ibkr_helper, "_merge_upload_conids_json", lambda *args, **kwargs: called.__setitem__("uploaded", called["uploaded"] + 1))
+    monkeypatch.setattr(
+        ibkr_helper,
+        "_merge_upload_conids_json",
+        lambda *args, **kwargs: called.__setitem__("uploaded", called["uploaded"] + 1),
+    )
 
     def _no_remote_lookup(*args, **kwargs):
         called["lookups"] += 1
@@ -64,4 +68,3 @@ def test_ibkr_conids_seed_falls_back_to_v1_when_cache_version_missing(tmp_path: 
     assert conids_path.exists()
     text = conids_path.read_text(encoding="utf-8")
     assert key in text
-

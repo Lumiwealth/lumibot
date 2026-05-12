@@ -1,7 +1,11 @@
+from __future__ import annotations
+
+from collections.abc import MutableMapping
 from datetime import datetime
+from typing import Any, ClassVar
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
-from lumibot.tools import ComparaisonMixin
+from lumibot.tools.helpers import ComparaisonMixin
 
 
 class Bar(ComparaisonMixin):
@@ -10,8 +14,8 @@ class Bar(ComparaisonMixin):
 
     Attributes
     ----------
-    timestamp : datetime.datetime
-        The timestamp of the bar.
+    timestamp : int
+        The Unix timestamp of the bar.
     open : float
         The opening price of the bar.
     high : float
@@ -26,30 +30,30 @@ class Bar(ComparaisonMixin):
         The dividend amount of the bar.
     stock_splits : float
         The stock splits amount of the bar.
-
-    Methods
-    -------
-    update(data)
-        Updates the bar with the given data.
     """
 
-    COMPARAISON_PROP = "timestamp"
-    DEFAULT_TIMEZONE = LUMIBOT_DEFAULT_TIMEZONE
-    DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ
+    COMPARAISON_PROP: ClassVar[str] = "timestamp"
+    DEFAULT_TIMEZONE: ClassVar[Any] = LUMIBOT_DEFAULT_TIMEZONE
+    DEFAULT_PYTZ: ClassVar[Any] = LUMIBOT_DEFAULT_PYTZ
 
-    def __init__(self, raw):
+    _raw: MutableMapping[str, Any]
+    _timestamp: int
+    _open: float
+    _high: float
+    _low: float
+    _close: float
+    _volume: float
+    _dividend: float
+    _stock_splits: float
+
+    def __init__(self, raw: MutableMapping[str, Any]) -> None:
         self._raw = raw
         self.update(raw)
 
     @classmethod
-    def get_empty_bar(cls):
-        """Return an empty bar object
-
-        Returns
-        -------
-        Bar
-        """
-        item = {
+    def get_empty_bar(cls) -> Bar:
+        """Return an empty bar object."""
+        item: dict[str, int] = {
             "timestamp": 0,
             "open": 0,
             "high": 0,
@@ -62,158 +66,155 @@ class Bar(ComparaisonMixin):
         return cls(item)
 
     @property
-    def raw(self):
+    def raw(self) -> MutableMapping[str, Any]:
         return self._raw
 
     @property
-    def timestamp(self):
-        """Return the timestamp of the bar"""
+    def timestamp(self) -> int:
+        """Return the Unix timestamp of the bar."""
         return self._timestamp
 
     @timestamp.setter
-    def timestamp(self, input):
-        try:
-            value = int(input)
-            self._raw["timestamp"] = value
-            self._timestamp = value
-        except:
-            raise ValueError("Timestamp property must be convertible to integer")
+    def timestamp(self, value: Any) -> None:
+        timestamp = self._coerce_int(value, "Timestamp property must be convertible to integer")
+        self._raw["timestamp"] = timestamp
+        self._timestamp = timestamp
 
     @property
-    def datetime(self):
+    def datetime(self) -> datetime:
         result = datetime.fromtimestamp(self._timestamp)
-        result = self.DEFAULT_PYTZ.localize(result, is_dst=None)
-        return result
+        return self.DEFAULT_PYTZ.localize(result, is_dst=None)
 
     @datetime.setter
-    def datetime(self, input):
-        if not isinstance(input, datetime):
+    def datetime(self, value: Any) -> None:
+        if not isinstance(value, datetime):
             raise ValueError("Datetime property must be a datetime object.")
 
-        if self.datetime.tzinfo != input.tzinfo:
-            raise ValueError("Datetime must be localized in %r" % self.DEFAULT_TIMEZONE)
+        if self.datetime.tzinfo != value.tzinfo:
+            raise ValueError(f"Datetime must be localized in {self.DEFAULT_TIMEZONE!r}")
 
-        value = int(input.timestamp())
-        self._raw["timestamp"] = value
-        self._timestamp = value
+        timestamp = int(value.timestamp())
+        self._raw["timestamp"] = timestamp
+        self._timestamp = timestamp
 
     @property
-    def open(self):
+    def open(self) -> float:  # noqa: A003 - OHLC data exposes an `open` field.
         return self._open
 
-    @open.setter
-    def open(self, input):
-        try:
-            value = float(input)
-            self._raw["open"] = value
-            self._open = value
-        except:
-            raise ValueError("Open property must be convertible to float")
+    @open.setter  # noqa: A003 - OHLC data exposes an `open` field.
+    def open(self, value: Any) -> None:  # noqa: A003 - OHLC data exposes an `open` field.
+        self._open = self._coerce_raw_float("open", value, "Open property must be convertible to float")
 
     @property
-    def high(self):
+    def high(self) -> float:
         return self._high
 
     @high.setter
-    def high(self, input):
-        try:
-            value = float(input)
-            self._raw["high"] = value
-            self._high = value
-        except:
-            raise ValueError("High property must be convertible to float")
+    def high(self, value: Any) -> None:
+        self._high = self._coerce_raw_float("high", value, "High property must be convertible to float")
 
     @property
-    def low(self):
+    def low(self) -> float:
         return self._low
 
     @low.setter
-    def low(self, input):
-        try:
-            value = float(input)
-            self._raw["low"] = value
-            self._low = value
-        except:
-            raise ValueError("Low property must be convertible to float")
+    def low(self, value: Any) -> None:
+        self._low = self._coerce_raw_float("low", value, "Low property must be convertible to float")
 
     @property
-    def close(self):
+    def close(self) -> float:
         return self._close
 
     @close.setter
-    def close(self, input):
-        try:
-            value = float(input)
-            self._raw["close"] = value
-            self._close = value
-        except:
-            raise ValueError("Close property must be convertible to float")
+    def close(self, value: Any) -> None:
+        self._close = self._coerce_raw_float("close", value, "Close property must be convertible to float")
 
     @property
-    def volume(self):
+    def volume(self) -> float:
         return self._volume
 
     @volume.setter
-    def volume(self, input):
-        try:
-            value = float(input)
-            self._raw["volume"] = value
-            self._volume = value
-        except:
-            raise ValueError("Volume property must be convertible to float")
+    def volume(self, value: Any) -> None:
+        self._volume = self._coerce_raw_float("volume", value, "Volume property must be convertible to float")
 
     @property
-    def dividend(self):
+    def dividend(self) -> float:
         return self._dividend
 
     @dividend.setter
-    def dividend(self, input):
-        try:
-            value = float(input)
-            self._raw["dividend"] = value
-            self._dividend = value
-        except:
-            raise ValueError("Dividend property must be convertible to float")
+    def dividend(self, value: Any) -> None:
+        self._dividend = self._coerce_raw_float(
+            "dividend",
+            value,
+            "Dividend property must be convertible to float",
+        )
 
     @property
-    def stock_splits(self):
+    def stock_splits(self) -> float:
         return self._stock_splits
 
     @stock_splits.setter
-    def stock_splits(self, input):
+    def stock_splits(self, value: Any) -> None:
+        self._stock_splits = self._coerce_raw_float(
+            "stock_splits",
+            value,
+            "Stock_splits property must be convertible to float",
+        )
+
+    def update(self, data: MutableMapping[str, Any]) -> None:
+        self._timestamp = self._parse_int(data, "timestamp", required=True)
+        self._open = self._parse_float(data, "open", required=True)
+        self._high = self._parse_float(data, "high", required=True)
+        self._low = self._parse_float(data, "low", required=True)
+        self._close = self._parse_float(data, "close", required=True)
+        self._volume = self._parse_float(data, "volume", required=True)
+        self._dividend = self._parse_float(data, "dividend", default=0.0)
+        self._stock_splits = self._parse_float(data, "stock_splits", default=0.0)
+
+    def _coerce_raw_float(self, key: str, value: Any, error_message: str) -> float:
+        coerced = self._coerce_float(value, error_message)
+        self._raw[key] = coerced
+        return coerced
+
+    @staticmethod
+    def _coerce_float(value: Any, error_message: str) -> float:
         try:
-            value = float(input)
-            self._raw["stock_splits"] = value
-            self._stock_splits = value
-        except:
-            raise ValueError("Stock_splits property must be convertible to float")
+            return float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(error_message) from exc
 
-    def update(self, data):
-        self._timestamp = self._parse_property(
-            data, "timestamp", required=True, type=int
-        )
-        self._open = self._parse_property(data, "open", required=True, type=float)
-        self._high = self._parse_property(data, "high", required=True, type=float)
-        self._low = self._parse_property(data, "low", required=True, type=float)
-        self._close = self._parse_property(data, "close", required=True, type=float)
-        self._volume = self._parse_property(data, "volume", required=True, type=float)
-        self._dividend = self._parse_property(
-            data, "dividend", required=False, type=float
-        )
-        self._stock_splits = self._parse_property(
-            data, "stock_splits", required=False, type=float
-        )
+    @staticmethod
+    def _coerce_int(value: Any, error_message: str) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(error_message) from exc
 
-    def _parse_property(self, data, key, required=False, type=None):
-        if required:
-            if key not in data:
+    def _parse_int(self, data: MutableMapping[str, Any], key: str, *, required: bool = False, default: Any = None) -> int:
+        value = self._value_for_key(data, key, required=required, default=default)
+        return self._coerce_int(value, f"{key} type does not fit to {int!r} type")
+
+    def _parse_float(
+        self,
+        data: MutableMapping[str, Any],
+        key: str,
+        *,
+        required: bool = False,
+        default: Any = None,
+    ) -> float:
+        value = self._value_for_key(data, key, required=required, default=default)
+        return self._coerce_float(value, f"{key} type does not fit to {float!r} type")
+
+    @staticmethod
+    def _value_for_key(
+        data: MutableMapping[str, Any],
+        key: str,
+        *,
+        required: bool,
+        default: Any,
+    ) -> Any:
+        if key not in data:
+            if required:
                 raise ValueError(f"{key} key is a required field for Bar objects")
-
-        value = data.get(key)
-        if type:
-            try:
-                value = type(value)
-            except:
-                raise ValueError("%s type does not fit to %r type" % (key, type))
-
-        return value
+            return default
+        return data.get(key)

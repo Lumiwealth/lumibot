@@ -3,13 +3,9 @@ from __future__ import annotations
 import json
 from datetime import datetime
 
-import pandas as pd
-
 from lumibot.backtesting import PandasDataBacktesting
 from lumibot.entities import Asset
 from lumibot.strategies import Strategy
-from tests.fixtures import pandas_data_fixture
-
 
 SPY = Asset(symbol="SPY", asset_type="stock")
 
@@ -37,9 +33,7 @@ class _CustomMetricsBacktestStrategy(Strategy):
         non_null_returns = strategy_returns.dropna()
         avg_dd_days = (
             float(drawdown_details["days"].mean())
-            if drawdown_details is not None
-            and not drawdown_details.empty
-            and "days" in drawdown_details.columns
+            if drawdown_details is not None and not drawdown_details.empty and "days" in drawdown_details.columns
             else 0.0
         )
         return {
@@ -147,9 +141,7 @@ def test_tearsheet_end_to_end_backtest_without_custom_metrics(pandas_data_fixtur
     assert "Custom Mean Absolute Daily Return" not in html
 
 
-def test_tearsheet_end_to_end_backtest_short_window_writes_placeholder_metrics_json(
-    pandas_data_fixture, tmp_path
-):
+def test_tearsheet_end_to_end_backtest_short_window_writes_placeholder_metrics_json(pandas_data_fixture, tmp_path):
     _, _, tearsheet_file, metrics_file, _ = _run_backtest_case(
         _CustomMetricsBacktestStrategy,
         pandas_data_fixture,

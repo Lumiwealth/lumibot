@@ -13,15 +13,14 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Iterable
 
 import pandas as pd
 
 from lumibot.entities import Asset
 from lumibot.tools import ibkr_helper
-
 
 DEFAULT_SYMBOLS: list[str] = [
     "SPY:stock",

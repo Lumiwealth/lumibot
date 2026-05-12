@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -15,7 +15,6 @@ from lumibot.backtesting.interactive_brokers_rest_backtesting import Interactive
 from lumibot.entities import Asset
 from lumibot.entities.order import Order
 from lumibot.strategies.strategy import Strategy
-
 
 pytestmark = [pytest.mark.apitest, pytest.mark.downloader, pytest.mark.ibkr]
 
@@ -189,8 +188,8 @@ def _run_smoke(
 
 def test_local_repo_lumibot_ibkr_index_smoke(monkeypatch, tmp_path):
     asset = Asset("SPX", asset_type=Asset.AssetType.INDEX)
-    start = datetime(2026, 4, 7, 13, 35, tzinfo=timezone.utc)
-    end = datetime(2026, 4, 9, 19, 55, tzinfo=timezone.utc)
+    start = datetime(2026, 4, 7, 13, 35, tzinfo=UTC)
+    end = datetime(2026, 4, 9, 19, 55, tzinfo=UTC)
     _run_smoke(
         monkeypatch,
         tmp_path,
@@ -204,8 +203,8 @@ def test_local_repo_lumibot_ibkr_index_smoke(monkeypatch, tmp_path):
 
 def test_local_repo_lumibot_ibkr_stock_smoke(monkeypatch, tmp_path):
     asset = Asset("SPY", asset_type=Asset.AssetType.STOCK)
-    start = datetime(2026, 4, 7, 13, 35, tzinfo=timezone.utc)
-    end = datetime(2026, 4, 9, 19, 55, tzinfo=timezone.utc)
+    start = datetime(2026, 4, 7, 13, 35, tzinfo=UTC)
+    end = datetime(2026, 4, 9, 19, 55, tzinfo=UTC)
     _run_smoke(
         monkeypatch,
         tmp_path,
@@ -220,8 +219,8 @@ def test_local_repo_lumibot_ibkr_stock_smoke(monkeypatch, tmp_path):
 def test_local_repo_lumibot_ibkr_crypto_smoke(monkeypatch, tmp_path):
     asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
     quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
-    start = datetime(2026, 4, 7, 0, 0, tzinfo=timezone.utc)
-    end = datetime(2026, 4, 9, 0, 0, tzinfo=timezone.utc)
+    start = datetime(2026, 4, 7, 0, 0, tzinfo=UTC)
+    end = datetime(2026, 4, 9, 0, 0, tzinfo=UTC)
     _run_smoke(
         monkeypatch,
         tmp_path,

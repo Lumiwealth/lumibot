@@ -20,9 +20,9 @@ If required cache objects are missing, this script will fail fast rather than si
 downloader (because warm-cache speed is the metric we care about).
 """
 
+import argparse
 import os
 import sys
-import argparse
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -78,12 +78,12 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    import lumibot.tools.ibkr_helper as ibkr_helper
     from lumibot.backtesting import BacktestingBroker
     from lumibot.backtesting.interactive_brokers_rest_backtesting import InteractiveBrokersRESTBacktesting
     from lumibot.entities import Asset
     from lumibot.entities.order import Order
     from lumibot.strategies.strategy import Strategy
-    import lumibot.tools.ibkr_helper as ibkr_helper
 
     class _SpeedBurnerBase(Strategy):
         def initialize(self, parameters=None):

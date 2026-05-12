@@ -45,7 +45,10 @@ def test_acceptance_strategies_manifest_matches_repo_files() -> None:
         path = strategies_dir / filename
         assert _sha256(path) == sha
 
-    demos_dir = os.environ.get("STRATEGY_LIBRARY_DEMOS_DIR") or "/Users/robertgrzesik/Documents/Development/Strategy Library/Demos"
+    demos_dir = (
+        os.environ.get("STRATEGY_LIBRARY_DEMOS_DIR")
+        or "/Users/robertgrzesik/Documents/Development/Strategy Library/Demos"
+    )
     demos_path = Path(demos_dir)
     if demos_path.exists():
         for filename, sha in expected.items():

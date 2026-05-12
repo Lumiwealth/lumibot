@@ -13,8 +13,8 @@ from lumibot.backtesting.databento_backtesting_pandas import DataBentoDataBackte
 from lumibot.backtesting.databento_backtesting_polars import (
     DataBentoDataBacktestingPolars as DataBentoDataPolarsBacktesting,
 )
-from lumibot.entities import Asset
 from lumibot.credentials import DATABENTO_CONFIG
+from lumibot.entities import Asset
 from lumibot.tools import databento_helper, databento_helper_polars
 
 DATABENTO_API_KEY = DATABENTO_CONFIG.get("API_KEY")
@@ -35,7 +35,7 @@ def _clear_databento_caches():
 
 
 @pytest.mark.skipif(
-    not DATABENTO_API_KEY or DATABENTO_API_KEY == '<your key here>',
+    not DATABENTO_API_KEY or DATABENTO_API_KEY == "<your key here>",
     reason="This test requires a Databento API key",
 )
 def test_databento_price_parity():
@@ -103,6 +103,4 @@ def test_databento_price_parity():
         polars_ds._datetime = current_dt
         pandas_price = pandas_ds.get_last_price(asset)
         polars_price = polars_ds.get_last_price(asset)
-        assert pandas_price == polars_price, (
-            f"Mismatch at {current_dt}: pandas={pandas_price}, polars={polars_price}"
-        )
+        assert pandas_price == polars_price, f"Mismatch at {current_dt}: pandas={pandas_price}, polars={polars_price}"

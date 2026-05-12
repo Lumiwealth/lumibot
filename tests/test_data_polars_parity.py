@@ -5,12 +5,13 @@ This test isolates the issue where DataPolars returns 234 rows when asked for 2 
 with timeshift=-2 parameter.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+
 import pandas as pd
 import polars as pl
 import pytest
 
-from lumibot.entities import Data, DataPolars, Asset
+from lumibot.entities import Asset, Data, DataPolars
 
 
 def _create_mock_ohlc_data(start: datetime, periods: int = 300) -> pd.DataFrame:
@@ -23,7 +24,7 @@ def _create_mock_ohlc_data(start: datetime, periods: int = 300) -> pd.DataFrame:
     Returns:
         DataFrame with OHLC data indexed by timestamp
     """
-    index = pd.date_range(start=start, periods=periods, freq="1min", tz=timezone.utc)
+    index = pd.date_range(start=start, periods=periods, freq="1min", tz=UTC)
     data = {
         "open": [200 + i * 0.1 for i in range(periods)],
         "high": [201 + i * 0.1 for i in range(periods)],
@@ -43,7 +44,7 @@ def test_data_polars_row_count_parity():
     - DataPolars.get_bars(length=2, timeshift=-2) returns 234 rows
     """
     # Create mock data starting at market open
-    start = datetime(2024, 7, 18, 9, 30, tzinfo=timezone.utc)
+    start = datetime(2024, 7, 18, 9, 30, tzinfo=UTC)
     mock_df = _create_mock_ohlc_data(start, periods=300)
 
     # Create asset
@@ -71,31 +72,20 @@ def test_data_polars_row_count_parity():
     )
 
     # Test at a specific datetime (10:00 AM = 30 minutes after market open)
-    test_dt = datetime(2024, 7, 18, 10, 0, tzinfo=timezone.utc)
+    test_dt = datetime(2024, 7, 18, 10, 0, tzinfo=UTC)
 
     # Request 2 bars with timeshift=-2
     # This should return bars at 09:58 and 09:59
     # get_bars() returns DataFrames directly
-    df_pandas = data_pandas.get_bars(
-        dt=test_dt,
-        length=2,
-        timestep="minute",
-        timeshift=-2
-    )
+    df_pandas = data_pandas.get_bars(dt=test_dt, length=2, timestep="minute", timeshift=-2)
 
-    df_polars = data_polars.get_bars(
-        dt=test_dt,
-        length=2,
-        timestep="minute",
-        timeshift=-2
-    )
+    df_polars = data_polars.get_bars(dt=test_dt, length=2, timestep="minute", timeshift=-2)
 
     # CRITICAL ASSERTIONS
     assert len(df_pandas) == 2, f"Pandas should return 2 rows, got {len(df_pandas)}"
     assert len(df_polars) == 2, f"Polars should return 2 rows, got {len(df_polars)}"
     assert len(df_pandas) == len(df_polars), (
-        f"Row count mismatch! Pandas returned {len(df_pandas)} rows, "
-        f"Polars returned {len(df_polars)} rows"
+        f"Row count mismatch! Pandas returned {len(df_pandas)} rows, Polars returned {len(df_polars)} rows"
     )
 
 
@@ -105,7 +95,7 @@ def test_data_polars_timeshift_timedelta():
 
     Tests the conversion of timedelta(minutes=-2) to integer offset.
     """
-    start = datetime(2024, 7, 18, 9, 30, tzinfo=timezone.utc)
+    start = datetime(2024, 7, 18, 9, 30, tzinfo=UTC)
     mock_df = _create_mock_ohlc_data(start, periods=300)
 
     asset = Asset("HIMS", asset_type=Asset.AssetType.STOCK)
@@ -130,28 +120,18 @@ def test_data_polars_timeshift_timedelta():
         quote=asset,
     )
 
-    test_dt = datetime(2024, 7, 18, 10, 0, tzinfo=timezone.utc)
+    test_dt = datetime(2024, 7, 18, 10, 0, tzinfo=UTC)
 
     # Test with timedelta parameter (this is what the backtest engine uses)
     timeshift_td = timedelta(minutes=-2)
 
     # get_bars() returns DataFrames directly
-    df_pandas = data_pandas.get_bars(
-        dt=test_dt,
-        length=2,
-        timestep="minute",
-        timeshift=timeshift_td
-    )
+    df_pandas = data_pandas.get_bars(dt=test_dt, length=2, timestep="minute", timeshift=timeshift_td)
 
-    df_polars = data_polars.get_bars(
-        dt=test_dt,
-        length=2,
-        timestep="minute",
-        timeshift=timeshift_td
-    )
+    df_polars = data_polars.get_bars(dt=test_dt, length=2, timestep="minute", timeshift=timeshift_td)
 
-    assert len(df_pandas) == 2, f"Pandas should return 2 rows with timedelta timeshift"
-    assert len(df_polars) == 2, f"Polars should return 2 rows with timedelta timeshift"
+    assert len(df_pandas) == 2, "Pandas should return 2 rows with timedelta timeshift"
+    assert len(df_polars) == 2, "Polars should return 2 rows with timedelta timeshift"
     assert len(df_pandas) == len(df_polars), "Row count mismatch with timedelta timeshift"
 
 
@@ -163,7 +143,7 @@ def test_data_get_bars_fast_path_does_not_drop_on_nan_extra_columns():
     (e.g. bid/ask) when dropping NaNs. The fast-path must not drop rows just because an extra
     column is NaN.
     """
-    start = datetime(2024, 7, 18, 9, 30, tzinfo=timezone.utc)
+    start = datetime(2024, 7, 18, 9, 30, tzinfo=UTC)
     mock_df = _create_mock_ohlc_data(start, periods=300)
 
     # Add an "extra" column that is entirely NaN. The output should still include bars.
@@ -181,7 +161,7 @@ def test_data_get_bars_fast_path_does_not_drop_on_nan_extra_columns():
         quote=asset,
     )
 
-    test_dt = datetime(2024, 7, 18, 10, 0, tzinfo=timezone.utc)
+    test_dt = datetime(2024, 7, 18, 10, 0, tzinfo=UTC)
     df_bars = data_pandas.get_bars(
         dt=test_dt,
         length=2,

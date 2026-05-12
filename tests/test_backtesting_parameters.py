@@ -1,9 +1,7 @@
 """Tests for BACKTESTING_PARAMETERS environment variable support."""
 
-import json
-import os
 import importlib
-import pytest
+import json
 
 
 class TestBacktestingParametersEnvVar:
@@ -12,6 +10,7 @@ class TestBacktestingParametersEnvVar:
     def _reload_credentials(self):
         """Force reimport of credentials module to pick up env var changes."""
         import lumibot.credentials
+
         importlib.reload(lumibot.credentials)
         return lumibot.credentials
 
@@ -62,7 +61,7 @@ class TestBacktestingParametersEnvVar:
 
     def test_json_list_ignored(self, monkeypatch):
         """JSON list (not dict) should be ignored with a warning."""
-        monkeypatch.setenv("BACKTESTING_PARAMETERS", '[1, 2, 3]')
+        monkeypatch.setenv("BACKTESTING_PARAMETERS", "[1, 2, 3]")
         creds = self._reload_credentials()
         assert creds.BACKTESTING_PARAMETERS is None
 
@@ -75,6 +74,6 @@ class TestBacktestingParametersEnvVar:
     def test_whitespace_trimmed(self, monkeypatch):
         """Whitespace around JSON should be trimmed."""
         params = {"key": "value"}
-        monkeypatch.setenv("BACKTESTING_PARAMETERS", f'  {json.dumps(params)}  ')
+        monkeypatch.setenv("BACKTESTING_PARAMETERS", f"  {json.dumps(params)}  ")
         creds = self._reload_credentials()
         assert creds.BACKTESTING_PARAMETERS == params

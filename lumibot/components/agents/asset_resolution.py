@@ -1,8 +1,10 @@
+from __future__ import annotations
+
+from collections.abc import Iterator
 from datetime import date, datetime
-from typing import Any
+from typing import Any, cast
 
-from lumibot.entities import Asset
-
+from lumibot.entities.asset import Asset
 
 _ASSET_TYPE_ALIASES = {
     "us_equity": Asset.AssetType.STOCK,
@@ -66,14 +68,19 @@ def _assets_match(
     return True
 
 
-def _iter_data_store_assets(strategy: Any):
+def _iter_data_store_assets(strategy: Any) -> Iterator[tuple[Any, Any | None]]:
     data_source = getattr(strategy, "_data_source", None) or getattr(strategy, "data_source", None)
     data_store = getattr(data_source, "_data_store", None)
     if not isinstance(data_store, dict):
         return
-    for key in data_store.keys():
-        if isinstance(key, tuple) and len(key) == 2:
-            yield key[0], key[1]
+    for key in cast(dict[object, object], data_store).keys():
+        if isinstance(key, tuple):
+            key_parts = cast(tuple[object, ...], key)
+            if len(key_parts) == 2:
+                yield key_parts[0], key_parts[1]
+                continue
+            yield key, None
+            continue
         else:
             yield key, None
 
@@ -135,6 +142,8 @@ def resolve_asset_and_quote(
     )
     quote = None
     if normalized_quote_symbol:
-        quote_asset_type = Asset.AssetType.CRYPTO if normalized_asset_type == Asset.AssetType.CRYPTO else Asset.AssetType.FOREX
+        quote_asset_type = (
+            Asset.AssetType.CRYPTO if normalized_asset_type == Asset.AssetType.CRYPTO else Asset.AssetType.FOREX
+        )
         quote = _build_asset(symbol=normalized_quote_symbol, asset_type=quote_asset_type)
     return asset, quote

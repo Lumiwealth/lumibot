@@ -1,10 +1,15 @@
+from __future__ import annotations
+
+from collections.abc import Mapping
 from decimal import Decimal
+
+DecimalLike = Decimal | float | str | int
 
 
 class TradingSlippage:
     """TradingSlippage class. Defines a per-order slippage amount for backtesting fills."""
 
-    def __init__(self, amount=0.0):
+    def __init__(self, amount: DecimalLike = 0.0) -> None:
         """
         Parameters
         ----------
@@ -18,11 +23,11 @@ class TradingSlippage:
         """
         self.amount = Decimal(amount)
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, float]:
         return {"amount": float(self.amount)}
 
     @classmethod
-    def from_dict(cls, data):
+    def from_dict(cls, data: Mapping[str, DecimalLike] | None) -> TradingSlippage | None:
         if data is None:
             return None
         return cls(amount=data.get("amount", 0.0))

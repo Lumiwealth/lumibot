@@ -6,9 +6,9 @@ import os
 import sys
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Optional
-
+from typing import Any
 
 TELEMETRY_PREFIX = "LUMIBOT_TELEMETRY"
 
@@ -19,7 +19,7 @@ def _truthy_env(value: str | None) -> bool:
 
 def _read_text(path: str) -> str | None:
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return f.read()
     except Exception:
         return None
@@ -157,7 +157,7 @@ class RuntimeTelemetryConfig:
     deep_cooldown_s: float = 3600.0
 
     @staticmethod
-    def from_env(*, is_backtesting: bool) -> "RuntimeTelemetryConfig":
+    def from_env(*, is_backtesting: bool) -> RuntimeTelemetryConfig:
         raw = os.environ.get("LUMIBOT_TELEMETRY")
         if raw is None:
             # Default: enabled for live runs, but must stay off under test runners to avoid background
@@ -203,8 +203,8 @@ class RuntimeTelemetryEmitter:
         broker: Any,
         stop_event: threading.Event,
         config: RuntimeTelemetryConfig,
-        logger: Optional[logging.Logger] = None,
-        snapshot_fn: Optional[Callable[[], dict[str, Any]]] = None,
+        logger: logging.Logger | None = None,
+        snapshot_fn: Callable[[], dict[str, Any]] | None = None,
     ):
         self._broker = broker
         self._stop_event = stop_event

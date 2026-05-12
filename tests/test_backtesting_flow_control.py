@@ -1,7 +1,8 @@
-import unittest
-from unittest.mock import Mock, patch
-import pandas as pd
 import datetime
+import unittest
+from unittest.mock import Mock
+
+import pandas as pd
 
 # Assuming lumibot.backtesting.Backtester and lumibot.strategies.Strategy exist
 # Adjust imports based on actual project structure
@@ -9,6 +10,7 @@ import datetime
 # from lumibot.strategies import Strategy
 # from lumibot.entities import Asset, Order
 # from lumibot.data_sources import PandasData
+
 
 # Mock classes for demonstration if real ones are complex to set up
 class MockStrategy:
@@ -31,46 +33,47 @@ class MockStrategy:
         self.get_positions = Mock(return_value=[])
         self.log_message = Mock()
         self.log_event = Mock()
-        self._broker = Mock() # Assume broker handles order state internally
+        self._broker = Mock()  # Assume broker handles order state internally
+
 
 class MockBacktester:
     def __init__(self, strategy_class, data_source, **kwargs):
         self.strategy = MockStrategy()
         self.data_source = data_source
-        self._clock = Mock() # Mock the internal clock/event loop
+        self._clock = Mock()  # Mock the internal clock/event loop
 
     def run(self):
         # Simulate a basic run loop - replace with actual backtester logic if possible
         print("Mock Backtester Run Start")
         # Simulate some iterations
-        for i in range(5):
-             self._clock.tick() # Simulate time progression
-             self.strategy.on_trading_iteration()
-             # Simulate order processing if applicable
+        for _i in range(5):
+            self._clock.tick()  # Simulate time progression
+            self.strategy.on_trading_iteration()
+            # Simulate order processing if applicable
         print("Mock Backtester Run End")
 
     def _process_orders(self):
         # Placeholder for order processing logic that might get stuck
         pass
 
+
 class MockDataSource:
-     def __init__(self, data):
-         self._data = data
-         self._iter = iter(data.index) if data is not None else iter([])
+    def __init__(self, data):
+        self._data = data
+        self._iter = iter(data.index) if data is not None else iter([])
 
-     def get_next_bar_datetime(self):
-         try:
-             return next(self._iter)
-         except StopIteration:
-             return None
+    def get_next_bar_datetime(self):
+        try:
+            return next(self._iter)
+        except StopIteration:
+            return None
 
-     def get_bar(self, dt, asset):
-         # Return some mock bar data
-         return {'open': 100, 'high': 105, 'low': 95, 'close': 102, 'volume': 1000}
+    def get_bar(self, dt, asset):
+        # Return some mock bar data
+        return {"open": 100, "high": 105, "low": 95, "close": 102, "volume": 1000}
 
 
 class TestBacktestingFlowControl(unittest.TestCase):
-
     def test_handles_complex_order_updates(self):
         """
         Test that the backtester correctly processes a sequence of order updates
@@ -82,7 +85,7 @@ class TestBacktestingFlowControl(unittest.TestCase):
         # and asserting the strategy's state and backtester progression.
 
         # Example: Simulate placing an order and receiving multiple updates
-        strategy = MockStrategy()
+        MockStrategy()
         # mock_order = Order(asset=Asset(symbol="AAPL", asset_type="stock"), quantity=10, side="buy")
         # mock_order.status = "submitted"
         # strategy.orders[mock_order.identifier] = mock_order
@@ -99,16 +102,16 @@ class TestBacktestingFlowControl(unittest.TestCase):
         # self.assertEqual(strategy.get_order(mock_order.identifier).status, "filled")
         # Add assertions to check if backtester loop continued or finished correctly
         print("Skipping complex order update test due to mocking complexity.")
-        pass # Placeholder - Requires deeper integration mocking
+        pass  # Placeholder - Requires deeper integration mocking
 
     def test_handles_data_gaps(self):
         """
         Test that the backtester progresses correctly over periods with no data.
         """
         # Setup data with a gap
-        dates = pd.to_datetime(['2023-01-01 09:30', '2023-01-01 09:31', '2023-01-01 09:35'])
-        mock_data = pd.DataFrame(index=dates, data={'AAPL': [100, 101, 102]})
-        data_source = MockDataSource(mock_data) # Use actual data source if possible
+        dates = pd.to_datetime(["2023-01-01 09:30", "2023-01-01 09:31", "2023-01-01 09:35"])
+        mock_data = pd.DataFrame(index=dates, data={"AAPL": [100, 101, 102]})
+        data_source = MockDataSource(mock_data)  # Use actual data source if possible
 
         # Initialize backtester
         # backtester = Backtester(MockStrategy, data_source=data_source) # Use actual Backtester
@@ -125,17 +128,17 @@ class TestBacktestingFlowControl(unittest.TestCase):
         self.assertTrue(run_completed, "Backtester failed or hung during data gap simulation.")
         # Assert that strategy iterations were called appropriately around the gap
         # e.g., strategy.on_trading_iteration.call_count should match expected ticks
-        self.assertEqual(backtester.strategy.on_trading_iteration.call_count, 5) # Based on MockBacktester loop
+        self.assertEqual(backtester.strategy.on_trading_iteration.call_count, 5)  # Based on MockBacktester loop
 
     def test_handles_strategy_exception(self):
         """
         Test that the backtester handles exceptions in strategy code gracefully.
         """
-        dates = pd.to_datetime(['2023-01-01 09:30', '2023-01-01 09:31'])
-        mock_data = pd.DataFrame(index=dates, data={'AAPL': [100, 101]})
+        dates = pd.to_datetime(["2023-01-01 09:30", "2023-01-01 09:31"])
+        mock_data = pd.DataFrame(index=dates, data={"AAPL": [100, 101]})
         data_source = MockDataSource(mock_data)
         backtester = MockBacktester(MockStrategy, data_source=data_source)
-        
+
         # Patch the instance method after it's created instead of the class method
         backtester.strategy.on_trading_iteration.side_effect = ValueError("Simulated strategy error")
 
@@ -157,5 +160,5 @@ class TestBacktestingFlowControl(unittest.TestCase):
         backtester.strategy.on_trading_iteration.assert_called()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -10,9 +10,7 @@ from lumibot.entities import Asset, Order
 def test_tradier_submit_multileg_without_stream_does_not_crash(mocker):
     # Avoid Tradier.__init__ (no network / credentials).
     broker = Tradier.__new__(Tradier)
-    broker.tradier = SimpleNamespace(
-        orders=SimpleNamespace(multileg_order=mocker.Mock(return_value={"id": "oid"}))
-    )
+    broker.tradier = SimpleNamespace(orders=SimpleNamespace(multileg_order=mocker.Mock(return_value={"id": "oid"})))
     broker._unprocessed_orders = []
     broker.name = "Tradier"
     broker.NEW_ORDER = "new"
@@ -39,4 +37,3 @@ def test_tradier_submit_multileg_without_stream_does_not_crash(mocker):
 
     parent = broker._submit_multileg_order([leg1, leg2], order_type="debit", duration="day", price=0.1, tag="t")  # noqa: SLF001
     assert parent.identifier == "oid"
-

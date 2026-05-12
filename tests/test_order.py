@@ -5,8 +5,8 @@ from lumibot.entities import Asset, Order
 
 class TestOrderBasics:
     def test_side_must_be_one_of(self):
-        assert Order(asset=Asset("SPY"), quantity=10, side="buy", strategy='abc').side == 'buy'
-        assert Order(asset=Asset("SPY"), quantity=10, side="sell", strategy='abc').side == 'sell'
+        assert Order(asset=Asset("SPY"), quantity=10, side="buy", strategy="abc").side == "buy"
+        assert Order(asset=Asset("SPY"), quantity=10, side="sell", strategy="abc").side == "sell"
 
     def test_blank_oco(self):
         # Create an OCO order without any child or limit/stop settings -- Error!
@@ -24,7 +24,7 @@ class TestOrderBasics:
             asset=Asset("SPY"),
             quantity=10,
             limit_price=100,
-            identifier="child_order_1"
+            identifier="child_order_1",
         )
 
         # Assert that the child order does not have any child orders of its own
@@ -49,11 +49,11 @@ class TestOrderBasics:
             asset=Asset("SPY"),
             side=Order.OrderSide.SELL,
             quantity=10,
-            child_orders=[child_order, child_order_2]
+            child_orders=[child_order, child_order_2],
         )
         order.add_child_order(child_order_2)
 
-        # Print the order and child order 
+        # Print the order and child order
         order_text = str(order).lower()
         first_child_order = order.child_orders[0]
         first_child_order_text = str(first_child_order).lower()
@@ -91,24 +91,24 @@ class TestOrderBasics:
     def test_is_option(self):
         # Standard stock order
         asset = Asset("SPY")
-        order = Order(asset=asset, quantity=10, side="buy", strategy='abc')
+        order = Order(asset=asset, quantity=10, side="buy", strategy="abc")
         assert not order.is_option()
 
         # Option order
         asset = Asset("SPY", asset_type="option")
-        order = Order(asset=asset, quantity=10, side="buy", strategy='abc')
+        order = Order(asset=asset, quantity=10, side="buy", strategy="abc")
         assert order.is_option()
 
     def test_get_filled_price(self):
         asset = Asset("SPY")
-        buy_order = Order(strategy='abc', asset=asset, side="buy", quantity=100)
+        buy_order = Order(strategy="abc", asset=asset, side="buy", quantity=100)
 
         # No transactions
-        assert buy_order.get_fill_price() == None
+        assert buy_order.get_fill_price() is None
 
         buy_order.transactions = [
             Order.Transaction(quantity=50, price=20.0),
-            Order.Transaction(quantity=50, price=30.0)
+            Order.Transaction(quantity=50, price=30.0),
         ]
         assert buy_order.get_fill_price() == 25.0
 
@@ -119,10 +119,10 @@ class TestOrderBasics:
         assert buy_order.get_fill_price() is None
 
         # Ensure Weighted Average used
-        sell_order = Order(strategy='abc', asset=asset, side="sell", quantity=100)
+        sell_order = Order(strategy="abc", asset=asset, side="sell", quantity=100)
         sell_order.transactions = [
             Order.Transaction(quantity=80, price=30.0),
-            Order.Transaction(quantity=20, price=40.0)
+            Order.Transaction(quantity=20, price=40.0),
         ]
         sell_order.position_filled = True
         assert sell_order.get_fill_price() == 32.0
@@ -144,17 +144,17 @@ class TestOrderBasics:
 
     def test_filled(self):
         asset = Asset("SPY")
-        order = Order(strategy='abc', asset=asset, side="buy", quantity=100)
+        order = Order(strategy="abc", asset=asset, side="buy", quantity=100)
         assert not order.is_filled()
         order.position_filled = True
         assert order.is_filled()
         order.position_filled = False
-        order.status = 'filled'
+        order.status = "filled"
         assert order.is_filled()
 
     def test_is_buy_order(self):
         asset = Asset("SPY")
-        order = Order(strategy='abc', asset=asset, side=Order.OrderSide.BUY, quantity=100)
+        order = Order(strategy="abc", asset=asset, side=Order.OrderSide.BUY, quantity=100)
         assert order.is_buy_order()
         order.side = Order.OrderSide.SELL
         assert not order.is_buy_order()
@@ -169,7 +169,7 @@ class TestOrderBasics:
 
     def test_is_sell_order(self):
         asset = Asset("SPY")
-        order = Order(strategy='abc', asset=asset, side=Order.OrderSide.SELL, quantity=100)
+        order = Order(strategy="abc", asset=asset, side=Order.OrderSide.SELL, quantity=100)
         assert order.is_sell_order()
         order.side = Order.OrderSide.BUY
         assert not order.is_sell_order()
@@ -184,30 +184,37 @@ class TestOrderBasics:
 
     def test_cancelled(self):
         asset = Asset("SPY")
-        order = Order(strategy='abc', asset=asset, side="buy", quantity=100)
+        order = Order(strategy="abc", asset=asset, side="buy", quantity=100)
         assert not order.is_canceled()
-        order.status = 'cancelled'
+        order.status = "cancelled"
         assert order.is_canceled()
-        order.status = 'canceled'
+        order.status = "canceled"
         assert order.is_canceled()
-        order.status = 'cancel'
+        order.status = "cancel"
         assert order.is_canceled()
 
     def test_active(self):
         asset = Asset("SPY")
-        order = Order(strategy='abc', asset=asset, side="buy", quantity=100)
+        order = Order(strategy="abc", asset=asset, side="buy", quantity=100)
         assert order.is_active()
-        order.status = 'filled'
+        order.status = "filled"
         assert not order.is_active()
-        order.status = 'cancelled'
+        order.status = "cancelled"
         assert not order.is_active()
-        order.status = 'submitted'
+        order.status = "submitted"
         assert order.is_active()
 
     def test_active_oco(self):
         asset = Asset("SPY")
-        order = Order(strategy='abc', asset=asset, side=Order.OrderSide.SELL, quantity=100,
-                      order_class=Order.OrderClass.OCO, limit_price=100, stop_price=90)
+        order = Order(
+            strategy="abc",
+            asset=asset,
+            side=Order.OrderSide.SELL,
+            quantity=100,
+            order_class=Order.OrderClass.OCO,
+            limit_price=100,
+            stop_price=90,
+        )
         assert order.is_active()
         assert order.is_parent()
 
@@ -215,16 +222,16 @@ class TestOrderBasics:
         assert order.child_orders[0].is_active()
         assert order.child_orders[1].is_active()
 
-        order.status = 'filled'
+        order.status = "filled"
         assert order.is_active(), "OCO is still active while child orders are active"
-        order.child_orders[0].status = 'filled'
+        order.child_orders[0].status = "filled"
         assert order.is_active(), "OCO is still active while child orders are active"
-        order.child_orders[1].status = 'filled'
+        order.child_orders[1].status = "filled"
         assert not order.is_active()
 
     def test_status(self):
         asset = Asset("SPY")
-        order = Order(strategy='abc', asset=asset, side="buy", quantity=100)
+        order = Order(strategy="abc", asset=asset, side="buy", quantity=100)
         assert order.status == "unprocessed"
         order.status = "filled"
         assert order.status == "fill"
@@ -253,8 +260,8 @@ class TestOrderBasics:
 
     def test_equivalent_status(self):
         asset = Asset("SPY")
-        order1 = Order(strategy='abc', asset=asset, side="buy", quantity=100)
-        order2 = Order(strategy='abc', asset=asset, side="buy", quantity=100)
+        order1 = Order(strategy="abc", asset=asset, side="buy", quantity=100)
+        order2 = Order(strategy="abc", asset=asset, side="buy", quantity=100)
         assert order1.equivalent_status(order2)
         order2.status = "filled"
         assert not order1.equivalent_status(order2)
@@ -279,7 +286,7 @@ class TestOrderBasics:
 
     def test_to_position(self):
         asset = Asset("SPY")
-        order = Order(strategy='abc', asset=asset, side="buy", quantity=100, avg_fill_price=100)
+        order = Order(strategy="abc", asset=asset, side="buy", quantity=100, avg_fill_price=100)
         position = order.to_position(order.quantity)
         assert position.strategy == order.strategy
         assert position.asset == order.asset
@@ -290,12 +297,30 @@ class TestOrderBasics:
         assert position.avg_fill_price == order.avg_fill_price
 
     def test_add_transaction_fast_matches_transaction_field_order(self):
-        order = Order(strategy='abc', asset=Asset("SPY"), side="buy", quantity=100)
+        order = Order(strategy="abc", asset=Asset("SPY"), side="buy", quantity=100)
 
         order.add_transaction_fast(price=101.25, quantity=2)
 
         assert order.transactions[-1].price == 101.25
         assert order.transactions[-1].quantity == 2
+
+    def test_simple_backtest_transactions_behave_like_single_transaction_sequence(self):
+        transactions = Order.SimpleBacktestTransactions(quantity=2, price=101.25)
+
+        assert transactions
+        assert len(transactions) == 1
+        assert transactions[0] == Order.Transaction(quantity=2, price=101.25)
+        assert transactions[-1].price == 101.25
+        assert list(transactions) == [Order.Transaction(quantity=2, price=101.25)]
+
+        order = Order(strategy="abc", asset=Asset("SPY"), side="buy", quantity=100)
+        order.transactions = transactions
+        order.add_transaction_fast(price=102.5, quantity=3)
+
+        assert order.transactions == [
+            Order.Transaction(quantity=2, price=101.25),
+            Order.Transaction(quantity=3, price=102.5),
+        ]
 
 
 class TestOrderAdvanced:

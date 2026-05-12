@@ -37,12 +37,7 @@ def test_read_cgroup_memory_v2_max_unlimited(monkeypatch):
 
 
 def test_read_proc_self_status_parsing(monkeypatch):
-    status = (
-        "Name:\tpython\n"
-        "Threads:\t7\n"
-        "VmRSS:\t  12345 kB\n"
-        "VmSize:\t  98765 kB\n"
-    )
+    status = "Name:\tpython\nThreads:\t7\nVmRSS:\t  12345 kB\nVmSize:\t  98765 kB\n"
     monkeypatch.setattr(rt, "_read_text", lambda p: status if p == "/proc/self/status" else None)
     out = rt.read_proc_self_status()
     assert out["process_rss_bytes"] == 12345 * 1024
@@ -92,4 +87,3 @@ def test_runtime_telemetry_emits_json(monkeypatch):
     encoded = json.dumps(payload)
     decoded = json.loads(encoded)
     assert decoded["process_rss_bytes"] == 2
-

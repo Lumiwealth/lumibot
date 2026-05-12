@@ -14,20 +14,22 @@ Created: December 2024
 Related issue: ThetaData backtesting portfolio collapse for illiquid options
 """
 
-from datetime import date, datetime, timedelta
 import logging
+from datetime import date, datetime
 from unittest.mock import MagicMock, patch
+
 import pytest
 
 from lumibot.backtesting import BacktestingBroker, YahooDataBacktesting
-from lumibot.example_strategies.stock_buy_and_hold import BuyAndHold
-from lumibot.entities import Asset, Position
-from lumibot.strategies.strategy import Strategy
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
+from lumibot.entities import Asset, Position
+from lumibot.example_strategies.stock_buy_and_hold import BuyAndHold
+from lumibot.strategies.strategy import Strategy
 
 
 class FakeQuote:
     """Fake quote object with bid/ask prices."""
+
     def __init__(self, bid, ask):
         self.bid = bid
         self.ask = ask
@@ -35,6 +37,7 @@ class FakeQuote:
 
 class FakeSourceWithQuote:
     """Fake data source that supports get_quote()."""
+
     def __init__(self):
         self.snapshot = None
         self.quote = None
@@ -311,7 +314,7 @@ class TestForwardFill:
         strategy._last_known_prices = {option_asset: 155.0}
 
         starting_cash = strategy.cash
-        with patch.object(strategy.logger, 'warning') as warning_mock:
+        with patch.object(strategy.logger, "warning") as warning_mock:
             value = strategy._update_portfolio_value()
 
         # Should use forward-filled price: 155.0 * 10 contracts * 100 multiplier = 155,000
@@ -418,11 +421,11 @@ class TestForwardFill:
         strategy.broker.data_source.get_datetime = MagicMock(return_value=now)
 
         # Ensure no last known prices exist
-        if hasattr(strategy, '_last_known_prices'):
+        if hasattr(strategy, "_last_known_prices"):
             del strategy._last_known_prices
 
         starting_cash = strategy.cash
-        with patch.object(strategy.logger, 'warning') as warning_mock:
+        with patch.object(strategy.logger, "warning") as warning_mock:
             value = strategy._update_portfolio_value()
 
         # Should only have cash (position skipped)
@@ -512,6 +515,7 @@ class TestPortfolioValueFallbackIntegration:
 
         # Mock option_source.get_price_snapshot to dispatch correctly
         option_source = MagicMock()
+
         def mock_get_price_snapshot(asset, *args, **kwargs):
             if asset.symbol == "GOOG":
                 return source1.snapshot
@@ -567,13 +571,13 @@ class TestPortfolioValueFallbackIntegration:
         strategy.broker.data_source.get_datetime = MagicMock(return_value=now)
 
         # Ensure _last_known_prices is empty initially
-        if hasattr(strategy, '_last_known_prices'):
+        if hasattr(strategy, "_last_known_prices"):
             del strategy._last_known_prices
 
         strategy._update_portfolio_value()
 
         # After update, _last_known_prices should contain the fetched price
-        assert hasattr(strategy, '_last_known_prices')
+        assert hasattr(strategy, "_last_known_prices")
         assert option1 in strategy._last_known_prices
         assert strategy._last_known_prices[option1] == 165.0
 
@@ -614,7 +618,7 @@ class TestPortfolioValueFallbackIntegration:
             source.quote = None
             strategy.broker.data_source.get_datetime = MagicMock(return_value=day_n)
 
-            with patch.object(strategy.logger, 'warning'):
+            with patch.object(strategy.logger, "warning"):
                 value_day_n = strategy._update_portfolio_value()
 
             # Value should be same as day 1 (forward-filled)
@@ -751,7 +755,7 @@ class TestEdgeCases:
         # The key assertion is that in live mode, the forward-fill code path is not taken
         # We verify this by checking the is_backtesting condition in the code
         # Since the live broker setup is complex, we just verify the condition exists
-        assert strategy.is_backtesting == False
+        assert not strategy.is_backtesting
 
     def test_source_without_get_quote_method(self):
         """

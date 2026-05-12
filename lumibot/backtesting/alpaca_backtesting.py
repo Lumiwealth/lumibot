@@ -1,20 +1,24 @@
 from __future__ import annotations
 
+# pyright: reportUnknownVariableType=false, reportUnknownMemberType=false, reportUnknownArgumentType=false
+# pyright: reportUnknownParameterType=false, reportMissingParameterType=false, reportMissingTypeArgument=false
+# pyright: reportConstantRedefinition=false, reportInvalidTypeForm=false, reportOptionalMemberAccess=false
+# pyright: reportUnnecessaryComparison=false, reportGeneralTypeIssues=false, reportArgumentType=false
+# pyright: reportIncompatibleMethodOverride=false, reportIncompatibleVariableOverride=false
 import os
 from datetime import datetime, timedelta
 from decimal import Decimal
 from importlib import import_module
-from typing import TYPE_CHECKING, Optional
-
-import pytz
+from types import ModuleType
+from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
 from lumibot.constants import (
     LUMIBOT_CACHE_FOLDER,
     LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL,
     LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE,
 )
-from lumibot.data_sources import DataSourceBacktesting
-from lumibot.entities import Asset
+from lumibot.data_sources.data_source_backtesting import DataSourceBacktesting
+from lumibot.entities.asset import Asset
 from lumibot.tools.helpers import (
     date_n_trading_days_from_date,
     get_decimals,
@@ -26,67 +30,70 @@ from lumibot.tools.helpers import (
 from lumibot.tools.lumibot_logger import get_logger
 
 if TYPE_CHECKING:
-    from lumibot.entities import Bars
+    from lumibot.entities.bars import Bars
+
+PandasDataFrame: TypeAlias = Any  # noqa: UP040
+PandasDatetimeIndex: TypeAlias = Any  # noqa: UP040
+Config: TypeAlias = dict[str, Any]  # noqa: UP040
 
 logger = get_logger(__name__)
 
 
-class _LazyModule:
+class _LazyModule(ModuleType):
+    _module_name: str
+    _module: ModuleType | None
+
     __slots__ = ("_module_name", "_module")
 
-    def __init__(self, module_name: str):
+    def __init__(self, module_name: str) -> None:
+        super().__init__(module_name)
         self._module_name = module_name
         self._module = None
 
-    def _load(self):
+    def _load(self) -> ModuleType:
         module = self._module
         if module is None:
             module = import_module(self._module_name)
             self._module = module
         return module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
 
 pd = _LazyModule("pandas")
-_BARS_CLASS = None
-_ALPACA_DATA_CLASS = None
-_ALPACA_HELPERS = None
+_bars_class_cache: Any | None = None
+_alpaca_data_class_cache: Any | None = None
+_alpaca_helpers_cache: ModuleType | None = None
 
 
-def _alpaca_attr(module_name: str, attr_name: str):
+def _alpaca_attr(module_name: str, attr_name: str) -> Any:
     return getattr(import_module(module_name), attr_name)
 
 
-def _bars_class():
-    global _BARS_CLASS
-    if _BARS_CLASS is None:
-        from lumibot.entities import Bars
+def _bars_class() -> Any:
+    global _bars_class_cache
+    if _bars_class_cache is None:
+        from lumibot.entities.bars import Bars
 
-        _BARS_CLASS = Bars
-    return _BARS_CLASS
-
-
-def _alpaca_data_class():
-    global _ALPACA_DATA_CLASS
-    if _ALPACA_DATA_CLASS is None:
-        from lumibot.data_sources import AlpacaData
-
-        _ALPACA_DATA_CLASS = AlpacaData
-    return _ALPACA_DATA_CLASS
+        _bars_class_cache = Bars
+    return _bars_class_cache
 
 
-def _alpaca_timeframe_from_source_value(value):
-    module = import_module("lumibot.data_sources.alpaca_data")
-    return module._timeframe_from_source_value(value)
+def _alpaca_data_class() -> Any:
+    global _alpaca_data_class_cache
+    if _alpaca_data_class_cache is None:
+        from lumibot.data_sources.alpaca_data import AlpacaData
+
+        _alpaca_data_class_cache = AlpacaData
+    return _alpaca_data_class_cache
 
 
-def _sanitize_base_and_quote_asset(*args, **kwargs):
-    global _ALPACA_HELPERS
-    if _ALPACA_HELPERS is None:
-        _ALPACA_HELPERS = import_module("lumibot.tools.alpaca_helpers")
-    return _ALPACA_HELPERS.sanitize_base_and_quote_asset(*args, **kwargs)
+def _sanitize_base_and_quote_asset(*args: Any, **kwargs: Any) -> tuple[Asset, Asset]:
+    global _alpaca_helpers_cache
+    if _alpaca_helpers_cache is None:
+        _alpaca_helpers_cache = import_module("lumibot.tools.alpaca_helpers")
+    return cast(tuple[Asset, Asset], _alpaca_helpers_cache.sanitize_base_and_quote_asset(*args, **kwargs))
 
 
 class AlpacaBacktesting(DataSourceBacktesting):
@@ -98,14 +105,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
     ]
     LUMIBOT_DEFAULT_QUOTE_ASSET = Asset(LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL, LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE)
 
-    def _parse_source_timestep(self, timestep, reverse=False):
-        timestep_text = str(timestep)
-        for item in self.TIMESTEP_MAPPING:
-            if reverse and timestep_text == item["timestep"]:
-                return _alpaca_timeframe_from_source_value(item["representations"][0])
-            if not reverse and timestep_text in item["representations"]:
-                return item["timestep"]
-
+    def _parse_source_timestep(self, timestep: str, reverse: bool = False) -> Any:
         if reverse:
             normalized = str(timestep).strip().lower()
             if normalized not in {"day", "minute"}:
@@ -118,21 +118,21 @@ class AlpacaBacktesting(DataSourceBacktesting):
         return super()._parse_source_timestep(timestep, reverse=reverse)
 
     def __init__(
-            self,
-            datetime_start: datetime | None = None,
-            datetime_end: datetime | None = None,
-            backtesting_started: datetime | None = None,
-            config: dict | None = None,
-            api_key: str | None = None,
-            show_progress_bar: bool = True,
-            delay: int | None = None,
-            pandas_data: dict | list = None,
-            **kwargs
-    ):
+        self,
+        datetime_start: datetime | None = None,
+        datetime_end: datetime | None = None,
+        backtesting_started: datetime | None = None,
+        config: Config | None = None,
+        api_key: str | None = None,
+        show_progress_bar: bool = True,
+        delay: int | None = None,
+        pandas_data: dict[str, Any] | list[Any] | None = None,
+        **kwargs: Any,
+    ) -> None:
         """
-        Initializes a class instance for handling backtesting data and parameters. This initialization 
-        process involves setting up key configurations, verifying account types, and preparing backtesting 
-        timings, timezones, and historical data clients. Data caching and warm-up trading days are also 
+        Initializes a class instance for handling backtesting data and parameters. This initialization
+        process involves setting up key configurations, verifying account types, and preparing backtesting
+        timings, timezones, and historical data clients. Data caching and warm-up trading days are also
         appropriately configured.
 
         Args:
@@ -141,21 +141,21 @@ class AlpacaBacktesting(DataSourceBacktesting):
             backtesting_started (datetime | None): Represents the datetime when backtesting started. Defaults to None.
             config (dict | None): Configuration dictionary containing required API keys and account details.
                 Cannot be None as it's critical for API connections.
-            api_key (str | None): API key for authorized data access. Optional as it can typically be found 
+            api_key (str | None): API key for authorized data access. Optional as it can typically be found
                 within the provided config.
-            show_progress_bar (bool): Indicates whether to show a progress bar during data operations. 
+            show_progress_bar (bool): Indicates whether to show a progress bar during data operations.
                 Defaults to True.
-            delay (int | None): Delay in seconds added between operations to simulate real-world activity. 
+            delay (int | None): Delay in seconds added between operations to simulate real-world activity.
                 Defaults to None.
-            pandas_data (dict | list): Data to be loaded directly into pandas, allowing analysis or backtesting 
+            pandas_data (dict | list): Data to be loaded directly into pandas, allowing analysis or backtesting
                 without requiring external API calls.
             **kwargs: Additional keyword arguments, such as:
                 - timestep (str): Interval for data ("day" or "minute"). Defaults to "day".
                 - refresh_cache (bool): Whether to force cache refresh. Defaults to False.
-                - warm_up_trading_days (int): The number of trading days used for warm-up before processing 
+                - warm_up_trading_days (int): The number of trading days used for warm-up before processing
                   the primary dataset. Defaults to 0.
                 - market (str): Indicates the stock exchange or market (e.g., "NYSE"). Defaults to "NYSE".
-                - auto_adjust (bool): Determines whether to auto-adjust data, such as stock splits. Defaults 
+                - auto_adjust (bool): Determines whether to auto-adjust data, such as stock splits. Defaults
                   to True.
                 remove_incomplete_current_bar (bool): Whether to remove the incomplete current bar from the data.
                   Alpaca includes incomplete bars for the current bar (ie: it gives you a daily bar for the current
@@ -179,26 +179,28 @@ class AlpacaBacktesting(DataSourceBacktesting):
         )
 
         self.market = (
-                kwargs.get("market", None)
-                or (config.get("MARKET") if config else None)
-                or os.environ.get("MARKET")
-                or "NASDAQ"
+            kwargs.get("market", None)
+            or (config.get("MARKET") if config else None)
+            or os.environ.get("MARKET")
+            or "NASDAQ"
         )
 
-        self._timestep: str = kwargs.get('timestep', 'day')
-        warm_up_trading_days: int = kwargs.get('warm_up_trading_days', 0)
+        self._timestep = kwargs.get("timestep", "day")
+        warm_up_trading_days: int = kwargs.get("warm_up_trading_days", 0)
 
-        self._auto_adjust: bool = kwargs.get('auto_adjust', True)
-        self.CACHE_SUBFOLDER = 'alpaca'
-        self._data_store: dict[str, pd.DataFrame] = {}
-        self._refreshed_keys = {}
-        self._refresh_cache: bool = kwargs.get('refresh_cache', False)
-        self._remove_incomplete_current_bar = kwargs.get('remove_incomplete_current_bar', False)
+        self._auto_adjust: bool = kwargs.get("auto_adjust", True)
+        self.CACHE_SUBFOLDER = "alpaca"
+        self._data_store: dict[str, PandasDataFrame] = {}
+        self._refreshed_keys: dict[str, bool] = {}
+        self._refresh_cache: bool = kwargs.get("refresh_cache", False)
+        self._remove_incomplete_current_bar = kwargs.get("remove_incomplete_current_bar", False)
 
         if config is None:
             raise ValueError("Config cannot be None. Please provide a valid configuration.")
         if not config.get("PAPER", True):
             raise ValueError("Backtesting is restricted to paper accounts. Pass in a paper account config.")
+        if datetime_start is None or datetime_end is None:
+            raise ValueError("datetime_start and datetime_end are required for AlpacaBacktesting.")
 
         # Initialize clients based on available authentication method
         CryptoHistoricalDataClient = _alpaca_attr("alpaca.data.historical", "CryptoHistoricalDataClient")
@@ -206,19 +208,13 @@ class AlpacaBacktesting(DataSourceBacktesting):
         oauth_token = config.get("OAUTH_TOKEN")
         api_key = config.get("API_KEY")
         api_secret = config.get("API_SECRET")
-        
+
         if oauth_token:
             self._crypto_client = CryptoHistoricalDataClient(oauth_token=oauth_token)
             self._stock_client = StockHistoricalDataClient(oauth_token=oauth_token)
         elif api_key and api_secret:
-            self._crypto_client = CryptoHistoricalDataClient(
-                api_key=api_key,
-                secret_key=api_secret
-            )
-            self._stock_client = StockHistoricalDataClient(
-                api_key=api_key,
-                secret_key=api_secret
-            )
+            self._crypto_client = CryptoHistoricalDataClient(api_key=api_key, secret_key=api_secret)
+            self._stock_client = StockHistoricalDataClient(api_key=api_key, secret_key=api_secret)
         else:
             raise ValueError("Either OAuth token or API key/secret must be provided for Alpaca authentication")
 
@@ -270,14 +266,14 @@ class AlpacaBacktesting(DataSourceBacktesting):
         self._data_datetime_start = warm_up_start_dt
         self._data_datetime_end = end_dt
 
-        if self._timestep not in ['day', 'minute']:
+        if self._timestep not in ["day", "minute"]:
             raise ValueError("Invalid timestep passed. Must be 'day' or 'minute'.")
 
         self._trading_days = get_trading_days(
             self.market,
             self._data_datetime_start,
             self._data_datetime_end + timedelta(days=1),  # end_date is exclusive in this function
-            tzinfo=self.tzinfo
+            tzinfo=self.tzinfo,
         )
 
         # I think lumibot's got a bug in the strategy_executor when backtesting daily strategies.
@@ -285,14 +281,14 @@ class AlpacaBacktesting(DataSourceBacktesting):
         # So if you run the backtest until the last day of data, lumibot will crash when it tries to calculate
         # the portfolio value. To avoid that crash (and because im avoiding dealing with people complaining about
         # backtest behavior changing if i fix it) im just hacking this so the backtest ends before the data runs out.
-        if self._timestep == 'day':
+        if self._timestep == "day":
             end_shift = -3
         else:
             end_shift = -3
 
         # stop backtesting before the last trading date of the backtest
         # so there's one day of data the backtester has to calculate all its stuff.
-        last_trading_day = self._trading_days.iloc[end_shift]['market_open']
+        last_trading_day = self._trading_days.iloc[end_shift]["market_open"]
         self.datetime_end = last_trading_day
 
         self.datetime_start = start_dt
@@ -303,10 +299,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         return asset, quote
 
     def get_last_price(
-            self,
-            asset: Asset,
-            quote: Asset | None = None,
-            exchange: str | None = None
+        self, asset: Asset, quote: Asset | None = None, exchange: str | None = None
     ) -> float | Decimal | None:
         """Returns the open price of the current bar."""
 
@@ -317,7 +310,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             length=1,  # Get one bar
             timestep=self._timestep,
             quote=quote,
-            remove_incomplete_current_bar=False  # We want the incomplete bar (aka current bar) for get_last_price
+            remove_incomplete_current_bar=False,  # We want the incomplete bar (aka current bar) for get_last_price
         )
 
         if bars is None or bars.df.empty:
@@ -340,16 +333,16 @@ class AlpacaBacktesting(DataSourceBacktesting):
         return quantize_to_num_decimals(price, num_decimals)
 
     def get_historical_prices(
-            self,
-            asset: Asset,
-            length: int,
-            timestep: str | None = None,
-            timeshift: timedelta | None = None,
-            quote: Asset | None = None,
-            exchange: str | None = None,
-            include_after_hours: bool = True,
-            return_polars: bool = False,
-            remove_incomplete_current_bar: Optional[bool] = None,
+        self,
+        asset: Asset,
+        length: int,
+        timestep: str | None = None,
+        timeshift: timedelta | None = None,
+        quote: Asset | None = None,
+        exchange: str | None = None,
+        include_after_hours: bool = True,
+        return_polars: bool = False,
+        remove_incomplete_current_bar: bool | None = None,
     ) -> Bars | None:
         """
         Get bars for an asset by delegating to get_historical_prices_between_dates
@@ -404,8 +397,10 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
         # Determine search target datetime
         search_datetime = self._datetime
+        if search_datetime is None:
+            raise ValueError("Backtesting datetime is not initialized.")
         if timeshift:
-            search_datetime = self._datetime - timeshift
+            search_datetime = search_datetime - timeshift
 
         try:
             # Fetch historical prices during the backtest using the dedicated function
@@ -415,20 +410,18 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 timestep=timestep,
                 data_datetime_start=self._data_datetime_start,
                 data_datetime_end=self._data_datetime_end,
-                auto_adjust=self._auto_adjust
+                auto_adjust=self._auto_adjust,
             )
         except Exception as e:
             # Handle errors if fetching data fails
-            raise RuntimeError(f"Unable to fetch historical prices during backtest: {e}")
+            raise RuntimeError(f"Unable to fetch historical prices during backtest: {e}") from e
 
         # Ensure sufficient bars are available
         if length > len(df):
-            raise ValueError(
-                f"Not enough historical data. Requested {length} bars but only {len(df)} available."
-            )
+            raise ValueError(f"Not enough historical data. Requested {length} bars but only {len(df)} available.")
 
         # Adjust the search based on timestep
-        if timestep == 'day':
+        if timestep == "day":
             # For daily bars
             search_date = search_datetime.date()
             dates = df.index.date
@@ -455,7 +448,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         if length == 1:
             result_df = df.iloc[[current_index]]
         else:
-            result_df = df.iloc[max(0, current_index - length + 1): current_index + 1]
+            result_df = df.iloc[max(0, current_index - length + 1) : current_index + 1]
 
         return _bars_class()(
             result_df,
@@ -471,16 +464,16 @@ class AlpacaBacktesting(DataSourceBacktesting):
         return {}
 
     def _get_asset_key(
-            self,
-            *,
-            base_asset: Asset,
-            quote_asset: Asset,
-            timestep: str = None,
-            market: str = None,
-            tzinfo: pytz.tzinfo = None,
-            data_datetime_start: datetime = None,
-            data_datetime_end: datetime = None,
-            auto_adjust: bool = None,
+        self,
+        *,
+        base_asset: Asset,
+        quote_asset: Asset,
+        timestep: str | None = None,
+        market: str | None = None,
+        tzinfo: Any | None = None,
+        data_datetime_start: datetime | None = None,
+        data_datetime_end: datetime | None = None,
+        auto_adjust: bool | None = None,
     ) -> str:
         """
         Generate a unique key for an asset combination with specific parameters.
@@ -525,7 +518,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         if timestep is None:
             timestep = self._timestep
 
-        if timestep not in ['day', 'minute']:
+        if timestep not in ["day", "minute"]:
             raise ValueError(f"Invalid timestep {timestep}. Must be 'day' or 'minute'.")
 
         base_quote = f"{base_asset.symbol}-{base_asset.asset_type}_{quote_asset.symbol}-{quote_asset.asset_type}"
@@ -535,30 +528,31 @@ class AlpacaBacktesting(DataSourceBacktesting):
         end_date_str = data_datetime_end.strftime("%Y-%m-%d")
         auto_adjust_str = "AA" if auto_adjust else ""
 
-        key_parts = [
-            base_quote, market, timestep, tzinfo_str,
-            auto_adjust_str, start_date_str, end_date_str
-        ]
+        key_parts = [base_quote, market, timestep, tzinfo_str, auto_adjust_str, start_date_str, end_date_str]
         key = "_".join(part for part in key_parts if part).upper()
         key = key.replace("/", "-")
         return key
 
     def _download_and_cache_ohlcv_data(
-            self,
-            *,
-            base_asset: Asset = None,
-            quote_asset: Asset = None,
-            timestep: str = None,
-            market: str = None,
-            tzinfo: pytz.tzinfo = None,
-            data_datetime_start: datetime = None,
-            data_datetime_end: datetime = None,
-            auto_adjust: bool = None,
-    ) -> pd.DataFrame:
+        self,
+        *,
+        base_asset: Asset | None = None,
+        quote_asset: Asset | None = None,
+        timestep: str | None = None,
+        market: str | None = None,
+        tzinfo: Any | None = None,
+        data_datetime_start: datetime | None = None,
+        data_datetime_end: datetime | None = None,
+        auto_adjust: bool | None = None,
+    ) -> PandasDataFrame:
         if base_asset is None:
             raise ValueError("The parameter 'base_asset' cannot be None.")
         if quote_asset is None:
             raise ValueError("The parameter 'quote_asset' cannot be None.")
+        if base_asset.symbol is None:
+            raise ValueError("The base asset must have a symbol.")
+        if quote_asset.symbol is None:
+            raise ValueError("The quote asset must have a symbol.")
         if timestep is None:
             raise ValueError("The parameter 'timestep' cannot be None.")
         if market is None:
@@ -593,11 +587,11 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
         logger.info(f"Fetching and caching data for {key}")
 
-        if base_asset.asset_type == 'crypto':
+        if base_asset.asset_type == "crypto":
             client = self._crypto_client
             CryptoBarsRequest = _alpaca_attr("alpaca.data.requests", "CryptoBarsRequest")
 
-            symbol = base_asset.symbol + '/' + quote_asset.symbol
+            symbol = base_asset.symbol + "/" + quote_asset.symbol
 
             # noinspection PyArgumentList
             request_params = CryptoBarsRequest(
@@ -609,7 +603,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         else:
             client = self._stock_client
             StockBarsRequest = _alpaca_attr("alpaca.data.requests", "StockBarsRequest")
-            adjustment = 'all' if auto_adjust else 'split'
+            adjustment = "all" if auto_adjust else "split"
 
             # noinspection PyArgumentList
             request_params = StockBarsRequest(
@@ -627,20 +621,20 @@ class AlpacaBacktesting(DataSourceBacktesting):
             else:
                 bars = client.get_stock_bars(request_params)
         except Exception as e:
-            raise RuntimeError(f"Failed to fetch data for {key}: {e}")
+            raise RuntimeError(f"Failed to fetch data for {key}: {e}") from e
 
         df = bars.df.reset_index()
         if df.empty:
             raise RuntimeError(f"No data fetched for {key}.")
 
         # Ensure 'timestamp' is a pandas timestamp object
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
-        if df['timestamp'].dt.tz is None:
-            df['timestamp'] = df['timestamp'].dt.tz_localize(tzinfo)
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        if df["timestamp"].dt.tz is None:
+            df["timestamp"] = df["timestamp"].dt.tz_localize(tzinfo)
         else:
-            df['timestamp'] = df['timestamp'].dt.tz_convert(tzinfo)
+            df["timestamp"] = df["timestamp"].dt.tz_convert(tzinfo)
 
-        df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']]
+        df = df[["timestamp", "open", "high", "low", "close", "volume"]]
 
         trading_times = get_trading_times(
             pcal=self._trading_days,
@@ -652,13 +646,13 @@ class AlpacaBacktesting(DataSourceBacktesting):
         df = self._reindex_and_fill(df=df, trading_times=trading_times, timestep=timestep)
 
         # Filter data to include only rows between data_datetime_start and data_datetime_end
-        df = df[(df['timestamp'] >= data_datetime_start) & (df['timestamp'] <= data_datetime_end)]
+        df = df[(df["timestamp"] >= data_datetime_start) & (df["timestamp"] <= data_datetime_end)]
 
         # Save to cache
         df.to_csv(filepath, index=False)
 
         # Store in _data_store
-        df.set_index('timestamp', inplace=True)
+        df.set_index("timestamp", inplace=True)
         self._data_store[key] = df
         logger.info(f"Finished fetching and caching data for {key}")
         return df
@@ -667,12 +661,12 @@ class AlpacaBacktesting(DataSourceBacktesting):
         """
         Loads OHLCV data from a cached file into the data store. If the loading is successful, returns True;
         otherwise, returns False.
-    
+
         Parameters
         ----------
         key : str
             The unique key for the cached data file.
-    
+
         Returns
         -------
         bool
@@ -689,17 +683,17 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
         try:
             # Read CSV file with 'timestamp' column parsed as dates
-            df = pd.read_csv(filepath, parse_dates=['timestamp'])
+            df = pd.read_csv(filepath, parse_dates=["timestamp"])
 
             # Convert timestamp column to datetime objects, interpreting them as UTC times
             # utc=True ensures proper handling of timezone-aware data
-            df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True)
+            df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
 
             # Convert timestamps from UTC to the timezone specified in self.tzinfo
             # For example: if self.tzinfo is 'America/New_York', converts UTC times to NY time
-            df['timestamp'] = df['timestamp'].dt.tz_convert(self.tzinfo)
+            df["timestamp"] = df["timestamp"].dt.tz_convert(self.tzinfo)
 
-            df.set_index('timestamp', inplace=True)
+            df.set_index("timestamp", inplace=True)
             self._data_store[key] = df
             logger.info(f"Loaded cached data for key: {key} from cache.")
             return True
@@ -708,17 +702,17 @@ class AlpacaBacktesting(DataSourceBacktesting):
             return False
 
     def get_historical_prices_between_dates(
-            self,
-            *,
-            base_asset: Asset = None,
-            quote_asset: Asset = None,
-            timestep: str = None,
-            market: str = None,
-            tzinfo: pytz.tzinfo = None,
-            data_datetime_start: datetime = None,
-            data_datetime_end: datetime = None,
-            auto_adjust: bool = None,
-    ) -> pd.DataFrame:
+        self,
+        *,
+        base_asset: Asset | None = None,
+        quote_asset: Asset | None = None,
+        timestep: str | None = None,
+        market: str | None = None,
+        tzinfo: Any | None = None,
+        data_datetime_start: datetime | None = None,
+        data_datetime_end: datetime | None = None,
+        auto_adjust: bool | None = None,
+    ) -> PandasDataFrame:
 
         if base_asset is None:
             raise ValueError("Base asset must be provided.")
@@ -758,7 +752,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 tzinfo=tzinfo,
                 data_datetime_start=data_datetime_start,
                 data_datetime_end=data_datetime_end,
-                auto_adjust=auto_adjust
+                auto_adjust=auto_adjust,
             )
             self._refreshed_keys[key] = True
         elif key not in self._data_store and not self._load_ohlcv_into_data_store(key):
@@ -771,19 +765,19 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 tzinfo=tzinfo,
                 data_datetime_start=data_datetime_start,
                 data_datetime_end=data_datetime_end,
-                auto_adjust=auto_adjust
+                auto_adjust=auto_adjust,
             )
 
         df = self._data_store[key]
         return df
 
     def _reindex_and_fill(
-            self,
-            df: pd.DataFrame,
-            trading_times: pd.DatetimeIndex,
-            timestep: str
-    ) -> pd.DataFrame:
-        if df.index.name == 'timestamp':
+        self,
+        df: PandasDataFrame,
+        trading_times: PandasDatetimeIndex,
+        timestep: str,
+    ) -> PandasDataFrame:
+        if df.index.name == "timestamp":
             df = df.reset_index()
 
         # Check if all required columns are present
@@ -792,15 +786,15 @@ class AlpacaBacktesting(DataSourceBacktesting):
         if missing_columns:
             raise ValueError(f"The dataframe is missing the following required columns: {', '.join(missing_columns)}")
 
-        if timestep not in ['day', 'minute']:
+        if timestep not in ["day", "minute"]:
             raise ValueError("The timestep must be 'day' or 'minute'.")
 
         # For daily bars, we want to preserve original timestamps but add missing days
-        if timestep == 'day':
+        if timestep == "day":
             # Get just the dates from trading_times
             trading_dates = trading_times.date
             # Get dates from df timestamps
-            df_dates = df['timestamp'].dt.date
+            df_dates = df["timestamp"].dt.date
 
             # Convert both to sets of dates for proper comparison
             trading_dates_set = set(trading_dates)
@@ -812,50 +806,52 @@ class AlpacaBacktesting(DataSourceBacktesting):
             # Add rows for missing dates (at midnight)
             for date in missing_dates:
                 # Get timezone from the first timestamp in df
-                tz = df['timestamp'].iloc[0].tz
+                tz = df["timestamp"].iloc[0].tz
 
-                missing_row = pd.DataFrame({
-                    'timestamp': [pd.Timestamp(date).tz_localize(tz)],
-                    'open': [None],
-                    'high': [None],
-                    'low': [None],
-                    'close': [None],
-                    'volume': [0.0]
-                })
+                missing_row = pd.DataFrame(
+                    {
+                        "timestamp": [pd.Timestamp(date).tz_localize(tz)],
+                        "open": [None],
+                        "high": [None],
+                        "low": [None],
+                        "close": [None],
+                        "volume": [0.0],
+                    }
+                )
 
                 # Remove any all-NA columns from `missing_row`
-                missing_row = missing_row.dropna(axis=1, how='all')
+                missing_row = missing_row.dropna(axis=1, how="all")
 
                 # Proceed with the concatenation
                 df = pd.concat([df, missing_row], ignore_index=True)
 
             # Sort by timestamp
-            df.sort_values('timestamp', inplace=True)
+            df.sort_values("timestamp", inplace=True)
         else:
             # For non-daily bars, use the original reindexing logic
             if df.index.name != "timestamp":
                 # Ensure timestamp is the index for reindexing
                 df = df.set_index("timestamp")
             df = df.reindex(trading_times)
-            df.index.name = 'timestamp'  # Restore the index name
-            df.sort_values('timestamp', inplace=True)
+            df.index.name = "timestamp"  # Restore the index name
+            df.sort_values("timestamp", inplace=True)
             df.reset_index(inplace=True)
 
         # Fill missing volume values with 0.0
-        df['volume'] = df['volume'].fillna(0.0)
+        df["volume"] = df["volume"].fillna(0.0)
 
         # Forward fill missing close prices
-        df['close'] = df['close'].ffill()
+        df["close"] = df["close"].ffill()
 
         # Fill missing open, high, low with close prices
-        for column in ['open', 'high', 'low']:
-            df[column] = df[column].fillna(df['close'])
+        for column in ["open", "high", "low"]:
+            df[column] = df[column].fillna(df["close"])
 
         # Backward fill remaining missing open prices
-        df['open'] = df['open'].bfill()
+        df["open"] = df["open"].bfill()
 
         # Fill any remaining missing high, low, close with open prices
-        for column in ['high', 'low', 'close']:
-            df[column] = df[column].fillna(df['open'])
+        for column in ["high", "low", "close"]:
+            df[column] = df[column].fillna(df["open"])
 
         return df

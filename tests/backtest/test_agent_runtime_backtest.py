@@ -1,6 +1,6 @@
-import logging
 import json
-from datetime import date, datetime, timezone
+import logging
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -13,7 +13,7 @@ from lumibot.strategies import Strategy
 
 
 def _utc_iso_timestamp() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _event(kind: str, *, text: str | None = None, tool_name: str | None = None, payload: dict | None = None):

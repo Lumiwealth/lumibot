@@ -54,4 +54,3 @@ def test_get_missing_dates_uses_market_day_not_utc_day_for_intraday_cache(monkey
     )
 
     assert missing == [date(2025, 2, 4), date(2025, 2, 6)]
-

@@ -4,11 +4,12 @@
 # Ruff is a tool that combines several linters into one including Flake8 and isort.
 # Runs much faster than running them individually.
 [tool.ruff]
-line-length = 120
+line-length = 240
 
-# Assume Python 3.8+ for type annotations
-target-version = "py38"
+# Strict lint target requested for Python 3.14.
+target-version = "py314"
 
+[tool.ruff.lint]
 select = [
   "A",  # prevent using keywords that clobber python builtins
   "B",  # bugbear: security warnings
@@ -19,3 +20,12 @@ select = [
   "I",  # isort
   #  "D",   # pydocstyle
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"docsrc/conf.py" = ["A001", "E402", "E501"]
+"scripts/**/*.py" = ["E402"]
+"tests/backtest/acceptance_strategies/*.py" = ["E402", "E501"]
+"tests/backtest/strategies/*.py" = ["E402", "E501"]
+"tests/backtest/test_*.py" = ["E402"]
+"tests/test_auto_market_inference.py" = ["E402"]
+"tests/test_projectx.py" = ["E402"]

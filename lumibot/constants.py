@@ -7,8 +7,9 @@ These are defined here to avoid circular import issues.
 """
 
 import os
-import pytz
+
 import appdirs
+import pytz
 
 # SOURCE PATH
 LUMIBOT_SOURCE_PATH = os.path.abspath(os.path.dirname(__file__))

@@ -3,11 +3,40 @@ from __future__ import annotations
 import json
 import os
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from importlib import import_module
-from typing import Any, Callable, Optional
+from types import ModuleType
+from typing import Any, TypeAlias, cast
 
 _TRUTHY = {"required", "require", "strict", "1", "true", "yes"}
+PandasDataFrame: TypeAlias = Any  # noqa: UP040 - keep Python 3.11 parser compatibility.
+ParquetSanitizer: TypeAlias = Callable[[PandasDataFrame], tuple[PandasDataFrame, list[str]]]  # noqa: UP040
+
+
+class _LazyModule(ModuleType):
+    _module_name: str
+    _module: ModuleType | None
+
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str) -> None:
+        super().__init__(module_name)
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self) -> ModuleType:
+        module = cast(ModuleType | None, object.__getattribute__(self, "_module"))
+        if module is None:
+            module = import_module(cast(str, object.__getattribute__(self, "_module_name")))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._load(), name)
+
+
+pd: Any = _LazyModule("pandas")
 
 
 class _LazyModule:
@@ -77,7 +106,7 @@ def _is_decimal(value: Any) -> bool:
         return False
 
 
-def coerce_object_columns_to_json_strings(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+def coerce_object_columns_to_json_strings(df: PandasDataFrame) -> tuple[PandasDataFrame, list[str]]:
     """Return a copy of df where object-ish columns are coerced to JSON strings when needed.
 
     This is defensive: PyArrow/parquet can't reliably serialize arbitrary Python objects
@@ -104,7 +133,8 @@ def coerce_object_columns_to_json_strings(df: pd.DataFrame) -> tuple[pd.DataFram
             continue
 
         # If the column is already "pure string", keep it.
-        sample_types = {type(v) for v in non_null.head(25).tolist()}
+        sample_values = cast(list[Any], non_null.head(25).tolist())
+        sample_types: set[type[Any]] = {type(value) for value in sample_values}
         if sample_types.issubset({str}):
             continue
 
@@ -135,7 +165,7 @@ def coerce_object_columns_to_json_strings(df: pd.DataFrame) -> tuple[pd.DataFram
 
 def write_parquet_with_logging(
     *,
-    df: pd.DataFrame,
+    df: PandasDataFrame,
     path: str,
     artifact: str,
     logger: Any,
@@ -143,7 +173,7 @@ def write_parquet_with_logging(
     required: bool,
     compression: str = "zstd",
     engine: str = "pyarrow",
-    sanitizer: Optional[Callable[[pd.DataFrame], tuple[pd.DataFrame, list[str]]]] = None,
+    sanitizer: ParquetSanitizer | None = None,
 ) -> ParquetWriteStats:
     """Write df to parquet with strong logging. Raises on failure when required=True."""
 

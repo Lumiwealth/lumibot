@@ -34,8 +34,8 @@ def test_initialize_ccxt_broker_legacy(mocker):
     """
 
     broker = Ccxt(KRAKEN_CONFIG)
-    mocker.patch.object(broker, '_get_balances_at_broker', return_value=None)
-    mocker.patch.object(broker, '_set_initial_positions')
+    mocker.patch.object(broker, "_get_balances_at_broker", return_value=None)
+    mocker.patch.object(broker, "_set_initial_positions")
 
     strategy = ImportantFunctions(
         broker=broker,
@@ -51,8 +51,8 @@ def test_initialize_ccxt_broker_legacy(mocker):
 # Fake WEEX credentials, they do not need to be real — CCXT requires apiKey + secret + passphrase.
 WEEX_CONFIG = {
     "exchange_id": "weex",
-    "apiKey":   "w1x2y3z4",
-    "secret":   "7dQYvW+eXeHW0fake/fakefake/fake==",
+    "apiKey": "w1x2y3z4",
+    "secret": "7dQYvW+eXeHW0fake/fakefake/fake==",
     "password": "not_my_passphrase",
     "margin": False,
     "sandbox": False,  # WEEX has no sandbox

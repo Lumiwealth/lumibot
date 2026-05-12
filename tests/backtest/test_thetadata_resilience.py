@@ -1,13 +1,13 @@
-import pandas as pd
-import pytz
-
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import pandas as pd
+import pytz
+
 from lumibot.entities import Asset
 from lumibot.tools import backtest_cache
-from lumibot.tools.backtest_cache import CacheMode
 from lumibot.tools import thetadata_helper as th
+from lumibot.tools.backtest_cache import CacheMode
 
 
 def _write_truncated_parquet(path: Path) -> None:
@@ -183,7 +183,7 @@ def test_placeholder_rows_trigger_refetch_and_sidecar(monkeypatch, tmp_path):
     )
 
     cache_path = th.build_cache_filename(asset, "day", "ohlc")
-    sidecar = cache_path.with_suffix(cache_path.suffix + ".meta.json")
+    cache_path.with_suffix(cache_path.suffix + ".meta.json")
 
     assert result is not None
     assert len(fetch_calls) == 1, "Placeholder rows must trigger a refetch for full coverage."

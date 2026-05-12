@@ -1,13 +1,14 @@
 import math
 import os
-from datetime import date, datetime, timedelta, timezone
+from collections.abc import Mapping
+from datetime import UTC, date, datetime, timedelta
 from importlib import import_module
-from typing import Any, Literal
+from types import ModuleType
+from typing import Any, Literal, cast
 
-from .docs_tools import search_lumibot_docs
 from .asset_resolution import resolve_asset_and_quote
+from .docs_tools import search_lumibot_docs
 from .schemas import BoundTool, ToolDefinition
-
 
 AssetTypeArg = Literal["stock", "option", "future", "cont_future", "forex", "crypto", "index", "multileg", "us_equity"]
 OrderSideArg = Literal["buy", "sell", "buy_to_open", "sell_to_close", "sell_short", "buy_to_cover"]
@@ -17,45 +18,42 @@ NewsSortArg = Literal["asc", "desc"]
 
 
 class _LazyModule:
-    """Read-only proxy that imports the target module on first attribute access.
-
-    object.__setattr__ touches the internal slots directly; callers should only
-    read attributes through this proxy so module mutation is not hidden here.
-    """
-
     __slots__ = ("_module_name", "_module")
 
-    def __init__(self, module_name: str):
-        object.__setattr__(self, "_module_name", module_name)
-        object.__setattr__(self, "_module", None)
+    _module_name: str
+    _module: ModuleType | None
 
-    def _load(self):
-        module = object.__getattribute__(self, "_module")
+    def __init__(self, module_name: str) -> None:
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self) -> ModuleType:
+        module = self._module
         if module is None:
-            module = import_module(object.__getattribute__(self, "_module_name"))
-            object.__setattr__(self, "_module", module)
+            module = import_module(self._module_name)
+            self._module = module
         return module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
         if name in {"_module_name", "_module"}:
             object.__setattr__(self, name, value)
-            return
-        setattr(self._load(), name, value)
+        else:
+            setattr(self._load(), name, value)
 
-    def __delattr__(self, name):
+    def __delattr__(self, name: str) -> None:
         if name in {"_module_name", "_module"}:
             object.__delattr__(self, name)
-            return
-        delattr(self._load(), name)
+        else:
+            delattr(self._load(), name)
 
 
 requests = _LazyModule("requests")
 
 
-def _requests():
+def _requests() -> Any:
     return requests
 
 
@@ -77,7 +75,7 @@ def _coerce_same_timezone(value: datetime, reference: datetime) -> datetime:
     if value.tzinfo is None and reference.tzinfo is not None:
         return value.replace(tzinfo=reference.tzinfo)
     if value.tzinfo is not None and reference.tzinfo is None:
-        return value.astimezone(timezone.utc).replace(tzinfo=None)
+        return value.astimezone(UTC).replace(tzinfo=None)
     if value.tzinfo is not None and reference.tzinfo is not None:
         return value.astimezone(reference.tzinfo)
     return value
@@ -119,6 +117,27 @@ def _require_positive_number(name: str, value: Any) -> float:
     return parsed
 
 
+def _float_or_original(value: object) -> object:
+    if value is None:
+        return None
+    try:
+        return float(cast(Any, value))
+    except Exception:
+        return value
+
+
+def _dict_from_json(value: object) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    return dict(cast(Mapping[str, Any], value))
+
+
+def _mapping_list(value: object) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [dict(cast(Mapping[str, Any], item)) for item in cast(list[object], value) if isinstance(item, Mapping)]
+
+
 def _asset_to_dict(asset: Any) -> dict[str, Any] | str:
     if asset is None:
         return "None"
@@ -140,11 +159,7 @@ def _asset_to_dict(asset: Any) -> dict[str, Any] | str:
 def _position_to_dict(position: Any) -> dict[str, Any]:
     asset = getattr(position, "asset", None)
     asset_payload = _asset_to_dict(asset)
-    quantity = getattr(position, "quantity", None)
-    try:
-        quantity = float(quantity)
-    except Exception:
-        quantity = quantity
+    quantity = _float_or_original(getattr(position, "quantity", None))
     return {
         "asset": asset_payload,
         "quantity": quantity,
@@ -154,11 +169,7 @@ def _position_to_dict(position: Any) -> dict[str, Any]:
 def _order_to_dict(order: Any) -> dict[str, Any]:
     asset = getattr(order, "asset", None)
     asset_payload = _asset_to_dict(asset)
-    quantity = getattr(order, "quantity", None)
-    try:
-        quantity = float(quantity)
-    except Exception:
-        quantity = quantity
+    quantity = _float_or_original(getattr(order, "quantity", None))
     return {
         "identifier": getattr(order, "identifier", None),
         "status": getattr(order, "status", None),
@@ -175,7 +186,9 @@ def _order_to_dict(order: Any) -> dict[str, Any]:
 def _bind_positions(strategy: Any, manager: Any) -> BoundTool:
     def positions() -> dict[str, Any]:
         return {
-            "positions": [_position_to_dict(position) for position in strategy.get_positions(include_cash_positions=True)],
+            "positions": [
+                _position_to_dict(position) for position in strategy.get_positions(include_cash_positions=True)
+            ],
             "as_of": strategy.get_datetime().isoformat(),
         }
 
@@ -374,16 +387,8 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
         content_max_chars: int | None = None,
         sort: NewsSortArg = "desc",
     ) -> dict[str, Any]:
-        api_key = (
-            os.environ.get("ALPACA_API_KEY")
-            or os.environ.get("APCA_API_KEY_ID")
-            or ""
-        ).strip()
-        api_secret = (
-            os.environ.get("ALPACA_API_SECRET")
-            or os.environ.get("APCA_API_SECRET_KEY")
-            or ""
-        ).strip()
+        api_key = (os.environ.get("ALPACA_API_KEY") or os.environ.get("APCA_API_KEY_ID") or "").strip()
+        api_secret = (os.environ.get("ALPACA_API_SECRET") or os.environ.get("APCA_API_SECRET_KEY") or "").strip()
         if not api_key or not api_secret:
             return {
                 "ok": False,
@@ -445,13 +450,11 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
             timeout=20,
         )
         response.raise_for_status()
-        payload = response.json()
+        payload = _dict_from_json(response.json())
         normalized_articles: list[dict[str, Any]] = []
         content_available_count = 0
         summary_available_count = 0
-        for article in payload.get("news", []) or []:
-            if not isinstance(article, dict):
-                continue
+        for article in _mapping_list(payload.get("news")):
             raw_content = str(article.get("content") or "")
             raw_summary = str(article.get("summary") or "")
             if raw_content:
@@ -548,7 +551,9 @@ def _bind_cancel_order(strategy: Any, manager: Any) -> BoundTool:
 
 
 def _bind_modify_order(strategy: Any, manager: Any) -> BoundTool:
-    def modify_order(*, identifier: str, limit_price: float | None = None, stop_price: float | None = None) -> dict[str, Any]:
+    def modify_order(
+        *, identifier: str, limit_price: float | None = None, stop_price: float | None = None
+    ) -> dict[str, Any]:
         identifier = _require_non_empty_text("identifier", identifier)
         order = strategy.get_order(identifier)
         if order is None:
@@ -601,9 +606,13 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
         if order_type in {"stop", "stop_limit"} and stop_price is None:
             raise ValueError(f"orders_submit_order with order_type={order_type!r} requires stop_price.")
         if order_type == "stop_limit" and stop_limit_price is None and limit_price is None:
-            raise ValueError("orders_submit_order with order_type='stop_limit' requires stop_limit_price or limit_price.")
+            raise ValueError(
+                "orders_submit_order with order_type='stop_limit' requires stop_limit_price or limit_price."
+            )
         if order_type == "trailing_stop" and trail_price is None and trail_percent is None:
-            raise ValueError("orders_submit_order with order_type='trailing_stop' requires trail_price or trail_percent.")
+            raise ValueError(
+                "orders_submit_order with order_type='trailing_stop' requires trail_price or trail_percent."
+            )
         asset, quote = resolve_asset_and_quote(
             strategy,
             symbol=symbol,
@@ -709,16 +718,28 @@ class _NewsTools:
 
 class _OrderTools:
     def submit(self) -> ToolDefinition:
-        return ToolDefinition(name="orders_submit_order", description="Submit an order with explicit side/type/time_in_force.", binder=_bind_submit_order)
+        return ToolDefinition(
+            name="orders_submit_order",
+            description="Submit an order with explicit side/type/time_in_force.",
+            binder=_bind_submit_order,
+        )
 
     def cancel(self) -> ToolDefinition:
-        return ToolDefinition(name="orders_cancel_order", description="Cancel a tracked order by identifier.", binder=_bind_cancel_order)
+        return ToolDefinition(
+            name="orders_cancel_order", description="Cancel a tracked order by identifier.", binder=_bind_cancel_order
+        )
 
     def open_orders(self) -> ToolDefinition:
-        return ToolDefinition(name="orders_open_orders", description="List tracked orders and their identifiers.", binder=_bind_open_orders)
+        return ToolDefinition(
+            name="orders_open_orders",
+            description="List tracked orders and their identifiers.",
+            binder=_bind_open_orders,
+        )
 
     def modify(self) -> ToolDefinition:
-        return ToolDefinition(name="orders_modify_order", description="Modify a tracked order by identifier.", binder=_bind_modify_order)
+        return ToolDefinition(
+            name="orders_modify_order", description="Modify a tracked order by identifier.", binder=_bind_modify_order
+        )
 
 
 class _BuiltinTools:

@@ -23,16 +23,15 @@ import queue
 import re
 import sys
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import date
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any
 
 from ibapi.client import EClient  # type: ignore
 from ibapi.common import TickerId  # type: ignore
 from ibapi.contract import Contract  # type: ignore
 from ibapi.wrapper import EWrapper  # type: ignore
-
 
 _EIGHT_DIGIT = re.compile(r"^\d{8}$")
 _SIX_DIGIT = re.compile(r"^\d{6}$")
@@ -53,12 +52,12 @@ class ContractRow:
     exchange: str
     currency: str
     last_trade_date: str
-    trading_class: Optional[str]
-    multiplier: Optional[float]
-    min_tick: Optional[float]
+    trading_class: str | None
+    multiplier: float | None
+    min_tick: float | None
 
 
-def _parse_last_trade_date(raw: str) -> Optional[str]:
+def _parse_last_trade_date(raw: str) -> str | None:
     txt = (raw or "").strip()
     if not txt:
         return None
@@ -85,7 +84,7 @@ def _conid_key_usd(*, symbol: str, exchange: str, expiration_yyyymmdd: str) -> s
     return "|".join(["future", symbol, "USD", exchange, expiration_yyyymmdd])
 
 
-def _read_json(path: Path) -> Dict[str, Any]:
+def _read_json(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
     try:
@@ -94,7 +93,7 @@ def _read_json(path: Path) -> Dict[str, Any]:
         return {}
 
 
-def _write_json(path: Path, payload: Dict[str, Any]) -> None:
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, sort_keys=True, indent=2), encoding="utf-8")
 
@@ -102,7 +101,7 @@ def _write_json(path: Path, payload: Dict[str, Any]) -> None:
 class _ContractDetailsApp(EWrapper, EClient):
     def __init__(self) -> None:
         EClient.__init__(self, wrapper=self)
-        self._q: "queue.Queue[Tuple[str, Any]]" = queue.Queue()
+        self._q: queue.Queue[tuple[str, Any]] = queue.Queue()
         self._connected = False
 
     def connectAck(self) -> None:  # noqa: N802 (ibapi naming)
@@ -146,7 +145,7 @@ class _ContractDetailsApp(EWrapper, EClient):
         self._q.put(("contractDetailsEnd", int(reqId)))
 
 
-def _preflight_contract_details(app: _ContractDetailsApp, *, timeout_s: float = 10.0, req_id: Optional[int] = None) -> bool:
+def _preflight_contract_details(app: _ContractDetailsApp, *, timeout_s: float = 10.0, req_id: int | None = None) -> bool:
     """Return True when TWS appears to have a working secdef connection.
 
     If TWS is running but not logged in / not connected to IB servers, IB emits farm-broken
@@ -194,7 +193,7 @@ def _iter_roots(path: Path) -> Iterable[RootSpec]:
             yield RootSpec(symbol=sym, exchange=exch, currency=ccy)
 
 
-def _normalize_contract_row(raw: Dict[str, Any]) -> Optional[ContractRow]:
+def _normalize_contract_row(raw: dict[str, Any]) -> ContractRow | None:
     try:
         conid = int(raw.get("conid") or 0)
     except Exception:
@@ -215,14 +214,14 @@ def _normalize_contract_row(raw: Dict[str, Any]) -> Optional[ContractRow]:
     trading_class = str(trading_class).strip().upper() if trading_class else None
 
     raw_tick = raw.get("minTick")
-    min_tick: Optional[float]
+    min_tick: float | None
     try:
         min_tick = float(raw_tick) if raw_tick not in (None, "") else None
     except Exception:
         min_tick = None
 
     raw_mult = raw.get("multiplier")
-    multiplier: Optional[float]
+    multiplier: float | None
     try:
         multiplier = float(raw_mult) if raw_mult not in (None, "") else None
     except Exception:
@@ -253,7 +252,7 @@ def _contract_details_request(root: RootSpec) -> Contract:
 
 def _write_contract_info(cache_root: Path, row: ContractRow) -> None:
     path = cache_root / "ibkr" / "future" / "contracts" / f"CONID_{int(row.conid)}.json"
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "conid": int(row.conid),
         "symbol": row.symbol,
         "localSymbol": row.local_symbol,
@@ -270,7 +269,7 @@ def _write_contract_info(cache_root: Path, row: ContractRow) -> None:
     _write_json(path, payload)
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Backfill IBKR futures conids via TWS API (includeExpired=True).")
     parser.add_argument(
         "--roots-csv",
@@ -307,7 +306,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"No roots found in {roots_csv}", file=sys.stderr)
         return 2
 
-    mapping: Dict[str, int] = {}
+    mapping: dict[str, int] = {}
     existing = _read_json(conids_path)
     if isinstance(existing, dict):
         for k, v in existing.items():
@@ -320,15 +319,21 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     app = _ContractDetailsApp()
     app.connect(args.host, int(args.port), clientId=int(args.client_id))
-    app_thread_started = False
 
     try:
         import threading
 
         t = threading.Thread(target=app.run, daemon=True)
         t.start()
-        app_thread_started = True
+    except Exception:
+        try:
+            if app.isConnected():
+                app.disconnect()
+        except Exception:
+            pass
+        return 3
 
+    try:
         # Wait for a basic handshake.
         deadline = time.time() + 10.0
         saw_next_id = False
@@ -382,14 +387,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         roots_done = 0
         contracts_written = 0
         keys_written = 0
-        errors: List[Dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
 
         for root in roots:
             req_id += 1
             contract = _contract_details_request(root)
             app.reqContractDetails(req_id, contract)
 
-            per_root: List[ContractRow] = []
+            per_root: list[ContractRow] = []
             end_seen = False
             timeout_at = time.time() + float(args.timeout_s)
             while time.time() < timeout_at:
@@ -467,8 +472,6 @@ def main(argv: Optional[List[str]] = None) -> int:
                 app.disconnect()
         except Exception:
             pass
-        if not app_thread_started:
-            return 3
 
 
 if __name__ == "__main__":

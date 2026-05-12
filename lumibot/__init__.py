@@ -1,8 +1,14 @@
 import os
 import sys
-import warnings
 import types
+import warnings
+from collections.abc import Callable, Sequence
+from importlib.abc import Loader, MetaPathFinder
 from importlib.machinery import ModuleSpec
+from logging import Logger
+from typing import TYPE_CHECKING, Any, Final, cast
+
+__version__: str
 
 
 def _read_version_from_setup_py() -> str | None:
@@ -36,19 +42,14 @@ def _read_version_from_setup_py() -> str | None:
 
 # Get and display the version
 try:
-    __version__ = _read_version_from_setup_py()
-    if __version__ is None:
+    source_version = _read_version_from_setup_py()
+    if source_version is None:
         from importlib.metadata import version
 
         __version__ = version("lumibot")
-except ImportError:
-    # Fallback for Python < 3.8
-    try:
-        import pkg_resources
-        __version__ = pkg_resources.get_distribution("lumibot").version
-    except:
-        __version__ = "unknown"
-except:
+    else:
+        __version__ = source_version
+except Exception:
     __version__ = "unknown"
 
 # Get the major and minor Python version
@@ -56,13 +57,31 @@ major, minor = sys.version_info[:2]
 
 # Check if Python version is less than 3.10
 if (major, minor) < (3, 10):
-    warnings.warn("Lumibot requires Python 3.10 or higher.", RuntimeWarning)
+    warnings.warn("Lumibot requires Python 3.10 or higher.", RuntimeWarning, stacklevel=2)
 
 # SOURCE PATH
 LUMIBOT_SOURCE_PATH = os.path.dirname(os.path.abspath(__file__))
 LUMIBOT_DEFAULT_TIMEZONE = "America/New_York"
 LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL = "USD"
 LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE = "forex"
+
+if TYPE_CHECKING:
+    LUMIBOT_DEFAULT_PYTZ: Any
+    strategies: types.ModuleType
+    brokers: types.ModuleType
+    backtesting: types.ModuleType
+    entities: types.ModuleType
+    data_sources: types.ModuleType
+    traders: types.ModuleType
+    tools: types.ModuleType
+    components: types.ModuleType
+    constants: types.ModuleType
+    credentials: types.ModuleType
+    trading_builtins: types.ModuleType
+
+    def get_logger(name: str) -> Logger: ...
+
+    logger: Logger
 
 
 def _default_cache_folder() -> str:
@@ -87,10 +106,11 @@ if not os.path.exists(LUMIBOT_CACHE_FOLDER):
     except Exception as e:
         warnings.warn(
             f"""Could not create cache folder because of the following error:
-            {e}. Please fix the issue to use data caching."""
+            {e}. Please fix the issue to use data caching.""",
+            stacklevel=2,
         )
 
-_SUBMODULE_EXPORTS = {
+_SUBMODULE_EXPORTS: Final[set[str]] = {
     "strategies",
     "brokers",
     "backtesting",
@@ -105,28 +125,33 @@ _SUBMODULE_EXPORTS = {
 }
 
 
-class _EntitiesAliasLoader:
-    def create_module(self, spec):
+class _EntitiesAliasLoader(Loader):
+    def create_module(self, spec: ModuleSpec) -> types.ModuleType | None:
         return None
 
-    def exec_module(self, module):
+    def exec_module(self, module: types.ModuleType) -> None:
         load = module.__dict__.get("_load")
-        if load is not None:
-            load()
+        if callable(load):
+            cast(Callable[[], object], load)()
 
 
-_ENTITIES_ALIAS_LOADER = _EntitiesAliasLoader()
+_ENTITIES_ALIAS_LOADER: Final[Loader] = _EntitiesAliasLoader()
 
 
-class _EntitiesAliasFinder:
+class _EntitiesAliasFinder(MetaPathFinder):
     _lumibot_entities_alias_finder = True
 
-    def find_spec(self, fullname, path=None, target=None):
+    def find_spec(
+        self,
+        fullname: str,
+        path: Sequence[str] | None = None,
+        target: types.ModuleType | None = None,
+    ) -> ModuleSpec | None:
         if fullname in _ENTITY_SUBMODULE_ALIAS_NAMES:
             return ModuleSpec(fullname, _ENTITIES_ALIAS_LOADER, is_package=False)
         if fullname == "entities":
             spec = ModuleSpec(fullname, _ENTITIES_ALIAS_LOADER, is_package=True)
-            spec.submodule_search_locations = _EntitiesAlias.__path__
+            spec.submodule_search_locations = list(_EntitiesAlias.__path__)
             return spec
         return None
 
@@ -139,9 +164,9 @@ class _EntitiesAlias(types.ModuleType):
     def __init__(self, name: str):
         super().__init__(name)
         self.__spec__ = ModuleSpec(name, _ENTITIES_ALIAS_LOADER, is_package=True)
-        self.__spec__.submodule_search_locations = self.__path__
+        self.__spec__.submodule_search_locations = list(self.__path__)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         import importlib
 
         entities_module = importlib.import_module("lumibot.entities")
@@ -163,6 +188,9 @@ class _EntitiesAlias(types.ModuleType):
 
 
 class _EntitiesSubmoduleAlias(types.ModuleType):
+    _target_name: str
+    _target_module: types.ModuleType | None
+
     def __init__(self, alias_name: str, target_name: str):
         super().__init__(alias_name)
         self.__package__ = "entities"
@@ -170,7 +198,7 @@ class _EntitiesSubmoduleAlias(types.ModuleType):
         self._target_name = target_name
         self._target_module = None
 
-    def _load(self):
+    def _load(self) -> types.ModuleType:
         import importlib
 
         module = self._target_module
@@ -179,10 +207,10 @@ class _EntitiesSubmoduleAlias(types.ModuleType):
             self._target_module = module
         return module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
-    def __dir__(self):
+    def __dir__(self) -> list[str]:
         return dir(self._load())
 
 
@@ -202,7 +230,7 @@ _ENTITY_SUBMODULES = (
     "trading_slippage",
     "smart_limit",
 )
-_ENTITY_SUBMODULE_ALIAS_NAMES = {f"entities.{_submodule}" for _submodule in _ENTITY_SUBMODULES}
+_ENTITY_SUBMODULE_ALIAS_NAMES: Final[set[str]] = {f"entities.{_submodule}" for _submodule in _ENTITY_SUBMODULES}
 if not any(getattr(_finder, "_lumibot_entities_alias_finder", False) for _finder in sys.meta_path):
     sys.meta_path.insert(0, _EntitiesAliasFinder())
 
@@ -214,7 +242,7 @@ for _submodule in _ENTITY_SUBMODULES:
     )
 
 
-def __getattr__(name):
+def __getattr__(name: str) -> Any:
     if name == "LUMIBOT_DEFAULT_PYTZ":
         from .constants import LUMIBOT_DEFAULT_PYTZ
 
@@ -232,35 +260,38 @@ def __getattr__(name):
         globals()[name] = get_logger
         return get_logger
     if name == "logger":
-        logger = __getattr__("get_logger")(__name__)
-        globals()[name] = logger
-        return logger
+        from lumibot.tools.lumibot_logger import get_logger
+
+        module_logger = get_logger(__name__)
+        globals()[name] = module_logger
+        return module_logger
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-def __dir__():
+def __dir__() -> list[str]:
     return sorted(set(globals()) | set(__all__))
+
 
 # Export the default timezone constants so they can be imported by other modules
 __all__ = [
-    '__version__',
-    'LUMIBOT_DEFAULT_TIMEZONE',
-    'LUMIBOT_DEFAULT_PYTZ',
-    'LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL',
-    'LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE',
-    'LUMIBOT_SOURCE_PATH',
-    'LUMIBOT_CACHE_FOLDER',
-    'strategies',
-    'brokers',
-    'backtesting',
-    'entities',
-    'data_sources',
-    'traders',
-    'tools',
-    'components',
-    'constants',
-    'credentials',
-    'trading_builtins',
-    'get_logger',
-    'logger',
+    "__version__",
+    "LUMIBOT_DEFAULT_TIMEZONE",
+    "LUMIBOT_DEFAULT_PYTZ",
+    "LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL",
+    "LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE",
+    "LUMIBOT_SOURCE_PATH",
+    "LUMIBOT_CACHE_FOLDER",
+    "strategies",
+    "brokers",
+    "backtesting",
+    "entities",
+    "data_sources",
+    "traders",
+    "tools",
+    "components",
+    "constants",
+    "credentials",
+    "trading_builtins",
+    "get_logger",
+    "logger",
 ]

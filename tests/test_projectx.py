@@ -1,17 +1,19 @@
-import datetime as dt
 import os
-import pytest
 from unittest.mock import MagicMock, patch
-import numpy as np
-import pandas as pd
 
-from lumibot.entities import Asset, Order, Position
+import pytest
+
 from lumibot.brokers.projectx import ProjectX
-needs_creds = any(os.environ.get(v) is None for v in [
-    "PROJECTX_TOPONE_API_KEY",
-    "PROJECTX_TOPONE_USERNAME",
-    "PROJECTX_TOPONE_PREFERRED_ACCOUNT_NAME",
-])
+from lumibot.entities import Asset, Order
+
+needs_creds = any(
+    os.environ.get(v) is None
+    for v in [
+        "PROJECTX_TOPONE_API_KEY",
+        "PROJECTX_TOPONE_USERNAME",
+        "PROJECTX_TOPONE_PREFERRED_ACCOUNT_NAME",
+    ]
+)
 skip_reason = "Missing ProjectX TOPONE credential env vars; set them to run ProjectX broker tests"
 
 from lumibot.data_sources.projectx_data import ProjectXData
@@ -26,7 +28,7 @@ def mock_projectx_config():
         "username": "test_user",
         "base_url": "https://test.projectx.com",
         "preferred_account_name": "TestAccount",
-        "streaming_base_url": "wss://test.projectx.com/hub"
+        "streaming_base_url": "wss://test.projectx.com/hub",
     }
 
 
@@ -39,7 +41,7 @@ def mock_data_source():
 @pytest.fixture
 def projectx_broker(mock_projectx_config, mock_data_source):
     """Create ProjectX broker with mocked dependencies"""
-    with patch('lumibot.brokers.projectx.ProjectXClient'):
+    with patch("lumibot.brokers.projectx.ProjectXClient"):
         broker = ProjectX(mock_projectx_config, data_source=mock_data_source)
         broker.client = MagicMock()
         return broker
@@ -53,7 +55,7 @@ class TestProjectXBroker:
 
     def test_broker_initialization(self, mock_projectx_config, mock_data_source):
         """Test basic broker initialization"""
-        with patch('lumibot.brokers.projectx.ProjectXClient'):
+        with patch("lumibot.brokers.projectx.ProjectXClient"):
             broker = ProjectX(mock_projectx_config, data_source=mock_data_source)
             assert broker.name == "ProjectX_TEST"
             assert broker.firm == "TEST"
@@ -66,14 +68,14 @@ class TestProjectXBroker:
         """
         # Test the corrected status mappings from actual ProjectX API
         status_mappings = projectx_broker.ORDER_STATUS_MAPPING
-        
+
         # These are the correct mappings from ProjectX API documentation
-        assert status_mappings[1] == "open"          # Open (active order on exchange)
-        assert status_mappings[2] == "filled"        # Filled (completely executed)
-        assert status_mappings[3] == "cancelled"     # Cancelled
-        assert status_mappings[4] == "expired"       # Expired (mapped to cancelled)
-        assert status_mappings[5] == "rejected"      # Rejected
-        assert status_mappings[6] == "new"           # Pending (new order, not yet on exchange)
+        assert status_mappings[1] == "open"  # Open (active order on exchange)
+        assert status_mappings[2] == "filled"  # Filled (completely executed)
+        assert status_mappings[3] == "cancelled"  # Cancelled
+        assert status_mappings[4] == "expired"  # Expired (mapped to cancelled)
+        assert status_mappings[5] == "rejected"  # Rejected
+        assert status_mappings[6] == "new"  # Pending (new order, not yet on exchange)
         # Extended statuses if they exist
         if 7 in status_mappings:
             assert status_mappings[7] == "partially_filled"  # Partially filled (for multi-share orders)
@@ -94,7 +96,7 @@ class TestProjectXBroker:
             "unrealizedPnL": 125.50,
             "realizedPnL": 0.0,
             "accountId": 67890,
-            "description": "E-mini S&P 500 Future"
+            "description": "E-mini S&P 500 Future",
         }
 
         # Mock the asset resolution
@@ -116,7 +118,7 @@ class TestProjectXBroker:
         # Mock position with different field name
         broker_position = {
             "symbol": "MES",
-            "contractId": "CON.F.US.MES.U25", 
+            "contractId": "CON.F.US.MES.U25",
             "size": 2,
             "averagePrice": 5200.75,  # Different field name
             "unrealizedPnL": 50.25,
@@ -137,24 +139,24 @@ class TestProjectXBroker:
         broker_order = {
             "id": 11517491,
             "status": 2,  # Active/Working
-            "type": 2,    # Market order
-            "side": 0,    # Buy (0=buy, 1=sell)
+            "type": 2,  # Market order
+            "side": 0,  # Buy (0=buy, 1=sell)
             "symbol": "MES",
             "contractId": "CON.F.US.MES.U25",
             "size": 1,
             "filledSize": 0,
             "avgFillPrice": 0.0,
-            "limitPrice": None,     # Market order has no limit price
+            "limitPrice": None,  # Market order has no limit price
             "stopPrice": None,
             "createdDateTime": "2024-01-15T10:30:00Z",
-            "updatedDateTime": "2024-01-15T10:30:00Z"
+            "updatedDateTime": "2024-01-15T10:30:00Z",
         }
 
         # Mock asset resolution
         mock_asset = Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
         projectx_broker._get_asset_from_contract_id_cached = MagicMock(return_value=mock_asset)
 
-        # Test order conversion  
+        # Test order conversion
         order = projectx_broker._convert_broker_order_to_lumibot_order(broker_order)
 
         assert order.identifier == "11517491"
@@ -166,13 +168,13 @@ class TestProjectXBroker:
 
     def test_order_status_mapping_edge_cases(self, projectx_broker):
         """Test order status mapping for edge cases that caused issues"""
-        
+
         # Test status=3 with 1-share order (was incorrectly "partially_filled")
         broker_order = {
             "id": 123,
             "status": 3,  # This was the problematic status
-            "size": 1,         # 1 share cannot be partially filled!
-            "filledSize": 0,   # Not filled at all
+            "size": 1,  # 1 share cannot be partially filled!
+            "filledSize": 0,  # Not filled at all
             "symbol": "MES",
             "contractId": "CON.F.US.MES.U25",
             "type": 2,
@@ -183,7 +185,7 @@ class TestProjectXBroker:
         projectx_broker._get_asset_from_contract_id_cached = MagicMock(return_value=mock_asset)
 
         order = projectx_broker._convert_broker_order_to_lumibot_order(broker_order)
-        
+
         # Status 3 is "cancelled" in the correct ProjectX API mapping
         assert order.status == "canceled"  # "cancelled" becomes "canceled" via STATUS_ALIAS_MAP
 
@@ -193,10 +195,10 @@ class TestProjectXBroker:
         Previously had hardcoded: 'MES': 'CON.F.US.MES.U25' which expires.
         """
         # Mock the Asset class method
-        with patch.object(Asset, 'get_potential_futures_contracts') as mock_contracts:
+        with patch.object(Asset, "get_potential_futures_contracts") as mock_contracts:
             with patch.object(projectx_broker.client, "find_contract_by_symbol") as mock_api_lookup:
                 mock_api_lookup.return_value = None
-                mock_contracts.return_value = ['MESU25', 'MES.U25', 'MESU2025']
+                mock_contracts.return_value = ["MESU25", "MES.U25", "MESU2025"]
 
                 # Test contract ID generation
                 assert not projectx_broker._contract_cache
@@ -227,7 +229,7 @@ class TestProjectXBroker:
             {
                 "id": 9475374,
                 "status": 3,  # Open
-                "symbol": "MES", 
+                "symbol": "MES",
                 "contractId": "CON.F.US.MES.U25",
                 "size": 1,
                 "type": 2,
@@ -243,7 +245,7 @@ class TestProjectXBroker:
 
         # Test order retrieval
         orders = projectx_broker._get_orders_at_broker()
-        
+
         # Should have retrieved and converted orders
         assert len(orders) == 1
         assert orders[0].asset.symbol == "MES"
@@ -258,13 +260,13 @@ class TestProjectXBroker:
         mock_order.identifier = 9475374
         mock_order.strategy = "test_strategy"
 
-        # Simulate the sync process 
+        # Simulate the sync process
         orders_to_sync = [mock_order]
         for order in orders_to_sync:
             order._synced_from_broker = True
 
         # Verify sync flag is set
-        assert mock_order._synced_from_broker == True
+        assert mock_order._synced_from_broker
 
     def test_get_historical_account_value_not_implemented(self, projectx_broker):
         """Test that historical account value returns empty dict"""
@@ -274,14 +276,16 @@ class TestProjectXBroker:
     def test_get_option_chains_not_supported(self, projectx_broker):
         """Test that options chains properly raises NotImplementedError for futures broker"""
         asset = Asset("SPY", Asset.AssetType.STOCK)
-        with pytest.raises(NotImplementedError, match="ProjectX is a futures broker - options chains are not supported"):
+        with pytest.raises(
+            NotImplementedError, match="ProjectX is a futures broker - options chains are not supported"
+        ):
             projectx_broker.get_chains(asset)
 
     def test_order_type_conversions(self, projectx_broker):
         """Test ProjectX order type conversions"""
         # Test ProjectX type ID to string conversion
         assert projectx_broker._get_order_type_from_id(1) == "limit"
-        assert projectx_broker._get_order_type_from_id(2) == "market" 
+        assert projectx_broker._get_order_type_from_id(2) == "market"
         assert projectx_broker._get_order_type_from_id(4) == "stop"
         assert projectx_broker._get_order_type_from_id(5) == "trailing_stop"
 
@@ -295,14 +299,14 @@ class TestProjectXBroker:
             "symbol": "MES",  # Use lowercase to match broker expectations
             "description": "E-mini S&P 500 Future",
             "contractSize": 50,
-            "tickSize": 0.25
+            "tickSize": 0.25,
         }
-        
+
         projectx_broker.client.get_contract_details = MagicMock(return_value=mock_contract_details)
-        
+
         # Test asset creation from contract ID
         asset = projectx_broker._get_asset_from_contract_id("CON.F.US.MES.U25")
-        
+
         assert asset.symbol == "MES"
         assert asset.asset_type == Asset.AssetType.CONT_FUTURE
 
@@ -331,7 +335,7 @@ class TestProjectXBroker:
         projectx_broker._get_asset_from_contract_id_cached = MagicMock(return_value=mock_asset)
 
         position = projectx_broker._convert_broker_position_to_lumibot_position(broker_position)
-        
+
         # Should display cleanly
         assert position.asset.symbol == "MES"
         assert position.quantity == 13
@@ -340,7 +344,7 @@ class TestProjectXBroker:
 
     def test_multiple_order_status_scenarios(self, projectx_broker):
         """Test various order status scenarios that were problematic"""
-        
+
         test_cases = [
             # (status_id, expected_lumibot_status, description)
             (1, "open", "Open order on exchange"),
@@ -369,7 +373,9 @@ class TestProjectXBroker:
 
             order = projectx_broker._convert_broker_order_to_lumibot_order(broker_order)
             if order is not None:  # Some conversions might fail and return None
-                assert order.status == expected_status, f"Failed for {description}: expected {expected_status}, got {order.status}"
+                assert order.status == expected_status, (
+                    f"Failed for {description}: expected {expected_status}, got {order.status}"
+                )
 
 
 class TestProjectXBrokerIntegration:
@@ -381,36 +387,38 @@ class TestProjectXBrokerIntegration:
     @pytest.mark.skipif(needs_creds, reason=skip_reason)
     def test_full_order_sync_workflow(self, projectx_broker):
         """Test the complete order sync workflow that was broken"""
-        
+
         # Mock broker orders
         broker_orders = [
             {
                 "id": 111,
                 "status": 1,  # Open (correct status for open orders)
                 "symbol": "MES",
-                "contractId": "CON.F.US.MES.U25", 
+                "contractId": "CON.F.US.MES.U25",
                 "size": 1,
                 "type": 2,
                 "side": 0,
             },
             {
-                "id": 222, 
+                "id": 222,
                 "status": 2,  # Filled (correct status for filled orders)
                 "symbol": "NQ",
                 "contractId": "CON.F.US.NQ.U25",
                 "size": 2,
                 "type": 2,
                 "side": 1,
-            }
+            },
         ]
 
         # Setup mocks - ensure account_id is set
         projectx_broker.account_id = "test_account_123"
         projectx_broker.client.get_orders = MagicMock(return_value=broker_orders)
-        projectx_broker._get_asset_from_contract_id_cached = MagicMock(side_effect=[
-            Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE),
-            Asset(symbol="NQ", asset_type=Asset.AssetType.CONT_FUTURE)
-        ])
+        projectx_broker._get_asset_from_contract_id_cached = MagicMock(
+            side_effect=[
+                Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE),
+                Asset(symbol="NQ", asset_type=Asset.AssetType.CONT_FUTURE),
+            ]
+        )
 
         # Test the full workflow
         orders = projectx_broker._get_orders_at_broker()
@@ -424,7 +432,7 @@ class TestProjectXBrokerIntegration:
 
     def test_position_sync_workflow(self, projectx_broker):
         """Test the complete position sync workflow"""
-        
+
         # Mock broker positions
         broker_positions = [
             {
@@ -435,20 +443,22 @@ class TestProjectXBrokerIntegration:
                 "unrealizedPnL": 250.0,
             },
             {
-                "symbol": "NQ", 
+                "symbol": "NQ",
                 "contractId": "CON.F.US.NQ.U25",
                 "size": -2,
                 "avgPrice": 18500.0,
                 "unrealizedPnL": -100.0,
-            }
+            },
         ]
 
         # Setup mocks
         projectx_broker.client.get_positions = MagicMock(return_value=broker_positions)
-        projectx_broker._get_asset_from_contract_id_cached = MagicMock(side_effect=[
-            Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE),
-            Asset(symbol="NQ", asset_type=Asset.AssetType.CONT_FUTURE)
-        ])
+        projectx_broker._get_asset_from_contract_id_cached = MagicMock(
+            side_effect=[
+                Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE),
+                Asset(symbol="NQ", asset_type=Asset.AssetType.CONT_FUTURE),
+            ]
+        )
 
         # Test position retrieval
         positions = projectx_broker._get_positions_at_broker()
@@ -458,4 +468,4 @@ class TestProjectXBrokerIntegration:
         assert positions[0].asset.symbol == "MES"
         assert positions[0].quantity == 5
         assert positions[1].asset.symbol == "NQ"
-        assert positions[1].quantity == -2 
+        assert positions[1].quantity == -2

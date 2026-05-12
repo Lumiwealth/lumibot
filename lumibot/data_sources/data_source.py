@@ -4,90 +4,109 @@ import os
 import time
 import traceback
 from abc import ABC, abstractmethod
+from collections.abc import Iterable, Mapping
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from importlib import import_module
-from typing import TYPE_CHECKING, Union
+from logging import Logger
+from types import ModuleType
+from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
 import pytz
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
-from lumibot.entities import Asset, AssetsMapping, Quote
+from lumibot.entities.asset import Asset, AssetsMapping
+from lumibot.entities.quote import Quote
 from lumibot.tools import black_scholes
 
 from .exceptions import UnavailabeTimestep
 
 if TYPE_CHECKING:
-    from lumibot.entities import Bars
+    from lumibot.entities.bars import Bars
+
+PandasDataFrame: TypeAlias = Any  # noqa: UP040
+AssetInput: TypeAlias = Asset | str | tuple[Asset, Asset]  # noqa: UP040
+BarsResultMap: TypeAlias = dict[Any, Any]  # noqa: UP040
+ChainMap: TypeAlias = dict[str, Any]  # noqa: UP040
+GreeksMap: TypeAlias = dict[str, Any]  # noqa: UP040
 
 
-class _LazyModule:
+class _LazyModule(ModuleType):
+    _module_name: str
+    _module: ModuleType | None
+
     __slots__ = ("_module_name", "_module")
 
-    def __init__(self, module_name: str):
+    def __init__(self, module_name: str) -> None:
+        super().__init__(module_name)
         self._module_name = module_name
         self._module = None
 
-    def _load(self):
+    def _load(self) -> ModuleType:
         module = self._module
         if module is None:
             module = import_module(self._module_name)
             self._module = module
         return module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
 
 pd = _LazyModule("pandas")
-_CREATE_OPTIONS_SYMBOL = None
+_create_options_symbol_func: Any | None = None
 
 
 class _LazyLogger:
+    _logger: Logger | None
+
     __slots__ = ("_logger",)
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._logger = None
 
-    def _load(self):
+    def _load(self) -> Logger:
         if self._logger is None:
             from lumibot.tools.lumibot_logger import get_logger
 
             self._logger = get_logger(__name__)
         return self._logger
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
 
 logger = _LazyLogger()
 
 
-def _create_options_symbol(*args, **kwargs):
-    global _CREATE_OPTIONS_SYMBOL
-    if _CREATE_OPTIONS_SYMBOL is None:
+def _create_options_symbol(*args: Any, **kwargs: Any) -> str:
+    global _create_options_symbol_func
+    create_symbol = _create_options_symbol_func
+    if create_symbol is None:
         from lumibot.tools import create_options_symbol
 
-        _CREATE_OPTIONS_SYMBOL = create_options_symbol
-    return _CREATE_OPTIONS_SYMBOL(*args, **kwargs)
+        create_symbol = create_options_symbol
+        _create_options_symbol_func = create_symbol
+    return cast(str, create_symbol(*args, **kwargs))
 
 
 class DataSource(ABC):
-    SOURCE = ""
-    IS_BACKTESTING_DATA_SOURCE = False
-    MIN_TIMESTEP = "minute"
-    TIMESTEP_MAPPING = []
-    DEFAULT_TIMEZONE = LUMIBOT_DEFAULT_TIMEZONE
-    DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ
-    option_quote_fallback_allowed = False
+    SOURCE: str = ""
+    IS_BACKTESTING_DATA_SOURCE: bool = False
+    MIN_TIMESTEP: str = "minute"
+    TIMESTEP_MAPPING: list[dict[str, Any]] = []
+    DEFAULT_TIMEZONE: str = LUMIBOT_DEFAULT_TIMEZONE
+    DEFAULT_PYTZ: Any = LUMIBOT_DEFAULT_PYTZ
+    option_quote_fallback_allowed: bool = False
 
     def __init__(
-            self,
-            api_key: str | None = None,
-            delay: int | None = None,
-            tzinfo=None,
-            **kwargs
-    ):
+        self,
+        api_key: str | None = None,
+        delay: int | None = None,
+        tzinfo: Any | None = None,
+        **kwargs: Any,
+    ) -> None:
         """
 
         Parameters
@@ -98,9 +117,12 @@ class DataSource(ABC):
             The number of minutes to delay the data by. This is useful for paper trading data sources that
             provide delayed data (i.e. 15m delayed data).
         """
-        self.name = "data_source"
-        self._timestep = None
+        self.name: str = "data_source"
+        self._timestep: str | None = None
         self._api_key = api_key
+        self._datetime: Any | None = None
+        self.datetime_start: Any | None = None
+        self.datetime_end: Any | None = None
 
         # Use DATA_SOURCE_DELAY environment variable if it exists and delay is not explicitly provided
         if delay is None:
@@ -119,31 +141,30 @@ class DataSource(ABC):
 
         if tzinfo is None:
             tzinfo = pytz.timezone(self.DEFAULT_TIMEZONE)
-        self.tzinfo = tzinfo
+        self.tzinfo: Any = tzinfo
 
         # Initialize caches centrally (avoid ad-hoc hasattr checks in methods)
-        self._greeks_cache = {}
+        self._greeks_cache: dict[tuple[Any, ...], GreeksMap] = {}
 
         # Thread pool for parallel operations - reuse to avoid creation/destruction overhead
-        self._thread_pool = None
-        self._thread_pool_max_workers = kwargs.get('max_workers', 10)
+        self._thread_pool: ThreadPoolExecutor | None = None
+        self._thread_pool_max_workers: int = int(kwargs.get("max_workers", 10))
 
         # Dividend cache for backtest performance
-        self._dividend_cache = {}  # {asset: {date: dividend_value}}
-        self._dividend_cache_enabled = kwargs.get('cache_dividends', True)
+        self._dividend_cache: dict[Any, dict[Any, Any]] = {}  # {asset: {date: dividend_value}}
+        self._dividend_cache_enabled: bool = bool(kwargs.get("cache_dividends", True))
 
         # Ensure the instance has an explicit attribute for fallback behaviour
         if not hasattr(self, "option_quote_fallback_allowed"):
             self.option_quote_fallback_allowed = False
 
-    def _get_or_create_thread_pool(self):
+    def _get_or_create_thread_pool(self) -> ThreadPoolExecutor:
         """Get or create the thread pool for parallel operations"""
         if self._thread_pool is None:
-            from concurrent.futures import ThreadPoolExecutor
             self._thread_pool = ThreadPoolExecutor(max_workers=self._thread_pool_max_workers)
         return self._thread_pool
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         """Cleanup thread pool resources"""
         if self._thread_pool is not None:
             self._thread_pool.shutdown(wait=True)
@@ -151,7 +172,7 @@ class DataSource(ABC):
 
     # ========Required Implementations ======================
     @abstractmethod
-    def get_chains(self, asset: Asset, quote: Asset = None) -> dict:
+    def get_chains(self, asset: Any, quote: Any = None) -> ChainMap:
         """
         Obtains option chain information for the asset (stock) from each
         of the exchanges the options trade on and returns a dictionary
@@ -175,8 +196,16 @@ class DataSource(ABC):
 
     @abstractmethod
     def get_historical_prices(
-        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True, **kwargs
-    ) -> Bars:
+        self,
+        asset: Any,
+        length: int,
+        timestep: str = "",
+        timeshift: timedelta | None = None,
+        quote: Any = None,
+        exchange: str | None = None,
+        include_after_hours: bool = True,
+        **kwargs: Any,
+    ) -> Bars | None:
         """
         Get bars for a given asset, going back in time from now, getting length number of bars by timestep.
         For example, with a length of 10 and a timestep of "day", and no timeshift, this
@@ -218,7 +247,7 @@ class DataSource(ABC):
         pass
 
     @abstractmethod
-    def get_last_price(self, asset, quote=None, exchange=None) -> Union[float, Decimal, None]:
+    def get_last_price(self, asset: Any, quote: Any = None, exchange: str | None = None) -> float | Decimal | None:
         """
         Takes an asset and returns the last known price
 
@@ -240,7 +269,7 @@ class DataSource(ABC):
 
     # ========Python datetime helpers======================
 
-    def get_datetime(self, adjust_for_delay=False):
+    def get_datetime(self, adjust_for_delay: bool = False) -> datetime:
         """
         Returns the current datetime in the default timezone
 
@@ -259,7 +288,7 @@ class DataSource(ABC):
             current_time -= self._delay
         return current_time
 
-    def get_timestamp(self):
+    def get_timestamp(self) -> float:
         """
         Returns the current timestamp in the default timezone
         Returns
@@ -268,7 +297,7 @@ class DataSource(ABC):
         """
         return self.get_datetime().timestamp()
 
-    def get_round_minute(self, timeshift=0):
+    def get_round_minute(self, timeshift: int = 0) -> datetime:
         """
         Returns the current datetime rounded to the minute and applies a timeshift in minutes
         Parameters
@@ -284,10 +313,10 @@ class DataSource(ABC):
         current = self.get_datetime().replace(second=0, microsecond=0)
         return current - timedelta(minutes=timeshift)
 
-    def get_last_minute(self):
+    def get_last_minute(self) -> datetime:
         return self.get_round_minute(timeshift=1)
 
-    def get_round_day(self, timeshift=0):
+    def get_round_day(self, timeshift: int = 0) -> datetime:
         """
         Returns the current datetime rounded to the day and applies a timeshift in days
         Parameters
@@ -303,10 +332,15 @@ class DataSource(ABC):
         current = self.get_datetime().replace(hour=0, minute=0, second=0, microsecond=0)
         return current - timedelta(days=timeshift)
 
-    def get_last_day(self):
+    def get_last_day(self) -> datetime:
         return self.get_round_day(timeshift=1)
 
-    def get_datetime_range(self, length, timestep="minute", timeshift=None):
+    def get_datetime_range(
+        self,
+        length: int,
+        timestep: str = "minute",
+        timeshift: timedelta | None = None,
+    ) -> tuple[datetime, datetime]:
         if timestep == "minute":
             period_length = length * timedelta(minutes=1)
             end_date = self.get_last_minute()
@@ -320,20 +354,20 @@ class DataSource(ABC):
         start_date = end_date - period_length
         return start_date, end_date
 
-    def localize_datetime(self, dt):
+    def localize_datetime(self, dt: datetime) -> datetime:
         if dt.tzinfo is not None and dt.tzinfo.utcoffset(dt) is not None:
             return self.to_default_timezone(dt)
         else:
             return self.tzinfo.localize(dt, is_dst=None)
 
-    def to_default_timezone(self, dt):
+    def to_default_timezone(self, dt: datetime) -> datetime:
         return dt.astimezone(self.tzinfo)
 
-    def get_timestep(self):
+    def get_timestep(self) -> str:
         return self._timestep if self._timestep else self.MIN_TIMESTEP
 
     @staticmethod
-    def convert_timestep_str_to_timedelta(timestep):
+    def convert_timestep_str_to_timedelta(timestep: str) -> tuple[timedelta, str]:
         """
         Convert a timestep string to a timedelta object. For example, "1minute" will be converted to a
         timedelta of 1 minute.
@@ -351,6 +385,8 @@ class DataSource(ABC):
             The unit of the timestep. For example, "minute" or "hour" or "day".
         """
         timestep = timestep.lower()
+        if not timestep:
+            raise ValueError("timestep cannot be empty")
 
         # Define mapping from timestep units to equivalent minutes
         time_unit_map = {
@@ -402,7 +438,7 @@ class DataSource(ABC):
 
     # ========Internal Market Data Methods===================
 
-    def _parse_source_timestep(self, timestep, reverse=False):
+    def _parse_source_timestep(self, timestep: str, reverse: bool = False) -> str:
         """transform the data source timestep variable
         into lumibot representation. set reverse to True
         for opposite direction"""
@@ -416,8 +452,11 @@ class DataSource(ABC):
 
         raise UnavailabeTimestep(self.SOURCE, timestep)
 
-    def _parse_source_bars(self, response, quote=None):
-        result = {}
+    def _parse_source_symbol_bars(self, response: Any, asset: Any, quote: Any = None) -> Any:
+        raise NotImplementedError("DataSource subclasses must implement _parse_source_symbol_bars")
+
+    def _parse_source_bars(self, response: Mapping[Any, Any], quote: Any = None) -> BarsResultMap:
+        result: BarsResultMap = {}
         for asset, data in response.items():
             if data is None or isinstance(data, float):
                 result[asset] = data
@@ -429,31 +468,34 @@ class DataSource(ABC):
 
     def get_bars(
         self,
-        assets,
-        length,
-        timestep="minute",
-        timeshift=None,
-        chunk_size=2,
-        max_workers=2,
-        quote=None,
-        exchange=None,
-        include_after_hours=True,
+        assets: AssetInput | Iterable[AssetInput],
+        length: int,
+        timestep: str = "minute",
+        timeshift: timedelta | None = None,
+        chunk_size: int = 2,
+        max_workers: int = 2,
+        quote: Any = None,
+        exchange: str | None = None,
+        include_after_hours: bool = True,
         sleep_time: float | None = None,
-    ):
+    ) -> BarsResultMap:
         """Get bars for the list of assets"""
-        if not isinstance(assets, list):
-            assets = [assets]
+        del max_workers
+        if isinstance(assets, list):
+            raw_assets = assets
+        else:
+            raw_assets = [cast(AssetInput, assets)]
 
         effective_sleep_time = sleep_time
         if effective_sleep_time is None:
             effective_sleep_time = 0.0 if getattr(self, "IS_BACKTESTING_DATA_SOURCE", False) else 0.1
 
-        def process_chunk(chunk):
-            chunk_result = {}
+        def process_chunk(chunk: list[AssetInput]) -> BarsResultMap:
+            chunk_result: BarsResultMap = {}
             for asset in chunk:
                 if isinstance(asset, tuple):
-                    base_asset = asset[0]
-                    quote_asset = asset[1]
+                    base_asset: AssetInput = asset[0]
+                    quote_asset: Any = asset[1]
                 else:
                     base_asset = asset
                     quote_asset = quote
@@ -473,19 +515,20 @@ class DataSource(ABC):
                         time.sleep(effective_sleep_time)
                 except Exception as e:
                     # Log once per asset to avoid spamming with a huge traceback
-                    logger.warning(f"Error retrieving data for {base_asset.symbol}: {e}")
+                    base_symbol = getattr(base_asset, "symbol", base_asset)
+                    logger.warning(f"Error retrieving data for {base_symbol}: {e}")
                     tb = traceback.format_exc()
                     logger.warning(tb)  # This prints the traceback
                     chunk_result[asset] = None
             return chunk_result
 
         # Convert strings to Asset objects
-        assets = [Asset(symbol=a) if isinstance(a, str) else a for a in assets]
+        asset_list: list[AssetInput] = [Asset(symbol=a) if isinstance(a, str) else a for a in raw_assets]
 
         # Chunk the assets
-        chunks = [assets[i : i + chunk_size] for i in range(0, len(assets), chunk_size)]
+        chunks = [asset_list[i : i + chunk_size] for i in range(0, len(asset_list), chunk_size)]
 
-        results = {}
+        results: BarsResultMap = {}
         # Reuse thread pool to avoid creation/destruction overhead
         from concurrent.futures import as_completed
 
@@ -496,10 +539,10 @@ class DataSource(ABC):
 
         return results
 
-    def get_last_prices(self, assets, quote=None, exchange=None):
+    def get_last_prices(self, assets: Iterable[Any], quote: Any = None, exchange: str | None = None) -> Any:
         """Takes a list of assets and returns the last known prices"""
 
-        result = {}
+        result: dict[Any, float | Decimal | None] = {}
         for asset in assets:
             result[asset] = self.get_last_price(asset, quote=quote, exchange=exchange)
 
@@ -508,34 +551,37 @@ class DataSource(ABC):
         else:
             return AssetsMapping(result)
 
-    def get_strikes(self, asset) -> list:
+    def get_strikes(self, asset: Asset) -> list[Any]:
         """Return a set of strikes for a given asset"""
         chains = self.get_chains(asset)
-        strikes = set()
+        all_strikes: set[Any] = set()
         for right in chains["Chains"]:
-            for exp_date, strikes in chains["Chains"][right].items():
-                strikes |= set(strikes)
+            for _exp_date, strike_values in chains["Chains"][right].items():
+                all_strikes.update(strike_values)
 
-        return sorted(strikes)
+        return sorted(all_strikes)
 
-    def get_yesterday_dividend(self, asset, quote=None):
+    def get_yesterday_dividend(self, asset: Asset, quote: Any = None) -> Any:
         """Return dividend per share for a given
         asset for the day before"""
-        bars = self.get_historical_prices(asset, 1, timestep="day")
+        bars = self.get_historical_prices(asset, 1, timestep="day", quote=quote)
+        if bars is None:
+            return 0
         return bars.get_last_dividend()
 
-    def get_yesterday_dividends(self, assets, quote=None):
+    def get_yesterday_dividends(self, assets: Iterable[Asset], quote: Any = None) -> AssetsMapping:
         """Return dividend per share for a list of assets for the day before.
 
         For backtesting, this method caches all dividend data to avoid repeated API calls.
         On the first call for an asset, it fetches ALL historical dividend data and caches it.
         Subsequent calls use the cache.
         """
-        result = {}
+        result: dict[Any, Any] = {}
 
         # For backtesting with dividends, use an efficient caching strategy
-        if hasattr(self, '_datetime') and self._datetime:
-            current_date = self._datetime.date() if hasattr(self._datetime, 'date') else self._datetime
+        current_datetime = getattr(self, "_datetime", None)
+        if current_datetime:
+            current_date = current_datetime.date() if hasattr(current_datetime, "date") else current_datetime
 
             # Process each asset
             for asset in assets:
@@ -555,7 +601,11 @@ class DataSource(ABC):
                             and getattr(self, "datetime_end", None) is not None
                         ):
                             try:
-                                span_days = (self.datetime_end.date() - self.datetime_start.date()).days + 1
+                                datetime_end = self.datetime_end
+                                datetime_start = self.datetime_start
+                                if datetime_end is None or datetime_start is None:
+                                    raise ValueError("datetime_start and datetime_end must be set")
+                                span_days = (datetime_end.date() - datetime_start.date()).days + 1
                                 # Add a small cushion for weekends/holidays; ensure at least ~1 month.
                                 length = min(2000, max(span_days + 10, 30))
                             except Exception:
@@ -564,12 +614,12 @@ class DataSource(ABC):
                         bars = self.get_bars([asset], length, timestep="day", quote=quote).get(asset)
 
                         # Extract all dividends from the bars and store by date
-                        asset_dividends = {}
-                        if bars is not None and hasattr(bars, 'df') and 'dividend' in bars.df.columns:
+                        asset_dividends: dict[Any, Any] = {}
+                        if bars is not None and hasattr(bars, "df") and "dividend" in bars.df.columns:
                             # Store dividend for each date
                             for idx, row in bars.df.iterrows():
-                                date = idx.date() if hasattr(idx, 'date') else idx
-                                dividend_val = row.get('dividend', 0)
+                                date = idx.date() if hasattr(idx, "date") else idx
+                                dividend_val = row.get("dividend", 0)
                                 if dividend_val and dividend_val > 0:
                                     asset_dividends[date] = dividend_val
 
@@ -588,7 +638,7 @@ class DataSource(ABC):
                                 "[DIVIDEND][CACHE] No dividend entries available for %s",
                                 getattr(asset, "symbol", asset),
                             )
-                    except Exception as e:
+                    except Exception:
                         # If fetching fails, cache empty dict to avoid repeated failures
                         self._dividend_cache[asset] = {}
 
@@ -616,8 +666,16 @@ class DataSource(ABC):
 
         return AssetsMapping(result)
 
-    def get_chain_full_info(self, asset: Asset, expiry: date | datetime, chains=None, underlying_price=float, risk_free_rate=float,
-                            strike_min=None, strike_max=None) -> pd.DataFrame:
+    def get_chain_full_info(
+        self,
+        asset: Asset,
+        expiry: Any,
+        chains: ChainMap | None = None,
+        underlying_price: float | Decimal | None = None,
+        risk_free_rate: float | Decimal | None = None,
+        strike_min: float | None = None,
+        strike_max: float | None = None,
+    ) -> PandasDataFrame:
         """
         Get the full chain information for an option asset, including: greeks, bid/ask, open_interest, etc. For
         brokers that do not support this, greeks will be calculated locally. For brokers like Tradier this function
@@ -652,18 +710,22 @@ class DataSource(ABC):
         start_t = time.perf_counter()
         # Base level DataSource assumes that the data source does not support this and the greeks will be calculated
         # locally. Subclasses can override this method to provide a more efficient implementation.
-        if isinstance(expiry, datetime):
+        if isinstance(expiry, str):
+            expiry_dt = datetime.strptime(expiry, "%Y-%m-%d").date()
+        elif isinstance(expiry, datetime):
             expiry_dt = expiry.date()
         elif isinstance(expiry, date):
             expiry_dt = expiry
         else:
-            raise TypeError("expiry must be a datetime.date or datetime.datetime instance")
+            raise TypeError("expiry must be a string, datetime.date, or datetime.datetime instance")
 
         expiry_str = expiry_dt.strftime("%Y-%m-%d")
         if chains is None:
             chains = self.get_chains(asset)
+        if asset.symbol is None:
+            raise ValueError("Cannot build option chain rows for an asset without a symbol")
 
-        rows = []
+        rows: list[dict[str, Any]] = []
         query_total = 0
         for right in chains["Chains"]:
             expirations_map = chains["Chains"].get(right, {})
@@ -671,7 +733,9 @@ class DataSource(ABC):
                 raise KeyError(f"Expiry {expiry_str} not available for option type {right}")
             for strike in expirations_map[expiry_str]:
                 # Skip strikes outside the requested range. Saves querying time.
-                if strike_min and strike < strike_min or strike_max and strike > strike_max:
+                if (strike_min is not None and strike < strike_min) or (
+                    strike_max is not None and strike > strike_max
+                ):
                     continue
 
                 # Build the option asset and query for the price
@@ -686,6 +750,8 @@ class DataSource(ABC):
                 option_symbol = _create_options_symbol(opt_asset.symbol, expiry_dt, right, strike)
                 opt_price = self.get_last_price(opt_asset)
                 greeks = self.calculate_greeks(opt_asset, opt_price, underlying_price, risk_free_rate)
+                if greeks is None:
+                    greeks = {}
                 query_total += time.perf_counter() - query_t
 
                 # Build the row. Match the Tradier column naming conventions.
@@ -704,25 +770,27 @@ class DataSource(ABC):
                     "volume": 0,
                     "last_volume": 0,
                     "average_volume": 0,
-                    "type": 'option',
+                    "type": "option",
                 }
                 # Add in the greeks. Format: greeks.delta, greeks.theta, etc.
                 row.update({f"greeks.{col}": val for col, val in greeks.items()})
                 rows.append(row)
 
-        logger.info(f"Chain Full Info Query Total: {query_total:.2f}s. "
-                     f"Total Time: {time.perf_counter() - start_t:.2f}s, "
-                     f"Rows: {len(rows)}")
+        logger.info(
+            f"Chain Full Info Query Total: {query_total:.2f}s. "
+            f"Total Time: {time.perf_counter() - start_t:.2f}s, "
+            f"Rows: {len(rows)}"
+        )
         return pd.DataFrame(rows).sort_values("strike") if rows else pd.DataFrame()
 
     def calculate_greeks(
         self,
-        asset,
+        asset: Asset,
         # API Querying for prices and rates are expensive, so we'll pass them in as arguments most of the time
-        asset_price: float,
-        underlying_price: float,
-        risk_free_rate: float,
-    ):
+        asset_price: float | Decimal | None,
+        underlying_price: float | Decimal | None,
+        risk_free_rate: float | Decimal | None,
+    ) -> GreeksMap | None:
         """Returns Greeks in backtesting."""
         # Handle None values - don't cache or calculate if inputs are invalid
         if asset_price is None or underlying_price is None or risk_free_rate is None:
@@ -731,15 +799,33 @@ class DataSource(ABC):
         # Optimization: Cache Greeks calculations based on key parameters
         # Round prices to 2 decimal places for cache key to handle minor price fluctuations
         current_date = self.get_datetime()
+        asset_symbol = asset.symbol
+        asset_expiration = asset.expiration
+        asset_strike = asset.strike
+        asset_right = asset.right
+
+        if asset_expiration is None:
+            raise ValueError(f"Cannot calculate greeks for {asset}: expiration is required")
+        if asset_strike is None:
+            raise ValueError(f"Cannot calculate greeks for {asset}: strike is required")
+        if asset_right is None:
+            raise ValueError(f"Cannot calculate greeks for {asset}: right is required")
+
+        asset_price_float = float(asset_price)
+        underlying_price_float = float(underlying_price)
+        risk_free_rate_float = float(risk_free_rate)
+
         cache_key = (
-            asset.symbol,
-            asset.strike,
-            asset.right,
-            asset.expiration,
-            round(asset_price, 2),
-            round(underlying_price, 2),
-            round(risk_free_rate, 4),
-            current_date.date() if hasattr(current_date, 'date') else current_date  # Cache per day to handle time decay
+            asset_symbol,
+            asset_strike,
+            asset_right,
+            asset_expiration,
+            round(asset_price_float, 2),
+            round(underlying_price_float, 2),
+            round(risk_free_rate_float, 4),
+            current_date.date()
+            if hasattr(current_date, "date")
+            else current_date,  # Cache per day to handle time decay
         )
 
         # Check cache
@@ -753,12 +839,12 @@ class DataSource(ABC):
             for key in keys_to_remove:
                 del self._greeks_cache[key]
 
-        opt_price = asset_price
-        und_price = underlying_price
-        interest = risk_free_rate * 100
+        opt_price = asset_price_float
+        und_price = underlying_price_float
+        interest = risk_free_rate_float * 100
 
         # If asset expiration is a datetime object, convert it to date
-        expiration = asset.expiration
+        expiration = asset_expiration
         if isinstance(expiration, datetime):
             expiration = expiration.date()
 
@@ -771,23 +857,26 @@ class DataSource(ABC):
         # Calculate the days to expiration, but allow for fractional days
         days_to_expiration = (expiration - current_date).total_seconds() / (60 * 60 * 24)
 
-        if asset.right.upper() == "CALL":
+        right = str(asset_right).upper()
+        strike = float(asset_strike)
+
+        if right == "CALL":
             is_call = True
             iv = black_scholes.BS(
-                [und_price, float(asset.strike), interest, days_to_expiration],
+                [und_price, strike, interest, days_to_expiration],
                 callPrice=opt_price,
             )
-        elif asset.right.upper() == "PUT":
+        elif right == "PUT":
             is_call = False
             iv = black_scholes.BS(
-                [und_price, float(asset.strike), interest, days_to_expiration],
+                [und_price, strike, interest, days_to_expiration],
                 putPrice=opt_price,
             )
         else:
             raise ValueError(f"Invalid option type {asset.right}, cannot get option greeks")
 
         c = black_scholes.BS(
-            [und_price, float(asset.strike), interest, days_to_expiration],
+            [und_price, strike, interest, days_to_expiration],
             volatility=iv.impliedVolatility,
         )
 
@@ -807,13 +896,14 @@ class DataSource(ABC):
 
         return greeks
 
-    def query_greeks(self, asset):
+    def query_greeks(self, asset: Asset) -> GreeksMap:
         """Query for the Greeks as it can be more accurate than calculating locally."""
-        logger.info(f"Querying Options Greeks for {asset.symbol} is not supported for this "
-                     f"data source {self.__class__}.")
+        logger.info(
+            f"Querying Options Greeks for {asset.symbol} is not supported for this data source {self.__class__}."
+        )
         return {}
 
-    def get_quote(self, asset: Asset, quote: Asset = None, exchange: str = None) -> Quote:
+    def get_quote(self, asset: Asset, quote: Asset | None = None, exchange: str | None = None) -> Quote | None:
         """
         Get the latest quote for an asset (stock, option, or crypto).
         Returns a Quote object with bid, ask, last, and other fields if available.

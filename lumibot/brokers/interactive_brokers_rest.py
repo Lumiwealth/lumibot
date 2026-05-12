@@ -1,42 +1,51 @@
 from __future__ import annotations
 
+# pyright: reportMissingParameterType=false, reportUnknownParameterType=false
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false
+# pyright: reportMissingTypeArgument=false, reportMissingTypeStubs=false
+# pyright: reportAttributeAccessIssue=false, reportArgumentType=false, reportCallIssue=false
+# pyright: reportIncompatibleMethodOverride=false, reportUnnecessaryComparison=false
+# pyright: reportUnnecessaryIsInstance=false, reportConstantRedefinition=false
+# pyright: reportUnusedFunction=false, reportPossiblyUnboundVariable=false
+# pyright: reportMatchNotExhaustive=false, reportPrivateUsage=false
 import datetime
 import os
 import re
 import traceback
 from decimal import Decimal
 from math import gcd
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Any
 
+from lumibot.brokers.broker import Broker
+from lumibot.entities.asset import Asset
+from lumibot.entities.order import Order
 from lumibot.tools.lumibot_logger import get_logger
 
-from ..brokers import Broker
-from ..entities import Asset, Order
-
 if TYPE_CHECKING:
-    from ..entities import Position
+    from lumibot.entities.position import Position
 
 logger = get_logger(__name__)
-_INTERACTIVE_BROKERS_REST_DATA_CLASS = None
-_COLORED_FN = None
+_INTERACTIVE_BROKERS_REST_DATA_CLASS: Any | None = None
+_COLORED_FN: Any | None = None
 
 
-def colored(*args, **kwargs):
+def colored(*args: Any, **kwargs: Any) -> str:
     global _COLORED_FN
     if _COLORED_FN is None:
         from termcolor import colored as _termcolor_colored
 
         _COLORED_FN = _termcolor_colored
-    return _COLORED_FN(*args, **kwargs)
+    return str(_COLORED_FN(*args, **kwargs))
 
 
-def _interactive_brokers_rest_data_class():
+def _interactive_brokers_rest_data_class() -> Any:
     global _INTERACTIVE_BROKERS_REST_DATA_CLASS
     if _INTERACTIVE_BROKERS_REST_DATA_CLASS is None:
         from ..data_sources import InteractiveBrokersRESTData
 
         _INTERACTIVE_BROKERS_REST_DATA_CLASS = InteractiveBrokersRESTData
     return _INTERACTIVE_BROKERS_REST_DATA_CLASS
+
 
 TYPE_MAP = dict(
     stock="STK",
@@ -92,18 +101,14 @@ class InteractiveBrokersREST(Broker):
     POLL_EVENT = "poll"
     NAME = "InteractiveBrokersREST"
 
-    def __init__(self, config, data_source=None, poll_interval=5.0):
+    def __init__(self, config: dict[str, Any] | None, data_source: Any | None = None, poll_interval: float = 5.0):
         # Set polling_interval before super().__init__() since it's needed in _get_stream_object
         self.polling_interval = poll_interval
 
         if data_source is None:
             data_source = _interactive_brokers_rest_data_class()(config)
 
-        super().__init__(
-            name=self.NAME,
-            data_source=data_source,
-            config=config
-        )
+        super().__init__(name=self.NAME, data_source=data_source, config=config)
 
         # The default market is NYSE.
         self.market = (config.get("MARKET") if config else None) or os.environ.get("MARKET") or "NYSE"
@@ -142,7 +147,7 @@ class InteractiveBrokersREST(Broker):
         # Get the quote asset symbol
         quote_symbol = quote_asset.symbol
 
-        # account_balances = {'CHF': {'commoditymarketvalue': 0.0, 'futuremarketvalue': 0.0, 'settledcash': 188.59, 'exchangerate': 1.1847296, 'sessionid': 1, 'cashbalance': 188.59, 'corporatebondsmarketvalue': 0.0, 'warrantsmarketvalue': 0.0, 'netliquidationvalue': 188.59, 'interest': 0, 'unrealizedpnl': 0.0, 'stockmarketvalue': 0.0, 'moneyfunds': 0.0, 'currency': 'CHF', 'realizedpnl': 0.0, 'funds': 0.0, 'acctcode': 'DU4299039', 'issueroptionsmarketvalue': 0.0, 'key': 'LedgerList', ...}, 'JPY': {'commoditymarketvalue': 0.0, 'futuremarketvalue': 0.0, 'settledcash': -3794999.0, 'exchangerate': 0.0069919, 'sessionid': 1, 'cashbalance': -3794999.0, 'corporatebondsmarketvalue': 0.0, 'warrantsmarketvalue': 0.0, 'netliquidationvalue': -3794999.0, 'interest': 0, 'unrealizedpnl': 0.0, 'stockmarketvalue': 0.0, 'moneyfunds': 0.0, 'currency': 'JPY', 'realizedpnl': 0.0, 'funds': 0.0, 'acctcode': 'DU4299039', 'issueroptionsmarketvalue': 0.0, 'key': 'LedgerList', ...}, 'EUR': {'commoditymarketvalue': 0.0, 'futuremarketvalue': 0.0, 'settledcash': 287480.9, 'exchangerate': 1.1157291, 'sessionid': 1, 'cashbalance': 287480.9, 'corporatebondsmarketvalue': 0.0, 'warrantsmarketvalue': 0.0, 'netliquidationvalue': 288112.94, 'interest': 632.03, 'unrealizedpnl': 0.0, 'stockmarketvalue': 0.0, 'moneyfunds': 0.0, 'currency': 'EUR', 'realizedpnl': 0.0, 'funds': 0.0, 'acctcode': 'DU4299039', 'issueroptionsmarketvalue': 0.0, 'key': 'LedgerList', ...}, 'USD': {'commoditymarketvalue': 0.0, 'futuremarketvalue': -87.3, 'settledcash': 208917.02, 'exchangerate': 1, 'sessionid': 1, 'cashbalance': 208917.02, 'corporatebondsmarketvalue': 0.0, 'warrantsmarketvalue': 0.0, 'netliquidationvalue': 209711.64, 'interest': 518.04, 'unrealizedpnl': 19358.56, 'stockmarketvalue': 276.58, 'moneyfunds': 0.0, 'currency': 'USD', 'realizedpnl': 0.0, 'funds': 0.0, 'acctcode': 'DU4299039', 'issueroptionsmarketvalue': 0.0, 'key': 'LedgerList', ...}, 'BASE': {'commoditymarketvalue': 0.0, 'futuremarketvalue': -87.3, 'settledcash': 503393.47, 'exchangerate': 1, 'sessionid': 1, 'cashbalance': 503393.47, 'corporatebondsmarketvalue': 0.0, 'warrantsmarketvalue': 0.0, 'netliquidationvalue': 504893.34, 'interest': 1223.307, 'unrealizedpnl': 19358.56, 'stockmarketvalue': 276.58, 'moneyfunds': 0.0, 'currency': 'BASE', 'realizedpnl': 0.0, 'funds': 0.0, 'acctcode': 'DU4299039', 'issueroptionsmarketvalue': 0.0, 'key': 'LedgerList', ...}}
+        # Example account_balances response is a large nested IBKR ledger payload keyed by currency.
 
         # Loop through the account balances and find the quote asset. If not the quote asset, create a position object for the currency/forex asset.
         cash = 0
@@ -170,27 +175,22 @@ class InteractiveBrokersREST(Broker):
                     self._filled_positions.append(position)
 
         # Exmaple account balances response:
-        # {'commoditymarketvalue': 0.0, 'futuremarketvalue': 677.49, 'settledcash': 202142.17, 'exchangerate': 1, 'sessionid': 1, 'cashbalance': 202142.17, 'corporatebondsmarketvalue': 0.0, 'warrantsmarketvalue': 0.0, 'netliquidationvalue': 202464.67, 'interest': 452.9, 'unrealizedpnl': 12841.38, 'stockmarketvalue': -130.4, 'moneyfunds': 0.0, 'currency': 'USD', 'realizedpnl': 0.0, 'funds': 0.0, 'acctcode': 'DU4299039', 'issueroptionsmarketvalue': 0.0, 'key': 'LedgerList', 'timestamp': 1724382002, 'severity': 0, 'stockoptionmarketvalue': 0.0, 'futuresonlypnl': 677.49, 'tbondsmarketvalue': 0.0, 'futureoptionmarketvalue': 0.0, 'cashbalancefxsegment': 0.0, 'secondkey': 'USD', 'tbillsmarketvalue': 0.0, 'endofbundle': 1, 'dividends': 0.0, 'cryptocurrencyvalue': 0.0}
+        # Example account balance response includes cash, net liquidation, PnL, and market value fields.
 
         # Get the net liquidation value for the quote asset
         total_liquidation_value = (
-            balances_for_quote_asset["netliquidationvalue"]
-            if balances_for_quote_asset is not None
-            else 0
+            balances_for_quote_asset["netliquidationvalue"] if balances_for_quote_asset is not None else 0
         )
 
         # Calculate the positions value
-        positions_value = (
-            (total_liquidation_value - cash) if total_liquidation_value != 0 else 0
-        )
+        positions_value = (total_liquidation_value - cash) if total_liquidation_value != 0 else 0
 
         # Check if there is a forex asset with more than 0 quantity
         if not hasattr(self, "_quote_asset_checked"):
             forex_assets_with_quantity = [
                 position
                 for position in self._filled_positions
-                if position.asset.asset_type == Asset.AssetType.FOREX
-                and position.quantity > 0
+                if position.asset.asset_type == Asset.AssetType.FOREX and position.quantity > 0
             ]
 
             # Recommend changing quote asset if yes
@@ -217,17 +217,17 @@ class InteractiveBrokersREST(Broker):
             # Create a multileg order.
             order = Order(strategy_name)
             order.order_class = Order.OrderClass.MULTILEG
-            order.avg_fill_price=response["avgPrice"] if "avgPrice" in response else None
+            order.avg_fill_price = response["avgPrice"] if "avgPrice" in response else None
             order.quantity = totalQuantity
-            order.asset = Asset(symbol=response['ticker'], asset_type="multileg")
-            order.side = response['side']
-            order.identifier = response['orderId']
+            order.asset = Asset(symbol=response["ticker"], asset_type="multileg")
+            order.side = response["side"]
+            order.identifier = response["orderId"]
 
             order.child_orders = []
 
             # Parse the legs of the combo order.
             legs = self.decode_conidex(response["conidex"])
-            n=0
+            n = 0
             for leg, ratio in legs.items():
                 # Create the object with just the conId
                 # TODO check if all legs using the same response is an issue; test with covered calls
@@ -237,9 +237,9 @@ class InteractiveBrokersREST(Broker):
                     quantity=float(ratio) * totalQuantity,
                     conId=leg,
                     parent_identifier=order.identifier,
-                    child_order_number=str(n)
+                    child_order_number=str(n),
                 )
-                n+=1
+                n += 1
                 order.child_orders.append(child_order)
 
         else:
@@ -258,7 +258,9 @@ class InteractiveBrokersREST(Broker):
         order.update_raw(response)
         return order
 
-    def _parse_order_object(self, strategy_name, response, quantity, conId, parent_identifier=None, child_order_number=None):
+    def _parse_order_object(
+        self, strategy_name, response, quantity, conId, parent_identifier=None, child_order_number=None
+    ):
         if quantity < 0:
             side = "SELL"
             quantity = -quantity
@@ -268,20 +270,10 @@ class InteractiveBrokersREST(Broker):
         symbol = response["ticker"]
         currency = response["cashCcy"]
         time_in_force = response["timeInForce"]
-        limit_price = (
-            response["price"]
-            if "price" in response and response["price"] != ""
-            else None
-        )
-        stop_price = (
-            response["stop_price"]
-            if "stop_price" in response and response["stop_price"] != ""
-            else None
-        )
+        limit_price = response["price"] if "price" in response and response["price"] != "" else None
+        stop_price = response["stop_price"] if "stop_price" in response and response["stop_price"] != "" else None
         good_till_date = (
-            response["goodTillDate"]
-            if "goodTillDate" in response and response["goodTillDate"] != ""
-            else None
+            response["goodTillDate"] if "goodTillDate" in response and response["goodTillDate"] != "" else None
         )
 
         contract_details = self.data_source.get_contract_details(conId)
@@ -328,20 +320,20 @@ class InteractiveBrokersREST(Broker):
             asset,
             quantity=Decimal(quantity),
             side=side.lower(),
-            status=response['status'],
+            status=response["status"],
             limit_price=limit_price,
             stop_price=stop_price,
             time_in_force=time_in_force,
             good_till_date=good_till_date,
             quote=Asset(symbol=currency, asset_type="forex"),
-            avg_fill_price=response["avgPrice"] if "avgPrice" in response else None
+            avg_fill_price=response["avgPrice"] if "avgPrice" in response else None,
         )
 
         if parent_identifier is not None:
-            order.parent_identifier=parent_identifier
+            order.parent_identifier = parent_identifier
 
         if child_order_number:
-            order.identifier = f'{parent_identifier}-{child_order_number}'
+            order.identifier = f"{parent_identifier}-{child_order_number}"
 
         return order
 
@@ -352,16 +344,10 @@ class InteractiveBrokersREST(Broker):
 
     def _pull_broker_order(self, identifier: str) -> Order:
         """Get a broker order representation by its id"""
-        pull_order = [
-            order
-            for order in self.data_source.get_broker_all_orders()
-            if order.orderId == identifier
-        ]
+        pull_order = [order for order in self.data_source.get_broker_all_orders() if order.orderId == identifier]
         response = pull_order[0] if len(pull_order) > 0 else None
         if response is None:
-            logger.error(
-                colored(f"Order with identifier {identifier} not found.", "red")
-            )
+            logger.error(colored(f"Order with identifier {identifier} not found.", "red"))
             return Order(self._strategy_name)
         return response
 
@@ -394,14 +380,13 @@ class InteractiveBrokersREST(Broker):
                 asset_type="forex",
             )
         else:  # Unreachable code.
-            logger.error(
-                colored(
-                    f"From Interactive Brokers, asset type can only be `stock`, "
-                    f"`future`, or `option`. A value of {broker_position['asset_type']} "
-                    f"was received.",
-                    "red",
-                )
+            message = (
+                f"From Interactive Brokers, asset type can only be `stock`, "
+                f"`future`, `forex`, or `option`. A value of {broker_position['asset_type']} "
+                f"was received."
             )
+            logger.error(colored(message, "red"))
+            raise ValueError(message)
 
         quantity = broker_position["position"]
         from ..entities import Position
@@ -465,7 +450,7 @@ class InteractiveBrokersREST(Broker):
             return []
 
         # Example positions response:
-        # [{'acctId': 'DU4299039', 'conid': 265598, 'contractDesc': 'AAPL', 'position': -10.0, 'mktPrice': 225.0299988, 'mktValue': -2250.3, 'currency': 'USD', 'avgCost': 211.96394, 'avgPrice': 211.96394, 'realizedPnl': 0.0, 'unrealizedPnl': -130.66, 'exchs': None, 'expiry': None, 'putOrCall': None, 'multiplier': None, 'strike': 0.0, 'exerciseStyle': None, 'conExchMap': [], 'assetClass': 'STK', 'undConid': 0}]
+        # Example positions response includes contract id, description, quantity, price, value, PnL, and asset class.
 
         # Initialize a list to store the Position objects
         positions_list = []
@@ -488,7 +473,7 @@ class InteractiveBrokersREST(Broker):
                 #   - Expiry and strike in human-readable format (e.g., "NOV2024 562 P")
                 #   - Option details within square brackets (e.g., "[SPY   241105P00562000 100]"),
                 #     where "241105P00562000" holds the expiry (YYMMDD), option type (C/P), and strike price
-                contract_details = self.data_source.get_contract_details(position['conid'])
+                contract_details = self.data_source.get_contract_details(position["conid"])
 
                 contract_desc = position.get("contractDesc", "").strip()
 
@@ -498,17 +483,19 @@ class InteractiveBrokersREST(Broker):
 
                 try:
                     # Locate the square brackets and extract the option details part
-                    start_idx = contract_desc.find('[')
-                    end_idx = contract_desc.find(']', start_idx)
+                    start_idx = contract_desc.find("[")
+                    end_idx = contract_desc.find("]", start_idx)
 
                     if start_idx == -1 or end_idx == -1:
-                        logger.error(f"Brackets not found in contract description '{contract_desc}'. Expected format like '[SPY   241105P00562000 100]'.")
+                        logger.error(
+                            f"Brackets not found in contract description '{contract_desc}'. Expected format like '[SPY   241105P00562000 100]'."
+                        )
                         continue  # Skip if brackets are missing
 
                     # Extract content within brackets and find the critical pattern (e.g., "241105P00562000")
-                    bracket_content = contract_desc[start_idx + 1:end_idx].strip()
+                    bracket_content = contract_desc[start_idx + 1 : end_idx].strip()
                     # Search for 6 digits, followed by 'C' or 'P', followed by 8 digits for strike
-                    details_match = re.search(r'\d{6}[CP]\d{8}', bracket_content)
+                    details_match = re.search(r"\d{6}[CP]\d{8}", bracket_content)
 
                     if not details_match:
                         logger.error(f"Expected option pattern not found in contract '{contract_desc}'.")
@@ -517,9 +504,9 @@ class InteractiveBrokersREST(Broker):
                     contract_details = details_match.group(0)
 
                     # Parse components from the details
-                    expiry_raw = contract_details[:6]      # First six digits (YYMMDD format)
-                    right_raw = contract_details[6]        # Seventh character (C or P)
-                    strike_raw = contract_details[7:]      # Remaining characters (strike price)
+                    expiry_raw = contract_details[:6]  # First six digits (YYMMDD format)
+                    right_raw = contract_details[6]  # Seventh character (C or P)
+                    strike_raw = contract_details[7:]  # Remaining characters (strike price)
 
                     # Check if expiry is in the correct format and convert to date
                     try:
@@ -537,7 +524,9 @@ class InteractiveBrokersREST(Broker):
 
                     # Validate the option type (right) as either C or P
                     if right_raw.upper() not in ["C", "P"]:
-                        logger.error(f"Invalid option type '{right_raw}' in contract '{contract_desc}'. Expected 'C' or 'P'.")
+                        logger.error(
+                            f"Invalid option type '{right_raw}' in contract '{contract_desc}'. Expected 'C' or 'P'."
+                        )
                         continue  # Skip if option type is not valid
 
                     # Determine the option right type
@@ -552,10 +541,7 @@ class InteractiveBrokersREST(Broker):
                         continue
 
                     # Create the underlying asset object
-                    underlying_asset = Asset(
-                        symbol=underlying_asset_raw,
-                        asset_type=Asset.AssetType.STOCK
-                    )
+                    underlying_asset = Asset(symbol=underlying_asset_raw, asset_type=Asset.AssetType.STOCK)
 
                     # Create the option asset object
                     asset = Asset(
@@ -569,15 +555,16 @@ class InteractiveBrokersREST(Broker):
 
                 except Exception as e:
                     logger.error(f"Error processing contract '{contract_desc}': {e}")
+                    continue
 
             elif asset_class == Asset.AssetType.FUTURE:
-                contract_details = self.data_source.get_contract_details(position['conid'])
+                contract_details = self.data_source.get_contract_details(position["conid"])
 
                 asset = Asset(
                     symbol=contract_details["symbol"],
                     asset_type=asset_class,
                     expiration=datetime.datetime.strptime(contract_details["maturity_date"], "%Y%m%d").date(),
-                    multiplier=int(contract_details["multiplier"])
+                    multiplier=int(contract_details["multiplier"]),
                 )
             else:
                 logger.warning(
@@ -666,9 +653,7 @@ class InteractiveBrokersREST(Broker):
                 )
         else:
             if order.order_class == Order.OrderClass.MULTILEG:
-                logger.debug(
-                    colored("Order details for failed multileg order.", "blue")
-                )
+                logger.debug(colored("Order details for failed multileg order.", "blue"))
                 for child_order in order.child_orders:
                     logger.debug(
                         colored(
@@ -709,26 +694,33 @@ class InteractiveBrokersREST(Broker):
                 )
 
     def _submit_order(self, order: Order) -> Order:
+        asset = order.asset
+        if asset is None:
+            msg = "InteractiveBrokersREST cannot submit an order without an asset"
+            logger.error(colored(msg, "red"))
+            self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
+            return order
+
         # Ensure futures orders have expiration set
         if (
-            hasattr(order.asset, "asset_type")
-            and order.asset.asset_type == Asset.AssetType.FUTURE
-            and getattr(order.asset, "expiration", None) is None
+            hasattr(asset, "asset_type")
+            and asset.asset_type == Asset.AssetType.FUTURE
+            and getattr(asset, "expiration", None) is None
         ):
             logger.warning(
                 colored(
-                    f"Futures order for {order.asset.symbol} submitted without expiration. "
+                    f"Futures order for {asset.symbol} submitted without expiration. "
                     f"Consider specifying expiration when creating the Asset.",
-                    "yellow"
+                    "yellow",
                 )
             )
             # Optionally, auto-fill expiration with nearest expiry (uncomment below if desired)
-            conid = self.data_source._get_earliest_future_conid(order.asset.symbol)
+            conid = self.data_source._get_earliest_future_conid(asset.symbol)
             if conid:
                 contract_details = self.data_source.get_contract_details(conid)
                 if contract_details and "maturity_date" in contract_details:
-                    order.asset.expiration = datetime.datetime.strptime(contract_details["maturity_date"], "%Y%m%d").date()
-                    logger.info(colored(f"Auto-filled expiration for {order.asset.symbol}: {order.asset.expiration}", "yellow"))
+                    asset.expiration = datetime.datetime.strptime(contract_details["maturity_date"], "%Y%m%d").date()
+                    logger.info(colored(f"Auto-filled expiration for {asset.symbol}: {asset.expiration}", "yellow"))
 
         try:
             order_data = self.get_order_data_from_orders([order])
@@ -744,7 +736,7 @@ class InteractiveBrokersREST(Broker):
 
             order.identifier = response[0]["order_id"]
             self._unprocessed_orders.append(order)
-            order.status=Order.OrderStatus.SUBMITTED
+            order.status = Order.OrderStatus.SUBMITTED
 
             self.stream.dispatch(self.NEW_ORDER, order=order)
 
@@ -784,9 +776,7 @@ class InteractiveBrokersREST(Broker):
                     price = 0
                     order_type = "limit"
 
-                order_data = self.get_order_data_multileg(
-                    orders, order_type=order_type, duration=duration, price=price
-                )
+                order_data = self.get_order_data_multileg(orders, order_type=order_type, duration=duration, price=price)
                 response = self.data_source.execute_order(order_data)
 
                 if response is None:
@@ -799,14 +789,14 @@ class InteractiveBrokersREST(Broker):
                 order = Order(orders[0].strategy)
                 order.order_class = Order.OrderClass.MULTILEG
                 order.identifier = response[0]["order_id"]
-                order.status=Order.OrderStatus.SUBMITTED
-                order.side = order_data['orders'][0]['side'].lower() if order_data is not None else None
+                order.status = Order.OrderStatus.SUBMITTED
+                order.side = order_data["orders"][0]["side"].lower() if order_data is not None else None
 
                 order.child_orders = orders
                 for n, child_order in enumerate(order.child_orders):
-                    child_order.identifier = f'{order.identifier}-{n}'
+                    child_order.identifier = f"{order.identifier}-{n}"
                     child_order.parent_identifier = order.identifier
-                    order.status=Order.OrderStatus.SUBMITTED
+                    order.status = Order.OrderStatus.SUBMITTED
 
                 self._unprocessed_orders.append(order)
                 self.stream.dispatch(self.NEW_ORDER, order=order)
@@ -819,7 +809,7 @@ class InteractiveBrokersREST(Broker):
                 if response is None:
                     for order in orders:
                         self._log_order_status(order, "failed", success=False)
-                        msg = 'Broker returned no response'
+                        msg = "Broker returned no response"
                         self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
 
                     return None
@@ -831,18 +821,14 @@ class InteractiveBrokersREST(Broker):
                     self._unprocessed_orders.append(order)
                     self.stream.dispatch(self.NEW_ORDER, order=order)
                     self._log_order_status(order, "executed", success=True)
-                    order.status=Order.OrderStatus.SUBMITTED
+                    order.status = Order.OrderStatus.SUBMITTED
 
                     order_id += 1
 
                 return orders
 
         except Exception as e:
-            logger.error(
-                colored(
-                    f"An error occurred while submitting the order: {str(e)}", "red"
-                )
-            )
+            logger.error(colored(f"An error occurred while submitting the order: {str(e)}", "red"))
 
             for order in orders:
                 self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=e)
@@ -852,8 +838,7 @@ class InteractiveBrokersREST(Broker):
     def cancel_order(self, order: Order) -> None:
         self.data_source.delete_order(order)
 
-    def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
-                      stop_price: Union[float, None] = None):
+    def _modify_order(self, order: Order, limit_price: float | None = None, stop_price: float | None = None):
         """
         Modify an order at the broker. Nothing will be done for orders that are already cancelled or filled. You are
         only allowed to change the limit price and/or stop price. If you want to change the quantity,
@@ -894,11 +879,7 @@ class InteractiveBrokersREST(Broker):
 
             if conid is None:
                 asset_type = order.asset.asset_type
-                expiry_date = (
-                    order.asset.expiration
-                    if hasattr(order.asset, "expiration")
-                    else "N/A"
-                )
+                expiry_date = order.asset.expiration if hasattr(order.asset, "expiration") else "N/A"
                 logger.error(
                     colored(
                         f"Couldn't find an appropriate asset for {order.asset} (Type: {asset_type}, Expiry: {expiry_date}).",
@@ -908,7 +889,7 @@ class InteractiveBrokersREST(Broker):
                 return None
 
             rules = self.data_source.get_contract_rules(conid)
-            increment = rules['rules']['increment'] # 0.05 for example
+            increment = rules["rules"]["increment"]  # 0.05 for example
             price = (order.limit_price // increment) * increment if order.limit_price is not None else None
             aux_price = (order.stop_price // increment) * increment if order.stop_price is not None else None
 
@@ -936,11 +917,7 @@ class InteractiveBrokersREST(Broker):
             return data
 
         except Exception as e:
-            logger.error(
-                colored(
-                    f"An error occurred while processing the order: {str(e)}", "red"
-                )
-            )
+            logger.error(colored(f"An error occurred while processing the order: {str(e)}", "red"))
             logger.error(colored("Error details:", "red"), exc_info=True)
             return None
 
@@ -954,9 +931,7 @@ class InteractiveBrokersREST(Broker):
 
         return order_data if order_data["orders"] else None
 
-    def get_order_data_multileg(
-        self, orders: list[Order], order_type=None, duration=None, price=None
-    ):
+    def get_order_data_multileg(self, orders: list[Order], order_type=None, duration=None, price=None):
         """
         Generate the order data for a multileg order.
 
@@ -1054,7 +1029,7 @@ class InteractiveBrokersREST(Broker):
             logger.info("Order type not specified. Defaulting to 'MKT'.")
 
         rules = self.data_source.get_contract_rules(conid)
-        increment = rules['rules']['increment'] # 0.05 for example
+        increment = rules["rules"]["increment"]  # 0.05 for example
         price = (price // increment) * increment if price is not None else None
         aux_price = (order.stop_price // increment) * increment if order.stop_price is not None else None
 
@@ -1064,9 +1039,7 @@ class InteractiveBrokersREST(Broker):
             "quantity": round(order_quantity, 2),
             "orderType": ORDERTYPE_MAPPING.get(order_type_value),
             "side": side,
-            "tif": duration.upper()
-            if duration is not None
-            else order.time_in_force.upper(),
+            "tif": duration.upper() if duration is not None else order.time_in_force.upper(),
             "price": price,
             "auxPrice": aux_price,
             "listingExchange": order.exchange,
@@ -1079,9 +1052,7 @@ class InteractiveBrokersREST(Broker):
         return order_data
 
     def get_historical_account_value(self) -> dict:
-        logger.error(
-            "The function get_historical_account_value is not implemented yet for Interactive Brokers."
-        )
+        logger.error("The function get_historical_account_value is not implemented yet for Interactive Brokers.")
         return {"hourly": None, "daily": None}
 
     def _register_stream_events(self):
@@ -1104,7 +1075,7 @@ class InteractiveBrokersREST(Broker):
                     broker.NEW_ORDER,
                 )
                 return True
-            except:
+            except Exception:
                 logger.error(traceback.format_exc())
 
         @broker.stream.add_action(broker.FILLED_ORDER)
@@ -1121,7 +1092,7 @@ class InteractiveBrokersREST(Broker):
                     multiplier=order.asset.multiplier,
                 )
                 return True
-            except:
+            except Exception:
                 logger.error(traceback.format_exc())
 
         @broker.stream.add_action(broker.CANCELED_ORDER)
@@ -1134,7 +1105,7 @@ class InteractiveBrokersREST(Broker):
                     order,
                     broker.CANCELED_ORDER,
                 )
-            except:
+            except Exception:
                 logger.error(traceback.format_exc())
 
         @broker.stream.add_action(broker.CASH_SETTLED)
@@ -1150,7 +1121,7 @@ class InteractiveBrokersREST(Broker):
                     filled_quantity=filled_quantity,
                     multiplier=order.asset.multiplier,
                 )
-            except:
+            except Exception:
                 logger.error(traceback.format_exc())
 
         @broker.stream.add_action(broker.ERROR_ORDER)
@@ -1166,9 +1137,8 @@ class InteractiveBrokersREST(Broker):
                     )
                 logger.error(error_msg)
                 order.set_error(error_msg)
-            except:
+            except Exception:
                 logger.error(traceback.format_exc())
-
 
     def _run_stream(self):
         """Start the polling loop"""
@@ -1230,8 +1200,9 @@ class InteractiveBrokersREST(Broker):
                     # Update existing order
                     stored_order = stored_orders[order.identifier]
                     stored_order.quantity = order.quantity
-                    stored_children = [stored_orders[o.identifier] if o.identifier in stored_orders else o
-                                    for o in order.child_orders]
+                    stored_children = [
+                        stored_orders[o.identifier] if o.identifier in stored_orders else o for o in order.child_orders
+                    ]
 
                     if stored_children:
                         stored_order.child_orders = stored_children
@@ -1246,7 +1217,7 @@ class InteractiveBrokersREST(Broker):
                                     self.FILLED_ORDER,
                                     order=stored_order,
                                     price=order.avg_fill_price,
-                                    filled_quantity=order.quantity
+                                    filled_quantity=order.quantity,
                                 )
                             case "canceled":
                                 self.stream.dispatch(self.CANCELED_ORDER, order=stored_order)
@@ -1262,14 +1233,13 @@ class InteractiveBrokersREST(Broker):
         for order_id, order in tracked_orders.items():
             if order_id not in broker_ids:
                 logger.debug(
-                    f"Poll Update: {self.name} no longer has order {order}, but Lumibot does. "
-                    f"Dispatching as cancelled."
+                    f"Poll Update: {self.name} no longer has order {order}, but Lumibot does. Dispatching as cancelled."
                 )
                 # Only dispatch orders that have not been filled or cancelled. Likely the broker has simply
                 # stopped tracking them. This is particularly true with Paper Trading where orders are not tracked
                 # overnight.
                 if order.is_active():
-                    #self.stream.dispatch(self.CANCELED_ORDER, order=order)
+                    # self.stream.dispatch(self.CANCELED_ORDER, order=order)
                     pass
 
     def _get_broker_id_from_raw_orders(self, raw_orders):

@@ -3,6 +3,7 @@
 Exposes :class:`Indicators` which strategies access via ``self.indicators``.
 See :mod:`lumibot.indicators.indicators` for the full contract.
 """
-from lumibot.indicators.indicators import Indicators, IndicatorRow
+
+from lumibot.indicators.indicators import IndicatorRow, Indicators
 
 __all__ = ["Indicators", "IndicatorRow"]

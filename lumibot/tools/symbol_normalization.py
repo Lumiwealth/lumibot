@@ -1,6 +1,4 @@
 import re
-from typing import Optional
-
 
 # Canonical LumiBot internal form for US class-share equities.
 INTERNAL_CLASS_SHARE_SEPARATOR = "."
@@ -21,7 +19,7 @@ _BROKER_CLASS_SHARE_SEPARATORS = {
 }
 
 
-def _is_nan(value) -> bool:
+def _is_nan(value: object) -> bool:
     try:
         # NaN is the only value that is not equal to itself.
         return value != value
@@ -29,26 +27,26 @@ def _is_nan(value) -> bool:
         return False
 
 
-def _normalize_asset_type(asset_type: Optional[object]) -> Optional[str]:
+def _normalize_asset_type(asset_type: object | None) -> str | None:
     if asset_type is None:
         return None
     return str(asset_type).strip().lower()
 
 
-def _asset_type_supports_class_share_normalization(asset_type: Optional[object]) -> bool:
+def _asset_type_supports_class_share_normalization(asset_type: object | None) -> bool:
     normalized = _normalize_asset_type(asset_type)
     if normalized is None:
         return True
     return normalized in {"stock", "option", "index"}
 
 
-def _normalize_symbol_text(symbol: object):
+def _normalize_symbol_text(symbol: object) -> object:
     if symbol is None or _is_nan(symbol):
         return symbol
     return str(symbol).strip().upper()
 
 
-def _parse_class_share_symbol(symbol: object):
+def _parse_class_share_symbol(symbol: object) -> tuple[str, str] | None:
     sym = _normalize_symbol_text(symbol)
     if not isinstance(sym, str) or not sym:
         return None
@@ -60,7 +58,7 @@ def _parse_class_share_symbol(symbol: object):
     return None
 
 
-def normalize_symbol_for_internal(symbol: object, asset_type: Optional[object] = None):
+def normalize_symbol_for_internal(symbol: object, asset_type: object | None = None):
     """
     Normalize broker/native class-share stock symbols to LumiBot's internal canonical format (dot notation).
 
@@ -86,8 +84,8 @@ def normalize_symbol_for_internal(symbol: object, asset_type: Optional[object] =
 
 def normalize_symbol_for_broker(
     symbol: object,
-    broker_name: Optional[str],
-    asset_type: Optional[object] = None,
+    broker_name: str | None,
+    asset_type: object | None = None,
 ):
     """
     Convert an internal LumiBot symbol to a broker-native class-share symbol format.
@@ -110,4 +108,3 @@ def normalize_symbol_for_broker(
 
     root, suffix = parsed
     return f"{root}{separator}{suffix}"
-

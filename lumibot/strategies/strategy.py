@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+# pyright: reportMissingParameterType=false, reportUnknownParameterType=false
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false
+# pyright: reportUnknownLambdaType=false, reportMissingTypeArgument=false
+# pyright: reportMissingTypeStubs=false, reportInvalidTypeForm=false, reportPrivateUsage=false
+# pyright: reportUnnecessaryComparison=false, reportUnnecessaryIsInstance=false
+# pyright: reportAttributeAccessIssue=false, reportOptionalMemberAccess=false, reportOptionalSubscript=false
 import datetime
 import inspect
 from importlib import import_module
@@ -10,13 +16,18 @@ import re
 import time
 import uuid
 import warnings
+from collections.abc import Callable
 from decimal import Decimal
+from importlib import import_module
 from types import ModuleType
-from typing import TYPE_CHECKING, Callable, List, Optional, Type, Union
+from typing import TYPE_CHECKING, Any, TypeAlias, cast, overload
 
-from termcolor import colored, COLORS
+from termcolor import COLORS, colored
 
-from ..entities import Asset, Order, Quote, SmartLimitConfig
+from ..entities.asset import Asset
+from ..entities.order import Order
+from ..entities.quote import Quote
+from ..entities.smart_limit import SmartLimitConfig
 from ..tools.smart_limit_utils import (
     build_price_ladder,
     compute_final_price,
@@ -28,97 +39,113 @@ from ..tools.smart_limit_utils import (
 from ._strategy import _Strategy
 
 if TYPE_CHECKING:
-    from ..data_sources import DataSource
-    from ..entities import Data, Position, TradingFee, TradingSlippage
+    from ..data_sources.data_source import DataSource
+    from ..entities.bars import Bars
+    from ..entities.data import Data
+    from ..entities.position import Position
+    from ..entities.trading_fee import TradingFee
+    from ..entities.trading_slippage import TradingSlippage
 
 _FAST_LAST_PRICE_MISS = object()
-_PANDAS_MARKET_CALENDARS = None
-_TRADER_CLASS = None
+_pandas_market_calendars: ModuleType | None = None
+_trader_class_cache: type[Any] | None = None
 _COMPAT_SENTINEL = object()
 IS_BACKTESTING = _COMPAT_SENTINEL
-_IS_BACKTESTING = None
-_LUMIBOT_DEFAULT_TIMEZONE = None
-_LUMIBOT_DEFAULT_PYTZ = None
+_is_backtesting_cache: bool | None = None
+_lumibot_default_timezone_cache: Any | None = None
+_lumibot_default_pytz_cache: Any | None = None
+_SIMPLE_BACKTEST_CREATE_NONE_TUPLE = (None,) * 21
+DataFrame: TypeAlias = Any  # noqa: UP040 - keep Python 3.11 parser compatibility.
+Series: TypeAlias = Any  # noqa: UP040 - keep Python 3.11 parser compatibility.
+Timestamp: TypeAlias = Any  # noqa: UP040 - keep Python 3.11 parser compatibility.
 
 
 class _LazyModule(ModuleType):
-    def __init__(self, module_name: str):
+    _module_name: str
+    _module: ModuleType | None
+
+    def __init__(self, module_name: str) -> None:
         super().__init__(module_name)
         self._module_name = module_name
         self._module = None
 
-    def _load(self):
+    def _load(self) -> ModuleType:
         module = self._module
         if module is None:
             module = import_module(self._module_name)
             self._module = module
         return module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
         if name in {"_module_name", "_module"}:
             object.__setattr__(self, name, value)
         else:
             setattr(self._load(), name, value)
 
-    def __delattr__(self, name):
+    def __delattr__(self, name: str) -> None:
         if name in {"_module_name", "_module"}:
             object.__delattr__(self, name)
         else:
             delattr(self._load(), name)
 
 
-pd = _LazyModule("pandas")
-np = _LazyModule("numpy")
+pd: Any = _LazyModule("pandas")
+np: Any = _LazyModule("numpy")
 
 
-def _get_market_calendars():
-    global _PANDAS_MARKET_CALENDARS
-    if _PANDAS_MARKET_CALENDARS is None:
-        import pandas_market_calendars as mcal
-
-        _PANDAS_MARKET_CALENDARS = mcal
-    return _PANDAS_MARKET_CALENDARS
+def _get_market_calendars() -> ModuleType:
+    global _pandas_market_calendars
+    if _pandas_market_calendars is None:
+        _pandas_market_calendars = import_module("pandas_market_calendars")
+    return _pandas_market_calendars
 
 
-def _trader_class():
-    global _TRADER_CLASS
-    if _TRADER_CLASS is None:
+def _trader_class() -> type[Any]:
+    global _trader_class_cache
+    if _trader_class_cache is None:
         from ..traders import Trader
 
-        _TRADER_CLASS = Trader
-    return _TRADER_CLASS
+        _trader_class_cache = Trader
+    assert _trader_class_cache is not None
+    return _trader_class_cache
 
 
-def _is_backtesting_env():
-    global _IS_BACKTESTING, IS_BACKTESTING
+def _is_backtesting_env() -> Any:
+    global _is_backtesting_cache, IS_BACKTESTING
     if IS_BACKTESTING is not _COMPAT_SENTINEL:
         return IS_BACKTESTING
-    if _IS_BACKTESTING is None:
+    if _is_backtesting_cache is None:
         from ..credentials import IS_BACKTESTING as _credentials_is_backtesting
 
-        _IS_BACKTESTING = _credentials_is_backtesting
-    return _IS_BACKTESTING
+        _is_backtesting_cache = _credentials_is_backtesting
+    return _is_backtesting_cache
 
 
-def _default_timezone():
-    global _LUMIBOT_DEFAULT_TIMEZONE
-    if _LUMIBOT_DEFAULT_TIMEZONE is None:
+def _default_timezone() -> Any:
+    global _lumibot_default_timezone_cache
+    if _lumibot_default_timezone_cache is None:
         from ..constants import LUMIBOT_DEFAULT_TIMEZONE
 
-        _LUMIBOT_DEFAULT_TIMEZONE = LUMIBOT_DEFAULT_TIMEZONE
-    return _LUMIBOT_DEFAULT_TIMEZONE
+        _lumibot_default_timezone_cache = LUMIBOT_DEFAULT_TIMEZONE
+    assert _lumibot_default_timezone_cache is not None
+    return _lumibot_default_timezone_cache
 
 
-def _default_pytz():
-    global _LUMIBOT_DEFAULT_PYTZ
-    if _LUMIBOT_DEFAULT_PYTZ is None:
+def _default_pytz() -> Any:
+    global _lumibot_default_pytz_cache
+    if _lumibot_default_pytz_cache is None:
         from ..constants import LUMIBOT_DEFAULT_PYTZ
 
-        _LUMIBOT_DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ
-    return _LUMIBOT_DEFAULT_PYTZ
+        _lumibot_default_pytz_cache = LUMIBOT_DEFAULT_PYTZ
+    return _lumibot_default_pytz_cache
+
+
+def _asset_quote_symbol(asset: Asset | None) -> str | None:
+    quote_asset = getattr(asset, "_quote_asset", None)
+    return getattr(quote_asset, "symbol", None)
 
 
 class Strategy(_Strategy):
@@ -442,7 +469,7 @@ class Strategy(_Strategy):
 
     # ======= Helper Methods =======================
 
-    def log_message(self, message: str, color: str = None, broadcast: bool = False):
+    def log_message(self, message: str, color: str | None = None, broadcast: bool = False):
         """Logs an info message prefixed with the strategy name.
 
         Uses python logging to log the message at the `info` level.
@@ -494,34 +521,34 @@ class Strategy(_Strategy):
 
     def create_order(
         self,
-        asset: Union[str, Asset],
-        quantity: Union[int, str, Decimal],
+        asset: str | Asset,
+        quantity: float | int | str | Decimal,
         side: str,
-        limit_price: float = None,
-        stop_price: float = None,
-        stop_limit_price: float = None,
-        trail_price: float = None,
-        trail_percent: float = None,
-        secondary_limit_price: float = None,
-        secondary_stop_price: float = None,
-        secondary_stop_limit_price: float = None,
-        secondary_trail_price: float = None,
-        secondary_trail_percent: float = None,
+        limit_price: float | None = None,
+        stop_price: float | None = None,
+        stop_limit_price: float | None = None,
+        trail_price: float | None = None,
+        trail_percent: float | None = None,
+        secondary_limit_price: float | None = None,
+        secondary_stop_price: float | None = None,
+        secondary_stop_limit_price: float | None = None,
+        secondary_trail_price: float | None = None,
+        secondary_trail_percent: float | None = None,
         time_in_force: str = "gtc",
-        good_till_date: datetime.datetime = None,
-        take_profit_price: float = None,  # Deprecated, use 'secondary_limit_price' instead
-        stop_loss_price: float = None,  # Deprecated, use 'secondary_stop_price' instead
-        stop_loss_limit_price: float = None,  # Deprecated, use 'secondary_stop_limit_price' instead
-        position_filled: float = None,
-        exchange: str = None,
-        quote: Asset = None,
-        pair: str = None,
-        order_type: Union[Order.OrderType, None] = None,
-        order_class: Union[Order.OrderClass, None] = None,
-        type: Union[Order.OrderType, None] = None,  # Deprecated, use 'order_type' instead
-        smart_limit: SmartLimitConfig = None,
-        custom_params: dict = None,
-    ):
+        good_till_date: datetime.datetime | None = None,
+        take_profit_price: float | None = None,  # Deprecated, use 'secondary_limit_price' instead
+        stop_loss_price: float | None = None,  # Deprecated, use 'secondary_stop_price' instead
+        stop_loss_limit_price: float | None = None,  # Deprecated, use 'secondary_stop_limit_price' instead
+        position_filled: bool | None = None,
+        exchange: str | None = None,
+        quote: Asset | None = None,
+        pair: str | None = None,
+        order_type: Order.OrderType | None = None,
+        order_class: Order.OrderClass | None = None,
+        type: Order.OrderType | None = None,  # noqa: A002 - Deprecated compatibility alias for order_type.
+        smart_limit: SmartLimitConfig | None = None,
+        custom_params: dict[str, Any] | None = None,
+    ) -> Order:
         # noinspection PyShadowingNames,PyUnresolvedReferences
         """Creates a new order for this specific strategy. Once created, an order must still be submitted.
 
@@ -825,9 +852,8 @@ class Strategy(_Strategy):
         broker = self.broker
         if (
             isinstance(asset, Asset)
-            and getattr(asset, "asset_type", None) not in (Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE)
             and quote is None
-            and (order_type is None or order_type is Order.OrderType.MARKET)
+            and order_type is Order.OrderType.MARKET
             and time_in_force == "gtc"
             and getattr(broker, "IS_BACKTESTING_BROKER", False)
             and (
@@ -852,29 +878,53 @@ class Strategy(_Strategy):
                 position_filled,
                 exchange,
                 good_till_date,
-            ) == (None,) * 21
+            )
+            == _SIMPLE_BACKTEST_CREATE_NONE_TUPLE
         ):
-            seq = getattr(broker, "_backtest_order_seq", 0) + 1
-            setattr(broker, "_backtest_order_seq", seq)
+            try:
+                seq = broker._backtest_order_seq + 1
+            except AttributeError:
+                seq = 1
+            broker._backtest_order_seq = seq
             ds = getattr(broker, "data_source", None)
             date_created = getattr(ds, "_datetime", None)
             if date_created is None:
                 date_created = broker.datetime
-            return Order.simple_market_backtest(
-                self._name,
-                asset,
+            quote_asset = self._quote_asset
+            side_obj = side if (side is None or side.__class__ is Order.OrderSide) else Order.OrderSide(side)
+            if side_obj is Order.OrderSide.BUY:
+                side_key = 1
+            elif side_obj is Order.OrderSide.SELL:
+                side_key = 2
+            else:
+                side_key = str.__str__(side_obj) if side_obj is not None else None
+            try:
+                context_cache = self._simple_market_order_context_cache
+            except AttributeError:
+                context_cache = {}
+                self._simple_market_order_context_cache = context_cache
+            context_key = (id(asset), id(quote_asset), side_key, time_in_force)
+            context = context_cache.get(context_key)
+            if context is None:
+                context = Order.simple_market_backtest_context(
+                    self._name,
+                    asset,
+                    side_obj,
+                    quote=quote_asset,
+                    time_in_force=time_in_force,
+                )
+                context_cache[context_key] = context
+            return Order.simple_market_backtest_from_context(
+                context,
                 quantity,
-                side,
-                time_in_force=time_in_force,
                 date_created=date_created,
-                quote=self._quote_asset,
-                identifier=f"bt_{seq}",
+                identifier=cast(str, seq),
             )
 
         if quote is None:
             quote = self.quote_asset
 
-        asset = self._sanitize_user_asset(asset)
+        asset = cast(Asset, self._sanitize_user_asset(asset))
         if smart_limit is not None and order_type is None and type is None:
             order_type = Order.OrderType.SMART_LIMIT
 
@@ -883,8 +933,11 @@ class Strategy(_Strategy):
         identifier = None
         is_backtesting_broker = getattr(broker, "IS_BACKTESTING_BROKER", False)
         if is_backtesting_broker:
-            seq = getattr(broker, "_backtest_order_seq", 0) + 1
-            setattr(broker, "_backtest_order_seq", seq)
+            try:
+                seq = broker._backtest_order_seq + 1
+            except AttributeError:
+                seq = 1
+            broker._backtest_order_seq = seq
             identifier = f"bt_{seq}"
             ds = getattr(broker, "data_source", None)
             date_created = getattr(ds, "_datetime", None)
@@ -896,7 +949,7 @@ class Strategy(_Strategy):
         order = Order(
             self.name,
             asset,
-            quantity,
+            cast(float | Decimal | int, quantity),
             side,
             limit_price=limit_price,
             stop_price=stop_price,
@@ -914,7 +967,7 @@ class Strategy(_Strategy):
             secondary_trail_price=secondary_trail_price,
             secondary_trail_percent=secondary_trail_percent,
             exchange=exchange,
-            position_filled=position_filled,
+            position_filled=False if position_filled is None else position_filled,
             date_created=date_created,
             quote=quote,
             pair=pair,
@@ -1159,10 +1212,11 @@ class Strategy(_Strategy):
         # Check if broker is None before setting market
         if self.broker is None:
             from termcolor import colored
+
             error_msg = colored(
                 "No broker is set. Cannot set market. Please set a broker using environment variables, "
                 "secrets or by passing it as an argument to the strategy constructor.",
-                "red"
+                "red",
             )
             self.logger.error(error_msg)
             raise ValueError(
@@ -1172,7 +1226,7 @@ class Strategy(_Strategy):
 
         self.broker.market = market
 
-    def await_market_to_open(self, timedelta: int = None):
+    def await_market_to_open(self, timedelta: int | None = None):
         """Executes infinite loop until market opens
 
         If the market is closed, pauses code execution until
@@ -1202,7 +1256,7 @@ class Strategy(_Strategy):
             timedelta = self.minutes_before_opening
         return self.broker._await_market_to_open(timedelta, strategy=self)
 
-    def await_market_to_close(self, timedelta: int = None):
+    def await_market_to_close(self, timedelta: int | None = None):
         """Sleep until market closes.
 
         If the market is open, pauses code execution until market is
@@ -1237,13 +1291,13 @@ class Strategy(_Strategy):
             return (base, quote)
         return base
 
-    def get_tracked_position(self, asset: Union[str, Asset]):
+    def get_tracked_position(self, asset: str | Asset):
         """Deprecated, will be removed in the future. Please use `get_position()` instead."""
 
         self.log_message("Warning: get_tracked_position() is deprecated, please use get_position() instead.")
         self.get_position(asset)
 
-    def get_position(self, asset: Union[str, Asset]):
+    def get_position(self, asset: str | Asset) -> Position | None:
         """Get a tracked position given an asset for the current
         strategy.
 
@@ -1282,107 +1336,116 @@ class Strategy(_Strategy):
             self.logger.error(f"Asset in get_position() must be an Asset object or a string. You entered {asset}.")
             return None
 
-        asset = self._sanitize_user_asset(asset)
-        
+        asset = cast(Asset, self._sanitize_user_asset(asset))
+
         # For non-continuous futures, use existing exact matching
         if asset.asset_type != Asset.AssetType.CONT_FUTURE:
             return self.broker.get_tracked_position(self.name, asset)
-        
+
         # For continuous futures, implement smart matching
         return self._get_continuous_future_position(asset)
 
-    def _get_continuous_future_position(self, asset):
+    def _get_continuous_future_position(self, asset: Asset) -> Position | None:
         """
         Find position for continuous futures by matching against active contracts.
-        
+
         Parameters
         ----------
         asset : Asset
             Continuous futures asset to find position for
-            
+
         Returns
         -------
         Position or None
             Position for the best matching active contract, or None if no matches
         """
         from lumibot.tools.futures_symbols import (
-            symbol_matches_root, 
+            build_ib_contract_variants,
             get_contract_priority_key,
-            build_ib_contract_variants
+            symbol_matches_root,
         )
-        
+
         # First try exact match (ProjectX may store as CONT_FUTURE)
         exact_position = self.broker.get_tracked_position(self.name, asset)
         if exact_position is not None:
             return exact_position
-        
+
         # Get all positions for this strategy
         all_positions = self.broker.get_tracked_positions(self.name)
         if not all_positions:
             return None
-        
+
         # Find positions that match this root symbol
         matching_positions = []
         root_symbol = asset.symbol
-        
+        if root_symbol is None:
+            return None
+
         for position in all_positions:
             pos_asset = position.asset
-            
+
             # Skip non-futures positions
-            if pos_asset.asset_type not in {Asset.AssetType.FUTURE, Asset.AssetType.CRYPTO_FUTURE, Asset.AssetType.CONT_FUTURE}:
+            if pos_asset.asset_type not in {
+                Asset.AssetType.FUTURE,
+                Asset.AssetType.CRYPTO_FUTURE,
+                Asset.AssetType.CONT_FUTURE,
+            }:
                 continue
-            
+
             # Check for root symbol match
             if symbol_matches_root(pos_asset.symbol, root_symbol):
                 matching_positions.append(position)
-            elif (pos_asset.symbol == root_symbol and 
-                  pos_asset.expiration is not None and 
-                  pos_asset.asset_type == Asset.AssetType.FUTURE):
+            elif (
+                pos_asset.symbol == root_symbol
+                and pos_asset.expiration is not None
+                and pos_asset.asset_type == Asset.AssetType.FUTURE
+            ):
                 # IB-style: same root symbol with expiration
                 matching_positions.append(position)
-        
+
         if not matching_positions:
             return None
-        
+
         if len(matching_positions) == 1:
             return matching_positions[0]
-        
+
         # Multiple matches - rank by priority and log
         priority_list = asset.get_potential_futures_contracts()
-        
+
         # Score each position by priority
         scored_positions = []
         for position in matching_positions:
             pos_asset = position.asset
-            
+
             # For IB-style positions, generate contract variants
-            if (pos_asset.symbol == root_symbol and 
-                pos_asset.expiration is not None and
-                pos_asset.asset_type == Asset.AssetType.FUTURE):
+            if (
+                pos_asset.symbol == root_symbol
+                and pos_asset.expiration is not None
+                and pos_asset.asset_type == Asset.AssetType.FUTURE
+            ):
                 variants = build_ib_contract_variants(root_symbol, pos_asset.expiration)
                 # Find best priority among variants
                 best_priority = min(
-                    (get_contract_priority_key(variant, priority_list) for variant in variants),
-                    default=999999
+                    (get_contract_priority_key(variant, priority_list) for variant in variants), default=999999
                 )
             else:
                 # Direct symbol priority lookup
                 best_priority = get_contract_priority_key(pos_asset.symbol, priority_list)
-            
+
             scored_positions.append((best_priority, position))
-        
+
         # Sort by priority (lower number = higher priority)
         scored_positions.sort(key=lambda x: x[0])
         best_position = scored_positions[0][1]
-        
+
         # Log ambiguity warning
         contract_symbols = [pos.asset.symbol for pos in matching_positions]
         self.log_message(
             f"Multiple futures contracts found for {root_symbol}: {contract_symbols}. "
             f"Selected {best_position.asset.symbol} (front-month priority).",
-            color="yellow"
+            color="yellow",
         )
-        
+
         return best_position
 
     def get_tracked_positions(self):
@@ -1421,11 +1484,15 @@ class Strategy(_Strategy):
         Returns
         -------
         float
-            The current cash value. This is the amount of cash you have in your account, which is the amount of money you can use to buy assets. For crypto assets, this is the amount of the quote asset you have in your account (eg. USDT if that is your quote asset).
+            The current cash value. This is the amount of cash you have in your account, which is the amount of money
+            you can use to buy assets. For crypto assets, this is the amount of the quote asset you have in your
+            account (eg. USDT if that is your quote asset).
         """
         return self.cash
 
-    def adjust_cash(self, amount: float, reason: str = "manual_adjustment", allow_negative: bool | None = None) -> float:
+    def adjust_cash(
+        self, amount: float, reason: str = "manual_adjustment", allow_negative: bool | None = None
+    ) -> float:
         """Adjust cash directly during backtesting.
 
         Positive values add cash, negative values remove cash. This method is intended for
@@ -1444,7 +1511,7 @@ class Strategy(_Strategy):
         try:
             amount_value = float(amount)
         except (TypeError, ValueError):
-            raise ValueError("amount must be a finite positive number")
+            raise ValueError("amount must be a finite positive number") from None
         if not math.isfinite(amount_value) or amount_value <= 0:
             raise ValueError("amount must be a finite positive number")
 
@@ -1460,7 +1527,7 @@ class Strategy(_Strategy):
         try:
             amount_value = float(amount)
         except (TypeError, ValueError):
-            raise ValueError("amount must be a finite positive number")
+            raise ValueError("amount must be a finite positive number") from None
         if not math.isfinite(amount_value) or amount_value <= 0:
             raise ValueError("amount must be a finite positive number")
 
@@ -1511,7 +1578,7 @@ class Strategy(_Strategy):
             debit_rate_annual=debit_rate_annual,
         )
 
-    def get_positions(self, include_cash_positions: bool = False):
+    def get_positions(self, include_cash_positions: bool = False) -> list[Position]:
         """Get all positions for the account.
 
         Parameters
@@ -1579,7 +1646,7 @@ class Strategy(_Strategy):
         return self.stats.set_index("datetime")
 
     @property
-    def positions(self):
+    def positions(self) -> list[Position]:
         return self.get_positions()
 
     def _get_contract_details(self, asset: Asset):
@@ -1609,7 +1676,7 @@ class Strategy(_Strategy):
         self.log_message("Warning: get_tracked_order() is deprecated, please use get_order() instead.")
         return self.get_order(identifier)
 
-    def get_order(self, identifier: str):
+    def get_order(self, identifier: str) -> Order | None:
         """Get a tracked order given an identifier. Check the details of the order including status, etc.
 
         Returns
@@ -1635,7 +1702,7 @@ class Strategy(_Strategy):
         self.log_message("Warning: get_tracked_orders() is deprecated, please use get_orders() instead.")
         return self.get_orders()
 
-    def get_orders(self, identifiers: list[str] = None):
+    def get_orders(self, identifiers: list[str] | None = None) -> list[Order]:
         """Get all the current open orders.
 
         Parameters
@@ -1728,7 +1795,13 @@ class Strategy(_Strategy):
         asset = self._sanitize_user_asset(asset)
         return self.broker.get_asset_potential_total(self.name, asset)
 
-    def submit_order(self, order: Order|list[Order], **kwargs):
+    @overload
+    def submit_order(self, order: Order, **kwargs: Any) -> Order | None: ...
+
+    @overload
+    def submit_order(self, order: list[Order], **kwargs: Any) -> Order | list[Order] | None: ...
+
+    def submit_order(self, order: Order | list[Order], **kwargs: Any) -> Order | list[Order] | None:
         """Submit an order or a list of orders for assets
 
         Submits an order or a list of orders for processing by the active broker.
@@ -1860,18 +1933,22 @@ class Strategy(_Strategy):
                 if not self._validate_order(o):
                     return
 
-                if o.asset.asset_type != "option":
+                if o.asset is None or o.asset.asset_type != "option":
                     default_multileg = False
 
-            if 'is_multileg' not in kwargs:
-                kwargs['is_multileg'] = default_multileg
+            if "is_multileg" not in kwargs:
+                kwargs["is_multileg"] = default_multileg
 
             is_multileg = bool(kwargs.get("is_multileg"))
             wants_smart_limit = any(
-                o.order_type == Order.OrderType.SMART_LIMIT or getattr(o, "smart_limit", None) is not None for o in order
+                o.order_type == Order.OrderType.SMART_LIMIT or getattr(o, "smart_limit", None) is not None
+                for o in order
             )
             if wants_smart_limit:
-                cfg = next((getattr(o, "smart_limit", None) for o in order if getattr(o, "smart_limit", None) is not None), None)
+                cfg = next(
+                    (getattr(o, "smart_limit", None) for o in order if getattr(o, "smart_limit", None) is not None),
+                    None,
+                )
                 if cfg is None:
                     cfg = SmartLimitConfig()
 
@@ -1966,7 +2043,7 @@ class Strategy(_Strategy):
                     return self._submit_multileg_smart_limit(order)
 
                 try:
-                    quote = self.get_quote(order.asset, quote=order.quote, exchange=order.exchange)
+                    quote = self.get_quote(cast(Asset, order.asset), quote=order.quote, exchange=order.exchange)
                 except Exception as exc:
                     self.log_message(
                         f"[SMART_LIMIT] Quote fetch failed for {order.asset} ({exc}); downgrading to market.",
@@ -2013,9 +2090,11 @@ class Strategy(_Strategy):
             return self.broker.submit_order(order)
 
     def _submit_multileg_smart_limit(self, order: Order):
-        return self._submit_multileg_smart_limit_orders(order.child_orders, order.smart_limit)
+        child_orders = cast(list[Order], order.child_orders)
+        smart_limit = order.smart_limit if order.smart_limit is not None else SmartLimitConfig()
+        return self._submit_multileg_smart_limit_orders(child_orders, smart_limit)
 
-    def _compute_multileg_net_best_fastest(self, child_orders: List[Order]) -> tuple[float, float] | None:
+    def _compute_multileg_net_best_fastest(self, child_orders: list[Order]) -> tuple[float, float] | None:
         """Compute signed net best/fastest prices for a multi-leg options package.
 
         Convention (matches OptionsHelper and SMART_LIMIT logic):
@@ -2026,7 +2105,7 @@ class Strategy(_Strategy):
         quote_data: list[tuple[Order, float | None, float | None]] = []
         for leg in child_orders:
             try:
-                quote = self.get_quote(leg.asset, quote=leg.quote, exchange=leg.exchange)
+                quote = self.get_quote(cast(Asset, leg.asset), quote=leg.quote, exchange=leg.exchange)
                 bid = getattr(quote, "bid", None)
                 ask = getattr(quote, "ask", None)
             except Exception:
@@ -2041,15 +2120,15 @@ class Strategy(_Strategy):
         net_fastest = 0.0
         for leg, bid, ask in quote_data:
             if leg.is_buy_order():
-                net_best += float(bid)
-                net_fastest += float(ask)
+                net_best += float(cast(float, bid))
+                net_fastest += float(cast(float, ask))
             else:
-                net_best -= float(ask)
-                net_fastest -= float(bid)
+                net_best -= float(cast(float, ask))
+                net_fastest -= float(cast(float, bid))
 
         return net_best, net_fastest
 
-    def _infer_multileg_type_and_mid(self, child_orders: List[Order]) -> tuple[str, float] | None:
+    def _infer_multileg_type_and_mid(self, child_orders: list[Order]) -> tuple[str, float] | None:
         """Infer package type (debit/credit/even) and return abs(net_mid)."""
 
         computed = self._compute_multileg_net_best_fastest(child_orders)
@@ -2064,7 +2143,7 @@ class Strategy(_Strategy):
             return "debit", float(abs(mid_signed))
         return "credit", float(abs(mid_signed))
 
-    def _submit_multileg_smart_limit_orders(self, child_orders: List[Order], smart_limit: SmartLimitConfig, **kwargs):
+    def _submit_multileg_smart_limit_orders(self, child_orders: list[Order], smart_limit: SmartLimitConfig, **kwargs):
         if self.broker.IS_BACKTESTING_BROKER:
             kwargs.setdefault("is_multileg", True)
             return self.broker.submit_orders(child_orders, **kwargs)
@@ -2095,8 +2174,10 @@ class Strategy(_Strategy):
 
         duration = kwargs.get("duration") or kwargs.get("time_in_force")
         if not duration:
-            duration = "day" if all(o.asset.asset_type == "option" for o in child_orders) else (
-                getattr(child_orders[0], "time_in_force", None) or "day"
+            duration = (
+                "day"
+                if all(getattr(o.asset, "asset_type", None) == "option" for o in child_orders)
+                else (getattr(child_orders[0], "time_in_force", None) or "day")
             )
 
         state = {
@@ -2132,7 +2213,7 @@ class Strategy(_Strategy):
                 price=submit_price,
             )
 
-        parent_order = submitted[0] if isinstance(submitted, list) and submitted else submitted
+        parent_order = cast(Order | None, submitted[0] if isinstance(submitted, list) and submitted else submitted)
         if parent_order is not None:
             parent_order.smart_limit = smart_limit
             parent_order.order_type = Order.OrderType.SMART_LIMIT
@@ -2140,7 +2221,7 @@ class Strategy(_Strategy):
             parent_order.limit_price = 0.0 if initial_price is None else float(initial_price)
         return submitted
 
-    def submit_orders(self, orders: List[Order], **kwargs):
+    def submit_orders(self, orders: list[Order], **kwargs: Any) -> Order | list[Order] | None:
         """[Deprecated] Submit a list of orders
 
         This method is deprecated and will be removed in future versions.
@@ -2211,7 +2292,7 @@ class Strategy(_Strategy):
         >>> order2 = self.create_order((asset_ETH, asset_quote), 10, "buy")
         >>> self.submit_orders([order1, order2])
         """
-        #self.log_message("Warning: `submit_orders` is deprecated, please use `submit_order` instead.")
+        # self.log_message("Warning: `submit_orders` is deprecated, please use `submit_order` instead.")
         return self.submit_order(orders, **kwargs)
 
     def wait_for_order_registration(self, order: Order):
@@ -2265,7 +2346,7 @@ class Strategy(_Strategy):
         """
         return self.broker.wait_for_order_execution(order)
 
-    def wait_for_orders_registration(self, orders: List[Order]):
+    def wait_for_orders_registration(self, orders: list[Order]):
         """Wait for the orders to be registered by the broker
 
         Parameters
@@ -2287,7 +2368,7 @@ class Strategy(_Strategy):
         """
         return self.broker.wait_for_orders_registration(orders)
 
-    def wait_for_orders_execution(self, orders: List[Order]):
+    def wait_for_orders_execution(self, orders: list[Order]):
         """Wait for a list of orders to be executed or canceled by the broker
 
         Parameters
@@ -2336,7 +2417,7 @@ class Strategy(_Strategy):
         # Cancel the order
         return self.broker.cancel_order(order)
 
-    def cancel_orders(self, orders: List[Order]):
+    def cancel_orders(self, orders: list[Order]):
         """Cancel orders in all strategies.
 
         Cancels all open orders provided in any of the running
@@ -2393,9 +2474,7 @@ class Strategy(_Strategy):
             active_orders = [order for order in tracked_orders if order.is_active()]
             if active_orders:
                 order_ids = [
-                    getattr(order, "identifier", None)
-                    or getattr(order, "id", None)
-                    or getattr(order, "order_id", None)
+                    getattr(order, "identifier", None) or getattr(order, "id", None) or getattr(order, "order_id", None)
                     for order in active_orders
                 ]
                 self.log_message(
@@ -2411,7 +2490,7 @@ class Strategy(_Strategy):
 
         return self.broker.cancel_open_orders(self.name, active_orders)
 
-    def modify_order(self, order: Order, limit_price: Union[float, None] = None, stop_price: Union[float, None] = None):
+    def modify_order(self, order: Order, limit_price: float | None = None, stop_price: float | None = None):
         """Modify an order.
 
         Modifies a single open order provided.
@@ -2478,11 +2557,13 @@ class Strategy(_Strategy):
         """
         self.broker.sell_all(self.name, cancel_open_orders=cancel_open_orders, strategy=self, is_multileg=is_multileg)
 
-    def close_position(self, asset, fraction: float = 1.0):
+    def close_position(self, asset: str | Asset, fraction: float = 1.0) -> Any | None:
         """
         Close a single position for the specified asset.
 
-        This method attempts to close an open position for the given asset. For most brokers, this is done by submitting a market sell order for the open position. For crypto futures brokers (such as Bitunix), this may use a broker-specific fast-close or "flash close" endpoint to close the position immediately at market price.
+        This method attempts to close an open position for the given asset. For most brokers, this is done by submitting
+        a market sell order for the open position. For crypto futures brokers (such as Bitunix), this may use a
+        broker-specific fast-close or "flash close" endpoint to close the position immediately at market price.
 
         Args:
             asset (str or Asset): The symbol or Asset object identifying the position to close.
@@ -2496,6 +2577,7 @@ class Strategy(_Strategy):
             - If no open position exists, this method does nothing.
         """
         asset_obj = self._sanitize_user_asset(asset)
+        position = None
 
         try:
             position = self.get_position(asset_obj)
@@ -2522,7 +2604,9 @@ class Strategy(_Strategy):
         if result is None:
             self.log_message("close_position -> broker returned None (no order submitted)", color="yellow")
         else:
-            order_id = getattr(result, "identifier", None) or getattr(result, "id", None) or getattr(result, "order_id", None)
+            order_id = (
+                getattr(result, "identifier", None) or getattr(result, "id", None) or getattr(result, "order_id", None)
+            )
             self.log_message(
                 f"close_position -> broker submitted order {order_id} (type={type(result).__name__})",
                 color="yellow",
@@ -2599,7 +2683,12 @@ class Strategy(_Strategy):
             return ds.get_last_price(asset, quote=quote_asset, exchange=None)
         return _FAST_LAST_PRICE_MISS
 
-    def get_last_price(self, asset: Union[Asset, str], quote=None, exchange=None) -> Union[float, Decimal, None]:
+    def get_last_price(
+        self,
+        asset: Asset | str,
+        quote: Asset | None = None,
+        exchange: str | None = None,
+    ) -> float | Decimal | None:
         """Takes an asset and returns the last known price
 
         Makes an active call to the market to retrieve the last price.
@@ -2655,17 +2744,11 @@ class Strategy(_Strategy):
         """
         if isinstance(asset, Asset) and quote is None and exchange is None:
             quote_asset = getattr(self, "_quote_asset", None)
-            broker = getattr(self, "broker", None)
-            ds = getattr(broker, "data_source", None)
-            try:
-                fast_exchange_key = (
-                    "AUTO" if getattr(ds, "exchange", None) is None else ds._normalize_exchange_key(ds.exchange)
-                )
-            except Exception:
-                fast_exchange_key = str(getattr(ds, "exchange", None) or "").strip().upper() or "AUTO"
-            fast_ctx_cache = getattr(self, "_ibkr_last_price_fast_context_cache", None) if quote_asset is not None else None
+            fast_ctx_cache = (
+                getattr(self, "_ibkr_last_price_fast_context_cache", None) if quote_asset is not None else None
+            )
             if fast_ctx_cache is not None:
-                ctx = fast_ctx_cache.get((id(asset), id(quote_asset), fast_exchange_key))
+                ctx = fast_ctx_cache.get((id(asset), id(quote_asset)))
                 if ctx is not None:
                     ds_for_cache, data, asset_type_value = ctx
                     now = getattr(ds_for_cache, "_datetime", None)
@@ -2674,16 +2757,22 @@ class Strategy(_Strategy):
                             price = data.get_previous_bar_close_fast(now)
                             if price is not None:
                                 return price
-                            now = getattr(ds_for_cache, "_datetime_minus_microsecond", None) or now - datetime.timedelta(microseconds=1)
+                            now = getattr(
+                                ds_for_cache, "_datetime_minus_microsecond", None
+                            ) or now - datetime.timedelta(microseconds=1)
                         try:
                             return data.get_last_price_fast(now)
                         except Exception:
                             pass
+            broker = getattr(self, "broker", None)
+            ds = getattr(broker, "data_source", None)
             last_price_ctx_cache = getattr(self, "_ibkr_last_price_context_cache", None)
             if last_price_ctx_cache is not None and getattr(ds, "SOURCE", None) == "InteractiveBrokersREST":
                 effective_exchange = getattr(ds, "exchange", None)
                 try:
-                    exchange_key = "AUTO" if effective_exchange is None else ds._normalize_exchange_key(effective_exchange)
+                    exchange_key = (
+                        "AUTO" if effective_exchange is None else ds._normalize_exchange_key(effective_exchange)
+                    )
                 except Exception:
                     exchange_key = str(effective_exchange or "").strip().upper() or "AUTO"
                 ctx = last_price_ctx_cache.get((id(ds), id(asset), id(quote_asset), exchange_key))
@@ -2695,7 +2784,9 @@ class Strategy(_Strategy):
                             price = data.get_previous_bar_close_fast(now)
                             if price is not None:
                                 return price
-                            now = getattr(ds, "_datetime_minus_microsecond", None) or now - datetime.timedelta(microseconds=1)
+                            now = getattr(ds, "_datetime_minus_microsecond", None) or now - datetime.timedelta(
+                                microseconds=1
+                            )
                         try:
                             return data.get_last_price_fast(now)
                         except Exception:
@@ -2712,7 +2803,9 @@ class Strategy(_Strategy):
                 quote_asset = self._quote_asset
                 now = getattr(ds, "_datetime", None)
                 if now is not None:
-                    exchange_key = "AUTO" if getattr(ds, "exchange", None) is None else ds._normalize_exchange_key(ds.exchange)
+                    exchange_key = (
+                        "AUTO" if getattr(ds, "exchange", None) is None else ds._normalize_exchange_key(ds.exchange)
+                    )
                     data_cache = getattr(self, "_ibkr_last_price_data_cache", None)
                     if data_cache is None:
                         data_cache = {}
@@ -2737,7 +2830,7 @@ class Strategy(_Strategy):
                             if fast_ctx_cache is None:
                                 fast_ctx_cache = {}
                                 self._ibkr_last_price_fast_context_cache = fast_ctx_cache
-                            fast_ctx_cache[(id(asset), id(quote_asset), exchange_key)] = (
+                            fast_ctx_cache[(id(asset), id(quote_asset))] = (
                                 ds,
                                 data,
                                 asset_type_value,
@@ -2788,6 +2881,8 @@ class Strategy(_Strategy):
         else:
             quote_asset = quote
 
+        cache: dict[Any, Any] | None = None
+        cache_key: tuple[Any, ...] | None = None
         is_backtesting_run = bool(
             _is_backtesting_env()
             or getattr(self, "is_backtesting", False)
@@ -2817,7 +2912,8 @@ class Strategy(_Strategy):
                     quote=quote_asset,
                     exchange=exchange,
                 )
-                cache[cache_key] = result
+                if cache is not None and cache_key is not None:
+                    cache[cache_key] = result
                 return result
 
             if is_backtesting_run and asset_type_for_last not in {"stock", "equity", "index"}:
@@ -2826,7 +2922,8 @@ class Strategy(_Strategy):
                     quote=quote_asset,
                     exchange=exchange,
                 )
-                cache[cache_key] = result
+                if cache is not None and cache_key is not None:
+                    cache[cache_key] = result
                 return result
 
             # For daily-cadence backtests, prefer day bars for sources where minute-level
@@ -2855,10 +2952,11 @@ class Strategy(_Strategy):
             # close) instead of the 2022-07-01 close of $90.98, polluting position sizing.
             # Regression coverage lives in `tests/test_get_last_price_sim_time_safety.py` and
             # explicitly replays a polluted frame so this exact failure mode cannot re-land.
-            should_use_daily = (
-                asset_type_for_last in {"stock", "equity", "index"}
-                and self._should_use_daily_last_price(asset)
-            )
+            should_use_daily = asset_type_for_last in {
+                "stock",
+                "equity",
+                "index",
+            } and self._should_use_daily_last_price(asset)
             if is_backtesting_run and should_use_daily and self._supports_daily_last_price_optimization():
                 try:
                     bars = self.get_historical_prices(
@@ -2870,7 +2968,8 @@ class Strategy(_Strategy):
                     )
                     if bars is not None and getattr(bars, "df", None) is not None and not bars.df.empty:
                         result = float(bars.df["close"].iloc[-1])
-                        cache[cache_key] = result
+                        if cache is not None and cache_key is not None:
+                            cache[cache_key] = result
                         return result
 
                     # Forward-fill retry (v4.5.1): when the length=1 slice comes
@@ -2895,11 +2994,7 @@ class Strategy(_Strategy):
                             quote=quote_asset,
                             exchange=exchange,
                         )
-                        if (
-                            bars_ff is not None
-                            and getattr(bars_ff, "df", None) is not None
-                            and not bars_ff.df.empty
-                        ):
+                        if bars_ff is not None and getattr(bars_ff, "df", None) is not None and not bars_ff.df.empty:
                             try:
                                 df_ff = bars_ff.df
                                 idx = df_ff.index
@@ -2911,7 +3006,8 @@ class Strategy(_Strategy):
                                 pre_sim = df_ff[idx <= sim_cmp]
                                 if not pre_sim.empty:
                                     result = float(pre_sim["close"].iloc[-1])
-                                    cache[cache_key] = result
+                                    if cache is not None and cache_key is not None:
+                                        cache[cache_key] = result
                                     return result
                             except Exception:
                                 pass
@@ -2925,7 +3021,8 @@ class Strategy(_Strategy):
                 # should_use_last_close=should_use_last_close,
             )
             if is_backtesting_run:
-                cache[cache_key] = result
+                if cache is not None and cache_key is not None:
+                    cache[cache_key] = result
             return result
         except Exception as e:
             self.log_message(f"Could not get last price for {asset}", color="red")
@@ -2937,17 +3034,10 @@ class Strategy(_Strategy):
         if data_source is None:
             return False
         source_name = type(data_source).__name__.lower()
-        is_routed_backtesting = (
-            "routed" in source_name
-            and ("backtesting" in source_name or "backtest" in source_name)
-        )
-        return (
-            "thetadata" in source_name
-            or is_routed_backtesting
-            or "ibkr" in source_name
-        )
+        is_routed_backtesting = "routed" in source_name and ("backtesting" in source_name or "backtest" in source_name)
+        return "thetadata" in source_name or is_routed_backtesting or "ibkr" in source_name
 
-    def _should_use_daily_last_price(self, asset: Asset) -> bool:
+    def _should_use_daily_last_price(self, asset: Asset | str | None) -> bool:
         if asset is None:
             return False
         asset_type = getattr(asset, "asset_type", "")
@@ -2970,7 +3060,7 @@ class Strategy(_Strategy):
             return isinstance(raw_sleep, str) and raw_sleep.strip().lower().endswith("d")
         return cadence_seconds >= 20 * 3600
 
-    def _get_sleeptime_seconds(self) -> Optional[float]:
+    def _get_sleeptime_seconds(self) -> float | None:
         value = getattr(self, "_sleeptime", None)
         if value is None:
             return None
@@ -3005,7 +3095,7 @@ class Strategy(_Strategy):
             return result
         return None
 
-    def get_quote(self, asset: Asset, quote: Asset = None, exchange: str = None) -> Quote:
+    def get_quote(self, asset: Asset, quote: Asset | None = None, exchange: str | None = None) -> Quote:
         """Get a quote for the asset.
 
         Parameters
@@ -3034,13 +3124,13 @@ class Strategy(_Strategy):
             self.log_message(f"Error getting quote from data source: {e}", color="red")
             return Quote(asset=asset)
 
-    def get_tick(self, asset: Union[Asset, str]):
+    def get_tick(self, asset: Asset | str):
         """Takes an Asset and returns the last known price"""
         # TODO: Should this function be depricated? This appears to be an IBKR-only thing.
         asset = self._sanitize_user_asset(asset)
         return self.broker._get_tick(asset)
 
-    def get_last_prices(self, assets: List[Asset], quote=None, exchange=None):
+    def get_last_prices(self, assets: list[Asset], quote=None, exchange=None):
         """Takes a list of assets and returns the last known prices
 
         Makes an active call to the market to retrieve the last price. In backtesting will provide the close of the last complete bar.
@@ -3104,7 +3194,7 @@ class Strategy(_Strategy):
             expiry_clean = expiry.strip()
 
             # Try YYYY-MM-DD format (Polygon)
-            if len(expiry_clean) == 10 and expiry_clean[4] == '-' and expiry_clean[7] == '-':
+            if len(expiry_clean) == 10 and expiry_clean[4] == "-" and expiry_clean[7] == "-":
                 try:
                     return datetime.datetime.strptime(expiry_clean, "%Y-%m-%d").date()
                 except ValueError:
@@ -3120,9 +3210,7 @@ class Strategy(_Strategy):
 
             raise ValueError(f"Unable to parse expiry string: {expiry}")
 
-        raise TypeError(
-            f"expiry must be a string, datetime.date, or datetime.datetime instance, got {type(expiry)}"
-        )
+        raise TypeError(f"expiry must be a string, datetime.date, or datetime.datetime instance, got {type(expiry)}")
 
     def get_chains(self, asset: Asset):
         """Returns option chains.
@@ -3182,8 +3270,9 @@ class Strategy(_Strategy):
 
         # Get the next trading day. The schedule is inclusive of the start_date when the market is open on this day.
         # Hence, we add 1 day to the start_date to ensure we start checking from the day after.
-        schedule = calendar.schedule(start_date=date_timestamp + pd.Timedelta(days=1),
-                                     end_date=date_timestamp + pd.Timedelta(days=10))
+        schedule = calendar.schedule(
+            start_date=date_timestamp + pd.Timedelta(days=1), end_date=date_timestamp + pd.Timedelta(days=10)
+        )
 
         # The next trading day is the first entry in the schedule
         next_trading_day = schedule.index[0].date()
@@ -3225,15 +3314,15 @@ class Strategy(_Strategy):
         return self.broker.get_chain(chains)
 
     def get_chain_full_info(
-            self,
-            asset: Asset,
-            expiry: Union[str, datetime.datetime, datetime.date],
-            chains: dict = None,
-            underlying_price: float = None,
-            risk_free_rate: float = None,
-            strike_min: float = None,
-            strike_max: float = None
-            ) -> pd.DataFrame:
+        self,
+        asset: Asset,
+        expiry: str | datetime.datetime | datetime.date,
+        chains: dict[str, Any] | None = None,
+        underlying_price: float | None = None,
+        risk_free_rate: float | None = None,
+        strike_min: float | None = None,
+        strike_max: float | None = None,
+    ) -> DataFrame:
         """Returns full option chain information for a given asset and expiry. This will include all known broker
         option information for each strike price, including: greeks, bid, ask, volume, open_interest etc. Not all
         Lumibot brokers provide all of this data and tick-style data like bid/ask/open_interest are not available
@@ -3293,9 +3382,15 @@ class Strategy(_Strategy):
         else:
             und_price = underlying_price
 
-        return self.broker.get_chain_full_info(asset, expiry, chains=chains, underlying_price=und_price,
-                                               risk_free_rate=risk_free_rate, strike_min=strike_min,
-                                               strike_max=strike_max)
+        return self.broker.get_chain_full_info(
+            asset,
+            expiry,
+            chains=chains,
+            underlying_price=und_price,
+            risk_free_rate=risk_free_rate,
+            strike_min=strike_min,
+            strike_max=strike_max,
+        )
 
     def get_expiration(self, chains: dict):
         """Returns expiration dates for an option chain for a particular
@@ -3352,7 +3447,7 @@ class Strategy(_Strategy):
 
         return self.broker.get_multiplier(chains, exchange=exchange)
 
-    def get_strikes(self, asset: Asset, chains: dict = None):
+    def get_strikes(self, asset: Asset, chains: dict[str, Any] | None = None):
         """Returns a list of strikes for a give underlying asset.
 
         Using the `chains` dictionary obtained from `get_chains` finds
@@ -3383,7 +3478,7 @@ class Strategy(_Strategy):
         asset = self._sanitize_user_asset(asset)
         return self.broker.get_strikes(asset, chains)
 
-    def find_first_friday(self, timestamp: Union[datetime.datetime, pd.Timestamp]):
+    def find_first_friday(self, timestamp: datetime.datetime | Timestamp):
         """Finds the first Friday of the month for a given timestamp.
 
         Parameters
@@ -3398,8 +3493,9 @@ class Strategy(_Strategy):
             The first Friday of the month.
         """
         # Convert the timestamp to a datetime object if it's not already one
-        if isinstance(timestamp, pd.Timestamp):
-            timestamp = timestamp.to_pydatetime()
+        timestamp_value = cast(Any, timestamp)
+        if isinstance(timestamp_value, pd.Timestamp):
+            timestamp = timestamp_value.to_pydatetime()
 
         # Get the day index of the first day of the month (0 is Monday, 1 is Tuesday, etc.)
         day_index = timestamp.weekday()
@@ -3433,12 +3529,14 @@ class Strategy(_Strategy):
         """
 
         tz = self.timezone
+        dt = pd.Timestamp(dt)
         if dt.tzinfo is None:
-            dt = pd.Timestamp(dt).tz_localize(tz)
+            dt = dt.tz_localize(tz)
         else:
-            dt = pd.Timestamp(dt).tz_convert(tz)
+            dt = dt.tz_convert(tz)
 
         # Loop over this month and the next month
+        expiration = None
         for month_increment in [0, 1]:
             # Calculate the first day of the target month
             first_day_of_month = (
@@ -3460,6 +3558,9 @@ class Strategy(_Strategy):
             if third_friday > dt:
                 expiration = third_friday
                 break
+
+        if expiration is None:
+            raise RuntimeError(f"Could not determine an option expiration after {dt}")
 
         # Check if the market is open on the expiration date, if not then get the previous open day
         mcal = _get_market_calendars()
@@ -3485,9 +3586,9 @@ class Strategy(_Strategy):
     def get_greeks(
         self,
         asset: Asset,
-        asset_price: float = None,
-        underlying_price: float = None,
-        risk_free_rate: float = None,
+        asset_price: float | None = None,
+        underlying_price: float | None = None,
+        risk_free_rate: float | None = None,
         query_greeks: bool = False,
     ):
         """Returns the greeks for the option asset at the current
@@ -3676,7 +3777,7 @@ class Strategy(_Strategy):
         """
         return self.broker.data_source.get_timestamp()
 
-    def register_cron_callback(self, cron_schedule: str, callback_function: Callable) -> str:
+    def register_cron_callback(self, cron_schedule: str, callback_function: Callable[..., Any]) -> str:
         """Register a callback function to be executed according to a cron schedule.
 
         Parameters
@@ -3718,10 +3819,12 @@ class Strategy(_Strategy):
             trigger,
             id=job_id,
             name=f"Cron Callback: {callback_function.__name__}",
-            jobstore="default"
+            jobstore="default",
         )
 
-        self.log_message(f"Registered cron callback {callback_function.__name__} with schedule: {cron_schedule} in {self.timezone} timezone")
+        self.log_message(
+            f"Registered cron callback {callback_function.__name__} with schedule: {cron_schedule} in {self.timezone} timezone"
+        )
         return job_id
 
     def get_round_minute(self, timeshift: int = 0):
@@ -3798,7 +3901,7 @@ class Strategy(_Strategy):
         """
         return self.broker.data_source.get_last_day()
 
-    def get_datetime_range(self, length: int, timestep: str = "minute", timeshift: int = None):
+    def get_datetime_range(self, length: int, timestep: str = "minute", timeshift: int | None = None):
         """Returns a list of datetimes for the given length and timestep.
 
         Parameters
@@ -3865,7 +3968,7 @@ class Strategy(_Strategy):
         """
         return self.broker.data_source.to_default_timezone(dt)
 
-    def load_pandas(self, asset: Union[Asset, str], df: pd.DataFrame):
+    def load_pandas(self, asset: Asset | str, df: DataFrame):
         asset = self._sanitize_user_asset(asset)
         self.broker.data_source.load_pandas(asset, df)
 
@@ -3873,9 +3976,9 @@ class Strategy(_Strategy):
         self,
         symbol: str,
         asset_type: str = "stock",
-        expiration: datetime.datetime = None,
-        strike: float = None,
-        right: str = None,
+        expiration: datetime.datetime | None = None,
+        strike: float | None = None,
+        right: str | None = None,
         multiplier: int = 1,
     ):
         """Creates an asset object. This is used to create an asset object.
@@ -3935,7 +4038,7 @@ class Strategy(_Strategy):
             multiplier=multiplier,
         )
 
-    def _normalize_plot_color(self, color: Optional[str], *, default: Optional[str], context: str):
+    def _normalize_plot_color(self, color: str | None, *, default: str | None, context: str) -> str | None:
         """Normalize user-supplied chart colors while falling back gracefully."""
         if color is None:
             return default
@@ -3954,7 +4057,7 @@ class Strategy(_Strategy):
             valid = False
 
         if valid:
-            if normalized.startswith('#'):
+            if normalized.startswith("#"):
                 return normalized.lower()
             return normalized.lower()
 
@@ -3963,17 +4066,17 @@ class Strategy(_Strategy):
         return default
 
     def add_marker(
-            self,
-            name: str,
-            value: float = None,
-            color: str = "blue",
-            symbol: str = "circle",
-            size: int = None,
-            detail_text: str = None,
-            dt: Union[datetime.datetime, pd.Timestamp] = None,
-            plot_name: str = "default_plot",
-            asset: Asset = None
-            ):
+        self,
+        name: str,
+        value: float | None = None,
+        color: str | None = "blue",
+        symbol: str = "circle",
+        size: int | None = None,
+        detail_text: str | None = None,
+        dt: datetime.datetime | Timestamp = None,
+        plot_name: str = "default_plot",
+        asset: Asset | None = None,
+    ):
         """Adds a marker to the indicators plot that loads after a backtest. This can be used to mark important events on the graph, such as price crossing a certain value, marking a support level, marking a resistance level, etc.
 
         Parameters
@@ -3981,7 +4084,8 @@ class Strategy(_Strategy):
         name : str
             The name of the marker. This is used to display the name on the graph. Eg. "Overbought", "Oversold", "Stop Loss", "Take Profit", ...
         symbol : str
-            The symbol of the marker. Possible values are 'circle', 'circle-open', 'circle-dot', 'circle-open-dot', 'square', 'square-open', 'square-dot', 'square-open-dot', 'diamond', 'diamond-open', 'diamond-dot', 'diamond-open-dot', 'cross', 'cross-open', 'cross-dot', 'cross-open-dot', 'x', 'x-open', 'x-dot', 'x-open-dot', 'triangle-up', 'triangle-up-open', 'triangle-up-dot', 'triangle-up-open-dot', 'triangle-down', 'triangle-down-open', 'triangle-down-dot', 'triangle-down-open-dot', 'triangle-left', 'triangle-left-open', 'triangle-left-dot', 'triangle-left-open-dot', 'triangle-right', 'triangle-right-open', 'triangle-right-dot', 'triangle-right-open-dot', 'triangle-ne', 'triangle-ne-open', 'triangle-ne-dot', 'triangle-ne-open-dot', 'triangle-se', 'triangle-se-open', 'triangle-se-dot', 'triangle-se-open-dot', 'triangle-sw', 'triangle-sw-open', 'triangle-sw-dot', 'triangle-sw-open-dot', 'triangle-nw', 'triangle-nw-open', 'triangle-nw-dot', 'triangle-nw-open-dot', 'pentagon', 'pentagon-open', 'pentagon-dot', 'pentagon-open-dot', 'hexagon', 'hexagon-open', 'hexagon-dot', 'hexagon-open-dot', 'hexagon2', 'hexagon2-open', 'hexagon2-dot', 'hexagon2-open-dot', 'octagon', 'octagon-open', 'octagon-dot', 'octagon-open-dot', 'star', 'star-open', 'star-dot', 'star-open-dot', 'hexagram', 'hexagram-open', 'hexagram-dot', 'hexagram-open-dot', 'star-triangle-up', 'star-triangle-up-open', 'star-triangle-up-dot', 'star-triangle-up-open-dot', 'star-triangle-down', 'star-triangle-down-open', 'star-triangle-down-dot', 'star-triangle-down-open-dot', 'star-square', 'star-square-open', 'star-square-dot', 'star-square-open-dot', 'star-diamond', 'star-diamond-open', 'star-diamond-dot', 'star-diamond-open-dot', 'diamond-tall', 'diamond-tall-open', 'diamond-tall-dot', 'diamond-tall-open-dot', 'diamond-wide', 'diamond-wide-open', 'diamond-wide-dot', 'diamond-wide-open-dot', 'hourglass', 'hourglass-open', 'bowtie', 'bowtie-open', 'circle-cross', 'circle-cross-open', 'circle-x', 'circle-x-open', 'square-cross', 'square-cross-open', 'square-x', 'square-x-open', 'diamond-cross', 'diamond-cross-open', 'diamond-x', 'diamond-x-open', 'cross-thin', 'cross-thin-open', 'x-thin', 'x-thin-open', 'asterisk', 'asterisk-open', 'hash', 'hash-open', 'hash-dot', 'hash-open-dot', 'y-up', 'y-up-open', 'y-down', 'y-down-open', 'y-left', 'y-left-open', 'y-right', 'y-right-open', 'line-ew', 'line-ew-open', 'line-ns', 'line-ns-open', 'line-ne', 'line-ne-open', 'line-nw', 'line-nw-open', 'arrow-up', 'arrow-up-open', 'arrow-down', 'arrow-down-open', 'arrow-left', 'arrow-left-open', 'arrow-right', 'arrow-right-open', 'arrow-bar-up', 'arrow-bar-up-open', 'arrow-bar-down', 'arrow-bar-down-open', 'arrow-bar-left', 'arrow-bar-left-open', 'arrow-bar-right', 'arrow-bar-right-open', 'arrow', 'arrow-open', 'arrow-wide', 'arrow-wide-open'
+            The symbol of the marker. Accepts Plotly marker symbols such as 'circle', 'square', 'diamond', 'cross',
+            'x', triangles, stars, arrows, and their open/dot variants.
         value : float or int
             The value of the marker. Default is the current portfolio value.
         color : str
@@ -4097,10 +4201,10 @@ class Strategy(_Strategy):
             timestamp = dt.timestamp()
             for marker in self._chart_markers_list:
                 if (
-                        marker["timestamp"] == timestamp
-                        and marker["name"] == name
-                        and marker["symbol"] == symbol
-                        and marker['plot_name'] == plot_name
+                    marker["timestamp"] == timestamp
+                    and marker["name"] == name
+                    and marker["symbol"] == symbol
+                    and marker["plot_name"] == plot_name
                 ):
                     return None
 
@@ -4121,7 +4225,7 @@ class Strategy(_Strategy):
             "asset_strike": asset.strike if asset else None,
             "asset_right": asset.right if asset else None,
             "asset_multiplier": asset.multiplier if asset else None,
-            "quote_symbol": asset._quote_asset.symbol if asset and hasattr(asset, '_quote_asset') and asset._quote_asset else None,
+            "quote_symbol": _asset_quote_symbol(asset),
             "asset_display_name": str(asset) if asset else None,
         }
 
@@ -4143,17 +4247,17 @@ class Strategy(_Strategy):
         return df
 
     def add_line(
-            self,
-            name: str,
-            value: float,
-            color: str = None,
-            style: str = "solid",
-            width: int = None,
-            detail_text: str = None,
-            dt: Union[datetime.datetime, pd.Timestamp] = None,
-            plot_name: str = "default_plot",
-            asset: Asset = None
-            ):
+        self,
+        name: str,
+        value: float,
+        color: str | None = None,
+        style: str = "solid",
+        width: int | None = None,
+        detail_text: str | None = None,
+        dt: datetime.datetime | Timestamp = None,
+        plot_name: str = "default_plot",
+        asset: Asset | None = None,
+    ):
         """Adds a line data point to the indicator chart. This can be used to add lines such as bollinger bands, prices for specific assets, or any other line you want to add to the chart.
 
         Parameters
@@ -4278,7 +4382,7 @@ class Strategy(_Strategy):
             "asset_strike": asset.strike if asset else None,
             "asset_right": asset.right if asset else None,
             "asset_multiplier": asset.multiplier if asset else None,
-            "quote_symbol": asset._quote_asset.symbol if asset and hasattr(asset, '_quote_asset') and asset._quote_asset else None,
+            "quote_symbol": _asset_quote_symbol(asset),
             "asset_display_name": str(asset) if asset else None,
         }
 
@@ -4286,17 +4390,18 @@ class Strategy(_Strategy):
         return new_line
 
     def add_ohlc(
-            self,
-            name: str,
-            open: float,
-            high: float,
-            low: float,
-            close: float,
-            color: str = None,
-            detail_text: str = None,
-            dt: Union[datetime.datetime, pd.Timestamp] = None,
-            plot_name: str = "default_plot",
-            asset: Asset = None
+        self,
+        name: str,
+        open_price: float | None = None,
+        high: float | None = None,
+        low: float | None = None,
+        close: float | None = None,
+        color: str | None = None,
+        detail_text: str | None = None,
+        dt: datetime.datetime | Timestamp = None,
+        plot_name: str = "default_plot",
+        asset: Asset | None = None,
+        **kwargs: Any,
     ):
         """Adds an OHLC (candlestick) data point to the indicator chart.
 
@@ -4329,6 +4434,11 @@ class Strategy(_Strategy):
         asset : Asset, optional
             Asset metadata for multi-symbol charting.
         """
+        if "open" in kwargs:
+            open_price = kwargs.pop("open")
+        if kwargs:
+            unexpected = ", ".join(kwargs)
+            raise TypeError(f"Unexpected add_ohlc keyword argument(s): {unexpected}")
 
         if not isinstance(name, str):
             raise ValueError(
@@ -4336,7 +4446,7 @@ class Strategy(_Strategy):
                 f"which is a type {type(name)}."
             )
 
-        for label, number in (("open", open), ("high", high), ("low", low), ("close", close)):
+        for label, number in (("open", open_price), ("high", high), ("low", low), ("close", close)):
             if not isinstance(number, (float, int, np.float64)):
                 raise ValueError(
                     f"Invalid {label} parameter in add_ohlc() method. {label} must be a float or int but instead got {number}, "
@@ -4367,32 +4477,32 @@ class Strategy(_Strategy):
                 f"Got {asset}, which is a type {type(asset)}. Use Asset(symbol='SPY', asset_type='stock') to create an Asset."
             )
 
-        open = float(open)
-        high = float(high)
-        low = float(low)
-        close = float(close)
+        open_price = float(cast(float, open_price))
+        high = float(cast(float, high))
+        low = float(cast(float, low))
+        close = float(cast(float, close))
 
-        if any(math.isnan(x) or math.isinf(x) for x in (open, high, low, close)):
+        if any(math.isnan(x) or math.isinf(x) for x in (open_price, high, low, close)):
             self.logger.error("Skipping OHLC bar because one or more values are not finite.")
             return None
 
-        if high < low or high < max(open, close) or low > min(open, close):
+        if high < low or high < max(open_price, close) or low > min(open_price, close):
             self.logger.error(
-                "Skipping OHLC bar because values are invalid: "
-                f"open={open}, high={high}, low={low}, close={close}."
+                f"Skipping OHLC bar because values are invalid: open={open_price}, high={high}, low={low}, "
+                f"close={close}."
             )
             return None
 
         if dt is None:
             dt = self.get_datetime()
 
-        default_color = "green" if close >= open else "red"
+        default_color = "green" if close >= open_price else "red"
         color = self._normalize_plot_color(color, default=default_color, context="ohlc")
 
         new_ohlc = {
             "datetime": dt,
             "name": name,
-            "open": open,
+            "open": open_price,
             "high": high,
             "low": low,
             "close": close,
@@ -4406,7 +4516,7 @@ class Strategy(_Strategy):
             "asset_strike": asset.strike if asset else None,
             "asset_right": asset.right if asset else None,
             "asset_multiplier": asset.multiplier if asset else None,
-            "quote_symbol": asset._quote_asset.symbol if asset and hasattr(asset, '_quote_asset') and asset._quote_asset else None,
+            "quote_symbol": _asset_quote_symbol(asset),
             "asset_display_name": str(asset) if asset else None,
         }
 
@@ -4431,7 +4541,7 @@ class Strategy(_Strategy):
         df = pd.DataFrame(self._chart_ohlc_list)
         return df
 
-    def write_backtest_settings(self, settings_file: str):
+    def write_backtest_settings(self, settings_file: str | None) -> None:
         """Writes the backtest settings to a file.
 
         Parameters
@@ -4449,6 +4559,9 @@ class Strategy(_Strategy):
         >>> self.write_backtest_settings("backtest_settings.json")
 
         """
+        if settings_file is None:
+            return
+
         datasource = self.broker.data_source
         auto_adjust = datasource.auto_adjust if hasattr(datasource, "auto_adjust") else False
 
@@ -4490,7 +4603,7 @@ class Strategy(_Strategy):
             "quote_asset": self.quote_asset,
             "benchmark_asset": self._benchmark_asset,
             "starting_positions": self.starting_positions,
-            "parameters": {k: v for k, v in self.parameters.items() if k != 'pandas_data'},
+            "parameters": {k: v for k, v in self.parameters.items() if k != "pandas_data"},
             "lumibot_version": lumibot_version,
             "backtesting_data_sources": backtesting_data_sources,
             "backtest_time_seconds": backtest_time_seconds,
@@ -4541,9 +4654,9 @@ class Strategy(_Strategy):
 
         with open(settings_file, "w") as outfile:
             json = jsonpickle.encode(settings)
-            outfile.write(json)
+            outfile.write(str(json))
 
-    def _parse_timestep(self, timestep: str) -> tuple:
+    def _parse_timestep(self, timestep: str) -> tuple[int, str] | None:
         """Parse various timestep formats into (multiplier, base_unit).
 
         Examples:
@@ -4571,12 +4684,12 @@ class Strategy(_Strategy):
         import re
 
         # Match patterns like "5min", "5 min", "5 minutes", "5m"
-        pattern = r'^(\d+)\s*([a-z]+)$'
+        pattern = r"^(\d+)\s*([a-z]+)$"
         match = re.match(pattern, timestep)
 
         if not match:
             # Try without number (e.g., "hour" -> 1 hour)
-            pattern = r'^([a-z]+)$'
+            pattern = r"^([a-z]+)$"
             match = re.match(pattern, timestep)
             if match:
                 unit = match.group(1)
@@ -4613,16 +4726,16 @@ class Strategy(_Strategy):
 
     def get_historical_prices(
         self,
-        asset: Union[Asset, str],
+        asset: Asset | str | tuple[Any, ...],
         length: int,
         timestep: str = "",
-        timeshift: Union[int, datetime.timedelta, None] = None,
-        quote: Asset = None,
-        exchange: str = None,
+        timeshift: int | datetime.timedelta | None = None,
+        quote: Asset | None = None,
+        exchange: str | None = None,
         include_after_hours: bool = True,
-        *args,
-        **kwargs
-    ):
+        *args: Any,
+        **kwargs: Any,
+    ) -> Bars | None:
         """Get historical pricing data for a given symbol or asset.
 
         Return data bars for a given symbol or asset.  Any number of bars can
@@ -4744,24 +4857,31 @@ class Strategy(_Strategy):
             and timestep in {"minute", "day"}
         ):
             quote_asset = self._quote_asset if quote is None else quote
-            broker_for_request = getattr(self, "broker", None)
-            ds_for_request = getattr(broker_for_request, "data_source", None)
-            request_exchange = getattr(ds_for_request, "exchange", None)
             if quote is None:
-                request_cache = getattr(self, "_ibkr_native_hist_request_cache_default_quote", None)
-                request_key = (id(asset), id(quote_asset), request_exchange, length, timestep)
+                try:
+                    request_cache = self._ibkr_native_hist_request_cache_default_quote
+                except AttributeError:
+                    request_cache = None
+                request_key = (id(asset), length, timestep)
             else:
-                request_cache = getattr(self, "_ibkr_native_hist_request_cache", None)
-                request_key = (id(asset), id(quote_asset), request_exchange, length, timestep)
+                try:
+                    request_cache = self._ibkr_native_hist_request_cache
+                except AttributeError:
+                    request_cache = None
+                request_key = (id(asset), id(quote_asset), length, timestep)
             if request_cache is not None:
                 ctx = request_cache.get(request_key)
                 if ctx is not None:
-                    ds_for_cache, bars_from_pandas_fast, data = ctx
+                    ds_for_cache, bars_from_pandas_fast, data, source_fast, symbol_fast = ctx
                     current_dt = getattr(ds_for_cache, "_datetime", None)
                     if current_dt is not None:
                         try:
+                            day_bars_cache = None
                             if timestep == "day":
-                                day_bars_cache = getattr(self, "_ibkr_native_day_bars_cache", None)
+                                try:
+                                    day_bars_cache = self._ibkr_native_day_bars_cache
+                                except AttributeError:
+                                    day_bars_cache = None
                                 if day_bars_cache is not None:
                                     day_key = (
                                         id(asset),
@@ -4786,8 +4906,9 @@ class Strategy(_Strategy):
                             if response is not None and not isinstance(response, float):
                                 bars = bars_from_pandas_fast(
                                     response,
-                                    ds_for_cache.SOURCE,
+                                    source_fast,
                                     asset,
+                                    symbol_fast,
                                     quote=quote_asset,
                                     raw=response,
                                 )
@@ -4938,6 +5059,11 @@ class Strategy(_Strategy):
                             from lumibot.entities.bars import Bars
 
                             ds._native_bars_fast_cls = Bars
+                        bars_from_pandas_fast = Bars.from_pandas_fast_precomputed
+                        source_fast = str(ds.SOURCE).upper()
+                        symbol_fast = (
+                            f"{asset[0].symbol}/{asset[1].symbol}" if isinstance(asset, tuple) else asset.symbol
+                        )
                         if timestep == "minute":
                             minute_ctx_cache = getattr(self, "_ibkr_native_minute_bars_context_cache", None)
                             if minute_ctx_cache is None:
@@ -4948,10 +5074,12 @@ class Strategy(_Strategy):
                         if request_cache is None:
                             request_cache = {}
                             self._ibkr_native_hist_request_cache = request_cache
-                        request_cache[(id(asset), id(quote_asset), effective_exchange, int(length), timestep)] = (
+                        request_cache[(id(asset), id(quote_asset), int(length), timestep)] = (
                             ds,
-                            Bars.from_pandas_fast,
+                            bars_from_pandas_fast,
                             data,
+                            source_fast,
+                            symbol_fast,
                         )
                         if quote is None:
                             default_request_cache = getattr(
@@ -4962,10 +5090,12 @@ class Strategy(_Strategy):
                             if default_request_cache is None:
                                 default_request_cache = {}
                                 self._ibkr_native_hist_request_cache_default_quote = default_request_cache
-                            default_request_cache[(id(asset), id(quote_asset), effective_exchange, int(length), timestep)] = (
+                            default_request_cache[(id(asset), int(length), timestep)] = (
                                 ds,
-                                Bars.from_pandas_fast,
+                                bars_from_pandas_fast,
                                 data,
+                                source_fast,
+                                symbol_fast,
                             )
                         response = data.get_native_bars_fast(
                             current_dt,
@@ -4997,7 +5127,9 @@ class Strategy(_Strategy):
 
         if args:
             if len(args) != 1:
-                raise TypeError("get_historical_prices() accepts at most 1 extra positional argument (deprecated `return_polars`)")
+                raise TypeError(
+                    "get_historical_prices() accepts at most 1 extra positional argument (deprecated `return_polars`)"
+                )
             if "return_polars" in kwargs:
                 raise TypeError("get_historical_prices() got multiple values for keyword argument 'return_polars'")
             kwargs["return_polars"] = args[0]
@@ -5023,10 +5155,39 @@ class Strategy(_Strategy):
                 raise ValueError(
                     f"Invalid length parameter in get_historical_prices() method. Length must be an int but instead got {length}, "
                     f"which is a type {type(length)}."
-                )
+                ) from None
 
         if quote is None:
             quote = self.quote_asset
+        quote_asset_for_tuple = cast(Asset, quote)
+
+        # PERF: native-bar backtest calls are the hottest historical-price path. When no
+        # resampling or live-source compatibility work is needed, go straight to the data source.
+        if (
+            timestep in {"minute", "hour", "day"}
+            and timeshift is None
+            and exchange is None
+            and include_after_hours is True
+            and not return_polars
+            and not return_polars_provided
+            and getattr(getattr(self, "broker", None), "IS_BACKTESTING_BROKER", False)
+        ):
+            asset = self._sanitize_user_asset(asset)
+            asset = self.crypto_assets_to_tuple(asset, quote_asset_for_tuple)
+            ds = self.broker.data_source
+            if self.broker.option_source and getattr(asset, "asset_type", None) == "option":
+                ds = self.broker.option_source
+            if getattr(ds, "IS_BACKTESTING_DATA_SOURCE", False):
+                return ds.get_historical_prices(
+                    asset,
+                    length,
+                    timestep=timestep,
+                    timeshift=None,
+                    exchange=None,
+                    include_after_hours=True,
+                    quote=quote,
+                    return_polars=False,
+                )
 
         # PERF: native-bar backtest calls are the hottest historical-price path. When no
         # resampling or live-source compatibility work is needed, go straight to the data source.
@@ -5058,6 +5219,8 @@ class Strategy(_Strategy):
 
         # Parse timestep to check if we need to aggregate
         original_timestep = timestep
+        multiplier = 1
+        base_unit = ""
         if timestep in {"minute", "day", "hour"}:
             parsed = (1, timestep)
         elif timestep:
@@ -5082,7 +5245,9 @@ class Strategy(_Strategy):
             # the backtesting data source so it can slice/aggregate efficiently and cache
             # results internally.
             multiplier, base_unit = parsed
-            if getattr(self, "is_backtesting", False) or getattr(getattr(self, "broker", None), "IS_BACKTESTING_BROKER", False):
+            if getattr(self, "is_backtesting", False) or getattr(
+                getattr(self, "broker", None), "IS_BACKTESTING_BROKER", False
+            ):
                 actual_timestep = original_timestep
                 actual_length = length
                 needs_resampling = False
@@ -5104,7 +5269,7 @@ class Strategy(_Strategy):
 
         asset = self._sanitize_user_asset(asset)
 
-        asset = self.crypto_assets_to_tuple(asset, quote)
+        asset = self.crypto_assets_to_tuple(asset, quote_asset_for_tuple)
         if not actual_timestep:
             actual_timestep = self.broker.data_source.get_timestep()
 
@@ -5144,16 +5309,15 @@ class Strategy(_Strategy):
             supports_cache = getattr(self, "_get_hist_supports_return_polars_by_ds_type", None)
             if supports_cache is None:
                 supports_cache = {}
-                setattr(self, "_get_hist_supports_return_polars_by_ds_type", supports_cache)
+                self._get_hist_supports_return_polars_by_ds_type = supports_cache
 
             ds_type = type(ds)
             supports_return_polars = supports_cache.get(ds_type)
             if supports_return_polars is None:
                 try:
                     params = inspect.signature(ds_type.get_historical_prices).parameters
-                    supports_return_polars = (
-                        "return_polars" in params
-                        or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
+                    supports_return_polars = "return_polars" in params or any(
+                        p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()
                     )
                 except Exception:
                     # Conservative default: if we can't inspect, assume it does NOT support return_polars
@@ -5188,25 +5352,37 @@ class Strategy(_Strategy):
             resampled_with_polars = False
             if return_polars:
                 try:
-                    from ..tools.polars_utils import PolarsResampleError, resample_polars_ohlc
-
-                    polars_frame = bars.polars_df
-                    resampled_frame = resample_polars_ohlc(polars_frame, multiplier, base_unit, length)
-                    if resampled_frame is not None and not resampled_frame.is_empty():
-                        bars.df = resampled_frame
-                        resampled_with_polars = True
-                except PolarsResampleError as exc:
-                    self.logger.debug(
-                        "Unsupported polars resample for %s (%s); falling back to pandas.",
-                        asset,
-                        exc,
+                    from ..tools.polars_utils import (
+                        PolarsResampleError as _PolarsResampleError,
+                    )
+                    from ..tools.polars_utils import (
+                        resample_polars_ohlc,
                     )
                 except Exception as exc:
                     self.logger.warning(
-                        "Polars resample failed for %s; falling back to pandas. Error: %s",
+                        "Polars resample setup failed for %s; falling back to pandas. Error: %s",
                         asset,
                         exc,
                     )
+                else:
+                    try:
+                        polars_frame = bars.polars_df
+                        resampled_frame = resample_polars_ohlc(polars_frame, multiplier, base_unit, length)
+                        if resampled_frame is not None and not resampled_frame.is_empty():
+                            bars.df = resampled_frame
+                            resampled_with_polars = True
+                    except _PolarsResampleError as exc:
+                        self.logger.debug(
+                            "Unsupported polars resample for %s (%s); falling back to pandas.",
+                            asset,
+                            exc,
+                        )
+                    except Exception as exc:
+                        self.logger.warning(
+                            "Polars resample failed for %s; falling back to pandas. Error: %s",
+                            asset,
+                            exc,
+                        )
             if not resampled_with_polars:
                 try:
                     import pandas as pd
@@ -5222,13 +5398,11 @@ class Strategy(_Strategy):
                     else:
                         return bars
 
-                    resampled_df = df.resample(resample_rule, label='left', closed='left').agg({
-                        'open': 'first',
-                        'high': 'max',
-                        'low': 'min',
-                        'close': 'last',
-                        'volume': 'sum'
-                    }).dropna()
+                    resampled_df = (
+                        df.resample(resample_rule, label="left", closed="left")
+                        .agg({"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"})
+                        .dropna()
+                    )
 
                     if len(resampled_df) > length:
                         resampled_df = resampled_df.iloc[-length:]
@@ -5242,12 +5416,12 @@ class Strategy(_Strategy):
 
     def get_symbol_bars(
         self,
-        asset: Union[Asset, str],
+        asset: Asset | str,
         length: int,
         timestep: str = "",
-        timeshift: datetime.timedelta = None,
-        quote: Asset = None,
-        exchange: str = None,
+        timeshift: datetime.timedelta | None = None,
+        quote: Asset | None = None,
+        exchange: str | None = None,
     ):
         """
         This method is deprecated and will be removed in a future version.
@@ -5269,13 +5443,13 @@ class Strategy(_Strategy):
 
     def get_historical_prices_for_assets(
         self,
-        assets: List[Asset | str | tuple],
+        assets: list[Asset | str | tuple[Any, ...]],
         length: int,
         timestep: str = "minute",
-        timeshift: datetime.timedelta = None,
+        timeshift: datetime.timedelta | None = None,
         chunk_size: int = 100,
         max_workers: int = 200,
-        exchange: str = None,
+        exchange: str | None = None,
         include_after_hours: bool = True,
         sleep_time: float | None = None,
     ):
@@ -5362,18 +5536,18 @@ class Strategy(_Strategy):
             chunk_size=chunk_size,
             max_workers=max_workers,
             exchange=exchange,
-            sleep_time=effective_sleep_time
+            sleep_time=effective_sleep_time,
         )
 
     def get_bars(
         self,
-        assets: List[Union[Asset, str]],
+        assets: list[Asset | str | tuple[Any, ...]],
         length: int,
         timestep: str = "minute",
-        timeshift: datetime.timedelta = None,
+        timeshift: datetime.timedelta | None = None,
         chunk_size: int = 100,
         max_workers: int = 200,
-        exchange: str = None,
+        exchange: str | None = None,
         sleep_time: float | None = None,
     ):
         """
@@ -5392,7 +5566,7 @@ class Strategy(_Strategy):
             chunk_size=chunk_size,
             max_workers=max_workers,
             exchange=exchange,
-            sleep_time=sleep_time
+            sleep_time=sleep_time,
         )
 
     def start_realtime_bars(self, asset: Asset, keep_bars: int = 30):
@@ -5519,7 +5693,7 @@ class Strategy(_Strategy):
         asset = self._sanitize_user_asset(asset)
         return self.broker.data_source.get_yesterday_dividend(asset)
 
-    def get_yesterday_dividends(self, assets: List[Asset]):
+    def get_yesterday_dividends(self, assets: list[Asset]):
         """Get the dividends for the previous day.
 
         Parameters
@@ -5574,7 +5748,7 @@ class Strategy(_Strategy):
         """
         return self.parameters
 
-    def set_parameters(self, parameters: dict):
+    def set_parameters(self, parameters: dict[str, Any] | None):
         """Set the default parameters of the strategy.
 
         Parameters
@@ -5597,7 +5771,7 @@ class Strategy(_Strategy):
 
         return self.parameters
 
-    def set_parameter_defaults(self, parameters: dict):
+    def set_parameter_defaults(self, parameters: dict[str, Any] | None):
         """Set the default parameters of the strategy.
 
         Parameters
@@ -5621,7 +5795,7 @@ class Strategy(_Strategy):
 
     # ======= Lifecycle Methods ====================
 
-    def initialize(self, parameters: dict = None):
+    def initialize(self, parameters: dict[str, Any] | None = None):
         """Initialize the strategy. Use this lifecycle method to initialize parameters.
 
         This method is called once before the first time the strategy is run.
@@ -5754,11 +5928,11 @@ class Strategy(_Strategy):
 
     def tearsheet_custom_metrics(
         self,
-        stats_df: pd.DataFrame | None,
-        strategy_returns: pd.Series,
-        benchmark_returns: pd.Series | None,
-        drawdown: pd.Series,
-        drawdown_details: pd.DataFrame,
+        stats_df: DataFrame | None,
+        strategy_returns: Series,
+        benchmark_returns: Series | None,
+        drawdown: Series,
+        drawdown_details: DataFrame,
         risk_free_rate: float,
     ):
         """Lifecycle hook to append strategy-defined metrics to the tearsheet.
@@ -5967,13 +6141,8 @@ class Strategy(_Strategy):
         pass
 
     def on_partially_filled_order(
-            self,
-            position: Position,
-            order: Order,
-            price: float,
-            quantity: Union[float, int],
-            multiplier: float
-            ):
+        self, position: Position, order: Order, price: float, quantity: float | int, multiplier: float
+    ):
         """Use this lifecycle event to execute code
         when an order has been partially filled by the broker
 
@@ -6007,14 +6176,7 @@ class Strategy(_Strategy):
         """
         pass
 
-    def on_filled_order(
-            self,
-            position: Position,
-            order: Order,
-            price: float,
-            quantity: Union[float, int],
-            multiplier: float
-            ):
+    def on_filled_order(self, position: Position, order: Order, price: float, quantity: float | int, multiplier: float):
         """Use this lifecycle event to execute code when an order has been filled by the broker.
 
         Parameters
@@ -6087,49 +6249,49 @@ class Strategy(_Strategy):
 
     @classmethod
     def backtest(
-        self,
-        datasource_class: Type[DataSource] | None = None,
-        backtesting_start: datetime.datetime = None,
-        backtesting_end: datetime.datetime = None,
+        cls,
+        datasource_class: type[DataSource] | None = None,
+        backtesting_start: datetime.datetime | None = None,
+        backtesting_end: datetime.datetime | None = None,
         minutes_before_closing: int = 1,
         minutes_before_opening: int = 60,
         sleeptime: int = 1,
-        stats_file: str = None,
-        risk_free_rate: float = None,
-        logfile: str = None,
-        config: dict = None,
+        stats_file: str | None = None,
+        risk_free_rate: float | None = None,
+        logfile: str | None = None,
+        config: dict[str, Any] | None = None,
         auto_adjust: bool = False,
-        name: str = None,
-        budget: float = None,
-        benchmark_asset: Union[str, Asset] = "SPY",
-        plot_file_html: str = None,
-        trades_file: str = None,
-        settings_file: str = None,
-        pandas_data: List[Data] = None,
-        quote_asset: Asset = Asset(symbol="USD", asset_type="forex"),
-        starting_positions: dict = None,
+        name: str | None = None,
+        budget: float | None = None,
+        benchmark_asset: str | Asset = "SPY",
+        plot_file_html: str | None = None,
+        trades_file: str | None = None,
+        settings_file: str | None = None,
+        pandas_data: list[Data] | None = None,
+        quote_asset: Asset | None = None,
+        starting_positions: dict[str, Any] | None = None,
         show_plot: bool | None = None,
-        tearsheet_file: str = None,
-        tearsheet_metrics_file: str = None,
+        tearsheet_file: str | None = None,
+        tearsheet_metrics_file: str | None = None,
         save_tearsheet: bool = True,
         show_tearsheet: bool | None = None,
-        parameters: dict = {},
-        buy_trading_fees: List[TradingFee] = [],
-        sell_trading_fees: List[TradingFee] = [],
-        buy_trading_slippages: List[TradingSlippage] = [],
-        sell_trading_slippages: List[TradingSlippage] = [],
-        polygon_api_key: str = None,
-        indicators_file: str = None,
+        parameters: dict[str, Any] | None = None,
+        buy_trading_fees: list[TradingFee] | None = None,
+        sell_trading_fees: list[TradingFee] | None = None,
+        buy_trading_slippages: list[TradingSlippage] | None = None,
+        sell_trading_slippages: list[TradingSlippage] | None = None,
+        polygon_api_key: str | None = None,
+        indicators_file: str | None = None,
         show_indicators: bool | None = None,
         save_logfile: bool = False,
-        thetadata_username: str = None,
-        thetadata_password: str = None,
+        thetadata_username: str | None = None,
+        thetadata_password: str | None = None,
         use_quote_data: bool = True,  # Changed to True for ThetaData options support
         show_progress_bar: bool = True,
         quiet_logs: bool = True,
-        trader_class = None,
+        trader_class: Any = None,
         save_stats_file: bool = True,
-        **kwargs,
+        **kwargs: Any,
     ):
         """Backtest a strategy.
 
@@ -6279,6 +6441,16 @@ class Strategy(_Strategy):
         # Accepted formats: ISO date (`YYYY-MM-DD`) or full ISO datetime. Any
         # parse failure is logged and the passed-in value is kept — we never
         # silently fall back to "now" or the epoch.
+        if sell_trading_slippages is None:
+            sell_trading_slippages = []
+        if buy_trading_slippages is None:
+            buy_trading_slippages = []
+        if sell_trading_fees is None:
+            sell_trading_fees = []
+        if buy_trading_fees is None:
+            buy_trading_fees = []
+        if parameters is None:
+            parameters = {}
         env_start = os.environ.get("BACKTESTING_START")
         env_end = os.environ.get("BACKTESTING_END")
         if env_start:
@@ -6289,28 +6461,23 @@ class Strategy(_Strategy):
                     # hardcoded backtest window from a stale .env value is
                     # easy to miss and produces "mystery" result drift. Flag
                     # it loudly so the override is visible in every run.
-                    logging.warning(
-                        f"BACKTESTING_START env var override: {backtesting_start} -> {parsed_start}"
-                    )
+                    logging.warning(f"BACKTESTING_START env var override: {backtesting_start} -> {parsed_start}")
                 backtesting_start = parsed_start
             except (TypeError, ValueError) as exc:
-                logging.warning(
-                    f"Ignoring unparseable BACKTESTING_START={env_start!r}: {exc}"
-                )
+                logging.warning(f"Ignoring unparseable BACKTESTING_START={env_start!r}: {exc}")
         if env_end:
             try:
                 parsed_end = datetime.datetime.fromisoformat(env_end)
                 if parsed_end != backtesting_end:
-                    logging.warning(
-                        f"BACKTESTING_END env var override: {backtesting_end} -> {parsed_end}"
-                    )
+                    logging.warning(f"BACKTESTING_END env var override: {backtesting_end} -> {parsed_end}")
                 backtesting_end = parsed_end
             except (TypeError, ValueError) as exc:
-                logging.warning(
-                    f"Ignoring unparseable BACKTESTING_END={env_end!r}: {exc}"
-                )
+                logging.warning(f"Ignoring unparseable BACKTESTING_END={env_end!r}: {exc}")
 
-        results, strategy = self.run_backtest(
+        if quote_asset is None:
+            quote_asset = Asset(symbol="USD", asset_type="forex")
+
+        backtest_result = cls.run_backtest(
             datasource_class=datasource_class,
             backtesting_start=backtesting_start,
             backtesting_end=backtesting_end,
@@ -6354,4 +6521,8 @@ class Strategy(_Strategy):
             save_stats_file=save_stats_file,
             **kwargs,
         )
+        if backtest_result is None:
+            return None
+
+        results, _strategy = backtest_result
         return results

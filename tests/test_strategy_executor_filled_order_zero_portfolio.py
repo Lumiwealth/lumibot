@@ -52,4 +52,3 @@ def test_strategy_executor_filled_order_does_not_divide_by_zero():
 
     # Regression: event notifications should not crash just because portfolio_value is zero.
     executor._on_filled_order(position, order, price=100.0, quantity=Decimal("1"), multiplier=1)
-

@@ -1,5 +1,5 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
@@ -7,17 +7,16 @@ if str(REPO_ROOT) not in sys.path:
 
 
 # -*- coding: utf-8 -*-
+import traceback
 from datetime import timedelta
 from zoneinfo import ZoneInfo
-from typing import Dict, List, Tuple
-import traceback
 
+from lumibot.backtesting import PolygonDataBacktesting
+from lumibot.components.options_helper import OptionsHelper
+from lumibot.credentials import IS_BACKTESTING
+from lumibot.entities import Asset, Order, TradingFee
 from lumibot.strategies.strategy import Strategy
 from lumibot.traders import Trader
-from lumibot.entities import Asset, TradingFee, Order
-from lumibot.backtesting import PolygonDataBacktesting
-from lumibot.credentials import IS_BACKTESTING
-from lumibot.components.options_helper import OptionsHelper
 
 """
 This code was refined based on the user prompt: 'make a bot that trades bull call spreads on pltr. it should get the chains on pltr that are 30 days to expiry to later and the buy call should be about 10% out of the money and the sell about 20% out of the money. it should keep buying these options every month and trade 20 spreads at a time. the initial budget should be $1000; the symbol should also be in the parameters'
@@ -52,50 +51,65 @@ Newest user request (this revision): 'make  max_symbols_per_day=3 to 6. IN addit
 Latest user request (this revision): 'Remove the slope and put in the symbol that starts gaining a high momentum.' — Removed initial slope filter and set single-symbol top-momentum selection by default.
 """
 
+
 class BullCallSpreadStrategy(Strategy):
     # Parameters: multi-symbol momentum filters, time-based take profit, stop loss, data-throttling, and high-momentum gating.
     parameters = {
         # Increased iteration interval to reduce backtest data load (kept from prior stability fix)
         "sleeptime": "5M",
-
         # Spread construction rules (same core logic as before)
-        "target_days_to_expiry": 30,     # Minimum days to expiration
-        "buy_otm": 1.10,                 # ~10% OTM for the long call (multiplier of underlying price)
-        "sell_otm": 1.20,                # ~20% OTM for the short call (multiplier of underlying price)
-
+        "target_days_to_expiry": 30,  # Minimum days to expiration
+        "buy_otm": 1.10,  # ~10% OTM for the long call (multiplier of underlying price)
+        "sell_otm": 1.20,  # ~20% OTM for the short call (multiplier of underlying price)
         # Allocation controls: per-trade budget bounds (10-15%) with a target (12.5%)
-        "min_allocation_pct": 0.10,      # Lower bound spend per trade
-        "max_allocation_pct": 0.15,      # Upper bound spend per trade
+        "min_allocation_pct": 0.10,  # Lower bound spend per trade
+        "max_allocation_pct": 0.15,  # Upper bound spend per trade
         "target_allocation_pct": 0.125,  # Preferred spend per trade
-
         # Trading universe (uppercase tickers as provided)
         "symbols": [
-            "OKLO","TEM","CRWV","NVDA","ACHR","HOOD","IBKR","APLD","HIMS","MP","NVTS","RGTI","QS","NIO","SOFI","QUBT","AMD","FIG","RKLB","FROG","POWL","HOND","PATH","CRDO","FSLY"
+            "OKLO",
+            "TEM",
+            "CRWV",
+            "NVDA",
+            "ACHR",
+            "HOOD",
+            "IBKR",
+            "APLD",
+            "HIMS",
+            "MP",
+            "NVTS",
+            "RGTI",
+            "QS",
+            "NIO",
+            "SOFI",
+            "QUBT",
+            "AMD",
+            "FIG",
+            "RKLB",
+            "FROG",
+            "POWL",
+            "HOND",
+            "PATH",
+            "CRDO",
+            "FSLY",
         ],
-
         # Momentum and timing controls
-        "momentum_lookback_min": 15,                 # Short-term momentum window (15 minutes)
-        "momentum_exit_lookback_long_min": 30,       # Long-term momentum window for exits (30 minutes)
-        "entry_momentum_min_pct": 0.005,             # Require at least +0.5% 15m momentum for entries ("high momentum")
-        "take_profit_hour_mst": 11,                  # 11:00 AM MST time-of-day profit check
-        "take_profit_minute": 0,                     # At the top of the hour by default
-
+        "momentum_lookback_min": 15,  # Short-term momentum window (15 minutes)
+        "momentum_exit_lookback_long_min": 30,  # Long-term momentum window for exits (30 minutes)
+        "entry_momentum_min_pct": 0.005,  # Require at least +0.5% 15m momentum for entries ("high momentum")
+        "take_profit_hour_mst": 11,  # 11:00 AM MST time-of-day profit check
+        "take_profit_minute": 0,  # At the top of the hour by default
         # Stop loss control: closes spread when current value falls ≥15% below entry estimate
         "stop_loss_pct": 0.15,  # default 15%
-
         # Trade cadence gate to avoid over-trading, keep "monthly" as before per symbol
         "buy_once_per_month": True,
-
         # Backtest stability throttling — process at most N symbols per iteration (round-robin)
         # Note: kept for compatibility, but daily top-momentum selection overrides batch rotation for new entries
         "max_symbols_per_iteration": 6,
-
         # Daily cap — only trade the top N symbols by 15m momentum each day (kept as 6)
         "max_symbols_per_day": 6,
-
         # Updated: trade only the single symbol with the highest 15m momentum each day (per latest user request)
         "trade_only_top_slope": True,
-
         # NOTE: VIX gating was removed per user request; no VIX parameters are used anymore.
     }
 
@@ -104,18 +118,18 @@ class BullCallSpreadStrategy(Strategy):
         self.sleeptime = self.parameters.get("sleeptime")
 
         # Instantiate helpers
-        self.options_helper = OptionsHelper(self)          # MANDATORY for options selection & order execution
+        self.options_helper = OptionsHelper(self)  # MANDATORY for options selection & order execution
 
         # Persistent state holders:
         # - last trade timestamp by symbol as (year, month)
-        self.vars.last_trade_ym_by_symbol: Dict[str, Tuple[int, int]] = self.vars.get("last_trade_ym_by_symbol", {})
+        self.vars.last_trade_ym_by_symbol: dict[str, tuple[int, int]] = self.vars.get("last_trade_ym_by_symbol", {})
         # - track open spreads by symbol for take-profit/stop-loss checks and targeted exits
         #   each item: {"expiry": date, "buy_strike": float, "sell_strike": float, "quantity": int, "entry_debit_est": float}
-        self.vars.open_spreads: Dict[str, List[dict]] = self.vars.get("open_spreads", {})
+        self.vars.open_spreads: dict[str, list[dict]] = self.vars.get("open_spreads", {})
         # - rotation pointer for symbol throttling (round-robin across large lists)
         self.vars.symbol_pointer = self.vars.get("symbol_pointer", 0)
         # NEW: daily momentum selection state
-        self.vars.daily_selected_symbols: List[str] = self.vars.get("daily_selected_symbols", [])
+        self.vars.daily_selected_symbols: list[str] = self.vars.get("daily_selected_symbols", [])
         self.vars.last_selection_date = self.vars.get("last_selection_date", None)  # stores a date object
 
     # Crash visibility: surface any unexpected errors in logs (including backtests)
@@ -140,7 +154,7 @@ class BullCallSpreadStrategy(Strategy):
             return None
         return float(bars.df["close"].iloc[-2])
 
-    def _get_minute_bars(self, asset: Asset, length: int) -> List[float]:
+    def _get_minute_bars(self, asset: Asset, length: int) -> list[float]:
         # Keep minute window requests as small as possible to reduce load on the data source
         try:
             bars = self.get_historical_prices(asset, length, "minute")
@@ -155,7 +169,7 @@ class BullCallSpreadStrategy(Strategy):
         closes = list(bars.df["close"].astype(float))
         return closes[-length:]
 
-    def _calculate_momentum_pct_change(self, all_minute_closes: List[float], lookback_min: int) -> float:
+    def _calculate_momentum_pct_change(self, all_minute_closes: list[float], lookback_min: int) -> float:
         """
         Calculate percentage change over `lookback_min` using provided minute closes.
         Returns 0.0 if not enough data.
@@ -168,7 +182,7 @@ class BullCallSpreadStrategy(Strategy):
             return 0.0
         return (end_price - start_price) / start_price
 
-    def _momentum_flags(self, underlying_asset: Asset) -> Tuple[bool, bool, float, float, float]:
+    def _momentum_flags(self, underlying_asset: Asset) -> tuple[bool, bool, float, float, float]:
         """
         Returns a tuple:
         (upward_momentum, downward_short_term_original, last_price, momentum_15m_pct, momentum_30m_pct)
@@ -219,15 +233,19 @@ class BullCallSpreadStrategy(Strategy):
         except Exception:
             return dt
 
-    def _record_open_spread(self, symbol: str, expiry, buy_strike: float, sell_strike: float, quantity: int, entry_debit_est: float):
+    def _record_open_spread(
+        self, symbol: str, expiry, buy_strike: float, sell_strike: float, quantity: int, entry_debit_est: float
+    ):
         self.vars.open_spreads.setdefault(symbol, [])
-        self.vars.open_spreads[symbol].append({
-            "expiry": expiry,
-            "buy_strike": float(buy_strike),
-            "sell_strike": float(sell_strike),
-            "quantity": int(quantity),
-            "entry_debit_est": float(entry_debit_est),
-        })
+        self.vars.open_spreads[symbol].append(
+            {
+                "expiry": expiry,
+                "buy_strike": float(buy_strike),
+                "sell_strike": float(sell_strike),
+                "quantity": int(quantity),
+                "entry_debit_est": float(entry_debit_est),
+            }
+        )
 
     def _close_spread_positions_for_symbol(self, symbol: str, reason: str):
         # Close any open option positions for the given symbol (both legs)
@@ -254,8 +272,9 @@ class BullCallSpreadStrategy(Strategy):
     def _check_11am_take_profit(self, symbol: str):
         # Evaluate open spreads for the symbol and close profitable ones at the TP time
         mst_now = self._get_mst_now()
-        if (mst_now.hour != int(self.parameters.get("take_profit_hour_mst", 11)) or
-                mst_now.minute != int(self.parameters.get("take_profit_minute", 0))):
+        if mst_now.hour != int(self.parameters.get("take_profit_hour_mst", 11)) or mst_now.minute != int(
+            self.parameters.get("take_profit_minute", 0)
+        ):
             return  # Not TP time
 
         if symbol not in self.vars.open_spreads or len(self.vars.open_spreads[symbol]) == 0:
@@ -269,8 +288,20 @@ class BullCallSpreadStrategy(Strategy):
             qty = rec["quantity"]
             entry_debit_est = rec["entry_debit_est"]
 
-            long_call = Asset(symbol, asset_type=Asset.AssetType.OPTION, expiration=expiry, strike=buy_strike, right=Asset.OptionRight.CALL)
-            short_call = Asset(symbol, asset_type=Asset.AssetType.OPTION, expiration=expiry, strike=sell_strike, right=Asset.OptionRight.CALL)
+            long_call = Asset(
+                symbol,
+                asset_type=Asset.AssetType.OPTION,
+                expiration=expiry,
+                strike=buy_strike,
+                right=Asset.OptionRight.CALL,
+            )
+            short_call = Asset(
+                symbol,
+                asset_type=Asset.AssetType.OPTION,
+                expiration=expiry,
+                strike=sell_strike,
+                right=Asset.OptionRight.CALL,
+            )
 
             eval_long = self.options_helper.evaluate_option_market(long_call, max_spread_pct=0.30)
             eval_short = self.options_helper.evaluate_option_market(short_call, max_spread_pct=0.30)
@@ -279,11 +310,19 @@ class BullCallSpreadStrategy(Strategy):
                 still_open.append(rec)
                 continue
 
-            self.log_message(f"[{symbol}] TP eval long: bid={eval_long.bid} ask={eval_long.ask} buy={eval_long.buy_price}", color="blue")
-            self.log_message(f"[{symbol}] TP eval short: bid={eval_short.bid} ask={eval_short.ask} sell={eval_short.sell_price}", color="blue")
+            self.log_message(
+                f"[{symbol}] TP eval long: bid={eval_long.bid} ask={eval_long.ask} buy={eval_long.buy_price}",
+                color="blue",
+            )
+            self.log_message(
+                f"[{symbol}] TP eval short: bid={eval_short.bid} ask={eval_short.ask} sell={eval_short.sell_price}",
+                color="blue",
+            )
 
             if eval_long.buy_price is None or eval_short.sell_price is None:
-                self.log_message(f"[{symbol}] Missing prices for TP check (long buy price or short sell price).", color="yellow")
+                self.log_message(
+                    f"[{symbol}] Missing prices for TP check (long buy price or short sell price).", color="yellow"
+                )
                 still_open.append(rec)
                 continue
 
@@ -300,8 +339,14 @@ class BullCallSpreadStrategy(Strategy):
                 )
                 last_px = self.get_last_price(Asset(symbol, asset_type=Asset.AssetType.STOCK))
                 if last_px is not None:
-                    self.add_marker("TP Close", float(last_px), color="green", symbol="star", size=10,
-                                    detail_text=f"{symbol} TP {buy_strike}/{sell_strike}")
+                    self.add_marker(
+                        "TP Close",
+                        float(last_px),
+                        color="green",
+                        symbol="star",
+                        size=10,
+                        detail_text=f"{symbol} TP {buy_strike}/{sell_strike}",
+                    )
             else:
                 still_open.append(rec)
         self.vars.open_spreads[symbol] = still_open
@@ -327,8 +372,20 @@ class BullCallSpreadStrategy(Strategy):
             qty = rec["quantity"]
             entry_debit_est = rec["entry_debit_est"]
 
-            long_call = Asset(symbol, asset_type=Asset.AssetType.OPTION, expiration=expiry, strike=buy_strike, right=Asset.OptionRight.CALL)
-            short_call = Asset(symbol, asset_type=Asset.AssetType.OPTION, expiration=expiry, strike=sell_strike, right=Asset.OptionRight.CALL)
+            long_call = Asset(
+                symbol,
+                asset_type=Asset.AssetType.OPTION,
+                expiration=expiry,
+                strike=buy_strike,
+                right=Asset.OptionRight.CALL,
+            )
+            short_call = Asset(
+                symbol,
+                asset_type=Asset.AssetType.OPTION,
+                expiration=expiry,
+                strike=sell_strike,
+                right=Asset.OptionRight.CALL,
+            )
 
             eval_long = self.options_helper.evaluate_option_market(long_call, max_spread_pct=0.30)
             eval_short = self.options_helper.evaluate_option_market(short_call, max_spread_pct=0.30)
@@ -337,11 +394,19 @@ class BullCallSpreadStrategy(Strategy):
                 still_open.append(rec)
                 continue
 
-            self.log_message(f"[{symbol}] SL eval long: bid={eval_long.bid} ask={eval_long.ask} buy={eval_long.buy_price}", color="blue")
-            self.log_message(f"[{symbol}] SL eval short: bid={eval_short.bid} ask={eval_short.ask} sell={eval_short.sell_price}", color="blue")
+            self.log_message(
+                f"[{symbol}] SL eval long: bid={eval_long.bid} ask={eval_long.ask} buy={eval_long.buy_price}",
+                color="blue",
+            )
+            self.log_message(
+                f"[{symbol}] SL eval short: bid={eval_short.bid} ask={eval_short.ask} sell={eval_short.sell_price}",
+                color="blue",
+            )
 
             if eval_long.buy_price is None or eval_short.sell_price is None:
-                self.log_message(f"[{symbol}] Missing prices for SL check (long buy price or short sell price).", color="yellow")
+                self.log_message(
+                    f"[{symbol}] Missing prices for SL check (long buy price or short sell price).", color="yellow"
+                )
                 still_open.append(rec)
                 continue
 
@@ -353,13 +418,19 @@ class BullCallSpreadStrategy(Strategy):
                 ]
                 self.submit_order(close_orders)
                 self.log_message(
-                    f"[{symbol}] Stop-loss hit ({stop_loss_threshold*100:.1f}%): entry ~${entry_debit_est:.2f}, now ~${current_debit:.2f}. Closing spread.",
+                    f"[{symbol}] Stop-loss hit ({stop_loss_threshold * 100:.1f}%): entry ~${entry_debit_est:.2f}, now ~${current_debit:.2f}. Closing spread.",
                     color="red",
                 )
                 last_px = self.get_last_price(Asset(symbol, asset_type=Asset.AssetType.STOCK))
                 if last_px is not None:
-                    self.add_marker("SL Close", float(last_px), color="red", symbol="arrow-down", size=10,
-                                    detail_text=f"{symbol} SL {buy_strike}/{sell_strike}")
+                    self.add_marker(
+                        "SL Close",
+                        float(last_px),
+                        color="red",
+                        symbol="arrow-down",
+                        size=10,
+                        detail_text=f"{symbol} SL {buy_strike}/{sell_strike}",
+                    )
             else:
                 still_open.append(rec)
         self.vars.open_spreads[symbol] = still_open
@@ -379,7 +450,7 @@ class BullCallSpreadStrategy(Strategy):
             )
             self._close_spread_positions_for_symbol(symbol, reason="30m momentum steeper than 15m (down)")
 
-    def _daily_select_top_symbols(self, symbols: List[str]) -> List[str]:
+    def _daily_select_top_symbols(self, symbols: list[str]) -> list[str]:
         """
         Select the top-N symbols by 15-minute momentum once per day.
         Applies the entry_momentum_min_pct threshold and skips symbols already traded this month.
@@ -400,7 +471,7 @@ class BullCallSpreadStrategy(Strategy):
 
         dt = self.get_datetime()
         current_ym = (dt.year, dt.month)
-        scored: List[Tuple[str, float]] = []
+        scored: list[tuple[str, float]] = []
         for sym in symbols:
             try:
                 if self.parameters.get("buy_once_per_month", True):
@@ -427,7 +498,9 @@ class BullCallSpreadStrategy(Strategy):
         if self.parameters.get("trade_only_top_slope", False):
             selected = selected_all[:1]
             if selected:
-                self.log_message(f"Top-momentum mode ON — Selected single highest momentum: {selected[0]}", color="blue")
+                self.log_message(
+                    f"Top-momentum mode ON — Selected single highest momentum: {selected[0]}", color="blue"
+                )
             else:
                 self.log_message("Top-momentum mode ON — No symbol met the momentum threshold.", color="yellow")
         else:
@@ -448,7 +521,7 @@ class BullCallSpreadStrategy(Strategy):
             dt = self.get_datetime()
             current_ym = (dt.year, dt.month)
 
-            symbols: List[str] = [s.upper() for s in self.parameters.get("symbols", [])]
+            symbols: list[str] = [s.upper() for s in self.parameters.get("symbols", [])]
             if not symbols:
                 self.log_message("No symbols configured.", color="red")
                 return
@@ -456,8 +529,9 @@ class BullCallSpreadStrategy(Strategy):
             # Always run the 11:00 MST TP check for symbols that actually have open spreads, regardless of selection batch
             try:
                 mst_now = self._get_mst_now()
-                if (mst_now.hour == int(self.parameters.get("take_profit_hour_mst", 11)) and
-                    mst_now.minute == int(self.parameters.get("take_profit_minute", 0))):
+                if mst_now.hour == int(self.parameters.get("take_profit_hour_mst", 11)) and mst_now.minute == int(
+                    self.parameters.get("take_profit_minute", 0)
+                ):
                     for sym_with_open in list(self.vars.open_spreads.keys()):
                         if self.vars.open_spreads.get(sym_with_open):
                             try:
@@ -481,7 +555,8 @@ class BullCallSpreadStrategy(Strategy):
                         self.log_message(f"[{sym_open}] Exit checks error: {e}", color="yellow")
 
             self.log_message(
-                f"Processing daily selected symbols ({len(batch)}): {', '.join(batch) if batch else 'None'}", color="blue"
+                f"Processing daily selected symbols ({len(batch)}): {', '.join(batch) if batch else 'None'}",
+                color="blue",
             )
 
             # Process each symbol in the daily selection for potential new entries (and manage exits if they are present here)
@@ -497,7 +572,9 @@ class BullCallSpreadStrategy(Strategy):
                         self.log_message(f"[{symbol}] get_last_price error: {e}", color="yellow")
                     if last_px is not None:
                         try:
-                            self.add_line(symbol, float(last_px), color="black", width=2, detail_text=f"{symbol} Last Price")
+                            self.add_line(
+                                symbol, float(last_px), color="black", width=2, detail_text=f"{symbol} Last Price"
+                            )
                         except Exception:
                             pass
 
@@ -518,7 +595,9 @@ class BullCallSpreadStrategy(Strategy):
                                 f"[{symbol}] Momentum exit: 30m={momentum_30m_pct:.2%} < 15m={momentum_15m_pct:.2%}. Closing.",
                                 color="red",
                             )
-                            self._close_spread_positions_for_symbol(symbol, reason="30m momentum steeper than 15m (down)")
+                            self._close_spread_positions_for_symbol(
+                                symbol, reason="30m momentum steeper than 15m (down)"
+                            )
                             continue
 
                         # Scheduled TP check (no-op if not TP time)
@@ -556,7 +635,9 @@ class BullCallSpreadStrategy(Strategy):
                         continue
 
                     if not upward:
-                        self.log_message(f"[{symbol}] No upward momentum above prior close. Skipping buy.", color="yellow")
+                        self.log_message(
+                            f"[{symbol}] No upward momentum above prior close. Skipping buy.", color="yellow"
+                        )
                         continue
 
                     # Build target expiry using OptionsHelper (ALWAYS use the helper for options)
@@ -579,7 +660,9 @@ class BullCallSpreadStrategy(Strategy):
                         self.log_message(f"[{symbol}] Failed to get valid options expiration: {e}", color="yellow")
                         expiry = None
                     if not expiry:
-                        self.log_message(f"[{symbol}] No valid expiration on/after {target_expiry_dt.date()}. Skipping.", color="red")
+                        self.log_message(
+                            f"[{symbol}] No valid expiration on/after {target_expiry_dt.date()}. Skipping.", color="red"
+                        )
                         continue
 
                     # Compute target strikes and validate with OptionsHelper
@@ -596,34 +679,56 @@ class BullCallSpreadStrategy(Strategy):
                     sell_target_strike = underlying_price * float(self.parameters.get("sell_otm", 1.20))
 
                     # Find tradeable options near the targets; the helper checks that data exists
-                    long_call = self.options_helper.find_next_valid_option(underlying, buy_target_strike, expiry, "call")
-                    short_call = self.options_helper.find_next_valid_option(underlying, sell_target_strike, expiry, "call")
+                    long_call = self.options_helper.find_next_valid_option(
+                        underlying, buy_target_strike, expiry, "call"
+                    )
+                    short_call = self.options_helper.find_next_valid_option(
+                        underlying, sell_target_strike, expiry, "call"
+                    )
                     if not long_call or not short_call:
-                        self.log_message(f"[{symbol}] Could not find valid calls near target strikes. Skipping.", color="red")
+                        self.log_message(
+                            f"[{symbol}] Could not find valid calls near target strikes. Skipping.", color="red"
+                        )
                         continue
 
                     # Ensure bull call direction: long lower strike, short higher strike
                     if short_call.strike <= long_call.strike:
-                        short_call = self.options_helper.find_next_valid_option(underlying, long_call.strike * 1.02, expiry, "call")
+                        short_call = self.options_helper.find_next_valid_option(
+                            underlying, long_call.strike * 1.02, expiry, "call"
+                        )
                         if not short_call or short_call.strike <= long_call.strike:
-                            self.log_message(f"[{symbol}] Unable to find a higher short strike for a bull call. Skipping.", color="red")
+                            self.log_message(
+                                f"[{symbol}] Unable to find a higher short strike for a bull call. Skipping.",
+                                color="red",
+                            )
                             continue
 
                     # Evaluate both legs to estimate spread debit and confirm liquidity
                     eval_long = self.options_helper.evaluate_option_market(long_call, max_spread_pct=0.30)
                     eval_short = self.options_helper.evaluate_option_market(short_call, max_spread_pct=0.30)
 
-                    if (eval_long is None or eval_short is None or
-                        eval_long.buy_price is None or eval_short.sell_price is None or
-                        eval_long.spread_too_wide or eval_short.spread_too_wide):
+                    if (
+                        eval_long is None
+                        or eval_short is None
+                        or eval_long.buy_price is None
+                        or eval_short.sell_price is None
+                        or eval_long.spread_too_wide
+                        or eval_short.spread_too_wide
+                    ):
                         self.log_message(
                             f"[{symbol}] Market evaluation failed or spreads too wide. Skipping entry.", color="yellow"
                         )
                         continue
 
                     # Log the evals so backtests surface pricing/liq issues clearly
-                    self.log_message(f"[{symbol}] Entry eval long: bid={eval_long.bid} ask={eval_long.ask} buy={eval_long.buy_price}", color="blue")
-                    self.log_message(f"[{symbol}] Entry eval short: bid={eval_short.bid} ask={eval_short.ask} sell={eval_short.sell_price}", color="blue")
+                    self.log_message(
+                        f"[{symbol}] Entry eval long: bid={eval_long.bid} ask={eval_long.ask} buy={eval_long.buy_price}",
+                        color="blue",
+                    )
+                    self.log_message(
+                        f"[{symbol}] Entry eval short: bid={eval_short.bid} ask={eval_short.ask} sell={eval_short.sell_price}",
+                        color="blue",
+                    )
 
                     spread_debit_est = (eval_long.buy_price - eval_short.sell_price) * 100.0  # options x100
                     if spread_debit_est <= 0:
@@ -645,7 +750,8 @@ class BullCallSpreadStrategy(Strategy):
 
                     if max_affordable_qty < 1:
                         self.log_message(
-                            f"[{symbol}] Not enough budget up to {max_pct*100:.1f}% (need ~${spread_debit_est:.2f} per spread).", color="yellow"
+                            f"[{symbol}] Not enough budget up to {max_pct * 100:.1f}% (need ~${spread_debit_est:.2f} per spread).",
+                            color="yellow",
                         )
                         continue
 
@@ -655,7 +761,7 @@ class BullCallSpreadStrategy(Strategy):
                     est_spend = quantity * spread_debit_est
                     self.log_message(
                         f"[{symbol}] PV=${pv:,.2f} | Debit≈${spread_debit_est:.2f} | Qty={quantity} | Est spend=${est_spend:,.2f} "
-                        f"(Bounds: {min_pct*100:.1f}%=${min_alloc:,.2f}, {max_pct*100:.1f}%=${max_alloc:,.2f}, Target {target_pct*100:.1f}%=${target_alloc:,.2f})",
+                        f"(Bounds: {min_pct * 100:.1f}%=${min_alloc:,.2f}, {max_pct * 100:.1f}%=${max_alloc:,.2f}, Target {target_pct * 100:.1f}%=${target_alloc:,.2f})",
                         color="blue",
                     )
 
@@ -678,7 +784,9 @@ class BullCallSpreadStrategy(Strategy):
                     )
 
                     # Record this trade for later TP/SL evaluation (uses entry_debit_est as baseline)
-                    self._record_open_spread(symbol, expiry, long_call.strike, short_call.strike, quantity, spread_debit_est)
+                    self._record_open_spread(
+                        symbol, expiry, long_call.strike, short_call.strike, quantity, spread_debit_est
+                    )
 
                     # Add a marker for the new trade (sparingly)
                     if last_px is None:
@@ -691,7 +799,7 @@ class BullCallSpreadStrategy(Strategy):
                                 color="green",
                                 symbol="arrow-up",
                                 size=10,
-                                detail_text=f"{symbol} {quantity}x {long_call.strike}/{short_call.strike}C"
+                                detail_text=f"{symbol} {quantity}x {long_call.strike}/{short_call.strike}C",
                             )
                         except Exception:
                             pass
@@ -724,7 +832,7 @@ if __name__ == "__main__":
                 buy_trading_fees=[trading_fee],
                 sell_trading_fees=[trading_fee],
                 quote_asset=Asset("USD", Asset.AssetType.FOREX),
-                budget=50000  # Budget explicitly set to $50,000 per prior user request
+                budget=50000,  # Budget explicitly set to $50,000 per prior user request
             )
         except Exception as e:
             # Explicitly print the backtest error and full traceback so it's visible even if the engine swallows logs
@@ -734,8 +842,6 @@ if __name__ == "__main__":
     else:
         # Live trading (broker auto-selected via environment)
         trader = Trader()
-        strategy = BullCallSpreadStrategy(
-            quote_asset=Asset("USD", Asset.AssetType.FOREX)
-        )
+        strategy = BullCallSpreadStrategy(quote_asset=Asset("USD", Asset.AssetType.FOREX))
         trader.add_strategy(strategy)
         strategies = trader.run_all()

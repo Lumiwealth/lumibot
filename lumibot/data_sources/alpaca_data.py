@@ -1,24 +1,143 @@
 from __future__ import annotations
 
+# pyright: reportMissingParameterType=false, reportUnknownParameterType=false
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false
+# pyright: reportMissingTypeArgument=false, reportMissingTypeStubs=false
+# pyright: reportAttributeAccessIssue=false, reportArgumentType=false, reportCallIssue=false
+# pyright: reportIncompatibleMethodOverride=false, reportInvalidTypeForm=false
+# pyright: reportUnnecessaryComparison=false, reportUnnecessaryIsInstance=false
+# pyright: reportConstantRedefinition=false, reportOptionalMemberAccess=false
+# pyright: reportGeneralTypeIssues=false, reportPossiblyUnboundVariable=false
 import datetime as dt
 import os
 from decimal import Decimal
 from importlib import import_module
-from typing import TYPE_CHECKING, Dict, List, Optional, Union
+from types import ModuleType
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 import pytz
 
 from lumibot.constants import LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL, LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE
-from lumibot.entities import Asset, Quote
+from lumibot.entities.asset import Asset
+from lumibot.entities.quote import Quote
 from lumibot.tools.alpaca_helpers import sanitize_base_and_quote_asset
 from lumibot.tools.lumibot_logger import get_logger
 
 from .data_source import DataSource
 
 if TYPE_CHECKING:
-    from lumibot.entities import Bars
+    from lumibot.entities.bars import Bars
 
 logger = get_logger(__name__)
+PandasDataFrame: TypeAlias = Any  # noqa: UP040
+
+Adjustment: Any | None = None
+CryptoHistoricalDataClient: Any | None = None
+OptionHistoricalDataClient: Any | None = None
+StockHistoricalDataClient: Any | None = None
+CryptoBarsRequest: Any | None = None
+OptionBarsRequest: Any | None = None
+OptionChainRequest: Any | None = None
+OptionSnapshotRequest: Any | None = None
+StockBarsRequest: Any | None = None
+TimeFrame: Any | None = None
+TimeFrameUnit: Any | None = None
+_DATE_N_TRADING_DAYS_FROM_DATE: Any | None = None
+_BARS_CLASS: type[Any] | None = None
+
+
+class _LazyModule(ModuleType):
+    __slots__ = ("_module_name", "_module")
+
+    _module_name: str
+    _module: ModuleType | None
+
+    def __init__(self, module_name: str) -> None:
+        super().__init__(module_name)
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self) -> ModuleType:
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._load(), name)
+
+
+pd: Any = _LazyModule("pandas")
+
+
+_ALPACA_ATTR_MODULES = {
+    "Adjustment": "alpaca.data.enums",
+    "CryptoHistoricalDataClient": "alpaca.data.historical",
+    "OptionHistoricalDataClient": "alpaca.data.historical",
+    "StockHistoricalDataClient": "alpaca.data.historical",
+    "CryptoBarsRequest": "alpaca.data.requests",
+    "OptionBarsRequest": "alpaca.data.requests",
+    "OptionChainRequest": "alpaca.data.requests",
+    "OptionSnapshotRequest": "alpaca.data.requests",
+    "StockBarsRequest": "alpaca.data.requests",
+    "TimeFrame": "alpaca.data.timeframe",
+    "TimeFrameUnit": "alpaca.data.timeframe",
+}
+
+
+def _get_alpaca_attr(name: str) -> Any:
+    value = globals().get(name)
+    if value is None:
+        module = import_module(_ALPACA_ATTR_MODULES[name])
+        value = getattr(module, name)
+        globals()[name] = value
+    return value
+
+
+def _date_n_trading_days_from_date(*args: Any, **kwargs: Any) -> Any:
+    global _DATE_N_TRADING_DAYS_FROM_DATE
+    if _DATE_N_TRADING_DAYS_FROM_DATE is None:
+        from lumibot.tools.helpers import date_n_trading_days_from_date
+
+        _DATE_N_TRADING_DAYS_FROM_DATE = date_n_trading_days_from_date
+    return _DATE_N_TRADING_DAYS_FROM_DATE(*args, **kwargs)
+
+
+def _bars_class() -> type[Any]:
+    global _BARS_CLASS
+    if _BARS_CLASS is None:
+        from lumibot.entities import Bars
+
+        _BARS_CLASS = Bars
+    assert _BARS_CLASS is not None
+    return _BARS_CLASS
+
+
+def _timeframe_from_source_value(value: Any) -> Any:
+    text = str(value)
+    amount_text = "".join(ch for ch in text if ch.isdigit()) or "1"
+    unit_text = text[len(amount_text) :]
+    amount = int(amount_text)
+    timeframe = _get_alpaca_attr("TimeFrame")
+    unit_enum = _get_alpaca_attr("TimeFrameUnit")
+    if unit_text == "Min":
+        return timeframe.Minute if amount == 1 else timeframe(amount, unit_enum.Minute)
+    if unit_text == "Hour":
+        return timeframe.Hour if amount == 1 else timeframe(amount, unit_enum.Hour)
+    if unit_text == "Day":
+        return timeframe.Day if amount == 1 else timeframe(amount, unit_enum.Day)
+    return value
+
+
+def _format_alpaca_option_symbol(asset: Asset) -> str:
+    if asset.expiration is None or asset.right is None or asset.strike is None:
+        raise ValueError(f"Alpaca option asset requires expiration, right, and strike: {asset}")
+
+    strike_formatted = f"{asset.strike:08.3f}".replace(".", "").rjust(8, "0")
+    expiration = asset.expiration.strftime("%y%m%d")
+    right = str(asset.right)[0]
+    return f"{asset.symbol}{expiration}{right}{strike_formatted}"
 
 Adjustment = None
 CryptoHistoricalDataClient = None
@@ -195,15 +314,15 @@ class AlpacaData(DataSource):
         error_message = str(e).lower()
         # Only treat specific authentication-related errors as auth failures
         is_auth_error = (
-            "unauthorized" in error_message or 
-            "401" in error_message or
-            "403" in error_message or
-            "invalid credentials" in error_message or
-            "authentication failed" in error_message or
-            "invalid api key" in error_message or
-            "invalid token" in error_message
+            "unauthorized" in error_message
+            or "401" in error_message
+            or "403" in error_message
+            or "invalid credentials" in error_message
+            or "authentication failed" in error_message
+            or "invalid api key" in error_message
+            or "invalid token" in error_message
         )
-        
+
         if is_auth_error:
             auth_method = "OAuth token" if self.oauth_token else "API key/secret"
             error_msg = (
@@ -255,10 +374,18 @@ class AlpacaData(DataSource):
             except Exception as e:
                 # Check if this is specifically an authentication error
                 error_message = str(e).lower()
-                if any(auth_keyword in error_message for auth_keyword in [
-                    "unauthorized", "401", "403", "invalid credentials", 
-                    "authentication failed", "invalid api key", "invalid token"
-                ]):
+                if any(
+                    auth_keyword in error_message
+                    for auth_keyword in [
+                        "unauthorized",
+                        "401",
+                        "403",
+                        "invalid credentials",
+                        "authentication failed",
+                        "invalid api key",
+                        "invalid token",
+                    ]
+                ):
                     self._handle_auth_error(e, "stock client initialization")
                 else:
                     # For other errors, log and re-raise without marking as auth failed
@@ -278,10 +405,18 @@ class AlpacaData(DataSource):
             except Exception as e:
                 # Check if this is specifically an authentication error
                 error_message = str(e).lower()
-                if any(auth_keyword in error_message for auth_keyword in [
-                    "unauthorized", "401", "403", "invalid credentials", 
-                    "authentication failed", "invalid api key", "invalid token"
-                ]):
+                if any(
+                    auth_keyword in error_message
+                    for auth_keyword in [
+                        "unauthorized",
+                        "401",
+                        "403",
+                        "invalid credentials",
+                        "authentication failed",
+                        "invalid api key",
+                        "invalid token",
+                    ]
+                ):
                     self._handle_auth_error(e, "crypto client initialization")
                 else:
                     # For other errors, log and re-raise without marking as auth failed
@@ -303,10 +438,18 @@ class AlpacaData(DataSource):
                 logger.error(f"Error initializing option client: {e}")
                 # Only call auth error handler for actual auth errors
                 error_message = str(e).lower()
-                if any(auth_keyword in error_message for auth_keyword in [
-                    "unauthorized", "401", "403", "invalid credentials", 
-                    "authentication failed", "invalid api key", "invalid token"
-                ]):
+                if any(
+                    auth_keyword in error_message
+                    for auth_keyword in [
+                        "unauthorized",
+                        "401",
+                        "403",
+                        "invalid credentials",
+                        "authentication failed",
+                        "invalid api key",
+                        "invalid token",
+                    ]
+                ):
                     self._handle_auth_error(e, "option client initialization")
                 else:
                     # For other errors, just re-raise so the actual error is visible
@@ -314,14 +457,14 @@ class AlpacaData(DataSource):
         return self._option_client
 
     def __init__(
-            self,
-            config: dict,
-            max_workers: int = 20,
-            chunk_size: int = 100,
-            delay: Optional[int] = None,
-            tzinfo: Optional[pytz.timezone] = None,
-            remove_incomplete_current_bar: bool = False,
-            **kwargs
+        self,
+        config: dict,
+        max_workers: int = 20,
+        chunk_size: int = 100,
+        delay: int | None = None,
+        tzinfo: pytz.timezone | None = None,
+        remove_incomplete_current_bar: bool = False,
+        **kwargs,
     ) -> None:
         """
         Initializes the Alpaca Data Source.
@@ -330,10 +473,10 @@ class AlpacaData(DataSource):
         - config (dict): Configuration containing API keys for Alpaca.
         - max_workers (int, optional): The maximum number of workers for parallel processing. Default is 20.
         - chunk_size (int, optional): The size of chunks for batch requests. Default is 100.
-        - delay (Optional[int], optional): A delay parameter to control how many minutes to delay non-crypto data for. 
-          Alpaca limits you to 15-min delayed non-crypto data unless you're on a paid data plan. 
+        - delay (Optional[int], optional): A delay parameter to control how many minutes to delay non-crypto data for.
+          Alpaca limits you to 15-min delayed non-crypto data unless you're on a paid data plan.
           If not specified, uses DATA_SOURCE_DELAY environment variable or defaults to 16.
-        - tzinfo (Optional[pytz.timezone], optional): The timezone used for historical data endpoints. Datetimes in 
+        - tzinfo (Optional[pytz.timezone], optional): The timezone used for historical data endpoints. Datetimes in
           dataframes are adjusted to this timezone. Useful for setting UTC for crypto. Default is None.
         - remove_incomplete_current_bar (bool, optional): Default False.
           Whether to remove the incomplete current bar from the data.
@@ -357,7 +500,7 @@ class AlpacaData(DataSource):
         self.name = "alpaca"
         self.max_workers = min(max_workers, 200)
         self._remove_incomplete_current_bar = remove_incomplete_current_bar
-        self._auto_adjust: bool = kwargs.get('auto_adjust', True)
+        self._auto_adjust: bool = kwargs.get("auto_adjust", True)
 
         # When requesting data for assets for example,
         # if there is too many assets, the best thing to do would
@@ -464,7 +607,7 @@ class AlpacaData(DataSource):
             }
         """
         # Check if authentication has previously failed
-        if getattr(self, '_auth_failed', False):
+        if getattr(self, "_auth_failed", False):
             logger.warning("Authentication failure flag is set - attempting to clear and retry")
             # Instead of immediately failing, reset the flag and let the actual error show
             self._auth_failed = False
@@ -487,12 +630,7 @@ class AlpacaData(DataSource):
             raw_chain_data: dict = client.get_option_chain(req)
 
             # Transform the raw Alpaca data into lumibot format
-            chains_data = {
-                "Chains": {
-                    "PUT": {},
-                    "CALL": {}
-                }
-            }
+            chains_data = {"Chains": {"PUT": {}, "CALL": {}}}
 
             # The Alpaca API may return option symbols in different structures
             # Let's check what we actually got and parse accordingly
@@ -509,7 +647,11 @@ class AlpacaData(DataSource):
                 else:
                     # Direct structure: {"SPY250731C00501000": {...}, ...}
                     # Filter to only option symbols (they should start with the underlying symbol)
-                    option_symbols = [key for key in raw_chain_data.keys() if key.startswith(asset.symbol) and len(key) > len(asset.symbol)]
+                    option_symbols = [
+                        key
+                        for key in raw_chain_data.keys()
+                        if key.startswith(asset.symbol) and len(key) > len(asset.symbol)
+                    ]
 
             if not option_symbols:
                 logger.warning(f"No option symbols found for {asset.symbol}")
@@ -532,7 +674,7 @@ class AlpacaData(DataSource):
                     continue
 
                 # Extract date and option type
-                date_and_type = symbol[underlying_len:underlying_len+8]  # YYMMDDCP
+                date_and_type = symbol[underlying_len : underlying_len + 8]  # YYMMDDCP
                 if len(date_and_type) < 7:
                     continue
 
@@ -543,7 +685,7 @@ class AlpacaData(DataSource):
                     option_type = date_and_type[6]  # C or P
 
                     # Extract strike price (remaining digits after C/P)
-                    strike_str = symbol[underlying_len+7:]
+                    strike_str = symbol[underlying_len + 7 :]
                     # Strike is usually in format like 00595000 = $595.00
                     strike = float(strike_str) / 1000.0
 
@@ -574,7 +716,9 @@ class AlpacaData(DataSource):
                 for expiration_date in chains_data["Chains"][option_type]:
                     chains_data["Chains"][option_type][expiration_date].sort()
 
-            logger.debug(f"Successfully retrieved option chains for {asset.symbol}: {len(chains_data['Chains']['PUT'])} PUT expirations, {len(chains_data['Chains']['CALL'])} CALL expirations")
+            logger.debug(
+                f"Successfully retrieved option chains for {asset.symbol}: {len(chains_data['Chains']['PUT'])} PUT expirations, {len(chains_data['Chains']['CALL'])} CALL expirations"
+            )
 
             return chains_data
 
@@ -583,26 +727,29 @@ class AlpacaData(DataSource):
             logger.error(f"Error retrieving option chains for {asset.symbol}: {e}")
             logger.error(f"Error type: {type(e).__name__}")
             logger.error(f"Full error details: {str(e)}")
-            
+
             # Check if this is specifically an authentication error
             error_message = str(e).lower()
-            
+
             # Be more specific about what constitutes an auth error
             # Don't treat every 401 as an auth error - could be data permissions, rate limits, etc.
             is_likely_auth_error = (
-                ("unauthorized" in error_message and (
-                    "invalid" in error_message or 
-                    "expired" in error_message or 
-                    "credentials" in error_message or
-                    "api key" in error_message or
-                    "token" in error_message
-                )) or
-                "authentication failed" in error_message or
-                "invalid api key" in error_message or
-                "invalid token" in error_message or
-                "invalid credentials" in error_message
+                (
+                    "unauthorized" in error_message
+                    and (
+                        "invalid" in error_message
+                        or "expired" in error_message
+                        or "credentials" in error_message
+                        or "api key" in error_message
+                        or "token" in error_message
+                    )
+                )
+                or "authentication failed" in error_message
+                or "invalid api key" in error_message
+                or "invalid token" in error_message
+                or "invalid credentials" in error_message
             )
-            
+
             if is_likely_auth_error:
                 logger.error("This appears to be an authentication error - handling as auth failure")
                 # Handle authentication errors which will set _auth_failed flag
@@ -613,16 +760,16 @@ class AlpacaData(DataSource):
                 logger.error("This does not appear to be an authentication error - re-raising original error")
                 raise e
 
-    def get_last_price(self, asset, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
+    def get_last_price(self, asset, quote=None, exchange=None, **kwargs) -> float | Decimal | None:
         """
         Get the last price for an asset by calling get_quote and returning the last price.
         """
         quote_data = self.get_quote(asset, quote, exchange)
-        if quote_data and hasattr(quote_data, 'price') and quote_data.price is not None:
+        if quote_data and hasattr(quote_data, "price") and quote_data.price is not None:
             return quote_data.price
-        elif quote_data and hasattr(quote_data, 'bid') and quote_data.bid:
+        elif quote_data and hasattr(quote_data, "bid") and quote_data.bid:
             return quote_data.bid
-        elif quote_data and hasattr(quote_data, 'ask') and quote_data.ask:
+        elif quote_data and hasattr(quote_data, "ask") and quote_data.ask:
             return quote_data.ask
         return None
 
@@ -631,17 +778,17 @@ class AlpacaData(DataSource):
     # ----------------------------------------------------------------------
     def get_bars(
         self,
-        assets: List[Asset | str | tuple],
+        assets: list[Asset | str | tuple],
         length: int,
         timestep: str = "minute",
-        timeshift: Optional[dt.timedelta] = None,
+        timeshift: dt.timedelta | None = None,
         chunk_size: int = 1000,
         max_workers: int = 1,  # kept for interface compatibility, unused here
-        quote: Optional[Asset] = None,
-        exchange: Optional[str] = None,
+        quote: Asset | None = None,
+        exchange: str | None = None,
         include_after_hours: bool = True,
         sleep_time: float = 0.0,
-    ) -> Dict[Asset, Bars]:
+    ) -> dict[Asset, Bars]:
         """Fetch historical bars for multiple assets using Alpaca's multi-symbol API.
 
         This override batches symbols per asset class (stocks, options, crypto) and performs
@@ -655,8 +802,7 @@ class AlpacaData(DataSource):
             return {}
 
         # Normalize assets list to Asset objects
-        norm_assets: List[Asset] = []
-        crypto_quote_by_asset: Dict[Asset, Asset] = {}
+        norm_assets: list[Asset] = []
         for a in assets:
             if isinstance(a, Asset):
                 norm_assets.append(a)
@@ -698,9 +844,9 @@ class AlpacaData(DataSource):
         start_dt = self.tzinfo.localize(dt.datetime.combine(start_date, dt.datetime.min.time()))
 
         # Organize symbols by asset class
-        stock_assets: List[Asset] = []
-        option_assets: List[Asset] = []
-        crypto_assets: List[Asset] = []
+        stock_assets: list[Asset] = []
+        option_assets: list[Asset] = []
+        crypto_assets: list[Asset] = []
         for a in norm_assets:
             if a.asset_type == Asset.AssetType.OPTION:
                 option_assets.append(a)
@@ -709,9 +855,9 @@ class AlpacaData(DataSource):
             else:
                 stock_assets.append(a)
 
-        result: Dict[Asset, Bars] = {}
+        result: dict[Asset, Bars] = {}
 
-        def _clean_df(df: pd.DataFrame, symbol: str) -> Optional[pd.DataFrame]:
+        def _clean_df(df: pd.DataFrame, symbol: str) -> pd.DataFrame | None:
             if df is None or df.empty:
                 logger.warning(f"No pricing data available from Alpaca for {symbol}")
                 return None
@@ -739,9 +885,7 @@ class AlpacaData(DataSource):
 
         # Helper to construct option symbol per Alpaca spec
         def _option_symbol(a: Asset) -> str:
-            strike_formatted = f"{a.strike:08.3f}".replace('.', '').rjust(8, '0')
-            date = a.expiration.strftime("%y%m%d")
-            return f"{a.symbol}{date}{a.right[0]}{strike_formatted}"
+            return _format_alpaca_option_symbol(a)
 
         # Chunking utility
         def _chunks(lst, size):
@@ -767,7 +911,7 @@ class AlpacaData(DataSource):
                 )
                 try:
                     barset = client.get_stock_bars(params)
-                    df_multi = getattr(barset, 'df', None)
+                    df_multi = getattr(barset, "df", None)
                     if df_multi is None:
                         continue
                     if isinstance(df_multi.index, pd.MultiIndex):
@@ -816,11 +960,11 @@ class AlpacaData(DataSource):
                 )
                 try:
                     barset = client.get_option_bars(params)
-                    df_multi = getattr(barset, 'df', None)
+                    df_multi = getattr(barset, "df", None)
                     if df_multi is None:
                         continue
                     if isinstance(df_multi.index, pd.MultiIndex):
-                        for sym, a in zip(syms, chunk):
+                        for sym, a in zip(syms, chunk, strict=False):
                             if sym not in df_multi.index.get_level_values(0):
                                 continue
                             try:
@@ -872,7 +1016,7 @@ class AlpacaData(DataSource):
                 )
                 try:
                     barset = client.get_crypto_bars(params)
-                    df_multi = getattr(barset, 'df', None)
+                    df_multi = getattr(barset, "df", None)
                     if df_multi is None:
                         continue
                     if isinstance(df_multi.index, pd.MultiIndex):
@@ -911,17 +1055,16 @@ class AlpacaData(DataSource):
         return result
 
     def get_historical_prices(
-            self,
-            asset: Asset,
-            length: int,
-            timestep: str = "",
-            timeshift: Optional[dt.timedelta] = None,
-            quote: Optional[Asset] = None,
-            exchange: Optional[str] = None,
-            include_after_hours: bool = True,
-            return_polars: bool = False,
-    ) -> Optional[Bars]:
-
+        self,
+        asset: Asset,
+        length: int,
+        timestep: str = "",
+        timeshift: dt.timedelta | None = None,
+        quote: Asset | None = None,
+        exchange: str | None = None,
+        include_after_hours: bool = True,
+        return_polars: bool = False,
+    ) -> Bars | None:
         """Get bars for a given asset"""
 
         if exchange is not None:
@@ -940,7 +1083,7 @@ class AlpacaData(DataSource):
             timestep=timestep,
             timeshift=timeshift,
             quote=quote,
-            include_after_hours=include_after_hours
+            include_after_hours=include_after_hours,
         )
         if df is None:
             return None
@@ -949,15 +1092,15 @@ class AlpacaData(DataSource):
         return bars
 
     def _get_dataframe_from_api(
-            self,
-            asset: Asset,
-            length: int,
-            timestep: str = "",
-            timeshift: Optional[dt.timedelta] = None,
-            quote: Optional[Asset] = None,
-            exchange: Optional[str] = None,
-            include_after_hours: bool = True
-    ) -> Optional[pd.DataFrame]:
+        self,
+        asset: Asset,
+        length: int,
+        timestep: str = "",
+        timeshift: dt.timedelta | None = None,
+        quote: Asset | None = None,
+        exchange: str | None = None,
+        include_after_hours: bool = True,
+    ) -> pd.DataFrame | None:
 
         timeframe = self._parse_source_timestep(timestep, reverse=True)
 
@@ -976,7 +1119,7 @@ class AlpacaData(DataSource):
             end_dt = end_dt - timeshift
 
         # Calculate the start_dt
-        if timestep == 'day':
+        if timestep == "day":
             days_needed = length
         else:
             # For minute bars, calculate additional days needed accounting for weekends/holidays
@@ -988,7 +1131,7 @@ class AlpacaData(DataSource):
             start_datetime=end_dt,
             # TODO: pass market into DataSource
             # This works for now. Crypto gets more bars but throws them out.
-            market='NYSE'
+            market="NYSE",
         )
         start_dt = self.tzinfo.localize(dt.datetime.combine(start_date, dt.datetime.min.time()))
 
@@ -1009,9 +1152,7 @@ class AlpacaData(DataSource):
                 barset = client.get_crypto_bars(params)
 
             elif asset.asset_type == Asset.AssetType.OPTION:
-                strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
-                date = asset.expiration.strftime("%y%m%d")
-                symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
+                symbol = _format_alpaca_option_symbol(asset)
                 client = self._get_option_client()
 
                 # noinspection PyArgumentList
@@ -1036,7 +1177,7 @@ class AlpacaData(DataSource):
                     timeframe=timeframe,
                     start=start_dt,
                     end=end_dt,
-                    adjustment=adjustment_enum.ALL if self._auto_adjust else adjustment_enum.RAW
+                    adjustment=adjustment_enum.ALL if self._auto_adjust else adjustment_enum.RAW,
                 )
                 barset = client.get_stock_bars(params)
 
@@ -1055,7 +1196,7 @@ class AlpacaData(DataSource):
         df = df.reset_index(level=0, drop=True)
 
         # Timezone conversion
-        if hasattr(df.index, 'tz'):
+        if hasattr(df.index, "tz"):
             if df.index.tz is not None:
                 df.index = df.index.tz_convert(self.tzinfo)
             else:
@@ -1066,7 +1207,7 @@ class AlpacaData(DataSource):
         df = df.sort_index()
         df = df[df.close > 0]
 
-        if not include_after_hours and timestep == 'minute' and self.tzinfo == pytz.timezone("America/New_York"):
+        if not include_after_hours and timestep == "minute" and self.tzinfo == pytz.timezone("America/New_York"):
             # Filter data to include only regular market hours
             df = df[(df.index.hour >= 9) & (df.index.minute >= 30) & (df.index.hour < 16)]
 
@@ -1105,7 +1246,7 @@ class AlpacaData(DataSource):
         """
 
         # Check if authentication has previously failed
-        if getattr(self, '_auth_failed', False):
+        if getattr(self, "_auth_failed", False):
             logger.warning("Authentication failure flag is set - attempting to clear and retry")
             # Instead of immediately failing, reset the flag and let the actual error show
             self._auth_failed = False
@@ -1119,6 +1260,7 @@ class AlpacaData(DataSource):
             symbol = f"{asset.symbol}/{quote.symbol if quote else 'USD'}"
             client = self._get_crypto_client()
             from alpaca.data.requests import CryptoLatestQuoteRequest
+
             req = CryptoLatestQuoteRequest(symbol_or_symbols=symbol)
             result = client.get_crypto_latest_quote(req)
             q = result[list(result.keys())[0]]
@@ -1134,22 +1276,16 @@ class AlpacaData(DataSource):
                 bid=getattr(q, "bid_price", None),
                 ask=getattr(q, "ask_price", None),
                 timestamp=getattr(q, "timestamp", None),
-                raw_data={
-                    "exchange": getattr(q, "exchange", None),
-                    "symbol": symbol,
-                    "original_response": q
-                }
+                raw_data={"exchange": getattr(q, "exchange", None), "symbol": symbol, "original_response": q},
             )
         elif asset.asset_type == Asset.AssetType.OPTION:
             # Note: Alpaca only supports "market" and "limit" as valid order types for multi-leg orders.
             # If you pass "credit" or "debit" as the type, Alpaca will return an "invalid order type" error.
-            strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
-            date = asset.expiration.strftime("%y%m%d")
-            symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
-            
-            
+            symbol = _format_alpaca_option_symbol(asset)
+
             client = self._get_option_client()
             from alpaca.data.requests import OptionLatestQuoteRequest
+
             req = OptionLatestQuoteRequest(symbol_or_symbols=symbol)
             trade = client.get_option_latest_quote(req)
             t = trade[symbol]
@@ -1158,7 +1294,7 @@ class AlpacaData(DataSource):
 
             """
             structure of t:
-            {     
+            {
                 'ask_exchange': 'B',
                 'ask_price': 2.86,
                 'ask_size': 10.0,
@@ -1173,25 +1309,26 @@ class AlpacaData(DataSource):
 
             return Quote(
                 asset=asset,
-                price= round((t.bid_price + t.ask_price) / 2, 2) if t.bid_price and t.ask_price else None,  #using mid?
+                price=round((t.bid_price + t.ask_price) / 2, 2) if t.bid_price and t.ask_price else None,  # using mid?
                 bid=getattr(t, "bid_price", None),
                 ask=getattr(t, "ask_price", None),
                 bid_size=getattr(t, "bid_size", None),
                 ask_size=getattr(t, "ask_size", None),
-                volume=None, #not in data from alpaca
+                volume=None,  # not in data from alpaca
                 timestamp=getattr(t, "timestamp", None),
                 raw_data={
-                    "exchange": getattr(t, "ask_exchange", None), #using ask_exchange, ignoring bid_exchange
+                    "exchange": getattr(t, "ask_exchange", None),  # using ask_exchange, ignoring bid_exchange
                     "conditions": getattr(t, "conditions", None),
                     "symbol": symbol,
-                    "original_response": t
-                }
+                    "original_response": t,
+                },
             )
         else:
             # Stocks
             symbol = asset.symbol
             client = self._get_stock_client()
             from alpaca.data.requests import StockLatestQuoteRequest
+
             req = StockLatestQuoteRequest(symbol_or_symbols=symbol)
             q = client.get_stock_latest_quote(req)[symbol]
 
@@ -1206,11 +1343,7 @@ class AlpacaData(DataSource):
                 bid=getattr(q, "bid_price", None),
                 ask=getattr(q, "ask_price", None),
                 timestamp=getattr(q, "timestamp", None),
-                raw_data={
-                    "exchange": getattr(q, "exchange", None),
-                    "symbol": symbol,
-                    "original_response": q
-                }
+                raw_data={"exchange": getattr(q, "exchange", None), "symbol": symbol, "original_response": q},
             )
 
     def query_greeks(self, asset: Asset):
@@ -1223,9 +1356,7 @@ class AlpacaData(DataSource):
             return {}
 
         # Format option symbol for Alpaca Data API
-        strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
-        date = asset.expiration.strftime("%y%m%d")
-        option_symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
+        option_symbol = _format_alpaca_option_symbol(asset)
 
         # Initialize the historical data client
         option_client_class = _get_alpaca_attr("OptionHistoricalDataClient")
@@ -1242,11 +1373,11 @@ class AlpacaData(DataSource):
                 return {}
             greeks_obj = snapshot.greeks
             return {
-                'delta': greeks_obj.delta,
-                'gamma': greeks_obj.gamma,
-                'theta': greeks_obj.theta,
-                'vega': greeks_obj.vega,
-                'rho': greeks_obj.rho,
+                "delta": greeks_obj.delta,
+                "gamma": greeks_obj.gamma,
+                "theta": greeks_obj.theta,
+                "vega": greeks_obj.vega,
+                "rho": greeks_obj.rho,
             }
         except Exception as e:
             logger.info(f"Error fetching greeks from Alpaca Data API: {e}", exc_info=True)

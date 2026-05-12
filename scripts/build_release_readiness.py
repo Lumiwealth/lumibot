@@ -4,10 +4,10 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-from datetime import datetime, timezone
+from collections.abc import Iterable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterable, Optional
-
+from typing import Any
 
 REQUIRED_INTERVALS = ("minute", "hour", "day")
 REQUIRED_IBKR_INDEXES = ("VIX", "SPX", "NDX", "RUT")
@@ -18,7 +18,7 @@ REQUIRED_YAHOO_SYMBOLS = REQUIRED_IBKR_INDEXES
 
 
 def _iso_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -97,7 +97,7 @@ def _merge_lumibot_reports(reports: list[tuple[Path, dict[str, Any]]]) -> dict[s
     merged_cases: dict[tuple[str, str, str, str], dict[str, Any]] = {}
     failure_buckets: list[dict[str, Any]] = []
     unsupported_limits: dict[tuple[str, str, str], dict[str, Any]] = {}
-    lumibot_file: Optional[str] = None
+    lumibot_file: str | None = None
 
     for report_path, raw_report in reports:
         report = _normalize_report_paths(raw_report, report_path)
@@ -162,13 +162,13 @@ def _required_lumibot_keys() -> set[tuple[str, str, str]]:
     return keys
 
 
-def _row_is_green(row: Optional[dict[str, Any]]) -> bool:
+def _row_is_green(row: dict[str, Any] | None) -> bool:
     if not row:
         return False
     return str(row.get("status") or "").strip().lower() in {"pass", "support-limit"}
 
 
-def _artifact_present(row: Optional[dict[str, Any]]) -> bool:
+def _artifact_present(row: dict[str, Any] | None) -> bool:
     path = str((row or {}).get("artifact_path") or "").strip()
     return bool(path) and Path(path).exists()
 

@@ -31,8 +31,7 @@ def test_send_update_to_cloud_connection_error_logs_info(monkeypatch, caplog):
 
     assert result is False
     assert any(
-        record.levelno == logging.INFO
-        and "Connection error when sending to cloud" in record.getMessage()
+        record.levelno == logging.INFO and "Connection error when sending to cloud" in record.getMessage()
         for record in caplog.records
     )
     assert all(record.levelno < logging.ERROR for record in caplog.records)
@@ -63,8 +62,7 @@ def test_send_update_to_cloud_timeout_logs_info(monkeypatch, caplog):
 
     assert result is False
     assert any(
-        record.levelno == logging.INFO
-        and "Timeout error when sending to cloud" in record.getMessage()
+        record.levelno == logging.INFO and "Timeout error when sending to cloud" in record.getMessage()
         for record in caplog.records
     )
     assert all(record.levelno < logging.ERROR for record in caplog.records)

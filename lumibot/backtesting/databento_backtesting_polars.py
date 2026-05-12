@@ -1,47 +1,64 @@
 from __future__ import annotations
 
+# pyright: reportUnknownVariableType=false, reportUnknownMemberType=false, reportUnknownArgumentType=false
+# pyright: reportUnknownParameterType=false, reportMissingParameterType=false, reportMissingTypeArgument=false
+# pyright: reportConstantRedefinition=false, reportInvalidTypeForm=false, reportOptionalMemberAccess=false
+# pyright: reportUnnecessaryComparison=false, reportGeneralTypeIssues=false, reportArgumentType=false
 import traceback
 from datetime import datetime, timedelta
 from importlib import import_module
+from types import ModuleType
+from typing import Any, TypeAlias, cast
 
-from lumibot import LUMIBOT_DEFAULT_PYTZ
-from lumibot.data_sources import PolarsData
-from lumibot.entities import Asset, Quote
-from lumibot.tools.helpers import to_datetime_aware
 from termcolor import colored
 
+from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
+from lumibot.data_sources.polars_data import PolarsData
+from lumibot.entities.asset import Asset
+from lumibot.entities.quote import Quote
+from lumibot.tools.helpers import to_datetime_aware
 from lumibot.tools.lumibot_logger import get_logger
+
 logger = get_logger(__name__)
+PandasDataFrame: TypeAlias = Any  # noqa: UP040
+PolarsDataFrame: TypeAlias = Any  # noqa: UP040
+AssetInput: TypeAlias = Asset | tuple[Asset, Asset]  # noqa: UP040
+
 
 # Conversion tracking for optimization analysis
-def _log_conversion(operation, from_type, to_type, location):
+def _log_conversion(operation: str, from_type: str, to_type: str, location: str) -> None:
     """Log DataFrame conversions to track optimization progress."""
     logger.debug(f"[CONVERSION] {operation} | {from_type} → {to_type} | {location}")
+
 
 START_BUFFER = timedelta(days=5)
 
 
-class _LazyModule:
+class _LazyModule(ModuleType):
+    _module_name: str
+    _module: ModuleType | None
+
     __slots__ = ("_module_name", "_module")
 
-    def __init__(self, module_name: str):
+    def __init__(self, module_name: str) -> None:
+        super().__init__(module_name)
         object.__setattr__(self, "_module_name", module_name)
         object.__setattr__(self, "_module", None)
 
-    def _load(self):
-        module = object.__getattribute__(self, "_module")
+    def _load(self) -> ModuleType:
+        module = cast(ModuleType | None, object.__getattribute__(self, "_module"))
         if module is None:
             module = import_module(object.__getattribute__(self, "_module_name"))
             object.__setattr__(self, "_module", module)
         return module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
         setattr(self._load(), name, value)
 
-    def __delattr__(self, name):
+    def __delattr__(self, name: str) -> None:
         if name in {"_module_name", "_module"}:
             object.__delattr__(self, name)
         else:
@@ -76,8 +93,6 @@ def _data_polars_class():
 
 
 def _databento_auth_error_class():
-    # Resolve lazily so auth-sensitive paths can catch the exact exception type
-    # without importing the DataBento helper during backend module import.
     global _DATABENTO_AUTH_ERROR_CLASS
     if _DATABENTO_AUTH_ERROR_CLASS is None:
         from lumibot.tools.databento_helper_polars import DataBentoAuthenticationError
@@ -99,17 +114,17 @@ class DataBentoDataBacktestingPolars(PolarsData):
 
     def __init__(
         self,
-        datetime_start,
-        datetime_end,
-        pandas_data=None,
-        api_key=None,
-        timeout=30,
-        max_retries=3,
-        **kwargs,
-    ):
+        datetime_start: datetime,
+        datetime_end: datetime,
+        pandas_data: dict[Any, Any] | list[Any] | None = None,
+        api_key: str | None = None,
+        timeout: int = 30,
+        max_retries: int = 3,
+        **kwargs: Any,
+    ) -> None:
         """
         Initialize DataBento backtesting data source
-        
+
         Parameters
         ----------
         datetime_start : datetime
@@ -128,33 +143,29 @@ class DataBentoDataBacktestingPolars(PolarsData):
             Additional parameters passed to parent class
         """
         super().__init__(
-            datetime_start=datetime_start,
-            datetime_end=datetime_end,
-            pandas_data=pandas_data,
-            api_key=api_key,
-            **kwargs
+            datetime_start=datetime_start, datetime_end=datetime_end, pandas_data=pandas_data, api_key=api_key, **kwargs
         )
 
         # Store DataBento-specific configuration
         self._api_key = api_key
         self._timeout = timeout
         self._max_retries = max_retries
-        
+
         # Track which assets we've already fetched to avoid redundant requests
-        self._prefetched_assets = set()
+        self._prefetched_assets: set[Any] = set()
         # Track data requests to avoid repeated log messages
-        self._logged_requests = set()
+        self._logged_requests: set[str] = set()
 
         # OPTIMIZATION: Iteration-level caching to avoid redundant filtering
         # Cache filtered DataFrames per iteration (datetime)
-        self._filtered_bars_cache = {}  # {(asset_key, length, timestep, timeshift, dt): DataFrame}
-        self._last_price_cache = {}     # {(asset_key, dt): price}
-        self._cache_datetime = None     # Track when to invalidate cache
+        self._filtered_bars_cache: dict[Any, Any] = {}  # {(asset_key, length, timestep, timeshift, dt): DataFrame}
+        self._last_price_cache: dict[Any, float] = {}  # {(asset_key, dt): price}
+        self._cache_datetime: datetime | None = None  # Track when to invalidate cache
 
         # Track which futures assets we've fetched multipliers for (to avoid redundant API calls)
-        self._multiplier_fetched_assets = set()
+        self._multiplier_fetched_assets: set[Any] = set()
         # Cache datetime arrays (UTC nanoseconds) per asset/timestep for fast slicing
-        self._datetime_ns_cache = {}
+        self._datetime_ns_cache: dict[Any, Any] = {}
 
         # Verify DataBento availability
         if not databento_helper.DATABENTO_AVAILABLE:
@@ -203,7 +214,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
 
         # Create cache key to track which assets we've already processed
         # Use symbol + asset_type + expiration to handle different contracts
-        cache_key = (asset.symbol, asset.asset_type, getattr(asset, 'expiration', None))
+        cache_key = (asset.symbol, asset.asset_type, getattr(asset, "expiration", None))
 
         # Check if we already tried to fetch for this asset
         if cache_key in self._multiplier_fetched_assets:
@@ -230,13 +241,15 @@ class DataBentoDataBacktestingPolars(PolarsData):
                 asset=asset,
                 resolved_symbol=resolved_symbol,
                 dataset="GLBX.MDP3",
-                reference_date=self.datetime_start
+                reference_date=self.datetime_start,
             )
 
             logger.debug(f"Successfully set multiplier for {asset.symbol}: {asset.multiplier}")
 
         except _databento_auth_error_class() as e:
-            logger.error(colored(f"DataBento authentication failed while fetching multiplier for {asset.symbol}: {e}", "red"))
+            logger.error(
+                colored(f"DataBento authentication failed while fetching multiplier for {asset.symbol}: {e}", "red")
+            )
             raise
         except Exception as e:
             logger.warning(f"Could not fetch multiplier for {asset.symbol}: {e}")
@@ -245,7 +258,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
         """
         Prefetch all required data for the specified assets for the entire backtest period.
         This reduces redundant API calls and log spam during backtesting.
-        
+
         Parameters
         ----------
         assets : list of Asset
@@ -255,25 +268,25 @@ class DataBentoDataBacktestingPolars(PolarsData):
         """
         if not assets:
             return
-            
+
         logger.debug(f"Prefetching DataBento data for {len(assets)} assets...")
-        
+
         for asset in assets:
             # Create search key for the asset
             quote_asset = Asset("USD", "forex")
             search_asset = (asset, quote_asset)
-            
+
             # Skip if already prefetched
             if search_asset in self._prefetched_assets:
                 continue
-                
+
             try:
                 # Calculate start with buffer for better data coverage
                 start_datetime = self.datetime_start - START_BUFFER
                 end_datetime = self.datetime_end + timedelta(days=1)
-                
+
                 logger.debug(f"Fetching {asset.symbol} data from {start_datetime.date()} to {end_datetime.date()}")
-                
+
                 # Get data from DataBento for entire period
                 df = databento_helper.get_price_data_from_databento(
                     api_key=self._api_key,
@@ -282,7 +295,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
                     end=end_datetime,
                     timestep=timestep,
                     venue=None,
-                    force_cache_update=False
+                    force_cache_update=False,
                 )
 
                 is_empty = False
@@ -295,10 +308,10 @@ class DataBentoDataBacktestingPolars(PolarsData):
 
                 if is_empty:
                     # For empty data, create an empty Data object with proper timezone handling
-                    empty_df = pd.DataFrame(columns=['open', 'high', 'low', 'close', 'volume'])
+                    empty_df = pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
                     # Create an empty DatetimeIndex with proper timezone
-                    empty_df.index = pd.DatetimeIndex([], tz=LUMIBOT_DEFAULT_PYTZ, name='datetime')
-                    
+                    empty_df.index = pd.DatetimeIndex([], tz=LUMIBOT_DEFAULT_PYTZ, name="datetime")
+
                     data_obj = _data_class()(
                         asset,
                         df=empty_df,
@@ -306,7 +319,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
                         quote=quote_asset,
                         # Explicitly set dates to avoid timezone issues
                         date_start=None,
-                        date_end=None
+                        date_end=None,
                     )
                     self.pandas_data[search_asset] = data_obj
                     self._cache_datetime_series(search_asset, data_obj)
@@ -323,10 +336,10 @@ class DataBentoDataBacktestingPolars(PolarsData):
                     self._cache_datetime_series(search_asset, data_obj)
                     cached_len = len(pandas_df) if hasattr(pandas_df, "__len__") else 0
                     logger.debug(f"Cached {cached_len} rows for {asset.symbol}")
-                
+
                 # Mark as prefetched
                 self._prefetched_assets.add(search_asset)
-                
+
             except _databento_auth_error_class() as e:
                 logger.error(colored(f"DataBento authentication failed while prefetching {asset.symbol}: {e}", "red"))
                 raise
@@ -422,7 +435,9 @@ class DataBentoDataBacktestingPolars(PolarsData):
                             logger.debug(f"[CACHE HIT] Data sufficient for {asset_separated.symbol}, returning early")
                             return
                         else:
-                            logger.debug(f"[CACHE MISS] Data insufficient - need: {needed_start} to {needed_end}, have: {data_start_tz} to {data_end_tz}")
+                            logger.debug(
+                                f"[CACHE MISS] Data insufficient - need: {needed_start} to {needed_end}, have: {data_start_tz} to {data_end_tz}"
+                            )
             else:
                 # For pandas Data objects, use the regular .df property
                 asset_data_df = asset_data.df
@@ -458,13 +473,13 @@ class DataBentoDataBacktestingPolars(PolarsData):
         # We need to fetch new data from DataBento
         # Create a unique key for logging to avoid spam
         log_key = f"{asset_separated.symbol}_{timestep}"
-        
+
         try:
             # Only log fetch message once per asset/timestep combination
             if log_key not in self._logged_requests:
                 logger.debug(f"Fetching {timestep} data for {asset_separated.symbol}")
                 self._logged_requests.add(log_key)
-            
+
             # Get the start datetime and timestep unit
             start_datetime, ts_unit = self.get_start_datetime_and_ts_unit(
                 length, timestep, start_dt, start_buffer=START_BUFFER
@@ -491,19 +506,19 @@ class DataBentoDataBacktestingPolars(PolarsData):
                 timestep=ts_unit,
                 venue=None,  # Could add venue support later
                 force_cache_update=False,
-                return_polars=True  # Fetch as polars for optimal performance
+                return_polars=True,  # Fetch as polars for optimal performance
             )
 
             # Check if DataFrame is empty (works for both pandas and polars)
-            is_empty = df is None or (hasattr(df, 'is_empty') and df.is_empty()) or (hasattr(df, 'empty') and df.empty)
+            is_empty = df is None or (hasattr(df, "is_empty") and df.is_empty()) or (hasattr(df, "empty") and df.empty)
 
             if is_empty:
                 # For empty data, create an empty Data object with proper timezone handling
                 # to maintain backward compatibility with tests
-                empty_df = pd.DataFrame(columns=['open', 'high', 'low', 'close', 'volume'])
+                empty_df = pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
                 # Create an empty DatetimeIndex with proper timezone
-                empty_df.index = pd.DatetimeIndex([], tz=LUMIBOT_DEFAULT_PYTZ, name='datetime')
-                
+                empty_df.index = pd.DatetimeIndex([], tz=LUMIBOT_DEFAULT_PYTZ, name="datetime")
+
                 data_obj = _data_class()(
                     asset_separated,
                     df=empty_df,
@@ -511,7 +526,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
                     quote=quote_asset,
                     # Use timezone-aware dates to avoid timezone issues
                     date_start=LUMIBOT_DEFAULT_PYTZ.localize(datetime(2000, 1, 1)),
-                    date_end=LUMIBOT_DEFAULT_PYTZ.localize(datetime(2000, 1, 1))
+                    date_end=LUMIBOT_DEFAULT_PYTZ.localize(datetime(2000, 1, 1)),
                 )
                 self.pandas_data[search_asset] = data_obj
                 self._cache_datetime_series(search_asset, data_obj)
@@ -635,7 +650,9 @@ class DataBentoDataBacktestingPolars(PolarsData):
                 return self._last_price_cache[cache_key]
 
             if search_asset not in self.pandas_data:
-                fetch_timestep = getattr(self, '_timestep', self.MIN_TIMESTEP if hasattr(self, 'MIN_TIMESTEP') else 'minute')
+                fetch_timestep = getattr(
+                    self, "_timestep", self.MIN_TIMESTEP if hasattr(self, "MIN_TIMESTEP") else "minute"
+                )
                 self._update_pandas_data(asset_separated, quote_asset, length=10, timestep=fetch_timestep)
 
             if search_asset in self.pandas_data:
@@ -651,7 +668,12 @@ class DataBentoDataBacktestingPolars(PolarsData):
                 if isinstance(asset_data, _data_polars_class()):
                     polars_df = asset_data.polars_df
 
-                    if polars_df.height > 0 and 'close' in polars_df.columns and datetime_ns is not None and len(datetime_ns) > 0:
+                    if (
+                        polars_df.height > 0
+                        and "close" in polars_df.columns
+                        and datetime_ns is not None
+                        and len(datetime_ns) > 0
+                    ):
                         # Ensure current_dt is timezone-aware for comparison
                         current_dt_aware = to_datetime_aware(current_dt)
 
@@ -682,7 +704,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
                     # For regular Data objects, use pandas operations
                     df = asset_data.df
 
-                    if not df.empty and 'close' in df.columns and datetime_ns is not None and len(datetime_ns) > 0:
+                    if not df.empty and "close" in df.columns and datetime_ns is not None and len(datetime_ns) > 0:
                         current_dt_aware = to_datetime_aware(current_dt)
 
                         bar_delta = timedelta(minutes=1)
@@ -701,40 +723,45 @@ class DataBentoDataBacktestingPolars(PolarsData):
 
                         if last_pos >= 0:
                             idx = int(last_pos)
-                            last_price = df['close'].iloc[idx]
+                            last_price = df["close"].iloc[idx]
                             if not pd.isna(last_price):
                                 price = float(last_price)
                                 self._last_price_cache[cache_key] = price
                                 return price
-            
+
             # If no cached data, try to get recent data
             logger.warning(f"No cached data for {asset.symbol}, attempting direct fetch")
             return databento_helper.get_last_price_from_databento(
-                api_key=self._api_key,
-                asset=asset_separated,
-                venue=exchange
+                api_key=self._api_key, asset=asset_separated, venue=exchange
             )
-            
+
         except _databento_auth_error_class() as e:
-            logger.error(colored(f"DataBento authentication failed while getting last price for {asset.symbol}: {e}", "red"))
+            logger.error(
+                colored(f"DataBento authentication failed while getting last price for {asset.symbol}: {e}", "red")
+            )
             raise
         except Exception as e:
             logger.error(f"Error getting last price for {asset.symbol}: {e}")
             return None
 
-    def get_chains(self, asset, quote=None):
+    def get_chains(
+        self,
+        asset: Asset,
+        quote: Asset | None = None,
+        exchange: str | None = None,
+    ) -> dict[str, Any]:
         """
         Get option chains for an asset
-        
+
         DataBento doesn't provide options chain data, so this returns an empty dict.
-        
+
         Parameters
         ----------
         asset : Asset
             Asset to get chains for
         quote : Asset, optional
             Quote asset
-            
+
         Returns
         -------
         dict
@@ -743,7 +770,12 @@ class DataBentoDataBacktestingPolars(PolarsData):
         logger.warning("DataBento does not provide options chain data")
         return {}
 
-    def get_quote(self, asset, quote=None):
+    def get_quote(
+        self,
+        asset: Asset,
+        quote: Asset | None = None,
+        exchange: Any | None = None,
+    ) -> Quote:
         """Return a Quote object using cached bars or a direct fetch."""
         try:
             search_asset = asset if isinstance(asset, tuple) else (asset, Asset("USD", "forex"))
@@ -754,7 +786,9 @@ class DataBentoDataBacktestingPolars(PolarsData):
             elif asset_data is not None:
                 df = asset_data.polars_df if hasattr(asset_data, "polars_df") else asset_data.df
             if df is None:
-                default_timestep = getattr(self, "_timestep", self.MIN_TIMESTEP if hasattr(self, "MIN_TIMESTEP") else "minute")
+                default_timestep = getattr(
+                    self, "_timestep", self.MIN_TIMESTEP if hasattr(self, "MIN_TIMESTEP") else "minute"
+                )
                 df = self._pull_source_symbol_bars(asset, length=1, timestep=default_timestep)
             bid = ask = price = volume = mid = None
             if isinstance(df, pl.DataFrame) and df.height > 0:
@@ -779,8 +813,8 @@ class DataBentoDataBacktestingPolars(PolarsData):
                 volume=float(volume) if volume is not None else None,
                 mid_price=mid,
                 raw_data={"bid": bid, "ask": ask, "price": price},
+                source="polars",
             )
-            quote_obj.source = "polars"
             return quote_obj
         except _databento_auth_error_class() as exc:
             logger.error(colored(f"DataBento authentication failed while getting quote for {asset}: {exc}", "red"))
@@ -792,7 +826,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
     def _get_bars_dict(self, assets, length, timestep, timeshift=None):
         """
         Override parent method to handle DataBento-specific data retrieval
-        
+
         Parameters
         ----------
         assets : list
@@ -803,28 +837,28 @@ class DataBentoDataBacktestingPolars(PolarsData):
             Timestep for the data
         timeshift : timedelta, optional
             Time shift to apply
-            
+
         Returns
         -------
         dict
             Dictionary mapping assets to their bar data
         """
         result = {}
-        
+
         for asset in assets:
             try:
                 # Update pandas data if needed
                 self._update_pandas_data(asset, None, length, timestep)
-                
+
                 # Get data from pandas_data
                 search_asset = asset
                 if not isinstance(search_asset, tuple):
                     search_asset = (search_asset, Asset("USD", "forex"))
-                
+
                 if search_asset in self.pandas_data:
                     asset_data = self.pandas_data[search_asset]
                     df = asset_data.df
-                    
+
                     if not df.empty:
                         # Apply timeshift if specified
                         current_dt = self.get_datetime()
@@ -836,19 +870,19 @@ class DataBentoDataBacktestingPolars(PolarsData):
                             else:
                                 shift_seconds = timeshift.total_seconds()
                                 current_dt = current_dt - timeshift
-                        
+
                         # Ensure current_dt is timezone-aware for comparison
                         current_dt_aware = to_datetime_aware(current_dt)
-                        
+
                         # Filter data up to current backtest time (exclude current bar unless broker overrides)
                         include_current = getattr(self, "_include_current_bar_for_orders", False)
                         allow_current = include_current or shift_seconds > 0
                         mask = df.index <= current_dt_aware if allow_current else df.index < current_dt_aware
                         filtered_df = df[mask]
-                        
+
                         # Take the last 'length' bars
                         result_df = filtered_df.tail(length)
-                        
+
                         if not result_df.empty:
                             result[asset] = result_df
                         else:
@@ -860,14 +894,14 @@ class DataBentoDataBacktestingPolars(PolarsData):
                 else:
                     logger.warning(f"No data found for {asset.symbol}")
                     result[asset] = None
-                    
+
             except _databento_auth_error_class() as e:
                 logger.error(colored(f"DataBento authentication failed while getting bars for {asset}: {e}", "red"))
                 raise
             except Exception as e:
                 logger.error(f"Error getting bars for {asset}: {e}")
                 result[asset] = None
-        
+
         return result
 
     def _pull_source_symbol_bars(
@@ -897,10 +931,9 @@ class DataBentoDataBacktestingPolars(PolarsData):
         quote_asset = quote if quote is not None else Asset("USD", "forex")
 
         if isinstance(search_asset, tuple):
-            asset_separated, quote_asset = search_asset
+            _asset_separated, quote_asset = search_asset
         else:
             search_asset = (search_asset, quote_asset)
-            asset_separated = asset
 
         # OPTIMIZATION: Build cache key and check cache
         # Convert timeshift to consistent format for caching
@@ -922,50 +955,49 @@ class DataBentoDataBacktestingPolars(PolarsData):
         # Check if we have data in pandas_data cache
         if search_asset in self.pandas_data:
             asset_data = self.pandas_data[search_asset]
+            # ========================================================================
+            # CRITICAL: NEGATIVE TIMESHIFT ARITHMETIC FOR LOOKAHEAD (MATCHES PANDAS)
+            # ========================================================================
+            # Negative timeshift allows broker to "peek ahead" for realistic fills.
+            # This arithmetic MUST match pandas exactly: current_dt - timeshift
+            # With timeshift=-2: current_dt - (-2) = current_dt + 2 minutes ✓
+            # ========================================================================
+            shift_seconds = 0
+            shifted_current_dt = current_dt
+            if timeshift:
+                if isinstance(timeshift, int):
+                    shift_seconds = timeshift * 60
+                    shifted_current_dt = current_dt - timedelta(minutes=timeshift)
+                else:
+                    shift_seconds = timeshift.total_seconds()
+                    shifted_current_dt = current_dt - timeshift
+
+            # Ensure current_dt is timezone-aware for comparison
+            current_dt_aware = to_datetime_aware(shifted_current_dt)
+
+            # Step back one bar to avoid exposing the in-progress bar
+            bar_delta = timedelta(minutes=1)
+            if asset_data.timestep == "hour":
+                bar_delta = timedelta(hours=1)
+            elif asset_data.timestep == "day":
+                bar_delta = timedelta(days=1)
+
+            cutoff_dt = current_dt_aware - bar_delta
 
             # OPTIMIZATION: If asset_data is DataPolars, work with polars directly to avoid conversion
             if isinstance(asset_data, _data_polars_class()):
                 polars_df = asset_data.polars_df
 
                 if polars_df.height > 0:
-                    # ========================================================================
-                    # CRITICAL: NEGATIVE TIMESHIFT ARITHMETIC FOR LOOKAHEAD (MATCHES PANDAS)
-                    # ========================================================================
-                    # Negative timeshift allows broker to "peek ahead" for realistic fills.
-                    # This arithmetic MUST match pandas exactly: current_dt - timeshift
-                    # With timeshift=-2: current_dt - (-2) = current_dt + 2 minutes ✓
-                    # ========================================================================
-                    shift_seconds = 0
-                    if timeshift:
-                        if isinstance(timeshift, int):
-                            shift_seconds = timeshift * 60
-                            current_dt = current_dt - timedelta(minutes=timeshift)  # FIXED: was +, now matches pandas
-                        else:
-                            shift_seconds = timeshift.total_seconds()
-                            current_dt = current_dt - timeshift  # FIXED: was +, now matches pandas
-
-                    # Ensure current_dt is timezone-aware for comparison
-                    current_dt_aware = to_datetime_aware(current_dt)
-
-                    # Step back one bar to avoid exposing the in-progress bar
-                    bar_delta = timedelta(minutes=1)
-                    if asset_data.timestep == "hour":
-                        bar_delta = timedelta(hours=1)
-                    elif asset_data.timestep == "day":
-                        bar_delta = timedelta(days=1)
-
-                    cutoff_dt = current_dt_aware - bar_delta
-
                     # Convert to UTC for polars comparison (polars DataFrame datetime is in UTC)
                     # Get the timezone from polars DataFrame
                     polars_tz = polars_df["datetime"].dtype.time_zone
                     if polars_tz:
                         # Convert current_dt_aware to match polars timezone
-                        cutoff_dt_compat = pd.Timestamp(cutoff_dt).tz_convert(polars_tz)
-                        current_dt_compat = pd.Timestamp(current_dt_aware).tz_convert(polars_tz)
+                        pd.Timestamp(cutoff_dt).tz_convert(polars_tz)
+                        pd.Timestamp(current_dt_aware).tz_convert(polars_tz)
                     else:
-                        cutoff_dt_compat = cutoff_dt
-                        current_dt_compat = current_dt_aware
+                        pass
 
                     datetime_key = (search_asset, asset_data.timestep)
                     datetime_ns = self._datetime_ns_cache.get(datetime_key)
@@ -1024,7 +1056,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
                         return None
 
                     start_pos = max(0, last_pos - (length - 1))
-                    result_df = df.iloc[start_pos:last_pos + 1]
+                    result_df = df.iloc[start_pos : last_pos + 1]
 
                     if not result_df.empty:
                         self._filtered_bars_cache[cache_key] = result_df
@@ -1036,12 +1068,12 @@ class DataBentoDataBacktestingPolars(PolarsData):
                     return None
         else:
             return None
-    
+
     def initialize_data_for_backtest(self, strategy_assets, timestep="minute"):
         """
         Convenience method to prefetch all required data for a backtest strategy.
         This should be called during strategy initialization to load all data up front.
-        
+
         Parameters
         ----------
         strategy_assets : list of Asset or list of str
@@ -1054,7 +1086,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
         for asset in strategy_assets:
             if isinstance(asset, str):
                 # Try to determine asset type from symbol format
-                if any(month in asset for month in ['F', 'G', 'H', 'J', 'K', 'M', 'N', 'Q', 'U', 'V', 'X', 'Z']):
+                if any(month in asset for month in ["F", "G", "H", "J", "K", "M", "N", "Q", "U", "V", "X", "Z"]):
                     # Looks like a futures symbol
                     assets.append(Asset(asset, "future"))
                 else:
@@ -1062,8 +1094,8 @@ class DataBentoDataBacktestingPolars(PolarsData):
                     assets.append(Asset(asset, "stock"))
             else:
                 assets.append(asset)
-        
+
         # Prefetch data for all assets
         self.prefetch_data(assets, timestep)
-        
+
         logger.debug(f"Initialized DataBento backtesting with prefetched data for {len(assets)} assets")

@@ -7,8 +7,8 @@ import pandas as pd
 import pytest
 import pytz
 
-from lumibot.entities import Asset
 from lumibot.backtesting import PolygonDataBacktesting
+from lumibot.entities import Asset
 from lumibot.entities.chains import normalize_option_chains
 from lumibot.tools import polygon_helper as ph
 
@@ -134,7 +134,6 @@ class TestPolygonHelpers:
 
     def test_get_polygon_symbol(self, mocker):
 
-
         polygon_client = mocker.MagicMock()
 
         # ------- Unsupported Asset Type
@@ -196,7 +195,7 @@ class TestPolygonHelpers:
                 ],
             }
         )
-        df.to_parquet(cache_file, engine='pyarrow', compression='snappy')
+        df.to_parquet(cache_file, engine="pyarrow", compression="snappy")
         df_loaded = ph.load_cache(cache_file)
         assert len(df_loaded)
         assert df_loaded["close"].iloc[0] == 2
@@ -216,7 +215,7 @@ class TestPolygonHelpers:
                 ],
             }
         )
-        df.to_parquet(cache_file, engine='pyarrow', compression='snappy')
+        df.to_parquet(cache_file, engine="pyarrow", compression="snappy")
         df_loaded = ph.load_cache(cache_file)
         assert len(df_loaded)
         assert df_loaded["close"].iloc[0] == 2
@@ -366,6 +365,7 @@ class TestPolygonHelpers:
         assert df_new.index[2] == pd.DatetimeIndex(["2023-08-01 13:32:00-00:00"])[0]
         assert df_new.index[4] == pd.DatetimeIndex(["2023-08-01 13:34:00-00:00"])[0]
 
+
 class TestPolygonPriceData:
     def test_get_price_data_from_polygon(self, mocker, tmpdir):
         # Ensure we don't accidentally call the real Polygon API
@@ -491,32 +491,32 @@ class TestPolygonPriceData:
         if timespan == "day":
             t = start_date
             while t <= end_date:
-                return_value.append(
-                    {"o": 1, "h": 4, "l": 1, "c": 2, "v": 100, "t": t.timestamp() * 1000}
-                )
+                return_value.append({"o": 1, "h": 4, "l": 1, "c": 2, "v": 100, "t": t.timestamp() * 1000})
                 t += datetime.timedelta(days=1)
         else:
             t = start_date
             while t <= end_date:
-                return_value.append(
-                    {"o": 1, "h": 4, "l": 1, "c": 2, "v": 100, "t": t.timestamp() * 1000}
-                )
+                return_value.append({"o": 1, "h": 4, "l": 1, "c": 2, "v": 100, "t": t.timestamp() * 1000})
                 t += datetime.timedelta(minutes=1)
 
         # Polygon is only called once for the same date range even when they are all missing.
         mock_polyclient.create().get_aggs.return_value = return_value
-        df = ph.get_price_data_from_polygon(api_key, asset, start_date, end_date, timespan, force_cache_update=force_cache_update)
-        
+        df = ph.get_price_data_from_polygon(
+            api_key, asset, start_date, end_date, timespan, force_cache_update=force_cache_update
+        )
+
         mock1 = mock_polyclient.create()
         aggs = mock1.get_aggs
         call_count = aggs.call_count
         assert call_count == 1
-        
+
         assert expected_cachefile.exists()
         if df is None:
             df = pd.DataFrame()
         assert len(df) == len(return_value)
-        df = ph.get_price_data_from_polygon(api_key, asset, start_date, end_date, timespan, force_cache_update=force_cache_update)
+        df = ph.get_price_data_from_polygon(
+            api_key, asset, start_date, end_date, timespan, force_cache_update=force_cache_update
+        )
         if df is None:
             df = pd.DataFrame()
         assert len(df) == len(return_value)
@@ -554,8 +554,12 @@ class TestPolygonPriceData:
                 {"o": 25, "h": 28, "l": 23, "c": 26, "v": 100, "t": 1698768000000},  # 10/31/2023 8am UTC
             ],
         ]
-        mock_polyclient.create().get_aggs.side_effect = aggs_result_list + aggs_result_list if force_cache_update else aggs_result_list
-        df = ph.get_price_data_from_polygon(api_key, asset, start_date, end_date, timespan, force_cache_update=force_cache_update)
+        mock_polyclient.create().get_aggs.side_effect = (
+            aggs_result_list + aggs_result_list if force_cache_update else aggs_result_list
+        )
+        df = ph.get_price_data_from_polygon(
+            api_key, asset, start_date, end_date, timespan, force_cache_update=force_cache_update
+        )
         assert mock_polyclient.create().get_aggs.call_count == 3
         assert expected_cachefile.exists()
         # For daily data: 7 rows (Aug 1 date matches query start date)
@@ -564,7 +568,6 @@ class TestPolygonPriceData:
         assert len(df) == expected_len
 
         expected_cachefile.unlink()
-
 
     def test_get_chains_cached(self, mocker, tmpdir):
         """
@@ -602,7 +605,7 @@ class TestPolygonPriceData:
         # so each call is invoked twice.
         mock_polyclient.list_options_contracts.side_effect = [
             [mock_contract_call, mock_contract_nonstandard],  # first call => expired=True
-            [mock_contract_put, mock_contract_nonstandard],   # second call => expired=False
+            [mock_contract_put, mock_contract_nonstandard],  # second call => expired=False
         ]
 
         # 4) First call => expect 2 calls (for True & False)
@@ -644,40 +647,42 @@ class TestPolygonPriceData:
         assert mock_polyclient.list_options_contracts.call_count == 0
 
     def test_polygon_no_future_bars_before_open(self, monkeypatch):
-        tz = pytz.timezone('America/New_York')
+        tz = pytz.timezone("America/New_York")
         now = tz.localize(datetime.datetime(2023, 11, 1, 9, 30))
         frame = pd.DataFrame(
             {
-                'open': [377.0, 378.5],
-                'high': [377.5, 379.0],
-                'low': [376.8, 378.2],
-                'close': [377.2, 378.9],
-                'volume': [10_000, 10_500],
+                "open": [377.0, 378.5],
+                "high": [377.5, 379.0],
+                "low": [376.8, 378.2],
+                "close": [377.2, 378.9],
+                "volume": [10_000, 10_500],
             },
-            index=pd.DatetimeIndex([
-                tz.localize(datetime.datetime(2023, 11, 1, 9, 29)),
-                tz.localize(datetime.datetime(2023, 11, 1, 9, 31)),
-            ]),
+            index=pd.DatetimeIndex(
+                [
+                    tz.localize(datetime.datetime(2023, 11, 1, 9, 29)),
+                    tz.localize(datetime.datetime(2023, 11, 1, 9, 31)),
+                ]
+            ),
         )
 
         monkeypatch.setattr(
-            'lumibot.backtesting.polygon_backtesting.polygon_helper.get_price_data_from_polygon',
+            "lumibot.backtesting.polygon_backtesting.polygon_helper.get_price_data_from_polygon",
             lambda *args, **kwargs: frame,
         )
 
         data_source = PolygonDataBacktesting(
             datetime_start=now - datetime.timedelta(days=1),
             datetime_end=now + datetime.timedelta(days=1),
-            api_key='dummy',
+            api_key="dummy",
         )
         data_source._datetime = now
-        asset = Asset('SPY')
-        quote = Asset('USD', 'forex')
+        asset = Asset("SPY")
+        quote = Asset("USD", "forex")
 
         bars = data_source.get_historical_prices(
             asset,
             length=1,
-            timestep='minute',
+            timestep="minute",
             quote=quote,
             timeshift=datetime.timedelta(minutes=-1),
         )

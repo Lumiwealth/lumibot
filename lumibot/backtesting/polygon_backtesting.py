@@ -1,80 +1,99 @@
+# pyright: reportIncompatibleMethodOverride=false
+
 from __future__ import annotations
 
 import traceback
 from collections import OrderedDict
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 from importlib import import_module
-from typing import Union
+from types import ModuleType
+from typing import Any, TypeAlias, cast
 
 from termcolor import colored
 
+from lumibot.data_sources.pandas_data import PandasData
+from lumibot.entities.asset import Asset
 from lumibot.tools.lumibot_logger import get_logger
-from lumibot.data_sources import PandasData
-from lumibot.entities import Asset
 
 logger = get_logger(__name__)
 START_BUFFER = timedelta(days=5)
 
+AssetInput: TypeAlias = Asset | str | tuple[Any, Any]  # noqa: UP040 - keep Python 3.11 parser compatibility.
+PandasDataFrame: TypeAlias = Any  # noqa: UP040 - keep Python 3.11 parser compatibility.
+DataEntity: TypeAlias = Any  # noqa: UP040 - keep Python 3.11 parser compatibility.
+BarsEntity: TypeAlias = Any  # noqa: UP040 - keep Python 3.11 parser compatibility.
 
-class _LazyModule:
+
+class _LazyModule(ModuleType):
+    _module_name: str
+    _module: ModuleType | None
+
     __slots__ = ("_module_name", "_module")
 
-    def __init__(self, module_name: str):
-        object.__setattr__(self, "_module_name", module_name)
-        object.__setattr__(self, "_module", None)
+    def __init__(self, module_name: str) -> None:
+        super().__init__(module_name)
+        self._module_name = module_name
+        self._module = None
 
-    def _load(self):
-        module = object.__getattribute__(self, "_module")
+    def _load(self) -> ModuleType:
+        module = self._module
         if module is None:
-            module = import_module(object.__getattribute__(self, "_module_name"))
-            object.__setattr__(self, "_module", module)
+            module = import_module(self._module_name)
+            self._module = module
         return module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in {"_module_name", "_module"}:
+            object.__setattr__(self, name, value)
+            return
         setattr(self._load(), name, value)
 
-    def __delattr__(self, name):
+    def __delattr__(self, name: str) -> None:
         if name in {"_module_name", "_module"}:
             object.__delattr__(self, name)
         else:
             delattr(self._load(), name)
 
 
-polygon_helper = _LazyModule("lumibot.tools.polygon_helper")
-_POLYGON_CLIENT_CLASS = None
-_BAD_RESPONSE_CLASS = None
-_DATA_CLASS = None
+polygon_helper: Any = _LazyModule("lumibot.tools.polygon_helper")
+_polygon_client_class_cache: Any | None = None
+_bad_response_class_cache: type[BaseException] | None = None
+_data_class_cache: type[Any] | None = None
 
 
-def _polygon_client_class():
-    global _POLYGON_CLIENT_CLASS
-    if _POLYGON_CLIENT_CLASS is None:
+def _polygon_client_class() -> Any:
+    global _polygon_client_class_cache
+    if _polygon_client_class_cache is None:
         from lumibot.tools.polygon_helper import PolygonClient
 
-        _POLYGON_CLIENT_CLASS = PolygonClient
-    return _POLYGON_CLIENT_CLASS
+        _polygon_client_class_cache = PolygonClient
+    return _polygon_client_class_cache
 
 
-def _bad_response_class():
-    global _BAD_RESPONSE_CLASS
-    if _BAD_RESPONSE_CLASS is None:
-        from polygon.exceptions import BadResponse
+def _bad_response_class() -> type[BaseException]:
+    global _bad_response_class_cache
+    if _bad_response_class_cache is None:
+        polygon_exceptions = cast(Any, import_module("polygon.exceptions"))
+        _bad_response_class_cache = cast(type[BaseException], polygon_exceptions.BadResponse)
+    return _bad_response_class_cache
 
-        _BAD_RESPONSE_CLASS = BadResponse
-    return _BAD_RESPONSE_CLASS
 
-
-def _data_class():
-    global _DATA_CLASS
-    if _DATA_CLASS is None:
+def _data_class() -> type[Any]:
+    global _data_class_cache
+    if _data_class_cache is None:
         from lumibot.entities import Data
 
-        _DATA_CLASS = Data
-    return _DATA_CLASS
+        _data_class_cache = Data
+    assert _data_class_cache is not None
+    return _data_class_cache
+
+
+def _dataframe_memory_usage_bytes(df: PandasDataFrame) -> int:
+    return int(df.memory_usage().sum())
 
 
 class PolygonDataBacktesting(PandasData):
@@ -82,40 +101,64 @@ class PolygonDataBacktesting(PandasData):
     Backtesting implementation of Polygon
     """
 
-    option_quote_fallback_allowed = True
+    option_quote_fallback_allowed: bool = True
+    _max_storage_bytes: int | None
 
     def __init__(
         self,
-        datetime_start,
-        datetime_end,
-        pandas_data=None,
-        api_key=None,
-        max_memory=None,
-        **kwargs,
-    ):
+        datetime_start: datetime | None = None,
+        datetime_end: datetime | None = None,
+        pandas_data: dict[Any, Any] | list[Any] | None = None,
+        api_key: str | None = None,
+        max_memory: int | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(
-            datetime_start=datetime_start, datetime_end=datetime_end, pandas_data=pandas_data, api_key=api_key,
-            allow_option_quote_fallback=True, **kwargs
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
+            pandas_data=pandas_data,
+            api_key=api_key,
+            allow_option_quote_fallback=True,
+            **kwargs,
         )
 
         # Memory limit, off by default
-        self.MAX_STORAGE_BYTES = max_memory
-        
+        self._max_storage_bytes = max_memory
+
         # Store errors CSV path for use in data retrieval
 
         # RESTClient API for Polygon.io polygon-api-client
         self.polygon_client = _polygon_client_class().create(api_key=api_key)
 
-    def _enforce_storage_limit(pandas_data: OrderedDict):
-        storage_used = sum(data.df.memory_usage().sum() for data in pandas_data.values())
+    @property
+    def MAX_STORAGE_BYTES(self) -> int | None:
+        return self._max_storage_bytes
+
+    @MAX_STORAGE_BYTES.setter
+    def MAX_STORAGE_BYTES(self, value: int | None) -> None:
+        self._max_storage_bytes = None if value is None else int(value)
+
+    def _enforce_storage_limit(self, pandas_data: OrderedDict[Any, Any]) -> None:
+        max_storage_bytes = self.MAX_STORAGE_BYTES
+        if max_storage_bytes is None:
+            return
+
+        storage_used = sum(_dataframe_memory_usage_bytes(data.df) for data in pandas_data.values())
         logger.info(f"{storage_used = :,} bytes for {len(pandas_data)} items")
-        while storage_used > PolygonDataBacktesting.MAX_STORAGE_BYTES:
+        while storage_used > max_storage_bytes and pandas_data:
             k, d = pandas_data.popitem(last=False)
-            mu = d.df.memory_usage().sum()
+            mu = _dataframe_memory_usage_bytes(d.df)
             storage_used -= mu
             logger.info(f"Storage limit exceeded. Evicted LRU data: {k} used {mu:,} bytes")
 
-    def _update_pandas_data(self, asset, quote, length, timestep, start_dt=None):
+    def _update_pandas_data(
+        self,
+        asset: AssetInput,
+        quote: Asset | None,
+        length: int,
+        timestep: str,
+        start_dt: datetime | None = None,
+    ) -> None:
         """
         Get asset data and update the self.pandas_data dictionary.
 
@@ -132,18 +175,20 @@ class PolygonDataBacktesting(PandasData):
         start_dt : datetime
             The start datetime to use. If None, the current self.start_datetime will be used.
         """
-        search_asset = asset
-        asset_separated = asset
+        search_asset: Any = asset
+        asset_separated: Asset | str = cast(Asset | str, asset)
         quote_asset = quote if quote is not None else Asset("USD", "forex")
 
         if isinstance(search_asset, tuple):
-            asset_separated, quote_asset = search_asset
+            asset_separated = cast(Asset | str, search_asset[0])
+            quote_asset = cast(Asset, search_asset[1])
         else:
             search_asset = (search_asset, quote_asset)
 
         # Get the start datetime and timestep unit
-        start_datetime, ts_unit = self.get_start_datetime_and_ts_unit(
-            length, timestep, start_dt, start_buffer=START_BUFFER
+        start_datetime, ts_unit = cast(
+            tuple[datetime, str],
+            self.get_start_datetime_and_ts_unit(length, timestep, start_dt, start_buffer=START_BUFFER),
         )
         # Check if we have data for this asset
         if search_asset in self.pandas_data:
@@ -197,7 +242,7 @@ class PolygonDataBacktesting(PandasData):
                 start_datetime,
                 self.datetime_end,
                 timespan=ts_unit,
-                quote_asset=quote_asset
+                quote_asset=quote_asset,
             )
         except _bad_response_class() as e:
             # Assuming e.message or similar attribute contains the error message
@@ -228,7 +273,8 @@ class PolygonDataBacktesting(PandasData):
                     "Please use the full link to give us credit for the sale, it helps support this project. "
                     "You can use the coupon code 'LUMI10' for 10% off. "
                     "We recommend switching to ThetaData (https://www.thetadata.net/ with promo code 'BotSpot10') for higher-quality, faster data and first-class support in LumiBot. ",
-                    color="red")
+                    color="red",
+                )
                 raise Exception(error_message) from e
             else:
                 # Handle other BadResponse exceptions not related to plan limitations
@@ -245,7 +291,7 @@ class PolygonDataBacktesting(PandasData):
         pandas_data_update = self._set_pandas_data_keys([data])
         # Add the keys to the self.pandas_data dictionary
         self.pandas_data.update(pandas_data_update)
-        if self.MAX_STORAGE_BYTES:
+        if self.MAX_STORAGE_BYTES is not None:
             self._enforce_storage_limit(self.pandas_data)
 
     def _pull_source_symbol_bars(
@@ -253,11 +299,11 @@ class PolygonDataBacktesting(PandasData):
         asset: Asset,
         length: int,
         timestep: str = "day",
-        timeshift: int = None,
-        quote: Asset = None,
-        exchange: str = None,
+        timeshift: int | timedelta | None = None,
+        quote: Asset | None = None,
+        exchange: str | None = None,
         include_after_hours: bool = True,
-    ):
+    ) -> Any | None:
         # Get the current datetime and calculate the start datetime
         current_dt = self.get_datetime()
         # Get data from Polygon
@@ -269,27 +315,35 @@ class PolygonDataBacktesting(PandasData):
     # Get pricing data for an asset for the entire backtesting period
     def get_historical_prices_between_dates(
         self,
-        asset,
-        timestep="minute",
-        quote=None,
-        exchange=None,
-        include_after_hours=True,
-        start_date=None,
-        end_date=None,
-    ):
+        asset: AssetInput,
+        timestep: str = "minute",
+        quote: Asset | None = None,
+        exchange: str | None = None,
+        include_after_hours: bool = True,
+        start_date: Any | None = None,
+        end_date: Any | None = None,
+    ) -> BarsEntity | None:
         self._update_pandas_data(asset, quote, 1, timestep)
 
         response = super()._pull_source_symbol_bars_between_dates(
-            asset, timestep, quote, exchange, include_after_hours, start_date, end_date
+            cast(Asset, asset), timestep, quote, exchange, include_after_hours, start_date, end_date
         )
 
         if response is None:
             return None
 
-        bars = self._parse_source_symbol_bars(response, asset, quote=quote)
+        bars = self._parse_source_symbol_bars(response, cast(Asset | tuple[Any, Any], asset), quote=quote)
         return bars
 
-    def get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
+    def get_last_price(
+        self,
+        asset: AssetInput,
+        timestep: str = "minute",
+        quote: Asset | None = None,
+        exchange: str | None = None,
+        **kwargs: Any,
+    ) -> float | Decimal | None:
+        dt: datetime | None = None
         try:
             dt = self.get_datetime()
             self._update_pandas_data(asset, quote, 1, timestep, dt)
@@ -297,9 +351,9 @@ class PolygonDataBacktesting(PandasData):
             print(f"Error get_last_price from Polygon: {e}")
             print(f"Error get_last_price from Polygon: {asset=} {quote=} {timestep=} {dt=} {e}")
 
-        return super().get_last_price(asset=asset, quote=quote, exchange=exchange)
+        return super().get_last_price(asset=cast(Asset, asset), quote=quote, exchange=exchange)
 
-    def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):
+    def get_chains(self, asset: Asset, quote: Asset | None = None, exchange: str | None = None) -> dict[str, Any]:
         """
         Integrates the Polygon client library into the LumiBot backtest for Options Data
         in the same structure as Interactive Brokers options chain data.

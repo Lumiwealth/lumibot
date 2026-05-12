@@ -1,5 +1,5 @@
-from datetime import date
 import logging
+from datetime import date
 
 import pytest
 
@@ -86,4 +86,3 @@ def test_thetadata_option_mtm_returns_none_instead_of_stale_last_trade():
     assert result is None
     assert source.get_quote_calls == 1
     assert source.get_last_price_calls == 0
-

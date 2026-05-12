@@ -1,21 +1,113 @@
 from __future__ import annotations
 
+# pyright: reportMissingTypeStubs=false
+# pyright: reportUnknownVariableType=false, reportUnknownMemberType=false, reportUnknownArgumentType=false
+# pyright: reportUnknownParameterType=false, reportMissingParameterType=false, reportMissingTypeArgument=false
+# pyright: reportConstantRedefinition=false, reportInvalidTypeForm=false, reportOptionalMemberAccess=false
+# pyright: reportAttributeAccessIssue=false, reportIncompatibleMethodOverride=false, reportArgumentType=false
+# pyright: reportIndexIssue=false, reportUnnecessaryComparison=false
 import datetime as dt
 from collections import defaultdict
+from collections.abc import Callable
 from decimal import Decimal
 from importlib import import_module
-from typing import Union
+from types import ModuleType
+from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
 import pytz
 
 from lumibot.constants import LUMIBOT_DEFAULT_TIMEZONE
-from lumibot.entities import Asset, Quote
+from lumibot.entities.asset import Asset
+from lumibot.entities.quote import Quote
 from lumibot.tools import black_scholes
 from lumibot.tools.lumibot_logger import get_logger
 
 from .data_source import DataSource
 
+if TYPE_CHECKING:
+    from lumibot.entities.bars import Bars
+
 logger = get_logger(__name__)
+PandasDataFrame: TypeAlias = Any  # noqa: UP040
+AssetInput: TypeAlias = Asset | tuple[Asset, Asset]  # noqa: UP040
+ChainMap: TypeAlias = dict[str, Any]  # noqa: UP040
+GreeksMap: TypeAlias = dict[str, Any]  # noqa: UP040
+
+
+class _LazyModule(ModuleType):
+    _module_name: str
+    _module: ModuleType | None
+
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str) -> None:
+        super().__init__(module_name)
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self) -> ModuleType:
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+_tradier_class_cache: type[Any] | None = None
+_bars_class_cache: type[Any] | None = None
+_create_options_symbol_cache: Callable[..., str] | None = None
+_date_n_trading_days_from_date_cache: Callable[..., Any] | None = None
+_parse_timestep_qty_and_unit_cache: Callable[..., tuple[int, str]] | None = None
+
+
+def _tradier_class() -> type[Any]:
+    global _tradier_class_cache
+    if _tradier_class_cache is None:
+        from lumiwealth_tradier import Tradier
+
+        _tradier_class_cache = Tradier
+    return _tradier_class_cache
+
+
+def _bars_class() -> type[Any]:
+    global _bars_class_cache
+    if _bars_class_cache is None:
+        from lumibot.entities.bars import Bars
+
+        _bars_class_cache = Bars
+    return _bars_class_cache
+
+
+def _create_options_symbol(*args: Any, **kwargs: Any) -> str:
+    global _create_options_symbol_cache
+    if _create_options_symbol_cache is None:
+        from lumibot.tools.helpers import create_options_symbol
+
+        _create_options_symbol_cache = create_options_symbol
+    return str(_create_options_symbol_cache(*args, **kwargs))
+
+
+def _date_n_trading_days_from_date(*args: Any, **kwargs: Any) -> dt.date:
+    global _date_n_trading_days_from_date_cache
+    if _date_n_trading_days_from_date_cache is None:
+        from lumibot.tools.helpers import date_n_trading_days_from_date
+
+        _date_n_trading_days_from_date_cache = date_n_trading_days_from_date
+    return cast(dt.date, _date_n_trading_days_from_date_cache(*args, **kwargs))
+
+
+def _parse_timestep_qty_and_unit(*args: Any, **kwargs: Any) -> tuple[int, str]:
+    global _parse_timestep_qty_and_unit_cache
+    if _parse_timestep_qty_and_unit_cache is None:
+        from lumibot.tools.helpers import parse_timestep_qty_and_unit
+
+        _parse_timestep_qty_and_unit_cache = parse_timestep_qty_and_unit
+    qty, unit = _parse_timestep_qty_and_unit_cache(*args, **kwargs)
+    return int(qty), str(unit)
 
 
 class _LazyModule:
@@ -94,7 +186,6 @@ class TradierAPIError(Exception):
 
 
 class TradierData(DataSource):
-
     MIN_TIMESTEP = "minute"
     SOURCE = "Tradier"
     TIMESTEP_MAPPING = [
@@ -131,15 +222,15 @@ class TradierData(DataSource):
     ]
 
     def __init__(
-            self,
-            account_number: str,
-            access_token: str,
-            paper: bool = True,
-            max_workers: int = 20,
-            delay: int = None,
-            tzinfo: pytz.timezone = pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE),
-            remove_incomplete_current_bar: bool = False,
-            **kwargs
+        self,
+        account_number: str,
+        access_token: str,
+        paper: bool = True,
+        max_workers: int = 20,
+        delay: int | None = None,
+        tzinfo: pytz.tzinfo.BaseTzInfo | None = None,
+        remove_incomplete_current_bar: bool = False,
+        **kwargs: Any,
     ) -> None:
         """
         Initializes the trading account with the specified parameters.
@@ -165,6 +256,9 @@ class TradierData(DataSource):
         - None
         """
 
+        if tzinfo is None:
+            tzinfo = pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE)
+
         super().__init__(api_key=access_token, delay=delay, tzinfo=tzinfo)
         self._account_number = account_number
         self._paper = paper
@@ -172,7 +266,11 @@ class TradierData(DataSource):
         self.tradier = _tradier_class()(account_number, access_token, paper)
         self._remove_incomplete_current_bar = remove_incomplete_current_bar
 
-    def _sanitize_base_and_quote_asset(self, base_asset, quote_asset) -> tuple[Asset, Asset]:
+    def _sanitize_base_and_quote_asset(
+        self,
+        base_asset: AssetInput,
+        quote_asset: Asset | None,
+    ) -> tuple[Asset, Asset | None]:
         if isinstance(base_asset, tuple):
             quote = base_asset[1]
             asset = base_asset[0]
@@ -185,7 +283,12 @@ class TradierData(DataSource):
 
         return asset, quote
 
-    def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):
+    def get_chains(
+        self,
+        asset: Asset,
+        quote: Asset | None = None,
+        exchange: str | None = None,
+    ) -> ChainMap:
         """
         Obtains option chain information for the asset (stock) from each
         of the exchanges the options trade on and returns a dictionary
@@ -217,10 +320,13 @@ class TradierData(DataSource):
 
         # Tradier doesn't report multiple exchanges, just use SMART
         multiplier = int(df_chains.contract_size.mode()[0])  # Use most common, should always be 100
-        chains = {"Multiplier": multiplier, "Exchange": "unknown",
-                  "Chains": {"CALL": defaultdict(list), "PUT": defaultdict(list)}}
+        chains: ChainMap = {
+            "Multiplier": multiplier,
+            "Exchange": "unknown",
+            "Chains": {"CALL": defaultdict(list), "PUT": defaultdict(list)},
+        }
         for row in df_chains.reset_index().to_dict("records"):
-            exp_date = row["date"].strftime('%Y-%m-%d')
+            exp_date = row["date"].strftime("%Y-%m-%d")
             strikes = row["strikes"]
             try:
                 strikes = sorted(float(s) for s in strikes)
@@ -234,8 +340,16 @@ class TradierData(DataSource):
 
         return chains
 
-    def get_chain_full_info(self, asset: Asset, expiry: str, chains=None, underlying_price=float, risk_free_rate=float,
-                            strike_min=None, strike_max=None) -> pd.DataFrame:
+    def get_chain_full_info(
+        self,
+        asset: Asset,
+        expiry: str,
+        chains: ChainMap | None = None,
+        underlying_price: float | None = None,
+        risk_free_rate: float | None = None,
+        strike_min: float | None = None,
+        strike_max: float | None = None,
+    ) -> PandasDataFrame:
         """
         Get the full chain information for an option asset, including: greeks, bid/ask, open_interest, etc. For
         brokers that do not support this, greeks will be calculated locally. For brokers like Tradier this function
@@ -278,8 +392,17 @@ class TradierData(DataSource):
         return df
 
     def get_historical_prices(
-        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True, return_polars: bool = False
-    ):
+        self,
+        asset: AssetInput,
+        length: int,
+        timestep: str = "",
+        timeshift: Any | None = None,
+        quote: Asset | None = None,
+        exchange: str | None = None,
+        include_after_hours: bool = True,
+        return_polars: bool = False,
+        **kwargs: Any,
+    ) -> Bars | None:
         """
         Get bars for a given asset
 
@@ -331,7 +454,7 @@ class TradierData(DataSource):
                 raise TypeError("timeshift must be a timedelta")
             end_dt = end_dt - timeshift
 
-        if timestep == 'day':
+        if timestep == "day":
             days_needed = length
         else:
             # For minute bars, calculate additional days needed accounting for weekends/holidays
@@ -344,7 +467,7 @@ class TradierData(DataSource):
             start_datetime=end_dt,
             # TODO: pass market into DataSource
             # This works for now. Crypto gets more bars but throws them out.
-            market='NYSE'
+            market="NYSE",
         )
         start_dt = self.tzinfo.localize(dt.datetime.combine(start_date, dt.datetime.min.time()))
 
@@ -406,7 +529,12 @@ class TradierData(DataSource):
 
         return bars
 
-    def get_last_price(self, asset, quote=None, exchange=None) -> Union[float, Decimal, None]:
+    def get_last_price(
+        self,
+        asset: AssetInput,
+        quote: Asset | None = None,
+        exchange: str | None = None,
+    ) -> float | Decimal | None:
         """
         This function returns the last price of an asset.
         Parameters
@@ -446,7 +574,12 @@ class TradierData(DataSource):
             logger.error(f"Error getting last price for {symbol or asset.symbol}: {e}")
             return None
 
-    def get_quote(self, asset, quote=None, exchange=None) -> Quote:
+    def get_quote(
+        self,
+        asset: AssetInput,
+        quote: Asset | None = None,
+        exchange: str | None = None,
+    ) -> Quote:
         """
         This function returns the quote of an asset.
         Parameters
@@ -488,19 +621,19 @@ class TradierData(DataSource):
         # Extract relevant fields for the Quote object
         return Quote(
             asset=asset,
-            price=quote_dict.get('last'),
-            bid=quote_dict.get('bid'),
-            ask=quote_dict.get('ask'),
-            volume=quote_dict.get('volume'),
+            price=quote_dict.get("last"),
+            bid=quote_dict.get("bid"),
+            ask=quote_dict.get("ask"),
+            volume=quote_dict.get("volume"),
             timestamp=dt.datetime.now(pytz.UTC),
-            bid_size=quote_dict.get('bidsize'),
-            ask_size=quote_dict.get('asksize'),
-            change=quote_dict.get('change'),
-            percent_change=quote_dict.get('change_percentage'),
-            raw_data=quote_dict
+            bid_size=quote_dict.get("bidsize"),
+            ask_size=quote_dict.get("asksize"),
+            change=quote_dict.get("change"),
+            percent_change=quote_dict.get("change_percentage"),
+            raw_data=quote_dict,
         )
 
-    def query_greeks(self, asset: Asset):
+    def query_greeks(self, asset: Asset) -> GreeksMap:
         """
         This function returns the greeks of an option as reported by the Tradier API.
 
@@ -514,7 +647,7 @@ class TradierData(DataSource):
         dict
             A dictionary containing the greeks of the option.
         """
-        greeks = {}
+        greeks: GreeksMap = {}
         stock_symbol = asset.symbol
         expiration = asset.expiration
         option_symbol = _create_options_symbol(stock_symbol, expiration, asset.right, asset.strike)
@@ -523,8 +656,8 @@ class TradierData(DataSource):
         if df.empty:
             return {}
 
-        for col in [x for x in df.columns if 'greeks' in x]:
-            greek_name = col.replace('greeks.', '')
+        for col in [x for x in df.columns if "greeks" in x]:
+            greek_name = col.replace("greeks.", "")
             greeks[greek_name] = df[col].iloc[0]
 
         # Tradier can round extremely small deltas to 0.0 for far OTM options.
@@ -557,7 +690,9 @@ class TradierData(DataSource):
 
                     if isinstance(expiration, dt.date):
                         expiration_dt = dt.datetime.combine(expiration, dt.time.min)
-                        expiration_dt = self.tzinfo.localize(expiration_dt).replace(hour=16, minute=0, second=0, microsecond=0)
+                        expiration_dt = self.tzinfo.localize(expiration_dt).replace(
+                            hour=16, minute=0, second=0, microsecond=0
+                        )
                         now = self.get_datetime()
                         days_to_expiration = (expiration_dt - now).total_seconds() / (60 * 60 * 24)
                         # Options can be queried after market close in CI/local runs. Avoid a near-zero

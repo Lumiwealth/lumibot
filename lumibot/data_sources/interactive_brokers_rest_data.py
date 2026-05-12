@@ -1,31 +1,42 @@
 from __future__ import annotations
 
+# pyright: reportMissingParameterType=false, reportUnknownParameterType=false
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false
+# pyright: reportMissingTypeArgument=false, reportMissingTypeStubs=false
+# pyright: reportAttributeAccessIssue=false, reportArgumentType=false, reportCallIssue=false
+# pyright: reportIncompatibleMethodOverride=false, reportUnnecessaryComparison=false
+# pyright: reportUnnecessaryIsInstance=false, reportConstantRedefinition=false
+# pyright: reportOptionalMemberAccess=false, reportOptionalSubscript=false
+# pyright: reportIndexIssue=false, reportOperatorIssue=false, reportAssignmentType=false
+import importlib.resources  # Added
 import os
 import subprocess
+import tempfile  # Added
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from importlib import import_module
-from typing import TYPE_CHECKING, Union
+from types import ModuleType
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 from termcolor import colored
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
-from lumibot.tools.lumibot_logger import get_logger
+from lumibot.entities.asset import Asset
 from lumibot.tools.ibkr_secdef import (
     IbkrFuturesExchangeAmbiguousError,
     select_futures_exchange_from_secdef_search_payload,
 )
+from lumibot.tools.lumibot_logger import get_logger
 
-from ..entities import Asset
 from .data_source import DataSource
 
 if TYPE_CHECKING:
-    from ..entities import Bars
+    from lumibot.entities.bars import Bars
 
 logger = get_logger(__name__)
-import importlib.resources  # Added
-import tempfile  # Added
+PandasDataFrame: TypeAlias = Any  # noqa: UP040
+JsonData: TypeAlias = dict[str, Any] | list[Any] | None  # noqa: UP040
 
 TYPE_MAP = dict(
     stock="STK",
@@ -37,41 +48,46 @@ TYPE_MAP = dict(
 )
 
 
-class _LazyModule:
+class _LazyModule(ModuleType):
     __slots__ = ("_module_name", "_module")
 
-    def __init__(self, module_name: str):
-        self._module_name = module_name
-        self._module = None
+    _module_name: str
+    _module: ModuleType | None
 
-    def _load(self):
-        module = self._module
+    def __init__(self, module_name: str) -> None:
+        super().__init__(module_name)
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self) -> ModuleType:
+        module = object.__getattribute__(self, "_module")
         if module is None:
-            module = import_module(self._module_name)
-            self._module = module
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
         return module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
 
-pd = _LazyModule("pandas")
-requests = _LazyModule("requests")
-urllib3 = _LazyModule("urllib3")
-_BARS_CLASS = None
+pd: Any = _LazyModule("pandas")
+requests: Any = _LazyModule("requests")
+urllib3: Any = _LazyModule("urllib3")
+_BARS_CLASS: type[Any] | None = None
 _URLLIB3_WARNINGS_DISABLED = False
 
 
-def _bars_class():
+def _bars_class() -> type[Any]:
     global _BARS_CLASS
     if _BARS_CLASS is None:
         from lumibot.entities import Bars
 
         _BARS_CLASS = Bars
+    assert _BARS_CLASS is not None
     return _BARS_CLASS
 
 
-def _disable_urllib3_warnings():
+def _disable_urllib3_warnings() -> None:
     global _URLLIB3_WARNINGS_DISABLED
     if not _URLLIB3_WARNINGS_DISABLED:
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -98,23 +114,18 @@ class InteractiveBrokersRESTData(DataSource):
             self.base_url = f"{self.api_url}/v1/api"
 
         self.account_id = config["IB_ACCOUNT_ID"] if "IB_ACCOUNT_ID" in config else None
-        self.temp_conf_path = None # Added for temporary conf.yaml path
+        self.temp_conf_path = None  # Added for temporary conf.yaml path
         # Cache of futures root -> exchange (best-effort).
         self._futures_exchange_cache: dict[str, str] = {}
 
         # Check if we are running on a server
-        running_on_server = (
-            config["RUNNING_ON_SERVER"]
-            if config["RUNNING_ON_SERVER"] is not None
-            else ""
-        )
+        running_on_server = config["RUNNING_ON_SERVER"] if config["RUNNING_ON_SERVER"] is not None else ""
         if running_on_server.lower() == "true" or hasattr(self, "api_url"):
             self.running_on_server = True
         else:
             self.running_on_server = False
 
         self.start(config["IB_USERNAME"], config["IB_PASSWORD"])
-
 
     def start(self, ib_username, ib_password):
         if not self.running_on_server:
@@ -140,15 +151,16 @@ class InteractiveBrokersRESTData(DataSource):
                 stderr=subprocess.DEVNULL,
             )
             if docker_version_check.returncode != 0:
-                logger.error(colored("Error: Docker is not installed on this system. Please install Docker and try again.", "red"))
+                logger.error(
+                    colored(
+                        "Error: Docker is not installed on this system. Please install Docker and try again.", "red"
+                    )
+                )
                 exit(1)
 
             # Check if Docker daemon is running by attempting a `docker ps`
             docker_ps_check = subprocess.run(
-                ["docker", "ps"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-                text=True
+                ["docker", "ps"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True
             )
             if docker_ps_check.returncode != 0:
                 error_output = docker_ps_check.stderr.strip()
@@ -180,10 +192,14 @@ class InteractiveBrokersRESTData(DataSource):
                 # Create a temporary file to hold the conf.yaml content
                 # delete=False is important because Docker needs to access it by path
                 # and we'll clean it up manually in stop()
-                with tempfile.NamedTemporaryFile(delete=False, mode='w', suffix='.yaml', encoding='utf-8') as tmp_conf_file:
+                with tempfile.NamedTemporaryFile(
+                    delete=False, mode="w", suffix=".yaml", encoding="utf-8"
+                ) as tmp_conf_file:
                     self.temp_conf_path = tmp_conf_file.name
                     # Use importlib.resources to access package data reliably
-                    conf_content = importlib.resources.files('lumibot.resources').joinpath('conf.yaml').read_text(encoding='utf-8')
+                    conf_content = (
+                        importlib.resources.files("lumibot.resources").joinpath("conf.yaml").read_text(encoding="utf-8")
+                    )
                     tmp_conf_file.write(conf_content)
 
                 volume_mount = f"{self.temp_conf_path}:{inputs_dir}"
@@ -193,7 +209,6 @@ class InteractiveBrokersRESTData(DataSource):
                 logger.error(colored(f"Failed to prepare conf.yaml for Docker: {e}", "red"))
                 # Exit or raise, as this is critical for IBeam operation
                 exit(1)
-
 
             # Remove any existing container with the same name
             subprocess.run(
@@ -263,39 +278,31 @@ class InteractiveBrokersRESTData(DataSource):
 
         url = f"{self.base_url}/portfolio/accounts"
 
-        response = self.get_from_endpoint(
-            url, "Fetching Account ID", allow_fail=False
-        )
+        response = self.get_from_endpoint(url, "Fetching Account ID", allow_fail=False)
         self.last_portfolio_ping = datetime.now()
         self.account_id = response[0]["id"]
 
     def is_authenticated(self):
         url = f"{self.base_url}/iserver/accounts"
-        response = self.get_from_endpoint(
-            url, "Auth Check", silent=True, allow_fail=False
-        )
-        if response is None or 'error' in response:
+        response = self.get_from_endpoint(url, "Auth Check", silent=True, allow_fail=False)
+        if response is None or "error" in response:
             return False
         else:
             return True
 
     def ping_iserver(self):
         url = f"{self.base_url}/iserver/accounts"
-        response = self.get_from_endpoint(
-            url, "Auth Check", silent=True, allow_fail=False
-        )
+        response = self.get_from_endpoint(url, "Auth Check", silent=True, allow_fail=False)
 
-        if response is None or 'error' in response:
+        if response is None or "error" in response:
             return False
         else:
             return True
 
     def ping_portfolio(self):
         url = f"{self.base_url}/portfolio/accounts"
-        response = self.get_from_endpoint(
-            url, "Auth Check", silent=True
-        )
-        if response is None or 'error' in response:
+        response = self.get_from_endpoint(url, "Auth Check", silent=True)
+        if response is None or "error" in response:
             return False
         else:
             return True
@@ -330,9 +337,7 @@ class InteractiveBrokersRESTData(DataSource):
         response = self.get_from_endpoint(url, "Getting Contract Rules")
 
         if response is not None and "error" in response:
-            logger.error(
-                colored(f"Failed to get contract rules: {response['error']}", "red")
-            )
+            logger.error(colored(f"Failed to get contract rules: {response['error']}", "red"))
             return None
 
         return response
@@ -345,9 +350,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         # Define the endpoint URL for fetching account balances
         url = f"{self.base_url}/portfolio/{self.account_id}/ledger"
-        response = self.get_from_endpoint(
-            url, "Getting account balances", allow_fail=False
-        )
+        response = self.get_from_endpoint(url, "Getting account balances", allow_fail=False)
 
         # Error handle
         if response is not None and "error" in response:
@@ -364,7 +367,7 @@ class InteractiveBrokersRESTData(DataSource):
     def handle_http_errors(self, response, silent, retries, description, allow_fail):
         def show_error(retries, allow_fail):
             if not allow_fail:
-                if retries%60 == 0:
+                if retries % 60 == 0:
                     return True
             else:
                 return True
@@ -379,9 +382,7 @@ class InteractiveBrokersRESTData(DataSource):
             try:
                 response_json = response.json()
             except ValueError:
-                logger.error(
-                    colored("Invalid JSON response", "red")
-                )
+                logger.error(colored("Invalid JSON response", "red"))
                 response_json = {}
         else:
             response_json = {}
@@ -398,30 +399,26 @@ class InteractiveBrokersRESTData(DataSource):
             response_json = response.json()
             orders = []
             for order in response_json:
-                if isinstance(order, dict) and 'id' in order:
+                if isinstance(order, dict) and "id" in order:
                     confirm_url = f"{self.base_url}/iserver/reply/{order['id']}"
                     confirm_response = self.post_to_endpoint(
-                        confirm_url,
-                        {"confirmed": True},
-                        description="Confirming Order",
-                        silent=True,
-                        allow_fail=True
+                        confirm_url, {"confirmed": True}, description="Confirming Order", silent=True, allow_fail=True
                     )
                     if confirm_response:
                         orders.extend(confirm_response)
                         status_code = 200
             response_json = orders
 
-        if 'xcredserv comm failed during getEvents due to Connection refused' in error_message:
+        if "xcredserv comm failed during getEvents due to Connection refused" in error_message:
             retrying = True
             re_msg = "The server is undergoing maintenance. Should fix itself soon"
 
-        elif 'Please query /accounts first' in error_message:
+        elif "Please query /accounts first" in error_message:
             self.ping_iserver()
             retrying = True
             re_msg = "Lumibot got Deauthenticated"
 
-        elif 'There was an error processing the request. Please try again.' in error_message:
+        elif "There was an error processing the request. Please try again." in error_message:
             retrying = True
             re_msg = "Something went wrong."
 
@@ -459,7 +456,7 @@ class InteractiveBrokersRESTData(DataSource):
             retrying = False
 
         if re_msg is not None:
-            if not silent and retries%60 == 0:
+            if not silent and retries % 60 == 0:
                 logger.warning(colored(f"Task {description} failed: {re_msg}. Retrying...", "yellow"))
             else:
                 logger.debug(colored(f"Task {description} failed: {re_msg}. Retrying...", "yellow"))
@@ -472,7 +469,6 @@ class InteractiveBrokersRESTData(DataSource):
 
         if re_msg is not None:
             time.sleep(1)
-
 
         return (retrying, re_msg, is_error, to_return)
 
@@ -492,15 +488,22 @@ class InteractiveBrokersRESTData(DataSource):
 
             # Check if the status code is 401
             if response.status_code == 401:
-                logger.error(colored("401 Unauthorized. Please check your Interactive Brokers credentials and/or make sure that you have authorized through the app first (for two factor authentication).", "red"))
+                logger.error(
+                    colored(
+                        "401 Unauthorized. Please check your Interactive Brokers credentials and/or make sure that you have authorized through the app first (for two factor authentication).",
+                        "red",
+                    )
+                )
                 return None
 
-            retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
+            retrying, re_msg, is_error, to_return = self.handle_http_errors(
+                response, silent, retries, description, allow_fail
+            )
 
             if re_msg is None and not is_error:
                 break
 
-            retries+=1
+            retries += 1
 
         return to_return
 
@@ -518,12 +521,14 @@ class InteractiveBrokersRESTData(DataSource):
                 response.status_code = 503
                 response._content = str.encode(f'{{"error": "{e}"}}')
 
-            retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
+            retrying, re_msg, is_error, to_return = self.handle_http_errors(
+                response, silent, retries, description, allow_fail
+            )
 
             if re_msg is None and not is_error:
                 break
 
-            retries+=1
+            retries += 1
 
         return to_return
 
@@ -541,12 +546,14 @@ class InteractiveBrokersRESTData(DataSource):
                 response.status_code = 503
                 response._content = str.encode(f'{{"error": "{e}"}}')
 
-            retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
+            retrying, re_msg, is_error, to_return = self.handle_http_errors(
+                response, silent, retries, description, allow_fail
+            )
 
             if re_msg is None and not is_error:
                 break
 
-            retries+=1
+            retries += 1
 
         return to_return
 
@@ -559,17 +566,11 @@ class InteractiveBrokersRESTData(DataSource):
 
         # Fetch
         url = f"{self.base_url}/iserver/account/orders?&accountId={self.account_id}&filters=Submitted,PreSubmitted"
-        response = self.get_from_endpoint(
-            url, "Getting open orders", allow_fail=False
-        )
+        response = self.get_from_endpoint(url, "Getting open orders", allow_fail=False)
 
         # Filters don't work, we'll filter on our own
         filtered_orders = []
-        if (
-            isinstance(response, dict)
-            and "orders" in response
-            and isinstance(response["orders"], list)
-        ):
+        if isinstance(response, dict) and "orders" in response and isinstance(response["orders"], list):
             for order in response["orders"]:
                 if isinstance(order, dict) and order.get("status") not in [
                     "Cancelled",
@@ -588,12 +589,10 @@ class InteractiveBrokersRESTData(DataSource):
 
         # Fetch
         url = f"{self.base_url}/iserver/account/orders?&accountId={self.account_id}"
-        response = self.get_from_endpoint(
-            url, "Getting open orders", allow_fail=False
-        )
+        response = self.get_from_endpoint(url, "Getting open orders", allow_fail=False)
 
-        if 'orders' in response and isinstance(response['orders'], list):
-            return [order for order in response['orders'] if order.get('totalSize', 0) != 0]
+        if "orders" in response and isinstance(response["orders"], list):
+            return [order for order in response["orders"] if order.get("totalSize", 0) != 0]
 
         return []
 
@@ -619,14 +618,10 @@ class InteractiveBrokersRESTData(DataSource):
             return response
 
         elif response is not None and "error" in response:
-            logger.error(
-                colored(f"Failed to execute order: {response['error']}", "red")
-            )
+            logger.error(colored(f"Failed to execute order: {response['error']}", "red"))
             return None
         elif response is not None and "message" in response:
-            logger.error(
-                colored(f"Failed to execute order: {response['message']}", "red")
-            )
+            logger.error(colored(f"Failed to execute order: {response['message']}", "red"))
             return None
         elif response is not None:
             logger.error(colored(f"Failed to execute order: {response}", "red"))
@@ -639,9 +634,7 @@ class InteractiveBrokersRESTData(DataSource):
         url = f"{self.base_url}/iserver/account/{self.account_id}/order/{orderId}"
         status = self.delete_to_endpoint(url, description=f"Deleting order {orderId}")
         if status:
-            logger.info(
-                colored(f"Order with ID {orderId} canceled successfully.", "green")
-            )
+            logger.info(colored(f"Order with ID {orderId} canceled successfully.", "green"))
         else:
             logger.error(colored(f"Failed to delete order with ID {orderId}.", "red"))
 
@@ -657,9 +650,7 @@ class InteractiveBrokersRESTData(DataSource):
         self.ping_portfolio()
 
         url = f"{self.base_url}/portfolio/{self.account_id}/positions"
-        response = self.get_from_endpoint(
-            url, "Getting account positions", allow_fail=False
-        )
+        response = self.get_from_endpoint(url, "Getting account positions", allow_fail=False)
 
         # Error handle
         if response is not None and "error" in response:
@@ -708,9 +699,7 @@ class InteractiveBrokersRESTData(DataSource):
             "Exchange": "unknown",
             "Chains": {"CALL": {}, "PUT": {}},
         }
-        logger.info(
-            "This task is extremely slow. If you still wish to use it, prepare yourself for a long wait."
-        )
+        logger.info("This task is extremely slow. If you still wish to use it, prepare yourself for a long wait.")
         self.ping_iserver()
 
         url_for_dates = f"{self.base_url}/iserver/secdef/search?symbol={asset.symbol}"
@@ -747,9 +736,7 @@ class InteractiveBrokersRESTData(DataSource):
             if strikes and "call" in strikes:
                 for strike in strikes["call"]:
                     url_for_expiry = f"{self.base_url}/iserver/secdef/info?conid={conid}&sectype=OPT&month={month}&right=C&strike={strike}"
-                    contract_info = self.get_from_endpoint(
-                        url_for_expiry, "Getting expiration Date"
-                    )
+                    contract_info = self.get_from_endpoint(url_for_expiry, "Getting expiration Date")
                     if (
                         contract_info
                         and isinstance(contract_info, list)
@@ -770,9 +757,7 @@ class InteractiveBrokersRESTData(DataSource):
             if strikes and "put" in strikes:
                 for strike in strikes["put"]:
                     url_for_expiry = f"{self.base_url}/iserver/secdef/info?conid={conid}&sectype=OPT&month={month}&right=P&strike={strike}"
-                    contract_info = self.get_from_endpoint(
-                        url_for_expiry, "Getting expiration Date"
-                    )
+                    contract_info = self.get_from_endpoint(url_for_expiry, "Getting expiration Date")
                     if (
                         contract_info
                         and isinstance(contract_info, list)
@@ -842,10 +827,7 @@ class InteractiveBrokersRESTData(DataSource):
         If expiration is set, returns the specific contract conid.
         If expiration is None, returns the continuous/earliest contract conid.
         """
-        if getattr(asset, "asset_type", None) in {
-            Asset.AssetType.FUTURE,
-            Asset.AssetType.CONT_FUTURE
-        }:
+        if getattr(asset, "asset_type", None) in {Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE}:
             if not exchange:
                 exchange = self._resolve_futures_exchange(asset.symbol)
             if getattr(asset, "expiration", None) is None:
@@ -935,15 +917,15 @@ class InteractiveBrokersRESTData(DataSource):
         if not timestep:
             timestep = self.get_timestep()
         if timeshift:
-            start_time = (datetime.now(timezone.utc) - timeshift).strftime("%Y%m%d-%H:%M:%S")
+            start_time = (datetime.now(UTC) - timeshift).strftime("%Y%m%d-%H:%M:%S")
         else:
-            start_time = datetime.now(timezone.utc).strftime("%Y%m%d-%H:%M:%S")
+            start_time = datetime.now(UTC).strftime("%Y%m%d-%H:%M:%S")
 
         # --- Use helper for futures conid ---
         conid = None
         if getattr(asset, "asset_type", None) in {
-                Asset.AssetType.FUTURE,
-                Asset.AssetType.CONT_FUTURE,
+            Asset.AssetType.FUTURE,
+            Asset.AssetType.CONT_FUTURE,
         }:
             if not exchange:
                 exchange = self._resolve_futures_exchange(asset.symbol)
@@ -979,14 +961,10 @@ class InteractiveBrokersRESTData(DataSource):
         else:
             logger.error(colored(f"Unsupported timestep: {timestep}", "red"))
             return _bars_class()(
-                pd.DataFrame(
-                    columns=["timestamp", "open", "high", "low", "close", "volume"]
-                ),
+                pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]),
                 self.SOURCE,
                 asset,
-                raw=pd.DataFrame(
-                    columns=["timestamp", "open", "high", "low", "close", "volume"]
-                ),
+                raw=pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]),
                 quote=quote,
             )
 
@@ -999,18 +977,12 @@ class InteractiveBrokersRESTData(DataSource):
         result = self.get_from_endpoint(url, "Getting Historical Prices")
 
         if result and "error" in result:
-            logger.error(
-                colored(f"Error getting historical prices: {result['error']}", "red")
-            )
+            logger.error(colored(f"Error getting historical prices: {result['error']}", "red"))
             return _bars_class()(
-                pd.DataFrame(
-                    columns=["timestamp", "open", "high", "low", "close", "volume"]
-                ),
+                pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]),
                 self.SOURCE,
                 asset,
-                raw=pd.DataFrame(
-                    columns=["timestamp", "open", "high", "low", "close", "volume"]
-                ),
+                raw=pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]),
                 quote=quote,
             )
 
@@ -1022,14 +994,10 @@ class InteractiveBrokersRESTData(DataSource):
                 )
             )
             return _bars_class()(
-                pd.DataFrame(
-                    columns=["timestamp", "open", "high", "low", "close", "volume"]
-                ),
+                pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]),
                 self.SOURCE,
                 asset,
-                raw=pd.DataFrame(
-                    columns=["timestamp", "open", "high", "low", "close", "volume"]
-                ),
+                raw=pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]),
                 quote=quote,
             )
 
@@ -1051,9 +1019,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         # Convert timestamp to datetime and set as index
         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
-        df["timestamp"] = (
-            df["timestamp"].dt.tz_localize("UTC").dt.tz_convert(LUMIBOT_DEFAULT_PYTZ)
-        )
+        df["timestamp"] = df["timestamp"].dt.tz_localize("UTC").dt.tz_convert(LUMIBOT_DEFAULT_PYTZ)
         df.set_index("timestamp", inplace=True)
 
         """
@@ -1066,7 +1032,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         return bars
 
-    def get_last_price(self, asset, quote=None, exchange=None) -> Union[float, Decimal, None]:
+    def get_last_price(self, asset, quote=None, exchange=None) -> float | Decimal | None:
         """
         Get the last price for an asset.
         For futures, always use get_market_snapshot (the official IBKR endpoint for all asset types).
@@ -1164,19 +1130,12 @@ class InteractiveBrokersRESTData(DataSource):
         expiration_date = asset.expiration.strftime("%Y%m%d")
         expiration_month = asset.expiration.strftime("%b%y").upper()  # in MMMYY
 
-        params = {
-            "conid": underlying_conid,
-            "sectype": sec_type,
-            "month": expiration_month,
-            "exchange": exchange
-        }
+        params = {"conid": underlying_conid, "sectype": sec_type, "month": expiration_month, "exchange": exchange}
         params.update(additional_params)
         query_string = "&".join(f"{key}={value}" for key, value in params.items() if value is not None)
 
         url_for_expiry = f"{self.base_url}/iserver/secdef/info?{query_string}"
-        contract_info = self.get_from_endpoint(
-            url_for_expiry, f"Getting {sec_type} Contract Info", silent=True
-        )
+        contract_info = self.get_from_endpoint(url_for_expiry, f"Getting {sec_type} Contract Info", silent=True)
 
         matching_contract = None
         if contract_info:
@@ -1184,8 +1143,7 @@ class InteractiveBrokersRESTData(DataSource):
                 (
                     contract
                     for contract in contract_info
-                    if isinstance(contract, dict)
-                    and contract.get("maturityDate") == expiration_date
+                    if isinstance(contract, dict) and contract.get("maturityDate") == expiration_date
                 ),
                 None,
             )
@@ -1247,24 +1205,14 @@ class InteractiveBrokersRESTData(DataSource):
             retries += 1
             missing_fields = False
             for field in fields_to_get:
-                if (
-                    response
-                    and isinstance(response, list)
-                    and len(response) > 0
-                    and field not in response[0]
-                ):
+                if response and isinstance(response, list) and len(response) > 0 and field not in response[0]:
                     missing_fields = True
                     break
 
         # return only what was requested
         output = {}
 
-        if (
-            response
-            and isinstance(response, list)
-            and len(response) > 0
-            and isinstance(response[0], dict)
-        ):
+        if response and isinstance(response, list) and len(response) > 0 and isinstance(response[0], dict):
             for key, value in response[0].items():
                 if key in fields_to_get:
                     # Convert the value to a float if it is a number
@@ -1329,6 +1277,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         # Create and return a Quote object instead of a dictionary
         from lumibot.entities import Quote
+
         return Quote(
             asset=asset,
             price=result.get("price"),
@@ -1336,5 +1285,5 @@ class InteractiveBrokersRESTData(DataSource):
             ask=result.get("ask"),
             bid_size=result.get("bid_size"),
             ask_size=result.get("ask_size"),
-            raw_data=result
+            raw_data=result,
         )

@@ -47,4 +47,3 @@ class TestAssetAutoExpiry:
         b2 = Asset("ES", asset_type=Asset.AssetType.FUTURE, expiration=manual_expiry, auto_expiry="next_quarter")
         assert b1 == b2
         assert hash(b1) == hash(b2)
-

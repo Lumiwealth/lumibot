@@ -5,26 +5,20 @@ if True:
     import sys
 
     myPath = os.path.dirname(os.path.abspath(__file__))
-    sys.path.insert(
-        0, 
-        "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot"
-    )
+    sys.path.insert(0, "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot")
     sys.path.insert(
         0,
         "/Users/robertgrzesik/Development/lumiwealth_tradier/",
     )
-    sys.path.insert(
-        0,
-        "/Users/robertgrzesik/Development/quantstats_lumi/"
-    )
+    sys.path.insert(0, "/Users/robertgrzesik/Development/quantstats_lumi/")
 ################################################################################
 
+import pandas as pd
+
+from lumibot.credentials import IS_BACKTESTING
+from lumibot.entities import Asset, Order, TradingFee
 from lumibot.strategies.strategy import Strategy
 from lumibot.traders import Trader
-from lumibot.entities import Asset, TradingFee, Order
-from lumibot.credentials import IS_BACKTESTING
-
-import pandas as pd
 
 """
 TQQQ 200-day SMA Strategy
@@ -33,6 +27,7 @@ This code was generated based on the user prompt: 'make a trading bot that trade
 
 Simple strategy: if TQQQ's daily close is above its 200-day moving average buy using nearly all available cash; if price is below the 200-day moving average, exit to cash.
 """
+
 
 class TqqqSma200Strategy(Strategy):
     parameters = {
@@ -120,7 +115,14 @@ class TqqqSma200Strategy(Strategy):
                 self.submit_order(order)
 
                 # Add a marker for the buy event and log it
-                self.add_marker("Buy", last_close, color="green", symbol="arrow-up", size=8, detail_text=f"Bought {shares_to_buy} shares")
+                self.add_marker(
+                    "Buy",
+                    last_close,
+                    color="green",
+                    symbol="arrow-up",
+                    size=8,
+                    detail_text=f"Bought {shares_to_buy} shares",
+                )
                 self.log_message(f"Buying {shares_to_buy} shares of {symbol} at price {last_close:.2f}", color="green")
                 self.vars.last_signal = "buy"
             else:
@@ -135,13 +137,23 @@ class TqqqSma200Strategy(Strategy):
                 sell_order = self.create_order(asset, position_qty, Order.OrderSide.SELL)
                 self.submit_order(sell_order)
                 # Add a marker and log the sell
-                self.add_marker("Sell", last_close, color="red", symbol="arrow-down", size=8, detail_text=f"Sold {position_qty} shares")
-                self.log_message(f"Selling {position_qty} shares of {symbol} at price {last_close:.2f} — moving to cash.", color="red")
+                self.add_marker(
+                    "Sell",
+                    last_close,
+                    color="red",
+                    symbol="arrow-down",
+                    size=8,
+                    detail_text=f"Sold {position_qty} shares",
+                )
+                self.log_message(
+                    f"Selling {position_qty} shares of {symbol} at price {last_close:.2f} — moving to cash.",
+                    color="red",
+                )
                 self.vars.last_signal = "sell"
             else:
                 # Already in cash — log occasionally
                 if self.vars.last_signal != "cash":
-                    self.log_message(f"Price below 200-day average. Holding cash.", color="yellow")
+                    self.log_message("Price below 200-day average. Holding cash.", color="yellow")
                     self.vars.last_signal = "cash"
 
 
@@ -164,7 +176,7 @@ if __name__ == "__main__":
             sell_trading_fees=[trading_fee],
             quote_asset=Asset("USD", Asset.AssetType.FOREX),
             parameters=None,  # No extra parameters passed; uses defaults defined in the strategy
-            budget=100000,    # default budget (can be overridden by environment if desired)
+            budget=100000,  # default budget (can be overridden by environment if desired)
         )
 
         # Print or log a short summary so users running the script see something in stdout

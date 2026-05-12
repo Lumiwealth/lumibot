@@ -1,12 +1,13 @@
+from datetime import UTC, datetime, timedelta
+from unittest.mock import MagicMock, patch
+
 import pandas as pd
 import polars as pl
 import pytest
-from datetime import datetime, timezone, timedelta
-from unittest.mock import MagicMock, patch
 
-from lumibot.tools.databento_helper_polars import DataBentoAuthenticationError
 from lumibot.backtesting.databento_backtesting_polars import DataBentoDataBacktestingPolars
 from lumibot.entities import Asset
+from lumibot.tools.databento_helper_polars import DataBentoAuthenticationError
 
 API_KEY = "test_key"
 
@@ -28,7 +29,7 @@ def mocked_polars_helper(monkeypatch):
 
 
 def _polars_frame(start_minute: int, rows: int = 5) -> pl.DataFrame:
-    base = datetime(2025, 1, 6, 14, 0, tzinfo=timezone.utc)
+    base = datetime(2025, 1, 6, 14, 0, tzinfo=UTC)
     datetimes = [base + timedelta(minutes=start_minute + i) for i in range(rows)]
     return pl.DataFrame(
         {
@@ -44,8 +45,8 @@ def _polars_frame(start_minute: int, rows: int = 5) -> pl.DataFrame:
 
 @pytest.mark.usefixtures("mocked_polars_helper")
 def test_initialization_sets_properties():
-    start = datetime(2025, 1, 1, tzinfo=timezone.utc)
-    end = datetime(2025, 1, 10, tzinfo=timezone.utc)
+    start = datetime(2025, 1, 1, tzinfo=UTC)
+    end = datetime(2025, 1, 10, tzinfo=UTC)
     backtester = DataBentoDataBacktestingPolars(
         datetime_start=start,
         datetime_end=end,
@@ -60,13 +61,11 @@ def test_initialization_sets_properties():
 
 
 @pytest.mark.usefixtures("mocked_polars_helper")
-@patch(
-    "lumibot.backtesting.databento_backtesting_polars.databento_helper.get_price_data_from_databento"
-)
+@patch("lumibot.backtesting.databento_backtesting_polars.databento_helper.get_price_data_from_databento")
 def test_prefetch_data_populates_cache(mock_get_data):
     mock_get_data.return_value = _polars_frame(0, rows=8)
-    start = datetime(2025, 2, 3, tzinfo=timezone.utc)
-    end = datetime(2025, 2, 5, tzinfo=timezone.utc)
+    start = datetime(2025, 2, 3, tzinfo=UTC)
+    end = datetime(2025, 2, 5, tzinfo=UTC)
     asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
 
     backtester = DataBentoDataBacktestingPolars(
@@ -85,13 +84,11 @@ def test_prefetch_data_populates_cache(mock_get_data):
 
 
 @pytest.mark.usefixtures("mocked_polars_helper")
-@patch(
-    "lumibot.backtesting.databento_backtesting_polars.databento_helper.get_price_data_from_databento"
-)
+@patch("lumibot.backtesting.databento_backtesting_polars.databento_helper.get_price_data_from_databento")
 def test_get_historical_prices_returns_bars(mock_get_data):
     mock_get_data.return_value = _polars_frame(0, rows=20)
-    start = datetime(2025, 3, 3, tzinfo=timezone.utc)
-    end = datetime(2025, 3, 4, tzinfo=timezone.utc)
+    start = datetime(2025, 3, 3, tzinfo=UTC)
+    end = datetime(2025, 3, 4, tzinfo=UTC)
     asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
 
     backtester = DataBentoDataBacktestingPolars(
@@ -108,13 +105,11 @@ def test_get_historical_prices_returns_bars(mock_get_data):
 
 
 @pytest.mark.usefixtures("mocked_polars_helper")
-@patch(
-    "lumibot.backtesting.databento_backtesting_polars.databento_helper.get_price_data_from_databento"
-)
+@patch("lumibot.backtesting.databento_backtesting_polars.databento_helper.get_price_data_from_databento")
 def test_get_last_price_returns_close(mock_get_data):
     mock_get_data.return_value = _polars_frame(0, rows=5)
-    start = datetime(2025, 4, 1, tzinfo=timezone.utc)
-    end = datetime(2025, 4, 2, tzinfo=timezone.utc)
+    start = datetime(2025, 4, 1, tzinfo=UTC)
+    end = datetime(2025, 4, 2, tzinfo=UTC)
     asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
 
     backtester = DataBentoDataBacktestingPolars(
@@ -131,8 +126,8 @@ def test_get_last_price_returns_close(mock_get_data):
 
 @pytest.mark.usefixtures("mocked_polars_helper")
 def test_get_historical_prices_non_future_returns_none():
-    start = datetime(2025, 5, 1, tzinfo=timezone.utc)
-    end = datetime(2025, 5, 2, tzinfo=timezone.utc)
+    start = datetime(2025, 5, 1, tzinfo=UTC)
+    end = datetime(2025, 5, 2, tzinfo=UTC)
     asset = Asset("AAPL", asset_type=Asset.AssetType.STOCK)
 
     backtester = DataBentoDataBacktestingPolars(
@@ -148,8 +143,8 @@ def test_get_historical_prices_non_future_returns_none():
 
 @pytest.mark.usefixtures("mocked_polars_helper")
 def test_databento_polars_quote_midpoint(monkeypatch):
-    start = datetime(2025, 6, 1, tzinfo=timezone.utc)
-    end = datetime(2025, 6, 2, tzinfo=timezone.utc)
+    start = datetime(2025, 6, 1, tzinfo=UTC)
+    end = datetime(2025, 6, 2, tzinfo=UTC)
     asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
 
     backtester = DataBentoDataBacktestingPolars(
@@ -159,7 +154,7 @@ def test_databento_polars_quote_midpoint(monkeypatch):
         show_progress_bar=False,
     )
 
-    current_dt = datetime(2025, 6, 1, 15, 30, tzinfo=timezone.utc)
+    current_dt = datetime(2025, 6, 1, 15, 30, tzinfo=UTC)
     monkeypatch.setattr(backtester, "get_datetime", lambda: current_dt)
 
     sample_df = pl.DataFrame(
@@ -234,8 +229,8 @@ def test_get_historical_prices_reuses_cache(monkeypatch, tmp_path):
         FakeClient,
     )
 
-    start = datetime(2025, 7, 1, tzinfo=timezone.utc)
-    end = datetime(2025, 7, 2, tzinfo=timezone.utc)
+    start = datetime(2025, 7, 1, tzinfo=UTC)
+    end = datetime(2025, 7, 2, tzinfo=UTC)
     asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
 
     backtester = DataBentoDataBacktestingPolars(
@@ -256,8 +251,8 @@ def test_get_historical_prices_reuses_cache(monkeypatch, tmp_path):
 
 @pytest.mark.usefixtures("mocked_polars_helper")
 def test_auth_failure_propagates(monkeypatch):
-    start = datetime(2025, 1, 6, tzinfo=timezone.utc)
-    end = datetime(2025, 1, 7, tzinfo=timezone.utc)
+    start = datetime(2025, 1, 6, tzinfo=UTC)
+    end = datetime(2025, 1, 7, tzinfo=UTC)
     asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
 
     def boom(*args, **kwargs):
@@ -282,12 +277,11 @@ def test_auth_failure_propagates(monkeypatch):
     with pytest.raises(DataBentoAuthenticationError):
         backtester.get_historical_prices(asset, length=1, timestep="minute", return_polars=True)
 
-@patch(
-    "lumibot.backtesting.databento_backtesting_polars.databento_helper.get_price_data_from_databento"
-)
+
+@patch("lumibot.backtesting.databento_backtesting_polars.databento_helper.get_price_data_from_databento")
 @pytest.mark.usefixtures("mocked_polars_helper")
 def test_polars_no_future_minutes(mock_get_data, mocked_polars_helper):
-    base = datetime(2025, 1, 6, 14, 30, tzinfo=timezone.utc)
+    base = datetime(2025, 1, 6, 14, 30, tzinfo=UTC)
     frame = pl.DataFrame(
         {
             "datetime": [base - timedelta(minutes=1), base + timedelta(minutes=1)],
@@ -322,9 +316,7 @@ def test_polars_no_future_minutes(mock_get_data, mocked_polars_helper):
 
 
 @pytest.mark.usefixtures("mocked_polars_helper")
-@patch(
-    "lumibot.backtesting.databento_backtesting_polars.databento_helper.get_price_data_from_databento"
-)
+@patch("lumibot.backtesting.databento_backtesting_polars.databento_helper.get_price_data_from_databento")
 @pytest.mark.parametrize(
     "timeshift,expected_offsets",
     [
@@ -336,8 +328,8 @@ def test_polars_no_future_minutes(mock_get_data, mocked_polars_helper):
 def test_pull_source_bars_uses_index_search(mock_get_data, timeshift, expected_offsets, monkeypatch):
     """Ensure the optimized slicing path returns the same bars for various timeshifts."""
     mock_get_data.return_value = _polars_frame(0, rows=20)
-    start = datetime(2025, 1, 6, tzinfo=timezone.utc)
-    end = datetime(2025, 1, 7, tzinfo=timezone.utc)
+    start = datetime(2025, 1, 6, tzinfo=UTC)
+    end = datetime(2025, 1, 7, tzinfo=UTC)
     asset = Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)
 
     backtester = DataBentoDataBacktestingPolars(
@@ -347,7 +339,7 @@ def test_pull_source_bars_uses_index_search(mock_get_data, timeshift, expected_o
         show_progress_bar=False,
     )
 
-    current_dt = datetime(2025, 1, 6, 14, 12, tzinfo=timezone.utc)
+    current_dt = datetime(2025, 1, 6, 14, 12, tzinfo=UTC)
     monkeypatch.setattr(backtester, "get_datetime", lambda: current_dt)
 
     result = backtester._pull_source_symbol_bars(
@@ -360,7 +352,7 @@ def test_pull_source_bars_uses_index_search(mock_get_data, timeshift, expected_o
     assert result is not None
     result_offsets = []
     for dt in result["datetime"].to_list():
-        minutes_delta = int((dt - datetime(2025, 1, 6, 14, 0, tzinfo=timezone.utc)).total_seconds() // 60)
+        minutes_delta = int((dt - datetime(2025, 1, 6, 14, 0, tzinfo=UTC)).total_seconds() // 60)
         result_offsets.append(minutes_delta)
 
     assert result_offsets == expected_offsets

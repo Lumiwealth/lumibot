@@ -1,10 +1,9 @@
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
 from lumibot.components.agents import BuiltinTools
-
 
 pytestmark = pytest.mark.apitest
 
@@ -13,14 +12,14 @@ class _LiveNewsStrategy:
     is_backtesting = True
 
     def get_datetime(self):
-        return datetime(2024, 8, 6, 16, 0, tzinfo=timezone.utc)
+        return datetime(2024, 8, 6, 16, 0, tzinfo=UTC)
 
 
 class _LivePaginationStrategy:
     is_backtesting = True
 
     def get_datetime(self):
-        return datetime(2025, 4, 22, 16, 0, tzinfo=timezone.utc)
+        return datetime(2025, 4, 22, 16, 0, tzinfo=UTC)
 
 
 def _require_alpaca_news_creds() -> None:
@@ -59,10 +58,11 @@ def test_live_alpaca_news_known_market_event_scan_and_full_content():
     assert all(str(article.get("created_at") or "") <= "2024-08-05T23:59:59Z" for article in scan["articles"])
 
     combined_scan_text = " ".join(
-        f"{article.get('headline') or ''} {article.get('summary') or ''}".lower()
-        for article in scan["articles"]
+        f"{article.get('headline') or ''} {article.get('summary') or ''}".lower() for article in scan["articles"]
     )
-    assert any(keyword in combined_scan_text for keyword in ("vix", "selloff", "recession", "global", "plunge", "volatility"))
+    assert any(
+        keyword in combined_scan_text for keyword in ("vix", "selloff", "recession", "global", "plunge", "volatility")
+    )
 
     full = tool.function(
         symbols="SPY,QQQ,DIA,IWM",
@@ -82,7 +82,10 @@ def test_live_alpaca_news_known_market_event_scan_and_full_content():
     assert full_content_articles
     assert max(len(str(article["content"])) for article in full_content_articles) > 1000
     assert all(article.get("content_truncated") is False for article in full_content_articles)
-    assert all(article.get("content_original_length") == len(str(article.get("content") or "")) for article in full_content_articles)
+    assert all(
+        article.get("content_original_length") == len(str(article.get("content") or ""))
+        for article in full_content_articles
+    )
 
 
 def test_live_alpaca_news_pagination_fetches_distinct_second_page():

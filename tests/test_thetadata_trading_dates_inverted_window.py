@@ -12,4 +12,3 @@ def test_get_trading_dates_inverted_window_returns_empty():
     end = datetime(2025, 1, 1, tzinfo=pytz.UTC)
 
     assert thetadata_helper.get_trading_dates(asset, start, end) == []
-

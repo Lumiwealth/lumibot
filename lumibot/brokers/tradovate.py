@@ -1,79 +1,104 @@
 from __future__ import annotations
 
+# pyright: reportMissingParameterType=false, reportUnknownParameterType=false
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false
+# pyright: reportMissingTypeArgument=false, reportMissingTypeStubs=false
+# pyright: reportAttributeAccessIssue=false, reportArgumentType=false, reportCallIssue=false
+# pyright: reportIncompatibleMethodOverride=false, reportUnnecessaryComparison=false
+# pyright: reportUnnecessaryIsInstance=false, reportConstantRedefinition=false
+# pyright: reportUnusedFunction=false, reportOptionalMemberAccess=false
+# pyright: reportOptionalSubscript=false
 import random
 import re
 import threading
 import time
 import traceback
 from collections import deque
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from importlib import import_module
-from typing import TYPE_CHECKING, Optional, Union
+from types import ModuleType
+from typing import TYPE_CHECKING, Any
+
+from lumibot.entities.asset import Asset
+from lumibot.entities.order import Order
 
 from .broker import Broker
-from lumibot.entities import Asset, Order
 
 if TYPE_CHECKING:
-    from lumibot.entities import Position
+    from lumibot.entities.position import Position
 
 # Set up module-specific logger for enhanced logging
 from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
-_COLORED_FN = None
+_COLORED_FN: Any | None = None
 
 
-def colored(*args, **kwargs):
+def colored(*args: Any, **kwargs: Any) -> str:
     global _COLORED_FN
     if _COLORED_FN is None:
         from termcolor import colored as _termcolor_colored
 
         _COLORED_FN = _termcolor_colored
-    return _COLORED_FN(*args, **kwargs)
+    return str(_COLORED_FN(*args, **kwargs))
 
 
-class _LazyModule:
+class _LazyModule(ModuleType):
     __slots__ = ("_module_name", "_module")
 
-    def __init__(self, module_name: str):
+    _module_name: str
+    _module: ModuleType | None
+
+    def __init__(self, module_name: str) -> None:
+        super().__init__(module_name)
         object.__setattr__(self, "_module_name", module_name)
         object.__setattr__(self, "_module", None)
 
-    def _load(self):
+    def _load(self) -> ModuleType:
         module = object.__getattribute__(self, "_module")
         if module is None:
             module = import_module(object.__getattribute__(self, "_module_name"))
             object.__setattr__(self, "_module", module)
         return module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
 
-requests = _LazyModule("requests")
+requests: Any = _LazyModule("requests")
 
 
-def _tradovate_data_class():
+def _tradovate_data_class() -> Any:
     from lumibot.data_sources import TradovateData
 
     return TradovateData
 
+
 class TradovateAPIError(Exception):
     """Exception raised for errors in the Tradovate API."""
-    def __init__(self, message, status_code=None, response_text=None, original_exception=None):
+
+    def __init__(
+        self,
+        message: str,
+        status_code: int | None = None,
+        response_text: str | None = None,
+        original_exception: BaseException | None = None,
+    ) -> None:
         self.status_code = status_code
         self.response_text = response_text
         self.original_exception = original_exception
         super().__init__(message)
 
+
 class Tradovate(Broker):
     """
     Tradovate broker that implements connection to the Tradovate API.
     """
+
     NAME = "Tradovate"
     POLL_EVENT = "poll"
 
-    def __init__(self, config=None, data_source=None):
+    def __init__(self, config: dict[str, Any] | None = None, data_source: Any | None = None) -> None:
         if config is None:
             config = {}
 
@@ -88,24 +113,24 @@ class Tradovate(Broker):
         self.sec = config.get("SECRET")
         self.polling_interval = float(config.get("POLLING_INTERVAL", 5.0))
         self._seen_fill_ids: set[int] = set()
-        self._fill_bootstrap_cutoff = datetime.now(timezone.utc)
-        self._active_broker_identifiers: Optional[set[str]] = None
+        self._fill_bootstrap_cutoff = datetime.now(UTC)
+        self._active_broker_identifiers: set[str] | None = None
 
         # Configure lightweight in-process rate limiter for REST calls
         self._rate_limit_per_minute = max(int(config.get("RATE_LIMIT_PER_MINUTE", 60)), 1)
         self._rate_limit_window = 60.0
-        self._request_times = deque()
+        self._request_times: deque[float] = deque()
         self._request_lock = threading.Lock()
 
         # Cache for contract lookups to avoid redundant requests
-        self._contract_cache: dict[int, dict] = {}
+        self._contract_cache: dict[int, dict[str, Any]] = {}
 
         # Balance sync throttling state
-        self._last_balance_sync: Optional[float] = None
-        self._cached_balances: Optional[tuple[float, float, float]] = None
+        self._last_balance_sync: float | None = None
+        self._cached_balances: tuple[float, float, float] | None = None
         self._balance_cooldown_seconds = max(int(config.get("BALANCE_SYNC_COOLDOWN", 30)), 1)
         self._balance_retry_cooldown = max(int(config.get("BALANCE_RETRY_COOLDOWN", 300)), 30)
-        self._balance_backoff_until: Optional[float] = None
+        self._balance_backoff_until: float | None = None
 
         # Authenticate and get tokens before creating data_source
         try:
@@ -123,9 +148,7 @@ class Tradovate(Broker):
                 config["TRADING_API_URL"] = self.trading_api_url
                 config["MD_URL"] = self.market_data_url
                 data_source = _tradovate_data_class()(
-                    config=config,
-                    trading_token=self.trading_token,
-                    market_token=self.market_token
+                    config=config, trading_token=self.trading_token, market_token=self.market_token
                 )
 
             super().__init__(name=self.NAME, data_source=data_source, config=config)
@@ -140,7 +163,9 @@ class Tradovate(Broker):
 
         except TradovateAPIError as e:
             logger.warning(colored(f"Failed initial connection to Tradovate: {e}", "yellow"))
-            logger.warning(colored("Broker initialization failed due to rate limiting. The script will exit cleanly.", "yellow"))
+            logger.warning(
+                colored("Broker initialization failed due to rate limiting. The script will exit cleanly.", "yellow")
+            )
             raise e
 
     # ------------------------------------------------------------------
@@ -184,14 +209,14 @@ class Tradovate(Broker):
     def _get_headers(self, with_auth=True, with_content_type=False):
         """
         Create standard headers for API requests.
-        
+
         Parameters
         ----------
         with_auth : bool
             Whether to include the Authorization header with the trading token
         with_content_type : bool
             Whether to include Content-Type header for JSON requests
-            
+
         Returns
         -------
         dict
@@ -232,7 +257,7 @@ class Tradovate(Broker):
             # Check if CAPTCHA is required
             if data.get("p-captcha"):
                 p_time = data.get("p-time", 0)
-                p_ticket = data.get("p-ticket", "")
+                data.get("p-ticket", "")
 
                 # p-time is in minutes from Tradovate API
                 time_unit = "minutes" if p_time != 1 else "minute"
@@ -255,10 +280,12 @@ class Tradovate(Broker):
                 raise TradovateAPIError("Authentication succeeded but tokens are missing.")
             return {"accessToken": access_token, "marketToken": market_token, "hasMarketData": has_market_data}
         except requests.exceptions.RequestException as e:
-            raise TradovateAPIError("Authentication failed",
-                                     status_code=getattr(e.response, 'status_code', None),
-                                     response_text=getattr(e.response, 'text', None),
-                                     original_exception=e)
+            raise TradovateAPIError(
+                "Authentication failed",
+                status_code=getattr(e.response, "status_code", None),
+                response_text=getattr(e.response, "text", None),
+                original_exception=e,
+            ) from e
 
     def _get_account_info(self, trading_token):
         """
@@ -266,27 +293,29 @@ class Tradovate(Broker):
         """
         url = f"{self.trading_api_url}/account/list"
         headers = self._get_headers()
-        
+
         max_retries = 5
         retry_delay = 10  # Start with 10 seconds
-        
+
         for attempt in range(max_retries):
             try:
                 response = self._request("GET", url, headers=headers)
-                
+
                 # Handle rate limiting with exponential backoff
                 if response.status_code == 429:
                     if attempt < max_retries - 1:
-                        wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
-                        logger.warning(f"Rate limited on account list. Waiting {wait_time} seconds before retry {attempt + 1}/{max_retries}")
+                        wait_time = retry_delay * (2**attempt)  # Exponential backoff
+                        logger.warning(
+                            f"Rate limited on account list. Waiting {wait_time} seconds before retry {attempt + 1}/{max_retries}"
+                        )
                         time.sleep(wait_time)
                         continue
                     else:
                         logger.error(f"Account list still rate limited after {max_retries} attempts")
-                        raise TradovateAPIError(f"Rate limited after {max_retries} attempts", 
-                                                status_code=429,
-                                                response_text=response.text)
-                
+                        raise TradovateAPIError(
+                            f"Rate limited after {max_retries} attempts", status_code=429, response_text=response.text
+                        )
+
                 response.raise_for_status()
                 accounts = response.json()
                 if isinstance(accounts, list) and accounts:
@@ -296,12 +325,16 @@ class Tradovate(Broker):
                     logger.error(f"No accounts found. Response: {accounts}")
                     raise TradovateAPIError("No accounts found in the account list response.")
             except requests.exceptions.RequestException as e:
-                if getattr(e.response, 'status_code', None) != 429:  # Don't log 429s as errors since we handle them
-                    logger.error(f"Account list request failed: Status={getattr(e.response, 'status_code', None)}, Response={getattr(e.response, 'text', None)}")
-                raise TradovateAPIError("Failed to retrieve account list",
-                                         status_code=getattr(e.response, 'status_code', None),
-                                         response_text=getattr(e.response, 'text', None),
-                                         original_exception=e)
+                if getattr(e.response, "status_code", None) != 429:  # Don't log 429s as errors since we handle them
+                    logger.error(
+                        f"Account list request failed: Status={getattr(e.response, 'status_code', None)}, Response={getattr(e.response, 'text', None)}"
+                    )
+                raise TradovateAPIError(
+                    "Failed to retrieve account list",
+                    status_code=getattr(e.response, "status_code", None),
+                    response_text=getattr(e.response, "text", None),
+                    original_exception=e,
+                ) from e
 
     def _get_user_info(self, trading_token):
         """
@@ -309,27 +342,29 @@ class Tradovate(Broker):
         """
         url = f"{self.trading_api_url}/user/list"
         headers = self._get_headers()
-        
+
         max_retries = 5
         retry_delay = 10  # Start with 10 seconds
-        
+
         for attempt in range(max_retries):
             try:
                 response = self._request("GET", url, headers=headers)
-                
+
                 # Handle rate limiting with exponential backoff
                 if response.status_code == 429:
                     if attempt < max_retries - 1:
-                        wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
-                        logger.warning(f"Rate limited on user list. Waiting {wait_time} seconds before retry {attempt + 1}/{max_retries}")
+                        wait_time = retry_delay * (2**attempt)  # Exponential backoff
+                        logger.warning(
+                            f"Rate limited on user list. Waiting {wait_time} seconds before retry {attempt + 1}/{max_retries}"
+                        )
                         time.sleep(wait_time)
                         continue
                     else:
                         logger.error(f"User list still rate limited after {max_retries} attempts")
-                        raise TradovateAPIError(f"Rate limited after {max_retries} attempts", 
-                                                status_code=429,
-                                                response_text=response.text)
-                
+                        raise TradovateAPIError(
+                            f"Rate limited after {max_retries} attempts", status_code=429, response_text=response.text
+                        )
+
                 response.raise_for_status()
                 users = response.json()
                 if isinstance(users, list) and users:
@@ -338,12 +373,16 @@ class Tradovate(Broker):
                 else:
                     raise TradovateAPIError("No users found in the user list response.")
             except requests.exceptions.RequestException as e:
-                if getattr(e.response, 'status_code', None) != 429:  # Don't log 429s as errors since we handle them
-                    logger.error(f"User list request failed: Status={getattr(e.response, 'status_code', None)}, Response={getattr(e.response, 'text', None)}")
-                raise TradovateAPIError("Failed to retrieve user list",
-                                         status_code=getattr(e.response, 'status_code', None),
-                                         response_text=getattr(e.response, 'text', None),
-                                     original_exception=e)
+                if getattr(e.response, "status_code", None) != 429:  # Don't log 429s as errors since we handle them
+                    logger.error(
+                        f"User list request failed: Status={getattr(e.response, 'status_code', None)}, Response={getattr(e.response, 'text', None)}"
+                    )
+                raise TradovateAPIError(
+                    "Failed to retrieve user list",
+                    status_code=getattr(e.response, "status_code", None),
+                    response_text=getattr(e.response, "text", None),
+                    original_exception=e,
+                ) from e
 
     def _check_and_renew_token(self):
         """
@@ -363,7 +402,7 @@ class Tradovate(Broker):
                 self.token_acquired_time = time.time()
 
                 # Update the data source tokens if it exists
-                if hasattr(self, 'data_source') and self.data_source:
+                if hasattr(self, "data_source") and self.data_source:
                     self.data_source.trading_token = self.trading_token
                     self.data_source.market_token = self.market_token
 
@@ -439,7 +478,7 @@ class Tradovate(Broker):
     def _get_contract_details(self, contract_id: int) -> dict:
         """
         Retrieve contract details for a given contract id from Tradeovate using the /contract/item endpoint.
-        
+
         Endpoint: GET /contract/item?id=<contract_id>
         Response Schema: { "id": int, "name": string, "contractMaturityId": int }
         """
@@ -457,10 +496,12 @@ class Tradovate(Broker):
                 self._contract_cache[contract_id] = data
             return data
         except requests.exceptions.RequestException as e:
-            raise TradovateAPIError(f"Failed to retrieve contract details for contract {contract_id}",
-                                     status_code=getattr(e.response, 'status_code', None),
-                                     response_text=getattr(e.response, 'text', None),
-                                     original_exception=e)
+            raise TradovateAPIError(
+                f"Failed to retrieve contract details for contract {contract_id}",
+                status_code=getattr(e.response, "status_code", None),
+                response_text=getattr(e.response, "text", None),
+                original_exception=e,
+            ) from e
 
     def _get_balances_at_broker(self, quote_asset: Asset, strategy) -> tuple:
         """
@@ -508,8 +549,8 @@ class Tradovate(Broker):
 
         max_retries = 5
         retry_delay = 10  # Start with 10 seconds
-        last_status_code: Optional[int] = None
-        final_exception: Optional[Exception] = None
+        last_status_code: int | None = None
+        final_exception: Exception | None = None
 
         for attempt in range(max_retries):
             try:
@@ -527,26 +568,30 @@ class Tradovate(Broker):
                 self._balance_backoff_until = None
                 return cash_balance, positions_value, portfolio_value
             except (requests.exceptions.RequestException, TradovateAPIError) as e:
-                status_code = getattr(e.response if hasattr(e, 'response') else None, 'status_code', None)
+                status_code = getattr(e.response if hasattr(e, "response") else None, "status_code", None)
                 last_status_code = status_code
                 final_exception = e
-                
+
                 # Handle rate limiting with exponential backoff
                 if status_code == 429:
                     if attempt < max_retries - 1:
-                        wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
-                        logger.warning(f"Rate limited on balance retrieval. Waiting {wait_time} seconds before retry {attempt + 1}/{max_retries}")
+                        wait_time = retry_delay * (2**attempt)  # Exponential backoff
+                        logger.warning(
+                            f"Rate limited on balance retrieval. Waiting {wait_time} seconds before retry {attempt + 1}/{max_retries}"
+                        )
                         time.sleep(wait_time)
                         continue
                     else:
                         logger.error(f"Balance retrieval still rate limited after {max_retries} attempts")
                         break
-                
+
                 # For non-rate-limiting errors or final attempt, raise the error
-                raise TradovateAPIError("Failed to retrieve account financials",
-                                         status_code=status_code,
-                                         response_text=getattr(e.response if hasattr(e, 'response') else None, 'text', None),
-                                         original_exception=e)
+                raise TradovateAPIError(
+                    "Failed to retrieve account financials",
+                    status_code=status_code,
+                    response_text=getattr(e.response if hasattr(e, "response") else None, "text", None),
+                    original_exception=e,
+                ) from e
 
         # Only reached when retries exhausted (likely due to rate limiting)
         if last_status_code == 429:
@@ -559,10 +604,14 @@ class Tradovate(Broker):
 
         # No cached value to fall back on: re-raise original exception for visibility
         if final_exception:
-            raise TradovateAPIError("Failed to retrieve account financials",
-                                     status_code=last_status_code,
-                                     response_text=getattr(final_exception.response if hasattr(final_exception, 'response') else None, 'text', None),
-                                     original_exception=final_exception)
+            raise TradovateAPIError(
+                "Failed to retrieve account financials",
+                status_code=last_status_code,
+                response_text=getattr(
+                    final_exception.response if hasattr(final_exception, "response") else None, "text", None
+                ),
+                original_exception=final_exception,
+            )
 
         raise TradovateAPIError("Failed to retrieve account financials")
 
@@ -579,10 +628,10 @@ class Tradovate(Broker):
         """
         self._check_and_renew_token()
 
-    def _parse_broker_order(self, response: dict, strategy_name: str, strategy_object=None) -> Order:
+    def _parse_broker_order(self, response: dict, strategy_name: str, strategy_object=None) -> Order | None:
         """
         Convert a Tradeovate order dictionary into a Lumibot Order object.
-        
+
         Expected Tradeovate fields:
         - id: order id
         - contractId: used to get asset details (for futures, asset_type is "future")
@@ -592,7 +641,7 @@ class Tradovate(Broker):
                     "Canceled", "Rejected", "Expired", "Submitted", etc.
         - timestamp: an ISO timestamp string (with a trailing 'Z' for UTC)
         - orderType, price, stopPrice: if provided
-        
+
         This function retrieves contract details (using _get_contract_details) to create an Asset,
         maps raw statuses to Lumibot's expected statuses, converts the timestamp into a datetime object,
         and creates the Order. The quote is set to USD.
@@ -614,8 +663,8 @@ class Tradovate(Broker):
             quantity = response.get("orderQty", 0)
             action = response.get("action", "").lower()
             order_type = response.get("orderType", "market").lower()
-            limit_price = response.get("price")
-            stop_price = response.get("stopPrice")
+            response.get("price")
+            response.get("stopPrice")
 
             # Map raw status to Lumibot's order status using common aliases.
             raw_status = response.get("ordStatus", "").lower()
@@ -637,10 +686,9 @@ class Tradovate(Broker):
                 status = raw_status
 
             timestamp_str = response.get("timestamp")
-            date_created = None
             if timestamp_str:
                 # Replace the trailing 'Z' with '+00:00' to properly parse UTC time.
-                date_created = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+                datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
 
             # Create the Lumibot Order. For unknown fields, we simply leave them out.
             order_obj = Order(
@@ -650,7 +698,7 @@ class Tradovate(Broker):
                 side=action,
                 order_type=order_type,  # Fixed: use order_type instead of deprecated 'type'
                 identifier=order_id,
-                quote=Asset("USD", asset_type=Asset.AssetType.FOREX)
+                quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
             )
             order_obj.status = status
             return order_obj
@@ -670,12 +718,14 @@ class Tradovate(Broker):
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
-            raise TradovateAPIError("Failed to retrieve orders",
-                                     status_code=getattr(e.response, 'status_code', None),
-                                     response_text=getattr(e.response, 'text', None),
-                                     original_exception=e)
+            raise TradovateAPIError(
+                "Failed to retrieve orders",
+                status_code=getattr(e.response, "status_code", None),
+                response_text=getattr(e.response, "text", None),
+                original_exception=e,
+            ) from e
 
-    def _pull_broker_order(self, identifier: str) -> Order:
+    def _pull_broker_order(self, identifier: str) -> Order | None:
         """
         Retrieve a specific order by its order id using the /order/item endpoint.
         """
@@ -689,12 +739,14 @@ class Tradovate(Broker):
             order_obj = self._parse_broker_order(order_data, strategy_name="")  # set strategy as needed
             return order_obj
         except requests.exceptions.RequestException as e:
-            raise TradovateAPIError(f"Failed to retrieve order {identifier}",
-                                     status_code=getattr(e.response, 'status_code', None),
-                                     response_text=getattr(e.response, 'text', None),
-                                     original_exception=e)
+            raise TradovateAPIError(
+                f"Failed to retrieve order {identifier}",
+                status_code=getattr(e.response, "status_code", None),
+                response_text=getattr(e.response, "text", None),
+                original_exception=e,
+            ) from e
 
-    def _pull_position(self, strategy, asset: Asset) -> Position:
+    def _pull_position(self, strategy, asset: Asset) -> Position | None:
         logger.error(colored(f"Method '_pull_position' for asset {asset} is not yet implemented.", "red"))
         return None
 
@@ -723,14 +775,18 @@ class Tradovate(Broker):
                 try:
                     contract_details = self._get_contract_details(contract_id)
                 except TradovateAPIError as e:
-                    logger.error(colored(f"Failed to retrieve contract details for contractId {contract_id}: {e}", "red"))
+                    logger.error(
+                        colored(f"Failed to retrieve contract details for contractId {contract_id}: {e}", "red")
+                    )
                     continue
                 # Extract asset details from the contract details.
                 # For Tradeovate futures, assume asset_type is "future" and use the contract name as the symbol.
                 symbol = contract_details.get("name", "")
                 expiration = None
                 multiplier = 1  # default multiplier
-                asset = Asset(symbol=symbol, asset_type=Asset.AssetType.FUTURE, expiration=expiration, multiplier=multiplier)
+                asset = Asset(
+                    symbol=symbol, asset_type=Asset.AssetType.FUTURE, expiration=expiration, multiplier=multiplier
+                )
                 quantity = pos.get("netPos", 0)
                 net_price = pos.get("netPrice", 0)
                 hold = 0
@@ -738,21 +794,17 @@ class Tradovate(Broker):
                 from lumibot.entities import Position
 
                 position_obj = Position(
-                    strategy,
-                    asset,
-                    quantity,
-                    orders=[],
-                    hold=hold,
-                    available=available,
-                    avg_fill_price=net_price
+                    strategy, asset, quantity, orders=[], hold=hold, available=available, avg_fill_price=net_price
                 )
                 positions.append(position_obj)
             return positions
         except requests.exceptions.RequestException as e:
-            raise TradovateAPIError("Failed to retrieve positions",
-                                     status_code=getattr(e.response, 'status_code', None),
-                                     response_text=getattr(e.response, 'text', None),
-                                     original_exception=e)
+            raise TradovateAPIError(
+                "Failed to retrieve positions",
+                status_code=getattr(e.response, "status_code", None),
+                response_text=getattr(e.response, "text", None),
+                original_exception=e,
+            ) from e
 
     def _register_stream_events(self):
         """Register polling callbacks that mirror the standard lifecycle pipeline."""
@@ -779,9 +831,7 @@ class Tradovate(Broker):
 
         @stream.add_action(self.FILLED_ORDER)
         def on_trade_event_fill(order, price, filled_quantity):
-            logger.info(
-                f"Tradovate processing FILLED event: {order} price={price} qty={filled_quantity}"
-            )
+            logger.info(f"Tradovate processing FILLED event: {order} price={price} qty={filled_quantity}")
             try:
                 broker._process_trade_event(
                     order,
@@ -795,9 +845,7 @@ class Tradovate(Broker):
 
         @stream.add_action(self.PARTIALLY_FILLED_ORDER)
         def on_trade_event_partial(order, price, filled_quantity):
-            logger.info(
-                f"Tradovate processing PARTIAL event: {order} price={price} qty={filled_quantity}"
-            )
+            logger.info(f"Tradovate processing PARTIAL event: {order} price={price} qty={filled_quantity}")
             try:
                 broker._process_trade_event(
                     order,
@@ -838,7 +886,7 @@ class Tradovate(Broker):
     # ------------------------------------------------------------------
     # Polling helpers
     # ------------------------------------------------------------------
-    def _extract_fill_details(self, raw_order: dict, order: Order) -> tuple[Optional[float], Optional[float]]:
+    def _extract_fill_details(self, raw_order: dict, order: Order) -> tuple[float | None, float | None]:
         """Attempt to derive fill price and quantity from a Tradovate order payload."""
 
         def _normalize_number(value):
@@ -891,13 +939,7 @@ class Tradovate(Broker):
         )
 
         order_identifier = raw_order.get("id") or getattr(order, "identifier", None)
-        needs_fill_lookup = (
-            order_identifier
-            and (
-                price is None
-                or quantity in (None, 0, 0.0)
-            )
-        )
+        needs_fill_lookup = order_identifier and (price is None or quantity in (None, 0, 0.0))
         if needs_fill_lookup:
             fill_price, fill_qty = self._fetch_recent_fill_details(order_identifier)
             if fill_qty is not None:
@@ -907,7 +949,7 @@ class Tradovate(Broker):
 
         return price, quantity
 
-    def _fetch_recent_fill_details(self, order_identifier) -> tuple[Optional[float], Optional[float]]:
+    def _fetch_recent_fill_details(self, order_identifier) -> tuple[float | None, float | None]:
         """Fallback to /fill/list when Tradovate omits fill price/quantity in order payloads."""
         if not order_identifier:
             return None, None
@@ -1004,9 +1046,7 @@ class Tradovate(Broker):
             return
 
         stored_orders = {
-            order.identifier: order
-            for order in self.get_all_orders()
-            if getattr(order, "identifier", None) is not None
+            order.identifier: order for order in self.get_all_orders() if getattr(order, "identifier", None) is not None
         }
         seen_identifiers: set[str] = set()
         active_identifiers: set[str] = set()
@@ -1030,10 +1070,13 @@ class Tradovate(Broker):
 
             status = parsed_order.status
             status_str = status.value if isinstance(status, Order.OrderStatus) else str(status).lower()
-            is_active_status = (
-                status in {Order.OrderStatus.NEW, Order.OrderStatus.OPEN}
-                or status_str in {"new", "submitted", "open", "working", "pending"}
-            )
+            is_active_status = status in {Order.OrderStatus.NEW, Order.OrderStatus.OPEN} or status_str in {
+                "new",
+                "submitted",
+                "open",
+                "working",
+                "pending",
+            }
             if is_active_status:
                 active_identifiers.add(identifier)
 
@@ -1043,9 +1086,20 @@ class Tradovate(Broker):
                     self.stream.dispatch(self.NEW_ORDER, order=parsed_order)
                 price, quantity = self._extract_fill_details(raw_order, parsed_order)
 
-                if (status == Order.OrderStatus.FILLED or status_str == "filled") and price is not None and quantity is not None:
+                if (
+                    (status == Order.OrderStatus.FILLED or status_str == "filled")
+                    and price is not None
+                    and quantity is not None
+                ):
                     self.stream.dispatch(self.FILLED_ORDER, order=parsed_order, price=price, filled_quantity=quantity)
-                elif (status == Order.OrderStatus.PARTIALLY_FILLED or status_str in {"partialfill", "partial_fill", "partially_filled"}) and price is not None and quantity is not None:
+                elif (
+                    (
+                        status == Order.OrderStatus.PARTIALLY_FILLED
+                        or status_str in {"partialfill", "partial_fill", "partially_filled"}
+                    )
+                    and price is not None
+                    and quantity is not None
+                ):
                     self.stream.dispatch(
                         self.PARTIALLY_FILLED_ORDER,
                         order=parsed_order,
@@ -1080,7 +1134,11 @@ class Tradovate(Broker):
                             price=price,
                             filled_quantity=quantity,
                         )
-                elif status == Order.OrderStatus.PARTIALLY_FILLED or status_str in {"partialfill", "partial_fill", "partially_filled"}:
+                elif status == Order.OrderStatus.PARTIALLY_FILLED or status_str in {
+                    "partialfill",
+                    "partial_fill",
+                    "partially_filled",
+                }:
                     if price is not None and quantity is not None:
                         self.stream.dispatch(
                             self.PARTIALLY_FILLED_ORDER,
@@ -1199,9 +1257,7 @@ class Tradovate(Broker):
             return
 
         order_ids = [
-            getattr(order, "identifier", None)
-            or getattr(order, "id", None)
-            or getattr(order, "order_id", None)
+            getattr(order, "identifier", None) or getattr(order, "id", None) or getattr(order, "order_id", None)
             for order in orders_to_cancel
         ]
         self.logger.info(
@@ -1239,7 +1295,7 @@ class Tradovate(Broker):
 
         This method takes an Order object, extracts necessary details, builds the payload,
         and sends it to the Tradeovate API to place the order. On success, the order status
-        is updated to 'submitted' and the raw response is attached to the order. Otherwise, 
+        is updated to 'submitted' and the raw response is attached to the order. Otherwise,
         the order is marked with an error.
         """
         # Pre-submission validation
@@ -1250,8 +1306,15 @@ class Tradovate(Broker):
             return order
 
         # Check if we have valid tokens
-        if not hasattr(self, 'trading_token') or not self.trading_token:
+        if not hasattr(self, "trading_token") or not self.trading_token:
             error_msg = "Trading token not available - authentication may have failed"
+            logger.error(error_msg)
+            order.set_error(error_msg)
+            return order
+
+        asset = order.asset
+        if asset is None:
+            error_msg = "Tradovate cannot submit an order without an asset"
             logger.error(error_msg)
             order.set_error(error_msg)
             return order
@@ -1260,12 +1323,12 @@ class Tradovate(Broker):
         action = "Buy" if order.is_buy_order() else "Sell"
 
         # Extract symbol from the order's asset and handle continuous futures conversion
-        if order.asset.asset_type == order.asset.AssetType.CONT_FUTURE:
+        if asset.asset_type == asset.AssetType.CONT_FUTURE:
             # For continuous futures, resolve to the specific contract symbol using Tradovate format
-            symbol = self._resolve_tradovate_futures_symbol(order.asset)
-            logger.info(f"Resolved continuous future {order.asset.symbol} -> {symbol}")
+            symbol = self._resolve_tradovate_futures_symbol(asset)
+            logger.info(f"Resolved continuous future {asset.symbol} -> {symbol}")
         else:
-            symbol = order.asset.symbol
+            symbol = asset.symbol
 
         # Determine the order type string based on the order type.
         if order.order_type == Order.OrderType.MARKET:
@@ -1277,9 +1340,7 @@ class Tradovate(Broker):
         elif order.order_type == Order.OrderType.STOP_LIMIT:
             order_type = "StopLimit"
         else:
-            logger.warning(
-                f"Order type '{order.order_type}' is not fully supported. Defaulting to Market order."
-            )
+            logger.warning(f"Order type '{order.order_type}' is not fully supported. Defaulting to Market order.")
             order_type = "Market"
 
         # Build the payload with numeric values sent as numbers and booleans as True/False.
@@ -1291,7 +1352,7 @@ class Tradovate(Broker):
             # Convert order.quantity to an integer rather than a float.
             "orderQty": int(order.quantity),
             "orderType": order_type,
-            "isAutomated": True
+            "isAutomated": True,
         }
         # If a limit price is specified for limit orders, include it.
         if order.limit_price is not None:
@@ -1303,24 +1364,27 @@ class Tradovate(Broker):
         url = f"{self.trading_api_url}/order/placeorder"
         headers = self._get_headers(with_content_type=True)
 
-
         try:
             response = self._request("POST", url, json=payload, headers=headers)
             response.raise_for_status()
             data = response.json()
 
             # Check if the response indicates a failure
-            if data.get('failureReason') or data.get('failureText'):
-                failure_reason = data.get('failureReason', 'Unknown')
-                failure_text = data.get('failureText', 'No details provided')
+            if data.get("failureReason") or data.get("failureText"):
+                failure_reason = data.get("failureReason", "Unknown")
+                failure_text = data.get("failureText", "No details provided")
                 error_message = f"Order rejected by Tradovate: {failure_reason} - {failure_text}"
                 logger.error(error_message)
 
                 # Add additional context for common errors
-                if 'Access is denied' in failure_text:
-                    logger.error("Possible causes: Account not authorized for trading, market closed, or insufficient permissions")
-                elif 'UnknownReason' in failure_reason:
-                    logger.error("Possible causes: Invalid symbol, market hours, account restrictions, or order parameters")
+                if "Access is denied" in failure_text:
+                    logger.error(
+                        "Possible causes: Account not authorized for trading, market closed, or insufficient permissions"
+                    )
+                elif "UnknownReason" in failure_reason:
+                    logger.error(
+                        "Possible causes: Invalid symbol, market hours, account restrictions, or order parameters"
+                    )
 
                 order.set_error(error_message)
                 return order
@@ -1408,8 +1472,7 @@ class Tradovate(Broker):
             return []
         return super()._pull_all_orders(strategy_name, strategy_object)
 
-    def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
-                      stop_price: Union[float, None] = None):
+    def _modify_order(self, order: Order, limit_price: float | None = None, stop_price: float | None = None):
         logger.error(colored(f"Method '_modify_order' for order {order} is not yet implemented.", "red"))
         return None
 

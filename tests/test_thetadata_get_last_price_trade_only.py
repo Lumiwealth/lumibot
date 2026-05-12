@@ -86,4 +86,3 @@ def test_thetadata_get_last_price_trade_only_returns_none_when_no_trade_exists(m
     ds._datetime = index[-1]
 
     assert ds.get_last_price(option, timestep="day", quote=quote) is None
-

@@ -1,16 +1,15 @@
+from __future__ import annotations
+
 import datetime
 import itertools
 import uuid
-from collections import namedtuple
 from decimal import Decimal
 from enum import Enum
 from threading import Event, Lock
-from typing import TYPE_CHECKING, Union
-
-if TYPE_CHECKING:
-    from lumibot.entities.asset import Asset
+from typing import Any, NamedTuple, TypeAlias, cast
 
 import lumibot.entities as entities
+from lumibot.entities.asset import Asset
 from lumibot.entities.smart_limit import SmartLimitConfig
 
 # Set up module-specific logger
@@ -70,20 +69,21 @@ class _LazyEvent:
 
 
 # Custom string enum implementation for Python 3.9 compatibility
-class StrEnum(str, Enum):
+class StrEnum(str, Enum):  # noqa: UP042 - Custom equality/hash behavior is intentional for hot paths.
     """
     A string enum implementation that works with Python 3.9+
-    
+
     This class extends str and Enum to create string enums that:
     1. Can be used like strings (string methods, comparison)
     2. Are hashable (for use in dictionaries, sets, etc.)
     3. Can be used in string comparisons without explicit conversion
     """
-    def __str__(self):
+
+    def __str__(self) -> str:
         # Avoid Enum.value property lookups in hot paths; StrEnum members are already `str`.
         return str.__str__(self)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if isinstance(other, str):
             # Avoid Enum.value property lookups; compare as plain strings.
             return str.__eq__(self, other)
@@ -93,7 +93,7 @@ class StrEnum(str, Enum):
             return self is other
         return super().__eq__(other)
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         # Use the hash of the enum member, not the string value
         # This ensures proper hashability while maintaining enum identity
         return super().__hash__()
@@ -153,45 +153,114 @@ STATUS_ALIAS_MAP = {
 
 NONE_TYPE = type(None)  # Order is shadowing 'type' parameter, this is a workaround to still access type(None)
 
+
+class _SimpleBacktestTransactions:
+    """Single-fill transaction sequence for high-volume simple backtests."""
+
+    __slots__ = ("quantity", "price")
+
+    def __init__(self, quantity: Any, price: Any) -> None:
+        self.quantity = quantity
+        self.price = price
+
+    def __bool__(self) -> bool:
+        return True
+
+    def __len__(self) -> int:
+        return 1
+
+    def __iter__(self) -> Any:
+        yield Order.Transaction(quantity=self.quantity, price=self.price)
+
+    def __getitem__(self, index: int) -> Any:
+        if index == 0 or index == -1:
+            return Order.Transaction(quantity=self.quantity, price=self.price)
+        raise IndexError(index)
+
+    def __repr__(self) -> str:
+        return repr((Order.Transaction(quantity=self.quantity, price=self.price),))
+
+
+_OrderAssetInput: TypeAlias = "Asset | str | tuple[Asset, Asset] | None"  # noqa: UP040 - keep Python 3.11 parser compatibility.
+_OrderSideInput: TypeAlias = "Order.OrderSide | str | None"  # noqa: UP040 - keep Python 3.11 parser compatibility.
+_OrderTypeInput: TypeAlias = "Order.OrderType | Order.OrderClass | str | None"  # noqa: UP040 - keep Python 3.11 parser compatibility.
+_OrderClassInput: TypeAlias = "Order.OrderClass | str | None"  # noqa: UP040 - keep Python 3.11 parser compatibility.
+_Transactions: TypeAlias = "list[Order.Transaction] | tuple[Order.Transaction, ...] | _SimpleBacktestTransactions"  # noqa: UP040 - keep Python 3.11 parser compatibility.
+
+
 class Order:
-    Transaction = namedtuple("Transaction", ["quantity", "price"])
-    # Class-level defaults support __new__-only simple_market_backtest orders
-    # that bypass __init__; keep these safe fallbacks available on instances.
-    good_till_date = None
-    position_filled = None
-    limit_price = None
-    stop_price = None
-    stop_limit_price = None
-    trail_price = None
-    trail_percent = None
-    price_triggered = False
-    take_profit_price = None
-    stop_loss_price = None
-    stop_loss_limit_price = None
-    parent_identifier = None
-    dependent_order = None
-    dependent_order_filled = False
-    smart_limit = None
-    trade_cost = None
-    trade_slippage = 0.0
-    custom_params = None
-    pair = None
-    tag = ""
-    broker_create_date = None
-    broker_update_date = None
-    exchange = None
-    error_message = None
-    transactions = ()
-    _trail_stop_price = None
-    _avg_fill_price = None
-    _new_event = None
-    _canceled_event = None
-    _partial_filled_event = None
-    _filled_event = None
-    _closed_event = None
-    _raw = None
-    _transmitted = False
-    _error = None
+    class Transaction(NamedTuple):
+        quantity: Any
+        price: Any
+
+    SimpleBacktestTransactions = _SimpleBacktestTransactions
+    good_till_date: datetime.datetime | None = None
+    position_filled: bool | None = None
+    limit_price: float | Decimal | None = None
+    stop_price: float | Decimal | None = None
+    stop_limit_price: float | Decimal | None = None
+    trail_price: float | Decimal | None = None
+    trail_percent: float | Decimal | None = None
+    secondary_limit_price: float | Decimal | None = None
+    secondary_stop_price: float | Decimal | None = None
+    secondary_stop_limit_price: float | Decimal | None = None
+    secondary_trail_price: float | Decimal | None = None
+    secondary_trail_percent: float | Decimal | None = None
+    price_triggered: bool = False
+    take_profit_price: float | Decimal | None = None
+    stop_loss_price: float | Decimal | None = None
+    stop_loss_limit_price: float | Decimal | None = None
+    parent_identifier: str | None = None
+    dependent_order: Order | None = None
+    dependent_order_filled: bool = False
+    smart_limit: SmartLimitConfig | None = None
+    trade_cost: float | Decimal | None = None
+    trade_slippage: float | Decimal = 0.0
+    custom_params: dict[str, Any] | None = None
+    pair: str | None = None
+    tag: str = ""
+    broker_create_date: datetime.datetime | None = None
+    broker_update_date: datetime.datetime | None = None
+    exchange: str | None = None
+    error_message: str | None = None
+    transactions: _Transactions = ()
+    child_orders: list[Any] | tuple[()]
+    strategy: Any
+    asset: Asset | None
+    quote: Asset | None
+    symbol: str | None
+    side: OrderSide | None
+    time_in_force: str
+    order_class: OrderClass | None
+    order_type: OrderType | None
+    rep_asset: str | None
+    _identifier: str
+    _status: str
+    _date_created: datetime.datetime | None
+    _quantity: Any
+    _trail_stop_price: float | Decimal | None = None
+    _avg_fill_price: float | Decimal | None = None
+    _simple_asset_type_value: str
+    _simple_is_crypto_forex: bool
+    _simple_is_future: bool
+    _simple_multiplier: Any
+    _simple_is_option: bool
+    _simple_futures_ledger_key: tuple[Any, ...] | None
+    _simple_quantity_float: float
+    _simple_backtest_order: bool
+    _simple_is_buy: bool
+    _simple_is_sell: bool
+    _simple_direct_fill_eligible: bool
+    _fast_trade_event_static: tuple[Any, ...]
+    _new_event: _LazyEvent | None = None
+    _canceled_event: _LazyEvent | None = None
+    _partial_filled_event: _LazyEvent | None = None
+    _filled_event: _LazyEvent | None = None
+    _closed_event: _LazyEvent | None = None
+    _raw: Any | None = None
+    _transmitted: bool = False
+    _error: Any | None = None
+    _smart_limit_state: dict[str, Any] | None = None
 
     class OrderClass(StrEnum):
         SIMPLE = "simple"
@@ -234,50 +303,50 @@ class Order:
         EXPIRED = "expired"
 
     # PERF: avoid iterating Enum classes in every `Order.__init__` call (hot path in backtests).
-    _ORDER_CLASS_BY_VALUE = {oc.value: oc for oc in OrderClass}
-    _ORDER_CLASS_VALUES_STR = ", ".join(oc.value for oc in OrderClass)
-    _ORDER_TYPE_VALUES_STR = ", ".join(ot.value for ot in OrderType)
+    _ORDER_CLASS_BY_VALUE: dict[str, OrderClass] = {oc.value: oc for oc in OrderClass}
+    _ORDER_CLASS_VALUES_STR: str = ", ".join(oc.value for oc in OrderClass)
+    _ORDER_TYPE_VALUES_STR: str = ", ".join(ot.value for ot in OrderType)
 
     def __init__(
         self,
-        strategy,
-        asset: Union[str, "Asset"] = None,
-        quantity: float = None,
-        side: OrderSide = None,
-        limit_price: float = None,
-        stop_price: float = None,
-        stop_limit_price: float = None,
-        trail_price: float = None,
-        trail_percent: float = None,
-        secondary_limit_price: float = None,
-        secondary_stop_price: float = None,
-        secondary_stop_limit_price: float = None,
-        secondary_trail_price: float = None,
-        secondary_trail_percent: float = None,
-        take_profit_price: float = None,  # Deprecated
-        stop_loss_price: float = None,  # Deprecated
-        stop_loss_limit_price: float = None,  # Deprecated
+        strategy: Any,
+        asset: _OrderAssetInput = None,
+        quantity: float | Decimal | int | None = None,
+        side: _OrderSideInput = None,
+        limit_price: float | Decimal | None = None,
+        stop_price: float | Decimal | None = None,
+        stop_limit_price: float | Decimal | None = None,
+        trail_price: float | Decimal | None = None,
+        trail_percent: float | Decimal | None = None,
+        secondary_limit_price: float | Decimal | None = None,
+        secondary_stop_price: float | Decimal | None = None,
+        secondary_stop_limit_price: float | Decimal | None = None,
+        secondary_trail_price: float | Decimal | None = None,
+        secondary_trail_percent: float | Decimal | None = None,
+        take_profit_price: float | Decimal | None = None,  # Deprecated
+        stop_loss_price: float | Decimal | None = None,  # Deprecated
+        stop_loss_limit_price: float | Decimal | None = None,  # Deprecated
         time_in_force: str = "day",
-        good_till_date: datetime.datetime = None,
-        exchange: str = None,
+        good_till_date: datetime.datetime | None = None,
+        exchange: str | None = None,
         position_filled: bool = False,
-        quote: "Asset" = None,
-        pair: str = None,
-        date_created: datetime.datetime = None,
-        type: Union[OrderType, None] = None,  # Deprecated, use 'order_type' instead
-        order_type: Union[OrderType, None] = None,
-        order_class: Union[OrderClass, None] = OrderClass.SIMPLE,
-        trade_cost: float = None,
-        trade_slippage: float = None,
-        custom_params: dict = None,
-        identifier: str = None,
-        avg_fill_price: float = None,
-        error_message: str = None,
-        child_orders: Union[list, None] = None,
+        quote: Asset | None = None,
+        pair: str | None = None,
+        date_created: datetime.datetime | None = None,
+        type: _OrderTypeInput = None,  # noqa: A002 - Deprecated compatibility alias for order_type.
+        order_type: _OrderTypeInput = None,
+        order_class: _OrderClassInput = OrderClass.SIMPLE,
+        trade_cost: float | Decimal | None = None,
+        trade_slippage: float | Decimal | None = None,
+        custom_params: dict[str, Any] | None = None,
+        identifier: str | None = None,
+        avg_fill_price: float | Decimal | None = None,
+        error_message: str | None = None,
+        child_orders: list[Any] | None = None,
         tag: str = "",
-        status: OrderStatus = "unprocessed",
-        smart_limit: SmartLimitConfig = None,
-    ):
+        status: OrderStatus | str = "unprocessed",
+        smart_limit: SmartLimitConfig | None = None,
+    ) -> None:
         """Order class for managing individual orders.
 
         Order class for creating order objects that will track details
@@ -467,7 +536,7 @@ class Order:
             return
 
         if isinstance(asset, str):
-            asset = entities.Asset(symbol=asset)
+            asset = Asset(symbol=asset)
 
         # Initialization default values
         self.strategy = strategy
@@ -482,7 +551,7 @@ class Order:
 
         # It is possible for crypto currencies to arrive as a tuple of
         # two assets.
-        if isinstance(asset, tuple) and "crypto" == asset[0].asset_type:
+        if isinstance(asset, tuple):
             self.asset = asset[0]
             self.quote = asset[1]
         else:
@@ -504,21 +573,23 @@ class Order:
         self.trail_price = None
         self.trail_percent = None
         self.price_triggered = False
-        self.take_profit_price = None # Used for bracket, OTO, and OCO orders TODO: Remove this because it is confusing (use child orders instead)
-        self.stop_loss_price = None # Used for bracket, OTO, and OCO orders TODO: Remove this because it is confusing (use child orders instead)
+        self.take_profit_price = None  # Used for bracket, OTO, and OCO orders TODO: Remove this because it is confusing (use child orders instead)
+        self.stop_loss_price = None  # Used for bracket, OTO, and OCO orders TODO: Remove this because it is confusing (use child orders instead)
         self.stop_loss_limit_price = None
         self.transactions = []
-        self.order_class = order_class
+        self.order_class = None
         self.dependent_order = None
         self.dependent_order_filled = False
-        self.order_type = order_type
+        self.order_type = None
         self.smart_limit = smart_limit
         self.trade_cost = trade_cost
         self.trade_slippage = 0.0 if trade_slippage is None else trade_slippage
         self.custom_params = custom_params
         self._trail_stop_price = None  # Used by backtesting broker to track desired trailing stop price so far
         self.tag = tag
-        self._avg_fill_price = avg_fill_price # The weighted average filled price for this order. Calculated if not given by broker
+        self._avg_fill_price = (
+            avg_fill_price  # The weighted average filled price for this order. Calculated if not given by broker
+        )
         self.broker_create_date = None  # The datetime the order was created by the broker
         self.broker_update_date = None  # The datetime the order was last updated by the broker
         self.status = status
@@ -527,7 +598,7 @@ class Order:
         self.exchange = exchange
 
         # Cryptocurrency market.
-        if self.asset and "crypto" == self.asset.asset_type:
+        if self.asset and "crypto" == self.asset.asset_type and self.quote is not None:
             self.pair = f"{self.asset.symbol}/{self.quote.symbol}"
         else:
             self.pair = pair
@@ -552,15 +623,21 @@ class Order:
         try:
             self.side = side if (side is None or isinstance(side, self.OrderSide)) else self.OrderSide(side)
         except ValueError:
-            raise ValueError(f"Order: Invalid side {side}. Must be one of:"
-                             f" {', '.join([str(s.value) for s in self.OrderSide])}") from None
+            raise ValueError(
+                f"Order: Invalid side {side}. Must be one of: {', '.join([str(s.value) for s in self.OrderSide])}"
+            ) from None
 
         try:
-            self.order_class = order_class \
-                if (order_class is None or isinstance(order_class, self.OrderClass)) else self.OrderClass(order_class)
+            self.order_class = (
+                order_class
+                if (order_class is None or isinstance(order_class, self.OrderClass))
+                else self.OrderClass(order_class)
+            )
         except ValueError:
-            raise ValueError(f"Order: Invalid order_class '{order_class}'. Must be one of:"
-                             f" {', '.join([str(oc.value) for oc in self.OrderClass])}") from None
+            raise ValueError(
+                f"Order: Invalid order_class '{order_class}'. Must be one of:"
+                f" {', '.join([str(oc.value) for oc in self.OrderClass])}"
+            ) from None
 
         # Check - deprecated parameters and inform the user
         #
@@ -583,27 +660,47 @@ class Order:
                 if locals()[param] is not None:
                     # Get caller information for better debugging
                     import inspect
-                    frame = inspect.currentframe().f_back
-                    filename = frame.f_code.co_filename.split('/')[-1]  # Just the filename
-                    lineno = frame.f_lineno
-                    function_name = frame.f_code.co_name
 
-                    logger.warning(f"DEPRECATED in {filename}:{function_name}:{lineno} - "
-                                 f"Order parameter '{param}' is deprecated. Use '{new_param}' instead.")
+                    current_frame = inspect.currentframe()
+                    frame = current_frame.f_back if current_frame is not None else None
+                    filename = frame.f_code.co_filename.split("/")[-1] if frame is not None else "<unknown>"
+                    lineno = frame.f_lineno if frame is not None else 0
+                    function_name = frame.f_code.co_name if frame is not None else "<unknown>"
+
+                    logger.warning(
+                        f"DEPRECATED in {filename}:{function_name}:{lineno} - "
+                        f"Order parameter '{param}' is deprecated. Use '{new_param}' instead."
+                    )
 
                     if locals()[new_param]:
-                        raise ValueError(f"You cannot set both {param} and {new_param}. "
-                                       f"This may cause unexpected behavior.")
+                        raise ValueError(
+                            f"You cannot set both {param} and {new_param}. This may cause unexpected behavior."
+                        )
                     locals()[new_param] = locals()[param]
 
         # TODO: Remove when type//take_profit_price/stop_loss_price/stop_loss_limit_price are finally
         #  deprecated permanently
-        secondary_limit_price = secondary_limit_price if secondary_limit_price is not None \
-            else take_profit_price if take_profit_price is not None else secondary_limit_price
-        secondary_stop_price = secondary_stop_price if secondary_stop_price is not None \
-            else stop_loss_price if stop_loss_price is not None else secondary_stop_price
-        secondary_stop_limit_price = secondary_stop_limit_price if secondary_stop_limit_price is not None \
-            else stop_loss_limit_price if stop_loss_limit_price is not None else secondary_stop_limit_price
+        secondary_limit_price = (
+            secondary_limit_price
+            if secondary_limit_price is not None
+            else take_profit_price
+            if take_profit_price is not None
+            else secondary_limit_price
+        )
+        secondary_stop_price = (
+            secondary_stop_price
+            if secondary_stop_price is not None
+            else stop_loss_price
+            if stop_loss_price is not None
+            else secondary_stop_price
+        )
+        secondary_stop_limit_price = (
+            secondary_stop_limit_price
+            if secondary_stop_limit_price is not None
+            else stop_loss_limit_price
+            if stop_loss_limit_price is not None
+            else secondary_stop_limit_price
+        )
         order_type = order_type if order_type is not None else type if type is not None else order_type
 
         # Check - only provide a single stoploss modifier like trail_price, trail_percent, stop_limit_price, etc.
@@ -637,10 +734,12 @@ class Order:
             deprecated_order_class = self._ORDER_CLASS_BY_VALUE.get(order_type.strip().lower())
 
         if deprecated_order_class is not None:
-            logger.warning(f"Order: Passing Advanced order class ({self.order_type}) in 'order_type' field is "
-                            f"deprecated. Please use 'order_class' instead. "
-                            f"Valid Classes: {self._ORDER_CLASS_VALUES_STR} | "
-                            f"Valid Types: {self._ORDER_TYPE_VALUES_STR}")
+            logger.warning(
+                f"Order: Passing Advanced order class ({self.order_type}) in 'order_type' field is "
+                f"deprecated. Please use 'order_class' instead. "
+                f"Valid Classes: {self._ORDER_CLASS_VALUES_STR} | "
+                f"Valid Types: {self._ORDER_TYPE_VALUES_STR}"
+            )
             self.order_class = deprecated_order_class
             self.order_type = None
             order_type = None
@@ -651,11 +750,16 @@ class Order:
             self.smart_limit = SmartLimitConfig()
 
         try:
-            self.order_type = order_type \
-                if (order_type is None or isinstance(order_type, self.OrderType)) else self.OrderType(order_type)
+            self.order_type = (
+                order_type
+                if (order_type is None or isinstance(order_type, self.OrderType))
+                else self.OrderType(order_type)
+            )
         except ValueError:
-            raise ValueError(f"Order: Invalid order_type {order_type}. Must be one of:"
-                             f" {', '.join([str(t.value) for t in self.OrderType])}") from None
+            raise ValueError(
+                f"Order: Invalid order_type {order_type}. Must be one of:"
+                f" {', '.join([str(t.value) for t in self.OrderType])}"
+            ) from None
 
         # PERF: Market orders are extremely common (especially in backtests/benchmarks). When all
         # price modifiers are unset and the order is a simple MARKET, we already initialized the
@@ -709,49 +813,35 @@ class Order:
         )
 
     @classmethod
-    def simple_market_backtest(
+    def simple_market_backtest_context(
         cls,
-        strategy,
-        asset,
-        quantity,
-        side,
+        strategy: Any,
+        asset: Asset | None,
+        side: _OrderSideInput,
         *,
-        quote=None,
-        time_in_force="gtc",
-        date_created=None,
-        identifier=None,
-    ):
-        """Construct a normal simple MARKET order for hot backtest paths."""
-        obj = cls.__new__(cls)
-        obj.child_orders = []
-        obj.strategy = strategy
-        obj.asset = asset
-        obj.quote = quote
-        obj.symbol = asset.symbol if asset else None
-        obj._identifier = identifier if identifier else f"bt-{next(_SIMPLE_BACKTEST_IDENTIFIER_COUNTER):x}"
-        obj._status = "unprocessed"
-        obj._date_created = date_created
-        obj.side = side if (side is None or side.__class__ is cls.OrderSide) else cls.OrderSide(side)
-        obj.time_in_force = time_in_force
-        obj.order_class = cls.OrderClass.SIMPLE
-        obj.order_type = cls.OrderType.MARKET
-        asset_type = getattr(asset, "asset_type", None)
-        quote_asset_type = getattr(quote, "asset_type", None) if quote is not None else None
-        asset_type_value = getattr(asset, "_cached_asset_type_key", None)
-        if asset_type_value is None:
-            asset_type_value = str.__str__(asset_type) if isinstance(asset_type, str) else str(asset_type or "")
-        quote_asset_type_value = getattr(quote, "_cached_asset_type_key", None) if quote is not None else ""
-        if quote_asset_type_value is None:
-            quote_asset_type_value = (
-                str.__str__(quote_asset_type) if isinstance(quote_asset_type, str) else str(quote_asset_type or "")
-            )
+        quote: Asset | None = None,
+        time_in_force: str = "gtc",
+    ) -> tuple[Any, ...]:
+        """Precompute static fields for repeated simple MARKET backtest orders."""
+        side_obj = side if (side is None or isinstance(side, cls.OrderSide)) else cls.OrderSide(side)
+        symbol = asset.symbol if asset else None
+        if asset is not None:
+            asset_type = asset.asset_type
+            asset_type_value = str(getattr(asset, "_cached_asset_type_key", ""))
+            asset_multiplier = asset.multiplier
+        else:
+            asset_type = None
+            asset_type_value = ""
+            asset_multiplier = 1
+        quote_asset_type_value = str(getattr(quote, "_cached_asset_type_key", "")) if quote is not None else ""
 
+        pair: str | None = None
         if asset and asset_type_value == "crypto" and quote:
-            pair_cache = getattr(asset, "_lumibot_quote_pair_cache", None)
-            if pair_cache is None:
+            pair_cache = cast(dict[str | None, str] | None, getattr(asset, "_lumibot_quote_pair_cache", None))
+            if not isinstance(pair_cache, dict):
                 pair_cache = {}
                 try:
-                    setattr(asset, "_lumibot_quote_pair_cache", pair_cache)
+                    setattr(asset, "_lumibot_quote_pair_cache", pair_cache)  # noqa: B010 - avoids protected-member access noise.
                 except Exception:
                     pair_cache = None
             quote_symbol = quote.symbol
@@ -760,55 +850,152 @@ class Order:
                 if pair is None:
                     pair = f"{asset.symbol}/{quote_symbol}"
                     pair_cache[quote_symbol] = pair
-                obj.pair = pair
             else:
-                obj.pair = f"{asset.symbol}/{quote_symbol}"
-        obj._simple_asset_type_value = asset_type_value
-        obj._simple_is_crypto_forex = asset_type_value == "crypto" and quote_asset_type_value == "forex"
-        obj._simple_is_future = asset_type_value in ("future", "cont_future")
-        obj._simple_multiplier = getattr(asset, "multiplier", None) or 1
-        obj._simple_is_option = asset_type_value == "option"
-        if obj._simple_is_future:
-            obj._simple_futures_ledger_key = (obj.strategy, obj.symbol, asset_type, getattr(asset, "expiration", None))
-        obj._quantity = quantity if isinstance(quantity, Decimal) else Decimal(quantity)
-        obj._simple_quantity_float = float(obj._quantity)
-        obj._simple_backtest_order = True
-        side_obj = obj.side
+                pair = f"{asset.symbol}/{quote_symbol}"
+
+        is_future = asset_type_value in ("future", "cont_future")
         if side_obj is cls.OrderSide.BUY:
-            obj._simple_is_buy = True
-            obj._simple_is_sell = False
+            is_buy = True
+            is_sell = False
         elif side_obj is cls.OrderSide.SELL:
-            obj._simple_is_buy = False
-            obj._simple_is_sell = True
+            is_buy = False
+            is_sell = True
         else:
-            obj._simple_is_buy = (
+            is_buy = (
                 side_obj is cls.OrderSide.BUY_TO_OPEN
                 or side_obj is cls.OrderSide.BUY_TO_COVER
                 or side_obj is cls.OrderSide.BUY_TO_CLOSE
             )
-            obj._simple_is_sell = (
+            is_sell = (
                 side_obj is cls.OrderSide.SELL_SHORT
                 or side_obj is cls.OrderSide.SELL_TO_OPEN
                 or side_obj is cls.OrderSide.SELL_TO_CLOSE
             )
-        obj._simple_direct_fill_eligible = (
-            (obj._simple_is_buy or obj._simple_is_sell)
-            and asset_type_value in ("crypto", "future", "cont_future")
+
+        multiplier = asset_multiplier or 1
+        futures_ledger_key = (
+            (strategy, symbol, asset_type_value, getattr(asset, "expiration", None)) if is_future else None
         )
+        return (
+            strategy,
+            asset,
+            quote,
+            symbol,
+            side_obj,
+            time_in_force,
+            asset_type,
+            asset_type_value,
+            multiplier,
+            pair,
+            asset_type_value == "crypto" and quote_asset_type_value == "forex",
+            is_future,
+            asset_type_value == "option",
+            futures_ledger_key,
+            is_buy,
+            is_sell,
+            (is_buy or is_sell) and asset_type_value in ("crypto", "future", "cont_future"),
+        )
+
+    @classmethod
+    def simple_market_backtest_from_context(
+        cls,
+        context: tuple[Any, ...],
+        quantity: Decimal | float | int | str,
+        *,
+        date_created: datetime.datetime | None = None,
+        identifier: str | None = None,
+    ) -> Order:
+        """Construct a simple MARKET backtest order from a precomputed context."""
+        (
+            strategy,
+            asset,
+            quote,
+            symbol,
+            side,
+            time_in_force,
+            asset_type,
+            asset_type_value,
+            multiplier,
+            pair,
+            is_crypto_forex,
+            is_future,
+            is_option,
+            futures_ledger_key,
+            is_buy,
+            is_sell,
+            direct_fill_eligible,
+        ) = context
+
+        obj = cls.__new__(cls)
+        obj.child_orders = ()
+        obj.strategy = strategy
+        obj.asset = asset
+        obj.quote = quote
+        obj.symbol = symbol
+        obj._identifier = identifier if identifier else f"bt-{next(_SIMPLE_BACKTEST_IDENTIFIER_COUNTER):x}"
+        obj._status = "unprocessed"
+        obj._date_created = date_created
+        obj.side = side
+        obj.time_in_force = time_in_force
+        obj.order_class = cls.OrderClass.SIMPLE
+        obj.order_type = cls.OrderType.MARKET
+        if pair is not None:
+            obj.pair = pair
+        obj._simple_asset_type_value = asset_type_value
+        obj._simple_is_crypto_forex = is_crypto_forex
+        obj._simple_is_future = is_future
+        obj._simple_multiplier = multiplier
+        obj._simple_is_option = is_option
+        if futures_ledger_key is not None:
+            obj._simple_futures_ledger_key = futures_ledger_key
+        obj._quantity = quantity if type(quantity) is Decimal else Decimal(quantity)
+        obj._simple_quantity_float = float(obj._quantity)
+        obj._simple_backtest_order = True
+        obj._simple_is_buy = is_buy
+        obj._simple_is_sell = is_sell
+        obj._simple_direct_fill_eligible = direct_fill_eligible
         obj._fast_trade_event_static = (
-            obj.strategy,
+            strategy,
             obj._identifier,
-            obj.symbol,
-            obj.side,
-            obj.order_type,
-            obj.trade_slippage,
-            obj.time_in_force,
-            obj._simple_multiplier,
+            symbol,
+            side,
+            cls.OrderType.MARKET,
+            0.0,
+            time_in_force,
+            multiplier,
             asset_type,
         )
         return obj
 
-    def is_advanced_order(self):
+    @classmethod
+    def simple_market_backtest(
+        cls,
+        strategy: Any,
+        asset: Asset | None,
+        quantity: Decimal | float | int | str,
+        side: _OrderSideInput,
+        *,
+        quote: Asset | None = None,
+        time_in_force: str = "gtc",
+        date_created: datetime.datetime | None = None,
+        identifier: str | None = None,
+    ) -> Order:
+        """Construct a normal simple MARKET order for hot backtest paths."""
+        context = cls.simple_market_backtest_context(
+            strategy,
+            asset,
+            side,
+            quote=quote,
+            time_in_force=time_in_force,
+        )
+        return cls.simple_market_backtest_from_context(
+            context,
+            quantity,
+            date_created=date_created,
+            identifier=identifier,
+        )
+
+    def is_advanced_order(self) -> bool:
         order_class = self.order_class
         return (
             order_class is self.OrderClass.OCO
@@ -816,7 +1003,7 @@ class Order:
             or order_class is self.OrderClass.OTO
         )
 
-    def is_buy_order(self):
+    def is_buy_order(self) -> bool:
         side = self.side
         if side is None:
             return False
@@ -827,7 +1014,7 @@ class Order:
             or side is self.OrderSide.BUY_TO_CLOSE
         )
 
-    def is_sell_order(self):
+    def is_sell_order(self) -> bool:
         side = self.side
         if side is None:
             return False
@@ -838,7 +1025,7 @@ class Order:
             or side is self.OrderSide.SELL_TO_CLOSE
         )
 
-    def is_stop_order(self):
+    def is_stop_order(self) -> bool:
         order_type = self.order_type
         return (
             order_type is self.OrderType.STOP
@@ -859,7 +1046,12 @@ class Order:
         """
         return bool(self.child_orders)
 
-    def add_child_order(self, o):
+    def _ensure_child_order_list(self) -> list[Any]:
+        if not isinstance(self.child_orders, list):
+            self.child_orders = list(self.child_orders)
+        return self.child_orders
+
+    def add_child_order(self, o: Order) -> None:
         """
         Add a child order to the parent order.
 
@@ -868,9 +1060,9 @@ class Order:
         o : Order
             The child order to add to the parent order.
         """
-        self.child_orders.append(o)
+        self._ensure_child_order_list().append(o)
 
-    def update_trail_stop_price(self, price):
+    def update_trail_stop_price(self, price: float | Decimal) -> None:
         """Update the trail stop price.
         This will be used to determine if a trailing stop order should be triggered in a backtest.
 
@@ -887,6 +1079,7 @@ class Order:
         # Trail modifiers are validated as numeric, but may be `Decimal` depending on how the
         # strategy constructed the order. Convert to floats to keep arithmetic stable across
         # backtesting/live code paths.
+        price_value = float(price)
         trail_percent = self.trail_percent
         if isinstance(trail_percent, Decimal):
             trail_percent = float(trail_percent)
@@ -897,12 +1090,13 @@ class Order:
 
         # Update the trail stop price if we have a trail_percent
         if trail_percent is not None:
+            trail_percent_value = float(trail_percent)
             # Get potential trail stop price
             if self.is_buy_order():
-                potential_trail_stop_price = price * (1 + trail_percent)
+                potential_trail_stop_price = price_value * (1 + trail_percent_value)
             # Buy/Sell are the only valid sides, so we can use else here.
             else:
-                potential_trail_stop_price = price * (1 - trail_percent)
+                potential_trail_stop_price = price_value * (1 - trail_percent_value)
 
             # Set the trail stop price if it has not been set yet.
             if self._trail_stop_price is None:
@@ -921,11 +1115,12 @@ class Order:
 
         # Update the trail stop price if we have a trail_price
         if trail_price is not None:
+            trail_price_value = float(trail_price)
             # Get potential trail stop price
             if self.is_buy_order():
-                potential_trail_stop_price = price + trail_price
+                potential_trail_stop_price = price_value + trail_price_value
             elif self.is_sell_order():
-                potential_trail_stop_price = price - trail_price
+                potential_trail_stop_price = price_value - trail_price_value
             else:
                 raise ValueError(f"side must be either 'buy' or 'sell'. Got {self.side} instead.")
 
@@ -944,7 +1139,7 @@ class Order:
                 # Update the trail stop price
                 self._trail_stop_price = potential_trail_stop_price
 
-    def get_current_trail_stop_price(self):
+    def get_current_trail_stop_price(self) -> float | Decimal | None:
         """
         Get the current trailing stop price. This is the price that the trailing stop order will be triggered at.
 
@@ -956,18 +1151,18 @@ class Order:
         return self._trail_stop_price
 
     def _set_prices(
-            self,
-            limit_price,
-            stop_price,
-            stop_limit_price,
-            trail_price,
-            trail_percent,
-            secondary_limit_price,
-            secondary_stop_price,
-            secondary_stop_limit_price,
-            secondary_trail_price,
-            secondary_trail_percent,
-    ):
+        self,
+        limit_price: float | Decimal | None,
+        stop_price: float | Decimal | None,
+        stop_limit_price: float | Decimal | None,
+        trail_price: float | Decimal | None,
+        trail_percent: float | Decimal | None,
+        secondary_limit_price: float | Decimal | None,
+        secondary_stop_price: float | Decimal | None,
+        secondary_stop_limit_price: float | Decimal | None,
+        secondary_trail_price: float | Decimal | None,
+        secondary_trail_percent: float | Decimal | None,
+    ) -> None:
         # PERF: these helpers are called for every Order, but most Orders are market orders
         # (all price inputs are `None`). Avoid the function call overhead in that common case.
         cp = check_price
@@ -976,12 +1171,14 @@ class Order:
         self.limit_price = None if limit_price is None else cp(limit_price, "limit_price must be float.", nullable=True)
         self.stop_price = None if stop_price is None else cp(stop_price, "stop_price must be float.", nullable=True)
         self.stop_limit_price = (
-            None
-            if stop_limit_price is None
-            else cp(stop_limit_price, "stop_limit_price must be float.", nullable=True)
+            None if stop_limit_price is None else cp(stop_limit_price, "stop_limit_price must be float.", nullable=True)
         )
-        self.trail_price = None if trail_price is None else cp(trail_price, "trail_price must be positive float.", nullable=True)
-        self.trail_percent = None if trail_percent is None else cpos(trail_percent, float, "trail_percent must be positive float.")
+        self.trail_price = (
+            None if trail_price is None else cp(trail_price, "trail_price must be positive float.", nullable=True)
+        )
+        self.trail_percent = (
+            None if trail_percent is None else cpos(trail_percent, float, "trail_percent must be positive float.")
+        )
 
         self.secondary_limit_price = (
             None
@@ -1011,13 +1208,13 @@ class Order:
 
     def _set_type_and_prices(
         self,
-        limit_price,
-        stop_price,
-        stop_limit_price,
-        trail_price,
-        trail_percent,
-        position_filled,
-    ):
+        limit_price: float | Decimal | None,
+        stop_price: float | Decimal | None,
+        stop_limit_price: float | Decimal | None,
+        trail_price: float | Decimal | None,
+        trail_percent: float | Decimal | None,
+        position_filled: bool,
+    ) -> None:
         if self.order_type is None:
             if self.smart_limit is not None:
                 self.order_type = self.OrderType.SMART_LIMIT
@@ -1052,8 +1249,14 @@ class Order:
                                  creating the order."
                 )
 
-    def _set_order_class_children(self, secondary_limit_price, secondary_stop_price, secondary_stop_limit_price,
-                                  secondary_trail_price, secondary_trail_percent):
+    def _set_order_class_children(
+        self,
+        secondary_limit_price: float | Decimal | None,
+        secondary_stop_price: float | Decimal | None,
+        secondary_stop_limit_price: float | Decimal | None,
+        secondary_trail_price: float | Decimal | None,
+        secondary_trail_percent: float | Decimal | None,
+    ) -> None:
 
         if self.order_class is self.OrderClass.OCO:
             # This is a "One-Cancel-Other" advanced order. All info needed to calculate the child orders exists
@@ -1094,8 +1297,9 @@ class Order:
                     if not isinstance(child_order, Order):
                         raise ValueError("Child orders must be of type Order")
             else:
-                raise ValueError("Order class is OCO but child orders are not set and no limit/stop prices have "
-                                 "been provided.")
+                raise ValueError(
+                    "Order class is OCO but child orders are not set and no limit/stop prices have been provided."
+                )
 
         elif self.order_class is self.OrderClass.BRACKET:
             # This is a "Bracket" advanced order which typically consists of a primary (entry) order and
@@ -1108,7 +1312,7 @@ class Order:
             if not self.child_orders:
                 child_side = self.OrderSide.SELL_TO_CLOSE if self.is_buy_order() else self.OrderSide.BUY_TO_CLOSE
                 if secondary_limit_price is not None:
-                    self.child_orders.append(
+                    self._ensure_child_order_list().append(
                         Order(
                             strategy=self.strategy,
                             asset=self.asset,
@@ -1120,7 +1324,7 @@ class Order:
                         )
                     )
                 if secondary_stop_price is not None:
-                    self.child_orders.append(
+                    self._ensure_child_order_list().append(
                         Order(
                             # Stop Type will be filled in automatically for child based on the Stop Modifiers
                             strategy=self.strategy,
@@ -1137,8 +1341,9 @@ class Order:
 
             # Error check that at least 1 child order exists
             if not self.child_orders:
-                raise ValueError("Order class is BRACKET but no child orders or secondary limit/stop prices "
-                                 "have been provided.")
+                raise ValueError(
+                    "Order class is BRACKET but no child orders or secondary limit/stop prices have been provided."
+                )
             elif len(self.child_orders) > 1:
                 # Set dependencies so that the two orders will cancel the other in BackTesting
                 self.child_orders[0].dependent_order = self.child_orders[1]
@@ -1150,17 +1355,21 @@ class Order:
             # placed if the parent order is filled. It is expected that the broker object will submit the
             # parent (entry) order as well as the child order.
             if secondary_limit_price is not None and secondary_stop_price is not None:
-                raise ValueError("Order class is OTO but both secondary limit and stop prices have been provided. "
-                                 "OTO only allows for one of these values.")
+                raise ValueError(
+                    "Order class is OTO but both secondary limit and stop prices have been provided. "
+                    "OTO only allows for one of these values."
+                )
             if secondary_limit_price is None and secondary_stop_price is None:
-                raise ValueError("Order class is OTO but no secondary limit or stop prices have been provided. Must "
-                                 "provide exactly one of 'secondary_limit_price' or 'secondary_stop_price'.")
+                raise ValueError(
+                    "Order class is OTO but no secondary limit or stop prices have been provided. Must "
+                    "provide exactly one of 'secondary_limit_price' or 'secondary_stop_price'."
+                )
 
             # Implement child orders: Open Position Order, one Triggered Order (Limit or Stop)
             if not self.child_orders:
                 child_side = self.OrderSide.SELL_TO_CLOSE if self.is_buy_order() else self.OrderSide.BUY_TO_CLOSE
                 if secondary_limit_price is not None:
-                    self.child_orders.append(
+                    self._ensure_child_order_list().append(
                         Order(
                             strategy=self.strategy,
                             asset=self.asset,
@@ -1172,7 +1381,7 @@ class Order:
                         )
                     )
                 elif secondary_stop_price is not None:
-                    self.child_orders.append(
+                    self._ensure_child_order_list().append(
                         Order(
                             # Stop Type will be filled in automatically for child based on the Stop Modifiers
                             strategy=self.strategy,
@@ -1189,50 +1398,53 @@ class Order:
 
             # Error check that only 1 child order exists
             if len(self.child_orders) != 1:
-                raise ValueError(f"Order class is OTO found {len(self.child_orders)} child orders. OTO requires exactly"
-                                 f" one child order.")
+                raise ValueError(
+                    f"Order class is OTO found {len(self.child_orders)} child orders. OTO requires exactly"
+                    f" one child order."
+                )
 
     @property
-    def avg_fill_price(self):
+    def avg_fill_price(self) -> float | Decimal | None:
         return self._avg_fill_price
 
     @avg_fill_price.setter
-    def avg_fill_price(self, value):
+    def avg_fill_price(self, value: float | Decimal | None) -> None:
         self._avg_fill_price = round(float(value), 2) if value is not None else None
 
     @property
-    def identifier(self):
+    def identifier(self) -> str:
         return self._identifier
 
     @identifier.setter
-    def identifier(self, value):
+    def identifier(self, value: str) -> None:
         self._identifier = value
         if self.is_parent():
             for child_order in self.child_orders:
                 child_order.parent_identifier = value
 
     @property
-    def status(self):
+    def status(self) -> str:
         return self._status
 
     @status.setter
-    def status(self, value):
-        if value and isinstance(value, str):
-            if value.lower() in VALID_STATUS:
-                self._status = value.lower()
-            elif value.lower() in STATUS_ALIAS_MAP:
-                self._status = STATUS_ALIAS_MAP[value.lower()]
+    def status(self, value: OrderStatus | str) -> None:
+        value_str = str(value)
+        if value_str:
+            if value_str.lower() in VALID_STATUS:
+                self._status = value_str.lower()
+            elif value_str.lower() in STATUS_ALIAS_MAP:
+                self._status = STATUS_ALIAS_MAP[value_str.lower()]
             else:
-                self._status = value.lower()
+                self._status = value_str.lower()
                 # Log an error
-                logger.error(f"Invalid order status: {value}")
+                logger.error(f"Invalid order status: {value_str}")
 
     @property
-    def quantity(self):
+    def quantity(self) -> Any:
         return self._quantity
 
     @quantity.setter
-    def quantity(self, value):
+    def quantity(self, value: Any) -> None:
         # All non-crypto assets must be of type 'int'.
         if not isinstance(value, Decimal):
             if isinstance(value, float):
@@ -1247,12 +1459,12 @@ class Order:
             for child_order in self.child_orders:
                 child_order.quantity = quantity
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         # PERF: `identifier` is a property; hashing uses the backing field directly.
         return hash(self._identifier)
 
     # Compares two order objects to see if they are the same.
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         # If the other object is not an Order object, then they are not equal.
         if not isinstance(other, Order):
             return False
@@ -1262,7 +1474,7 @@ class Order:
         # PERF: compare backing fields directly (avoid property getters).
         return self._identifier == other._identifier
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self.asset is None:
             self.rep_asset = self.symbol
         else:
@@ -1271,7 +1483,7 @@ class Order:
             elif "future" == self.asset.asset_type:
                 self.rep_asset = f"{self.symbol} {self.asset.expiration}"
             elif "option" == self.asset.asset_type:
-                self.rep_asset = f"{self.symbol} {self.asset.expiration} " f"{self.asset.right} {self.asset.strike}"
+                self.rep_asset = f"{self.symbol} {self.asset.expiration} {self.asset.right} {self.asset.strike}"
             else:
                 self.rep_asset = self.symbol
 
@@ -1293,7 +1505,7 @@ class Order:
 
             # Add the child orders to the repr
             for child_order in self.child_orders:
-                child_str = str(child_order).replace('|', '')
+                child_str = str(child_order).replace("|", "")
                 repr_str = f"{repr_str} child {child_str} |"
         else:
             repr_str = f"{self.order_type} order of | {self.quantity} {self.rep_asset} {self.side} |"
@@ -1303,26 +1515,26 @@ class Order:
         repr_str = f"{repr_str} {self.status}"
         return repr_str
 
-    def set_identifier(self, identifier):
+    def set_identifier(self, identifier: str) -> None:
         self.identifier = identifier
 
-    def add_transaction(self, price, quantity):
+    def add_transaction(self, price: Any, quantity: Any) -> None:
         transaction = self.Transaction(price=price, quantity=quantity)
         transactions = self.transactions
         if type(transactions) is list:
             transactions.append(transaction)
         else:
-            self.transactions = [transaction]
+            self.transactions = [*transactions, transaction]
 
-    def add_transaction_fast(self, price, quantity):
+    def add_transaction_fast(self, price: Any, quantity: Any) -> None:
         transaction = self.Transaction(quantity=quantity, price=price)
         transactions = self.transactions
         if type(transactions) is list:
             transactions.append(transaction)
         else:
-            self.transactions = [transaction]
+            self.transactions = [*transactions, transaction]
 
-    def cash_pending(self, strategy):
+    def cash_pending(self, strategy: Any) -> Any:
         # Returns the impact to cash of any unfilled shares.
         quantity_unfilled = self.quantity - sum([transaction.quantity for transaction in self.transactions])
         if quantity_unfilled == 0:
@@ -1336,7 +1548,7 @@ class Order:
         else:
             return -cash_value
 
-    def get_fill_price(self):
+    def get_fill_price(self) -> float | Decimal | None:
         """
         Get the weighted average filled price for this order. Option contracts often encounter partial fills,
         so the weighted average is the only valid price that can be used for PnL calculations.
@@ -1363,7 +1575,7 @@ class Order:
         # Some Backtest runs are using a Decimal for the Transaction quantity, so we need to convert to float
         return round(sum([float(x.price) * float(x.quantity) for x in self.transactions]) / float(self.quantity), 2)
 
-    def is_active(self):
+    def is_active(self) -> bool:
         """
         Returns whether this order is active.
         Returns
@@ -1379,7 +1591,7 @@ class Order:
             return False
         return any(child.is_active() for child in self.child_orders)
 
-    def is_canceled(self):
+    def is_canceled(self) -> bool:
         """
         Returns whether this order has been cancelled.
 
@@ -1390,7 +1602,7 @@ class Order:
         """
         return self.status.lower() in ["cancelled", "canceled", "cancel", "cancelling", "error", "expired"]
 
-    def is_filled(self):
+    def is_filled(self) -> bool:
         """
         Returns whether this order has been filled.
 
@@ -1414,7 +1626,7 @@ class Order:
         else:
             return False
 
-    def equivalent_status(self, status) -> bool:
+    def equivalent_status(self, status: Order | str | None) -> bool:
         """Returns if the status is equivalent to the order status."""
         status = status.status if isinstance(status, Order) else status
 
@@ -1432,7 +1644,7 @@ class Order:
             return False
 
     @classmethod
-    def is_equivalent_status(cls, status1, status2) -> bool:
+    def is_equivalent_status(cls, status1: str | None, status2: str | None) -> bool:
         """Returns if the 2 statuses passed are equivalent."""
 
         if not status1 or not status2:
@@ -1449,22 +1661,23 @@ class Order:
         else:
             return False
 
-    def set_error(self, error):
+    def set_error(self, error: Any) -> None:
         self.status = "error"
         self._error = error
         self.error_message = str(error)
-        if self._closed_event is not None:
-            self._closed_event.set()
+        if self._closed_event is None:
+            self._closed_event = _LazyEvent()
+        self._closed_event.set()
 
-    def was_transmitted(self):
+    def was_transmitted(self) -> bool:
         return self._transmitted
 
-    def update_raw(self, raw):
+    def update_raw(self, raw: Any) -> None:
         if raw is not None:
             self._transmitted = True
             self._raw = raw
 
-    def to_position(self, quantity):
+    def to_position(self, quantity: Any) -> Any:
         # Safety check for invalid orders
         if self.asset is None:
             logger.error(f"Cannot create position from order {self.identifier} - asset is None")
@@ -1475,15 +1688,11 @@ class Order:
             position_qty = -position_qty
 
         position = entities.Position(
-            self.strategy,
-            self.asset,
-            position_qty,
-            orders=[self],
-            avg_fill_price=self.avg_fill_price
+            self.strategy, self.asset, position_qty, orders=[self], avg_fill_price=self.avg_fill_price
         )
         return position
 
-    def get_increment(self):
+    def get_increment(self) -> float:
         increment = self.quantity
         if self.side == SELL:
             if not self.is_option():
@@ -1493,18 +1702,18 @@ class Order:
                 increment = -increment
         return float(increment)
 
-    def is_option(self):
+    def is_option(self) -> bool:
         """Return true if this order is an option."""
-        return True if "option" == self.asset.asset_type else False
+        return bool(self.asset is not None and "option" == self.asset.asset_type)
 
     # ======Setting the events methods===========
 
-    def set_new(self):
+    def set_new(self) -> None:
         if self._new_event is None:
             self._new_event = _LazyEvent()
         self._new_event.set()
 
-    def set_canceled(self):
+    def set_canceled(self) -> None:
         if self._canceled_event is None:
             self._canceled_event = _LazyEvent()
         self._canceled_event.set()
@@ -1512,12 +1721,12 @@ class Order:
             self._closed_event = _LazyEvent()
         self._closed_event.set()
 
-    def set_partially_filled(self):
+    def set_partially_filled(self) -> None:
         if self._partial_filled_event is None:
             self._partial_filled_event = _LazyEvent()
         self._partial_filled_event.set()
 
-    def set_filled(self):
+    def set_filled(self) -> None:
         if self._filled_event is None:
             self._filled_event = _LazyEvent()
         self._filled_event.set()
@@ -1527,29 +1736,29 @@ class Order:
 
     # =========Waiting methods==================
 
-    def wait_to_be_registered(self):
-        logger.info("Waiting for order %r to be registered" % self)
+    def wait_to_be_registered(self) -> None:
+        logger.info(f"Waiting for order {self!r} to be registered")
         if self._new_event is None:
             if self.status != "unprocessed":
-                logger.info("Order %r registered" % self)
+                logger.info(f"Order {self!r} registered")
                 return
             self._new_event = _LazyEvent()
         self._new_event.wait()
-        logger.info("Order %r registered" % self)
+        logger.info(f"Order {self!r} registered")
 
-    def wait_to_be_closed(self):
-        logger.info("Waiting for broker to execute order %r" % self)
+    def wait_to_be_closed(self) -> None:
+        logger.info(f"Waiting for broker to execute order {self!r}")
         if self._closed_event is None:
             if self.status in {"filled", "canceled", "error"}:
-                logger.info("Order %r executed by broker" % self)
+                logger.info(f"Order {self!r} executed by broker")
                 return
             self._closed_event = _LazyEvent()
         self._closed_event.wait()
-        logger.info("Order %r executed by broker" % self)
+        logger.info(f"Order {self!r} executed by broker")
 
     # ========= Serialization methods ===========
 
-    def to_minimal_dict(self) -> dict:
+    def to_minimal_dict(self) -> dict[str, Any]:
         """
         Return a minimal dictionary representation of the order for progress logging.
 
@@ -1577,7 +1786,7 @@ class Order:
          'type': 'limit', 'status': 'new', 'limit': 150.0}
         """
         result = {
-            "asset": self.asset.to_minimal_dict() if self.asset and hasattr(self.asset, 'to_minimal_dict') else None,
+            "asset": self.asset.to_minimal_dict() if self.asset and hasattr(self.asset, "to_minimal_dict") else None,
             "side": str(self.side) if self.side else None,
             "qty": float(self.quantity) if self.quantity else 0,
             "type": str(self.order_type) if self.order_type else "market",
@@ -1590,24 +1799,28 @@ class Order:
         if self.stop_price is not None:
             result["stop"] = float(self.stop_price)
         if self.smart_limit is not None:
-            result["smart_limit"] = self.smart_limit.to_dict()
+            result["smart_limit"] = cast(Any, self.smart_limit).to_dict()
 
         return result
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         # Initialize an empty dictionary for serializable attributes
-        order_dict = {}
+        order_dict: dict[str, Any] = {}
 
         # List of non-serializable keys (thread locks, events, internal data, etc.)
         # EXPANDED to exclude problematic fields that cause DynamoDB 400KB errors
         non_serializable_keys = [
-            "_new_event", "_canceled_event", "_partial_filled_event", "_filled_event", "_closed_event",
-            "_bars",        # Historical bar data (can be 1.8MB+)
-            "_raw",         # Raw broker response (can be 22KB+)
-            "_transmitted", # Internal state
-            "_error",       # Internal error tracking
-            "_broker",      # Broker reference
-            "transactions", # Can be large transaction history
+            "_new_event",
+            "_canceled_event",
+            "_partial_filled_event",
+            "_filled_event",
+            "_closed_event",
+            "_bars",  # Historical bar data (can be 1.8MB+)
+            "_raw",  # Raw broker response (can be 22KB+)
+            "_transmitted",  # Internal state
+            "_error",  # Internal error tracking
+            "_broker",  # Broker reference
+            "transactions",  # Can be large transaction history
         ]
 
         # Iterate through all attributes in the object's __dict__
@@ -1617,7 +1830,7 @@ class Order:
                 continue
 
             # Skip ALL fields starting with underscore (Python internals)
-            if key.startswith('_'):
+            if key.startswith("_"):
                 continue
 
             # Convert datetime objects to ISO format for JSON serialization
@@ -1634,7 +1847,8 @@ class Order:
 
             # Handle lists of objects, ensuring to call to_dict on each if applicable
             elif isinstance(value, list):
-                order_dict[key] = [item.to_dict() if hasattr(item, "to_dict") else item for item in value]
+                items = cast(list[Any], value)
+                order_dict[key] = [item.to_dict() if hasattr(item, "to_dict") else item for item in items]
 
             # Add serializable attributes directly
             else:
@@ -1650,50 +1864,51 @@ class Order:
         # emissions, those fields would be silently dropped when serializing
         # Orders — which is exactly what happened historically with the
         # BotSpot order-history endpoint (timestamp/price/order_id nulls).
-        order_dict['quantity'] = float(self.quantity) if isinstance(self.quantity, Decimal) else self.quantity
-        order_dict['status'] = self.status
+        order_dict["quantity"] = float(self.quantity) if isinstance(self.quantity, Decimal) else self.quantity
+        order_dict["status"] = self.status
         # `identifier` is the canonical order ID that downstream consumers
         # (strategy listener, UI, broker adapters) rely on for dedup and display.
-        order_dict['identifier'] = self._identifier
+        order_dict["identifier"] = self._identifier
         # `avg_fill_price` is the weighted fill price for filled/partially-filled
         # orders — the single most important field for P&L and trade review.
-        order_dict['avg_fill_price'] = (
-            float(self._avg_fill_price) if self._avg_fill_price is not None else None
-        )
+        order_dict["avg_fill_price"] = float(self._avg_fill_price) if self._avg_fill_price is not None else None
 
         return order_dict
 
     @classmethod
-    def from_dict(cls, order_dict):
+    def from_dict(cls, order_dict: dict[str, Any]) -> Order:
         # Extract the core essential arguments to pass to __init__
-        asset_data = order_dict.get('asset')
+        asset_data = order_dict.get("asset")
         asset_obj = None
         if asset_data and isinstance(asset_data, dict):
             # Assuming Asset has its own from_dict method
-            asset_obj = entities.Asset.from_dict(asset_data)
+            asset_obj = Asset.from_dict(cast(dict[str, Any], asset_data))
 
         # Extract essential arguments, using None if the values are missing
-        strategy = order_dict.get('strategy', None)
-        side = order_dict.get('side', None)  # Default to None if side is missing
-        quantity = order_dict.get('quantity', None)
+        strategy = order_dict.get("strategy", None)
+        side = order_dict.get("side", None)  # Default to None if side is missing
+        quantity = order_dict.get("quantity", None)
 
         # Create the initial object using the essential arguments
         obj = cls(
             strategy=strategy,
             side=side,
             asset=asset_obj,  # Pass the constructed asset object
-            quantity=quantity
+            quantity=quantity,
         )
 
         # List of non-serializable keys (thread locks, events, etc.)
         non_serializable_keys = [
-            "_new_event", "_canceled_event", "_partial_filled_event", "_filled_event", "_closed_event"
+            "_new_event",
+            "_canceled_event",
+            "_partial_filled_event",
+            "_filled_event",
+            "_closed_event",
         ]
 
         # Handle additional fields directly after the instance is created
         for key, value in order_dict.items():
-            if key not in ['strategy', 'side', 'asset', 'quantity'] and key not in non_serializable_keys:
-
+            if key not in ["strategy", "side", "asset", "quantity"] and key not in non_serializable_keys:
                 # Convert datetime strings back to datetime objects
                 if isinstance(value, str) and "T" in value:
                     try:
@@ -1701,17 +1916,19 @@ class Order:
                     except ValueError:
                         setattr(obj, key, value)
 
-                elif key == "smart_limit":
-                    setattr(obj, key, SmartLimitConfig.from_dict(value))
+                elif key == "smart_limit" and isinstance(value, dict):
+                    setattr(obj, key, cast(Any, SmartLimitConfig).from_dict(value))
 
                 # Recursively convert nested objects using from_dict (for objects like quote)
-                elif isinstance(value, dict) and hasattr(cls, key) and hasattr(getattr(cls, key), 'from_dict'):
+                elif isinstance(value, dict) and hasattr(cls, key) and hasattr(getattr(cls, key), "from_dict"):
                     nested_class = getattr(cls, key)
                     setattr(obj, key, nested_class.from_dict(value))
 
                 # Handle list of orders (child_orders)
-                elif isinstance(value, list) and key == 'child_orders':
-                    child_orders = [cls.from_dict(item) for item in value]  # Recursively create Order objects
+                elif isinstance(value, list) and key == "child_orders":
+                    child_orders = [
+                        cls.from_dict(cast(dict[str, Any], item)) for item in cast(list[Any], value)
+                    ]  # Recursively create Order objects
                     setattr(obj, key, child_orders)
 
                 # Set simple values directly

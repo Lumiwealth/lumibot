@@ -1,21 +1,59 @@
 # This file contains helper functions for getting data from Polygon.io optimized with Polars
 from __future__ import annotations
 
+# pyright: reportUnknownVariableType=false, reportUnknownMemberType=false, reportUnknownArgumentType=false
+# pyright: reportUnknownParameterType=false, reportMissingParameterType=false, reportMissingTypeArgument=false
+# pyright: reportInvalidTypeForm=false, reportUnnecessaryComparison=false, reportArgumentType=false
+# pyright: reportOptionalMemberAccess=false, reportOptionalSubscript=false, reportAttributeAccessIssue=false
+# pyright: reportPrivateUsage=false, reportUnknownLambdaType=false, reportConstantRedefinition=false
+# pyright: reportUnnecessaryIsInstance=false, reportMissingTypeStubs=false
 import time
 from collections import defaultdict
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
+from importlib import import_module
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterator, List, Optional
+from types import ModuleType
+from typing import Any, TypeAlias, cast
 
 from lumibot.constants import LUMIBOT_CACHE_FOLDER
-from lumibot.entities import Asset
+from lumibot.entities.asset import Asset
 from lumibot.tools.lumibot_logger import get_logger
 
 if TYPE_CHECKING:
     from lumibot.tools.polygon_helper import PolygonClient
 
 logger = get_logger(__name__)
+PolarsDataFrame: TypeAlias = Any  # noqa: UP040
+PolarsLazyFrame: TypeAlias = Any  # noqa: UP040
+PandasDataFrame: TypeAlias = Any  # noqa: UP040
+Calendar: TypeAlias = Any  # noqa: UP040
+PolygonClientLike: TypeAlias = Any  # noqa: UP040
+OptionChain: TypeAlias = dict[str, Any]  # noqa: UP040
+
+
+class _LazyPolars(ModuleType):
+    _module: ModuleType | None
+
+    __slots__ = ("_module",)
+
+    def __init__(self) -> None:
+        super().__init__("polars")
+        object.__setattr__(self, "_module", None)
+
+    def _load(self) -> ModuleType:
+        module = cast(ModuleType | None, object.__getattribute__(self, "_module"))
+        if module is None:
+            module = import_module("polars")
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._load(), name)
+
+
+pl = _LazyPolars()
 
 
 class _LazyPolars:
@@ -46,12 +84,12 @@ MAX_POLYGON_DAYS = 7
 MAX_CONCURRENT_REQUESTS = 20
 
 # Define a cache dictionary to store schedules and a global dictionary for buffered schedules
-schedule_cache = {}
-buffered_schedules = {}
+schedule_cache: dict[tuple[Any, ...], PandasDataFrame] = {}
+buffered_schedules: dict[str, PandasDataFrame] = {}
 _PANDAS_MARKET_CALENDARS = None
 
 
-def _get_market_calendars():
+def _get_market_calendars() -> Any:
     global _PANDAS_MARKET_CALENDARS
     if _PANDAS_MARKET_CALENDARS is None:
         import pandas_market_calendars as mcal
@@ -60,7 +98,7 @@ def _get_market_calendars():
     return _PANDAS_MARKET_CALENDARS
 
 
-def get_cached_schedule(cal, start_date, end_date, buffer_days=30):
+def get_cached_schedule(cal: Calendar, start_date: date, end_date: date, buffer_days: int = 30) -> PandasDataFrame:
     """
     Fetch schedule with a buffer at the end. This is done to reduce the number of calls to the calendar API (which is slow).
     """
@@ -75,6 +113,7 @@ def get_cached_schedule(cal, start_date, end_date, buffer_days=30):
 
     # Convert start_date and end_date to pd.Timestamp for comparison
     import pandas as pd
+
     start_timestamp = pd.Timestamp(start_date)
     end_timestamp = pd.Timestamp(end_date)
 
@@ -83,8 +122,9 @@ def get_cached_schedule(cal, start_date, end_date, buffer_days=30):
         buffered_schedule = buffered_schedules[cal.name]
         # Check if the current buffered schedule covers the required range
         if buffered_schedule.index.min() <= start_timestamp and buffered_schedule.index.max() >= end_timestamp:
-            filtered_schedule = buffered_schedule[(buffered_schedule.index >= start_timestamp) & (
-                buffered_schedule.index <= end_timestamp)]
+            filtered_schedule = buffered_schedule[
+                (buffered_schedule.index >= start_timestamp) & (buffered_schedule.index <= end_timestamp)
+            ]
             schedule_cache[cache_key] = filtered_schedule
             return filtered_schedule
 
@@ -93,8 +133,9 @@ def get_cached_schedule(cal, start_date, end_date, buffer_days=30):
     buffered_schedules[cal.name] = buffered_schedule  # Store the buffered schedule for this calendar
 
     # Filter the schedule to only include the requested date range
-    filtered_schedule = buffered_schedule[(buffered_schedule.index >= start_timestamp)
-                                          & (buffered_schedule.index <= end_timestamp)]
+    filtered_schedule = buffered_schedule[
+        (buffered_schedule.index >= start_timestamp) & (buffered_schedule.index <= end_timestamp)
+    ]
 
     # Cache the filtered schedule for quick lookup
     schedule_cache[cache_key] = filtered_schedule
@@ -108,18 +149,18 @@ def get_price_data_from_polygon_polars(
     start: datetime,
     end: datetime,
     timespan: str = "minute",
-    quote_asset: Optional[Asset] = None,
+    quote_asset: Asset | None = None,
     force_cache_update: bool = False,
-    max_workers: int = 20
-) -> Optional[pl.DataFrame]:
+    max_workers: int = 20,
+) -> PolarsDataFrame | None:
     """
     Query Polygon.io for historical pricing data for the given asset, using parallel downloads.
     Optimized version using Polars instead of Pandas.
-    
+
     Data is cached locally (in LUMIBOT_CACHE_FOLDER/polygon) to avoid re-downloading data for dates
     that have already been checked. For any trading date with no data, a dummy row with a "missing"
     flag is stored in the cache. When returning data to the caller, dummy rows are filtered out.
-    
+
     Parameters
     ----------
     api_key : str
@@ -138,7 +179,7 @@ def get_price_data_from_polygon_polars(
         If True, forces re-downloading data even if cached data exists. Defaults to False.
     max_workers : int, optional
         The number of parallel threads to use for downloading data. Defaults to 10.
-        
+
     Returns
     -------
     Optional[pl.DataFrame]
@@ -150,7 +191,7 @@ def get_price_data_from_polygon_polars(
     cache_file = build_cache_filename_polars(asset, timespan, quote_asset)
     # Validate cache (e.g., check if splits have changed) and possibly force a cache update.
     force_cache_update = validate_cache_polars(force_cache_update, asset, cache_file, api_key)
-    df_all: Optional[pl.DataFrame] = None
+    df_all: pl.DataFrame | None = None
     # Load cached data as lazy frame for efficiency
     if cache_file.exists() and not force_cache_update:
         # Use lazy loading to minimize memory usage
@@ -158,7 +199,7 @@ def get_price_data_from_polygon_polars(
             df_all_lazy = pl.scan_parquet(cache_file)
             # Only collect when needed
             df_all = df_all_lazy.collect()
-        except:
+        except Exception:
             df_all = load_cache_polars(cache_file)
 
     # Determine missing trading dates.
@@ -170,6 +211,7 @@ def get_price_data_from_polygon_polars(
 
     # Create a PolygonClient and get the symbol for the asset.
     from lumibot.tools.polygon_helper import PolygonClient
+
     polygon_client = PolygonClient.create(api_key=api_key)
     symbol = get_polygon_symbol(asset, polygon_client, quote_asset)
     if symbol is None:
@@ -196,11 +238,13 @@ def get_price_data_from_polygon_polars(
     # Download data in parallel with optimized batch processing
     from tqdm import tqdm
 
-    pbar = tqdm(total=total_queries,
-            desc=f"Downloading and caching {asset} / {quote_asset.symbol if quote_asset else ''} '{timespan}'",
-            dynamic_ncols=True)
+    pbar = tqdm(
+        total=total_queries,
+        desc=f"Downloading and caching {asset} / {quote_asset.symbol if quote_asset else ''} '{timespan}'",
+        dynamic_ncols=True,
+    )
 
-    def fetch_chunk(start_date: datetime, end_date: datetime, retries: int = 3):
+    def fetch_chunk(start_date: datetime, end_date: datetime, retries: int = 3) -> Any | None:
         """Fetch chunk with retry logic."""
         for attempt in range(retries):
             try:
@@ -214,19 +258,18 @@ def get_price_data_from_polygon_polars(
                 )
             except Exception as e:
                 if attempt < retries - 1:
-                    time.sleep(0.1 * (2 ** attempt))  # Exponential backoff
+                    time.sleep(0.1 * (2**attempt))  # Exponential backoff
                 else:
                     logger.warning(f"Failed to fetch {start_date} to {end_date}: {e}")
                     return None
 
     # Optimized batch processing with better memory management
-    batch_size = min(max_workers * 2, len(chunks))
-    results_buffer = []
+    min(max_workers * 2, len(chunks))
+    results_buffer: list[Any] = []
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Submit all futures at once for better concurrency
-        futures = {executor.submit(fetch_chunk, cstart, cend): (cstart, cend)
-                  for (cstart, cend) in chunks}
+        futures = {executor.submit(fetch_chunk, cstart, cend): (cstart, cend) for (cstart, cend) in chunks}
 
         for future in as_completed(futures):
             try:
@@ -260,15 +303,10 @@ def get_price_data_from_polygon_polars(
         # Lazy load and filter in one operation
         df_all_lazy = pl.scan_parquet(cache_file)
         if "missing" in df_all_lazy.columns:
-            df_all_output = (
-                df_all_lazy
-                .filter(~pl.col("missing").cast(pl.Boolean))
-                .drop_nulls()
-                .collect()
-            )
+            df_all_output = df_all_lazy.filter(~pl.col("missing").cast(pl.Boolean)).drop_nulls().collect()
         else:
             df_all_output = df_all_lazy.drop_nulls().collect()
-    except:
+    except Exception:
         # Fallback to regular loading
         df_all_full = load_cache_polars(cache_file)
         if "missing" in df_all_full.columns:
@@ -279,7 +317,7 @@ def get_price_data_from_polygon_polars(
     return df_all_output
 
 
-def validate_cache_polars(force_cache_update: bool, asset: Asset, cache_file: Path, api_key: str):
+def validate_cache_polars(force_cache_update: bool, asset: Asset, cache_file: Path, api_key: str) -> bool:
     """
     If the list of splits for a stock have changed then we need to invalidate its cache
     because all of the prices will have changed (because we're using split adjusted prices).
@@ -298,6 +336,7 @@ def validate_cache_polars(force_cache_update: bool, asset: Asset, cache_file: Pa
             cached_splits = pl.read_parquet(splits_file_path)
     if splits_file_stale or force_cache_update:
         from lumibot.tools.polygon_helper import PolygonClient
+
         polygon_client = PolygonClient.create(api_key=api_key)
         # Need to get the splits in execution order to make the list comparable across invocations.
         splits = polygon_client.list_splits(ticker=asset.symbol, sort="execution_date", order="asc")
@@ -322,7 +361,7 @@ def validate_cache_polars(force_cache_update: bool, asset: Asset, cache_file: Pa
     return force_cache_update
 
 
-def get_trading_dates(asset: Asset, start: datetime, end: datetime):
+def get_trading_dates(asset: Asset, start: datetime, end: datetime) -> list[date]:
     """
     Get a list of trading days for the asset between the start and end dates
     Parameters
@@ -367,7 +406,9 @@ def get_trading_dates(asset: Asset, start: datetime, end: datetime):
     return trading_days
 
 
-def get_polygon_symbol(asset, polygon_client, quote_asset=None):
+def get_polygon_symbol(
+    asset: Asset, polygon_client: PolygonClientLike, quote_asset: Asset | None = None
+) -> str | None:
     """
     Get the symbol for the asset in a format that Polygon will understand
     Parameters
@@ -387,14 +428,20 @@ def get_polygon_symbol(asset, polygon_client, quote_asset=None):
     # Import PolygonClient here to avoid circular imports
     # Crypto Asset for Backtesting
     if asset.asset_type == Asset.AssetType.CRYPTO:
-        quote_asset_symbol = quote_asset.symbol if quote_asset else "USD"
+        if asset.symbol is None:
+            raise ValueError("Crypto assets require a symbol for Polygon data.")
+        quote_asset_symbol = quote_asset.symbol if quote_asset and quote_asset.symbol else "USD"
         symbol = f"X:{asset.symbol}{quote_asset_symbol}"
 
     # Stock-Equity Asset for Backtesting
     elif asset.asset_type == Asset.AssetType.STOCK:
+        if asset.symbol is None:
+            raise ValueError("Stock assets require a symbol for Polygon data.")
         symbol = asset.symbol
 
     elif asset.asset_type == Asset.AssetType.INDEX:
+        if asset.symbol is None:
+            raise ValueError("Index assets require a symbol for Polygon data.")
         symbol = f"I:{asset.symbol}"
 
     # Forex Asset for Backtesting
@@ -403,12 +450,20 @@ def get_polygon_symbol(asset, polygon_client, quote_asset=None):
         if quote_asset is None:
             raise ValueError(f"quote_asset is required for asset type {asset.asset_type}")
 
+        if asset.symbol is None or quote_asset.symbol is None:
+            raise ValueError("Forex assets and quote assets require symbols for Polygon data.")
         symbol = f"C:{asset.symbol}{quote_asset.symbol}"
 
     # Option Asset for Backtesting - Do a query to Polygon to get the ticker
     elif asset.asset_type == Asset.AssetType.OPTION:
         # Needed so BackTest both old and existing contracts
         real_today = date.today()
+        if asset.symbol is None:
+            raise ValueError("Option assets require a symbol for Polygon data.")
+        if asset.expiration is None:
+            raise ValueError(f"Expiration date is required for option {asset} but it is None")
+        if asset.right is None:
+            raise ValueError(f"Option right is required for option {asset} but it is None")
         expired = True if asset.expiration < real_today else False
 
         # Query for the historical Option Contract ticker backtest is looking for
@@ -439,7 +494,7 @@ def get_polygon_symbol(asset, polygon_client, quote_asset=None):
     return symbol
 
 
-def build_cache_filename_polars(asset: Asset, timespan: str, quote_asset: Asset = None):
+def build_cache_filename_polars(asset: Asset, timespan: str, quote_asset: Asset | None = None) -> Path:
     """
     Helper function to create the cache filename for a given asset and timespan
     Uses parquet format for better performance with Polars
@@ -465,13 +520,19 @@ def build_cache_filename_polars(asset: Asset, timespan: str, quote_asset: Asset 
     if asset.asset_type == "option":
         if asset.expiration is None:
             raise ValueError(f"Expiration date is required for option {asset} but it is None")
+        if asset.symbol is None:
+            raise ValueError(f"Symbol is required for option {asset} but it is None")
 
         # Make asset.expiration datetime into a string like "YYMMDD"
         expiry_string = asset.expiration.strftime("%y%m%d")
         uniq_str = f"{asset.symbol}_{expiry_string}_{asset.strike}_{asset.right}"
     elif quote_asset:
+        if asset.symbol is None or quote_asset.symbol is None:
+            raise ValueError("Asset and quote asset symbols are required for Polygon cache filenames.")
         uniq_str = f"{asset.symbol}_{quote_asset.symbol}"
     else:
+        if asset.symbol is None:
+            raise ValueError(f"Symbol is required for asset {asset} but it is None")
         uniq_str = asset.symbol
 
     cache_filename = f"{asset.asset_type}_{uniq_str}_{timespan}.parquet"
@@ -480,18 +541,15 @@ def build_cache_filename_polars(asset: Asset, timespan: str, quote_asset: Asset 
 
 
 def get_missing_dates_polars(
-    df_all: Optional[pl.DataFrame],
-    asset: Asset,
-    start: datetime,
-    end: datetime
-) -> List[datetime.date]:
+    df_all: PolarsDataFrame | None, asset: Asset, start: datetime, end: datetime
+) -> list[date]:
     """
     Determine which trading dates are missing from the cache.
-    
+
     A date is considered "checked" if any row exists in the cache (whether it contains real
     data or a dummy row indicating a missing query). Trading dates are determined from the asset's
     calendar (via `get_trading_dates()`).
-    
+
     Parameters
     ----------
     df_all : Optional[pl.DataFrame]
@@ -502,7 +560,7 @@ def get_missing_dates_polars(
         The start datetime of the requested range.
     end : datetime
         The end datetime of the requested range.
-        
+
     Returns
     -------
     List[datetime.date]
@@ -512,7 +570,8 @@ def get_missing_dates_polars(
     trading_dates = get_trading_dates(asset, start, end)
     # For options, limit to dates on or before the expiration.
     if asset.asset_type == "option":
-        trading_dates = [d for d in trading_dates if d <= asset.expiration]
+        if asset.expiration is not None:
+            trading_dates = [d for d in trading_dates if d <= asset.expiration]
     if df_all is None or len(df_all) == 0:
         return trading_dates
     # Use only the date portion of the cache datetime column.
@@ -523,20 +582,20 @@ def get_missing_dates_polars(
     return missing_dates
 
 
-def load_cache_polars(cache_file: Path) -> pl.DataFrame:
+def load_cache_polars(cache_file: Path) -> PolarsDataFrame:
     """
     Load cached data from a Parquet file and return a DataFrame with datetime column.
-    
+
     Parameters
     ----------
     cache_file : Path
         The path to the Parquet cache file.
-        
+
     Returns
     -------
     pl.DataFrame
         The DataFrame containing the cached data.
-        
+
     Raises
     ------
     Exception
@@ -549,18 +608,16 @@ def load_cache_polars(cache_file: Path) -> pl.DataFrame:
 
 
 def update_cache_polars(
-    cache_file: Path,
-    df_all: Optional[pl.DataFrame],
-    missing_dates: Optional[List[datetime.date]] = None
-) -> pl.DataFrame:
+    cache_file: Path, df_all: PolarsDataFrame | None, missing_dates: list[date] | None = None
+) -> PolarsDataFrame:
     """
     Update the cache file by adding any missing dates as dummy rows.
-    
+
     For each date in `missing_dates` that is not already present in the cache,
     a dummy row is added (with a "missing" flag set to True). This ensures that
     dates which were queried but returned no data are recorded, so that they
     will not be re-downloaded on subsequent runs.
-    
+
     Parameters
     ----------
     cache_file : Path
@@ -569,7 +626,7 @@ def update_cache_polars(
         The existing cached DataFrame (may be None or empty).
     missing_dates : Optional[List[datetime.date]]
         List of date objects for which data is missing.
-        
+
     Returns
     -------
     pl.DataFrame
@@ -591,16 +648,18 @@ def update_cache_polars(
     for d in missing_dates or []:
         if d not in cached_dates:
             # Create a datetime at the start of the day in UTC
-            dt = datetime(year=d.year, month=d.month, day=d.day, tzinfo=timezone.utc)
-            dummy_rows.append({
-                "datetime": dt,
-                "missing": True,
-                "open": None,
-                "high": None,
-                "low": None,
-                "close": None,
-                "volume": None
-            })
+            dt = datetime(year=d.year, month=d.month, day=d.day, tzinfo=UTC)
+            dummy_rows.append(
+                {
+                    "datetime": dt,
+                    "missing": True,
+                    "open": None,
+                    "high": None,
+                    "low": None,
+                    "close": None,
+                    "volume": None,
+                }
+            )
 
     # If any dummy rows were created, add them to the DataFrame.
     if dummy_rows:
@@ -619,11 +678,11 @@ def update_cache_polars(
     return df_all
 
 
-def update_polygon_data_polars(df_all, result):
+def update_polygon_data_polars(df_all: PolarsDataFrame | None, result: Any) -> PolarsDataFrame | None:
     """
     Update the DataFrame with the new data from Polygon.
     Optimized version with better memory handling.
-    
+
     Parameters
     ----------
     df_all : pl.DataFrame
@@ -631,7 +690,7 @@ def update_polygon_data_polars(df_all, result):
     result : list
         A list of dictionaries with the new data from Polygon.
         Format: [{'o': 1.0, 'h': 2.0, 'l': 3.0, 'c': 4.0, 'v': 5.0, 't': 116120000000}]
-        
+
     Returns
     -------
     pl.DataFrame
@@ -641,37 +700,44 @@ def update_polygon_data_polars(df_all, result):
         return df_all
 
     # Convert result to polars DataFrame with optimized schema
-    df = pl.DataFrame(result, schema_overrides={
-        "o": pl.Float64,
-        "h": pl.Float64,
-        "l": pl.Float64,
-        "c": pl.Float64,
-        "v": pl.Int64,
-        "t": pl.Int64
-    })
+    df = pl.DataFrame(
+        result,
+        schema_overrides={
+            "o": pl.Float64,
+            "h": pl.Float64,
+            "l": pl.Float64,
+            "c": pl.Float64,
+            "v": pl.Int64,
+            "t": pl.Int64,
+        },
+    )
 
     if len(df) == 0:
         return df_all
 
     # Batch all transformations together for efficiency
-    df = df.lazy().select([
-        pl.col("o").alias("open"),
-        pl.col("h").alias("high"),
-        pl.col("l").alias("low"),
-        pl.col("c").alias("close"),
-        pl.col("v").alias("volume"),
-        pl.from_epoch(pl.col("t"), time_unit="ms").alias("datetime")
-    ]).sort("datetime").collect()
+    df = (
+        df.lazy()
+        .select(
+            [
+                pl.col("o").alias("open"),
+                pl.col("h").alias("high"),
+                pl.col("l").alias("low"),
+                pl.col("c").alias("close"),
+                pl.col("v").alias("volume"),
+                pl.from_epoch(pl.col("t"), time_unit="ms").alias("datetime"),
+            ]
+        )
+        .sort("datetime")
+        .collect()
+    )
 
     if df_all is None or len(df_all) == 0:
         df_all = df
     else:
         # Use lazy evaluation for merge
         df_all = (
-            pl.concat([df_all.lazy(), df.lazy()])
-            .sort("datetime")
-            .unique(subset=["datetime"], keep="last")
-            .collect()
+            pl.concat([df_all.lazy(), df.lazy()]).sort("datetime").unique(subset=["datetime"], keep="last").collect()
         )
 
     return df_all
@@ -680,13 +746,13 @@ def update_polygon_data_polars(df_all, result):
 def get_chains_cached(
     api_key: str,
     asset: Asset,
-    quote: Asset = None,
-    exchange: str = None,
-    current_date: date = None,
-    polygon_client: Optional["PolygonClient"] = None
-) -> dict:
+    quote: Asset | None = None,
+    exchange: str | None = None,
+    current_date: date | None = None,
+    polygon_client: PolygonClientLike | None = None,
+) -> OptionChain | None:
     """
-    Retrieve an option chain for a given asset and historical date using Polygon, 
+    Retrieve an option chain for a given asset and historical date using Polygon,
     with caching to reduce repeated downloads during backtests.
 
     Parameters
@@ -700,10 +766,10 @@ def get_chains_cached(
     exchange : str, optional
         The exchange to consider (e.g., "NYSE").
     current_date : datetime.date, optional
-        The *historical* date of interest (e.g., 2022-01-08). If omitted, this function 
+        The *historical* date of interest (e.g., 2022-01-08). If omitted, this function
         will return None immediately (no chain is fetched).
     polygon_client : PolygonClient, optional
-        A reusable PolygonClient instance; if None, one will be created using the 
+        A reusable PolygonClient instance; if None, one will be created using the
         given api_key.
 
     Returns
@@ -728,13 +794,13 @@ def get_chains_cached(
 
     Notes
     -----
-    1) We do *not* use the real system date in this function because it is purely 
+    1) We do *not* use the real system date in this function because it is purely
        historical/backtest-oriented.
-    2) If a suitable chain file from within RECENT_FILE_TOLERANCE_DAYS of current_date 
+    2) If a suitable chain file from within RECENT_FILE_TOLERANCE_DAYS of current_date
        exists, it is reused directly.
-    3) Otherwise, the function downloads fresh data from Polygon, then saves it under 
+    3) Otherwise, the function downloads fresh data from Polygon, then saves it under
        `LUMIBOT_CACHE_FOLDER/polygon_polars/option_chains/{symbol}_{date}.parquet`.
-    4) By default, we fetch both 'expired=True' and 'expired=False', so you get 
+    4) By default, we fetch both 'expired=True' and 'expired=False', so you get
        historical + near-future options for your specified date.
     """
     logger.debug(f"get_chains_cached called for {asset.symbol} on {current_date}")
@@ -747,6 +813,7 @@ def get_chains_cached(
     # 2) Ensure we have a PolygonClient
     if polygon_client is None:
         from lumibot.tools.polygon_helper import PolygonClient
+
         logger.debug("No polygon_client provided; creating a new one.")
         polygon_client = PolygonClient.create(api_key=api_key)
 
@@ -790,13 +857,12 @@ def get_chains_cached(
             return data
 
     # 5) No suitable file => must fetch from Polygon
-    logger.debug(
-        f"No suitable recent file found for {asset.symbol} on {current_date}. "
-        "Downloading from Polygon..."
+    logger.debug(f"No suitable recent file found for {asset.symbol} on {current_date}. Downloading from Polygon...")
+    print(
+        f"\nDownloading option chain for {asset} on {current_date}. This will be cached for future use so it will be significantly faster the next time you run a backtest."
     )
-    print(f"\nDownloading option chain for {asset} on {current_date}. This will be cached for future use so it will be significantly faster the next time you run a backtest.")
 
-    option_contracts = {
+    option_contracts: OptionChain = {
         "Multiplier": None,
         "Exchange": None,
         "Chains": {"CALL": defaultdict(list), "PUT": defaultdict(list)},
@@ -823,7 +889,7 @@ def get_chains_cached(
 
         exg = c.primary_exchange
         right = c.contract_type.upper()  # "CALL" or "PUT"
-        exp_date = c.expiration_date     # "YYYY-MM-DD"
+        exp_date = c.expiration_date  # "YYYY-MM-DD"
         strike = c.strike_price
 
         option_contracts["Multiplier"] = c.shares_per_contract
@@ -834,10 +900,7 @@ def get_chains_cached(
     cache_file = chain_folder / f"{asset.symbol}_{current_date.isoformat()}.parquet"
     df_to_cache = pl.DataFrame({"data": [option_contracts]})
     df_to_cache.write_parquet(cache_file)
-    logger.debug(
-        f"Download complete for {asset.symbol} on {current_date}. "
-        f"Saved chain file to {cache_file}"
-    )
+    logger.debug(f"Download complete for {asset.symbol} on {current_date}. Saved chain file to {cache_file}")
 
     return option_contracts
 

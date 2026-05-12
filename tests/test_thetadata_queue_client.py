@@ -9,6 +9,7 @@ Tests cover:
 - Local tracking of pending requests
 - Error handling
 """
+
 import threading
 import time
 from unittest.mock import MagicMock, patch
@@ -109,7 +110,7 @@ class TestCorrelationId:
 class TestRequestSubmission:
     """Tests for submitting requests to the queue."""
 
-    @patch.object(requests.Session, 'post')
+    @patch.object(requests.Session, "post")
     def test_submit_request_success(self, mock_post):
         """Test successful request submission."""
         mock_response = MagicMock()
@@ -133,8 +134,8 @@ class TestRequestSubmission:
         assert was_pending is False
         mock_post.assert_called_once()
 
-    @patch.object(requests.Session, 'post')
-    @patch.object(requests.Session, 'get')
+    @patch.object(requests.Session, "post")
+    @patch.object(requests.Session, "get")
     def test_idempotent_submission(self, mock_get, mock_post):
         """Test that same request returns existing request ID."""
         # First submission
@@ -188,7 +189,7 @@ class TestStatusTracking:
         client = QueueClient("http://test:8080", "key")
         assert client.is_request_pending("nonexistent") is False
 
-    @patch.object(requests.Session, 'post')
+    @patch.object(requests.Session, "post")
     def test_is_request_pending_after_submit(self, mock_post):
         """Test is_request_pending returns True after submission."""
         mock_response = MagicMock()
@@ -207,7 +208,7 @@ class TestStatusTracking:
         correlation_id = client._build_correlation_id("GET", "v3/test", {"symbol": "AAPL"})
         assert client.is_request_pending(correlation_id) is True
 
-    @patch.object(requests.Session, 'post')
+    @patch.object(requests.Session, "post")
     def test_get_pending_requests(self, mock_post):
         """Test get_pending_requests returns all pending requests."""
         mock_response = MagicMock()
@@ -226,7 +227,7 @@ class TestStatusTracking:
         pending = client.get_pending_requests()
         assert len(pending) == 2
 
-    @patch.object(requests.Session, 'post')
+    @patch.object(requests.Session, "post")
     def test_get_queue_stats(self, mock_post):
         """Test get_queue_stats returns correct counts."""
         mock_response = MagicMock()
@@ -251,7 +252,7 @@ class TestStatusTracking:
 class TestResultRetrieval:
     """Tests for retrieving results from the queue."""
 
-    @patch.object(requests.Session, 'get')
+    @patch.object(requests.Session, "get")
     def test_get_result_completed(self, mock_get):
         """Test getting result for completed request."""
         mock_response = MagicMock()
@@ -270,7 +271,7 @@ class TestResultRetrieval:
         assert status_code == 200
         assert status == "completed"
 
-    @patch.object(requests.Session, 'get')
+    @patch.object(requests.Session, "get")
     def test_get_result_still_processing(self, mock_get):
         """Test getting result for still-processing request."""
         mock_response = MagicMock()
@@ -288,7 +289,7 @@ class TestResultRetrieval:
         assert status_code == 202
         assert status == "processing"
 
-    @patch.object(requests.Session, 'get')
+    @patch.object(requests.Session, "get")
     def test_get_result_dead(self, mock_get):
         """Test getting result for dead (permanently failed) request."""
         mock_response = MagicMock()
@@ -311,7 +312,7 @@ class TestResultRetrieval:
 class TestWaitForResult:
     """Tests for waiting for request completion."""
 
-    @patch.object(requests.Session, 'get')
+    @patch.object(requests.Session, "get")
     def test_wait_for_result_immediate_completion(self, mock_get):
         """Test wait_for_result when request completes immediately."""
         # Status check returns completed
@@ -394,7 +395,7 @@ class TestWaitForResult:
 
         mocked_invalidate.assert_called_once_with("terminal result fetch failures")
 
-    @patch.object(requests.Session, 'get')
+    @patch.object(requests.Session, "get")
     def test_wait_for_result_timeout(self, mock_get):
         """Test wait_for_result raises TimeoutError."""
         mock_response = MagicMock()
@@ -422,7 +423,7 @@ class TestWaitForResult:
 class TestServerStats:
     """Tests for fetching server-side queue stats."""
 
-    @patch.object(requests.Session, 'get')
+    @patch.object(requests.Session, "get")
     def test_fetch_server_queue_stats_success(self, mock_get):
         """Test fetching server stats succeeds."""
         mock_response = MagicMock()
@@ -442,7 +443,7 @@ class TestServerStats:
         _, kwargs = mock_get.call_args
         assert kwargs["timeout"] == (QUEUE_CONNECT_HTTP_TIMEOUT, QUEUE_STATUS_HTTP_TIMEOUT)
 
-    @patch.object(requests.Session, 'get')
+    @patch.object(requests.Session, "get")
     def test_fetch_server_queue_stats_error(self, mock_get):
         """Test fetching server stats handles errors."""
         mock_get.side_effect = requests.RequestException("Connection failed")
@@ -456,7 +457,7 @@ class TestServerStats:
 class TestCleanup:
     """Tests for cleaning up old requests."""
 
-    @patch.object(requests.Session, 'post')
+    @patch.object(requests.Session, "post")
     def test_cleanup_completed_removes_old(self, mock_post):
         """Test cleanup removes old completed requests."""
         mock_response = MagicMock()
@@ -495,7 +496,7 @@ class TestGlobalFunctions:
         client2 = get_queue_client()
         assert client1 is client2
 
-    @patch('lumibot.tools.data_downloader_queue_client.QueueClient.execute_request')
+    @patch("lumibot.tools.data_downloader_queue_client.QueueClient.execute_request")
     def test_queue_request_calls_client(self, mock_execute):
         """Test queue_request uses the client correctly."""
         mock_execute.return_value = ({"data": "test"}, 200)
@@ -683,7 +684,7 @@ class TestExecuteRequestRecovery:
 class TestThreadSafety:
     """Tests for thread safety."""
 
-    @patch.object(requests.Session, 'post')
+    @patch.object(requests.Session, "post")
     def test_concurrent_submissions(self, mock_post):
         """Test that concurrent submissions are thread-safe."""
         counter = {"value": 0}
@@ -708,9 +709,7 @@ class TestThreadSafety:
 
         def submit_request(symbol):
             try:
-                request_id, status, _ = client.check_or_submit(
-                    "GET", "v3/test", {"symbol": symbol}
-                )
+                request_id, status, _ = client.check_or_submit("GET", "v3/test", {"symbol": symbol})
                 results.append((symbol, request_id, status))
             except Exception as e:
                 results.append((symbol, None, str(e)))

@@ -3,34 +3,37 @@ import io
 from decimal import Decimal
 from pathlib import Path
 from zoneinfo import ZoneInfo
-import pytz
-import pytest
+
 import pandas as pd
+import pytest
+import pytz
 
 from lumibot import LUMIBOT_DEFAULT_TIMEZONE
+from lumibot.tools import helpers as helpers_module
 from lumibot.tools.helpers import (
-    has_more_than_n_decimal_places,
     date_n_trading_days_from_date,
+    get_timezone_from_datetime,
     get_trading_days,
     get_trading_times,
-    get_timezone_from_datetime,
-    quantize_to_num_decimals, is_market_open, print_progress_bar
+    has_more_than_n_decimal_places,
+    is_market_open,
+    print_progress_bar,
+    quantize_to_num_decimals,
 )
-from lumibot.tools import helpers as helpers_module
 
 
 def test_has_more_than_n_decimal_places():
-    assert has_more_than_n_decimal_places(1.2, 0) == True
-    assert has_more_than_n_decimal_places(1.2, 1) == False
-    assert has_more_than_n_decimal_places(1.22, 0) == True
-    assert has_more_than_n_decimal_places(1.22, 1) == True
-    assert has_more_than_n_decimal_places(1.22, 5) == False
+    assert has_more_than_n_decimal_places(1.2, 0)
+    assert not has_more_than_n_decimal_places(1.2, 1)
+    assert has_more_than_n_decimal_places(1.22, 0)
+    assert has_more_than_n_decimal_places(1.22, 1)
+    assert not has_more_than_n_decimal_places(1.22, 5)
 
-    assert has_more_than_n_decimal_places(1.2345, 0) == True
-    assert has_more_than_n_decimal_places(1.2345, 1) == True
-    assert has_more_than_n_decimal_places(1.2345, 3) == True
-    assert has_more_than_n_decimal_places(1.2345, 4) == False
-    assert has_more_than_n_decimal_places(1.2345, 5) == False
+    assert has_more_than_n_decimal_places(1.2345, 0)
+    assert has_more_than_n_decimal_places(1.2345, 1)
+    assert has_more_than_n_decimal_places(1.2345, 3)
+    assert not has_more_than_n_decimal_places(1.2345, 4)
+    assert not has_more_than_n_decimal_places(1.2345, 5)
 
 
 def test_date_n_bars_from_date_valid_input(mocker):
@@ -83,27 +86,16 @@ def test_date_n_bars_from_date_valid_input(mocker):
 
 def test_date_n_bars_from_date_zero_bars():
     start_datetime = dt.datetime(2023, 10, 15)
-    result = date_n_trading_days_from_date(
-        n_days=0,
-        start_datetime=start_datetime
-    )
+    result = date_n_trading_days_from_date(n_days=0, start_datetime=start_datetime)
     assert result == dt.datetime(2023, 10, 15).date()
 
 
 def test_date_n_trading_days_from_date_with_24_7_market():
     start_datetime = dt.datetime(2024, 1, 13, tzinfo=pytz.UTC)
-    result = date_n_trading_days_from_date(
-        n_days=5,
-        start_datetime=start_datetime,
-        market="24/7"
-    )
+    result = date_n_trading_days_from_date(n_days=5, start_datetime=start_datetime, market="24/7")
     assert result == dt.datetime(2024, 1, 8).date()
 
-    result = date_n_trading_days_from_date(
-        n_days=-5,
-        start_datetime=start_datetime,
-        market="24/7"
-    )
+    result = date_n_trading_days_from_date(n_days=-5, start_datetime=start_datetime, market="24/7")
     assert result == dt.datetime(2024, 1, 18).date()
 
 
@@ -113,14 +105,14 @@ def test_get_trading_days():
     trading_days = get_trading_days()
     assert len(trading_days) > 0
 
-    ny_tz = pytz.timezone('America/New_York')
+    ny_tz = pytz.timezone("America/New_York")
     start = dt.datetime(2025, 1, 1)
     end = dt.datetime(2025, 2, 1)
-    trading_days = get_trading_days('NYSE', start_date=start, end_date=end, tzinfo=ny_tz)
+    trading_days = get_trading_days("NYSE", start_date=start, end_date=end, tzinfo=ny_tz)
     assert len(trading_days) == 20  # https://www.nyse.com/publicdocs/ICE_NYSE_2025_Yearly_Trading_Calendar.pdf
 
     # Check all market opens and closes
-    for open_time, close_time in zip(trading_days.market_open, trading_days.market_close):
+    for open_time, close_time in zip(trading_days.market_open, trading_days.market_close, strict=False):
         # Check timezone
         assert str(open_time.tzinfo) == str(ny_tz)
         assert str(close_time.tzinfo) == str(ny_tz)
@@ -132,10 +124,10 @@ def test_get_trading_days():
         assert close_time.minute == 0
 
     # Test 24/7 market
-    utc = pytz.timezone('UTC')
+    utc = pytz.timezone("UTC")
     start = dt.datetime(2025, 1, 1)
     end = dt.datetime(2025, 2, 1)
-    trading_days = get_trading_days('24/7', start_date=start, end_date=end, tzinfo=utc)
+    trading_days = get_trading_days("24/7", start_date=start, end_date=end, tzinfo=utc)
     assert len(trading_days) == 31
     assert all(dtm.hour == 0 and dtm.minute == 0 for dtm in trading_days.market_open)
     assert all(dtm.hour == 23 and dtm.minute == 59 for dtm in trading_days.market_close)
@@ -143,10 +135,10 @@ def test_get_trading_days():
     assert all(str(dtm.tzinfo) == str(utc) for dtm in trading_days.market_open)
     assert all(str(dtm.tzinfo) == str(utc) for dtm in trading_days.market_close)
 
-    america_chicago = pytz.timezone('America/Chicago')
+    america_chicago = pytz.timezone("America/Chicago")
     start = dt.datetime(2025, 1, 1)
     end = dt.datetime(2025, 2, 1)
-    trading_days = get_trading_days('24/7', start_date=start, end_date=end, tzinfo=america_chicago)
+    trading_days = get_trading_days("24/7", start_date=start, end_date=end, tzinfo=america_chicago)
     assert len(trading_days) == 31
     assert all(dtm.hour == 0 and dtm.minute == 0 for dtm in trading_days.market_open)
     assert all(dtm.hour == 23 and dtm.minute == 59 for dtm in trading_days.market_close)
@@ -203,21 +195,21 @@ def test_get_trading_days_long_window_uses_direct_schedule(monkeypatch, tmp_path
 def test_get_trading_times_day_nyse():
     start_date = dt.datetime(2024, 1, 8)  # Monday
     end_date = dt.datetime(2024, 1, 13)  # Saturday
-    pcal = get_trading_days(market='NYSE', start_date=start_date, end_date=end_date)
+    pcal = get_trading_days(market="NYSE", start_date=start_date, end_date=end_date)
 
-    result = get_trading_times(pcal=pcal, timestep='day')
+    result = get_trading_times(pcal=pcal, timestep="day")
 
     assert len(result) == 5  # 8th through 12th (Mon-Fri)
     # All timestamps the market open for NYSE
-    assert all(ts.strftime('%H:%M:%S%z') == '09:30:00-0500' for ts in result)
+    assert all(ts.strftime("%H:%M:%S%z") == "09:30:00-0500" for ts in result)
 
 
 def test_get_trading_times_minute_nyse():
     start_date = dt.datetime(2024, 1, 8)  # Monday
     end_date = dt.datetime(2024, 1, 13)  # Saturday
-    pcal = get_trading_days(market='NYSE', start_date=start_date, end_date=end_date)
+    pcal = get_trading_days(market="NYSE", start_date=start_date, end_date=end_date)
 
-    result = get_trading_times(pcal=pcal, timestep='minute')
+    result = get_trading_times(pcal=pcal, timestep="minute")
 
     assert len(result) == 6.5 * 60 * 5  # 8th through 12th (Mon-Fri)
     assert result[0].hour == 9
@@ -229,15 +221,10 @@ def test_get_trading_times_minute_nyse():
 def test_get_trading_times_minute_24_7_utc():
     start_date = dt.datetime(2024, 1, 8)
     end_date = dt.datetime(2024, 1, 9)
-    tzinfo = pytz.timezone('UTC')
-    pcal = get_trading_days(
-        market='24/7',
-        start_date=start_date,
-        end_date=end_date,
-        tzinfo=tzinfo
-    )
+    tzinfo = pytz.timezone("UTC")
+    pcal = get_trading_days(market="24/7", start_date=start_date, end_date=end_date, tzinfo=tzinfo)
 
-    result = get_trading_times(pcal=pcal, timestep='minute')
+    result = get_trading_times(pcal=pcal, timestep="minute")
 
     assert len(result) == 1440
     assert result[0].time().hour == 0
@@ -246,18 +233,14 @@ def test_get_trading_times_minute_24_7_utc():
     assert result[-1].time().minute == 59
     assert all(dtm.tzinfo.zone == tzinfo.zone for dtm in result)
 
+
 def test_get_trading_times_minute_24_7_UTC():
     start_date = dt.datetime(2024, 1, 8)
     end_date = dt.datetime(2024, 1, 10)
-    tzinfo = pytz.timezone('UTC')
-    pcal = get_trading_days(
-        market='24/7',
-        start_date=start_date,
-        end_date=end_date,
-        tzinfo=tzinfo
-    )
+    tzinfo = pytz.timezone("UTC")
+    pcal = get_trading_days(market="24/7", start_date=start_date, end_date=end_date, tzinfo=tzinfo)
 
-    result = get_trading_times(pcal=pcal, timestep='minute')
+    result = get_trading_times(pcal=pcal, timestep="minute")
 
     assert len(result) == 1440 * 2
     assert result[0].time().hour == 0
@@ -318,15 +301,10 @@ def test_print_progress_bar_throttles_output(monkeypatch):
 def test_get_trading_times_minute():
     start_date = dt.datetime(2024, 1, 8)
     end_date = dt.datetime(2024, 1, 10)
-    tzinfo = pytz.timezone('America/New_York')
-    pcal = get_trading_days(
-        market='NYSE',
-        start_date=start_date,
-        end_date=end_date,
-        tzinfo=tzinfo
-    )
+    tzinfo = pytz.timezone("America/New_York")
+    pcal = get_trading_days(market="NYSE", start_date=start_date, end_date=end_date, tzinfo=tzinfo)
 
-    result = get_trading_times(pcal=pcal, timestep='minute')
+    result = get_trading_times(pcal=pcal, timestep="minute")
 
     assert len(result) == 780  # 390 minutes per day * 2 days
     assert result[0].time().hour == 9
@@ -386,7 +364,7 @@ def test_get_timezone_from_datetime_types():
 def test_quantize_to_num_decimals():
     assert quantize_to_num_decimals(123.4567, 2) == 123.46
     assert quantize_to_num_decimals(123.4567, 3) == 123.457
-    assert quantize_to_num_decimals(Decimal('123.4567'), 1) == 123.5
+    assert quantize_to_num_decimals(Decimal("123.4567"), 1) == 123.5
     assert quantize_to_num_decimals(123.4567000001, 2) == 123.46
 
 
@@ -482,12 +460,8 @@ def test_date_n_trading_days_from_date_no_tz_mismatch_nyse():
     tz = pytz.UTC
     start_dt = tz.localize(dt.datetime(2025, 7, 1, 12, 0, 0))
 
-    result_back = date_n_trading_days_from_date(
-        n_days=5, start_datetime=start_dt, market="NYSE"
-    )
-    result_fwd = date_n_trading_days_from_date(
-        n_days=-5, start_datetime=start_dt, market="NYSE"
-    )
+    result_back = date_n_trading_days_from_date(n_days=5, start_datetime=start_dt, market="NYSE")
+    result_fwd = date_n_trading_days_from_date(n_days=-5, start_datetime=start_dt, market="NYSE")
 
     assert isinstance(result_back, dt.date)
     assert isinstance(result_fwd, dt.date)
@@ -505,22 +479,23 @@ def test_get_trading_days_on_tz_mismatch_then_fix(monkeypatch):
         def schedule(self, start_date, end_date, tz=None):
             # Build a tz-aware DatetimeIndex to trigger the mismatch
             idx = pd.date_range(
-                start=pd.Timestamp('2025-01-01', tz=pytz.UTC),
-                end=pd.Timestamp('2025-01-05', tz=pytz.UTC),
-                freq='D'
+                start=pd.Timestamp("2025-01-01", tz=pytz.UTC), end=pd.Timestamp("2025-01-05", tz=pytz.UTC), freq="D"
             )
             # Market open/close columns can be naive datetimes; they aren't
             # used for the slicing that triggers the error.
-            opens = pd.date_range('2025-01-01 00:00:00', periods=len(idx), freq='D')
-            closes = pd.date_range('2025-01-01 23:59:00', periods=len(idx), freq='D')
-            df = pd.DataFrame({
-                'market_open': opens,
-                'market_close': closes,
-            }, index=idx)
+            opens = pd.date_range("2025-01-01 00:00:00", periods=len(idx), freq="D")
+            closes = pd.date_range("2025-01-01 23:59:00", periods=len(idx), freq="D")
+            df = pd.DataFrame(
+                {
+                    "market_open": opens,
+                    "market_close": closes,
+                },
+                index=idx,
+            )
             return df
 
     # Monkeypatch pandas_market_calendars.get_calendar used inside helpers
-    monkeypatch.setattr(helpers_module.mcal, 'get_calendar', lambda market: FakeCalendar())
+    monkeypatch.setattr(helpers_module.mcal, "get_calendar", lambda market: FakeCalendar())
 
     tz = pytz.UTC
     start = tz.localize(dt.datetime(2025, 1, 1, 12, 0, 0))
@@ -530,4 +505,4 @@ def test_get_trading_days_on_tz_mismatch_then_fix(monkeypatch):
 
     assert isinstance(sched, pd.DataFrame)
     assert not sched.empty
-    assert getattr(sched.index, 'tz', None) is not None
+    assert getattr(sched.index, "tz", None) is not None

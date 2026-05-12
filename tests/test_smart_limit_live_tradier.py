@@ -9,7 +9,6 @@ from lumibot.credentials import TRADIER_TEST_CONFIG
 from lumibot.entities import Asset, Order, SmartLimitConfig, SmartLimitPreset
 from lumibot.strategies.strategy import Strategy
 
-
 pytestmark = pytest.mark.apitest
 
 
@@ -38,7 +37,9 @@ def _poll_tradier_order(broker: Tradier, order: Order) -> dict:
     return broker._pull_broker_order(order.identifier)
 
 
-def _wait_fill(strategy: _HarnessStrategy, order: Order, *, timeout: int, drive_smart_limit: bool) -> tuple[bool, int, float]:
+def _wait_fill(
+    strategy: _HarnessStrategy, order: Order, *, timeout: int, drive_smart_limit: bool
+) -> tuple[bool, int, float]:
     start = time.time()
     last_price = None
     reprices = 0
@@ -122,7 +123,9 @@ def _pick_expiry(strategy: _HarnessStrategy, underlying: Asset, days_out: int):
         raise RuntimeError(f"No chains for {underlying.symbol}")
 
     target_date = datetime.now().astimezone().date() + timedelta(days=days_out)
-    expiry = strategy.options_helper.get_expiration_on_or_after_date(target_date, chains, "call", underlying_asset=underlying)
+    expiry = strategy.options_helper.get_expiration_on_or_after_date(
+        target_date, chains, "call", underlying_asset=underlying
+    )
     if expiry is None:
         raise RuntimeError("No expiry found")
     return expiry
@@ -148,7 +151,9 @@ def _pick_atm_strike(strategy: _HarnessStrategy, underlying: Asset, expiry) -> f
     return float(strikes[len(strikes) // 2])
 
 
-def _build_spx_iron_condor(strategy: _HarnessStrategy, *, days_out: int, short_distance: float, wing_width: float, cfg: SmartLimitConfig):
+def _build_spx_iron_condor(
+    strategy: _HarnessStrategy, *, days_out: int, short_distance: float, wing_width: float, cfg: SmartLimitConfig
+):
     underlying = Asset("SPX", asset_type=Asset.AssetType.INDEX)
     expiry = _pick_expiry(strategy, underlying, days_out)
     atm = _pick_atm_strike(strategy, underlying, expiry)
@@ -162,22 +167,40 @@ def _build_spx_iron_condor(strategy: _HarnessStrategy, *, days_out: int, short_d
 
     put_short_asset = strategy.options_helper.find_next_valid_option(underlying, put_short, expiry, put_or_call="put")
     put_long_asset = strategy.options_helper.find_next_valid_option(underlying, put_long, expiry, put_or_call="put")
-    call_short_asset = strategy.options_helper.find_next_valid_option(underlying, call_short, expiry, put_or_call="call")
+    call_short_asset = strategy.options_helper.find_next_valid_option(
+        underlying, call_short, expiry, put_or_call="call"
+    )
     call_long_asset = strategy.options_helper.find_next_valid_option(underlying, call_long, expiry, put_or_call="call")
 
     assert put_short_asset and put_long_asset and call_short_asset and call_long_asset
 
     open_legs = [
-        strategy.create_order(put_long_asset, 1, Order.OrderSide.BUY_TO_OPEN, order_type=Order.OrderType.SMART_LIMIT, smart_limit=cfg),
-        strategy.create_order(put_short_asset, 1, Order.OrderSide.SELL_TO_OPEN, order_type=Order.OrderType.SMART_LIMIT, smart_limit=cfg),
-        strategy.create_order(call_short_asset, 1, Order.OrderSide.SELL_TO_OPEN, order_type=Order.OrderType.SMART_LIMIT, smart_limit=cfg),
-        strategy.create_order(call_long_asset, 1, Order.OrderSide.BUY_TO_OPEN, order_type=Order.OrderType.SMART_LIMIT, smart_limit=cfg),
+        strategy.create_order(
+            put_long_asset, 1, Order.OrderSide.BUY_TO_OPEN, order_type=Order.OrderType.SMART_LIMIT, smart_limit=cfg
+        ),
+        strategy.create_order(
+            put_short_asset, 1, Order.OrderSide.SELL_TO_OPEN, order_type=Order.OrderType.SMART_LIMIT, smart_limit=cfg
+        ),
+        strategy.create_order(
+            call_short_asset, 1, Order.OrderSide.SELL_TO_OPEN, order_type=Order.OrderType.SMART_LIMIT, smart_limit=cfg
+        ),
+        strategy.create_order(
+            call_long_asset, 1, Order.OrderSide.BUY_TO_OPEN, order_type=Order.OrderType.SMART_LIMIT, smart_limit=cfg
+        ),
     ]
     close_legs = [
-        strategy.create_order(put_long_asset, 1, Order.OrderSide.SELL_TO_CLOSE, order_type=Order.OrderType.SMART_LIMIT, smart_limit=cfg),
-        strategy.create_order(put_short_asset, 1, Order.OrderSide.BUY_TO_CLOSE, order_type=Order.OrderType.SMART_LIMIT, smart_limit=cfg),
-        strategy.create_order(call_short_asset, 1, Order.OrderSide.BUY_TO_CLOSE, order_type=Order.OrderType.SMART_LIMIT, smart_limit=cfg),
-        strategy.create_order(call_long_asset, 1, Order.OrderSide.SELL_TO_CLOSE, order_type=Order.OrderType.SMART_LIMIT, smart_limit=cfg),
+        strategy.create_order(
+            put_long_asset, 1, Order.OrderSide.SELL_TO_CLOSE, order_type=Order.OrderType.SMART_LIMIT, smart_limit=cfg
+        ),
+        strategy.create_order(
+            put_short_asset, 1, Order.OrderSide.BUY_TO_CLOSE, order_type=Order.OrderType.SMART_LIMIT, smart_limit=cfg
+        ),
+        strategy.create_order(
+            call_short_asset, 1, Order.OrderSide.BUY_TO_CLOSE, order_type=Order.OrderType.SMART_LIMIT, smart_limit=cfg
+        ),
+        strategy.create_order(
+            call_long_asset, 1, Order.OrderSide.SELL_TO_CLOSE, order_type=Order.OrderType.SMART_LIMIT, smart_limit=cfg
+        ),
     ]
     return open_legs, close_legs
 
@@ -207,7 +230,9 @@ def test_tradier_spx_multileg_smart_limit_fills_and_reprices():
         # Paper fills for multi-leg packages can be nondeterministic; treat non-fill cancels as a skip.
         status = str(getattr(parent, "status", "")).lower()
         if status in {"canceled", "cancelled", "expired"}:
-            pytest.skip(f"Open did not fill before SMART_LIMIT canceled (reprices={reprices_open}, elapsed={open_elapsed:.1f}s)")
+            pytest.skip(
+                f"Open did not fill before SMART_LIMIT canceled (reprices={reprices_open}, elapsed={open_elapsed:.1f}s)"
+            )
         pytest.fail(f"Open did not fill (status={status}, reprices={reprices_open}, elapsed={open_elapsed:.1f}s)")
 
     submitted_close = strategy.submit_order(close_legs)
@@ -216,7 +241,9 @@ def test_tradier_spx_multileg_smart_limit_fills_and_reprices():
     if not ok_close:
         status = str(getattr(parent_close, "status", "")).lower()
         if status in {"canceled", "cancelled", "expired"}:
-            pytest.skip(f"Close did not fill before SMART_LIMIT canceled (reprices={reprices_close}, elapsed={close_elapsed:.1f}s)")
+            pytest.skip(
+                f"Close did not fill before SMART_LIMIT canceled (reprices={reprices_close}, elapsed={close_elapsed:.1f}s)"
+            )
         pytest.fail(f"Close did not fill (status={status}, reprices={reprices_close}, elapsed={close_elapsed:.1f}s)")
 
     # If it filled instantly, reprices can be 0; otherwise we expect at least one reprice step.

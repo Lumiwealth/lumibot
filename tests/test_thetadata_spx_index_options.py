@@ -4,7 +4,6 @@ from datetime import date
 from types import SimpleNamespace
 
 import pandas as pd
-import pytest
 
 from lumibot.backtesting.backtesting_broker import BacktestingBroker
 from lumibot.entities import Asset

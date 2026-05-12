@@ -1,9 +1,14 @@
 import datetime
-import os
 
 import pytest
 
-from lumibot.backtesting import PolygonDataBacktesting, YahooDataBacktesting, CcxtBacktesting
+from lumibot.backtesting import CcxtBacktesting, PolygonDataBacktesting, YahooDataBacktesting
+
+# Global parameters
+# API Key for testing Polygon.io
+from lumibot.credentials import POLYGON_CONFIG
+from lumibot.entities import Asset, Order, TradingFee
+from lumibot.example_strategies.ccxt_backtesting_example import CcxtBacktestingExampleStrategy
 from lumibot.example_strategies.options_hold_to_expiry import OptionsHoldToExpiry
 from lumibot.example_strategies.stock_bracket import StockBracket
 from lumibot.example_strategies.stock_buy_and_hold import BuyAndHold
@@ -12,12 +17,6 @@ from lumibot.example_strategies.stock_limit_and_trailing_stops import (
     LimitAndTrailingStop,
 )
 from lumibot.example_strategies.stock_oco import StockOco
-from lumibot.example_strategies.ccxt_backtesting_example import CcxtBacktestingExampleStrategy
-from lumibot.entities import Asset, Order, TradingFee
-
-# Global parameters
-# API Key for testing Polygon.io
-from lumibot.credentials import POLYGON_CONFIG
 
 
 # LEGACY TEST CLASS (created Aug 2023)
@@ -25,7 +24,6 @@ from lumibot.credentials import POLYGON_CONFIG
 # by the BACKTESTING_DATA_SOURCE environment variable.
 @pytest.mark.usefixtures("disable_datasource_override")
 class TestExampleStrategies:
-
     def test_stock_bracket(self):
         """
         Test the example strategy StockBracket by running a backtest and checking that the strategy object is returned
@@ -279,13 +277,9 @@ class TestExampleStrategies:
         assert round(results["total_return"] * 100, 1) >= 0.7
         assert round(results["max_drawdown"]["drawdown"] * 100, 1) == 0.7
 
+    @pytest.mark.skipif(not POLYGON_CONFIG["API_KEY"], reason="This test requires a Polygon.io API key")
     @pytest.mark.skipif(
-        not POLYGON_CONFIG["API_KEY"],
-        reason="This test requires a Polygon.io API key"
-    )
-    @pytest.mark.skipif(
-        POLYGON_CONFIG['API_KEY'] == '<your key here>',
-        reason="This test requires a Polygon.io API key"
+        POLYGON_CONFIG["API_KEY"] == "<your key here>", reason="This test requires a Polygon.io API key"
     )
     def test_options_hold_to_expiry(self):
         """
@@ -319,9 +313,7 @@ class TestExampleStrategies:
             )
 
         # Get all the cash settled orders
-        cash_settled_orders = trades_df[
-            (trades_df["status"] == "cash_settled") & (trades_df["type"] == "cash_settled")
-        ]
+        cash_settled_orders = trades_df[(trades_df["status"] == "cash_settled") & (trades_df["type"] == "cash_settled")]
 
         if cash_settled_orders.empty:
             summary_columns = ["time", "status", "type", "filled_quantity", "price", "quantity", "fill_price"]
@@ -353,16 +345,15 @@ class TestExampleStrategies:
         # Shortened from 1-year backtest to 1-month backtest for faster testing
         backtesting_start = datetime.datetime(2023, 10, 1)
         backtesting_end = datetime.datetime(2023, 10, 31)
-        asset = (Asset(symbol=base_symbol, asset_type="crypto"),
-                Asset(symbol=quote_symbol, asset_type="crypto"))
+        asset = (Asset(symbol=base_symbol, asset_type="crypto"), Asset(symbol=quote_symbol, asset_type="crypto"))
 
-        exchange_id = "kraken"  #"kucoin" #"bybit" #"okx" #"bitmex" # "binance"
+        exchange_id = "kraken"  # "kucoin" #"bybit" #"okx" #"bitmex" # "binance"
 
         # CcxtBacktesting default data download limit is 50,000
         # If you want to change the maximum data download limit, you can do so by using 'max_data_download_limit'.
         kwargs = {
             # "max_data_download_limit":10000, # optional
-            "exchange_id":exchange_id,
+            "exchange_id": exchange_id,
         }
         CcxtBacktesting.MIN_TIMESTEP = "day"
         results, strat_obj = CcxtBacktestingExampleStrategy.run_backtest(
@@ -375,11 +366,8 @@ class TestExampleStrategies:
             show_indicators=False,
             save_tearsheet=False,
             risk_free_rate=0.0,
-            parameters={
-            "asset":asset,
-            "cash_at_risk":.25,
-            "window":21},
-            **kwargs
+            parameters={"asset": asset, "cash_at_risk": 0.25, "window": 21},
+            **kwargs,
         )
         assert results
         assert isinstance(strat_obj, CcxtBacktestingExampleStrategy)

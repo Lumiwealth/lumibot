@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pandas as pd
 
@@ -13,13 +13,15 @@ def test_ibkr_rest_backtesting_plumbs_history_source(monkeypatch):
 
     calls = {"count": 0}
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         calls["count"] += 1
         assert source == "Bid_Ask"
         idx = pd.DatetimeIndex(
             [
-                datetime(2025, 1, 1, 0, 0, tzinfo=timezone.utc),
-                datetime(2025, 1, 1, 0, 1, tzinfo=timezone.utc),
+                datetime(2025, 1, 1, 0, 0, tzinfo=UTC),
+                datetime(2025, 1, 1, 0, 1, tzinfo=UTC),
             ]
         ).tz_convert("America/New_York")
         return pd.DataFrame(
@@ -30,8 +32,8 @@ def test_ibkr_rest_backtesting_plumbs_history_source(monkeypatch):
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
 
     ds = InteractiveBrokersRESTBacktesting(
-        datetime_start=datetime(2025, 1, 1, tzinfo=timezone.utc),
-        datetime_end=datetime(2025, 1, 2, tzinfo=timezone.utc),
+        datetime_start=datetime(2025, 1, 1, tzinfo=UTC),
+        datetime_end=datetime(2025, 1, 2, tzinfo=UTC),
         history_source="Bid_Ask",
         show_progress_bar=False,
         log_backtest_progress_to_file=False,
@@ -43,8 +45,8 @@ def test_ibkr_rest_backtesting_plumbs_history_source(monkeypatch):
         asset=asset,
         quote=quote,
         timestep="minute",
-        start_dt=datetime(2025, 1, 1, tzinfo=timezone.utc),
-        end_dt=datetime(2025, 1, 1, 0, 1, tzinfo=timezone.utc),
+        start_dt=datetime(2025, 1, 1, tzinfo=UTC),
+        end_dt=datetime(2025, 1, 1, 0, 1, tzinfo=UTC),
         exchange=None,
         include_after_hours=True,
     )
@@ -86,13 +88,15 @@ def test_ibkr_rest_stock_daily_uses_rth(monkeypatch):
 
     captured = {"include_after_hours": None, "count": 0}
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         captured["count"] += 1
         captured["include_after_hours"] = bool(include_after_hours)
         idx = pd.DatetimeIndex(
             [
-                datetime(2025, 1, 1, 0, 0, tzinfo=timezone.utc),
-                datetime(2025, 1, 2, 0, 0, tzinfo=timezone.utc),
+                datetime(2025, 1, 1, 0, 0, tzinfo=UTC),
+                datetime(2025, 1, 2, 0, 0, tzinfo=UTC),
             ]
         ).tz_convert("America/New_York")
         return pd.DataFrame(
@@ -103,8 +107,8 @@ def test_ibkr_rest_stock_daily_uses_rth(monkeypatch):
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
 
     ds = InteractiveBrokersRESTBacktesting(
-        datetime_start=datetime(2025, 1, 1, tzinfo=timezone.utc),
-        datetime_end=datetime(2025, 1, 3, tzinfo=timezone.utc),
+        datetime_start=datetime(2025, 1, 1, tzinfo=UTC),
+        datetime_end=datetime(2025, 1, 3, tzinfo=UTC),
         show_progress_bar=False,
         log_backtest_progress_to_file=False,
     )
@@ -124,11 +128,13 @@ def test_ibkr_rest_stock_daily_uses_rth(monkeypatch):
 def test_ibkr_rest_stock_daily_prefetch_stays_unloaded_when_coverage_fails(monkeypatch):
     import lumibot.tools.ibkr_helper as ibkr_helper
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         idx = pd.DatetimeIndex(
             [
-                datetime(2025, 1, 1, 0, 0, tzinfo=timezone.utc),
-                datetime(2025, 1, 2, 0, 0, tzinfo=timezone.utc),
+                datetime(2025, 1, 1, 0, 0, tzinfo=UTC),
+                datetime(2025, 1, 2, 0, 0, tzinfo=UTC),
             ]
         ).tz_convert("America/New_York")
         return pd.DataFrame(
@@ -140,8 +146,8 @@ def test_ibkr_rest_stock_daily_prefetch_stays_unloaded_when_coverage_fails(monke
     monkeypatch.setattr(ibkr_helper, "frame_covers_requested_window", lambda *args, **kwargs: False)
 
     ds = InteractiveBrokersRESTBacktesting(
-        datetime_start=datetime(2025, 1, 1, tzinfo=timezone.utc),
-        datetime_end=datetime(2025, 1, 3, tzinfo=timezone.utc),
+        datetime_start=datetime(2025, 1, 1, tzinfo=UTC),
+        datetime_end=datetime(2025, 1, 3, tzinfo=UTC),
         show_progress_bar=False,
         log_backtest_progress_to_file=False,
     )
@@ -163,7 +169,9 @@ def test_ibkr_rest_stock_daily_prefetch_stays_unloaded_when_coverage_fails(monke
 def test_ibkr_rest_crypto_minute_prefetch_stays_unloaded_when_coverage_fails(monkeypatch):
     import lumibot.tools.ibkr_helper as ibkr_helper
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         idx = pd.date_range(start=start_dt, periods=5, freq="1min")
         return pd.DataFrame(
             {"open": 1.0, "high": 1.1, "low": 0.9, "close": 1.0, "volume": 1.0},
@@ -174,8 +182,8 @@ def test_ibkr_rest_crypto_minute_prefetch_stays_unloaded_when_coverage_fails(mon
     monkeypatch.setattr(ibkr_helper, "frame_covers_requested_window", lambda *args, **kwargs: False)
 
     ds = InteractiveBrokersRESTBacktesting(
-        datetime_start=datetime(2025, 1, 1, tzinfo=timezone.utc),
-        datetime_end=datetime(2025, 1, 2, tzinfo=timezone.utc),
+        datetime_start=datetime(2025, 1, 1, tzinfo=UTC),
+        datetime_end=datetime(2025, 1, 2, tzinfo=UTC),
         show_progress_bar=False,
         log_backtest_progress_to_file=False,
     )
@@ -197,7 +205,9 @@ def test_ibkr_rest_crypto_minute_prefetch_stays_unloaded_when_coverage_fails(mon
 def test_ibkr_rest_futures_minute_prefetch_stays_unloaded_when_coverage_fails(monkeypatch):
     import lumibot.tools.ibkr_helper as ibkr_helper
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(
+        *, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None
+    ):
         idx = pd.date_range(start=start_dt, periods=5, freq="1min")
         return pd.DataFrame(
             {"open": 1.0, "high": 1.1, "low": 0.9, "close": 1.0, "volume": 1.0},
@@ -208,8 +218,8 @@ def test_ibkr_rest_futures_minute_prefetch_stays_unloaded_when_coverage_fails(mo
     monkeypatch.setattr(ibkr_helper, "frame_covers_requested_window", lambda *args, **kwargs: False)
 
     ds = InteractiveBrokersRESTBacktesting(
-        datetime_start=datetime(2025, 1, 1, tzinfo=timezone.utc),
-        datetime_end=datetime(2025, 1, 2, tzinfo=timezone.utc),
+        datetime_start=datetime(2025, 1, 1, tzinfo=UTC),
+        datetime_end=datetime(2025, 1, 2, tzinfo=UTC),
         show_progress_bar=False,
         log_backtest_progress_to_file=False,
     )

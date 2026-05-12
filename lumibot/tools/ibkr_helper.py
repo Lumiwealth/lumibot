@@ -5,14 +5,14 @@ import logging
 import os
 import time
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from importlib import import_module
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, TypeAlias, cast
 
 from lumibot.constants import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
-from lumibot.entities import Asset
+from lumibot.entities.asset import Asset
 from lumibot.tools.ibkr_secdef import (
     IbkrFuturesExchangeAmbiguousError,
     select_futures_exchange_from_secdef_search_payload,
@@ -22,52 +22,58 @@ logger = logging.getLogger(__name__)
 
 
 class _LazyModule(ModuleType):
-    def __init__(self, module_name: str):
+    _module_name: str
+    _module: ModuleType | None
+
+    def __init__(self, module_name: str) -> None:
         super().__init__(module_name)
         self._module_name = module_name
         self._module = None
 
-    def _load(self):
+    def _load(self) -> ModuleType:
         module = self._module
         if module is None:
             module = import_module(self._module_name)
             self._module = module
         return module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
 
-pd = _LazyModule("pandas")
-_BACKTEST_CACHE_MODE = None
-_BACKTEST_CACHE_GETTER = None
-_QUEUE_REQUEST = None
-_PARQUET_SERIES_CACHE = None
+pd: Any = _LazyModule("pandas")
+DataFrame: TypeAlias = Any  # noqa: UP040 - keep Python 3.11 runtime compatibility.
+Timestamp: TypeAlias = Any  # noqa: UP040 - keep Python 3.11 runtime compatibility.
+
+_backtest_cache_mode: type[Any] | None = None
+_backtest_cache_getter: Any | None = None
+_queue_request_impl: Any | None = None
+_parquet_series_cache: type[Any] | None = None
 
 
 class _LazyCacheMode:
-    def __getattr__(self, name):
-        global _BACKTEST_CACHE_MODE
-        if _BACKTEST_CACHE_MODE is None:
+    def __getattr__(self, name: str) -> Any:
+        global _backtest_cache_mode
+        if _backtest_cache_mode is None:
             from lumibot.tools.backtest_cache import CacheMode as _CacheMode
 
-            _BACKTEST_CACHE_MODE = _CacheMode
-        return getattr(_BACKTEST_CACHE_MODE, name)
+            _backtest_cache_mode = _CacheMode
+        return getattr(_backtest_cache_mode, name)
 
 
 class _LazyParquetSeriesCache:
-    def _load(self):
-        global _PARQUET_SERIES_CACHE
-        if _PARQUET_SERIES_CACHE is None:
+    def _load(self) -> type[Any]:
+        global _parquet_series_cache
+        if _parquet_series_cache is None:
             from lumibot.tools.parquet_series_cache import ParquetSeriesCache as _ParquetSeriesCache
 
-            _PARQUET_SERIES_CACHE = _ParquetSeriesCache
-        return _PARQUET_SERIES_CACHE
+            _parquet_series_cache = _ParquetSeriesCache
+        return _parquet_series_cache
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
         return self._load()(*args, **kwargs)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
 
@@ -75,22 +81,23 @@ CacheMode = _LazyCacheMode()
 ParquetSeriesCache = _LazyParquetSeriesCache()
 
 
-def get_backtest_cache():
-    global _BACKTEST_CACHE_GETTER
-    if _BACKTEST_CACHE_GETTER is None:
+def get_backtest_cache() -> Any:
+    global _backtest_cache_getter
+    if _backtest_cache_getter is None:
         from lumibot.tools.backtest_cache import get_backtest_cache as _get_backtest_cache
 
-        _BACKTEST_CACHE_GETTER = _get_backtest_cache
-    return _BACKTEST_CACHE_GETTER()
+        _backtest_cache_getter = _get_backtest_cache
+    return _backtest_cache_getter()
 
 
-def queue_request(*args, **kwargs):
-    global _QUEUE_REQUEST
-    if _QUEUE_REQUEST is None:
+def queue_request(*args: Any, **kwargs: Any) -> Any:
+    global _queue_request_impl
+    if _queue_request_impl is None:
         from lumibot.tools.data_downloader_queue_client import queue_request as _queue_request
 
-        _QUEUE_REQUEST = _queue_request
-    return _QUEUE_REQUEST(*args, **kwargs)
+        _queue_request_impl = _queue_request
+    return _queue_request_impl(*args, **kwargs)
+
 
 CACHE_SUBFOLDER = "ibkr"
 
@@ -139,16 +146,16 @@ class IbkrFuturesConidLookupError(RuntimeError):
     """
 
 
-_FUTURES_EXCHANGE_CACHE: Dict[str, str] = {}
-_FUTURES_EXCHANGE_CACHE_LOADED = False
+_FUTURES_EXCHANGE_CACHE: dict[str, str] = {}
+_futures_exchange_cache_loaded = False
 
-_NEGATIVE_CONID_CACHE: Dict[str, Dict[str, Any]] = {}
-_NEGATIVE_CONID_CACHE_LOADED = False
-_IBKR_EQUITY_ACTIONS_CACHE: Dict[str, pd.DataFrame] = {}
-_RUNTIME_CONID_CACHE: Dict[str, int] = {}
-_RUNTIME_HISTORY_NO_DATA_WINDOWS: Dict[str, Tuple[datetime, datetime]] = {}
-_DISABLE_CONIDS_REMOTE_UPLOAD = False
-_LOGGED_CONIDS_REMOTE_UPLOAD_DISABLE = False
+_NEGATIVE_CONID_CACHE: dict[str, dict[str, Any]] = {}
+_negative_conid_cache_loaded = False
+_IBKR_EQUITY_ACTIONS_CACHE: dict[str, DataFrame] = {}
+_RUNTIME_CONID_CACHE: dict[str, int] = {}
+_RUNTIME_HISTORY_NO_DATA_WINDOWS: dict[str, tuple[datetime, datetime]] = {}
+_disable_conids_remote_upload = False
+_logged_conids_remote_upload_disable = False
 _LOGGED_HISTORY_ALIASES: set[str] = set()
 
 
@@ -169,7 +176,7 @@ def _normalize_asset_type(value: Any) -> str:
     return raw
 
 
-def _alias_asset_for_ibkr_history(asset: Asset) -> tuple[Asset, Optional[str]]:
+def _alias_asset_for_ibkr_history(asset: Asset) -> tuple[Asset, str | None]:
     """Map known strategy-facing index aliases to IBKR history symbols.
 
     Some strategy code uses weekly option roots (for example `SPXW`) as the
@@ -199,24 +206,25 @@ def _enable_futures_bid_ask_derivation() -> bool:
         "on",
     }
 
+
 def _futures_exchange_cache_file() -> Path:
     return Path(LUMIBOT_CACHE_FOLDER) / CACHE_SUBFOLDER / "futures_exchanges.json"
 
 
 def _load_futures_exchange_cache() -> None:
-    global _FUTURES_EXCHANGE_CACHE_LOADED
-    if _FUTURES_EXCHANGE_CACHE_LOADED:
+    global _futures_exchange_cache_loaded
+    if _futures_exchange_cache_loaded:
         return
-    _FUTURES_EXCHANGE_CACHE_LOADED = True
+    _futures_exchange_cache_loaded = True
     path = _futures_exchange_cache_file()
     if not path.exists():
         return
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload: Any = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         payload = {}
     if isinstance(payload, dict):
-        for k, v in payload.items():
+        for k, v in cast(dict[Any, Any], payload).items():
             if not k or not v:
                 continue
             _FUTURES_EXCHANGE_CACHE[str(k).strip().upper()] = str(v).strip().upper()
@@ -242,10 +250,10 @@ def _negative_conid_cache_file() -> Path:
 
 def _load_negative_conid_cache() -> None:
     """Load negative conid cache (best-effort) and prune stale entries."""
-    global _NEGATIVE_CONID_CACHE_LOADED
-    if _NEGATIVE_CONID_CACHE_LOADED:
+    global _negative_conid_cache_loaded
+    if _negative_conid_cache_loaded:
         return
-    _NEGATIVE_CONID_CACHE_LOADED = True
+    _negative_conid_cache_loaded = True
 
     path = _negative_conid_cache_file()
     cache_manager = get_backtest_cache()
@@ -258,7 +266,7 @@ def _load_negative_conid_cache() -> None:
         return
 
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload: Any = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         payload = {}
     if not isinstance(payload, dict):
@@ -266,20 +274,21 @@ def _load_negative_conid_cache() -> None:
 
     now = float(time.time())
     changed = False
-    for key, value in payload.items():
+    for key, value in cast(dict[Any, Any], payload).items():
         if not isinstance(key, str) or not key:
             continue
         if not isinstance(value, dict):
             continue
-        ts = value.get("ts")
+        value_dict = cast(dict[str, Any], value)
+        ts = value_dict.get("ts")
         try:
-            ts_f = float(ts)
+            ts_f = float(ts) if ts is not None else None
         except Exception:
             ts_f = None
         if ts_f is None or (now - ts_f) > IBKR_CONID_NEGATIVE_CACHE_TTL_SECONDS:
             changed = True
             continue
-        _NEGATIVE_CONID_CACHE[key] = value
+        _NEGATIVE_CONID_CACHE[key] = value_dict
 
     if changed:
         try:
@@ -336,7 +345,7 @@ def _clear_negative_conid(*, key: str) -> None:
         pass
 
 
-def _date_from_yyyymmdd(value: str) -> Optional[date]:
+def _date_from_yyyymmdd(value: str) -> date | None:
     raw = str(value or "").strip()
     if not (raw.isdigit() and len(raw) == 8):
         return None
@@ -346,7 +355,7 @@ def _date_from_yyyymmdd(value: str) -> Optional[date]:
         return None
 
 
-def _expiration_date_only(value: Any) -> Optional[date]:
+def _expiration_date_only(value: Any) -> date | None:
     if isinstance(value, datetime):
         return value.date()
     if isinstance(value, date):
@@ -358,7 +367,7 @@ def _is_future_or_current_expiration(value: Any) -> bool:
     expiration_date = _expiration_date_only(value)
     if expiration_date is None:
         return False
-    return expiration_date >= datetime.now(timezone.utc).date()
+    return expiration_date >= datetime.now(UTC).date()
 
 
 def _resolve_futures_exchange(symbol: str) -> str:
@@ -404,7 +413,7 @@ def _us_futures_closed_interval(start_local: datetime, end_local: datetime) -> b
     except Exception:
         return False
 
-    def _next_open(ts: pd.Timestamp) -> pd.Timestamp:
+    def _next_open(ts: Timestamp) -> Timestamp:
         ts = ts.tz_convert("America/New_York")
         dow = int(ts.weekday())  # Mon=0 .. Sun=6
         t = ts.time()
@@ -422,7 +431,10 @@ def _us_futures_closed_interval(start_local: datetime, end_local: datetime) -> b
             return ts if ts >= open_ts else open_ts
 
         # Weekdays: closed daily 17:00–18:00 ET.
-        if t >= datetime.min.replace(hour=17, minute=0, second=0).time() and t < datetime.min.replace(hour=18, minute=0, second=0).time():
+        if (
+            t >= datetime.min.replace(hour=17, minute=0, second=0).time()
+            and t < datetime.min.replace(hour=18, minute=0, second=0).time()
+        ):
             reopen = ts.normalize() + pd.Timedelta(hours=18)
             reopen = reopen.tz_localize("America/New_York") if reopen.tzinfo is None else reopen
             return reopen
@@ -459,14 +471,14 @@ class IbkrConidKey:
 def get_price_data(
     *,
     asset: Asset,
-    quote: Optional[Asset],
+    quote: Asset | None,
     timestep: str,
     start_dt: datetime,
     end_dt: datetime,
-    exchange: Optional[str] = None,
+    exchange: str | None = None,
     include_after_hours: bool = True,
-    source: Optional[str] = None,
-) -> pd.DataFrame:
+    source: str | None = None,
+) -> DataFrame:
     """Fetch IBKR historical bars (via the Data Downloader) and cache to parquet.
 
     This helper mirrors the ThetaData cache pattern:
@@ -512,7 +524,9 @@ def get_price_data(
         except IbkrFuturesExchangeAmbiguousError:
             raise
         except Exception as exc:
-            fallback = (os.environ.get("IBKR_FUTURES_EXCHANGE") or IBKR_DEFAULT_FUTURES_EXCHANGE_FALLBACK).strip().upper()
+            fallback = (
+                (os.environ.get("IBKR_FUTURES_EXCHANGE") or IBKR_DEFAULT_FUTURES_EXCHANGE_FALLBACK).strip().upper()
+            )
             logger.warning(
                 "IBKR futures exchange auto-resolution failed for %s: %s. Falling back to %s",
                 getattr(asset, "symbol", None),
@@ -559,11 +573,7 @@ def get_price_data(
 
     is_roll_wrapper = bool(
         asset_type == "cont_future"
-        or (
-            asset_type == "future"
-            and getattr(asset, "expiration", None) is None
-            and asset_auto_expiry
-        )
+        or (asset_type == "future" and getattr(asset, "expiration", None) is None and asset_auto_expiry)
     )
 
     # Cont-futures + Auto-expiry futures
@@ -574,8 +584,10 @@ def get_price_data(
     # Rationale: backtests must match live semantics and must not depend on `date.today()` for
     # selecting a contract month.
     if is_roll_wrapper:
-        segments = _resolve_cont_future_segments(asset=asset, start_dt=start_utc, end_dt=end_utc, exchange=effective_exchange)
-        if not segments:
+        roll_segments = _resolve_cont_future_segments(
+            asset=asset, start_dt=start_utc, end_dt=end_utc, exchange=effective_exchange
+        )
+        if not roll_segments:
             logger.error(
                 "IBKR futures roll wrapper could not resolve any roll segments for %s (type=%s exchange=%s). Returning empty bars.",
                 getattr(asset, "symbol", None),
@@ -590,7 +602,7 @@ def get_price_data(
         # We copy metadata from the first roll segment, since multiplier/minTick are stable
         # across expirations for a given root (e.g., MES, ES).
         try:
-            first_asset, _, _ = segments[0]
+            first_asset, _, _ = roll_segments[0]
             _maybe_apply_future_contract_metadata(asset=first_asset, exchange=effective_exchange)
             first_multiplier = getattr(first_asset, "multiplier", None)
             if first_multiplier not in (None, 0, 1):
@@ -601,14 +613,14 @@ def get_price_data(
             first_min_tick = getattr(first_asset, "min_tick", None)
             if first_min_tick not in (None, 0):
                 try:
-                    setattr(asset, "min_tick", first_min_tick)
+                    setattr(asset, "min_tick", first_min_tick)  # noqa: B010 - dynamic metadata on Asset.
                 except Exception:
                     pass
         except Exception:
             pass
 
-        frames: list[pd.DataFrame] = []
-        for i, (seg_asset, seg_start, seg_end) in enumerate(segments):
+        frames: list[DataFrame] = []
+        for i, (seg_asset, seg_start, seg_end) in enumerate(roll_segments):
             # Clamp each segment to the requested window.
             seg_start = _to_utc(seg_start)
             seg_end = _to_utc(seg_end)
@@ -642,7 +654,7 @@ def get_price_data(
                 include_after_hours=include_after_hours,
                 source=source,
             )
-            if df_seg is not None and not df_seg.empty:
+            if not df_seg.empty:
                 frames.append(df_seg)
         if not frames:
             return pd.DataFrame()
@@ -737,6 +749,8 @@ def get_price_data(
         else:
             ask = pd.Series(index=df_cache.index, dtype="float64")
         df_cache["ask"] = ask.where(~ask.isna(), close)
+    coverage_start: Any | None
+    coverage_end: Any | None
     if not df_cache.empty:
         coverage_start = df_cache.index.min()
         coverage_end = df_cache.index.max()
@@ -751,6 +765,8 @@ def get_price_data(
     # partially covered (or not covered near one boundary). If we only look at global min/max
     # coverage we can incorrectly treat a request as a cache hit and return empty/underfilled bars.
     window_slice = pd.DataFrame()
+    window_cov_start: Any | None
+    window_cov_end: Any | None
     window_cov_start = None
     window_cov_end = None
     try:
@@ -824,7 +840,7 @@ def get_price_data(
         and _us_futures_closed_interval(coverage_end + bar_step, end_local)
     )
 
-    needs_fetch = (
+    needs_fetch: bool = bool(
         coverage_start is None
         or coverage_end is None
         # If the requested window has no rows at all (even though the overall cache has a broad
@@ -850,6 +866,8 @@ def get_price_data(
             and (start_tolerance <= timedelta(0) or (coverage_start - start_local) > start_tolerance)
         )
         or (
+            coverage_end is not None
+            and
             end_local > coverage_end
             and not cache_end_gap_closed
             and (end_tolerance <= timedelta(0) or (end_local - coverage_end) > end_tolerance)
@@ -911,9 +929,9 @@ def get_price_data(
                 segments.append((start_utc, end_utc))
             else:
                 if effective_start is not None and start_local < effective_start:
-                    segments.append((start_utc, effective_start.astimezone(timezone.utc)))
+                    segments.append((start_utc, effective_start.astimezone(UTC)))
                 if effective_end is not None and end_local > effective_end:
-                    segments.append((effective_end.astimezone(timezone.utc), end_utc))
+                    segments.append((effective_end.astimezone(UTC), end_utc))
 
         for seg_start, seg_end in segments:
             if seg_start >= seg_end:
@@ -991,10 +1009,14 @@ def get_price_data(
                 try:
                     new_max = df_cache.index.max() if not df_cache.empty else None
                     if prev_max is not None and new_max is not None and new_max <= prev_max:
-                        prev_max_utc = _to_utc(prev_max.to_pydatetime() if hasattr(prev_max, "to_pydatetime") else prev_max)
+                        prev_max_utc = _to_utc(
+                            prev_max.to_pydatetime() if hasattr(prev_max, "to_pydatetime") else prev_max
+                        )
                         seg_start_utc = _to_utc(seg_start)
                         seg_end_utc = _to_utc(seg_end)
-                        is_tail_extension = abs((seg_start_utc - prev_max_utc).total_seconds()) <= 1.0 and seg_end_utc > prev_max_utc
+                        is_tail_extension = (
+                            abs((seg_start_utc - prev_max_utc).total_seconds()) <= 1.0 and seg_end_utc > prev_max_utc
+                        )
                         if is_tail_extension:
                             missing_start = prev_max_utc + timedelta(seconds=1)
                             if missing_start < seg_end_utc:
@@ -1109,7 +1131,7 @@ def get_price_data(
     return frame
 
 
-def _frame_has_actionable_bid_ask(df: pd.DataFrame) -> bool:
+def _frame_has_actionable_bid_ask(df: DataFrame) -> bool:
     if df is None or df.empty:
         return False
     if "bid" not in df.columns or "ask" not in df.columns:
@@ -1120,7 +1142,7 @@ def _frame_has_actionable_bid_ask(df: pd.DataFrame) -> bool:
     return bool((spread > 0).any())
 
 
-def _align_stock_index_daily_to_session_close(df: pd.DataFrame) -> pd.DataFrame:
+def _align_stock_index_daily_to_session_close(df: DataFrame) -> DataFrame:
     """Normalize IBKR stock/index daily timestamps to the session close.
 
     Why:
@@ -1146,7 +1168,7 @@ def _align_stock_index_daily_to_session_close(df: pd.DataFrame) -> pd.DataFrame:
     return frame
 
 
-def _repair_isolated_split_spikes_daily(df: pd.DataFrame) -> pd.DataFrame:
+def _repair_isolated_split_spikes_daily(df: DataFrame) -> DataFrame:
     """Repair isolated split-like spikes in daily stock/index bars.
 
     Why:
@@ -1247,7 +1269,7 @@ def _repair_isolated_split_spikes_daily(df: pd.DataFrame) -> pd.DataFrame:
             continue
 
         op, factor = action
-        for col, series in numeric.items():
+        for series in numeric.values():
             val = series.iat[i]
             if pd.isna(val):
                 continue
@@ -1263,24 +1285,23 @@ def _repair_isolated_split_spikes_daily(df: pd.DataFrame) -> pd.DataFrame:
     if last_i >= 1 and _trailing_level_stable(last_i):
         prev_close = close.iat[last_i - 1]
         cur_close = close.iat[last_i]
-        if (
-            not pd.isna(prev_close)
-            and not pd.isna(cur_close)
-            and prev_close > 0
-            and cur_close > 0
-        ):
+        if not pd.isna(prev_close) and not pd.isna(cur_close) and prev_close > 0 and cur_close > 0:
             terminal_action = None
             for factor in factors:
-                if _near(float(cur_close / prev_close), factor, factor_tol) and _row_scales_like(last_i, factor, upward=True):
+                if _near(float(cur_close / prev_close), factor, factor_tol) and _row_scales_like(
+                    last_i, factor, upward=True
+                ):
                     terminal_action = ("divide", factor)
                     break
-                if _near(float(prev_close / cur_close), factor, factor_tol) and _row_scales_like(last_i, factor, upward=False):
+                if _near(float(prev_close / cur_close), factor, factor_tol) and _row_scales_like(
+                    last_i, factor, upward=False
+                ):
                     terminal_action = ("multiply", factor)
                     break
 
             if terminal_action is not None:
                 op, factor = terminal_action
-                for col, series in numeric.items():
+                for series in numeric.values():
                     val = series.iat[last_i]
                     if pd.isna(val):
                         continue
@@ -1296,7 +1317,9 @@ def _repair_isolated_split_spikes_daily(df: pd.DataFrame) -> pd.DataFrame:
     return frame
 
 
-def _resolve_cont_future_segments(*, asset: Asset, start_dt: datetime, end_dt: datetime, exchange: Optional[str]) -> list[tuple[Asset, datetime, datetime]]:
+def _resolve_cont_future_segments(
+    *, asset: Asset, start_dt: datetime, end_dt: datetime, exchange: str | None
+) -> list[tuple[Asset, datetime, datetime]]:
     """Resolve a `cont_future` asset into a list of explicit futures contract segments.
 
     This follows LumiBot's roll schedule (`lumibot.tools.futures_roll`) so that backtests
@@ -1304,6 +1327,7 @@ def _resolve_cont_future_segments(*, asset: Asset, start_dt: datetime, end_dt: d
     """
     try:
         from lumibot.tools import futures_roll
+        futures_roll_mod: Any = futures_roll
     except Exception:
         return []
 
@@ -1313,7 +1337,7 @@ def _resolve_cont_future_segments(*, asset: Asset, start_dt: datetime, end_dt: d
         start_utc, end_utc = end_utc, start_utc
 
     try:
-        schedule = futures_roll.build_roll_schedule(asset, start_utc, end_utc, year_digits=2)
+        schedule = list(futures_roll_mod.build_roll_schedule(asset, start_utc, end_utc, year_digits=2))
     except Exception:
         schedule = []
     if not schedule:
@@ -1321,9 +1345,10 @@ def _resolve_cont_future_segments(*, asset: Asset, start_dt: datetime, end_dt: d
 
     segments: list[tuple[Asset, datetime, datetime]] = []
     for contract_symbol, seg_start, seg_end in schedule:
-        year, month = _parse_contract_year_month(contract_symbol)
-        expiration = _contract_expiration_date(asset.symbol, year=year, month=month)
-        contract_asset = Asset(asset.symbol, asset_type=Asset.AssetType.FUTURE, expiration=expiration)
+        year, month = _parse_contract_year_month(str(contract_symbol))
+        asset_symbol = str(asset.symbol or "")
+        expiration = _contract_expiration_date(asset_symbol, year=year, month=month)
+        contract_asset = Asset(asset_symbol, asset_type=Asset.AssetType.FUTURE, expiration=expiration)
         # Validate that we can resolve an explicit conid for this contract month.
         try:
             _resolve_conid(asset=contract_asset, quote=None, exchange=exchange)
@@ -1349,7 +1374,7 @@ def _resolve_cont_future_segments(*, asset: Asset, start_dt: datetime, end_dt: d
                 expiration,
                 resolved_expiration,
             )
-            contract_asset = Asset(asset.symbol, asset_type=Asset.AssetType.FUTURE, expiration=resolved_expiration)
+            contract_asset = Asset(asset_symbol, asset_type=Asset.AssetType.FUTURE, expiration=resolved_expiration)
         segments.append((contract_asset, _to_utc(seg_start), _to_utc(seg_end)))
     return segments
 
@@ -1383,25 +1408,26 @@ def _parse_contract_year_month(contract_symbol: str) -> tuple[int, int]:
     return year, int(month)
 
 
-def _contract_expiration_date(root_symbol: str, *, year: int, month: int):
+def _contract_expiration_date(root_symbol: str, *, year: int, month: int) -> date:
     """Best-effort expiration date for a futures contract based on the roll rules."""
     try:
         from lumibot.tools import futures_roll
+        futures_roll_mod: Any = futures_roll
 
-        rule = futures_roll.ROLL_RULES.get(str(root_symbol).upper())
+        rule = futures_roll_mod.ROLL_RULES.get(str(root_symbol).upper())
         anchor = getattr(rule, "anchor", None) if rule else None
 
         if anchor == "third_last_business_day":
-            expiry = futures_roll._third_last_business_day(year, month)
+            expiry = futures_roll_mod._third_last_business_day(year, month)
         elif anchor == "last_friday":
-            expiry = futures_roll._last_friday_trading_day(year, month)
+            expiry = futures_roll_mod._last_friday_trading_day(year, month)
         elif anchor == "cl_last_trade":
-            expiry = futures_roll._cl_last_trade_date(year, month)
+            expiry = futures_roll_mod._cl_last_trade_date(year, month)
         elif anchor == "mcl_last_trade":
-            expiry = futures_roll._mcl_last_trade_date(year, month)
+            expiry = futures_roll_mod._mcl_last_trade_date(year, month)
         else:
             # Default anchor for CME equity index futures is third Friday.
-            expiry = futures_roll._third_friday(year, month)
+            expiry = futures_roll_mod._third_friday(year, month)
         return expiry.date()
     except Exception:
         # Safe fallback: third Friday.
@@ -1417,14 +1443,14 @@ def _contract_expiration_date(root_symbol: str, *, year: int, month: int):
 def _get_cached_bars_for_source(
     *,
     asset: Asset,
-    quote: Optional[Asset],
+    quote: Asset | None,
     timestep: str,
     start_dt: datetime,
     end_dt: datetime,
-    exchange: Optional[str],
+    exchange: str | None,
     include_after_hours: bool,
     source: str,
-) -> pd.DataFrame:
+) -> DataFrame:
     start_utc = _to_utc(start_dt)
     end_utc = _to_utc(end_dt)
     if start_utc > end_utc:
@@ -1499,9 +1525,9 @@ def _get_cached_bars_for_source(
                 segments.append((start_utc, end_utc))
             else:
                 if start_local < coverage_start:
-                    segments.append((start_utc, coverage_start.astimezone(timezone.utc)))
+                    segments.append((start_utc, coverage_start.astimezone(UTC)))
                 if end_local > coverage_end:
-                    segments.append((coverage_end.astimezone(timezone.utc), end_utc))
+                    segments.append((coverage_end.astimezone(UTC), end_utc))
 
         for seg_start, seg_end in segments:
             if seg_start >= seg_end:
@@ -1546,10 +1572,14 @@ def _get_cached_bars_for_source(
                 try:
                     new_max = df_cache.index.max() if not df_cache.empty else None
                     if prev_max is not None and new_max is not None and new_max <= prev_max:
-                        prev_max_utc = _to_utc(prev_max.to_pydatetime() if hasattr(prev_max, "to_pydatetime") else prev_max)
+                        prev_max_utc = _to_utc(
+                            prev_max.to_pydatetime() if hasattr(prev_max, "to_pydatetime") else prev_max
+                        )
                         seg_start_utc = _to_utc(seg_start)
                         seg_end_utc = _to_utc(seg_end)
-                        is_tail_extension = abs((seg_start_utc - prev_max_utc).total_seconds()) <= 1.0 and seg_end_utc > prev_max_utc
+                        is_tail_extension = (
+                            abs((seg_start_utc - prev_max_utc).total_seconds()) <= 1.0 and seg_end_utc > prev_max_utc
+                        )
                         if is_tail_extension:
                             # Start the missing window just *after* the last real bar to avoid
                             # clobbering the bar at `prev_max` when merging placeholder rows.
@@ -1583,15 +1613,15 @@ def _get_cached_bars_for_source(
 
 def _maybe_augment_crypto_bid_ask(
     *,
-    df_cache: pd.DataFrame,
+    df_cache: DataFrame,
     asset: Asset,
-    quote: Optional[Asset],
+    quote: Asset | None,
     timestep: str,
     start_dt: datetime,
     end_dt: datetime,
-    exchange: Optional[str],
+    exchange: str | None,
     include_after_hours: bool,
-) -> tuple[pd.DataFrame, bool]:
+) -> tuple[DataFrame, bool]:
     if df_cache is None or df_cache.empty:
         return df_cache, False
     if _frame_has_actionable_bid_ask(df_cache):
@@ -1648,15 +1678,15 @@ def _maybe_augment_crypto_bid_ask(
 
 def _maybe_augment_futures_bid_ask(
     *,
-    df_cache: pd.DataFrame,
+    df_cache: DataFrame,
     asset: Asset,
-    quote: Optional[Asset],
+    quote: Asset | None,
     timestep: str,
     start_dt: datetime,
     end_dt: datetime,
-    exchange: Optional[str],
+    exchange: str | None,
     include_after_hours: bool,
-) -> tuple[pd.DataFrame, bool]:
+) -> tuple[DataFrame, bool]:
     if not _enable_futures_bid_ask_derivation():
         return df_cache, False
     if df_cache is None or df_cache.empty:
@@ -1715,16 +1745,16 @@ def _maybe_augment_futures_bid_ask(
 def _fetch_history_between_dates(
     *,
     asset: Asset,
-    quote: Optional[Asset],
+    quote: Asset | None,
     timestep: str,
     start_dt: datetime,
     end_dt: datetime,
-    exchange: Optional[str],
+    exchange: str | None,
     include_after_hours: bool,
     source: str,
     source_was_explicit: bool,
-    _period_override: Optional[str] = None,
-) -> pd.DataFrame:
+    _period_override: str | None = None,
+) -> DataFrame:
     conid = _resolve_conid(asset=asset, quote=quote, exchange=exchange)
     bar, bar_seconds, _cache_timestep = _timestep_to_ibkr_bar(timestep)
     asset_type = _normalize_asset_type(getattr(asset, "asset_type", ""))
@@ -1737,12 +1767,13 @@ def _fetch_history_between_dates(
 
     cursor_end = _to_utc(end_dt)
     start_dt = _to_utc(start_dt)
-    chunks: list[pd.DataFrame] = []
+    chunks: list[DataFrame] = []
 
     # Opt-in trace: log every real network fetch + caller, to audit cache-miss root causes.
     if os.environ.get("LUMIBOT_CACHE_MISS_DEBUG"):
         try:
             import traceback
+
             stack = "".join(traceback.format_stack(limit=10)[:-1])
             logger.warning(
                 "[FETCH] sym=%s type=%s ts=%s start=%s end=%s source=%s\n%s",
@@ -1771,7 +1802,7 @@ def _fetch_history_between_dates(
         )
 
         # IBKR typically returns {"data":[...]} (empty list means no data).
-        data = payload.get("data") if isinstance(payload, dict) else None
+        data = payload.get("data")
         if not data:
             # If we already fetched earlier chunks, keep them and stop paging.
             # CME weekend/maintenance gaps (Fri 4pm CT → Sun 5pm CT, nightly 4–5pm CT)
@@ -1859,7 +1890,7 @@ def _history_period_for_request(*, asset_type: str, bar: str, source: str) -> st
 
 
 def frame_covers_requested_window(
-    df: pd.DataFrame,
+    df: DataFrame,
     *,
     asset: Asset,
     timestep: str,
@@ -1918,21 +1949,20 @@ def frame_covers_requested_window(
     except Exception:
         pass
 
-    return bool(
-        coverage_start <= (start_local + tolerance)
-        and coverage_end >= (end_local - tolerance)
-    )
+    return bool(coverage_start <= (start_local + tolerance) and coverage_end >= (end_local - tolerance))
 
 
-def _downloader_history_meta(payload: Any) -> Dict[str, Any]:
+def _downloader_history_meta(payload: Any) -> dict[str, Any]:
     if not isinstance(payload, dict):
         return {}
-    meta = payload.get("_botspot_meta")
+    payload_dict = cast(dict[str, Any], payload)
+    meta = payload_dict.get("_botspot_meta")
     if not isinstance(meta, dict):
         return {}
-    if str(meta.get("provider") or "").strip().lower() != "ibkr":
+    meta_dict = cast(dict[str, Any], meta)
+    if str(meta_dict.get("provider") or "").strip().lower() != "ibkr":
         return {}
-    return meta
+    return meta_dict
 
 
 def _ensure_cacheable_downloader_history_payload(payload: Any) -> None:
@@ -1955,11 +1985,11 @@ def _ibkr_history_request(
     period: str,
     bar: str,
     start_time: datetime,
-    exchange: Optional[str],
+    exchange: str | None,
     include_after_hours: bool,
     continuous: bool,
     source: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     base_url = _downloader_base_url()
     url = f"{base_url}/ibkr/iserver/marketdata/history"
     # IBKR Client Portal history endpoint interprets `startTime` as UTC.
@@ -1982,11 +2012,14 @@ def _ibkr_history_request(
     if exchange:
         query["exchange"] = str(exchange)
 
-    result = queue_request(url=url, querystring=query, headers=None, timeout=None)
+    result: Any = queue_request(url=url, querystring=query, headers=None, timeout=None)
     if result is None:
         return {}
-    if isinstance(result, dict) and result.get("error"):
-        err = str(result.get("error") or "")
+    if not isinstance(result, dict):
+        return {}
+    result_dict = cast(dict[str, Any], result)
+    if result_dict.get("error"):
+        err = str(result_dict.get("error") or "")
         # IBKR occasionally rejects large day windows (e.g. 1000d) with "Chart data unavailable"
         # for symbols that do return data over shorter periods. Fall back to smaller windows before
         # surfacing a hard failure.
@@ -1994,19 +2027,21 @@ def _ibkr_history_request(
             for fallback_period in ("1y", "6m", "3m", "1m"):
                 fallback_query = dict(query)
                 fallback_query["period"] = fallback_period
-                fallback_result = queue_request(url=url, querystring=fallback_query, headers=None, timeout=None)
+                fallback_result: Any = queue_request(
+                    url=url, querystring=fallback_query, headers=None, timeout=None
+                )
                 if fallback_result is None:
                     continue
-                if isinstance(fallback_result, dict) and fallback_result.get("error"):
+                if isinstance(fallback_result, dict) and cast(dict[str, Any], fallback_result).get("error"):
                     continue
-                return fallback_result
+                return cast(dict[str, Any], fallback_result) if isinstance(fallback_result, dict) else {}
         # Do not treat entitlement errors as NO_DATA; surface them to the caller.
-        raise RuntimeError(f"IBKR history error: {result.get('error')}")
-    _ensure_cacheable_downloader_history_payload(result)
-    return result
+        raise RuntimeError(f"IBKR history error: {result_dict.get('error')}")
+    _ensure_cacheable_downloader_history_payload(result_dict)
+    return result_dict
 
 
-def _history_payload_to_frame(data: Any, *, source_was_explicit: bool) -> pd.DataFrame:
+def _history_payload_to_frame(data: Any, *, source_was_explicit: bool) -> DataFrame:
     df = pd.DataFrame(data)
     if df.empty:
         return df
@@ -2040,9 +2075,9 @@ def _history_payload_to_frame(data: Any, *, source_was_explicit: bool) -> pd.Dat
 
 
 def _derive_bid_ask_from_bid_ask_and_midpoint(
-    bid_ask: pd.DataFrame,
-    midpoint: pd.DataFrame,
-) -> pd.DataFrame:
+    bid_ask: DataFrame,
+    midpoint: DataFrame,
+) -> DataFrame:
     """Derive per-bar bid/ask quotes using IBKR Bid_Ask + Midpoint history.
 
     IBKR's Client Portal history endpoint returns OHLC bars for different "sources":
@@ -2086,13 +2121,7 @@ def _derive_bid_ask_from_bid_ask_and_midpoint(
     out["bid"] = bid
     out["ask"] = ask
 
-    invalid = (
-        out["bid"].isna()
-        | out["ask"].isna()
-        | (out["bid"] <= 0)
-        | (out["ask"] <= 0)
-        | (out["bid"] > out["ask"])
-    )
+    invalid = out["bid"].isna() | out["ask"].isna() | (out["bid"] <= 0) | (out["ask"] <= 0) | (out["bid"] > out["ask"])
     if invalid.any():
         mid_valid = mid > 0
         use_mid = invalid & mid_valid
@@ -2109,7 +2138,7 @@ def _derive_bid_ask_from_bid_ask_and_midpoint(
     return out
 
 
-def _merge_frames(existing: pd.DataFrame, incoming: pd.DataFrame) -> pd.DataFrame:
+def _merge_frames(existing: DataFrame, incoming: DataFrame) -> DataFrame:
     if existing is None or existing.empty:
         return incoming
     if incoming is None or incoming.empty:
@@ -2122,7 +2151,7 @@ def _merge_frames(existing: pd.DataFrame, incoming: pd.DataFrame) -> pd.DataFram
 
 
 def _window_is_placeholder_covered(
-    df_cache: pd.DataFrame,
+    df_cache: DataFrame,
     *,
     start_local: datetime,
     end_local: datetime,
@@ -2171,9 +2200,9 @@ def _window_is_placeholder_covered(
 def _record_missing_window(
     *,
     asset: Asset,
-    quote: Optional[Asset],
+    quote: Asset | None,
     timestep: str,
-    exchange: Optional[str],
+    exchange: str | None,
     source: str,
     include_after_hours: bool,
     start_dt: datetime,
@@ -2236,11 +2265,11 @@ def _crypto_day_bounds(start_local: datetime, end_local: datetime) -> tuple[date
 
 
 def _derive_daily_from_intraday(
-    intraday: pd.DataFrame,
+    intraday: DataFrame,
     *,
     start_day: datetime,
     end_day: datetime,
-) -> pd.DataFrame:
+) -> DataFrame:
     """Derive daily OHLCV bars from an intraday OHLCV dataframe (crypto: 24/7 days)."""
     idx = pd.date_range(start=start_day, end=end_day, freq="D", tz=LUMIBOT_DEFAULT_PYTZ)
     if intraday is None or intraday.empty:
@@ -2279,21 +2308,38 @@ def _derive_daily_from_intraday(
     close = pd.to_numeric(daily.get("close"), errors="coerce")
     daily["missing"] = daily["missing"].fillna(True) | close.isna()
 
-    # Keep vendor gaps explicit. Backtests must not trade against synthesized
-    # crypto OHLCV rows; callers can drop rows where missing=True.
+    # IBKR crypto history is often effectively 24/5: weekend days may be absent even though
+    # strategies are frequently configured as 24/7. To keep daily-cadence backtests stable
+    # (no refresh loops / "missing BTC day"), forward-fill short gaps (<= 3 days) using the
+    # prior close. This mirrors the existing Data.checker() tolerance window.
+    if close is not None and not close.empty:
+        filled_close = close.ffill(limit=3)
+        filled_mask = close.isna() & filled_close.notna()
+        if filled_mask.any():
+            daily.loc[filled_mask, "close"] = filled_close[filled_mask]
+            for col in ("open", "high", "low"):
+                if col in daily.columns:
+                    daily.loc[filled_mask, col] = pd.to_numeric(daily.loc[filled_mask, col], errors="coerce").fillna(
+                        daily.loc[filled_mask, "close"]
+                    )
+            if "volume" in daily.columns:
+                daily.loc[filled_mask, "volume"] = pd.to_numeric(
+                    daily.loc[filled_mask, "volume"], errors="coerce"
+                ).fillna(0)
+            daily.loc[filled_mask, "missing"] = False
     return daily
 
 
 def _get_crypto_daily_bars(
     *,
     asset: Asset,
-    quote: Optional[Asset],
+    quote: Asset | None,
     start_dt: datetime,
     end_dt: datetime,
-    exchange: Optional[str],
+    exchange: str | None,
     include_after_hours: bool,
     source: str,
-) -> pd.DataFrame:
+) -> DataFrame:
     """Return crypto daily bars aligned to midnight days in `LUMIBOT_DEFAULT_PYTZ`."""
     start_local = _to_utc(start_dt).astimezone(LUMIBOT_DEFAULT_PYTZ)
     end_local = _to_utc(end_dt).astimezone(LUMIBOT_DEFAULT_PYTZ)
@@ -2332,16 +2378,15 @@ def _get_crypto_daily_bars(
         coverage_start = None
         coverage_end = None
 
-    needs_fetch = (
-        coverage_start is None
-        or coverage_end is None
-        or start_day < coverage_start
-        or end_day > coverage_end
-    )
+    needs_fetch = coverage_start is None or coverage_end is None or start_day < coverage_start or end_day > coverage_end
 
     if needs_fetch:
         fetch_start = start_day if coverage_start is None else min(start_day, coverage_start)
-        fetch_end = (end_day + pd.Timedelta(days=1)) if coverage_end is None else max(end_day + pd.Timedelta(days=1), coverage_end)
+        fetch_end = (
+            (end_day + pd.Timedelta(days=1))
+            if coverage_end is None
+            else max(end_day + pd.Timedelta(days=1), coverage_end)
+        )
 
         hourly = _get_cached_bars_for_source(
             asset=asset,
@@ -2408,13 +2453,13 @@ def _get_crypto_daily_bars(
 def _get_futures_daily_bars(
     *,
     asset: Asset,
-    quote: Optional[Asset],
+    quote: Asset | None,
     start_dt: datetime,
     end_dt: datetime,
-    exchange: Optional[str],
+    exchange: str | None,
     include_after_hours: bool,
     source: str,
-) -> pd.DataFrame:
+) -> DataFrame:
     """Derive `day` bars aligned to the `us_futures` session (not midnight).
 
     This is intentionally session-based because futures strategies commonly use
@@ -2422,7 +2467,7 @@ def _get_futures_daily_bars(
     """
 
     try:
-        import pandas_market_calendars as mcal
+        mcal: Any = import_module("pandas_market_calendars")
     except Exception:
         return pd.DataFrame()
 
@@ -2438,7 +2483,7 @@ def _get_futures_daily_bars(
         start_date=pd.Timestamp(start_utc.date()) - pd.Timedelta(days=2),
         end_date=pd.Timestamp(end_utc.date()) + pd.Timedelta(days=2),
     )
-    if schedule is None or schedule.empty:
+    if schedule.empty:
         return pd.DataFrame()
 
     session_start = pd.Timestamp(schedule["market_open"].min()).tz_convert("UTC").to_pydatetime()
@@ -2486,8 +2531,8 @@ def _get_futures_daily_bars(
         )
 
     rows: list[dict[str, float]] = []
-    idx: list[pd.Timestamp] = []
-    minute_fallback: Optional[pd.DataFrame] = None
+    idx: list[Timestamp] = []
+    minute_fallback: DataFrame | None = None
     for _, sess in schedule.iterrows():
         open_local = pd.Timestamp(sess["market_open"]).tz_convert("UTC").tz_convert(LUMIBOT_DEFAULT_PYTZ)
         close_local = pd.Timestamp(sess["market_close"]).tz_convert("UTC").tz_convert(LUMIBOT_DEFAULT_PYTZ)
@@ -2518,15 +2563,29 @@ def _get_futures_daily_bars(
                         include_after_hours=include_after_hours,
                     )
             if minute_fallback is not None and not minute_fallback.empty:
-                window = minute_fallback.loc[(minute_fallback.index >= open_local) & (minute_fallback.index <= close_local)]
+                window = minute_fallback.loc[
+                    (minute_fallback.index >= open_local) & (minute_fallback.index <= close_local)
+                ]
         if window.empty:
             continue
 
         open_px = float(window["open"].iloc[0]) if "open" in window.columns else float(window["close"].iloc[0])
-        high_px = float(pd.to_numeric(window.get("high"), errors="coerce").max()) if "high" in window.columns else float(window["close"].max())
-        low_px = float(pd.to_numeric(window.get("low"), errors="coerce").min()) if "low" in window.columns else float(window["close"].min())
+        high_px = (
+            float(pd.to_numeric(window.get("high"), errors="coerce").max())
+            if "high" in window.columns
+            else float(window["close"].max())
+        )
+        low_px = (
+            float(pd.to_numeric(window.get("low"), errors="coerce").min())
+            if "low" in window.columns
+            else float(window["close"].min())
+        )
         close_px = float(pd.to_numeric(window.get("close"), errors="coerce").iloc[-1])
-        vol = float(pd.to_numeric(window.get("volume"), errors="coerce").fillna(0).sum()) if "volume" in window.columns else 0.0
+        vol = (
+            float(pd.to_numeric(window.get("volume"), errors="coerce").fillna(0).sum())
+            if "volume" in window.columns
+            else 0.0
+        )
 
         payload: dict[str, float] = {"open": open_px, "high": high_px, "low": low_px, "close": close_px, "volume": vol}
         if "bid" in window.columns:
@@ -2546,7 +2605,7 @@ def _get_futures_daily_bars(
     return df.loc[(df.index >= start_local) & (df.index <= end_local)]
 
 
-def _resolve_conid(*, asset: Asset, quote: Optional[Asset], exchange: Optional[str]) -> int:
+def _resolve_conid(*, asset: Asset, quote: Asset | None, exchange: str | None) -> int:
     global _RUNTIME_CONID_CACHE
 
     cache_file = Path(LUMIBOT_CACHE_FOLDER) / CACHE_SUBFOLDER / "conids.json"
@@ -2564,9 +2623,13 @@ def _resolve_conid(*, asset: Asset, quote: Optional[Asset], exchange: Optional[s
     candidates = [primary.to_key()]
     if asset_type in {"future", "cont_future"}:
         if primary.quote_symbol:
-            candidates.append(IbkrConidKey(primary.asset_type, primary.symbol, "", primary.exchange, primary.expiration).to_key())
+            candidates.append(
+                IbkrConidKey(primary.asset_type, primary.symbol, "", primary.exchange, primary.expiration).to_key()
+            )
         else:
-            candidates.append(IbkrConidKey(primary.asset_type, primary.symbol, "USD", primary.exchange, primary.expiration).to_key())
+            candidates.append(
+                IbkrConidKey(primary.asset_type, primary.symbol, "USD", primary.exchange, primary.expiration).to_key()
+            )
 
     for key in candidates:
         cached_runtime = _RUNTIME_CONID_CACHE.get(key)
@@ -2578,7 +2641,7 @@ def _resolve_conid(*, asset: Asset, quote: Optional[Asset], exchange: Optional[s
     except Exception:
         pass
 
-    mapping: Dict[str, int] = {}
+    mapping: dict[str, int] = {}
     if cache_file.exists():
         try:
             mapping = json.loads(cache_file.read_text(encoding="utf-8")) or {}
@@ -2615,7 +2678,7 @@ def _resolve_conid(*, asset: Asset, quote: Optional[Asset], exchange: Optional[s
 
             seed_components = [prefix, "v1", relative_path]
             seed_key = "/".join([c for c in seed_components if c])
-            seed_mapping: Dict[str, int] = {}
+            seed_mapping: dict[str, int] = {}
             try:
                 seed_mapping = _download_remote_conids_json(cache_manager, bucket=bucket, key=seed_key)
             except Exception as exc:
@@ -2651,7 +2714,7 @@ def _resolve_conid(*, asset: Asset, quote: Optional[Asset], exchange: Optional[s
             conid, actual_expiration = same_month_cached
             actual_date = _date_from_yyyymmdd(actual_expiration)
             if actual_date is not None:
-                setattr(asset, "_ibkr_resolved_expiration", actual_date)
+                setattr(asset, "_ibkr_resolved_expiration", actual_date)  # noqa: B010 - dynamic metadata.
             logger.warning(
                 "IBKR conid registry has no exact key for %s expiring %s on %s; using unambiguous same-month contract %s.",
                 primary.symbol,
@@ -2664,7 +2727,9 @@ def _resolve_conid(*, asset: Asset, quote: Optional[Asset], exchange: Optional[s
             return int(conid)
 
     keys_added: set[str] = set()
-    conid = _lookup_conid_remote(asset=asset, quote=quote, exchange=effective_exchange, mapping=mapping, keys_added=keys_added)
+    conid = _lookup_conid_remote(
+        asset=asset, quote=quote, exchange=effective_exchange, mapping=mapping, keys_added=keys_added
+    )
     # Always persist under the primary key for forward consistency.
     primary_key = primary.to_key()
     conid_int = int(conid)
@@ -2677,9 +2742,13 @@ def _resolve_conid(*, asset: Asset, quote: Optional[Asset], exchange: Optional[s
         # Mirror the primary conid under both quote_symbol variants for compatibility with
         # historical caches and older in-flight backtests.
         if primary.quote_symbol:
-            alt_key = IbkrConidKey(primary.asset_type, primary.symbol, "", primary.exchange, primary.expiration).to_key()
+            alt_key = IbkrConidKey(
+                primary.asset_type, primary.symbol, "", primary.exchange, primary.expiration
+            ).to_key()
         else:
-            alt_key = IbkrConidKey(primary.asset_type, primary.symbol, "USD", primary.exchange, primary.expiration).to_key()
+            alt_key = IbkrConidKey(
+                primary.asset_type, primary.symbol, "USD", primary.exchange, primary.expiration
+            ).to_key()
         prior_alt = mapping.get(alt_key)
         mapping[alt_key] = conid_int
         _RUNTIME_CONID_CACHE[alt_key] = conid_int
@@ -2695,7 +2764,7 @@ def _resolve_conid(*, asset: Asset, quote: Optional[Asset], exchange: Optional[s
     return int(conid)
 
 
-def _is_not_found_error(cache_manager, exc: Exception) -> bool:
+def _is_not_found_error(cache_manager: Any, exc: Exception) -> bool:
     try:
         fn = getattr(cache_manager, "_is_not_found_error", None)
         if callable(fn):
@@ -2726,11 +2795,11 @@ def _is_terminal_no_data_error(exc: Exception) -> bool:
     )
 
 
-def _download_remote_conids_json(cache_manager, *, bucket: str, key: str) -> Dict[str, int]:
+def _download_remote_conids_json(cache_manager: Any, *, bucket: str, key: str) -> dict[str, int]:
     client = getattr(cache_manager, "_get_client", None)
     if not callable(client):
         return {}
-    s3 = client()
+    s3: Any = client()
     if not hasattr(s3, "get_object"):
         return {}
     response = s3.get_object(Bucket=bucket, Key=key)
@@ -2748,8 +2817,8 @@ def _download_remote_conids_json(cache_manager, *, bucket: str, key: str) -> Dic
         parsed = {}
     if not isinstance(parsed, dict):
         return {}
-    out: Dict[str, int] = {}
-    for k, v in parsed.items():
+    out: dict[str, int] = {}
+    for k, v in cast(dict[Any, Any], parsed).items():
         try:
             iv = int(v)
         except Exception:
@@ -2771,17 +2840,17 @@ def _persist_s3_marker(*, local_path: Path, remote_key: str) -> None:
 
 
 def _merge_upload_conids_json(
-    cache_manager,
+    cache_manager: Any,
     local_path: Path,
     *,
-    mapping: Dict[str, int],
+    mapping: dict[str, int],
     required_keys: set[str],
     max_attempts: int = 3,
 ) -> None:
     """Upload `ibkr/conids.json` with a merge-before-upload retry to reduce lost updates."""
-    global _DISABLE_CONIDS_REMOTE_UPLOAD, _LOGGED_CONIDS_REMOTE_UPLOAD_DISABLE
+    global _disable_conids_remote_upload, _logged_conids_remote_upload_disable
 
-    if _DISABLE_CONIDS_REMOTE_UPLOAD:
+    if _disable_conids_remote_upload:
         return
 
     if not cache_manager.enabled or cache_manager.mode != CacheMode.S3_READWRITE:
@@ -2807,7 +2876,7 @@ def _merge_upload_conids_json(
     if not callable(client_fn):
         cache_manager.on_local_update(local_path, payload={"provider": "ibkr", "type": "conids"})
         return
-    s3 = client_fn()
+    s3: Any = client_fn()
     if not hasattr(s3, "upload_file") or not hasattr(s3, "get_object"):
         cache_manager.on_local_update(local_path, payload={"provider": "ibkr", "type": "conids"})
         return
@@ -2818,16 +2887,16 @@ def _merge_upload_conids_json(
             s3.upload_file(str(local_path), bucket, remote_key)
         except Exception as exc:
             if _is_access_denied_error(exc):
-                _DISABLE_CONIDS_REMOTE_UPLOAD = True
-                if not _LOGGED_CONIDS_REMOTE_UPLOAD_DISABLE:
+                _disable_conids_remote_upload = True
+                if not _logged_conids_remote_upload_disable:
                     logger.warning("Disabling remote conids.json uploads due to AccessDenied: %s", exc)
-                    _LOGGED_CONIDS_REMOTE_UPLOAD_DISABLE = True
+                    _logged_conids_remote_upload_disable = True
                 return
             raise
         _persist_s3_marker(local_path=local_path, remote_key=remote_key)
         return
 
-    last_exc: Optional[Exception] = None
+    last_exc: Exception | None = None
     for attempt in range(max_attempts):
         try:
             # Pull the freshest remote, union, then upload.
@@ -2859,10 +2928,10 @@ def _merge_upload_conids_json(
         except Exception as exc:
             last_exc = exc
             if _is_access_denied_error(exc):
-                _DISABLE_CONIDS_REMOTE_UPLOAD = True
-                if not _LOGGED_CONIDS_REMOTE_UPLOAD_DISABLE:
+                _disable_conids_remote_upload = True
+                if not _logged_conids_remote_upload_disable:
                     logger.warning("Disabling remote conids.json uploads due to AccessDenied: %s", exc)
-                    _LOGGED_CONIDS_REMOTE_UPLOAD_DISABLE = True
+                    _logged_conids_remote_upload_disable = True
                 return
             time.sleep(0.15 * (attempt + 1))
 
@@ -2873,14 +2942,18 @@ def _merge_upload_conids_json(
 def _lookup_conid_remote(
     *,
     asset: Asset,
-    quote: Optional[Asset],
-    exchange: Optional[str],
-    mapping: Optional[Dict[str, int]] = None,
-    keys_added: Optional[set[str]] = None,
+    quote: Asset | None,
+    exchange: str | None,
+    mapping: dict[str, int] | None = None,
+    keys_added: set[str] | None = None,
 ) -> int:
     asset_type = _normalize_asset_type(getattr(asset, "asset_type", ""))
     if asset_type in {"future", "cont_future"}:
-        if getattr(asset, "expiration", None) is None and asset_type != "cont_future" and not getattr(asset, "auto_expiry", None):
+        if (
+            getattr(asset, "expiration", None) is None
+            and asset_type != "cont_future"
+            and not getattr(asset, "auto_expiry", None)
+        ):
             raise ValueError(
                 "IBKR futures require an explicit expiration on Asset(asset_type='future'). "
                 "Use asset_type='cont_future' for continuous futures."
@@ -2894,13 +2967,14 @@ def _lookup_conid_remote(
     url = f"{base_url}/ibkr/iserver/secdef/search"
     payload = queue_request(url=url, querystring={"symbol": asset.symbol}, headers=None, timeout=None)
     if isinstance(payload, list) and payload:
-        conid = payload[0].get("conid")
+        first_entry = cast(dict[str, Any], payload[0])
+        conid = first_entry.get("conid")
         if conid is not None:
             return int(conid)
     raise RuntimeError(f"Unable to resolve IBKR conid for {asset.symbol} (type={asset_type})")
 
 
-def _lookup_conid_crypto(*, asset: Asset, quote: Optional[Asset]) -> int:
+def _lookup_conid_crypto(*, asset: Asset, quote: Asset | None) -> int:
     # Best-effort: IBKR crypto availability depends on region; conid mappings differ by venue.
     base_url = _downloader_base_url()
     url = f"{base_url}/ibkr/iserver/secdef/search"
@@ -2914,9 +2988,13 @@ def _lookup_conid_crypto(*, asset: Asset, quote: Optional[Asset]) -> int:
     )
     if not isinstance(payload, list):
         raise RuntimeError(f"Unexpected IBKR secdef/search response for crypto: {payload}")
-    fallback_any: Optional[int] = None
-    fallback_quote: Optional[int] = None
-    for entry in payload:
+    fallback_any: int | None = None
+    fallback_quote: int | None = None
+    payload_list = cast(list[Any], payload)
+    for entry_raw in payload_list:
+        if not isinstance(entry_raw, dict):
+            continue
+        entry = cast(dict[str, Any], entry_raw)
         entry_currency = str(entry.get("currency") or "").strip().upper()
         conid = entry.get("conid")
         if conid is not None and fallback_any is None:
@@ -2924,8 +3002,11 @@ def _lookup_conid_crypto(*, asset: Asset, quote: Optional[Asset]) -> int:
                 fallback_any = int(conid)
             except Exception:
                 fallback_any = None
-        sections = entry.get("sections") or []
-        for section in sections:
+        sections = cast(list[Any], entry.get("sections") or [])
+        for section_raw in sections:
+            if not isinstance(section_raw, dict):
+                continue
+            section = cast(dict[str, Any], section_raw)
             if str(section.get("secType") or "").upper() == "CRYPTO":
                 if venue:
                     exch = str(section.get("exchange") or "").upper()
@@ -2950,12 +3031,12 @@ def _lookup_conid_crypto(*, asset: Asset, quote: Optional[Asset]) -> int:
     if fallback_any is not None and not desired_quote:
         return int(fallback_any)
     raise RuntimeError(
-        f"Unable to resolve IBKR crypto conid for {asset.symbol}/{getattr(quote,'symbol',None)} "
+        f"Unable to resolve IBKR crypto conid for {asset.symbol}/{getattr(quote, 'symbol', None)} "
         f"(venue={venue or 'AUTO'})."
     )
 
 
-def _future_contract_date_strings(contract: Dict[str, Any]) -> list[str]:
+def _future_contract_date_strings(contract: dict[str, Any]) -> list[str]:
     """Return IBKR date fields for a listed futures contract in priority order."""
     dates: list[str] = []
     for field in ("expirationDate", "ltd", "lastTradeDate", "lastTradeDay", "lastTrade"):
@@ -2968,9 +3049,12 @@ def _future_contract_date_strings(contract: Dict[str, Any]) -> list[str]:
     return dates
 
 
-def _future_contract_conid(contract: Dict[str, Any]) -> Optional[int]:
+def _future_contract_conid(contract: dict[str, Any]) -> int | None:
+    raw_conid = contract.get("conid")
+    if raw_conid is None:
+        return None
     try:
-        conid = int(contract.get("conid"))
+        conid = int(raw_conid)
     except Exception:
         return None
     return conid if conid > 0 else None
@@ -2978,8 +3062,8 @@ def _future_contract_conid(contract: Dict[str, Any]) -> Optional[int]:
 
 def _remember_future_conid_mapping(
     *,
-    mapping: Optional[Dict[str, int]],
-    keys_added: Optional[set[str]],
+    mapping: dict[str, int] | None,
+    keys_added: set[str] | None,
     symbol: str,
     exchange: str,
     expiration: str,
@@ -3001,22 +3085,20 @@ def _remember_future_conid_mapping(
 
 def _select_future_contract_for_target(
     *,
-    contracts: list[Dict[str, Any]],
+    contracts: list[dict[str, Any]],
     target: str,
-) -> tuple[Optional[Dict[str, Any]], str, bool, list[str]]:
+) -> tuple[dict[str, Any] | None, str, bool, list[str]]:
     """Select a contract by exact date, then by unambiguous same contract month.
 
     IBKR's listed `expirationDate`/`ltd` can differ from LumiBot's synthetic expiration
     anchor by a day when a third Friday is a holiday. Same-month fallback is still strict:
     it only succeeds when IBKR returns exactly one conid for the target YYYYMM.
     """
-    same_month: Dict[int, tuple[Dict[str, Any], str]] = {}
+    same_month: dict[int, tuple[dict[str, Any], str]] = {}
     same_month_dates: set[str] = set()
     target_month = target[:6]
 
     for contract in contracts:
-        if not isinstance(contract, dict):
-            continue
         conid = _future_contract_conid(contract)
         if conid is None:
             continue
@@ -3040,9 +3122,9 @@ def _select_future_contract_for_target(
 
 def _lookup_same_month_future_conid_from_mapping(
     *,
-    mapping: Dict[str, int],
+    mapping: dict[str, int],
     key: IbkrConidKey,
-) -> Optional[tuple[int, str]]:
+) -> tuple[int, str] | None:
     target = str(key.expiration or "")
     if not (target.isdigit() and len(target) == 8):
         return None
@@ -3051,7 +3133,7 @@ def _lookup_same_month_future_conid_from_mapping(
         IbkrConidKey(key.asset_type, key.symbol, "", key.exchange, "").to_key(),
         IbkrConidKey(key.asset_type, key.symbol, "USD", key.exchange, "").to_key(),
     )
-    matches: Dict[int, str] = {}
+    matches: dict[int, str] = {}
     for raw_key, raw_conid in mapping.items():
         raw_key_text = str(raw_key)
         if not any(raw_key_text.startswith(prefix) for prefix in prefixes):
@@ -3077,9 +3159,9 @@ def _lookup_same_month_future_conid_from_mapping(
 def _lookup_conid_future(
     *,
     asset: Asset,
-    exchange: Optional[str],
-    mapping: Optional[Dict[str, int]] = None,
-    keys_added: Optional[set[str]] = None,
+    exchange: str | None,
+    mapping: dict[str, int] | None = None,
+    keys_added: set[str] | None = None,
 ) -> int:
     base_url = _downloader_base_url()
     url = f"{base_url}/ibkr/trsrv/futures"
@@ -3090,7 +3172,9 @@ def _lookup_conid_future(
         except IbkrFuturesExchangeAmbiguousError:
             raise
         except Exception:
-            desired_exchange = (os.environ.get("IBKR_FUTURES_EXCHANGE") or IBKR_DEFAULT_FUTURES_EXCHANGE_FALLBACK).strip().upper()
+            desired_exchange = (
+                (os.environ.get("IBKR_FUTURES_EXCHANGE") or IBKR_DEFAULT_FUTURES_EXCHANGE_FALLBACK).strip().upper()
+            )
 
     symbol_upper = str(getattr(asset, "symbol", "") or "").strip().upper()
     expiration = getattr(asset, "expiration", None)
@@ -3118,21 +3202,24 @@ def _lookup_conid_future(
             logger.error("IBKR negative conid cache hit: %s", cached_msg)
             raise IbkrFuturesConidLookupError(cached_msg)
 
-    query = {"symbols": asset.symbol, "exchange": desired_exchange, "secType": "FUT"}
-    payload = queue_request(url=url, querystring=query, headers=None, timeout=None)
+    asset_symbol = str(asset.symbol or "")
+    query = {"symbols": asset_symbol, "exchange": desired_exchange, "secType": "FUT"}
+    payload: Any = queue_request(url=url, querystring=query, headers=None, timeout=None)
     # Response shape: { "<symbol>": [ {conid, expirationDate, ...}, ... ] }
     if not isinstance(payload, dict):
         # Some gateways require secType=CONTFUT to list contracts.
         payload = queue_request(
             url=url,
-            querystring={"symbols": asset.symbol, "exchange": desired_exchange, "secType": "CONTFUT"},
+            querystring={"symbols": asset_symbol, "exchange": desired_exchange, "secType": "CONTFUT"},
             headers=None,
             timeout=None,
         )
     if not isinstance(payload, dict):
         raise RuntimeError(f"Unexpected IBKR trsrv/futures response: {payload}")
-    contracts = payload.get(asset.symbol) or payload.get(asset.symbol.upper()) or []
-    if not isinstance(contracts, list) or not contracts:
+    payload_dict = cast(dict[str, Any], payload)
+    contracts_raw: Any = payload_dict.get(asset_symbol) or payload_dict.get(asset_symbol.upper()) or []
+    contracts = cast(list[dict[str, Any]], contracts_raw) if isinstance(contracts_raw, list) else []
+    if not contracts:
         msg = f"No futures contracts returned for {symbol_upper} on {desired_exchange}"
         _record_negative_conid(key=neg_root_key, reason="no_contracts", message=msg)
         raise IbkrFuturesConidLookupError(msg)
@@ -3141,8 +3228,6 @@ def _lookup_conid_future(
     # This keeps the registry current via REST so we rarely/never need a new TWS backfill.
     if mapping is not None:
         for contract in contracts:
-            if not isinstance(contract, dict):
-                continue
             conid_int = _future_contract_conid(contract)
             if conid_int is None:
                 continue
@@ -3168,7 +3253,7 @@ def _lookup_conid_future(
                 if actual_expiration:
                     actual_date = _date_from_yyyymmdd(actual_expiration)
                     if actual_date is not None:
-                        setattr(asset, "_ibkr_resolved_expiration", actual_date)
+                        setattr(asset, "_ibkr_resolved_expiration", actual_date)  # noqa: B010 - dynamic metadata.
                     _remember_future_conid_mapping(
                         mapping=mapping,
                         keys_added=keys_added,
@@ -3223,7 +3308,7 @@ def _lookup_conid_future(
         raise IbkrFuturesConidLookupError(msg)
 
     # Default: earliest expiration (front month) – used for smoke tests like MES.
-    def _exp_key(item: Dict[str, Any]) -> int:
+    def _exp_key(item: dict[str, Any]) -> int:
         try:
             return int(item.get("expirationDate") or 0)
         except Exception:
@@ -3236,9 +3321,9 @@ def _lookup_conid_future(
 def _cache_file_for(
     *,
     asset: Asset,
-    quote: Optional[Asset],
+    quote: Asset | None,
     timestep: str,
-    exchange: Optional[str],
+    exchange: str | None,
     source: str,
     include_after_hours: bool,
 ) -> Path:
@@ -3278,7 +3363,7 @@ def _safe_component(value: str) -> str:
     return "".join(ch if ch.isalnum() or ch in {"_", "-"} else "_" for ch in value.upper())
 
 
-def _timestep_to_ibkr_bar(timestep: str) -> Tuple[str, int, str]:
+def _timestep_to_ibkr_bar(timestep: str) -> tuple[str, int, str]:
     raw = (timestep or "minute").strip().lower()
     raw = raw.replace(" ", "")
     raw = raw.replace("seconds", "second").replace("minutes", "minute").replace("hours", "hour").replace("days", "day")
@@ -3324,7 +3409,7 @@ def _timestep_to_ibkr_bar(timestep: str) -> Tuple[str, int, str]:
     raise ValueError(f"Unsupported IBKR timestep: {timestep}")
 
 
-def _normalize_history_source(source: Optional[str]) -> str:
+def _normalize_history_source(source: str | None) -> str:
     raw = (source or os.environ.get("IBKR_HISTORY_SOURCE") or IBKR_DEFAULT_HISTORY_SOURCE).strip()
     if not raw:
         return IBKR_DEFAULT_HISTORY_SOURCE
@@ -3338,7 +3423,7 @@ def _normalize_history_source(source: Optional[str]) -> str:
     raise ValueError(f"Unsupported IBKR history source '{source}'. Expected Trades, Midpoint, or Bid_Ask.")
 
 
-def _get_cached_equity_actions(symbol: str, last_needed_datetime: Optional[datetime] = None) -> pd.DataFrame:
+def _get_cached_equity_actions(symbol: str, last_needed_datetime: datetime | None = None) -> DataFrame:
     """Return cached split/dividend actions for an equity symbol (best effort)."""
     key = str(symbol or "").strip().upper()
     if not key:
@@ -3355,22 +3440,22 @@ def _get_cached_equity_actions(symbol: str, last_needed_datetime: Optional[datet
     if cached is not None:
         return cached
 
-    actions = pd.DataFrame(columns=["Dividends", "Stock Splits"])
+    actions: Any = pd.DataFrame(columns=["Dividends", "Stock Splits"])
     try:
         from lumibot.tools.yahoo_helper import YahooHelper
 
-        history = YahooHelper.get_symbol_data(
+        yahoo_helper: Any = YahooHelper
+        history: Any = yahoo_helper.get_symbol_data(
             key,
             interval="1d",
             caching=True,
             auto_adjust=False,
             last_needed_datetime=last_needed_datetime,
         )
+        raw: Any | None = None
         if history is not None and not history.empty:
-            raw = history[["Dividends", "Stock Splits"]]
-            raw = raw[(raw != 0).any(axis=1)].fillna(0)
-        else:
-            raw = None
+            raw_frame: Any = history[["Dividends", "Stock Splits"]]
+            raw = raw_frame[(raw_frame != 0).any(axis=1)].fillna(0)
 
         if raw is not None and not raw.empty:
             actions = raw.copy()
@@ -3390,7 +3475,7 @@ def _get_cached_equity_actions(symbol: str, last_needed_datetime: Optional[datet
     return actions
 
 
-def _append_equity_corporate_actions_daily(frame: pd.DataFrame, asset: Asset) -> tuple[pd.DataFrame, bool]:
+def _append_equity_corporate_actions_daily(frame: DataFrame, asset: Asset) -> tuple[DataFrame, bool]:
     """Append `dividend` + `stock_splits` columns to daily equity bars.
 
     WHY:
@@ -3418,7 +3503,7 @@ def _append_equity_corporate_actions_daily(frame: pd.DataFrame, asset: Asset) ->
             out["stock_splits"] = 0.0
         changed = True
 
-    last_needed_datetime: Optional[datetime] = None
+    last_needed_datetime: datetime | None = None
     try:
         if len(out.index):
             last_idx = pd.to_datetime(out.index, errors="coerce")
@@ -3438,8 +3523,8 @@ def _append_equity_corporate_actions_daily(frame: pd.DataFrame, asset: Asset) ->
         idx = idx.tz_convert(LUMIBOT_DEFAULT_PYTZ)
     idx_dates = idx.date
 
-    div_map: Dict[Any, float] = {}
-    split_map: Dict[Any, float] = {}
+    div_map: dict[Any, float] = {}
+    split_map: dict[Any, float] = {}
     if "Dividends" in actions.columns:
         div_series = pd.to_numeric(actions["Dividends"], errors="coerce").fillna(0.0)
         div_map = div_series.groupby(actions.index.date).sum().to_dict()
@@ -3474,7 +3559,7 @@ def _max_period_for_bar(bar: str) -> str:
     return f"{IBKR_HISTORY_MAX_POINTS}min"
 
 
-def _read_cache_frame(path: Path) -> pd.DataFrame:
+def _read_cache_frame(path: Path) -> DataFrame:
     if not path.exists():
         return pd.DataFrame()
     try:
@@ -3499,7 +3584,7 @@ def _read_cache_frame(path: Path) -> pd.DataFrame:
     return df
 
 
-def _write_cache_frame(path: Path, df: pd.DataFrame) -> None:
+def _write_cache_frame(path: Path, df: DataFrame) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     df_to_save = df.copy()
     if not isinstance(df_to_save.index, pd.DatetimeIndex):
@@ -3516,16 +3601,17 @@ def _contract_info_cache_file(conid: int) -> Path:
     return provider_root / "future" / "contracts" / f"CONID_{int(conid)}.json"
 
 
-def _read_json(path: Path) -> Dict[str, Any]:
+def _read_json(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        payload: Any = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return {}
+    return cast(dict[str, Any], payload) if isinstance(payload, dict) else {}
 
 
-def _write_json(path: Path, payload: Dict[str, Any]) -> None:
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, sort_keys=True, default=str, indent=2), encoding="utf-8")
     try:
@@ -3534,20 +3620,20 @@ def _write_json(path: Path, payload: Dict[str, Any]) -> None:
         pass
 
 
-def _fetch_contract_info(conid: int) -> Dict[str, Any]:
+def _fetch_contract_info(conid: int) -> dict[str, Any]:
     base_url = _downloader_base_url()
     url = f"{base_url}/ibkr/iserver/contract/{int(conid)}/info"
-    payload = queue_request(url=url, querystring=None, headers=None, timeout=None)
+    payload: Any = queue_request(url=url, querystring=None, headers=None, timeout=None)
     if payload is None:
         return {}
-    if isinstance(payload, dict) and payload.get("error"):
-        raise RuntimeError(f"IBKR contract info error: {payload.get('error')}")
+    if isinstance(payload, dict) and cast(dict[str, Any], payload).get("error"):
+        raise RuntimeError(f"IBKR contract info error: {cast(dict[str, Any], payload).get('error')}")
     if not isinstance(payload, dict):
         return {}
-    return payload
+    return cast(dict[str, Any], payload)
 
 
-def _maybe_apply_future_contract_metadata(*, asset: Asset, exchange: Optional[str]) -> None:
+def _maybe_apply_future_contract_metadata(*, asset: Asset, exchange: str | None) -> None:
     """Best-effort: populate futures multiplier + min_tick for accurate PnL and tick rounding."""
     asset_type = _normalize_asset_type(getattr(asset, "asset_type", ""))
     if asset_type not in {"future", "cont_future"}:
@@ -3595,19 +3681,25 @@ def _maybe_apply_future_contract_metadata(*, asset: Asset, exchange: Optional[st
         tick_val = None
     if tick_val and tick_val > 0:
         try:
-            setattr(asset, "min_tick", tick_val)
+            setattr(asset, "min_tick", tick_val)  # noqa: B010 - dynamic metadata on Asset.
         except Exception:
             pass
 
 
 def _remote_payload(
     asset: Asset,
-    quote: Optional[Asset],
+    quote: Asset | None,
     timestep: str,
-    exchange: Optional[str],
+    exchange: str | None,
     source: str,
     include_after_hours: bool,
-) -> Dict[str, object]:
+) -> dict[str, object]:
+    expiration_value = getattr(asset, "expiration", None)
+    expiration_text = None
+    if expiration_value is not None:
+        isoformat = getattr(expiration_value, "isoformat", None)
+        if callable(isoformat):
+            expiration_text = str(isoformat())
     return {
         "provider": "ibkr",
         "symbol": getattr(asset, "symbol", None),
@@ -3617,15 +3709,15 @@ def _remote_payload(
         "exchange": exchange,
         "source": source,
         "include_after_hours": bool(include_after_hours),
-        "expiration": getattr(asset, "expiration", None).isoformat() if getattr(asset, "expiration", None) else None,
+        "expiration": expiration_text,
     }
 
 
-def _remote_payload_from_path(path: Path) -> Dict[str, object]:
+def _remote_payload_from_path(path: Path) -> dict[str, object]:
     return {"provider": "ibkr", "path": path.as_posix()}
 
 
-def _conid_key(asset: Asset, quote: Optional[Asset], exchange: Optional[str]) -> IbkrConidKey:
+def _conid_key(asset: Asset, quote: Asset | None, exchange: str | None) -> IbkrConidKey:
     asset_type = _normalize_asset_type(getattr(asset, "asset_type", ""))
     symbol = str(getattr(asset, "symbol", "") or "")
     quote_symbol = str(getattr(quote, "symbol", "") or "") if quote else ""
@@ -3651,7 +3743,7 @@ def _downloader_base_url() -> str:
     return os.environ.get("DATADOWNLOADER_BASE_URL", "http://127.0.0.1:8080").rstrip("/")
 
 
-def _to_utc(dt_value: datetime) -> datetime:
+def _to_utc(dt_value: Any) -> datetime:
     """Convert a datetime to UTC, treating naive datetimes as LumiBot local time.
 
     IMPORTANT: LumiBot uses `pytz` timezones. For pytz, you must NOT attach tzinfo via
@@ -3661,10 +3753,11 @@ def _to_utc(dt_value: datetime) -> datetime:
     """
     if isinstance(dt_value, pd.Timestamp):
         dt_value = dt_value.to_pydatetime()
+    dt_value = cast(datetime, dt_value)
     if dt_value.tzinfo is None:
         try:
             dt_value = LUMIBOT_DEFAULT_PYTZ.localize(dt_value)  # type: ignore[attr-defined]
         except Exception:
             # Fallback for non-pytz tzinfo implementations.
             dt_value = dt_value.replace(tzinfo=LUMIBOT_DEFAULT_PYTZ)
-    return dt_value.astimezone(timezone.utc)
+    return dt_value.astimezone(UTC)

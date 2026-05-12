@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
 """Tests covering OptionsHelper behaviours and chain normalization."""
 
-import unittest
-from unittest.mock import Mock, MagicMock
-from datetime import date, timedelta, datetime
-import sys
 import os
+import sys
+import unittest
+from datetime import date, datetime, timedelta
+from unittest.mock import Mock
+
 import pytest
 
 # Add the lumibot path
-sys.path.insert(0, '/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot')
+sys.path.insert(0, "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot")
 
-from lumibot.components.options_helper import OptionsHelper, OptionMarketEvaluation
+from lumibot.brokers.broker import Broker
+from lumibot.components.options_helper import OptionMarketEvaluation, OptionsHelper
 from lumibot.entities import Asset
 from lumibot.entities.chains import OptionsDataFormatError, normalize_option_chains
-from lumibot.brokers.broker import Broker
 
 
 class _StubDataSource:
@@ -73,8 +74,8 @@ class _StubBroker(Broker):
     def _pull_broker_all_orders(self):
         return []
 
+
 class TestOptionsHelper(unittest.TestCase):
-    
     def setUp(self):
         """Set up test fixtures"""
         self.mock_strategy = Mock()
@@ -86,7 +87,7 @@ class TestOptionsHelper(unittest.TestCase):
         broker = Mock()
         broker.data_source = data_source
         self.mock_strategy.broker = broker
-        
+
         # Mock get_greeks with realistic delta values
         def mock_get_greeks(option, underlying_price=None):
             strike = option.strike
@@ -104,10 +105,10 @@ class TestOptionsHelper(unittest.TestCase):
                     return {"delta": 0.55}
                 else:  # ITM call
                     return {"delta": 0.85}
-        
+
         self.mock_strategy.get_greeks = Mock(side_effect=mock_get_greeks)
         self.options_helper = OptionsHelper(self.mock_strategy)
-    
+
     def test_normal_strike_calculation(self):
         """Test normal strike calculation for a typical stock"""
         underlying_asset = Asset("TEST", asset_type="stock")
@@ -115,65 +116,65 @@ class TestOptionsHelper(unittest.TestCase):
         target_delta = -0.3
         expiry = date.today() + timedelta(days=30)
         right = "put"
-        
+
         result = self.options_helper.find_strike_for_delta(
             underlying_asset=underlying_asset,
             underlying_price=underlying_price,
             target_delta=target_delta,
             expiry=expiry,
-            right=right
+            right=right,
         )
-        
+
         # Should find a reasonable strike
         self.assertIsNotNone(result)
         self.assertGreater(result, 150)  # Should be reasonable for $200 stock
         self.assertLess(result, 250)
-        
+
         # Should have logged the search parameters
         log_calls = [str(call[0][0]) for call in self.mock_strategy.log_message.call_args_list]
         self.assertTrue(any("STRIKE SEARCH" in msg for msg in log_calls))
         self.assertTrue(any("underlying_price=$200" in msg for msg in log_calls))
-    
+
     def test_invalid_underlying_price(self):
         """Test handling of invalid underlying price"""
         underlying_asset = Asset("TEST", asset_type="stock")
         target_delta = -0.3
         expiry = date.today() + timedelta(days=30)
         right = "put"
-        
+
         # Test with negative price
         result = self.options_helper.find_strike_for_delta(
             underlying_asset=underlying_asset,
             underlying_price=-10.0,  # Invalid
             target_delta=target_delta,
             expiry=expiry,
-            right=right
+            right=right,
         )
-        
+
         self.assertIsNone(result)
-        
+
         # Should have logged an error
         log_calls = [str(call[0][0]) for call in self.mock_strategy.log_message.call_args_list]
         self.assertTrue(any("ERROR: Invalid underlying price" in msg for msg in log_calls))
-    
+
     def test_invalid_delta(self):
         """Test handling of invalid delta values"""
         underlying_asset = Asset("TEST", asset_type="stock")
         underlying_price = 200.0
         expiry = date.today() + timedelta(days=30)
         right = "put"
-        
+
         # Test with delta > 1
         result = self.options_helper.find_strike_for_delta(
             underlying_asset=underlying_asset,
             underlying_price=underlying_price,
             target_delta=1.5,  # Invalid
             expiry=expiry,
-            right=right
+            right=right,
         )
-        
+
         self.assertIsNone(result)
-        
+
         # Should have logged an error
         log_calls = [str(call[0][0]) for call in self.mock_strategy.log_message.call_args_list]
         self.assertTrue(any("ERROR: Invalid target delta" in msg for msg in log_calls))
@@ -194,7 +195,7 @@ class TestOptionsHelper(unittest.TestCase):
             underlying_price=underlying_price,
             target_delta=target_delta,
             expiry=expiry,
-            right=right
+            right=right,
         )
 
         # Should return None when Greeks unavailable
@@ -206,36 +207,37 @@ class TestOptionsHelper(unittest.TestCase):
 
     def test_warning_for_unrealistic_strike(self):
         """Test that warnings are generated for unrealistic strikes"""
+
         # Mock a scenario where we get an unrealistically low strike
         def mock_get_greeks_low_strike(option, underlying_price=None):
             # Always return a delta that would make very low strikes look good
             return {"delta": -0.3}
-        
+
         self.mock_strategy.get_greeks = Mock(side_effect=mock_get_greeks_low_strike)
-        
+
         underlying_asset = Asset("TEST", asset_type="stock")
         underlying_price = 200.0  # High stock price
         target_delta = -0.3
         expiry = date.today() + timedelta(days=30)
         right = "put"
-        
+
         # This should find a low strike due to our mocked greeks
         result = self.options_helper.find_strike_for_delta(
             underlying_asset=underlying_asset,
             underlying_price=underlying_price,
             target_delta=target_delta,
             expiry=expiry,
-            right=right
+            right=right,
         )
-        
+
         # Should have found something (mocked to return low strike)
         self.assertIsNotNone(result)
-        
+
         # Should have warned about the unrealistic strike
         log_calls = [str(call[0][0]) for call in self.mock_strategy.log_message.call_args_list]
         if result and result < 10:  # If we got an unrealistically low strike
             self.assertTrue(any("WARNING" in msg and "too low" in msg for msg in log_calls))
-    
+
     def test_enhanced_logging_format(self):
         """Test that the enhanced logging includes emoji and detailed information"""
         underlying_asset = Asset("LULU", asset_type="stock")
@@ -243,25 +245,25 @@ class TestOptionsHelper(unittest.TestCase):
         target_delta = -0.3
         expiry = date.today() + timedelta(days=30)
         right = "put"
-        
-        result = self.options_helper.find_strike_for_delta(
+
+        self.options_helper.find_strike_for_delta(
             underlying_asset=underlying_asset,
             underlying_price=underlying_price,
             target_delta=target_delta,
             expiry=expiry,
-            right=right
+            right=right,
         )
-        
+
         # Check for enhanced logging format
         log_calls = [str(call[0][0]) for call in self.mock_strategy.log_message.call_args_list]
-        
+
         # Should have emoji in logs
         self.assertTrue(any("🎯" in msg for msg in log_calls))  # Target emoji
         self.assertTrue(any("🔍" in msg for msg in log_calls))  # Search emoji
-        
+
         # Should show the search range
         self.assertTrue(any("Search range: strikes" in msg for msg in log_calls))
-        
+
         # Should show individual strike attempts
         self.assertTrue(any("Trying strike" in msg for msg in log_calls))
 
@@ -366,20 +368,14 @@ class TestOptionsHelper(unittest.TestCase):
         }
 
         target = _date(2024, 2, 1)
-        result = self.options_helper.get_expiration_on_or_after_date(
-            target, expiries, "call", allow_prior=True
-        )
+        result = self.options_helper.get_expiration_on_or_after_date(target, expiries, "call", allow_prior=True)
         self.assertEqual(result, _date(2024, 1, 9))
 
     def test_chains_backward_compatibility_string_access(self):
         """Test that existing code using string keys still works."""
-        chains = normalize_option_chains({
-            "Chains": {
-                "CALL": {"2024-01-02": [100.0, 101.0]},
-                "PUT": {"2024-01-02": [95.0, 96.0]}
-            },
-            "Multiplier": 100
-        })
+        chains = normalize_option_chains(
+            {"Chains": {"CALL": {"2024-01-02": [100.0, 101.0]}, "PUT": {"2024-01-02": [95.0, 96.0]}}, "Multiplier": 100}
+        )
 
         # String access should work (backward compatibility)
         self.assertEqual(chains["Chains"]["CALL"]["2024-01-02"], [100.0, 101.0])
@@ -391,12 +387,14 @@ class TestOptionsHelper(unittest.TestCase):
 
     def test_chains_date_helper_methods(self):
         """Test new date-based internal helper methods."""
-        chains = normalize_option_chains({
-            "Chains": {
-                "CALL": {"2024-01-02": [100.0, 101.0], "2024-01-09": [102.0]},
-                "PUT": {"2024-01-02": [95.0, 96.0]}
+        chains = normalize_option_chains(
+            {
+                "Chains": {
+                    "CALL": {"2024-01-02": [100.0, 101.0], "2024-01-09": [102.0]},
+                    "PUT": {"2024-01-02": [95.0, 96.0]},
+                }
             }
-        })
+        )
 
         # Test expirations_as_dates
         expiry_dates = chains.expirations_as_dates()
@@ -410,11 +408,7 @@ class TestOptionsHelper(unittest.TestCase):
 
     def test_chains_strikes_accepts_both_string_and_date(self):
         """Test that strikes() method accepts both string and date parameters."""
-        chains = normalize_option_chains({
-            "Chains": {
-                "CALL": {"2024-01-02": [100.0, 101.0]}
-            }
-        })
+        chains = normalize_option_chains({"Chains": {"CALL": {"2024-01-02": [100.0, 101.0]}}})
 
         # Should work with string
         self.assertEqual(chains.strikes("2024-01-02"), [100.0, 101.0])
@@ -448,8 +442,10 @@ class TestOptionsHelper(unittest.TestCase):
     def test_find_next_valid_option_checks_quote_first(self):
         """Test that find_next_valid_option checks quote before last_price using REAL ThetaData"""
         import os
+
         from dotenv import load_dotenv
-        from lumibot.backtesting import ThetaDataBacktesting, BacktestingBroker
+
+        from lumibot.backtesting import BacktestingBroker, ThetaDataBacktesting
         from lumibot.strategies import Strategy
         from lumibot.traders import Trader
 
@@ -474,6 +470,7 @@ class TestOptionsHelper(unittest.TestCase):
 
             def on_trading_iteration(self):
                 from lumibot.components.options_helper import OptionsHelper
+
                 options_helper = OptionsHelper(self)
 
                 # Use SPY as underlying (guaranteed to have options data)
@@ -495,7 +492,7 @@ class TestOptionsHelper(unittest.TestCase):
                     underlying_asset=underlying_asset,
                     rounded_underlying_price=round(current_price),
                     expiry=expiry,
-                    put_or_call="call"
+                    put_or_call="call",
                 )
 
         # Run backtest for September 2-3, 2025
@@ -503,18 +500,11 @@ class TestOptionsHelper(unittest.TestCase):
         backtesting_end = datetime(2025, 9, 3)
 
         data_source = ThetaDataBacktesting(
-            datetime_start=backtesting_start,
-            datetime_end=backtesting_end,
-            username=username,
-            password=password
+            datetime_start=backtesting_start, datetime_end=backtesting_end, username=username, password=password
         )
 
         broker = BacktestingBroker(data_source=data_source)
-        strategy = TestStrategy(
-            broker=broker,
-            backtesting_start=backtesting_start,
-            backtesting_end=backtesting_end
-        )
+        strategy = TestStrategy(broker=broker, backtesting_start=backtesting_start, backtesting_end=backtesting_end)
 
         trader = Trader(backtest=True)
         trader.add_strategy(strategy)
@@ -530,8 +520,10 @@ class TestOptionsHelper(unittest.TestCase):
     def test_find_next_valid_option_falls_back_to_last_price(self):
         """Test fallback to last_price when quote has no bid/ask using REAL ThetaData"""
         import os
+
         from dotenv import load_dotenv
-        from lumibot.backtesting import ThetaDataBacktesting, BacktestingBroker
+
+        from lumibot.backtesting import BacktestingBroker, ThetaDataBacktesting
         from lumibot.strategies import Strategy
         from lumibot.traders import Trader
 
@@ -558,6 +550,7 @@ class TestOptionsHelper(unittest.TestCase):
 
             def on_trading_iteration(self):
                 from lumibot.components.options_helper import OptionsHelper
+
                 options_helper = OptionsHelper(self)
 
                 # Use SPY as underlying (guaranteed to have options data)
@@ -579,7 +572,7 @@ class TestOptionsHelper(unittest.TestCase):
                     underlying_asset=underlying_asset,
                     rounded_underlying_price=round(current_price),
                     expiry=expiry,
-                    put_or_call="put"
+                    put_or_call="put",
                 )
 
                 # Verify both quote and last_price were used
@@ -595,18 +588,11 @@ class TestOptionsHelper(unittest.TestCase):
         backtesting_end = datetime(2025, 9, 3)
 
         data_source = ThetaDataBacktesting(
-            datetime_start=backtesting_start,
-            datetime_end=backtesting_end,
-            username=username,
-            password=password
+            datetime_start=backtesting_start, datetime_end=backtesting_end, username=username, password=password
         )
 
         broker = BacktestingBroker(data_source=data_source)
-        strategy = TestStrategy(
-            broker=broker,
-            backtesting_start=backtesting_start,
-            backtesting_end=backtesting_end
-        )
+        strategy = TestStrategy(broker=broker, backtesting_start=backtesting_start, backtesting_end=backtesting_end)
 
         trader = Trader(backtest=True)
         trader.add_strategy(strategy)
@@ -805,6 +791,7 @@ class TestOptionsHelper(unittest.TestCase):
             data_quality_flags=["buy_price_non_positive"],
         )
         self.assertFalse(OptionsHelper.has_actionable_price(evaluation))
+
 
 if __name__ == "__main__":
     print("🧪 Running enhanced options helper tests...")

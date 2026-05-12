@@ -1,17 +1,98 @@
+# pyright: reportPrivateUsage=false
+
+from __future__ import annotations
+
+import csv
 import logging  # Needed for logging infrastructure setup
 import os
 import signal
 import threading
 import warnings
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from importlib import import_module
 from pathlib import Path
-from typing import Optional
+from types import FrameType
+from typing import Any, Protocol, TypeAlias, cast
 
-from lumibot.tools.lumibot_logger import get_logger, set_console_log_level
+from lumibot.tools.lumibot_logger import get_logger
 
 # Overloading time.sleep to warn users against using it
 
 logger = get_logger(__name__)
+
+ArtifactPath: TypeAlias = str | None  # noqa: UP040 - keep Python 3.11 parser compatibility.
+AnalysisResult: TypeAlias = dict[str, Any]  # noqa: UP040 - keep Python 3.11 parser compatibility.
+StrategyResults: TypeAlias = dict[str, AnalysisResult]  # noqa: UP040 - keep Python 3.11 parser compatibility.
+
+_NOISY_EXTERNAL_LOGGERS = (
+    "urllib3",
+    "requests",
+    "apscheduler.scheduler",
+    "apscheduler.executors.default",
+    "lumibot.data_sources.yahoo_data",
+)
+
+
+class _BrokerProtocol(Protocol):
+    def is_backtesting_broker(self) -> bool: ...
+
+
+class _StrategyExecutorProtocol(Protocol):
+    name: str
+    result: AnalysisResult
+    exception: BaseException | None
+    abrupt_closing: bool
+    strategy: Any
+
+    def start(self) -> None: ...
+
+    def join(self) -> None: ...
+
+    def stop(self) -> None: ...
+
+
+class _TraderStrategyProtocol(Protocol):
+    broker: _BrokerProtocol
+    _executor: _StrategyExecutorProtocol
+    _analyze_backtest: bool
+    backtesting_start: Any
+    backtesting_end: Any
+    _backtest_profiling_enabled: bool
+    _backtest_profiling_tool: str
+    _backtest_profiling_format: str
+    _backtest_profiling_clock: str
+    _backtest_profiling_artifact: str
+
+    def verify_backtest_inputs(self, start: Any, end: Any) -> Any: ...
+
+    def backtest_analysis(
+        self,
+        *,
+        logdir: Path,
+        show_plot: bool,
+        show_tearsheet: bool,
+        save_tearsheet: bool,
+        show_indicators: bool,
+        plot_file_html: ArtifactPath,
+        trades_file: ArtifactPath,
+        trade_events_file: ArtifactPath,
+        settings_file: ArtifactPath,
+        indicators_file: ArtifactPath,
+        tearsheet_csv_file: ArtifactPath,
+        tearsheet_file: ArtifactPath,
+        tearsheet_metrics_file: ArtifactPath,
+        base_filename: ArtifactPath,
+    ) -> Any: ...
+
+
+def _strategy_executor(strategy: _TraderStrategyProtocol) -> _StrategyExecutorProtocol:
+    return strategy._executor
+
+
+def _strategy_name(strategy: Any, default: str = "strategy") -> str:
+    return str(getattr(strategy, "_name", getattr(strategy, "name", default)) or default)
+
 
 @dataclass
 class _BacktestProfilingConfig:
@@ -23,7 +104,22 @@ class _BacktestProfilingConfig:
 
 
 class Trader:
-    def __init__(self, logfile="", backtest=False, debug=False, strategies=None, quiet_logs=False):
+    debug: bool
+    backtest: bool
+    quiet_logs: bool
+    logfile: Path | None
+    logdir: Path
+    _strategies: list[_TraderStrategyProtocol]
+    _pool: list[_StrategyExecutorProtocol]
+
+    def __init__(
+        self,
+        logfile: object = "",
+        backtest: bool = False,
+        debug: bool = False,
+        strategies: Sequence[_TraderStrategyProtocol] | None = None,
+        quiet_logs: bool = False,
+    ) -> None:
         """
 
         Parameters
@@ -41,17 +137,17 @@ class Trader:
             Whether to quiet backtest logs by setting the log level to ERROR. Defaults to False.
         """
         # Check if the logfile is a valid path
-        if logfile:
-            if not isinstance(logfile, str):
-                raise ValueError("logfile must be a string")
+        if logfile and not isinstance(logfile, str):
+            raise ValueError("logfile must be a string")
 
         # Setting debug and _logfile parameters
         self.debug = debug
         self.backtest = backtest
         self.quiet_logs = quiet_logs  # Turns off all logging execpt for error messages in backtesting
 
-        if logfile:
-            self.logfile = Path(logfile)
+        logfile_value = cast(str, logfile)
+        if logfile_value:
+            self.logfile = Path(logfile_value)
             self.logfile.parent.mkdir(parents=True, exist_ok=True)
             self.logdir = self.logfile.parent
         else:
@@ -60,37 +156,34 @@ class Trader:
             self.logdir = Path("logs")
 
         # Setting the list of strategies if defined
-        self._strategies = strategies if strategies else []
+        self._strategies = list(strategies) if strategies else []
         self._pool = []
 
     @property
-    def is_backtest_broker(self):
-        result = False
-        if any([s.broker.is_backtesting_broker() for s in self._strategies]):
-            result = True
-        return result
+    def is_backtest_broker(self) -> bool:
+        return any(strategy.broker.is_backtesting_broker() for strategy in self._strategies)
 
-    def add_strategy(self, strategy):
+    def add_strategy(self, strategy: _TraderStrategyProtocol) -> None:
         """Adds a strategy to the trader"""
         self._strategies.append(strategy)
 
     def run_all(
-            self, 
-            async_=False, 
-            show_plot=True, 
-            show_tearsheet=True, 
-            save_tearsheet=True, 
-            show_indicators=True, 
-            plot_file_html=None,
-            trades_file=None,
-            trade_events_file=None,
-            settings_file=None,
-            indicators_file=None,
-            tearsheet_csv_file=None,
-            tearsheet_file=None,
-            tearsheet_metrics_file=None,
-            base_filename=None,
-            ):
+        self,
+        async_: bool = False,
+        show_plot: bool = True,
+        show_tearsheet: bool = True,
+        save_tearsheet: bool = True,
+        show_indicators: bool = True,
+        plot_file_html: ArtifactPath = None,
+        trades_file: ArtifactPath = None,
+        trade_events_file: ArtifactPath = None,
+        settings_file: ArtifactPath = None,
+        indicators_file: ArtifactPath = None,
+        tearsheet_csv_file: ArtifactPath = None,
+        tearsheet_file: ArtifactPath = None,
+        tearsheet_metrics_file: ArtifactPath = None,
+        base_filename: ArtifactPath = None,
+    ) -> StrategyResults:
         """
         run all strategies
 
@@ -145,7 +238,7 @@ class Trader:
         """
         if not self._strategies:
             raise RuntimeError(
-                "No strategies to run. You must call trader.add_strategy(strategy) " "before trader.run_all()."
+                "No strategies to run. You must call trader.add_strategy(strategy) before trader.run_all()."
             )
 
         if self.is_backtest_broker != self.backtest:
@@ -158,8 +251,7 @@ class Trader:
         if len(self._strategies) != 1:
             if self.is_backtest_broker:
                 raise Exception(
-                    f"Received {len(self._strategies)} strategies for backtesting."
-                    f"You can only backtest one at a time."
+                    f"Received {len(self._strategies)} strategies for backtesting.You can only backtest one at a time."
                 )
             else:
                 raise NotImplementedError(
@@ -190,14 +282,15 @@ class Trader:
         self._set_logger()
         self._init_pool()
 
-        _yappi = None
+        yappi_api: Any | None = None
         if profiling and profiling.enabled and profiling.tool == "yappi":
             try:
-                import yappi as _yappi  # type: ignore
+                api = cast(Any, import_module("yappi"))
+                yappi_api = api
 
-                _yappi.set_clock_type(profiling.clock)
-                _yappi.clear_stats()
-                _yappi.start()
+                api.set_clock_type(profiling.clock)
+                api.clear_stats()
+                api.start()
                 logger.info(
                     "Backtest profiling enabled: tool=%s clock=%s artifact=%s",
                     profiling.tool,
@@ -205,7 +298,7 @@ class Trader:
                     profiling.output_path.name,
                 )
             except Exception as exc:
-                _yappi = None
+                yappi_api = None
                 logger.warning("Failed to enable yappi profiling: %s", exc)
 
         try:
@@ -247,63 +340,15 @@ class Trader:
 
             return result
         finally:
-            if _yappi is not None and profiling is not None and profiling.enabled:
-                try:
-                    _yappi.stop()
-                    stats = _yappi.get_func_stats()
-                    stats.sort("ttot", "desc")
-
-                    profiling.output_path.parent.mkdir(parents=True, exist_ok=True)
-                    import csv
-
-                    # Write a text CSV artifact so existing backtest artifact download paths
-                    # (Bot Manager → BotSpot "View Files") can serve it without binary handling.
-                    with open(profiling.output_path, "w", newline="") as handle:
-                        writer = csv.writer(handle)
-                        writer.writerow(
-                            [
-                                "full_name",
-                                "module",
-                                "lineno",
-                                "name",
-                                "ncall",
-                                "nactualcall",
-                                "ttot_s",
-                                "tsub_s",
-                                "tavg_s",
-                                "ctx_name",
-                            ]
-                        )
-                        for entry in stats:
-                            writer.writerow(
-                                [
-                                    getattr(entry, "full_name", ""),
-                                    getattr(entry, "module", ""),
-                                    getattr(entry, "lineno", ""),
-                                    getattr(entry, "name", ""),
-                                    getattr(entry, "ncall", ""),
-                                    getattr(entry, "nactualcall", ""),
-                                    getattr(entry, "ttot", ""),
-                                    getattr(entry, "tsub", ""),
-                                    getattr(entry, "tavg", ""),
-                                    getattr(entry, "ctx_name", ""),
-                                ]
-                            )
-                    logger.info("Wrote backtest profile artifact: %s", profiling.output_path)
-                except Exception as exc:
-                    logger.warning("Failed to write yappi profile artifact: %s", exc)
-                finally:
-                    try:
-                        _yappi.clear_stats()
-                    except Exception:
-                        pass
+            if yappi_api is not None and profiling is not None and profiling.enabled:
+                self._write_yappi_profile(yappi_api, profiling)
 
     def _get_backtest_profiling_config(
         self,
         *,
-        strat,
-        base_filename: Optional[str],
-    ) -> Optional[_BacktestProfilingConfig]:
+        strat: _TraderStrategyProtocol,
+        base_filename: str | None,
+    ) -> _BacktestProfilingConfig | None:
         if not self.is_backtest_broker:
             return None
 
@@ -311,17 +356,17 @@ class Trader:
         if profile_mode != "yappi":
             return None
 
-        strategy_name = getattr(strat, "_name", None) or getattr(strat, "name", None) or "strategy"
+        strategy_name = _strategy_name(strat)
         resolved_base = base_filename or strategy_name
         output_path = (self.logdir / f"{resolved_base}_profile_yappi.csv").resolve()
 
         # Make settings.json aware of the profiling artifact (best-effort; should never crash).
         try:
-            setattr(strat, "_backtest_profiling_enabled", True)
-            setattr(strat, "_backtest_profiling_tool", "yappi")
-            setattr(strat, "_backtest_profiling_format", "csv")
-            setattr(strat, "_backtest_profiling_clock", "wall")
-            setattr(strat, "_backtest_profiling_artifact", output_path.name)
+            strat._backtest_profiling_enabled = True
+            strat._backtest_profiling_tool = "yappi"
+            strat._backtest_profiling_format = "csv"
+            strat._backtest_profiling_clock = "wall"
+            strat._backtest_profiling_artifact = output_path.name
         except Exception:
             pass
 
@@ -333,28 +378,75 @@ class Trader:
             output_path=output_path,
         )
 
+    def _write_yappi_profile(self, yappi_api: Any, profiling: _BacktestProfilingConfig) -> None:
+        try:
+            yappi_api.stop()
+            stats = yappi_api.get_func_stats()
+            stats.sort("ttot", "desc")
+
+            profiling.output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Write a text CSV artifact so existing backtest artifact download paths
+            # (Bot Manager -> BotSpot "View Files") can serve it without binary handling.
+            with open(profiling.output_path, "w", newline="") as handle:
+                writer = csv.writer(handle)
+                writer.writerow(
+                    [
+                        "full_name",
+                        "module",
+                        "lineno",
+                        "name",
+                        "ncall",
+                        "nactualcall",
+                        "ttot_s",
+                        "tsub_s",
+                        "tavg_s",
+                        "ctx_name",
+                    ]
+                )
+                for entry in cast(Iterable[Any], stats):
+                    writer.writerow(
+                        [
+                            getattr(entry, "full_name", ""),
+                            getattr(entry, "module", ""),
+                            getattr(entry, "lineno", ""),
+                            getattr(entry, "name", ""),
+                            getattr(entry, "ncall", ""),
+                            getattr(entry, "nactualcall", ""),
+                            getattr(entry, "ttot", ""),
+                            getattr(entry, "tsub", ""),
+                            getattr(entry, "tavg", ""),
+                            getattr(entry, "ctx_name", ""),
+                        ]
+                    )
+            logger.info("Wrote backtest profile artifact: %s", profiling.output_path)
+        except Exception as exc:
+            logger.warning("Failed to write yappi profile artifact: %s", exc)
+        finally:
+            try:
+                yappi_api.clear_stats()
+            except Exception:
+                pass
+
     # Async version of run_all
-    def run_all_async(self):
+    def run_all_async(self) -> list[_TraderStrategyProtocol]:
         """run all strategies"""
         self.run_all(async_=True)
         return self._strategies
 
-    def stop_all(self):
+    def stop_all(self) -> None:
         logger.info("Stopping all strategies for this trader")
         self._stop_pool()
 
-    def _set_logger(self):
+    def _set_logger(self) -> None:
         """Setting Logging to both console and a file if logfile is specified"""
         # Import here to avoid circular imports
         from lumibot.tools.lumibot_logger import add_file_handler, set_log_level
-        
+
         # Set external library log levels to reduce noise
         # NOTE: lumilogger.get_logger doesn't work with non-lumibot loggers, so we use logging.getLogger directly
-        logging.getLogger("urllib3").setLevel(logging.ERROR)
-        logging.getLogger("requests").setLevel(logging.ERROR)
-        logging.getLogger("apscheduler.scheduler").setLevel(logging.ERROR)
-        logging.getLogger("apscheduler.executors.default").setLevel(logging.ERROR)
-        logging.getLogger("lumibot.data_sources.yahoo_data").setLevel(logging.ERROR)
+        for log_name in _NOISY_EXTERNAL_LOGGERS:
+            logging.getLogger(log_name).setLevel(logging.ERROR)
 
         # Configure global log level based on trader settings
         if self.debug:
@@ -382,35 +474,36 @@ class Trader:
 
         # Setting file logging if specified
         if self.logfile:
-            add_file_handler(str(self.logfile), level="DEBUG" if self.debug else "INFO",
-                             is_backtest=self.is_backtest_broker)
+            add_file_handler(
+                str(self.logfile), level="DEBUG" if self.debug else "INFO", is_backtest=self.is_backtest_broker
+            )
 
         # Disable Interactive Brokers logs
-        for log_name, log_obj in logging.Logger.manager.loggerDict.items():
+        for log_name, _log_obj in logging.Logger.manager.loggerDict.items():
             if log_name.startswith("ibapi"):
                 iblogger = logging.getLogger(log_name)
                 iblogger.setLevel(logging.CRITICAL)
                 iblogger.disabled = True
 
-    def _init_pool(self):
-        self._pool = [strategy._executor for strategy in self._strategies]
+    def _init_pool(self) -> None:
+        self._pool = [_strategy_executor(strategy) for strategy in self._strategies]
 
-    def _start_pool(self):
+    def _start_pool(self) -> None:
         for strategy_thread in self._pool:
             strategy_thread.start()
 
-    def _join_pool(self):
+    def _join_pool(self) -> None:
         for strategy_thread in self._pool:
             strategy_thread.join()
-            
+
         # For backtesting, check if any strategy failed and raise exception
         if self.is_backtest_broker:
             for strategy_thread in self._pool:
                 # Check if the thread stored an exception
-                if hasattr(strategy_thread, 'exception') and strategy_thread.exception is not None:
+                if hasattr(strategy_thread, "exception") and strategy_thread.exception is not None:
                     raise strategy_thread.exception
 
-    def _stop_pool(self, sig=None, frame=None):
+    def _stop_pool(self, sig: int | None = None, frame: FrameType | None = None) -> None:
         """Run all strategies on_abrupt_closing
         lifecycle method. python signal handlers
         needs two positional arguments, the signal
@@ -421,10 +514,10 @@ class Trader:
         for strategy_thread in self._pool:
             if not strategy_thread.abrupt_closing:
                 strategy_thread.stop()
-                logger.info(f"Trading finished for {strategy_thread.strategy._name}")
+                logger.info("Trading finished for %s", _strategy_name(strategy_thread.strategy, strategy_thread.name))
 
-    def _collect_analysis(self):
-        result = {}
+    def _collect_analysis(self) -> StrategyResults:
+        result: StrategyResults = {}
         for strategy_thread in self._pool:
             result[strategy_thread.name] = strategy_thread.result
         return result

@@ -9,17 +9,18 @@ This test verifies that the pandas implementation:
 This establishes the baseline before cloning to polars.
 """
 
+import json
 import os
 import shutil
-import json
 from datetime import datetime
 from pathlib import Path
+
 import pytest
 
 from lumibot.backtesting import ThetaDataBacktestingPandas
-from lumibot.strategies import Strategy
-from lumibot.entities import Asset
 from lumibot.credentials import THETADATA_CONFIG
+from lumibot.entities import Asset
+from lumibot.strategies import Strategy
 
 
 def get_cache_dir():
@@ -62,30 +63,22 @@ class WeeklyMomentumOptionsStrategy(Strategy):
 
             # Get 5 days of daily data
             daily_bars = self.get_historical_prices(asset, length=5, timestep="day")
-            if daily_bars and hasattr(daily_bars, 'df'):
-                self.data_fetches.append({
-                    "symbol": symbol,
-                    "timestep": "day",
-                    "length": 5,
-                    "rows": len(daily_bars.df)
-                })
+            if daily_bars and hasattr(daily_bars, "df"):
+                self.data_fetches.append({"symbol": symbol, "timestep": "day", "length": 5, "rows": len(daily_bars.df)})
 
             # Get 10 minutes of minute data
             minute_bars = self.get_historical_prices(asset, length=10, timestep="minute")
-            if minute_bars and hasattr(minute_bars, 'df'):
-                self.data_fetches.append({
-                    "symbol": symbol,
-                    "timestep": "minute",
-                    "length": 10,
-                    "rows": len(minute_bars.df)
-                })
+            if minute_bars and hasattr(minute_bars, "df"):
+                self.data_fetches.append(
+                    {"symbol": symbol, "timestep": "minute", "length": 10, "rows": len(minute_bars.df)}
+                )
 
 
 def run_backtest(run_type):
     """Run a backtest and return the strategy data_fetches."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Running {run_type.upper()} backtest with pandas")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     cache_before = count_cache_files()
     print(f"Cache files before: {cache_before}")
@@ -112,7 +105,7 @@ def run_backtest(run_type):
     portfolio_value = strategy_instance.portfolio_value
 
     # Get data fetches count
-    data_fetches = len(strategy_instance.data_fetches) if hasattr(strategy_instance, 'data_fetches') else 0
+    data_fetches = len(strategy_instance.data_fetches) if hasattr(strategy_instance, "data_fetches") else 0
 
     print(f"Portfolio value: ${portfolio_value:,.2f}")
     print(f"Data fetches: {data_fetches}")
@@ -125,8 +118,8 @@ def run_backtest(run_type):
         "cache_before": cache_before,
         "cache_after": cache_after,
         "new_cache_files": cache_after - cache_before,
-        "fetch_details": strategy_instance.data_fetches if hasattr(strategy_instance, 'data_fetches') else [],
-        "results": results
+        "fetch_details": strategy_instance.data_fetches if hasattr(strategy_instance, "data_fetches") else [],
+        "results": results,
     }
 
 
@@ -134,7 +127,7 @@ def run_backtest(run_type):
 @pytest.mark.thetadata
 @pytest.mark.skipif(
     not THETADATA_CONFIG.get("THETADATA_USERNAME") or not THETADATA_CONFIG.get("THETADATA_PASSWORD"),
-    reason="ThetaData credentials not configured - skipping API test"
+    reason="ThetaData credentials not configured - skipping API test",
 )
 @pytest.mark.skipif(
     os.environ.get("ALLOW_LOCAL_THETA_TERMINAL") != "true",
@@ -151,9 +144,9 @@ def test_pandas_cold_warm():
     warm_results = run_backtest("warm")
 
     # Verify results
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("VERIFICATION RESULTS")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     # Check 1: Cold run should create cache files
     assert cold_results["new_cache_files"] > 0, "Cold run should create cache files"
@@ -173,13 +166,12 @@ def test_pandas_cold_warm():
     print(f"✓ Data fetches match: {cold_results['data_fetches']}")
 
     # Save results for reference
-    results_path = Path("/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/logs/pandas_verification_results.json")
+    results_path = Path(
+        "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/logs/pandas_verification_results.json"
+    )
     results_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(results_path, 'w') as f:
-        json.dump({
-            "cold": cold_results,
-            "warm": warm_results
-        }, f, indent=2, default=str)
+    with open(results_path, "w") as f:
+        json.dump({"cold": cold_results, "warm": warm_results}, f, indent=2, default=str)
 
     print(f"\n✓ Results saved to {results_path}")
     print("\n✅ ALL CHECKS PASSED - Pandas implementation is working correctly")

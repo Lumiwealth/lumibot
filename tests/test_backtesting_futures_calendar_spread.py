@@ -49,8 +49,12 @@ def test_futures_calendar_spread_does_not_net_margin_between_expiries():
     margin = float(get_futures_margin_requirement(front))
     assert margin > 0
 
-    broker._process_futures_fill(strategy, make_order(strategy, front, Order.OrderSide.BUY, 1), price=60.0, filled_quantity=1)
-    broker._process_futures_fill(strategy, make_order(strategy, next_, Order.OrderSide.SELL, 1), price=59.8, filled_quantity=1)
+    broker._process_futures_fill(
+        strategy, make_order(strategy, front, Order.OrderSide.BUY, 1), price=60.0, filled_quantity=1
+    )
+    broker._process_futures_fill(
+        strategy, make_order(strategy, next_, Order.OrderSide.SELL, 1), price=59.8, filled_quantity=1
+    )
 
     # Both legs are opening positions, so both margins should be reserved.
     assert strategy.cash == pytest.approx(100_000 - (2 * margin))
@@ -65,4 +69,3 @@ def test_futures_calendar_spread_does_not_net_margin_between_expiries():
     assert broker._futures_lot_ledgers[key_front][0]["price"] == pytest.approx(60.0)
     assert broker._futures_lot_ledgers[key_next][0]["qty"] == pytest.approx(-1)
     assert broker._futures_lot_ledgers[key_next][0]["price"] == pytest.approx(59.8)
-

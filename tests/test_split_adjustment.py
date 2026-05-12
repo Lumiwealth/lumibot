@@ -16,20 +16,19 @@ Created: 2025-12-11
 Purpose: Prevent regression of split-related bugs
 """
 
-import pytest
+from datetime import date
+from unittest.mock import patch
+
 import pandas as pd
-import numpy as np
-from datetime import date, datetime
-from unittest.mock import patch, MagicMock
-import pytz
+import pytest
 
 from lumibot.entities import Asset
 from lumibot.tools import thetadata_helper
 
-
 # =============================================================================
 # TEST FIXTURES - Known Split Data
 # =============================================================================
+
 
 @pytest.fixture
 def goog_split_data():
@@ -70,26 +69,31 @@ def tsla_split_data():
 @pytest.fixture
 def mock_goog_splits():
     """Mock splits DataFrame for GOOG"""
-    return pd.DataFrame({
-        "event_date": pd.to_datetime(["2022-07-15"], utc=True),
-        "ratio": [20.0],
-        "symbol": ["GOOG"],
-    })
+    return pd.DataFrame(
+        {
+            "event_date": pd.to_datetime(["2022-07-15"], utc=True),
+            "ratio": [20.0],
+            "symbol": ["GOOG"],
+        }
+    )
 
 
 @pytest.fixture
 def mock_aapl_splits():
     """Mock splits DataFrame for AAPL"""
-    return pd.DataFrame({
-        "event_date": pd.to_datetime(["2020-08-31"], utc=True),
-        "ratio": [4.0],
-        "symbol": ["AAPL"],
-    })
+    return pd.DataFrame(
+        {
+            "event_date": pd.to_datetime(["2020-08-31"], utc=True),
+            "ratio": [4.0],
+            "symbol": ["AAPL"],
+        }
+    )
 
 
 # =============================================================================
 # TESTS FOR _get_option_query_strike()
 # =============================================================================
+
 
 class TestGetOptionQueryStrike:
     """Tests for converting split-adjusted strikes back to original strikes"""
@@ -116,13 +120,10 @@ class TestGetOptionQueryStrike:
         )
 
         # Get the original strike for API query
-        original_strike = thetadata_helper._get_option_query_strike(
-            option_asset
-        )
+        original_strike = thetadata_helper._get_option_query_strike(option_asset)
 
         # Should return original pre-split strike
-        assert original_strike == pytest.approx(1320.0, rel=0.01), \
-            f"Expected strike 1320.0 but got {original_strike}"
+        assert original_strike == pytest.approx(1320.0, rel=0.01), f"Expected strike 1320.0 but got {original_strike}"
 
     @patch("lumibot.tools.thetadata_helper._get_theta_splits")
     def test_no_split_returns_original_strike(self, mock_get_splits):
@@ -137,9 +138,7 @@ class TestGetOptionQueryStrike:
             right="CALL",
         )
 
-        original_strike = thetadata_helper._get_option_query_strike(
-            option_asset
-        )
+        original_strike = thetadata_helper._get_option_query_strike(option_asset)
 
         assert original_strike == 450.0
 
@@ -147,11 +146,13 @@ class TestGetOptionQueryStrike:
     def test_multiple_splits_cumulative_factor(self, mock_get_splits):
         """Test: Multiple splits should apply cumulative factor"""
         # Mock two splits: 2:1 and 3:1
-        mock_get_splits.return_value = pd.DataFrame({
-            "event_date": pd.to_datetime(["2021-01-15", "2022-06-15"], utc=True),
-            "ratio": [2.0, 3.0],
-            "symbol": ["TEST", "TEST"],
-        })
+        mock_get_splits.return_value = pd.DataFrame(
+            {
+                "event_date": pd.to_datetime(["2021-01-15", "2022-06-15"], utc=True),
+                "ratio": [2.0, 3.0],
+                "symbol": ["TEST", "TEST"],
+            }
+        )
 
         option_asset = Asset(
             symbol="TEST",
@@ -161,9 +162,7 @@ class TestGetOptionQueryStrike:
             right="CALL",
         )
 
-        original_strike = thetadata_helper._get_option_query_strike(
-            option_asset
-        )
+        original_strike = thetadata_helper._get_option_query_strike(option_asset)
 
         # Should multiply by cumulative factor: 10.0 * 2.0 * 3.0 = 60.0
         assert original_strike == pytest.approx(60.0, rel=0.01)
@@ -177,11 +176,13 @@ class TestGetOptionQueryStrike:
         with timezone-naive Timestamps caused TypeError.
         """
         # Split data with UTC timezone
-        mock_get_splits.return_value = pd.DataFrame({
-            "event_date": pd.to_datetime(["2022-07-15"], utc=True),
-            "ratio": [20.0],
-            "symbol": ["GOOG"],
-        })
+        mock_get_splits.return_value = pd.DataFrame(
+            {
+                "event_date": pd.to_datetime(["2022-07-15"], utc=True),
+                "ratio": [20.0],
+                "symbol": ["GOOG"],
+            }
+        )
 
         option_asset = Asset(
             symbol="GOOG",
@@ -192,9 +193,7 @@ class TestGetOptionQueryStrike:
         )
 
         # Should not raise TypeError
-        original_strike = thetadata_helper._get_option_query_strike(
-            option_asset
-        )
+        original_strike = thetadata_helper._get_option_query_strike(option_asset)
 
         # Should still compute correct strike
         assert original_strike == pytest.approx(1320.0, rel=0.01)
@@ -204,12 +203,15 @@ class TestGetOptionQueryStrike:
 # TESTS FOR _apply_corporate_actions_to_frame()
 # =============================================================================
 
+
 class TestApplyCorporateActionsToFrame:
     """Tests for price and dividend split adjustments"""
 
     @patch("lumibot.tools.thetadata_helper._get_theta_dividends")
     @patch("lumibot.tools.thetadata_helper._get_theta_splits")
-    def test_goog_price_adjustment_for_historical_data(self, mock_splits, mock_dividends, goog_split_data, mock_goog_splits):
+    def test_goog_price_adjustment_for_historical_data(
+        self, mock_splits, mock_dividends, goog_split_data, mock_goog_splits
+    ):
         """
         Test: March 2020 GOOG prices should be divided by 20 after July 2022 split
 
@@ -224,13 +226,16 @@ class TestApplyCorporateActionsToFrame:
 
         # Create March 2020 price data (pre-split prices)
         index = pd.to_datetime(["2020-03-12", "2020-03-13", "2020-03-16"], utc=True)
-        frame = pd.DataFrame({
-            "open": [2400.0, 2300.0, 2100.0],
-            "high": [2450.0, 2350.0, 2150.0],
-            "low": [2350.0, 2250.0, 2050.0],
-            "close": [2380.0, 2280.0, 2080.0],
-            "volume": [1000, 1100, 1200],
-        }, index=index)
+        frame = pd.DataFrame(
+            {
+                "open": [2400.0, 2300.0, 2100.0],
+                "high": [2450.0, 2350.0, 2150.0],
+                "low": [2350.0, 2250.0, 2050.0],
+                "close": [2380.0, 2280.0, 2080.0],
+                "volume": [1000, 1100, 1200],
+            },
+            index=index,
+        )
 
         enriched = thetadata_helper._apply_corporate_actions_to_frame(
             asset,
@@ -261,13 +266,16 @@ class TestApplyCorporateActionsToFrame:
         asset = Asset(symbol="GOOG", asset_type="stock")
 
         index = pd.to_datetime(["2020-03-12"], utc=True)
-        frame = pd.DataFrame({
-            "open": [2400.0],
-            "high": [2450.0],
-            "low": [2350.0],
-            "close": [2380.0],
-            "volume": [1000],
-        }, index=index)
+        frame = pd.DataFrame(
+            {
+                "open": [2400.0],
+                "high": [2450.0],
+                "low": [2350.0],
+                "close": [2380.0],
+                "volume": [1000],
+            },
+            index=index,
+        )
 
         # First adjustment
         enriched1 = thetadata_helper._apply_corporate_actions_to_frame(
@@ -297,26 +305,33 @@ class TestApplyCorporateActionsToFrame:
 
         A $1.00 dividend paid before a 2:1 split should become $0.50 after adjustment.
         """
-        mock_dividends.return_value = pd.DataFrame({
-            "event_date": pd.to_datetime(["2020-01-15"], utc=True),
-            "cash_amount": [1.00],
-        })
-        mock_splits.return_value = pd.DataFrame({
-            "event_date": pd.to_datetime(["2020-06-15"], utc=True),
-            "ratio": [2.0],
-            "symbol": ["TEST"],
-        })
+        mock_dividends.return_value = pd.DataFrame(
+            {
+                "event_date": pd.to_datetime(["2020-01-15"], utc=True),
+                "cash_amount": [1.00],
+            }
+        )
+        mock_splits.return_value = pd.DataFrame(
+            {
+                "event_date": pd.to_datetime(["2020-06-15"], utc=True),
+                "ratio": [2.0],
+                "symbol": ["TEST"],
+            }
+        )
 
         asset = Asset(symbol="TEST", asset_type="stock")
 
         index = pd.to_datetime(["2020-01-15"], utc=True)
-        frame = pd.DataFrame({
-            "open": [100.0],
-            "high": [101.0],
-            "low": [99.0],
-            "close": [100.5],
-            "volume": [1000],
-        }, index=index)
+        frame = pd.DataFrame(
+            {
+                "open": [100.0],
+                "high": [101.0],
+                "low": [99.0],
+                "close": [100.5],
+                "volume": [1000],
+            },
+            index=index,
+        )
 
         enriched = thetadata_helper._apply_corporate_actions_to_frame(
             asset,
@@ -339,11 +354,13 @@ class TestApplyCorporateActionsToFrame:
         by the same split factor for dates before the split.
         """
         mock_dividends.return_value = pd.DataFrame()
-        mock_splits.return_value = pd.DataFrame({
-            "event_date": pd.to_datetime(["2022-07-15"], utc=True),
-            "ratio": [20.0],
-            "symbol": ["GOOG"],
-        })
+        mock_splits.return_value = pd.DataFrame(
+            {
+                "event_date": pd.to_datetime(["2022-07-15"], utc=True),
+                "ratio": [20.0],
+                "symbol": ["GOOG"],
+            }
+        )
 
         option_asset = Asset(
             symbol="GOOG",
@@ -354,13 +371,16 @@ class TestApplyCorporateActionsToFrame:
         )
 
         index = pd.to_datetime(["2020-03-12"], utc=True)
-        frame = pd.DataFrame({
-            "open": [50.0],
-            "high": [55.0],
-            "low": [45.0],
-            "close": [52.0],
-            "volume": [100],
-        }, index=index)
+        frame = pd.DataFrame(
+            {
+                "open": [50.0],
+                "high": [55.0],
+                "low": [45.0],
+                "close": [52.0],
+                "volume": [100],
+            },
+            index=index,
+        )
 
         enriched = thetadata_helper._apply_corporate_actions_to_frame(
             option_asset,
@@ -377,16 +397,19 @@ class TestApplyCorporateActionsToFrame:
 # TESTS FOR _normalize_split_events()
 # =============================================================================
 
+
 class TestNormalizeSplitEvents:
     """Tests for split event parsing and normalization"""
 
     def test_parses_numerator_denominator_format(self):
         """Test: Parse split_to/split_from format (e.g., 20:1)"""
-        df = pd.DataFrame({
-            "execution_date": ["2022-07-15"],
-            "split_to": [20],
-            "split_from": [1],
-        })
+        df = pd.DataFrame(
+            {
+                "execution_date": ["2022-07-15"],
+                "split_to": [20],
+                "split_from": [1],
+            }
+        )
 
         normalized = thetadata_helper._normalize_split_events(df, "GOOG")
 
@@ -395,10 +418,12 @@ class TestNormalizeSplitEvents:
 
     def test_parses_ratio_string_format(self):
         """Test: Parse ratio string format (e.g., "20:1")"""
-        df = pd.DataFrame({
-            "execution_date": ["2022-07-15"],
-            "ratio": ["20:1"],
-        })
+        df = pd.DataFrame(
+            {
+                "execution_date": ["2022-07-15"],
+                "ratio": ["20:1"],
+            }
+        )
 
         normalized = thetadata_helper._normalize_split_events(df, "GOOG")
 
@@ -411,12 +436,14 @@ class TestNormalizeSplitEvents:
         We should filter to only actual split events where date == split_date.
         """
         # ThetaData v2 format: returns split info on every trading day
-        df = pd.DataFrame({
-            "date": ["20220714", "20220715", "20220718"],  # Thu, Fri (split day), Mon
-            "split_date": ["20220715", "20220715", "20220715"],  # All reference same split
-            "before_shares": [1, 1, 1],
-            "after_shares": [20, 20, 20],
-        })
+        df = pd.DataFrame(
+            {
+                "date": ["20220714", "20220715", "20220718"],  # Thu, Fri (split day), Mon
+                "split_date": ["20220715", "20220715", "20220715"],  # All reference same split
+                "before_shares": [1, 1, 1],
+                "after_shares": [20, 20, 20],
+            }
+        )
 
         normalized = thetadata_helper._normalize_split_events(df, "GOOG")
 
@@ -435,6 +462,7 @@ class TestNormalizeSplitEvents:
 # TESTS FOR _normalize_dividend_events()
 # =============================================================================
 
+
 class TestNormalizeDividendEvents:
     """Tests for dividend event parsing and normalization"""
 
@@ -443,10 +471,12 @@ class TestNormalizeDividendEvents:
         Test: ThetaData sometimes returns multiple entries for the same ex_date.
         We should keep only the first occurrence.
         """
-        df = pd.DataFrame({
-            "ex_date": ["2020-03-20", "2020-03-20", "2020-03-20", "2020-06-15"],
-            "amount": [0.50, 0.50, 0.50, 0.55],
-        })
+        df = pd.DataFrame(
+            {
+                "ex_date": ["2020-03-20", "2020-03-20", "2020-03-20", "2020-06-15"],
+                "amount": [0.50, 0.50, 0.50, 0.55],
+            }
+        )
 
         normalized = thetadata_helper._normalize_dividend_events(df, "TEST")
 
@@ -458,11 +488,13 @@ class TestNormalizeDividendEvents:
         Test: Filter out special distributions where less_amount > 0
         These are return of capital or other special adjustments, not regular dividends.
         """
-        df = pd.DataFrame({
-            "ex_date": ["2020-03-20", "2020-07-02"],
-            "amount": [0.50, 1.22],
-            "less_amount": [0.0, 22.93],  # Second is a special distribution
-        })
+        df = pd.DataFrame(
+            {
+                "ex_date": ["2020-03-20", "2020-07-02"],
+                "amount": [0.50, 1.22],
+                "less_amount": [0.0, 22.93],  # Second is a special distribution
+            }
+        )
 
         normalized = thetadata_helper._normalize_dividend_events(df, "TEST")
 
@@ -473,10 +505,12 @@ class TestNormalizeDividendEvents:
     def test_handles_various_column_names(self):
         """Test: Handle different column naming conventions"""
         # ThetaData uses various column names for the same data
-        df = pd.DataFrame({
-            "ex_dividend_date": ["2020-03-20"],  # Alternative name
-            "cash_amount": [0.50],  # Alternative name
-        })
+        df = pd.DataFrame(
+            {
+                "ex_dividend_date": ["2020-03-20"],  # Alternative name
+                "cash_amount": [0.50],  # Alternative name
+            }
+        )
 
         normalized = thetadata_helper._normalize_dividend_events(df, "TEST")
 
@@ -487,6 +521,7 @@ class TestNormalizeDividendEvents:
 # EDGE CASE TESTS
 # =============================================================================
 
+
 class TestSplitEdgeCases:
     """Edge cases and regression tests"""
 
@@ -495,11 +530,13 @@ class TestSplitEdgeCases:
         """
         Test: Handle the edge case where a split occurs on the option's expiration date
         """
-        mock_get_splits.return_value = pd.DataFrame({
-            "event_date": pd.to_datetime(["2022-07-15"], utc=True),
-            "ratio": [20.0],
-            "symbol": ["GOOG"],
-        })
+        mock_get_splits.return_value = pd.DataFrame(
+            {
+                "event_date": pd.to_datetime(["2022-07-15"], utc=True),
+                "ratio": [20.0],
+                "symbol": ["GOOG"],
+            }
+        )
 
         # Option expires ON the split date
         option_asset = Asset(
@@ -511,9 +548,7 @@ class TestSplitEdgeCases:
         )
 
         # Should NOT adjust - split is not "after" the expiration
-        original_strike = thetadata_helper._get_option_query_strike(
-            option_asset
-        )
+        original_strike = thetadata_helper._get_option_query_strike(option_asset)
 
         # The split happens ON the expiration, so we need the adjusted strike
         # since the option would have been traded at pre-split levels before this date
@@ -522,11 +557,13 @@ class TestSplitEdgeCases:
     @patch("lumibot.tools.thetadata_helper._get_theta_splits")
     def test_fractional_split_ratio(self, mock_get_splits):
         """Test: Handle fractional split ratios (e.g., 3:2 = 1.5)"""
-        mock_get_splits.return_value = pd.DataFrame({
-            "event_date": pd.to_datetime(["2022-01-15"], utc=True),
-            "ratio": [1.5],  # 3:2 split
-            "symbol": ["TEST"],
-        })
+        mock_get_splits.return_value = pd.DataFrame(
+            {
+                "event_date": pd.to_datetime(["2022-01-15"], utc=True),
+                "ratio": [1.5],  # 3:2 split
+                "symbol": ["TEST"],
+            }
+        )
 
         option_asset = Asset(
             symbol="TEST",
@@ -536,9 +573,7 @@ class TestSplitEdgeCases:
             right="CALL",
         )
 
-        original_strike = thetadata_helper._get_option_query_strike(
-            option_asset
-        )
+        original_strike = thetadata_helper._get_option_query_strike(option_asset)
 
         # 100 * 1.5 = 150
         assert original_strike == pytest.approx(150.0, rel=0.01)
@@ -546,11 +581,13 @@ class TestSplitEdgeCases:
     @patch("lumibot.tools.thetadata_helper._get_theta_splits")
     def test_reverse_split(self, mock_get_splits):
         """Test: Handle reverse splits (ratio < 1, e.g., 1:10)"""
-        mock_get_splits.return_value = pd.DataFrame({
-            "event_date": pd.to_datetime(["2022-01-15"], utc=True),
-            "ratio": [0.1],  # 1:10 reverse split
-            "symbol": ["TEST"],
-        })
+        mock_get_splits.return_value = pd.DataFrame(
+            {
+                "event_date": pd.to_datetime(["2022-01-15"], utc=True),
+                "ratio": [0.1],  # 1:10 reverse split
+                "symbol": ["TEST"],
+            }
+        )
 
         option_asset = Asset(
             symbol="TEST",
@@ -560,9 +597,7 @@ class TestSplitEdgeCases:
             right="CALL",
         )
 
-        original_strike = thetadata_helper._get_option_query_strike(
-            option_asset
-        )
+        original_strike = thetadata_helper._get_option_query_strike(option_asset)
 
         # Reverse splits: ratio < 1 should still be applied. A 1:10 reverse split (ratio=0.1)
         # means today's strikes are 10x larger than pre-split strikes.

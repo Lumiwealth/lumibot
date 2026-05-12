@@ -9,82 +9,181 @@ This implementation uses:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from importlib import import_module
-from typing import TYPE_CHECKING, Dict, Optional
-import time
-import threading
+# pyright: reportUnknownVariableType=false, reportUnknownMemberType=false, reportUnknownArgumentType=false
+# pyright: reportUnknownParameterType=false, reportMissingParameterType=false, reportMissingTypeArgument=false
+# pyright: reportInvalidTypeForm=false, reportArgumentType=false, reportOptionalMemberAccess=false
+# pyright: reportOptionalSubscript=false
 import queue
+import threading
+import time
 from collections import defaultdict
+from datetime import UTC, datetime, timedelta
+from importlib import import_module
+from types import ModuleType
+from typing import TYPE_CHECKING, Any, TypeAlias, TypedDict, cast
 
-from .data_source import DataSource
-from lumibot.entities import Asset, Quote
+from lumibot.entities.asset import Asset
+from lumibot.entities.quote import Quote
 from lumibot.tools.lumibot_logger import get_logger
 
+from .data_source import DataSource
+
 if TYPE_CHECKING:
-    from lumibot.entities import Bars
+    from lumibot.entities.bars import Bars
 
 logger = get_logger(__name__)
+PolarsDataFrame: TypeAlias = Any  # noqa: UP040
+LiveRecord: TypeAlias = Any  # noqa: UP040
 
 
-class _LazyModule:
+class LiveBar(TypedDict):
+    datetime: datetime
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+
+
+class LiveTrade(TypedDict):
+    price: float
+    size: float
+    event_time: datetime
+    received_at: datetime
+
+
+class LiveQuote(TypedDict):
+    bid: float | None
+    ask: float | None
+    bid_size: float | None
+    ask_size: float | None
+    event_time: datetime
+    received_at: datetime
+
+
+LiveEntry: TypeAlias = LiveTrade | LiveQuote  # noqa: UP040
+
+
+class _LazyModule(ModuleType):
+    _module_name: str
+    _module: ModuleType | None
+
     __slots__ = ("_module_name", "_module")
 
-    def __init__(self, module_name: str):
+    def __init__(self, module_name: str) -> None:
+        super().__init__(module_name)
         object.__setattr__(self, "_module_name", module_name)
         object.__setattr__(self, "_module", None)
 
-    def _load(self):
-        module = object.__getattribute__(self, "_module")
+    def _load(self) -> ModuleType:
+        module = cast(ModuleType | None, object.__getattribute__(self, "_module"))
         if module is None:
-            module = import_module(object.__getattribute__(self, "_module_name"))
+            module = import_module(cast(str, object.__getattribute__(self, "_module_name")))
             object.__setattr__(self, "_module", module)
         return module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        setattr(self._load(), name, value)
+
+    def __delattr__(self, name: str) -> None:
+        if name in {"_module_name", "_module"}:
+            object.__delattr__(self, name)
+        else:
+            delattr(self._load(), name)
 
 
 pl = _LazyModule("polars")
 databento_helper_polars = _LazyModule("lumibot.tools.databento_helper_polars")
 futures_roll = _LazyModule("lumibot.tools.futures_roll")
-_DATABENTO_MODULE = None
-_BARS_CLASS = None
+db: Any | None = None
+_databento_module_cache: ModuleType | None = None
+_bars_class_cache: type[Any] | None = None
 
 
-def _databento_module():
-    global _DATABENTO_MODULE
-    if _DATABENTO_MODULE is None:
+def _databento_module() -> Any | None:
+    global _databento_module_cache, db
+    if db is not None:
+        return db
+    if _databento_module_cache is None:
         try:
-            _DATABENTO_MODULE = import_module("databento")
+            _databento_module_cache = import_module("databento")
         except ImportError:  # pragma: no cover - optional dependency
             return None
-    return _DATABENTO_MODULE
+    db = _databento_module_cache
+    return _databento_module_cache
 
 
-def _bars_class():
-    global _BARS_CLASS
-    if _BARS_CLASS is None:
-        from lumibot.entities import Bars
+def _bars_class() -> type[Any]:
+    global _bars_class_cache
+    if _bars_class_cache is None:
+        from lumibot.entities.bars import Bars
 
-        _BARS_CLASS = Bars
-    return _BARS_CLASS
-
-
-def _ensure_polars_tz(*args, **kwargs):
-    return databento_helper_polars._ensure_polars_datetime_timezone(*args, **kwargs)
+        _bars_class_cache = Bars
+    return _bars_class_cache
 
 
-def _ensure_polars_precision(*args, **kwargs):
-    return databento_helper_polars._ensure_polars_datetime_precision(*args, **kwargs)
+def _ensure_polars_tz(df: PolarsDataFrame) -> PolarsDataFrame:
+    return databento_helper_polars._ensure_polars_datetime_timezone(df)
 
 
-def _format_futures_symbol_for_databento(*args, **kwargs):
-    return databento_helper_polars._format_futures_symbol_for_databento(*args, **kwargs)
+def _ensure_polars_precision(df: PolarsDataFrame) -> PolarsDataFrame:
+    return databento_helper_polars._ensure_polars_datetime_precision(df)
 
 
-def _generate_databento_symbol_alternatives(*args, **kwargs):
-    return databento_helper_polars._generate_databento_symbol_alternatives(*args, **kwargs)
+def _format_futures_symbol_for_databento(asset: Asset, reference_date: datetime | None = None) -> str:
+    return cast(
+        str,
+        databento_helper_polars._format_futures_symbol_for_databento(asset, reference_date=reference_date),
+    )
+
+
+def _generate_databento_symbol_alternatives(root_symbol: str, resolved_contract: str) -> list[str]:
+    return cast(
+        list[str],
+        databento_helper_polars._generate_databento_symbol_alternatives(root_symbol, resolved_contract),
+    )
+
+
+def _record_type_name(record: LiveRecord) -> str:
+    return record.__class__.__name__
+
+
+def _coerce_int(value: Any, default: int = 0) -> int:
+    try:
+        if value is None:
+            return default
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _coerce_float(value: Any, default: float = 0.0) -> float:
+    try:
+        if value is None:
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _normalize_scaled_price(value: Any) -> float | None:
+    if value is None:
+        return None
+    price = _coerce_float(value)
+    return price / 1e9 if price > 1e10 else price
+
+
+def _coerce_datetime(value: Any, fallback: datetime) -> datetime:
+    if isinstance(value, datetime):
+        dt = value
+    elif hasattr(value, "to_pydatetime"):
+        dt = cast(datetime, value.to_pydatetime())
+    else:
+        return fallback
+    return dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt.astimezone(UTC)
 
 
 class DataBentoDataPolars(DataSource):
@@ -94,14 +193,14 @@ class DataBentoDataPolars(DataSource):
     Uses Live API for real-time trade streaming to achieve <1 minute lag.
     Falls back to Historical API for older data.
     """
-    
+
     SOURCE = "DATABENTO"
     MIN_TIMESTEP = "minute"
-    TIMESTEP_MAPPING = {
-        "minute": "1m",
-        "day": "1d",
-        "hour": "1h"
-    }
+    TIMESTEP_MAPPING: list[dict[str, Any]] = [
+        {"timestep": "minute", "representations": ["1m", "minute", "1 minute"]},
+        {"timestep": "hour", "representations": ["1h", "hour", "1 hour"]},
+        {"timestep": "day", "representations": ["1d", "day", "1 day"]},
+    ]
 
     def __init__(
         self,
@@ -110,9 +209,9 @@ class DataBentoDataPolars(DataSource):
         enable_cache: bool = True,
         cache_duration_minutes: int = 60,
         enable_live_stream: bool = True,
-        timeout: int = None,  # For backwards compatibility
-        max_retries: int = None  # For backwards compatibility
-    ):
+        timeout: int | None = None,  # For backwards compatibility
+        max_retries: int | None = None,  # For backwards compatibility
+    ) -> None:
         """Initialize DataBento data source with Live API support"""
         super().__init__(api_key=api_key, has_paid_subscription=has_paid_subscription)
 
@@ -127,35 +226,35 @@ class DataBentoDataPolars(DataSource):
         self.enable_live_stream = enable_live_stream
 
         # Caches
-        self._last_price_cache = {}
-        self._eager_cache = {}
-        self._filtered_data_cache = {}
-        self._cache_metadata = {}
-        self._cache_timestamps = {}
+        self._last_price_cache: dict[Any, Any] = {}
+        self._eager_cache: dict[Any, Any] = {}
+        self._filtered_data_cache: dict[Any, Any] = {}
+        self._cache_metadata: dict[Any, Any] = {}
+        self._cache_timestamps: dict[Any, datetime] = {}
 
         # Live streaming state
-        self._live_client = None
-        self._producer_threads = {}  # Map symbol to producer thread
-        self._consumer_thread = None
-        self._finalizer_thread = None
+        self._live_client: Any | None = None
+        self._producer_threads: dict[str, threading.Thread] = {}
+        self._consumer_thread: threading.Thread | None = None
+        self._finalizer_thread: threading.Thread | None = None
         self._stop_streaming = False
-        self._minute_bars = defaultdict(dict)
+        self._minute_bars: defaultdict[str, dict[datetime, LiveBar]] = defaultdict(dict)
         self._bars_lock = threading.Lock()
-        self._finalized_minutes = defaultdict(set)
-        self._subscribed_symbols = set()
-        self._last_trade_time = {}
-        self._last_ts_event = {}  # Track last timestamp per symbol for reconnection
-        self._symbol_mapping = {}  # Maps instrument_id to symbol
-        self._record_queue = queue.Queue(maxsize=10000)
+        self._finalized_minutes: defaultdict[str, set[datetime]] = defaultdict(set)
+        self._subscribed_symbols: set[str] = set()
+        self._last_trade_time: dict[str, datetime] = {}
+        self._last_ts_event: dict[str, int] = {}  # Track last timestamp per symbol for reconnection
+        self._symbol_mapping: dict[int, str] = {}  # Maps instrument_id to symbol
+        self._record_queue: queue.Queue[tuple[str, LiveRecord]] = queue.Queue(maxsize=10000)
         self._reconnect_backoff = 1.0
 
         # Live tick cache
         self._live_cache_lock = threading.RLock()
-        self._latest_trades: Dict[str, dict] = {}
-        self._latest_quotes: Dict[str, dict] = {}
+        self._latest_trades: dict[str, LiveTrade] = {}
+        self._latest_quotes: dict[str, LiveQuote] = {}
         self._max_live_age = timedelta(seconds=2)
-        self._stale_warning_issued: Dict[str, bool] = {}
-        
+        self._stale_warning_issued: dict[str, bool] = {}
+
         # Configuration
         self._finalize_grace_seconds = 3  # Wait 3 seconds after minute ends to finalize
         self._prune_older_minutes = 720  # Remove bars older than 12 hours
@@ -164,63 +263,65 @@ class DataBentoDataPolars(DataSource):
         if self.enable_live_stream:
             self._init_live_streaming()
 
-    def _should_use_live_api(self, start_dt: datetime, end_dt: datetime) -> bool:
+    def _should_use_live_api(self, start_dt: datetime | None, end_dt: datetime | None) -> bool:
         """Return True when the requested window should use the live API."""
         if not self.enable_live_stream:
             return False
         if start_dt is None or end_dt is None:
             return False
         if start_dt.tzinfo is None:
-            start_dt = start_dt.replace(tzinfo=timezone.utc)
+            start_dt = start_dt.replace(tzinfo=UTC)
         if end_dt.tzinfo is None:
-            end_dt = end_dt.replace(tzinfo=timezone.utc)
+            end_dt = end_dt.replace(tzinfo=UTC)
         if end_dt < start_dt:
             start_dt, end_dt = end_dt, start_dt
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         live_window = timedelta(hours=24)
         return end_dt >= now - live_window
 
-    
-    def _init_live_streaming(self):
+    def _init_live_streaming(self) -> None:
         """Initialize DataBento Live API client for real-time data"""
         try:
             self._stop_streaming = False
-            
+
             # Start consumer thread to process records from queue
             self._consumer_thread = threading.Thread(target=self._consumer_loop, daemon=True)
             self._consumer_thread.start()
-            
+
             # Start finalizer thread to mark old bars as complete
             self._finalizer_thread = threading.Thread(target=self._finalizer_loop, daemon=True)
             self._finalizer_thread.start()
-            
+
             logger.debug("[DATABENTO][LIVE] Live streaming threads initialized")
-            
+
         except Exception as e:
             logger.error(f"[DATABENTO][LIVE] Failed to initialize Live streaming: {e}", exc_info=True)
             self.enable_live_stream = False
-    
-    def _live_stream_worker(self, symbol: str, start_time: datetime):
+
+    def _live_stream_worker(self, symbol: str, start_time: datetime) -> None:
         """Producer thread that subscribes and iterates in the same context"""
         logger.debug(f"[DATABENTO][PRODUCER] Starting for {symbol}")
         reconnect_attempts = 0
         max_reconnect_attempts = 5
         backoff_seconds = 1
-        
+
         while not self._stop_streaming and reconnect_attempts < max_reconnect_attempts:
             try:
                 # Create a new client for this producer
-                client = _databento_module().Live(key=self._api_key)
-                
+                databento_module = _databento_module()
+                if databento_module is None:
+                    raise ImportError("DataBento package not available")
+                client = databento_module.Live(key=self._api_key)
+
                 logger.debug(f"[DATABENTO][PRODUCER] Subscribing to {symbol} from {start_time.isoformat()}")
-                
+
                 # Subscribe - must happen in same context as iteration
                 client.subscribe(
                     dataset="GLBX.MDP3",
                     schema="trades",
                     stype_in="raw_symbol",
                     symbols=[symbol],
-                    start=start_time.isoformat()
+                    start=start_time.isoformat(),
                 )
 
                 # Attempt to subscribe to top-of-book quotes for richer data
@@ -230,172 +331,183 @@ class DataBentoDataPolars(DataSource):
                         schema="quotes",
                         stype_in="raw_symbol",
                         symbols=[symbol],
-                        start=start_time.isoformat()
+                        start=start_time.isoformat(),
                     )
                 except Exception as quote_sub_err:
-                    logger.debug(f"[DATABENTO][PRODUCER] Quote subscription not available for {symbol}: {quote_sub_err}")
-                
+                    logger.debug(
+                        f"[DATABENTO][PRODUCER] Quote subscription not available for {symbol}: {quote_sub_err}"
+                    )
+
                 # Immediately iterate in the SAME context
                 record_count = 0
                 error_count = 0
-                
+
                 for record in client:
                     if self._stop_streaming:
                         break
-                    
+
                     record_count += 1
-                    
+
                     # Handle ErrorMsg records
-                    if hasattr(record, '__class__') and record.__class__.__name__ == 'ErrorMsg':
+                    record_type = _record_type_name(record)
+                    if record_type == "ErrorMsg":
                         error_count += 1
-                        err_msg = getattr(record, 'err', 'Unknown error')
+                        err_msg = getattr(record, "err", "Unknown error")
                         logger.error(f"[DATABENTO][PRODUCER] Error from server: {err_msg}")
                         if error_count > 3:
-                            logger.error(f"[DATABENTO][PRODUCER] Too many errors, will reconnect")
+                            logger.error("[DATABENTO][PRODUCER] Too many errors, will reconnect")
                             break
                         continue
-                    
+
                     # Reset error count on successful records
                     error_count = 0
-                    
+
                     # Put record in queue for consumer
                     try:
                         self._record_queue.put((symbol, record), timeout=0.1)
-                        
+
                         # Track last event timestamp for reconnection
-                        if hasattr(record, 'ts_event'):
-                            self._last_ts_event[symbol] = getattr(record, 'ts_event')
-                        
+                        if hasattr(record, "ts_event"):
+                            self._last_ts_event[symbol] = _coerce_int(record.ts_event)
+
                         # Log progress (only first few)
                         if record_count <= 3:
-                            logger.debug(f"[DATABENTO][PRODUCER] {symbol} record #{record_count}: {record.__class__.__name__}")
-                    
+                            logger.debug(f"[DATABENTO][PRODUCER] {symbol} record #{record_count}: {record_type}")
+
                     except queue.Full:
-                        logger.warning(f"[DATABENTO][PRODUCER] Queue full, dropping record")
-                
+                        logger.warning("[DATABENTO][PRODUCER] Queue full, dropping record")
+
                 # Clean exit
                 logger.debug(f"[DATABENTO][PRODUCER] {symbol} stopped after {record_count} records")
                 break  # Successful completion
-                
+
             except Exception as e:
                 logger.error(f"[DATABENTO][PRODUCER] {symbol} error: {e}")
                 reconnect_attempts += 1
-                
+
                 if reconnect_attempts < max_reconnect_attempts:
-                    sleep_time = backoff_seconds * (2 ** reconnect_attempts)
-                    logger.debug(f"[DATABENTO][PRODUCER] Reconnecting {symbol} in {sleep_time}s (attempt {reconnect_attempts})")
+                    sleep_time = backoff_seconds * (2**reconnect_attempts)
+                    logger.debug(
+                        f"[DATABENTO][PRODUCER] Reconnecting {symbol} in {sleep_time}s (attempt {reconnect_attempts})"
+                    )
                     time.sleep(sleep_time)
-                    
+
                     # Update start time for reconnection to avoid duplicate data
                     if symbol in self._last_ts_event:
                         # Start from last received timestamp (databento timestamps are in nanoseconds)
                         ts_ns = self._last_ts_event[symbol]
                         if ts_ns > 0:
-                            start_time = datetime.fromtimestamp(ts_ns / 1e9, tz=timezone.utc)
+                            start_time = datetime.fromtimestamp(ts_ns / 1e9, tz=UTC)
                         logger.debug(f"[DATABENTO][PRODUCER] Resuming from last event: {start_time.isoformat()}")
                 else:
                     logger.error(f"[DATABENTO][PRODUCER] {symbol} max reconnection attempts reached")
-    
-    def _subscribe_to_symbol(self, symbol: str, start_time: datetime = None, min_bars: int = 10):
+
+    def _subscribe_to_symbol(self, symbol: str, start_time: datetime | None = None, min_bars: int = 10) -> None:
         """Start a producer thread for a symbol"""
         if symbol in self._subscribed_symbols:
             logger.debug(f"[DATABENTO][LIVE] {symbol} already subscribed")
             return
-        
+
         try:
             # Calculate start time for replay
             if start_time is None:
                 # Request enough history to build minute bars
-                start_time = datetime.now(timezone.utc) - timedelta(minutes=max(30, min_bars * 2))
-            
+                start_time = datetime.now(UTC) - timedelta(minutes=max(30, min_bars * 2))
+
             logger.debug(f"[DATABENTO][LIVE] Starting producer for {symbol}")
             logger.debug(f"[DATABENTO][LIVE]   Replay from: {start_time.isoformat()}")
-            
+
             # Start producer thread for this symbol
             producer_thread = threading.Thread(
                 target=self._live_stream_worker,
                 args=(symbol, start_time),
                 daemon=True,
-                name=f"databento-producer-{symbol}"
+                name=f"databento-producer-{symbol}",
             )
             producer_thread.start()
-            
+
             self._subscribed_symbols.add(symbol)
             self._producer_threads[symbol] = producer_thread
             logger.debug(f"[DATABENTO][LIVE] Producer started for {symbol}")
-            
+
         except Exception as e:
             logger.error(f"[DATABENTO][LIVE] Failed to start producer for {symbol}: {e}", exc_info=True)
-    
-    def _consumer_loop(self):
+
+    def _consumer_loop(self) -> None:
         """Consumer thread that processes records from the queue"""
         logger.debug("[DATABENTO][CONSUMER] Started")
         trade_count = 0
-        
+
         while not self._stop_streaming:
             try:
                 # Get record from queue with timeout
                 symbol, record = self._record_queue.get(timeout=1.0)
-                
+                record_type = _record_type_name(record)
+
                 # Handle symbol mappings
-                if hasattr(record, '__class__') and record.__class__.__name__ == 'SymbolMappingMsg':
-                    instrument_id = getattr(record, 'instrument_id', None)
-                    if instrument_id:
-                        for attr in ['raw_symbol', 'stype_out_symbol', 'symbol']:
+                if record_type == "SymbolMappingMsg":
+                    instrument_id = _coerce_int(getattr(record, "instrument_id", None), default=-1)
+                    if instrument_id >= 0:
+                        for attr in ["raw_symbol", "stype_out_symbol", "symbol"]:
                             mapped_symbol = getattr(record, attr, None)
                             if mapped_symbol:
-                                self._symbol_mapping[instrument_id] = mapped_symbol
-                                logger.debug(f"[DATABENTO][CONSUMER] Symbol mapping: {instrument_id} -> {mapped_symbol}")
+                                self._symbol_mapping[instrument_id] = str(mapped_symbol)
+                                logger.debug(
+                                    f"[DATABENTO][CONSUMER] Symbol mapping: {instrument_id} -> {str(mapped_symbol)}"
+                                )
                                 break
-                
+
                 # Process trade messages
-                elif hasattr(record, '__class__') and record.__class__.__name__ == 'TradeMsg':
-                    instrument_id = getattr(record, 'instrument_id', None)
-                    
+                elif record_type == "TradeMsg":
+                    instrument_id = _coerce_int(getattr(record, "instrument_id", None), default=-1)
+
                     # Try to get symbol from mapping or use provided symbol
                     actual_symbol = self._symbol_mapping.get(instrument_id, symbol)
-                    
+
                     # Process the trade
                     if actual_symbol:
-                        self._last_trade_time[actual_symbol] = datetime.now(timezone.utc)
+                        self._last_trade_time[actual_symbol] = datetime.now(UTC)
                         trade_count += 1
-                        
+
                         # Log only first few trades for verification
-                        raw_price = getattr(record, 'price', 0)
-                        price = raw_price / 1e9 if raw_price > 1e10 else raw_price
-                        size = getattr(record, 'size', 0)
-                        ts_event = getattr(record, 'ts_event', 0)
-                        trade_dt = datetime.fromtimestamp(ts_event / 1e9, tz=timezone.utc)
+                        raw_price = getattr(record, "price", 0)
+                        price = _normalize_scaled_price(raw_price)
+                        if price is None:
+                            continue
+                        size = _coerce_float(getattr(record, "size", 0))
+                        ts_event = _coerce_int(getattr(record, "ts_event", 0))
+                        trade_dt = (
+                            datetime.fromtimestamp(ts_event / 1e9, tz=UTC)
+                            if ts_event > 0
+                            else datetime.now(UTC)
+                        )
 
                         if trade_count <= 3:
-                            logger.debug(f"[DATABENTO][CONSUMER] Trade #{trade_count} {actual_symbol} @ {price:.2f} size={size}")
-                        
+                            logger.debug(
+                                f"[DATABENTO][CONSUMER] Trade #{trade_count} {actual_symbol} @ {price:.2f} size={size}"
+                            )
+
                         # Update live trade cache
                         self._record_live_trade(actual_symbol, price, size, trade_dt)
 
                         # Aggregate the trade into minute bars
                         self._aggregate_trade(actual_symbol, price, size, trade_dt)
 
-                elif hasattr(record, '__class__') and record.__class__.__name__ in {"Mbp1Msg", "BboMsg", "QuoteMsg"}:
-                    actual_symbol = getattr(record, 'symbol', symbol)
-                    bid_px = getattr(record, 'bid_px', None)
-                    ask_px = getattr(record, 'ask_px', None)
-                    bid_sz = getattr(record, 'bid_sz', None)
-                    ask_sz = getattr(record, 'ask_sz', None)
-                    ts_event = getattr(record, 'ts_event', None)
+                elif record_type in {"Mbp1Msg", "BboMsg", "QuoteMsg"}:
+                    actual_symbol = str(getattr(record, "symbol", symbol))
+                    bid_px = getattr(record, "bid_px", None)
+                    ask_px = getattr(record, "ask_px", None)
+                    bid_sz = getattr(record, "bid_sz", None)
+                    ask_sz = getattr(record, "ask_sz", None)
+                    ts_event = getattr(record, "ts_event", None)
 
                     if bid_px is not None or ask_px is not None:
-                        # Normalize units (DataBento quotes may be scaled by 1e9)
-                        def _normalize(val):
-                            if val is None:
-                                return None
-                            return float(val) / 1e9 if val > 1e10 else float(val)
-
-                        bid_price = _normalize(bid_px)
-                        ask_price = _normalize(ask_px)
+                        bid_price = _normalize_scaled_price(bid_px)
+                        ask_price = _normalize_scaled_price(ask_px)
                         bid_size = float(bid_sz) if bid_sz is not None else None
                         ask_size = float(ask_sz) if ask_sz is not None else None
-                        ts_dt = datetime.fromtimestamp(ts_event / 1e9, tz=timezone.utc) if ts_event else datetime.now(timezone.utc)
+                        ts_event_ns = _coerce_int(ts_event)
+                        ts_dt = datetime.fromtimestamp(ts_event_ns / 1e9, tz=UTC) if ts_event_ns > 0 else datetime.now(UTC)
 
                         self._record_live_quote(actual_symbol, bid_price, ask_price, bid_size, ask_size, ts_dt)
 
@@ -403,21 +515,21 @@ class DataBentoDataPolars(DataSource):
                 continue
             except Exception as e:
                 logger.error(f"[DATABENTO][CONSUMER] Error processing record: {e}")
-        
+
         logger.debug(f"[DATABENTO][CONSUMER] Stopped after {trade_count} trades")
-    
-    def _finalizer_loop(self):
+
+    def _finalizer_loop(self) -> None:
         """Finalizer thread that marks old bars as complete"""
         logger.debug("[DATABENTO][FINALIZER] Started")
-        
+
         while not self._stop_streaming:
             try:
                 time.sleep(5)  # Check every 5 seconds
-                
-                current_time = datetime.now(timezone.utc)
+
+                current_time = datetime.now(UTC)
                 cutoff_time = current_time - timedelta(seconds=self._finalize_grace_seconds)
                 cutoff_minute = cutoff_time.replace(second=0, microsecond=0)
-                
+
                 with self._bars_lock:
                     for symbol in list(self._minute_bars.keys()):
                         # Finalize minutes that are complete
@@ -425,116 +537,118 @@ class DataBentoDataPolars(DataSource):
                             if minute_dt < cutoff_minute and minute_dt not in self._finalized_minutes[symbol]:
                                 self._finalized_minutes[symbol].add(minute_dt)
                                 bar = self._minute_bars[symbol][minute_dt]
-                                logger.debug(f"[DATABENTO][FINALIZER] Finalized {symbol} bar at {minute_dt}: OHLC={bar['open']:.2f}/{bar['high']:.2f}/{bar['low']:.2f}/{bar['close']:.2f} vol={bar['volume']}")
-                        
+                                logger.debug(
+                                    f"[DATABENTO][FINALIZER] Finalized {symbol} bar at {minute_dt}: OHLC={bar['open']:.2f}/{bar['high']:.2f}/{bar['low']:.2f}/{bar['close']:.2f} vol={bar['volume']}"
+                                )
+
                         # Prune old bars to prevent unlimited memory growth
                         prune_before = current_time - timedelta(minutes=self._prune_older_minutes)
                         old_minutes = [dt for dt in self._minute_bars[symbol].keys() if dt < prune_before]
                         for old_dt in old_minutes:
                             del self._minute_bars[symbol][old_dt]
                             self._finalized_minutes[symbol].discard(old_dt)
-                        
+
                         if old_minutes:
                             logger.debug(f"[DATABENTO][FINALIZER] Pruned {len(old_minutes)} old bars for {symbol}")
-                
+
             except Exception as e:
                 logger.error(f"[DATABENTO][FINALIZER] Error: {e}")
-        
+
         logger.debug("[DATABENTO][FINALIZER] Stopped")
-    
-    def _aggregate_trade(self, symbol: str, price: float, size: float, trade_time: datetime):
+
+    def _aggregate_trade(self, symbol: str, price: float, size: float, trade_time: datetime) -> None:
         """Aggregate a trade into minute bars"""
         minute = trade_time.replace(second=0, microsecond=0)
 
         # Skip if already finalized
         if minute in self._finalized_minutes[symbol]:
             return
-        
+
         # Get current time to check if bar should be finalized
-        current_time = datetime.now(timezone.utc)
+        current_time = datetime.now(UTC)
         current_minute = current_time.replace(second=0, microsecond=0)
-        
+
         # Initialize symbol's bar dict if needed
         if symbol not in self._minute_bars:
             self._minute_bars[symbol] = {}
-        
+
         # Create or update the minute bar
         if minute not in self._minute_bars[symbol]:
             # New minute bar
             self._minute_bars[symbol][minute] = {
-                'datetime': minute,
-                'open': price,
-                'high': price,
-                'low': price,
-                'close': price,
-                'volume': size
+                "datetime": minute,
+                "open": price,
+                "high": price,
+                "low": price,
+                "close": price,
+                "volume": size,
             }
             logger.debug(f"[DATABENTO][LIVE] New minute bar: {symbol} {minute} @ {price:.2f}")
         else:
             # Update existing bar
             bar = self._minute_bars[symbol][minute]
-            bar['high'] = max(bar['high'], price)
-            bar['low'] = min(bar['low'], price)
-            bar['close'] = price
-            bar['volume'] += size
-        
+            bar["high"] = max(bar["high"], price)
+            bar["low"] = min(bar["low"], price)
+            bar["close"] = price
+            bar["volume"] += size
+
         # Finalize old bars (anything older than current minute)
         for bar_minute in list(self._minute_bars[symbol].keys()):
             if bar_minute < current_minute and bar_minute not in self._finalized_minutes[symbol]:
                 self._finalized_minutes[symbol].add(bar_minute)
                 logger.debug(f"[DATABENTO][LIVE] Finalized bar: {symbol} {bar_minute}")
 
-    def _get_live_tail(self, symbol: str, after_dt: datetime) -> Optional[pl.DataFrame]:
+    def _get_live_tail(self, symbol: str, after_dt: datetime) -> PolarsDataFrame | None:
         """Get finalized live bars newer than after_dt"""
         if symbol not in self._minute_bars or not self._minute_bars[symbol]:
             return None
-        
-        current_minute = datetime.now(timezone.utc).replace(second=0, microsecond=0)
-        
+
+        current_minute = datetime.now(UTC).replace(second=0, microsecond=0)
+
         # Get finalized bars newer than after_dt
-        tail_bars = []
+        tail_bars: list[LiveBar] = []
         for minute, bar_data in sorted(self._minute_bars[symbol].items()):
             if minute > after_dt and minute < current_minute:
                 # Only include core OHLCV data to match historical schema
-                simple_bar = {
-                    'datetime': bar_data['datetime'],
-                    'open': bar_data['open'],
-                    'high': bar_data['high'],
-                    'low': bar_data['low'],
-                    'close': bar_data['close'],
-                    'volume': bar_data['volume']
+                simple_bar: LiveBar = {
+                    "datetime": bar_data["datetime"],
+                    "open": bar_data["open"],
+                    "high": bar_data["high"],
+                    "low": bar_data["low"],
+                    "close": bar_data["close"],
+                    "volume": bar_data["volume"],
                 }
                 tail_bars.append(simple_bar)
-        
+
         if not tail_bars:
             return None
-        
-        df = pl.DataFrame(tail_bars).sort('datetime')
+
+        df = pl.DataFrame(tail_bars).sort("datetime")
         df = _ensure_polars_tz(df)
         df = _ensure_polars_precision(df)
         logger.debug(f"[DATABENTO][LIVE] Collected {len(df)} tail bars after {after_dt}")
         return df
 
-    def _record_live_trade(self, symbol: str, price: float, size: float, trade_time: datetime):
+    def _record_live_trade(self, symbol: str, price: float, size: float, trade_time: datetime) -> None:
         """Cache the latest trade for fast quote/price lookups."""
         with self._live_cache_lock:
             self._latest_trades[symbol] = {
                 "price": price,
                 "size": size,
                 "event_time": trade_time,
-                "received_at": datetime.now(timezone.utc)
+                "received_at": datetime.now(UTC),
             }
             self._stale_warning_issued.pop(symbol, None)
 
     def _record_live_quote(
         self,
         symbol: str,
-        bid: Optional[float],
-        ask: Optional[float],
-        bid_size: Optional[float],
-        ask_size: Optional[float],
+        bid: float | None,
+        ask: float | None,
+        bid_size: float | None,
+        ask_size: float | None,
         quote_time: datetime,
-    ):
+    ) -> None:
         with self._live_cache_lock:
             self._latest_quotes[symbol] = {
                 "bid": bid,
@@ -542,81 +656,93 @@ class DataBentoDataPolars(DataSource):
                 "bid_size": bid_size,
                 "ask_size": ask_size,
                 "event_time": quote_time,
-                "received_at": datetime.now(timezone.utc)
+                "received_at": datetime.now(UTC),
             }
             self._stale_warning_issued.pop(symbol, None)
 
-    def _get_live_trade(self, symbol: str) -> Optional[dict]:
+    def _get_live_trade(self, symbol: str) -> LiveTrade | None:
         with self._live_cache_lock:
             return self._latest_trades.get(symbol)
 
-    def _get_live_quote(self, symbol: str) -> Optional[dict]:
+    def _get_live_quote(self, symbol: str) -> LiveQuote | None:
         with self._live_cache_lock:
             return self._latest_quotes.get(symbol)
 
-    def _is_live_entry_fresh(self, entry: Optional[dict]) -> bool:
+    def _is_live_entry_fresh(self, entry: LiveEntry | None) -> bool:
         if not entry:
             return False
         received_at = entry.get("received_at")
         if not received_at:
             return False
-        return datetime.now(timezone.utc) - received_at <= self._max_live_age
+        return datetime.now(UTC) - received_at <= self._max_live_age
 
-    def _warn_stale(self, symbol: str, context: str):
+    def _warn_stale(self, symbol: str, context: str) -> None:
         if not self._stale_warning_issued.get(symbol):
             logger.warning(f"[DATABENTO][LIVE] Falling back to historical data for {symbol} ({context})")
             self._stale_warning_issued[symbol] = True
-    
-    def _resolve_futures_symbol(self, asset: Asset, reference_date: datetime = None) -> str:
-        """Resolve asset to specific futures contract symbol"""
-        if asset.asset_type not in [Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE]:
-            return asset.symbol
 
-        ref_dt = reference_date or datetime.now(timezone.utc)
+    def _resolve_futures_symbol(self, asset: Asset, reference_date: datetime | None = None) -> str:
+        """Resolve asset to specific futures contract symbol"""
+        symbol = asset.symbol
+        if not symbol:
+            raise ValueError("DataBento futures assets require a symbol")
+
+        if asset.asset_type not in [Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE]:
+            return symbol
+
+        ref_dt = reference_date or datetime.now(UTC)
 
         if asset.asset_type == Asset.AssetType.FUTURE and asset.expiration:
             return _format_futures_symbol_for_databento(asset, reference_date=reference_date)
 
         if asset.asset_type == Asset.AssetType.CONT_FUTURE:
-            resolved_contract = futures_roll.resolve_symbol_for_datetime(
-                asset,
-                ref_dt,
-                year_digits=2,
+            resolved_contract = cast(
+                str,
+                futures_roll.resolve_symbol_for_datetime(
+                    asset,
+                    ref_dt,
+                    year_digits=2,
+                ),
             )
         else:
-            temp_asset = Asset(asset.symbol, Asset.AssetType.CONT_FUTURE)
-            resolved_contract = futures_roll.resolve_symbol_for_datetime(
-                temp_asset,
-                ref_dt,
-                year_digits=2,
+            temp_asset = Asset(symbol, Asset.AssetType.CONT_FUTURE)
+            resolved_contract = cast(
+                str,
+                futures_roll.resolve_symbol_for_datetime(
+                    temp_asset,
+                    ref_dt,
+                    year_digits=2,
+                ),
             )
 
-        databento_symbol = _generate_databento_symbol_alternatives(asset.symbol, resolved_contract)
+        databento_symbol = _generate_databento_symbol_alternatives(symbol, resolved_contract)
         return databento_symbol[0] if databento_symbol else resolved_contract
-    
+
     def get_historical_prices(
         self,
         asset: Asset,
         length: int,
         timestep: str = "minute",
-        timeshift: Optional[timedelta] = None,
-        quote: Optional[Asset] = None,
-        exchange: Optional[str] = None,
+        timeshift: timedelta | None = None,
+        quote: Asset | None = None,
+        exchange: str | None = None,
         include_after_hours: bool = True,
-        return_polars: bool = False
-    ) -> Optional[Bars]:
+        return_polars: bool = False,
+        **kwargs: Any,
+    ) -> Bars | None:
         """Get historical prices with live tail merge"""
-        
+        del include_after_hours, kwargs
+
         # Validate asset type
         if asset.asset_type not in [Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE]:
             logger.error(f"DataBento only supports futures. Got: {asset.asset_type}")
             return None
-        
+
         # Calculate time range
-        current_time = datetime.now(timezone.utc)
+        current_time = datetime.now(UTC)
         if timeshift:
             current_time = current_time - timeshift
-        
+
         # Determine time range
         if timestep == "minute":
             time_needed = timedelta(minutes=max(length * 3, 30))
@@ -624,13 +750,13 @@ class DataBentoDataPolars(DataSource):
             time_needed = timedelta(hours=max(length * 2, 12))
         else:
             time_needed = timedelta(days=max(length * 2, 10))
-        
+
         start_time = current_time - time_needed
-        
+
         # Resolve to specific contract
         symbol = self._resolve_futures_symbol(asset, current_time)
         logger.debug(f"Resolved {asset.symbol} to {symbol}")
-        
+
         # Subscribe to live stream if enabled (only for recent data gap)
         if self.enable_live_stream and symbol not in self._subscribed_symbols:
             # Live API can only replay recent data (last ~30 minutes)
@@ -638,10 +764,10 @@ class DataBentoDataPolars(DataSource):
             self._subscribe_to_symbol(symbol, live_start_time, min_bars=30)
             # Give it a moment to start receiving data
             time.sleep(0.5)
-        
+
         # Get historical data
         logger.debug(f"[DATABENTO][HIST] Fetching {symbol} from {start_time} to {current_time}")
-        
+
         df = databento_helper_polars.get_price_data_from_databento_polars(
             api_key=self._api_key,
             asset=asset,
@@ -649,86 +775,90 @@ class DataBentoDataPolars(DataSource):
             end=current_time,
             timestep=timestep,
             venue=exchange,
-            force_cache_update=False
+            force_cache_update=False,
         )
-        
+
         if df is not None and not df.is_empty():
             # Try to append live tail if available
-            if self.enable_live_stream and 'datetime' in df.columns:
+            if self.enable_live_stream and "datetime" in df.columns:
                 try:
-                    hist_last = df['datetime'].max()
-                    # Ensure hist_last is timezone-aware
-                    if not hasattr(hist_last, 'tzinfo') or hist_last.tzinfo is None:
-                        from datetime import timezone as tz
-                        hist_last = hist_last.replace(tzinfo=tz.utc)
+                    hist_last = _coerce_datetime(df["datetime"].max(), current_time)
                     tail_df = self._get_live_tail(symbol, hist_last)
-                    
+
                     # Debug: check live bar status
                     if symbol in self._minute_bars:
                         live_bar_count = len(self._minute_bars[symbol])
                         finalized_count = len(self._finalized_minutes.get(symbol, []))
-                        logger.debug(f"[DATABENTO][DEBUG] {symbol} has {live_bar_count} total bars, {finalized_count} finalized")
+                        logger.debug(
+                            f"[DATABENTO][DEBUG] {symbol} has {live_bar_count} total bars, {finalized_count} finalized"
+                        )
                     else:
                         logger.debug(f"[DATABENTO][DEBUG] No live bars for {symbol}")
-                    
+
                     if tail_df is not None and not tail_df.is_empty():
                         # Make sure both dataframes have the same columns and types
                         try:
                             # Ensure timezone compatibility
-                            hist_tz_info = df['datetime'].dtype
-                            tail_tz_info = tail_df['datetime'].dtype
-                            
-                            logger.debug(f"[DATABENTO][MERGE] Historical datetime: {hist_tz_info}, Live datetime: {tail_tz_info}")
-                            
+                            hist_tz_info = df["datetime"].dtype
+                            tail_tz_info = tail_df["datetime"].dtype
+
+                            logger.debug(
+                                f"[DATABENTO][MERGE] Historical datetime: {hist_tz_info}, Live datetime: {tail_tz_info}"
+                            )
+
                             df = _ensure_polars_tz(df)
                             tail_df = _ensure_polars_tz(tail_df)
                             df = _ensure_polars_precision(df)
                             tail_df = _ensure_polars_precision(tail_df)
 
                             # Only keep columns that exist in both dataframes
-                            common_columns = [col for col in df.columns if col in tail_df.columns]
+                            common_columns: list[str] = [str(col) for col in df.columns if col in tail_df.columns]
                             df_subset = df.select(common_columns)
                             tail_subset = tail_df.select(common_columns)
-                            
+
                             # Ensure numeric columns have compatible types
                             for col in common_columns:
-                                if col != 'datetime':  # Don't modify datetime
+                                if col != "datetime":  # Don't modify datetime
                                     df_dtype = df_subset[col].dtype
                                     tail_dtype = tail_subset[col].dtype
-                                    
+
                                     # Convert both to Float64 for compatibility
                                     if df_dtype != tail_dtype:
-                                        logger.debug(f"[DATABENTO][MERGE] Converting {col}: {df_dtype} vs {tail_dtype} -> Float64")
+                                        logger.debug(
+                                            f"[DATABENTO][MERGE] Converting {col}: {df_dtype} vs {tail_dtype} -> Float64"
+                                        )
                                         df_subset = df_subset.with_columns(pl.col(col).cast(pl.Float64))
                                         tail_subset = tail_subset.with_columns(pl.col(col).cast(pl.Float64))
-                            
+
                             # Merge the data and drop duplicate minutes (keep latest)
-                            merged_df = pl.concat([df_subset, tail_subset]).sort('datetime')
-                            merged_df = merged_df.unique(subset=['datetime'], keep='last').sort('datetime')
-                            
+                            merged_df = pl.concat([df_subset, tail_subset]).sort("datetime")
+                            merged_df = merged_df.unique(subset=["datetime"], keep="last").sort("datetime")
+
                             # If original df had more columns, merge them back
                             if len(df.columns) > len(common_columns):
-                                extra_cols = [col for col in df.columns if col not in common_columns]
-                                df_extra = df.select(['datetime'] + extra_cols)
-                                merged_df = merged_df.join(df_extra, on='datetime', how='left')
-                            
+                                extra_cols: list[str] = [str(col) for col in df.columns if col not in common_columns]
+                                df_extra = df.select(["datetime"] + extra_cols)
+                                merged_df = merged_df.join(df_extra, on="datetime", how="left")
+
                             df = merged_df
                             logger.debug(f"[DATABENTO][MERGE] Successfully appended {len(tail_df)} live bars")
-                        
+
                         except Exception as merge_e:
                             logger.error(f"[DATABENTO][MERGE] All merge attempts failed: {merge_e}")
                             # Last resort - just log what we have
-                            hist_latest = df['datetime'].max() if 'datetime' in df.columns else None  
-                            tail_latest = tail_df['datetime'].max() if 'datetime' in tail_df.columns else None
-                            logger.error(f"[DATABENTO][MERGE] Historical latest: {hist_latest}, Live latest: {tail_latest}")
+                            hist_latest = df["datetime"].max() if "datetime" in df.columns else None
+                            tail_latest = tail_df["datetime"].max() if "datetime" in tail_df.columns else None
+                            logger.error(
+                                f"[DATABENTO][MERGE] Historical latest: {hist_latest}, Live latest: {tail_latest}"
+                            )
                             # Continue with historical data only
                     else:
                         lag = (current_time - hist_last).total_seconds()
                         logger.debug(f"[DATABENTO][MERGE] No live tail bars (lag={lag:.0f}s)")
-                        
+
                 except Exception as e:
                     logger.warning(f"[DATABENTO][MERGE] Failed to merge live tail: {e}")
-            
+
             # Trim to requested length and normalize datetime metadata
             df = df.tail(length)
             df = _ensure_polars_tz(df)
@@ -741,11 +871,12 @@ class DataBentoDataPolars(DataSource):
                 return_polars=return_polars,
                 tzinfo=self.tzinfo,
             )
-        
+
         return None
-    
-    def get_last_price(self, asset: Asset, quote: Optional[Asset] = None, exchange: Optional[str] = None) -> Optional[float]:
+
+    def get_last_price(self, asset: Asset, quote: Asset | None = None, exchange: str | None = None) -> float | None:
         """Get the last price for an asset"""
+        del quote
         symbol = self._resolve_futures_symbol(asset)
 
         # Try live tick cache
@@ -754,7 +885,7 @@ class DataBentoDataPolars(DataSource):
                 self._subscribe_to_symbol(symbol)
 
             trade_entry = self._get_live_trade(symbol)
-            if self._is_live_entry_fresh(trade_entry):
+            if trade_entry is not None and self._is_live_entry_fresh(trade_entry):
                 return float(trade_entry["price"])
             else:
                 self._warn_stale(symbol, "stale trade cache")
@@ -762,15 +893,19 @@ class DataBentoDataPolars(DataSource):
         # Fallback to historical
         bars = self.get_historical_prices(asset, 1, "minute", exchange=exchange)
         if bars and len(bars) > 0:
-            return float(bars.df['close'].tail(1).item())
+            return float(bars.df["close"].tail(1).item())
 
         return None
 
-    def get_quote(self, asset: Asset, quote: Optional[Asset] = None, exchange: Optional[str] = None) -> Quote:
+    def get_quote(self, asset: Asset, quote: Asset | None = None, exchange: str | None = None) -> Quote:
         symbol = self._resolve_futures_symbol(asset)
-        bid = ask = price = bid_size = ask_size = None
-        event_time = datetime.now(timezone.utc)
-        age_ms = None
+        bid: float | None = None
+        ask: float | None = None
+        price: float | None = None
+        bid_size: float | None = None
+        ask_size: float | None = None
+        event_time = datetime.now(UTC)
+        age_ms: int | None = None
 
         if self.enable_live_stream:
             if symbol not in self._subscribed_symbols:
@@ -779,27 +914,26 @@ class DataBentoDataPolars(DataSource):
             quote_entry = self._get_live_quote(symbol)
             trade_entry = self._get_live_trade(symbol)
 
-            if self._is_live_entry_fresh(quote_entry):
-                bid = quote_entry.get("bid")
-                ask = quote_entry.get("ask")
-                bid_size = quote_entry.get("bid_size")
-                ask_size = quote_entry.get("ask_size")
-                event_time = quote_entry.get("event_time", event_time)
-                age_ms = int((datetime.now(timezone.utc) - quote_entry["received_at"]).total_seconds() * 1000)
+            if quote_entry is not None and self._is_live_entry_fresh(quote_entry):
+                bid = quote_entry["bid"]
+                ask = quote_entry["ask"]
+                bid_size = quote_entry["bid_size"]
+                ask_size = quote_entry["ask_size"]
+                event_time = quote_entry["event_time"]
+                age_ms = int((datetime.now(UTC) - quote_entry["received_at"]).total_seconds() * 1000)
 
-                if trade_entry and self._is_live_entry_fresh(trade_entry):
-                    price = trade_entry.get("price")
+                if trade_entry is not None and self._is_live_entry_fresh(trade_entry):
+                    price = trade_entry["price"]
                 elif bid is not None and ask is not None:
                     price = (bid + ask) / 2
-            elif self._is_live_entry_fresh(trade_entry):
-                price = trade_entry.get("price")
-                event_time = trade_entry.get("event_time", event_time)
-                age_ms = int((datetime.now(timezone.utc) - trade_entry["received_at"]).total_seconds() * 1000)
+            elif trade_entry is not None and self._is_live_entry_fresh(trade_entry):
+                price = trade_entry["price"]
+                event_time = trade_entry["event_time"]
+                age_ms = int((datetime.now(UTC) - trade_entry["received_at"]).total_seconds() * 1000)
 
-                tick = 0.25 if price is not None else 0.25
-                if price is not None:
-                    bid = price - tick / 2
-                    ask = price + tick / 2
+                tick = 0.25
+                bid = price - tick / 2
+                ask = price + tick / 2
             else:
                 self._warn_stale(symbol, "stale quote cache")
 
@@ -813,39 +947,45 @@ class DataBentoDataPolars(DataSource):
 
         return Quote(
             asset=asset,
-            price=price,
-            bid=bid,
-            ask=ask,
-            bid_size=bid_size,
-            ask_size=ask_size,
+            price=cast(Any, price),
+            bid=cast(Any, bid),
+            ask=cast(Any, ask),
+            bid_size=cast(Any, bid_size),
+            ask_size=cast(Any, ask_size),
             timestamp=event_time,
             quote_time=event_time,
             raw_data={
                 "source": "databento_live" if self.enable_live_stream else "databento_rest",
                 "age_ms": age_ms,
-            }
+            },
         )
-    
-    def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None) -> dict:
+
+    def get_chains(
+        self,
+        asset: Asset,
+        quote: Asset | None = None,
+        exchange: str | None = None,
+    ) -> dict[str, Any]:
         """Get option chains - not supported for futures"""
+        del asset, quote
         logger.warning("DataBento does not support option chains")
         return {"Chains": {}, "Multiplier": 1, "Exchange": exchange or ""}
-    
-    def __del__(self):
+
+    def __del__(self) -> None:
         """Cleanup on deletion"""
-        if hasattr(self, '_stop_streaming'):
+        if hasattr(self, "_stop_streaming"):
             self._stop_streaming = True
-        
+
         # Stop all producer threads
-        if hasattr(self, '_producer_threads'):
-            for symbol, thread in self._producer_threads.items():
+        if hasattr(self, "_producer_threads"):
+            for _symbol, thread in self._producer_threads.items():
                 if thread and thread.is_alive():
                     thread.join(timeout=1)
-        
+
         # Stop consumer thread
-        if hasattr(self, '_consumer_thread') and self._consumer_thread:
+        if hasattr(self, "_consumer_thread") and self._consumer_thread:
             self._consumer_thread.join(timeout=1)
-        
+
         # Stop finalizer thread
-        if hasattr(self, '_finalizer_thread') and self._finalizer_thread:
+        if hasattr(self, "_finalizer_thread") and self._finalizer_thread:
             self._finalizer_thread.join(timeout=1)

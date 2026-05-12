@@ -1,58 +1,67 @@
 from decimal import Decimal
+from typing import Any
 
 
 def check_numeric(
-    input, type, error_message, positive=True, strict=False, nullable=False, ratio=False, allow_negative=True
-):
-    if nullable and input is None:
+    value: Any,
+    expected_type: type[Any],
+    error_message: str,
+    positive: bool = True,
+    strict: bool = False,
+    nullable: bool = False,
+    ratio: bool = False,
+    allow_negative: bool = True,
+) -> Any:
+    if nullable and value is None:
         return None
 
     error = ValueError(error_message)
 
-    if isinstance(input, str) or (type == Decimal and not isinstance(input, Decimal)):
+    if isinstance(value, str) or (expected_type == Decimal and not isinstance(value, Decimal)):
         try:
-            input = type(input)
-        except:
-            raise error
+            value = expected_type(value)
+        except Exception:
+            raise error from None
 
     if not allow_negative:
         if positive:
             if strict:
-                if input <= 0:
+                if value <= 0:
                     raise error
             else:
-                if input < 0:
+                if value < 0:
                     raise error
 
     if ratio:
-        if input >= 0:
-            if input > 1:
+        if value >= 0:
+            if value > 1:
                 raise error
         else:
-            if input < -1:
+            if value < -1:
                 raise error
 
-    return input
+    return value
 
 
-def check_positive(input, type, custom_message="", strict=False):
+def check_positive(value: Any, expected_type: type[Any], custom_message: str = "", strict: bool = False) -> Any:
     if strict:
-        error_message = "%r is not a strictly positive value." % input
+        error_message = f"{value!r} is not a strictly positive value."
     else:
-        error_message = "%r is not a positive value." % input
+        error_message = f"{value!r} is not a positive value."
     if custom_message:
         error_message = f"{error_message} {custom_message}"
 
     result = check_numeric(
-        input,
-        type,
+        value,
+        expected_type,
         error_message,
         strict=strict,
     )
     return result
 
-def check_quantity(quantity, custom_message=""):
-    error_message = "%r is not a positive Decimal." % quantity
+
+def check_quantity(quantity: Any, custom_message: str = "") -> Decimal:
+    error_message = f"{quantity!r} is not a positive Decimal."
     if custom_message:
         error_message = f"{error_message} {custom_message}"
 
@@ -66,8 +75,8 @@ def check_quantity(quantity, custom_message=""):
     return result
 
 
-def check_price(price, custom_message="", nullable=True, allow_negative=True):
-    error_message = "%r is not a valid price." % price
+def check_price(price: Any, custom_message: str = "", nullable: bool = True, allow_negative: bool = True) -> Any:
+    error_message = f"{price!r} is not a valid price."
     if custom_message:
         error_message = f"{error_message} {custom_message}"
 

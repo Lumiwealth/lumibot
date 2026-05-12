@@ -3,10 +3,11 @@ from __future__ import annotations
 import os
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
-from typing import Callable, Dict, Optional
+from typing import Any, Protocol, TypeAlias, TypeGuard, cast
 
 from lumibot.constants import LUMIBOT_CACHE_FOLDER
 from lumibot.credentials import CACHE_REMOTE_CONFIG
@@ -14,8 +15,35 @@ from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
 
+PathInput: TypeAlias = str | os.PathLike[str]  # noqa: UP040
+S3ObjectResponse: TypeAlias = dict[str, object]  # noqa: UP040
 
-class CacheMode(str, Enum):
+
+class _ReadableBody(Protocol):
+    def read(self, amt: int = -1, /) -> bytes: ...
+
+    def close(self) -> None: ...
+
+
+class _S3TransferClient(Protocol):
+    def download_file(self, bucket: str, key: str, filename: str) -> None: ...
+
+    def upload_file(self, filename: str, bucket: str, key: str) -> None: ...
+
+
+class _S3StreamingClient(_S3TransferClient, Protocol):
+    def get_object(self, *, Bucket: str, Key: str) -> S3ObjectResponse: ...
+
+
+def _has_get_object(client: _S3TransferClient) -> TypeGuard[_S3StreamingClient]:
+    return callable(getattr(client, "get_object", None))
+
+
+def _is_readable_body(value: object) -> TypeGuard[_ReadableBody]:
+    return callable(getattr(value, "read", None)) and callable(getattr(value, "close", None))
+
+
+class CacheMode(StrEnum):
     DISABLED = "disabled"
     S3_READWRITE = "s3_readwrite"
     S3_READONLY = "s3_readonly"
@@ -25,16 +53,16 @@ class CacheMode(str, Enum):
 class BacktestCacheSettings:
     backend: str
     mode: CacheMode
-    bucket: Optional[str] = None
+    bucket: str | None = None
     prefix: str = ""
-    region: Optional[str] = None
-    access_key_id: Optional[str] = None
-    secret_access_key: Optional[str] = None
-    session_token: Optional[str] = None
+    region: str | None = None
+    access_key_id: str | None = None
+    secret_access_key: str | None = None
+    session_token: str | None = None
     version: str = "v1"
 
     @staticmethod
-    def from_env(env: Dict[str, Optional[str]]) -> Optional["BacktestCacheSettings"]:
+    def from_env(env: dict[str, str | None]) -> BacktestCacheSettings | None:
         backend = (env.get("backend") or "local").strip().lower()
         mode_raw = (env.get("mode") or "disabled").strip().lower()
 
@@ -88,12 +116,12 @@ class _StubbedS3ErrorCodes:
 class BacktestCacheManager:
     def __init__(
         self,
-        settings: Optional[BacktestCacheSettings],
-        client_factory: Optional[Callable[[BacktestCacheSettings], object]] = None,
+        settings: BacktestCacheSettings | None,
+        client_factory: Callable[[BacktestCacheSettings], object] | None = None,
     ) -> None:
         self._settings = settings
         self._client_factory = client_factory
-        self._client = None
+        self._client: _S3TransferClient | None = None
         self._client_lock = threading.Lock()
         # When using the S3 backend we want "fresh per run" semantics (never trust an on-disk file that
         # may have been produced by a previous cache version), but re-downloading the same object
@@ -112,7 +140,7 @@ class BacktestCacheManager:
         # NOTE: This deliberately avoids logging per-object at INFO (too spammy); we log a single
         # summary line at the end of the backtest instead.
         self._stats_lock = threading.Lock()
-        self._stats: Dict[str, float] = {
+        self._stats: dict[str, float] = {
             "downloads": 0.0,
             "download_bytes": 0.0,
             "download_s": 0.0,
@@ -126,80 +154,80 @@ class BacktestCacheManager:
 
     @property
     def enabled(self) -> bool:
-        return bool(self._settings and self._settings.mode != CacheMode.DISABLED)
+        settings = self._settings
+        return bool(settings and settings.backend == "s3" and settings.mode != CacheMode.DISABLED)
 
     @property
     def mode(self) -> CacheMode:
-        if not self.enabled:
+        settings = self._settings
+        if settings is None or settings.backend != "s3":
             return CacheMode.DISABLED
-        return self._settings.mode  # type: ignore[return-value]
+        return settings.mode
 
     def ensure_local_file(
         self,
-        local_path: Path,
-        payload: Optional[Dict[str, object]] = None,
+        local_path: PathInput,
+        payload: dict[str, object] | None = None,
         force_download: bool = False,
     ) -> bool:
         if not self.enabled:
             return False
 
-        if not isinstance(local_path, Path):
-            local_path = Path(local_path)
+        settings = self._active_s3_settings()
+        bucket = self._require_bucket(settings)
+        local_path = Path(local_path)
 
         remote_key = self.remote_key_for(local_path, payload)
         if remote_key is None:
             return False
 
-        if self._settings and self._settings.backend == "s3":
-            marker_path = local_path.with_suffix(local_path.suffix + ".s3key")
+        marker_path = local_path.with_suffix(local_path.suffix + ".s3key")
 
-            # If the file was already downloaded (or produced) for this exact remote key, allow reuse
-            # across backtest runs. This preserves cache-version isolation because `remote_key`
-            # already includes `self._settings.version`.
-            if local_path.exists() and not force_download and marker_path.exists():
-                try:
-                    marker_value = marker_path.read_text(encoding="utf-8").strip()
-                except Exception:
-                    marker_value = ""
+        # If the file was already downloaded (or produced) for this exact remote key, allow reuse
+        # across backtest runs. This preserves cache-version isolation because `remote_key`
+        # already includes `settings.version`.
+        if local_path.exists() and not force_download and marker_path.exists():
+            try:
+                marker_value = marker_path.read_text(encoding="utf-8").strip()
+            except Exception:
+                marker_value = ""
 
-                if marker_value == remote_key:
-                    with self._stats_lock:
-                        self._stats["local_reuse"] += 1.0
-                    with self._downloaded_remote_keys_lock:
-                        self._downloaded_remote_keys.add(remote_key)
-                    return False
-
-            # If we've already observed this remote key missing in S3 during the current process,
-            # don't keep re-hitting S3 (miss storms can dominate option-heavy runs).
-            if not local_path.exists() and not force_download:
-                with self._missing_remote_keys_lock:
-                    if remote_key in self._missing_remote_keys:
-                        return False
-
-            with self._downloaded_remote_keys_lock:
-                already_downloaded = remote_key in self._downloaded_remote_keys
-
-            # S3 cache mode: ensure we download the object at least once per process (fresh run
-            # semantics), but then allow local reuse to avoid repeated downloads during the same
-            # backtest.
-            if local_path.exists() and already_downloaded and not force_download:
+            if marker_value == remote_key:
                 with self._stats_lock:
-                    self._stats["inprocess_reuse"] += 1.0
+                    self._stats["local_reuse"] += 1.0
+                with self._downloaded_remote_keys_lock:
+                    self._downloaded_remote_keys.add(remote_key)
                 return False
 
-            if local_path.exists():
-                try:
-                    local_path.unlink()
-                except Exception:
-                    pass
-            if marker_path.exists():
-                try:
-                    marker_path.unlink()
-                except Exception:
-                    pass
-            force_download = True
-        elif local_path.exists() and not force_download:
+        # If we've already observed this remote key missing in S3 during the current process,
+        # don't keep re-hitting S3 (miss storms can dominate option-heavy runs).
+        if not local_path.exists() and not force_download:
+            with self._missing_remote_keys_lock:
+                if remote_key in self._missing_remote_keys:
+                    return False
+
+        with self._downloaded_remote_keys_lock:
+            already_downloaded = remote_key in self._downloaded_remote_keys
+
+        # S3 cache mode: ensure we download the object at least once per process (fresh run
+        # semantics), but then allow local reuse to avoid repeated downloads during the same
+        # backtest.
+        if local_path.exists() and already_downloaded and not force_download:
+            with self._stats_lock:
+                self._stats["inprocess_reuse"] += 1.0
             return False
+
+        if local_path.exists():
+            try:
+                local_path.unlink()
+            except Exception:
+                pass
+        if marker_path.exists():
+            try:
+                marker_path.unlink()
+            except Exception:
+                pass
+        force_download = True
 
         client = self._get_client()
         tmp_path = local_path.with_suffix(local_path.suffix + ".s3tmp")
@@ -207,7 +235,7 @@ class BacktestCacheManager:
 
         try:
             started = time.perf_counter()
-            if hasattr(client, "get_object"):
+            if _has_get_object(client):
                 # PERF: `boto3`'s `download_file` uses the high-level S3Transfer manager which can add
                 # substantial overhead when hydrating thousands of *small* cache objects (common in
                 # option-heavy backtests, where each contract has its own parquet file).
@@ -215,23 +243,23 @@ class BacktestCacheManager:
                 # Streaming `get_object` directly to disk avoids that overhead and is materially faster
                 # for small objects. We still write via a temp file + atomic rename to keep the cache
                 # consistent if a download is interrupted.
-                response = client.get_object(Bucket=self._settings.bucket, Key=remote_key)
-                body = response.get("Body")
-                if body is None:
+                response = client.get_object(Bucket=bucket, Key=remote_key)
+                body_value = response.get("Body")
+                if not _is_readable_body(body_value):
                     raise RuntimeError(f"S3 get_object missing Body for key={remote_key!r}")
                 with tmp_path.open("wb") as handle:
                     while True:
-                        chunk = body.read(1024 * 1024)
+                        chunk = body_value.read(1024 * 1024)
                         if not chunk:
                             break
                         handle.write(chunk)
                 try:
-                    body.close()
+                    body_value.close()
                 except Exception:
                     pass
             else:
                 # Test doubles may only implement the legacy `download_file` API.
-                client.download_file(self._settings.bucket, remote_key, str(tmp_path))
+                client.download_file(bucket, remote_key, str(tmp_path))
             elapsed = time.perf_counter() - started
             downloaded_bytes = 0
             try:
@@ -261,7 +289,7 @@ class BacktestCacheManager:
             return True
         except Exception as exc:  # pragma: no cover - narrow in helper
             if tmp_path.exists():
-                tmp_path.unlink(missing_ok=True)  # type: ignore[attr-defined]
+                tmp_path.unlink(missing_ok=True)
             if self._is_not_found_error(exc):
                 logger.debug(
                     "[REMOTE_CACHE][MISS] %s (reason=%s)", remote_key, self._describe_error(exc)
@@ -287,14 +315,15 @@ class BacktestCacheManager:
 
     def on_local_update(
         self,
-        local_path: Path,
-        payload: Optional[Dict[str, object]] = None,
+        local_path: PathInput,
+        payload: dict[str, object] | None = None,
     ) -> bool:
         if not self.enabled or self.mode != CacheMode.S3_READWRITE:
             return False
 
-        if not isinstance(local_path, Path):
-            local_path = Path(local_path)
+        settings = self._active_s3_settings()
+        bucket = self._require_bucket(settings)
+        local_path = Path(local_path)
 
         if not local_path.exists():
             logger.warning(
@@ -308,7 +337,7 @@ class BacktestCacheManager:
 
         client = self._get_client()
         started = time.perf_counter()
-        client.upload_file(str(local_path), self._settings.bucket, remote_key)
+        client.upload_file(str(local_path), bucket, remote_key)
         elapsed = time.perf_counter() - started
         uploaded_bytes = 0
         try:
@@ -334,7 +363,7 @@ class BacktestCacheManager:
             self._stats["upload_bytes"] += float(uploaded_bytes)
         return True
 
-    def stats_snapshot(self) -> Dict[str, float]:
+    def stats_snapshot(self) -> dict[str, float]:
         """Return a copy of the current in-process stats (numbers only; safe for logs)."""
         with self._stats_lock:
             return dict(self._stats)
@@ -368,14 +397,14 @@ class BacktestCacheManager:
 
     def remote_key_for(
         self,
-        local_path: Path,
-        payload: Optional[Dict[str, object]] = None,
-    ) -> Optional[str]:
+        local_path: PathInput,
+        payload: dict[str, object] | None = None,
+    ) -> str | None:
         if not self.enabled:
             return None
 
-        if not isinstance(local_path, Path):
-            local_path = Path(local_path)
+        settings = self._active_s3_settings()
+        local_path = Path(local_path)
 
         try:
             relative_path = local_path.resolve().relative_to(Path(LUMIBOT_CACHE_FOLDER).resolve())
@@ -386,28 +415,27 @@ class BacktestCacheManager:
             return None
 
         components = [
-            self._settings.prefix if self._settings and self._settings.prefix else None,
-            self._settings.version if self._settings else None,
+            settings.prefix if settings.prefix else None,
+            settings.version,
             relative_path.as_posix(),
         ]
         sanitized = [c.strip("/") for c in components if c]
         remote_key = "/".join(sanitized)
         return remote_key
 
-    def _get_client(self):
-        if not self.enabled:
-            raise RuntimeError("Remote cache manager is disabled.")
+    def _get_client(self) -> _S3TransferClient:
+        settings = self._active_s3_settings()
 
         if self._client is None:
             with self._client_lock:
                 if self._client is None:
                     if self._client_factory:
-                        self._client = self._client_factory(self._settings)
+                        self._client = cast(_S3TransferClient, self._client_factory(settings))
                     else:
-                        self._client = self._create_s3_client()
+                        self._client = self._create_s3_client(settings)
         return self._client
 
-    def _create_s3_client(self):
+    def _create_s3_client(self, settings: BacktestCacheSettings) -> _S3TransferClient:
         try:
             import boto3  # type: ignore
             from botocore.config import Config  # type: ignore
@@ -423,28 +451,48 @@ class BacktestCacheManager:
         # These defaults are conservative for intra-region S3 (small parquet chunks, many calls):
         # - 5s connect timeout, 60s read timeout per request/part
         # - standard retry with capped attempts
-        client_config = Config(
+        boto3_module: Any = cast(Any, boto3)
+        config_cls: Any = cast(Any, Config)
+        client_config: object = config_cls(
             connect_timeout=5,
             read_timeout=60,
             retries={"max_attempts": 8, "mode": "standard"},
             max_pool_connections=50,
         )
 
-        session = boto3.session.Session(
-            aws_access_key_id=self._settings.access_key_id,
-            aws_secret_access_key=self._settings.secret_access_key,
-            aws_session_token=self._settings.session_token,
-            region_name=self._settings.region,
+        session: Any = boto3_module.session.Session(
+            aws_access_key_id=settings.access_key_id,
+            aws_secret_access_key=settings.secret_access_key,
+            aws_session_token=settings.session_token,
+            region_name=settings.region,
         )
-        return session.client("s3", config=client_config)
+        return cast(_S3TransferClient, session.client("s3", config=client_config))
+
+    def _active_s3_settings(self) -> BacktestCacheSettings:
+        settings = self._settings
+        if settings is None or settings.backend != "s3" or settings.mode == CacheMode.DISABLED:
+            raise RuntimeError("Remote S3 cache manager is disabled.")
+        return settings
+
+    @staticmethod
+    def _require_bucket(settings: BacktestCacheSettings) -> str:
+        bucket = settings.bucket
+        if not bucket:
+            raise RuntimeError("S3 cache backend requires a bucket.")
+        return bucket
 
     @staticmethod
     def _is_not_found_error(exc: Exception) -> bool:
         # Prefer botocore error codes if available
-        response = getattr(exc, "response", None)
-        if isinstance(response, dict):
-            error = response.get("Error") or {}
-            code = error.get("Code")
+        response_value: object = getattr(exc, "response", None)
+        if isinstance(response_value, dict):
+            response = cast(dict[str, object], response_value)
+            error_value: object = response.get("Error")
+            if isinstance(error_value, dict):
+                error = cast(dict[str, object], error_value)
+                code = error.get("Code")
+            else:
+                code = None
             if isinstance(code, str) and code in _StubbedS3ErrorCodes.NOT_FOUND:
                 return True
 
@@ -460,33 +508,39 @@ class BacktestCacheManager:
 
     @staticmethod
     def _describe_error(exc: Exception) -> str:
-        response = getattr(exc, "response", None)
-        if isinstance(response, dict):
-            error = response.get("Error") or {}
-            code = error.get("Code")
-            message = error.get("Message")
+        response_value: object = getattr(exc, "response", None)
+        if isinstance(response_value, dict):
+            response = cast(dict[str, object], response_value)
+            error_value: object = response.get("Error")
+            if isinstance(error_value, dict):
+                error = cast(dict[str, object], error_value)
+                code = error.get("Code")
+                message = error.get("Message")
+            else:
+                code = None
+                message = None
             return f"{code}: {message}" if code or message else "unknown"
         return str(exc)
 
 
-_MANAGER_LOCK = threading.Lock()
-_MANAGER_INSTANCE: Optional[BacktestCacheManager] = None
+_manager_lock = threading.Lock()
+_manager_instance: BacktestCacheManager | None = None
 
 
 def get_backtest_cache() -> BacktestCacheManager:
-    global _MANAGER_INSTANCE
-    if _MANAGER_INSTANCE is None:
-        with _MANAGER_LOCK:
-            if _MANAGER_INSTANCE is None:
+    global _manager_instance
+    if _manager_instance is None:
+        with _manager_lock:
+            if _manager_instance is None:
                 settings = BacktestCacheSettings.from_env(CACHE_REMOTE_CONFIG)
-                _MANAGER_INSTANCE = BacktestCacheManager(settings)
-    return _MANAGER_INSTANCE
+                _manager_instance = BacktestCacheManager(settings)
+    return _manager_instance
 
 
 def reset_backtest_cache_manager(for_testing: bool = False) -> None:
     """Reset the cached manager instance (intended for unit tests)."""
-    global _MANAGER_INSTANCE
-    with _MANAGER_LOCK:
-        _MANAGER_INSTANCE = None
+    global _manager_instance
+    with _manager_lock:
+        _manager_instance = None
         if not for_testing:
             logger.debug("[REMOTE_CACHE] Manager reset requested.")

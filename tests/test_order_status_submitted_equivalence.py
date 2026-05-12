@@ -1,5 +1,6 @@
 from lumibot.entities import Asset, Order
 
+
 def test_submitted_is_equivalent_to_open_and_new():
     assert Order.is_equivalent_status("submitted", "open")
     assert Order.is_equivalent_status("open", "submitted")

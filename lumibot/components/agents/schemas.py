@@ -1,5 +1,18 @@
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
+
+
+def _empty_str_list() -> list[str]:
+    return []
+
+
+def _empty_warning_list() -> list[dict[str, Any]]:
+    return []
+
+
+def _empty_metadata() -> dict[str, Any]:
+    return {}
 
 
 @dataclass(frozen=True)
@@ -8,7 +21,7 @@ class MCPServer:
     url: str | None = None
     transport: str | None = None
     command: str | None = None
-    args: list[str] = field(default_factory=list)
+    args: list[str] = field(default_factory=_empty_str_list)
     env: dict[str, str] | None = None
     cwd: str | None = None
     exposed_tools: list[str] | None = None
@@ -53,7 +66,7 @@ class AgentRunResult:
     cache_key: str | None = None
     usage: dict[str, Any] | None = None
     payload: dict[str, Any] | None = None
-    warnings: list[dict[str, Any]] = field(default_factory=list)
+    warnings: list[dict[str, Any]] = field(default_factory=_empty_warning_list)
     started_at: str | None = None
     first_event_at: str | None = None
     ended_at: str | None = None
@@ -80,8 +93,6 @@ class AgentRunResult:
     def warning_messages(self) -> list[str]:
         messages: list[str] = []
         for warning in self.warnings:
-            if not isinstance(warning, dict):
-                continue
             message = warning.get("message")
             if isinstance(message, str) and message.strip():
                 messages.append(message.strip())
@@ -94,7 +105,7 @@ class BoundTool:
     description: str
     function: Callable[..., Any]
     source: str = "local"
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=_empty_metadata)
 
 
 @dataclass(frozen=True)
@@ -102,4 +113,4 @@ class ToolDefinition:
     name: str
     description: str
     binder: Callable[[Any, Any], BoundTool]
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=_empty_metadata)

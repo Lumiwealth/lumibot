@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import pandas as pd
 
@@ -40,7 +40,7 @@ class Case:
     max_backtest_time_seconds: int
 
 
-CASES: List[Case] = [
+CASES: list[Case] = [
     Case(
         slug="aapl_deep_dip_calls",
         strategy_name="AAPLDeepDipCalls",
@@ -157,7 +157,7 @@ def _centipercent(value: str) -> int:
     return int(scaled)
 
 
-def _read_tearsheet(tearsheet_csv: Path) -> Dict[str, Dict[str, Any]]:
+def _read_tearsheet(tearsheet_csv: Path) -> dict[str, dict[str, Any]]:
     df = pd.read_csv(tearsheet_csv)
     if "Metric" not in df.columns or "Strategy" not in df.columns:
         raise RuntimeError(f"Unexpected tearsheet format: {tearsheet_csv} columns={list(df.columns)}")
@@ -192,7 +192,7 @@ def _expected_settings_end_date(end_date_exclusive: str) -> str:
     return (end - timedelta(days=1)).isoformat()
 
 
-def _assert_settings_match_window(case: Case, payload: Dict[str, Any]) -> None:
+def _assert_settings_match_window(case: Case, payload: dict[str, Any]) -> None:
     start = str(payload.get("backtesting_start") or "")
     end = str(payload.get("backtesting_end") or "")
 
@@ -209,7 +209,7 @@ def _assert_settings_match_window(case: Case, payload: Dict[str, Any]) -> None:
         )
 
 
-def _load_case(logs_dir: Path, case: Case) -> Dict[str, Any]:
+def _load_case(logs_dir: Path, case: Case) -> dict[str, Any]:
     tearsheet = logs_dir / f"{case.baseline_run_id}_tearsheet.csv"
     settings = logs_dir / f"{case.baseline_run_id}_settings.json"
     if not tearsheet.exists():

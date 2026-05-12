@@ -22,22 +22,22 @@ import csv
 import json
 import re
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
 
 
 @dataclass(frozen=True)
 class Bucket:
     name: str
-    patterns: Tuple[re.Pattern, ...]
+    patterns: tuple[re.Pattern, ...]
 
 
-def _compile(patterns: Iterable[str]) -> Tuple[re.Pattern, ...]:
+def _compile(patterns: Iterable[str]) -> tuple[re.Pattern, ...]:
     return tuple(re.compile(p) for p in patterns)
 
 
-BUCKETS: List[Bucket] = [
+BUCKETS: list[Bucket] = [
     Bucket(
         name="s3_io",
         patterns=_compile(
@@ -134,9 +134,9 @@ def _bucket_for(module: str) -> str:
     return "other"
 
 
-def analyze(path: Path) -> Dict[str, float]:
-    totals: Dict[str, float] = defaultdict(float)
-    totals_by_ctx: Dict[str, Dict[str, float]] = defaultdict(lambda: defaultdict(float))
+def analyze(path: Path) -> dict[str, float]:
+    totals: dict[str, float] = defaultdict(float)
+    totals_by_ctx: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     total = 0.0
     with path.open("r", encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)

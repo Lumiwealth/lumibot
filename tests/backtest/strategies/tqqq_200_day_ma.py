@@ -1,36 +1,37 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from lumibot.strategies.strategy import Strategy
-from lumibot.traders import Trader
-from lumibot.entities import Asset, Order, TradingFee
+import pandas as pd
+
 from lumibot.backtesting import YahooDataBacktesting
 from lumibot.credentials import IS_BACKTESTING
-import pandas as pd
+from lumibot.entities import Asset, Order, TradingFee
+from lumibot.strategies.strategy import Strategy
+from lumibot.traders import Trader
 
 """
 TQQQ 200-Day Moving Average Strategy
 ------------------------------------
 This strategy buys the triple-leveraged NASDAQ ETF (TQQQ) when its closing
 price is ABOVE its 200-day simple moving average (SMA-200) and sells when the
-price dips BELOW the SMA-200.  
+price dips BELOW the SMA-200.
 
 The logic is intentionally very simple so that traders who are new to LumiBot
-can follow along:  
-1. Once a day, fetch the last 200 trading days of data.  
-2. Calculate the SMA-200 from that data.  
-3. Compare the latest closing price to the SMA-200.  
-   • Price > SMA-200  → be IN the market (buy if not already long).  
-   • Price < SMA-200  → be OUT of the market (sell if currently long).  
+can follow along:
+1. Once a day, fetch the last 200 trading days of data.
+2. Calculate the SMA-200 from that data.
+3. Compare the latest closing price to the SMA-200.
+   • Price > SMA-200  → be IN the market (buy if not already long).
+   • Price < SMA-200  → be OUT of the market (sell if currently long).
 
-Visual aids:  
-• A continuous black line plots TQQQ’s closing price.  
-• A continuous blue line plots the SMA-200.  
-• Green upward arrows mark BUY signals.  
+Visual aids:
+• A continuous black line plots TQQQ’s closing price.
+• A continuous blue line plots the SMA-200.
+• Green upward arrows mark BUY signals.
 • Red downward arrows mark SELL signals.
 
 No guarantee of future performance.  Historical results do not assure future
@@ -43,10 +44,10 @@ This code was generated based on the user prompt: 'Make a bot that trades TQQQ b
 class TQQQ200DayMAStrategy(Strategy):
     # Parameters could be made configurable; hard-coded here for simplicity.
     parameters = {
-        "symbol": "SPY",               # Use a dividend-paying ETF for validation
-        "sma_window": 200,              # Length of the moving average
-        "sleeptime": "1D",            # Run the logic once per trading day
-        "capital_allocation": 0.98     # Use 98 % of available cash when buying
+        "symbol": "SPY",  # Use a dividend-paying ETF for validation
+        "sma_window": 200,  # Length of the moving average
+        "sleeptime": "1D",  # Run the logic once per trading day
+        "capital_allocation": 0.98,  # Use 98 % of available cash when buying
     }
 
     def initialize(self):
@@ -98,8 +99,14 @@ class TQQQ200DayMAStrategy(Strategy):
                 else:
                     order = self.create_order(self.tqqq, qty, Order.OrderSide.BUY)
                     self.submit_order(order)
-                    self.add_marker("Buy", price, color="green", symbol="arrow-up", size=10,
-                                    detail_text="Price crossed above SMA-200")
+                    self.add_marker(
+                        "Buy",
+                        price,
+                        color="green",
+                        symbol="arrow-up",
+                        size=10,
+                        detail_text="Price crossed above SMA-200",
+                    )
                     self.log_message(f"BUY {qty} shares TQQQ @ ~{price:.2f}", color="green")
         else:
             signal = "FLAT"
@@ -128,19 +135,17 @@ if __name__ == "__main__":
         # ----------------------------
         trading_fee = TradingFee(percent_fee=0.001)  # 0.1 % assumed commission
         results = TQQQ200DayMAStrategy.backtest(
-            YahooDataBacktesting,                 # Data source for stocks/ETFs
+            YahooDataBacktesting,  # Data source for stocks/ETFs
             benchmark_asset=Asset("SPY", Asset.AssetType.STOCK),
             buy_trading_fees=[trading_fee],
             sell_trading_fees=[trading_fee],
-            quote_asset=Asset("USD", Asset.AssetType.FOREX)
+            quote_asset=Asset("USD", Asset.AssetType.FOREX),
         )
     else:
         # ----------------------------
         # Live trading path
         # ----------------------------
         trader = Trader()
-        strategy = TQQQ200DayMAStrategy(
-            quote_asset=Asset("USD", Asset.AssetType.FOREX)
-        )
+        strategy = TQQQ200DayMAStrategy(quote_asset=Asset("USD", Asset.AssetType.FOREX))
         trader.add_strategy(strategy)
         trader.run_all()

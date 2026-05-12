@@ -5,24 +5,16 @@ if True:
     import sys
 
     myPath = os.path.dirname(os.path.abspath(__file__))
-    sys.path.insert(
-        0, 
-        "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot"
-    )
+    sys.path.insert(0, "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot")
     sys.path.insert(
         0,
         "/Users/robertgrzesik/Development/lumiwealth_tradier/",
     )
-    sys.path.insert(
-        0,
-        "/Users/robertgrzesik/Development/quantstats_lumi/"
-    )
+    sys.path.insert(0, "/Users/robertgrzesik/Development/quantstats_lumi/")
 ################################################################################
 
 
 #!/usr/bin/env python3
-from datetime import timedelta
-from typing import List, Optional
 
 import pandas as pd
 
@@ -118,7 +110,9 @@ class BackdoorButterfly0DTESmartLimit(Strategy):
                 return
 
         start_entry_time = pd.Timestamp("09:45").time()  # User-requested explicit morning start
-        cutoff_entry_time = pd.Timestamp("15:45").time()  # Extended entry window so signals later in the day are eligible
+        cutoff_entry_time = pd.Timestamp(
+            "15:45"
+        ).time()  # Extended entry window so signals later in the day are eligible
 
         if current_dt.time() < start_entry_time:
             self.log_message(
@@ -219,7 +213,7 @@ class BackdoorButterfly0DTESmartLimit(Strategy):
 
         if self.vars.debit_lower_filled and self.vars.debit_middle_filled and not self.vars.debit_complete:
             self.vars.debit_complete = True
-            self.vars.debit_net_paid = (self.vars.debit_lower_price - self.vars.debit_middle_price)
+            self.vars.debit_net_paid = self.vars.debit_lower_price - self.vars.debit_middle_price
             self.log_message(
                 f"Trade entry achieved. Debit spread cost: {self.vars.debit_net_paid:.2f} per contract.",
                 color="green",
@@ -228,7 +222,7 @@ class BackdoorButterfly0DTESmartLimit(Strategy):
 
         if self.vars.credit_middle_filled and self.vars.credit_upper_filled and not self.vars.credit_complete:
             self.vars.credit_complete = True
-            credit_received = (self.vars.credit_middle_price - self.vars.credit_upper_price)
+            credit_received = self.vars.credit_middle_price - self.vars.credit_upper_price
             self.vars.credit_net_received = credit_received
             net_result = credit_received - self.vars.debit_net_paid
             self.log_message(
@@ -278,8 +272,8 @@ class BackdoorButterfly0DTESmartLimit(Strategy):
         self.vars.credit_complete = False
         self.vars.credit_net_received = 0.0
         self.vars.have_active_orders = False
-        self.vars.pending_debit_orders: List[Order] = []
-        self.vars.pending_credit_orders: List[Order] = []
+        self.vars.pending_debit_orders: list[Order] = []
+        self.vars.pending_credit_orders: list[Order] = []
 
         # Removed: self.vars.debit_order_timestamp (timeout logic removed)
 
@@ -331,7 +325,10 @@ class BackdoorButterfly0DTESmartLimit(Strategy):
         self.log_message(f"Debit leg eval lower: {getattr(eval_lower, 'data_quality_flags', None)}", color="white")
         self.log_message(f"Debit leg eval middle: {getattr(eval_middle, 'data_quality_flags', None)}", color="white")
 
-        if not (self.options_helper.has_actionable_price(eval_lower) and self.options_helper.has_actionable_price(eval_middle)):
+        if not (
+            self.options_helper.has_actionable_price(eval_lower)
+            and self.options_helper.has_actionable_price(eval_middle)
+        ):
             self.log_message("Option markets not actionable for debit legs; skipping.", color="yellow")
             return
 
@@ -393,7 +390,10 @@ class BackdoorButterfly0DTESmartLimit(Strategy):
         self.log_message(f"Credit leg eval middle: {getattr(eval_middle, 'data_quality_flags', None)}", color="white")
         self.log_message(f"Credit leg eval upper: {getattr(eval_upper, 'data_quality_flags', None)}", color="white")
 
-        if not (self.options_helper.has_actionable_price(eval_middle) and self.options_helper.has_actionable_price(eval_upper)):
+        if not (
+            self.options_helper.has_actionable_price(eval_middle)
+            and self.options_helper.has_actionable_price(eval_upper)
+        ):
             self.log_message("Option markets not actionable for credit legs; skipping.", color="yellow")
             return
 
@@ -437,7 +437,7 @@ class BackdoorButterfly0DTESmartLimit(Strategy):
         self.vars.have_active_orders = True
         self.log_message("Credit spread orders submitted to finalize butterfly.", color="blue")
 
-    def _find_valid_expiration(self, current_dt) -> Optional[pd.Timestamp]:
+    def _find_valid_expiration(self, current_dt) -> pd.Timestamp | None:
         chains = self.get_chains(self.vars.underlying_asset)
         if not chains:
             self.log_message("Option chains unavailable; cannot trade today.", color="yellow")
@@ -469,7 +469,7 @@ class BackdoorButterfly0DTESmartLimit(Strategy):
         stop_pct = self.parameters.get("stop_loss_pct", 0.15)
         take_pct = self.parameters.get("take_profit_pct", 0.30)
         max_spread_pct = self.parameters.get("max_spread_pct", 0.25)
-        indexes_to_remove: List[int] = []
+        indexes_to_remove: list[int] = []
 
         for idx, butterfly in enumerate(list(self.vars.open_butterflies)):
             quantity = butterfly.get("quantity", 1)
@@ -499,7 +499,9 @@ class BackdoorButterfly0DTESmartLimit(Strategy):
                 continue
 
             current_value = (
-                (valuations["lower_asset"] - 2 * valuations["middle_asset"] + valuations["upper_asset"]) * quantity * 100
+                (valuations["lower_asset"] - 2 * valuations["middle_asset"] + valuations["upper_asset"])
+                * quantity
+                * 100
             )
             initial_value = butterfly["initial_net_price"] * quantity * 100
             if initial_value == 0:

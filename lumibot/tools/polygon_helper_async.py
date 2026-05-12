@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime, timedelta, timezone
+from collections.abc import Mapping
+from datetime import UTC, datetime, timedelta
 from importlib import import_module
-from typing import Any, Dict, List, Optional
+from types import TracebackType
+from typing import Any, cast
 
-from lumibot.entities import Asset
+from lumibot.entities.asset import Asset
 from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
@@ -18,81 +20,97 @@ RATE_LIMIT_PER_MINUTE = 100  # Polygon rate limit
 MAX_RETRIES = 3
 RETRY_DELAY = 0.5
 
-_AIOHTTP = None
-_ASYNCIO = None
-_POLARS = None
-_TQDM = None
+_aiohttp_module: Any | None = None
+_asyncio_module: Any | None = None
+_polars_module: Any | None = None
+_tqdm_callable: Any | None = None
 
 
-def _asyncio():
-    global _ASYNCIO
-    if _ASYNCIO is None:
-        _ASYNCIO = import_module("asyncio")
-    return _ASYNCIO
+def _asyncio() -> Any:
+    global _asyncio_module
+    if _asyncio_module is None:
+        _asyncio_module = import_module("asyncio")
+    return _asyncio_module
 
 
-def _aiohttp():
-    global _AIOHTTP
-    if _AIOHTTP is None:
+def _aiohttp() -> Any:
+    global _aiohttp_module
+    if _aiohttp_module is None:
         import aiohttp
 
-        _AIOHTTP = aiohttp
-    return _AIOHTTP
+        _aiohttp_module = aiohttp
+    return _aiohttp_module
 
 
-def _pl():
-    global _POLARS
-    if _POLARS is None:
+def _pl() -> Any:
+    global _polars_module
+    if _polars_module is None:
         import polars as pl
 
-        _POLARS = pl
-    return _POLARS
+        _polars_module = pl
+    return _polars_module
 
 
-def _tqdm():
-    global _TQDM
-    if _TQDM is None:
+def _tqdm() -> Any:
+    global _tqdm_callable
+    if _tqdm_callable is None:
         try:
             from tqdm.asyncio import tqdm
         except ImportError:
             from tqdm import tqdm
 
-        _TQDM = tqdm
-    return _TQDM
+        _tqdm_callable = tqdm
+    return _tqdm_callable
 
 
-def _connection_timeout():
+def _connection_timeout() -> Any:
     return _aiohttp().ClientTimeout(total=60, connect=10, sock_read=30)
+
+
+def _polygon_results(data: object) -> list[dict[str, Any]]:
+    if not isinstance(data, Mapping):
+        return []
+    raw_results = cast(Mapping[str, object], data).get("results")
+    if not isinstance(raw_results, list):
+        return []
+    return [cast(dict[str, Any], item) for item in cast(list[object], raw_results) if isinstance(item, dict)]
+
 
 class AsyncPolygonClient:
     """Async Polygon client for high-performance data downloads."""
 
-    def __init__(self, api_key: str):
+    api_key: str
+    base_url: str
+    session: Any | None
+    rate_limiter: RateLimiter
+
+    def __init__(self, api_key: str) -> None:
         self.api_key = api_key
         self.base_url = "https://api.polygon.io"
         self.session = None
         self.rate_limiter = RateLimiter(RATE_LIMIT_PER_MINUTE)
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> AsyncPolygonClient:
         """Create session on context enter."""
         aiohttp = _aiohttp()
-        connector = aiohttp.TCPConnector(
-            limit=100,
-            limit_per_host=50,
-            ttl_dns_cache=300,
-            enable_cleanup_closed=True
-        )
+        connector = aiohttp.TCPConnector(limit=100, limit_per_host=50, ttl_dns_cache=300, enable_cleanup_closed=True)
         self.session = aiohttp.ClientSession(
-            connector=connector,
-            timeout=_connection_timeout(),
-            headers={"Authorization": f"Bearer {self.api_key}"}
+            connector=connector, timeout=_connection_timeout(), headers={"Authorization": f"Bearer {self.api_key}"}
         )
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Close session on context exit."""
-        if self.session:
-            await self.session.close()
+        del exc_type, exc_val, exc_tb
+        session = self.session
+        if session:
+            await session.close()
+            self.session = None
 
     async def get_aggs(
         self,
@@ -101,39 +119,37 @@ class AsyncPolygonClient:
         to_date: datetime,
         multiplier: int = 1,
         timespan: str = "minute",
-        limit: int = 50000
-    ) -> Optional[List[Dict]]:
+        limit: int = 50000,
+    ) -> list[dict[str, Any]] | None:
         """Get aggregated bars data."""
         await self.rate_limiter.acquire()
         asyncio = _asyncio()
+        session = self.session
+        if session is None:
+            raise RuntimeError("AsyncPolygonClient session is not initialized")
 
         # Format dates
         from_str = from_date.strftime("%Y-%m-%d")
         to_str = to_date.strftime("%Y-%m-%d")
 
         url = f"{self.base_url}/v2/aggs/ticker/{ticker}/range/{multiplier}/{timespan}/{from_str}/{to_str}"
-        params = {
-            "adjusted": "true",
-            "sort": "asc",
-            "limit": limit,
-            "apiKey": self.api_key
-        }
+        params = {"adjusted": "true", "sort": "asc", "limit": limit, "apiKey": self.api_key}
 
         for attempt in range(MAX_RETRIES):
             try:
-                async with self.session.get(url, params=params) as response:
+                async with session.get(url, params=params) as response:
                     if response.status == 200:
                         data = await response.json()
-                        return data.get("results", [])
+                        return _polygon_results(data)
                     elif response.status == 429:  # Rate limited
-                        await asyncio.sleep(RETRY_DELAY * (2 ** attempt))
+                        await asyncio.sleep(RETRY_DELAY * (2**attempt))
                     else:
                         logger.warning(f"HTTP {response.status} for {ticker} {from_str} to {to_str}")
                         return None
             except asyncio.TimeoutError:
                 logger.warning(f"Timeout for {ticker} {from_str} to {to_str}")
                 if attempt < MAX_RETRIES - 1:
-                    await asyncio.sleep(RETRY_DELAY * (2 ** attempt))
+                    await asyncio.sleep(RETRY_DELAY * (2**attempt))
             except Exception as e:
                 logger.error(f"Error fetching {ticker}: {e}")
                 return None
@@ -144,13 +160,18 @@ class AsyncPolygonClient:
 class RateLimiter:
     """Simple rate limiter for API calls."""
 
-    def __init__(self, calls_per_minute: int):
+    calls_per_minute: int
+    min_interval: float
+    last_call: float
+    lock: Any
+
+    def __init__(self, calls_per_minute: int) -> None:
         self.calls_per_minute = calls_per_minute
         self.min_interval = 60.0 / calls_per_minute
-        self.last_call = 0
+        self.last_call = 0.0
         self.lock = _asyncio().Lock()
 
-    async def acquire(self):
+    async def acquire(self) -> None:
         """Wait if necessary to respect rate limit."""
         asyncio = _asyncio()
         async with self.lock:
@@ -167,15 +188,15 @@ async def download_polygon_data_async(
     start: datetime,
     end: datetime,
     timespan: str = "minute",
-    quote_asset: Optional[Asset] = None,
-    symbol: Optional[str] = None
-) -> Optional[Any]:
+    quote_asset: Asset | None = None,
+    symbol: str | None = None,
+) -> Any | None:
     """
     Download Polygon data using async/await for maximum performance.
-    
+
     This function downloads data in parallel using asyncio, which is
     significantly faster than the threaded approach.
-    
+
     Parameters
     ----------
     api_key : str
@@ -192,7 +213,7 @@ async def download_polygon_data_async(
         Quote asset for forex/crypto
     symbol : Optional[str]
         Pre-computed Polygon symbol
-        
+
     Returns
     -------
     Optional[pl.DataFrame]
@@ -202,15 +223,17 @@ async def download_polygon_data_async(
     if symbol is None:
         # Get symbol using sync method (or implement async version)
         from lumibot.tools.polygon_helper import PolygonClient
+
         sync_client = PolygonClient.create(api_key=api_key)
         from lumibot.tools.polygon_helper_polars_optimized import get_polygon_symbol
+
         symbol = get_polygon_symbol(asset, sync_client, quote_asset)
 
     if symbol is None:
         return None
 
     # Calculate date chunks
-    chunks = []
+    chunks: list[tuple[datetime, datetime]] = []
     current = start
     delta = timedelta(days=MAX_POLYGON_DAYS)
 
@@ -224,26 +247,20 @@ async def download_polygon_data_async(
         asyncio = _asyncio()
 
         # Create progress bar
-        pbar = _tqdm()(
-            total=len(chunks),
-            desc=f"Async downloading {asset.symbol} {timespan}",
-            dynamic_ncols=True
-        )
+        pbar = _tqdm()(total=len(chunks), desc=f"Async downloading {asset.symbol} {timespan}", dynamic_ncols=True)
 
         # Create tasks for all chunks
-        tasks = []
+        tasks: list[Any] = []
         for chunk_start, chunk_end in chunks:
-            task = asyncio.create_task(
-                client.get_aggs(symbol, chunk_start, chunk_end, timespan=timespan)
-            )
+            task = asyncio.create_task(client.get_aggs(symbol, chunk_start, chunk_end, timespan=timespan))
             tasks.append(task)
 
         # Gather results with progress updates
-        results = []
+        results: list[dict[str, Any]] = []
         for task in asyncio.as_completed(tasks):
             result = await task
-            if result:
-                results.extend(result)
+            if isinstance(result, list):
+                results.extend(cast(list[dict[str, Any]], result))
             pbar.update(1)
 
         pbar.close()
@@ -254,24 +271,35 @@ async def download_polygon_data_async(
 
     # Optimized DataFrame creation
     pl = _pl()
-    df = pl.DataFrame(results, schema_overrides={
-        "o": pl.Float64,
-        "h": pl.Float64,
-        "l": pl.Float64,
-        "c": pl.Float64,
-        "v": pl.Int64,
-        "t": pl.Int64
-    })
+    df = pl.DataFrame(
+        results,
+        schema_overrides={
+            "o": pl.Float64,
+            "h": pl.Float64,
+            "l": pl.Float64,
+            "c": pl.Float64,
+            "v": pl.Int64,
+            "t": pl.Int64,
+        },
+    )
 
     # Transform columns efficiently
-    df = df.lazy().select([
-        pl.col("o").alias("open"),
-        pl.col("h").alias("high"),
-        pl.col("l").alias("low"),
-        pl.col("c").alias("close"),
-        pl.col("v").alias("volume"),
-        pl.from_epoch(pl.col("t"), time_unit="ms").alias("datetime")
-    ]).sort("datetime").unique(subset=["datetime"]).collect()
+    df = (
+        df.lazy()
+        .select(
+            [
+                pl.col("o").alias("open"),
+                pl.col("h").alias("high"),
+                pl.col("l").alias("low"),
+                pl.col("c").alias("close"),
+                pl.col("v").alias("volume"),
+                pl.from_epoch(pl.col("t"), time_unit="ms").alias("datetime"),
+            ]
+        )
+        .sort("datetime")
+        .unique(subset=["datetime"])
+        .collect()
+    )
 
     return df
 
@@ -282,12 +310,12 @@ def get_price_data_from_polygon_async(
     start: datetime,
     end: datetime,
     timespan: str = "minute",
-    quote_asset: Optional[Asset] = None,
-    force_cache_update: bool = False
-) -> Optional[Any]:
+    quote_asset: Asset | None = None,
+    force_cache_update: bool = False,
+) -> Any | None:
     """
     Wrapper function to use async download in sync context.
-    
+
     This function manages the event loop and calls the async download function.
     """
 
@@ -306,7 +334,7 @@ def get_price_data_from_polygon_async(
     # Validate cache
     force_cache_update = validate_cache_polars(force_cache_update, asset, cache_file, api_key)
 
-    df_all: Optional[Any] = None
+    df_all: Any | None = None
 
     # Load cached data if available
     if cache_file.exists() and not force_cache_update:
@@ -325,8 +353,8 @@ def get_price_data_from_polygon_async(
     poly_end = missing_dates[-1]
 
     # Convert dates to datetime
-    start_dt = datetime.combine(poly_start, datetime.min.time(), tzinfo=timezone.utc)
-    end_dt = datetime.combine(poly_end, datetime.max.time(), tzinfo=timezone.utc)
+    start_dt = datetime.combine(poly_start, datetime.min.time(), tzinfo=UTC)
+    end_dt = datetime.combine(poly_end, datetime.max.time(), tzinfo=UTC)
 
     # Run async download
     asyncio = _asyncio()
@@ -337,9 +365,7 @@ def get_price_data_from_polygon_async(
         asyncio.set_event_loop(loop)
 
     new_data = loop.run_until_complete(
-        download_polygon_data_async(
-            api_key, asset, start_dt, end_dt, timespan, quote_asset
-        )
+        download_polygon_data_async(api_key, asset, start_dt, end_dt, timespan, quote_asset)
     )
 
     # Merge with existing data

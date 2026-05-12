@@ -1,26 +1,32 @@
 import json
 import re
 import time
+from typing import Any, TypeAlias, cast
 
 from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
 
+JsonDict: TypeAlias = dict[str, Any]  # noqa: UP040
+SchemaInput: TypeAlias = JsonDict | str | None  # noqa: UP040
 
-def _openai_client_class():
+
+def _openai_client_class() -> type[Any]:
     from openai import OpenAI
 
     return OpenAI
 
+
 # --- constants ---------------------------------------------------------------
-_MODEL_LIMITS = {
+_MODEL_LIMITS: dict[str, int] = {
     "sonar": 8000,
     "sonar-pro": 8000,
     "sonar-reasoning": 8000,
     "sonar-reasoning-pro": 8000,
     "sonar-deep-research": 8000,
 }
-_REASONING_MODELS = {"sonar-reasoning", "sonar-reasoning-pro"}
+_REASONING_MODELS: set[str] = {"sonar-reasoning", "sonar-reasoning-pro"}
+
 
 # --- utilities ---------------------------------------------------------------
 def _strip_think_block(text: str) -> str:
@@ -29,12 +35,14 @@ def _strip_think_block(text: str) -> str:
         return text.split("</think>", 1)[-1].lstrip()
     return text
 
-def _build_response_format(schema_dict: dict) -> dict:
+
+def _build_response_format(schema_dict: JsonDict) -> JsonDict:
     """Return the Perplexity response_format payload for strict JSON."""
     return {"type": "json_schema", "json_schema": {"schema": schema_dict}}
 
+
 # --- Formal JSON Schema Definitions ------------------------------------------
-FINANCIAL_NEWS_JSON_SCHEMA = {
+FINANCIAL_NEWS_JSON_SCHEMA: JsonDict = {
     "type": "object",
     "properties": {
         "query": {"type": "string"},
@@ -58,9 +66,9 @@ FINANCIAL_NEWS_JSON_SCHEMA = {
                         "properties": {
                             "low": {"type": ["number", "null"]},
                             "high": {"type": ["number", "null"]},
-                            "average": {"type": ["number", "null"]}
+                            "average": {"type": ["number", "null"]},
                         },
-                        "additionalProperties": False
+                        "additionalProperties": False,
                     },
                     "additional_info": {
                         "type": ["object", "null"],
@@ -70,67 +78,77 @@ FINANCIAL_NEWS_JSON_SCHEMA = {
                             "notable_executive_actions": {"type": ["string", "null"]},
                             "macro_support": {"type": ["string", "null"]},
                             "related_tickers": {"type": "array", "items": {"type": "string"}},
-                            "external_links": {"type": "array", "items": {"type": "string"}}
+                            "external_links": {"type": "array", "items": {"type": "string"}},
                         },
-                        "additionalProperties": False
-                    }
+                        "additionalProperties": False,
+                    },
                 },
-                "required": ["symbol", "asset_type", "headline", "confidence", "sentiment_score", "popularity_metric", "magnitude"],
-                "additionalProperties": False
-            }
-        }
+                "required": [
+                    "symbol",
+                    "asset_type",
+                    "headline",
+                    "confidence",
+                    "sentiment_score",
+                    "popularity_metric",
+                    "magnitude",
+                ],
+                "additionalProperties": False,
+            },
+        },
     },
     "required": ["query", "analysis_summary", "items"],
-    "additionalProperties": False
+    "additionalProperties": False,
 }
 
-DEFAULT_GENERAL_JSON_SCHEMA = {
+DEFAULT_GENERAL_JSON_SCHEMA: JsonDict = {
     "type": "object",
     "properties": {
         "query": {"type": "string"},
         "response_summary": {"type": "string"},
         "detailed_response": {"type": ["string", "null"]},
-        "symbols": {
-            "type": "array",
-            "items": {"type": "string"}
-        }
+        "symbols": {"type": "array", "items": {"type": "string"}},
     },
     "required": ["query", "response_summary", "symbols"],
-    "additionalProperties": False
+    "additionalProperties": False,
 }
+
 
 class PerplexityHelper:
     """
     A helper for querying Perplexity's API via an OpenAI-compatible client.
-    
+
     Supports two types of queries:
       - Financial news queries: Returns structured financial news data.
       - General queries: Returns structured responses based on a provided (or default) JSON schema.
     """
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str) -> None:
         """
         Initializes the PerplexityHelper with your API key and creates an OpenAI-compatible client.
-        
+
         Parameters
         ----------
         api_key : str
             Your Perplexity API key. If not provided, the environment variable 'PERPLEXITY_API_KEY'
             will be used.
-        
+
         Raises
         ------
         ValueError
             If no API key is provided or found in the environment.
         """
-        if not api_key or api_key.lower() == 'your_api_key_here':
+        if not api_key or api_key.lower() == "your_api_key_here":
             import os
-            api_key = os.getenv("PERPLEXITY_API_KEY")
-            if not api_key:
-                raise ValueError("API key is required for PerplexityHelper. Set it as PERPLEXITY_API_KEY in your environment or your secrets")
 
-        self.api_key = api_key
-        self.client = _openai_client_class()(
+            env_api_key = os.getenv("PERPLEXITY_API_KEY")
+            if not env_api_key:
+                raise ValueError(
+                    "API key is required for PerplexityHelper. Set it as PERPLEXITY_API_KEY in your environment or your secrets"
+                )
+            api_key = env_api_key
+
+        self.api_key: str = api_key
+        self.client: Any = _openai_client_class()(
             api_key=self.api_key,
             base_url="https://api.perplexity.ai",  # Correct base URL
         )
@@ -140,14 +158,14 @@ class PerplexityHelper:
     # --------------------------------------------------------------------------
     def _clean_response(self, response_text: str) -> str:
         """
-        Cleans the raw response by removing markdown code fences and any extraneous text 
+        Cleans the raw response by removing markdown code fences and any extraneous text
         preceding the first '{', so that only a valid JSON object remains.
-        
+
         Parameters
         ----------
         response_text : str
             The raw response text from the API.
-        
+
         Returns
         -------
         str
@@ -168,12 +186,12 @@ class PerplexityHelper:
     def _build_financial_news_prompt(self, user_query: str) -> str:
         """
         Builds a system prompt for financial news queries.
-        
-        The prompt instructs the model to output ONLY valid JSON (with no markdown or extra text) 
+
+        The prompt instructs the model to output ONLY valid JSON (with no markdown or extra text)
         following the schema below.
-        
+
         Schema:
-        
+
             {
               "query": "<string, echo the user's query>",
               "analysis_summary": "<string, a concise summary of the news findings>",
@@ -204,12 +222,12 @@ class PerplexityHelper:
                 }
               ]
             }
-        
+
         Parameters
         ----------
         user_query : str
             The financial news query.
-        
+
         Returns
         -------
         str
@@ -264,24 +282,24 @@ Return only valid JSON following the schema.
 """
         return system_prompt
 
-    def _build_general_prompt(self, user_query: str, custom_schema=None) -> str:
+    def _build_general_prompt(self, user_query: str, custom_schema: SchemaInput = None) -> str:
         """
         Constructs a system prompt for general queries.
-        
+
         You can provide a custom JSON schema as either a Python dictionary or a string.
         It is recommended that the schema thoroughly describes the expected JSON output, including detailed explanations for each field.
-        
+
         The default schema (if no custom schema is provided) is:
-        
+
             {
               "query": "<string, echo the user's query>",
               "response_summary": "<string, brief answer (1-3 sentences)>",
               "detailed_response": "<string, optional extended details>",
               "symbols": ["<string, list of relevant symbols>"]
             }
-        
+
         A sample custom schema (different from the default) might be:
-        
+
             {
               "query": "<string, echo the user's query>",
               "stocks": [
@@ -294,16 +312,16 @@ Return only valid JSON following the schema.
               ],
               "summary": "<string, overall summary of findings>"
             }
-        
+
         Additionally, instruct the model to return only the JSON object with no extra text or markdown.
-        
+
         Parameters
         ----------
         user_query : str
             The user's query.
         custom_schema : dict or str, optional
             The desired JSON schema for the response.
-        
+
         Returns
         -------
         str
@@ -314,7 +332,7 @@ Return only valid JSON following the schema.
                 "query": "<string, echo the user's query>",
                 "response_summary": "<string, brief answer (1-3 sentences)>",
                 "detailed_response": "<string, optional extended details>",
-                "symbols": ["<string, list of relevant symbols>"]
+                "symbols": ["<string, list of relevant symbols>"],
             }
         elif isinstance(custom_schema, dict):
             schema = custom_schema
@@ -353,11 +371,11 @@ Return only valid JSON following the schema.
         system_msg: str,
         user_query: str,
         model: str = "sonar",
-        temperature: int = 0,
+        temperature: float = 0,
         retries: int = 3,
         max_tokens: int = 35000,
-        stream: bool = None,
-        schema: dict = None
+        stream: bool | None = None,
+        schema: JsonDict | None = None,
     ) -> str:
         """
         Sends a request to the Perplexity API using the provided system message and user query.
@@ -370,17 +388,14 @@ Return only valid JSON following the schema.
         if stream is None:
             stream = safe_max_tokens >= 4000
         # Build response_format if schema is provided
-        response_format = None
+        response_format: JsonDict | None = None
         if schema:
             response_format = _build_response_format(schema)
         for attempt in range(1, retries + 1):
             try:
-                payload = {
+                payload: JsonDict = {
                     "model": model,
-                    "messages": [
-                        {"role": "system", "content": system_msg},
-                        {"role": "user", "content": user_query}
-                    ],
+                    "messages": [{"role": "system", "content": system_msg}, {"role": "user", "content": user_query}],
                     "temperature": temperature,
                     "max_tokens": safe_max_tokens,
                     "top_p": 0.9,
@@ -388,20 +403,28 @@ Return only valid JSON following the schema.
                 }
                 if response_format:
                     payload["response_format"] = response_format
+                create_completion = self.client.chat.completions.create
                 if stream:
-                    response_chunks = self.client.chat.completions.create(**payload)
-                    response_text = ""
+                    response_chunks = create_completion(**payload)
+                    response_parts: list[str] = []
                     for chunk in response_chunks:
-                        delta = getattr(chunk.choices[0], "delta", None)
-                        if delta and getattr(delta, "content", None):
-                            response_text += delta.content
+                        choices = getattr(chunk, "choices", None)
+                        if not choices:
+                            continue
+                        delta = getattr(choices[0], "delta", None)
+                        content = getattr(delta, "content", None) if delta else None
+                        if isinstance(content, str):
+                            response_parts.append(content)
+                    response_text = "".join(response_parts)
                 else:
-                    completion = self.client.chat.completions.create(**payload)
-                    if (not completion.choices or
-                        not hasattr(completion.choices[0], "message") or
-                        not hasattr(completion.choices[0].message, "content")):
+                    completion = create_completion(**payload)
+                    choices = getattr(completion, "choices", None)
+                    if not choices:
                         raise ValueError("Invalid response structure from API.")
-                    response_text = completion.choices[0].message.content
+                    message = getattr(choices[0], "message", None)
+                    response_text = getattr(message, "content", None) if message else None
+                    if not isinstance(response_text, str):
+                        raise ValueError("Invalid response structure from API.")
                 if not response_text.strip():
                     raise ValueError("Received empty response from API.")
                 # Strip <think> block for reasoning models
@@ -412,35 +435,35 @@ Return only valid JSON following the schema.
                 logger.error(f"Attempt {attempt} failed: {e}")
                 if attempt == retries:
                     logger.error(f"Final attempt failed. System prompt was: {system_msg}")
-                    raise e
+                    raise
                 time.sleep(1)
         raise RuntimeError("Failed to get a valid response after retries.")
 
     # --------------------------------------------------------------------------
     # Public Methods for Executing Queries
     # --------------------------------------------------------------------------
-    def execute_financial_news_query(self, user_query: str) -> dict:
+    def execute_financial_news_query(self, user_query: str) -> JsonDict:
         """
         Executes a financial news query.
-        
+
         This method performs the following steps:
-        
-        1. **Prompt Construction:**  
+
+        1. **Prompt Construction:**
            Builds the prompt using the `_build_financial_news_prompt` method.
-        
-        2. **API Request:**  
+
+        2. **API Request:**
            Sends the query to the Perplexity API using the `_send_request` method, which includes retry logic.
-        
-        3. **Response Parsing:**  
+
+        3. **Response Parsing:**
            Cleans and parses the returned JSON into a Python dictionary. If JSON decoding fails,
            logs the raw cleaned response and returns a dictionary with an error message in 'analysis_summary'
            and an empty 'items' list.
-        
+
         Parameters
         ----------
         user_query : str
             The financial news query.
-        
+
         Returns
         -------
         dict
@@ -450,47 +473,57 @@ Return only valid JSON following the schema.
         try:
             assistant_text = self._send_request(system_msg, user_query, schema=FINANCIAL_NEWS_JSON_SCHEMA)
         except Exception as e:
-            return {
-                "query": user_query,
-                "analysis_summary": f"Error calling Perplexity API: {str(e)}",
-                "items": []
-            }
+            return {"query": user_query, "analysis_summary": f"Error calling Perplexity API: {str(e)}", "items": []}
 
         # Clean the raw response to remove markdown formatting and extraneous text
         cleaned_text = self._clean_response(assistant_text)
         try:
-            data = json.loads(cleaned_text)
+            parsed = json.loads(cleaned_text)
         except json.JSONDecodeError as e:
             logger.error(f"JSON decoding failed. Raw response: {cleaned_text}")
             return {
                 "query": user_query,
                 "analysis_summary": f"Error: LLM output was not valid JSON. {str(e)}",
-                "items": []
+                "items": [],
+            }
+        if not isinstance(parsed, dict):
+            return {
+                "query": user_query,
+                "analysis_summary": "Error: LLM output was not a JSON object.",
+                "items": [],
             }
 
+        data = cast(JsonDict, parsed)
         self._post_process_data(data)
         return data
 
-    def execute_general_query(self, user_query: str, custom_schema=None, model: str = "sonar", max_tokens: int = 35000, stream: bool = None) -> dict:
+    def execute_general_query(
+        self,
+        user_query: str,
+        custom_schema: SchemaInput = None,
+        model: str = "sonar",
+        max_tokens: int = 35000,
+        stream: bool | None = None,
+    ) -> JsonDict:
         """
         Executes a general query using the Perplexity API.
-        
+
         This method performs the following steps:
-        
-        1. **Prompt Construction:**  
-           Builds a system prompt using the `_build_general_prompt` method. You may supply a custom JSON schema 
-           (as a dict or a string) that thoroughly describes the expected JSON output. If no custom schema is provided, 
+
+        1. **Prompt Construction:**
+           Builds a system prompt using the `_build_general_prompt` method. You may supply a custom JSON schema
+           (as a dict or a string) that thoroughly describes the expected JSON output. If no custom schema is provided,
            the default schema is used. The default schema is:
-        
+
                {
                  "query": "<string, echo the user's query>",
                  "response_summary": "<string, brief answer (1-3 sentences)>",
                  "detailed_response": "<string, optional extended details>",
                  "symbols": ["<string, list of relevant symbols>"]
                }
-        
+
            A sample custom schema (different from the default) might be:
-        
+
                {
                  "query": "<string, echo the user's query>",
                  "stocks": [
@@ -503,21 +536,21 @@ Return only valid JSON following the schema.
                  ],
                  "summary": "<string, overall summary of findings>"
                }
-        
-        2. **API Request:**  
+
+        2. **API Request:**
            Sends the query to the Perplexity API using the `_send_request` method, which includes retry logic.
-        
-        3. **Response Parsing:**  
+
+        3. **Response Parsing:**
            Cleans and parses the returned JSON into a Python dictionary. If errors occur during the API call or JSON parsing,
            a dictionary is returned with an error message in 'response_summary' and default empty values for the other fields.
-        
+
         Parameters
         ----------
         user_query : str
             The general query that you want to ask.
         custom_schema : dict or str, optional
             The desired JSON schema for the response. For example, a custom schema might be:
-            
+
                 {
                   "query": "<string, echo the user's query>",
                   "stocks": [
@@ -530,7 +563,7 @@ Return only valid JSON following the schema.
                   ],
                   "summary": "<string, overall summary of findings>"
                 }
-            
+
             If no custom schema is provided, the default schema (shown above) is used.
         model : str, optional
             The model to use for the query. Supported models include "sonar", "sonar-pro", "sonar-reasoning", etc.
@@ -539,23 +572,23 @@ Return only valid JSON following the schema.
             The maximum number of tokens to generate (default is 35000).
         stream : bool, optional
             Whether to enable streaming for longer responses (default is None, which enables streaming for large responses).
-        
+
         Returns
         -------
         dict
             A dictionary containing the API's response following the specified JSON schema.
             In case of an error, returns a dictionary with an error message in 'response_summary'
             and empty values for the other keys.
-        
+
         Raises
         ------
         Exception
             Propagates exceptions if the API call fails after the specified number of retries.
-        
+
         Examples
         --------
         Using the default schema:
-        
+
         >>> result = helper.execute_general_query("What factors are currently driving stock market volatility?")
         >>> print(result)
         {
@@ -564,9 +597,9 @@ Return only valid JSON following the schema.
           "detailed_response": "Additional factors include earnings reports, interest rate adjustments, and geopolitical tensions.",
           "symbols": []
         }
-        
+
         Using a custom schema:
-        
+
         >>> custom_schema = {
         ...     "query": "<string, echo the user's query>",
         ...     "stocks": [
@@ -613,72 +646,89 @@ Return only valid JSON following the schema.
         }
         """
         system_msg = self._build_general_prompt(user_query, custom_schema)
-        schema = None
+        schema: JsonDict | None = None
         if custom_schema is None:
             schema = DEFAULT_GENERAL_JSON_SCHEMA
         try:
-            assistant_text = self._send_request(system_msg, user_query, model=model, max_tokens=max_tokens, stream=stream, schema=schema)
+            assistant_text = self._send_request(
+                system_msg, user_query, model=model, max_tokens=max_tokens, stream=stream, schema=schema
+            )
         except Exception as e:
             return {
                 "query": user_query,
                 "response_summary": f"Error calling Perplexity API: {str(e)}",
                 "detailed_response": "",
-                "symbols": []
+                "symbols": [],
             }
 
         # Clean the raw response to remove markdown formatting and any extraneous text
         cleaned_text = self._clean_response(assistant_text)
         try:
-            data = json.loads(cleaned_text)
+            parsed = json.loads(cleaned_text)
         except json.JSONDecodeError as e:
             logger.error(f"JSON decoding failed. Raw response: {cleaned_text}")
             return {
                 "query": user_query,
                 "response_summary": f"Error: LLM output was not valid JSON. {str(e)}",
                 "detailed_response": "",
-                "symbols": []
+                "symbols": [],
+            }
+        if not isinstance(parsed, dict):
+            return {
+                "query": user_query,
+                "response_summary": "Error: LLM output was not a JSON object.",
+                "detailed_response": "",
+                "symbols": [],
             }
 
-        return data
+        return cast(JsonDict, parsed)
 
     # --------------------------------------------------------------------------
     # Internal Post-Processing for Financial News Data
     # --------------------------------------------------------------------------
-    def _post_process_data(self, data: dict) -> None:
+    def _post_process_data(self, data: JsonDict) -> None:
         """
         Processes the financial news response data to ensure numeric fields have the correct type.
-        
+
         Converts the following fields to integers:
           - confidence, sentiment_score, popularity_metric, magnitude, and volume_of_messages (if present)
         Also converts price target values to floats if provided.
-        
+
         Parameters
         ----------
         data : dict
             The JSON response dictionary to post-process.
         """
         items = data.get("items", [])
-        for item in items:
+        if not isinstance(items, list):
+            return
+        for item in cast(list[Any], items):
+            if not isinstance(item, dict):
+                continue
+            item_data = cast(JsonDict, item)
             for int_field in ("confidence", "sentiment_score", "popularity_metric", "magnitude"):
-                if int_field in item:
+                if int_field in item_data:
                     try:
-                        item[int_field] = int(item[int_field])
+                        item_data[int_field] = int(item_data[int_field])
                     except (ValueError, TypeError):
-                        item[int_field] = 0
+                        item_data[int_field] = 0
 
-            if "volume_of_messages" in item:
+            if "volume_of_messages" in item_data:
                 try:
-                    item["volume_of_messages"] = int(item["volume_of_messages"])
+                    item_data["volume_of_messages"] = int(item_data["volume_of_messages"])
                 except (ValueError, TypeError):
-                    item["volume_of_messages"] = 0
+                    item_data["volume_of_messages"] = 0
 
-            if "price_targets" in item and isinstance(item["price_targets"], dict):
+            price_targets = item_data.get("price_targets")
+            if isinstance(price_targets, dict):
+                price_target_data = cast(JsonDict, price_targets)
                 for float_field in ("low", "high", "average"):
-                    if float_field in item["price_targets"]:
+                    if float_field in price_target_data:
                         try:
-                            item["price_targets"][float_field] = float(item["price_targets"][float_field])
+                            price_target_data[float_field] = float(price_target_data[float_field])
                         except (ValueError, TypeError):
-                            item["price_targets"][float_field] = None
+                            price_target_data[float_field] = None
+
 
 # ------------------------------------------------------------------------------
 # Example usage in a standalone script:
@@ -716,11 +766,15 @@ if __name__ == "__main__":
                 "symbol": "<string, ticker symbol>",
                 "earnings_growth": "<float, earnings growth percentage>",
                 "analyst_rating": "<float, average analyst rating from 1 to 5>",
-                "price_target": "<float, consensus price target in USD>"
+                "price_target": "<float, consensus price target in USD>",
             }
         ],
-        "summary": "<string, overall summary of findings>"
+        "summary": "<string, overall summary of findings>",
     }
-    general_result_custom = helper.execute_general_query("Give me a list of current quantum computing stocks with their earnings growth, analyst ratings, and consensus price targets.", custom_schema, model="sonar-pro")
+    general_result_custom = helper.execute_general_query(
+        "Give me a list of current quantum computing stocks with their earnings growth, analyst ratings, and consensus price targets.",
+        custom_schema,
+        model="sonar-pro",
+    )
     print("\nGeneral Query Result (Custom Schema):")
     print(json.dumps(general_result_custom, indent=2))

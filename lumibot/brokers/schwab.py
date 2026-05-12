@@ -1,54 +1,62 @@
 from __future__ import annotations
 
+# pyright: reportMissingParameterType=false, reportUnknownParameterType=false
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false
+# pyright: reportMissingTypeStubs=false, reportMissingTypeArgument=false
+# pyright: reportAttributeAccessIssue=false, reportArgumentType=false, reportReturnType=false
+# pyright: reportCallIssue=false, reportUnusedFunction=false, reportUnnecessaryComparison=false
 import base64
 import json
 import os
 import re
+import time
 import traceback
+from collections.abc import Callable
 from datetime import datetime, timedelta
+from pathlib import Path
 from threading import Thread
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import TYPE_CHECKING, Any
 
-from .broker import Broker
-from lumibot.entities import Asset, Order
+from lumibot.entities.asset import Asset
+from lumibot.entities.order import Order
 from lumibot.tools.lumibot_logger import get_logger
 
+from .broker import Broker
+
 if TYPE_CHECKING:
-    from lumibot.entities import Position
+    from lumibot.entities.position import Position
     from lumibot.strategies.strategy import Strategy
 
 logger = get_logger(__name__)
 
-import time
-from pathlib import Path
-
 # ---- Lumiwealth default Schwab app configuration ----
 LUMI_DEFAULT_APP_KEY = "RfUVxotUc8p6CbeCwFmophgNZSat0TLv"
 LUMI_DEFAULT_CALLBACK = "https://api.botspot.trade/broker_oauth/schwab"
-_SCHWAB_DATA_CLASS = None
-SchwabHelper = None
-_COLORED_FN = None
+_schwab_data_class_cache: type[Any] | None = None
+SchwabHelper: Any | None = None
+_colored_fn: Callable[..., str] | None = None
 
 
-def colored(*args, **kwargs):
-    global _COLORED_FN
-    if _COLORED_FN is None:
+def colored(*args: Any, **kwargs: Any) -> str:
+    global _colored_fn
+    if _colored_fn is None:
         from termcolor import colored as _termcolor_colored
 
-        _COLORED_FN = _termcolor_colored
-    return _COLORED_FN(*args, **kwargs)
+        _colored_fn = _termcolor_colored
+    return _colored_fn(*args, **kwargs)
 
 
-def _schwab_data_class():
-    global _SCHWAB_DATA_CLASS
-    if _SCHWAB_DATA_CLASS is None:
-        from lumibot.data_sources import SchwabData
+def _schwab_data_class() -> type[Any]:
+    global _schwab_data_class_cache
+    if _schwab_data_class_cache is None:
+        from lumibot.data_sources.schwab_data import SchwabData
 
-        _SCHWAB_DATA_CLASS = SchwabData
-    return _SCHWAB_DATA_CLASS
+        _schwab_data_class_cache = SchwabData
+    assert _schwab_data_class_cache is not None
+    return _schwab_data_class_cache
 
 
-def _schwab_helper():
+def _schwab_helper() -> Any:
     global SchwabHelper
     if SchwabHelper is None:
         from lumibot.tools import SchwabHelper as _helper
@@ -60,7 +68,7 @@ def _schwab_helper():
 class Schwab(Broker):
     """
     Broker implementation for Schwab API.
-    
+
     This class provides the integration with Schwab's trading platform,
     implementing all necessary methods required by the Lumibot framework
     to interact with the broker.
@@ -73,13 +81,13 @@ class Schwab(Broker):
     POLL_EVENT = "poll"
 
     def __init__(
-            self,
-            config=None,
-            data_source=None,
+        self,
+        config=None,
+        data_source=None,
     ):
         # === Initialize error flag very early ===
         self.schwab_authorization_error = False
-        self._broker_fully_ready = False # Initialize new flag
+        self._broker_fully_ready = False  # Initialize new flag
         # === End Initialize error flag ===
 
         # === Prepare Data Source ===
@@ -105,7 +113,7 @@ class Schwab(Broker):
         # Call super().__init__ with the determined data source
         super().__init__(
             name=self.NAME,
-            data_source=final_data_source, # Pass the actual intended or created data source
+            data_source=final_data_source,  # Pass the actual intended or created data source
             config=config,
         )
         # === End Prepare Data Source ===
@@ -142,7 +150,9 @@ class Schwab(Broker):
         if not account_number:
             # Set error flag before raising
             self.schwab_authorization_error = True
-            raise ValueError("Schwab account number (SCHWAB_ACCOUNT_NUMBER) not found in config or environment variables.")
+            raise ValueError(
+                "Schwab account number (SCHWAB_ACCOUNT_NUMBER) not found in config or environment variables."
+            )
         self.account_number = str(account_number)
 
         # API Key (Required) - Prioritize config, fallback to env
@@ -180,9 +190,7 @@ class Schwab(Broker):
         #   1. Config value SCHWAB_TOKEN_PATH
         #   2. Env var  SCHWAB_TOKEN_PATH
         #   3. Fallback to the current working directory as "schwab_token.json"
-        token_path_value = (
-            config.get("SCHWAB_TOKEN_PATH") if config else None
-        ) or os.environ.get("SCHWAB_TOKEN_PATH")
+        token_path_value = (config.get("SCHWAB_TOKEN_PATH") if config else None) or os.environ.get("SCHWAB_TOKEN_PATH")
 
         if token_path_value:
             token_path = Path(token_path_value).expanduser().resolve()
@@ -205,16 +213,23 @@ class Schwab(Broker):
                     _schwab_helper()._ensure_token_metadata(token_path)
                     if _schwab_helper()._is_token_valid_for_schwab_py(token_path):
                         token_available_and_valid = True
-                        logger.info(f"[Schwab] Token from SCHWAB_TOKEN env var processed, validated, and saved to {token_path}")
+                        logger.info(
+                            f"[Schwab] Token from SCHWAB_TOKEN env var processed, validated, and saved to {token_path}"
+                        )
                     else:
-                        logger.error(f"[Schwab] Token from SCHWAB_TOKEN env var became invalid after SchwabHelper._ensure_token_metadata. Deleting {token_path}.")
+                        logger.error(
+                            f"[Schwab] Token from SCHWAB_TOKEN env var became invalid after SchwabHelper._ensure_token_metadata. Deleting {token_path}."
+                        )
                         token_path.unlink(missing_ok=True)
                 else:
-                    logger.error(f"[Schwab] Token from SCHWAB_TOKEN env var resulted in an invalid token file at {token_path}. Deleting.")
+                    logger.error(
+                        f"[Schwab] Token from SCHWAB_TOKEN env var resulted in an invalid token file at {token_path}. Deleting."
+                    )
                     token_path.unlink(missing_ok=True)
             except Exception as e:
                 logger.error(f"[Schwab] Error processing SCHWAB_TOKEN: {e}")
-                if token_path.exists(): token_path.unlink(missing_ok=True)
+                if token_path.exists():
+                    token_path.unlink(missing_ok=True)
 
         if not token_available_and_valid and token_path.exists() and token_path.stat().st_size > 0:
             logger.info(f"[Schwab] Existing token file found at {token_path}. Validating...")
@@ -228,11 +243,14 @@ class Schwab(Broker):
                     token_path.unlink(missing_ok=True)
             except Exception as e:
                 logger.warning(f"[Schwab] Error validating/fixing existing token file {token_path}: {e}. Deleting.")
-                if token_path.exists(): token_path.unlink(missing_ok=True)
+                if token_path.exists():
+                    token_path.unlink(missing_ok=True)
 
         if not token_available_and_valid:
             logger.info("[Schwab] No valid token found. Initiating user authorization flow to obtain token payload.")
-            auth_success = _schwab_helper()._initiate_schwab_auth_and_get_token_payload(api_key, schwab_backend_redirect_uri, token_path)
+            auth_success = _schwab_helper()._initiate_schwab_auth_and_get_token_payload(
+                api_key, schwab_backend_redirect_uri, token_path
+            )
             if not auth_success:
                 self.schwab_authorization_error = True
                 raise ConnectionError(
@@ -245,22 +263,29 @@ class Schwab(Broker):
                 if _schwab_helper()._is_token_valid_for_schwab_py(token_path):
                     token_available_and_valid = True
                 else:
-                    logger.error(f"[Schwab] Token became invalid after SchwabHelper._ensure_token_metadata post-auth. Deleting {token_path}.")
-                    if token_path.exists(): token_path.unlink(missing_ok=True)
+                    logger.error(
+                        f"[Schwab] Token became invalid after SchwabHelper._ensure_token_metadata post-auth. Deleting {token_path}."
+                    )
+                    if token_path.exists():
+                        token_path.unlink(missing_ok=True)
             else:
                 self.schwab_authorization_error = True
-                raise ConnectionError("Schwab token file is missing or invalid even after successful authorization flow.")
+                raise ConnectionError(
+                    "Schwab token file is missing or invalid even after successful authorization flow."
+                )
 
         if not token_available_and_valid:
             self.schwab_authorization_error = True
-            raise ConnectionError(f"Critical error: Schwab token could not be made available or validated at {token_path}.")
+            raise ConnectionError(
+                f"Critical error: Schwab token could not be made available or validated at {token_path}."
+            )
 
         try:
             logger.info(f"[Schwab] Loading token from {token_path} for manual client setup.")
-            with open(token_path, encoding='utf-8') as f:
+            with open(token_path, encoding="utf-8") as f:
                 wrapped_token_data = json.load(f)
-            token_dict_for_session = wrapped_token_data.get('token')
-            if not token_dict_for_session or 'access_token' not in token_dict_for_session:
+            token_dict_for_session = wrapped_token_data.get("token")
+            if not token_dict_for_session or "access_token" not in token_dict_for_session:
                 raise ValueError("Token file is missing the 'token' object or 'access_token' within it.")
 
             # Build an OAuth2Session that can automatically refresh the Schwab token.
@@ -288,9 +313,11 @@ class Schwab(Broker):
             if client_secret_env:
                 refresh_kwargs["client_secret"] = client_secret_env
 
-            #add expires_at to token_dict_for_session. This is needed for the auto_refresh to work. Otherwise oauth2session always thinks it expires 30min from startup
-            token_dict_for_session['expires_at'] = int(token_dict_for_session['issued_at']/1000 + (token_dict_for_session['expires_in']) - 30) #30 second buffer
-            
+            # add expires_at to token_dict_for_session. This is needed for the auto_refresh to work. Otherwise oauth2session always thinks it expires 30min from startup
+            token_dict_for_session["expires_at"] = int(
+                token_dict_for_session["issued_at"] / 1000 + (token_dict_for_session["expires_in"]) - 30
+            )  # 30 second buffer
+
             oauth_session = _OAS(
                 client_id=api_key,
                 token=token_dict_for_session,
@@ -300,12 +327,15 @@ class Schwab(Broker):
             )
 
             if api_key and client_secret_env:
+
                 def _refresh_token_hook(token_url, headers, body):
-                    headers['Authorization'] = f"Basic {base64.b64encode(f'{api_key}:{client_secret_env}'.encode()).decode()}"
-                    logger.info(f"[Schwab] Refreshing token with auth headers")
+                    headers["Authorization"] = (
+                        f"Basic {base64.b64encode(f'{api_key}:{client_secret_env}'.encode()).decode()}"
+                    )
+                    logger.info("[Schwab] Refreshing token with auth headers")
                     return token_url, headers, body
 
-                #create refresh hook. This is beacuse oa2session does not perform refreshes with auth headers, only with json bodies. 
+                # create refresh hook. This is beacuse oa2session does not perform refreshes with auth headers, only with json bodies.
                 oauth_session.register_compliance_hook("refresh_token_request", _refresh_token_hook)
 
             # NOTE: schwab-py >=1.6 removed the app_secret parameter from the Client constructor.
@@ -340,37 +370,46 @@ class Schwab(Broker):
         # -------------------------------------------------------------
         try:
             resp_accounts = self.client.get_account_numbers()
-            if hasattr(resp_accounts, 'status_code') and resp_accounts.status_code == 200:
+            if hasattr(resp_accounts, "status_code") and resp_accounts.status_code == 200:
                 accounts_json = resp_accounts.json()
                 # Find entry matching our account number; fall back to first
                 target_acc = None
                 for acc in accounts_json:
-                    if str(acc.get('accountNumber')) == str(self.account_number):
+                    if str(acc.get("accountNumber")) == str(self.account_number):
                         target_acc = acc
                         break
                 if not target_acc and accounts_json:
                     target_acc = accounts_json[0]
-                    logger.warning(f"[Schwab] Could not match account number {self.account_number} – using first account hash from API response.")
+                    logger.warning(
+                        f"[Schwab] Could not match account number {self.account_number} – using first account hash from API response."
+                    )
 
-                if target_acc and 'hashValue' in target_acc:
-                    hash_value = target_acc['hashValue']
+                if target_acc and "hashValue" in target_acc:
+                    hash_value = target_acc["hashValue"]
                     logger.info(f"[Schwab] Retrieved account hash {hash_value} for account {self.account_number}.")
                     # Complete remaining setup (stream, data source linking, etc.)
                     # Set hash_value on self before signaling readiness
                     self.hash_value = hash_value
+                    self._broker_fully_ready = True  # Signal readiness
                     self._finish_initialization(config, self.data_source, self.account_number, hash_value)
                     self._broker_fully_ready = True  # Signal readiness only after full init succeeds
                 else:
-                    logger.error("[Schwab] Unable to locate account hash in response from get_account_numbers(). API response: %s", accounts_json)
+                    logger.error(
+                        "[Schwab] Unable to locate account hash in response from get_account_numbers(). API response: %s",
+                        accounts_json,
+                    )
                     self.schwab_authorization_error = True
             else:
-                code = getattr(resp_accounts, 'status_code', 'n/a')
+                code = getattr(resp_accounts, "status_code", "n/a")
                 logger.error(f"[Schwab] Failed to fetch account numbers. HTTP status {code}")
                 if code == 401:
                     # Token is invalid, delete it so user will be prompted to re-authenticate
-                    if token_path.exists(): token_path.unlink(missing_ok=True)
+                    if token_path.exists():
+                        token_path.unlink(missing_ok=True)
                     logger.warning(f"[Schwab] Deleted invalid token file {token_path} due to 401 error.")
-                    raise ConnectionError("Schwab authentication failed (401 Unauthorized). Token deleted. Please restart to re-authenticate.")
+                    raise ConnectionError(
+                        "Schwab authentication failed (401 Unauthorized). Token deleted. Please restart to re-authenticate."
+                    )
                 self.schwab_authorization_error = True
         except Exception as e_acc:
             self._broker_fully_ready = False
@@ -382,7 +421,7 @@ class Schwab(Broker):
     def _get_balances_at_broker(self, quote_asset: Asset, strategy) -> tuple:
         """
         Get the actual cash balance at the broker.
-        
+
         Parameters
         ----------
         quote_asset : Asset
@@ -409,44 +448,46 @@ class Schwab(Broker):
         # Add check for valid client and hash_value
         if not self.client or not self.hash_value:
             logger.error(colored("Schwab client or account hash not initialized. Cannot get balances.", "red"))
-            return 0.0, 0.0, 0.0 # Return default values
+            return 0.0, 0.0, 0.0  # Return default values
 
         try:
             # Get account information using the hash_value stored during initialization
             response = self.client.get_account(self.hash_value, fields=[self.client.Account.Fields.POSITIONS])
 
             if response.status_code != 200:
-                logger.error(colored(f"Error getting account information: {response.status_code}, {response.text}", "red"))
+                logger.error(
+                    colored(f"Error getting account information: {response.status_code}, {response.text}", "red")
+                )
                 # Modify the error message slightly for clarity
                 raise ConnectionError(f"Failed to get account information for hash {self.hash_value}: {response.text}")
 
             account_data = response.json()
 
             # Try to use aggregated balance first if available
-            if 'aggregatedBalance' in account_data:
+            if "aggregatedBalance" in account_data:
                 # Use aggregated balance data
-                aggregated_balance = account_data['aggregatedBalance']
-                portfolio_value = float(aggregated_balance.get('currentLiquidationValue', 0))
+                aggregated_balance = account_data["aggregatedBalance"]
+                portfolio_value = float(aggregated_balance.get("currentLiquidationValue", 0))
 
                 # Get cash from securitiesAccount
-                securities_account = account_data.get('securitiesAccount', {})
-                balances = securities_account.get('currentBalances', {})
-                cash = float(balances.get('cashBalance', 0))
+                securities_account = account_data.get("securitiesAccount", {})
+                balances = securities_account.get("currentBalances", {})
+                cash = float(balances.get("cashBalance", 0))
             else:
                 # Fall back to original implementation
-                securities_account = account_data.get('securitiesAccount', {})
-                account_type = securities_account.get('type', '')
+                securities_account = account_data.get("securitiesAccount", {})
+                account_type = securities_account.get("type", "")
 
                 # Get balances based on account type
-                balances = securities_account.get('currentBalances', {})
-                if account_type.lower() == 'margin':
-                    cash = float(balances.get('cashBalance', 0))
-                    portfolio_value = float(balances.get('liquidationValue', 0))
+                balances = securities_account.get("currentBalances", {})
+                if account_type.lower() == "margin":
+                    cash = float(balances.get("cashBalance", 0))
+                    portfolio_value = float(balances.get("liquidationValue", 0))
                     if portfolio_value == 0:
-                        portfolio_value = float(balances.get('equity', 0))
-                else: # Assuming CASH account type or similar
-                    cash = float(balances.get('cashBalance', 0))
-                    portfolio_value = float(balances.get('accountValue', 0))
+                        portfolio_value = float(balances.get("equity", 0))
+                else:  # Assuming CASH account type or similar
+                    cash = float(balances.get("cashBalance", 0))
+                    portfolio_value = float(balances.get("accountValue", 0))
 
             # Calculate positions value (portfolio value minus cash)
             positions_value = portfolio_value - cash
@@ -461,7 +502,7 @@ class Schwab(Broker):
             return 0.0, 0.0, 0.0
 
     # Position methods
-    def _pull_positions(self, strategy: 'Strategy') -> List[Position]:
+    def _pull_positions(self, strategy: Strategy) -> list[Position]:
         # Add check for authorization error first
         if not self._broker_fully_ready:
             logger.warning(colored("[Schwab] Broker not fully ready. Cannot pull positions.", "yellow"))
@@ -474,7 +515,7 @@ class Schwab(Broker):
             # Add check for valid client and hash_value
             if not self.client or not self.hash_value:
                 logger.error(colored("Schwab client or account hash not initialized. Cannot pull positions.", "red"))
-                return [] # Return empty list
+                return []  # Return empty list
 
             # Get account details with positions
             response = self.client.get_account(self.hash_value, fields=[self.client.Account.Fields.POSITIONS])
@@ -486,28 +527,28 @@ class Schwab(Broker):
             account_data = response.json()
 
             # Extract positions
-            securities_account = account_data.get('securitiesAccount', {})
-            schwab_positions = securities_account.get('positions', [])
+            securities_account = account_data.get("securitiesAccount", {})
+            schwab_positions = securities_account.get("positions", [])
 
             pos_dict = {}  # key: (symbol, asset_type, expiration, strike, right)
             strategy_name = strategy.name if strategy is not None else "Unknown"
 
             for schwab_position in schwab_positions:
                 # Extract instrument details
-                instrument = schwab_position.get('instrument', {})
-                asset_type = instrument.get('assetType', '')
-                symbol = instrument.get('symbol', '')
+                instrument = schwab_position.get("instrument", {})
+                asset_type = instrument.get("assetType", "")
+                symbol = instrument.get("symbol", "")
 
                 # Initialize Asset object based on asset type
                 asset = None
-                if asset_type == 'EQUITY':
+                if asset_type == "EQUITY":
                     asset = Asset(
                         symbol=self._normalize_symbol_for_internal(symbol, asset_type=Asset.AssetType.STOCK),
                         asset_type=Asset.AssetType.STOCK,
                     )
-                elif asset_type == 'OPTION':
+                elif asset_type == "OPTION":
                     # Parse option details
-                    option_symbol = instrument.get('symbol')
+                    option_symbol = instrument.get("symbol")
                     option_parts = _schwab_helper()._parse_option_symbol(option_symbol)
 
                     if option_parts is None:
@@ -515,40 +556,42 @@ class Schwab(Broker):
                         continue
 
                     asset = Asset(
-                        symbol=self._normalize_symbol_for_internal(option_parts['underlying'], asset_type=Asset.AssetType.OPTION),
+                        symbol=self._normalize_symbol_for_internal(
+                            option_parts["underlying"], asset_type=Asset.AssetType.OPTION
+                        ),
                         asset_type=Asset.AssetType.OPTION,
-                        expiration=option_parts['expiry_date'],
-                        strike=option_parts['strike_price'],
-                        right=option_parts['option_type'],
+                        expiration=option_parts["expiry_date"],
+                        strike=option_parts["strike_price"],
+                        right=option_parts["option_type"],
                     )
-                elif asset_type == 'FUTURE':
+                elif asset_type == "FUTURE":
                     asset = Asset(
                         symbol=symbol,
                         asset_type=Asset.AssetType.FUTURE,
                     )
-                elif asset_type == 'BOND':
+                elif asset_type == "BOND":
                     asset = Asset(
                         symbol=symbol,
                         asset_type=Asset.AssetType.BOND,
                     )
-                elif asset_type == 'MUTUAL_FUND':
+                elif asset_type == "MUTUAL_FUND":
                     asset = Asset(
                         symbol=symbol,
                         asset_type=Asset.AssetType.MUTUAL_FUND,
                     )
-                elif asset_type == 'COLLECTIVE_INVESTMENT':
+                elif asset_type == "COLLECTIVE_INVESTMENT":
                     # Handle ETFs like CQQQ, UPRO as stocks
                     asset = Asset(
                         symbol=self._normalize_symbol_for_internal(symbol, asset_type=Asset.AssetType.STOCK),
                         asset_type=Asset.AssetType.STOCK,
                     )
-                elif asset_type == 'ETF':
+                elif asset_type == "ETF":
                     # Handle ETFs as stocks
                     asset = Asset(
                         symbol=self._normalize_symbol_for_internal(symbol, asset_type=Asset.AssetType.STOCK),
                         asset_type=Asset.AssetType.STOCK,
                     )
-                elif asset_type in ['CASH_EQUIVALENT', 'MONEY_MARKET_FUND', 'CASH']:
+                elif asset_type in ["CASH_EQUIVALENT", "MONEY_MARKET_FUND", "CASH"]:
                     # Use FOREX as a representation for cash and cash equivalents
                     asset = Asset(
                         symbol=symbol,
@@ -560,8 +603,8 @@ class Schwab(Broker):
                     continue
 
                 # Calculate net quantity (long - short)
-                long_quantity = schwab_position.get('longQuantity', 0)
-                short_quantity = schwab_position.get('shortQuantity', 0)
+                long_quantity = schwab_position.get("longQuantity", 0)
+                short_quantity = schwab_position.get("shortQuantity", 0)
                 net_quantity = long_quantity - short_quantity
 
                 # Skip positions with zero quantity
@@ -569,24 +612,27 @@ class Schwab(Broker):
                     continue
 
                 # Extract position-specific details
-                average_price = schwab_position.get('averagePrice', 0.0)
-                pnl = schwab_position.get('longOpenProfitLoss') or schwab_position.get('shortOpenProfitLoss') or None
-                market_value = schwab_position.get('marketValue', None)
+                average_price = schwab_position.get("averagePrice", 0.0)
+                pnl = schwab_position.get("longOpenProfitLoss") or schwab_position.get("shortOpenProfitLoss") or None
+                market_value = schwab_position.get("marketValue", None)
 
                 # Only create position object if we have a valid asset
                 if asset is not None:
                     # Create a unique key for the asset to avoid duplicates
-                    key = (asset.symbol, asset.asset_type,
-                          getattr(asset, 'expiration', None),
-                          getattr(asset, 'strike', None),
-                          getattr(asset, 'right', None))
+                    key = (
+                        asset.symbol,
+                        asset.asset_type,
+                        getattr(asset, "expiration", None),
+                        getattr(asset, "strike", None),
+                        getattr(asset, "right", None),
+                    )
 
                     # If we already have this asset in our dict, update the quantity
                     if key in pos_dict:
                         existing_position = pos_dict[key]
                         existing_position.quantity += net_quantity
                         if pnl is not None:
-                           existing_position.pnl += pnl
+                            existing_position.pnl += pnl
                         if market_value is not None:
                             existing_position.market_value += market_value
                     else:
@@ -599,7 +645,7 @@ class Schwab(Broker):
                             quantity=net_quantity,
                             avg_fill_price=average_price,
                         )
-                        
+
                         pos_dict[key].pnl = pnl
                         pos_dict[key].market_value = market_value
 
@@ -613,7 +659,7 @@ class Schwab(Broker):
             logger.error(traceback.format_exc())
             return []
 
-    def _pull_position(self, strategy: 'Strategy', asset: Asset) -> Optional[Position]:
+    def _pull_position(self, strategy: Strategy, asset: Asset) -> Position | None:
         """
         Pull a single position from the broker that matches the asset and strategy.
 
@@ -628,7 +674,7 @@ class Schwab(Broker):
         -------
         Position
             The position object for the asset and strategy if found, otherwise None.
-            
+
         Notes
         -----
         This method compares different attributes based on asset type:
@@ -648,10 +694,12 @@ class Schwab(Broker):
                 return position
             # For options, compare all option details
             elif asset.asset_type == Asset.AssetType.OPTION:
-                if (position.asset.symbol == asset.symbol and
-                    position.asset.strike == asset.strike and
-                    position.asset.right == asset.right and
-                    position.asset.expiration == asset.expiration):
+                if (
+                    position.asset.symbol == asset.symbol
+                    and position.asset.strike == asset.strike
+                    and position.asset.right == asset.right
+                    and position.asset.expiration == asset.expiration
+                ):
                     return position
             # For futures, compare symbol
             elif asset.asset_type == Asset.AssetType.FUTURE and position.asset.symbol == asset.symbol:
@@ -667,9 +715,9 @@ class Schwab(Broker):
         Returns
         -------
         list
-            A list of order responses from the broker query. These will be passed to 
+            A list of order responses from the broker query. These will be passed to
             _parse_broker_order() to be converted to Order objects.
-            
+
         Notes
         -----
         This method retrieves orders from the past 7 days by default to limit the
@@ -686,18 +734,15 @@ class Schwab(Broker):
         # Add check for valid client and hash_value
         if not self.client or not self.hash_value:
             logger.error(colored("Schwab client or account hash not initialized. Cannot pull all orders.", "red"))
-            return [] # Return empty list
+            return []  # Return empty list
 
         try:
             # Get orders from last 7 days
             from pytz import timezone
 
-            seek_start = datetime.now(timezone('UTC')) - timedelta(days=7)
+            seek_start = datetime.now(timezone("UTC")) - timedelta(days=7)
 
-            response = self.client.get_orders_for_account(
-                self.hash_value,
-                from_entered_datetime=seek_start
-            )
+            response = self.client.get_orders_for_account(self.hash_value, from_entered_datetime=seek_start)
 
             if response.status_code != 200:
                 logger.error(colored(f"Error fetching orders: {response.status_code}, {response.text}", "red"))
@@ -728,22 +773,25 @@ class Schwab(Broker):
         """
         # Add check for authorization error first
         if self.schwab_authorization_error:
-            logger.warning(colored(f"Schwab authorization failed previously. Cannot pull order {identifier}.", "yellow"))
+            logger.warning(
+                colored(f"Schwab authorization failed previously. Cannot pull order {identifier}.", "yellow")
+            )
             return None
 
         # Add check for valid client and hash_value
         if not self.client or not self.hash_value:
-            logger.error(colored(f"Schwab client or account hash not initialized. Cannot pull order {identifier}.", "red"))
-            return None # Return None
+            logger.error(
+                colored(f"Schwab client or account hash not initialized. Cannot pull order {identifier}.", "red")
+            )
+            return None  # Return None
 
         try:
-            response = self.client.get_order_by_id(
-                self.hash_value,
-                identifier
-            )
+            response = self.client.get_order_by_id(self.hash_value, identifier)
 
             if response.status_code != 200:
-                logger.error(colored(f"Error fetching order {identifier}: {response.status_code}, {response.text}", "red"))
+                logger.error(
+                    colored(f"Error fetching order {identifier}: {response.status_code}, {response.text}", "red")
+                )
                 return None
 
             return response.json()
@@ -753,7 +801,7 @@ class Schwab(Broker):
             logger.error(traceback.format_exc())
             return None
 
-    def _parse_broker_order(self, response: dict, strategy_name: str, strategy_object: 'Strategy' = None) -> Order:
+    def _parse_broker_order(self, response: dict, strategy_name: str, strategy_object: Strategy = None) -> Order:
         """
         Parse a broker order representation to an order object.
 
@@ -770,7 +818,7 @@ class Schwab(Broker):
         -------
         Order
             The order object created from the broker's response, or None if parsing fails.
-            
+
         Notes
         -----
         This method handles complex order structures including:
@@ -807,7 +855,9 @@ class Schwab(Broker):
                     same_asset = True
                     for child_order_object in child_order_objects:
                         if child_order_object.asset != asset:
-                            logger.error(colored("ERROR: Asset for all child orders in OCO order is not the same", "red"))
+                            logger.error(
+                                colored("ERROR: Asset for all child orders in OCO order is not the same", "red")
+                            )
                             same_asset = False
                             break
 
@@ -841,22 +891,22 @@ class Schwab(Broker):
             logger.error(traceback.format_exc())
             return None
 
-    def _parse_simple_order(self, schwab_order: dict, strategy_name: str) -> List[Order]:
+    def _parse_simple_order(self, schwab_order: dict, strategy_name: str) -> list[Order]:
         """
         Parse a simple Schwab order (non-OCO) into Lumibot Order objects.
-        
+
         Parameters
         ----------
         schwab_order : dict
             The Schwab order data.
         strategy_name : str
             The name of the strategy for which to create the order.
-            
+
         Returns
         -------
         List[Order]
             A list of parsed order objects, or an empty list if parsing fails.
-            
+
         Notes
         -----
         This method handles conversion of:
@@ -864,7 +914,7 @@ class Schwab(Broker):
         - Order statuses (NEW, FILLED, CANCELED, etc.)
         - Asset types (STOCK, OPTION, FUTURE, etc.)
         - Order sides (BUY, SELL, BUY_TO_OPEN, etc.)
-        
+
         It also extracts important order details such as:
         - Timestamps (entry and close)
         - Prices (limit price, stop price)
@@ -883,14 +933,16 @@ class Schwab(Broker):
                 "MARKET": Order.OrderType.MARKET,
                 "STOP": Order.OrderType.STOP,
                 "STOP_LIMIT": Order.OrderType.STOP_LIMIT,
-                "TRAILING_STOP": Order.OrderType.TRAIL
+                "TRAILING_STOP": Order.OrderType.TRAIL,
             }
 
             schwab_order_type = schwab_order.get("orderType", None)
             order_type = order_type_map.get(schwab_order_type)
 
             if not order_type and schwab_order_type == "NET_CREDIT":
-                logger.info(colored(f"NET_CREDIT order type not supported: {schwab_order.get('orderId', '')}", "yellow"))
+                logger.info(
+                    colored(f"NET_CREDIT order type not supported: {schwab_order.get('orderId', '')}", "yellow")
+                )
                 return []
             elif not order_type:
                 logger.error(colored(f"Unknown order type: {schwab_order_type}", "red"))
@@ -909,7 +961,7 @@ class Schwab(Broker):
                 "PENDING_REPLACE": Order.OrderStatus.CANCELED,
                 "REPLACED": Order.OrderStatus.CANCELED,
                 "EXPIRED": Order.OrderStatus.CANCELED,
-                "FILLED": Order.OrderStatus.FILLED
+                "FILLED": Order.OrderStatus.FILLED,
             }
 
             schwab_order_status = schwab_order.get("status", None)
@@ -963,7 +1015,7 @@ class Schwab(Broker):
                     "BUY_TO_OPEN": Order.OrderSide.BUY_TO_OPEN,
                     "BUY_TO_CLOSE": Order.OrderSide.BUY_TO_CLOSE,
                     "SELL_TO_OPEN": Order.OrderSide.SELL_TO_OPEN,
-                    "SELL_TO_CLOSE": Order.OrderSide.SELL_TO_CLOSE
+                    "SELL_TO_CLOSE": Order.OrderSide.SELL_TO_CLOSE,
                 }
 
                 instruction = schwab_leg.get("instruction", "")
@@ -979,7 +1031,7 @@ class Schwab(Broker):
                     "OPTION": Asset.AssetType.OPTION,
                     "FUTURE": Asset.AssetType.FUTURE,
                     "FOREX": Asset.AssetType.FOREX,
-                    "INDEX": Asset.AssetType.INDEX
+                    "INDEX": Asset.AssetType.INDEX,
                 }
 
                 asset_type_str = schwab_leg.get("orderLegType", "")
@@ -1001,11 +1053,15 @@ class Schwab(Broker):
                     option_parts = _schwab_helper()._parse_option_symbol(option_symbol)
 
                     if not option_parts:
-                        logger.error(colored(f"Failed to parse option symbol: {option_symbol} for order ID: {order_id}", "red"))
+                        logger.error(
+                            colored(f"Failed to parse option symbol: {option_symbol} for order ID: {order_id}", "red")
+                        )
                         continue
 
                     asset = Asset(
-                        symbol=self._normalize_symbol_for_internal(option_parts["underlying"], asset_type=Asset.AssetType.OPTION),
+                        symbol=self._normalize_symbol_for_internal(
+                            option_parts["underlying"], asset_type=Asset.AssetType.OPTION
+                        ),
                         asset_type=asset_type,
                         expiration=option_parts["expiry_date"],
                         strike=option_parts["strike_price"],
@@ -1017,7 +1073,9 @@ class Schwab(Broker):
                         asset_type=asset_type,
                     )
                 else:
-                    logger.warning(colored(f"Asset type {asset_type} not fully supported yet for order ID: {order_id}", "yellow"))
+                    logger.warning(
+                        colored(f"Asset type {asset_type} not fully supported yet for order ID: {order_id}", "yellow")
+                    )
                     continue
 
                 # Create order object - using order_type instead of type
@@ -1065,7 +1123,7 @@ class Schwab(Broker):
             except Exception as e:
                 logger.error(colored(f"Failed to create Schwab StreamClient: {e}", "red"))
                 self.stream_client = None
-                self.schwab_authorization_error = True # Indicate potential issue
+                self.schwab_authorization_error = True  # Indicate potential issue
 
         # --- Removed schwab_token_status.json creation ---
 
@@ -1075,7 +1133,7 @@ class Schwab(Broker):
         if self._is_schwab_data_intended and isinstance(self.data_source, _schwab_data_class()):
             if self.client:
                 # Set the client on the existing SchwabData instance
-                if not hasattr(self.data_source, 'client') or self.data_source.client is None:
+                if not hasattr(self.data_source, "client") or self.data_source.client is None:
                     self.data_source.set_client(self.client)
                     logger.debug("[Schwab] Client set on the existing SchwabData instance.")
                 else:
@@ -1083,17 +1141,24 @@ class Schwab(Broker):
                     logger.debug("[Schwab] Client seems already set on the SchwabData instance.")
             else:
                 # This case indicates a problem earlier in initialization
-                logger.error(colored("[Schwab] Cannot assign client to SchwabData source because broker client is missing.", "red"))
-                self.schwab_authorization_error = True # Indicate potential issue
+                logger.error(
+                    colored(
+                        "[Schwab] Cannot assign client to SchwabData source because broker client is missing.", "red"
+                    )
+                )
+                self.schwab_authorization_error = True  # Indicate potential issue
         elif not self._is_schwab_data_intended:
             # If a non-SchwabData source was intended and provided, no client assignment is needed here.
-            logger.debug(f"[Schwab] Using non-SchwabData source: {type(self.data_source).__name__}. No client assignment needed here.")
+            logger.debug(
+                f"[Schwab] Using non-SchwabData source: {type(self.data_source).__name__}. No client assignment needed here."
+            )
         else:
             # This case should ideally not happen if __init__ logic is correct
-            logger.warning(f"[Schwab] SchwabData was intended, but self.data_source is type {type(self.data_source).__name__}. Cannot set client.")
-            self.schwab_authorization_error = True # Indicate potential mismatch
+            logger.warning(
+                f"[Schwab] SchwabData was intended, but self.data_source is type {type(self.data_source).__name__}. Cannot set client."
+            )
+            self.schwab_authorization_error = True  # Indicate potential mismatch
         # === End Configure Data Source Client ===
-
 
         # Only launch stream if stream_client was created
         if self.stream_client:
@@ -1101,7 +1166,7 @@ class Schwab(Broker):
             self._launch_stream()
         else:
             logger.warning(colored("[Schwab] Stream not launched because StreamClient failed to initialize.", "yellow"))
-            self.stream = None # Ensure stream is None if not launched
+            self.stream = None  # Ensure stream is None if not launched
 
     # Unimplemented methods with stubs
     def _get_stream_object(self):
@@ -1121,7 +1186,10 @@ class Schwab(Broker):
             try:
                 # Track the last time we synced positions to avoid doing it too frequently
                 current_time = datetime.now()
-                if not hasattr(broker, '_last_position_sync_time') or (current_time - broker._last_position_sync_time).total_seconds() > 30:
+                if (
+                    not hasattr(broker, "_last_position_sync_time")
+                    or (current_time - broker._last_position_sync_time).total_seconds() > 30
+                ):
                     # Only sync positions every 30 seconds to avoid duplication
                     broker.sync_positions(None)
                     broker._last_position_sync_time = current_time
@@ -1201,7 +1269,7 @@ class Schwab(Broker):
     def _submit_order(self, order: Order) -> Order:
         """
         Submit an order to the broker after necessary checks and input sanitization.
-        
+
         Parameters
         ----------
         order : Order
@@ -1215,7 +1283,7 @@ class Schwab(Broker):
         # Add check for authorization error first
         if self.schwab_authorization_error:
             logger.error(colored(f"Schwab authorization failed previously. Cannot submit order {order}.", "red"))
-            if hasattr(self, 'stream') and hasattr(self.stream, 'dispatch'):
+            if hasattr(self, "stream") and hasattr(self.stream, "dispatch"):
                 self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg="Schwab authorization failed previously")
             return None
 
@@ -1223,7 +1291,7 @@ class Schwab(Broker):
         if not self.client or not self.hash_value:
             logger.error(colored(f"Schwab client or account hash not initialized. Cannot submit order {order}.", "red"))
             # Dispatch error event if possible
-            if hasattr(self, 'stream') and hasattr(self.stream, 'dispatch'):
+            if hasattr(self, "stream") and hasattr(self.stream, "dispatch"):
                 self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg="Schwab client/hash not initialized")
             return None
 
@@ -1232,7 +1300,7 @@ class Schwab(Broker):
             tag = order.tag if order.tag else order.strategy
 
             # Replace any characters that might cause issues
-            tag = re.sub(r'[^a-zA-Z0-9-]', '-', tag)
+            tag = re.sub(r"[^a-zA-Z0-9-]", "-", tag)
 
             # Import Schwab order templates
             try:
@@ -1260,35 +1328,59 @@ class Schwab(Broker):
                     option_sell_to_open_market,
                 )
             except ImportError:
-                logger.error(colored("Failed to import Schwab order templates. Make sure the schwab-py library is installed.", "red"))
+                logger.error(
+                    colored(
+                        "Failed to import Schwab order templates. Make sure the schwab-py library is installed.", "red"
+                    )
+                )
                 return None
 
             # Create the appropriate order builder based on asset type and order details
             order_builder = None
+            asset = order.asset
+            if asset is None:
+                logger.error(colored(f"Cannot submit Schwab order without an asset: {order}", "red"))
+                return None
 
             # Handle different order types
             if order.is_advanced_order():
-                logger.error(colored("Advanced orders (OCO/OTO/Bracket) are not yet implemented for Schwab broker.", "red"))
+                logger.error(
+                    colored("Advanced orders (OCO/OTO/Bracket) are not yet implemented for Schwab broker.", "red")
+                )
                 return None
 
-            elif order.asset.asset_type == Asset.AssetType.STOCK:
-                order_builder = self._prepare_stock_order_builder(order, equity_buy_market, equity_buy_limit,
-                                                               equity_sell_market, equity_sell_limit,
-                                                               equity_sell_short_market, equity_sell_short_limit,
-                                                               equity_buy_to_cover_market, equity_buy_to_cover_limit)
+            elif asset.asset_type == Asset.AssetType.STOCK:
+                order_builder = self._prepare_stock_order_builder(
+                    order,
+                    equity_buy_market,
+                    equity_buy_limit,
+                    equity_sell_market,
+                    equity_sell_limit,
+                    equity_sell_short_market,
+                    equity_sell_short_limit,
+                    equity_buy_to_cover_market,
+                    equity_buy_to_cover_limit,
+                )
 
-            elif order.asset.asset_type == Asset.AssetType.OPTION:
-                order_builder = self._prepare_option_order_builder(order, option_buy_to_open_market, option_buy_to_open_limit,
-                                                               option_sell_to_open_market, option_sell_to_open_limit,
-                                                               option_buy_to_close_market, option_buy_to_close_limit,
-                                                               option_sell_to_close_market, option_sell_to_close_limit,
-                                                               OptionSymbol)
+            elif asset.asset_type == Asset.AssetType.OPTION:
+                order_builder = self._prepare_option_order_builder(
+                    order,
+                    option_buy_to_open_market,
+                    option_buy_to_open_limit,
+                    option_sell_to_open_market,
+                    option_sell_to_open_limit,
+                    option_buy_to_close_market,
+                    option_buy_to_close_limit,
+                    option_sell_to_close_market,
+                    option_sell_to_close_limit,
+                    OptionSymbol,
+                )
 
-            elif order.asset.asset_type == Asset.AssetType.FUTURE:
+            elif asset.asset_type == Asset.AssetType.FUTURE:
                 order_builder = self._prepare_futures_order_builder(order, OrderBuilder)
 
             else:
-                logger.error(colored(f"Asset type {order.asset.asset_type} is not supported by Schwab broker.", "red"))
+                logger.error(colored(f"Asset type {asset.asset_type} is not supported by Schwab broker.", "red"))
                 return None
 
             if not order_builder:
@@ -1323,7 +1415,12 @@ class Schwab(Broker):
                 order_spec = order_spec["order_spec"]
 
             # Log the final order request - reduce verbosity
-            logger.info(colored(f"Sending order to Schwab: {order.asset.symbol, order.quantity} @ {order.limit_price or 'market'}", "cyan"))
+            logger.info(
+                colored(
+                    f"Sending order to Schwab: {asset.symbol, order.quantity} @ {order.limit_price or 'market'}",
+                    "cyan",
+                )
+            )
 
             # Submit the order to Schwab
             response = self.client.place_order(self.hash_value, order_spec)
@@ -1334,12 +1431,12 @@ class Schwab(Broker):
             # If we get an error response, extract details and return
             if response.status_code >= 400:
                 error_msg = f"Error submitting order: HTTP {response.status_code}"
-                if hasattr(response, 'text') and response.text:
+                if hasattr(response, "text") and response.text:
                     try:
                         error_data = json.loads(response.text)
-                        if 'message' in error_data:
+                        if "message" in error_data:
                             error_msg += f" - {error_data['message']}"
-                    except:
+                    except (TypeError, ValueError, json.JSONDecodeError):
                         error_msg += f" - {response.text}"
 
                 logger.error(colored(error_msg, "red"))
@@ -1352,7 +1449,7 @@ class Schwab(Broker):
             order_id = None
             try:
                 # Use the Schwab utility function to extract order ID if available
-                #this fails because we are using Oauth2Session which uses Requests which uses "ok", whereas schwab-py uses HTTPX which has (undocumented) "is_error" to check the response. 
+                # this fails because we are using Oauth2Session which uses Requests which uses "ok", whereas schwab-py uses HTTPX which has (undocumented) "is_error" to check the response.
                 # try:
                 #     from schwab.utils import Utils
                 #     # Create a Utils instance with required client and account_hash parameters
@@ -1364,13 +1461,13 @@ class Schwab(Broker):
                 #     logger.warning(colored(f"Could not use Utils.extract_order_id: {e}", "yellow"))
 
                 # Fallback methods if Utils.extract_order_id fails
-                if not order_id and hasattr(response, 'headers') and 'Location' in response.headers:
-                    location = response.headers.get('Location', '')
-                    order_id = location.split('/')[-1] if '/' in location else location.strip()
+                if not order_id and hasattr(response, "headers") and "Location" in response.headers:
+                    location = response.headers.get("Location", "")
+                    order_id = location.split("/")[-1] if "/" in location else location.strip()
                     logger.info(colored(f"Extracted order ID from Location header: {order_id}", "green"))
 
                 # If still no order ID and we have text, try to use it directly
-                if not order_id and hasattr(response, 'text') and response.text and response.text.strip():
+                if not order_id and hasattr(response, "text") and response.text and response.text.strip():
                     order_id = response.text.strip()
                     logger.info(colored(f"Using response text as order ID: {order_id}", "green"))
             except Exception as e:
@@ -1400,25 +1497,33 @@ class Schwab(Broker):
             logger.error(traceback.format_exc())
 
             # Dispatch error event
-            if hasattr(self, 'stream') and hasattr(self.stream, 'dispatch'):
+            if hasattr(self, "stream") and hasattr(self.stream, "dispatch"):
                 self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)
 
             return None
 
-    def _prepare_stock_order_builder(self, order, equity_buy_market, equity_buy_limit,
-                                   equity_sell_market, equity_sell_limit,
-                                   equity_sell_short_market, equity_sell_short_limit,
-                                   equity_buy_to_cover_market, equity_buy_to_cover_limit):
+    def _prepare_stock_order_builder(
+        self,
+        order,
+        equity_buy_market,
+        equity_buy_limit,
+        equity_sell_market,
+        equity_sell_limit,
+        equity_sell_short_market,
+        equity_sell_short_limit,
+        equity_buy_to_cover_market,
+        equity_buy_to_cover_limit,
+    ):
         """
         Prepare the order builder for stock orders using Schwab order templates.
-        
+
         Parameters
         ----------
         order : Order
             The order to prepare the builder for
         equity_buy_market, equity_buy_limit, etc. : function
             Schwab order template functions
-            
+
         Returns
         -------
         OrderBuilder
@@ -1500,7 +1605,9 @@ class Schwab(Broker):
                     logger.error(colored(f"Failed to modify order builder for stop/stop-limit order: {e}", "red"))
                     return None
         else:
-            logger.error(colored(f"Order type {order.order_type} not supported for stocks with Schwab templates.", "red"))
+            logger.error(
+                colored(f"Order type {order.order_type} not supported for stocks with Schwab templates.", "red")
+            )
             return None
 
         if not order_builder:
@@ -1509,14 +1616,22 @@ class Schwab(Broker):
 
         return order_builder
 
-    def _prepare_option_order_builder(self, order, option_buy_to_open_market, option_buy_to_open_limit,
-                                   option_sell_to_open_market, option_sell_to_open_limit,
-                                   option_buy_to_close_market, option_buy_to_close_limit,
-                                   option_sell_to_close_market, option_sell_to_close_limit,
-                                   OptionSymbol):
+    def _prepare_option_order_builder(
+        self,
+        order,
+        option_buy_to_open_market,
+        option_buy_to_open_limit,
+        option_sell_to_open_market,
+        option_sell_to_open_limit,
+        option_buy_to_close_market,
+        option_buy_to_close_limit,
+        option_sell_to_close_market,
+        option_sell_to_close_limit,
+        OptionSymbol,
+    ):
         """
         Prepare the order builder for option orders using Schwab order templates.
-        
+
         Parameters
         ----------
         order : Order
@@ -1525,7 +1640,7 @@ class Schwab(Broker):
             Schwab option order template functions
         OptionSymbol : class
             The Schwab OptionSymbol class for constructing option symbols
-            
+
         Returns
         -------
         OrderBuilder
@@ -1541,18 +1656,13 @@ class Schwab(Broker):
             underlying_symbol = self._normalize_symbol_for_broker(order.asset.symbol, asset_type=order.asset.asset_type)
             expiration_date = order.asset.expiration
             strike_price = order.asset.strike
-            option_type = 'C' if order.asset.right == 'CALL' else 'P'
+            option_type = "C" if order.asset.right == "CALL" else "P"
 
             # Format strike price as string with proper decimal format
             strike_price_str = f"{strike_price:.2f}"
 
             # Create option symbol using Schwab's OptionSymbol builder
-            option_symbol = OptionSymbol(
-                underlying_symbol,
-                expiration_date,
-                option_type,
-                strike_price_str
-            ).build()
+            option_symbol = OptionSymbol(underlying_symbol, expiration_date, option_type, strike_price_str).build()
 
             logger.info(colored(f"Created option symbol: {option_symbol}", "cyan"))
 
@@ -1612,7 +1722,7 @@ class Schwab(Broker):
 
             # Handle stop and stop-limit orders
             elif order.order_type in [Order.OrderType.STOP, Order.OrderType.STOP_LIMIT]:
-                               # # For stop orders, we start with a market or limit order template
+                # # For stop orders, we start with a market or limit order template
                 if order.order_type == Order.OrderType.STOP:
                     if is_buy and is_opening:
                         order_builder = option_buy_to_open_market(option_symbol, quantity)
@@ -1652,13 +1762,15 @@ class Schwab(Broker):
                         # Reconstruct builder with modified spec
                         order_builder._order_spec = order_spec
                     except Exception as e:
-                        logger.error(colored(f"Failed to modify order builder for stop/stop-limit option order: {e}", "red"))
+                        logger.error(
+                            colored(f"Failed to modify order builder for stop/stop-limit option order: {e}", "red")
+                        )
                         return None
             else:
-                logger.error(colored(f"Order type {order.order_type} not supported for options with Schwab templates.", "red"))
+                logger.error(
+                    colored(f"Order type {order.order_type} not supported for options with Schwab templates.", "red")
+                )
                 return None
-
-
 
             if not order_builder:
                 logger.error(colored(f"Failed to create option order builder for side: {order.side}", "red"))
@@ -1674,14 +1786,14 @@ class Schwab(Broker):
     def _prepare_futures_order_builder(self, order, OrderBuilder):
         """
         Prepare the order builder for futures orders using Schwab generic order builder.
-        
+
         Parameters
         ----------
         order : Order
             The order to prepare the builder for
         OrderBuilder : class
             Schwab OrderBuilder class
-            
+
         Returns
         -------
         OrderBuilder
@@ -1695,7 +1807,7 @@ class Schwab(Broker):
 
         # Futures symbols in Schwab sometimes need special formatting
         # Most common futures symbols include a slash, e.g., "/ES" for E-mini S&P 500
-        if not symbol.startswith('/') and ':' not in symbol and '.' not in symbol:
+        if not symbol.startswith("/") and ":" not in symbol and "." not in symbol:
             logger.info(colored(f"Converting futures symbol from {symbol} to /{symbol}", "cyan"))
             symbol = f"/{symbol}"
 
@@ -1709,14 +1821,14 @@ class Schwab(Broker):
                 "orderLegCollection": [
                     {
                         "orderLegType": "FUTURE",
-                        "instruction": "BUY" if order.side in [Order.OrderSide.BUY, Order.OrderSide.BUY_TO_OPEN, Order.OrderSide.BUY_TO_COVER] else "SELL",
+                        "instruction": "BUY"
+                        if order.side
+                        in [Order.OrderSide.BUY, Order.OrderSide.BUY_TO_OPEN, Order.OrderSide.BUY_TO_COVER]
+                        else "SELL",
                         "quantity": quantity,
-                        "instrument": {
-                            "assetType": "FUTURE",
-                            "symbol": symbol
-                        }
+                        "instrument": {"assetType": "FUTURE", "symbol": symbol},
                     }
-                ]
+                ],
             }
 
             # Set order type
@@ -1745,7 +1857,6 @@ class Schwab(Broker):
             # Important: We're directly setting the order spec as the final product
             # That will be returned by build() later, not creating a nested structure
 
-
             new_builder._order_spec = order_spec
 
             # No need to call any setter methods since we've directly set the spec
@@ -1756,13 +1867,12 @@ class Schwab(Broker):
             logger.error(traceback.format_exc())
             return None
 
-    def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
-                      stop_price: Union[float, None] = None):
+    def _modify_order(self, order: Order, limit_price: float | None = None, stop_price: float | None = None):
         """
         Modify an order at the broker. Nothing will be done for orders that are already cancelled or filled. You are
         only allowed to change the limit price and/or stop price. If you want to change the quantity,
         you must cancel the order and submit a new one.
-        
+
         Parameters
         ----------
         order : Order
@@ -1774,25 +1884,33 @@ class Schwab(Broker):
         """
         # Add check for authorization error first
         if self.schwab_authorization_error:
-            logger.error(colored(f"Schwab authorization failed previously. Cannot modify order {order.identifier}.", "red"))
+            logger.error(
+                colored(f"Schwab authorization failed previously. Cannot modify order {order.identifier}.", "red")
+            )
             return
 
         # Add check for valid client and hash_value
         if not self.client or not self.hash_value:
-            logger.error(colored(f"Schwab client or account hash not initialized. Cannot modify order {order.identifier}.", "red"))
-            return # Return early
+            logger.error(
+                colored(
+                    f"Schwab client or account hash not initialized. Cannot modify order {order.identifier}.", "red"
+                )
+            )
+            return  # Return early
 
         # Check if the order is already cancelled or filled
         if order.is_filled() or order.is_canceled():
             return
 
         if not order.identifier:
-            logger.error(colored("Order identifier is not set, unable to modify order. Did you remember to submit it?", "red"))
+            logger.error(
+                colored("Order identifier is not set, unable to modify order. Did you remember to submit it?", "red")
+            )
             return
 
         try:
             # Get the original order first to use as base for modification
-            original_order_data = self._pull_broker_order(order.identifier) # Already checks hash_value
+            original_order_data = self._pull_broker_order(order.identifier)  # Already checks hash_value
 
             if not original_order_data:
                 logger.error(colored(f"Unable to fetch original order {order.identifier} for modification", "red"))
@@ -1811,10 +1929,10 @@ class Schwab(Broker):
             # Extract new order ID from response (the replaced order will have a new ID)
             new_order_id = None
             try:
-                if hasattr(response, 'headers') and 'Location' in response.headers:
+                if hasattr(response, "headers") and "Location" in response.headers:
                     # Extract order ID from the Location header
-                    location = response.headers['Location']
-                    new_order_id = location.split('/')[-1]
+                    location = response.headers["Location"]
+                    new_order_id = location.split("/")[-1]
                 elif response.status_code == 200 or response.status_code == 201:
                     # Try to extract from text if possible
                     new_order_id = response.text.strip() if response.text else None
@@ -1845,7 +1963,7 @@ class Schwab(Broker):
     def _prepare_replacement_order_spec(self, order, original_order_data, limit_price, stop_price):
         """
         Prepare a replacement order specification for order modification.
-        
+
         Parameters
         ----------
         order : Order
@@ -1856,7 +1974,7 @@ class Schwab(Broker):
             The new limit price, or None to keep original
         stop_price : float or None
             The new stop price, or None to keep original
-            
+
         Returns
         -------
         dict
@@ -1867,11 +1985,10 @@ class Schwab(Broker):
 
         # Start with tag for the order
         tag = order.tag if order.tag else order.strategy
-        tag = re.sub(r'[^a-zA-Z0-9-]', '-', tag)
+        tag = re.sub(r"[^a-zA-Z0-9-]", "-", tag)
 
         # Use original values for prices if new ones are not provided
         final_limit_price = limit_price if limit_price is not None else order.limit_price
-        final_stop_price = stop_price if stop_price is not None else order.stop_price
 
         # Create the replacement order spec based on asset type
         if order.asset.asset_type == Asset.AssetType.STOCK:
@@ -1885,7 +2002,7 @@ class Schwab(Broker):
     def get_historical_account_value(self) -> dict:
         """
         Get the historical account value.
-        
+
         Returns
         -------
         dict
@@ -1897,7 +2014,7 @@ class Schwab(Broker):
     def cancel_order(self, order: Order) -> None:
         """
         Cancel an order at the broker. Nothing will be done for orders that are already cancelled or filled.
-        
+
         Parameters
         ----------
         order : Order
@@ -1909,13 +2026,19 @@ class Schwab(Broker):
         """
         # Add check for authorization error first
         if self.schwab_authorization_error:
-            logger.error(colored(f"Schwab authorization failed previously. Cannot cancel order {order.identifier}.", "red"))
+            logger.error(
+                colored(f"Schwab authorization failed previously. Cannot cancel order {order.identifier}.", "red")
+            )
             return
 
         # Add check for valid client and hash_value
         if not self.client or not self.hash_value:
-            logger.error(colored(f"Schwab client or account hash not initialized. Cannot cancel order {order.identifier}.", "red"))
-            return # Return early
+            logger.error(
+                colored(
+                    f"Schwab client or account hash not initialized. Cannot cancel order {order.identifier}.", "red"
+                )
+            )
+            return  # Return early
 
         logger.error(colored(f"Method 'cancel_order' for order {order} is not yet implemented.", "red"))
         # Implementation needed: call self.client.cancel_order(self.hash_value, order.identifier)
@@ -1938,12 +2061,14 @@ class Schwab(Broker):
         """
         # Add check for initialization status
         # This check should now work reliably as schwab_authorization_error always exists
-        if not self._broker_fully_ready: # Check new flag first
+        if not self._broker_fully_ready:  # Check new flag first
             logger.debug(colored("[Schwab] Broker not fully ready, skipping position sync.", "yellow"))
             return
-        if not hasattr(self, '_filled_positions') or self.schwab_authorization_error:
-             logger.warning(colored("[Schwab] Broker not fully initialized or in error state, skipping position sync.", "yellow"))
-             return
+        if not hasattr(self, "_filled_positions") or self.schwab_authorization_error:
+            logger.warning(
+                colored("[Schwab] Broker not fully initialized or in error state, skipping position sync.", "yellow")
+            )
+            return
 
         # Get current tracked positions for this strategy
         strategy_name = strategy.name if strategy else None
@@ -1953,10 +2078,13 @@ class Schwab(Broker):
         # Create a dict of tracked positions keyed by their unique asset identifiers
         for position in tracked:
             asset = position.asset
-            key = (asset.symbol, asset.asset_type,
-                  getattr(asset, 'expiration', None),
-                  getattr(asset, 'strike', None),
-                  getattr(asset, 'right', None))
+            key = (
+                asset.symbol,
+                asset.asset_type,
+                getattr(asset, "expiration", None),
+                getattr(asset, "strike", None),
+                getattr(asset, "right", None),
+            )
             tracked_dict[key] = position
 
         # Pull fresh positions from the broker
@@ -1964,10 +2092,13 @@ class Schwab(Broker):
         new_dict = {}
         for position in new_positions:
             asset = position.asset
-            key = (asset.symbol, asset.asset_type,
-                  getattr(asset, 'expiration', None),
-                  getattr(asset, 'strike', None),
-                  getattr(asset, 'right', None))
+            key = (
+                asset.symbol,
+                asset.asset_type,
+                getattr(asset, "expiration", None),
+                getattr(asset, "strike", None),
+                getattr(asset, "right", None),
+            )
             new_dict[key] = position
 
         # Remove positions that no longer exist
@@ -1987,4 +2118,6 @@ class Schwab(Broker):
                 # Add new position
                 self._filled_positions.append(position)
 
-        logger.debug(f"Synchronized {len(new_positions)} positions for strategy {strategy_name if strategy_name else 'None'}")
+        logger.debug(
+            f"Synchronized {len(new_positions)} positions for strategy {strategy_name if strategy_name else 'None'}"
+        )

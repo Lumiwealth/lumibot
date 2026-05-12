@@ -1,3 +1,7 @@
+# pyright: reportMissingParameterType=false, reportUnknownParameterType=false
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false
+# pyright: reportUnknownLambdaType=false, reportMissingTypeStubs=false, reportInvalidTypeForm=false
+# pyright: reportMissingTypeArgument=false
 from __future__ import annotations
 
 import contextlib
@@ -7,11 +11,13 @@ import os
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from importlib import import_module
+from typing import Any, cast
 
 import pytz
 
-from ..constants import LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.tools import to_datetime_aware
+
+from ..constants import LUMIBOT_DEFAULT_TIMEZONE
 
 
 class _LazyModule:
@@ -130,6 +136,7 @@ def __getattr__(name):
     if name == "webbrowser":
         return _get_webbrowser()
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 TERMINAL_TRADE_STATUSES_FOR_MARKERS = {
     "fill",
@@ -309,11 +316,7 @@ def _build_trade_marker_tooltip(row: pd.Series):
                 + str(trade_cost_dec.quantize(Decimal("0.01")).__format__(",f"))
                 + "<br>"
                 + "Slippage: "
-                + (
-                    str(slippage_dec.quantize(Decimal("0.01")).__format__(",f"))
-                    if slippage_dec is not None
-                    else "0.00"
-                )
+                + (str(slippage_dec.quantize(Decimal("0.01")).__format__(",f")) if slippage_dec is not None else "0.00")
                 + "<br>"
             )
         except (InvalidOperation, TypeError, ValueError):
@@ -328,9 +331,7 @@ def _build_trade_marker_tooltip(row: pd.Series):
         filled_qty_text = str(filled_quantity_dec.quantize(Decimal("0.01")).__format__(",f"))
         trade_cost_text = str(trade_cost_dec.quantize(Decimal("0.01")).__format__(",f"))
         slippage_text = (
-            str(slippage_dec.quantize(Decimal("0.01")).__format__(",f"))
-            if slippage_dec is not None
-            else "0.00"
+            str(slippage_dec.quantize(Decimal("0.01")).__format__(",f")) if slippage_dec is not None else "0.00"
         )
     except (InvalidOperation, TypeError, ValueError):
         return None
@@ -395,11 +396,7 @@ def _build_cash_event_marker_tooltip(row: pd.Series) -> str | None:
         else "No description"
     )
     reason = row.get("cash_event_reason")
-    reason_text = (
-        str(reason).strip()
-        if not pd.isna(reason) and reason is not None and str(reason).strip()
-        else "n/a"
-    )
+    reason_text = str(reason).strip() if not pd.isna(reason) and reason is not None and str(reason).strip() else "n/a"
     direction = row.get("cash_event_direction")
     direction_text = (
         str(direction).strip()
@@ -408,9 +405,7 @@ def _build_cash_event_marker_tooltip(row: pd.Series) -> str | None:
     )
     raw_type = row.get("cash_event_raw_type")
     raw_type_text = (
-        str(raw_type).strip()
-        if not pd.isna(raw_type) and raw_type is not None and str(raw_type).strip()
-        else "n/a"
+        str(raw_type).strip() if not pd.isna(raw_type) and raw_type is not None and str(raw_type).strip() else "n/a"
     )
     external_flag = bool(row.get("is_external_cash_flow")) if not pd.isna(row.get("is_external_cash_flow")) else False
 
@@ -597,7 +592,7 @@ def max_drawdown(_df):
         drawdown = 0
 
     date = df["drawdown_pct"].idxmax()
-    if type(date) == float and math.isnan(date):
+    if type(date) is float and math.isnan(date):
         date = df.index[0]
 
     return {"drawdown": drawdown, "date": date}
@@ -638,14 +633,14 @@ def performance(_df, risk_free, prefix=""):
     maxdown_adj = max_drawdown(_df)
     romad_adj = romad(_df)
 
-    print(f"{prefix} CAGR {cagr_adj*100:,.2f}%")
-    print(f"{prefix} Volatility {vol_adj*100:,.2f}%")
+    print(f"{prefix} CAGR {cagr_adj * 100:,.2f}%")
+    print(f"{prefix} Volatility {vol_adj * 100:,.2f}%")
     print(f"{prefix} Sharpe {sharpe_adj:0.2f}")
-    print(f"{prefix} Max Drawdown {maxdown_adj['drawdown']*100:,.2f}% on {maxdown_adj['date']:%Y-%m-%d}")
-    print(f"{prefix} RoMaD {romad_adj*100:,.2f}%")
+    print(f"{prefix} Max Drawdown {maxdown_adj['drawdown'] * 100:,.2f}% on {maxdown_adj['date']:%Y-%m-%d}")
+    print(f"{prefix} RoMaD {romad_adj * 100:,.2f}%")
 
 
-def get_symbol_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
+def get_symbol_returns(symbol, start=None, end=None):
     """Get the returns for a symbol between two dates
 
     Parameters
@@ -667,6 +662,10 @@ def get_symbol_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
         - symbol_cumprod: The cumulative product of (1 + return)
 
     """
+    if start is None:
+        start = datetime(1900, 1, 1)
+    if end is None:
+        end = datetime.now()
     # Fetch the symbol data
     from .yahoo_helper import YahooHelper as yh
 
@@ -747,7 +746,11 @@ def _safe_subplot_vertical_spacing(rows: int, default_spacing: float = 0.15, eps
     return min(default_spacing, max_allowed)
 
 
-def calculate_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
+def calculate_returns(symbol, start=None, end=None):
+    if start is None:
+        start = datetime(1900, 1, 1)
+    if end is None:
+        end = datetime.now()
     start = to_datetime_aware(start)
     end = to_datetime_aware(end)
     benchmark_df = get_symbol_returns(symbol, start, end)
@@ -771,9 +774,19 @@ def plot_indicators(
         logger.debug("show_indicators is False; skipping HTML, emitting indicators CSV/parquet.")
         csv_file = plot_file_html.replace(".html", ".csv")
         standard_columns = [
-            "datetime", "name", "plot_name", "type", "value",
-            "symbol", "size", "color", "detail_text",
-            "open", "high", "low", "close",
+            "datetime",
+            "name",
+            "plot_name",
+            "type",
+            "value",
+            "symbol",
+            "size",
+            "color",
+            "detail_text",
+            "open",
+            "high",
+            "low",
+            "close",
         ]
         # Build combined_df from whatever data was passed in, or empty.
         export_dfs = []
@@ -782,9 +795,9 @@ def plot_indicators(
             m["type"] = "marker"
             export_dfs.append(m)
         if chart_lines_df is not None and not chart_lines_df.empty:
-            l = chart_lines_df.copy()
-            l["type"] = "line"
-            export_dfs.append(l)
+            line_df = chart_lines_df.copy()
+            line_df["type"] = "line"
+            export_dfs.append(line_df)
         if chart_ohlc_df is not None and not chart_ohlc_df.empty:
             o = chart_ohlc_df.copy()
             o["type"] = "ohlc"
@@ -912,7 +925,10 @@ def plot_indicators(
                     if "color" not in group_df.columns:
                         group_df["color"] = None
                     group_df.loc[:, "color"] = group_df["color"].apply(
-                        lambda val: _safe_color(val, f"{plot_name}:{marker_name}")
+                        lambda val, _plot_name=plot_name, _marker_name=marker_name: _safe_color(
+                            val,
+                            f"{_plot_name}:{_marker_name}",
+                        )
                     )
 
                     # Determine which subplot to use
@@ -932,7 +948,7 @@ def plot_indicators(
                             text=group_df["detail_text"],
                         ),
                         row=row,
-                        col=1
+                        col=1,
                     )
 
             has_chart_data = True
@@ -971,7 +987,7 @@ def plot_indicators(
                             text=group_df["detail_text"],
                         ),
                         row=row,
-                        col=1
+                        col=1,
                     )
 
             has_chart_data = True
@@ -1063,13 +1079,15 @@ def plot_indicators(
 
         if has_chart_data:
             # Range selector buttons
-            rangeselector_buttons = list([
-                dict(count=1, label="1m", step="month", stepmode="backward"),
-                dict(count=6, label="6m", step="month", stepmode="backward"),
-                dict(count=1, label="YTD", step="year", stepmode="todate"),
-                dict(count=1, label="1y", step="year", stepmode="backward"),
-                dict(step="all"),
-            ])
+            rangeselector_buttons = list(
+                [
+                    dict(count=1, label="1m", step="month", stepmode="backward"),
+                    dict(count=6, label="6m", step="month", stepmode="backward"),
+                    dict(count=1, label="YTD", step="year", stepmode="todate"),
+                    dict(count=1, label="1y", step="year", stepmode="backward"),
+                    dict(step="all"),
+                ]
+            )
 
             # Update axes for all subplots
             for i in range(1, num_subplots + 1):
@@ -1077,12 +1095,7 @@ def plot_indicators(
                 plot_title = plot_names[i - 1]
 
                 # Set y-axes titles for each subplot
-                fig.update_yaxes(
-                    title_text=plot_title,
-                    secondary_y=False,
-                    row=i,
-                    col=1
-                )
+                fig.update_yaxes(title_text=plot_title, secondary_y=False, row=i, col=1)
 
                 # Add range selector and range slider to each subplot
                 fig.update_xaxes(
@@ -1094,26 +1107,24 @@ def plot_indicators(
                     ),
                     rangeslider=dict(
                         visible=True,
-                        thickness=0.02  # Make the range slider height shorter to make line graph appear taller
+                        thickness=0.02,  # Make the range slider height shorter to make line graph appear taller
                     ),
                     row=i,
-                    col=1
+                    col=1,
                 )
 
-        disable_ui = _env_flag_enabled("LUMIBOT_DISABLE_UI", default=False) or bool(os.environ.get("PYTEST_CURRENT_TEST"))
+        disable_ui = _env_flag_enabled("LUMIBOT_DISABLE_UI", default=False) or bool(
+            os.environ.get("PYTEST_CURRENT_TEST")
+        )
         write_indicators_html = _env_flag_enabled("LUMIBOT_WRITE_INDICATORS_HTML", default=True)
 
         if write_indicators_html:
             # Create graph (auto_open disabled for CI/tests).
             fig.write_html(plot_file_html, auto_open=show_indicators and not disable_ui)
         else:
-            logger.info(
-                "Skipping indicators HTML generation because LUMIBOT_WRITE_INDICATORS_HTML is disabled."
-            )
+            logger.info("Skipping indicators HTML generation because LUMIBOT_WRITE_INDICATORS_HTML is disabled.")
     except Exception:
-        logger.exception(
-            "Indicators subplot rendering failed; continuing with indicators CSV/parquet export."
-        )
+        logger.exception("Indicators subplot rendering failed; continuing with indicators CSV/parquet export.")
 
     # Get the file name for the CSV file by removing the .html extension and adding .csv
     csv_file = plot_file_html.replace(".html", ".csv")
@@ -1289,26 +1300,30 @@ def plot_returns(
         _columns_for_merge = [col for col in TRADE_EXPORT_COLUMNS if col != "time"]
         if not df_final.index.empty:
             processed_trades_for_merge = pd.DataFrame(index=df_final.index, columns=_columns_for_merge)
-        else: # df_final is empty, create an empty df with columns and time index
+        else:  # df_final is empty, create an empty df with columns and time index
             processed_trades_for_merge = pd.DataFrame(columns=_columns_for_merge)
-            processed_trades_for_merge.index = pd.to_datetime(processed_trades_for_merge.index) # ensure datetimeindex
+            processed_trades_for_merge.index = pd.to_datetime(processed_trades_for_merge.index)  # ensure datetimeindex
         processed_trades_for_merge.index.name = "time"
     else:
         # We have trades, prepare a copy
         processed_trades_for_merge = trades_df.copy()
-        if 'time' in processed_trades_for_merge.columns:
-            processed_trades_for_merge['time'] = pd.to_datetime(processed_trades_for_merge['time'])
-            processed_trades_for_merge = processed_trades_for_merge.set_index('time')
-            
+        if "time" in processed_trades_for_merge.columns:
+            processed_trades_for_merge["time"] = pd.to_datetime(processed_trades_for_merge["time"])
+            processed_trades_for_merge = processed_trades_for_merge.set_index("time")
+
             # Ensure all standard columns (excluding 'time') are present, filling missing ones with NA
             _columns_to_ensure_in_merge = [col for col in TRADE_EXPORT_COLUMNS if col != "time"]
             for col in _columns_to_ensure_in_merge:
                 if col not in processed_trades_for_merge.columns:
                     processed_trades_for_merge[col] = pd.NA
             # Select only the standard columns for merging
-            processed_trades_for_merge = processed_trades_for_merge[[col for col in _columns_to_ensure_in_merge if col in processed_trades_for_merge.columns]]
+            processed_trades_for_merge = processed_trades_for_merge[
+                [col for col in _columns_to_ensure_in_merge if col in processed_trades_for_merge.columns]
+            ]
         else:
-            logger.warning("Trades data provided but 'time' column is missing. Cannot merge trades for plotting. Plot will not show trade markers.")
+            logger.warning(
+                "Trades data provided but 'time' column is missing. Cannot merge trades for plotting. Plot will not show trade markers."
+            )
             # Fallback to empty trades for merge to avoid errors and ensure consistent columns in df_final
             _columns_for_merge = [col for col in TRADE_EXPORT_COLUMNS if col != "time"]
             if not df_final.index.empty:
@@ -1376,9 +1391,7 @@ def plot_returns(
                 name=raw_line_label,
                 connectgaps=True,
                 hovertemplate=(
-                    f"{raw_line_label}<br>"
-                    "Value: %{y:$,.2f}<br>"
-                    "%{x|%b %d %Y %I:%M:%S %p}<extra></extra>"
+                    f"{raw_line_label}<br>Value: %{{y:$,.2f}}<br>%{{x|%b %d %Y %I:%M:%S %p}}<extra></extra>"
                 ),
                 line=dict(width=2, dash="dash"),
                 opacity=0.8,
@@ -1436,7 +1449,9 @@ def plot_returns(
 
         buys.index.name = "datetime"
         buys = (
-            buys.groupby(["datetime", adjusted_value_col])["plotly_text_buys"].apply(lambda x: "<br>".join(x)).reset_index()
+            buys.groupby(["datetime", adjusted_value_col])["plotly_text_buys"]
+            .apply(lambda x: "<br>".join(x))
+            .reset_index()
         )
         buys = buys.set_index("datetime")
         buys["buy_shift"] = buys[adjusted_value_col] - vshift
@@ -1684,9 +1699,9 @@ def _prepare_tearsheet_returns(strategy_df: pd.DataFrame, benchmark_df: pd.DataF
     else:
         cumulative_external_flows = None
         if "cash_adjustments_net_total" in df.columns:
-            df["cash_adjustments_net_total"] = pd.to_numeric(
-                df["cash_adjustments_net_total"], errors="coerce"
-            ).ffill().fillna(0.0)
+            df["cash_adjustments_net_total"] = (
+                pd.to_numeric(df["cash_adjustments_net_total"], errors="coerce").ffill().fillna(0.0)
+            )
             cumulative_external_flows = df["cash_adjustments_net_total"]
 
         df["strategy"] = cash_flow_adjusted_returns(
@@ -1716,9 +1731,8 @@ def _prepare_tearsheet_returns(strategy_df: pd.DataFrame, benchmark_df: pd.DataF
         # Only prepend if the first row has a non-zero return — otherwise the
         # anchor would be redundant.
         try:
-            needs_anchor = (
-                (pd.notna(first_strat) and float(first_strat) != 0.0)
-                or (pd.notna(first_bench) and float(first_bench) != 0.0)
+            needs_anchor = (pd.notna(first_strat) and float(first_strat) != 0.0) or (
+                pd.notna(first_bench) and float(first_bench) != 0.0
             )
         except Exception:
             needs_anchor = False
@@ -1746,7 +1760,7 @@ def create_tearsheet(
     show_tearsheet: bool,
     save_tearsheet: bool,
     risk_free_rate: float,
-    strategy_parameters: dict = None,
+    strategy_parameters: dict | None = None,
     lumibot_version: str | None = None,
     backtesting_data_source: str | None = None,
     backtesting_data_sources: str | None = None,
@@ -1754,6 +1768,7 @@ def create_tearsheet(
     tearsheet_metrics_file: str | None = None,
     custom_metrics: dict | None = None,
 ):
+    result: Any = None
     # If show tearsheet is False, then we don't want to open the tearsheet in the browser
     # IMS create the tearsheet even if we are not showinbg it
     if not save_tearsheet:
@@ -1827,7 +1842,12 @@ def create_tearsheet(
     # crash the backtest; write a placeholder tearsheet instead.
     strategy_returns = df_final["strategy"].dropna()
     benchmark_returns = df_final["benchmark"].dropna()
-    if strategy_returns.empty or benchmark_returns.empty or strategy_returns.nunique() <= 1 or benchmark_returns.nunique() <= 1:
+    if (
+        strategy_returns.empty
+        or benchmark_returns.empty
+        or strategy_returns.nunique() <= 1
+        or benchmark_returns.nunique() <= 1
+    ):
         logger.warning(
             "Not enough return variation to generate QuantStats tearsheet (strategy unique=%d, benchmark unique=%d); writing placeholder.",
             int(strategy_returns.nunique()) if not strategy_returns.empty else 0,
@@ -1837,7 +1857,7 @@ def create_tearsheet(
         _write_tearsheet_metrics_json("degenerate_returns")
         return
 
-    '''
+    """
     # Check if all the values are equal to 0
     if df_final["benchmark"].sum() == 0:
         logger.error("Not enough data to create a tearsheet, at least 2 days of data are required. Skipping")
@@ -1847,7 +1867,7 @@ def create_tearsheet(
     if df_final["strategy"].sum() == 0:
         logger.error("Not enough data to create a tearsheet, at least 2 days of data are required. Skipping")
         return
-    '''
+    """
     # Set the name of the benchmark column so that quantstats can use it in the report
     df_final["benchmark"].name = str(benchmark_asset)
 
@@ -1863,7 +1883,7 @@ def create_tearsheet(
                 output=tearsheet_file,
                 download_filename=tearsheet_file,  # Consider if you need a different name for clarity
                 rf=risk_free_rate,
-                parameters=strategy_parameters,
+                parameters=cast(Any, strategy_parameters),
                 lumibot_version=lumibot_version,
                 backtesting_data_source=backtesting_data_source,
                 backtesting_data_sources=backtesting_data_sources,
@@ -1908,9 +1928,9 @@ def create_tearsheet(
                     prepare_returns=True,
                 ):
                     if prepare_returns:
-                        returns = _qs_utils._prepare_returns(returns)
+                        returns = cast(Any, _qs_utils)._prepare_returns(returns)
                         if benchmark is not None:
-                            benchmark = _qs_utils._prepare_returns(benchmark)
+                            benchmark = cast(Any, _qs_utils)._prepare_returns(benchmark)
 
                     if resample == "W":
                         title_prefix = "Weekly "
@@ -1929,7 +1949,7 @@ def create_tearsheet(
                         resample=resample,
                         grayscale=grayscale,
                         fontname=fontname,
-                        title="Distribution of %sReturns" % title_prefix,
+                        title=f"Distribution of {title_prefix}Returns",
                         kde=False,
                         figsize=figsize,
                         ylabel=ylabel,
@@ -1949,7 +1969,7 @@ def create_tearsheet(
                         output=tearsheet_file,
                         download_filename=tearsheet_file,
                         rf=risk_free_rate,
-                        parameters=strategy_parameters,
+                        parameters=cast(Any, strategy_parameters),
                         lumibot_version=lumibot_version,
                         backtesting_data_source=backtesting_data_source,
                         backtesting_data_sources=backtesting_data_sources,
@@ -1989,8 +2009,8 @@ def create_tearsheet(
             try:
                 _qs = qs
 
-                strat_returns = _qs.utils._prepare_returns(df_final["strategy"].astype(float))
-                bench_returns = _qs.utils._prepare_returns(df_final["benchmark"].astype(float))
+                strat_returns = cast(Any, _qs.utils)._prepare_returns(df_final["strategy"].astype(float))
+                bench_returns = cast(Any, _qs.utils)._prepare_returns(df_final["benchmark"].astype(float))
 
                 headline_values = {
                     "Total Return": (
@@ -1998,12 +2018,12 @@ def create_tearsheet(
                         float(_qs.stats.comp(bench_returns)),
                     ),
                     "CAGR% (Annual Return)": (
-                        float(_qs.stats.cagr(strat_returns)),
-                        float(_qs.stats.cagr(bench_returns)),
+                        float(cast(Any, _qs.stats.cagr(strat_returns))),
+                        float(cast(Any, _qs.stats.cagr(bench_returns))),
                     ),
                     "Max Drawdown": (
-                        float(_qs.stats.max_drawdown(strat_returns)),  # negative fraction
-                        float(_qs.stats.max_drawdown(bench_returns)),  # negative fraction
+                        float(cast(Any, _qs.stats.max_drawdown(strat_returns))),  # negative fraction
+                        float(cast(Any, _qs.stats.max_drawdown(bench_returns))),  # negative fraction
                     ),
                 }
             except Exception:
@@ -2122,11 +2142,11 @@ def create_tearsheet(
     return result
 
 
-def get_risk_free_rate(dt: datetime = None):
+def get_risk_free_rate(dt: datetime | None = None):
     try:
         from .yahoo_helper import YahooHelper as yh
 
-        result = yh.get_risk_free_rate(dt=dt)
+        result = yh.get_risk_free_rate(dt=cast(Any, dt))
     except Exception as e:
         logger.error(f"Error getting the risk free rate: {e}")
         result = 0

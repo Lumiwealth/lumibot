@@ -1,17 +1,20 @@
+from __future__ import annotations
+
+from collections.abc import Mapping
 from dataclasses import dataclass
-from enum import Enum
-from typing import Optional, Union
+from enum import StrEnum
+from typing import Any, cast
 
 from .trading_slippage import TradingSlippage
 
 
-class SmartLimitPreset(str, Enum):
+class SmartLimitPreset(StrEnum):
     FAST = "fast"
     NORMAL = "normal"
     PATIENT = "patient"
 
 
-_SMART_LIMIT_PRESET_CONFIG = {
+_SMART_LIMIT_PRESET_CONFIG: dict[SmartLimitPreset, dict[str, int]] = {
     SmartLimitPreset.FAST: {"steps": 3, "step_seconds": 5},
     SmartLimitPreset.NORMAL: {"steps": 4, "step_seconds": 10},
     SmartLimitPreset.PATIENT: {"steps": 5, "step_seconds": 20},
@@ -36,53 +39,60 @@ class SmartLimitConfig:
         Optional override for final hold time.
     """
 
-    preset: SmartLimitPreset = SmartLimitPreset.NORMAL
+    preset: SmartLimitPreset | str = SmartLimitPreset.NORMAL
     final_price_pct: float = 1.0
-    slippage: Optional[Union[TradingSlippage, float]] = None
-    step_seconds: Optional[int] = None
-    final_hold_seconds: Optional[int] = None
+    slippage: TradingSlippage | float | None = None
+    step_seconds: int | None = None
+    final_hold_seconds: int | None = None
 
-    def __post_init__(self):
-        if isinstance(self.preset, str):
-            self.preset = SmartLimitPreset(self.preset)
+    def __post_init__(self) -> None:
+        self.preset = SmartLimitPreset(self.preset)
         if self.slippage is not None and not isinstance(self.slippage, TradingSlippage):
             self.slippage = TradingSlippage(amount=self.slippage)
 
     def get_step_count(self) -> int:
-        return _SMART_LIMIT_PRESET_CONFIG[self.preset]["steps"]
+        return _SMART_LIMIT_PRESET_CONFIG[SmartLimitPreset(self.preset)]["steps"]
 
     def get_step_seconds(self) -> int:
         if self.step_seconds is not None:
             return int(self.step_seconds)
-        return _SMART_LIMIT_PRESET_CONFIG[self.preset]["step_seconds"]
+        return _SMART_LIMIT_PRESET_CONFIG[SmartLimitPreset(self.preset)]["step_seconds"]
 
     def get_final_hold_seconds(self) -> int:
         return int(self.final_hold_seconds) if self.final_hold_seconds is not None else 120
 
     def get_slippage_amount(self) -> float:
-        if self.slippage is None:
+        slippage = self.slippage
+        if slippage is None:
             return 0.0
-        return float(self.slippage.amount)
+        if not isinstance(slippage, TradingSlippage):
+            slippage = TradingSlippage(amount=slippage)
+        return float(slippage.amount)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
+        slippage = self.slippage if isinstance(self.slippage, TradingSlippage) else None
         return {
-            "preset": self.preset.value,
+            "preset": SmartLimitPreset(self.preset).value,
             "final_price_pct": float(self.final_price_pct),
-            "slippage": self.slippage.to_dict() if self.slippage else None,
+            "slippage": slippage.to_dict() if slippage else None,
             "step_seconds": self.step_seconds,
             "final_hold_seconds": self.final_hold_seconds,
         }
 
     @classmethod
-    def from_dict(cls, data: Optional[dict]):
+    def from_dict(cls, data: Mapping[str, Any] | None) -> SmartLimitConfig | None:
         if data is None:
             return None
         slippage_data = data.get("slippage")
-        slippage = TradingSlippage.from_dict(slippage_data) if slippage_data else None
+        slippage = (
+            TradingSlippage.from_dict(cast(Mapping[str, Any], slippage_data))
+            if isinstance(slippage_data, Mapping)
+            else None
+        )
         return cls(
-            preset=data.get("preset", SmartLimitPreset.NORMAL),
-            final_price_pct=data.get("final_price_pct", 1.0),
+            preset=str(data.get("preset", SmartLimitPreset.NORMAL)),
+            final_price_pct=float(data.get("final_price_pct", 1.0)),
             slippage=slippage,
-            step_seconds=data.get("step_seconds"),
-            final_hold_seconds=data.get("final_hold_seconds"),
+            step_seconds=int(data["step_seconds"]) if data.get("step_seconds") is not None else None,
+            final_hold_seconds=int(data["final_hold_seconds"]) if data.get("final_hold_seconds") is not None else None,
         )

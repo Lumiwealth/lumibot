@@ -5,28 +5,21 @@ if True:
     import sys
 
     myPath = os.path.dirname(os.path.abspath(__file__))
-    sys.path.insert(
-        0, 
-        "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot"
-    )
+    sys.path.insert(0, "/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot")
     sys.path.insert(
         0,
         "/Users/robertgrzesik/Development/lumiwealth_tradier/",
     )
-    sys.path.insert(
-        0,
-        "/Users/robertgrzesik/Development/quantstats_lumi/"
-    )
+    sys.path.insert(0, "/Users/robertgrzesik/Development/quantstats_lumi/")
 ################################################################################
 
-from datetime import datetime, date
-from typing import Optional, List, Dict, Any
+from datetime import date, datetime
 
-from lumibot.strategies.strategy import Strategy
-from lumibot.traders import Trader
-from lumibot.entities import Asset, Order, TradingFee
 from lumibot.components.options_helper import OptionsHelper
 from lumibot.credentials import IS_BACKTESTING
+from lumibot.entities import Asset, Order, TradingFee
+from lumibot.strategies.strategy import Strategy
+from lumibot.traders import Trader
 
 """
 Strategy Description
@@ -54,7 +47,6 @@ class LeapsCallDebitSpread(Strategy):
         "max_option_spread_pct": 0.60,
         "roll_out_days": 30,
         "roll_up_if_underlying_above_short_strike": True,
-
         # Added: safety knobs for throttling management checks (keeps logs cleaner in minute-level live loops)
         "manage_once_per_day": True,
     }
@@ -78,7 +70,7 @@ class LeapsCallDebitSpread(Strategy):
         for sym in self.parameters.get("symbols", []):
             self.vars.symbol_states.setdefault(sym, "pending")
 
-    def _safe_parse_expiry(self, exp) -> Optional[date]:
+    def _safe_parse_expiry(self, exp) -> date | None:
         # Kept logic; Python 3.9 safe typing
         if isinstance(exp, date):
             return exp
@@ -89,7 +81,7 @@ class LeapsCallDebitSpread(Strategy):
                 return None
         return None
 
-    def _get_furthest_valid_expiration(self, underlying_asset: Asset, chains) -> Optional[date]:
+    def _get_furthest_valid_expiration(self, underlying_asset: Asset, chains) -> date | None:
         min_days = int(self.parameters.get("min_days_to_expiry", 300))
         today = self.get_datetime().date()
 
@@ -101,7 +93,7 @@ class LeapsCallDebitSpread(Strategy):
             call_dict = chains.get("Chains", {}).get("CALL", {}) if isinstance(chains, dict) else {}
             expirations = list(call_dict.keys()) if call_dict else []
 
-        parsed: List[date] = []
+        parsed: list[date] = []
         for e in expirations:
             d = self._safe_parse_expiry(e)
             if d is not None:
@@ -127,7 +119,9 @@ class LeapsCallDebitSpread(Strategy):
 
         return None
 
-    def _pick_short_strike_from_chain(self, chains, expiry: date, long_strike: float, target_short: float) -> Optional[float]:
+    def _pick_short_strike_from_chain(
+        self, chains, expiry: date, long_strike: float, target_short: float
+    ) -> float | None:
         strikes = []
         try:
             strikes = chains.strikes(expiry, "CALL")
@@ -144,7 +138,7 @@ class LeapsCallDebitSpread(Strategy):
 
         return float(min(higher, key=lambda s: abs(float(s) - float(target_short))))
 
-    def _compute_per_symbol_budget(self, symbols: List[str]) -> float:
+    def _compute_per_symbol_budget(self, symbols: list[str]) -> float:
         # FIX: Python 3.9 compatible typing (List[str] instead of list[str])
         manual = self.parameters.get("per_symbol_allocation", None)
         if manual is not None:
@@ -185,7 +179,14 @@ class LeapsCallDebitSpread(Strategy):
         # Optional charting: keep to 1-2 lines total to avoid clutter
         dt_now = self.get_datetime()
         if float(last_price) > 0:
-            self.add_line(symbol, float(last_price), color="black", detail_text="Underlying price", dt=dt_now, asset=underlying_asset)
+            self.add_line(
+                symbol,
+                float(last_price),
+                color="black",
+                detail_text="Underlying price",
+                dt=dt_now,
+                asset=underlying_asset,
+            )
 
         chains = self.get_chains(underlying_asset)
         if not chains:
@@ -207,7 +208,10 @@ class LeapsCallDebitSpread(Strategy):
             right="call",
         )
         if long_strike is None:
-            self.log_message(f"{symbol}: could not find a call strike near target delta {target_delta:.2f}; skipping.", color="yellow")
+            self.log_message(
+                f"{symbol}: could not find a call strike near target delta {target_delta:.2f}; skipping.",
+                color="yellow",
+            )
             self.vars.symbol_states[symbol] = "skipped"
             return
 
@@ -218,14 +222,19 @@ class LeapsCallDebitSpread(Strategy):
             "call",
         )
         if long_option is None:
-            self.log_message(f"{symbol}: long option not tradeable/priceable at strike {float(long_strike):.2f}; skipping.", color="yellow")
+            self.log_message(
+                f"{symbol}: long option not tradeable/priceable at strike {float(long_strike):.2f}; skipping.",
+                color="yellow",
+            )
             self.vars.symbol_states[symbol] = "skipped"
             return
 
         target_short = float(last_price) * otm_mult
         short_strike = self._pick_short_strike_from_chain(chains, expiry, float(long_strike), target_short)
         if short_strike is None:
-            self.log_message(f"{symbol}: could not pick a valid short strike above long strike; skipping.", color="yellow")
+            self.log_message(
+                f"{symbol}: could not pick a valid short strike above long strike; skipping.", color="yellow"
+            )
             self.vars.symbol_states[symbol] = "skipped"
             return
 
@@ -236,7 +245,10 @@ class LeapsCallDebitSpread(Strategy):
             "call",
         )
         if short_option is None:
-            self.log_message(f"{symbol}: short option not tradeable/priceable at strike {float(short_strike):.2f}; skipping.", color="yellow")
+            self.log_message(
+                f"{symbol}: short option not tradeable/priceable at strike {float(short_strike):.2f}; skipping.",
+                color="yellow",
+            )
             self.vars.symbol_states[symbol] = "skipped"
             return
 
@@ -403,7 +415,11 @@ class LeapsCallDebitSpread(Strategy):
         if self.vars.open_spreads:
             manage_once_per_day = bool(self.parameters.get("manage_once_per_day", True))
             dt_now = self.get_datetime()
-            if (not manage_once_per_day) or (self.vars.last_management_dt is None) or (dt_now.date() != self.vars.last_management_dt.date()):
+            if (
+                (not manage_once_per_day)
+                or (self.vars.last_management_dt is None)
+                or (dt_now.date() != self.vars.last_management_dt.date())
+            ):
                 self.vars.last_management_dt = dt_now
                 self._manage_spreads()
             else:

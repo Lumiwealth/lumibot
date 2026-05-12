@@ -57,4 +57,3 @@ def test_get_historical_eod_data_marks_all_zero_ohlc_rows_missing(monkeypatch):
     assert pd.isna(df.loc[zero_idx, "low"])
     assert pd.isna(df.loc[zero_idx, "close"])
     assert df.loc[zero_idx, "volume"] == 0
-

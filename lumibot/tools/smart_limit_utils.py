@@ -1,8 +1,7 @@
-from decimal import Decimal, InvalidOperation, ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP
-from typing import List, Optional
+from decimal import ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP, Decimal, InvalidOperation
 
 
-def infer_tick_size(bid: Optional[float], ask: Optional[float]) -> Optional[float]:
+def infer_tick_size(bid: float | None, ask: float | None) -> float | None:
     if bid is None or ask is None:
         return None
     candidates = [0.01, 0.05, 0.1]
@@ -20,7 +19,7 @@ def _is_multiple_of_tick(value: float, tick: float) -> bool:
     return abs(scaled - scaled.to_integral_value()) <= Decimal("0.000001")
 
 
-def round_to_tick(price: float, tick_size: Optional[float], side: Optional[str] = None) -> float:
+def round_to_tick(price: float, tick_size: float | None, side: str | None = None) -> float:
     if tick_size is None or tick_size <= 0:
         return price
     tick = Decimal(str(tick_size))
@@ -71,10 +70,10 @@ def compute_final_price_from_mid(mid: float, aggressive_price: float, final_pric
     return mid + (aggressive_price - mid) * pct
 
 
-def build_price_ladder(mid: float, final_price: float, step_count: int) -> List[float]:
+def build_price_ladder(mid: float, final_price: float, step_count: int) -> list[float]:
     if step_count <= 1:
         return [final_price]
-    ladder = []
+    ladder: list[float] = []
     step_delta = (final_price - mid) / float(step_count - 1)
     for idx in range(step_count):
         ladder.append(mid + step_delta * idx)

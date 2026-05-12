@@ -9,13 +9,14 @@ This test verifies that:
 5. Multiple symbols are handled correctly under memory pressure
 """
 
-import pytest
 from datetime import datetime, timedelta
-import polars as pl
 
+import polars as pl
+import pytest
+
+from lumibot.data_sources.polars_data import PolarsData
 from lumibot.entities import Asset
 from lumibot.entities.data_polars import DataPolars
-from lumibot.data_sources.polars_data import PolarsData
 
 
 class TestLRUEviction:
@@ -26,11 +27,7 @@ class TestLRUEviction:
         start_date = datetime(2024, 1, 1)
         end_date = datetime(2024, 1, 31)
 
-        polars_data = PolarsData(
-            datetime_start=start_date,
-            datetime_end=end_date,
-            pandas_data=None
-        )
+        polars_data = PolarsData(datetime_start=start_date, datetime_end=end_date, pandas_data=None)
 
         # Default should be 1GB
         assert polars_data.MAX_STORAGE_BYTES == 1_000_000_000
@@ -45,11 +42,7 @@ class TestLRUEviction:
         start_date = datetime(2024, 1, 1)
         end_date = datetime(2024, 1, 31)
 
-        polars_data = PolarsData(
-            datetime_start=start_date,
-            datetime_end=end_date,
-            pandas_data=None
-        )
+        polars_data = PolarsData(datetime_start=start_date, datetime_end=end_date, pandas_data=None)
 
         # Set memory limit high enough that evicting aggregated cache is sufficient
         # Each asset: ~48KB data + ~10KB aggregated = ~58KB total
@@ -62,20 +55,17 @@ class TestLRUEviction:
         quote = Asset("USD", "forex")
 
         for asset in assets:
-            dates = pl.datetime_range(
-                start_date,
-                start_date + timedelta(minutes=1000),
-                interval="1m",
-                eager=True
+            dates = pl.datetime_range(start_date, start_date + timedelta(minutes=1000), interval="1m", eager=True)
+            df = pl.DataFrame(
+                {
+                    "datetime": dates,
+                    "open": [100.0] * len(dates),
+                    "high": [101.0] * len(dates),
+                    "low": [99.0] * len(dates),
+                    "close": [100.5] * len(dates),
+                    "volume": [1000.0] * len(dates),
+                }
             )
-            df = pl.DataFrame({
-                "datetime": dates,
-                "open": [100.0] * len(dates),
-                "high": [101.0] * len(dates),
-                "low": [99.0] * len(dates),
-                "close": [100.5] * len(dates),
-                "volume": [1000.0] * len(dates),
-            })
             data = DataPolars(asset, df=df, timestep="minute", quote=None)
             polars_data._data_store[(asset, quote)] = data
 
@@ -96,19 +86,16 @@ class TestLRUEviction:
         # Aggregated cache should be partially/fully evicted
         # Data store should still have all 5 assets (evicting agg cache was enough)
         assert len(polars_data._aggregated_cache) < 5, "Aggregated cache should have been evicted"
-        assert len(polars_data._data_store) == original_data_store_size, \
+        assert len(polars_data._data_store) == original_data_store_size, (
             f"Data store should be untouched (expected {original_data_store_size}, got {len(polars_data._data_store)})"
+        )
 
     def test_eviction_from_data_store_when_aggregated_empty(self):
         """Test that eviction happens from data_store when aggregated cache is empty"""
         start_date = datetime(2024, 1, 1)
         end_date = datetime(2024, 1, 31)
 
-        polars_data = PolarsData(
-            datetime_start=start_date,
-            datetime_end=end_date,
-            pandas_data=None
-        )
+        polars_data = PolarsData(datetime_start=start_date, datetime_end=end_date, pandas_data=None)
 
         # Set a very low memory limit
         polars_data.MAX_STORAGE_BYTES = 50_000  # 50KB
@@ -118,20 +105,17 @@ class TestLRUEviction:
         quote = Asset("USD", "forex")
 
         for asset in assets:
-            dates = pl.datetime_range(
-                start_date,
-                start_date + timedelta(minutes=1000),
-                interval="1m",
-                eager=True
+            dates = pl.datetime_range(start_date, start_date + timedelta(minutes=1000), interval="1m", eager=True)
+            df = pl.DataFrame(
+                {
+                    "datetime": dates,
+                    "open": [100.0] * len(dates),
+                    "high": [101.0] * len(dates),
+                    "low": [99.0] * len(dates),
+                    "close": [100.5] * len(dates),
+                    "volume": [1000.0] * len(dates),
+                }
             )
-            df = pl.DataFrame({
-                "datetime": dates,
-                "open": [100.0] * len(dates),
-                "high": [101.0] * len(dates),
-                "low": [99.0] * len(dates),
-                "close": [100.5] * len(dates),
-                "volume": [1000.0] * len(dates),
-            })
             data = DataPolars(asset, df=df, timestep="minute", quote=None)
             polars_data._data_store[(asset, quote)] = data
 
@@ -152,31 +136,24 @@ class TestLRUEviction:
         start_date = datetime(2024, 1, 1)
         end_date = datetime(2024, 1, 31)
 
-        polars_data = PolarsData(
-            datetime_start=start_date,
-            datetime_end=end_date,
-            pandas_data=None
-        )
+        polars_data = PolarsData(datetime_start=start_date, datetime_end=end_date, pandas_data=None)
 
         # Create 5 assets
         assets = [Asset(f"TEST{i}", "stock") for i in range(5)]
         quote = Asset("USD", "forex")
 
         for asset in assets:
-            dates = pl.datetime_range(
-                start_date,
-                start_date + timedelta(minutes=1000),
-                interval="1m",
-                eager=True
+            dates = pl.datetime_range(start_date, start_date + timedelta(minutes=1000), interval="1m", eager=True)
+            df = pl.DataFrame(
+                {
+                    "datetime": dates,
+                    "open": [100.0] * len(dates),
+                    "high": [101.0] * len(dates),
+                    "low": [99.0] * len(dates),
+                    "close": [100.5] * len(dates),
+                    "volume": [1000.0] * len(dates),
+                }
             )
-            df = pl.DataFrame({
-                "datetime": dates,
-                "open": [100.0] * len(dates),
-                "high": [101.0] * len(dates),
-                "low": [99.0] * len(dates),
-                "close": [100.5] * len(dates),
-                "volume": [1000.0] * len(dates),
-            })
             data = DataPolars(asset, df=df, timestep="minute", quote=None)
             polars_data._data_store[(asset, quote)] = data
 
@@ -202,29 +179,22 @@ class TestLRUEviction:
         start_date = datetime(2024, 1, 1)
         end_date = datetime(2024, 1, 31)
 
-        polars_data = PolarsData(
-            datetime_start=start_date,
-            datetime_end=end_date,
-            pandas_data=None
-        )
+        polars_data = PolarsData(datetime_start=start_date, datetime_end=end_date, pandas_data=None)
 
         # Create test data
         asset = Asset("TEST", "stock")
         quote = Asset("USD", "forex")
-        dates = pl.datetime_range(
-            start_date,
-            start_date + timedelta(minutes=1000),
-            interval="1m",
-            eager=True
+        dates = pl.datetime_range(start_date, start_date + timedelta(minutes=1000), interval="1m", eager=True)
+        df = pl.DataFrame(
+            {
+                "datetime": dates,
+                "open": [100.0] * len(dates),
+                "high": [101.0] * len(dates),
+                "low": [99.0] * len(dates),
+                "close": [100.5] * len(dates),
+                "volume": [1000.0] * len(dates),
+            }
         )
-        df = pl.DataFrame({
-            "datetime": dates,
-            "open": [100.0] * len(dates),
-            "high": [101.0] * len(dates),
-            "low": [99.0] * len(dates),
-            "close": [100.5] * len(dates),
-            "volume": [1000.0] * len(dates),
-        })
 
         data = DataPolars(asset, df=df, timestep="minute", quote=None)
         polars_data._data_store[(asset, quote)] = data
@@ -241,7 +211,7 @@ class TestLRUEviction:
         # Calculate total memory
         total_memory = 0
         for data in polars_data._data_store.values():
-            if hasattr(data, 'polars_df'):
+            if hasattr(data, "polars_df"):
                 total_memory += data.polars_df.estimated_size()
 
         for agg_df in polars_data._aggregated_cache.values():
@@ -256,11 +226,7 @@ class TestLRUEviction:
         start_date = datetime(2024, 1, 1)
         end_date = datetime(2024, 1, 31)
 
-        polars_data = PolarsData(
-            datetime_start=start_date,
-            datetime_end=end_date,
-            pandas_data=None
-        )
+        polars_data = PolarsData(datetime_start=start_date, datetime_end=end_date, pandas_data=None)
 
         # Set memory limit to force eviction
         polars_data.MAX_STORAGE_BYTES = 80_000  # 80KB
@@ -270,20 +236,17 @@ class TestLRUEviction:
         quote = Asset("USD", "forex")
 
         for asset in assets:
-            dates = pl.datetime_range(
-                start_date,
-                start_date + timedelta(minutes=1000),
-                interval="1m",
-                eager=True
+            dates = pl.datetime_range(start_date, start_date + timedelta(minutes=1000), interval="1m", eager=True)
+            df = pl.DataFrame(
+                {
+                    "datetime": dates,
+                    "open": [100.0] * len(dates),
+                    "high": [101.0] * len(dates),
+                    "low": [99.0] * len(dates),
+                    "close": [100.5] * len(dates),
+                    "volume": [1000.0] * len(dates),
+                }
             )
-            df = pl.DataFrame({
-                "datetime": dates,
-                "open": [100.0] * len(dates),
-                "high": [101.0] * len(dates),
-                "low": [99.0] * len(dates),
-                "close": [100.5] * len(dates),
-                "volume": [1000.0] * len(dates),
-            })
             data = DataPolars(asset, df=df, timestep="minute", quote=None)
             polars_data._data_store[(asset, quote)] = data
 
@@ -308,19 +271,14 @@ class TestLRUEviction:
         after_eviction_data_size = len(polars_data._data_store)
 
         # Either aggregated cache was reduced, or if that wasn't enough, data store was reduced
-        assert after_eviction_agg_size < initial_agg_cache_size or \
-               after_eviction_data_size < initial_data_store_size
+        assert after_eviction_agg_size < initial_agg_cache_size or after_eviction_data_size < initial_data_store_size
 
     def test_multiple_symbols_under_pressure(self):
         """Test handling of multiple symbols under memory pressure"""
         start_date = datetime(2024, 1, 1)
         end_date = datetime(2024, 1, 31)
 
-        polars_data = PolarsData(
-            datetime_start=start_date,
-            datetime_end=end_date,
-            pandas_data=None
-        )
+        polars_data = PolarsData(datetime_start=start_date, datetime_end=end_date, pandas_data=None)
 
         # Very low memory limit
         polars_data.MAX_STORAGE_BYTES = 30_000  # 30KB
@@ -334,16 +292,18 @@ class TestLRUEviction:
                 start_date,
                 start_date + timedelta(minutes=500),  # Smaller dataset
                 interval="1m",
-                eager=True
+                eager=True,
             )
-            df = pl.DataFrame({
-                "datetime": dates,
-                "open": [100.0] * len(dates),
-                "high": [101.0] * len(dates),
-                "low": [99.0] * len(dates),
-                "close": [100.5] * len(dates),
-                "volume": [1000.0] * len(dates),
-            })
+            df = pl.DataFrame(
+                {
+                    "datetime": dates,
+                    "open": [100.0] * len(dates),
+                    "high": [101.0] * len(dates),
+                    "low": [99.0] * len(dates),
+                    "close": [100.5] * len(dates),
+                    "volume": [1000.0] * len(dates),
+                }
+            )
             data = DataPolars(asset, df=df, timestep="minute", quote=None)
             polars_data._data_store[(asset, quote)] = data
 
@@ -363,11 +323,7 @@ class TestLRUEviction:
         start_date = datetime(2024, 1, 1)
         end_date = datetime(2024, 1, 31)
 
-        polars_data = PolarsData(
-            datetime_start=start_date,
-            datetime_end=end_date,
-            pandas_data=None
-        )
+        polars_data = PolarsData(datetime_start=start_date, datetime_end=end_date, pandas_data=None)
 
         # Very high memory limit (default 1GB should be fine)
         # Create just 2 small assets
@@ -375,20 +331,17 @@ class TestLRUEviction:
         quote = Asset("USD", "forex")
 
         for asset in assets:
-            dates = pl.datetime_range(
-                start_date,
-                start_date + timedelta(minutes=100),
-                interval="1m",
-                eager=True
+            dates = pl.datetime_range(start_date, start_date + timedelta(minutes=100), interval="1m", eager=True)
+            df = pl.DataFrame(
+                {
+                    "datetime": dates,
+                    "open": [100.0] * len(dates),
+                    "high": [101.0] * len(dates),
+                    "low": [99.0] * len(dates),
+                    "close": [100.5] * len(dates),
+                    "volume": [1000.0] * len(dates),
+                }
             )
-            df = pl.DataFrame({
-                "datetime": dates,
-                "open": [100.0] * len(dates),
-                "high": [101.0] * len(dates),
-                "low": [99.0] * len(dates),
-                "close": [100.5] * len(dates),
-                "volume": [1000.0] * len(dates),
-            })
             data = DataPolars(asset, df=df, timestep="minute", quote=None)
             polars_data._data_store[(asset, quote)] = data
 
@@ -415,11 +368,7 @@ class TestLRUEviction:
         start_date = datetime(2024, 1, 1)
         end_date = datetime(2024, 1, 31)
 
-        polars_data = PolarsData(
-            datetime_start=start_date,
-            datetime_end=end_date,
-            pandas_data=None
-        )
+        polars_data = PolarsData(datetime_start=start_date, datetime_end=end_date, pandas_data=None)
 
         # Set memory limit
         polars_data.MAX_STORAGE_BYTES = 60_000  # 60KB
@@ -429,20 +378,17 @@ class TestLRUEviction:
         quote = Asset("USD", "forex")
 
         for asset in assets:
-            dates = pl.datetime_range(
-                start_date,
-                start_date + timedelta(minutes=1000),
-                interval="1m",
-                eager=True
+            dates = pl.datetime_range(start_date, start_date + timedelta(minutes=1000), interval="1m", eager=True)
+            df = pl.DataFrame(
+                {
+                    "datetime": dates,
+                    "open": [100.0] * len(dates),
+                    "high": [101.0] * len(dates),
+                    "low": [99.0] * len(dates),
+                    "close": [100.5] * len(dates),
+                    "volume": [1000.0] * len(dates),
+                }
             )
-            df = pl.DataFrame({
-                "datetime": dates,
-                "open": [100.0] * len(dates),
-                "high": [101.0] * len(dates),
-                "low": [99.0] * len(dates),
-                "close": [100.5] * len(dates),
-                "volume": [1000.0] * len(dates),
-            })
             data = DataPolars(asset, df=df, timestep="minute", quote=None)
             polars_data._data_store[(asset, quote)] = data
 

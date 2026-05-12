@@ -87,7 +87,10 @@ def test_gemini_native_path_uses_plain_model_id_for_implicit_or_adk_context_cach
     # Gemini stays on ADK's native path. Provider prompt-cache routing kwargs are
     # only for LiteLLM providers; Gemini implicit caching and ADK explicit
     # ContextCacheConfig are configured outside the LiteLLM wrapper.
-    assert _resolve_model_for_adk("gemini-3.1-pro-preview", prompt_cache_key="stable-prefix-key") == "gemini-3.1-pro-preview"
+    assert (
+        _resolve_model_for_adk("gemini-3.1-pro-preview", prompt_cache_key="stable-prefix-key")
+        == "gemini-3.1-pro-preview"
+    )
 
 
 def test_explicit_temperature_only_sent_to_gemini_native_models():

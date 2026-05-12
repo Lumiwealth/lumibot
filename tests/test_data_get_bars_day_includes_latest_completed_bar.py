@@ -44,4 +44,3 @@ def test_data_get_bars_day_includes_latest_completed_bar() -> None:
     bars = data.get_bars(ny.localize(datetime.datetime(2015, 8, 21, 9, 30)), length=2, timestep="day")
     assert bars.index[-1].date() == datetime.date(2015, 8, 20)
     assert float(bars["close"].iloc[-1]) == 20.0
-

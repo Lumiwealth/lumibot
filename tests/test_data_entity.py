@@ -40,12 +40,10 @@ class TestDataGetLastPriceTradeOnly:
             "datetime": dates,
             "open": open_prices,
             "high": [
-                max(o, c) if o is not None and c is not None else (o or c)
-                for o, c in zip(open_prices, close_prices)
+                max(o, c) if o is not None and c is not None else (o or c) for o, c in zip(open_prices, close_prices, strict=False)
             ],
             "low": [
-                min(o, c) if o is not None and c is not None else (o or c)
-                for o, c in zip(open_prices, close_prices)
+                min(o, c) if o is not None and c is not None else (o or c) for o, c in zip(open_prices, close_prices, strict=False)
             ],
             "close": close_prices,
             "volume": [1000] * n,
@@ -72,19 +70,16 @@ class TestDataGetLastPriceTradeOnly:
         asset = Asset("SPY")
         tz = pytz.timezone("America/New_York")
         base_dt = tz.localize(datetime(2024, 1, 2, 9, 30))
-        df = (
-            pd.DataFrame(
-                {
-                    "datetime": [base_dt, base_dt + timedelta(minutes=1)],
-                    "open": [100.0, 200.0],
-                    "high": [110.0, 210.0],
-                    "low": [90.0, 190.0],
-                    "close": [110.0, 210.0],
-                    "volume": [1000, 1000],
-                }
-            )
-            .set_index("datetime")
-        )
+        df = pd.DataFrame(
+            {
+                "datetime": [base_dt, base_dt + timedelta(minutes=1)],
+                "open": [100.0, 200.0],
+                "high": [110.0, 210.0],
+                "low": [90.0, 190.0],
+                "close": [110.0, 210.0],
+                "volume": [1000, 1000],
+            }
+        ).set_index("datetime")
 
         data = Data(asset, df, timestep="minute")
         dt = base_dt + timedelta(minutes=1)
@@ -249,82 +244,50 @@ def test_native_minute_bars_fast_lazy_slice_can_defer_return_column():
     assert bars_df["return"].iloc[-1] == pytest.approx(0.1)
 
 
-def test_assume_clean_data_initializes_legacy_maps_and_applies_date_filter():
+def test_repair_times_and_fill_honors_deferred_return_column():
     asset = Asset("SPY")
     tz = pytz.timezone("America/New_York")
-    idx = pd.date_range(tz.localize(datetime(2024, 1, 1)), periods=8, freq="1D")
+    idx = pd.date_range(tz.localize(datetime(2024, 1, 2, 9, 30)), periods=20, freq="1min")
     df = pd.DataFrame(
         {
-            "open": [100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0],
-            "high": [101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0],
-            "low": [99.0, 100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0],
-            "close": [100.5, 101.5, 102.5, 103.5, 104.5, 105.5, 106.5, 107.5],
-            "volume": [100] * 8,
+            "open": range(20),
+            "high": range(1, 21),
+            "low": range(20),
+            "close": range(2, 22),
+            "volume": [100] * 20,
+        },
+        index=idx,
+    )
+    data = Data(asset, df, timestep="minute")
+    data._defer_clean_returns = True
+    data.repair_times_and_fill(idx)
+
+    assert "return" not in data.df.columns
+    bars_df = data.get_native_bars_fast(idx[10].to_pydatetime(), length=5, timestep="minute", mark_timezone=False)
+    assert "return" in bars_df.columns
+    assert bars_df["return"].iloc[0] == pytest.approx(1 / 6)
+    assert bars_df["return"].iloc[-1] == pytest.approx(0.1)
+
+
+def test_datetime_dataline_reuses_datetime_index_for_fast_price_reads():
+    asset = Asset("SPY")
+    tz = pytz.timezone("America/New_York")
+    idx = pd.date_range(tz.localize(datetime(2024, 1, 2, 9, 30)), periods=3, freq="1min")
+    df = pd.DataFrame(
+        {
+            "open": [100.0, 101.0, 102.0],
+            "high": [101.0, 102.0, 103.0],
+            "low": [99.0, 100.0, 101.0],
+            "close": [100.5, 101.5, 102.5],
+            "volume": [100] * 3,
         },
         index=idx,
     )
 
-    data = Data(
-        asset,
-        df,
-        date_start=idx[2].to_pydatetime(),
-        date_end=idx[5].to_pydatetime(),
-        timestep="day",
-        assume_clean=True,
-    )
+    data = Data(asset, df, timestep="minute")
+    data.repair_times_and_fill(idx)
 
-    assert list(data.df.index) == list(idx[2:6])
-    assert data.datalines["close"].dataline[-1] == 105.5
-    assert data.iter_index_dict[idx[4].to_pydatetime()] == 2
-    assert data.get_last_price(idx[4].to_pydatetime()) == 104.5
-
-
-def test_fast_last_price_matches_native_bars_semantics():
-    asset = Asset("SPY")
-    tz = pytz.timezone("America/New_York")
-    idx = pd.date_range(tz.localize(datetime(2024, 1, 2, 9, 30)), periods=12, freq="1min")
-    close_values = [100.0 + i for i in range(12)]
-    open_values = [99.5 + i for i in range(12)]
-    open_values[10] = close_values[9]
-    df = pd.DataFrame(
-        {
-            "open": open_values,
-            "high": [value + 0.5 for value in close_values],
-            "low": [value - 1.0 for value in close_values],
-            "close": close_values,
-            "volume": [100] * 12,
-        },
-        index=idx,
-    )
-    data = Data(asset, df, timestep="minute", assume_clean=True)
-
-    query_dt = idx[10].to_pydatetime()
-    bars = data.get_bars(query_dt, length=1, timestep="minute")
-
-    assert data.get_last_price(query_dt) == close_values[9]
-    assert data.get_last_price_fast(query_dt) == data.get_last_price(query_dt)
-    assert data.get_last_price(query_dt) == bars["close"].iloc[-1]
-
-
-def test_skip_clean_datalines_still_populates_legacy_accessors():
-    asset = Asset("SPY")
-    tz = pytz.timezone("America/New_York")
-    idx = pd.date_range(tz.localize(datetime(2024, 1, 2, 9, 30)), periods=4, freq="1min")
-    df = pd.DataFrame(
-        {
-            "open": [100.0, 101.0, 102.0, 103.0],
-            "high": [101.0, 102.0, 103.0, 104.0],
-            "low": [99.0, 100.0, 101.0, 102.0],
-            "close": [100.5, 101.5, 102.5, 103.5],
-            "volume": [100] * 4,
-        },
-        index=idx,
-    )
-    data = Data.__new__(Data)
-    data._skip_clean_datalines = True
-
-    Data.__init__(data, asset, df, timestep="minute", assume_clean=True)
-
-    assert data.datalines["datetime"].dataline[0] == idx[0]
-    assert data.datalines["close"].dataline[-1] == 103.5
-    assert data.get_last_price(idx[2].to_pydatetime()) == 102.0
+    assert data.datetime is data.datalines["datetime"].dataline
+    assert isinstance(data.datetime, pd.DatetimeIndex)
+    assert data.get_last_price_fast(idx[1].to_pydatetime()) == 101.0
+    assert data.get_last_price_fast(idx[1].to_pydatetime() + timedelta(seconds=30)) == 101.5

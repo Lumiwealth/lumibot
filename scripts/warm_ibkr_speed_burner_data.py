@@ -14,7 +14,7 @@ It does not print any secrets; it relies on environment variables already config
 
 import os
 import sys
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from shutil import copyfile
 
@@ -90,14 +90,14 @@ def main() -> int:
     except Exception as exc:
         raise RuntimeError(f"Downloader not reachable/healthy (warm step aborted): {exc}") from exc
 
-    from lumibot.entities import Asset
     import lumibot.tools.ibkr_helper as ibkr_helper
+    from lumibot.entities import Asset
 
     # Match the warm-cache benchmark window.
     # `bench_ibkr_speed_burner_warm_cache.py` uses America/New_York 09:30–19:28, which corresponds
     # to 14:30–00:28 UTC on this date.
-    window_start = datetime(2025, 12, 8, 14, 30, tzinfo=timezone.utc)
-    window_end = datetime(2025, 12, 9, 0, 28, tzinfo=timezone.utc)
+    window_start = datetime(2025, 12, 8, 14, 30, tzinfo=UTC)
+    window_end = datetime(2025, 12, 9, 0, 28, tzinfo=UTC)
 
     # Ensure the local conid registry exists for expired-contract discovery (this benchmark window
     # uses an expired futures contract month).
@@ -120,7 +120,7 @@ def main() -> int:
         ny = pytz.timezone("America/New_York")
         local_start = window_start.astimezone(ny)
         prev_day = local_start.date() - timedelta(days=1)
-        futures_minute_start = ny.localize(datetime(prev_day.year, prev_day.month, prev_day.day, 18, 0)).astimezone(timezone.utc)
+        futures_minute_start = ny.localize(datetime(prev_day.year, prev_day.month, prev_day.day, 18, 0)).astimezone(UTC)
     except Exception:
         futures_minute_start = window_start - timedelta(hours=20)
 

@@ -1,20 +1,18 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Tuple
+from pathlib import Path
 
 import pandas as pd
 import pytest
 import requests
-from pathlib import Path
 
 from lumibot.backtesting.interactive_brokers_rest_backtesting import InteractiveBrokersRESTBacktesting
 from lumibot.entities import Asset
 from lumibot.entities.order import Order
 from lumibot.strategies.strategy import Strategy
-
 
 pytestmark = pytest.mark.apitest
 
@@ -99,7 +97,7 @@ class _IbkrCryptoRoundTrip(Strategy):
             self.submit_order(order)
 
 
-def _require_ibkr_downloader() -> Tuple[str, str]:
+def _require_ibkr_downloader() -> tuple[str, str]:
     base_url = (os.environ.get("DATADOWNLOADER_BASE_URL") or "").strip().rstrip("/")
     api_key = (os.environ.get("DATADOWNLOADER_API_KEY") or "").strip()
     api_key_header = (os.environ.get("DATADOWNLOADER_API_KEY_HEADER") or "X-Downloader-Key").strip()
@@ -142,7 +140,7 @@ def _derive_known_good_window_from_cached_bars(
     base = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
     quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     # This may return empty (weekend trap), but should still write bars to cache.
     ibkr_helper.get_price_data(
         asset=base,

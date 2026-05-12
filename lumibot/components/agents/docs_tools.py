@@ -5,7 +5,6 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _DOC_SEARCH_ROOTS = (
     _REPO_ROOT / "README.md",
@@ -85,11 +84,7 @@ def _docs_corpus() -> tuple[dict[str, Any], ...]:
 
 def _query_terms(query: str) -> tuple[str, list[str]]:
     normalized_query = _normalize_space(query).lower()
-    tokens = [
-        token
-        for token in re.findall(r"[A-Za-z0-9_./-]+", normalized_query)
-        if len(token) >= 2
-    ]
+    tokens = [token for token in re.findall(r"[A-Za-z0-9_./-]+", normalized_query) if len(token) >= 2]
     if not normalized_query or not tokens:
         raise ValueError("docs_search requires a non-empty query with at least one meaningful term.")
     return normalized_query, tokens

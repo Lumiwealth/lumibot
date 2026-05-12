@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
-import pytest
+from datetime import UTC, datetime
 
 
 def test_ibkr_history_request_formats_starttime_in_utc(monkeypatch):
@@ -25,8 +23,8 @@ def test_ibkr_history_request_formats_starttime_in_utc(monkeypatch):
 
     monkeypatch.setattr(ibkr_helper, "queue_request", fake_queue_request)
 
-    start_time_utc = datetime(2025, 10, 30, 13, 39, 0, tzinfo=timezone.utc)
-    expected = start_time_utc.astimezone(timezone.utc).strftime("%Y%m%d-%H:%M:%S")
+    start_time_utc = datetime(2025, 10, 30, 13, 39, 0, tzinfo=UTC)
+    expected = start_time_utc.astimezone(UTC).strftime("%Y%m%d-%H:%M:%S")
 
     ibkr_helper._ibkr_history_request(
         conid=123,

@@ -1,24 +1,35 @@
 from __future__ import annotations
 
-import os
-import re
-import traceback
+# pyright: reportMissingParameterType=false, reportUnknownParameterType=false
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false
+# pyright: reportUnknownLambdaType=false, reportMissingTypeArgument=false
+# pyright: reportMissingTypeStubs=false, reportInvalidTypeForm=false
+# pyright: reportAttributeAccessIssue=false, reportArgumentType=false, reportOptionalMemberAccess=false
+# pyright: reportAssignmentType=false, reportIncompatibleMethodOverride=false, reportMatchNotExhaustive=false
+# pyright: reportUnusedFunction=false, reportUnnecessaryComparison=false, reportUnnecessaryIsInstance=false
 import base64
-import json
-import time
-import threading
 import datetime
 import inspect
+import json
+import os
+import re
+import threading
+import time
+import traceback
 from collections import Counter
+from collections.abc import Callable
 from importlib import import_module
-from typing import TYPE_CHECKING, Union
+from types import ModuleType
+from typing import TYPE_CHECKING, Any, TypeAlias
 
-from .broker import Broker, LumibotBrokerAPIError
-from lumibot.entities import Asset, Order
+from lumibot.entities.asset import Asset
+from lumibot.entities.order import Order
 from lumibot.tools.lumibot_logger import get_logger
 
+from .broker import Broker, LumibotBrokerAPIError
+
 if TYPE_CHECKING:
-    from lumibot.entities import CashEvent
+    from lumibot.entities.cash_event import CashEvent
 
 logger = get_logger(__name__)
 
@@ -26,105 +37,114 @@ logger = get_logger(__name__)
 class _LazyModule:
     __slots__ = ("_module_name", "_module")
 
-    def __init__(self, module_name: str):
+    _module_name: str
+    _module: ModuleType | None
+
+    def __init__(self, module_name: str) -> None:
         self._module_name = module_name
         self._module = None
 
-    def _load(self):
+    def _load(self) -> ModuleType:
         module = self._module
         if module is None:
             module = import_module(self._module_name)
             self._module = module
         return module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
         if name in {"_module_name", "_module"}:
             object.__setattr__(self, name, value)
         else:
             setattr(self._load(), name, value)
 
-    def __delattr__(self, name):
+    def __delattr__(self, name: str) -> None:
         if name in {"_module_name", "_module"}:
             object.__delattr__(self, name)
         else:
             delattr(self._load(), name)
 
 
-pd = _LazyModule("pandas")
-requests = _LazyModule("requests")
-_TRADIER_CLASS = None
-_TRADIER_API_ERROR_CLASS = None
-_ORDER_LEG_CLASS = None
-_TRADIER_DATA_CLASS = None
-_CREATE_OPTIONS_SYMBOL = None
-_CASH_EVENT_CLASS = None
-_COLORED_FN = None
+DataFrame: TypeAlias = Any  # noqa: UP040 - keep Python 3.11 parser compatibility.
+pd: Any = _LazyModule("pandas")
+requests: Any = _LazyModule("requests")
+_tradier_class_cache: type[Any] | None = None
+_tradier_api_error_class_cache: type[Exception] | None = None
+_order_leg_class_cache: type[Any] | None = None
+_tradier_data_class_cache: type[Any] | None = None
+_create_options_symbol_cache: Callable[..., Any] | None = None
+_cash_event_class_cache: type[Any] | None = None
+_colored_fn: Callable[..., str] | None = None
 
 
-def colored(*args, **kwargs):
-    global _COLORED_FN
-    if _COLORED_FN is None:
+def colored(*args: Any, **kwargs: Any) -> str:
+    global _colored_fn
+    if _colored_fn is None:
         from termcolor import colored as _termcolor_colored
 
-        _COLORED_FN = _termcolor_colored
-    return _COLORED_FN(*args, **kwargs)
+        _colored_fn = _termcolor_colored
+    return _colored_fn(*args, **kwargs)
 
 
-def _cash_event_class():
-    global _CASH_EVENT_CLASS
-    if _CASH_EVENT_CLASS is None:
-        from lumibot.entities import CashEvent
+def _cash_event_class() -> type[Any]:
+    global _cash_event_class_cache
+    if _cash_event_class_cache is None:
+        from lumibot.entities.cash_event import CashEvent
 
-        _CASH_EVENT_CLASS = CashEvent
-    return _CASH_EVENT_CLASS
+        _cash_event_class_cache = CashEvent
+    assert _cash_event_class_cache is not None
+    return _cash_event_class_cache
 
 
-def _tradier_class():
-    global _TRADIER_CLASS
-    if _TRADIER_CLASS is None:
+def _tradier_class() -> type[Any]:
+    global _tradier_class_cache
+    if _tradier_class_cache is None:
         from lumiwealth_tradier import Tradier
 
-        _TRADIER_CLASS = Tradier
-    return _TRADIER_CLASS
+        _tradier_class_cache = Tradier
+    assert _tradier_class_cache is not None
+    return _tradier_class_cache
 
 
-def _tradier_api_error_class():
-    global _TRADIER_API_ERROR_CLASS
-    if _TRADIER_API_ERROR_CLASS is None:
+def _tradier_api_error_class() -> type[Exception]:
+    global _tradier_api_error_class_cache
+    if _tradier_api_error_class_cache is None:
         from lumiwealth_tradier.base import TradierApiError
 
-        _TRADIER_API_ERROR_CLASS = TradierApiError
-    return _TRADIER_API_ERROR_CLASS
+        _tradier_api_error_class_cache = TradierApiError
+    assert _tradier_api_error_class_cache is not None
+    return _tradier_api_error_class_cache
 
 
-def _order_leg_class():
-    global _ORDER_LEG_CLASS
-    if _ORDER_LEG_CLASS is None:
+def _order_leg_class() -> type[Any]:
+    global _order_leg_class_cache
+    if _order_leg_class_cache is None:
         from lumiwealth_tradier.orders import OrderLeg
 
-        _ORDER_LEG_CLASS = OrderLeg
-    return _ORDER_LEG_CLASS
+        _order_leg_class_cache = OrderLeg
+    assert _order_leg_class_cache is not None
+    return _order_leg_class_cache
 
 
-def _tradier_data_class():
-    global _TRADIER_DATA_CLASS
-    if _TRADIER_DATA_CLASS is None:
+def _tradier_data_class() -> type[Any]:
+    global _tradier_data_class_cache
+    if _tradier_data_class_cache is None:
         from lumibot.data_sources.tradier_data import TradierData
 
-        _TRADIER_DATA_CLASS = TradierData
-    return _TRADIER_DATA_CLASS
+        _tradier_data_class_cache = TradierData
+    assert _tradier_data_class_cache is not None
+    return _tradier_data_class_cache
 
 
-def _create_options_symbol(*args, **kwargs):
-    global _CREATE_OPTIONS_SYMBOL
-    if _CREATE_OPTIONS_SYMBOL is None:
+def _create_options_symbol(*args: Any, **kwargs: Any) -> Any:
+    global _create_options_symbol_cache
+    if _create_options_symbol_cache is None:
         from lumibot.tools.helpers import create_options_symbol
 
-        _CREATE_OPTIONS_SYMBOL = create_options_symbol
-    return _CREATE_OPTIONS_SYMBOL(*args, **kwargs)
+        _create_options_symbol_cache = create_options_symbol
+    return _create_options_symbol_cache(*args, **kwargs)
 
 
 class Tradier(Broker):
@@ -158,7 +178,7 @@ class Tradier(Broker):
     _OAUTH_REFRESH_SKEW_SECONDS = 60  # Refresh a bit early to avoid edge-of-expiry failures.
 
     @staticmethod
-    def _decode_base64url_json(payload_str: str) -> dict:
+    def _decode_base64url_json(payload_str: str) -> dict[str, Any]:
         """Decode a base64url JSON payload (no padding required)."""
         if not payload_str:
             raise ValueError("Empty payload string provided.")
@@ -243,7 +263,9 @@ class Tradier(Broker):
                 logger.warning("[Tradier] TRADIER_REFRESH_TOKEN not configured; OAuth access token may expire.")
                 return False
             if not client_id or not client_secret:
-                logger.warning("[Tradier] TRADIER_OAUTH_CLIENT_ID / TRADIER_OAUTH_CLIENT_SECRET not configured; cannot refresh OAuth token.")
+                logger.warning(
+                    "[Tradier] TRADIER_OAUTH_CLIENT_ID / TRADIER_OAUTH_CLIENT_SECRET not configured; cannot refresh OAuth token."
+                )
                 return False
 
             try:
@@ -280,7 +302,9 @@ class Tradier(Broker):
             # Refresh token is typically stable for Tradier partner apps, but handle the case where it changes.
             new_refresh_token = token_json.get("refresh_token")
             if new_refresh_token and new_refresh_token != refresh_token:
-                logger.warning("[Tradier] OAuth refresh rotated refresh_token; rotation is not persisted in env vars and may require re-linking later.")
+                logger.warning(
+                    "[Tradier] OAuth refresh rotated refresh_token; rotation is not persisted in env vars and may require re-linking later."
+                )
                 self._oauth_refresh_token = new_refresh_token
 
             expires_in = token_json.get("expires_in")
@@ -337,22 +361,20 @@ class Tradier(Broker):
             _wrap_component(getattr(ds_client, attr, None))
 
     def __init__(
-            self,
-            config=None,
-            account_number=None,
-            access_token=None,
-            paper=None,
-            connect_stream=True,
-            data_source=None,
-            polling_interval=5.0,
-
-            # Need sequential order submission for Tradier becuase it is very strict that buy orders exist
-            # before any stoploss/limit orders.
-            max_workers=1,
-
-            # Tradier allows SPY option trading for 15 additional min after market close
-            # This will need to be set directly by the strategy
-            extended_trading_minutes=0,
+        self,
+        config=None,
+        account_number=None,
+        access_token=None,
+        paper=None,
+        connect_stream=True,
+        data_source=None,
+        polling_interval=5.0,
+        # Need sequential order submission for Tradier becuase it is very strict that buy orders exist
+        # before any stoploss/limit orders.
+        max_workers=1,
+        # Tradier allows SPY option trading for 15 additional min after market close
+        # This will need to be set directly by the strategy
+        extended_trading_minutes=0,
     ):
         # Check if the user provided both config file and keys
         if (access_token is not None or account_number is not None or paper is not None) and config is not None:
@@ -415,7 +437,9 @@ class Tradier(Broker):
 
             try:
                 issued_at_ms = int(token_json.get("issued_at") or 0)
-                expires_in_s = int(float(token_json.get("expires_in"))) if token_json.get("expires_in") is not None else None
+                expires_in_s = (
+                    int(float(token_json.get("expires_in"))) if token_json.get("expires_in") is not None else None
+                )
                 if issued_at_ms and expires_in_s:
                     self._oauth_token_expires_at = issued_at_ms / 1000.0 + expires_in_s
             except Exception:
@@ -424,7 +448,9 @@ class Tradier(Broker):
 
         # Check if the user has provided the necessary keys (after OAuth extraction)
         if access_token is None or account_number is None or paper is None:
-            raise Exception("Please provide a config file or access_token, account_number, and paper (or set TRADIER_TOKEN for OAuth)")
+            raise Exception(
+                "Please provide a config file or access_token, account_number, and paper (or set TRADIER_TOKEN for OAuth)"
+            )
 
         # Set the values from the keys
         self._tradier_access_token = access_token
@@ -500,9 +526,7 @@ class Tradier(Broker):
         # Cancel the order
         self.tradier.orders.cancel(order.identifier)
 
-    def _modify_order(self, order: Order,
-                      limit_price: Union[float, None] = None,
-                      stop_price: Union[float, None] = None):
+    def _modify_order(self, order: Order, limit_price: float | None = None, stop_price: float | None = None):
         """
         Modify an order at the broker. Nothing will be done for orders that are already cancelled or filled. You are
         only allowed to change the limit price and/or stop price. If you want to change the quantity,
@@ -572,7 +596,7 @@ class Tradier(Broker):
             # Submit each order
             sub_orders = []
             for order in orders:
-               sub_orders.append(self._submit_order(order))
+                sub_orders.append(self._submit_order(order))
 
             return sub_orders
 
@@ -632,7 +656,7 @@ class Tradier(Broker):
             # Example leg: leg1 = OrderLeg(option_symbol=option_symbol_1, quantity=1, side='buy_to_open')
             leg = _order_leg_class()(
                 option_symbol=option_symbol,
-                quantity=int(order.quantity), # Quantity for Tradier must be a positive integer
+                quantity=int(order.quantity),  # Quantity for Tradier must be a positive integer
                 side=self._lumi_side2tradier(order),
             )
             legs.append(leg)
@@ -648,9 +672,7 @@ class Tradier(Broker):
         )
 
         # Each leg uses a different option asset, just use the base symbol. This matches later Tradier API response.
-        parent_asset = Asset(
-            symbol=self._normalize_symbol_for_internal(symbol, asset_type=Asset.AssetType.STOCK)
-        )
+        parent_asset = Asset(symbol=self._normalize_symbol_for_internal(symbol, asset_type=Asset.AssetType.STOCK))
         parent_order = Order(
             identifier=order_response["id"],
             asset=parent_asset,
@@ -662,7 +684,7 @@ class Tradier(Broker):
             time_in_force=duration,
             limit_price=price,
             tag=tag,
-            status=Order.OrderStatus.SUBMITTED
+            status=Order.OrderStatus.SUBMITTED,
         )
         for o in orders:
             o.parent_identifier = parent_order.identifier
@@ -688,10 +710,11 @@ class Tradier(Broker):
 
         tag = order.tag if order.tag else order.strategy
         # Replace non-alphanumeric characters with '-', underscore "_" is not allowed by Tradier
-        tag = re.sub(r'[^a-zA-Z0-9-]', '-', tag)
+        tag = re.sub(r"[^a-zA-Z0-9-]", "-", tag)
 
-        order_limit_price = order.limit_price \
-            if order.order_type != Order.OrderType.STOP_LIMIT else order.stop_limit_price
+        order_limit_price = (
+            order.limit_price if order.order_type != Order.OrderType.STOP_LIMIT else order.stop_limit_price
+        )
 
         try:
             # Check if the order is an OCO/OTO/Bracker order
@@ -702,22 +725,31 @@ class Tradier(Broker):
                 legs = []
                 if order.order_class != Order.OrderClass.OCO:
                     # Create the stock/options symbol
-                    parent_option_symbol = _create_options_symbol(
-                        order.asset.symbol, order.asset.expiration, order.asset.right, order.asset.strike
-                    ) if order.asset.asset_type == Asset.AssetType.OPTION else None
-                    parent_stock_symbol = self._normalize_symbol_for_broker(order.asset.symbol, asset_type=order.asset.asset_type) \
-                        if order.asset.asset_type != Asset.AssetType.OPTION else None
+                    parent_option_symbol = (
+                        _create_options_symbol(
+                            order.asset.symbol, order.asset.expiration, order.asset.right, order.asset.strike
+                        )
+                        if order.asset.asset_type == Asset.AssetType.OPTION
+                        else None
+                    )
+                    parent_stock_symbol = (
+                        self._normalize_symbol_for_broker(order.asset.symbol, asset_type=order.asset.asset_type)
+                        if order.asset.asset_type != Asset.AssetType.OPTION
+                        else None
+                    )
 
                     # Add the parent order to the legs list
-                    legs.append(_order_leg_class()(
-                        stock_symbol=parent_stock_symbol,  # None if option order
-                        option_symbol=parent_option_symbol,  # None if stock order
-                        quantity=int(order.quantity),
-                        side=self._lumi_side2tradier(order),
-                        price=order_limit_price,
-                        stop=order.stop_price,
-                        type=order.order_type,
-                    ))
+                    legs.append(
+                        _order_leg_class()(
+                            stock_symbol=parent_stock_symbol,  # None if option order
+                            option_symbol=parent_option_symbol,  # None if stock order
+                            quantity=int(order.quantity),
+                            side=self._lumi_side2tradier(order),
+                            price=order_limit_price,
+                            stop=order.stop_price,
+                            type=order.order_type,
+                        )
+                    )
 
                 for child_order in order.child_orders:
                     if child_order.asset is None:
@@ -726,15 +758,25 @@ class Tradier(Broker):
 
                     # Check if the child order is a stop limit order
                     # Note: Tradier does not support Trailing Stop orders
-                    child_limit_price = child_order.limit_price \
-                        if child_order.order_type != Order.OrderType.STOP_LIMIT else child_order.stop_limit_price
+                    child_limit_price = (
+                        child_order.limit_price
+                        if child_order.order_type != Order.OrderType.STOP_LIMIT
+                        else child_order.stop_limit_price
+                    )
 
                     # Create the stock/options symbol
-                    child_option_symbol = _create_options_symbol(
-                        order.asset.symbol, order.asset.expiration, order.asset.right, order.asset.strike
-                    ) if child_order.asset.asset_type == Asset.AssetType.OPTION else None
-                    child_stock_symbol = self._normalize_symbol_for_broker(order.asset.symbol, asset_type=order.asset.asset_type) \
-                        if child_order.asset.asset_type != Asset.AssetType.OPTION else None
+                    child_option_symbol = (
+                        _create_options_symbol(
+                            order.asset.symbol, order.asset.expiration, order.asset.right, order.asset.strike
+                        )
+                        if child_order.asset.asset_type == Asset.AssetType.OPTION
+                        else None
+                    )
+                    child_stock_symbol = (
+                        self._normalize_symbol_for_broker(order.asset.symbol, asset_type=order.asset.asset_type)
+                        if child_order.asset.asset_type != Asset.AssetType.OPTION
+                        else None
+                    )
 
                     # Create the leg
                     leg = _order_leg_class()(
@@ -751,7 +793,7 @@ class Tradier(Broker):
                 # Place the Advanced order
                 try:
                     # Tradier calls parent Bracket orders an OTOCO. OCO/OTO names still match
-                    tradier_class = 'otoco' if order.order_class == Order.OrderClass.BRACKET else order.order_class
+                    tradier_class = "otoco" if order.order_class == Order.OrderClass.BRACKET else order.order_class
                     order_response = self.tradier.orders.advanced_order(
                         duration=order.time_in_force,
                         order_class=tradier_class,
@@ -825,17 +867,26 @@ class Tradier(Broker):
             error = str(e)
             if "401" in error or "403" in error:
                 # Check if the access token or account number is invalid
-                if (self._tradier_access_token is None or self._tradier_account_number is None or
-                        len(self._tradier_access_token) == 0 or len(self._tradier_account_number) == 0):
-                    colored_message = colored("Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are blank. "
-                                              "Please check your keys.", color="red")
+                if (
+                    self._tradier_access_token is None
+                    or self._tradier_account_number is None
+                    or len(self._tradier_access_token) == 0
+                    or len(self._tradier_account_number) == 0
+                ):
+                    colored_message = colored(
+                        "Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are blank. Please check your keys.",
+                        color="red",
+                    )
                     raise ValueError(colored_message) from e
 
                 # Conceal the end of the access token
                 access_token = self._tradier_access_token[:7] + "*" * 7
-                colored_message = colored(f"Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are invalid. "
-                                          f"Your account number is: {self._tradier_account_number} and your "
-                                          f"access token is: {access_token}", color="red")
+                colored_message = colored(
+                    f"Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are invalid. "
+                    f"Your account number is: {self._tradier_account_number} and your "
+                    f"access token is: {access_token}",
+                    color="red",
+                )
                 raise ValueError(colored_message) from e
             raise e
         except Exception as e:
@@ -952,10 +1003,7 @@ class Tradier(Broker):
         quantity = cls._extract_history_quantity(row, raw_type)
         event_type, is_external_cash_flow = cls._map_cash_event_type(raw_type, amount, description)
         occurred_at = (
-            row.get("date")
-            or row.get("created_at")
-            or row.get("settlement_date")
-            or row.get("transaction_date")
+            row.get("date") or row.get("created_at") or row.get("settlement_date") or row.get("transaction_date")
         )
         broker_event_id = row.get("id") or row.get("event_id") or row.get("transaction_id")
 
@@ -984,7 +1032,7 @@ class Tradier(Broker):
         )
 
     @staticmethod
-    def _normalize_history_payload_to_df(data) -> pd.DataFrame:
+    def _normalize_history_payload_to_df(data: Any) -> DataFrame:
         if not isinstance(data, dict):
             return pd.DataFrame()
 
@@ -1014,7 +1062,7 @@ class Tradier(Broker):
         page: int,
         activity_type: str,
         supports_page: bool,
-    ) -> pd.DataFrame:
+    ) -> DataFrame:
         account = self.tradier.account
         request = getattr(account, "request", None)
         endpoint = getattr(account, "ACCOUNT_HISTORY_ENDPOINT", None)
@@ -1084,17 +1132,17 @@ class Tradier(Broker):
         CashEvent = _cash_event_class()
 
         start_date = CashEvent.coerce_datetime(since).date() if since is not None else None
-        end_date = datetime.datetime.now(datetime.timezone.utc).date()
-        original_limit = max(int(limit or 100), 1)
-        per_page_limit = min(original_limit, 1000)
+        end_date = datetime.datetime.now(datetime.UTC).date()
+        per_type_limit = max(int(limit or 100), 1)
+        per_page_limit = min(per_type_limit, 1000)
+        max_pages = max((per_type_limit - 1) // per_page_limit + 1, 1)
         account = self.tradier.account
         supports_page = callable(getattr(account, "request", None))
         if not supports_page:
             try:
                 signature = inspect.signature(account.get_history)
                 supports_page = "page" in signature.parameters or any(
-                    parameter.kind is inspect.Parameter.VAR_KEYWORD
-                    for parameter in signature.parameters.values()
+                    parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in signature.parameters.values()
                 )
             except Exception:
                 supports_page = False
@@ -1126,8 +1174,7 @@ class Tradier(Broker):
                 raw_row_count += len(history_df.index)
                 if "type" in history_df.columns:
                     raw_type_counts.update(
-                        str(raw_type or "").lower().strip()
-                        for raw_type in history_df["type"].dropna().tolist()
+                        str(raw_type or "").lower().strip() for raw_type in history_df["type"].dropna().tolist()
                     )
                 for row in history_df.to_dict(orient="records"):
                     event = self._normalize_history_row_to_cash_event(row)
@@ -1144,8 +1191,7 @@ class Tradier(Broker):
             key=lambda event: (event.occurred_at, event.event_id),
         )
         logger.debug(
-            "Tradier returned %s normalized cash events from %s raw history rows "
-            "(supports_page=%s, raw_types=%s)",
+            "Tradier returned %s normalized cash events from %s raw history rows (supports_page=%s, raw_types=%s)",
             len(normalized_events),
             raw_row_count,
             supports_page,
@@ -1161,13 +1207,24 @@ class Tradier(Broker):
             error = str(e)
             if "401" in error or "403" in error:
                 # Check if the access token or account number is invalid
-                if self._tradier_access_token is None or self._tradier_account_number is None or len(self._tradier_access_token) == 0 or len(self._tradier_account_number) == 0:
-                    colored_message = colored("Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are blank. Please check your keys.", color="red")
+                if (
+                    self._tradier_access_token is None
+                    or self._tradier_account_number is None
+                    or len(self._tradier_access_token) == 0
+                    or len(self._tradier_account_number) == 0
+                ):
+                    colored_message = colored(
+                        "Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are blank. Please check your keys.",
+                        color="red",
+                    )
                     raise ValueError(colored_message) from e
 
                 # Conceal the end of the access token
                 access_token = self._tradier_access_token[:7] + "*" * 7
-                colored_message = colored(f"Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are invalid. Your account number is: {self._tradier_account_number} and your access token is: {access_token}", color="red")
+                colored_message = colored(
+                    f"Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are invalid. Your account number is: {self._tradier_account_number} and your access token is: {access_token}",
+                    color="red",
+                )
                 raise ValueError(colored_message) from e
             raise e
         except Exception as e:
@@ -1280,9 +1337,7 @@ class Tradier(Broker):
         :param strategy_name: The name of the strategy that placed the order
         :param strategy_object: The strategy object that placed the order
         """
-        strategy_name = (
-            strategy_name if strategy_name else strategy_object.name if strategy_object else None
-        )
+        strategy_name = strategy_name if strategy_name else strategy_object.name if strategy_object else None
 
         # For OCO orders, tradier leaves lots of fields empty (float nan). Pull values from the children if needed
         legs = response["leg"] if "leg" in response and isinstance(response["leg"], list) else []
@@ -1332,7 +1387,8 @@ class Tradier(Broker):
             date_created=response["create_date"],
             avg_fill_price=avg_fill_price,
             error_message=reason_description,
-            order_class=self._tradier_class2lumi(response["class"] if "class" in response else None) or Order.OrderClass.SIMPLE,
+            order_class=self._tradier_class2lumi(response["class"] if "class" in response else None)
+            or Order.OrderClass.SIMPLE,
         )
         # Example Tradier Date Value: '2024-10-04T15:46:14.946Z'
         order.broker_create_date = response["create_date"] if "create_date" in response else None
@@ -1437,15 +1493,16 @@ class Tradier(Broker):
 
         if order.asset.asset_type == Asset.AssetType.STOCK:
             # Map extended side values to for Tradier API
-            if side in ("buy_to_open"):
-                side = "buy"
-            elif side in ("sell_to_close"):
-                side = "sell"
-            elif side in ("buy_to_cover", "buy_to_close"):
-                side = "buy_to_cover"
-            elif side in ("sell_to_open", "sell_short"):
-                side = "sell_short"
-            return side
+            side_value = str(side) if side is not None else ""
+            if side_value == "buy_to_open":
+                return "buy"
+            if side_value == "sell_to_close":
+                return "sell"
+            if side_value in ("buy_to_cover", "buy_to_close"):
+                return "buy_to_cover"
+            if side_value in ("sell_to_open", "sell_short"):
+                return "sell_short"
+            return side_value
 
         # Convert the side to the Tradier side for options orders if necessary
         if side == Order.OrderSide.BUY or side == Order.OrderSide.SELL:
@@ -1464,7 +1521,7 @@ class Tradier(Broker):
                     side = "sell_to_open"
                 else:
                     logger.error(
-                        f"Unable to determine the correct side for the order. " f"Position: {position}, Order: {order}"
+                        f"Unable to determine the correct side for the order. Position: {position}, Order: {order}"
                     )
 
             # Otherwise, we don't own the option so we need to buy to open or sell to open
@@ -1473,8 +1530,9 @@ class Tradier(Broker):
 
         # Stoploss and limit orders are usually used to close positions, even if they are submitted "before" the
         # position is technically open (i.e. buy and stoploss order are submitted simultaneously)
-        if (order.order_type in [Order.OrderType.STOP, Order.OrderType.TRAIL] and
-                (original_side == Order.OrderSide.BUY or original_side == Order.OrderSide.SELL)):
+        if order.order_type in [Order.OrderType.STOP, Order.OrderType.TRAIL] and (
+            original_side == Order.OrderSide.BUY or original_side == Order.OrderSide.SELL
+        ):
             side = str(side).replace("to_open", "to_close")
 
         # Check if the side is a valid Tradier side
@@ -1494,7 +1552,7 @@ class Tradier(Broker):
         if order_class is None or not isinstance(order_class, str):
             return None
 
-        if order_class in ['equity', 'option']:
+        if order_class in ["equity", "option"]:
             return Order.OrderClass.SIMPLE
 
         # Check if the order class is a valid Lumi order class
@@ -1576,8 +1634,9 @@ class Tradier(Broker):
                     stored_order.broker_update_date = order.broker_update_date
                     if order.avg_fill_price:
                         stored_order.avg_fill_price = order.avg_fill_price
-                    stored_children = [stored_orders[o.identifier] if o.identifier in stored_orders else o
-                                       for o in order.child_orders]
+                    stored_children = [
+                        stored_orders[o.identifier] if o.identifier in stored_orders else o for o in order.child_orders
+                    ]
                     stored_order.child_orders = stored_children
 
                     # Status has changed since last time we saw it, dispatch the new status.
@@ -1628,8 +1687,14 @@ class Tradier(Broker):
                             case "canceled":
                                 self._safe_stream_dispatch(self.CANCELED_ORDER, order=stored_order)
                             case "error":
-                                default_msg = f"{self.name} encountered an error with order {order.identifier} | {order}"
-                                msg = order_row["reason_description"] if "reason_description" in order_row else default_msg
+                                default_msg = (
+                                    f"{self.name} encountered an error with order {order.identifier} | {order}"
+                                )
+                                msg = (
+                                    order_row["reason_description"]
+                                    if "reason_description" in order_row
+                                    else default_msg
+                                )
                                 self._safe_stream_dispatch(self.ERROR_ORDER, order=stored_order, error_msg=msg)
                             case "cash_settled":
                                 # Don't know how to detect this case in Tradier.
@@ -1650,8 +1715,7 @@ class Tradier(Broker):
         for order_id, order in tracked_orders.items():
             if order_id not in broker_ids:
                 logger.debug(
-                    f"Poll Update: {self.name} no longer has order {order}, but Lumibot does. "
-                    f"Dispatching as cancelled."
+                    f"Poll Update: {self.name} no longer has order {order}, but Lumibot does. Dispatching as cancelled."
                 )
                 # Only dispatch orders that have not been filled or cancelled. Likely the broker has simply
                 # stopped tracking them. This is particularly true with Paper Trading where orders are not tracked
@@ -1701,7 +1765,7 @@ class Tradier(Broker):
                     broker.NEW_ORDER,
                 )
                 return True
-            except:
+            except Exception:
                 logger.error(traceback.format_exc())
 
         @broker.stream.add_action(broker.FILLED_ORDER)
@@ -1718,7 +1782,7 @@ class Tradier(Broker):
                     multiplier=order.asset.multiplier,
                 )
                 return True
-            except:
+            except Exception:
                 logger.error(traceback.format_exc())
 
         @broker.stream.add_action(broker.CANCELED_ORDER)
@@ -1731,7 +1795,7 @@ class Tradier(Broker):
                     order,
                     broker.CANCELED_ORDER,
                 )
-            except:
+            except Exception:
                 logger.error(traceback.format_exc())
 
         @broker.stream.add_action(broker.CASH_SETTLED)
@@ -1747,7 +1811,7 @@ class Tradier(Broker):
                     filled_quantity=filled_quantity,
                     multiplier=order.asset.multiplier,
                 )
-            except:
+            except Exception:
                 logger.error(traceback.format_exc())
 
         @broker.stream.add_action(broker.ERROR_ORDER)
@@ -1772,7 +1836,7 @@ class Tradier(Broker):
                     )
                 logger.error(error_msg)
                 order.set_error(error_msg)
-            except:
+            except Exception:
                 logger.error(traceback.format_exc())
 
     def _run_stream(self):
@@ -1785,14 +1849,25 @@ class Tradier(Broker):
             error = str(e)
             if "401" in error or "403" in error:
                 # Check if the access token or account number is invalid
-                if self._tradier_access_token is None or self._tradier_account_number is None or len(self._tradier_access_token) == 0 or len(self._tradier_account_number) == 0:
-                    colored_message = colored("Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are blank. Please check your keys.", color="red")
-                    raise ValueError(colored_message)
+                if (
+                    self._tradier_access_token is None
+                    or self._tradier_account_number is None
+                    or len(self._tradier_access_token) == 0
+                    or len(self._tradier_account_number) == 0
+                ):
+                    colored_message = colored(
+                        "Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are blank. Please check your keys.",
+                        color="red",
+                    )
+                    raise ValueError(colored_message) from e
 
                 # Conceal the end of the access token
                 access_token = self._tradier_access_token[:7] + "*" * 7
-                colored_message = colored(f"Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are invalid. Your account number is: {self._tradier_account_number} and your access token is: {access_token}", color="red")
-                raise ValueError(colored_message)
+                colored_message = colored(
+                    f"Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are invalid. Your account number is: {self._tradier_account_number} and your access token is: {access_token}",
+                    color="red",
+                )
+                raise ValueError(colored_message) from e
 
     def _flatten_order(self, order):
         """Some submitted orders may trigger other orders.

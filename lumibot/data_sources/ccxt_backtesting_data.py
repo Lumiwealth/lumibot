@@ -1,68 +1,86 @@
 from __future__ import annotations
 
+# pyright: reportIncompatibleMethodOverride=false
 import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
 from importlib import import_module
-from typing import TYPE_CHECKING, Any, Dict, Union
+from typing import Any, TypeAlias, cast
 
 import pytz
 
+from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
+from lumibot.data_sources.data_source_backtesting import DataSourceBacktesting
+from lumibot.entities.asset import Asset
+
 logger = logging.getLogger(__name__)
 
-from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
-from lumibot.data_sources import DataSourceBacktesting
-from lumibot.entities import Asset
-
-if TYPE_CHECKING:
-    from pandas import DataFrame
-    from lumibot.entities import Bars
+PandasDataFrame: TypeAlias = Any  # noqa: UP040
+BarsEntity: TypeAlias = Any  # noqa: UP040
+AssetPair: TypeAlias = tuple[Asset, Asset]  # noqa: UP040
+AssetInput: TypeAlias = Asset | str | AssetPair  # noqa: UP040
 
 
 class _LazyModule:
     __slots__ = ("_module_name", "_module")
 
-    def __init__(self, module_name: str):
+    def __init__(self, module_name: str) -> None:
         self._module_name = module_name
-        self._module = None
+        self._module: Any | None = None
 
-    def _load(self):
+    def _load(self) -> Any:
         module = self._module
         if module is None:
             module = import_module(self._module_name)
             self._module = module
         return module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
 
 np = _LazyModule("numpy")
-_CCXT_CACHE_DB_CLASS = None
-_BARS_CLASS = None
+_ccxt_cache_db_class_cache: type[Any] | None = None
+_bars_class_cache: type[Any] | None = None
 
 
-def _ccxt_cache_db_class():
-    global _CCXT_CACHE_DB_CLASS
-    if _CCXT_CACHE_DB_CLASS is None:
+def _ccxt_cache_db_class() -> type[Any]:
+    global _ccxt_cache_db_class_cache
+    if _ccxt_cache_db_class_cache is None:
         from lumibot.tools import CcxtCacheDB
 
-        _CCXT_CACHE_DB_CLASS = CcxtCacheDB
-    return _CCXT_CACHE_DB_CLASS
+        _ccxt_cache_db_class_cache = CcxtCacheDB
+    if _ccxt_cache_db_class_cache is None:
+        raise RuntimeError("CcxtCacheDB import did not initialize")
+    return _ccxt_cache_db_class_cache
 
 
-def _bars_class():
-    global _BARS_CLASS
-    if _BARS_CLASS is None:
-        from lumibot.entities import Bars
+def _bars_class() -> type[Any]:
+    global _bars_class_cache
+    if _bars_class_cache is None:
+        from lumibot.entities.bars import Bars
 
-        _BARS_CLASS = Bars
-    return _BARS_CLASS
+        _bars_class_cache = Bars
+    return _bars_class_cache
+
+
+def _asset_symbol(asset: Asset | str) -> str:
+    if isinstance(asset, str):
+        return asset.upper()
+    return str(asset.symbol or "").upper()
+
+
+def _ccxt_symbol(asset: AssetInput, quote: Asset | None = None) -> str:
+    if isinstance(asset, tuple):
+        return f"{_asset_symbol(asset[0])}/{_asset_symbol(asset[1])}"
+    if quote is not None:
+        return f"{_asset_symbol(asset)}/{_asset_symbol(quote)}"
+    return _asset_symbol(asset)
 
 
 class CcxtBacktestingData(DataSourceBacktesting):
-    """Use CcxtCacheDB to download and cache data.
-    """
+    """Use CcxtCacheDB to download and cache data."""
+
     # SOURCE must be `CCXT` for the DataSourceBacktesting to work
     # `CCXT` is used in DataSource name
     SOURCE = "CCXT"
@@ -72,34 +90,33 @@ class CcxtBacktestingData(DataSourceBacktesting):
         {"timestep": "day", "representations": ["1d"]},
     ]
 
-    def __init__(self, *args, auto_adjust:bool=False, **kwargs):
+    def __init__(self, *args: Any, auto_adjust: bool = False, **kwargs: Any) -> None:
         # max data download limit
         # from current date to max data download limit
-        download_limit = None
+        download_limit: int | None = None
         exchange_id = "binance"
         if kwargs:
-            download_limit = kwargs.pop("max_data_download_limit", download_limit)
-            exchange_id = kwargs.pop("exchange_id", exchange_id)
+            raw_download_limit = kwargs.pop("max_data_download_limit", download_limit)
+            download_limit = int(raw_download_limit) if raw_download_limit is not None else None
+            exchange_id = str(kwargs.pop("exchange_id", exchange_id))
 
         super().__init__(*args, **kwargs)
-        self.name = exchange_id
-        self.auto_adjust = auto_adjust
-        self._data_store = {}
+        self.name: str = exchange_id
+        self.auto_adjust: bool = auto_adjust
+        self._data_store: dict[str, PandasDataFrame] = {}
         # The number of historical data is downloaded earlier than the start date when downloading historical data.
-        self._download_start_dt_prebuffer = 300
+        self._download_start_dt_prebuffer: int = 300
 
-        self.cache_db = _ccxt_cache_db_class()(self.name,max_download_limit=download_limit)
+        self.cache_db: Any = _ccxt_cache_db_class()(self.name, max_download_limit=download_limit)
 
-
-    def _to_utc_timezone(self, dt:datetime)->datetime:
+    def _to_utc_timezone(self, dt: datetime) -> datetime:
         if dt.tzinfo is not None:
             dt = dt.astimezone(pytz.utc)
         else:
             dt = pytz.utc.localize(dt)
         return dt
 
-
-    def _append_data(self, key:str, data:DataFrame)->DataFrame:
+    def _append_data(self, key: str, data: PandasDataFrame) -> PandasDataFrame:
         """Adds data to a dict and returns the data.
 
         Args:
@@ -115,11 +132,16 @@ class CcxtBacktestingData(DataSourceBacktesting):
         self._data_store[key] = data
         return data
 
-
     def _pull_source_symbol_bars(
-        self, asset:tuple[Asset,Asset], length:int = None, timestep:str=MIN_TIMESTEP,
-            timeshift:int=None, quote=Asset, exchange:Any=None, include_after_hours:bool=True
-    )->Union[DataFrame,None]:
+        self,
+        asset: AssetInput,
+        length: int | None = None,
+        timestep: str = MIN_TIMESTEP,
+        timeshift: timedelta | None = None,
+        quote: Asset | None = None,
+        exchange: str | None = None,
+        include_after_hours: bool = True,
+    ) -> PandasDataFrame | None:
         """Gets the OHCLV data for a specific asset.
 
         Args:
@@ -140,24 +162,20 @@ class CcxtBacktestingData(DataSourceBacktesting):
                 f"the exchange parameter is not implemented for CcxtData, but {exchange} was passed as the exchange"
             )
 
-        if isinstance(asset, tuple):
-            symbol = f"{asset[0].symbol.upper()}/{asset[1].symbol.upper()}"
-        elif quote is not None:
-            symbol = f"{asset.symbol.upper()}/{quote.symbol.upper()}"
-        else:
-            symbol = asset
+        symbol = _ccxt_symbol(asset, quote)
 
         parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
         symbol_timestep = f"{symbol}_{parsed_timestep}"
         if symbol_timestep in self._data_store:
             data = self._data_store[symbol_timestep]
         else:
-            data = self._pull_source_bars([asset],length,timestep,timeshift,quote,include_after_hours)
-            if data is None or data[symbol] is None or data[symbol].empty:
+            data = self._pull_source_bars([asset], length, timestep, timeshift, quote, include_after_hours)
+            frame = data.get(symbol)
+            if frame is None or frame.empty:
                 message = f"{self.SOURCE} did not return data for asset {symbol}. Make sure this symbol is valid."
                 logger.error(message)
                 return None
-            data = self._append_data(symbol_timestep, data[symbol])
+            data = self._append_data(symbol_timestep, frame)
 
         end = self.get_datetime()
         if timeshift:
@@ -172,40 +190,31 @@ class CcxtBacktestingData(DataSourceBacktesting):
         return result_data.tail(length)
 
     def _pull_source_bars(
-            self,
-            assets: tuple[Asset,Asset],
-            length: int,
-            timestep: str = MIN_TIMESTEP,
-            timeshift: int = None,
-            quote: Asset = None,
-            include_after_hours: bool = False
-    ) -> Dict:
+        self,
+        assets: list[AssetInput],
+        length: int | None,
+        timestep: str = MIN_TIMESTEP,
+        timeshift: timedelta | None = None,
+        quote: Asset | None = None,
+        include_after_hours: bool = False,
+    ) -> dict[str, PandasDataFrame | None]:
         """pull broker bars for a list assets"""
         parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
 
-        result = {}
+        result: dict[str, PandasDataFrame | None] = {}
         for asset in assets:
-            if isinstance(asset, tuple):
-                symbol = f"{asset[0].symbol.upper()}/{asset[1].symbol.upper()}"
-            elif quote is not None:
-                symbol = f"{asset.symbol.upper()}/{quote.symbol.upper()}"
-            else:
-                symbol = asset
+            symbol = _ccxt_symbol(asset, quote)
 
             # convert native timezone aware
             start_dt = self._to_utc_timezone(self.datetime_start)
-            end_dt = self._to_utc_timezone(self.datetime_end)
+            end_dt = self._to_utc_timezone(self.datetime_end or self.get_datetime())
 
             if parsed_timestep == "1d":
                 start_dt = start_dt - timedelta(days=self._download_start_dt_prebuffer)
             else:
                 start_dt = start_dt - timedelta(minutes=self._download_start_dt_prebuffer)
 
-            data = self.cache_db.download_ohlcv(
-                symbol,parsed_timestep,
-                start_dt,
-                end_dt
-            )
+            data = self.cache_db.download_ohlcv(symbol, parsed_timestep, start_dt, end_dt)
 
             data.index = data.index.tz_localize("UTC")
             data.index = data.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
@@ -213,12 +222,19 @@ class CcxtBacktestingData(DataSourceBacktesting):
 
         return result
 
-    def get_historical_prices(self, asset:tuple[Asset,Asset], length:int, timestep:str=None,
-            timeshift:int=None, quote:Asset=None, exchange:Any=None, include_after_hours:bool=True
-    )->Bars:
+    def get_historical_prices(
+        self,
+        asset: AssetInput,
+        length: int,
+        timestep: str | None = None,
+        timeshift: timedelta | None = None,
+        quote: Asset | None = None,
+        exchange: str | None = None,
+        include_after_hours: bool = True,
+    ) -> Any:
         """Get bars for a given asset"""
         if isinstance(asset, str):
-            asset = Asset(symbol=asset,asset_type="crypto")
+            asset = Asset(symbol=asset, asset_type="crypto")
 
         if not timestep:
             timestep = self.get_timestep()
@@ -243,26 +259,21 @@ class CcxtBacktestingData(DataSourceBacktesting):
     # Get pricing data for an asset for the entire backtesting period
     def get_historical_prices_between_dates(
         self,
-        asset:tuple[Asset,Asset],
-        timestep:str="minute",
-        quote:Asset=None,
-        exchange:Any=None,
-        include_after_hours:bool=True,
-        start_date:datetime=None,
-        end_date:datetime=None,
-    )->Bars:
+        asset: AssetInput,
+        timestep: str = "minute",
+        quote: Asset | None = None,
+        exchange: str | None = None,
+        include_after_hours: bool = True,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> BarsEntity | None:
         parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
 
-        if isinstance(asset, tuple):
-            symbol = f"{asset[0].symbol.upper()}/{asset[1].symbol.upper()}"
-        elif quote is not None:
-            symbol = f"{asset.symbol.upper()}/{quote.symbol.upper()}"
-        else:
-            symbol = asset
+        symbol = _ccxt_symbol(asset, quote)
 
         # convert utc timezone
-        start_dt = self._to_utc_timezone(start_date)
-        end_dt = self._to_utc_timezone(end_date)
+        start_dt = self._to_utc_timezone(start_date or self.datetime_start)
+        end_dt = self._to_utc_timezone(end_date or self.datetime_end or self.get_datetime())
 
         # Cache data is stored in UTC time
         data = self.cache_db.get_data_from_cache(symbol, parsed_timestep, start_dt, end_dt)
@@ -270,20 +281,31 @@ class CcxtBacktestingData(DataSourceBacktesting):
             return None
 
         # convert to lumibot default timezone
-        data.index  = data.index.tz_localize("UTC")
+        data.index = data.index.tz_localize("UTC")
         data.index = data.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
 
         bars = self._parse_source_symbol_bars(data, asset, quote=quote)
         return bars
 
-
-    def _parse_source_symbol_bars(self, response:DataFrame, asset:tuple[Asset,Asset],
-                                  quote:Asset=None, length:int=None)->Bars:
+    def _parse_source_symbol_bars(
+        self,
+        response: PandasDataFrame,
+        asset: AssetInput,
+        quote: Asset | None = None,
+        length: int | None = None,
+    ) -> BarsEntity:
         # Parse the dataframe returned from CCXT.
         bars = _bars_class()(response, self.SOURCE, asset, quote=quote, raw=response)
         return bars
 
-    def get_last_price(self, asset, timestep=None, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
+    def get_last_price(
+        self,
+        asset: AssetInput,
+        timestep: str | None = None,
+        quote: Asset | None = None,
+        exchange: str | None = None,
+        **kwargs: Any,
+    ) -> float | Decimal | None:
         """Takes an asset and returns the last known price of close"""
         if timestep is None:
             timestep = self.get_timestep()
@@ -302,10 +324,9 @@ class CcxtBacktestingData(DataSourceBacktesting):
             close_ = df_local["close"][0]
         if isinstance(close_, np.int64):
             close_ = Decimal(close_.item())
-        return close_
+        return cast(float | Decimal | None, close_)
 
-
-    def get_chains(self, asset):
+    def get_chains(self, asset: Asset, quote: Asset | None = None, exchange: str | None = None) -> dict[str, Any]:
         """
         Get the chains for a given asset.  This is not implemented for BinanceData becuase Yahoo does not support
         historical options data."""
@@ -315,31 +336,31 @@ class CcxtBacktestingData(DataSourceBacktesting):
             "feature, please use a different data source."
         )
 
-
-    def get_strikes(self, asset):
+    def get_strikes(self, asset: Asset) -> list[float]:
         raise NotImplementedError(
             "CcxtBactestingData does not support historical options data. If you need this "
             "feature, please use a different data source."
         )
+
 
 if __name__ == "__main__":
     # kwargs = {
     #     "max_data_download_limit":10000,
     # }
 
-    start_date = datetime(2023,12,15)
-    end_date = datetime(2023,12,31)
+    start_date = datetime(2023, 12, 15)
+    end_date = datetime(2023, 12, 31)
 
     # b = BinanceData(start_date,end_date, **kwargs)
-    b = CcxtBacktestingData(start_date,end_date)
+    b = CcxtBacktestingData(start_date, end_date)
     r = b.get_historical_prices(
-        asset=(Asset(symbol="SOL",asset_type="crypto"),Asset(symbol="USDT",asset_type="crypto")),
+        asset=(Asset(symbol="SOL", asset_type="crypto"), Asset(symbol="USDT", asset_type="crypto")),
         length=20,
         timestep="day",
     )
     print(r)
     r = b.get_last_price(
-        asset=(Asset(symbol="SOL",asset_type="crypto"),Asset(symbol="USDT",asset_type="crypto")),
+        asset=(Asset(symbol="SOL", asset_type="crypto"), Asset(symbol="USDT", asset_type="crypto")),
         timestep="day",
     )
     print(r)

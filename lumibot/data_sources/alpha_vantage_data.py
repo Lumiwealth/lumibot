@@ -2,47 +2,83 @@ from __future__ import annotations
 
 import os.path
 import time
-from datetime import datetime, timedelta
+from collections.abc import Iterable, Mapping
+from datetime import timedelta
 from importlib import import_module
+from types import ModuleType
+from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
-from lumibot.entities import Asset
+from lumibot.entities.asset import Asset
 from lumibot.tools.lumibot_logger import get_logger
 
-from .data_source import DataSource
+from .data_source import ChainMap, DataSource
+
+if TYPE_CHECKING:
+    from lumibot.entities.bars import Bars
+
+PandasDataFrame: TypeAlias = Any  # noqa: UP040 - keep Python 3.11 parser compatibility.
+BarsResultMap: TypeAlias = dict[Asset, PandasDataFrame | None]  # noqa: UP040
 
 logger = get_logger(__name__)
 
 
-class _LazyModule:
+class _LazyModule(ModuleType):
+    _module_name: str
+    _module: ModuleType | None
+
     __slots__ = ("_module_name", "_module")
 
-    def __init__(self, module_name: str):
+    def __init__(self, module_name: str) -> None:
+        super().__init__(module_name)
         self._module_name = module_name
         self._module = None
 
-    def _load(self):
+    def _load(self) -> ModuleType:
         module = self._module
         if module is None:
             module = import_module(self._module_name)
             self._module = module
         return module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._load(), name)
 
 
 pd = _LazyModule("pandas")
-_BARS_CLASS = None
+_bars_class_cache: type[Bars] | None = None
 
 
-def _bars_class():
-    global _BARS_CLASS
-    if _BARS_CLASS is None:
-        from lumibot.entities import Bars
+def _bars_class() -> type[Bars]:
+    global _bars_class_cache
+    if _bars_class_cache is None:
+        from lumibot.entities.bars import Bars
 
-        _BARS_CLASS = Bars
-    return _BARS_CLASS
+        _bars_class_cache = Bars
+    return _bars_class_cache
+
+
+def _api_key_from_config(config: object | None) -> str | None:
+    if config is None:
+        return None
+    if isinstance(config, str):
+        return config
+    if isinstance(config, Mapping):
+        config_map = cast(Mapping[str, object], config)
+        value = config_map.get("API_KEY")
+    else:
+        value = getattr(config, "API_KEY", None)
+    return str(value) if value else None
+
+
+def _close_value(data: PandasDataFrame) -> float | None:
+    if data is None or len(data) == 0 or "close" not in data.columns:
+        return None
+    value = data.iloc[-1]["close"]
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 class AlphaVantageData(DataSource):
@@ -50,14 +86,21 @@ class AlphaVantageData(DataSource):
     MIN_TIMESTEP = "minute"
     DATA_STALE_AFTER = timedelta(days=1)
 
-    def __init__(self, config=None, auto_adjust=True, **kwargs):
+    def __init__(self, config: object | None = None, auto_adjust: bool = True, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
         self.name = "alpha vantage"
         self.auto_adjust = auto_adjust
-        self._data_store = {}
+        self._data_store: dict[Asset, PandasDataFrame] = {}
         self.config = config
+        self.api_key = _api_key_from_config(config)
 
-    def _append_data(self, asset, data):
-        result = data.rename(
+    def _require_api_key(self) -> str:
+        if not self.api_key:
+            raise ValueError("AlphaVantageData requires a config with API_KEY to download uncached data")
+        return self.api_key
+
+    def _append_data(self, asset: Asset, data: PandasDataFrame) -> PandasDataFrame:
+        result: PandasDataFrame = data.rename(
             columns={
                 "1. open": "open",
                 "2. high": "high",
@@ -66,112 +109,165 @@ class AlphaVantageData(DataSource):
                 "5. volume": "volume",
             }
         )
-
+        self._data_store[asset] = result
         return result
 
-    def get_chains(self, asset: Asset, quote: Asset=None, exchange=None):
-        """AlphaVantage does not support options chains"""
+    def get_chains(self, asset: Any, quote: Any = None, exchange: str | None = None) -> ChainMap:
+        """AlphaVantage does not support options chains."""
         raise NotImplementedError(
             "Lumibot AlphaVantage does not support get_chains options data. If you need this "
             "feature, please use a different data source."
         )
 
-    def _pull_source_symbol_bars(
-        self,
-        asset,
-        length,
-        timestep=MIN_TIMESTEP,
-        timeshift=None,
-        quote=None,
-        exchange=None,
-        include_after_hours=True
-    ):
-        if exchange is not None:
-            logger.warning(
-                f"the exchange parameter is not implemented for AlphaVantageData, but {exchange} was passed as the exchange"
-            )
+    def _download_symbol_bars(self, symbol: str, timestep: str, filename: str) -> PandasDataFrame | None:
+        api_key = self._require_api_key()
 
-        symbol = asset.symbol
-
-        # Check if file exists in the current folder, if not then download the data
-        data = None
-        filename = f"{symbol}_{timestep}.csv"
-        if asset in self._data_store:
-            data = self._data_store[asset]
-        else:
-            got_data = False
-            if os.path.exists(filename):
-                mtime = os.path.getmtime(filename)
-                dt = datetime.fromtimestamp(mtime)
-                # Check to see if we got the data recently
-                if dt > (datetime.now() - self.DATA_STALE_AFTER):
-                    data = pd.read_csv(filename)
-                    if "timestamp" in data.columns:
-                        data = data.set_index("timestamp")
-                    elif "time" in data.columns:
-                        data = data.set_index("time")
-
-                    got_data = True
-
-            if not got_data:
-                # Couldn't get the data from the file, so download it
-                if timestep == "minute":
-                    interval = "1min"
-                    years = 2
-                    months = 12
-                    dfs = []
-                    logger.info(
-                        f"Downloading minute data for {symbol}, this can 6 minutes or more per symbol"
+        if timestep == "minute":
+            interval = "1min"
+            frames: list[PandasDataFrame] = []
+            logger.info("Downloading minute data for %s, this can take 6 minutes or more per symbol", symbol)
+            for year_number in range(1, 3):
+                for month_number in range(1, 13):
+                    time_slice = f"year{year_number}month{month_number}"
+                    url = (
+                        "https://www.alphavantage.co/query?"
+                        "function=TIME_SERIES_INTRADAY_EXTENDED"
+                        f"&symbol={symbol}"
+                        f"&interval={interval}"
+                        f"&slice={time_slice}"
+                        f"&apikey={api_key}"
                     )
-                    for y in range(years):
-                        for m in range(months):
-                            slice = f"year{y+1}month{m+1}"
-                            url = f"https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY_EXTENDED&symbol={symbol}&interval={interval}&slice={slice}&apikey={self.config.API_KEY}"
-                            data = pd.read_csv(url)
-                            dfs.append(data)
-                            time.sleep(13)
+                    frames.append(pd.read_csv(url))
+                    time.sleep(13)
+            data: PandasDataFrame = pd.concat(frames)
+            data.to_csv(filename)
+            return data
 
-                    data = pd.concat(dfs)
-                    data.to_csv(filename)
-                elif timestep == "day":
-                    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={symbol}&outputsize=full&datatype=csv&apikey={self.config.API_KEY}"
-                    data = pd.read_csv(url)
-                    data = data.set_index("timestamp")
-                    data.to_csv(filename)
-
-            data.index = (
-                pd.to_datetime(data.index)
-                .tz_localize(tz=LUMIBOT_DEFAULT_PYTZ)
-                .astype("O")
+        if timestep == "day":
+            url = (
+                "https://www.alphavantage.co/query?"
+                "function=TIME_SERIES_DAILY_ADJUSTED"
+                f"&symbol={symbol}"
+                "&outputsize=full"
+                "&datatype=csv"
+                f"&apikey={api_key}"
             )
-            self._data_store[asset] = data
+            data = pd.read_csv(url)
+            data = data.set_index("timestamp")
+            data.to_csv(filename)
+            return data
 
-        data = data[data.index <= self._datetime]
+        logger.warning("Unsupported AlphaVantage timestep %s for %s", timestep, symbol)
+        return None
 
-        # TODO: Make timeshift work
-        # if timeshift:
-        #     end = datetime.now() - timeshift
-        #     end = self.to_default_timezone(end)
-        #     data = data[data.index <= end]
+    def _read_cached_symbol_bars(self, filename: str) -> PandasDataFrame | None:
+        if not os.path.exists(filename):
+            return None
 
-        data = data.tail(length)
+        modified_time = os.path.getmtime(filename)
+        if self.get_datetime() - self.DATA_STALE_AFTER >= self.to_default_timezone(pd.Timestamp(modified_time, unit="s")):
+            return None
 
+        data: PandasDataFrame = pd.read_csv(filename)
+        if "timestamp" in data.columns:
+            return data.set_index("timestamp")
+        if "time" in data.columns:
+            return data.set_index("time")
         return data
 
+    def _normalize_index(self, data: PandasDataFrame) -> PandasDataFrame:
+        index = pd.to_datetime(data.index)
+        if getattr(index, "tz", None) is None:
+            index = index.tz_localize(tz=LUMIBOT_DEFAULT_PYTZ)
+        else:
+            index = index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+        data.index = index.astype("O")
+        return data
+
+    def _pull_source_symbol_bars(
+        self,
+        asset: Asset,
+        length: int,
+        timestep: str = MIN_TIMESTEP,
+        timeshift: timedelta | None = None,
+        quote: Any = None,
+        exchange: str | None = None,
+        include_after_hours: bool = True,
+    ) -> PandasDataFrame | None:
+        if exchange is not None:
+            logger.warning("the exchange parameter is not implemented for AlphaVantageData, but %s was passed", exchange)
+
+        symbol = asset.symbol
+        if not symbol:
+            raise ValueError("AlphaVantage assets must have a symbol")
+
+        filename = f"{symbol}_{timestep}.csv"
+        data = self._data_store.get(asset)
+        if data is None:
+            data = self._read_cached_symbol_bars(filename)
+        if data is None:
+            data = self._download_symbol_bars(symbol, timestep, filename)
+        if data is None:
+            return None
+
+        data = self._normalize_index(data)
+        self._data_store[asset] = data
+
+        end = self._datetime if self._datetime is not None else self.get_datetime()
+        if timeshift is not None:
+            end = self.get_datetime() - timeshift
+        filtered = data[data.index <= end]
+        return filtered.tail(length)
+
     def _pull_source_bars(
-        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None
-    ):
-        """pull broker bars for a list assets"""
+        self,
+        assets: Iterable[Asset],
+        length: int,
+        timestep: str = MIN_TIMESTEP,
+        timeshift: timedelta | None = None,
+        quote: Any = None,
+    ) -> BarsResultMap:
+        """Pull broker bars for a list of assets."""
+        return {
+            asset: self._pull_source_symbol_bars(asset, length, timestep, timeshift, quote=quote)
+            for asset in assets
+        }
 
-        result = {}
-        for asset in assets:
-            asset_data = self._pull_source_symbol_bars(
-                asset, length, timestep, timeshift, quote=quote
-            )
-            result[asset] = asset_data
+    def _parse_source_symbol_bars(
+        self,
+        response: PandasDataFrame,
+        asset: Asset,
+        quote: Any = None,
+    ) -> Bars:
+        quote_asset = cast(Asset | None, quote)
+        return _bars_class()(response, self.SOURCE, asset, raw=response, quote=quote_asset)
 
-        return result
+    def get_historical_prices(
+        self,
+        asset: Asset,
+        length: int,
+        timestep: str = "",
+        timeshift: timedelta | None = None,
+        quote: Any = None,
+        exchange: str | None = None,
+        include_after_hours: bool = True,
+        **kwargs: Any,
+    ) -> Bars | None:
+        response = self._pull_source_symbol_bars(
+            asset,
+            length,
+            timestep or self.MIN_TIMESTEP,
+            timeshift=timeshift,
+            quote=quote,
+            exchange=exchange,
+            include_after_hours=include_after_hours,
+        )
+        if response is None:
+            return None
+        return self._parse_source_symbol_bars(response, asset, quote=quote)
 
-    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
-        bars = _bars_class()(response, self.SOURCE, asset, raw=response, quote=quote)
-        return bars
+    def get_last_price(self, asset: Asset, quote: Any = None, exchange: str | None = None) -> float | None:
+        data = self._pull_source_symbol_bars(asset, 1, timestep=self.MIN_TIMESTEP, quote=quote, exchange=exchange)
+        if data is None:
+            return None
+        return _close_value(data)

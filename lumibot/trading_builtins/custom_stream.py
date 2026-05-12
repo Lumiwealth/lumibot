@@ -1,17 +1,24 @@
 import logging
 import queue
 import threading
+from collections.abc import Callable
 from queue import Queue
+from typing import Any, Final
+
+Payload = dict[str, Any]
+QueueEvent = tuple[str, Payload]
+StreamAction = Callable[..., object]
+StreamActionDecorator = Callable[[StreamAction], StreamAction]
+
 
 class CustomStream:
-
-    def __init__(self):
-        self._queue = Queue(100)
-        self._actions_mapping = {}
+    def __init__(self) -> None:
+        self._queue: Queue[QueueEvent] = Queue(maxsize=100)
+        self._actions_mapping: dict[str, StreamAction] = {}
         self._stop_event = threading.Event()
-        self._thread = None
+        self._thread: threading.Thread | None = None
 
-    def dispatch(self, event, wait_until_complete=False, **payload):
+    def dispatch(self, event: str, wait_until_complete: bool = False, **payload: Any) -> None:
         # Don't put events if we're stopping
         if self._stop_event.is_set():
             return
@@ -34,14 +41,14 @@ class CustomStream:
 
         # If wait_until_complete is True, we handled the inline path above.
 
-    def add_action(self, event_name):
-        def add_event_action(f):
-            self._actions_mapping[event_name] = f
-            return f
+    def add_action(self, event_name: str) -> StreamActionDecorator:
+        def add_event_action(function: StreamAction) -> StreamAction:
+            self._actions_mapping[event_name] = function
+            return function
 
         return add_event_action
 
-    def _run(self):
+    def _run(self) -> None:
         while not self._stop_event.is_set():
             try:
                 # Use timeout to periodically check stop_event
@@ -58,18 +65,19 @@ class CustomStream:
                 if self._stop_event.is_set():
                     break
 
-    def _process_queue_event(self, event, payload):
+    def _process_queue_event(self, event: str, payload: Payload | None) -> None:
         if payload is None:
             payload = {}
         if event in self._actions_mapping:
             action = self._actions_mapping[event]
             action(**payload)
 
-    def run(self, name):
+    def run(self, name: str | None = None) -> None:
+        _ = name
         # Threads are spawned by the broker._launch_stream() code
         self._run()
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop the stream gracefully"""
         self._stop_event.set()
         # Clear the queue to unblock any waiting operations
@@ -91,9 +99,10 @@ class PollingStream(CustomStream):
     request to the API and dispatch events based on the response. A user can also dispatch events to the stream manually
     using dispatch(), including the poll event to force an off-cycle poll action to occur.
     """
-    POLL_EVENT = "poll"
 
-    def __init__(self, polling_interval=5.0):
+    POLL_EVENT: Final = "poll"
+
+    def __init__(self, polling_interval: float = 5.0) -> None:
         """
         Parameters
         ----------
@@ -103,7 +112,7 @@ class PollingStream(CustomStream):
         super().__init__()
         self.polling_interval = polling_interval
 
-    def _run(self):
+    def _run(self) -> None:
         while not self._stop_event.is_set():
             try:
                 # This is a blocking operation until an item is available in the queue or the timeout is reached.
@@ -119,23 +128,26 @@ class PollingStream(CustomStream):
                     self._poll()
                 continue
             # Ensure that the Polling thread does not die if an exception is raised in the event processing.
-            except Exception as e: # noqa
+            except Exception as e:  # noqa
                 logging.exception(f"An error occurred while processing a queue event. {e}")
                 if self._stop_event.is_set():
                     break
                 continue
 
-    def _poll(self):
+    def _poll(self) -> None:
         if self.POLL_EVENT not in self._actions_mapping:
-            raise ValueError("No action is defined for the poll event. You must register a polling action with "
-                             "add_action()")
+            raise ValueError(
+                "No action is defined for the poll event. You must register a polling action with add_action()"
+            )
 
         try:
             self._process_queue_event(self.POLL_EVENT, {})
         except queue.Full:
-            logging.info("Polling action itself has added too many events to the queue. Skipping this polling cycle, "
-                         "(it is incomplete) to allow the queue to drain. The next cycle will occur as scheduled.")
+            logging.info(
+                "Polling action itself has added too many events to the queue. Skipping this polling cycle, "
+                "(it is incomplete) to allow the queue to drain. The next cycle will occur as scheduled."
+            )
             return
         # Ensure that the Polling thread does not die if an exception is raised in the event processing.
-        except Exception as e: # noqa
+        except Exception as e:  # noqa
             logging.exception(f"An error occurred while polling. {e}")

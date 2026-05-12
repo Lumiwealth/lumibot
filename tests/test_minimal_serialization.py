@@ -5,12 +5,12 @@ These tests cover the minimal serialization methods added to Asset, Position, an
 entities for lightweight progress logging, as well as the ThetaData download status
 tracking functionality.
 """
-import unittest
-from datetime import date, datetime
-from decimal import Decimal
-from unittest.mock import MagicMock, patch
 
-from lumibot.entities import Asset, Position, Order
+import unittest
+from datetime import date
+from decimal import Decimal
+
+from lumibot.entities import Asset, Order, Position
 
 
 class TestAssetMinimalDict(unittest.TestCase):
@@ -42,7 +42,7 @@ class TestAssetMinimalDict(unittest.TestCase):
             strike=150.0,
             expiration=date(2024, 12, 20),
             right="CALL",
-            multiplier=100
+            multiplier=100,
         )
         result = asset.to_minimal_dict()
 
@@ -61,7 +61,7 @@ class TestAssetMinimalDict(unittest.TestCase):
             strike=450.0,
             expiration=date(2024, 6, 15),
             right=Asset.OptionRight.PUT,
-            multiplier=100
+            multiplier=100,
         )
         result = asset.to_minimal_dict()
 
@@ -71,12 +71,7 @@ class TestAssetMinimalDict(unittest.TestCase):
 
     def test_future_minimal_dict(self):
         """Test future asset returns minimal dict with expiration."""
-        asset = Asset(
-            symbol="ES",
-            asset_type=Asset.AssetType.FUTURE,
-            expiration=date(2024, 12, 20),
-            multiplier=50
-        )
+        asset = Asset(symbol="ES", asset_type=Asset.AssetType.FUTURE, expiration=date(2024, 12, 20), multiplier=50)
         result = asset.to_minimal_dict()
 
         self.assertEqual(result["symbol"], "ES")
@@ -86,12 +81,7 @@ class TestAssetMinimalDict(unittest.TestCase):
 
     def test_future_no_multiplier_if_default(self):
         """Test future with multiplier=1 doesn't include mult field."""
-        asset = Asset(
-            symbol="MES",
-            asset_type=Asset.AssetType.FUTURE,
-            expiration=date(2024, 12, 20),
-            multiplier=1
-        )
+        asset = Asset(symbol="MES", asset_type=Asset.AssetType.FUTURE, expiration=date(2024, 12, 20), multiplier=1)
         result = asset.to_minimal_dict()
 
         self.assertEqual(result["symbol"], "MES")
@@ -100,10 +90,7 @@ class TestAssetMinimalDict(unittest.TestCase):
 
     def test_cont_future_minimal_dict(self):
         """Test continuous future asset returns correct type."""
-        asset = Asset(
-            symbol="ES",
-            asset_type=Asset.AssetType.CONT_FUTURE
-        )
+        asset = Asset(symbol="ES", asset_type=Asset.AssetType.CONT_FUTURE)
         result = asset.to_minimal_dict()
 
         self.assertEqual(result["symbol"], "ES")
@@ -184,7 +171,7 @@ class TestPositionMinimalDict(unittest.TestCase):
             strike=150.0,
             expiration=date(2024, 12, 20),
             right="CALL",
-            multiplier=100
+            multiplier=100,
         )
         position = Position(strategy="TestStrategy", asset=asset, quantity=10)
 
@@ -248,12 +235,7 @@ class TestOrderMinimalDict(unittest.TestCase):
         """Test limit order includes limit price."""
         asset = Asset(symbol="AAPL")
         order = Order(
-            strategy="TestStrategy",
-            asset=asset,
-            quantity=100,
-            side="buy",
-            order_type="limit",
-            limit_price=150.00
+            strategy="TestStrategy", asset=asset, quantity=100, side="buy", order_type="limit", limit_price=150.00
         )
 
         result = order.to_minimal_dict()
@@ -266,12 +248,7 @@ class TestOrderMinimalDict(unittest.TestCase):
         """Test stop order includes stop price."""
         asset = Asset(symbol="AAPL")
         order = Order(
-            strategy="TestStrategy",
-            asset=asset,
-            quantity=100,
-            side="sell",
-            order_type="stop",
-            stop_price=140.00
+            strategy="TestStrategy", asset=asset, quantity=100, side="sell", order_type="stop", stop_price=140.00
         )
 
         result = order.to_minimal_dict()
@@ -290,7 +267,7 @@ class TestOrderMinimalDict(unittest.TestCase):
             side="buy",
             order_type="stop_limit",
             limit_price=152.00,
-            stop_price=150.00
+            stop_price=150.00,
         )
 
         result = order.to_minimal_dict()
@@ -325,7 +302,7 @@ class TestOrderMinimalDict(unittest.TestCase):
             strike=150.0,
             expiration=date(2024, 12, 20),
             right="CALL",
-            multiplier=100
+            multiplier=100,
         )
         order = Order(strategy="TestStrategy", asset=asset, quantity=5, side="buy")
 
@@ -351,11 +328,13 @@ class TestDownloadStatusTracking(unittest.TestCase):
     def setUp(self):
         """Clear download status before each test."""
         from lumibot.tools.thetadata_helper import clear_download_status
+
         clear_download_status()
 
     def tearDown(self):
         """Clear download status after each test."""
         from lumibot.tools.thetadata_helper import clear_download_status
+
         clear_download_status()
 
     def test_get_download_status_initial(self):
@@ -374,14 +353,7 @@ class TestDownloadStatusTracking(unittest.TestCase):
         from lumibot.tools.thetadata_helper import get_download_status, set_download_status
 
         asset = Asset(symbol="AAPL")
-        set_download_status(
-            asset=asset,
-            quote_asset="USD",
-            data_type="ohlc",
-            timespan="minute",
-            current=5,
-            total=10
-        )
+        set_download_status(asset=asset, quote_asset="USD", data_type="ohlc", timespan="minute", current=5, total=10)
 
         status = get_download_status()
 
@@ -396,9 +368,7 @@ class TestDownloadStatusTracking(unittest.TestCase):
 
     def test_clear_download_status(self):
         """Test clearing download status."""
-        from lumibot.tools.thetadata_helper import (
-            get_download_status, set_download_status, clear_download_status
-        )
+        from lumibot.tools.thetadata_helper import clear_download_status, get_download_status, set_download_status
 
         asset = Asset(symbol="AAPL")
         set_download_status(asset, "USD", "ohlc", "minute", 5, 10)
@@ -431,9 +401,8 @@ class TestDownloadStatusTracking(unittest.TestCase):
     def test_download_status_thread_safety(self):
         """Test download status operations are thread-safe."""
         import threading
-        from lumibot.tools.thetadata_helper import (
-            get_download_status, set_download_status, clear_download_status
-        )
+
+        from lumibot.tools.thetadata_helper import clear_download_status, get_download_status, set_download_status
 
         errors = []
         iterations = 100
@@ -481,11 +450,7 @@ class TestDownloadStatusTracking(unittest.TestCase):
         from lumibot.tools.thetadata_helper import get_download_status, set_download_status
 
         asset = Asset(
-            symbol="AAPL",
-            asset_type=Asset.AssetType.OPTION,
-            strike=150.0,
-            expiration=date(2024, 12, 20),
-            right="CALL"
+            symbol="AAPL", asset_type=Asset.AssetType.OPTION, strike=150.0, expiration=date(2024, 12, 20), right="CALL"
         )
         set_download_status(asset, "USD", "ohlc", "minute", 1, 5)
 

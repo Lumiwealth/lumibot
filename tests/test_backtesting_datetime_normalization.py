@@ -49,7 +49,7 @@ class _EarlyExit(Exception):
 def test_verify_backtest_inputs_accepts_mixed_timezones():
     """Regression: verify_backtest_inputs must not crash on naive vs aware inputs."""
     naive_start = datetime.datetime(2025, 1, 1)
-    aware_end = datetime.datetime(2025, 9, 30, tzinfo=datetime.timezone.utc)
+    aware_end = datetime.datetime(2025, 9, 30, tzinfo=datetime.UTC)
 
     # Should not raise
     start_dt, end_dt = _Strategy.verify_backtest_inputs(naive_start, aware_end)
@@ -59,19 +59,20 @@ def test_verify_backtest_inputs_accepts_mixed_timezones():
 
 def test_verify_backtest_inputs_clamps_future_end():
     """Backtesting end dates in the future should clamp to now (no hard failure)."""
-    now_before = datetime.datetime.now(datetime.timezone.utc)
+    now_before = datetime.datetime.now(datetime.UTC)
 
-    start = datetime.datetime(2025, 1, 1, tzinfo=datetime.timezone.utc)
-    future_end = datetime.datetime(9999, 12, 31, tzinfo=datetime.timezone.utc)
+    start = datetime.datetime(2025, 1, 1, tzinfo=datetime.UTC)
+    future_end = datetime.datetime(9999, 12, 31, tzinfo=datetime.UTC)
 
     _, end_dt = _Strategy.verify_backtest_inputs(start, future_end)
-    now_after = datetime.datetime.now(datetime.timezone.utc)
+    now_after = datetime.datetime.now(datetime.UTC)
 
     assert now_before <= end_dt <= now_after
 
+
 def test_verify_backtest_inputs_rejects_start_after_end_even_after_clamp():
     """If start is in the future, clamping end to now should still raise."""
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
     start = now + datetime.timedelta(days=1)
     end = now + datetime.timedelta(days=2)
 
@@ -82,7 +83,7 @@ def test_verify_backtest_inputs_rejects_start_after_end_even_after_clamp():
 def test_run_backtest_normalizes_mixed_timezones(disable_datasource_override):
     """Strategy.run_backtest should normalize naive/aware datetimes before validation."""
     naive_start = datetime.datetime(2025, 1, 1)
-    aware_end = datetime.datetime(2025, 9, 30, tzinfo=datetime.timezone.utc)
+    aware_end = datetime.datetime(2025, 9, 30, tzinfo=datetime.UTC)
 
     captured = {}
 
@@ -96,8 +97,9 @@ def test_run_backtest_normalizes_mixed_timezones(disable_datasource_override):
         captured["data_source"] = data_source
         raise _EarlyExit
 
-    with patch("lumibot.strategies._strategy.BacktestingBroker", side_effect=broker_factory), \
-         patch("lumibot.strategies._strategy.Trader", DummyTrader):
+    with patch("lumibot.strategies._strategy.BacktestingBroker", side_effect=broker_factory), patch(
+        "lumibot.strategies._strategy.Trader", DummyTrader
+    ):
         with pytest.raises(_EarlyExit):
             MinimalStrategy.run_backtest(
                 CapturingDataSource,

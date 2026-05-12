@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pandas as pd
 import pytest
@@ -18,8 +18,8 @@ def _make_ds(*, routing: dict[str, str], monkeypatch) -> RoutedBacktestingPandas
     monkeypatch.setattr(thetadata_helper, "reset_theta_terminal_tracking", lambda *_args, **_kwargs: None)
 
     return RoutedBacktestingPandas(
-        datetime_start=datetime(2025, 1, 1, tzinfo=timezone.utc),
-        datetime_end=datetime(2025, 1, 2, tzinfo=timezone.utc),
+        datetime_start=datetime(2025, 1, 1, tzinfo=UTC),
+        datetime_end=datetime(2025, 1, 2, tzinfo=UTC),
         config={"backtesting_data_routing": routing},
         username="dev",
         password="dev",
@@ -80,8 +80,8 @@ def test_ccxt_exchange_id_alias_routes_without_network(exchange_id: str, monkeyp
         calls.append(provider_spec.ccxt_exchange_id)
         idx = pd.DatetimeIndex(
             [
-                datetime(2025, 1, 1, 0, 0, tzinfo=timezone.utc),
-                datetime(2025, 1, 1, 0, 1, tzinfo=timezone.utc),
+                datetime(2025, 1, 1, 0, 0, tzinfo=UTC),
+                datetime(2025, 1, 1, 0, 1, tzinfo=UTC),
             ]
         ).tz_convert("America/New_York")
         return pd.DataFrame(
@@ -93,7 +93,9 @@ def test_ccxt_exchange_id_alias_routes_without_network(exchange_id: str, monkeyp
 
     asset = Asset(symbol="BTC", asset_type="crypto")
     quote = Asset(symbol="USD", asset_type="forex")
-    ds._update_pandas_data(asset, quote, length=2, timestep="minute", start_dt=datetime(2025, 1, 2, tzinfo=timezone.utc))
+    ds._update_pandas_data(
+        asset, quote, length=2, timestep="minute", start_dt=datetime(2025, 1, 2, tzinfo=UTC)
+    )
 
     assert calls == [exchange_id]
     assert ds._data_store

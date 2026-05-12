@@ -1,22 +1,21 @@
+import json
 import socket
 import subprocess
 import sys
 import tempfile
 import textwrap
 import time
-import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
 import pytest
 
+import lumibot.components.agents.runtime as runtime_module
 from lumibot.backtesting import PandasDataBacktesting
 from lumibot.components.agents import AgentRunResult, MCPServer
 from lumibot.entities import Asset, Data
 from lumibot.strategies import Strategy
-import lumibot.components.agents.runtime as runtime_module
-
 
 SERVER_SCRIPT = """
 import argparse
@@ -46,7 +45,7 @@ if __name__ == "__main__":
 
 
 def _utc_iso_timestamp() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _event(kind: str, *, text: str | None = None, tool_name: str | None = None, payload: dict | None = None):

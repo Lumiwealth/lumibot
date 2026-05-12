@@ -89,7 +89,7 @@ def test_multileg_parent_fills_after_all_children_complete():
     )
 
     strategy.submit_order(parent)
-    
+
     broker._execute_filled_order(child_buy, price=50.0, filled_quantity=Decimal("10"), strategy=strategy)
     strategy._executor.process_queue()
 
@@ -154,7 +154,7 @@ def test_multileg_child_fills_adjust_cash_once_and_parent_is_cash_neutral():
     )
 
     strategy.submit_order(parent)
-    
+
     _submit = broker._execute_filled_order
 
     _submit(buy_child, price=50.0, filled_quantity=Decimal("10"), strategy=strategy)
@@ -264,8 +264,20 @@ def test_multileg_smart_limit_net_fill_price():
     df_b["bid"] = [19.0 for _ in range(len(df_b))]
     df_b["ask"] = [21.0 for _ in range(len(df_b))]
 
-    data_a = Data(asset=asset_a, df=df_a.tz_convert("America/New_York").tz_localize(None), quote=quote, timestep="minute", timezone="America/New_York")
-    data_b = Data(asset=asset_b, df=df_b.tz_convert("America/New_York").tz_localize(None), quote=quote, timestep="minute", timezone="America/New_York")
+    data_a = Data(
+        asset=asset_a,
+        df=df_a.tz_convert("America/New_York").tz_localize(None),
+        quote=quote,
+        timestep="minute",
+        timezone="America/New_York",
+    )
+    data_b = Data(
+        asset=asset_b,
+        df=df_b.tz_convert("America/New_York").tz_localize(None),
+        quote=quote,
+        timestep="minute",
+        timezone="America/New_York",
+    )
     pandas_data = {(asset_a, quote): data_a, (asset_b, quote): data_b}
 
     data_source = PandasDataBacktesting(

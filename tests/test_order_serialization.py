@@ -2,8 +2,8 @@
 Test that Order.to_dict() properly excludes problematic fields
 that can cause DynamoDB 400KB limit errors.
 """
+
 import unittest
-from decimal import Decimal
 
 from lumibot.entities import Asset, Order, SmartLimitConfig, SmartLimitPreset, TradingSlippage
 
@@ -14,13 +14,7 @@ class TestOrderSerialization(unittest.TestCase):
     def setUp(self):
         """Set up test order with asset"""
         self.asset = Asset("AAPL", "stock")
-        self.order = Order(
-            strategy="test_strategy",
-            asset=self.asset,
-            quantity=100,
-            side="buy",
-            limit_price=150.00
-        )
+        self.order = Order(strategy="test_strategy", asset=self.asset, quantity=100, side="buy", limit_price=150.00)
 
     def test_to_dict_excludes_internal_fields(self):
         """Test that to_dict() doesn't include internal Python fields"""
@@ -36,32 +30,32 @@ class TestOrderSerialization(unittest.TestCase):
         result = self.order.to_dict()
 
         # Verify problematic fields are NOT included
-        self.assertNotIn('_bars', result, "_bars should not be in to_dict() output")
-        self.assertNotIn('_raw', result, "_raw should not be in to_dict() output")
-        self.assertNotIn('_transmitted', result, "_transmitted should not be in to_dict() output")
-        self.assertNotIn('_error', result, "_error should not be in to_dict() output")
-        self.assertNotIn('_broker', result, "_broker should not be in to_dict() output")
-        self.assertNotIn('transactions', result, "transactions should not be in to_dict() output")
+        self.assertNotIn("_bars", result, "_bars should not be in to_dict() output")
+        self.assertNotIn("_raw", result, "_raw should not be in to_dict() output")
+        self.assertNotIn("_transmitted", result, "_transmitted should not be in to_dict() output")
+        self.assertNotIn("_error", result, "_error should not be in to_dict() output")
+        self.assertNotIn("_broker", result, "_broker should not be in to_dict() output")
+        self.assertNotIn("transactions", result, "transactions should not be in to_dict() output")
 
         # Verify no field starting with underscore is included
         for key in result.keys():
-            self.assertFalse(key.startswith('_'), f"Field {key} starts with underscore and should not be included")
+            self.assertFalse(key.startswith("_"), f"Field {key} starts with underscore and should not be included")
 
     def test_to_dict_includes_essential_fields(self):
         """Test that to_dict() includes all essential fields"""
         result = self.order.to_dict()
 
         # Verify essential fields ARE included
-        self.assertIn('strategy', result)
-        self.assertIn('asset', result)
-        self.assertIn('quantity', result)
-        self.assertIn('side', result)
-        self.assertIn('status', result)
+        self.assertIn("strategy", result)
+        self.assertIn("asset", result)
+        self.assertIn("quantity", result)
+        self.assertIn("side", result)
+        self.assertIn("status", result)
 
         # Verify values are correct
-        self.assertEqual(result['strategy'], "test_strategy")
-        self.assertEqual(result['quantity'], 100.0)
-        self.assertEqual(result['side'], "buy")
+        self.assertEqual(result["strategy"], "test_strategy")
+        self.assertEqual(result["quantity"], 100.0)
+        self.assertEqual(result["side"], "buy")
 
     def test_to_dict_size_reduction(self):
         """Test that to_dict() significantly reduces data size"""
@@ -77,7 +71,7 @@ class TestOrderSerialization(unittest.TestCase):
 
         # Check that serialized size is reasonable (not megabytes)
         json_str = json.dumps(result, default=str)
-        size_kb = len(json_str.encode('utf-8')) / 1024
+        size_kb = len(json_str.encode("utf-8")) / 1024
 
         self.assertLess(size_kb, 10, f"Serialized order should be < 10KB, got {size_kb:.2f}KB")
 
@@ -116,5 +110,5 @@ class TestOrderSerialization(unittest.TestCase):
         self.assertEqual(minimal["smart_limit"]["preset"], "normal")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

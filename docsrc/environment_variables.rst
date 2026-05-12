@@ -66,7 +66,7 @@ BACKTESTING_DATA_SOURCE
 
     - Provider values are case/whitespace/_/- insensitive.
     - Supported values include ``thetadata``, ``ibkr``, ``polygon``, ``alpaca``, and ``ccxt``.
-    - For CCXT, you may use ``ccxt`` (auto-select exchange from existing env/credentials) **or** specify a CCXT exchange id directly (for example: ``coinbase``, ``kraken``, ``binance``, ``kucoin``).
+    - For CCXT backtesting, you may use ``ccxt`` (auto-select exchange from existing env/credentials) **or** specify a supported CCXT backtesting exchange id directly. Documented backtesting examples are ``kraken``, ``binance``, ``kucoin``, ``bitmex``, ``bybit``, and ``okx``.
     - Routing keys are the canonical asset types (``future``, ``cont_future``, ``crypto``, etc.). Common plural aliases like ``futures``/``cont_futures`` are accepted.
 
   - ``none`` to disable the env override and rely on code.
@@ -322,10 +322,10 @@ TRADING_BROKER
 
 - Purpose: Explicitly specify which broker to use for live trading.
 - Values (case-insensitive):
-  - ``alpaca``, ``tradier``, ``ccxt``, ``coinbase``, ``kraken``
+  - ``alpaca``, ``tradier``, ``ccxt``, ``coinbase``, ``kraken``, ``weex``
   - ``ib``, ``interactivebrokers``, ``ibrest``, ``interactivebrokersrest``
   - ``tradovate``, ``schwab``, ``bitunix``
-  - ``projectx``, ``projectx-topstepx``, ``projectx-topone``, etc.
+  - ``projectx`` / ``projectx-topstepx`` for TopstepX futures (via ProjectX)
 - Note: If not set, broker is auto-detected based on available credentials.
 
 DATA_SOURCE
@@ -334,7 +334,7 @@ DATA_SOURCE
 - Purpose: Explicitly specify which data source to use.
 - Values (case-insensitive):
   - ``alpaca``, ``tradier``, ``polygon``, ``yahoo``, ``thetadata``, ``databento``
-  - ``ccxt``, ``coinbase``, ``kraken``, ``schwab``, ``bitunix``, ``projectx``
+  - ``ccxt``, ``coinbase``, ``kraken``, ``weex``, ``schwab``, ``bitunix``, ``projectx``
 - Note: If not set, uses broker's default data source.
 
 Alpaca broker
@@ -359,6 +359,13 @@ ALPACA_IS_PAPER
 - Purpose: Toggle between paper and live trading.
 - Values: ``true`` (paper) / ``false`` (live).
 - Default: ``true`` (paper trading).
+
+ALPACA_NEWS_API_KEY / ALPACA_NEWS_API_SECRET
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Optional bring-your-own-key credentials for ``BuiltinTools.news.alpaca_news()`` when the active broker is not Alpaca.
+- Values: Alpaca API credentials with news/data access (**do not hardcode**).
+- Note: When the active broker is Alpaca, the built-in news tool reuses that broker's OAuth token or API key/secret instead. If the active broker is not Alpaca and these news-specific variables are absent, the built-in news tool is not exposed to agents.
 
 Tradier broker
 --------------
@@ -569,13 +576,13 @@ BITUNIX_TRADING_MODE
 ProjectX brokers
 ----------------
 
-ProjectX supports multiple prop trading firms. Each firm uses a unique prefix pattern.
+ProjectX support is primarily documented for TopstepX futures. The lower-level adapter can read firm-specific ProjectX environment variable prefixes, but new firms should be tested before being treated as production-ready.
 
 PROJECTX_FIRM
 ^^^^^^^^^^^^^
 
 - Purpose: Select which ProjectX firm to use.
-- Values: ``TOPSTEPX``, ``TOPONE``, ``TICKTICKTRADER``, ``BULENOX``, ``E8X``, etc.
+- Values: ``TOPSTEPX`` for the documented TopstepX path. Additional ProjectX firm ids may exist in the adapter, but require validation before use.
 
 PROJECTX_{FIRM}_API_KEY
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -686,7 +693,7 @@ Notes:
 AI agent model providers
 ------------------------
 
-LumiBot's AI agent subsystem (``self.agents.create(default_model=...)``) supports multiple LLM providers. You only need the key matching the provider id you pass as ``default_model``. Non-Gemini ids are routed through LiteLLM, which ships as a LumiBot dependency.
+LumiBot's AI agent subsystem (``self.agents.create(model=...)`` or ``default_model=...``) supports multiple LLM providers. You only need the key matching the provider id you pass for each agent. Non-Gemini ids are routed through LiteLLM, which ships as a LumiBot dependency.
 
 GEMINI_API_KEY
 ^^^^^^^^^^^^^^
@@ -718,3 +725,83 @@ ANTHROPIC_API_KEY
 - Required when ``default_model`` looks like ``anthropic/claude-opus-4-7`` or any other ``anthropic/...`` id.
 
 Other providers (Groq, Mistral, Cohere, Fireworks, Together, etc.) use the provider-prefixed id format and the corresponding provider env var; see the LiteLLM documentation for the full list.
+
+SEC fundamentals and agent memory
+---------------------------------
+
+LUMIBOT_SEC_USER_AGENT
+^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Contact-style SEC EDGAR user agent header.
+- Values: Human-readable app/contact string.
+- Default: LumiBot support contact.
+
+LUMIBOT_SEC_CACHE_DIR
+^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Override local SEC fundamentals and filing cache.
+- Default: ``~/.lumibot/cache/sec``.
+
+FRED_API_KEY
+^^^^^^^^^^^^
+
+- Purpose: Required official FRED/ALFRED API key for macro data tools.
+- Default: unset.
+- Notes: When set, LumiBot requests vintage observations with
+  ``realtime_start`` and ``realtime_end`` for point-in-time backtests.
+  Built-in FRED agent tools are not exposed during backtests without this key
+  because LumiBot does not use revised public CSV fallbacks for macro data.
+
+LUMIBOT_FRED_CACHE_DIR
+^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Override local FRED macro data cache.
+- Default: ``~/.lumibot/cache/fred``.
+
+LUMIBOT_MEMORY_DIR
+^^^^^^^^^^^^^^^^^^
+
+- Purpose: Override local JSONL agent memory root.
+- Default: ``.lumibot/memory`` under the current working directory.
+
+LUMIBOT_AGENT_MEMORY_NOTE_MAX_CHARS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Limit how much prior agent-run memory is injected back into the next
+  agent prompt.
+- Default: ``2000``.
+- Notes: Full run traces and artifacts are still written separately. This only
+  compacts the lightweight runtime notes so repeated backtest iterations do not
+  blow up the model context window.
+
+LUMIBOT_AGENT_MAX_MODEL_CALLS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Hard cap uncached agent model calls in a single strategy run.
+- Default: unset.
+- Notes: When set, LumiBot raises before making the next provider call once the
+  cap is reached. Use this for expensive AI backtests and smoke runs where
+  accidental spend matters.
+
+LUMIBOT_AGENT_MAX_RUN_ATTEMPTS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Override the retry budget for a single agent model call.
+- Default: ``2`` in backtests, ``10`` in live trading.
+- Notes: Backtests default to a lower retry budget so a bad provider window does
+  not multiply model spend across many simulated iterations.
+
+Telegram notifications
+----------------------
+
+TELEGRAM_BOT_TOKEN
+^^^^^^^^^^^^^^^^^^
+
+- Purpose: Telegram Bot API token for ``self.notifications.configure_telegram()``.
+- Values: Bot token from BotFather.
+
+TELEGRAM_CHAT_ID
+^^^^^^^^^^^^^^^^
+
+- Purpose: Telegram chat/channel/user id for strategy notifications.
+- Values: Telegram chat id.

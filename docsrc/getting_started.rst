@@ -17,16 +17,21 @@ Need Help Building Strategies?
 
 Our **AI agent** was built specifically for LumiBot and can help you create strategies in minutes—no coding required. Just describe your strategy in plain English, and the AI generates the Python code for you.
 
-At `BotSpot <https://www.botspot.trade/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_getting_started>`_, you can:
+At `BotSpot <https://botspot.trade/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_getting_started>`_, you can:
 
 - **Build strategies with AI** — Describe what you want in plain English, and our AI creates the code
 - **Explore our marketplace** — Access 50+ proven trading strategies built by our community
 - **Join 2,400+ traders** — Connect with other builders in our Discord community
 - **Take our AI Bootcamp** — Live hands-on training to master automated trading
 
+.. image:: ../docs/assets/readme/lumibot_botspot_launch_path.png
+   :alt: Build on Lumibot and launch on BotSpot
+   :align: center
+   :width: 100%
+
 .. important::
 
-   `Claim your free trial <https://www.botspot.trade/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_getting_started>`_ while spots last at BotSpot.trade.
+   `Start on BotSpot <https://botspot.trade/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_getting_started>`_ if you want the managed no-code path.
 
 Getting Started With Lumibot
 ============================
@@ -329,4 +334,4 @@ During backtesting, ``datetime.now()`` returns the real current time, not the si
 
 **Where can I find more help?**
 
-Check the :doc:`faq` for 70+ answered questions covering backtesting, brokers, AI agents, options, crypto, and more. Join the `Discord Community <https://discord.gg/v6asVjTCvh>`_ for live help from other LumiBot users.
+Check the :doc:`faq` for 70+ answered questions covering backtesting, brokers, AI agents, options, crypto, and more.

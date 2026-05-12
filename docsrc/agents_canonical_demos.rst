@@ -172,7 +172,7 @@ M2 Liquidity Strategy
 
 This strategy uses ``@agent_tool`` to fetch real M2 money supply data from FRED (Federal Reserve Economic Data) and lets the AI allocate between TQQQ and SHV based on whether liquidity is expanding or contracting.
 
-**Tool:** ``get_fred_series`` -- wraps the FRED public CSV endpoint via ``requests`` to fetch any of 800,000+ economic data series. No API key required.
+**Tool:** ``get_fred_series`` -- uses the official FRED/ALFRED API with ``FRED_API_KEY``. Strict point-in-time macro backtests should use the built-in FRED tools with vintage parameters.
 
 **What it demonstrates:**
 
@@ -239,7 +239,7 @@ Frequently Asked Questions
 
 **Which demo should I start with?**
 
-Start with ``agent_m2_liquidity.py`` if you want the simplest setup -- it only needs ``GEMINI_API_KEY`` because FRED data is public. If you want to test another provider without changing strategy code, use ``agent_m2_liquidity_openai.py``, ``agent_m2_liquidity_grok.py``, or ``agent_m2_liquidity_anthropic.py``. Start with ``agent_news_sentiment.py`` if you want a multi-stock news-driven strategy and have Alpaca API keys.
+Start with ``agent_m2_liquidity.py`` if you want the simplest macro setup. It needs a model-provider key plus ``FRED_API_KEY`` so Lumibot can request official FRED/ALFRED vintage data. If you want to test another provider without changing strategy code, use ``agent_m2_liquidity_openai.py``, ``agent_m2_liquidity_grok.py``, or ``agent_m2_liquidity_anthropic.py``. Start with ``agent_news_sentiment.py`` if you want a multi-stock news-driven strategy and have Alpaca API keys.
 
 **Do these demos work out of the box?**
 
@@ -259,7 +259,7 @@ Set the required environment variables, then run the file directly: ``python3 lu
 
 **What external APIs do the demos use?**
 
-The News Sentiment, Macro Risk, and Momentum Allocator demos use the Alpaca market data APIs (News API, Bars API, Screener API). The M2 Liquidity demo uses the FRED public CSV endpoint (no API key required). All demos use ``@agent_tool`` with the ``requests`` library to make HTTP calls.
+The News Sentiment, Macro Risk, and Momentum Allocator demos use the Alpaca market data APIs (News API, Bars API, Screener API). The M2 Liquidity demo uses FRED macro data; use ``FRED_API_KEY`` and the built-in FRED tools for strict point-in-time macro backtests. All demos use ``@agent_tool`` with the ``requests`` library to make HTTP calls.
 
 **Do the demos use MCP servers?**
 

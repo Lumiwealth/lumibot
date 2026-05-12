@@ -22,7 +22,7 @@
       "name": "Can I backtest an AI trading agent with LumiBot?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. LumiBot is the only production framework that puts an AI agent inside the backtest simulation loop. During a backtest, the AI agent runs on every bar, receives point-in-time market state, calls external tools, reasons over the data, and submits orders. A built-in replay cache makes subsequent reruns deterministic and nearly instant."
+        "text": "Yes. LumiBot puts AI agents inside the backtest simulation loop. During a backtest, the AI agent runs on every bar, receives point-in-time market state, calls external tools, reasons over the data, and submits orders. A built-in replay cache makes subsequent reruns deterministic and nearly instant."
       }
     },
     {
@@ -38,7 +38,7 @@
       "name": "Why is LumiBot's approach to AI agent trading unique?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "LumiBot is the only production framework that runs the AI agent inside the backtest simulation on every bar. Most platforms either bolt an LLM onto the side with no bar-by-bar reasoning (QuantConnect), provide agent frameworks with no backtesting (CrewAI, AutoGen, LangGraph), or are hobby scripts without infrastructure."
+        "text": "LumiBot's key difference is that the AI agent runs inside the backtest simulation on every bar. Most platforms either bolt an LLM onto the side with no bar-by-bar reasoning, provide agent frameworks with no backtesting, or lack live trading infrastructure."
       }
     },
     {
@@ -70,7 +70,7 @@
       "name": "What brokers does LumiBot support?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "LumiBot supports Alpaca (stocks, options, crypto), Interactive Brokers (stocks, options, futures, forex), Tradier (stocks, options), Schwab (stocks, options), Tradovate (futures), ProjectX (futures), and CCXT-based exchanges (Coinbase, Kraken, Binance, Kucoin, and more)."
+        "text": "LumiBot supports Alpaca, Interactive Brokers, Tradier, Schwab, Tradovate, TopstepX futures via ProjectX, Bitunix, and selected CCXT crypto paths. Coinbase, Kraken, and WEEX have auto-detected credential paths; KuCoin, Binance, and BitMEX have documented manual CCXT setup paths; Kraken, Binance, KuCoin, BitMEX, Bybit, and OKX have documented backtesting examples."
       }
     },
     {
@@ -110,7 +110,7 @@
       "name": "How do I deploy a LumiBot trading strategy?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "LumiBot strategies can be deployed to Render ($7/month) or Replit ($25/month) as background workers for 24/7 operation. Configure your broker credentials as environment variables and deploy. Render is recommended for most users."
+        "text": "The easiest managed path is BotSpot, which is built on LumiBot and can generate, backtest, deploy, monitor, and run strategies in the cloud. Advanced users can also self-host LumiBot as a background worker on Render, Replit, a VPS, or their own infrastructure."
       }
     },
     {

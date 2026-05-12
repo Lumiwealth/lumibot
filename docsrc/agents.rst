@@ -1,14 +1,19 @@
 AI Trading Agents and Agentic Backtesting
 ==========================================
 
-LumiBot is the only production framework that lets an AI agent reason, call external tools, and execute trades **on every bar during a backtest** -- then run the exact same strategy code live. Whether you use ``@agent_tool`` to wrap any REST API as a callable tool or connect to one of 20,000+ external `MCP servers <https://modelcontextprotocol.io/>`_, LumiBot handles it in one unified codebase. A built-in replay cache makes warm reruns deterministic and fast. Whether you want to backtest an AI trading agent, build an agentic backtesting framework, or connect LLM-driven trading bots to live brokers, LumiBot handles it all.
+LumiBot lets an AI agent reason, call external tools, and execute trades **on every bar during a backtest** -- then run the exact same strategy code live. Whether you use ``@agent_tool`` to wrap any REST API as a callable tool or connect to one of 20,000+ external `MCP servers <https://modelcontextprotocol.io/>`_, LumiBot handles it in one unified codebase. A built-in replay cache makes warm reruns deterministic and fast. Whether you want to backtest an AI trading agent, build an agentic backtesting framework, or connect LLM-driven trading bots to live brokers, LumiBot handles it all.
 
 .. toctree::
    :maxdepth: 1
 
    agents_quickstart
+   agents_flows
+   agents_builtin_tools
+   agents_investment_committee
    agents_canonical_demos
    agents_observability
+   agents_memory
+   agents_notifications
 
 Why This Is Different
 ---------------------
@@ -32,62 +37,14 @@ LumiBot is different because it combines all of these in one framework:
 Quick Start
 -----------
 
-Here is a complete AI trading agent strategy that uses ``@agent_tool`` to fetch economic data from FRED and make trading decisions:
+Here is a complete AI trading agent strategy that uses Lumibot's built-in FRED macro tools and makes trading decisions:
 
 .. code-block:: python
 
-    import csv
-    import io
-    import os
-    import requests
-
-    from lumibot.components.agents import agent_tool
     from lumibot.strategies import Strategy
 
 
     class M2LiquidityStrategy(Strategy):
-
-        @agent_tool(
-            name="get_fred_series",
-            description=(
-                "Fetch economic data from FRED (Federal Reserve Economic Data). "
-                "Common series: M2SL (M2 money supply), FEDFUNDS (fed funds rate), "
-                "CPIAUCSL (CPI), UNRATE (unemployment), GDP, T10Y2Y (yield spread). "
-                "Returns date-value pairs."
-            ),
-        )
-        def get_fred_series(
-            self, series_id: str, start_date: str = "2020-01-01", end_date: str = ""
-        ) -> dict:
-            """Fetch a FRED series using the public CSV endpoint.
-
-            Args:
-                series_id: FRED series identifier (e.g., M2SL, FEDFUNDS, CPIAUCSL)
-                start_date: Start date in YYYY-MM-DD format
-                end_date: End date in YYYY-MM-DD format
-            """
-            params = {"id": series_id}
-            if start_date:
-                params["cosd"] = start_date
-            if end_date:
-                params["coed"] = end_date
-            try:
-                resp = requests.get(
-                    "https://fred.stlouisfed.org/graph/fredgraph.csv",
-                    params=params, timeout=15,
-                )
-                resp.raise_for_status()
-                reader = csv.DictReader(io.StringIO(resp.text))
-                observations = []
-                for row in reader:
-                    date = row.get("observation_date", "")
-                    value = row.get(series_id, ".")
-                    if value and value != ".":
-                        observations.append({"date": date, "value": float(value)})
-                return {"series_id": series_id, "count": len(observations), "observations": observations}
-            except Exception as e:
-                return {"error": str(e), "series_id": series_id}
-
         def initialize(self):
             self.sleeptime = "1D"
             self.agents.create(
@@ -98,7 +55,6 @@ Here is a complete AI trading agent strategy that uses ``@agent_tool`` to fetch 
                     "TQQQ and SHV. Focus on whether M2 liquidity is expanding "
                     "or contracting."
                 ),
-                tools=[self.get_fred_series],
             )
 
         def on_trading_iteration(self):
@@ -116,7 +72,7 @@ Here is a complete AI trading agent strategy that uses ``@agent_tool`` to fetch 
                 benchmark_asset="SPY",
             )
 
-That is the entire strategy file. No local MCP server scripts, no npm installs, no explicit built-in tool lists. The ``@agent_tool`` decorator wraps a standard REST API call using the ``requests`` library. LumiBot includes all built-in tools by default alongside your custom tools.
+That is the entire strategy file. No local MCP server scripts, no npm installs, and no explicit built-in tool lists. LumiBot includes built-in tools by default, including ``get_fred_series`` when ``FRED_API_KEY`` is configured.
 
 How ``@agent_tool`` Works
 -------------------------
@@ -124,6 +80,8 @@ How ``@agent_tool`` Works
 The ``@agent_tool`` decorator is the primary way to give your AI agent access to external data. It wraps a Python method as a callable tool that the agent can invoke during its reasoning loop.
 
 **Key feature: automatic source code inclusion.** When you decorate a method with ``@agent_tool``, LumiBot automatically includes the function's source code in the tool description sent to the AI. This means the AI can see all parameters, default values, and implementation details without you having to describe them manually. Write a clear docstring with an ``Args`` section, and the AI will understand how to call your tool correctly.
+
+The introductory macro examples on this page use Lumibot's built-in FRED tools. Those tools require ``FRED_API_KEY`` and use official FRED/ALFRED realtime parameters so backtests do not accidentally see future macro revisions.
 
 .. code-block:: python
 
@@ -301,11 +259,11 @@ Frequently Asked Questions
 
 **Can I backtest an AI trading agent?**
 
-Yes, LumiBot is the only production framework that lets an AI agent reason, call tools, and execute trades on every bar during a backtest. The agent runs inside ``on_trading_iteration()``, receives point-in-time market state, and uses tools to make decisions -- all within the backtest simulation. A built-in replay cache makes warm reruns deterministic and fast.
+Yes. LumiBot lets an AI agent reason, call tools, and execute trades on every bar during a backtest. The agent runs inside ``on_trading_iteration()``, receives point-in-time market state, and uses tools to make decisions -- all within the backtest simulation. A built-in replay cache makes warm reruns deterministic and fast.
 
 **What makes LumiBot different from other AI trading frameworks?**
 
-Most alternatives either put the LLM outside the backtest loop (QuantConnect), have no backtesting at all (CrewAI, AutoGen, LangGraph), or are hobby scripts with no infrastructure. LumiBot is the only production framework that runs the AI agent inside the backtest simulation on every bar, with ``@agent_tool`` for reliable external data, MCP server support, replay caching, DuckDB time-series queries, and full observability -- all with the same code for backtest and live.
+Most alternatives either put the LLM outside the backtest loop (QuantConnect), have no backtesting at all (CrewAI, AutoGen, LangGraph), or are hobby scripts with no infrastructure. LumiBot runs the AI agent inside the backtest simulation on every bar, with ``@agent_tool`` for reliable external data, MCP server support, replay caching, DuckDB time-series queries, and full observability -- all with the same code for backtest and live.
 
 **What AI models are supported?**
 
@@ -326,7 +284,7 @@ Install LumiBot, set ``GEMINI_API_KEY`` in your environment, copy the Quick Star
 
 **What API keys do I need?**
 
-At minimum, one model provider key matching the ``default_model`` you set: ``GEMINI_API_KEY`` for Gemini (the default), ``OPENAI_API_KEY`` for GPT models, ``XAI_API_KEY`` or ``GROK_API_KEY`` for Grok, or ``ANTHROPIC_API_KEY`` for Claude. If your ``@agent_tool`` functions call external APIs, you also need those keys -- for example ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for Alpaca data APIs. The M2 Liquidity demo only needs one model-provider key because FRED data is public.
+At minimum, one model provider key matching the ``default_model`` you set: ``GEMINI_API_KEY`` for Gemini (the default), ``OPENAI_API_KEY`` for GPT models, ``XAI_API_KEY`` or ``GROK_API_KEY`` for Grok, or ``ANTHROPIC_API_KEY`` for Claude. If your ``@agent_tool`` functions call external APIs, you also need those keys -- for example ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for Alpaca data APIs. Macro-data examples and built-in FRED tools require ``FRED_API_KEY`` so LumiBot can use the official FRED/ALFRED API and request point-in-time vintage observations in backtests.
 
 **How do I set up my environment?**
 
@@ -338,7 +296,7 @@ Yes. The same strategy code runs in both backtest and live modes. For live tradi
 
 **Does it work with my broker?**
 
-LumiBot supports Alpaca, Interactive Brokers, Tradier, Schwab, Tradovate, CCXT (crypto), Bitunix, and more. Any broker supported by LumiBot works with AI agents. The agent submits orders through the standard LumiBot order execution pipeline.
+LumiBot supports Alpaca, Interactive Brokers, Tradier, Schwab, Tradovate, TopstepX futures (via ProjectX), Bitunix, and selected CCXT crypto paths. Coinbase, Kraken, and WEEX have auto-detected credential paths; KuCoin, Binance, and BitMEX have documented manual CCXT setup paths; Kraken, Binance, KuCoin, BitMEX, Bybit, and OKX have documented backtesting examples. Lumibot does not claim support for every CCXT exchange. Any broker supported by LumiBot works with AI agents. The agent submits orders through the standard LumiBot order execution pipeline.
 
 **What is @agent_tool?**
 
@@ -358,7 +316,7 @@ Yes. Pass a list of tools when creating the agent: ``tools=[self.tool_a, self.to
 
 **What REST APIs can I wrap with @agent_tool?**
 
-Any REST API that returns JSON or text. The four canonical demos wrap Alpaca News API, Alpaca Bars API, Alpaca Screener API, and the FRED public CSV endpoint. You can wrap Alpha Vantage, your own internal services, SEC EDGAR, social sentiment APIs, or anything else accessible over HTTP.
+Any REST API that returns JSON or text. The canonical demos wrap Alpaca News API, Alpaca Bars API, Alpaca Screener API, and other HTTP services. For FRED macro data, prefer Lumibot's built-in FRED tools because they use the official API with realtime vintage parameters for point-in-time backtests. You can wrap Alpha Vantage, your own internal services, SEC EDGAR, social sentiment APIs, or anything else accessible over HTTP.
 
 **How do I add authentication to my tool?**
 
@@ -619,7 +577,7 @@ Strategies can use ``BuiltinTools.news.alpaca_news()`` to give an agent access t
         tools=[BuiltinTools.news.alpaca_news()],
     )
 
-The tool uses the user's own Alpaca credentials (``ALPACA_API_KEY`` / ``ALPACA_API_SECRET`` or the ``APCA_*`` aliases). It defaults ``end`` to the current simulated datetime in backtests and clamps future ``end`` values to avoid look-ahead. The response includes ``requested_end``, ``effective_end``, and ``lookahead_clamped`` so you can audit the exact window used.
+The tool uses the active Alpaca broker credentials when the strategy is running on Alpaca, including OAuth connections. If the active broker is not Alpaca, set bring-your-own-key news credentials with ``ALPACA_NEWS_API_KEY`` and ``ALPACA_NEWS_API_SECRET``. If neither path is available, LumiBot logs a warning and does not expose ``alpaca_news`` to agents. It defaults ``end`` to the current simulated datetime in backtests and clamps future ``end`` values to avoid look-ahead. The response includes ``requested_end``, ``effective_end``, and ``lookahead_clamped`` so you can audit the exact window used.
 
 Alpaca news is historical symbol/date-window retrieval, not keyword search. The API supports ``symbols``, ``start``, ``end``, ``limit`` (max 50), ``sort``, ``include_content``, ``exclude_contentless``, and ``page_token``. For broad market context, query market ETF proxies such as ``SPY,QQQ,DIA,IWM``; for sector context, query sector ETFs such as ``XLK,SMH`` (tech/semis), ``XLF,KRE`` (financials/banks), ``XLE,USO`` (energy), ``XLV,XBI`` (healthcare/biotech), ``TLT,IEF,SHY`` (rates/bonds), or ``GLD,SLV,DBC`` (gold/commodities).
 

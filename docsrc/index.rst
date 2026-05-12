@@ -9,18 +9,26 @@ Lumibot: Backtesting and Algorithmic Trading Library
 AI Trading Agents -- Backtest AI Agents with Real External Tools
 *****************************************************************
 
-LumiBot is the **only production framework** where an AI agent reasons, calls external tools, and makes trading decisions **on every bar during a backtest** -- then runs the exact same code live. This is real agentic backtesting: the LLM is inside the simulation loop, not bolted onto the side.
+LumiBot is built for **AI agents that reason, call external tools, and make trading decisions on every bar during a backtest** -- then run the exact same code live. This is real agentic backtesting: the LLM is inside the simulation loop, not bolted onto the side.
 
 - **Backtest AI trading agents** with real external data from 20,000+ MCP servers
 - **LLM in the loop on every bar** -- the agent reasons over point-in-time market state, calls tools, and submits orders
 - **Replay caching** makes warm backtest reruns deterministic and fast (zero LLM calls on rerun)
-- **Any LLM provider** -- OpenAI, Anthropic, Google Gemini, and more
+- **Any LLM provider per agent** -- use a cheaper model for evidence gathering and a stronger model for debate/trading
+- **Built-in SEC fundamentals and filings** -- agents can inspect income statements, balance sheets, cash flow, company facts, and annual reports
+- **Built-in FRED macro data** -- agents can inspect rates, inflation, labor, growth, liquidity, credit spreads, and market-risk series
+- **Trading permissions** -- research agents can use read-only tools while portfolio-manager agents place orders
 - **Same code for backtest and live** -- write once, backtest it, deploy it
 - **External MCP servers are just a URL** -- no local scripts, no npm installs
 
 Key AI agent docs:
 
 - :doc:`agents` -- main guide: agentic backtesting framework, MCP trading tools, and competitive positioning
+- :doc:`agents_flows` -- design single-agent, multi-agent, debate, committee, and hybrid flows
+- :doc:`agents_investment_committee` -- one concrete multi-agent investment committee example
+- :doc:`fundamentals` -- SEC fundamentals and filing research tools
+- :doc:`macro_data` -- FRED macro data tools and point-in-time behavior
+- :doc:`agents_builtin_tools` -- built-in tools, indicators, and trading permissions
 - :doc:`agents_quickstart` -- quick start with code examples for AI agent backtesting
 - :doc:`agents_canonical_demos` -- three reference demos: news sentiment, macro risk, and M2 liquidity
 - :doc:`agents_observability` -- traces, replay cache, warnings, and debugging workflow
@@ -204,10 +212,9 @@ Table of Contents
    :maxdepth: 2
 
    Home <self>
-   Build Bots with AI <https://botspot.trade/?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=Menu+Build+Bots+with+AI>
+   Build Bots with AI <https://botspot.trade/?utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot>
    BotSpot MCP Integration <botspot_mcp>
    GitHub <https://github.com/Lumiwealth/lumibot>
-   Discord Community <https://discord.gg/v6asVjTCvh>
    getting_started
    agents
    cash_accounting
@@ -216,6 +223,8 @@ Table of Contents
    strategy_properties
    entities
    indicators
+   fundamentals
+   macro_data
    backtesting
    brokers
    reference
@@ -223,7 +232,7 @@ Table of Contents
    deployment
    common_mistakes
    faq
-   Get Pre-Built Strategies <https://www.botspot.trade/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_sidebar>
+   Get Pre-Built Strategies <https://botspot.trade/?utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot>
 
 Indices and tables
 ==================

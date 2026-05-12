@@ -2,7 +2,7 @@
 
 > Release/deployment workflow for LumiBot (version branches, changelog, tags, and GitHub releases).
 
-**Last Updated:** 2026-04-21
+**Last Updated:** 2026-05-10
 **Status:** Active
 **Audience:** Developers + AI Agents
 
@@ -88,7 +88,7 @@ Every release PR should include:
 - **Risk:** what could break; how to detect it quickly.
 - **Tests run:** local commands + GitHub CI.
 - **Perf evidence (if relevant):** exact commands + before/after numbers + profiler artifact path(s).
-- **Docs:** links to investigation notes / runbooks if new operational behavior was added.
+- **Docs:** links to updated `docs/` Markdown, `docsrc/` RST, investigation notes, runbooks, and visual assets for user-visible changes.
 
 ---
 
@@ -128,6 +128,24 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
    - Quick secret sanity checks (best-effort):
      - Ensure `.env*` stays untracked (except examples like `.env.local.example`).
      - Scan changed docs/scripts for tokens/keys if you touched any credentials-related files.
+
+0) **Documentation + visuals gate**
+   - For every user-visible feature, behavior change, new tool, new environment variable, or deployment/runtime change, confirm documentation exists in both places that apply:
+     - `docs/` Markdown for developer/runbook/reference docs.
+     - `docsrc/` RST for published user-facing documentation.
+   - Update the PR description with the exact documentation files changed.
+   - Include visual aids whenever they would make the change easier to understand:
+     - screenshots for UI or workflow changes,
+     - flow diagrams for architecture/runtime/tool-call behavior,
+     - sequence diagrams for deployment, broker, agent, credential, or data-provider flows.
+   - Generate documentation visuals only with Nano Banana MCP. This applies to flow diagrams, architecture diagrams, sequence diagrams, screenshots-as-illustrations, README images, and other docs/product visuals.
+   - For Lumibot, BotSpot, and Lumiwealth visuals, include the canonical Spot mascot where it improves understanding. Use Nano Banana with `reference_profile="botspot_spot"` or the approved brand reference images, and make Spot perform a topic-relevant action instead of standing as a generic decoration.
+   - Never ship placeholder SVG/HTML/canvas diagrams, Mermaid screenshots, Python-drawn diagrams, manually assembled box diagrams, generic image-generator outputs, or cheaper/lower-quality model outputs for documentation/product visuals.
+   - If Nano Banana MCP access is unavailable, stop and treat the missing visual as a release blocker until the asset can be generated at the required quality.
+   - Check generated or reproducible visuals into the appropriate docs assets folder, with source prompts/scripts/model noted when practical.
+   - Visually inspect every generated image before release. Reject images with unreadable labels, broken text, bad arrows, inaccurate product claims, or cluttered layouts.
+   - If a change genuinely does not need docs or visuals, state that explicitly in the PR description under **Docs** with the reason.
+   - If docs are changed, run the relevant docs build or at minimum inspect the changed RST/Markdown for broken references and missing images before release.
 
 0) **Sync your local repo**
    - `git switch dev && git pull --ff-only`

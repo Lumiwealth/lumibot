@@ -92,7 +92,7 @@ To use multiple providers in a single backtest (example: ThetaData for options/s
 
    export BACKTESTING_DATA_SOURCE='{"default":"thetadata","stock":"thetadata","option":"thetadata","index":"thetadata","future":"ibkr","crypto":"ibkr"}'
 
-Routing values are case/whitespace/_/- insensitive. For crypto, you may also route to CCXT by using either ``"ccxt"`` (auto-select exchange) or a CCXT exchange id directly (for example: ``"coinbase"`` or ``"kraken"``).
+Routing values are case/whitespace/_/- insensitive. For crypto, you may also route to documented CCXT backtesting paths by using either ``"ccxt"`` (auto-select exchange) or a supported CCXT backtesting exchange id directly (for example: ``"kraken"`` or ``"binance"``).
 
 Market Data Subscriptions (IBKR)
 --------------------------------

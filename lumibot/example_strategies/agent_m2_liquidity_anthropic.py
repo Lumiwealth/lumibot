@@ -17,16 +17,15 @@ backtest produces fresh runs rather than stale cross-model replays.
 
 Requirements:
     - ANTHROPIC_API_KEY (get one at https://console.anthropic.com/)
+    - FRED_API_KEY (for official FRED/ALFRED macro data)
 
 Usage:
     export ANTHROPIC_API_KEY='your-anthropic-key'
+    export FRED_API_KEY='your-fred-key'
     python agent_m2_liquidity_anthropic.py
 """
 
-import csv
-import io
 import os
-import requests
 
 from lumibot.components.agents import agent_tool
 from lumibot.strategies.strategy import Strategy
@@ -49,33 +48,12 @@ class M2LiquidityAnthropicStrategy(Strategy):
     def get_fred_series(
         self, series_id: str, start_date: str = "2020-01-01", end_date: str = ""
     ) -> dict:
-        """Fetch a FRED series using the public CSV endpoint (no API key needed)."""
-        params = {"id": series_id}
-        if start_date:
-            params["cosd"] = start_date
-        if end_date:
-            params["coed"] = end_date
-        try:
-            resp = requests.get(
-                "https://fred.stlouisfed.org/graph/fredgraph.csv",
-                params=params,
-                timeout=15,
-            )
-            resp.raise_for_status()
-            reader = csv.DictReader(io.StringIO(resp.text))
-            observations = []
-            for row in reader:
-                date = row.get("observation_date", "")
-                value = row.get(series_id, ".")
-                if value and value != ".":
-                    observations.append({"date": date, "value": float(value)})
-            return {
-                "series_id": series_id,
-                "count": len(observations),
-                "observations": observations,
-            }
-        except Exception as e:
-            return {"error": str(e), "series_id": series_id}
+        """Fetch a FRED series through Lumibot's point-in-time macro helper."""
+        return self.macro.get_series(
+            series_id,
+            start=start_date,
+            end=end_date or None,
+        )
 
     def initialize(self):
         self.sleeptime = "1D"

@@ -13,12 +13,12 @@ The agent is instructed to:
 
 Requirements:
     - GEMINI_API_KEY, or set AGENT_MODEL to another provider and provide its key
-    - ALPACA_API_KEY and ALPACA_API_SECRET (or APCA_API_KEY_ID/APCA_API_SECRET_KEY)
+    - An active Alpaca broker connection, or ALPACA_NEWS_API_KEY and ALPACA_NEWS_API_SECRET
 
 Usage:
     export GEMINI_API_KEY='your-gemini-key'
-    export ALPACA_API_KEY='your-alpaca-key'
-    export ALPACA_API_SECRET='your-alpaca-secret'
+    export ALPACA_NEWS_API_KEY='your-alpaca-news-key'
+    export ALPACA_NEWS_API_SECRET='your-alpaca-news-secret'
     export BACKTESTING_START='2025-04-21'
     export BACKTESTING_END='2025-04-28'
     python -m lumibot.example_strategies.agent_alpaca_news_builtin
@@ -90,11 +90,11 @@ if __name__ == "__main__":
         print(f"ERROR: missing model-provider API key for AGENT_MODEL={model_id!r}.")
         raise SystemExit(1)
 
-    has_alpaca_key = bool(os.environ.get("ALPACA_API_KEY") or os.environ.get("APCA_API_KEY_ID"))
-    has_alpaca_secret = bool(os.environ.get("ALPACA_API_SECRET") or os.environ.get("APCA_API_SECRET_KEY"))
+    has_alpaca_key = bool(os.environ.get("ALPACA_NEWS_API_KEY"))
+    has_alpaca_secret = bool(os.environ.get("ALPACA_NEWS_API_SECRET"))
     if not (has_alpaca_key and has_alpaca_secret):
         print("ERROR: Alpaca news credentials are required.")
-        print("Set ALPACA_API_KEY and ALPACA_API_SECRET, or APCA_API_KEY_ID and APCA_API_SECRET_KEY.")
+        print("Set ALPACA_NEWS_API_KEY and ALPACA_NEWS_API_SECRET.")
         raise SystemExit(1)
 
     from datetime import datetime

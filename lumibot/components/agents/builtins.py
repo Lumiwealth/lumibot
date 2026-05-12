@@ -1,3 +1,4 @@
+import json
 import math
 import os
 from datetime import date, datetime, timedelta, timezone
@@ -5,7 +6,7 @@ from typing import Any, Literal
 
 import requests
 
-from lumibot.entities import Order
+from lumibot.entities import Asset, Order
 
 from .docs_tools import search_lumibot_docs
 from .asset_resolution import resolve_asset_and_quote
@@ -17,6 +18,19 @@ OrderSideArg = Literal["buy", "sell", "buy_to_open", "sell_to_close", "sell_shor
 OrderTypeArg = Literal["market", "limit", "stop", "stop_limit", "trailing_stop", "smart_limit"]
 TimeInForceArg = Literal["day", "gtc", "gtd"]
 NewsSortArg = Literal["asc", "desc"]
+
+COMMON_INDICATORS = [
+    "sma",
+    "ema",
+    "rsi",
+    "macd",
+    "bbands",
+    "atr",
+    "vwap",
+    "vwma",
+    "roc",
+    "stoch",
+]
 
 
 def _parse_datetime_value(value: Any) -> datetime | None:
@@ -286,8 +300,10 @@ def _bind_duckdb_query(strategy: Any, manager: Any) -> BoundTool:
 
 
 def _bind_docs_search(strategy: Any, manager: Any) -> BoundTool:
-    def docs_search(*, query: str, max_results: int = 5) -> dict[str, Any]:
+    def docs_search(*, query: str, max_results: int = 5, limit: int | None = None) -> dict[str, Any]:
         query = _require_non_empty_text("query", query)
+        if limit is not None:
+            max_results = limit
         max_results = _require_positive_int("max_results", max_results)
         return search_lumibot_docs(query=query, max_results=max_results)
 
@@ -295,7 +311,7 @@ def _bind_docs_search(strategy: Any, manager: Any) -> BoundTool:
         name="lumibot_docs_search",
         description=(
             "Search LumiBot's local documentation and return the best matching snippets. "
-            "Arguments: query, optional max_results. "
+            "Arguments: query, optional max_results or limit. "
             "Use this when you are unsure how a LumiBot tool, asset type, benchmark, or backtesting feature works. "
             "Example: lumibot_docs_search(query='run_backtest benchmark_asset SPY')."
         ),
@@ -322,6 +338,80 @@ ALPACA_NEWS_DESCRIPTION = (
 
 
 def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
+    def _warn_unavailable() -> None:
+        message = (
+            "[agents] alpaca_news is not configured and will not be exposed. "
+            "Use an Alpaca broker connection or set ALPACA_NEWS_API_KEY and ALPACA_NEWS_API_SECRET."
+        )
+        if manager is not None:
+            warned = getattr(manager, "_warned_unavailable_builtin_tools", None)
+            if warned is None:
+                warned = set()
+                setattr(manager, "_warned_unavailable_builtin_tools", warned)
+            if "alpaca_news" in warned:
+                return
+            warned.add("alpaca_news")
+        log_message = getattr(strategy, "log_message", None)
+        if callable(log_message):
+            try:
+                log_message(message, color="yellow")
+                return
+            except Exception:
+                pass
+        warning = getattr(manager, "warning", None) if manager is not None else None
+        if callable(warning):
+            warning(message)
+
+    def _resolve_alpaca_news_headers() -> tuple[dict[str, str] | None, str | None]:
+        broker = getattr(strategy, "broker", None)
+        if str(getattr(broker, "name", "") or "").lower() == "alpaca":
+            oauth_token = str(getattr(broker, "oauth_token", "") or "").strip()
+            if oauth_token:
+                return {"Authorization": f"Bearer {oauth_token}"}, "alpaca_broker_oauth"
+
+            api_key = str(getattr(broker, "api_key", "") or "").strip()
+            api_secret = str(getattr(broker, "api_secret", "") or "").strip()
+            if api_key and api_secret:
+                return {
+                    "APCA-API-KEY-ID": api_key,
+                    "APCA-API-SECRET-KEY": api_secret,
+                }, "alpaca_broker_api_key"
+
+        api_key = str(os.environ.get("ALPACA_NEWS_API_KEY") or "").strip()
+        api_secret = str(os.environ.get("ALPACA_NEWS_API_SECRET") or "").strip()
+        if api_key and api_secret:
+            return {
+                "APCA-API-KEY-ID": api_key,
+                "APCA-API-SECRET-KEY": api_secret,
+            }, "byok_alpaca_news_env"
+
+        return None, None
+
+    def _unavailable_alpaca_news(**kwargs: Any) -> dict[str, Any]:
+        return {
+            "ok": False,
+            "tool_error": True,
+            "error": {
+                "type": "MissingCredentials",
+                "message": "alpaca_news is not configured. Use an Alpaca broker connection or set ALPACA_NEWS_API_KEY and ALPACA_NEWS_API_SECRET.",
+            },
+            "articles": [],
+            "count": 0,
+        }
+
+    if _resolve_alpaca_news_headers()[0] is None:
+        _warn_unavailable()
+        return BoundTool(
+            name="alpaca_news",
+            description=ALPACA_NEWS_DESCRIPTION,
+            function=_unavailable_alpaca_news,
+            metadata={
+                "kind": "builtin",
+                "disabled": True,
+                "disabled_reason": "missing Alpaca broker credentials or ALPACA_NEWS_API_KEY / ALPACA_NEWS_API_SECRET",
+            },
+        )
+
     def alpaca_news(
         *,
         symbols: str = "",
@@ -334,23 +424,14 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
         content_max_chars: int | None = None,
         sort: NewsSortArg = "desc",
     ) -> dict[str, Any]:
-        api_key = (
-            os.environ.get("ALPACA_API_KEY")
-            or os.environ.get("APCA_API_KEY_ID")
-            or ""
-        ).strip()
-        api_secret = (
-            os.environ.get("ALPACA_API_SECRET")
-            or os.environ.get("APCA_API_SECRET_KEY")
-            or ""
-        ).strip()
-        if not api_key or not api_secret:
+        auth_headers, credential_source = _resolve_alpaca_news_headers()
+        if not auth_headers:
             return {
                 "ok": False,
                 "tool_error": True,
                 "error": {
                     "type": "MissingCredentials",
-                    "message": "Set ALPACA_API_KEY and ALPACA_API_SECRET to use alpaca_news.",
+                    "message": "Use an Alpaca broker connection or set ALPACA_NEWS_API_KEY and ALPACA_NEWS_API_SECRET to use alpaca_news.",
                 },
                 "articles": [],
                 "count": 0,
@@ -397,10 +478,7 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
 
         response = requests.get(
             "https://data.alpaca.markets/v1beta1/news",
-            headers={
-                "APCA-API-KEY-ID": api_key,
-                "APCA-API-SECRET-KEY": api_secret,
-            },
+            headers=auth_headers,
             params=params,
             timeout=20,
         )
@@ -447,6 +525,7 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
             "provider": "alpaca",
             "source": "benzinga",
             "endpoint": "v1beta1/news",
+            "credential_source": credential_source,
             "window_start": start,
             "window_end": end,
             "requested_end": requested_end,
@@ -532,6 +611,466 @@ def _bind_modify_order(strategy: Any, manager: Any) -> BoundTool:
         function=modify_order,
         metadata={"kind": "builtin", "replay_on_cache": True},
     )
+
+
+def _jsonable(value: Any) -> Any:
+    if hasattr(value, "as_dict"):
+        return value.as_dict()
+    if hasattr(value, "item"):
+        try:
+            return value.item()
+        except Exception:
+            pass
+    if isinstance(value, dict):
+        return {str(k): _jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(v) for v in value]
+    return value
+
+
+def _bind_list_indicators(strategy: Any, manager: Any) -> BoundTool:
+    def list_indicators() -> dict[str, Any]:
+        return {
+            "ok": True,
+            "common_indicators": COMMON_INDICATORS,
+            "notes": (
+                "Use get_indicator for one current-bar indicator value. "
+                "Lumibot slices indicator outputs to the current strategy datetime, so backtests do not see future bars."
+            ),
+        }
+
+    return BoundTool(
+        name="list_indicators",
+        description="List common pandas-ta-classic indicator names available through Lumibot's current-bar indicator system.",
+        function=list_indicators,
+        source="builtin",
+        metadata={"kind": "indicator"},
+    )
+
+
+def _bind_get_indicator(strategy: Any, manager: Any) -> BoundTool:
+    def get_indicator(
+        symbol: str,
+        indicator: str,
+        timestep: str = "day",
+        asset_type: AssetTypeArg = "stock",
+        parameters_json: str | None = None,
+    ) -> dict[str, Any]:
+        asset = Asset(symbol, asset_type=asset_type)
+        indicator_name = _require_non_empty_text("indicator", indicator)
+        indicator_kwargs: dict[str, Any] = {}
+        if parameters_json:
+            try:
+                parsed = json.loads(parameters_json)
+            except json.JSONDecodeError as exc:
+                return {
+                    "ok": False,
+                    "tool_error": True,
+                    "error": {
+                        "type": "InvalidParametersJson",
+                        "message": f"parameters_json must be valid JSON: {exc}",
+                    },
+                }
+            if not isinstance(parsed, dict):
+                return {
+                    "ok": False,
+                    "tool_error": True,
+                    "error": {
+                        "type": "InvalidParametersJson",
+                        "message": "parameters_json must decode to a JSON object.",
+                    },
+                }
+            indicator_kwargs = parsed
+        fn = getattr(strategy.indicators, indicator_name)
+        value = fn(asset, timestep=timestep, **indicator_kwargs)
+        return {
+            "ok": True,
+            "symbol": symbol.upper(),
+            "asset_type": asset_type,
+            "indicator": indicator_name,
+            "timestep": timestep,
+            "datetime": strategy.get_datetime().isoformat() if hasattr(strategy.get_datetime(), "isoformat") else str(strategy.get_datetime()),
+            "value": _jsonable(value),
+            "no_lookahead": True,
+        }
+
+    return BoundTool(
+        name="get_indicator",
+        description=(
+            "Get one technical indicator for the current strategy datetime. "
+            "Arguments: symbol, indicator, timestep='day', asset_type='stock', optional parameters_json as a JSON object string. "
+            "Examples: get_indicator(symbol='SPY', indicator='rsi', parameters_json='{\"length\": 14}'); "
+            "get_indicator(symbol='NVDA', indicator='macd'). "
+            "In backtests this returns only the current-bar value and does not expose future bars."
+        ),
+        function=get_indicator,
+        source="builtin",
+        metadata={"kind": "indicator"},
+    )
+
+
+def _bind_get_indicators(strategy: Any, manager: Any) -> BoundTool:
+    def get_indicators(
+        symbol: str,
+        indicators: list[str],
+        timestep: str = "day",
+        asset_type: AssetTypeArg = "stock",
+    ) -> dict[str, Any]:
+        results = []
+        single = _bind_get_indicator(strategy, manager).function
+        for name in indicators:
+            try:
+                results.append(single(symbol=symbol, indicator=name, timestep=timestep, asset_type=asset_type))
+            except Exception as exc:
+                results.append({"ok": False, "indicator": name, "error": str(exc)})
+        return {"ok": True, "symbol": symbol.upper(), "results": results}
+
+    return BoundTool(
+        name="get_indicators",
+        description="Get multiple current-bar technical indicators for one symbol. Pass indicators=['rsi', 'macd', 'bbands', ...].",
+        function=get_indicators,
+        source="builtin",
+        metadata={"kind": "indicator"},
+    )
+
+
+def _bind_get_income_statement(strategy: Any, manager: Any) -> BoundTool:
+    def get_income_statement(symbol: str, as_of: str | None = None, raw: bool = False) -> dict[str, Any]:
+        return strategy.fundamentals.get_income_statement(symbol, as_of=as_of, raw=raw)
+
+    return BoundTool(
+        name="get_income_statement",
+        description="Get SEC income statement facts for a US equity, gated to as_of or the current strategy datetime.",
+        function=get_income_statement,
+        source="builtin",
+        metadata={"kind": "fundamentals"},
+    )
+
+
+def _bind_get_balance_sheet(strategy: Any, manager: Any) -> BoundTool:
+    def get_balance_sheet(symbol: str, as_of: str | None = None, raw: bool = False) -> dict[str, Any]:
+        return strategy.fundamentals.get_balance_sheet(symbol, as_of=as_of, raw=raw)
+
+    return BoundTool(
+        name="get_balance_sheet",
+        description="Get SEC balance sheet facts for a US equity, gated to as_of or the current strategy datetime.",
+        function=get_balance_sheet,
+        source="builtin",
+        metadata={"kind": "fundamentals"},
+    )
+
+
+def _bind_get_cash_flow(strategy: Any, manager: Any) -> BoundTool:
+    def get_cash_flow(symbol: str, as_of: str | None = None, raw: bool = False) -> dict[str, Any]:
+        return strategy.fundamentals.get_cash_flow(symbol, as_of=as_of, raw=raw)
+
+    return BoundTool(
+        name="get_cash_flow",
+        description="Get SEC cash flow facts for a US equity, gated to as_of or the current strategy datetime.",
+        function=get_cash_flow,
+        source="builtin",
+        metadata={"kind": "fundamentals"},
+    )
+
+
+def _bind_get_company_facts(strategy: Any, manager: Any) -> BoundTool:
+    def get_company_facts(
+        symbol: str,
+        as_of: str | None = None,
+        raw: bool = False,
+        max_facts: int | None = 80,
+    ) -> dict[str, Any]:
+        return strategy.fundamentals.get_company_facts(symbol, as_of=as_of, raw=raw, max_facts=max_facts)
+
+    return BoundTool(
+        name="get_company_facts",
+        description=(
+            "Get compact or raw SEC companyfacts for a US equity, gated to as_of or the current strategy datetime. "
+            "Default output is capped to important/latest facts so agent runs stay within context; use max_facts or raw=True only when needed."
+        ),
+        function=get_company_facts,
+        source="builtin",
+        metadata={"kind": "fundamentals"},
+    )
+
+
+def _bind_get_filings(strategy: Any, manager: Any) -> BoundTool:
+    def get_filings(symbol: str, form: str | None = None, as_of: str | None = None, limit: int = 10) -> dict[str, Any]:
+        return strategy.fundamentals.get_filings(symbol, form=form, as_of=as_of, limit=limit)
+
+    return BoundTool(
+        name="get_filings",
+        description=(
+            "List SEC filings for a US equity, point-in-time gated by as_of/current strategy datetime. "
+            "Use form='10-K' or form='10-Q' when you need annual or quarterly reports."
+        ),
+        function=get_filings,
+        source="builtin",
+        metadata={"kind": "filings"},
+    )
+
+
+def _bind_search_filing(strategy: Any, manager: Any) -> BoundTool:
+    def search_filing(
+        symbol: str,
+        accession_number: str,
+        query: str,
+        primary_document: str | None = None,
+        max_results: int = 5,
+    ) -> dict[str, Any]:
+        return strategy.fundamentals.search_filing(
+            symbol,
+            accession_number=accession_number,
+            query=query,
+            primary_document=primary_document,
+            max_results=max_results,
+        )
+
+    return BoundTool(
+        name="search_filing",
+        description=(
+            "Keyword-search a cached SEC filing document and return matching context snippets. "
+            "Use after get_filings when you want annual-report details about risks, margins, debt, accounting, "
+            "customers, liquidity, guidance, dilution, buybacks, or management commentary."
+        ),
+        function=search_filing,
+        source="builtin",
+        metadata={"kind": "filings"},
+    )
+
+
+def _bind_get_filing_document(strategy: Any, manager: Any) -> BoundTool:
+    def get_filing_document(
+        symbol: str,
+        accession_number: str,
+        primary_document: str | None = None,
+        max_chars: int | None = 20000,
+    ) -> dict[str, Any]:
+        return strategy.fundamentals.get_filing_document(
+            symbol,
+            accession_number=accession_number,
+            primary_document=primary_document,
+            max_chars=max_chars,
+        )
+
+    return BoundTool(
+        name="get_filing_document",
+        description=(
+            "Read a SEC filing document as text. This can be large, so prefer search_filing first. "
+            "Use max_chars to bound context, or set max_chars=None only when you intentionally need the full document."
+        ),
+        function=get_filing_document,
+        source="builtin",
+        metadata={"kind": "filings"},
+    )
+
+
+def _disabled_fred_tool_if_needed(strategy: Any, manager: Any, tool_name: str) -> BoundTool | None:
+    if not bool(getattr(strategy, "is_backtesting", False)):
+        return None
+    macro = getattr(strategy, "macro", None)
+    api_key = str(getattr(macro, "api_key", "") or os.environ.get("FRED_API_KEY") or "").strip()
+    if api_key:
+        return None
+
+    message = (
+        "[agents] FRED macro tools are not configured for point-in-time backtesting and will not be exposed. "
+        "Set FRED_API_KEY to use FRED/ALFRED vintage data in backtests."
+    )
+    if manager is not None:
+        warned = getattr(manager, "_warned_unavailable_builtin_tools", None)
+        if warned is None:
+            warned = set()
+            setattr(manager, "_warned_unavailable_builtin_tools", warned)
+        if "fred_macro_tools" not in warned:
+            warned.add("fred_macro_tools")
+            log_message = getattr(strategy, "log_message", None)
+            if callable(log_message):
+                try:
+                    log_message(message, color="yellow")
+                except Exception:
+                    warning = getattr(manager, "warning", None)
+                    if callable(warning):
+                        warning(message)
+            else:
+                warning = getattr(manager, "warning", None)
+                if callable(warning):
+                    warning(message)
+
+    def unavailable_fred_tool(**kwargs: Any) -> dict[str, Any]:
+        return {
+            "ok": False,
+            "tool_error": True,
+            "error": {
+                "type": "MissingCredentials",
+                "message": "FRED macro tools require FRED_API_KEY during backtests to avoid revised-data look-ahead bias.",
+            },
+            "observations": [],
+        }
+
+    return BoundTool(
+        name=tool_name,
+        description="FRED macro tool unavailable in backtests without FRED_API_KEY.",
+        function=unavailable_fred_tool,
+        source="builtin",
+        metadata={
+            "kind": "macro",
+            "disabled": True,
+            "disabled_reason": "missing FRED_API_KEY for point-in-time backtesting",
+        },
+    )
+
+
+def _bind_list_fred_series(strategy: Any, manager: Any) -> BoundTool:
+    disabled = _disabled_fred_tool_if_needed(strategy, manager, "list_fred_series")
+    if disabled is not None:
+        return disabled
+
+    def list_fred_series(category: str | None = None) -> dict[str, Any]:
+        return strategy.macro.list_series(category=category)
+
+    return BoundTool(
+        name="list_fred_series",
+        description=(
+            "List curated Federal Reserve FRED macro series available to agents, grouped by category. "
+            "Use this before requesting rates, inflation, labor, growth, liquidity, credit, or risk data."
+        ),
+        function=list_fred_series,
+        source="builtin",
+        metadata={"kind": "macro"},
+    )
+
+
+def _bind_get_fred_series(strategy: Any, manager: Any) -> BoundTool:
+    disabled = _disabled_fred_tool_if_needed(strategy, manager, "get_fred_series")
+    if disabled is not None:
+        return disabled
+
+    def get_fred_series(
+        series_id: str,
+        start: str | None = None,
+        end: str | None = None,
+        as_of: str | None = None,
+        limit: int | None = None,
+    ) -> dict[str, Any]:
+        return strategy.macro.get_series(series_id, start=start, end=end, as_of=as_of, limit=limit)
+
+    return BoundTool(
+        name="get_fred_series",
+        description=(
+            "Get a FRED macro time series. In backtests, as_of defaults to the strategy datetime. "
+            "Requires FRED_API_KEY and requests vintage data using realtime_start/realtime_end "
+            "so backtests do not accidentally use future revisions."
+        ),
+        function=get_fred_series,
+        source="builtin",
+        metadata={"kind": "macro"},
+    )
+
+
+def _bind_get_fred_latest(strategy: Any, manager: Any) -> BoundTool:
+    disabled = _disabled_fred_tool_if_needed(strategy, manager, "get_fred_latest")
+    if disabled is not None:
+        return disabled
+
+    def get_fred_latest(series_id: str, as_of: str | None = None) -> dict[str, Any]:
+        return strategy.macro.get_latest(series_id, as_of=as_of)
+
+    return BoundTool(
+        name="get_fred_latest",
+        description=(
+            "Get the latest FRED macro observation available as of the strategy datetime or explicit as_of date."
+        ),
+        function=get_fred_latest,
+        source="builtin",
+        metadata={"kind": "macro"},
+    )
+
+
+def _bind_get_fred_snapshot(strategy: Any, manager: Any) -> BoundTool:
+    disabled = _disabled_fred_tool_if_needed(strategy, manager, "get_fred_snapshot")
+    if disabled is not None:
+        return disabled
+
+    def get_fred_snapshot(series_ids: list[str] | str, as_of: str | None = None) -> dict[str, Any]:
+        return strategy.macro.get_snapshot(series_ids, as_of=as_of)
+
+    return BoundTool(
+        name="get_fred_snapshot",
+        description=(
+            "Get latest available values for several FRED macro series as of the strategy datetime. "
+            "Pass a list or comma-separated string such as FEDFUNDS,DGS10,CPIAUCSL,UNRATE."
+        ),
+        function=get_fred_snapshot,
+        source="builtin",
+        metadata={"kind": "macro"},
+    )
+
+
+def _bind_notify_user(strategy: Any, manager: Any) -> BoundTool:
+    def notify_user(title: str, message: str, severity: str = "info", enabled: bool | None = None) -> dict[str, Any]:
+        results = strategy.notify(title, message, severity=severity, enabled=enabled)
+        return {"ok": all(result.ok for result in results), "results": [_jsonable(result.__dict__) for result in results]}
+
+    return BoundTool(
+        name="notify_user",
+        description=(
+            "Send a user notification through configured Lumibot notification providers. "
+            "Backtests keep notifications disabled by default unless enabled=True is passed or notifications are configured as enabled."
+        ),
+        function=notify_user,
+        source="builtin",
+        metadata={"kind": "notification"},
+    )
+
+
+def _bind_memory_remember(strategy: Any, manager: Any) -> BoundTool:
+    def remember(text: str, kind: str = "memory", tags: list[str] | None = None) -> dict[str, Any]:
+        return strategy.memory.remember(text, kind=kind, tags=tags)
+
+    return BoundTool(name="remember", description="Store a local Lumibot agent memory or note as JSONL.", function=remember, source="builtin", metadata={"kind": "memory"})
+
+
+def _bind_memory_search(strategy: Any, manager: Any) -> BoundTool:
+    def search_memory(query: str, limit: int = 10, kind: str | None = None) -> dict[str, Any]:
+        return strategy.memory.search(query, limit=limit, kind=kind)
+
+    return BoundTool(name="search_memory", description="Search local Lumibot agent memories, lessons, decisions, and theses.", function=search_memory, source="builtin", metadata={"kind": "memory"})
+
+
+def _bind_remember_decision(strategy: Any, manager: Any) -> BoundTool:
+    def remember_decision(text: str, symbol: str | None = None, action: str | None = None) -> dict[str, Any]:
+        return strategy.memory.remember_decision(text, symbol=symbol, action=action)
+
+    return BoundTool(name="remember_decision", description="Record an AI trading decision in the local decision journal.", function=remember_decision, source="builtin", metadata={"kind": "memory"})
+
+
+def _bind_remember_lesson(strategy: Any, manager: Any) -> BoundTool:
+    def remember_lesson(text: str, symbol: str | None = None) -> dict[str, Any]:
+        return strategy.memory.remember_lesson(text, symbol=symbol)
+
+    return BoundTool(name="remember_lesson", description="Record a compact trading lesson for future agent runs.", function=remember_lesson, source="builtin", metadata={"kind": "memory"})
+
+
+def _bind_open_thesis(strategy: Any, manager: Any) -> BoundTool:
+    def open_thesis(text: str, symbol: str | None = None, tags: list[str] | None = None) -> dict[str, Any]:
+        return strategy.memory.open_thesis(text, symbol=symbol, tags=tags)
+
+    return BoundTool(name="open_thesis", description="Open a hedge-fund-style investment thesis in local Lumibot memory.", function=open_thesis, source="builtin", metadata={"kind": "memory"})
+
+
+def _bind_update_thesis(strategy: Any, manager: Any) -> BoundTool:
+    def update_thesis(thesis_id: str, text: str) -> dict[str, Any]:
+        return strategy.memory.update_thesis(thesis_id, text)
+
+    return BoundTool(name="update_thesis", description="Append an update to an open investment thesis.", function=update_thesis, source="builtin", metadata={"kind": "memory"})
+
+
+def _bind_close_thesis(strategy: Any, manager: Any) -> BoundTool:
+    def close_thesis(thesis_id: str, text: str) -> dict[str, Any]:
+        return strategy.memory.close_thesis(thesis_id, text)
+
+    return BoundTool(name="close_thesis", description="Close an investment thesis and record its outcome/reflection.", function=close_thesis, source="builtin", metadata={"kind": "memory"})
 
 
 def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
@@ -667,18 +1206,109 @@ class _NewsTools:
         )
 
 
+class _IndicatorTools:
+    def list_indicators(self) -> ToolDefinition:
+        return ToolDefinition(name="list_indicators", description="List common technical indicators.", binder=_bind_list_indicators)
+
+    def get_indicator(self) -> ToolDefinition:
+        return ToolDefinition(name="get_indicator", description="Get one current-bar technical indicator.", binder=_bind_get_indicator)
+
+    def get_indicators(self) -> ToolDefinition:
+        return ToolDefinition(name="get_indicators", description="Get multiple current-bar technical indicators.", binder=_bind_get_indicators)
+
+
+class _FundamentalTools:
+    def income_statement(self) -> ToolDefinition:
+        return ToolDefinition(name="get_income_statement", description="Get SEC income statement facts.", binder=_bind_get_income_statement)
+
+    def balance_sheet(self) -> ToolDefinition:
+        return ToolDefinition(name="get_balance_sheet", description="Get SEC balance sheet facts.", binder=_bind_get_balance_sheet)
+
+    def cash_flow(self) -> ToolDefinition:
+        return ToolDefinition(name="get_cash_flow", description="Get SEC cash flow facts.", binder=_bind_get_cash_flow)
+
+    def company_facts(self) -> ToolDefinition:
+        return ToolDefinition(name="get_company_facts", description="Get SEC companyfacts.", binder=_bind_get_company_facts)
+
+    def filings(self) -> ToolDefinition:
+        return ToolDefinition(name="get_filings", description="List SEC filings.", binder=_bind_get_filings)
+
+    def search_filing(self) -> ToolDefinition:
+        return ToolDefinition(name="search_filing", description="Search a SEC filing.", binder=_bind_search_filing)
+
+    def filing_document(self) -> ToolDefinition:
+        return ToolDefinition(name="get_filing_document", description="Read a SEC filing document.", binder=_bind_get_filing_document)
+
+
+class _MacroTools:
+    def list_fred_series(self) -> ToolDefinition:
+        return ToolDefinition(name="list_fred_series", description="List curated FRED macro series.", binder=_bind_list_fred_series)
+
+    def get_fred_series(self) -> ToolDefinition:
+        return ToolDefinition(name="get_fred_series", description="Get a FRED macro time series.", binder=_bind_get_fred_series)
+
+    def get_fred_latest(self) -> ToolDefinition:
+        return ToolDefinition(name="get_fred_latest", description="Get the latest FRED macro observation.", binder=_bind_get_fred_latest)
+
+    def get_fred_snapshot(self) -> ToolDefinition:
+        return ToolDefinition(name="get_fred_snapshot", description="Get a multi-series FRED macro snapshot.", binder=_bind_get_fred_snapshot)
+
+
+class _NotificationTools:
+    def notify_user(self) -> ToolDefinition:
+        return ToolDefinition(name="notify_user", description="Send a user notification.", binder=_bind_notify_user)
+
+
+class _MemoryTools:
+    def remember(self) -> ToolDefinition:
+        return ToolDefinition(name="remember", description="Store a local memory.", binder=_bind_memory_remember)
+
+    def search(self) -> ToolDefinition:
+        return ToolDefinition(name="search_memory", description="Search local memories.", binder=_bind_memory_search)
+
+    def remember_decision(self) -> ToolDefinition:
+        return ToolDefinition(name="remember_decision", description="Record an agent decision.", binder=_bind_remember_decision)
+
+    def remember_lesson(self) -> ToolDefinition:
+        return ToolDefinition(name="remember_lesson", description="Record a compact lesson.", binder=_bind_remember_lesson)
+
+    def open_thesis(self) -> ToolDefinition:
+        return ToolDefinition(name="open_thesis", description="Open an investment thesis.", binder=_bind_open_thesis)
+
+    def update_thesis(self) -> ToolDefinition:
+        return ToolDefinition(name="update_thesis", description="Update an investment thesis.", binder=_bind_update_thesis)
+
+    def close_thesis(self) -> ToolDefinition:
+        return ToolDefinition(name="close_thesis", description="Close an investment thesis.", binder=_bind_close_thesis)
+
+
 class _OrderTools:
     def submit(self) -> ToolDefinition:
-        return ToolDefinition(name="orders_submit_order", description="Submit an order with explicit side/type/time_in_force.", binder=_bind_submit_order)
+        return ToolDefinition(
+            name="orders_submit_order",
+            description="Submit an order with explicit side/type/time_in_force.",
+            binder=_bind_submit_order,
+            metadata={"mutates_trading": True},
+        )
 
     def cancel(self) -> ToolDefinition:
-        return ToolDefinition(name="orders_cancel_order", description="Cancel a tracked order by identifier.", binder=_bind_cancel_order)
+        return ToolDefinition(
+            name="orders_cancel_order",
+            description="Cancel a tracked order by identifier.",
+            binder=_bind_cancel_order,
+            metadata={"mutates_trading": True},
+        )
 
     def open_orders(self) -> ToolDefinition:
         return ToolDefinition(name="orders_open_orders", description="List tracked orders and their identifiers.", binder=_bind_open_orders)
 
     def modify(self) -> ToolDefinition:
-        return ToolDefinition(name="orders_modify_order", description="Modify a tracked order by identifier.", binder=_bind_modify_order)
+        return ToolDefinition(
+            name="orders_modify_order",
+            description="Modify a tracked order by identifier.",
+            binder=_bind_modify_order,
+            metadata={"mutates_trading": True},
+        )
 
 
 class _BuiltinTools:
@@ -687,6 +1317,11 @@ class _BuiltinTools:
     duckdb = _DuckDBTools()
     docs = _DocsTools()
     news = _NewsTools()
+    indicators = _IndicatorTools()
+    fundamentals = _FundamentalTools()
+    macro = _MacroTools()
+    notifications = _NotificationTools()
+    memory = _MemoryTools()
     orders = _OrderTools()
 
     def all(self) -> list[ToolDefinition]:
@@ -698,6 +1333,29 @@ class _BuiltinTools:
             self.market.load_history_table(),
             self.duckdb.query(),
             self.docs.search(),
+            self.news.alpaca_news(),
+            self.indicators.list_indicators(),
+            self.indicators.get_indicator(),
+            self.indicators.get_indicators(),
+            self.fundamentals.income_statement(),
+            self.fundamentals.balance_sheet(),
+            self.fundamentals.cash_flow(),
+            self.fundamentals.company_facts(),
+            self.fundamentals.filings(),
+            self.fundamentals.search_filing(),
+            self.fundamentals.filing_document(),
+            self.macro.list_fred_series(),
+            self.macro.get_fred_series(),
+            self.macro.get_fred_latest(),
+            self.macro.get_fred_snapshot(),
+            self.notifications.notify_user(),
+            self.memory.remember(),
+            self.memory.search(),
+            self.memory.remember_decision(),
+            self.memory.remember_lesson(),
+            self.memory.open_thesis(),
+            self.memory.update_thesis(),
+            self.memory.close_thesis(),
             self.orders.submit(),
             self.orders.cancel(),
             self.orders.open_orders(),

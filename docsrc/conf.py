@@ -12,6 +12,9 @@
 #
 import os
 import sys
+from datetime import date
+from pathlib import Path
+from xml.sax.saxutils import escape
 
 # Ensure the repository root is discoverable before any installed packages so
 # autodoc resolves modules from the local checkout instead of site-packages.
@@ -103,8 +106,8 @@ html_theme_options = {
     "dark_logo": "Lumibot_Logo.webp",
     'announcement': """
     <div class="footer-banner bg-warning text-dark p-3">
-        <h5>Try Our Free AI Strategy Builder</h5>
-        <p>Our AI agent helps you build LumiBot strategies. Explore what others have created, or make your own. <a href="https://www.botspot.trade/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_footer_banner" target="_blank" class="text-dark"><strong>Claim your free trial</strong></a> while spots last at BotSpot.trade.</p>
+        <h5>Build Lumibot Strategies with AI</h5>
+        <p>BotSpot is the managed cloud product built on LumiBot. Describe a strategy, backtest it, and deploy it without managing servers. <a href="https://botspot.trade/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_footer_banner" target="_blank" class="text-dark"><strong>Start on BotSpot.trade</strong></a>.</p>
     </div>
     """
 }
@@ -115,6 +118,54 @@ html_theme_options = {
 html_static_path = ["_html"]
 html_css_files = ["custom.css", "bootstrap/css/bootstrap.css"]
 html_extra_path = ["_extra"]
+
+
+def _generate_sitemap() -> None:
+    """Generate sitemap.xml from the docs source tree before Sphinx copies _extra.
+
+    The previous sitemap was a small hand-written file, so Search Console only
+    discovered a few top-level pages even though the docs contain many more
+    pages. Generating it from the source files keeps Search Console aligned with
+    the docs that Sphinx actually builds.
+    """
+
+    docs_root = Path(__file__).resolve().parent
+    extra_root = docs_root / "_extra"
+    extra_root.mkdir(parents=True, exist_ok=True)
+    urls: set[str] = set()
+
+    for source in docs_root.rglob("*.rst"):
+        relative = source.relative_to(docs_root)
+        if any(part.startswith("_") for part in relative.parts):
+            continue
+        if relative.parts[0] in {"strategy_methods.account", "strategy_methods.data", "strategy_methods.orders", "strategy_properties"}:
+            continue
+        if source.name.endswith("_template.rst"):
+            continue
+        html_path = relative.with_suffix(".html").as_posix()
+        if html_path == "index.html":
+            urls.add("https://lumibot.lumiwealth.com/")
+        urls.add(f"https://lumibot.lumiwealth.com/{html_path}")
+
+    today = date.today().isoformat()
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ]
+    for url in sorted(urls):
+        lines.extend(
+            [
+                "  <url>",
+                f"    <loc>{escape(url)}</loc>",
+                f"    <lastmod>{today}</lastmod>",
+                "  </url>",
+            ]
+        )
+    lines.append("</urlset>")
+    (extra_root / "sitemap.xml").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+_generate_sitemap()
 
 # html_theme_options = {
 #     "announcement": """
@@ -130,10 +181,10 @@ html_extra_path = ["_extra"]
 html_context = {
     'note': """
     <div class="important-note" style="margin-top: 20px; padding: 20px; background-color: #ffdd57; border-radius: 5px;">
-        <h3>Try Our Free AI Strategy Builder</h3>
-        <p>Need help building your LumiBot strategies? Our AI agent was built specifically for LumiBot and can help you create strategies in minutes.</p>
-        <p><strong>Explore what other builders have created in our marketplace, or let the AI build a custom strategy for you.</strong></p>
-        <p><a href="https://www.botspot.trade/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_every_page" target="_blank">Claim your free trial</a> while spots last at BotSpot.trade.</p>
+        <h3>Build Lumibot Strategies with BotSpot</h3>
+        <p>Need help turning an idea into a working LumiBot strategy? BotSpot can generate, backtest, and deploy LumiBot strategies from plain English.</p>
+        <p><strong>Use BotSpot when you want the managed cloud path instead of wiring infrastructure yourself.</strong></p>
+        <p><a href="https://botspot.trade/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_every_page" target="_blank">Start on BotSpot.trade</a>.</p>
     </div>
     """
 }

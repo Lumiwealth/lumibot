@@ -24,16 +24,15 @@ backtest produces fresh runs rather than stale cross-model replays.
 
 Requirements:
     - XAI_API_KEY or GROK_API_KEY (get one at https://console.x.ai/)
+    - FRED_API_KEY (for official FRED/ALFRED macro data)
 
 Usage:
     export XAI_API_KEY='your-xai-key'
+    export FRED_API_KEY='your-fred-key'
     python agent_m2_liquidity_grok.py
 """
 
-import csv
-import io
 import os
-import requests
 
 from lumibot.components.agents import agent_tool
 from lumibot.strategies.strategy import Strategy
@@ -56,45 +55,12 @@ class M2LiquidityGrokStrategy(Strategy):
     def get_fred_series(
         self, series_id: str, start_date: str = "2020-01-01", end_date: str = ""
     ) -> dict:
-        """Fetch a FRED series using the public CSV endpoint (no API key needed).
-
-        Args:
-            series_id: FRED series identifier (e.g., M2SL, FEDFUNDS, CPIAUCSL,
-                UNRATE, GDP, T10Y2Y, BOGMBASE)
-            start_date: Start date in YYYY-MM-DD format (default '2020-01-01')
-            end_date: End date in YYYY-MM-DD format. Must not exceed the
-                current datetime during backtests.
-
-        Returns:
-            dict: A dictionary with 'series_id', 'count', and 'observations'
-                keys. Each observation contains 'date' and 'value'.
-        """
-        params = {"id": series_id}
-        if start_date:
-            params["cosd"] = start_date
-        if end_date:
-            params["coed"] = end_date
-        try:
-            resp = requests.get(
-                "https://fred.stlouisfed.org/graph/fredgraph.csv",
-                params=params,
-                timeout=15,
-            )
-            resp.raise_for_status()
-            reader = csv.DictReader(io.StringIO(resp.text))
-            observations = []
-            for row in reader:
-                date = row.get("observation_date", "")
-                value = row.get(series_id, ".")
-                if value and value != ".":
-                    observations.append({"date": date, "value": float(value)})
-            return {
-                "series_id": series_id,
-                "count": len(observations),
-                "observations": observations,
-            }
-        except Exception as e:
-            return {"error": str(e), "series_id": series_id}
+        """Fetch a FRED series through Lumibot's point-in-time macro helper."""
+        return self.macro.get_series(
+            series_id,
+            start=start_date,
+            end=end_date or None,
+        )
 
     def initialize(self):
         self.sleeptime = "1D"

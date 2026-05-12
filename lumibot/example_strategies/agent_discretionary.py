@@ -23,7 +23,8 @@ Macro comes from FRED.
 
 Requirements (only the key matching AGENT_MODEL is strictly required):
     - GEMINI_API_KEY / OPENAI_API_KEY / XAI_API_KEY or GROK_API_KEY / ANTHROPIC_API_KEY
-    - ALPACA_API_KEY and ALPACA_API_SECRET (for the news tool; optional)
+    - Active Alpaca broker credentials or ALPACA_NEWS_API_KEY / ALPACA_NEWS_API_SECRET for the news tool; optional
+    - FRED_API_KEY for official FRED/ALFRED macro data
 
 Usage:
     export AGENT_MODEL="xai/grok-4.20-0309-reasoning"
@@ -33,10 +34,7 @@ Usage:
     python agent_discretionary.py
 """
 
-import csv
-import io
 import os
-import requests
 
 from lumibot.components.agents import BuiltinTools, agent_tool
 from lumibot.strategies.strategy import Strategy
@@ -60,43 +58,16 @@ class DiscretionaryTraderStrategy(Strategy):
     def get_fred_series(
         self, series_id: str, start_date: str = "2020-01-01", end_date: str = ""
     ) -> dict:
-        """Fetch a FRED series using the public CSV endpoint.
-
-        Args:
-            series_id: FRED series identifier.
-            start_date: Start date in YYYY-MM-DD format.
-            end_date: End date in YYYY-MM-DD format. Must not exceed the
-                current simulated datetime during backtests.
-
-        Returns:
-            dict with series_id, count, and observations (each {date, value}).
-        """
-        params = {"id": series_id}
-        if start_date:
-            params["cosd"] = start_date
-        if end_date:
-            params["coed"] = end_date
-        try:
-            resp = requests.get(
-                "https://fred.stlouisfed.org/graph/fredgraph.csv",
-                params=params,
-                timeout=15,
-            )
-            resp.raise_for_status()
-            reader = csv.DictReader(io.StringIO(resp.text))
-            observations = []
-            for row in reader:
-                date = row.get("observation_date", "")
-                value = row.get(series_id, ".")
-                if value and value != ".":
-                    observations.append({"date": date, "value": float(value)})
-            return {
-                "series_id": series_id,
-                "count": len(observations),
-                "observations": observations[-60:],
-            }
-        except Exception as e:
-            return {"error": str(e), "series_id": series_id}
+        """Fetch a FRED series through Lumibot's point-in-time macro helper."""
+        result = self.macro.get_series(
+            series_id,
+            start=start_date,
+            end=end_date or None,
+        )
+        if "observations" in result:
+            result["observations"] = result["observations"][-60:]
+            result["count"] = len(result["observations"])
+        return result
 
     @agent_tool(
         name="get_fundamentals",

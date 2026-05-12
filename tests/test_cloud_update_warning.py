@@ -17,6 +17,8 @@ def test_send_update_to_cloud_connection_error_logs_info(monkeypatch, caplog):
     )
 
     dummy.get_portfolio_value = lambda: 100.0
+    dummy._portfolio_value = 100.0
+    dummy.update_broker_balances = lambda force_update=True: True
     dummy.get_cash = lambda: 100.0
     dummy.get_positions = lambda: []
     dummy.get_orders = lambda: []
@@ -49,6 +51,8 @@ def test_send_update_to_cloud_timeout_logs_info(monkeypatch, caplog):
     )
 
     dummy.get_portfolio_value = lambda: 100.0
+    dummy._portfolio_value = 100.0
+    dummy.update_broker_balances = lambda force_update=True: True
     dummy.get_cash = lambda: 100.0
     dummy.get_positions = lambda: []
     dummy.get_orders = lambda: []

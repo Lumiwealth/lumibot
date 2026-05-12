@@ -543,6 +543,8 @@ def _cloud_update_dummy(get_cash_events):
         _cash_event_pending_for_cloud=[],
         _cash_event_sent_ids=set(),
         _cash_event_sent_id_order=deque(),
+        _portfolio_value=100.0,
+        update_broker_balances=lambda force_update=True: True,
         get_portfolio_value=lambda: 100.0,
         get_cash=lambda: 80.0,
         get_positions=lambda: [],

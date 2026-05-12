@@ -98,7 +98,7 @@ Validates:
 
 Liquidity-driven allocation using FRED (Federal Reserve Economic Data) money supply data.
 
-**Tool:** `get_fred_series` -- wraps `https://fred.stlouisfed.org/graph/fredgraph.csv` for economic data (no API key needed)
+**Tool:** `get_fred_series` -- uses the official FRED/ALFRED API with `FRED_API_KEY`. Use the built-in FRED tools for strict point-in-time macro backtests.
 
 **What it does:** Fetches M2 money supply data and compares recent values to values from 3-6 months ago. If M2 is growing, allocates to TQQQ. If M2 is flat or shrinking, allocates to SHV. Can also check FEDFUNDS and T10Y2Y for confirmation.
 

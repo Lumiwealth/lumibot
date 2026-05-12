@@ -13,18 +13,18 @@ Pick the option that matches how much infrastructure you want to manage. Both ru
 Option A — Deploy on BotSpot (Recommended)
 ------------------------------------------
 
-`BotSpot <https://botspot.trade/?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=deployment_guide>`_ is the managed cloud platform built on Lumibot. You upload or describe your strategy, pick a broker, and BotSpot runs it for you 24/7 with monitoring, scheduling, and failure alerts. Most Lumibot users should start here.
+`BotSpot <https://botspot.trade/?utm_source=documentation&utm_medium=deployment_guide&utm_campaign=lumibot>`_ is the managed cloud platform built on Lumibot. You upload or describe your strategy, pick a broker, and BotSpot runs it for you 24/7 with monitoring, scheduling, and failure alerts. Most Lumibot users should start here.
 
 **Why BotSpot:**
 
 - **No infrastructure to manage.** No servers, no deploy files, no environment-variable setup.
-- **Broker integrations built in.** Alpaca, Interactive Brokers, Tradier, Schwab, and more already wired up.
+- **Broker integrations built in.** Alpaca, Interactive Brokers, Tradier, Schwab, Tradovate, TopstepX via ProjectX, Bitunix, Coinbase, Kraken, WEEX, KuCoin, Binance, BitMEX, Bybit, and OKX have documented Lumibot paths.
 - **Backtest in the browser.** Test your strategy on historical data with one click before going live.
 - **Marketplace of proven strategies.** Browse community strategies and deploy any of them without writing code.
 - **Paper and live trading.** Start in paper mode, switch to live when you are ready.
 - **AI strategy builder.** Describe what you want in plain English and BotSpot generates Lumibot code for you.
 
-`Get started on BotSpot <https://botspot.trade/?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=deployment_guide>`_ and deploy in minutes, no coding required.
+`Get started on BotSpot <https://botspot.trade/?utm_source=documentation&utm_medium=deployment_guide&utm_campaign=lumibot>`_ and deploy in minutes, no coding required.
 
 .. tip::
 
@@ -48,7 +48,7 @@ Example Strategy for Deployment
 
 Use this example to see the self-hosted deployment process in action. It's not intended for real-money use. More details are available in the GitHub repository: `Example Algorithm GitHub <https://github.com/Lumiwealth-Strategies/stock_example_algo>`_
 
-To run the example strategy yourself, click the Deploy to Render button or the Run on Repl.it button below. If you would rather skip the infrastructure setup entirely, `deploy it on BotSpot <https://botspot.trade/?utm_source=lumibot+docs&utm_medium=documentation&utm_campaign=deployment_guide>`_ instead.
+To run the example strategy yourself, click the Deploy to Render button or the Run on Repl.it button below. If you would rather skip the infrastructure setup entirely, `deploy it on BotSpot <https://botspot.trade/?utm_source=documentation&utm_medium=deployment_guide&utm_campaign=lumibot>`_ instead.
 
 .. raw:: html
 
@@ -422,12 +422,19 @@ Kraken is an excellent cryptocurrency broker offering very low fees and a wide r
      - Your API secret for Kraken. **Required** if you are using Kraken as your broker.
      - abcdef1234567890abcdef1234567890abcdef1234
 
-Kucoin Configuration
---------------------
+Additional CCXT Exchange Examples
+---------------------------------
 
-Kucoin is a popular global cryptocurrency exchange offering a wide variety of cryptocurrencies and trading pairs. To create an account, visit the `Kucoin <https://www.kucoin.com/>`_ website.
+Lumibot implements selected CCXT exchange paths. This does **not** mean Lumibot supports every exchange in CCXT.
 
-.. list-table:: Kucoin Configuration
+Coinbase, Kraken, and WEEX are the CCXT credential paths that Lumibot can auto-detect from environment variables. KuCoin, Binance, and BitMEX are included here as manual CCXT config examples because they have selected Lumibot/CCXT handling or examples. Bybit and OKX are included for CCXT backtesting/custom-config reference. Before using any CCXT exchange for live trading, verify account state, positions, order submission, fills, and cancellation behavior with a very small test.
+
+KuCoin Configuration
+^^^^^^^^^^^^^^^^^^^^
+
+KuCoin is a global cryptocurrency exchange offering a wide variety of cryptocurrencies and trading pairs. Lumibot's shared CCXT broker has exchange-specific order handling for KuCoin when you pass an explicit ``Ccxt`` config. To create an account, visit the `KuCoin <https://www.kucoin.com/>`_ website.
+
+.. list-table:: KuCoin Configuration
    :widths: 25 50 25
    :header-rows: 1
 
@@ -435,19 +442,19 @@ Kucoin is a popular global cryptocurrency exchange offering a wide variety of cr
      - **Description**
      - **Example**
    * - KUCOIN_API_KEY
-     - Your Kucoin API key. **Required** if you are using Kucoin as your broker.
+     - Your KuCoin API key.
      - 5f6a7b8c9d0e1f2a3b4c
    * - KUCOIN_SECRET
-     - Your Kucoin secret. **Required** if you are using Kucoin as your broker.
+     - Your KuCoin secret.
      - abcdef1234567890abcdef1234567890abcdef12
    * - KUCOIN_PASSPHRASE
-     - Your Kucoin passphrase. **Required** if you are using Kucoin as your broker.
+     - Your KuCoin passphrase.
      - mypassphrase456
 
 Binance Configuration
----------------------
+^^^^^^^^^^^^^^^^^^^^^
 
-Binance is the world's largest cryptocurrency exchange by trading volume, offering extensive cryptocurrency trading options. To create an account, visit the `Binance <https://www.binance.com/>`_ website.
+Binance is a large cryptocurrency exchange by trading volume, offering extensive cryptocurrency trading options. Lumibot's shared CCXT broker has exchange-specific order handling for Binance when you pass an explicit ``Ccxt`` config. To create an account, visit the `Binance <https://www.binance.com/>`_ website.
 
 .. list-table:: Binance Configuration
    :widths: 25 50 25
@@ -457,18 +464,18 @@ Binance is the world's largest cryptocurrency exchange by trading volume, offeri
      - **Description**
      - **Example**
    * - BINANCE_API_KEY
-     - Your Binance API key. **Required** if you are using Binance as your broker.
+     - Your Binance API key.
      - 9a8b7c6d5e4f3g2h1i0j
    * - BINANCE_SECRET
-     - Your Binance secret key. **Required** if you are using Binance as your broker.
+     - Your Binance secret key.
      - abcdef1234567890abcdef1234567890abcdef12
 
-Bitmex Configuration
---------------------
+BitMEX Configuration
+^^^^^^^^^^^^^^^^^^^^
 
-Bitmex is a cryptocurrency derivatives exchange specializing in futures and perpetual contracts. To create an account, visit the `Bitmex <https://www.bitmex.com/>`_ website.
+BitMEX is a cryptocurrency derivatives exchange specializing in futures and perpetual contracts. Lumibot documents BitMEX as a selected CCXT path/example, but live derivatives behavior requires careful validation before real trading. To create an account, visit the `BitMEX <https://www.bitmex.com/>`_ website.
 
-.. list-table:: Bitmex Configuration
+.. list-table:: BitMEX Configuration
    :widths: 25 50 25
    :header-rows: 1
 
@@ -476,16 +483,16 @@ Bitmex is a cryptocurrency derivatives exchange specializing in futures and perp
      - **Description**
      - **Example**
    * - BITMEX_API_KEY
-     - Your Bitmex API key. **Required** if you are using Bitmex as your broker.
+     - Your BitMEX API key.
      - 1a2b3c4d5e6f7g8h9i0j
    * - BITMEX_SECRET
-     - Your Bitmex secret. **Required** if you are using Bitmex as your broker.
+     - Your BitMEX secret.
      - abcdef1234567890abcdef1234567890abcdef12
 
 Bybit Configuration
--------------------
+^^^^^^^^^^^^^^^^^^^
 
-Bybit is a popular derivatives exchange offering futures and perpetual contracts for cryptocurrency trading. To create an account, visit the `Bybit <https://www.bybit.com/>`_ website.
+Bybit is a derivatives exchange offering futures and perpetual contracts for cryptocurrency trading. Lumibot documents Bybit for CCXT backtesting/custom-config reference; do not assume the live path is production-ready without validation. To create an account, visit the `Bybit <https://www.bybit.com/>`_ website.
 
 .. list-table:: Bybit Configuration
    :widths: 25 50 25
@@ -495,16 +502,16 @@ Bybit is a popular derivatives exchange offering futures and perpetual contracts
      - **Description**
      - **Example**
    * - BYBIT_API_KEY
-     - Your Bybit API key. **Required** if you are using Bybit as your broker.
+     - Your Bybit API key.
      - 2b3c4d5e6f7g8h9i0j1k
    * - BYBIT_SECRET
-     - Your Bybit secret. **Required** if you are using Bybit as your broker.
+     - Your Bybit secret.
      - abcdef1234567890abcdef1234567890abcdef12
 
 OKX Configuration
------------------
+^^^^^^^^^^^^^^^^^
 
-OKX is a major global cryptocurrency exchange offering spot, futures, and options trading. To create an account, visit the `OKX <https://www.okx.com/>`_ website.
+OKX is a global cryptocurrency exchange offering spot, futures, and options trading. Lumibot documents OKX for CCXT backtesting/custom-config reference; do not assume the live path is production-ready without validation. To create an account, visit the `OKX <https://www.okx.com/>`_ website.
 
 .. list-table:: OKX Configuration
    :widths: 25 50 25
@@ -514,14 +521,41 @@ OKX is a major global cryptocurrency exchange offering spot, futures, and option
      - **Description**
      - **Example**
    * - OKX_API_KEY
-     - Your OKX API key. **Required** if you are using OKX as your broker.
+     - Your OKX API key.
      - 3c4d5e6f7g8h9i0j1k2l
    * - OKX_SECRET
-     - Your OKX secret key. **Required** if you are using OKX as your broker.
+     - Your OKX secret key.
      - abcdef1234567890abcdef1234567890abcdef12
    * - OKX_PASSPHRASE
-     - Your OKX passphrase. **Required** if you are using OKX as your broker.
+     - Your OKX passphrase.
      - mypassphrase789
+
+WEEX Configuration
+^^^^^^^^^^^^^^^^^^
+
+WEEX is an auto-detected CCXT credential path in Lumibot. WEEX does not provide a public API sandbox, and its terms exclude residents of some jurisdictions. Start with very small quantities until you have verified behavior.
+
+.. list-table:: WEEX Configuration
+   :widths: 25 50 25
+   :header-rows: 1
+
+   * - **Secret**
+     - **Description**
+     - **Example**
+   * - WEEX_API_KEY
+     - Your WEEX API key. **Required** if you are using WEEX as your broker.
+     - 5f6a7b8c9d0e1f2a3b4c
+   * - WEEX_API_SECRET
+     - Your WEEX API secret. **Required** if you are using WEEX as your broker.
+     - abcdef1234567890abcdef1234567890abcdef12
+   * - WEEX_API_PASSPHRASE
+     - Your WEEX API passphrase. **Required** if you are using WEEX as your broker.
+     - mypassphrase456
+
+CCXT Backtesting Examples
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Lumibot also documents CCXT backtesting examples for Kraken, Binance, KuCoin, BitMEX, Bybit, and OKX. These are selected documented exchange paths, not a claim that every CCXT exchange works out of the box.
 
 Interactive Brokers Configuration
 ---------------------------------
@@ -633,7 +667,7 @@ DataBento provides high-quality market data for stocks, futures, and options. Th
 ProjectX Configuration
 ----------------------
 
-ProjectX is a futures-only broker that connects to multiple prop trading firms and futures brokers. Each broker requires its own specific environment variables. Choose the section below that matches your broker.
+ProjectX is a futures-only broker path currently documented for TopstepX. The adapter contains some firm-specific ProjectX prefixes for testing and future expansion, but new firms should be validated before production use.
 
 TopstepX
 ^^^^^^^^
@@ -1061,10 +1095,10 @@ In addition to broker-specific secrets, the following environment variables are 
      - **(Optional)** The maximum memory in bytes that the Polygon API can use. This is useful for limiting memory usage during backtesting.
      - 512000000
    * - TRADING_BROKER
-     - **(Optional)** For live trading, specify the broker to use for executing trades. If not set, the default broker configuration will be used for both trading and data. Valid options (case insensitive): "alpaca", "tradier", "ccxt", "coinbase", "kraken", "ib" (or "interactivebrokers"), "ibrest" (or "interactivebrokersrest"), "tradovate", "schwab", "bitunix", "projectx"
+     - **(Optional)** For live trading, specify the broker to use for executing trades. If not set, the default broker configuration will be used for both trading and data. Valid options (case insensitive): "alpaca", "tradier", "ccxt", "coinbase", "kraken", "weex", "ib" (or "interactivebrokers"), "ibrest" (or "interactivebrokersrest"), "tradovate", "schwab", "bitunix", "projectx"
      - tradier
    * - DATA_SOURCE
-     - **(Optional)** For live trading, specify a separate data source for market data. If not set, the same broker as trading will be used for data. This allows you to use one broker for trading and a different data provider for market data. Valid options (case insensitive): "alpaca", "tradier", "ccxt", "coinbase", "kraken", "ib" (or "interactivebrokers"), "ibrest" (or "interactivebrokersrest"), "yahoo", "schwab", "databento", "bitunix", "projectx"
+     - **(Optional)** For live trading, specify a separate data source for market data. If not set, the same broker as trading will be used for data. This allows you to use one broker for trading and a different data provider for market data. Valid options (case insensitive): "alpaca", "tradier", "ccxt", "coinbase", "kraken", "weex", "ib" (or "interactivebrokers"), "ibrest" (or "interactivebrokersrest"), "yahoo", "schwab", "databento", "bitunix", "projectx"
      - databento
    * - DATA_SOURCE_DELAY
      - **(Optional)** Sets a delay parameter to control how many minutes to delay non-crypto data for. For example, the AlpacaData source uses a 16 minute delay by default. Override this to 0 if you have the paid SIP plan with not delayed data.

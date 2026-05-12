@@ -3,6 +3,7 @@ import sys
 import types
 
 from lumibot.components.agents.runtime import (
+    _aggregate_usage_metadata,
     _resolve_model_for_adk,
     _supports_explicit_temperature_for_adk_model,
     _sync_gemini_api_key_alias,
@@ -44,6 +45,32 @@ def test_google_api_key_wins_over_gemini_alias(monkeypatch):
     _sync_gemini_api_key_alias()
 
     assert os.environ["GOOGLE_API_KEY"] == "google-test-key"
+
+
+def test_aggregate_usage_metadata_sums_multiple_provider_events():
+    usage = _aggregate_usage_metadata(
+        [
+            {"prompt_token_count": 5571, "candidates_token_count": 482, "total_token_count": 6053},
+            {
+                "prompt_token_count": 14145,
+                "candidates_token_count": 237,
+                "total_token_count": 14382,
+                "cached_content_token_count": 5760,
+            },
+            {
+                "prompt_token_count": 16323,
+                "candidates_token_count": 93,
+                "total_token_count": 16416,
+                "cached_content_token_count": 13952,
+            },
+        ]
+    )
+
+    assert usage["prompt_token_count"] == 36039
+    assert usage["candidates_token_count"] == 812
+    assert usage["total_token_count"] == 36851
+    assert usage["cached_content_token_count"] == 19712
+    assert usage["aggregated_usage_event_count"] == 3
 
 
 def test_openai_model_forwards_prompt_cache_key_and_24h_retention(monkeypatch):

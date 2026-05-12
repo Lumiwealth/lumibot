@@ -4,10 +4,6 @@ OptionsHelper
 ``OptionsHelper`` is LumiBot's high-level helper for **options selection** (expirations, strikes, deltas) and **multi-leg order building/execution**.
 For most options strategies, using ``OptionsHelper`` is both **more reliable** (avoids non-existent expiries/strikes during backtests) and **much faster** than brute-force approaches that scan large strike lists and call ``get_greeks()`` per strike.
 
-.. contents:: On this page
-   :local:
-   :depth: 2
-
 Why use OptionsHelper?
 ----------------------
 

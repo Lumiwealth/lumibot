@@ -24,8 +24,8 @@ class _LivePaginationStrategy:
 
 
 def _require_alpaca_news_creds() -> None:
-    has_key = bool(os.environ.get("ALPACA_API_KEY") or os.environ.get("APCA_API_KEY_ID"))
-    has_secret = bool(os.environ.get("ALPACA_API_SECRET") or os.environ.get("APCA_API_SECRET_KEY"))
+    has_key = bool(os.environ.get("ALPACA_NEWS_API_KEY") or os.environ.get("ALPACA_API_KEY"))
+    has_secret = bool(os.environ.get("ALPACA_NEWS_API_SECRET") or os.environ.get("ALPACA_API_SECRET"))
     if not (has_key and has_secret):
         pytest.skip("Missing Alpaca news credentials")
 

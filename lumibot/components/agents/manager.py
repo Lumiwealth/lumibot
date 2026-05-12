@@ -29,6 +29,11 @@ _TIMESTAMP_HINT_RE = re.compile(
     r"(time|date|datetime|published|updated|created|accepted|released|release|as_of|realtime)",
     re.IGNORECASE,
 )
+_DEFAULT_MEMORY_NOTE_MAX_CHARS = 2000
+
+
+class AgentModelCallLimitExceeded(RuntimeError):
+    """Raised before a model call when the configured agent-call budget is exhausted."""
 
 
 def _safe_call(func, default=None):
@@ -116,6 +121,31 @@ def _truncate_text(value: Any, limit: int = 240) -> str:
     if len(text) <= limit:
         return text
     return text[: limit - 3] + "..."
+
+
+def _agent_memory_note_max_chars() -> int:
+    raw = os.environ.get("LUMIBOT_AGENT_MEMORY_NOTE_MAX_CHARS")
+    if raw:
+        try:
+            return max(int(raw), 200)
+        except Exception:
+            pass
+    return _DEFAULT_MEMORY_NOTE_MAX_CHARS
+
+
+def _agent_model_call_limit(strategy: Any) -> int | None:
+    params = getattr(strategy, "parameters", None)
+    raw = None
+    if isinstance(params, dict):
+        raw = params.get("agent_max_model_calls")
+    if raw is None:
+        raw = os.environ.get("LUMIBOT_AGENT_MAX_MODEL_CALLS")
+    if raw is None or str(raw).strip() == "":
+        return None
+    try:
+        return max(int(raw), 0)
+    except Exception:
+        return None
 
 
 def _compact_json(value: Any, limit: int = 240) -> str:
@@ -489,21 +519,34 @@ class AgentHandle:
         tools: list[Any] | None = None,
         mcp_servers: list[MCPServer] | None = None,
         runtime: Any | None = None,
+        allow_trading: bool = True,
     ) -> None:
         self.manager = manager
         self.name = name
         self.system_prompt = system_prompt
         self.default_model = default_model
+        self.allow_trading = bool(allow_trading)
         from .builtins import BuiltinTools
-        builtin_tools = BuiltinTools.all()
+        builtin_tools = self._filter_tools_for_trading_permission(BuiltinTools.all())
         if tools is None:
             self._tool_inputs = builtin_tools
         else:
             # Always include built-in tools, plus any custom tools the user added
-            self._tool_inputs = builtin_tools + list(tools)
+            self._tool_inputs = builtin_tools + self._filter_tools_for_trading_permission(list(tools))
         self._mcp_servers = mcp_servers or []
         self._runtime = runtime or GoogleADKRuntime(mcp_servers=self._mcp_servers)
         self._bound_tools: list[BoundTool] | None = None
+
+    def _filter_tools_for_trading_permission(self, tools: list[Any]) -> list[Any]:
+        if self.allow_trading:
+            return list(tools)
+        filtered: list[Any] = []
+        for tool in tools:
+            metadata = getattr(tool, "metadata", {}) or {}
+            if bool(metadata.get("mutates_trading")):
+                continue
+            filtered.append(tool)
+        return filtered
 
     def _state_bucket(self) -> dict[str, Any]:
         bucket = self.manager.strategy.vars.get("_agent_runtime_state", {})
@@ -521,13 +564,14 @@ class AgentHandle:
 
     def _memory_prompt_notes(self) -> list[dict[str, Any]]:
         projected: list[dict[str, Any]] = []
+        max_chars = _agent_memory_note_max_chars()
         for note in self._memory_notes():
             if not isinstance(note, dict):
                 continue
             projected.append(
                 {
                     "timestamp": note.get("timestamp"),
-                    "summary": note.get("summary") or "",
+                    "summary": _truncate_text(note.get("summary") or "", limit=max_chars),
                     "warnings": list(note.get("warnings") or []),
                 }
             )
@@ -623,6 +667,10 @@ class AgentHandle:
             "Use your available tools to gather evidence before making any trading decision. Do not guess when a tool can give you the answer.",
             "Before placing any trade, use tools to check current positions, available cash, and portfolio value.",
             "Load recent price history for any asset you are considering and inspect it before deciding.",
+            "When available, use the built-in evidence stack before making a material equity decision: account/portfolio tools, current market prices, recent price history, DuckDB analysis, technical indicators, relevant news, macro/FRED data, SEC financial statements, SEC company facts, and SEC filings.",
+            "Do not submit a material equity order until you have called account/portfolio tools, market price/history tools, at least one technical indicator tool, a relevant news tool when configured, a macro/FRED tool when configured, and SEC financial/filing tools for relevant single-stock candidates.",
+            "For ETFs, indexes, or broad-market trades, use SEC financial/filing tools on the most relevant single-stock candidates, holdings, or alternatives you are considering; do not skip the category just because the final instrument is an ETF.",
+            "If the user asks for an aggressive or concentrated strategy, let that user strategy prompt override the default investor style, but still ground the decision in tool evidence, position sizing, broker constraints, and backtesting look-ahead safety.",
             "When querying DuckDB tables, use datetime for timestamp columns and close for price columns unless the loaded sample rows clearly show different column names.",
             "When you have access to external MCP tools, explore what they offer and use them. You do not need to be told which specific tool to call.",
             "Finish every run with a short summary sentence starting with RESULT: that explains what you did and why.",
@@ -666,6 +714,7 @@ class AgentHandle:
             [
                 self._base_system_prompt(runtime_context),
                 "USER SYSTEM PROMPT:",
+                "Treat this as the strategy-specific trading objective. It may override the default investor style, but not hard safety, broker, or look-ahead-bias rules.",
                 self.system_prompt.strip(),
             ]
         ).strip()
@@ -674,10 +723,11 @@ class AgentHandle:
         state = self._state_bucket()
         notes = self._memory_notes()
         event_timestamp = self._event_timestamp()
+        memory_summary = _truncate_text(result.summary or result.text or "", limit=_agent_memory_note_max_chars())
         notes.append(
             {
                 "timestamp": event_timestamp,
-                "summary": result.summary or result.text or "",
+                "summary": memory_summary,
                 "tool_calls": [event.tool_name for event in result.tool_calls if event.tool_name],
                 "warnings": result.warning_messages,
                 "cache_hit": result.cache_hit,
@@ -746,9 +796,12 @@ class AgentHandle:
         bound: list[BoundTool] = []
         for entry in self._tool_inputs:
             if isinstance(entry, ToolDefinition):
-                bound.append(entry.binder(self.manager.strategy, self.manager))
+                tool = entry.binder(self.manager.strategy, self.manager)
+            else:
+                tool = bind_callable_tool(entry).binder(self.manager.strategy, self.manager)
+            if bool((tool.metadata or {}).get("disabled")):
                 continue
-            bound.append(bind_callable_tool(entry).binder(self.manager.strategy, self.manager))
+            bound.append(tool)
         bound.extend(self._build_remote_tools())
         # Built-ins are auto-included, but strategies may also explicitly pass
         # a BuiltinTools entry. ADK rejects duplicate function declarations, so
@@ -958,7 +1011,17 @@ class AgentHandle:
             )
         tool_names = [event.tool_name for event in result.tool_calls if event.tool_name]
         used_data_tool = any(
-            name.startswith("market_") or name.startswith("duckdb_") or name.startswith("account_") or name in {"get_news", "alpaca_news", "fred_search", "fred_get_series"}
+            name.startswith("market_")
+            or name.startswith("duckdb_")
+            or name.startswith("account_")
+            or name in {
+                "get_news",
+                "alpaca_news",
+                "list_fred_series",
+                "get_fred_series",
+                "get_fred_latest",
+                "get_fred_snapshot",
+            }
             for name in tool_names
         )
         used_order_tool = any(name.startswith("orders_") for name in tool_names)
@@ -1147,6 +1210,7 @@ class AgentHandle:
                 bound_tools=self._ensure_bound_tools(),
             ),
         )
+        self.manager._reserve_model_call(agent_name=self.name, model=model_name)
         # Strategy-level safety net with live-vs-backtest branching.
         #
         # Scope: this behavior is ONLY for AI agent calls. The rest of
@@ -1336,6 +1400,7 @@ class AgentManager:
         self.strategy = strategy
         self._agents: dict[str, AgentHandle] = {}
         self._warned_backtest_mcp_tools: set[tuple[str, str]] = set()
+        self._model_call_count = 0
         self.replay_cache = AgentReplayCache()
         self.duckdb = DuckDBQueryLayer(strategy)
         self._observability_totals: dict[str, dict[str, int]] = {}
@@ -1344,6 +1409,21 @@ class AgentManager:
 
     def __getitem__(self, item: str) -> AgentHandle:
         return self._agents[item]
+
+    def _reserve_model_call(self, *, agent_name: str, model: str) -> None:
+        limit = _agent_model_call_limit(self.strategy)
+        params = getattr(self.strategy, "parameters", None)
+        if limit is not None and self._model_call_count >= limit:
+            raise AgentModelCallLimitExceeded(
+                f"LUMIBOT_AGENT_MAX_MODEL_CALLS/agent_max_model_calls limit reached "
+                f"before agent={agent_name!r} model={model!r}. "
+                f"Configured limit={limit}, attempted_call={self._model_call_count + 1}."
+            )
+        self._model_call_count += 1
+        if isinstance(params, dict):
+            params["agent_model_calls"] = self._model_call_count
+            if limit is not None:
+                params["agent_max_model_calls"] = limit
 
     def _artifact_path(self, agent_name: str, suffix: str) -> Path:
         stats_file = getattr(self.strategy, "stats_file", None) or getattr(self.strategy, "_stats_file", None)
@@ -1650,6 +1730,7 @@ class AgentManager:
         *,
         name: str,
         system_prompt: str | None = None,
+        model: str | None = None,
         default_model: str | None = None,
         tools: list[Any] | None = None,
         mcp_servers: list[MCPServer] | None = None,
@@ -1661,7 +1742,10 @@ class AgentManager:
         if name in self._agents:
             raise ValueError(f"Agent with name {name!r} already exists.")
         resolved_system_prompt = system_prompt or prompt or "You are a LumiBot trading agent."
-        resolved_model = default_model or "gemini-3.1-flash-lite-preview"
+        if model is not None and default_model is not None and model != default_model:
+            raise ValueError("Pass either model or default_model, not both with different values.")
+        resolved_model = model or default_model or "gemini-3.1-flash-lite-preview"
+        resolved_allow_trading = True if allow_trading is None else bool(allow_trading)
         handle = AgentHandle(
             manager=self,
             name=name,
@@ -1670,15 +1754,11 @@ class AgentManager:
             tools=tools,
             mcp_servers=mcp_servers,
             runtime=_runtime,
+            allow_trading=resolved_allow_trading,
         )
         if cadence is not None:
             self.strategy.log_message(
                 f"[agents] cadence={cadence!r} is informational only; scheduling stays in strategy lifecycle code.",
-                color="yellow",
-            )
-        if allow_trading is not None:
-            self.strategy.log_message(
-                f"[agents] allow_trading={allow_trading!r} is deprecated; tool exposure now controls mutations.",
                 color="yellow",
             )
         self._agents[name] = handle

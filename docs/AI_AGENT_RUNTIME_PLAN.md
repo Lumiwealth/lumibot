@@ -74,7 +74,6 @@ from lumibot.strategies import Strategy
 class AgentMomentumStrategy(Strategy):
     parameters = {
         "symbol": "SPY",
-        "run_every_n_iterations": 5,
     }
 
     @agent_tool(
@@ -88,7 +87,6 @@ class AgentMomentumStrategy(Strategy):
     def initialize(self):
         self.set_market("stock")
         self.sleeptime = "1M"
-        self.vars.iteration_count = 0
 
         self.agents.create(
             name="research",
@@ -133,10 +131,6 @@ class AgentMomentumStrategy(Strategy):
         )
 
     def on_trading_iteration(self):
-        self.vars.iteration_count += 1
-        if self.vars.iteration_count % self.parameters["run_every_n_iterations"] != 0:
-            return
-
         symbol = self.parameters["symbol"]
         result = self.agents["research"].run(
             task_prompt=f"Review {symbol} and decide whether to trade.",

@@ -1,9 +1,31 @@
 # Changelog
 
-## Unreleased
+## 4.5.11 - 2026-05-12
+
+Deploy marker: 4.5.11 release commit (`deploy 4.5.11`)
 
 ### Added
-- Scheduled live execution can now run one live iteration and exit when BotManager sets `LUMIBOT_SCHEDULED_EXECUTION`. Scheduled runs restore and persist `self.vars` through the BotManager state file.
+- **Scheduled live execution can run one iteration and exit for BotManager scheduled runs.** When BotManager sets `LUMIBOT_SCHEDULED_EXECUTION`, LumiBot restores persisted `self.vars`, runs one live iteration, persists the updated state file, and exits cleanly.
+- **AI agent strategies now support richer multi-agent workflows.** Added per-agent model selection, `allow_trading=False` tool restrictions for research-only agents, and an AI investment committee example that runs researcher, bull-case, bear-case, and portfolio-manager agents inside the normal `on_trading_iteration()` flow.
+- **Built-in SEC fundamentals and filing tools for agents and strategies.** Added direct SEC EDGAR access with local caching, rate limiting, SEC user-agent support, company facts, normalized income statement / balance sheet / cash-flow helpers, filing lists, filing document retrieval, and keyword search over cached filings. Backtests gate filings by filed / accepted timestamps so agents do not see future disclosures.
+- **Built-in FRED macro tools.** Added official FRED/ALFRED API helpers for series lookup, latest values, historical observations, and point-in-time snapshots using `realtime_start` / `realtime_end`. FRED data fetches require `FRED_API_KEY` and cache under the Lumibot cache directory.
+- **Built-in technical-indicator tools for agents.** Agents can list indicators and request current-bar indicator values through the existing fast indicator subsystem, keeping backtests aligned with the simulated datetime.
+- **Local AI-agent memory and notifications.** Added JSONL-backed memory tools for decisions, lessons, and thesis lifecycle tracking, plus a Telegram notification provider and `notify_user` tool with backtest notifications disabled unless explicitly enabled.
+- **AI-agent smoke and verification tooling.** Added deterministic and real-model AI committee runners, built-in-tool integration coverage, SEC/FRED tests, notification/memory tests, and agent-tool permission tests.
+- **New AI-agent documentation and branded visuals.** Added RST and Markdown docs for agent flows, built-in tools, SEC fundamentals, FRED macro data, memory, notifications, observability, and the investment committee example, plus Nano Banana / Spot-branded README and documentation diagrams.
+- **Individual CCXT broker documentation pages.** Added separate docs pages for the CCXT brokers Lumibot supports directly, including Binance, BitMEX, Bybit, Coinbase, Kraken, KuCoin, OKX, and WEEX.
+
+### Changed
+- **README and public docs now position Lumibot as deterministic Python strategies plus AI-agent strategies on the same backtest / paper / live execution path.** The AI investment committee is presented as one example workflow, not the only possible agent structure.
+- **Agent built-in tools are included by default when available.** Account, positions, open orders, history, docs search, indicators, SEC, FRED, memory, notifications, and order tools are available by default; `allow_trading=False` removes only mutating order tools.
+- **Alpaca news tool availability now depends on credentials.** The built-in Alpaca news tool is hidden when no Alpaca credentials are configured and uses the standard Alpaca credential environment variables when present.
+- **FRED no longer uses public CSV fallbacks.** Revised/no-key CSV access was removed from examples, docs, tests, and implementation; official FRED/ALFRED API access is the only supported macro-data fetch path.
+- **AI-agent docs and deployment guidance now require high-quality generated visuals.** Lumibot/BotSpot/Lumiwealth documentation visuals must use Nano Banana/GPT Image 2 quality and the canonical Spot brand reference when a mascot is helpful.
+
+### Fixed
+- **BotSpot cloud account snapshots are marked verified before use.** This prevents unverified broker/account reads from being treated as trusted performance data.
+- **AI committee example trades are constrained to reviewed symbols and risk limits.** The example no longer places trades outside the researcher/portfolio-manager scope.
+- **Filing, macro, indicator, and news examples now document point-in-time behavior more explicitly.** Docs and prompts emphasize using the current strategy datetime during backtests.
 
 ## 4.5.10 - 2026-04-30
 

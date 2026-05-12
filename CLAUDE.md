@@ -18,6 +18,15 @@
 1. `docs/BACKTESTING_ARCHITECTURE.md` - Understand the backtesting data flow AND the no-fake-data rule
 2. `AGENTS.md` - Critical rules for ThetaData (DO NOT SKIP)
 
+## Image Generation Rule (CRITICAL)
+
+- For any generated or AI-edited image, infographic, diagram, marketing visual, README visual, documentation visual, or repo asset image, use Nano Banana MCP only (`mcp__nano_banana__generate_image` / `mcp__nano_banana__edit_image`).
+- This is non-negotiable for flow diagrams, architecture diagrams, sequence diagrams, screenshots-as-illustrations, and documentation visuals. Use Nano Banana with reference images/profiles strong enough for readable labels, arrows, branding, and layout.
+- Never use generic image generators, cheaper/lower-quality image models, local SVG/HTML/canvas placeholders, Python drawing scripts, Mermaid screenshots, manually assembled box diagrams, or other fallback image pipelines for generated documentation/product images.
+- For Lumibot, BotSpot, and Lumiwealth visuals, use the canonical Spot mascot reference through Nano Banana (`reference_profile="botspot_spot"` or the approved brand reference images). Spot should usually be doing something relevant to the concept being explained, such as reviewing filings, managing agents, guarding risk, or filing memories. Do not accept off-brand mascot variants or generic static poses when a topic-specific Spot action would make the visual clearer.
+- Every generated image must be visually inspected before it is committed. Reject outputs with broken/missing text, awkward arrows, cluttered layouts, inaccurate product claims, or anything that looks like a placeholder.
+- If Nano Banana MCP access is unavailable or broken, stop and report that blocker instead of making replacement images another way.
+
 ## Backtesting Accuracy (Definition)
 
 Backtesting “accuracy” is measured against live broker behavior when possible (replay a live-traded interval and reproduce fills + PnL within tolerances). Vendor parity (e.g., stored DataBento artifacts) is a regression signal, not absolute truth.
@@ -25,6 +34,13 @@ Backtesting “accuracy” is measured against live broker behavior when possibl
 ## Multi-Agent Collaboration (CRITICAL)
 This repo is often worked on by **multiple AI sessions** at the same time.
 
+- Canonical checkout: normal LumiBot work must happen in
+  `/Users/robertgrzesik/Development/lumibot`. Keep that checkout on the active
+  `version/X.Y.Z` branch, clean, and ready for release. Do not create sibling
+  worktrees like `lumibot-version-X.Y.Z` for normal development. Temporary
+  worktrees outside this folder are acceptable only for isolated review of
+  unusually large or risky external PRs, and must not become the active release
+  workspace.
 - Branch etiquette: if a task mandates a specific version branch (e.g., `4.4.25`), treat it as the shared branch—stay on it and do not create new branches/PRs unless explicitly instructed. Otherwise, start new work branches from a stable base branch (e.g., `dev`/`main`/`master`), and avoid chaining feature/WIP branches.
 - No “feature branch chaining”: if you’re already on a feature/WIP or version branch (e.g., `feature/*`, `fix/*`, `wip/*`, `version/*`, `release/*`, or a version-named branch like `X.Y.Z`), keep working there; don’t create another feature branch from it unless explicitly instructed.
 - Branch naming (LumiBot convention): prefer version-scoped branches so multiple agents can collaborate without “feature branch naming drift”.

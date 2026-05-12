@@ -1,0 +1,133 @@
+from datetime import datetime, timezone
+
+from lumibot.fundamentals import SECFundamentals
+
+
+class _Response:
+    def __init__(self, *, payload=None, text=""):
+        self._payload = payload
+        self.text = text
+        self.content = text.encode()
+
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        return self._payload
+
+
+def test_sec_fundamentals_are_point_in_time_gated_and_cached(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_get(url, **kwargs):
+        calls.append(url)
+        if url.endswith("company_tickers.json"):
+            return _Response(payload={"0": {"ticker": "AAPL", "cik_str": 320193, "title": "Apple Inc."}})
+        if "companyfacts" in url:
+            return _Response(
+                payload={
+                    "facts": {
+                        "us-gaap": {
+                            "Revenues": {
+                                "units": {
+                                    "USD": [
+                                        {"val": 100, "filed": "2024-01-01", "form": "10-K", "fy": 2023, "fp": "FY", "accn": "old"},
+                                        {"val": 200, "filed": "2026-01-01", "form": "10-K", "fy": 2025, "fp": "FY", "accn": "future"},
+                                    ]
+                                }
+                            },
+                            "NetIncomeLoss": {
+                                "units": {
+                                    "USD": [
+                                        {"val": 10, "filed": "2024-01-01", "form": "10-K", "fy": 2023, "fp": "FY", "accn": "old"}
+                                    ]
+                                }
+                            },
+                        }
+                    }
+                }
+            )
+        raise AssertionError(url)
+
+    monkeypatch.setattr("lumibot.fundamentals.sec.requests.get", fake_get)
+    sec = SECFundamentals(cache_dir=tmp_path, min_request_interval_seconds=0)
+
+    result = sec.get_income_statement("AAPL", as_of=datetime(2025, 1, 1, tzinfo=timezone.utc))
+    assert result["values"]["revenue"]["value"] == 100
+    assert result["values"]["net_income"]["value"] == 10
+
+    result_again = sec.get_income_statement("AAPL", as_of=datetime(2025, 1, 1, tzinfo=timezone.utc))
+    assert result_again["values"]["revenue"]["value"] == 100
+    assert len(calls) == 2
+
+
+def test_sec_filings_and_keyword_search(monkeypatch, tmp_path):
+    def fake_get(url, **kwargs):
+        if url.endswith("company_tickers.json"):
+            return _Response(payload={"0": {"ticker": "AAPL", "cik_str": 320193, "title": "Apple Inc."}})
+        if "submissions" in url:
+            return _Response(
+                payload={
+                    "cik": "0000320193",
+                    "filings": {
+                        "recent": {
+                            "form": ["10-K", "10-Q"],
+                            "accessionNumber": ["0000320193-24-000001", "0000320193-26-000001"],
+                            "filingDate": ["2024-11-01", "2026-01-01"],
+                            "reportDate": ["2024-09-30", "2025-12-31"],
+                            "acceptanceDateTime": ["2024-11-01T12:00:00.000Z", "2026-01-01T12:00:00.000Z"],
+                            "primaryDocument": ["aapl-20240930.htm", "aapl-20251231.htm"],
+                            "primaryDocDescription": ["10-K", "10-Q"],
+                        }
+                    },
+                }
+            )
+        if "Archives/edgar/data" in url:
+            return _Response(text="<html><body>Revenue recognition changed. Customer concentration risk is low.</body></html>")
+        raise AssertionError(url)
+
+    monkeypatch.setattr("lumibot.fundamentals.sec.requests.get", fake_get)
+    sec = SECFundamentals(cache_dir=tmp_path, min_request_interval_seconds=0)
+
+    filings = sec.get_filings("AAPL", as_of="2025-01-01T00:00:00+00:00", limit=10)
+    assert len(filings["filings"]) == 1
+    assert filings["filings"][0]["form"] == "10-K"
+
+    matches = sec.search_filing(
+        "AAPL",
+        accession_number="0000320193-24-000001",
+        primary_document="aapl-20240930.htm",
+        query="customer concentration",
+    )
+    assert matches["match_count"] >= 1
+    assert "Customer concentration" in matches["matches"][0]["context"]
+
+
+def test_company_facts_are_compact_by_default(monkeypatch, tmp_path):
+    def fake_get(url, **kwargs):
+        if url.endswith("company_tickers.json"):
+            return _Response(payload={"0": {"ticker": "AAPL", "cik_str": 320193, "title": "Apple Inc."}})
+        if "companyfacts" in url:
+            facts = {
+                "RevenueFromContractWithCustomerExcludingAssessedTax": {
+                    "units": {"USD": [{"val": 100, "filed": "2024-01-01", "form": "10-K"}]}
+                }
+            }
+            for index in range(10):
+                facts[f"CustomFact{index}"] = {
+                    "units": {"USD": [{"val": index, "filed": "2024-01-01", "form": "10-K"}]}
+                }
+            return _Response(payload={"facts": {"us-gaap": facts}})
+        raise AssertionError(url)
+
+    monkeypatch.setattr("lumibot.fundamentals.sec.requests.get", fake_get)
+    sec = SECFundamentals(cache_dir=tmp_path, min_request_interval_seconds=0)
+
+    compact = sec.get_company_facts("AAPL", as_of="2025-01-01", max_facts=3)
+    assert compact["fact_count"] == 3
+    assert compact["truncated"] is True
+    assert "RevenueFromContractWithCustomerExcludingAssessedTax" in compact["facts"]
+
+    full = sec.get_company_facts("AAPL", as_of="2025-01-01", max_facts=None)
+    assert full["fact_count"] == 11
+    assert full["truncated"] is False

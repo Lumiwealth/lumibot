@@ -13,6 +13,13 @@ This page documents environment variables used by LumiBot, with an emphasis on *
 
 ## Backtesting selection + dates
 
+### `ALPACA_NEWS_API_KEY` / `ALPACA_NEWS_API_SECRET`
+- Purpose: Optional credentials for the built-in `alpaca_news` agent tool when there is no active Alpaca broker.
+- Fallback: If these are unset and there is no active Alpaca broker, `alpaca_news` is not exposed to agents.
+- Notes:
+  - The tool date-gates requests to the strategy datetime during backtests.
+  - Do not commit real key values.
+
 ### `LUMIBOT_DISABLE_DOTENV`
 - Purpose: Disable recursive `.env` discovery (`os.walk`) at startup.
 - Values: truthy enables (`1`, `true`, `yes`); unset/`0` disables.
@@ -48,7 +55,7 @@ This page documents environment variables used by LumiBot, with an emphasis on *
     - Provider values are case/whitespace/_/- insensitive. Supported values include:
       - `thetadata`, `ibkr`, `polygon`, `alpaca`
       - `ccxt` (auto-select exchange from existing env/credentials)
-      - any CCXT exchange id (e.g., `coinbase`, `kraken`, `binance`, `kucoin`) to route crypto to that exchange
+      - supported CCXT backtesting exchange ids such as `kraken`, `binance`, `kucoin`, `bitmex`, `bybit`, and `okx`
   - `none` to disable env override and rely on code.
 - Where: `lumibot/strategies/_strategy.py` datasource selection logic.
 
@@ -266,3 +273,50 @@ Each emission is a single JSON line prefixed with `LUMIBOT_TELEMETRY`.
 Notes:
 - Burst mode (more frequent logs) turns on automatically above ~80% of container memory.
 - Deep snapshots trigger above ~90% with a ~1 hour cooldown (these thresholds are fixed defaults today).
+
+## AI agent fundamentals, memory, and notifications
+
+### `LUMIBOT_SEC_USER_AGENT`
+- Purpose: Contact-style SEC EDGAR user agent header.
+- Values: Human-readable app/contact string.
+- Default: LumiBot support contact.
+
+### `LUMIBOT_SEC_CACHE_DIR`
+- Purpose: Override the local SEC fundamentals and filing cache.
+- Default: `~/.lumibot/cache/sec`.
+
+### `FRED_API_KEY`
+- Purpose: Optional official FRED/ALFRED API key for macro data tools.
+- Default: unset.
+- Notes: Required for FRED macro data tools. Lumibot requests vintage observations with `realtime_start` and `realtime_end` for point-in-time backtests. Built-in FRED agent tools are not exposed during backtests without this key because Lumibot does not use revised public CSV fallbacks for macro data.
+
+### `LUMIBOT_FRED_CACHE_DIR`
+- Purpose: Override the local FRED macro data cache.
+- Default: `~/.lumibot/cache/fred`.
+
+### `LUMIBOT_MEMORY_DIR`
+- Purpose: Override the local JSONL agent memory root.
+- Default: `.lumibot/memory` under the current working directory.
+
+### `LUMIBOT_AGENT_MEMORY_NOTE_MAX_CHARS`
+- Purpose: Limit how much prior agent-run memory is injected back into the next agent prompt.
+- Default: `2000`.
+- Notes: Full run traces and artifacts are still written separately. This only compacts the lightweight runtime notes so repeated backtest iterations do not blow up the model context window.
+
+### `LUMIBOT_AGENT_MAX_MODEL_CALLS`
+- Purpose: Hard cap uncached agent model calls in a single strategy run.
+- Default: unset.
+- Notes: When set, Lumibot raises before making the next provider call once the cap is reached. This is intended for expensive AI backtests and smoke runs where accidental spend matters.
+
+### `LUMIBOT_AGENT_MAX_RUN_ATTEMPTS`
+- Purpose: Override the retry budget for a single agent model call.
+- Default: `2` in backtests, `10` in live trading.
+- Notes: Backtests default to a lower retry budget so a bad provider window does not multiply model spend across many simulated iterations.
+
+### `TELEGRAM_BOT_TOKEN`
+- Purpose: Telegram Bot API token for `self.notifications.configure_telegram()`.
+- Values: Bot token from BotFather.
+
+### `TELEGRAM_CHAT_ID`
+- Purpose: Telegram chat/channel/user id for strategy notifications.
+- Values: Telegram chat id.

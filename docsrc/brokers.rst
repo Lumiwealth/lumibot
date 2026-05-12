@@ -3,6 +3,11 @@ Brokers
 
 There are several different brokers that you can use to trade with Lumibot, and we're adding more as we speak! Learn more about how they work and how to set them up here.
 
+.. image:: ../docs/assets/readme/lumibot_brokers_data_sources.png
+   :alt: Lumibot broker and data source integrations
+   :align: center
+   :width: 100%
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:

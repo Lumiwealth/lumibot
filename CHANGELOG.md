@@ -1,6 +1,11 @@
 # Changelog
 
-## 4.5.13 - Unreleased
+## 4.5.13 - 2026-05-13
+
+Deploy marker: 4.5.13 release commit (`deploy 4.5.13`)
+
+### Fixed
+- **IBKR REST backtesting point-in-time option price lookups now fetch bounded minute slices around the simulation time.** `get_last_price()` and `get_quote()` no longer prefetch the full backtest window for point lookups, which avoids IBKR returning only a later tail segment and then mispricing earlier AlphaPicks option entries.
 
 ## 4.5.12 - 2026-05-13
 

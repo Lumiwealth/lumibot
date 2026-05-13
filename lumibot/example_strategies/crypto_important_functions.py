@@ -1,5 +1,6 @@
 import datetime
 
+from lumibot.brokers import Ccxt
 from lumibot.entities import Asset
 from lumibot.strategies.strategy import Strategy
 
@@ -121,9 +122,6 @@ class ImportantFunctions(Strategy):
 
 
 if __name__ == "__main__":
-    # Defer optional broker imports so importing this example does not require CCXT.
-    from lumibot.brokers import Ccxt
-
     KRAKEN_CONFIG = {
         "exchange_id": "kraken",
         "apiKey": "YOUR_API_KEY",

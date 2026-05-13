@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from lumibot.entities import Order
 from lumibot.strategies.strategy import Strategy
 
 """
@@ -31,7 +32,6 @@ class StockBracket(Strategy):
 
     def on_trading_iteration(self):
         """Buys the self.buy_symbol once, then never again"""
-        from lumibot.entities import Order
 
         buy_symbol = self.parameters["buy_symbol"]
         take_profit_price = self.parameters["take_profit_price"]

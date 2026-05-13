@@ -1,4 +1,6 @@
 
+from lumibot.brokers import Alpaca
+from lumibot.credentials import ALPACA_TEST_CONFIG
 from lumibot.strategies.strategy import Strategy
 
 """
@@ -58,8 +60,6 @@ class ScheduledFunctionStrategy(Strategy):
 
 
 if __name__ == "__main__":
-    from lumibot.brokers import Alpaca
-    from lumibot.credentials import ALPACA_TEST_CONFIG
 
     # Verify we have the necessary configuration
     if not ALPACA_TEST_CONFIG:

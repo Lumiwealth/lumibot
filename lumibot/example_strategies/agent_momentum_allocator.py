@@ -17,10 +17,10 @@ Usage:
 """
 
 import os
+import requests
 
+from lumibot.components.agents import agent_tool
 from lumibot.strategies.strategy import Strategy
-
-from lumibot.example_strategies._agent_tool import agent_tool, _requests
 
 IS_BACKTESTING = True
 
@@ -59,7 +59,7 @@ class MomentumAllocatorStrategy(Strategy):
         if end:
             params["end"] = end
         try:
-            resp = _requests().get(
+            resp = requests.get(
                 f"https://data.alpaca.markets/v2/stocks/{symbol}/bars",
                 headers=headers,
                 params=params,
@@ -115,7 +115,7 @@ class MomentumAllocatorStrategy(Strategy):
         if end:
             params["end"] = end
         try:
-            resp = _requests().get(
+            resp = requests.get(
                 "https://data.alpaca.markets/v1beta1/news",
                 headers=headers,
                 params=params,

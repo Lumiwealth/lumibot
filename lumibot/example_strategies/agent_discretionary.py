@@ -36,10 +36,10 @@ Usage:
 import csv
 import io
 import os
+import requests
 
+from lumibot.components.agents import BuiltinTools, agent_tool
 from lumibot.strategies.strategy import Strategy
-
-from lumibot.example_strategies._agent_tool import agent_tool, _requests
 
 IS_BACKTESTING = True
 
@@ -77,7 +77,7 @@ class DiscretionaryTraderStrategy(Strategy):
         if end_date:
             params["coed"] = end_date
         try:
-            resp = _requests().get(
+            resp = requests.get(
                 "https://fred.stlouisfed.org/graph/fredgraph.csv",
                 params=params,
                 timeout=15,
@@ -139,8 +139,6 @@ class DiscretionaryTraderStrategy(Strategy):
             return {"error": str(e), "symbol": symbol}
 
     def initialize(self):
-        from lumibot.components.agents import BuiltinTools
-
         self.sleeptime = "1D"
         self.vars.iteration_count = 0
         model_id = os.environ.get("AGENT_MODEL", "gemini-3.1-pro-preview")

@@ -18,10 +18,10 @@ Usage:
 import csv
 import io
 import os
+import requests
 
+from lumibot.components.agents import agent_tool
 from lumibot.strategies.strategy import Strategy
-
-from lumibot.example_strategies._agent_tool import agent_tool, _requests
 
 IS_BACKTESTING = True
 
@@ -60,7 +60,7 @@ class M2LiquidityStrategy(Strategy):
         if end_date:
             params["coed"] = end_date
         try:
-            resp = _requests().get(
+            resp = requests.get(
                 "https://fred.stlouisfed.org/graph/fredgraph.csv",
                 params=params,
                 timeout=15,

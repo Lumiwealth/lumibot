@@ -1,3 +1,17 @@
+from datetime import datetime
+
+import pytz
+
+from lumibot.backtesting import AlpacaBacktesting
+from lumibot.components.configs_helper import ConfigsHelper
+from lumibot.credentials import ALPACA_TEST_CONFIG, IS_BACKTESTING
+from lumibot.entities import Asset
+from lumibot.example_strategies.drift_rebalancer import DriftRebalancer
+from lumibot.tools.pandas import print_full_pandas_dataframes
+from lumibot.traders.debug_log_trader import DebugLogTrader
+
+print_full_pandas_dataframes()
+
 """
 Strategy Description
 
@@ -9,19 +23,6 @@ assets that has drifted the least to bring the portfolio back to the target weig
 
 
 if __name__ == "__main__":
-    from datetime import datetime
-
-    import pytz
-
-    from lumibot.backtesting import AlpacaBacktesting
-    from lumibot.components.configs_helper import ConfigsHelper
-    from lumibot.credentials import ALPACA_TEST_CONFIG, IS_BACKTESTING
-    from lumibot.entities import Asset
-    from lumibot.example_strategies.drift_rebalancer import DriftRebalancer
-    from lumibot.tools.pandas import print_full_pandas_dataframes
-    from lumibot.traders.debug_log_trader import DebugLogTrader
-
-    print_full_pandas_dataframes()
 
     configs_helper = ConfigsHelper(configs_folder="example_strategies")
     parameters = configs_helper.load_config("crypto_50_50_config")

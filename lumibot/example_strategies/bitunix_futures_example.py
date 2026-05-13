@@ -1,5 +1,7 @@
 import time
 
+from lumibot.brokers import Bitunix
+from lumibot.credentials import BITUNIX_CONFIG  # Assuming Bitunix config is in credentials
 from lumibot.entities import Asset, Order
 from lumibot.strategies.strategy import Strategy
 
@@ -55,9 +57,6 @@ class BitunixFuturesExample(Strategy):
 
 
 if __name__ == "__main__":
-    from lumibot.brokers import Bitunix
-    from lumibot.credentials import BITUNIX_CONFIG  # Assuming Bitunix config is in credentials
-
     # Ensure Bitunix credentials are set in .env or environment variables
     # BITUNIX_CONFIG should contain API_KEY, API_SECRET
     if not BITUNIX_CONFIG or not BITUNIX_CONFIG.get("API_KEY") or not BITUNIX_CONFIG.get("API_SECRET"):
@@ -69,3 +68,4 @@ if __name__ == "__main__":
         broker = Bitunix(BITUNIX_CONFIG)
         strategy = BitunixFuturesExample(broker=broker)
         strategy.run_live()
+

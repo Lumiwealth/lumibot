@@ -1,24 +1,11 @@
-from __future__ import annotations
-
 from decimal import Decimal
 from typing import Any
 
+import pandas as pd
+
+from lumibot.components.drift_rebalancer_logic import DriftRebalancerLogic, DriftType
 from lumibot.entities import Order
 from lumibot.strategies.strategy import Strategy
-
-
-# DriftType mirrors lumibot.components.drift_rebalancer_logic.DriftType; keep
-# values aligned because strategy parameters are passed directly into that logic.
-class DriftType:
-    ABSOLUTE = "absolute"
-    RELATIVE = "relative"
-
-
-def _pd():
-    # _pd() imports pandas on demand so example discovery stays lightweight.
-    import pandas as pd
-
-    return pd
 
 
 class DriftRebalancer(Strategy):
@@ -101,8 +88,6 @@ class DriftRebalancer(Strategy):
 
     # noinspection PyAttributeOutsideInit
     def initialize(self, parameters: Any = None) -> None:
-        from lumibot.components.drift_rebalancer_logic import DriftRebalancerLogic
-
         self.set_market(self.parameters.get("market", "NYSE"))
         self.sleeptime = self.parameters.get("sleeptime", "1D")
         self.drift_type = self.parameters.get("drift_type", DriftType.RELATIVE)
@@ -114,7 +99,7 @@ class DriftRebalancer(Strategy):
         self.shorting = self.parameters.get("shorting", False)
         self.fractional_shares = self.parameters.get("fractional_shares", False)
         self.only_rebalance_drifted_assets = self.parameters.get("only_rebalance_drifted_assets", False)
-        self.drift_df = _pd().DataFrame()
+        self.drift_df = pd.DataFrame()
         self.drift_rebalancer_logic = DriftRebalancerLogic(
             strategy=self,
             drift_type=self.drift_type,

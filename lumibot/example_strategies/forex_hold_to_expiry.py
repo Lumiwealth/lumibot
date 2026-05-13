@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from lumibot.entities import Asset
 from lumibot.strategies.strategy import Strategy
 
 """
@@ -24,8 +25,6 @@ class FuturesHoldToExpiry(Strategy):
 
     def on_trading_iteration(self):
         """Buys the self.buy_symbol once, then never again"""
-        # Asset stays local so example discovery does not import lumibot.entities.
-        from lumibot.entities import Asset
 
         buy_symbol = self.parameters["buy_symbol"]
 

@@ -109,6 +109,63 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         return f"{qty}{unit}"
 
     @staticmethod
+    def _series_covers_requested_window(
+        data: Optional[Data],
+        *,
+        asset: Asset,
+        timestep: str,
+        start_dt: datetime,
+        end_dt: datetime,
+    ) -> bool:
+        df = getattr(data, "df", None) if data is not None else None
+        try:
+            return ibkr_helper.frame_covers_requested_window(
+                df,
+                asset=asset,
+                timestep=timestep,
+                start_dt=start_dt,
+                end_dt=end_dt,
+            )
+        except Exception:
+            return False
+
+    def _refresh_window_around_datetime(
+        self,
+        *,
+        asset: Asset,
+        quote: Optional[Asset],
+        dataset_key: str,
+        dt: datetime,
+        exchange: Optional[str],
+        include_after_hours: bool,
+    ) -> None:
+        """Fetch a bounded slice around the current sim time after a full-window underfill.
+
+        IBKR history is capped to roughly 1000 bars per request and can return only the tail of a
+        larger requested minute window. If a full-window prefetch is underfilled, do not keep asking
+        Apr-09 lookups to use a May-only cache; fetch the local simulation-day slice and retry.
+        """
+        try:
+            start_dt = max(self.datetime_start, dt - timedelta(days=7))
+        except Exception:
+            start_dt = dt - timedelta(days=7)
+        try:
+            end_dt = min(self.datetime_end, dt + timedelta(days=1))
+        except Exception:
+            end_dt = dt + timedelta(days=1)
+        if start_dt >= end_dt:
+            end_dt = dt
+        self._update_pandas_data(
+            asset,
+            quote,
+            dataset_key,
+            start_dt=start_dt,
+            end_dt=end_dt,
+            exchange=exchange,
+            include_after_hours=include_after_hours,
+        )
+
+    @staticmethod
     def _previous_us_futures_session_open(dt_value: datetime) -> Optional[datetime]:
         """Return the most recent `us_futures` session open at or before `dt_value`.
 
@@ -223,13 +280,35 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                 )
             except Exception:
                 pass
-            self._fully_loaded_series.add(minute_key)
+            minute_data = self._data_store.get(minute_key)
+            if self._series_covers_requested_window(
+                minute_data,
+                asset=base_asset,
+                timestep="minute",
+                start_dt=self.datetime_start,
+                end_dt=self.datetime_end,
+            ):
+                self._fully_loaded_series.add(minute_key)
         data = self._data_store.get(minute_key)
         if data is not None:
             try:
                 return data.get_last_price(now)
             except Exception:
-                pass
+                if minute_key not in self._fully_loaded_series:
+                    try:
+                        self._refresh_window_around_datetime(
+                            asset=base_asset,
+                            quote=quote_asset,
+                            dataset_key="minute",
+                            dt=now,
+                            exchange=effective_exchange,
+                            include_after_hours=True,
+                        )
+                        refreshed = self._data_store.get(minute_key)
+                        if refreshed is not None:
+                            return refreshed.get_last_price(now)
+                    except Exception:
+                        pass
         return None
 
     def get_quote(self, asset, quote=None, exchange=None, **kwargs):
@@ -323,7 +402,15 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                 )
             except Exception:
                 pass
-            self._fully_loaded_series.add(minute_key)
+            minute_data = self._data_store.get(minute_key)
+            if self._series_covers_requested_window(
+                minute_data,
+                asset=base_asset,
+                timestep="minute",
+                start_dt=self.datetime_start,
+                end_dt=self.datetime_end,
+            ):
+                self._fully_loaded_series.add(minute_key)
 
         minute_data = self._data_store.get(minute_key)
         if minute_data is None:
@@ -331,7 +418,25 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         try:
             ohlcv_bid_ask_dict = minute_data.get_quote(now)
         except Exception:
-            return Quote(asset=base_asset)
+            if minute_key not in self._fully_loaded_series:
+                try:
+                    self._refresh_window_around_datetime(
+                        asset=base_asset,
+                        quote=quote_asset,
+                        dataset_key="minute",
+                        dt=now,
+                        exchange=effective_exchange,
+                        include_after_hours=True,
+                    )
+                    minute_data = self._data_store.get(minute_key)
+                    if minute_data is not None:
+                        ohlcv_bid_ask_dict = minute_data.get_quote(now)
+                    else:
+                        return Quote(asset=base_asset)
+                except Exception:
+                    return Quote(asset=base_asset)
+            else:
+                return Quote(asset=base_asset)
         return Quote(
             asset=base_asset,
             price=ohlcv_bid_ask_dict.get("close"),
@@ -386,6 +491,16 @@ class InteractiveBrokersRESTBacktesting(PandasData):
             merged = merged[~merged.index.duplicated(keep="last")]
         else:
             merged = df
+        if len(merged.index) > 0:
+            # Merging disjoint IBKR slices can mix pandas/pytz/zoneinfo-aware timestamp objects.
+            # Normalize before constructing Data so a recovery fetch for Apr bars can merge with
+            # an existing May-only cache instead of failing and leaving the stale slice in place.
+            try:
+                merged = merged.copy()
+                merged.index = pd.to_datetime(merged.index, utc=True)
+                merged = merged.sort_index()
+            except Exception:
+                pass
 
         # `Data` supports only base units ("minute"/"day"). Store multi-minute datasets under a
         # separate key (e.g., "15minute") and annotate the instance so it can fast-path slices

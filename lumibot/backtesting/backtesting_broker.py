@@ -10,75 +10,28 @@ import threading
 from collections import OrderedDict, defaultdict
 from datetime import datetime, timedelta
 from decimal import Decimal
-from importlib import import_module
-from types import ModuleType
 from typing import Any, Optional, Union
+
+import numpy as np
+import pandas as pd
+import polars as pl
 
 from lumibot.brokers import Broker
 from lumibot.brokers.broker import _FAST_TRADE_EVENT_MARKER, _FAST_TRADE_PAIR_EVENT_MARKER
+from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Order, Position, SmartLimitConfig
 from lumibot.tools.smart_limit_utils import compute_final_price, compute_mid, expected_fill_price, infer_tick_size, round_to_tick
 from lumibot.tools.lumibot_logger import get_logger
 from lumibot.trading_builtins import CustomStream
 
-ThetaDataBacktestingPandas = None
-_THETADATA_BACKTESTING_PANDAS_IMPORT_ATTEMPTED = False
-_POLARS_MODULE = None
 _NO_SIMPLE_POSITION = object()
-DataSourceBacktesting = None
+
+try:
+    from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestingPandas
+except Exception:  # pragma: no cover - optional dependency
+    ThetaDataBacktestingPandas = None
 
 logger = get_logger(__name__)
-
-
-class _LazyModule(ModuleType):
-    def __init__(self, module_name: str):
-        super().__init__(module_name)
-        self._module_name = module_name
-        self._module = None
-
-    def _load(self):
-        module = self._module
-        if module is None:
-            module = import_module(self._module_name)
-            self._module = module
-        return module
-
-    def __getattr__(self, name):
-        return getattr(self._load(), name)
-
-
-np = _LazyModule("numpy")
-pd = _LazyModule("pandas")
-
-
-def _get_thetadata_backtesting_pandas_cls():
-    """Load ThetaDataBacktestingPandas only when a Theta-specific branch needs it."""
-    global ThetaDataBacktestingPandas, _THETADATA_BACKTESTING_PANDAS_IMPORT_ATTEMPTED
-    if not _THETADATA_BACKTESTING_PANDAS_IMPORT_ATTEMPTED:
-        _THETADATA_BACKTESTING_PANDAS_IMPORT_ATTEMPTED = True
-        try:
-            from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestingPandas as cls
-        except Exception:  # pragma: no cover - optional dependency
-            cls = None
-        ThetaDataBacktestingPandas = cls
-    return ThetaDataBacktestingPandas
-
-
-def _get_polars_module():
-    global _POLARS_MODULE
-    if _POLARS_MODULE is None:
-        import polars as pl
-
-        _POLARS_MODULE = pl
-    return _POLARS_MODULE
-
-
-def _data_source_backtesting_class():
-    global DataSourceBacktesting
-    if DataSourceBacktesting is None:
-        from lumibot.data_sources import DataSourceBacktesting
-
-    return DataSourceBacktesting
 
 
 # Typical initial margin requirements for common futures contracts
@@ -208,7 +161,7 @@ class BacktestingBroker(Broker):
         # self._config = config
 
         # Check if data source is a backtesting data source
-        if not (isinstance(self.data_source, _data_source_backtesting_class()) or
+        if not (isinstance(self.data_source, DataSourceBacktesting) or
                 (hasattr(self.data_source, 'IS_BACKTESTING_DATA_SOURCE') and
                  self.data_source.IS_BACKTESTING_DATA_SOURCE)):
             raise ValueError("Must provide a backtesting data_source to run with a BacktestingBroker")
@@ -3816,7 +3769,6 @@ class BacktestingBroker(Broker):
                             if df_check is not None and hasattr(df_check, "index"):
                                 last_dt = df_check.index.max()
                             elif df_check is not None and hasattr(df_check, "columns"):
-                                pl = _get_polars_module()
                                 dt_col = None
                                 for col in df_check.columns:
                                     try:
@@ -4013,7 +3965,6 @@ class BacktestingBroker(Broker):
 
                 # Handle both pandas and polars DataFrames
                 if hasattr(df_original, 'select'):  # Polars DataFrame
-                    pl = _get_polars_module()
                     # Find datetime column
                     dt_col = None
                     for col in df_original.columns:
@@ -4724,10 +4675,9 @@ class BacktestingBroker(Broker):
     def _is_thetadata_source(self) -> bool:
         if self.data_source.__class__.__name__ != "ThetaDataBacktestingPandas":
             return False
-        theta_cls = _get_thetadata_backtesting_pandas_cls()
-        if theta_cls is None:
+        if ThetaDataBacktestingPandas is None:
             return False
-        return isinstance(self.data_source, theta_cls)
+        return isinstance(self.data_source, ThetaDataBacktestingPandas)
 
     def _get_spread_limit(self, strategy, key: str) -> Optional[float]:
         if strategy is None or not key:

@@ -9,6 +9,7 @@ import atexit
 import threading
 import os
 import json
+from unittest import mock
 from pathlib import Path
 from dotenv import load_dotenv
 from collections import defaultdict
@@ -85,6 +86,47 @@ if os.getcwd() != str(project_root):
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "ibkr: downloader-only IBKR tests that do not require Polygon or ThetaData credentials")
+
+
+class _PatchProxy:
+    def __init__(self, patches):
+        self._patches = patches
+
+    def __call__(self, *args, **kwargs):
+        patcher = mock.patch(*args, **kwargs)
+        patched = patcher.start()
+        self._patches.append(patcher)
+        return patched
+
+    def object(self, *args, **kwargs):
+        patcher = mock.patch.object(*args, **kwargs)
+        patched = patcher.start()
+        self._patches.append(patcher)
+        return patched
+
+
+class _SimpleMocker:
+    Mock = mock.Mock
+    MagicMock = mock.MagicMock
+    call = mock.call
+
+    def __init__(self):
+        self._patches = []
+        self.patch = _PatchProxy(self._patches)
+
+    def stopall(self):
+        while self._patches:
+            self._patches.pop().stop()
+
+
+@pytest.fixture
+def mocker():
+    """Small pytest-mock compatible fixture for tests that only need patch/Mock."""
+    fixture = _SimpleMocker()
+    try:
+        yield fixture
+    finally:
+        fixture.stopall()
 
 
 def cleanup_all_schedulers():

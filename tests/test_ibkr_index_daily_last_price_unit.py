@@ -82,6 +82,27 @@ def test_ibkr_stock_get_last_price_refreshes_loaded_day_series_without_minute_fe
     assert len(refresh_calls) == 1
 
 
+def test_ibkr_string_stock_get_last_price_uses_loaded_day_series_without_minute_fetch(monkeypatch):
+    data_source = _make_data_source()
+    asset = Asset("MU", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    day_key = (asset, quote, "day", "AUTO")
+    data_source._data_store[day_key] = _FailingDayData()
+    refresh_calls = []
+
+    def _refresh_window_around_datetime(**kwargs):
+        refresh_calls.append(kwargs)
+        assert kwargs["asset"] == asset
+        assert kwargs["dataset_key"] == "day"
+        assert kwargs["include_after_hours"] is False
+        data_source._data_store[day_key] = _FakeDayData(92.75)
+
+    monkeypatch.setattr(data_source, "_refresh_window_around_datetime", _refresh_window_around_datetime)
+
+    assert data_source.get_last_price("MU") == 92.75
+    assert len(refresh_calls) == 1
+
+
 def test_ibkr_stock_get_last_price_does_not_fall_back_to_minute_after_day_refresh_failure(monkeypatch):
     data_source = _make_data_source()
     asset = Asset("CSTM", asset_type=Asset.AssetType.STOCK)
@@ -134,6 +155,31 @@ def test_ibkr_stock_get_quote_refreshes_loaded_day_series_without_minute_fetch(m
     monkeypatch.setattr(data_source, "_refresh_window_around_datetime", _refresh_window_around_datetime)
 
     snapshot = data_source.get_quote(asset)
+    assert snapshot is not None
+    assert snapshot.price == 93.25
+    assert snapshot.bid == 93.15
+    assert snapshot.ask == 93.35
+    assert len(refresh_calls) == 1
+
+
+def test_ibkr_string_stock_get_quote_uses_loaded_day_series_without_minute_fetch(monkeypatch):
+    data_source = _make_data_source()
+    asset = Asset("MU", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    day_key = (asset, quote, "day", "AUTO")
+    data_source._data_store[day_key] = _FailingDayData()
+    refresh_calls = []
+
+    def _refresh_window_around_datetime(**kwargs):
+        refresh_calls.append(kwargs)
+        assert kwargs["asset"] == asset
+        assert kwargs["dataset_key"] == "day"
+        assert kwargs["include_after_hours"] is False
+        data_source._data_store[day_key] = _FakeDayData(93.25)
+
+    monkeypatch.setattr(data_source, "_refresh_window_around_datetime", _refresh_window_around_datetime)
+
+    snapshot = data_source.get_quote("MU")
     assert snapshot is not None
     assert snapshot.price == 93.25
     assert snapshot.bid == 93.15

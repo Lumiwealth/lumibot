@@ -2372,7 +2372,12 @@ def get_price_data(
         and not df_all.empty
         and cached_rows > 0
         and placeholder_rows == cached_rows
-        and _placeholder_option_cache_needs_provider_expiry_refresh(asset, sidecar_data, remote_payload)
+        and _placeholder_option_cache_needs_provider_expiry_refresh(
+            asset,
+            sidecar_data,
+            remote_payload,
+            allow_legacy_without_payload=(timespan != "day" and str(datastyle).lower() == "quote"),
+        )
     ):
         cache_invalid = True
         logger.info(
@@ -6294,6 +6299,8 @@ def _placeholder_option_cache_needs_provider_expiry_refresh(
     asset: Asset,
     sidecar_data: Optional[Dict[str, Any]],
     remote_payload: Optional[Dict[str, object]],
+    *,
+    allow_legacy_without_payload: bool = False,
 ) -> bool:
     """Detect placeholder-only option caches written with a stale provider expiry convention."""
     if getattr(asset, "asset_type", None) != "option" or getattr(asset, "expiration", None) is None:
@@ -6328,7 +6335,12 @@ def _placeholder_option_cache_needs_provider_expiry_refresh(
 
     # Legacy placeholder-only sidecars did not record which provider expiry was queried. If a
     # chain-derived mapping now overrides the old Saturday heuristic, refetch once under the
-    # learned provider convention and write the provider expiry into the sidecar.
+    # learned provider convention and write the provider expiry into the sidecar. Keep this
+    # opt-in because option day/EOD placeholder caches are deliberate stable negative caches in
+    # acceptance runs; refreshing all legacy EOD placeholders breaks warm-cache determinism.
+    if not allow_legacy_without_payload:
+        return False
+
     heuristic_expiration = _thetadata_option_query_expiration_heuristic(asset.expiration)
     return heuristic_expiration.isoformat() != current_provider_expiration
 

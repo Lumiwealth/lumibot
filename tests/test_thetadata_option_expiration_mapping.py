@@ -105,6 +105,13 @@ def test_placeholder_option_cache_refetches_when_provider_expiry_mapping_changes
         option,
         {"version": 2, "rows": 1, "real_rows": 0, "placeholders": 1},
         remote_payload,
+        allow_legacy_without_payload=True,
+    )
+    assert not _placeholder_option_cache_needs_provider_expiry_refresh(
+        option,
+        {"version": 2, "rows": 1, "real_rows": 0, "placeholders": 1},
+        remote_payload,
+        allow_legacy_without_payload=False,
     )
     assert _placeholder_option_cache_needs_provider_expiry_refresh(
         option,

@@ -2264,6 +2264,9 @@ def get_price_data(
     cache_invalid = False
     cache_file = build_cache_filename(asset, timespan, datastyle)
     remote_payload = build_remote_cache_payload(asset, timespan, datastyle)
+    provider_expiration = _option_provider_expiration_for_asset(asset)
+    if provider_expiration is not None:
+        remote_payload["provider_expiration"] = provider_expiration
     cache_manager = get_backtest_cache()
 
     if cache_manager.enabled:
@@ -2363,6 +2366,22 @@ def get_price_data(
     )
 
     sidecar_data = _load_cache_sidecar(cache_file)
+
+    if (
+        df_all is not None
+        and not df_all.empty
+        and cached_rows > 0
+        and placeholder_rows == cached_rows
+        and _placeholder_option_cache_needs_provider_expiry_refresh(asset, sidecar_data, remote_payload)
+    ):
+        cache_invalid = True
+        logger.info(
+            "[THETA][CACHE][PLACEHOLDER_PROVIDER_EXPIRY_REFRESH] asset=%s span=%s datastyle=%s; "
+            "placeholder-only cache was written without the current provider expiration mapping",
+            asset,
+            timespan,
+            datastyle,
+        )
 
     def _validate_cache_frame(
         frame: Optional[pd.DataFrame],
@@ -4412,6 +4431,7 @@ def _load_cache_sidecar(cache_file: Path) -> Optional[Dict[str, Any]]:
 def _build_sidecar_payload(
     df_working: pd.DataFrame,
     checksum: Optional[str],
+    remote_payload: Optional[Dict[str, object]] = None,
 ) -> Dict[str, Any]:
     min_ts = df_working.index.min() if len(df_working) > 0 else None
     max_ts = df_working.index.max() if len(df_working) > 0 else None
@@ -4427,6 +4447,11 @@ def _build_sidecar_payload(
         "checksum": checksum,
         "updated": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
+    if remote_payload:
+        payload["cache_payload"] = {
+            str(key): _isoformat_cache_payload_value(value)
+            for key, value in remote_payload.items()
+        }
     return payload
 
 
@@ -4434,10 +4459,11 @@ def _write_cache_sidecar(
     cache_file: Path,
     df_working: pd.DataFrame,
     checksum: Optional[str],
+    remote_payload: Optional[Dict[str, object]] = None,
 ) -> None:
     sidecar = _cache_sidecar_path(cache_file)
     try:
-        payload = _build_sidecar_payload(df_working, checksum)
+        payload = _build_sidecar_payload(df_working, checksum, remote_payload=remote_payload)
         sidecar.write_text(json.dumps(payload, indent=2))
         logger.debug(
             "[THETA][DEBUG][CACHE][SIDECAR_WRITE] %s rows=%d real_rows=%d placeholders=%d",
@@ -4570,7 +4596,7 @@ def update_cache(cache_file, df_all, df_cached, missing_dates=None, remote_paylo
     checksum = _hash_file(cache_file)
     sidecar_path = None
     try:
-        _write_cache_sidecar(cache_file, df_working, checksum)
+        _write_cache_sidecar(cache_file, df_working, checksum, remote_payload=remote_payload)
         sidecar_path = _cache_sidecar_path(cache_file)
     except Exception:
         # Sidecar is best-effort; failures shouldn't block cache writes.
@@ -6238,6 +6264,73 @@ def _thetadata_option_query_expiration(expiration: date, *, symbol: Optional[str
             return mapped
 
     return _thetadata_option_query_expiration_heuristic(expiration)
+
+
+def _isoformat_cache_payload_value(value: object) -> object:
+    """Return a JSON-friendly representation for cache sidecar metadata."""
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
+
+
+def _option_provider_expiration_for_asset(asset: Asset) -> Optional[date]:
+    """Return the ThetaData provider expiration for an option asset, if known."""
+    if getattr(asset, "asset_type", None) != "option" or getattr(asset, "expiration", None) is None:
+        return None
+    try:
+        return _thetadata_option_query_expiration(
+            asset.expiration,
+            symbol=_thetadata_option_root_symbol(asset),
+        )
+    except Exception:
+        return None
+
+
+def _placeholder_option_cache_needs_provider_expiry_refresh(
+    asset: Asset,
+    sidecar_data: Optional[Dict[str, Any]],
+    remote_payload: Optional[Dict[str, object]],
+) -> bool:
+    """Detect placeholder-only option caches written with a stale provider expiry convention."""
+    if getattr(asset, "asset_type", None) != "option" or getattr(asset, "expiration", None) is None:
+        return False
+
+    current_provider_expiration = None
+    if remote_payload:
+        current_provider_expiration = remote_payload.get("provider_expiration")
+    if isinstance(current_provider_expiration, date):
+        current_provider_expiration = current_provider_expiration.isoformat()
+    elif current_provider_expiration is not None:
+        current_provider_expiration = str(current_provider_expiration)
+
+    if not current_provider_expiration:
+        provider_expiration = _option_provider_expiration_for_asset(asset)
+        if provider_expiration is None:
+            return False
+        current_provider_expiration = provider_expiration.isoformat()
+
+    stored_provider_expiration = None
+    if isinstance(sidecar_data, dict):
+        cache_payload = sidecar_data.get("cache_payload")
+        if isinstance(cache_payload, dict):
+            stored_provider_expiration = cache_payload.get("provider_expiration")
+    if isinstance(stored_provider_expiration, date):
+        stored_provider_expiration = stored_provider_expiration.isoformat()
+    elif stored_provider_expiration is not None:
+        stored_provider_expiration = str(stored_provider_expiration)
+
+    if stored_provider_expiration:
+        return stored_provider_expiration != current_provider_expiration
+
+    # Legacy placeholder-only sidecars did not record which provider expiry was queried. If a
+    # chain-derived mapping now overrides the old Saturday heuristic, refetch once under the
+    # learned provider convention and write the provider expiry into the sidecar.
+    heuristic_expiration = _thetadata_option_query_expiration_heuristic(asset.expiration)
+    return heuristic_expiration.isoformat() != current_provider_expiration
 
 
 def _normalize_strike_value(raw_value: object) -> Optional[float]:

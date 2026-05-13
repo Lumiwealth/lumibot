@@ -3,14 +3,15 @@ from __future__ import annotations
 # This file contains helper functions for getting data from DataBento
 import os
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 from importlib import import_module
 from importlib.util import find_spec
 from pathlib import Path
-from typing import Optional, List, Dict, Tuple, Union
-from decimal import Decimal
+from typing import Dict, List, Optional, Tuple, Union
 
 from lumibot.constants import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
+from lumibot.tools.lazy_import import _LazyModule
 
 _COLORED_FN = None
 
@@ -18,33 +19,6 @@ _COLORED_FN = None
 class DataBentoAuthenticationError(RuntimeError):
     """Raised when DataBento rejects authentication credentials."""
     pass
-
-
-class _LazyModule:
-    __slots__ = ("_module_name", "_module")
-
-    def __init__(self, module_name: str):
-        object.__setattr__(self, "_module_name", module_name)
-        object.__setattr__(self, "_module", None)
-
-    def _load(self):
-        module = object.__getattribute__(self, "_module")
-        if module is None:
-            module = import_module(object.__getattribute__(self, "_module_name"))
-            object.__setattr__(self, "_module", module)
-        return module
-
-    def __getattr__(self, name):
-        return getattr(self._load(), name)
-
-    def __setattr__(self, name, value):
-        setattr(self._load(), name, value)
-
-    def __delattr__(self, name):
-        if name in {"_module_name", "_module"}:
-            object.__delattr__(self, name)
-        else:
-            delattr(self._load(), name)
 
 
 class _LazyDatabentoHistorical:
@@ -89,7 +63,10 @@ def colored(*args, **kwargs):
     return _COLORED_FN(*args, **kwargs)
 
 
-DATABENTO_AVAILABLE = find_spec("databento") is not None
+try:
+    DATABENTO_AVAILABLE = find_spec("databento") is not None
+except Exception:
+    DATABENTO_AVAILABLE = False
 if not DATABENTO_AVAILABLE:
     logger.warning("DataBento package not available. Please install with: pip install databento")
 
@@ -285,7 +262,6 @@ class DataBentoClient:
 
             # Fetch instrument definition using 'definition' schema
             # DataBento requires end > start, so add 1 day to end
-            from datetime import timedelta
             if isinstance(reference_date, datetime):
                 end_date = (reference_date + timedelta(days=1)).strftime("%Y-%m-%d")
             elif isinstance(reference_date, date):
@@ -834,7 +810,7 @@ def _fetch_and_update_futures_multiplier(
             logger.info(f"[MULTIPLIER] ✓ Using cached multiplier for {resolved_symbol}: {asset.multiplier}")
             return
         else:
-            logger.warning(f"[MULTIPLIER] Cache entry exists but missing unit_of_measure_qty field")
+            logger.warning("[MULTIPLIER] Cache entry exists but missing unit_of_measure_qty field")
 
     # Fetch from DataBento using the RESOLVED symbol
     logger.info(f"[MULTIPLIER] Fetching from DataBento for {resolved_symbol}, dataset={dataset}, ref_date={reference_date}")

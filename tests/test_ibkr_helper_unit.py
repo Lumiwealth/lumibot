@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import pandas as pd
 import pytest
@@ -38,6 +38,40 @@ def test_derive_crypto_daily_preserves_vendor_gaps():
     missing_day = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2025, 1, 2))
     assert bool(daily.loc[missing_day, "missing"]) is True
     assert pd.isna(daily.loc[missing_day, "close"])
+
+
+def test_crypto_daily_merge_keeps_real_cached_rows_over_missing_markers():
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    real_day = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2025, 1, 1))
+    new_day = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2025, 1, 2))
+    df_cache = pd.DataFrame(
+        {
+            "open": [100.0],
+            "high": [101.0],
+            "low": [99.0],
+            "close": [100.5],
+            "volume": [10.0],
+            "missing": [False],
+        },
+        index=pd.DatetimeIndex([real_day]),
+    )
+    daily = pd.DataFrame(
+        {
+            "open": [pd.NA, 200.0],
+            "high": [pd.NA, 201.0],
+            "low": [pd.NA, 199.0],
+            "close": [pd.NA, 200.5],
+            "volume": [pd.NA, 12.0],
+            "missing": [True, False],
+        },
+        index=pd.DatetimeIndex([real_day, new_day]),
+    )
+
+    filtered = ibkr_helper._preserve_real_daily_cache_rows(df_cache, daily)
+
+    assert real_day not in filtered.index
+    assert new_day in filtered.index
 
 
 def test_ibkr_helper_caches_history_and_reuses_cache(monkeypatch, tmp_path):

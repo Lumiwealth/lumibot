@@ -49,11 +49,24 @@ import sys
 import threading
 import time
 from datetime import datetime, timezone
+from enum import Enum
 from pathlib import Path
 from typing import Dict, Tuple
-from enum import Enum
 
-LUMIWEALTH_API_KEY = os.environ.get("LUMIWEALTH_API_KEY")
+
+def _resolve_lumiwealth_api_key():
+    api_key = os.environ.get("LUMIWEALTH_API_KEY")
+    if api_key:
+        return api_key
+    # credentials.py imports this logger, so avoid importing it from here.
+    credentials = sys.modules.get("lumibot.credentials")
+    if credentials is None:
+        return None
+    credentials_api_key = getattr(credentials, "LUMIWEALTH_API_KEY", None)
+    return credentials_api_key or None
+
+
+LUMIWEALTH_API_KEY = _resolve_lumiwealth_api_key()
 
 class CSVErrorHandler(logging.Handler):
     """
@@ -245,7 +258,7 @@ class BotspotErrorHandler(logging.Handler):
         super().__init__(level=logging.ERROR)
         self.base_url = "https://api.botspot.trade/bots/report-bot-error"
         # Use LUMIWEALTH_API_KEY from credentials or environment
-        self.api_key = LUMIWEALTH_API_KEY or os.environ.get("LUMIWEALTH_API_KEY")
+        self.api_key = _resolve_lumiwealth_api_key()
         # Fingerprint state keyed by simplified fingerprint (error_code, filename, function, message_signature)
         # to reduce API spam while preserving differentiation between distinct error messages sharing same location.
         # fingerprint -> dict(last_sent: float|None, suppressed_count: int, total_count: int, last_details: str, last_message: str)
@@ -741,9 +754,7 @@ def _ensure_handlers_configured(is_backtest=False, skip_if_configured=False):
             root_logger.addHandler(csv_handler)
 
         # Add Botspot error handler if API key is available
-        api_key = os.environ.get("LUMIWEALTH_API_KEY")
-        if not api_key and LUMIWEALTH_API_KEY:
-            api_key = LUMIWEALTH_API_KEY
+        api_key = _resolve_lumiwealth_api_key()
 
         if api_key:
             botspot_handler = BotspotErrorHandler()

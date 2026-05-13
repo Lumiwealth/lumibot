@@ -17,7 +17,10 @@ def parse_symbol(symbol):
     if match:
         stock_symbol, expiration, option_type, strike_price = match.groups()
         try:
-            expiration_date = dt.datetime.strptime(expiration, "%y%m%d").date()
+            yy = int(expiration[0:2])
+            mm = int(expiration[2:4])
+            dd = int(expiration[4:6])
+            expiration_date = dt.date(2000 + yy, mm, dd)
         except ValueError:
             return {"type": None}
         option_type = "CALL" if option_type == "C" else "PUT"

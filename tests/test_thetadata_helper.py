@@ -58,6 +58,12 @@ def _build_option_asset():
     )
 
 
+def test_corporate_action_horizon_date_accepts_z_suffixed_backtesting_end(monkeypatch):
+    monkeypatch.setenv("BACKTESTING_END", "2026-01-31T12:00:00Z")
+
+    assert thetadata_helper._corporate_action_horizon_date() == date(2026, 1, 31)
+
+
 @pytest.fixture(scope="function")
 def theta_terminal_cleanup():
     """Ensure ThetaTerminal is stopped between process health tests."""

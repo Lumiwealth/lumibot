@@ -6,7 +6,6 @@ import traceback
 from abc import ABC, abstractmethod
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from importlib import import_module
 from typing import TYPE_CHECKING, Union
 
 import pytz
@@ -14,29 +13,12 @@ import pytz
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.entities import Asset, AssetsMapping, Quote
 from lumibot.tools import black_scholes
+from lumibot.tools.lazy_import import _LazyModule
 
 from .exceptions import UnavailabeTimestep
 
 if TYPE_CHECKING:
     from lumibot.entities import Bars
-
-
-class _LazyModule:
-    __slots__ = ("_module_name", "_module")
-
-    def __init__(self, module_name: str):
-        self._module_name = module_name
-        self._module = None
-
-    def _load(self):
-        module = self._module
-        if module is None:
-            module = import_module(self._module_name)
-            self._module = module
-        return module
-
-    def __getattr__(self, name):
-        return getattr(self._load(), name)
 
 
 pd = _LazyModule("pandas")

@@ -249,6 +249,31 @@ def test_native_minute_bars_fast_lazy_slice_can_defer_return_column():
     assert bars_df["return"].iloc[-1] == pytest.approx(0.1)
 
 
+def test_native_day_bars_fast_cache_separates_timezone_marking():
+    asset = Asset("SPY")
+    tz = pytz.timezone("America/New_York")
+    idx = pd.date_range(tz.localize(datetime(2024, 1, 1)), periods=6, freq="1D")
+    df = pd.DataFrame(
+        {
+            "open": range(6),
+            "high": range(1, 7),
+            "low": range(6),
+            "close": range(2, 8),
+            "volume": [100] * 6,
+        },
+        index=idx,
+    )
+    data = Data(asset, df, timestep="day", assume_clean=True)
+    query_dt = idx[4].to_pydatetime()
+
+    unmarked = data.get_native_bars_fast(query_dt, length=2, timestep="day", mark_timezone=False)
+    marked = data.get_native_bars_fast(query_dt, length=2, timestep="day", mark_timezone=True)
+
+    assert not unmarked.attrs.get("_lumibot_skip_timezone")
+    assert marked.attrs.get("_lumibot_skip_timezone") is True
+    assert marked["close"].tolist() == unmarked["close"].tolist()
+
+
 def test_assume_clean_data_initializes_legacy_maps_and_applies_date_filter():
     asset = Asset("SPY")
     tz = pytz.timezone("America/New_York")

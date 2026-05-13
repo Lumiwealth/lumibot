@@ -591,8 +591,16 @@ def _corporate_action_horizon_date() -> date:
     backtesting_end = os.environ.get("BACKTESTING_END")
     if backtesting_end:
         try:
-            return datetime.fromisoformat(backtesting_end).date()
-        except ValueError:
+            parsed = _dateutil_parse(backtesting_end)
+            if parsed.tzinfo is None:
+                if hasattr(LUMIBOT_DEFAULT_PYTZ, "localize"):
+                    parsed = LUMIBOT_DEFAULT_PYTZ.localize(parsed)
+                else:
+                    parsed = parsed.replace(tzinfo=LUMIBOT_DEFAULT_PYTZ)
+            else:
+                parsed = parsed.astimezone(LUMIBOT_DEFAULT_PYTZ)
+            return parsed.date()
+        except (TypeError, ValueError, OverflowError):
             logger.debug("Ignoring unparseable BACKTESTING_END=%r for corporate actions", backtesting_end)
     return date.today()
 

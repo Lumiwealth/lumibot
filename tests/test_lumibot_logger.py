@@ -57,6 +57,18 @@ def test_unified_logger_includes_source_context(caplog):
             found = True
     assert found, "Warning log not found in caplog"
 
+
+def test_lumiwealth_api_key_resolves_from_credentials_fallback(monkeypatch):
+    monkeypatch.delenv("LUMIWEALTH_API_KEY", raising=False)
+    monkeypatch.setenv("LUMIBOT_DISABLE_DOTENV", "1")
+
+    import lumibot.credentials as credentials
+
+    monkeypatch.setattr(credentials, "LUMIWEALTH_API_KEY", "credentials-key", raising=False)
+
+    assert lumibot_logger._resolve_lumiwealth_api_key() == "credentials-key"
+
+
 def test_unified_logger_info_includes_module_context(caplog):
     logger = lumibot_logger.get_logger(__name__)
     with caplog.at_level(logging.INFO):

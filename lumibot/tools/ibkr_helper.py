@@ -2284,6 +2284,21 @@ def _derive_daily_from_intraday(
     return daily
 
 
+def _preserve_real_daily_cache_rows(df_cache: pd.DataFrame, daily: pd.DataFrame) -> pd.DataFrame:
+    if df_cache is None or df_cache.empty or daily is None or daily.empty or "missing" not in daily.columns:
+        return daily
+
+    if "missing" in df_cache.columns:
+        existing_real_idx = df_cache.index[~df_cache["missing"].fillna(False).astype(bool)]
+    else:
+        existing_real_idx = df_cache.index
+    if len(existing_real_idx) == 0:
+        return daily
+
+    incoming_missing = daily["missing"].fillna(False).astype(bool)
+    return daily.loc[~(incoming_missing & daily.index.isin(existing_real_idx))]
+
+
 def _get_crypto_daily_bars(
     *,
     asset: Asset,
@@ -2378,6 +2393,7 @@ def _get_crypto_daily_bars(
                 ]
                 daily.loc[day_start, "missing"] = False
 
+        daily = _preserve_real_daily_cache_rows(df_cache, daily)
         merged = ParquetSeriesCache.merge(df_cache, daily)
         cache.write(
             merged,

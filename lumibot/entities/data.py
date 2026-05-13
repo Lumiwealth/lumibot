@@ -1283,8 +1283,13 @@ class Data:
             except Exception:
                 dt_date = None
             day_cache = getattr(self, "_native_day_bars_fast_cache", None)
-            if day_cache is not None and day_cache[0] == dt_date and day_cache[1] == int(length):
-                cached_df = day_cache[2]
+            if (
+                day_cache is not None
+                and day_cache[0] == dt_date
+                and day_cache[1] == int(length)
+                and day_cache[2] == bool(mark_timezone)
+            ):
+                cached_df = day_cache[3]
                 if cached_df is not None and len(cached_df) != 0:
                     return cached_df
 
@@ -1319,7 +1324,7 @@ class Data:
 
         cache_key = None
         if timestep == "day":
-            cache_key = ("native_fast", timestep, int(length), int(start_row), int(end_row))
+            cache_key = ("native_fast", timestep, int(length), bool(mark_timezone), int(start_row), int(end_row))
             if getattr(self, "_get_bars_slice_cache_key", None) == cache_key:
                 cached_df = getattr(self, "_get_bars_slice_cache_df", None)
                 if cached_df is not None and len(cached_df) != 0:
@@ -1371,7 +1376,7 @@ class Data:
         self._get_bars_slice_cache_key = cache_key
         self._get_bars_slice_cache_df = df
         if timestep == "day":
-            self._native_day_bars_fast_cache = (dt_date, int(length), df)
+            self._native_day_bars_fast_cache = (dt_date, int(length), bool(mark_timezone), df)
         return df
 
     @check_data

@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.5.14 - 2026-05-13
+
+Deploy marker: 4.5.14 release commit (`deploy 4.5.14`)
+
+### Fixed
+- **IBKR REST daily stock/index backtests no longer fall back to minute data after a stale daily slice.** When daily stock/index data is already loaded but missing the current simulation timestamp, `get_last_price()` and `get_quote()` now refresh a bounded daily slice around the simulation date and return empty/None if that still fails. This prevents daily AlphaPicks option backtests from making unnecessary IBKR `1min` requests anchored near the backtest end date and then trying to use May-only data for April entries.
+
 ## 4.5.13 - 2026-05-13
 
 Deploy marker: 4.5.13 release commit (`deploy 4.5.13`)

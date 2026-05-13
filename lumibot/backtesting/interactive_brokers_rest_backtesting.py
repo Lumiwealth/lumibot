@@ -278,7 +278,20 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                 try:
                     return day_data.get_last_price(now)
                 except Exception:
-                    pass
+                    try:
+                        self._refresh_window_around_datetime(
+                            asset=base_asset,
+                            quote=quote_asset,
+                            dataset_key="day",
+                            dt=now,
+                            exchange=effective_exchange,
+                            include_after_hours=False,
+                        )
+                        day_data = self._data_store.get(day_key)
+                        if day_data is not None:
+                            return day_data.get_last_price(now)
+                    except Exception:
+                        return None
 
         minute_key = (base_asset, quote_asset, "minute", self._normalize_exchange_key(effective_exchange))
         data = self._data_store.get(minute_key)
@@ -384,7 +397,31 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                         raw_data=ohlcv_bid_ask_dict,
                     )
                 except Exception:
-                    pass
+                    try:
+                        self._refresh_window_around_datetime(
+                            asset=base_asset,
+                            quote=quote_asset,
+                            dataset_key="day",
+                            dt=now,
+                            exchange=effective_exchange,
+                            include_after_hours=False,
+                        )
+                        day_data = self._data_store.get(day_key)
+                        if day_data is not None:
+                            ohlcv_bid_ask_dict = day_data.get_quote(now)
+                            return Quote(
+                                asset=base_asset,
+                                price=ohlcv_bid_ask_dict.get("close"),
+                                bid=ohlcv_bid_ask_dict.get("bid"),
+                                ask=ohlcv_bid_ask_dict.get("ask"),
+                                volume=ohlcv_bid_ask_dict.get("volume"),
+                                timestamp=now,
+                                bid_size=ohlcv_bid_ask_dict.get("bid_size"),
+                                ask_size=ohlcv_bid_ask_dict.get("ask_size"),
+                                raw_data=ohlcv_bid_ask_dict,
+                            )
+                    except Exception:
+                        return Quote(asset=base_asset)
 
         minute_key = (base_asset, quote_asset, "minute", self._normalize_exchange_key(effective_exchange))
         minute_data = self._data_store.get(minute_key)

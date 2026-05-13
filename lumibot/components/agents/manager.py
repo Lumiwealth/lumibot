@@ -8,19 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
+from lumibot import LUMIBOT_CACHE_FOLDER
 
-from lumibot.constants import LUMIBOT_CACHE_FOLDER
-from lumibot.tools.parquet_utils import (
-    coerce_object_columns_to_json_strings,
-    is_parquet_required,
-    write_parquet_with_logging,
-)
-
-from .builtins import _order_to_dict, _position_to_dict
-from .duckdb_tools import DuckDBQueryLayer
-from .replay_cache import AgentReplayCache, _normalize_json
-from .runtime import GoogleADKRuntime, RuntimeRequest, StubAgentRuntime, call_mcp_tool
 from .schemas import AgentRunResult, AgentTraceEvent, BoundTool, MCPServer, ToolDefinition
 from .tools import bind_callable_tool
 
@@ -34,6 +23,80 @@ _DEFAULT_MEMORY_NOTE_MAX_CHARS = 2000
 
 class AgentModelCallLimitExceeded(RuntimeError):
     """Raised before a model call when the configured agent-call budget is exhausted."""
+
+
+_PANDAS_MODULE = None
+_REPLAY_IMPORTS = None
+_DUCKDB_QUERY_LAYER = None
+_RUNTIME_IMPORTS = None
+_PARQUET_UTILS = None
+_BUILTIN_SERIALIZERS = None
+
+
+def _get_pandas():
+    global _PANDAS_MODULE
+    if _PANDAS_MODULE is None:
+        import pandas as pd
+
+        _PANDAS_MODULE = pd
+    return _PANDAS_MODULE
+
+
+def _get_replay_imports():
+    global _REPLAY_IMPORTS
+    if _REPLAY_IMPORTS is None:
+        from .replay_cache import AgentReplayCache, _normalize_json as normalize_json
+
+        _REPLAY_IMPORTS = (AgentReplayCache, normalize_json)
+    return _REPLAY_IMPORTS
+
+
+def _normalize_json(value: Any) -> Any:
+    return _get_replay_imports()[1](value)
+
+
+def _get_duckdb_query_layer_class():
+    global _DUCKDB_QUERY_LAYER
+    if _DUCKDB_QUERY_LAYER is None:
+        from .duckdb_tools import DuckDBQueryLayer
+
+        _DUCKDB_QUERY_LAYER = DuckDBQueryLayer
+    return _DUCKDB_QUERY_LAYER
+
+
+def _get_runtime_imports():
+    global _RUNTIME_IMPORTS
+    if _RUNTIME_IMPORTS is None:
+        from .runtime import GoogleADKRuntime, RuntimeRequest, StubAgentRuntime, call_mcp_tool
+
+        _RUNTIME_IMPORTS = (GoogleADKRuntime, RuntimeRequest, StubAgentRuntime, call_mcp_tool)
+    return _RUNTIME_IMPORTS
+
+
+def _get_parquet_utils():
+    global _PARQUET_UTILS
+    if _PARQUET_UTILS is None:
+        from lumibot.tools.parquet_utils import (
+            coerce_object_columns_to_json_strings,
+            is_parquet_required,
+            write_parquet_with_logging,
+        )
+
+        _PARQUET_UTILS = (
+            coerce_object_columns_to_json_strings,
+            is_parquet_required,
+            write_parquet_with_logging,
+        )
+    return _PARQUET_UTILS
+
+
+def _get_builtin_serializers():
+    global _BUILTIN_SERIALIZERS
+    if _BUILTIN_SERIALIZERS is None:
+        from .builtins import _order_to_dict, _position_to_dict
+
+        _BUILTIN_SERIALIZERS = (_order_to_dict, _position_to_dict)
+    return _BUILTIN_SERIALIZERS
 
 
 def _safe_call(func, default=None):
@@ -79,8 +142,15 @@ def _strategy_timezone_name(strategy: Any, current_dt: Any) -> str | None:
 
 
 def _serialize_recent_trade_events(strategy: Any, limit: int = 10) -> list[dict[str, Any]]:
+    """Serialize broker trade events; optional expand_trade_event_rows maps rows -> rows."""
+
     broker = getattr(strategy, "broker", None)
     rows = list(getattr(broker, "_trade_event_log_rows", []) or [])
+    expand_rows = getattr(broker, "expand_trade_event_rows", None)
+    if expand_rows is None:
+        expand_rows = getattr(broker, "_expand_trade_event_rows", None)
+    if callable(expand_rows):
+        rows = expand_rows(rows)
     columns = list(getattr(broker, "_trade_event_log_columns", []) or [])
     serialized: list[dict[str, Any]] = []
     for row in rows[-limit:]:
@@ -534,7 +604,8 @@ class AgentHandle:
             # Always include built-in tools, plus any custom tools the user added
             self._tool_inputs = builtin_tools + self._filter_tools_for_trading_permission(list(tools))
         self._mcp_servers = mcp_servers or []
-        self._runtime = runtime or GoogleADKRuntime(mcp_servers=self._mcp_servers)
+        google_runtime, _RuntimeRequest, _StubAgentRuntime, _call_mcp_tool = _get_runtime_imports()
+        self._runtime = runtime or google_runtime(mcp_servers=self._mcp_servers)
         self._bound_tools: list[BoundTool] | None = None
 
     def _filter_tools_for_trading_permission(self, tools: list[Any]) -> list[Any]:
@@ -587,6 +658,7 @@ class AgentHandle:
         if not hasattr(self.manager.strategy, "get_positions"):
             return []
         positions = _safe_call(lambda: self.manager.strategy.get_positions(include_cash_positions=True), default=[]) or []
+        _order_to_dict, _position_to_dict = _get_builtin_serializers()
         return [_position_to_dict(position) for position in positions]
 
     def _serialize_account_state(self) -> dict[str, Any]:
@@ -601,6 +673,7 @@ class AgentHandle:
         if not hasattr(self.manager.strategy, "get_orders"):
             return []
         orders = _safe_call(self.manager.strategy.get_orders, default=[]) or []
+        _order_to_dict, _position_to_dict = _get_builtin_serializers()
         return [_order_to_dict(order) for order in orders[-limit:]]
 
     def _runtime_mode(self) -> str:
@@ -768,6 +841,7 @@ class AgentHandle:
                                     color="yellow",
                                 )
                             self.manager._warned_backtest_mcp_tools.add(warning_key)
+                        _GoogleADKRuntime, _RuntimeRequest, _StubAgentRuntime, call_mcp_tool = _get_runtime_imports()
                         return call_mcp_tool(_server, _tool_name, payload)
 
                     return remote_tool
@@ -1194,7 +1268,8 @@ class AgentHandle:
                 self._log_run_summary(result, runtime_context)
                 return result
 
-        request = RuntimeRequest(
+        _GoogleADKRuntime, runtime_request_class, _StubAgentRuntime, _call_mcp_tool = _get_runtime_imports()
+        request = runtime_request_class(
             agent_name=self.name,
             model=model_name,
             system_prompt=effective_system_prompt,
@@ -1401,8 +1476,9 @@ class AgentManager:
         self._agents: dict[str, AgentHandle] = {}
         self._warned_backtest_mcp_tools: set[tuple[str, str]] = set()
         self._model_call_count = 0
-        self.replay_cache = AgentReplayCache()
-        self.duckdb = DuckDBQueryLayer(strategy)
+        agent_replay_cache_class, _ = _get_replay_imports()
+        self.replay_cache = agent_replay_cache_class()
+        self.duckdb = _get_duckdb_query_layer_class()(strategy)
         self._observability_totals: dict[str, dict[str, int]] = {}
         self._observability_call_index: dict[str, int] = {}
         self._observability_rows: dict[str, list[dict[str, Any]]] = {}
@@ -1563,7 +1639,12 @@ class AgentManager:
             )
         agent_rows = self._observability_rows.setdefault(handle.name, [])
         agent_rows.extend(rows)
-        detail_df = pd.DataFrame(agent_rows, columns=_AGENT_DETAIL_COLUMNS)
+        detail_df = _get_pandas().DataFrame(agent_rows, columns=_AGENT_DETAIL_COLUMNS)
+        (
+            coerce_object_columns_to_json_strings,
+            is_parquet_required,
+            write_parquet_with_logging,
+        ) = _get_parquet_utils()
         write_parquet_with_logging(
             df=detail_df,
             path=str(detail_path),

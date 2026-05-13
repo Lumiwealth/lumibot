@@ -72,6 +72,13 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         return raw
 
     @staticmethod
+    def _normalize_lookup_asset(asset):
+        """Treat raw ticker strings as stock assets for IBKR backtest price lookups."""
+        if isinstance(asset, str):
+            return Asset(symbol=asset, asset_type=Asset.AssetType.STOCK)
+        return asset
+
+    @staticmethod
     def _ibkr_include_after_hours(asset_type: str, timestep_unit: str) -> bool:
         """Return IBKR outsideRth policy for backtests.
 
@@ -228,6 +235,7 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         quote_asset = quote
         if isinstance(base_asset, tuple):
             base_asset, quote_asset = base_asset
+        base_asset = self._normalize_lookup_asset(base_asset)
         quote_asset = quote_asset if quote_asset is not None else Asset("USD", "forex")
 
         effective_exchange = exchange if exchange is not None else self.exchange
@@ -338,6 +346,7 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         quote_asset = quote
         if isinstance(base_asset, tuple):
             base_asset, quote_asset = base_asset
+        base_asset = self._normalize_lookup_asset(base_asset)
         quote_asset = quote_asset if quote_asset is not None else Asset("USD", "forex")
 
         effective_exchange = exchange if exchange is not None else self.exchange

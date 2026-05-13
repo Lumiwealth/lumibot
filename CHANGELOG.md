@@ -1,6 +1,11 @@
 # Changelog
 
-## 4.5.15 - Unreleased
+## 4.5.15 - 2026-05-13
+
+Deploy marker: 4.5.15 release commit (`deploy 4.5.15`)
+
+### Fixed
+- **IBKR REST daily stock/index price lookups now treat raw ticker strings as stock assets.** Strategies that call `get_last_price("MU")` or `get_quote("MU")` now use the same daily stock/index refresh path as `Asset("MU", "stock")`, preventing AlphaPicks option backtests from falling back to end-anchored IBKR `1min` data when the strategy passes string symbols.
 
 ## 4.5.14 - 2026-05-13
 

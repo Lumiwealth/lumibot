@@ -7,10 +7,10 @@ import traceback
 from datetime import datetime, timedelta
 from decimal import Decimal
 from functools import wraps
-from importlib import import_module
 from queue import Empty, Queue
 from threading import Event, Lock, Thread
-from types import ModuleType
+
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
@@ -29,26 +29,6 @@ SNAPSHOT_CAPTURE_THROTTLE_SECONDS = 1.9
 _SCHEDULER_IMPORTS = None
 _PANDAS_MARKET_CALENDARS = None
 _GET_TRADING_DAYS = None
-
-
-class _LazyModule(ModuleType):
-    def __init__(self, module_name: str):
-        super().__init__(module_name)
-        self._module_name = module_name
-        self._module = None
-
-    def _load(self):
-        module = self._module
-        if module is None:
-            module = import_module(self._module_name)
-            self._module = module
-        return module
-
-    def __getattr__(self, name):
-        return getattr(self._load(), name)
-
-
-pd = _LazyModule("pandas")
 
 
 def get_trading_days(*args, **kwargs):

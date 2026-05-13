@@ -9,9 +9,10 @@ from collections import deque
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from importlib import import_module
 from threading import RLock, Thread
 from typing import TYPE_CHECKING, Union
+
+import pandas as pd
 
 from lumibot.tools.lumibot_logger import get_logger
 
@@ -29,25 +30,6 @@ if TYPE_CHECKING:
     from ..strategies.strategy import Strategy
 
 
-class _LazyModule:
-    __slots__ = ("_module_name", "_module")
-
-    def __init__(self, module_name: str):
-        self._module_name = module_name
-        self._module = None
-
-    def _load(self):
-        module = self._module
-        if module is None:
-            module = import_module(self._module_name)
-            self._module = module
-        return module
-
-    def __getattr__(self, name):
-        return getattr(self._load(), name)
-
-
-pd = _LazyModule("pandas")
 _PARQUET_UTILS = None
 _COLORED_FN = None
 

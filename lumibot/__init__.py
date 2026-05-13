@@ -1,8 +1,12 @@
+import importlib.util
 import os
+import re
 import sys
-import warnings
 import types
+import warnings
 from importlib.machinery import ModuleSpec
+
+_SETUP_VERSION_RE = re.compile(r"^\s*version\s*=\s*(['\"])(?P<version>.+?)\1\s*,?\s*$")
 
 
 def _read_version_from_setup_py() -> str | None:
@@ -19,12 +23,9 @@ def _read_version_from_setup_py() -> str | None:
             if os.path.isfile(setup_py):
                 with open(setup_py, encoding="utf-8", errors="ignore") as file:
                     for line in file:
-                        if "version" not in line:
-                            continue
-                        _, _, value = line.partition("=")
-                        value = value.strip().strip(",")
-                        if len(value) >= 2 and value[0] in "'\"" and value[-1] == value[0]:
-                            return value[1:-1].strip()
+                        match = _SETUP_VERSION_RE.match(line)
+                        if match:
+                            return match.group("version").strip()
             parent = os.path.dirname(current)
             if parent == current:
                 break
@@ -132,6 +133,7 @@ class _EntitiesAliasFinder:
 
 
 class _EntitiesAlias(types.ModuleType):
+    _lumibot_entities_alias = True
     __path__ = [os.path.join(os.path.dirname(os.path.abspath(__file__)), "entities")]
     __file__ = os.path.join(os.path.dirname(os.path.abspath(__file__)), "entities", "__init__.py")
     __package__ = "entities"
@@ -203,15 +205,34 @@ _ENTITY_SUBMODULES = (
     "smart_limit",
 )
 _ENTITY_SUBMODULE_ALIAS_NAMES = {f"entities.{_submodule}" for _submodule in _ENTITY_SUBMODULES}
-if not any(getattr(_finder, "_lumibot_entities_alias_finder", False) for _finder in sys.meta_path):
-    sys.meta_path.insert(0, _EntitiesAliasFinder())
 
-sys.modules.setdefault("entities", _EntitiesAlias("entities"))
-for _submodule in _ENTITY_SUBMODULES:
-    sys.modules.setdefault(
-        f"entities.{_submodule}",
-        _EntitiesSubmoduleAlias(f"entities.{_submodule}", f"lumibot.entities.{_submodule}"),
-    )
+
+def _has_entities_alias_finder() -> bool:
+    return any(getattr(_finder, "_lumibot_entities_alias_finder", False) for _finder in sys.meta_path)
+
+
+def _entities_package_exists() -> bool:
+    existing = sys.modules.get("entities")
+    if existing is not None and not getattr(existing, "_lumibot_entities_alias", False):
+        return True
+    if _has_entities_alias_finder():
+        return False
+    try:
+        return importlib.util.find_spec("entities") is not None
+    except (ImportError, AttributeError, ValueError):
+        return False
+
+
+if not _entities_package_exists():
+    if not _has_entities_alias_finder():
+        sys.meta_path.insert(0, _EntitiesAliasFinder())
+
+    sys.modules.setdefault("entities", _EntitiesAlias("entities"))
+    for _submodule in _ENTITY_SUBMODULES:
+        sys.modules.setdefault(
+            f"entities.{_submodule}",
+            _EntitiesSubmoduleAlias(f"entities.{_submodule}", f"lumibot.entities.{_submodule}"),
+        )
 
 
 def __getattr__(name):

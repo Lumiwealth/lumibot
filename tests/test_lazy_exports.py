@@ -46,21 +46,23 @@ def test_lazy_package_exports_defer_heavy_submodule_imports():
 
 
 def test_legacy_star_import_exports_resolve():
-    namespace = {}
+    tools_ns = {}
+    exec("from lumibot.tools import *", tools_ns)
+    for name in ("Decimal", "np", "pd", "parse_symbol", "time", "get_logger", "YahooHelper"):
+        assert name in tools_ns
+    assert tools_ns["pd"].__name__ == "pandas"
+    assert tools_ns["np"].__name__ == "numpy"
+    assert tools_ns["time"].__name__ == "time"
 
-    exec("from lumibot.tools import *", namespace)
-    for name in ("np", "pd", "parse_symbol", "get_logger", "YahooHelper"):
-        assert name in namespace
-    assert namespace["pd"].__name__ == "pandas"
-    assert namespace["np"].__name__ == "numpy"
-
-    exec("from lumibot.entities import *", namespace)
+    entities_ns = {}
+    exec("from lumibot.entities import *", entities_ns)
     for name in ("Asset", "Order", "Position", "Data"):
-        assert name in namespace
+        assert name in entities_ns
 
-    exec("from lumibot.backtesting import *", namespace)
+    backtesting_ns = {}
+    exec("from lumibot.backtesting import *", backtesting_ns)
     for name in ("BacktestingBroker", "PandasDataBacktesting", "YahooDataBacktesting"):
-        assert name in namespace
+        assert name in backtesting_ns
 
 
 def test_lazy_module_proxies_preserve_module_identity():
@@ -122,13 +124,13 @@ def test_lazy_module_patch_teardown_restores_existing_attributes():
         assert proxy.get is original
 
 
-def test_lazy_agent_builtin_module_supports_string_patches():
+def test_lazy_agent_builtin_module_supports_string_patches(monkeypatch):
     import lumibot.components as components
     import lumibot.components.agents as agents
 
-    components.__dict__.pop("agents", None)
-    agents.__dict__.pop("builtins", None)
-    sys.modules.pop("lumibot.components.agents.builtins", None)
+    monkeypatch.delitem(components.__dict__, "agents", raising=False)
+    monkeypatch.delitem(agents.__dict__, "builtins", raising=False)
+    monkeypatch.delitem(sys.modules, "lumibot.components.agents.builtins", raising=False)
 
     with patch("lumibot.components.agents.builtins.requests.get") as mocked:
         from lumibot.components.agents import builtins

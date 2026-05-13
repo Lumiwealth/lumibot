@@ -93,8 +93,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
     SOURCE = "ALPACA"
     MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = [
-        {"timestep": "day", "representations": ["day"]},
-        {"timestep": "minute", "representations": ["minute"]},
+        {"timestep": "day", "representations": ["1Day", "day"]},
+        {"timestep": "minute", "representations": ["1Min", "minute"]},
     ]
     LUMIBOT_DEFAULT_QUOTE_ASSET = Asset(LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL, LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE)
 

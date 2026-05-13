@@ -1,7 +1,29 @@
 import pandas as pd
 
+from lumibot.backtesting.alpaca_backtesting import AlpacaBacktesting
 from lumibot.data_sources.alpaca_data import AlpacaData
 from lumibot.entities import Asset
+
+
+def test_alpaca_backtesting_reverse_timestep_returns_sdk_timeframe(monkeypatch):
+    day = object()
+    minute = object()
+
+    def fake_timeframe_from_source_value(value):
+        if value == "1Day":
+            return day
+        if value == "1Min":
+            return minute
+        raise AssertionError(value)
+
+    monkeypatch.setattr(
+        "lumibot.backtesting.alpaca_backtesting._alpaca_timeframe_from_source_value",
+        fake_timeframe_from_source_value,
+    )
+    data_source = object.__new__(AlpacaBacktesting)
+
+    assert data_source._parse_source_timestep("day", reverse=True) is day
+    assert data_source._parse_source_timestep("minute", reverse=True) is minute
 
 
 def test_get_bars_preserves_crypto_tuple_quote(monkeypatch):

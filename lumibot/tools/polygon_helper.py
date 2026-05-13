@@ -225,6 +225,8 @@ def get_price_data_from_polygon(
     if not missing_dates:
         if df_all is not None:
             df_all = df_all.dropna(how="all")
+            if "missing" in df_all.columns:
+                df_all = df_all[~df_all["missing"].fillna(False).eq(True)]
             # Filter cached data to requested date range before returning
             if not df_all.empty:
                 # For daily data, use date-based filtering (timestamps vary by provider)
@@ -319,10 +321,12 @@ def get_price_data_from_polygon(
     # Reload the full cache from disk and filter out dummy rows (with missing=True).
     df_all_full = load_cache(cache_file)
     if "missing" in df_all_full.columns:
-        df_all_output = df_all_full[~df_all_full["missing"].astype(bool)].copy()
+        df_all_output = df_all_full[~df_all_full["missing"].fillna(False).eq(True)].copy()
     else:
         df_all_output = df_all_full.copy()
     df_all_output = df_all_output.dropna(how="all")
+    if "missing" in df_all_output.columns:
+        df_all_output = df_all_output[~df_all_output["missing"].fillna(False).eq(True)]
 
     # Filter cached data to requested date range before returning
     if not df_all_output.empty:

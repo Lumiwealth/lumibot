@@ -2,6 +2,9 @@
 
 ## 4.5.12 - Unreleased
 
+### Fixed
+- **IBKR REST backtesting no longer treats underfilled minute history as full-window coverage.** If a full backtest-window prefetch returns only a later tail slice, `get_last_price()` / `get_quote()` now leave the series unmarked as fully loaded, fetch a bounded slice around the current simulation datetime, and retry. This fixes BotSpot option backtests where an Apr-09 Alpha Picks lookup was incorrectly attempted against a May-only minute cache and logged “outside data range.” Disjoint recovery slices are normalized before merging so timezone object differences cannot leave the stale slice in place.
+
 ## 4.5.11 - 2026-05-12
 
 Deploy marker: 4.5.11 release commit (`deploy 4.5.11`)

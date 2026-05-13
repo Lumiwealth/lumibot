@@ -1540,7 +1540,16 @@ class Order:
     def wait_to_be_closed(self):
         logger.info("Waiting for broker to execute order %r" % self)
         if self._closed_event is None:
-            if self.status in {"filled", "canceled", "error"}:
+            if self.status in {
+                "fill",
+                "filled",
+                "canceled",
+                "error",
+                "cash_settled",
+                "assigned",
+                "exercised",
+                "expired",
+            }:
                 logger.info("Order %r executed by broker" % self)
                 return
             self._closed_event = _LazyEvent()

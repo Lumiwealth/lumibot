@@ -1443,6 +1443,12 @@ class Broker(ABC):
                         return existing
                 return None
 
+            # Terminal orders must stay terminal if a duplicate NEW event is replayed.
+            for bucket in (self._filled_orders, self._canceled_orders, self._error_orders):
+                existing_order = _find_in_bucket(bucket)
+                if existing_order is not None:
+                    return existing_order
+
             existing_order = _find_in_bucket(self._new_orders)
             if existing_order is not None:
                 return existing_order

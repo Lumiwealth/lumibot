@@ -1090,6 +1090,59 @@ class BacktestingBroker(Broker):
         """Record a monotonic-ID simple backtest order without a duplicate-id side set."""
         self._filled_orders.append(order)
 
+    def _get_simple_position_context(self, order: Order):
+        simple_positions = getattr(self, "_simple_positions_by_strategy_asset", None)
+        if simple_positions is None:
+            simple_positions = {}
+            self._simple_positions_by_strategy_asset = simple_positions
+
+        position_key = (order.strategy, id(order.asset))
+        existing_position = simple_positions.get(position_key)
+        if existing_position is _NO_SIMPLE_POSITION:
+            existing_position = None
+        elif existing_position is None:
+            existing_position = self.get_tracked_position(order.strategy, order.asset)
+            if existing_position is not None:
+                simple_positions[position_key] = existing_position
+            else:
+                simple_positions[position_key] = _NO_SIMPLE_POSITION
+        return simple_positions, position_key, existing_position
+
+    def _update_simple_position_after_fill(self, order: Order, simple_positions, position_key, existing_position):
+        qty_decimal = order._quantity
+        if existing_position:
+            existing_position.add_simple_order(order, qty_decimal, order._simple_is_buy)
+            if existing_position.quantity == 0:
+                logger.info(f"Position {existing_position} liquidated")
+                self._filled_positions.remove(existing_position)
+                simple_positions[position_key] = _NO_SIMPLE_POSITION
+
+                cancel_sides = None
+                if getattr(order, "side", None) in {Order.OrderSide.SELL, Order.OrderSide.SELL_TO_CLOSE}:
+                    cancel_sides = {Order.OrderSide.SELL, Order.OrderSide.SELL_TO_CLOSE}
+                elif getattr(order, "side", None) in {Order.OrderSide.BUY_TO_COVER, Order.OrderSide.BUY_TO_CLOSE}:
+                    cancel_sides = {Order.OrderSide.BUY_TO_COVER, Order.OrderSide.BUY_TO_CLOSE}
+                if cancel_sides is not None:
+                    self._cancel_open_orders_for_asset(
+                        order.strategy,
+                        order.asset,
+                        {order.identifier},
+                        cancel_sides=cancel_sides,
+                    )
+            return existing_position
+
+        position_qty = qty_decimal if order._simple_is_buy else -qty_decimal
+        position = Position.simple_backtest(
+            order.strategy,
+            order.asset,
+            position_qty,
+            order,
+            avg_fill_price=order._avg_fill_price,
+        )
+        self._filled_positions.append(position)
+        simple_positions[position_key] = position
+        return position
+
     def _finalize_fast_trade_pair_row(self, order: Order, pair_row) -> None:
         """Freeze a filled pair row and remove temporary private order references."""
         try:
@@ -1196,6 +1249,7 @@ class BacktestingBroker(Broker):
             actions = getattr(getattr(self, "stream", None), "_actions_mapping", None)
             default_action = getattr(self, "_default_new_order_stream_action", None)
             if actions is not None and actions.get(self.NEW_ORDER) is default_action and not audit_enabled:
+                committed = False
                 try:
                     if getattr(order, "_simple_backtest_order", False):
                         order._transmitted = True
@@ -1213,6 +1267,7 @@ class BacktestingBroker(Broker):
                     else:
                         order.update_raw(order)
                         processed_order = self._process_new_order(order)
+                    committed = processed_order is not None
                     if processed_order and not (
                         getattr(order, "_simple_backtest_order", False)
                         and self._should_skip_default_new_callback(order)
@@ -1273,6 +1328,8 @@ class BacktestingBroker(Broker):
                         self._record_fast_backtest_trade_event(order, None, None, 1)
                 except Exception:
                     logger.error(traceback.format_exc())
+                    if committed:
+                        return order
                     try:
                         order.update_raw(order)
                         self.stream.dispatch(
@@ -1329,6 +1386,7 @@ class BacktestingBroker(Broker):
         if actions is None or actions.get(self.NEW_ORDER) is not default_action or getattr(self, "_backtest_audit_enabled", False):
             return self._submit_order(order)
 
+        committed = False
         try:
             order._transmitted = True
             order._raw = order
@@ -1342,6 +1400,7 @@ class BacktestingBroker(Broker):
                 self._simple_new_orders_by_strategy = by_strategy
             by_strategy.setdefault(order.strategy, []).append(order)
             self._simple_new_orders_revision = getattr(self, "_simple_new_orders_revision", 0) + 1
+            committed = True
 
             skip_new_cache = getattr(self, "_skip_default_new_callback_by_strategy", None)
             skip_new_callback = None if skip_new_cache is None else skip_new_cache.get(order.strategy)
@@ -1390,6 +1449,8 @@ class BacktestingBroker(Broker):
                     self._trade_event_log_df_cache = None
         except Exception:
             logger.error(traceback.format_exc())
+            if committed:
+                return order
             try:
                 order.update_raw(order)
                 self.stream.dispatch(
@@ -2068,26 +2129,39 @@ class BacktestingBroker(Broker):
         if filled_quantity_f is not None and type(filled_quantity_f) is not float:
             filled_quantity_f = float(filled_quantity_f)
 
+        cash_before = None
+        new_cash = None
         if asset_type in (Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE):
-            self._process_futures_fill(strategy, order, float(price), filled_quantity_f)
+            cash_before = self._get_strategy_cash_fast(strategy)
         elif asset_type == Asset.AssetType.CRYPTO and quote_asset_type == Asset.AssetType.FOREX:
             trade_amount = filled_quantity_f * price
             multiplier = getattr(order, "_simple_multiplier", None)
             if multiplier and multiplier != 1:
                 trade_amount *= multiplier
             current_cash = self._get_strategy_cash_fast(strategy)
+            cash_before = current_cash
             is_buy_order = getattr(order, "_simple_is_buy", None)
             if is_buy_order is None:
                 is_buy_order = order.is_buy_order()
             new_cash = current_cash - trade_amount if is_buy_order else current_cash + trade_amount
-            self._set_strategy_cash_fast(strategy, new_cash)
 
         multiplier = getattr(order, "_simple_multiplier", None) or getattr(order.asset, "multiplier", None) or 1
         try:
+            if asset_type in (Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE):
+                self._process_futures_fill(strategy, order, float(price), filled_quantity_f)
             if getattr(order, "_simple_backtest_order", False):
                 self._process_simple_market_filled_order(order, price, filled_quantity_f)
             else:
                 self._process_filled_order(order, price, filled_quantity_f)
+            if new_cash is not None:
+                self._set_strategy_cash_fast(strategy, new_cash)
+        except Exception:
+            if cash_before is not None:
+                self._set_strategy_cash_fast(strategy, cash_before)
+            logger.error(traceback.format_exc())
+            return
+
+        try:
             self._record_fast_backtest_trade_event(
                 order,
                 price,
@@ -2103,32 +2177,32 @@ class BacktestingBroker(Broker):
         order.trade_cost = 0.0
         quantity = order._simple_quantity_float
 
+        cash_before = None
+        new_cash = None
         if order._simple_is_future:
-            self._process_futures_fill(strategy, order, float(price), quantity)
+            cash_before = self._get_strategy_cash_fast(strategy)
         elif order._simple_is_crypto_forex:
             trade_amount = quantity * price
             multiplier = order._simple_multiplier
             if multiplier != 1:
                 trade_amount *= multiplier
             cash_delta = -trade_amount if order._simple_is_buy else trade_amount
-            cash_position = getattr(strategy, "_cash_position", None)
-            if cash_position is not None:
-                current_quantity = getattr(cash_position, "_quantity_float", None)
-                if current_quantity is None:
-                    current_quantity = getattr(cash_position, "quantity", None)
-                    if type(current_quantity) is Decimal:
-                        current_quantity = float(current_quantity)
-                new_cash = (current_quantity or 0.0) + cash_delta
-                try:
-                    cash_position._quantity_float = float(new_cash)
-                except Exception:
-                    cash_position.quantity = new_cash
-            else:
-                current_cash = self._get_strategy_cash_fast(strategy)
-                strategy._set_cash_position(current_cash + cash_delta)
+            cash_before = self._get_strategy_cash_fast(strategy)
+            new_cash = cash_before + cash_delta
 
         try:
+            if order._simple_is_future:
+                self._process_futures_fill(strategy, order, float(price), quantity)
             self._process_simple_market_filled_order(order, price, quantity)
+            if new_cash is not None:
+                self._set_strategy_cash_fast(strategy, new_cash)
+        except Exception:
+            if cash_before is not None:
+                self._set_strategy_cash_fast(strategy, cash_before)
+            logger.error(traceback.format_exc())
+            return
+
+        try:
             self._record_fast_backtest_trade_event(
                 order,
                 price,
@@ -2148,6 +2222,10 @@ class BacktestingBroker(Broker):
         event_dt=None,
     ) -> None:
         """Direct fill for simple futures market orders."""
+        cash_before = self._get_strategy_cash_fast(strategy)
+        ledger_key_for_rollback = None
+        ledger_before = None
+        fill_committed = False
         try:
             order.trade_cost = 0.0
             quantity = order._simple_quantity_float
@@ -2164,6 +2242,8 @@ class BacktestingBroker(Broker):
             if key is None:
                 key = self._get_futures_ledger_key(strategy, order.asset)
             ledger = self._futures_lot_ledgers[key]
+            ledger_key_for_rollback = key
+            ledger_before = [lot.copy() for lot in ledger]
             signed_fill_qty = quantity if order._simple_is_buy else -quantity
             current_cash = self._get_strategy_cash_fast(strategy)
             new_cash = current_cash
@@ -2205,21 +2285,6 @@ class BacktestingBroker(Broker):
                     self._futures_lot_ledgers.pop(key, None)
                 self._set_strategy_cash_fast(strategy, new_cash)
 
-            simple_positions = getattr(self, "_simple_positions_by_strategy_asset", None)
-            if simple_positions is None:
-                simple_positions = {}
-                self._simple_positions_by_strategy_asset = simple_positions
-            position_key = (order.strategy, id(order.asset))
-            existing_position = simple_positions.get(position_key)
-            if existing_position is _NO_SIMPLE_POSITION:
-                existing_position = None
-            elif existing_position is None:
-                existing_position = self.get_tracked_position(order.strategy, order.asset)
-                if existing_position is not None:
-                    simple_positions[position_key] = existing_position
-                else:
-                    simple_positions[position_key] = _NO_SIMPLE_POSITION
-
             order._avg_fill_price = round(float(price), 2) if price is not None else None
             order.transactions = [order.Transaction(quantity, price)]
             order._status = self.FILLED_ORDER
@@ -2231,29 +2296,9 @@ class BacktestingBroker(Broker):
                 closed_event.set()
             self._track_unique_simple_filled_order(order)
 
-            qty_decimal = order._quantity
-            if existing_position:
-                new_qty = existing_position._quantity + (qty_decimal if order._simple_is_buy else -qty_decimal)
-                if new_qty == 0:
-                    self._filled_positions.remove(existing_position)
-                    simple_positions[position_key] = _NO_SIMPLE_POSITION
-                else:
-                    existing_position._quantity = new_qty
-                    existing_position._quantity_float = float(new_qty)
-                    existing_position.orders.append(order)
-            else:
-                position_qty = qty_decimal
-                if order._simple_is_sell:
-                    position_qty = -position_qty
-                position = Position.simple_backtest(
-                    order.strategy,
-                    order.asset,
-                    position_qty,
-                    order,
-                    avg_fill_price=order._avg_fill_price,
-                )
-                self._filled_positions.append(position)
-                simple_positions[position_key] = position
+            simple_positions, position_key, existing_position = self._get_simple_position_context(order)
+            self._update_simple_position_after_fill(order, simple_positions, position_key, existing_position)
+            fill_committed = True
 
             if getattr(self, "_trade_event_log_enabled", True):
                 pair_row = getattr(order, "_fast_trade_event_pair_row", None)
@@ -2277,6 +2322,15 @@ class BacktestingBroker(Broker):
                         price_source=price_source,
                     )
         except Exception:
+            if fill_committed:
+                logger.error(traceback.format_exc())
+                return
+            self._set_strategy_cash_fast(strategy, cash_before)
+            if ledger_key_for_rollback is not None:
+                if ledger_before:
+                    self._futures_lot_ledgers[ledger_key_for_rollback] = ledger_before
+                else:
+                    self._futures_lot_ledgers.pop(ledger_key_for_rollback, None)
             logger.error(traceback.format_exc())
 
     def _execute_simple_crypto_forex_backtest_fast_fill(
@@ -2288,46 +2342,18 @@ class BacktestingBroker(Broker):
         event_dt=None,
     ) -> None:
         """Direct fill for simple crypto/forex market orders."""
+        quantity = order._simple_quantity_float
+        order.trade_cost = 0.0
+
+        trade_amount = quantity * price
+        multiplier = order._simple_multiplier
+        if multiplier != 1:
+            trade_amount *= multiplier
+        cash_delta = -trade_amount if order._simple_is_buy else trade_amount
+        cash_before = self._get_strategy_cash_fast(strategy)
+        new_cash = cash_before + cash_delta
+
         try:
-            quantity = order._simple_quantity_float
-            order.trade_cost = 0.0
-
-            trade_amount = quantity * price
-            multiplier = order._simple_multiplier
-            if multiplier != 1:
-                trade_amount *= multiplier
-            cash_delta = -trade_amount if order._simple_is_buy else trade_amount
-            cash_position = getattr(strategy, "_cash_position", None)
-            if cash_position is not None:
-                current_quantity = getattr(cash_position, "_quantity_float", None)
-                if current_quantity is None:
-                    current_quantity = getattr(cash_position, "quantity", None)
-                    if type(current_quantity) is Decimal:
-                        current_quantity = float(current_quantity)
-                new_cash = (current_quantity or 0.0) + cash_delta
-                try:
-                    cash_position._quantity_float = float(new_cash)
-                except Exception:
-                    cash_position.quantity = new_cash
-            else:
-                current_cash = self._get_strategy_cash_fast(strategy)
-                strategy._set_cash_position(current_cash + cash_delta)
-
-            simple_positions = getattr(self, "_simple_positions_by_strategy_asset", None)
-            if simple_positions is None:
-                simple_positions = {}
-                self._simple_positions_by_strategy_asset = simple_positions
-            position_key = (order.strategy, id(order.asset))
-            existing_position = simple_positions.get(position_key)
-            if existing_position is _NO_SIMPLE_POSITION:
-                existing_position = None
-            elif existing_position is None:
-                existing_position = self.get_tracked_position(order.strategy, order.asset)
-                if existing_position is not None:
-                    simple_positions[position_key] = existing_position
-                else:
-                    simple_positions[position_key] = _NO_SIMPLE_POSITION
-
             order._avg_fill_price = round(float(price), 2) if price is not None else None
             order.transactions = [order.Transaction(quantity, price)]
             order._status = self.FILLED_ORDER
@@ -2339,29 +2365,15 @@ class BacktestingBroker(Broker):
                 closed_event.set()
             self._track_unique_simple_filled_order(order)
 
-            qty_decimal = order._quantity
-            if existing_position:
-                new_qty = existing_position._quantity + (qty_decimal if order._simple_is_buy else -qty_decimal)
-                if new_qty == 0:
-                    self._filled_positions.remove(existing_position)
-                    simple_positions[position_key] = _NO_SIMPLE_POSITION
-                else:
-                    existing_position._quantity = new_qty
-                    existing_position._quantity_float = float(new_qty)
-                    existing_position.orders.append(order)
-            else:
-                if order._simple_is_sell:
-                    qty_decimal = -qty_decimal
-                position = Position.simple_backtest(
-                    order.strategy,
-                    order.asset,
-                    qty_decimal,
-                    order,
-                    avg_fill_price=order._avg_fill_price,
-                )
-                self._filled_positions.append(position)
-                simple_positions[position_key] = position
+            simple_positions, position_key, existing_position = self._get_simple_position_context(order)
+            self._update_simple_position_after_fill(order, simple_positions, position_key, existing_position)
+            self._set_strategy_cash_fast(strategy, new_cash)
+        except Exception:
+            self._set_strategy_cash_fast(strategy, cash_before)
+            logger.error(traceback.format_exc())
+            return
 
+        try:
             if getattr(self, "_trade_event_log_enabled", True):
                 pair_row = getattr(order, "_fast_trade_event_pair_row", None)
                 if pair_row is not None:
@@ -2388,20 +2400,7 @@ class BacktestingBroker(Broker):
 
     def _process_simple_market_filled_order(self, order: Order, price, quantity):
         """Minimal bookkeeping for simple direct market orders proven by the fast lane."""
-        simple_positions = getattr(self, "_simple_positions_by_strategy_asset", None)
-        if simple_positions is None:
-            simple_positions = {}
-            self._simple_positions_by_strategy_asset = simple_positions
-        position_key = (order.strategy, id(order.asset))
-        existing_position = simple_positions.get(position_key)
-        if existing_position is _NO_SIMPLE_POSITION:
-            existing_position = None
-        elif existing_position is None:
-            existing_position = self.get_tracked_position(order.strategy, order.asset)
-            if existing_position is not None:
-                simple_positions[position_key] = existing_position
-            else:
-                simple_positions[position_key] = _NO_SIMPLE_POSITION
+        simple_positions, position_key, existing_position = self._get_simple_position_context(order)
         order._avg_fill_price = round(float(price), 2) if price is not None else None
 
         order.transactions = [order.Transaction(quantity, price)]
@@ -2414,30 +2413,7 @@ class BacktestingBroker(Broker):
             closed_event.set()
         self._track_unique_simple_filled_order(order)
 
-        qty_decimal = order._quantity
-
-        if existing_position:
-            new_qty = existing_position._quantity + (qty_decimal if order._simple_is_buy else -qty_decimal)
-            if new_qty == 0:
-                self._filled_positions.remove(existing_position)
-                simple_positions[position_key] = _NO_SIMPLE_POSITION
-            else:
-                existing_position._quantity = new_qty
-                existing_position._quantity_float = float(new_qty)
-                existing_position.orders.append(order)
-        else:
-            position_qty = qty_decimal
-            if order._simple_is_sell:
-                position_qty = -position_qty
-            position = Position.simple_backtest(
-                order.strategy,
-                order.asset,
-                position_qty,
-                order,
-                avg_fill_price=order._avg_fill_price,
-            )
-            self._filled_positions.append(position)
-            simple_positions[position_key] = position
+        self._update_simple_position_after_fill(order, simple_positions, position_key, existing_position)
 
         if not order._simple_is_crypto_forex and order._simple_asset_type_value == "crypto":
             self._process_crypto_quote(order, quantity, price)
@@ -2471,17 +2447,15 @@ class BacktestingBroker(Broker):
         asset_type = getattr(order.asset, "asset_type", None)
         quote_asset_type = getattr(order.quote, "asset_type", None) if hasattr(order, "quote") and order.quote else None
 
-        # For futures, use margin-based cash management (not full notional value)
-        # Futures don't tie up full contract value - only margin requirement
-        if (
+        deferred_futures_fill = (
             not is_multileg_parent
             and asset_type in (Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE)
-        ):
-            self._process_futures_fill(strategy, order, float(price), float(filled_quantity))
+        )
+        crypto_new_cash = None
 
         # For crypto base with forex quote (like BTC/USD where USD is forex), use cash
         # For crypto base with crypto quote (like BTC/USDT where both are crypto), use positions
-        elif (
+        if (
             not is_multileg_parent
             and asset_type == Asset.AssetType.CRYPTO
             and quote_asset_type == Asset.AssetType.FOREX
@@ -2494,12 +2468,10 @@ class BacktestingBroker(Broker):
 
             if order.is_buy_order():
                 # Deduct cash for buy orders (trade amount + fees)
-                new_cash = current_cash - trade_amount - float(trade_cost)
+                crypto_new_cash = current_cash - trade_amount - float(trade_cost)
             else:
                 # Add cash for sell orders (trade amount - fees)
-                new_cash = current_cash + trade_amount - float(trade_cost)
-
-            strategy._set_cash_position(new_cash)
+                crypto_new_cash = current_cash + trade_amount - float(trade_cost)
 
         multiplier = 1
         if hasattr(order, "asset") and getattr(order.asset, "multiplier", None):
@@ -2522,6 +2494,10 @@ class BacktestingBroker(Broker):
         if actions is not None and actions.get(self.FILLED_ORDER) is default_action and not audit_enabled:
             try:
                 position = self._process_filled_order(order, price, filled_quantity_f)
+                if deferred_futures_fill:
+                    self._process_futures_fill(strategy, order, float(price), float(filled_quantity))
+                elif crypto_new_cash is not None:
+                    self._set_strategy_cash_fast(strategy, crypto_new_cash)
                 if position and not self._should_skip_default_filled_callback(order):
                     self._on_filled_order(position, order, price, filled_quantity_f, multiplier)
                 self._record_fast_backtest_trade_event(order, price, filled_quantity_f, multiplier)
@@ -2537,6 +2513,10 @@ class BacktestingBroker(Broker):
                 quantity=filled_quantity_f,
                 multiplier=multiplier,
             )
+            if deferred_futures_fill:
+                self._process_futures_fill(strategy, order, float(price), float(filled_quantity))
+            elif crypto_new_cash is not None:
+                self._set_strategy_cash_fast(strategy, crypto_new_cash)
 
         # Only apply trade cost if it's not crypto with forex quote (already handled above)
         if (

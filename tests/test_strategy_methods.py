@@ -188,6 +188,23 @@ class TestStrategyMethods:
         assert order.order_type is Order.OrderType.MARKET
         assert order.quote == quote
 
+    def test_simple_backtest_submit_order_uses_strategy_validation(self):
+        strat = self._make_strategy_stub()
+        strat._validate_order = MagicMock(return_value=False)
+        strat.broker = SimpleNamespace(
+            IS_BACKTESTING_BROKER=True,
+            _submit_simple_backtest_order=MagicMock(),
+            _submit_order=MagicMock(),
+        )
+        order = Order.simple_market_backtest("test_strategy", Asset("SPY"), 1, Order.OrderSide.BUY)
+
+        result = Strategy.submit_order(strat, order)
+
+        assert result is None
+        strat._validate_order.assert_called_once_with(order)
+        strat.broker._submit_simple_backtest_order.assert_not_called()
+        strat.broker._submit_order.assert_not_called()
+
     def test_get_price_from_source_snapshot_fallback(self):
         strat = self._make_strategy_stub()
         strat._should_use_daily_last_price = MagicMock(return_value=False)

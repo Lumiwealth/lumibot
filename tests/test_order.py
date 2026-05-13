@@ -131,6 +131,19 @@ class TestOrderBasics:
         buy_order.avg_fill_price = 50.0
         assert buy_order.get_fill_price() == 50.0
 
+    def test_wait_to_be_closed_returns_for_canonical_fill_status(self, monkeypatch):
+        order = Order(strategy="abc", asset=Asset("SPY"), side="buy", quantity=1)
+        order._closed_event = None
+        order.status = "fill"
+
+        class FailingEvent:
+            def __init__(self):
+                raise AssertionError("wait_to_be_closed should not create an event for filled orders")
+
+        monkeypatch.setattr("lumibot.entities.order._LazyEvent", FailingEvent)
+
+        order.wait_to_be_closed()
+
     def test_smart_limit_order_type_in_str(self):
         asset = Asset("SPY")
         order = Order(

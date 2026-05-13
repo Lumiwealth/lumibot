@@ -14,6 +14,7 @@ try:
     from lumibot.backtesting.backtesting_broker import BacktestingBroker
     from lumibot.data_sources import PandasData
     from lumibot.entities import Asset, Order, Position, Quote # Import Asset if needed by mocked methods
+    from lumibot.trading_builtins import SafeOrderDict
 except ImportError:
     # Add path modification if running tests directly and lumibot is not installed
     import sys
@@ -22,6 +23,7 @@ except ImportError:
     from lumibot.backtesting.backtesting_broker import BacktestingBroker
     from lumibot.data_sources import PandasData
     from lumibot.entities import Asset, Order, Position, Quote
+    from lumibot.trading_builtins import SafeOrderDict
 
 
 class _OptionSettlementStrategyStub:
@@ -115,6 +117,26 @@ class TestBacktestingBroker:
         Order(asset=Asset("SPY"), quantity=10, side="buy", strategy='abc')
         broker.submit_order(Order(asset=Asset("SPY"), quantity=10, side="buy", strategy='abc'))
         broker._conform_order.assert_called_once()
+
+    def test_process_new_order_does_not_repromote_terminal_order(self):
+        broker = BacktestingBroker.__new__(BacktestingBroker)
+        broker._new_orders = SafeOrderDict(None)
+        broker._unprocessed_orders = SafeOrderDict(None)
+        broker._partially_filled_orders = SafeOrderDict(None)
+        broker._placeholder_orders = SafeOrderDict(None)
+        broker._filled_orders = SafeOrderDict(None)
+        broker._canceled_orders = SafeOrderDict(None)
+        broker._error_orders = SafeOrderDict(None)
+
+        filled_order = Order(asset=Asset("SPY"), quantity=1, side="buy", strategy="abc", identifier="same-id")
+        filled_order.status = broker.FILLED_ORDER
+        broker._filled_orders.append(filled_order)
+        replayed_order = Order(asset=Asset("SPY"), quantity=1, side="buy", strategy="abc", identifier="same-id")
+
+        result = broker._process_new_order(replayed_order)
+
+        assert result is filled_order
+        assert len(broker._new_orders) == 0
 
     def test_market_order_prefers_quote_when_missing_ohlc(self):
         broker = BacktestingBroker.__new__(BacktestingBroker)

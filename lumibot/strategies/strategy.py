@@ -1760,6 +1760,8 @@ class Strategy(_Strategy):
         """
 
         if getattr(order, "_simple_backtest_order", False):
+            if not self._validate_order(order):
+                return
             broker = self.broker
             if getattr(broker, "IS_BACKTESTING_BROKER", False):
                 submit_simple = getattr(broker, "_submit_simple_backtest_order", None)

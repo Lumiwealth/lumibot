@@ -11,8 +11,9 @@ import sys
 
 import termcolor
 
-# Configure logging
 from lumibot.tools.lumibot_logger import get_logger
+
+# Configure logging
 logger = get_logger(__name__)
 _LOAD_DOTENV = None
 _DATEUTIL_PARSER = None
@@ -63,8 +64,16 @@ def __getattr__(name: str):
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
+def _env_flag_enabled(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "on")
+
+
 def _quiet_backtest_logs_requested() -> bool:
-    return os.environ.get("BACKTESTING_QUIET_LOGS", "").strip().lower() in ("1", "true", "yes", "on")
+    return _env_flag_enabled("BACKTESTING_QUIET_LOGS")
+
+
+def _disable_dotenv_local_requested() -> bool:
+    return _env_flag_enabled("LUMIBOT_DISABLE_DOTENV_LOCAL")
 
 
 def find_and_load_dotenv(base_dir) -> bool:
@@ -88,7 +97,7 @@ def find_and_load_dotenv(base_dir) -> bool:
             # override settings without requiring edits to the primary file (which may contain
             # shared or sensitive values).
             dotenv_local_path = os.path.join(current, ".env.local")
-            if os.path.isfile(dotenv_local_path):
+            if not _disable_dotenv_local_requested() and os.path.isfile(dotenv_local_path):
                 _load_dotenv(dotenv_local_path, override=True)
                 colored_message = termcolor.colored(f".env.local file loaded from: {dotenv_local_path}", "green")
                 if _quiet_backtest_logs_requested():
@@ -107,7 +116,7 @@ def find_and_load_dotenv(base_dir) -> bool:
 # Get the directory of the original script being run
 script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
 logger.debug(f"script_dir: {script_dir}")
-_disable_dotenv = os.environ.get("LUMIBOT_DISABLE_DOTENV", "").lower() in ("1", "true", "yes")
+_disable_dotenv = _env_flag_enabled("LUMIBOT_DISABLE_DOTENV")
 
 if _disable_dotenv:
     # In production backtests we should rely on injected environment variables rather than scanning

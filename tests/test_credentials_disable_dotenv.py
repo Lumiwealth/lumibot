@@ -1,6 +1,6 @@
+import inspect
 import os
 import sys
-import inspect
 
 
 def test_disable_dotenv_skips_recursive_scan(monkeypatch):
@@ -19,8 +19,10 @@ def test_disable_dotenv_skips_recursive_scan(monkeypatch):
 
 
 def test_find_and_load_dotenv_walks_upward_and_loads_local_override(monkeypatch, tmp_path):
+    """Verify upward .env discovery and .env.local override behavior from nested paths."""
     monkeypatch.setenv("LUMIBOT_DISABLE_DOTENV", "1")
     monkeypatch.delenv("LUMIBOT_TEST_DOTENV_VALUE", raising=False)
+    monkeypatch.delenv("LUMIBOT_DISABLE_DOTENV_LOCAL", raising=False)
 
     root = tmp_path / "repo"
     child = root / "nested" / "tests"
@@ -35,7 +37,27 @@ def test_find_and_load_dotenv_walks_upward_and_loads_local_override(monkeypatch,
     assert os.environ["LUMIBOT_TEST_DOTENV_VALUE"] == "local"
 
 
+def test_find_and_load_dotenv_can_skip_local_override(monkeypatch, tmp_path):
+    """Verify LUMIBOT_DISABLE_DOTENV_LOCAL leaves values from .env intact."""
+    monkeypatch.setenv("LUMIBOT_DISABLE_DOTENV", "1")
+    monkeypatch.setenv("LUMIBOT_DISABLE_DOTENV_LOCAL", "1")
+    monkeypatch.delenv("LUMIBOT_TEST_DOTENV_VALUE", raising=False)
+
+    root = tmp_path / "repo"
+    child = root / "nested" / "tests"
+    child.mkdir(parents=True)
+    (root / ".env").write_text("LUMIBOT_TEST_DOTENV_VALUE=base\n", encoding="utf-8")
+    (root / ".env.local").write_text("LUMIBOT_TEST_DOTENV_VALUE=local\n", encoding="utf-8")
+
+    sys.modules.pop("lumibot.credentials", None)
+    credentials = __import__("lumibot.credentials").credentials
+
+    assert credentials.find_and_load_dotenv(child)
+    assert os.environ["LUMIBOT_TEST_DOTENV_VALUE"] == "base"
+
+
 def test_find_and_load_dotenv_ignores_dotenv_directory(monkeypatch, tmp_path):
+    """Verify a directory named .env is ignored during upward dotenv discovery."""
     monkeypatch.setenv("LUMIBOT_DISABLE_DOTENV", "1")
     root = tmp_path / "repo"
     child = root / "nested"
@@ -49,6 +71,7 @@ def test_find_and_load_dotenv_ignores_dotenv_directory(monkeypatch, tmp_path):
 
 
 def test_credentials_broker_exports_are_real_classes(monkeypatch):
+    """Verify credentials broker exports resolve to the real broker classes."""
     monkeypatch.setenv("LUMIBOT_DISABLE_DOTENV", "1")
     sys.modules.pop("lumibot.credentials", None)
 

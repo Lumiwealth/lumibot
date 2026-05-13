@@ -164,6 +164,17 @@ class InteractiveBrokersRESTBacktesting(PandasData):
             exchange=exchange,
             include_after_hours=include_after_hours,
         )
+        canonical_key, _ = self._build_dataset_keys(asset, quote, dataset_key, exchange)
+        data = self._data_store.get(canonical_key)
+        df = getattr(data, "df", None) if data is not None else None
+        if ibkr_helper.frame_covers_requested_window(
+            df,
+            asset=asset,
+            timestep=dataset_key,
+            start_dt=self.datetime_start,
+            end_dt=self.datetime_end,
+        ):
+            self._fully_loaded_series.add(canonical_key)
 
     @staticmethod
     def _previous_us_futures_session_open(dt_value: datetime) -> Optional[datetime]:

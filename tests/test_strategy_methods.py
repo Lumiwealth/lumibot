@@ -171,6 +171,23 @@ class TestStrategyMethods:
         is_valid = strategy._validate_order(None)
         assert is_valid == False
 
+    def test_create_order_none_order_type_uses_simple_market_backtest_fast_path(self):
+        strat = self._make_strategy_stub()
+        quote = Asset("USD", Asset.AssetType.FOREX)
+        strat._name = "test_strategy"
+        strat._quote_asset = quote
+        strat.broker = SimpleNamespace(
+            IS_BACKTESTING_BROKER=True,
+            data_source=SimpleNamespace(_datetime=datetime(2024, 1, 2, 9, 30)),
+            datetime=datetime(2024, 1, 2, 9, 30),
+        )
+
+        order = Strategy.create_order(strat, Asset("SPY"), 1, "buy", order_type=None)
+
+        assert getattr(order, "_simple_backtest_order", False) is True
+        assert order.order_type is Order.OrderType.MARKET
+        assert order.quote == quote
+
     def test_get_price_from_source_snapshot_fallback(self):
         strat = self._make_strategy_stub()
         strat._should_use_daily_last_price = MagicMock(return_value=False)

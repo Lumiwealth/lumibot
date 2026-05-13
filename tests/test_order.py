@@ -235,6 +235,22 @@ class TestOrderBasics:
         order.status = "cancel"
         assert order.status == "canceled"
 
+    def test_simple_market_backtest_set_error_does_not_require_closed_event(self):
+        asset = Asset("SPY")
+        order = Order.simple_market_backtest(
+            "abc",
+            asset,
+            1,
+            Order.OrderSide.BUY,
+        )
+
+        order.set_error("boom")
+
+        assert order.status == "error"
+        assert order._error == "boom"
+        assert order.error_message == "boom"
+        assert order._closed_event is None
+
     def test_equivalent_status(self):
         asset = Asset("SPY")
         order1 = Order(strategy='abc', asset=asset, side="buy", quantity=100)
@@ -272,6 +288,14 @@ class TestOrderBasics:
         assert position.hold == 0
         assert position.available == 0
         assert position.avg_fill_price == order.avg_fill_price
+
+    def test_add_transaction_fast_matches_transaction_field_order(self):
+        order = Order(strategy='abc', asset=Asset("SPY"), side="buy", quantity=100)
+
+        order.add_transaction_fast(price=101.25, quantity=2)
+
+        assert order.transactions[-1].price == 101.25
+        assert order.transactions[-1].quantity == 2
 
 
 class TestOrderAdvanced:

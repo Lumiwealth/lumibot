@@ -738,6 +738,55 @@ class Strategy(_Strategy):
         >>> self.submit_order(order)
         """
 
+        broker = self.broker
+        if (
+            isinstance(asset, Asset)
+            and getattr(asset, "asset_type", None) not in (Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE)
+            and quote is None
+            and (order_type is None or order_type is Order.OrderType.MARKET)
+            and time_in_force == "gtc"
+            and getattr(broker, "IS_BACKTESTING_BROKER", False)
+            and (
+                order_class,
+                type,
+                smart_limit,
+                custom_params,
+                pair,
+                limit_price,
+                stop_price,
+                stop_limit_price,
+                trail_price,
+                trail_percent,
+                secondary_limit_price,
+                secondary_stop_price,
+                secondary_stop_limit_price,
+                secondary_trail_price,
+                secondary_trail_percent,
+                take_profit_price,
+                stop_loss_price,
+                stop_loss_limit_price,
+                position_filled,
+                exchange,
+                good_till_date,
+            ) == (None,) * 21
+        ):
+            seq = getattr(broker, "_backtest_order_seq", 0) + 1
+            setattr(broker, "_backtest_order_seq", seq)
+            ds = getattr(broker, "data_source", None)
+            date_created = getattr(ds, "_datetime", None)
+            if date_created is None:
+                date_created = broker.datetime
+            return Order.simple_market_backtest(
+                self._name,
+                asset,
+                quantity,
+                side,
+                time_in_force=time_in_force,
+                date_created=date_created,
+                quote=self._quote_asset,
+                identifier=f"bt_{seq}",
+            )
+
         if quote is None:
             quote = self.quote_asset
 
@@ -748,10 +797,16 @@ class Strategy(_Strategy):
         # PERF: uuid4() generation is a measurable hot path in high-churn backtests (1 order per bar per asset).
         # Backtests only need identifiers to be unique within the run, so use a cheap monotonic counter.
         identifier = None
-        if getattr(self.broker, "IS_BACKTESTING_BROKER", False):
-            seq = getattr(self.broker, "_backtest_order_seq", 0) + 1
-            setattr(self.broker, "_backtest_order_seq", seq)
+        if getattr(broker, "IS_BACKTESTING_BROKER", False):
+            seq = getattr(broker, "_backtest_order_seq", 0) + 1
+            setattr(broker, "_backtest_order_seq", seq)
             identifier = f"bt_{seq}"
+            ds = getattr(broker, "data_source", None)
+            date_created = getattr(ds, "_datetime", None)
+            if date_created is None:
+                date_created = broker.datetime
+        else:
+            date_created = self.get_datetime()
 
         order = Order(
             self.name,
@@ -775,7 +830,7 @@ class Strategy(_Strategy):
             secondary_trail_percent=secondary_trail_percent,
             exchange=exchange,
             position_filled=position_filled,
-            date_created=self.get_datetime(),
+            date_created=date_created,
             quote=quote,
             pair=pair,
             type=type,
@@ -1704,6 +1759,14 @@ class Strategy(_Strategy):
         >>> self.submit_order([order1, order2])
         """
 
+        if getattr(order, "_simple_backtest_order", False):
+            broker = self.broker
+            if getattr(broker, "IS_BACKTESTING_BROKER", False):
+                submit_simple = getattr(broker, "_submit_simple_backtest_order", None)
+                if submit_simple is not None:
+                    return submit_simple(order)
+                return broker._submit_order(order)
+
         if isinstance(order, list):
             # Submit multiple orders
             # Validate orders
@@ -1808,7 +1871,7 @@ class Strategy(_Strategy):
             if not self._validate_order(order):
                 return
 
-            if order.order_type == Order.OrderType.SMART_LIMIT:
+            if order.order_type is Order.OrderType.SMART_LIMIT:
                 if self.broker.IS_BACKTESTING_BROKER:
                     return self.broker.submit_order(order)
 

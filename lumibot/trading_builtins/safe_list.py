@@ -300,6 +300,13 @@ class SafeOrderDict:
         with lock:
             return self._remove_unlocked(value, key=key)
 
+    def get(self, identifier, default=None):
+        lock = self.__lock
+        if lock is None:
+            return self.__items.get(str(identifier), default)
+        with lock:
+            return self.__items.get(str(identifier), default)
+
     def _remove_unlocked(self, value, key=None):
         if key is None:
             if isinstance(value, str):

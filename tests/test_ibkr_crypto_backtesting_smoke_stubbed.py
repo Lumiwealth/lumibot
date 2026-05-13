@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import timedelta
 from decimal import Decimal
 
 import pandas as pd
@@ -20,6 +19,27 @@ class _DummyIbkrCryptoStrategy(Strategy):
 
     def on_trading_iteration(self):
         return
+
+
+class _CallbackIbkrCryptoStrategy(_DummyIbkrCryptoStrategy):
+    def initialize(self, parameters=None):
+        super().initialize(parameters=parameters)
+        self.filled_events = []
+
+    def on_filled_order(self, position, order, price, quantity, multiplier):
+        filled_events = getattr(self, "filled_events", None)
+        if filled_events is None:
+            filled_events = []
+            self.filled_events = filled_events
+        filled_events.append(
+            {
+                "symbol": order.asset.symbol,
+                "side": order.side,
+                "price": price,
+                "quantity": quantity,
+                "multiplier": multiplier,
+            }
+        )
 
 
 def test_ibkr_rest_backtesting_crypto_market_orders_fill_at_ask_and_bid(monkeypatch):
@@ -120,6 +140,85 @@ def test_ibkr_rest_backtesting_crypto_market_orders_fill_at_ask_and_bid(monkeypa
 
     assert sell.is_filled()
     assert sell.get_fill_price() == pytest.approx(expected_bid_1, rel=1e-12)
+
+
+def test_ibkr_rest_backtesting_crypto_market_fill_preserves_custom_callback(monkeypatch):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    idx = pd.date_range("2025-01-01 00:00", periods=3, freq="1min", tz="America/New_York")
+    df = pd.DataFrame(
+        {
+            "open": [20_000.0, 20_100.0, 20_200.0],
+            "high": [20_050.0, 20_150.0, 20_250.0],
+            "low": [19_900.0, 20_000.0, 20_100.0],
+            "close": [20_010.0, 20_120.0, 20_230.0],
+            "bid": [20_005.0, 20_115.0, 20_225.0],
+            "ask": [20_015.0, 20_125.0, 20_235.0],
+            "volume": [1_000, 1_000, 1_000],
+        },
+        index=idx,
+    )
+
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+        return df
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
+
+    data_source = InteractiveBrokersRESTBacktesting(
+        datetime_start=idx[0].to_pydatetime(),
+        datetime_end=(idx[-1] + pd.Timedelta(minutes=1)).to_pydatetime(),
+        market="24/7",
+        show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+    )
+    data_source.load_data()
+
+    broker = BacktestingBroker(data_source=data_source)
+    broker.initialize_market_calendars(data_source.get_trading_days_pandas())
+    broker._first_iteration = False
+    broker._update_datetime(idx[0].to_pydatetime())
+
+    strategy = _CallbackIbkrCryptoStrategy(
+        broker=broker,
+        budget=100_000.0,
+        analyze_backtest=False,
+        parameters={},
+    )
+    strategy._first_iteration = False
+
+    base = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+    data_source.get_historical_prices_between_dates(
+        (base, quote),
+        timestep="minute",
+        quote=quote,
+        start_date=idx[0].to_pydatetime(),
+        end_date=idx[-1].to_pydatetime(),
+    )
+    expected_ask = float(getattr(broker.get_quote(base, quote=quote), "ask"))
+
+    order = strategy.create_order(
+        base,
+        Decimal("0.5"),
+        Order.OrderSide.BUY,
+        order_type=Order.OrderType.MARKET,
+        quote=quote,
+    )
+    strategy.submit_order(order)
+    broker.process_pending_orders(strategy)
+    strategy._executor.process_queue()
+
+    assert order.is_filled()
+    assert strategy.filled_events == [
+        {
+            "symbol": "BTC",
+            "side": Order.OrderSide.BUY,
+            "price": pytest.approx(expected_ask),
+            "quantity": pytest.approx(0.5),
+            "multiplier": 1,
+        }
+    ]
 
 
 def test_ibkr_rest_backtesting_crypto_limit_orders_fill_against_quotes(monkeypatch):

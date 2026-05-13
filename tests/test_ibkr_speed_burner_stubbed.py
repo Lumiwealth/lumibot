@@ -299,6 +299,12 @@ def test_ibkr_speed_burner_prefetches_once_and_slices_forever(monkeypatch):
     crypto_fills = trade_events_crypto[trade_events_crypto["status"] == "fill"].reset_index(drop=True)
     assert len(crypto_fills) == orders_total_crypto
     assert list(crypto_fills.iloc[:3]["symbol"]) == ["BTC", "ETH", "SOL"]
+    assert len(getattr(crypto_broker, "_filled_order_identifiers", ())) == 0
+    for order in crypto_broker._filled_orders.get_list()[:6]:
+        assert not hasattr(order, "_fast_trade_event_pair_row")
+        assert not hasattr(order, "_fast_trade_event_pair_row_index")
+        assert not hasattr(order, "_fast_trade_event_static")
+    assert isinstance(crypto_broker._trade_event_log_rows[0], tuple)
 
     # Crypto: first iteration (dt=minute_index[200]).
     _assert_fill(

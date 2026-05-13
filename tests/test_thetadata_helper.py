@@ -1168,10 +1168,10 @@ def test_get_trading_dates():
         ('quote'),
     ],
 )
-def test_build_cache_filename(mocker, tmpdir, datastyle):
+def test_build_cache_filename(monkeypatch, tmpdir, datastyle):
     asset = Asset("SPY")
     timespan = "1D"
-    mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmpdir))
+    monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmpdir))
     expected = tmpdir / "thetadata" / "stock" / "1d" / datastyle / f"stock_SPY_1D_{datastyle}.parquet"
     assert thetadata_helper.build_cache_filename(asset, timespan, datastyle) == expected
 

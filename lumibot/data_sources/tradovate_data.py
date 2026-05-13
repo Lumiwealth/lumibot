@@ -1,11 +1,16 @@
+from __future__ import annotations
+
 from decimal import Decimal
-from typing import Union
+from typing import TYPE_CHECKING
 
 from termcolor import colored
 
 from lumibot.data_sources import DataSource
-from lumibot.entities import Asset, Bars
+from lumibot.entities import Asset
 from lumibot.tools.lumibot_logger import get_logger
+
+if TYPE_CHECKING:
+    from lumibot.entities import Bars
 
 logger = get_logger(__name__)
 
@@ -71,7 +76,7 @@ class TradovateData(DataSource):
         logger.error(colored("Method 'get_historical_prices' is not implemented for Tradovate because it requires a CME subscription which costs $440/month.", "red"))
         return None
 
-    def get_last_price(self, asset, quote=None, exchange=None) -> Union[float, Decimal, None]:
+    def get_last_price(self, asset, quote=None, exchange=None) -> float | Decimal | None:
         """
         Retrieve the most recent price for the given asset via WebSocket.
         This method first retrieves the contract ID for the asset's symbol, then subscribes

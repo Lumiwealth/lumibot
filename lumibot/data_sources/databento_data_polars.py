@@ -7,36 +7,87 @@ This implementation uses:
 - Correct price conversion from fixed-point format
 """
 
+from __future__ import annotations
+
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal
-from typing import Dict, Optional, Union
+from importlib import import_module
+from typing import TYPE_CHECKING, Dict, Optional
 import time
 import threading
 import queue
 from collections import defaultdict
 
-import polars as pl
-try:
-    import databento as db
-except ImportError:  # pragma: no cover - optional dependency
-    db = None
-
 from .data_source import DataSource
-from .polars_mixin import PolarsMixin
-from lumibot.entities import Asset, Bars, Quote
-from lumibot.tools import databento_helper_polars, futures_roll
-from lumibot.tools.databento_helper_polars import (
-    _ensure_polars_datetime_timezone as _ensure_polars_tz,
-    _ensure_polars_datetime_precision as _ensure_polars_precision,
-    _format_futures_symbol_for_databento,
-    _generate_databento_symbol_alternatives,
-)
+from lumibot.entities import Asset, Quote
 from lumibot.tools.lumibot_logger import get_logger
+
+if TYPE_CHECKING:
+    from lumibot.entities import Bars
 
 logger = get_logger(__name__)
 
 
-class DataBentoDataPolars(PolarsMixin, DataSource):
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pl = _LazyModule("polars")
+databento_helper_polars = _LazyModule("lumibot.tools.databento_helper_polars")
+futures_roll = _LazyModule("lumibot.tools.futures_roll")
+_DATABENTO_MODULE = None
+_BARS_CLASS = None
+
+
+def _databento_module():
+    global _DATABENTO_MODULE
+    if _DATABENTO_MODULE is None:
+        try:
+            _DATABENTO_MODULE = import_module("databento")
+        except ImportError:  # pragma: no cover - optional dependency
+            return None
+    return _DATABENTO_MODULE
+
+
+def _bars_class():
+    global _BARS_CLASS
+    if _BARS_CLASS is None:
+        from lumibot.entities import Bars
+
+        _BARS_CLASS = Bars
+    return _BARS_CLASS
+
+
+def _ensure_polars_tz(*args, **kwargs):
+    return databento_helper_polars._ensure_polars_datetime_timezone(*args, **kwargs)
+
+
+def _ensure_polars_precision(*args, **kwargs):
+    return databento_helper_polars._ensure_polars_datetime_precision(*args, **kwargs)
+
+
+def _format_futures_symbol_for_databento(*args, **kwargs):
+    return databento_helper_polars._format_futures_symbol_for_databento(*args, **kwargs)
+
+
+def _generate_databento_symbol_alternatives(*args, **kwargs):
+    return databento_helper_polars._generate_databento_symbol_alternatives(*args, **kwargs)
+
+
+class DataBentoDataPolars(DataSource):
     """
     DataBento data source optimized with Polars and proper Live API usage.
 
@@ -65,7 +116,7 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
         """Initialize DataBento data source with Live API support"""
         super().__init__(api_key=api_key, has_paid_subscription=has_paid_subscription)
 
-        if db is None:
+        if _databento_module() is None:
             raise ImportError("DataBento package not available. Please install with: pip install databento")
 
         # Core configuration
@@ -159,7 +210,7 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
         while not self._stop_streaming and reconnect_attempts < max_reconnect_attempts:
             try:
                 # Create a new client for this producer
-                client = db.Live(key=self._api_key)
+                client = _databento_module().Live(key=self._api_key)
                 
                 logger.debug(f"[DATABENTO][PRODUCER] Subscribing to {symbol} from {start_time.isoformat()}")
                 
@@ -682,7 +733,7 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
             df = df.tail(length)
             df = _ensure_polars_tz(df)
             df = _ensure_polars_precision(df)
-            return Bars(
+            return _bars_class()(
                 df=df,
                 source=self.SOURCE,
                 asset=asset,

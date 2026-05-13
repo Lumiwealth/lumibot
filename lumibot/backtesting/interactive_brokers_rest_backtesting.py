@@ -1,19 +1,79 @@
+from __future__ import annotations
+
 import logging
 import uuid
 from datetime import datetime, timedelta
+from functools import lru_cache
+from importlib import import_module
 from typing import Optional
 
-import pandas as pd
-
 from lumibot.data_sources import PandasData
-from lumibot.entities import Asset, Data
-import lumibot.tools.ibkr_helper as ibkr_helper
-from lumibot.tools.helpers import parse_timestep_qty_and_unit
-from lumibot.tools.data_downloader_queue_client import set_queue_client_id
+from lumibot.entities import Asset
 
 logger = logging.getLogger(__name__)
 
 _USD_FOREX = Asset("USD", "forex")
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+    def __setattr__(self, name, value):
+        setattr(self._load(), name, value)
+
+    def __delattr__(self, name):
+        if name in {"_module_name", "_module"}:
+            object.__delattr__(self, name)
+        else:
+            delattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+ibkr_helper = _LazyModule("lumibot.tools.ibkr_helper")
+_DATA_CLASS = None
+_BARS_CLASS = None
+_PARSE_TIMESTEP_QTY_AND_UNIT = None
+
+
+def _data_class():
+    global _DATA_CLASS
+    if _DATA_CLASS is None:
+        from lumibot.entities import Data
+
+        _DATA_CLASS = Data
+    return _DATA_CLASS
+
+
+def _bars_class():
+    global _BARS_CLASS
+    if _BARS_CLASS is None:
+        from lumibot.entities.bars import Bars
+
+        _BARS_CLASS = Bars
+    return _BARS_CLASS
+
+
+def _parse_timestep_qty_and_unit(*args, **kwargs):
+    global _PARSE_TIMESTEP_QTY_AND_UNIT
+    if _PARSE_TIMESTEP_QTY_AND_UNIT is None:
+        from lumibot.tools.helpers import parse_timestep_qty_and_unit
+
+        _PARSE_TIMESTEP_QTY_AND_UNIT = parse_timestep_qty_and_unit
+    return _PARSE_TIMESTEP_QTY_AND_UNIT(*args, **kwargs)
 
 
 class InteractiveBrokersRESTBacktesting(PandasData):
@@ -44,10 +104,13 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         self._timestep = self.MIN_TIMESTEP
         self.exchange = exchange
         self.history_source = history_source
+        self.market = kwargs.get("market")
 
         unique_id = uuid.uuid4().hex[:8]
         strategy_name = kwargs.get("name", "Backtest")
         client_id = f"{strategy_name}_{unique_id}"
+        from lumibot.tools.data_downloader_queue_client import set_queue_client_id
+
         set_queue_client_id(client_id)
         logger.info("[IBKR][QUEUE] Set client_id for queue fairness: %s", client_id)
 
@@ -101,12 +164,88 @@ class InteractiveBrokersRESTBacktesting(PandasData):
           not collide with "minute".
         - Keeps the `Data.timestep` base unit as "minute"/"day" for compatibility.
         """
-        qty, unit = parse_timestep_qty_and_unit(timestep)
+        if timestep in {"minute", "day", "hour"}:
+            return timestep
+        qty, unit = _parse_timestep_qty_and_unit(timestep)
         qty = int(qty)
         unit = str(unit)
         if qty == 1:
             return unit
         return f"{qty}{unit}"
+
+    def get_historical_prices(
+        self,
+        asset: Asset,
+        length: int,
+        timestep: str = None,
+        timeshift: int = None,
+        quote: Asset = None,
+        exchange: str = None,
+        include_after_hours: bool = True,
+        return_polars: bool = False,
+    ):
+        """Get bars for a given asset, with a hot path for fully prefetched IBKR series."""
+        if isinstance(asset, str):
+            asset = Asset(symbol=asset)
+
+        if not timestep:
+            timestep = self.get_timestep()
+
+        asset_separated = asset
+        quote_asset = quote
+        if isinstance(asset_separated, tuple):
+            asset_separated, quote_asset = asset_separated
+
+        quote_key = quote_asset if quote_asset is not None else _USD_FOREX
+        effective_exchange = exchange if exchange is not None else self.exchange
+        timestep_key = timestep if isinstance(timestep, str) else str(timestep)
+        exchange_key = self._normalize_exchange_key(effective_exchange)
+        hot_cache_key = (asset_separated, quote_key, timestep_key, exchange_key)
+        hot_cache = getattr(self, "_fully_loaded_hot_data_cache", None)
+        if hot_cache is not None:
+            data = hot_cache.get(hot_cache_key)
+            if data is not None:
+                try:
+                    if timeshift is None and timestep in {"minute", "day"}:
+                        response = data.get_native_bars_fast(self._datetime, length=length, timestep=timestep)
+                    else:
+                        response = data.get_bars(self._datetime, length=length, timestep=timestep, timeshift=timeshift)
+                except ValueError:
+                    return None
+                if isinstance(response, float) or response is None:
+                    return response
+                if (
+                    not return_polars
+                    and isinstance(response, pd.DataFrame)
+                    and response.attrs.get("_lumibot_skip_timezone", False)
+                    and "return" in response.columns
+                    and "dividend" not in response.columns
+                ):
+                    return _bars_class().from_pandas_fast(
+                        response,
+                        self.SOURCE,
+                        asset_separated,
+                        quote=quote_asset,
+                        raw=response,
+                    )
+                return self._parse_source_symbol_bars(
+                    response,
+                    asset,
+                    quote=quote,
+                    length=length,
+                    return_polars=return_polars,
+                )
+
+        return super().get_historical_prices(
+            asset,
+            length,
+            timestep=timestep,
+            timeshift=timeshift,
+            quote=quote,
+            exchange=exchange,
+            include_after_hours=include_after_hours,
+            return_polars=return_polars,
+        )
 
     @staticmethod
     def _series_covers_requested_window(
@@ -166,6 +305,7 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         )
 
     @staticmethod
+    @lru_cache(maxsize=256)
     def _previous_us_futures_session_open(dt_value: datetime) -> Optional[datetime]:
         """Return the most recent `us_futures` session open at or before `dt_value`.
 
@@ -218,8 +358,12 @@ class InteractiveBrokersRESTBacktesting(PandasData):
 
         effective_exchange = exchange if exchange is not None else self.exchange
 
-        asset_type = self._normalize_asset_type(getattr(base_asset, "asset_type", ""))
-        now = self.get_datetime()
+        raw_asset_type = getattr(base_asset, "asset_type", "")
+        if raw_asset_type in {"crypto", "future", "cont_future", "stock", "index"}:
+            asset_type = raw_asset_type
+        else:
+            asset_type = self._normalize_asset_type(raw_asset_type)
+        now = self._datetime
         # Futures backtests should not look ahead into the current (incomplete) bar. Interpret
         # "last price at dt" as the last completed bar's close by nudging dt slightly earlier.
         #
@@ -250,6 +394,9 @@ class InteractiveBrokersRESTBacktesting(PandasData):
             day_data = self._data_store.get(day_key)
             if day_data is not None:
                 try:
+                    get_last_price_fast = getattr(day_data, "get_last_price_fast", None)
+                    if callable(get_last_price_fast):
+                        return get_last_price_fast(now)
                     return day_data.get_last_price(now)
                 except Exception:
                     pass
@@ -262,6 +409,9 @@ class InteractiveBrokersRESTBacktesting(PandasData):
             day_data = self._data_store.get(day_key)
             if day_data is not None:
                 try:
+                    get_last_price_fast = getattr(day_data, "get_last_price_fast", None)
+                    if callable(get_last_price_fast):
+                        return get_last_price_fast(now)
                     return day_data.get_last_price(now)
                 except Exception:
                     pass
@@ -291,24 +441,38 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                 self._fully_loaded_series.add(minute_key)
         data = self._data_store.get(minute_key)
         if data is not None:
+            hot_cache = getattr(self, "_fully_loaded_hot_data_cache", None)
+            if hot_cache is None:
+                hot_cache = {}
+                self._fully_loaded_hot_data_cache = hot_cache
+            hot_cache[(base_asset, quote_asset, "minute", self._normalize_exchange_key(effective_exchange))] = data
+            price = None
             try:
-                return data.get_last_price(now)
+                fast = getattr(data, "get_last_price_fast", None)
+                price = fast(now) if callable(fast) else data.get_last_price(now)
             except Exception:
-                if minute_key not in self._fully_loaded_series:
-                    try:
-                        self._refresh_window_around_datetime(
-                            asset=base_asset,
-                            quote=quote_asset,
-                            dataset_key="minute",
-                            dt=now,
-                            exchange=effective_exchange,
-                            include_after_hours=True,
-                        )
-                        refreshed = self._data_store.get(minute_key)
-                        if refreshed is not None:
-                            return refreshed.get_last_price(now)
-                    except Exception:
-                        pass
+                try:
+                    price = data.get_last_price(now)
+                except Exception:
+                    pass
+            if price is not None:
+                return price
+            if minute_key not in self._fully_loaded_series:
+                try:
+                    self._refresh_window_around_datetime(
+                        asset=base_asset,
+                        quote=quote_asset,
+                        dataset_key="minute",
+                        dt=now,
+                        exchange=effective_exchange,
+                        include_after_hours=True,
+                    )
+                    refreshed = self._data_store.get(minute_key)
+                    if refreshed is not None:
+                        fast = getattr(refreshed, "get_last_price_fast", None)
+                        return fast(now) if callable(fast) else refreshed.get_last_price(now)
+                except Exception:
+                    pass
         return None
 
     def get_quote(self, asset, quote=None, exchange=None, **kwargs):
@@ -505,10 +669,21 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         # `Data` supports only base units ("minute"/"day"). Store multi-minute datasets under a
         # separate key (e.g., "15minute") and annotate the instance so it can fast-path slices
         # without resampling on every call.
-        qty, unit = parse_timestep_qty_and_unit(dataset_key)
+        qty, unit = _parse_timestep_qty_and_unit(dataset_key)
         unit = str(unit)
         data_timestep = unit if unit in {"minute", "day"} else "minute"
-        data = Data(asset, merged, timestep=data_timestep, quote=quote)
+        assume_clean = bool(
+            isinstance(merged, pd.DataFrame)
+            and isinstance(merged.index, pd.DatetimeIndex)
+            and merged.index.tz is not None
+            and merged.index.is_monotonic_increasing
+            and all(col in merged.columns for col in ("open", "high", "low", "close", "volume"))
+        )
+        data = _data_class()(asset, merged, timestep=data_timestep, quote=quote, assume_clean=assume_clean)
+        if dataset_key in {"minute", "day"}:
+            data._defer_clean_returns = True
+        if dataset_key == "day":
+            data._skip_clean_datalines = True
         data._native_timestep_quantity = int(qty)  # type: ignore[attr-defined]
         data._native_timestep_unit = unit  # type: ignore[attr-defined]
         # CRITICAL: Pandas backtesting expects each Data object to have `iter_index`/datalines
@@ -524,7 +699,8 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         # See: docs/BACKTESTING_SESSION_GAPS_AND_DATA_GAPS.md
         try:
             if isinstance(merged.index, pd.DatetimeIndex) and len(merged.index) > 0:
-                data.repair_times_and_fill(merged.index)
+                if not data._initialize_clean_repaired_state():
+                    data.repair_times_and_fill(merged.index)
         except Exception:
             # Fallback: if repair fails, leave data as-is (callers will treat as missing).
             pass
@@ -553,26 +729,55 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         if timestep is None:
             timestep = self.get_timestep()
 
-        dataset_key = self._normalize_timestep_key(timestep)
-        end_dt = self.get_datetime()
+        end_dt = self._datetime
 
         # PERF: warm-cache minute backtests call `_pull_source_symbol_bars()` in tight loops. Once a
         # (asset, quote, timestep) series has been prefetched for the full backtest window, we can
         # skip start/end datetime calculations and downloader bookkeeping and slice immediately.
         quote_key = quote_asset if quote_asset is not None else _USD_FOREX
         effective_exchange = exchange if exchange is not None else self.exchange
+        timestep_key = timestep if isinstance(timestep, str) else str(timestep)
+        exchange_key = self._normalize_exchange_key(effective_exchange)
+        hot_cache_key = (asset_separated, quote_key, timestep_key, exchange_key)
+        hot_cache = getattr(self, "_fully_loaded_hot_data_cache", None)
+        if hot_cache is not None:
+            data = hot_cache.get(hot_cache_key)
+            if data is not None:
+                try:
+                    return data.get_bars(end_dt, length=length, timestep=timestep, timeshift=timeshift)
+                except ValueError:
+                    return None
+        dataset_key = self._normalize_timestep_key(timestep)
         exchange_key = self._normalize_exchange_key(effective_exchange)
         fully_loaded_key = (asset_separated, quote_key, dataset_key, exchange_key)
         if fully_loaded_key in self._fully_loaded_series:
-            canonical_key, legacy_key = self._build_dataset_keys(asset_separated, quote_asset, dataset_key, effective_exchange)
-            data = self._data_store.get(canonical_key)
-            if data is None and dataset_key == "minute":
-                data = self._data_store.get(legacy_key)
+            data_cache = getattr(self, "_fully_loaded_data_cache", None)
+            if data_cache is None:
+                data_cache = {}
+                self._fully_loaded_data_cache = data_cache
+
+            data = data_cache.get(fully_loaded_key)
+            if data is None:
+                canonical_key, legacy_key = self._build_dataset_keys(
+                    asset_separated,
+                    quote_asset,
+                    dataset_key,
+                    effective_exchange,
+                )
+                data = self._data_store.get(canonical_key)
+                if data is None and dataset_key == "minute":
+                    data = self._data_store.get(legacy_key)
+                if data is not None:
+                    data_cache[fully_loaded_key] = data
+                    hot_cache = getattr(self, "_fully_loaded_hot_data_cache", None)
+                    if hot_cache is None:
+                        hot_cache = {}
+                        self._fully_loaded_hot_data_cache = hot_cache
+                    hot_cache[hot_cache_key] = data
             if data is None:
                 return None
-            now = self.get_datetime()
             try:
-                return data.get_bars(now, length=length, timestep=timestep, timeshift=timeshift)
+                return data.get_bars(end_dt, length=length, timestep=timestep, timeshift=timeshift)
             except ValueError:
                 return None
 
@@ -593,7 +798,7 @@ class InteractiveBrokersRESTBacktesting(PandasData):
             quote_key = quote_asset if quote_asset is not None else _USD_FOREX
             key = (asset_separated, quote_key, dataset_key, exchange_key)
             if key not in self._fully_loaded_series:
-                prev_open = self._previous_us_futures_session_open(self.datetime_start)
+                prev_open = None if self.market == "24/7" else self._previous_us_futures_session_open(self.datetime_start)
                 if prev_open is not None:
                     prefetch_start = min(start_dt, prev_open)
                 else:
@@ -723,6 +928,12 @@ class InteractiveBrokersRESTBacktesting(PandasData):
             data = self._data_store.get(legacy_key)
         if data is None:
             return None
+        if fully_loaded_key in self._fully_loaded_series:
+            hot_cache = getattr(self, "_fully_loaded_hot_data_cache", None)
+            if hot_cache is None:
+                hot_cache = {}
+                self._fully_loaded_hot_data_cache = hot_cache
+            hot_cache[hot_cache_key] = data
 
         now = self.get_datetime()
         try:
@@ -751,7 +962,7 @@ class InteractiveBrokersRESTBacktesting(PandasData):
             return None
 
         dataset_key = self._normalize_timestep_key(timestep)
-        qty, unit = parse_timestep_qty_and_unit(dataset_key)
+        qty, unit = _parse_timestep_qty_and_unit(dataset_key)
         unit = str(unit or "").strip().lower()
         asset_type = self._normalize_asset_type(getattr(asset_separated, "asset_type", ""))
         include_after_hours = self._ibkr_include_after_hours(asset_type, unit)

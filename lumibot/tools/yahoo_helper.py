@@ -1,22 +1,87 @@
+from __future__ import annotations
+
 import os
 import pickle
 import time
 import random
-from pathlib import Path
+from importlib import import_module
 from datetime import datetime, timedelta
+from pathlib import Path
 
-import pandas as pd
-import yfinance as yf
-from fp.fp import FreeProxy
+from lumibot.constants import LUMIBOT_CACHE_FOLDER
 
-from ..constants import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
-from .lumibot_logger import get_logger
-from .helpers import get_lumibot_datetime
-
-logger = get_logger(__name__)
+_DEFAULT_PYTZ = None
+_GET_LUMIBOT_DATETIME = None
 
 INFO_DATA = "info"
 INVALID_SYMBOLS = set()
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+
+
+class _LazyLogger:
+    __slots__ = ("_logger",)
+
+    def __init__(self):
+        object.__setattr__(self, "_logger", None)
+
+    def _load(self):
+        logger = object.__getattribute__(self, "_logger")
+        if logger is None:
+            from .lumibot_logger import get_logger
+
+            logger = get_logger(__name__)
+            object.__setattr__(self, "_logger", logger)
+        return logger
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+logger = _LazyLogger()
+
+
+def _default_pytz():
+    global _DEFAULT_PYTZ
+    if _DEFAULT_PYTZ is None:
+        from ..constants import LUMIBOT_DEFAULT_PYTZ
+
+        _DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ
+    return _DEFAULT_PYTZ
+
+
+def _get_lumibot_datetime():
+    global _GET_LUMIBOT_DATETIME
+    if _GET_LUMIBOT_DATETIME is None:
+        from .helpers import get_lumibot_datetime
+
+        _GET_LUMIBOT_DATETIME = get_lumibot_datetime
+    return _GET_LUMIBOT_DATETIME()
+
+
+def _get_yfinance():
+    import yfinance as yf
+
+    return yf
 
 
 class _YahooData:
@@ -28,7 +93,7 @@ class _YahooData:
 
     def is_up_to_date(self, last_needed_datetime=None):
         if last_needed_datetime is None:
-            last_needed_datetime = get_lumibot_datetime()
+            last_needed_datetime = _get_lumibot_datetime()
 
         if self.type == '1d':
             last_needed_date = last_needed_datetime.date()
@@ -76,6 +141,8 @@ class YahooHelper:
         time.sleep(random.uniform(2, 5))
 
         if YahooHelper.YAHOO_FREE_PROXY_ENABLED:
+            from fp.fp import FreeProxy
+
             return FreeProxy(timeout=5).get()
         return None
 
@@ -169,9 +236,9 @@ class YahooHelper:
         df.sort_index(inplace=True)
 
         if df.index.tzinfo is None:
-            df.index = pd.to_datetime(df.index).tz_localize(LUMIBOT_DEFAULT_PYTZ)
+            df.index = pd.to_datetime(df.index).tz_localize(_default_pytz())
         else:
-            df.index = df.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+            df.index = df.index.tz_convert(_default_pytz())
 
         return df
 
@@ -179,6 +246,7 @@ class YahooHelper:
 
     @staticmethod
     def download_symbol_info(symbol):
+        yf = _get_yfinance()
         proxy = YahooHelper.sleep_and_get_proxy()
         if proxy:
             yf.set_config(proxy=proxy)
@@ -191,28 +259,21 @@ class YahooHelper:
             logger.debug(e)
             return {
                 "ticker": symbol,
-                "last_update": get_lumibot_datetime(),
+                "last_update": _get_lumibot_datetime(),
                 "error": True,
                 "info": None,
             }
 
         return {
             "ticker": ticker.ticker,
-            "last_update": get_lumibot_datetime(),
+            "last_update": _get_lumibot_datetime(),
             "error": False,
             "info": info,
         }
 
     @staticmethod
-    def get_symbol_info(symbol):
-        proxy = YahooHelper.sleep_and_get_proxy()
-        if proxy:
-            yf.set_config(proxy=proxy)
-        ticker = yf.Ticker(symbol)
-        return ticker.info
-
-    @staticmethod
     def get_symbol_last_price(symbol):
+        yf = _get_yfinance()
         proxy = YahooHelper.sleep_and_get_proxy()
         if proxy:
             yf.set_config(proxy=proxy)
@@ -239,6 +300,7 @@ class YahooHelper:
             logger.debug(f"{symbol} is already marked invalid. Skipping yfinance calls.")
             return None
 
+        yf = _get_yfinance()
         ticker = yf.Ticker(symbol)
 
         # --- HISTORICAL DATA RETRY LOGIC ---
@@ -254,13 +316,13 @@ class YahooHelper:
                 if interval == "1m":
                     df = ticker.history(
                         interval=interval,
-                        start=get_lumibot_datetime() - timedelta(days=7),
+                        start=_get_lumibot_datetime() - timedelta(days=7),
                         auto_adjust=False
                     )
                 elif interval == "15m":
                     df = ticker.history(
                         interval=interval,
-                        start=get_lumibot_datetime() - timedelta(days=60),
+                        start=_get_lumibot_datetime() - timedelta(days=60),
                         auto_adjust=False
                     )
                 else:
@@ -337,6 +399,7 @@ class YahooHelper:
             return {symbols[0]: item}
 
         result = {}
+        yf = _get_yfinance()
         proxy = YahooHelper.sleep_and_get_proxy()
         if proxy:
             yf.set_config(proxy=proxy)

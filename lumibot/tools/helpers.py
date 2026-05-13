@@ -7,16 +7,68 @@ import time
 import weakref
 from functools import lru_cache
 from decimal import Decimal, ROUND_HALF_EVEN
+from importlib import import_module
+from types import ModuleType
 
 import pytz
 import datetime as dt
 
-import pandas as pd
-import pandas_market_calendars as mcal
-from pandas_market_calendars.market_calendar import MarketCalendar
 from termcolor import colored
 
-from ..constants import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
+LUMIBOT_DEFAULT_TIMEZONE = "America/New_York"
+LUMIBOT_DEFAULT_PYTZ = pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE)
+
+
+class _LazyModule(ModuleType):
+    def __init__(self, module_name: str):
+        super().__init__(module_name)
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+
+
+class _PandasMarketCalendarsProxy:
+    def _module(self):
+        import pandas_market_calendars as _mcal
+
+        return _mcal
+
+    @property
+    def __version__(self):
+        return getattr(self._module(), "__version__", "unknown")
+
+    def get_calendar(self, *args, **kwargs):
+        return self._module().get_calendar(*args, **kwargs)
+
+    def __getattr__(self, name):
+        return getattr(self._module(), name)
+
+
+mcal = _PandasMarketCalendarsProxy()
+_TWENTY_FOUR_SEVEN_CALENDAR_CLASS = None
+
+
+def __getattr__(name):
+    if name == "MarketCalendar":
+        from pandas_market_calendars.market_calendar import MarketCalendar
+
+        globals()["MarketCalendar"] = MarketCalendar
+        return MarketCalendar
+    if name == "TwentyFourSevenCalendar":
+        return _twenty_four_seven_calendar_class()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 # ============================================================================
 # PERFORMANCE CACHES - Critical for backtesting performance
@@ -69,7 +121,7 @@ def _get_trading_days_disk_cache_path(market: str, start_day, end_day, tz_name: 
     if not cache_dir:
         return None
 
-    market_cal_version = getattr(mcal, "__version__", "unknown")
+    market_cal_version = "24/7" if market == "24/7" else getattr(mcal, "__version__", "unknown")
     cache_key = "|".join(
         (
             _TRADING_CALENDAR_DISK_CACHE_VERSION,
@@ -110,7 +162,7 @@ def _get_trading_schedule_for_year(market: str, year: int, tz_name: str) -> pd.D
     year_end = pd.Timestamp(year=year, month=12, day=31)
 
     if market == "24/7":
-        cal = TwentyFourSevenCalendar(tzinfo=tzinfo)
+        cal = _twenty_four_seven_calendar_class()(tzinfo=tzinfo)
     else:
         cal = mcal.get_calendar(market)
 
@@ -144,59 +196,81 @@ def deduplicate_sequence(seq, key=""):
     return seq
 
 
-class TwentyFourSevenCalendar(MarketCalendar):
-    """
-    Calendar for markets that trade 24/7, like crypto markets.
-    Market open is set to midnight (00:00) and close to 23:59 for each day.
-    """
+def _twenty_four_seven_calendar_class():
+    global _TWENTY_FOUR_SEVEN_CALENDAR_CLASS
+    if _TWENTY_FOUR_SEVEN_CALENDAR_CLASS is not None:
+        return _TWENTY_FOUR_SEVEN_CALENDAR_CLASS
 
-    regular_market_times = {
-        'market_open': [(None, dt.time(0, 0))],
-        'market_close': [(None, dt.time(23, 59, 59, 999999))],
-    }
+    from pandas_market_calendars.market_calendar import MarketCalendar
 
-    def __init__(self, tzinfo: str | pytz.BaseTzInfo = 'UTC'):
-        self._tzinfo = pytz.timezone(tzinfo) if isinstance(tzinfo, str) else tzinfo
-        super().__init__()
+    class TwentyFourSevenCalendar(MarketCalendar):
+        """
+        Calendar for markets that trade 24/7, like crypto markets.
+        Market open is set to midnight (00:00) and close to 23:59 for each day.
+        """
 
-    @property
-    def name(self):
-        return "24/7"
+        regular_market_times = {
+            'market_open': [(None, dt.time(0, 0))],
+            'market_close': [(None, dt.time(23, 59, 59, 999999))],
+        }
 
-    @property
-    def tz(self):
-        return self._tzinfo
+        def __init__(self, tzinfo: str | pytz.BaseTzInfo = 'UTC'):
+            self._tzinfo = pytz.timezone(tzinfo) if isinstance(tzinfo, str) else tzinfo
+            super().__init__()
 
-    @property
-    def open_time_default(self):
-        return dt.time(0, 0)
+        @property
+        def name(self):
+            return "24/7"
 
-    @property
-    def close_time_default(self):
-        return dt.time(23, 59)
+        @property
+        def tz(self):
+            return self._tzinfo
 
-    @property
-    def regular_holidays(self):
-        return []
+        @property
+        def open_time_default(self):
+            return dt.time(0, 0)
 
-    @property
-    def special_closes(self):
-        return []
+        @property
+        def close_time_default(self):
+            return dt.time(23, 59)
 
-    @property
-    def special_closes_adherence(self):
-        return []
+        @property
+        def regular_holidays(self):
+            return []
 
-    @property
-    def special_opens(self):
-        return []
+        @property
+        def special_closes(self):
+            return []
 
-    @property
-    def special_opens_adherence(self):
-        return []
+        @property
+        def special_closes_adherence(self):
+            return []
 
-    def valid_days(self, start_date, end_date, tz=None):
-        return pd.date_range(start=start_date, end=end_date, freq='D')
+        @property
+        def special_opens(self):
+            return []
+
+        @property
+        def special_opens_adherence(self):
+            return []
+
+        def valid_days(self, start_date, end_date, tz=None):
+            return pd.date_range(start=start_date, end=end_date, freq='D', tz=tz or self._tzinfo)
+
+        def schedule(self, start_date, end_date, tz=None):
+            tzinfo = tz or self._tzinfo
+            idx = self.valid_days(start_date, end_date, tz=tzinfo)
+            return pd.DataFrame(
+                {
+                    "market_open": idx,
+                    "market_close": idx + pd.Timedelta(days=1) - pd.Timedelta(microseconds=1),
+                },
+                index=idx,
+            )
+
+    _TWENTY_FOUR_SEVEN_CALENDAR_CLASS = TwentyFourSevenCalendar
+    globals()["TwentyFourSevenCalendar"] = TwentyFourSevenCalendar
+    return TwentyFourSevenCalendar
 
 
 def get_trading_days(
@@ -305,7 +379,7 @@ def get_trading_days(
     span_days = int((schedule_end_day - start_day).days)
     if span_days >= 365:
         if market == "24/7":
-            cal = TwentyFourSevenCalendar(tzinfo=tzinfo)
+            cal = _twenty_four_seven_calendar_class()(tzinfo=tzinfo)
         else:
             cal = mcal.get_calendar(market)
 
@@ -668,34 +742,9 @@ def to_datetime_aware(dt_in):
 
 
 def parse_symbol(symbol):
-    """
-    Parse the given symbol and determine if it's an option or a stock.
-    For options, extract and return the stock symbol, expiration date (as a datetime.date object),
-    type (call or put), and strike price.
-    For stocks, simply return the stock symbol.
-    TODO: Crypto and Forex support
-    """
-    # Check that the symbol is a string
-    if not isinstance(symbol, str):
-        return {"type": None}
-    
-    # Pattern to match the option symbol format
-    option_pattern = r"([A-Z]+)(\d{6})([CP])(\d+)"
+    from lumibot.tools.symbol_parser import parse_symbol as _parse_symbol
 
-    match = re.match(option_pattern, symbol)
-    if match:
-        stock_symbol, expiration, option_type, strike_price = match.groups()
-        expiration_date = dt.datetime.strptime(expiration, "%y%m%d").date()
-        option_type = "CALL" if option_type == "C" else "PUT"
-        return {
-            "type": "option",
-            "stock_symbol": stock_symbol,
-            "expiration_date": expiration_date,
-            "option_type": option_type,
-            "strike_price": round(float(strike_price) / 1000, 3),  # assuming strike price is in thousandths
-        }
-    else:
-        return {"type": "stock", "stock_symbol": symbol}
+    return _parse_symbol(symbol)
 
 
 def create_options_symbol(stock_symbol, expiration_date, option_type, strike_price):

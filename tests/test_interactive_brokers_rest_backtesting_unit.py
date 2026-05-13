@@ -53,6 +53,35 @@ def test_ibkr_rest_backtesting_plumbs_history_source(monkeypatch):
     assert calls["count"] == 1
 
 
+def test_ibkr_rest_hot_cache_key_uses_asset_values():
+    class CachedData:
+        def get_native_bars_fast(self, *_args, **_kwargs):
+            return 12.5
+
+    ds = InteractiveBrokersRESTBacktesting(
+        datetime_start=datetime(2025, 1, 1, tzinfo=timezone.utc),
+        datetime_end=datetime(2025, 1, 2, tzinfo=timezone.utc),
+        show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+    )
+    ds._datetime = datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc)
+    ds.exchange = None
+    cached_asset = Asset(symbol="BTC", asset_type=Asset.AssetType.CRYPTO)
+    cached_quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
+    ds._fully_loaded_hot_data_cache = {
+        (cached_asset, cached_quote, "minute", "AUTO"): CachedData(),
+    }
+
+    result = ds.get_historical_prices(
+        Asset(symbol="BTC", asset_type=Asset.AssetType.CRYPTO),
+        length=1,
+        timestep="minute",
+        quote=Asset(symbol="USD", asset_type=Asset.AssetType.FOREX),
+    )
+
+    assert result == 12.5
+
+
 def test_ibkr_rest_stock_daily_uses_rth(monkeypatch):
     import lumibot.tools.ibkr_helper as ibkr_helper
 

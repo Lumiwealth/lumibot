@@ -1,8 +1,35 @@
+from __future__ import annotations
+
 from datetime import time
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
-import pandas as pd
-import numpy as np
+if TYPE_CHECKING:
+    import pandas as pd
+
+
+def _pd():
+    import pandas as pd
+
+    return pd
+
+
+def _np():
+    import numpy as np
+
+    return np
+
+
+def __getattr__(name):
+    if name == "pd":
+        module = _pd()
+        globals()["pd"] = module
+        return module
+    if name == "np":
+        module = _np()
+        globals()["np"] = module
+        return module
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def day_deduplicate(df_):
@@ -13,6 +40,7 @@ def day_deduplicate(df_):
 
 
 def is_daily_data(df_):
+    pd = _pd()
     times = pd.Series(df_.index).apply(lambda x: x.time()).unique()
     if len(times) == 1 and times[0] == time(0, 0):
         return True
@@ -20,6 +48,7 @@ def is_daily_data(df_):
 
 
 def fill_void(df_, interval, end):
+    pd = _pd()
     n_rows = len(df_.index)
     missing_lines = pd.DataFrame()
     for index, row in df_.iterrows():
@@ -50,6 +79,7 @@ def print_full_pandas_dataframes():
     """
     Show the whole dataframe when printing pandas dataframes
     """
+    pd = _pd()
     pd.set_option('display.max_columns', None)
     pd.set_option('display.max_colwidth', None)
     pd.set_option('display.max_rows', None)
@@ -57,11 +87,14 @@ def print_full_pandas_dataframes():
 
 
 def set_pandas_float_display_precision(precision: int = 5):
+    pd = _pd()
     format_str = '{:.' + str(precision) + 'f}'
     pd.set_option('display.float_format', format_str.format)
 
 
 def prettify_dataframe_with_decimals(df: pd.DataFrame, decimal_places: int = 5) -> str:
+    np = _np()
+
     def decimal_formatter(x):
         if isinstance(x, (Decimal, float, int, np.float64, np.int64)):
             return f"{x:.{decimal_places}f}"

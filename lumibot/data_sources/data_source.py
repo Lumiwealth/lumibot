@@ -1,23 +1,75 @@
+from __future__ import annotations
+
 import os
 import time
 import traceback
 from abc import ABC, abstractmethod
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import Union
+from importlib import import_module
+from typing import TYPE_CHECKING, Union
 
-import pandas as pd
 import pytz
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
-from lumibot.entities import Asset, AssetsMapping, Bars, Quote
-from lumibot.tools import black_scholes, create_options_symbol
-from lumibot.tools.lumibot_logger import get_logger
+from lumibot.entities import Asset, AssetsMapping, Quote
+from lumibot.tools import black_scholes
 
 from .exceptions import UnavailabeTimestep
 
-logger = get_logger(__name__)
+if TYPE_CHECKING:
+    from lumibot.entities import Bars
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+_CREATE_OPTIONS_SYMBOL = None
+
+
+class _LazyLogger:
+    __slots__ = ("_logger",)
+
+    def __init__(self):
+        self._logger = None
+
+    def _load(self):
+        if self._logger is None:
+            from lumibot.tools.lumibot_logger import get_logger
+
+            self._logger = get_logger(__name__)
+        return self._logger
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+logger = _LazyLogger()
+
+
+def _create_options_symbol(*args, **kwargs):
+    global _CREATE_OPTIONS_SYMBOL
+    if _CREATE_OPTIONS_SYMBOL is None:
+        from lumibot.tools import create_options_symbol
+
+        _CREATE_OPTIONS_SYMBOL = create_options_symbol
+    return _CREATE_OPTIONS_SYMBOL(*args, **kwargs)
 
 
 class DataSource(ABC):
@@ -435,6 +487,8 @@ class DataSource(ABC):
 
         results = {}
         # Reuse thread pool to avoid creation/destruction overhead
+        from concurrent.futures import as_completed
+
         executor = self._get_or_create_thread_pool()
         futures = [executor.submit(process_chunk, chunk) for chunk in chunks]
         for future in as_completed(futures):
@@ -629,7 +683,7 @@ class DataSource(ABC):
                     right=right,
                 )
                 query_t = time.perf_counter()
-                option_symbol = create_options_symbol(opt_asset.symbol, expiry_dt, right, strike)
+                option_symbol = _create_options_symbol(opt_asset.symbol, expiry_dt, right, strike)
                 opt_price = self.get_last_price(opt_asset)
                 greeks = self.calculate_greeks(opt_asset, opt_price, underlying_price, risk_free_rate)
                 query_total += time.perf_counter() - query_t

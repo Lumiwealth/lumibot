@@ -4,11 +4,31 @@ import json
 import os
 import time
 from dataclasses import dataclass
+from importlib import import_module
 from typing import Any, Callable, Optional
 
-import pandas as pd
-
 _TRUTHY = {"required", "require", "strict", "1", "true", "yes"}
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
 
 
 @dataclass(frozen=True)

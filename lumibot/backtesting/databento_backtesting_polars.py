@@ -1,16 +1,12 @@
+from __future__ import annotations
+
 import traceback
 from datetime import datetime, timedelta
-
-import pandas as pd
-import polars as pl
-import numpy as np
+from importlib import import_module
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.data_sources import PolarsData
-from lumibot.entities import Asset, Data, Quote
-from lumibot.entities.data_polars import DataPolars
-from lumibot.tools import databento_helper_polars as databento_helper
-from lumibot.tools.databento_helper_polars import DataBentoAuthenticationError
+from lumibot.entities import Asset, Quote
 from lumibot.tools.helpers import to_datetime_aware
 from termcolor import colored
 
@@ -23,6 +19,71 @@ def _log_conversion(operation, from_type, to_type, location):
     logger.debug(f"[CONVERSION] {operation} | {from_type} → {to_type} | {location}")
 
 START_BUFFER = timedelta(days=5)
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+    def __setattr__(self, name, value):
+        setattr(self._load(), name, value)
+
+    def __delattr__(self, name):
+        if name in {"_module_name", "_module"}:
+            object.__delattr__(self, name)
+        else:
+            delattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+pl = _LazyModule("polars")
+np = _LazyModule("numpy")
+databento_helper = _LazyModule("lumibot.tools.databento_helper_polars")
+_DATA_CLASS = None
+_DATA_POLARS_CLASS = None
+_DATABENTO_AUTH_ERROR_CLASS = None
+
+
+def _data_class():
+    global _DATA_CLASS
+    if _DATA_CLASS is None:
+        from lumibot.entities import Data
+
+        _DATA_CLASS = Data
+    return _DATA_CLASS
+
+
+def _data_polars_class():
+    global _DATA_POLARS_CLASS
+    if _DATA_POLARS_CLASS is None:
+        from lumibot.entities.data_polars import DataPolars
+
+        _DATA_POLARS_CLASS = DataPolars
+    return _DATA_POLARS_CLASS
+
+
+def _databento_auth_error_class():
+    # Resolve lazily so auth-sensitive paths can catch the exact exception type
+    # without importing the DataBento helper during backend module import.
+    global _DATABENTO_AUTH_ERROR_CLASS
+    if _DATABENTO_AUTH_ERROR_CLASS is None:
+        from lumibot.tools.databento_helper_polars import DataBentoAuthenticationError
+
+        _DATABENTO_AUTH_ERROR_CLASS = DataBentoAuthenticationError
+    return _DATABENTO_AUTH_ERROR_CLASS
 
 
 class DataBentoDataBacktestingPolars(PolarsData):
@@ -174,7 +235,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
 
             logger.debug(f"Successfully set multiplier for {asset.symbol}: {asset.multiplier}")
 
-        except DataBentoAuthenticationError as e:
+        except _databento_auth_error_class() as e:
             logger.error(colored(f"DataBento authentication failed while fetching multiplier for {asset.symbol}: {e}", "red"))
             raise
         except Exception as e:
@@ -238,7 +299,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
                     # Create an empty DatetimeIndex with proper timezone
                     empty_df.index = pd.DatetimeIndex([], tz=LUMIBOT_DEFAULT_PYTZ, name='datetime')
                     
-                    data_obj = Data(
+                    data_obj = _data_class()(
                         asset,
                         df=empty_df,
                         timestep=timestep,
@@ -252,7 +313,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
                 else:
                     pandas_df = df.to_pandas() if hasattr(df, "to_pandas") else df
                     # Create Data object and store
-                    data_obj = Data(
+                    data_obj = _data_class()(
                         asset,
                         df=pandas_df,
                         timestep=timestep,
@@ -266,7 +327,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
                 # Mark as prefetched
                 self._prefetched_assets.add(search_asset)
                 
-            except DataBentoAuthenticationError as e:
+            except _databento_auth_error_class() as e:
                 logger.error(colored(f"DataBento authentication failed while prefetching {asset.symbol}: {e}", "red"))
                 raise
             except Exception as e:
@@ -317,7 +378,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
             asset_data = self.pandas_data[search_asset]
 
             # OPTIMIZATION: For DataPolars, check polars_df directly without converting to pandas
-            if isinstance(asset_data, DataPolars):
+            if isinstance(asset_data, _data_polars_class()):
                 # Avoid conversion overhead by reading DataPolars.polars_df directly
                 polars_df = asset_data.polars_df
                 if polars_df.height > 0:
@@ -443,7 +504,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
                 # Create an empty DatetimeIndex with proper timezone
                 empty_df.index = pd.DatetimeIndex([], tz=LUMIBOT_DEFAULT_PYTZ, name='datetime')
                 
-                data_obj = Data(
+                data_obj = _data_class()(
                     asset_separated,
                     df=empty_df,
                     timestep=ts_unit,
@@ -461,7 +522,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
                 _log_conversion("STORE", "polars", "DataPolars", "_update_pandas_data")
                 logger.debug(f"[POLARS] Storing polars DataFrame for {asset_separated.symbol}: {df.height} rows")
                 # Create DataPolars object with polars DataFrame (keeps polars end-to-end)
-                data_obj = DataPolars(
+                data_obj = _data_polars_class()(
                     asset_separated,
                     df=df,
                     timestep=ts_unit,
@@ -473,7 +534,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
                     logger.error(f"DataBento data for {asset_separated.symbol} doesn't have datetime index")
                     return
                 # Create Data object with pandas DataFrame
-                data_obj = Data(
+                data_obj = _data_class()(
                     asset_separated,
                     df=df,
                     timestep=ts_unit,
@@ -486,7 +547,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
             self.pandas_data[search_asset] = data_obj
             self._cache_datetime_series(search_asset, data_obj)
 
-        except DataBentoAuthenticationError as e:
+        except _databento_auth_error_class() as e:
             logger.error(colored(f"DataBento authentication failed for {asset_separated.symbol}: {e}", "red"))
             raise
         except Exception as e:
@@ -501,7 +562,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
             timestep = getattr(data_obj, "timestep", "minute")
             cache_key = (search_asset, timestep)
 
-            if isinstance(data_obj, DataPolars):
+            if isinstance(data_obj, _data_polars_class()):
                 dt_series = data_obj.polars_df["datetime"]
                 if dt_series.dtype.time_zone:
                     dt_series = dt_series.dt.convert_time_zone("UTC")
@@ -587,7 +648,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
                     datetime_ns = self._datetime_ns_cache.get(datetime_key)
 
                 # OPTIMIZATION: If asset_data is DataPolars, work with polars directly to avoid conversion
-                if isinstance(asset_data, DataPolars):
+                if isinstance(asset_data, _data_polars_class()):
                     polars_df = asset_data.polars_df
 
                     if polars_df.height > 0 and 'close' in polars_df.columns and datetime_ns is not None and len(datetime_ns) > 0:
@@ -654,7 +715,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
                 venue=exchange
             )
             
-        except DataBentoAuthenticationError as e:
+        except _databento_auth_error_class() as e:
             logger.error(colored(f"DataBento authentication failed while getting last price for {asset.symbol}: {e}", "red"))
             raise
         except Exception as e:
@@ -688,7 +749,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
             search_asset = asset if isinstance(asset, tuple) else (asset, Asset("USD", "forex"))
             asset_data = self.pandas_data.get(search_asset)
             df = None
-            if isinstance(asset_data, DataPolars):
+            if isinstance(asset_data, _data_polars_class()):
                 df = asset_data.polars_df
             elif asset_data is not None:
                 df = asset_data.polars_df if hasattr(asset_data, "polars_df") else asset_data.df
@@ -721,7 +782,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
             )
             quote_obj.source = "polars"
             return quote_obj
-        except DataBentoAuthenticationError as exc:
+        except _databento_auth_error_class() as exc:
             logger.error(colored(f"DataBento authentication failed while getting quote for {asset}: {exc}", "red"))
             raise
         except Exception as exc:
@@ -800,7 +861,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
                     logger.warning(f"No data found for {asset.symbol}")
                     result[asset] = None
                     
-            except DataBentoAuthenticationError as e:
+            except _databento_auth_error_class() as e:
                 logger.error(colored(f"DataBento authentication failed while getting bars for {asset}: {e}", "red"))
                 raise
             except Exception as e:
@@ -863,7 +924,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
             asset_data = self.pandas_data[search_asset]
 
             # OPTIMIZATION: If asset_data is DataPolars, work with polars directly to avoid conversion
-            if isinstance(asset_data, DataPolars):
+            if isinstance(asset_data, _data_polars_class()):
                 polars_df = asset_data.polars_df
 
                 if polars_df.height > 0:

@@ -1,17 +1,48 @@
+from __future__ import annotations
+
 import datetime
 import time
 from decimal import Decimal
+from importlib import import_module
 from typing import Union
 
-import ccxt
-import pandas as pd
-
-from lumibot.entities import Asset, Bars
+from lumibot.entities import Asset
 from lumibot.tools.lumibot_logger import get_logger
 
 from .data_source import DataSource
 
 logger = get_logger(__name__)
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+_BARS_CLASS = None
+
+
+def _bars_class():
+    global _BARS_CLASS
+    if _BARS_CLASS is None:
+        from lumibot.entities import Bars
+
+        _BARS_CLASS = Bars
+    return _BARS_CLASS
 
 
 class CcxtData(DataSource):
@@ -38,6 +69,8 @@ class CcxtData(DataSource):
         # if there is too many assets, the best thing to do would
         # be to split it into chunks and request data for each chunk
         self.chunk_size = min(chunk_size, 100)
+
+        import ccxt
 
         try:
             exchange_class = getattr(ccxt, config["exchange_id"])
@@ -225,7 +258,7 @@ class CcxtData(DataSource):
 
     def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
         # Parse the dataframe returned from CCXT.
-        bars = Bars(response, self.SOURCE, asset, quote=quote, raw=response)
+        bars = _bars_class()(response, self.SOURCE, asset, quote=quote, raw=response)
         return bars
 
     def get_last_price(self, asset, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:

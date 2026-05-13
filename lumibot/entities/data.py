@@ -1,13 +1,9 @@
 import datetime
 from decimal import Decimal
+from importlib import import_module
+from types import ModuleType
 from typing import Optional, Union
 
-import numpy as np
-
-import pandas as pd
-
-from lumibot.constants import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
-from lumibot.tools.helpers import parse_timestep_qty_and_unit, to_datetime_aware
 from lumibot.tools.lumibot_logger import get_logger
 
 from .asset import Asset
@@ -45,13 +41,179 @@ _DATA_QUOTE_FIELDS = {
 
 # PERF: module-level sentinel used to avoid eager-evaluating fallbacks in `getattr()` hot paths.
 _MISSING = object()
+_LAZY_PANDAS_SLICE_FRAME_CLASS = None
+_DEFAULT_PYTZ = None
+_PARSE_TIMESTEP_QTY_AND_UNIT = None
+_TO_DATETIME_AWARE = None
 
-# Set the option to raise an error if downcasting is not possible (if available in this pandas version)
-try:
-    pd.set_option('future.no_silent_downcasting', True)
-except (pd._config.config.OptionError, AttributeError):
-    # Option not available in this pandas version, skip it
-    pass
+
+class _LazyModule(ModuleType):
+    def __init__(self, module_name: str):
+        super().__init__(module_name)
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module_name = self._module_name
+            module = import_module(module_name)
+            if module_name == "pandas":
+                try:
+                    module.set_option('future.no_silent_downcasting', True)
+                except (module._config.config.OptionError, AttributeError):
+                    pass
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+np = _LazyModule("numpy")
+pd = _LazyModule("pandas")
+
+
+def _default_pytz():
+    global _DEFAULT_PYTZ
+    if _DEFAULT_PYTZ is None:
+        from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
+
+        _DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ
+    return _DEFAULT_PYTZ
+
+
+def parse_timestep_qty_and_unit(*args, **kwargs):
+    global _PARSE_TIMESTEP_QTY_AND_UNIT
+    if _PARSE_TIMESTEP_QTY_AND_UNIT is None:
+        from lumibot.tools.helpers import parse_timestep_qty_and_unit as _parse_timestep_qty_and_unit
+
+        _PARSE_TIMESTEP_QTY_AND_UNIT = _parse_timestep_qty_and_unit
+    return _PARSE_TIMESTEP_QTY_AND_UNIT(*args, **kwargs)
+
+
+def to_datetime_aware(*args, **kwargs):
+    global _TO_DATETIME_AWARE
+    if _TO_DATETIME_AWARE is None:
+        from lumibot.tools.helpers import to_datetime_aware as _to_datetime_aware
+
+        _TO_DATETIME_AWARE = _to_datetime_aware
+    return _TO_DATETIME_AWARE(*args, **kwargs)
+
+
+def _lazy_pandas_slice_frame_class():
+    global _LAZY_PANDAS_SLICE_FRAME_CLASS
+    if _LAZY_PANDAS_SLICE_FRAME_CLASS is not None:
+        return _LAZY_PANDAS_SLICE_FRAME_CLASS
+
+    class _LazyPandasSliceFrame(pd.DataFrame):
+        """Pandas-compatible lazy row slice for hot backtesting bars.
+
+        It is still a ``pd.DataFrame`` instance for compatibility, but defers the
+        expensive BlockManager slice until strategy code actually uses DataFrame
+        operations. This keeps no-op historical-price calls cheap without changing
+        the public ``bars.df`` surface.
+        """
+
+        _metadata = [
+            "_lumibot_source_df",
+            "_lumibot_slice",
+            "_lumibot_len",
+            "_lumibot_real_df",
+            "_lumibot_virtual_return",
+        ]
+
+        def __init__(self, source_df, slice_obj, length, virtual_return=False):
+            object.__setattr__(self, "_lumibot_source_df", source_df)
+            object.__setattr__(self, "_lumibot_slice", slice_obj)
+            object.__setattr__(self, "_lumibot_len", int(length))
+            object.__setattr__(self, "_lumibot_real_df", None)
+            object.__setattr__(self, "_lumibot_virtual_return", bool(virtual_return))
+
+        def _lumibot_return_values(self):
+            source_df = object.__getattribute__(self, "_lumibot_source_df")
+            slice_obj = object.__getattribute__(self, "_lumibot_slice")
+            start = 0 if slice_obj.start is None else int(slice_obj.start)
+            stop = len(source_df.index) if slice_obj.stop is None else int(slice_obj.stop)
+            close = source_df["close"].to_numpy(dtype="float64", copy=False)
+            values = np.empty(max(0, stop - start), dtype="float64")
+            values[:] = np.nan
+            if len(values) == 0:
+                return values
+            prev_start = max(0, start - 1)
+            window = close[prev_start:stop]
+            if start > 0 and len(window) > 1:
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    values[:] = (window[1:] - window[:-1]) / window[:-1]
+            elif len(window) > 1:
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    values[1:] = (window[1:] - window[:-1]) / window[:-1]
+            return values
+
+        def _lumibot_materialize(self):
+            df = object.__getattribute__(self, "_lumibot_real_df")
+            if df is None:
+                source_df = object.__getattribute__(self, "_lumibot_source_df")
+                slice_obj = object.__getattribute__(self, "_lumibot_slice")
+                try:
+                    mgr = source_df._mgr.get_slice(slice_obj, axis=1)
+                    df = source_df._constructor_from_mgr(mgr, axes=mgr.axes)
+                except Exception:
+                    df = source_df._slice(slice_obj)
+                if object.__getattribute__(self, "_lumibot_virtual_return") and "return" not in df.columns:
+                    df = df.copy(deep=False)
+                    df["return"] = self._lumibot_return_values()
+                object.__setattr__(self, "_lumibot_real_df", df)
+            return df
+
+        @property
+        def _mgr(self):
+            return self._lumibot_materialize()._mgr
+
+        @_mgr.setter
+        def _mgr(self, value):
+            object.__setattr__(self, "_lumibot_real_df", pd.DataFrame._from_mgr(value, axes=value.axes))
+
+        @property
+        def _constructor(self):
+            return pd.DataFrame
+
+        def __len__(self):
+            return object.__getattribute__(self, "_lumibot_len")
+
+        @property
+        def empty(self):
+            return object.__getattribute__(self, "_lumibot_len") == 0
+
+        @property
+        def columns(self):
+            columns = object.__getattribute__(self, "_lumibot_source_df").columns
+            if object.__getattribute__(self, "_lumibot_virtual_return") and "return" not in columns:
+                return columns.append(pd.Index(["return"]))
+            return columns
+
+        @property
+        def index(self):
+            return self._lumibot_materialize().index
+
+        @property
+        def attrs(self):
+            return self._lumibot_materialize().attrs
+
+        def __getitem__(self, key):
+            if isinstance(key, str) and key == "return" and object.__getattribute__(self, "_lumibot_virtual_return"):
+                index = self._lumibot_materialize().index
+                return pd.Series(self._lumibot_return_values(), index=index, name="return")
+            return self._lumibot_materialize().__getitem__(key)
+
+        def __getattr__(self, name):
+            return getattr(self._lumibot_materialize(), name)
+
+        def __repr__(self):
+            return repr(self._lumibot_materialize())
+
+    _LAZY_PANDAS_SLICE_FRAME_CLASS = _LazyPandasSliceFrame
+    return _LAZY_PANDAS_SLICE_FRAME_CLASS
 
 
 class Data:
@@ -162,6 +324,7 @@ class Data:
         timestep="minute",
         quote=None,
         timezone=None,
+        assume_clean=False,
     ):
         self.asset = asset
         self.symbol = self.asset.symbol
@@ -188,6 +351,9 @@ class Data:
             )
 
         self.timestep = timestep
+
+        if assume_clean and self._initialize_clean_constructor_state(df, date_start, date_end, trading_hours_start, trading_hours_end):
+            return
 
         self.df = self.columns(df)
 
@@ -281,6 +447,72 @@ class Data:
         self._bars_has_dividend = "dividend" in self._bars_cols
         self._bars_required_cols = [c for c in ("open", "high", "low", "close") if c in self._bars_cols]
 
+    def _initialize_clean_constructor_state(
+        self,
+        df,
+        date_start=None,
+        date_end=None,
+        trading_hours_start=datetime.time(0, 0),
+        trading_hours_end=datetime.time(23, 59),
+    ) -> bool:
+        if not isinstance(df, pd.DataFrame):
+            return False
+        idx = df.index
+        if not isinstance(idx, pd.DatetimeIndex) or idx.tz is None:
+            return False
+        if not idx.is_monotonic_increasing:
+            return False
+        required = ("open", "high", "low", "close", "volume")
+        if any(col not in df.columns for col in required):
+            return False
+
+        self.df = df
+        if self.df.index.name != "datetime":
+            self.df.index.name = "datetime"
+        self._index_is_unique = bool(getattr(self.df.index, "is_unique", False))
+        self.trading_hours_start, self.trading_hours_end = self.set_times(trading_hours_start, trading_hours_end)
+        self.date_start, self.date_end = self.set_dates(date_start, date_end)
+        self.df = self.trim_data(
+            self.df,
+            self.date_start,
+            self.date_end,
+            self.trading_hours_start,
+            self.trading_hours_end,
+        )
+        try:
+            self._data_len = int(len(self.df.index))
+        except Exception:
+            self._data_len = None
+
+        start_ts = self.df.index[0]
+        end_ts = self.df.index[-1]
+        self.datetime_start = start_ts.to_pydatetime() if isinstance(start_ts, pd.Timestamp) else start_ts
+        self.datetime_end = end_ts.to_pydatetime() if isinstance(end_ts, pd.Timestamp) else end_ts
+
+        self._ohlc_has_nan = False
+        self._volume_has_nan = False
+        self._dividend_has_nan = "dividend" in self.df.columns
+        try:
+            required_with_data = [c for c in ("open", "high", "low", "close") if c in self.df.columns]
+            if required_with_data:
+                self._ohlc_has_nan = bool(pd.isna(self.df[required_with_data].to_numpy(copy=False)).any())
+            self._volume_has_nan = bool(pd.isna(self.df["volume"].to_numpy(copy=False)).any())
+            if "dividend" in self.df.columns:
+                self._dividend_has_nan = bool(pd.isna(self.df["dividend"].to_numpy(copy=False)).any())
+        except Exception:
+            self._ohlc_has_nan = True
+            self._volume_has_nan = True
+            self._dividend_has_nan = True
+        bars_cols = ["open", "high", "low", "close", "volume"]
+        if "dividend" in self.df.columns:
+            bars_cols.append("dividend")
+        self._bars_cols = [c for c in bars_cols if c in self.df.columns]
+        self._bars_df = None
+        self._bars_has_volume = True
+        self._bars_has_dividend = "dividend" in self._bars_cols
+        self._bars_required_cols = ["open", "high", "low", "close"]
+        return self._initialize_clean_repaired_state()
+
     def set_times(self, trading_hours_start, trading_hours_end):
         """Set the start and end times for the data. The default is 0001 hrs to 2359 hrs.
 
@@ -321,9 +553,9 @@ class Data:
         df.index.name = "datetime"
         df.index = pd.to_datetime(df.index)
         if not df.index.tzinfo:
-            df.index = pd.to_datetime(df.index).tz_localize(DEFAULT_PYTZ)
-        elif df.index.tzinfo != DEFAULT_PYTZ:
-            df.index = df.index.tz_convert(DEFAULT_PYTZ)
+            df.index = pd.to_datetime(df.index).tz_localize(_default_pytz())
+        elif df.index.tzinfo != _default_pytz():
+            df.index = df.index.tz_convert(_default_pytz())
         return df
 
     def set_dates(self, date_start, date_end):
@@ -379,11 +611,17 @@ class Data:
         idx = idx[start_pos:end_pos]
 
         # OPTIMIZATION: More efficient duplicate removal
-        if self.df.index.has_duplicates:
+        has_duplicates = bool(self.df.index.has_duplicates)
+        if has_duplicates:
             self.df = self.df[~self.df.index.duplicated(keep='first')]
 
-        # Reindex the DataFrame with the new index and forward-fill missing values.
-        df = self.df.reindex(idx, method="ffill")
+        # Reindex the DataFrame with the new index and forward-fill missing values. Lazy-loaded
+        # backtesting data frequently passes its existing clean index here; avoid an identical
+        # reindex/copy and keep the downstream normalization work unchanged.
+        if (not has_duplicates) and len(idx) == len(self.df.index) and idx.equals(self.df.index):
+            df = self.df.copy(deep=False)
+        else:
+            df = self.df.reindex(idx, method="ffill")
 
         # Check if we have a volume column, if not then add it and fill with 0 or NaN.
         if "volume" in df.columns:
@@ -525,14 +763,15 @@ class Data:
             self._data_len = None
 
         # Set up iter_index and iter_index_dict for later use.
-        iter_index = pd.Series(df.index)
-        self.iter_index = pd.Series(iter_index.index, index=iter_index)
+        idx_values = df.index
+        self.iter_index = None
         # PERF: `to_dict()` produces keys as `pd.Timestamp`, which do not hash-equal to
         # `datetime.datetime` objects. Many hot paths pass python datetimes, causing dictionary
         # misses and forcing an expensive `Series.asof()` fallback.
         #
         # Store a second mapping keyed by python datetimes so `dt in iter_index_dict` is fast.
-        self.iter_index_dict = {ts.to_pydatetime(): int(pos) for ts, pos in self.iter_index.items()}
+        self.iter_index_dict = dict(zip(idx_values.to_pydatetime(), range(len(idx_values))))
+        self._iter_index_dict_get = self.iter_index_dict.get
 
         # PERF: Precompute an integer nanoseconds view of the datetime index so `get_iter_count()`
         # can use NumPy search/forward cursors without triggering pandas datetime scalar validation.
@@ -598,6 +837,98 @@ class Data:
         except Exception:
             self._bars_df = None
 
+    def _initialize_clean_repaired_state(self) -> bool:
+        """Initialize datalines/caches for already-clean OHLCV data without full repair."""
+        df = self.df
+        required = ("open", "high", "low", "close", "volume")
+        if any(col not in df.columns for col in required):
+            return False
+        if any(col in df.columns for col in ("bid", "ask", "bid_size", "ask_size")):
+            return False
+        if bool(getattr(df.index, "has_duplicates", False)):
+            return False
+        if getattr(self, "_ohlc_has_nan", True) or getattr(self, "_volume_has_nan", True):
+            return False
+
+        defer_returns = bool(getattr(self, "_defer_clean_returns", False))
+        if "return" not in df.columns and not defer_returns:
+            close_series = df["close"]
+            try:
+                close = close_series.to_numpy(dtype="float64", copy=False)
+            except Exception:
+                close = pd.to_numeric(close_series, errors="coerce").to_numpy(dtype="float64", copy=False)
+
+            returns = np.empty(len(close), dtype="float64")
+            returns[:] = np.nan
+            if len(close) > 1:
+                prev = close[:-1]
+                curr = close[1:]
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    returns[1:] = (curr - prev) / prev
+            df = df.copy(deep=False)
+            df["return"] = returns
+            self.df = df
+        self._return_is_deferred = bool(defer_returns and "return" not in self.df.columns)
+
+        try:
+            self._data_len = int(len(self.df.index))
+        except Exception:
+            self._data_len = None
+
+        idx_values = self.df.index
+        self.iter_index = None
+        self.iter_index_dict = dict(zip(idx_values.to_pydatetime(), range(len(idx_values))))
+        self._iter_index_dict_get = self.iter_index_dict.get
+
+        try:
+            idx = idx_values
+            try:
+                idx = idx.as_unit("ns")
+            except (AttributeError, TypeError):
+                pass
+            self._index_values_ns = idx.asi8
+        except Exception:
+            self._index_values_ns = None
+
+        self._iter_count_cursor_ns = None
+        self._iter_count_cursor_i = 0
+        self._iter_count_last_dt_key = None
+
+        self.datalines = {}
+        if getattr(self, "_skip_clean_datalines", False):
+            # Keep the legacy datalines contract even on the clean fast path so
+            # get_last_price/get_quote/_get_bars_dict can still index columns.
+            self.datalines["datetime"] = Dataline(
+                self.asset,
+                "datetime",
+                idx_values.to_numpy(),
+                idx_values.dtype,
+            )
+            self.datetime = self.datalines["datetime"].dataline
+            for column in self.df.columns:
+                self.datalines[column] = Dataline(
+                    self.asset,
+                    column,
+                    self.df[column].to_numpy(),
+                    self.df[column].dtype,
+                )
+                setattr(self, column, self.datalines[column].dataline)
+            self._quote_required_cols_present = all(col in self.datalines for col in _DATA_REQUIRED_PRICE_COLS)
+            self._quote_missing_cols = [col for col in _DATA_QUOTE_COLS if col not in self.datalines]
+            self._quote_presence_logged = False
+        else:
+            self.to_datalines()
+
+        bars_cols = ["open", "high", "low", "close", "volume"]
+        if "return" in self.df.columns:
+            bars_cols.append("return")
+        self._bars_cols = [c for c in bars_cols if c in self.df.columns]
+        self._bars_has_volume = "volume" in self._bars_cols
+        self._bars_has_dividend = False
+        self._bars_required_cols = [c for c in ("open", "high", "low", "close") if c in self._bars_cols]
+        self._bars_df = self.df[self._bars_cols].copy(deep=False) if self._bars_cols else None
+        return True
+
     def to_datalines(self):
         self.datalines.update(
             {
@@ -636,14 +967,18 @@ class Data:
         # known data (this speeds up the process)
         i = None
 
-        # Check if we have the iter_index_dict, if not then repair the times and fill (which will create the iter_index_dict)
-        if getattr(self, "iter_index_dict", None) is None:
-            self.repair_times_and_fill(self.df.index)
+        iter_index_get = getattr(self, "_iter_index_dict_get", None)
+        if iter_index_get is None:
+            # Check if we have the iter_index_dict, if not then repair the times and fill (which will create the iter_index_dict)
+            if getattr(self, "iter_index_dict", None) is None:
+                self.repair_times_and_fill(self.df.index)
+            iter_index_get = self.iter_index_dict.get
+            self._iter_index_dict_get = iter_index_get
 
         # Normalize dt to a python datetime for fast dict lookups.
         # Callers can pass `pd.Timestamp` (common in pandas-heavy code paths); mixing Timestamp and
         # datetime keys leads to misses and forces an expensive `asof()` fallback.
-        dt_key = dt.to_pydatetime() if isinstance(dt, pd.Timestamp) else dt
+        dt_key = dt.to_pydatetime() if dt.__class__ is pd.Timestamp else dt
 
         # PERF: repeated calls in the same iteration commonly ask for the same `(data, dt)`.
         # Short-circuit before any dict membership/search work.
@@ -651,10 +986,10 @@ class Data:
         if last_dt_key == dt_key:
             cursor_i = getattr(self, "_iter_count_cursor_i", None)
             if cursor_i is not None:
-                return int(cursor_i)
+                return cursor_i
 
         # Fast-path: exact bar timestamp lookup.
-        i = self.iter_index_dict.get(dt_key)
+        i = iter_index_get(dt_key)
         if i is not None:
             index_ns = getattr(self, "_index_values_ns", None)
             if index_ns is not None:
@@ -854,6 +1189,190 @@ class Data:
             pass
 
         return price
+
+    def get_last_price_fast(self, dt) -> Union[float, Decimal, None]:
+        """Fast current-bar last price read for already-validated backtesting data."""
+        iter_count = self.get_iter_count(dt)
+        if iter_count < 0:
+            return None
+
+        lines = getattr(self, "_last_price_fast_lines", None)
+        if lines is None:
+            open_line = getattr(self, "open", None)
+            close_line = getattr(self, "close", None)
+            datetime_line = getattr(self, "datetime", None)
+            if open_line is None or close_line is None or datetime_line is None:
+                open_line = self.datalines["open"].dataline
+                close_line = self.datalines["close"].dataline
+                datetime_line = self.datalines["datetime"].dataline
+            lines = (open_line, close_line, datetime_line)
+            self._last_price_fast_lines = lines
+        else:
+            open_line, close_line, datetime_line = lines
+
+        open_price = open_line[iter_count]
+        close_price = close_line[iter_count]
+        if self.timestep == "day":
+            price = close_price
+        else:
+            price = close_price if dt > datetime_line[iter_count] else open_price
+
+        if price is None:
+            return None
+        try:
+            if price != price:
+                return None
+        except (TypeError, ValueError):
+            try:
+                if pd.isna(price):
+                    return None
+            except (TypeError, ValueError):
+                pass
+        return price
+
+    def get_previous_bar_close_fast(self, dt) -> Union[float, Decimal, None]:
+        """Fast previous-bar close for exact-clock backtesting reads."""
+        iter_index_get = getattr(self, "_iter_index_dict_get", None)
+        if iter_index_get is None:
+            return None
+        dt_key = dt.to_pydatetime() if dt.__class__ is pd.Timestamp else dt
+        i = iter_index_get(dt_key)
+        if i is None or i <= 0:
+            return None
+
+        lines = getattr(self, "_last_price_fast_lines", None)
+        if lines is None:
+            open_line = getattr(self, "open", None)
+            close_line = getattr(self, "close", None)
+            datetime_line = getattr(self, "datetime", None)
+            if open_line is None or close_line is None or datetime_line is None:
+                open_line = self.datalines["open"].dataline
+                close_line = self.datalines["close"].dataline
+                datetime_line = self.datalines["datetime"].dataline
+            lines = (open_line, close_line, datetime_line)
+            self._last_price_fast_lines = lines
+        else:
+            _, close_line, _ = lines
+
+        price = close_line[int(i) - 1]
+        if price is None:
+            return None
+        try:
+            if price != price:
+                return None
+        except (TypeError, ValueError):
+            try:
+                if pd.isna(price):
+                    return None
+            except (TypeError, ValueError):
+                pass
+        return price
+
+    def get_native_bars_fast(self, dt, length=1, timestep=MIN_TIMESTEP, mark_timezone=True):
+        """Fast native minute/day bar slice for warm-cache backtesting paths."""
+        if (
+            not self._index_is_unique
+            or timestep not in {"minute", "day"}
+            or timestep != self.timestep
+        ):
+            return self.get_bars(dt, length=length, timestep=timestep, timeshift=None)
+
+        if timestep == "day":
+            try:
+                dt_date = dt.date()
+            except Exception:
+                dt_date = None
+            day_cache = getattr(self, "_native_day_bars_fast_cache", None)
+            if day_cache is not None and day_cache[0] == dt_date and day_cache[1] == int(length):
+                cached_df = day_cache[2]
+                if cached_df is not None and len(cached_df) != 0:
+                    return cached_df
+
+        iter_count = self.get_iter_count(dt)
+        if iter_count is None:
+            iter_count = 0
+
+        df_source = getattr(self, "_bars_df", None)
+        if df_source is None:
+            bars_cols = getattr(self, "_bars_cols", None)
+            df_source = self.df[bars_cols].copy(deep=False) if bars_cols else self.df
+            if bars_cols:
+                self._bars_df = df_source
+
+        if timestep == "minute" and iter_count > 0:
+            end_row = int(iter_count)
+            start_row = end_row - int(length)
+            if start_row < 0:
+                start_row = 0
+        else:
+            end_row = int(iter_count) + 1 if timestep == "day" else int(iter_count)
+            data_len = getattr(self, "_data_len", None)
+            if data_len is None:
+                data_len = int(len(df_source.index))
+                self._data_len = data_len
+            end_row = max(0, min(end_row, data_len))
+            start_row = max(0, end_row - int(length))
+            if start_row > end_row:
+                start_row = end_row
+            if start_row == end_row and end_row > 0:
+                start_row = max(0, end_row - 1)
+
+        cache_key = None
+        if timestep == "day":
+            cache_key = ("native_fast", timestep, int(length), int(start_row), int(end_row))
+            if getattr(self, "_get_bars_slice_cache_key", None) == cache_key:
+                cached_df = getattr(self, "_get_bars_slice_cache_df", None)
+                if cached_df is not None and len(cached_df) != 0:
+                    return cached_df
+
+        slice_obj = slice(start_row, end_row)
+        if (
+            not mark_timezone
+            and timestep in {"minute", "day"}
+            and not getattr(self, "_ohlc_has_nan", True)
+            and not getattr(self, "_volume_has_nan", False)
+            and not getattr(self, "_dividend_has_nan", False)
+        ):
+            df = _lazy_pandas_slice_frame_class()(
+                df_source,
+                slice_obj,
+                end_row - start_row,
+                virtual_return=getattr(self, "_return_is_deferred", False),
+            )
+            if cache_key is not None:
+                self._get_bars_slice_cache_key = cache_key
+                self._get_bars_slice_cache_df = df
+            return df
+
+        try:
+            mgr = df_source._mgr.get_slice(slice_obj, axis=1)
+            df = df_source._constructor_from_mgr(mgr, axes=mgr.axes)
+        except Exception:
+            df = df_source._slice(slice_obj)
+        if df is None or len(df) == 0:
+            return None
+        if mark_timezone:
+            df.attrs["_lumibot_skip_timezone"] = True
+
+        if (
+            (getattr(self, "_bars_has_volume", False) and getattr(self, "_volume_has_nan", False))
+            or (getattr(self, "_bars_has_dividend", False) and getattr(self, "_dividend_has_nan", False))
+        ):
+            df = df.copy()
+            if getattr(self, "_bars_has_volume", False) and getattr(self, "_volume_has_nan", False):
+                df["volume"] = df["volume"].fillna(0)
+            if getattr(self, "_bars_has_dividend", False) and getattr(self, "_dividend_has_nan", False):
+                df["dividend"] = df["dividend"].fillna(0)
+
+        required = getattr(self, "_bars_required_cols", None)
+        if required and getattr(self, "_ohlc_has_nan", True):
+            df = df.dropna(subset=required)
+
+        self._get_bars_slice_cache_key = cache_key
+        self._get_bars_slice_cache_df = df
+        if timestep == "day":
+            self._native_day_bars_fast_cache = (dt_date, int(length), df)
+        return df
 
     @check_data
     def get_price_snapshot(self, dt, length=1, timeshift=0):
@@ -1086,7 +1605,10 @@ class Data:
         if timeshift is None:
             timeshift = 0
         # Parse the timestep
-        quantity, timestep = parse_timestep_qty_and_unit(timestep)
+        if timestep in {"minute", "hour", "day"}:
+            quantity = 1
+        else:
+            quantity, timestep = parse_timestep_qty_and_unit(timestep)
         num_periods = length
 
         if timestep == "minute" and self.timestep in {"day", "hour"}:
@@ -1118,7 +1640,7 @@ class Data:
         ):
             try:
                 iter_count = self.get_iter_count(dt)
-                if pd.isna(iter_count):
+                if iter_count is None:
                     iter_count = 0
             except Exception:
                 iter_count = self.get_iter_count(dt)
@@ -1163,15 +1685,16 @@ class Data:
             cached_key = getattr(self, "_get_bars_slice_cache_key", None)
             if cached_key == cache_key:
                 cached_df = getattr(self, "_get_bars_slice_cache_df", None)
-                if cached_df is not None and cached_df.shape[0] != 0:
+                if cached_df is not None and len(cached_df) != 0:
                     return cached_df
 
             # PERF: `.iloc[start:end]` goes through the indexer stack (`_iLocIndexer`) which
             # performs validation on every call. In backtesting we already operate on integer
             # row bounds; `_slice()` is the internal fast-path that avoids the indexer overhead.
             df = df_source._slice(slice(start_row, end_row))
-            if df is None or df.shape[0] == 0:
+            if df is None or len(df) == 0:
                 return None
+            df.attrs["_lumibot_skip_timezone"] = True
 
             # PERF: avoid `col in df.columns` membership checks (`Index.__contains__`) on every call.
             has_volume = getattr(self, "_bars_has_volume", _MISSING)
@@ -1233,7 +1756,7 @@ class Data:
             # row bounds in O(1) and return a stable OHLCV schema.
             try:
                 iter_count = self.get_iter_count(dt)
-                if pd.isna(iter_count):
+                if iter_count is None:
                     iter_count = 0
             except Exception:
                 iter_count = self.get_iter_count(dt)
@@ -1286,15 +1809,16 @@ class Data:
             cached_key = getattr(self, "_get_bars_slice_cache_key", None)
             if cached_key == cache_key:
                 cached_df = getattr(self, "_get_bars_slice_cache_df", None)
-                if cached_df is not None and cached_df.shape[0] != 0:
+                if cached_df is not None and len(cached_df) != 0:
                     return cached_df
 
             # PERF: `.iloc[start:end]` goes through the indexer stack (`_iLocIndexer`) which
             # performs validation on every call. In backtesting we already operate on integer
             # row bounds; `_slice()` is the internal fast-path that avoids the indexer overhead.
             df = df_source._slice(slice(start_row, end_row))
-            if df is None or df.shape[0] == 0:
+            if df is None or len(df) == 0:
                 return None
+            df.attrs["_lumibot_skip_timezone"] = True
 
             # PERF: avoid `col in df.columns` membership checks (`Index.__contains__`) on every call.
             has_volume = getattr(self, "_bars_has_volume", _MISSING)

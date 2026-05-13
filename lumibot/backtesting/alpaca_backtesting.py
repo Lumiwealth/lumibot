@@ -1,17 +1,20 @@
+from __future__ import annotations
+
 import os
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Optional
+from importlib import import_module
+from typing import TYPE_CHECKING, Optional
 
-import pandas as pd
 import pytz
-from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient
-from alpaca.data.requests import CryptoBarsRequest, StockBarsRequest
-from alpaca.data.timeframe import TimeFrame
 
-from lumibot.constants import LUMIBOT_CACHE_FOLDER
-from lumibot.data_sources import AlpacaData, DataSourceBacktesting
-from lumibot.entities import Asset, Bars
+from lumibot.constants import (
+    LUMIBOT_CACHE_FOLDER,
+    LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL,
+    LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE,
+)
+from lumibot.data_sources import DataSourceBacktesting
+from lumibot.entities import Asset
 from lumibot.tools.helpers import (
     date_n_trading_days_from_date,
     get_decimals,
@@ -22,19 +25,95 @@ from lumibot.tools.helpers import (
 )
 from lumibot.tools.lumibot_logger import get_logger
 
+if TYPE_CHECKING:
+    from lumibot.entities import Bars
+
 logger = get_logger(__name__)
 
-from lumibot.tools.alpaca_helpers import sanitize_base_and_quote_asset
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+_BARS_CLASS = None
+_ALPACA_DATA_CLASS = None
+_ALPACA_HELPERS = None
+
+
+def _alpaca_attr(module_name: str, attr_name: str):
+    return getattr(import_module(module_name), attr_name)
+
+
+def _bars_class():
+    global _BARS_CLASS
+    if _BARS_CLASS is None:
+        from lumibot.entities import Bars
+
+        _BARS_CLASS = Bars
+    return _BARS_CLASS
+
+
+def _alpaca_data_class():
+    global _ALPACA_DATA_CLASS
+    if _ALPACA_DATA_CLASS is None:
+        from lumibot.data_sources import AlpacaData
+
+        _ALPACA_DATA_CLASS = AlpacaData
+    return _ALPACA_DATA_CLASS
+
+
+def _alpaca_timeframe_from_source_value(value):
+    module = import_module("lumibot.data_sources.alpaca_data")
+    return module._timeframe_from_source_value(value)
+
+
+def _sanitize_base_and_quote_asset(*args, **kwargs):
+    global _ALPACA_HELPERS
+    if _ALPACA_HELPERS is None:
+        _ALPACA_HELPERS = import_module("lumibot.tools.alpaca_helpers")
+    return _ALPACA_HELPERS.sanitize_base_and_quote_asset(*args, **kwargs)
 
 
 class AlpacaBacktesting(DataSourceBacktesting):
     SOURCE = "ALPACA"
     MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = [
-        {"timestep": "day", "representations": [TimeFrame.Day]},
-        {"timestep": "minute", "representations": [TimeFrame.Minute]},
+        {"timestep": "day", "representations": ["day"]},
+        {"timestep": "minute", "representations": ["minute"]},
     ]
-    LUMIBOT_DEFAULT_QUOTE_ASSET = AlpacaData.LUMIBOT_DEFAULT_QUOTE_ASSET
+    LUMIBOT_DEFAULT_QUOTE_ASSET = Asset(LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL, LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE)
+
+    def _parse_source_timestep(self, timestep, reverse=False):
+        timestep_text = str(timestep)
+        for item in self.TIMESTEP_MAPPING:
+            if reverse and timestep_text == item["timestep"]:
+                return _alpaca_timeframe_from_source_value(item["representations"][0])
+            if not reverse and timestep_text in item["representations"]:
+                return item["timestep"]
+
+        if reverse:
+            normalized = super()._parse_source_timestep(timestep, reverse=False)
+            TimeFrame = _alpaca_attr("alpaca.data.timeframe", "TimeFrame")
+            if normalized == "day":
+                return TimeFrame.Day
+            if normalized == "minute":
+                return TimeFrame.Minute
+        return super()._parse_source_timestep(timestep, reverse=reverse)
 
     def __init__(
             self,
@@ -120,6 +199,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
             raise ValueError("Backtesting is restricted to paper accounts. Pass in a paper account config.")
 
         # Initialize clients based on available authentication method
+        CryptoHistoricalDataClient = _alpaca_attr("alpaca.data.historical", "CryptoHistoricalDataClient")
+        StockHistoricalDataClient = _alpaca_attr("alpaca.data.historical", "StockHistoricalDataClient")
         oauth_token = config.get("OAUTH_TOKEN")
         api_key = config.get("API_KEY")
         api_secret = config.get("API_SECRET")
@@ -140,7 +221,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             raise ValueError("Either OAuth token or API key/secret must be provided for Alpaca authentication")
 
         # Create an AlpacaData instance for internal use
-        self._alpaca_data = AlpacaData(config)
+        self._alpaca_data = _alpaca_data_class()(config)
 
         # Ensure datetime_start and datetime_end have the same tzinfo
         if str(datetime_start.tzinfo) != str(datetime_end.tzinfo):
@@ -216,7 +297,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         self._datetime = self.datetime_start
 
     def _sanitize_base_and_quote_asset(self, base_asset, quote_asset) -> tuple[Asset, Asset]:
-        asset, quote = sanitize_base_and_quote_asset(base_asset, quote_asset)
+        asset, quote = _sanitize_base_and_quote_asset(base_asset, quote_asset)
         return asset, quote
 
     def get_last_price(
@@ -374,7 +455,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         else:
             result_df = df.iloc[max(0, current_index - length + 1): current_index + 1]
 
-        return Bars(
+        return _bars_class()(
             result_df,
             self.SOURCE,
             asset=asset,
@@ -512,6 +593,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
         if base_asset.asset_type == 'crypto':
             client = self._crypto_client
+            CryptoBarsRequest = _alpaca_attr("alpaca.data.requests", "CryptoBarsRequest")
 
             symbol = base_asset.symbol + '/' + quote_asset.symbol
 
@@ -524,6 +606,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             )
         else:
             client = self._stock_client
+            StockBarsRequest = _alpaca_attr("alpaca.data.requests", "StockBarsRequest")
             adjustment = 'all' if auto_adjust else 'split'
 
             # noinspection PyArgumentList
@@ -536,6 +619,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             )
 
         try:
+            CryptoBarsRequest = _alpaca_attr("alpaca.data.requests", "CryptoBarsRequest")
             if isinstance(request_params, CryptoBarsRequest):
                 bars = client.get_crypto_bars(request_params)
             else:

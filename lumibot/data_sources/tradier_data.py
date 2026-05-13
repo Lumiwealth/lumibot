@@ -1,21 +1,92 @@
+from __future__ import annotations
+
 import datetime as dt
 from collections import defaultdict
 from decimal import Decimal
+from importlib import import_module
 from typing import Union
 
-import pandas as pd
 import pytz
-from lumiwealth_tradier import Tradier
 
 from lumibot.constants import LUMIBOT_DEFAULT_TIMEZONE
-from lumibot.entities import Asset, Bars, Quote
+from lumibot.entities import Asset, Quote
 from lumibot.tools import black_scholes
-from lumibot.tools.helpers import create_options_symbol, date_n_trading_days_from_date, parse_timestep_qty_and_unit
 from lumibot.tools.lumibot_logger import get_logger
 
 from .data_source import DataSource
 
 logger = get_logger(__name__)
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+_TRADIER_CLASS = None
+_BARS_CLASS = None
+_CREATE_OPTIONS_SYMBOL = None
+_DATE_N_TRADING_DAYS_FROM_DATE = None
+_PARSE_TIMESTEP_QTY_AND_UNIT = None
+
+
+def _tradier_class():
+    global _TRADIER_CLASS
+    if _TRADIER_CLASS is None:
+        from lumiwealth_tradier import Tradier
+
+        _TRADIER_CLASS = Tradier
+    return _TRADIER_CLASS
+
+
+def _bars_class():
+    global _BARS_CLASS
+    if _BARS_CLASS is None:
+        from lumibot.entities import Bars
+
+        _BARS_CLASS = Bars
+    return _BARS_CLASS
+
+
+def _create_options_symbol(*args, **kwargs):
+    global _CREATE_OPTIONS_SYMBOL
+    if _CREATE_OPTIONS_SYMBOL is None:
+        from lumibot.tools.helpers import create_options_symbol
+
+        _CREATE_OPTIONS_SYMBOL = create_options_symbol
+    return _CREATE_OPTIONS_SYMBOL(*args, **kwargs)
+
+
+def _date_n_trading_days_from_date(*args, **kwargs):
+    global _DATE_N_TRADING_DAYS_FROM_DATE
+    if _DATE_N_TRADING_DAYS_FROM_DATE is None:
+        from lumibot.tools.helpers import date_n_trading_days_from_date
+
+        _DATE_N_TRADING_DAYS_FROM_DATE = date_n_trading_days_from_date
+    return _DATE_N_TRADING_DAYS_FROM_DATE(*args, **kwargs)
+
+
+def _parse_timestep_qty_and_unit(*args, **kwargs):
+    global _PARSE_TIMESTEP_QTY_AND_UNIT
+    if _PARSE_TIMESTEP_QTY_AND_UNIT is None:
+        from lumibot.tools.helpers import parse_timestep_qty_and_unit
+
+        _PARSE_TIMESTEP_QTY_AND_UNIT = parse_timestep_qty_and_unit
+    return _PARSE_TIMESTEP_QTY_AND_UNIT(*args, **kwargs)
 
 
 class TradierAPIError(Exception):
@@ -98,7 +169,7 @@ class TradierData(DataSource):
         self._account_number = account_number
         self._paper = paper
         self.max_workers = min(max_workers, 50)
-        self.tradier = Tradier(account_number, access_token, paper)
+        self.tradier = _tradier_class()(account_number, access_token, paper)
         self._remove_incomplete_current_bar = remove_incomplete_current_bar
 
     def _sanitize_base_and_quote_asset(self, base_asset, quote_asset) -> tuple[Asset, Asset]:
@@ -234,12 +305,12 @@ class TradierData(DataSource):
         timestep = timestep if timestep else self.MIN_TIMESTEP
 
         # Parse the timestep
-        timestep_qty, timestep_unit = parse_timestep_qty_and_unit(timestep)
+        timestep_qty, timestep_unit = _parse_timestep_qty_and_unit(timestep)
 
         parsed_timestep_unit = self._parse_source_timestep(timestep_unit, reverse=True)
 
         if asset.asset_type == "option":
-            symbol = create_options_symbol(
+            symbol = _create_options_symbol(
                 asset.symbol,
                 asset.expiration,
                 asset.right,
@@ -268,7 +339,7 @@ class TradierData(DataSource):
             minutes_per_day = 24 * 60 / timestep_qty  # Need to include premarket and after hours
             days_needed = int(length // minutes_per_day) + 1
 
-        start_date = date_n_trading_days_from_date(
+        start_date = _date_n_trading_days_from_date(
             n_days=days_needed,
             start_datetime=end_dt,
             # TODO: pass market into DataSource
@@ -331,7 +402,7 @@ class TradierData(DataSource):
             df = df.iloc[-length:]
 
         # Convert the dataframe to a Bars object
-        bars = Bars(df, self.SOURCE, asset, raw=df, quote=quote)
+        bars = _bars_class()(df, self.SOURCE, asset, raw=df, quote=quote)
 
         return bars
 
@@ -357,7 +428,7 @@ class TradierData(DataSource):
         symbol = None
         try:
             if asset.asset_type == "option":
-                symbol = create_options_symbol(
+                symbol = _create_options_symbol(
                     asset.symbol,
                     asset.expiration,
                     asset.right,
@@ -396,7 +467,7 @@ class TradierData(DataSource):
         asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
 
         if asset.asset_type == "option":
-            symbol = create_options_symbol(
+            symbol = _create_options_symbol(
                 asset.symbol,
                 asset.expiration,
                 asset.right,
@@ -446,7 +517,7 @@ class TradierData(DataSource):
         greeks = {}
         stock_symbol = asset.symbol
         expiration = asset.expiration
-        option_symbol = create_options_symbol(stock_symbol, expiration, asset.right, asset.strike)
+        option_symbol = _create_options_symbol(stock_symbol, expiration, asset.right, asset.strike)
         df_chains = self.tradier.market.get_option_chains(stock_symbol, expiration, greeks=True)
         df = df_chains[df_chains["symbol"] == option_symbol]
         if df.empty:

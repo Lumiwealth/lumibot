@@ -1,12 +1,13 @@
+from __future__ import annotations
+
 import os
 import subprocess
 import time
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Union
+from importlib import import_module
+from typing import TYPE_CHECKING, Union
 
-import requests
-import urllib3
 from termcolor import colored
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
@@ -16,16 +17,15 @@ from lumibot.tools.ibkr_secdef import (
     select_futures_exchange_from_secdef_search_payload,
 )
 
-from ..entities import Asset, Bars
+from ..entities import Asset
 from .data_source import DataSource
+
+if TYPE_CHECKING:
+    from ..entities import Bars
 
 logger = get_logger(__name__)
 import importlib.resources  # Added
 import tempfile  # Added
-
-import pandas as pd
-
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 TYPE_MAP = dict(
     stock="STK",
@@ -35,6 +35,47 @@ TYPE_MAP = dict(
     index="IND",
     multileg="BAG",
 )
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+requests = _LazyModule("requests")
+urllib3 = _LazyModule("urllib3")
+_BARS_CLASS = None
+_URLLIB3_WARNINGS_DISABLED = False
+
+
+def _bars_class():
+    global _BARS_CLASS
+    if _BARS_CLASS is None:
+        from lumibot.entities import Bars
+
+        _BARS_CLASS = Bars
+    return _BARS_CLASS
+
+
+def _disable_urllib3_warnings():
+    global _URLLIB3_WARNINGS_DISABLED
+    if not _URLLIB3_WARNINGS_DISABLED:
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        _URLLIB3_WARNINGS_DISABLED = True
 
 
 class InteractiveBrokersRESTData(DataSource):
@@ -442,6 +483,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         while retrying or not allow_fail:
             try:
+                _disable_urllib3_warnings()
                 response = requests.get(url, verify=False)
             except requests.exceptions.RequestException as e:
                 response = requests.Response()
@@ -469,6 +511,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         while retrying or not allow_fail:
             try:
+                _disable_urllib3_warnings()
                 response = requests.post(url, json=json, verify=False)
             except requests.exceptions.RequestException as e:
                 response = requests.Response()
@@ -491,6 +534,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         while retrying or not allow_fail:
             try:
+                _disable_urllib3_warnings()
                 response = requests.delete(url, verify=False)
             except requests.exceptions.RequestException as e:
                 response = requests.Response()
@@ -776,6 +820,7 @@ class InteractiveBrokersRESTData(DataSource):
         exchange_val = str(exchange or "").strip().upper() or self._resolve_futures_exchange(symbol)
         params = {"symbols": symbol, "secType": "CONTFUT", "exchange": exchange_val}
         try:
+            _disable_urllib3_warnings()
             response = requests.get(url, params=params, verify=False)
             if response.status_code != 200:
                 logger.error(colored(f"Failed to retrieve security definition for {symbol}: {response.text}", "red"))
@@ -933,7 +978,7 @@ class InteractiveBrokersRESTData(DataSource):
             timestep = f"{timestep_value}y"
         else:
             logger.error(colored(f"Unsupported timestep: {timestep}", "red"))
-            return Bars(
+            return _bars_class()(
                 pd.DataFrame(
                     columns=["timestamp", "open", "high", "low", "close", "volume"]
                 ),
@@ -957,7 +1002,7 @@ class InteractiveBrokersRESTData(DataSource):
             logger.error(
                 colored(f"Error getting historical prices: {result['error']}", "red")
             )
-            return Bars(
+            return _bars_class()(
                 pd.DataFrame(
                     columns=["timestamp", "open", "high", "low", "close", "volume"]
                 ),
@@ -976,7 +1021,7 @@ class InteractiveBrokersRESTData(DataSource):
                     "red",
                 )
             )
-            return Bars(
+            return _bars_class()(
                 pd.DataFrame(
                     columns=["timestamp", "open", "high", "low", "close", "volume"]
                 ),
@@ -1017,7 +1062,7 @@ class InteractiveBrokersRESTData(DataSource):
         df['stock_splits'] = 0.0
         """
 
-        bars = Bars(df, self.SOURCE, asset, raw=df, quote=quote)
+        bars = _bars_class()(df, self.SOURCE, asset, raw=df, quote=quote)
 
         return bars
 

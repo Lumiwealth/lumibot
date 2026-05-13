@@ -1,13 +1,25 @@
-from math import e, log
-import numpy as np
+from math import e, erf, exp, log, pi, sqrt
 
 import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
-try:
-    from scipy.stats import norm
-except ImportError:
-    print("Mibian requires scipy to work properly")
+_SQRT_TWO = sqrt(2.0)
+_INV_SQRT_TWO_PI = 1.0 / sqrt(2.0 * pi)
+
+
+class _NormalDistribution:
+    """Scalar standard-normal cdf/pdf without importing scipy.stats.norm at startup."""
+
+    @staticmethod
+    def cdf(value):
+        return 0.5 * (1.0 + erf(value / _SQRT_TWO))
+
+    @staticmethod
+    def pdf(value):
+        return exp(-0.5 * value * value) * _INV_SQRT_TWO_PI
+
+
+norm = _NormalDistribution()
 
 # WARNING: All numbers should be floats -> x = 1.0
 
@@ -37,7 +49,7 @@ def impliedVolatility(className, args, callPrice=None, putPrice=None, high=500.0
             estimate = eval(className)(args, volatility=mid, performance=True).callPrice
         if putPrice:
             estimate = eval(className)(args, volatility=mid, performance=True).putPrice
-        if np.round(estimate, decimals) == target:
+        if round(estimate, decimals) == target:
             break
         elif estimate > target:
             high = mid

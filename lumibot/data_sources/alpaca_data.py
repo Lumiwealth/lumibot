@@ -1,34 +1,117 @@
+from __future__ import annotations
+
 import datetime as dt
 import os
 from decimal import Decimal
-from typing import Optional, Union, List, Dict
-import os
-import datetime as dt
-import pandas as pd
-import pytz
+from importlib import import_module
+from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
-import pandas as pd
 import pytz
-from alpaca.data.enums import Adjustment
-from alpaca.data.historical import CryptoHistoricalDataClient, OptionHistoricalDataClient, StockHistoricalDataClient
-from alpaca.data.requests import (
-    CryptoBarsRequest,
-    OptionBarsRequest,
-    OptionChainRequest,
-    OptionSnapshotRequest,
-    StockBarsRequest,
-)
-from alpaca.data.timeframe import TimeFrame
 
 from lumibot.constants import LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL, LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE
-from lumibot.entities import Asset, Bars, Quote
+from lumibot.entities import Asset, Quote
 from lumibot.tools.alpaca_helpers import sanitize_base_and_quote_asset
-from lumibot.tools.helpers import date_n_trading_days_from_date
 from lumibot.tools.lumibot_logger import get_logger
 
 from .data_source import DataSource
 
+if TYPE_CHECKING:
+    from lumibot.entities import Bars
+
 logger = get_logger(__name__)
+
+Adjustment = None
+CryptoHistoricalDataClient = None
+OptionHistoricalDataClient = None
+StockHistoricalDataClient = None
+CryptoBarsRequest = None
+OptionBarsRequest = None
+OptionChainRequest = None
+OptionSnapshotRequest = None
+StockBarsRequest = None
+TimeFrame = None
+TimeFrameUnit = None
+_DATE_N_TRADING_DAYS_FROM_DATE = None
+_BARS_CLASS = None
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        self._module_name = module_name
+        self._module = None
+
+    def _load(self):
+        module = self._module
+        if module is None:
+            module = import_module(self._module_name)
+            self._module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pd = _LazyModule("pandas")
+
+
+_ALPACA_ATTR_MODULES = {
+    "Adjustment": "alpaca.data.enums",
+    "CryptoHistoricalDataClient": "alpaca.data.historical",
+    "OptionHistoricalDataClient": "alpaca.data.historical",
+    "StockHistoricalDataClient": "alpaca.data.historical",
+    "CryptoBarsRequest": "alpaca.data.requests",
+    "OptionBarsRequest": "alpaca.data.requests",
+    "OptionChainRequest": "alpaca.data.requests",
+    "OptionSnapshotRequest": "alpaca.data.requests",
+    "StockBarsRequest": "alpaca.data.requests",
+    "TimeFrame": "alpaca.data.timeframe",
+    "TimeFrameUnit": "alpaca.data.timeframe",
+}
+
+
+def _get_alpaca_attr(name):
+    value = globals().get(name)
+    if value is None:
+        module = import_module(_ALPACA_ATTR_MODULES[name])
+        value = getattr(module, name)
+        globals()[name] = value
+    return value
+
+
+def _date_n_trading_days_from_date(*args, **kwargs):
+    global _DATE_N_TRADING_DAYS_FROM_DATE
+    if _DATE_N_TRADING_DAYS_FROM_DATE is None:
+        from lumibot.tools.helpers import date_n_trading_days_from_date
+
+        _DATE_N_TRADING_DAYS_FROM_DATE = date_n_trading_days_from_date
+    return _DATE_N_TRADING_DAYS_FROM_DATE(*args, **kwargs)
+
+
+def _bars_class():
+    global _BARS_CLASS
+    if _BARS_CLASS is None:
+        from lumibot.entities import Bars
+
+        _BARS_CLASS = Bars
+    return _BARS_CLASS
+
+
+def _timeframe_from_source_value(value):
+    text = str(value)
+    amount_text = "".join(ch for ch in text if ch.isdigit()) or "1"
+    unit_text = text[len(amount_text):]
+    amount = int(amount_text)
+    timeframe = _get_alpaca_attr("TimeFrame")
+    unit_enum = _get_alpaca_attr("TimeFrameUnit")
+    if unit_text == "Min":
+        return timeframe.Minute if amount == 1 else timeframe(amount, unit_enum.Minute)
+    if unit_text == "Hour":
+        return timeframe.Hour if amount == 1 else timeframe(amount, unit_enum.Hour)
+    if unit_text == "Day":
+        return timeframe.Day if amount == 1 else timeframe(amount, unit_enum.Day)
+    return value
 
 
 class AlpacaData(DataSource):
@@ -37,59 +120,59 @@ class AlpacaData(DataSource):
     TIMESTEP_MAPPING = [
         {
             "timestep": "minute",
-            "representations": [TimeFrame.Minute, "minute"],
+            "representations": ["1Min", "minute"],
         },
         {
             "timestep": "5 minutes",
             "representations": [
-                [f"5{TimeFrame.Minute}", "minute"],
+                "5Min",
             ],
         },
         {
             "timestep": "10 minutes",
             "representations": [
-                [f"10{TimeFrame.Minute}", "minute"],
+                "10Min",
             ],
         },
         {
             "timestep": "15 minutes",
             "representations": [
-                [f"15{TimeFrame.Minute}", "minute"],
+                "15Min",
             ],
         },
         {
             "timestep": "30 minutes",
             "representations": [
-                [f"30{TimeFrame.Minute}", "minute"],
+                "30Min",
             ],
         },
         {
             "timestep": "hour",
             "representations": [
-                [f"{TimeFrame.Hour}", "hour"],
+                "1Hour",
             ],
         },
         {
             "timestep": "1 hour",
             "representations": [
-                [f"{TimeFrame.Hour}", "hour"],
+                "1Hour",
             ],
         },
         {
             "timestep": "2 hours",
             "representations": [
-                [f"2{TimeFrame.Hour}", "hour"],
+                "2Hour",
             ],
         },
         {
             "timestep": "4 hours",
             "representations": [
-                [f"4{TimeFrame.Hour}", "hour"],
+                "4Hour",
             ],
         },
         {
             "timestep": "day",
-            "representations": [TimeFrame.Day, "day"],
+            "representations": ["1Day", "day"],
         },
     ]
     LUMIBOT_DEFAULT_QUOTE_ASSET = Asset(LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL, LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE)
@@ -99,6 +182,10 @@ class AlpacaData(DataSource):
     @staticmethod
     def _format_datetime(dt):
         return pd.Timestamp(dt).isoformat()
+
+    def _parse_source_timestep(self, timestep, reverse=False):
+        parsed = super()._parse_source_timestep(str(timestep), reverse=reverse)
+        return _timeframe_from_source_value(parsed) if reverse else parsed
 
     def _handle_auth_error(self, e, operation="data request"):
         """
@@ -160,10 +247,11 @@ class AlpacaData(DataSource):
         """Lazily initialize and return the stock client."""
         if self._stock_client is None:
             try:
+                stock_client_class = _get_alpaca_attr("StockHistoricalDataClient")
                 if self.oauth_token:
-                    self._stock_client = StockHistoricalDataClient(oauth_token=self.oauth_token)
+                    self._stock_client = stock_client_class(oauth_token=self.oauth_token)
                 else:
-                    self._stock_client = StockHistoricalDataClient(self.api_key, self.api_secret)
+                    self._stock_client = stock_client_class(self.api_key, self.api_secret)
             except Exception as e:
                 # Check if this is specifically an authentication error
                 error_message = str(e).lower()
@@ -182,10 +270,11 @@ class AlpacaData(DataSource):
         """Lazily initialize and return the crypto client."""
         if self._crypto_client is None:
             try:
+                crypto_client_class = _get_alpaca_attr("CryptoHistoricalDataClient")
                 if self.oauth_token:
-                    self._crypto_client = CryptoHistoricalDataClient(oauth_token=self.oauth_token)
+                    self._crypto_client = crypto_client_class(oauth_token=self.oauth_token)
                 else:
-                    self._crypto_client = CryptoHistoricalDataClient(self.api_key, self.api_secret)
+                    self._crypto_client = crypto_client_class(self.api_key, self.api_secret)
             except Exception as e:
                 # Check if this is specifically an authentication error
                 error_message = str(e).lower()
@@ -204,10 +293,11 @@ class AlpacaData(DataSource):
         """Lazily initialize and return the option client."""
         if self._option_client is None:
             try:
+                option_client_class = _get_alpaca_attr("OptionHistoricalDataClient")
                 if self.oauth_token:
-                    self._option_client = OptionHistoricalDataClient(oauth_token=self.oauth_token)
+                    self._option_client = option_client_class(oauth_token=self.oauth_token)
                 else:
-                    self._option_client = OptionHistoricalDataClient(self.api_key, self.api_secret)
+                    self._option_client = option_client_class(self.api_key, self.api_secret)
             except Exception as e:
                 # Log the actual error without going through auth error handler immediately
                 logger.error(f"Error initializing option client: {e}")
@@ -388,7 +478,8 @@ class AlpacaData(DataSource):
             client = self._get_option_client()
 
             # Use OptionChainRequest with underlying_symbol for stock assets
-            req = OptionChainRequest(
+            option_chain_request = _get_alpaca_attr("OptionChainRequest")
+            req = option_chain_request(
                 underlying_symbol=asset.symbol,
             )
 
@@ -565,14 +656,17 @@ class AlpacaData(DataSource):
 
         # Normalize assets list to Asset objects
         norm_assets: List[Asset] = []
+        crypto_quote_by_asset: Dict[Asset, Asset] = {}
         for a in assets:
             if isinstance(a, Asset):
                 norm_assets.append(a)
             elif isinstance(a, str):
                 norm_assets.append(Asset(a))
             elif isinstance(a, tuple) and len(a) == 2 and all(isinstance(x, Asset) for x in a):
-                # crypto pair tuple (base, quote)
-                norm_assets.append(a[0])
+                # crypto pair tuple (base, quote); preserve each quote for symbol formatting.
+                base_asset, quote_asset = a
+                norm_assets.append(base_asset)
+                crypto_quote_by_asset[base_asset] = quote_asset
             else:
                 logger.warning(f"Unsupported asset entry {a}, skipping")
 
@@ -596,7 +690,7 @@ class AlpacaData(DataSource):
         else:
             minutes_per_day = 390
             days_needed = (length // minutes_per_day) + 2  # + buffer
-        start_date = date_n_trading_days_from_date(
+        start_date = _date_n_trading_days_from_date(
             n_days=days_needed,
             start_datetime=end_dt,
             market="NYSE",
@@ -655,14 +749,16 @@ class AlpacaData(DataSource):
                 yield lst[i : i + size]
 
         # Adjustment setting
-        adjustment = Adjustment.ALL if getattr(self, "_auto_adjust", True) else Adjustment.RAW
+        adjustment_enum = _get_alpaca_attr("Adjustment")
+        adjustment = adjustment_enum.ALL if getattr(self, "_auto_adjust", True) else adjustment_enum.RAW
 
         # Stocks batching
         if stock_assets:
             client = self._get_stock_client()
             for chunk in _chunks(stock_assets, chunk_size):
                 syms = [a.symbol for a in chunk]
-                params = StockBarsRequest(
+                stock_bars_request = _get_alpaca_attr("StockBarsRequest")
+                params = stock_bars_request(
                     symbol_or_symbols=syms,
                     timeframe=timeframe,
                     start=start_dt,
@@ -684,7 +780,7 @@ class AlpacaData(DataSource):
                                 cleaned = _clean_df(df_sym, sym)
                                 if cleaned is not None:
                                     asset_obj = next(a for a in chunk if a.symbol == sym)
-                                    result[asset_obj] = Bars(
+                                    result[asset_obj] = _bars_class()(
                                         cleaned,
                                         self.SOURCE,
                                         asset_obj,
@@ -696,7 +792,7 @@ class AlpacaData(DataSource):
                         cleaned = _clean_df(df_multi, sym)
                         if cleaned is not None:
                             asset_obj = chunk[0]
-                            result[asset_obj] = Bars(
+                            result[asset_obj] = _bars_class()(
                                 cleaned,
                                 self.SOURCE,
                                 asset_obj,
@@ -711,7 +807,8 @@ class AlpacaData(DataSource):
             client = self._get_option_client()
             for chunk in _chunks(option_assets, chunk_size):
                 syms = [_option_symbol(a) for a in chunk]
-                params = OptionBarsRequest(
+                option_bars_request = _get_alpaca_attr("OptionBarsRequest")
+                params = option_bars_request(
                     symbol_or_symbols=syms,
                     timeframe=timeframe,
                     start=start_dt,
@@ -732,7 +829,7 @@ class AlpacaData(DataSource):
                                 continue
                             cleaned = _clean_df(df_sym, sym)
                             if cleaned is not None:
-                                result[a] = Bars(
+                                result[a] = _bars_class()(
                                     cleaned,
                                     self.SOURCE,
                                     a,
@@ -743,7 +840,7 @@ class AlpacaData(DataSource):
                         sym = syms[0]
                         cleaned = _clean_df(df_multi, sym)
                         if cleaned is not None:
-                            result[chunk[0]] = Bars(
+                            result[chunk[0]] = _bars_class()(
                                 cleaned,
                                 self.SOURCE,
                                 chunk[0],
@@ -760,12 +857,14 @@ class AlpacaData(DataSource):
                 syms = []
                 asset_map = {}
                 for a in chunk:
-                    # Attempt to sanitize base/quote using helper (falls back to provided quote parameter)
-                    base_asset, quote_asset = a, quote if quote else self.LUMIBOT_DEFAULT_QUOTE_ASSET
+                    # Use the tuple-specific quote first; fall back to the shared quote parameter.
+                    base_asset = a
+                    quote_asset = crypto_quote_by_asset.get(a, quote if quote else self.LUMIBOT_DEFAULT_QUOTE_ASSET)
                     symbol_fmt = f"{base_asset.symbol}/{quote_asset.symbol}"
                     syms.append(symbol_fmt)
                     asset_map[symbol_fmt] = a
-                params = CryptoBarsRequest(
+                crypto_bars_request = _get_alpaca_attr("CryptoBarsRequest")
+                params = crypto_bars_request(
                     symbol_or_symbols=syms,
                     timeframe=timeframe,
                     start=start_dt,
@@ -787,7 +886,7 @@ class AlpacaData(DataSource):
                             cleaned = _clean_df(df_sym, sym)
                             if cleaned is not None:
                                 a = asset_map[sym]
-                                result[a] = Bars(
+                                result[a] = _bars_class()(
                                     cleaned,
                                     self.SOURCE,
                                     a,
@@ -799,7 +898,7 @@ class AlpacaData(DataSource):
                         cleaned = _clean_df(df_multi, sym)
                         if cleaned is not None:
                             a = asset_map[sym]
-                            result[a] = Bars(
+                            result[a] = _bars_class()(
                                 cleaned,
                                 self.SOURCE,
                                 a,
@@ -884,7 +983,7 @@ class AlpacaData(DataSource):
             minutes_per_day = 390  # ~6.5 hours of trading per day
             days_needed = (length // minutes_per_day) + 1
 
-        start_date = date_n_trading_days_from_date(
+        start_date = _date_n_trading_days_from_date(
             n_days=days_needed,
             start_datetime=end_dt,
             # TODO: pass market into DataSource
@@ -900,7 +999,8 @@ class AlpacaData(DataSource):
                 client = self._get_crypto_client()
 
                 # noinspection PyArgumentList
-                params = CryptoBarsRequest(
+                crypto_bars_request = _get_alpaca_attr("CryptoBarsRequest")
+                params = crypto_bars_request(
                     symbol_or_symbols=symbol,
                     timeframe=timeframe,
                     start=start_dt,
@@ -915,7 +1015,8 @@ class AlpacaData(DataSource):
                 client = self._get_option_client()
 
                 # noinspection PyArgumentList
-                params = OptionBarsRequest(
+                option_bars_request = _get_alpaca_attr("OptionBarsRequest")
+                params = option_bars_request(
                     symbol_or_symbols=symbol,
                     timeframe=timeframe,
                     start=start_dt,
@@ -928,12 +1029,14 @@ class AlpacaData(DataSource):
                 client = self._get_stock_client()
 
                 # noinspection PyArgumentList
-                params = StockBarsRequest(
+                stock_bars_request = _get_alpaca_attr("StockBarsRequest")
+                adjustment_enum = _get_alpaca_attr("Adjustment")
+                params = stock_bars_request(
                     symbol_or_symbols=symbol,
                     timeframe=timeframe,
                     start=start_dt,
                     end=end_dt,
-                    adjustment=Adjustment.ALL if self._auto_adjust else Adjustment.RAW
+                    adjustment=adjustment_enum.ALL if self._auto_adjust else adjustment_enum.RAW
                 )
                 barset = client.get_stock_bars(params)
 
@@ -985,7 +1088,7 @@ class AlpacaData(DataSource):
         return df
 
     def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
-        bars = Bars(
+        bars = _bars_class()(
             response,
             self.SOURCE,
             asset,
@@ -1125,11 +1228,13 @@ class AlpacaData(DataSource):
         option_symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
 
         # Initialize the historical data client
+        option_client_class = _get_alpaca_attr("OptionHistoricalDataClient")
         if self.oauth_token:
-            client = OptionHistoricalDataClient(oauth_token=self.oauth_token)
+            client = option_client_class(oauth_token=self.oauth_token)
         else:
-            client = OptionHistoricalDataClient(self.api_key, self.api_secret)
-        request = OptionSnapshotRequest(symbol_or_symbols=option_symbol)
+            client = option_client_class(self.api_key, self.api_secret)
+        option_snapshot_request = _get_alpaca_attr("OptionSnapshotRequest")
+        request = option_snapshot_request(symbol_or_symbols=option_symbol)
         try:
             snapshots = client.get_option_snapshot(request)
             snapshot = snapshots.get(option_symbol)

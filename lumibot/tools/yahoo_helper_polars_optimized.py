@@ -1,16 +1,37 @@
 """Optimized Yahoo finance helper using pure polars with minimal conversions."""
+from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from importlib import import_module
 from pathlib import Path
 from typing import Any, Dict, Optional
-
-import polars as pl
-import yfinance as yf
 
 from lumibot.constants import LUMIBOT_CACHE_FOLDER
 from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
+
+
+class _LazyModule:
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+pl = _LazyModule("polars")
+yf = _LazyModule("yfinance")
 
 
 class YahooHelperPolarsOptimized:

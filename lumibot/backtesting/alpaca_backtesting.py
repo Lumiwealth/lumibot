@@ -354,17 +354,17 @@ class AlpacaBacktesting(DataSourceBacktesting):
             # For daily bars
             search_date = search_datetime.date()
             dates = df.index.date
-            current_index = dates.searchsorted(search_date)
+            current_index = dates.searchsorted(search_date, side="right") - 1
 
             # Adjust for incomplete current bar
-            if remove_incomplete_current_bar and current_index > 0 and dates[current_index] == search_date:
+            if remove_incomplete_current_bar and current_index >= 0 and dates[current_index] == search_date:
                 current_index -= 1
         else:
-            # For minute bars
-            current_index = df.index.searchsorted(search_datetime)
+            # For intraday bars, use the most recent bar at or before the search datetime.
+            current_index = df.index.searchsorted(search_datetime, side="right") - 1
 
             # Adjust for incomplete current bar
-            if remove_incomplete_current_bar and current_index > 0 and df.index[current_index] == search_datetime:
+            if remove_incomplete_current_bar and current_index >= 0 and df.index[current_index] == search_datetime:
                 current_index -= 1
 
         # Handle data retrieval and slicing
@@ -649,14 +649,19 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
         df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']]
 
-        trading_times = self._get_trading_times_for_timestep(
-            pcal=self._trading_days,
-            timestep=timestep,
-        )
+        if timestep in ("day", "minute"):
+            trading_times = self._get_trading_times_for_timestep(
+                pcal=self._trading_days,
+                timestep=timestep,
+            )
 
-        # Reindex the dataframe with a row for each bar we should have a trading iteration for.
-        # Fill any empty bars with previous data.
-        df = self._reindex_and_fill(df=df, trading_times=trading_times, timestep=timestep)
+            # Reindex the dataframe with a row for each bar we should have a trading iteration for.
+            # Fill any empty bars with previous data.
+            df = self._reindex_and_fill(df=df, trading_times=trading_times, timestep=timestep)
+        else:
+            # Alpaca aligns native intraday multiples on provider-specific boundaries
+            # such as 09:40 for 20Min NYSE bars. Preserve those native timestamps.
+            df.sort_values("timestamp", inplace=True)
 
         # Filter data to include only rows between data_datetime_start and data_datetime_end
         df = df[(df['timestamp'] >= data_datetime_start) & (df['timestamp'] <= data_datetime_end)]

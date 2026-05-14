@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.5.19 - 2026-05-14
+
+Deploy marker: 4.5.19 release commit (`deploy 4.5.19`)
+
+### Fixed
+- **Alpaca backtests now support multi-timeframe history requests such as `15min`.** `AlpacaBacktesting.get_historical_prices()` now requests native Alpaca minute/hour multiples where supported and only falls back to local aggregation for unsupported aliases such as multi-day bars, so strategy calls like `get_historical_prices(asset, 100, "15min")` match the public strategy API contract instead of failing validation.
+
+### Changed
+- **LumiBot release docs now include a Codex-safe remote-first release path for shared checkouts.** AI agents can avoid switching the canonical local checkout when unrelated dirty files are present while preserving the same version-branch, PR, tag, PyPI, and BotManager deployment invariants.
+
 ## 4.5.18 - 2026-05-14
 
 Deploy marker: 4.5.18 release commit (`deploy 4.5.18`)

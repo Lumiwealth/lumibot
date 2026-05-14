@@ -2,7 +2,7 @@
 
 > Release/deployment workflow for LumiBot (version branches, changelog, tags, and GitHub releases).
 
-**Last Updated:** 2026-05-10
+**Last Updated:** 2026-05-14
 **Status:** Active
 **Audience:** Developers + AI Agents
 
@@ -65,6 +65,35 @@ Release order for tearsheet metric changes:
   - When you start a new version branch, bump immediately and commit: `chore: start X.Y.Z`.
   - **Never downgrade** versions. If a bump was wrong, bump forward (and document why).
 - After a version branch is merged to `dev`, **immediately start the next version branch** (see Step 7).
+
+---
+
+## Codex-Safe Release Path For Shared Checkouts
+
+Use this path when an AI agent is deploying from the shared canonical checkout and
+local branch switching would risk another agent's work.
+
+The release invariants are the same:
+- the version branch must contain every commit that will ship,
+- the version branch must include latest `dev`,
+- the release must merge to `dev` via PR,
+- the `vX.Y.Z` tag must point at the resulting `dev` merge commit,
+- BotManager deploys happen only after the PyPI release is verified.
+
+Safe remote-first checklist:
+1. Confirm the local checkout is on `version/X.Y.Z`; do not switch to `dev`.
+2. Confirm no local-only commits exist: `git log --oneline origin/version/X.Y.Z..HEAD`.
+3. Confirm any local dirty files are unrelated to the release. If they are related, commit and push them first. If they are unrelated, do not stage them and call the dirty state out in the release notes.
+4. Fetch `origin/dev` and `origin/version/X.Y.Z`, then compare both directions:
+   - `git log --oneline origin/dev..origin/version/X.Y.Z`
+   - `git log --oneline origin/version/X.Y.Z..origin/dev`
+5. If `origin/dev` is ahead, merge/update the version branch through the release PR or a clean disposable release clone. Do not switch the canonical checkout just to do this.
+6. Create or update the release PR from `version/X.Y.Z` to `dev`, wait for CI, then merge the PR.
+7. Fetch the updated `origin/dev`, tag the `dev` merge commit, and push the tag.
+
+This does not relax the clean-tree requirement for normal human release work. It
+exists to prevent AI agents from switching branches in the shared LumiBot checkout
+when unrelated local work is present.
 
 ---
 

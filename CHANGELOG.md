@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.5.18 - Unreleased
+## 4.5.18 - 2026-05-14
+
+Deploy marker: 4.5.18 release commit (`deploy 4.5.18`)
 
 ### Fixed
 - **IBKR-routed stock/index lookups in option backtests now stay on native daily bars.** Implicit stock/index `get_last_price()` and `get_quote()` calls no longer fall through to IBKR minute history after an option backtest has observed intraday cadence.

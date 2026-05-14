@@ -116,6 +116,25 @@ def test_routed_get_last_price_aligns_1d_source_timestep_to_day_for_non_theta(mo
     assert seen == ["day"]
 
 
+def test_routed_get_last_price_keeps_ibkr_stock_on_day_even_after_intraday_cadence(monkeypatch):
+    ds = _make_ds(routing={"stock": "ibkr", "default": "thetadata"}, monkeypatch=monkeypatch)
+    ds._timestep = "minute"
+    ds._observed_intraday_cadence = True
+    ds._effective_day_mode = False
+
+    seen: list[str] = []
+
+    def _fake_super_get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs):
+        seen.append(str(timestep))
+        return 123.45
+
+    monkeypatch.setattr(ThetaDataBacktestingPandas, "get_last_price", _fake_super_get_last_price)
+
+    price = ds.get_last_price(Asset("PARR", asset_type="stock"))
+    assert price == 123.45
+    assert seen == ["day"]
+
+
 def test_routed_get_quote_aligns_1d_source_timestep_to_day_for_non_theta(monkeypatch):
     ds = _make_ds(routing={"stock": "ibkr", "default": "thetadata"}, monkeypatch=monkeypatch)
     ds._timestep = "1D"
@@ -129,4 +148,22 @@ def test_routed_get_quote_aligns_1d_source_timestep_to_day_for_non_theta(monkeyp
     monkeypatch.setattr(ThetaDataBacktestingPandas, "get_quote", _fake_super_get_quote)
 
     _ = ds.get_quote(Asset("AAPL", asset_type="stock"))
+    assert seen == ["day"]
+
+
+def test_routed_get_quote_keeps_ibkr_stock_on_day_even_after_intraday_cadence(monkeypatch):
+    ds = _make_ds(routing={"stock": "ibkr", "default": "thetadata"}, monkeypatch=monkeypatch)
+    ds._timestep = "minute"
+    ds._observed_intraday_cadence = True
+    ds._effective_day_mode = False
+
+    seen: list[str] = []
+
+    def _fake_super_get_quote(self, asset, quote=None, exchange=None, timestep="minute", **kwargs):
+        seen.append(str(timestep))
+        return None
+
+    monkeypatch.setattr(ThetaDataBacktestingPandas, "get_quote", _fake_super_get_quote)
+
+    _ = ds.get_quote(Asset("PARR", asset_type="stock"))
     assert seen == ["day"]

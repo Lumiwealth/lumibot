@@ -2,6 +2,10 @@
 
 ## 4.5.18 - Unreleased
 
+### Fixed
+- **IBKR-routed stock/index lookups in option backtests now stay on native daily bars.** Implicit stock/index `get_last_price()` and `get_quote()` calls no longer fall through to IBKR minute history after an option backtest has observed intraday cadence.
+- **ThetaData option OHLC downloader waits are now bounded separately.** One stuck sparse option contract/day no longer inherits the broad OHLC history timeout used for larger history downloads.
+
 ## 4.5.17 - 2026-05-14
 
 Deploy marker: 4.5.17 release commit (`deploy 4.5.17`)

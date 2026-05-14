@@ -1,10 +1,13 @@
-import re
 import logging
-import tempfile
 import os
-from unittest.mock import patch
+import re
+import tempfile
+from unittest.mock import PropertyMock, patch
+
 import pytest
+
 from lumibot.tools import lumibot_logger
+
 
 @pytest.fixture(autouse=True)
 def reset_logging_state():
@@ -64,9 +67,21 @@ def test_lumiwealth_api_key_resolves_from_credentials_fallback(monkeypatch):
 
     import lumibot.credentials as credentials
 
+    root_logger = logging.getLogger("lumibot")
+    for handler in root_logger.handlers[:]:
+        if isinstance(handler, lumibot_logger.BotspotErrorHandler):
+            root_logger.removeHandler(handler)
+
+    monkeypatch.setattr(credentials, "LUMIWEALTH_API_KEY", None, raising=False)
+    lumibot_logger._handlers_configured = False
+    lumibot_logger._ensure_handlers_configured()
+    assert not any(isinstance(handler, lumibot_logger.BotspotErrorHandler) for handler in root_logger.handlers)
+
     monkeypatch.setattr(credentials, "LUMIWEALTH_API_KEY", "credentials-key", raising=False)
 
     assert lumibot_logger._resolve_lumiwealth_api_key() == "credentials-key"
+    lumibot_logger._ensure_handlers_configured()
+    assert any(isinstance(handler, lumibot_logger.BotspotErrorHandler) for handler in root_logger.handlers)
 
 
 def test_unified_logger_info_includes_module_context(caplog):
@@ -133,7 +148,6 @@ def test_quiet_logs_functionality():
 def test_trader_quiet_logs_integration():
     """Test that Trader's quiet_logs parameter integrates with unified logger"""
     from lumibot.traders.trader import Trader
-    from unittest.mock import PropertyMock
     
     # Set environment to simulate backtesting
     with patch.dict(os.environ, {'IS_BACKTESTING': 'true'}):

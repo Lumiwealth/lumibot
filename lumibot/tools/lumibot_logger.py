@@ -631,6 +631,15 @@ class StrategyLoggerAdapter(logging.LoggerAdapter):
             self.extra = extra_dict
 
 
+def _ensure_botspot_handler(root_logger: logging.Logger):
+    api_key = _resolve_lumiwealth_api_key()
+    if not api_key:
+        return
+    if any(isinstance(handler, BotspotErrorHandler) for handler in root_logger.handlers):
+        return
+    root_logger.addHandler(BotspotErrorHandler())
+
+
 def _ensure_handlers_configured(is_backtest=False, skip_if_configured=False):
     """
     Ensure that the root logger has the appropriate handlers configured.
@@ -722,12 +731,14 @@ def _ensure_handlers_configured(is_backtest=False, skip_if_configured=False):
     if _handlers_configured:
         root_logger = logging.getLogger("lumibot")
         _apply_levels(root_logger)
+        _ensure_botspot_handler(root_logger)
         return
 
     with _config_lock:
         if _handlers_configured:
             root_logger = logging.getLogger("lumibot")
             _apply_levels(root_logger)
+            _ensure_botspot_handler(root_logger)
             return
 
         # Set the logger class to our custom LumibotLogger
@@ -753,12 +764,8 @@ def _ensure_handlers_configured(is_backtest=False, skip_if_configured=False):
             csv_handler = CSVErrorHandler(csv_path)
             root_logger.addHandler(csv_handler)
 
-        # Add Botspot error handler if API key is available
-        api_key = _resolve_lumiwealth_api_key()
-
-        if api_key:
-            botspot_handler = BotspotErrorHandler()
-            root_logger.addHandler(botspot_handler)
+        # Add Botspot error handler if API key is available.
+        _ensure_botspot_handler(root_logger)
 
         root_logger.propagate = True
         _handlers_configured = True

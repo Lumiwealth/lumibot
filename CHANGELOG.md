@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.5.16 - 2026-05-14
+
+Deploy marker: 4.5.16 release commit (`deploy 4.5.16`)
+
+### Fixed
+- **Routed daily stock/index backtests no longer satisfy day lookups from stale minute frames.** `RoutedBacktestingPandas` now pins stock/index day requests to native daily bars, and `ThetaDataBacktestingPandas.get_last_price()` / `get_quote()` preserve daily cadence instead of falling back through base `PandasData` lookups that can resolve May-only minute caches during April AlphaPicks option backtests.
+
 ## 4.5.15 - 2026-05-13
 
 Deploy marker: 4.5.15 release commit (`deploy 4.5.15`)

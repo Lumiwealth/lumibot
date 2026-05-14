@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import pytest
 
 from lumibot.entities import Asset, Order
@@ -263,6 +265,18 @@ class TestOrderBasics:
         assert order._error == "boom"
         assert order.error_message == "boom"
         assert order._closed_event is None
+
+    def test_simple_market_backtest_float_quantity_matches_regular_order_precision(self):
+        asset = Asset("SPY")
+        order = Order.simple_market_backtest(
+            "abc",
+            asset,
+            0.1,
+            Order.OrderSide.BUY,
+        )
+
+        assert order.quantity == Decimal("0.1")
+        assert order._simple_quantity_float == 0.1
 
     def test_equivalent_status(self):
         asset = Asset("SPY")

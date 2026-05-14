@@ -770,7 +770,12 @@ class Order:
         obj._simple_is_option = asset_type_value == "option"
         if obj._simple_is_future:
             obj._simple_futures_ledger_key = (obj.strategy, obj.symbol, asset_type, getattr(asset, "expiration", None))
-        obj._quantity = quantity if isinstance(quantity, Decimal) else Decimal(quantity)
+        if isinstance(quantity, Decimal):
+            obj._quantity = quantity
+        elif isinstance(quantity, float):
+            obj._quantity = Decimal(str(quantity))
+        else:
+            obj._quantity = Decimal(quantity)
         obj._simple_quantity_float = float(obj._quantity)
         obj._simple_backtest_order = True
         side_obj = obj.side

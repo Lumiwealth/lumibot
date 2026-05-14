@@ -149,6 +149,7 @@ class Broker(ABC):
     EXPIRED_OPTION = "expired"
     ERROR_ORDER = "error"
     PLACEHOLDER_ORDER = "placeholder"
+    _REPLAYED_TERMINAL_ORDER = object()
 
     @staticmethod
     def _truthy_env(value: str | None) -> bool:
@@ -1431,13 +1432,12 @@ class Broker(ABC):
             order_identifier = order.identifier
 
             def _find_in_bucket(bucket):
-                if order_identifier not in bucket:
-                    return None
                 getter = getattr(bucket, "get", None)
                 if getter is not None:
                     existing = getter(order_identifier)
                     if existing is not None:
                         return existing
+                    return None
                 for existing in bucket.get_list():
                     if getattr(existing, "_identifier", getattr(existing, "identifier", None)) == order_identifier:
                         return existing
@@ -1447,7 +1447,7 @@ class Broker(ABC):
             for bucket in (self._filled_orders, self._canceled_orders, self._error_orders):
                 existing_order = _find_in_bucket(bucket)
                 if existing_order is not None:
-                    return existing_order
+                    return self._REPLAYED_TERMINAL_ORDER
 
             existing_order = _find_in_bucket(self._new_orders)
             if existing_order is not None:
@@ -2748,6 +2748,8 @@ class Broker(ABC):
         if is_backtesting:
             if type_event == self.NEW_ORDER:
                 order = self._process_new_order(stored_order)
+                if order is self._REPLAYED_TERMINAL_ORDER:
+                    return
                 if order:
                     self._on_new_order(order)
             elif type_event == self.PLACEHOLDER_ORDER:
@@ -2792,6 +2794,8 @@ class Broker(ABC):
         else:
             if Order.is_equivalent_status(type_event, self.NEW_ORDER):
                 order = self._process_new_order(stored_order)
+                if order is self._REPLAYED_TERMINAL_ORDER:
+                    return
                 if order:
                     self._on_new_order(order)
             elif Order.is_equivalent_status(type_event, self.PLACEHOLDER_ORDER):

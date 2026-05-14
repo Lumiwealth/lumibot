@@ -184,6 +184,12 @@ Selection rule (ThetaData):
 - Default: `300`.
 - Notes: this is intentionally shorter than `THETADATA_QUEUE_HISTORY_TIMEOUT` so one stuck option quote fails visibly instead of making a backtest appear frozen for a full OHLC-history timeout window.
 
+### `THETADATA_QUEUE_OPTION_OHLC_TIMEOUT`
+- Purpose: Data Downloader wait timeout for `/option/history/ohlc` requests used by sparse option contract probes.
+- Values: seconds (float); set to `0` only if you intentionally want unbounded waits.
+- Default: `300`.
+- Notes: stock/index history continues to use `THETADATA_QUEUE_HISTORY_TIMEOUT`; this only bounds option OHLC requests that can otherwise stall a backtest on one illiquid contract/day.
+
 ## ThetaData option chain building (performance)
 
 These env vars are used by the ThetaData chain cache/builder in `lumibot/tools/thetadata_helper.py`.

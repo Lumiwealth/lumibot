@@ -282,6 +282,19 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         if asset_type in {"stock", "index"}:
             day_key = (base_asset, quote_asset, "day", self._normalize_exchange_key(effective_exchange))
             day_data = self._data_store.get(day_key)
+            if day_data is None:
+                try:
+                    self._refresh_window_around_datetime(
+                        asset=base_asset,
+                        quote=quote_asset,
+                        dataset_key="day",
+                        dt=now,
+                        exchange=effective_exchange,
+                        include_after_hours=False,
+                    )
+                    day_data = self._data_store.get(day_key)
+                except Exception:
+                    return None
             if day_data is not None:
                 try:
                     return day_data.get_last_price(now)
@@ -300,6 +313,7 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                             return day_data.get_last_price(now)
                     except Exception:
                         return None
+            return None
 
         minute_key = (base_asset, quote_asset, "minute", self._normalize_exchange_key(effective_exchange))
         data = self._data_store.get(minute_key)
@@ -391,6 +405,19 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         if asset_type in {"stock", "index"}:
             day_key = (base_asset, quote_asset, "day", self._normalize_exchange_key(effective_exchange))
             day_data = self._data_store.get(day_key)
+            if day_data is None:
+                try:
+                    self._refresh_window_around_datetime(
+                        asset=base_asset,
+                        quote=quote_asset,
+                        dataset_key="day",
+                        dt=now,
+                        exchange=effective_exchange,
+                        include_after_hours=False,
+                    )
+                    day_data = self._data_store.get(day_key)
+                except Exception:
+                    return Quote(asset=base_asset)
             if day_data is not None:
                 try:
                     ohlcv_bid_ask_dict = day_data.get_quote(now)
@@ -431,6 +458,7 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                             )
                     except Exception:
                         return Quote(asset=base_asset)
+            return Quote(asset=base_asset)
 
         minute_key = (base_asset, quote_asset, "minute", self._normalize_exchange_key(effective_exchange))
         minute_data = self._data_store.get(minute_key)

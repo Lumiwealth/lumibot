@@ -298,7 +298,7 @@ Notes:
 - Default: `~/.lumibot/cache/sec`.
 
 ### `FRED_API_KEY`
-- Purpose: Optional official FRED/ALFRED API key for macro data tools.
+- Purpose: Required official FRED/ALFRED API key for macro data tools.
 - Default: unset.
 - Notes: Required for FRED macro data tools. Lumibot requests vintage observations with `realtime_start` and `realtime_end` for point-in-time backtests. Built-in FRED agent tools are not exposed during backtests without this key because Lumibot does not use revised public CSV fallbacks for macro data.
 

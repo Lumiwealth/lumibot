@@ -8,13 +8,13 @@ from lumibot.entities import Asset
 
 
 def test_alpaca_backtesting_normalizes_common_multi_timeframe_aliases():
-    assert AlpacaBacktesting._normalize_timestep_for_source("15min") == ("minute", "15min")
-    assert AlpacaBacktesting._normalize_timestep_for_source("1h") == ("minute", "60min")
-    assert AlpacaBacktesting._normalize_timestep_for_source("4 hours") == ("minute", "240min")
+    assert AlpacaBacktesting._normalize_timestep_for_source("15min") == ("15minute", None)
+    assert AlpacaBacktesting._normalize_timestep_for_source("1h") == ("hour", None)
+    assert AlpacaBacktesting._normalize_timestep_for_source("4 hours") == ("4hour", None)
     assert AlpacaBacktesting._normalize_timestep_for_source("2d") == ("day", "2D")
 
 
-def test_alpaca_backtesting_resamples_15min_request_from_minute_data():
+def test_alpaca_backtesting_uses_native_15min_request():
     tzinfo = pytz.timezone("America/New_York")
     data_source = AlpacaBacktesting.__new__(AlpacaBacktesting)
     data_source._remove_incomplete_current_bar = False
@@ -27,10 +27,10 @@ def test_alpaca_backtesting_resamples_15min_request_from_minute_data():
 
     index = pd.date_range(
         tzinfo.localize(datetime(2026, 1, 2, 9, 30)),
-        periods=76,
-        freq="min",
+        periods=6,
+        freq="15min",
     )
-    minute_df = pd.DataFrame(
+    native_15min_df = pd.DataFrame(
         {
             "open": range(len(index)),
             "high": [value + 0.5 for value in range(len(index))],
@@ -45,15 +45,21 @@ def test_alpaca_backtesting_resamples_15min_request_from_minute_data():
 
     def fake_get_historical_prices_between_dates(**kwargs):
         requested_timesteps.append(kwargs["timestep"])
-        return minute_df
+        return native_15min_df
 
     data_source.get_historical_prices_between_dates = fake_get_historical_prices_between_dates
 
     bars = data_source.get_historical_prices(Asset("TSLA"), length=3, timestep="15min")
     df = bars.pandas_df
 
-    assert requested_timesteps == ["minute"]
-    assert list(df.index) == list(pd.date_range(index[-31], periods=3, freq="15min"))
-    assert list(df["open"]) == [45, 60, 75]
-    assert list(df["close"]) == [59.25, 74.25, 75.25]
-    assert list(df["volume"]) == [15, 15, 1]
+    assert requested_timesteps == ["15minute"]
+    assert list(df.index) == list(index[-3:])
+    assert list(df["open"]) == [3, 4, 5]
+    assert list(df["close"]) == [3.25, 4.25, 5.25]
+    assert list(df["volume"]) == [1, 1, 1]
+
+
+def test_alpaca_backtesting_uses_alpaca_sdk_timeframes_for_intraday_multiples():
+    assert str(AlpacaBacktesting._get_alpaca_timeframe("15minute")) == "15Min"
+    assert str(AlpacaBacktesting._get_alpaca_timeframe("hour")) == "1Hour"
+    assert str(AlpacaBacktesting._get_alpaca_timeframe("4hour")) == "4Hour"

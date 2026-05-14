@@ -7,7 +7,7 @@ import pandas as pd
 import pytz
 from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient
 from alpaca.data.requests import CryptoBarsRequest, StockBarsRequest
-from alpaca.data.timeframe import TimeFrame
+from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 
 from lumibot.constants import LUMIBOT_CACHE_FOLDER
 from lumibot.data_sources import AlpacaData, DataSourceBacktesting
@@ -401,7 +401,56 @@ class AlpacaBacktesting(DataSourceBacktesting):
             return "day", None if days == 1 else f"{days}D"
 
         minutes = max(int(delta.total_seconds() // 60), 1)
-        return "minute", None if minutes == 1 else f"{minutes}min"
+        if minutes % 60 == 0:
+            hours = minutes // 60
+            if 1 <= hours <= 23:
+                return ("hour" if hours == 1 else f"{hours}hour"), None
+        if 1 <= minutes <= 59:
+            return ("minute" if minutes == 1 else f"{minutes}minute"), None
+
+        return "minute", f"{minutes}min"
+
+    @staticmethod
+    def _get_alpaca_timeframe(timestep: str) -> TimeFrame:
+        """Convert a normalized Lumibot timestep to an Alpaca SDK TimeFrame."""
+        delta, unit = DataSourceBacktesting.convert_timestep_str_to_timedelta(timestep)
+
+        if unit == "day":
+            days = max(int(delta.total_seconds() // 86400), 1)
+            if days != 1:
+                raise ValueError("Alpaca only supports native 1Day bars; multi-day bars must be resampled.")
+            return TimeFrame.Day
+
+        if unit == "hour":
+            hours = max(int(delta.total_seconds() // 3600), 1)
+            return TimeFrame(hours, TimeFrameUnit.Hour)
+
+        minutes = max(int(delta.total_seconds() // 60), 1)
+        if minutes % 60 == 0:
+            hours = minutes // 60
+            return TimeFrame(hours, TimeFrameUnit.Hour)
+        return TimeFrame(minutes, TimeFrameUnit.Minute)
+
+    @staticmethod
+    def _get_trading_times_for_timestep(pcal: pd.DataFrame, timestep: str) -> pd.DatetimeIndex:
+        if timestep in ("day", "minute"):
+            return get_trading_times(pcal=pcal, timestep=timestep)
+
+        delta, unit = DataSourceBacktesting.convert_timestep_str_to_timedelta(timestep)
+        if unit == "day":
+            return get_trading_times(pcal=pcal, timestep="day")
+
+        interval = pd.Timedelta(seconds=max(int(delta.total_seconds()), 60))
+        trading_times = []
+        for _, row in pcal.iterrows():
+            start = row["market_open"]
+            end = row["market_close"]
+            is_24_7 = end.hour == 23 and end.minute == 59
+            times = pd.date_range(start=start, end=end, freq=interval)
+            times = times[times <= end] if is_24_7 else times[times < end]
+            trading_times.extend(times)
+
+        return pd.DatetimeIndex(trading_times)
 
     @staticmethod
     def _resample_ohlcv_dataframe(df: pd.DataFrame, resample_rule: str) -> pd.DataFrame:
@@ -487,8 +536,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         if timestep is None:
             timestep = self._timestep
 
-        if timestep not in ['day', 'minute']:
-            raise ValueError(f"Invalid timestep {timestep}. Must be 'day' or 'minute'.")
+        timestep, _ = self._normalize_timestep_for_source(timestep)
 
         base_quote = f"{base_asset.symbol}-{base_asset.asset_type}_{quote_asset.symbol}-{quote_asset.asset_type}"
         market = market
@@ -563,7 +611,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             # noinspection PyArgumentList
             request_params = CryptoBarsRequest(
                 symbol_or_symbols=symbol,
-                timeframe=self._parse_source_timestep(timestep, reverse=True),
+                timeframe=self._get_alpaca_timeframe(timestep),
                 start=data_datetime_start,
                 end=data_datetime_end + timedelta(days=1),  # alpaca end dates are exclusive
             )
@@ -574,7 +622,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             # noinspection PyArgumentList
             request_params = StockBarsRequest(
                 symbol_or_symbols=base_asset.symbol,
-                timeframe=self._parse_source_timestep(timestep, reverse=True),
+                timeframe=self._get_alpaca_timeframe(timestep),
                 start=data_datetime_start,
                 end=data_datetime_end + timedelta(days=1),  # alpaca end dates are exclusive,
                 adjustment=adjustment,
@@ -601,7 +649,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
         df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']]
 
-        trading_times = get_trading_times(
+        trading_times = self._get_trading_times_for_timestep(
             pcal=self._trading_days,
             timestep=timestep,
         )
@@ -751,11 +799,10 @@ class AlpacaBacktesting(DataSourceBacktesting):
         if missing_columns:
             raise ValueError(f"The dataframe is missing the following required columns: {', '.join(missing_columns)}")
 
-        if timestep not in ['day', 'minute']:
-            raise ValueError(f"The timestep must be 'day' or 'minute'.")
+        source_timestep, _ = self._normalize_timestep_for_source(timestep)
 
         # For daily bars, we want to preserve original timestamps but add missing days
-        if timestep == 'day':
+        if source_timestep == 'day':
             # Get just the dates from trading_times
             trading_dates = trading_times.date
             # Get dates from df timestamps

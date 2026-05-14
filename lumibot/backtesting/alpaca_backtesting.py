@@ -289,7 +289,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
         length : int
             The number of bars to get.
         timestep : str
-            The timestep to get the bars at. Accepts "day" or "minute".
+            The timestep to get the bars at. Accepts "day", "minute", and
+            multi-timeframe aliases such as "15min", "1h", or "2d".
         timeshift : datetime.timedelta
             The amount of time to shift the reference point (self._datetime).
             If you want 10 daily bars from 1 week ago (not including the last week),
@@ -315,6 +316,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
         if timestep is None:
             timestep = self._timestep
+        source_timestep, resample_rule = self._normalize_timestep_for_source(timestep)
 
         if quote is None:
             quote = self.LUMIBOT_DEFAULT_QUOTE_ASSET
@@ -329,7 +331,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             df = self.get_historical_prices_between_dates(
                 base_asset=asset,
                 quote_asset=quote,
-                timestep=timestep,
+                timestep=source_timestep,
                 data_datetime_start=self._data_datetime_start,
                 data_datetime_end=self._data_datetime_end,
                 auto_adjust=self._auto_adjust
@@ -338,6 +340,9 @@ class AlpacaBacktesting(DataSourceBacktesting):
             # Handle errors if fetching data fails
             raise RuntimeError(f"Unable to fetch historical prices during backtest: {e}")
 
+        if resample_rule is not None:
+            df = self._resample_ohlcv_dataframe(df, resample_rule)
+
         # Ensure sufficient bars are available
         if length > len(df):
             raise ValueError(
@@ -345,7 +350,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             )
 
         # Adjust the search based on timestep
-        if timestep == 'day':
+        if source_timestep == 'day':
             # For daily bars
             search_date = search_datetime.date()
             dates = df.index.date
@@ -382,6 +387,46 @@ class AlpacaBacktesting(DataSourceBacktesting):
             return_polars=return_polars,
             tzinfo=self.tzinfo,
         )
+
+    @staticmethod
+    def _normalize_timestep_for_source(timestep: str) -> tuple[str, str | None]:
+        """Return the Alpaca source timestep and optional pandas resample rule."""
+        if timestep in ("day", "minute"):
+            return timestep, None
+
+        delta, unit = DataSourceBacktesting.convert_timestep_str_to_timedelta(timestep)
+
+        if unit == "day":
+            days = max(int(delta.total_seconds() // 86400), 1)
+            return "day", None if days == 1 else f"{days}D"
+
+        minutes = max(int(delta.total_seconds() // 60), 1)
+        return "minute", None if minutes == 1 else f"{minutes}min"
+
+    @staticmethod
+    def _resample_ohlcv_dataframe(df: pd.DataFrame, resample_rule: str) -> pd.DataFrame:
+        """Aggregate source OHLCV bars into a requested multi-timeframe."""
+        if df.empty:
+            return df
+
+        aggregation = {
+            "open": "first",
+            "high": "max",
+            "low": "min",
+            "close": "last",
+            "volume": "sum",
+        }
+        available_aggregation = {column: method for column, method in aggregation.items() if column in df.columns}
+
+        resampled = (
+            df.sort_index()
+            .resample(resample_rule, label="left", closed="left")
+            .agg(available_aggregation)
+        )
+        required_columns = [column for column in ("open", "high", "low", "close") if column in resampled.columns]
+        if required_columns:
+            resampled = resampled.dropna(subset=required_columns, how="any")
+        return resampled
 
     def get_chains(self, asset, quote=None):
         """Mock implementation for getting option chains"""

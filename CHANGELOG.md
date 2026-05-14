@@ -2,6 +2,9 @@
 
 ## 4.5.19 - Unreleased
 
+### Fixed
+- **Alpaca backtests now support multi-timeframe history requests such as `15min`.** `AlpacaBacktesting.get_historical_prices()` now fetches the underlying minute/day source bars and resamples them before slicing, so strategy calls like `get_historical_prices(asset, 100, "15min")` match the public strategy API contract instead of failing validation.
+
 ## 4.5.18 - 2026-05-14
 
 Deploy marker: 4.5.18 release commit (`deploy 4.5.18`)

@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.5.17 - Unreleased
+## 4.5.17 - 2026-05-14
+
+Deploy marker: 4.5.17 release commit (`deploy 4.5.17`)
 
 ### Fixed
 - **ThetaData quote-history requests now use a bounded quote-specific timeout.** Point-in-time option quote lookups no longer inherit the larger OHLC history timeout, so one stuck quote request fails visibly instead of making BotSpot option backtests appear frozen early in the run.

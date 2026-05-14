@@ -952,6 +952,9 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
     """
 
     _CONFIG_KEY = "backtesting_data_routing"
+    # Routed stock/index day requests can be backed by IBKR. Keep those requests pinned to
+    # native daily bars so a warmed minute frame cannot satisfy a daily lookup at the wrong date.
+    PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX = True
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

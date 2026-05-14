@@ -6,7 +6,7 @@ import pandas as pd
 
 from lumibot.backtesting.routed_backtesting import RoutedBacktestingPandas, _ProviderRegistry
 from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestingPandas
-from lumibot.entities import Asset
+from lumibot.entities import Asset, Data
 
 
 def test_router_routes_crypto_to_ibkr(monkeypatch):
@@ -190,6 +190,91 @@ def test_router_get_quote_aligns_snapshot_only_for_non_theta_daily_mode(monkeypa
 
     assert captured["timestep"] == "day"
     assert captured["snapshot_only"] is True
+
+
+def test_routed_daily_stock_last_price_uses_day_frame_over_stale_minute(monkeypatch):
+    import lumibot.tools.thetadata_helper as thetadata_helper
+
+    monkeypatch.setattr(ThetaDataBacktestingPandas, "kill_processes_by_name", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(thetadata_helper, "reset_theta_terminal_tracking", lambda *_args, **_kwargs: None)
+
+    ds = RoutedBacktestingPandas(
+        datetime_start=datetime(2026, 4, 9, tzinfo=timezone.utc),
+        datetime_end=datetime(2026, 5, 9, tzinfo=timezone.utc),
+        config={"backtesting_data_routing": {"stock": "ibkr", "default": "thetadata"}},
+        username="dev",
+        password="dev",
+        use_quote_data=False,
+        show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+    )
+    ds._datetime = datetime(2026, 4, 9, 9, 30, tzinfo=timezone.utc)
+    ds._effective_day_mode = True
+    ds._observed_intraday_cadence = False
+
+    asset = Asset("MU", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    day_df = pd.DataFrame(
+        {"open": [10.0, 19.0], "high": [11.0, 21.0], "low": [9.0, 18.0], "close": [10.5, 20.0], "volume": [1, 2]},
+        index=pd.DatetimeIndex(
+            [datetime(2026, 4, 8, tzinfo=timezone.utc), datetime(2026, 4, 9, tzinfo=timezone.utc)]
+        ),
+    )
+    stale_minute_df = pd.DataFrame(
+        {"open": [100.0], "high": [101.0], "low": [99.0], "close": [100.5], "volume": [1]},
+        index=pd.DatetimeIndex([datetime(2026, 5, 4, 14, 0, tzinfo=timezone.utc)]),
+    )
+    ds._data_store[(asset, quote, "day")] = Data(asset, day_df, quote=quote, timestep="day")
+    ds._data_store[(asset, quote, "minute")] = Data(asset, stale_minute_df, quote=quote, timestep="minute")
+
+    requested_timesteps = []
+
+    def fake_update(_asset, _quote, _length, timestep, *_args, **_kwargs):
+        requested_timesteps.append(timestep)
+
+    monkeypatch.setattr(ds, "_update_pandas_data", fake_update)
+
+    assert ds.get_last_price(asset) == 20.0
+    assert requested_timesteps == ["day"]
+
+
+def test_routed_daily_stock_last_price_does_not_fall_back_to_stale_minute(monkeypatch):
+    import lumibot.tools.thetadata_helper as thetadata_helper
+
+    monkeypatch.setattr(ThetaDataBacktestingPandas, "kill_processes_by_name", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(thetadata_helper, "reset_theta_terminal_tracking", lambda *_args, **_kwargs: None)
+
+    ds = RoutedBacktestingPandas(
+        datetime_start=datetime(2026, 4, 9, tzinfo=timezone.utc),
+        datetime_end=datetime(2026, 5, 9, tzinfo=timezone.utc),
+        config={"backtesting_data_routing": {"stock": "ibkr", "default": "thetadata"}},
+        username="dev",
+        password="dev",
+        use_quote_data=False,
+        show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+    )
+    ds._datetime = datetime(2026, 4, 9, 9, 30, tzinfo=timezone.utc)
+    ds._effective_day_mode = True
+    ds._observed_intraday_cadence = False
+
+    asset = Asset("CSTM", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    stale_minute_df = pd.DataFrame(
+        {"open": [100.0], "high": [101.0], "low": [99.0], "close": [100.5], "volume": [1]},
+        index=pd.DatetimeIndex([datetime(2026, 5, 4, 14, 0, tzinfo=timezone.utc)]),
+    )
+    ds._data_store[(asset, quote, "minute")] = Data(asset, stale_minute_df, quote=quote, timestep="minute")
+
+    requested_timesteps = []
+
+    def fake_update(_asset, _quote, _length, timestep, *_args, **_kwargs):
+        requested_timesteps.append(timestep)
+
+    monkeypatch.setattr(ds, "_update_pandas_data", fake_update)
+
+    assert ds.get_last_price(asset) is None
+    assert requested_timesteps == ["day"]
 
 
 def test_update_cadence_daily_mode_does_not_mark_intraday():

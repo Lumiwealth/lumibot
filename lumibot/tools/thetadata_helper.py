@@ -5111,10 +5111,12 @@ def get_request(
         if effective_timeout is None:
             try:
                 list_timeout = float(os.environ.get("THETADATA_QUEUE_LIST_TIMEOUT", "600"))
+                quote_timeout = float(os.environ.get("THETADATA_QUEUE_QUOTE_TIMEOUT", "300"))
                 history_timeout = float(os.environ.get("THETADATA_QUEUE_HISTORY_TIMEOUT", "1800"))
                 default_timeout = float(os.environ.get("THETADATA_QUEUE_DEFAULT_TIMEOUT", "900"))
             except Exception:
                 list_timeout = 600.0
+                quote_timeout = 300.0
                 history_timeout = 1800.0
                 default_timeout = 900.0
 
@@ -5123,6 +5125,11 @@ def get_request(
             request_path = (urlparse(url).path or "").lower()
             if "/option/list/" in request_path:
                 effective_timeout = list_timeout if list_timeout > 0 else None
+            elif "/history/quote" in request_path:
+                # Quote history requests are used for point-in-time option pricing. They should
+                # return quickly or fail visibly; using the broader OHLC history timeout can make
+                # a backtest appear frozen on one stale quote request for 30 minutes.
+                effective_timeout = quote_timeout if quote_timeout > 0 else None
             elif "/history/" in request_path:
                 effective_timeout = history_timeout if history_timeout > 0 else None
             else:

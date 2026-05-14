@@ -42,6 +42,40 @@ def test_get_request_uses_downloader_when_base_url_set(monkeypatch):
     assert result["response"] == [[1]]
 
 
+def test_get_request_uses_shorter_timeout_for_quote_history(monkeypatch):
+    import lumibot.tools.thetadata_helper as thetadata_helper
+    import lumibot.tools.data_downloader_queue_client as queue_client
+
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://example:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "test-key")
+    monkeypatch.setenv("THETADATA_QUEUE_QUOTE_TIMEOUT", "123")
+    monkeypatch.setenv("THETADATA_QUEUE_HISTORY_TIMEOUT", "1800")
+
+    seen = {}
+
+    def fake_queue_request(url: str, querystring, headers=None, timeout=None):
+        seen["timeout"] = timeout
+        return {"header": {"format": []}, "response": [[1]]}
+
+    monkeypatch.setattr(queue_client, "queue_request", fake_queue_request)
+
+    result = thetadata_helper.get_request(
+        url="http://example:8080/v3/option/history/quote",
+        headers={},
+        querystring={
+            "symbol": "SPY",
+            "expiration": "2026-06-18",
+            "strike": "500",
+            "right": "call",
+            "date": "2026-04-09",
+            "format": "json",
+        },
+    )
+
+    assert isinstance(result, dict)
+    assert seen["timeout"] == 123.0
+
+
 def test_get_request_raises_when_downloader_base_url_set_but_api_key_missing(monkeypatch):
     import lumibot.tools.thetadata_helper as thetadata_helper
 

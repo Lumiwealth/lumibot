@@ -178,6 +178,12 @@ Selection rule (ThetaData):
 ### `DATADOWNLOADER_SKIP_LOCAL_START`
 - Purpose: Prevents any local downloader/ThetaTerminal bootstrap logic from running (backtests must use the remote downloader in production workflows).
 
+### `THETADATA_QUEUE_QUOTE_TIMEOUT`
+- Purpose: Data Downloader wait timeout for `/history/quote` requests used in point-in-time option pricing.
+- Values: seconds (float); set to `0` only if you intentionally want unbounded waits.
+- Default: `300`.
+- Notes: this is intentionally shorter than `THETADATA_QUEUE_HISTORY_TIMEOUT` so one stuck option quote fails visibly instead of making a backtest appear frozen for a full OHLC-history timeout window.
+
 ## ThetaData option chain building (performance)
 
 These env vars are used by the ThetaData chain cache/builder in `lumibot/tools/thetadata_helper.py`.

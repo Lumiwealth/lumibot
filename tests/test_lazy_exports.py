@@ -24,7 +24,7 @@ def test_lazy_package_all_exports_resolve():
             getattr(module, export_name)
 
 
-def test_lazy_package_exports_defer_heavy_submodule_imports():
+def test_lazy_package_exports_defer_heavy_submodule_imports(monkeypatch):
     # Invariant: importing package namespaces must not import heavy optional
     # backends until their public export is first accessed.
     cases = [
@@ -36,9 +36,12 @@ def test_lazy_package_exports_defer_heavy_submodule_imports():
     ]
 
     for module_name, export_name, target_module in cases:
-        sys.modules.pop(target_module, None)
+        parent_name, child_name = target_module.rsplit(".", 1)
+        parent_module = importlib.import_module(parent_name)
+        monkeypatch.delitem(parent_module.__dict__, child_name, raising=False)
+        monkeypatch.delitem(sys.modules, target_module, raising=False)
         module = importlib.import_module(module_name)
-        module.__dict__.pop(export_name, None)
+        monkeypatch.delitem(module.__dict__, export_name, raising=False)
 
         assert target_module not in sys.modules
         getattr(module, export_name)

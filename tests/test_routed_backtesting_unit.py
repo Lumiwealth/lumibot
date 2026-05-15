@@ -52,6 +52,56 @@ def test_router_routes_crypto_to_ibkr(monkeypatch):
     assert ds._data_store
 
 
+def test_router_routes_crypto_future_to_spot_usd_proxy(monkeypatch, caplog):
+    import lumibot.tools.thetadata_helper as thetadata_helper
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setattr(ThetaDataBacktestingPandas, "kill_processes_by_name", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(thetadata_helper, "reset_theta_terminal_tracking", lambda *_args, **_kwargs: None)
+
+    captured = {}
+
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True):
+        captured["asset"] = asset
+        captured["quote"] = quote
+        idx = pd.DatetimeIndex(
+            [
+                datetime(2025, 1, 1, 0, 0, tzinfo=timezone.utc),
+                datetime(2025, 1, 1, 0, 1, tzinfo=timezone.utc),
+            ]
+        ).tz_convert("America/New_York")
+        return pd.DataFrame(
+            {"open": [1.0, 2.0], "high": [1.1, 2.1], "low": [0.9, 1.9], "close": [1.0, 2.0], "volume": [10, 11]},
+            index=idx,
+        )
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
+
+    ds = RoutedBacktestingPandas(
+        datetime_start=datetime(2025, 1, 1, tzinfo=timezone.utc),
+        datetime_end=datetime(2025, 1, 2, tzinfo=timezone.utc),
+        config={"backtesting_data_routing": {"crypto": "ibkr", "default": "thetadata"}},
+        username="dev",
+        password="dev",
+        use_quote_data=False,
+        show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+    )
+
+    perp = Asset(symbol="BTCUSDT", asset_type=Asset.AssetType.CRYPTO_FUTURE)
+    quote = Asset(symbol="USDT", asset_type=Asset.AssetType.CRYPTO)
+    with caplog.at_level("INFO"):
+        ds._update_pandas_data(perp, quote, length=2, timestep="minute", start_dt=datetime(2025, 1, 2, tzinfo=timezone.utc))
+
+    assert captured["asset"] == Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+    assert captured["quote"] == Asset("USD", asset_type=Asset.AssetType.FOREX)
+    assert (perp, quote, "minute") in ds._data_store
+    stored = ds._data_store[(perp, quote, "minute")]
+    assert stored.asset == perp
+    assert stored.quote == quote
+    assert "USDT mapped to USD spot" in caplog.text
+
+
 def test_router_accepts_futures_key_alias(monkeypatch):
     import lumibot.tools.thetadata_helper as thetadata_helper
     import lumibot.tools.ibkr_helper as ibkr_helper

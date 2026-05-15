@@ -1,7 +1,7 @@
 import os
 import unittest
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import pandas as pd
 import polars as pl
@@ -19,10 +19,13 @@ class TestDataBentoData(unittest.TestCase):
             patch("lumibot.tools.databento_helper.DATABENTO_AVAILABLE", True),
             patch("lumibot.tools.databento_helper_polars.DATABENTO_AVAILABLE", True),
             patch("lumibot.tools.databento_helper_polars.DataBentoClient", MagicMock()),
-        patch("lumibot.tools.databento_helper_polars._fetch_and_update_futures_multiplier", lambda *args, **kwargs: None),
+            patch(
+                "lumibot.tools.databento_helper_polars._fetch_and_update_futures_multiplier",
+                lambda *args, **kwargs: None,
+            ),
         ]
         for patcher in patchers:
-            patched = patcher.start()
+            patcher.start()
             self.addCleanup(patcher.stop)
 
         import importlib
@@ -151,11 +154,13 @@ class TestDataBentoData(unittest.TestCase):
         with patch(
             "lumibot.data_sources.databento_data_polars.databento_helper_polars.get_price_data_from_databento_polars",
             return_value=frame,
-        ):
+        ), patch.object(Bars, "pandas_df", new_callable=PropertyMock) as mock_pandas_df:
+            mock_pandas_df.side_effect = AssertionError("get_last_price should not force pandas conversion")
             data_source = DataBentoData(**self.datasource_kwargs)
             price = data_source.get_last_price(asset=self.future_asset)
 
         self.assertEqual(price, last_close)
+        mock_pandas_df.assert_not_called()
 
     def test_get_last_price_returns_none_when_no_data(self):
         with patch(

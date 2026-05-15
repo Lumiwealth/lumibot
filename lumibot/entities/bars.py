@@ -1,10 +1,9 @@
-from datetime import datetime, timedelta
+import atexit
 import re
 import weakref
+from datetime import datetime
 from decimal import Decimal
-from typing import Union, Set
-import warnings
-import atexit
+from typing import Set, Union
 
 import numpy as np
 import pandas as pd
@@ -506,33 +505,51 @@ class Bars:
             underlying_df = self._df
         else:
             underlying_df = pl.from_pandas(self._df.reset_index() if hasattr(self._df, 'index') else self._df)
-        # Polars implementation
-        for row in underlying_df.iter_rows(named=True):
-            # Find datetime column
-            dt_val = None
-            for col in underlying_df.columns:
-                if underlying_df[col].dtype in [pl.Datetime, pl.Date]:
-                    dt_val = row[col]
+
+        dt_col = None
+        for col, dtype in underlying_df.schema.items():
+            if dtype in (pl.Datetime, pl.Date):
+                dt_col = col
+                break
+
+        if dt_col is None:
+            for col in ['datetime', 'date', 'timestamp']:
+                if col in underlying_df.columns:
+                    dt_col = col
                     break
 
-            if dt_val is None:
-                # Try to find a column with date/time in the name
-                for col in ['datetime', 'date', 'timestamp']:
-                    if col in row:
-                        dt_val = row[col]
-                        break
+        if dt_col is None:
+            return result
 
-            timestamp = int(dt_val.timestamp()) if hasattr(dt_val, 'timestamp') else int(dt_val.timestamp())
+        values = {
+            col: underlying_df[col].to_list()
+            for col in ("open", "high", "low", "close", "volume", "dividend", "stock_splits")
+            if col in underlying_df.columns
+        }
+        datetimes = underlying_df[dt_col].to_list()
+        row_count = len(datetimes)
+        default_none = [None] * row_count
+        default_zero = [0] * row_count
+        opens = values.get("open", default_none)
+        highs = values.get("high", default_none)
+        lows = values.get("low", default_none)
+        closes = values.get("close", default_none)
+        volumes = values.get("volume", default_none)
+        dividends = values.get("dividend", default_zero)
+        stock_splits = values.get("stock_splits", default_zero)
+
+        for idx, dt_val in enumerate(datetimes):
+            timestamp = int(dt_val.timestamp()) if hasattr(dt_val, 'timestamp') else int(dt_val)
 
             item = {
                 "timestamp": timestamp,
-                "open": row.get("open"),
-                "high": row.get("high"),
-                "low": row.get("low"),
-                "close": row.get("close"),
-                "volume": row.get("volume"),
-                "dividend": row.get("dividend", 0),
-                "stock_splits": row.get("stock_splits", 0),
+                "open": opens[idx],
+                "high": highs[idx],
+                "low": lows[idx],
+                "close": closes[idx],
+                "volume": volumes[idx],
+                "dividend": dividends[idx],
+                "stock_splits": stock_splits[idx],
             }
             bar = Bar(item)
             result.append(bar)

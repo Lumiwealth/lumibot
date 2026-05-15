@@ -5,9 +5,9 @@ from typing import Union
 
 import pandas as pd
 
+from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Bars, Quote
-from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
@@ -690,6 +690,7 @@ class PolarsData(DataSourceBacktesting):
         quote=None,
         exchange=None,
         include_after_hours=True,
+        return_polars=False,
     ):
         timestep = timestep if timestep else self.MIN_TIMESTEP
         if exchange is not None:
@@ -751,7 +752,6 @@ class PolarsData(DataSourceBacktesting):
                 # CRITICAL: Integer timeshift represents BAR offsets, not minute deltas!
                 # Must calculate adjustment based on the actual timestep being requested.
                 if timeshift:
-                    from datetime import timedelta
                     if isinstance(timeshift, int):
                         # Calculate timedelta for one bar of this timestep
                         timestep_delta, _ = self.convert_timestep_str_to_timedelta(timestep)
@@ -806,7 +806,19 @@ class PolarsData(DataSourceBacktesting):
         now = self.get_datetime()
 
         try:
-            res = data.get_bars(now, length=length, timestep=timestep, timeshift=timeshift)
+            if return_polars:
+                try:
+                    res = data.get_bars(
+                        now,
+                        length=length,
+                        timestep=timestep,
+                        timeshift=timeshift,
+                        return_polars=True,
+                    )
+                except TypeError:
+                    res = data.get_bars(now, length=length, timestep=timestep, timeshift=timeshift)
+            else:
+                res = data.get_bars(now, length=length, timestep=timestep, timeshift=timeshift)
         # Return None if data.get_bars returns a ValueError
         except ValueError as e:
             logger.debug(f"Error getting bars for {asset}: {e}")
@@ -1011,6 +1023,7 @@ class PolarsData(DataSourceBacktesting):
             quote=quote,
             exchange=exchange,
             include_after_hours=include_after_hours,
+            return_polars=return_polars,
         )
         if isinstance(response, float):
             return response

@@ -9,9 +9,10 @@ This module tests the critical fixes implemented to resolve:
 
 These tests ensure that the timezone handling and error logging fixes remain stable.
 """
-import pytest
 from datetime import datetime, timedelta
+
 import pandas as pd
+import pytest
 import pytz
 
 from lumibot.data_sources import DataBentoData
@@ -20,6 +21,7 @@ from lumibot.entities import Asset
 
 # Set up unified logging for tests
 from lumibot.tools.lumibot_logger import get_logger, set_log_level
+
 set_log_level('ERROR')  # Suppress unnecessary logging during tests
 
 
@@ -182,7 +184,7 @@ class TestDataBentoIntegration:
     def test_databento_data_source_initialization(self):
         """Test that DataBento data source can be initialized without errors"""
         # Test with dummy API key
-        data_source = DataBentoData(api_key="test_key")
+        data_source = DataBentoData(api_key="test_key", enable_live_stream=False)
         assert data_source is not None
         assert data_source._api_key == "test_key"
         assert data_source.name == "data_source"  # This is the default from DataSource base class
@@ -190,7 +192,7 @@ class TestDataBentoIntegration:
         
     def test_databento_futures_asset_validation(self):
         """Test that DataBento correctly validates asset types"""
-        data_source = DataBentoData(api_key="test_key")
+        data_source = DataBentoData(api_key="test_key", enable_live_stream=False)
         
         # DataBentoDataPolars logs an error but doesn't raise for non-futures
         # It just returns None
@@ -223,7 +225,7 @@ class TestDataBentoIntegration:
 
     def test_databento_live_trading_mode(self):
         """Test that DataBento works in live trading mode"""
-        data_source = DataBentoData(api_key="test_key")
+        data_source = DataBentoData(api_key="test_key", enable_live_stream=False)
         
         # Should be configured for live trading by default
         assert data_source.IS_BACKTESTING_DATA_SOURCE is False
@@ -272,7 +274,7 @@ class TestPolarsDSTHandling:
         assert cleaned[-1] == market_close
     def test_databento_supported_asset_types(self):
         """Test that DataBento supports the expected asset types"""
-        data_source = DataBentoData(api_key="test_key")
+        data_source = DataBentoData(api_key="test_key", enable_live_stream=False)
         
         # Test continuous futures
         cont_future_asset = Asset(symbol="ES", asset_type="cont_future")

@@ -4,9 +4,9 @@ from typing import Optional, Union
 
 import pandas as pd
 import polars as pl
+import pytz
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
-import pytz
 from lumibot.tools.helpers import parse_timestep_qty_and_unit, to_datetime_aware
 from lumibot.tools.lumibot_logger import get_logger
 
@@ -134,7 +134,7 @@ class DataPolars:
             raise ValueError("Polars DataFrame must have a 'datetime' column")
 
         # Convert datetime column to proper type if needed
-        # CRITICAL: Preserve timezone if it already exists (e.g., UTC from DataBento)
+        # CRITICAL: Preserve timezone if it already exists in provider data.
         dtype = self.polars_df.schema["datetime"]
         if isinstance(dtype, pl.datatypes.Datetime) and dtype.time_zone:
             # Column already has timezone, preserve it during cast
@@ -331,6 +331,7 @@ class DataPolars:
 
         # Check if we have a volume column, if not then add it and fill with 0 or NaN.
         if "volume" in df.columns:
+            df["volume"] = pd.to_numeric(df["volume"], errors="coerce")
             df.loc[df["volume"].isna(), "volume"] = 0
         else:
             df["volume"] = None
@@ -360,6 +361,7 @@ class DataPolars:
 
         # Update the cached pandas DataFrame
         self._pandas_df = df
+        self._repaired_polars_df = None
 
         # Set up iter_index and iter_index_dict for later use.
         iter_index = pd.Series(df.index)
@@ -587,8 +589,161 @@ class DataPolars:
 
         return dict
 
-    def get_bars(self, dt, length=1, timestep=MIN_TIMESTEP, timeshift=0):
+    def _ensure_repaired_polars_df(self) -> pl.DataFrame:
+        """Return the repaired/forward-filled data as Polars for hot bar slicing."""
+        repaired_polars = getattr(self, "_repaired_polars_df", None)
+        if repaired_polars is not None:
+            return repaired_polars
+
+        if getattr(self, "iter_index_dict", None) is None:
+            self.repair_times_and_fill(self.df.index)
+
+        pandas_df = self._pandas_df
+        reset_df = pandas_df.reset_index()
+        if "datetime" not in reset_df.columns:
+            reset_df = reset_df.rename(columns={reset_df.columns[0]: "datetime"})
+        repaired_polars = pl.from_pandas(reset_df)
+        self._repaired_polars_df = repaired_polars
+        return repaired_polars
+
+    def _get_bars_polars_frame(self, dt, length=1, timestep=None, timeshift=0) -> pl.DataFrame:
+        """Slice repaired bar data directly from the cached Polars frame."""
+        if dt < self.datetime_start:
+            raise ValueError(
+                f"The date you are looking for ({dt}) for ({self.asset}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end}). This could be because the data for this asset does not exist for the date you are looking for, or something else."
+            )
+
+        if isinstance(timeshift, datetime.timedelta):
+            ts = timestep if timestep is not None else self.timestep
+            if ts == "day":
+                timeshift = int(timeshift.total_seconds() / (24 * 3600))
+            elif ts == "hour":
+                timeshift = int(timeshift.total_seconds() / 3600)
+            else:
+                timeshift = int(timeshift.total_seconds() / 60)
+
+        end_row = self.get_iter_count(dt) - timeshift
+        if pd.isna(end_row):
+            end_row = 0
+        else:
+            data_index = end_row + 1 - int(length)
+            if data_index < 0:
+                logger.warning(
+                    f"The date you are looking for ({dt}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end}) after accounting for a length of {length} and a timeshift of {timeshift}. Keep in mind that the length you are requesting must also be available in your data, in this case we are {data_index} rows away from the data you need."
+                )
+
+        df = self._ensure_repaired_polars_df()
+        end_row = max(0, min(int(end_row), df.height))
+        start_row = max(0, end_row - int(length))
+        if start_row > end_row:
+            start_row = end_row
+
+        return df.slice(start_row, end_row - start_row)
+
+    def _get_bars_between_dates_polars_frame(self, start_date=None, end_date=None) -> pl.DataFrame:
+        """Slice a date range directly from the cached repaired Polars frame."""
+        end_row = self.get_iter_count(end_date)
+        start_row = self.get_iter_count(start_date)
+
+        if pd.isna(end_row):
+            end_row = 0
+        if pd.isna(start_row) or start_row < 0:
+            start_row = 0
+
+        df = self._ensure_repaired_polars_df()
+        start_row = max(0, min(int(start_row), df.height))
+        end_row = max(start_row, min(int(end_row), df.height))
+        return df.slice(start_row, end_row - start_row)
+
+    @staticmethod
+    def _drop_null_or_nan(df: pl.DataFrame, columns: list[str]) -> pl.DataFrame:
+        """Match pandas dropna() for the resampled OHLCV/dividend output."""
+        filters = []
+        for column in columns:
+            if column not in df.columns:
+                continue
+
+            expr = pl.col(column).is_not_null()
+            if df.schema.get(column) in (pl.Float32, pl.Float64):
+                expr &= pl.col(column).is_not_nan()
+            filters.append(expr)
+
+        if not filters:
+            return df
+
+        condition = filters[0]
+        for expr in filters[1:]:
+            condition &= expr
+        return df.filter(condition)
+
+    @staticmethod
+    def _align_datetime_for_polars(df: pl.DataFrame, dt, column: str = "datetime"):
+        """Align a Python/pandas datetime literal to a Polars datetime column timezone."""
+        dtype = df.schema.get(column)
+        time_zone = dtype.time_zone if isinstance(dtype, pl.Datetime) else None
+        ts = pd.Timestamp(dt)
+
+        if time_zone is None:
+            return ts.tz_localize(None) if ts.tz is not None else ts
+
+        if ts.tz is None:
+            return ts.tz_localize(time_zone)
+        return ts.tz_convert(time_zone)
+
+    @classmethod
+    def _resample_polars_bars(cls, df: pl.DataFrame, quantity: int, unit: str) -> pl.DataFrame:
+        """Resample OHLCV data with Polars while preserving Data.get_bars() output columns."""
+        if df.is_empty():
+            return df
+
+        unit_suffix = {"min": "m", "h": "h", "D": "d"}[unit]
+        every = f"{int(quantity)}{unit_suffix}"
+
+        agg_exprs = []
+        output_columns = []
+        if "open" in df.columns:
+            agg_exprs.append(pl.col("open").first().alias("open"))
+            output_columns.append("open")
+        if "high" in df.columns:
+            agg_exprs.append(pl.col("high").max().alias("high"))
+            output_columns.append("high")
+        if "low" in df.columns:
+            agg_exprs.append(pl.col("low").min().alias("low"))
+            output_columns.append("low")
+        if "close" in df.columns:
+            agg_exprs.append(pl.col("close").last().alias("close"))
+            output_columns.append("close")
+        if "volume" in df.columns:
+            agg_exprs.append(pl.col("volume").fill_nan(0).fill_null(0).sum().alias("volume"))
+            output_columns.append("volume")
+        if "dividend" in df.columns:
+            agg_exprs.append(pl.col("dividend").fill_nan(0).fill_null(0).sum().alias("dividend"))
+            output_columns.append("dividend")
+
+        if not agg_exprs:
+            return df.select("datetime")
+
+        result = (
+            df.sort("datetime")
+            .group_by_dynamic("datetime", every=every, period=every, closed="left", label="left")
+            .agg(agg_exprs)
+            .sort("datetime")
+        )
+        return cls._drop_null_or_nan(result, output_columns)
+
+    @staticmethod
+    def _polars_to_pandas_datetime_index(df: pl.DataFrame) -> pd.DataFrame:
+        """Convert a Polars bars frame to the existing pandas-indexed return shape."""
+        pandas_df = df.to_pandas()
+        if "datetime" in pandas_df.columns:
+            pandas_df = pandas_df.set_index("datetime")
+        return pandas_df
+
+    def get_bars(self, dt, length=1, timestep=MIN_TIMESTEP, timeshift=0, return_polars: bool = False):
         """Returns a dataframe of the data."""
+        if type(length) not in [int, float]:
+            raise TypeError(f"Length must be an integer. {type(length)} was provided.")
+
         # Parse the timestep
         quantity, timestep = parse_timestep_qty_and_unit(timestep)
         num_periods = length
@@ -604,63 +759,59 @@ class DataPolars:
         if timestep not in {"minute", "hour", "day"}:
             raise ValueError(f"Only minute, hour, and day are supported for timestep. You provided: {timestep}")
 
-        agg_column_map = {
-            "open": "first",
-            "high": "max",
-            "low": "min",
-            "close": "last",
-            "volume": "sum",
-        }
         if timestep == "day" and self.timestep == "minute":
             length = length * 1440
             unit = "D"
-            data = self._get_bars_dict(dt, length=length, timestep="minute", timeshift=timeshift)
+            source_timestep = "minute"
 
         elif timestep == "day" and self.timestep == "hour":
             length = length * 24
             unit = "D"
-            data = self._get_bars_dict(dt, length=length, timestep="hour", timeshift=timeshift)
+            source_timestep = "hour"
 
         elif timestep == 'day' and self.timestep == 'day':
             unit = "D"
-            data = self._get_bars_dict(dt, length=length, timestep=timestep, timeshift=timeshift)
+            source_timestep = timestep
 
         elif timestep == "hour" and self.timestep == "minute":
             length = length * 60 * quantity
             unit = "h"
-            data = self._get_bars_dict(dt, length=length, timestep="minute", timeshift=timeshift)
+            source_timestep = "minute"
 
         elif timestep == "hour" and self.timestep == "hour":
             unit = "h"
             length = length * quantity
-            data = self._get_bars_dict(dt, length=length, timestep="hour", timeshift=timeshift)
+            source_timestep = "hour"
 
         else:
             unit = "min"
             length = length * quantity
-            data = self._get_bars_dict(dt, length=length, timestep=timestep, timeshift=timeshift)
+            source_timestep = timestep
 
-        if data is None:
-            return None
-
-        df = pd.DataFrame(data).assign(datetime=lambda df: pd.to_datetime(df['datetime'])).set_index('datetime')
-        if "dividend" in df.columns:
-            agg_column_map["dividend"] = "sum"
-        df_result = df.resample(f"{quantity}{unit}").agg(agg_column_map)
-
-        # Drop any rows that have NaN values
-        df_result = df_result.dropna()
+        df = self._get_bars_polars_frame(dt, length=length, timestep=source_timestep, timeshift=timeshift)
+        df_result = self._resample_polars_bars(df, int(quantity), unit)
 
         # Remove partial day data from the current day
         if timestep == "day" and self.timestep in {"minute", "hour"}:
-            df_result = df_result[df_result.index < dt.replace(hour=0, minute=0, second=0, microsecond=0)]
+            cutoff = dt.replace(hour=0, minute=0, second=0, microsecond=0)
+            cutoff = self._align_datetime_for_polars(df_result, cutoff)
+            df_result = df_result.filter(pl.col("datetime") < cutoff)
 
         # Only return the last n rows
         df_result = df_result.tail(n=int(num_periods))
 
-        return df_result
+        if return_polars:
+            return df_result
+        return self._polars_to_pandas_datetime_index(df_result)
 
-    def get_bars_between_dates(self, timestep=MIN_TIMESTEP, exchange=None, start_date=None, end_date=None):
+    def get_bars_between_dates(
+        self,
+        timestep=MIN_TIMESTEP,
+        exchange=None,
+        start_date=None,
+        end_date=None,
+        return_polars: bool = False,
+    ):
         """Returns a dataframe of all the data available between the start and end dates."""
         quantity, timestep = parse_timestep_qty_and_unit(timestep)
 
@@ -675,26 +826,19 @@ class DataPolars:
         if timestep not in {"minute", "hour", "day"}:
             raise ValueError(f"Only minute, hour, and day are supported for timestep. You provided: {timestep}")
 
-        data = self._get_bars_between_dates_dict(timestep=timestep, start_date=start_date, end_date=end_date)
-        if data is None:
-            return None
-
-        df = pd.DataFrame(data).set_index("datetime")
-        if df is None or df.empty:
-            return df
+        df = self._get_bars_between_dates_polars_frame(start_date=start_date, end_date=end_date)
+        if df is None or df.is_empty():
+            if return_polars:
+                return df
+            return self._polars_to_pandas_datetime_index(df)
 
         if timestep == "minute" and int(quantity) == 1:
-            return df
-
-        agg = {
-            "open": "first",
-            "high": "max",
-            "low": "min",
-            "close": "last",
-            "volume": "sum",
-        }
-        if "dividend" in df.columns:
-            agg["dividend"] = "sum"
+            if return_polars:
+                return df
+            return self._polars_to_pandas_datetime_index(df)
 
         unit_code = "min" if timestep == "minute" else "h" if timestep == "hour" else "D"
-        return df.resample(f"{int(quantity)}{unit_code}").agg(agg).dropna()
+        df_result = self._resample_polars_bars(df, int(quantity), unit_code)
+        if return_polars:
+            return df_result
+        return self._polars_to_pandas_datetime_index(df_result)

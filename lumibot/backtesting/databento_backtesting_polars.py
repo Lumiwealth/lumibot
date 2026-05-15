@@ -1,9 +1,10 @@
 import traceback
 from datetime import datetime, timedelta
 
+import numpy as np
 import pandas as pd
 import polars as pl
-import numpy as np
+from termcolor import colored
 
 from lumibot import LUMIBOT_DEFAULT_PYTZ
 from lumibot.data_sources import PolarsData
@@ -12,9 +13,8 @@ from lumibot.entities.data_polars import DataPolars
 from lumibot.tools import databento_helper_polars as databento_helper
 from lumibot.tools.databento_helper_polars import DataBentoAuthenticationError
 from lumibot.tools.helpers import to_datetime_aware
-from termcolor import colored
-
 from lumibot.tools.lumibot_logger import get_logger
+
 logger = get_logger(__name__)
 
 # Conversion tracking for optimization analysis
@@ -221,7 +221,8 @@ class DataBentoDataBacktestingPolars(PolarsData):
                     end=end_datetime,
                     timestep=timestep,
                     venue=None,
-                    force_cache_update=False
+                    force_cache_update=False,
+                    return_polars=True,
                 )
 
                 is_empty = False
@@ -250,17 +251,25 @@ class DataBentoDataBacktestingPolars(PolarsData):
                     self.pandas_data[search_asset] = data_obj
                     self._cache_datetime_series(search_asset, data_obj)
                 else:
-                    pandas_df = df.to_pandas() if hasattr(df, "to_pandas") else df
-                    # Create Data object and store
-                    data_obj = Data(
-                        asset,
-                        df=pandas_df,
-                        timestep=timestep,
-                        quote=quote_asset,
-                    )
+                    if isinstance(df, pl.DataFrame):
+                        _log_conversion("STORE", "polars", "DataPolars", "prefetch_data")
+                        data_obj = DataPolars(
+                            asset,
+                            df=df,
+                            timestep=timestep,
+                            quote=quote_asset,
+                        )
+                        cached_len = df.height
+                    else:
+                        data_obj = Data(
+                            asset,
+                            df=df,
+                            timestep=timestep,
+                            quote=quote_asset,
+                        )
+                        cached_len = len(df) if hasattr(df, "__len__") else 0
                     self.pandas_data[search_asset] = data_obj
                     self._cache_datetime_series(search_asset, data_obj)
-                    cached_len = len(pandas_df) if hasattr(pandas_df, "__len__") else 0
                     logger.debug(f"Cached {cached_len} rows for {asset.symbol}")
                 
                 # Mark as prefetched
@@ -818,6 +827,7 @@ class DataBentoDataBacktestingPolars(PolarsData):
         quote=None,
         exchange=None,
         include_after_hours=True,
+        return_polars=False,
     ):
         """
         Override parent method to fetch data from DataBento instead of pre-loaded data store
@@ -836,10 +846,9 @@ class DataBentoDataBacktestingPolars(PolarsData):
         quote_asset = quote if quote is not None else Asset("USD", "forex")
 
         if isinstance(search_asset, tuple):
-            asset_separated, quote_asset = search_asset
+            _, quote_asset = search_asset
         else:
             search_asset = (search_asset, quote_asset)
-            asset_separated = asset
 
         # OPTIMIZATION: Build cache key and check cache
         # Convert timeshift to consistent format for caching
@@ -894,17 +903,6 @@ class DataBentoDataBacktestingPolars(PolarsData):
                         bar_delta = timedelta(days=1)
 
                     cutoff_dt = current_dt_aware - bar_delta
-
-                    # Convert to UTC for polars comparison (polars DataFrame datetime is in UTC)
-                    # Get the timezone from polars DataFrame
-                    polars_tz = polars_df["datetime"].dtype.time_zone
-                    if polars_tz:
-                        # Convert current_dt_aware to match polars timezone
-                        cutoff_dt_compat = pd.Timestamp(cutoff_dt).tz_convert(polars_tz)
-                        current_dt_compat = pd.Timestamp(current_dt_aware).tz_convert(polars_tz)
-                    else:
-                        cutoff_dt_compat = cutoff_dt
-                        current_dt_compat = current_dt_aware
 
                     datetime_key = (search_asset, asset_data.timestep)
                     datetime_ns = self._datetime_ns_cache.get(datetime_key)

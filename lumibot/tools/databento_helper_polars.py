@@ -5,19 +5,21 @@
 import os
 import re
 from datetime import date, datetime, timedelta, timezone
-from pathlib import Path
-from typing import Optional, List, Dict, Tuple, Union
 from decimal import Decimal
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 import polars as pl
+from termcolor import colored
+
 from lumibot import LUMIBOT_CACHE_FOLDER
 from lumibot.entities import Asset
 from lumibot.tools import futures_roll
-from termcolor import colored
 
 # Set up module-specific logger
 from lumibot.tools.lumibot_logger import get_logger
+
 logger = get_logger(__name__)
 
 
@@ -27,8 +29,8 @@ class DataBentoAuthenticationError(RuntimeError):
 
 # DataBento imports (will be installed as dependency)
 try:
-    import databento as db
     from databento import Historical
+
     DATABENTO_AVAILABLE = True
 except ImportError:
     DATABENTO_AVAILABLE = False
@@ -226,7 +228,6 @@ class DataBentoClient:
 
             # Fetch instrument definition using 'definition' schema
             # DataBento requires end > start, so add 1 day to end
-            from datetime import timedelta
             if isinstance(reference_date, datetime):
                 end_date = (reference_date + timedelta(days=1)).strftime("%Y-%m-%d")
             elif isinstance(reference_date, date):
@@ -287,7 +288,6 @@ def _convert_to_databento_format(symbol: str, asset_symbol: str = None) -> str:
     str
         DataBento-formatted symbol (e.g., MESU5)
     """
-    import re
 
     # Handle mock values used in tests
     if asset_symbol and symbol in ['MOCKED_CONTRACT', 'CENTRALIZED_RESULT']:
@@ -346,7 +346,6 @@ def _format_futures_symbol_for_databento(asset: Asset, reference_date: datetime 
     ValueError
         If symbol resolution fails with actionable error message
     """
-    import re
 
     symbol = asset.symbol.upper()
 
@@ -570,6 +569,22 @@ def _load_cache(cache_file: Path) -> Optional[pd.DataFrame]:
     return None
 
 
+def _load_cache_polars(cache_file: Path) -> Optional[pl.DataFrame]:
+    """Load data from cache as a Polars DataFrame."""
+    try:
+        if cache_file.exists():
+            df = pl.read_parquet(cache_file)
+            return _normalize_databento_dataframe_polars(df)
+    except Exception as e:
+        logger.warning(f"Error loading cache file {cache_file}: {e}")
+        try:
+            cache_file.unlink()
+        except Exception:
+            pass
+
+    return None
+
+
 def _ensure_datetime_index_utc(df: pd.DataFrame) -> pd.DataFrame:
     """Ensure the DataFrame index is a UTC-aware DatetimeIndex with standard name 'datetime'."""
     if isinstance(df.index, pd.DatetimeIndex):
@@ -601,16 +616,88 @@ def _save_cache(df: pd.DataFrame, cache_file: Path) -> None:
         logger.warning(f"Error saving cache file {cache_file}: {e}")
 
 
+def _save_cache_polars(df: Union[pd.DataFrame, pl.DataFrame], cache_file: Path) -> None:
+    """Save data to cache using Polars parquet IO."""
+    try:
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        df_to_save = _normalize_databento_dataframe_polars(df)
+        df_to_save.write_parquet(cache_file, compression="snappy", statistics=True)
+        logger.debug(f"Cached data saved to {cache_file}")
+    except Exception as e:
+        logger.warning(f"Error saving cache file {cache_file}: {e}")
+
+
+def _find_polars_datetime_column(df: pl.DataFrame) -> Optional[str]:
+    """Find the timestamp column used by a DataBento/Polars frame."""
+    for col in ("datetime", "ts_event", "timestamp", "time"):
+        if col in df.columns:
+            return col
+
+    for col, dtype in df.schema.items():
+        if isinstance(dtype, pl.Datetime) or dtype == pl.Date:
+            return col
+
+    return None
+
+
+def _align_timestamp_to_timezone(ts: datetime | pd.Timestamp | None, time_zone: Optional[str]) -> pd.Timestamp | None:
+    """Align a timestamp to the timezone semantics of a datetime column."""
+    if ts is None:
+        return None
+
+    ts_pd = pd.Timestamp(ts)
+    if time_zone is None:
+        return ts_pd.tz_localize(None) if ts_pd.tz is not None else ts_pd
+
+    if ts_pd.tz is None:
+        return ts_pd.tz_localize(time_zone)
+    return ts_pd.tz_convert(time_zone)
+
+
 def _filter_front_month_rows_polars(
-    df: pd.DataFrame,
+    df: Union[pd.DataFrame, pl.DataFrame],
     schedule: List[Tuple[str, datetime, datetime]],
-) -> pd.DataFrame:
+) -> Union[pd.DataFrame, pl.DataFrame]:
     """
     Filter combined contract data so each timestamp uses the scheduled symbol.
 
     POLARS OPTIMIZED VERSION: Uses polars for fast datetime filtering.
     This targets the DatetimeArray iteration bottleneck identified in profiling.
     """
+    if isinstance(df, pl.DataFrame):
+        if df.is_empty() or "symbol" not in df.columns or schedule is None:
+            return df
+
+        datetime_col = _find_polars_datetime_column(df)
+        if datetime_col is None:
+            return df
+
+        datetime_dtype = df.schema.get(datetime_col)
+        time_zone = datetime_dtype.time_zone if isinstance(datetime_dtype, pl.Datetime) else None
+        filter_expr = pl.lit(False)
+
+        for symbol, start_dt, end_dt in schedule:
+            cond = pl.col("symbol") == symbol
+
+            start_aligned = _align_timestamp_to_timezone(start_dt, time_zone)
+            if start_aligned is not None:
+                start_lit = pl.lit(start_aligned)
+                if isinstance(datetime_dtype, pl.Datetime):
+                    start_lit = start_lit.cast(datetime_dtype)
+                cond &= pl.col(datetime_col) >= start_lit
+
+            end_aligned = _align_timestamp_to_timezone(end_dt, time_zone)
+            if end_aligned is not None:
+                end_lit = pl.lit(end_aligned)
+                if isinstance(datetime_dtype, pl.Datetime):
+                    end_lit = end_lit.cast(datetime_dtype)
+                cond &= pl.col(datetime_col) < end_lit
+
+            filter_expr |= cond
+
+        filtered = df.filter(filter_expr)
+        return filtered if not filtered.is_empty() else df
+
     if df.empty or "symbol" not in df.columns or schedule is None:
         return df
 
@@ -789,6 +876,67 @@ def _normalize_databento_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     return df_norm
 
 
+def _normalize_databento_dataframe_polars(df: Union[pd.DataFrame, pl.DataFrame]) -> pl.DataFrame:
+    """
+    Normalize DataBento data to a Polars DataFrame with Lumibot OHLCV columns.
+    """
+    if isinstance(df, pl.DataFrame):
+        if df.is_empty():
+            return df
+        df_norm = df.clone()
+    elif isinstance(df, pd.DataFrame):
+        if df.empty:
+            return pl.DataFrame()
+
+        df_pd = df.copy()
+        if isinstance(df_pd.index, pd.DatetimeIndex):
+            df_pd = _ensure_datetime_index_utc(df_pd)
+            if df_pd.index.name in df_pd.columns:
+                df_pd = df_pd.drop(columns=[df_pd.index.name])
+            df_pd.reset_index(inplace=True)
+
+        df_norm = pl.from_pandas(df_pd)
+    else:
+        raise TypeError(f"Unexpected DataBento frame type: {type(df)}")
+
+    timestamp_col = _find_polars_datetime_column(df_norm)
+    if timestamp_col and timestamp_col != "datetime" and "datetime" not in df_norm.columns:
+        df_norm = df_norm.rename({timestamp_col: "datetime"})
+
+    if "datetime" in df_norm.columns:
+        datetime_dtype = df_norm.schema.get("datetime")
+        if not isinstance(datetime_dtype, pl.Datetime):
+            df_norm = df_norm.with_columns(
+                pl.col("datetime").cast(pl.Datetime(time_unit="ns"), strict=False)
+            )
+        df_norm = _ensure_polars_datetime_timezone(df_norm)
+        df_norm = _ensure_polars_datetime_precision(df_norm)
+
+    required_cols = ["open", "high", "low", "close", "volume"]
+    missing_cols = [col for col in required_cols if col not in df_norm.columns]
+    if missing_cols:
+        logger.warning(f"Missing required columns in DataBento data: {missing_cols}")
+        for col in missing_cols:
+            fill_value = 0 if col == "volume" else None
+            df_norm = df_norm.with_columns(pl.lit(fill_value).alias(col))
+
+    numeric_cols = ["open", "high", "low", "close"]
+    numeric_exprs = [
+        pl.col(col).cast(pl.Float64, strict=False).alias(col)
+        for col in numeric_cols
+        if col in df_norm.columns
+    ]
+    if "volume" in df_norm.columns:
+        numeric_exprs.append(pl.col("volume").cast(pl.Int64, strict=False).alias("volume"))
+    if numeric_exprs:
+        df_norm = df_norm.with_columns(numeric_exprs)
+
+    if "datetime" in df_norm.columns:
+        df_norm = df_norm.sort("datetime")
+
+    return df_norm
+
+
 # Instrument definition cache: stores multipliers and contract specs (shared with polars)
 _INSTRUMENT_DEFINITION_CACHE = {}  # {(symbol, dataset): definition_dict}
 
@@ -839,7 +987,7 @@ def _fetch_and_update_futures_multiplier(
             logger.debug(f"[MULTIPLIER] ✓ Using cached multiplier for {resolved_symbol}: {asset.multiplier}")
             return
         else:
-            logger.warning(f"[MULTIPLIER] Cache entry exists but missing unit_of_measure_qty field")
+            logger.warning("[MULTIPLIER] Cache entry exists but missing unit_of_measure_qty field")
 
     # Fetch from DataBento using the RESOLVED symbol
     logger.debug(f"[MULTIPLIER] Fetching from DataBento for {resolved_symbol}, dataset={dataset}, ref_date={reference_date}")
@@ -950,6 +1098,109 @@ def get_price_data_from_databento(
         )
     except Exception as exc:
         logger.warning(f"Unable to update futures multiplier for {asset.symbol}: {exc}")
+
+    if return_polars:
+        frames_polars: List[pl.DataFrame] = []
+        symbols_missing: List[str] = []
+
+        if not force_cache_update:
+            for symbol in symbols:
+                cache_path = _build_cache_filename(asset, start, end, timestep, symbol_override=symbol)
+                cached_df = _load_cache_polars(cache_path)
+                if cached_df is None or cached_df.is_empty():
+                    symbols_missing.append(symbol)
+                    continue
+                cached_df = cached_df.with_columns(pl.lit(symbol).alias("symbol"))
+                frames_polars.append(cached_df)
+        else:
+            symbols_missing = list(symbols)
+
+        data_client: Optional[DataBentoClient] = None
+        if symbols_missing:
+            try:
+                data_client = DataBentoClient(api_key=api_key)
+            except Exception as exc:
+                logger.error(f"DataBento data fetch error: {exc}")
+                return None
+
+            min_step = timedelta(minutes=1)
+            if schema == "ohlcv-1h":
+                min_step = timedelta(hours=1)
+            elif schema == "ohlcv-1d":
+                min_step = timedelta(days=1)
+            if end_naive <= start_naive:
+                end_naive = start_naive + min_step
+
+            for symbol in symbols_missing:
+                try:
+                    logger.debug(
+                        "Requesting DataBento data for %s (%s) between %s and %s",
+                        symbol,
+                        schema,
+                        start_naive,
+                        end_naive,
+                    )
+                    df_raw = data_client.get_historical_data(
+                        dataset=dataset,
+                        symbols=symbol,
+                        schema=schema,
+                        start=start_naive,
+                        end=end_naive,
+                        **kwargs,
+                    )
+                except DataBentoAuthenticationError as exc:
+                    auth_msg = colored(
+                        f"❌ DataBento authentication failed while requesting {symbol}: {exc}",
+                        "red"
+                    )
+                    logger.error(auth_msg)
+                    raise
+                except Exception as exc:
+                    logger.warning(f"Error fetching {symbol} from DataBento: {exc}")
+                    continue
+
+                is_empty = False
+                if df_raw is None:
+                    is_empty = True
+                elif isinstance(df_raw, pl.DataFrame):
+                    is_empty = df_raw.is_empty()
+                elif hasattr(df_raw, "empty"):
+                    is_empty = df_raw.empty
+
+                if is_empty:
+                    logger.warning(f"No data returned from DataBento for symbol {symbol}")
+                    continue
+
+                df_normalized = _normalize_databento_dataframe_polars(df_raw)
+                df_normalized = df_normalized.with_columns(pl.lit(symbol).alias("symbol"))
+                cache_path = _build_cache_filename(asset, start, end, timestep, symbol_override=symbol)
+                _save_cache_polars(df_normalized, cache_path)
+                frames_polars.append(df_normalized)
+
+        if not frames_polars:
+            logger.warning(f"No DataBento data available for {asset.symbol} between {start} and {end}")
+            return None
+
+        combined_polars = pl.concat(frames_polars, how="diagonal_relaxed")
+        if "datetime" in combined_polars.columns:
+            combined_polars = combined_polars.sort("datetime")
+
+        schedule = futures_roll.build_roll_schedule(
+            roll_asset,
+            schedule_start,
+            end,
+            year_digits=1,
+        )
+
+        if schedule:
+            combined_polars = _filter_front_month_rows_polars(combined_polars, schedule)
+
+        if "symbol" in combined_polars.columns:
+            combined_polars = combined_polars.drop("symbol")
+
+        combined_polars = _ensure_polars_datetime_timezone(combined_polars)
+        combined_polars = _ensure_polars_datetime_precision(combined_polars)
+        return combined_polars
 
     frames: List[pd.DataFrame] = []
     symbols_missing: List[str] = []

@@ -1,11 +1,12 @@
-import polars as pl
-import pandas as pd
-import pytest
 from datetime import datetime, timedelta, timezone
 
-from lumibot.entities.bars import Bars
-from lumibot.entities.asset import Asset
+import pandas as pd
+import polars as pl
+import pytest
+
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
+from lumibot.entities.asset import Asset
+from lumibot.entities.bars import Bars
 
 
 def _make_minute_df(start_epoch: int, minutes: int = 12):
@@ -92,3 +93,31 @@ def test_bars_datetime_index_normalized_to_default_timezone():
     assert isinstance(index, pd.DatetimeIndex)
     assert index.tz is not None
     assert index.tz.zone == LUMIBOT_DEFAULT_PYTZ.zone
+
+
+def test_split_polars_bars_preserves_values():
+    asset = Asset(symbol='SPLT', asset_type='stock')
+    start = datetime(2025, 1, 1, 14, 30, tzinfo=timezone.utc)
+    datetimes = [start + timedelta(minutes=i) for i in range(3)]
+    df = pl.DataFrame({
+        'datetime': datetimes,
+        'open': [10.0, 11.0, 12.0],
+        'high': [10.5, 11.5, 12.5],
+        'low': [9.5, 10.5, 11.5],
+        'close': [10.25, 11.25, 12.25],
+        'volume': [100, 200, 300],
+        'dividend': [0.0, 0.1, 0.0],
+        'stock_splits': [0.0, 0.0, 0.0],
+    })
+
+    bars = Bars(df, source='test', asset=asset, return_polars=True)
+    split = bars.split()
+
+    assert len(split) == 3
+    assert split[0].timestamp == int(datetimes[0].timestamp())
+    assert split[1].open == 11.0
+    assert split[1].high == 11.5
+    assert split[1].low == 10.5
+    assert split[1].close == 11.25
+    assert split[1].volume == 200
+    assert split[1].dividend == 0.1

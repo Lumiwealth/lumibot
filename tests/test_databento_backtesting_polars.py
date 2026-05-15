@@ -1,12 +1,15 @@
+from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock, patch
+
 import pandas as pd
 import polars as pl
 import pytest
-from datetime import datetime, timezone, timedelta
-from unittest.mock import MagicMock, patch
 
-from lumibot.tools.databento_helper_polars import DataBentoAuthenticationError
 from lumibot.backtesting.databento_backtesting_polars import DataBentoDataBacktestingPolars
 from lumibot.entities import Asset
+from lumibot.entities.data_polars import DataPolars
+from lumibot.tools import databento_helper_polars as databento_helper
+from lumibot.tools.databento_helper_polars import DataBentoAuthenticationError
 
 API_KEY = "test_key"
 
@@ -80,8 +83,43 @@ def test_prefetch_data_populates_cache(mock_get_data):
         pytest.skip("prefetch_data not implemented for polars backtesting backend")
 
     backtester.prefetch_data([asset], timestep="minute")
-    assert (asset, Asset("USD", "forex")) in backtester._prefetched_assets
+    search_asset = (asset, Asset("USD", "forex"))
+    assert search_asset in backtester._prefetched_assets
+    stored = backtester.pandas_data[search_asset]
+    assert isinstance(stored, DataPolars)
+    assert stored.polars_df.height == 8
+    assert mock_get_data.call_args.kwargs["return_polars"] is True
     mock_get_data.assert_called_once()
+
+
+def test_polars_cache_roundtrip_stays_polars(tmp_path):
+    cache_file = tmp_path / "bars.parquet"
+    frame = _polars_frame(0, rows=4).with_columns(pl.lit("MESH5").alias("symbol"))
+
+    databento_helper._save_cache_polars(frame, cache_file)
+    loaded = databento_helper._load_cache_polars(cache_file)
+
+    assert isinstance(loaded, pl.DataFrame)
+    assert loaded.height == frame.height
+    assert loaded.schema["datetime"] == pl.Datetime(time_unit="ns", time_zone="UTC")
+    assert loaded["symbol"].to_list() == ["MESH5"] * 4
+
+
+def test_filter_front_month_rows_polars_preserves_polars_type():
+    base = datetime(2025, 1, 6, 14, 0, tzinfo=timezone.utc)
+    frame = _polars_frame(0, rows=6).with_columns(
+        pl.Series("symbol", ["MESH5", "MESH5", "MESM5", "MESM5", "MESM5", "MESH5"])
+    )
+    schedule = [
+        ("MESH5", base, base + timedelta(minutes=2)),
+        ("MESM5", base + timedelta(minutes=2), base + timedelta(minutes=5)),
+    ]
+
+    filtered = databento_helper._filter_front_month_rows_polars(frame, schedule)
+
+    assert isinstance(filtered, pl.DataFrame)
+    assert filtered.height == 5
+    assert filtered["symbol"].to_list() == ["MESH5", "MESH5", "MESM5", "MESM5", "MESM5"]
 
 
 @pytest.mark.usefixtures("mocked_polars_helper")

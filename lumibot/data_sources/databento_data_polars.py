@@ -7,31 +7,36 @@ This implementation uses:
 - Correct price conversion from fixed-point format
 """
 
-from datetime import datetime, timedelta, timezone
-from decimal import Decimal
-from typing import Dict, Optional, Union
-import time
-import threading
 import queue
+import threading
+import time
 from collections import defaultdict
+from datetime import datetime, timedelta, timezone
+from typing import Dict, Optional
 
 import polars as pl
+
 try:
     import databento as db
 except ImportError:  # pragma: no cover - optional dependency
     db = None
 
-from .data_source import DataSource
-from .polars_mixin import PolarsMixin
 from lumibot.entities import Asset, Bars, Quote
 from lumibot.tools import databento_helper_polars, futures_roll
 from lumibot.tools.databento_helper_polars import (
-    _ensure_polars_datetime_timezone as _ensure_polars_tz,
     _ensure_polars_datetime_precision as _ensure_polars_precision,
+)
+from lumibot.tools.databento_helper_polars import (
+    _ensure_polars_datetime_timezone as _ensure_polars_tz,
+)
+from lumibot.tools.databento_helper_polars import (
     _format_futures_symbol_for_databento,
     _generate_databento_symbol_alternatives,
 )
 from lumibot.tools.lumibot_logger import get_logger
+
+from .data_source import DataSource
+from .polars_mixin import PolarsMixin
 
 logger = get_logger(__name__)
 
@@ -200,7 +205,7 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
                         err_msg = getattr(record, 'err', 'Unknown error')
                         logger.error(f"[DATABENTO][PRODUCER] Error from server: {err_msg}")
                         if error_count > 3:
-                            logger.error(f"[DATABENTO][PRODUCER] Too many errors, will reconnect")
+                            logger.error("[DATABENTO][PRODUCER] Too many errors, will reconnect")
                             break
                         continue
                     
@@ -220,7 +225,7 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
                             logger.debug(f"[DATABENTO][PRODUCER] {symbol} record #{record_count}: {record.__class__.__name__}")
                     
                     except queue.Full:
-                        logger.warning(f"[DATABENTO][PRODUCER] Queue full, dropping record")
+                        logger.warning("[DATABENTO][PRODUCER] Queue full, dropping record")
                 
                 # Clean exit
                 logger.debug(f"[DATABENTO][PRODUCER] {symbol} stopped after {record_count} records")
@@ -709,8 +714,11 @@ class DataBentoDataPolars(PolarsMixin, DataSource):
                 self._warn_stale(symbol, "stale trade cache")
 
         # Fallback to historical
-        bars = self.get_historical_prices(asset, 1, "minute", exchange=exchange)
+        bars = self.get_historical_prices(asset, 1, "minute", exchange=exchange, return_polars=True)
         if bars and len(bars) > 0:
+            bars_df = bars.polars_df
+            if isinstance(bars_df, pl.DataFrame):
+                return float(bars_df["close"][-1])
             return float(bars.df['close'].tail(1).item())
 
         return None

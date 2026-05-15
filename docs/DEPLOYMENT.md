@@ -15,8 +15,8 @@
 3) Merge the PR into `dev` (no direct pushes to `dev`).
 4) Tag the **merge commit on `dev`** as `vX.Y.Z` (this triggers GitHub Actions to publish to PyPI + create a GitHub Release).
 5) Verify `pip install lumibot==X.Y.Z` works.
-6) **Switch your LOCAL checkout to `version/X.Y.(Z+1)`** (the release workflow auto-creates the remote branch; you must pull it and switch locally, carrying any uncommitted work via cherry-pick). Verify with `git branch --show-current` and `grep version= setup.py` before doing anything else. This is NOT optional — skipping it means every subsequent commit lands on a frozen, released branch. See step 6 for the full checklist.
-7) Trigger BotManager deploys (dev then prod) — this takes ~30 minutes and should be the last step.
+6) **Switch your LOCAL checkout to `version/X.Y.(Z+1)`** (the release workflow auto-creates the remote branch; you must pull it and switch locally, carrying every local commit and dirty file forward via commit + cherry-pick). Verify with `git branch --show-current`, `grep version= setup.py`, and `git status --porcelain=v1` before doing anything else. This is NOT optional. There are zero exceptions. Skipping it means every subsequent commit lands on a frozen, released branch. See step 6 for the full checklist.
+7) Trigger BotManager deploys (dev then prod) only after step 6 is complete — this takes ~30 minutes and should be the last step.
 8) Post-deploy: run an MCP backtest against prod and assert `settings.json.lumibot_version == "X.Y.Z"`. See step 8.
 
 ## The `dev` Branch Is Sacred (CRITICAL)
@@ -68,32 +68,38 @@ Release order for tearsheet metric changes:
 
 ---
 
-## Codex-Safe Release Path For Shared Checkouts
+## Shared Checkout Release Rule (NO EXCEPTIONS)
 
-Use this path when an AI agent is deploying from the shared canonical checkout and
-local branch switching would risk another agent's work.
+The canonical LumiBot checkout must never remain on the just-released branch after
+a release. This applies to humans and AI agents.
 
-The release invariants are the same:
-- the version branch must contain every commit that will ship,
-- the version branch must include latest `dev`,
-- the release must merge to `dev` via PR,
-- the `vX.Y.Z` tag must point at the resulting `dev` merge commit,
-- BotManager deploys happen only after the PyPI release is verified.
+There is no valid "dirty checkout" exception. If `git status --porcelain=v1` is
+not empty after the release, do one of these immediately:
 
-Safe remote-first checklist:
-1. Confirm the local checkout is on `version/X.Y.Z`; do not switch to `dev`.
-2. Confirm no local-only commits exist: `git log --oneline origin/version/X.Y.Z..HEAD`.
-3. Confirm any local dirty files are unrelated to the release. If they are related, commit and push them first. If they are unrelated, do not stage them and call the dirty state out in the release notes.
-4. Fetch `origin/dev` and `origin/version/X.Y.Z`, then compare both directions:
-   - `git log --oneline origin/dev..origin/version/X.Y.Z`
-   - `git log --oneline origin/version/X.Y.Z..origin/dev`
-5. If `origin/dev` is ahead, merge/update the version branch through the release PR or a clean disposable release clone. Do not switch the canonical checkout just to do this.
-6. Create or update the release PR from `version/X.Y.Z` to `dev`, wait for CI, then merge the PR.
-7. Fetch the updated `origin/dev`, tag the `dev` merge commit, and push the tag.
+1. Commit the dirty files on the old `version/X.Y.Z` branch as a carry-over commit,
+   switch to `version/X.Y.(Z+1)`, cherry-pick the carry-over commit, then push
+   `version/X.Y.(Z+1)`.
+2. If a dirty file is truly wrong and must not survive, manually edit it back or
+   remove only that specific generated artifact, then prove the tree is clean.
 
-This does not relax the clean-tree requirement for normal human release work. It
-exists to prevent AI agents from switching branches in the shared LumiBot checkout
-when unrelated local work is present.
+Do not leave files dirty. Do not leave local-only commits on the released branch.
+Do not trigger BotManager deploys while the canonical checkout is still on
+`version/X.Y.Z`. Do not rely on another agent to fix this later.
+
+Mandatory verification after every release:
+
+```bash
+git branch --show-current            # MUST print version/X.Y.(Z+1)
+grep 'version=' setup.py | head -1   # MUST print version="X.Y.(Z+1)",
+git status --porcelain=v1            # MUST be empty
+git log --oneline origin/version/X.Y.(Z+1)..HEAD
+```
+
+If the final command prints commits, push them:
+
+```bash
+git push origin version/X.Y.(Z+1)
+```
 
 ---
 
@@ -272,12 +278,12 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
 
    6a) **The release workflow auto-creates the remote branch** `version/X.Y.(Z+1)` from `dev` (see `.github/workflows/release.yml` → "Start next version branch" job). You do NOT need to create it. You DO need to pull it and switch your local checkout to it.
 
-   6b) **Capture any local work first.** If you have uncommitted changes or local-only commits on `version/X.Y.Z`, they did not ship in the release (the release tag points at the `dev` merge commit that existed at tag time). Move them to `version/X.Y.(Z+1)`:
+   6b) **Capture every local change first.** If you have uncommitted changes, untracked files, or local-only commits on `version/X.Y.Z`, they did not ship in the release (the release tag points at the `dev` merge commit that existed at tag time). There is no "unrelated dirty file" exception during deployment. Either commit the change as carry-over or manually remove the exact unwanted generated artifact before switching. Move all remaining work to `version/X.Y.(Z+1)`:
 
      ```bash
      # Snapshot anything uncommitted as a throwaway commit on the OLD branch
      git status --porcelain=v1           # if non-empty, commit before switching
-     git add -u && git commit -m "wip: carry-over to X.Y.(Z+1)"
+     git add -A && git commit -m "wip: carry-over to X.Y.(Z+1)"
      # Note SHAs of all commits that are on local version/X.Y.Z but not on origin/version/X.Y.Z
      git log --oneline origin/version/X.Y.Z..HEAD
      ```
@@ -297,7 +303,7 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
      ```bash
      git branch --show-current            # MUST print version/X.Y.(Z+1)
      grep 'version=' setup.py | head -1   # MUST print version="X.Y.(Z+1)",
-     git status --porcelain=v1            # MUST be empty
+     git status --porcelain=v1            # MUST be empty after pushing carry-overs
      ```
 
      If any of those three checks is wrong, STOP and fix before proceeding. Do not trigger BotManager deploy on the wrong local branch state.

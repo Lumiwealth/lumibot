@@ -207,11 +207,11 @@ Lumibot includes a built-in AI trading agent runtime. Build agents that run iden
 Start here:
 - [Agent Documentation](https://lumibot.lumiwealth.com/agents.html)
 - [Agent Flow Design](https://lumibot.lumiwealth.com/agents_flows.html)
-- [AI Investment Committee Example](https://github.com/Lumiwealth/lumibot/blob/version/4.5.11/lumibot/example_strategies/ai_investment_committee.py)
+- [AI Investment Committee Example](lumibot/example_strategies/ai_investment_committee.py)
 - [Standalone AI Committee Demo](https://github.com/Lumiwealth/lumibot-ai-investment-committee)
-- [Stock Agent Example](https://github.com/Lumiwealth/lumibot/blob/version/4.5.11/lumibot/example_strategies/agent_stock_backtest.py)
-- [Options Agent Example](https://github.com/Lumiwealth/lumibot/blob/version/4.5.11/lumibot/example_strategies/agent_option_backtest.py)
-- [Full Guide](https://github.com/Lumiwealth/lumibot/blob/version/4.5.11/docs/AI_TRADING_AGENTS.md)
+- [Discretionary Agent Example](lumibot/example_strategies/agent_discretionary.py)
+- [News Sentiment Agent Example](lumibot/example_strategies/agent_news_sentiment.py)
+- [Full Guide](docs/AI_TRADING_AGENTS.md)
 
 ## Memory and Traceability
 
@@ -237,11 +237,9 @@ python -m lumibot.example_strategies.stock_buy_and_hold
 ls lumibot/example_strategies/
 ```
 
-Browse all examples: [example_strategies/](https://github.com/Lumiwealth/lumibot/tree/version/4.5.11/lumibot/example_strategies)
+Browse all examples: [example_strategies/](lumibot/example_strategies/)
 
-**External example repo:** [stock_example_algo](https://github.com/Lumiwealth-Strategies/stock_example_algo) (deployable to Render or Repl.it)
-
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Lumiwealth-Strategies/stock_example_algo)
+**External example repo:** [stock_example_algo](https://github.com/Lumiwealth-Strategies/stock_example_algo) shows a minimal strategy repository you can run yourself or adapt inside BotSpot.
 
 ## Backtesting Data Sources
 

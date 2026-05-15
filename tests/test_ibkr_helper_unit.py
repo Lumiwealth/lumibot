@@ -424,11 +424,58 @@ def test_unresolvable_stock_conid_uses_negative_cache(monkeypatch, tmp_path):
     with pytest.raises(RuntimeError, match="Unable to resolve IBKR conid"):
         ibkr_helper._resolve_conid(asset=asset, quote=quote, exchange=None)
 
-    assert calls["secdef"] == 1
+    assert calls["secdef"] == 2
     assert (tmp_path / "ibkr" / "conids_negative.json").exists()
     assert "stock|ARCH-DEFUNCT-2838|USD||" in ibkr_helper._NEGATIVE_CONID_CACHE
 
     with pytest.raises(RuntimeError, match="Unable to resolve IBKR conid"):
         ibkr_helper._resolve_conid(asset=asset, quote=quote, exchange=None)
 
-    assert calls["secdef"] == 1
+    assert calls["secdef"] == 2
+
+
+def test_stock_conid_resolution_prefers_stock_contract_for_ambiguous_symbol(monkeypatch, tmp_path):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setattr(ibkr_helper, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
+    ibkr_helper._RUNTIME_CONID_CACHE.clear()
+    ibkr_helper._NEGATIVE_CONID_CACHE.clear()
+    monkeypatch.setattr(ibkr_helper, "_NEGATIVE_CONID_CACHE_LOADED", False)
+
+    seen_queries = []
+
+    def fake_queue_request(url: str, querystring, headers=None, timeout=None):
+        if url.endswith("/ibkr/iserver/secdef/search"):
+            seen_queries.append(dict(querystring))
+            if querystring.get("secType") == "STK":
+                return [
+                    {
+                        "conid": 265598,
+                        "symbol": "MHO",
+                        "sections": [{"secType": "STK", "exchange": "NYSE"}],
+                    }
+                ]
+            return [
+                {
+                    "conid": 569790685,
+                    "symbol": "MHO",
+                    "sections": [{"secType": "FUT", "exchange": "NYMEX"}],
+                },
+                {
+                    "conid": 265598,
+                    "symbol": "MHO",
+                    "sections": [{"secType": "STK", "exchange": "NYSE"}],
+                },
+            ]
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr(ibkr_helper, "queue_request", fake_queue_request)
+
+    asset = Asset(symbol="MHO", asset_type=Asset.AssetType.STOCK)
+    quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
+
+    conid = ibkr_helper._resolve_conid(asset=asset, quote=quote, exchange=None)
+
+    assert conid == 265598
+    assert seen_queries == [{"symbol": "MHO", "secType": "STK"}]
+    assert ibkr_helper._RUNTIME_CONID_CACHE["stock|MHO|USD||"] == 265598

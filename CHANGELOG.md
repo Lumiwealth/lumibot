@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.5.25 - 2026-05-15
+
+Deploy marker: 4.5.25 release commit (`deploy 4.5.25`)
+
+### Fixed
+- **IBKR REST stock/index conid lookup now filters secdef results by asset type.** Ambiguous tickers such as `MHO` no longer resolve to a futures contract when the strategy requested a stock, preventing false “Chart data unavailable” failures in AlphaPicks backtests.
+
 ## 4.5.24 - 2026-05-15
 
 Deploy marker: 4.5.24 release commit (`deploy 4.5.24`)

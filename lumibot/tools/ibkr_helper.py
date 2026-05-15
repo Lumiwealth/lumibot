@@ -2852,14 +2852,59 @@ def _lookup_conid_remote(
     if asset_type in {"crypto"}:
         return _lookup_conid_crypto(asset=asset, quote=quote)
 
-    # Default: fall back to secdef search and use the first conid.
+    preferred_sec_types: tuple[str, ...] = ()
+    if asset_type == "stock":
+        preferred_sec_types = ("STK",)
+    elif asset_type == "index":
+        preferred_sec_types = ("IND",)
+
+    def _payload_item_matches_sec_type(item: dict, allowed: tuple[str, ...]) -> bool:
+        if not allowed:
+            return True
+        direct = str(item.get("secType") or "").upper()
+        if direct in allowed:
+            return True
+        sections = item.get("sections")
+        if isinstance(sections, list):
+            for section in sections:
+                if isinstance(section, dict) and str(section.get("secType") or "").upper() in allowed:
+                    return True
+        return False
+
+    def _extract_conid(payload: Any, allowed: tuple[str, ...]) -> Optional[int]:
+        if not isinstance(payload, list):
+            return None
+        for item in payload:
+            if not isinstance(item, dict):
+                continue
+            if not _payload_item_matches_sec_type(item, allowed):
+                continue
+            conid = item.get("conid")
+            if conid is not None:
+                return int(conid)
+        return None
+
     base_url = _downloader_base_url()
     url = f"{base_url}/ibkr/iserver/secdef/search"
+
+    if preferred_sec_types:
+        for sec_type in preferred_sec_types:
+            payload = queue_request(
+                url=url,
+                querystring={"symbol": asset.symbol, "secType": sec_type},
+                headers=None,
+                timeout=None,
+            )
+            conid = _extract_conid(payload, (sec_type,))
+            if conid is not None:
+                return int(conid)
+
+    # Default: fall back to secdef search, but still filter ambiguous symbols by asset type.
     payload = queue_request(url=url, querystring={"symbol": asset.symbol}, headers=None, timeout=None)
-    if isinstance(payload, list) and payload:
-        conid = payload[0].get("conid")
-        if conid is not None:
-            return int(conid)
+    conid = _extract_conid(payload, preferred_sec_types)
+    if conid is not None:
+        return int(conid)
+
     message = f"Unable to resolve IBKR conid for {asset.symbol} (type={asset_type})"
     _record_negative_conid(key=_conid_key(asset=asset, quote=quote, exchange=exchange).to_key(), reason="no_conid", message=message)
     raise RuntimeError(message)

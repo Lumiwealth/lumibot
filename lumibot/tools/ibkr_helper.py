@@ -2591,6 +2591,17 @@ def _resolve_conid(*, asset: Asset, quote: Optional[Asset], exchange: Optional[s
             _RUNTIME_CONID_CACHE[key] = int(cached)
             return cached
 
+    if asset_type not in {"future", "cont_future"}:
+        _load_negative_conid_cache()
+        for key in candidates:
+            neg_hit = _NEGATIVE_CONID_CACHE.get(key)
+            if isinstance(neg_hit, dict):
+                cached_msg = str(neg_hit.get("message") or "").strip() or (
+                    f"IBKR conid lookup is negatively cached for {asset.symbol} (type={asset_type})."
+                )
+                logger.error("IBKR negative conid cache hit: %s", cached_msg)
+                raise RuntimeError(cached_msg)
+
     if asset_type in {"future", "cont_future"} and primary.expiration:
         same_month_cached = _lookup_same_month_future_conid_from_mapping(mapping=mapping, key=primary)
         if same_month_cached is not None:
@@ -2632,6 +2643,9 @@ def _resolve_conid(*, asset: Asset, quote: Optional[Asset], exchange: Optional[s
         if prior_alt != conid_int:
             keys_added.add(alt_key)
 
+    for key in set(candidates + [primary_key]):
+        _clear_negative_conid(key=key)
+
     cache_file.parent.mkdir(parents=True, exist_ok=True)
     cache_file.write_text(json.dumps(mapping, indent=2, sort_keys=True), encoding="utf-8")
     try:
@@ -2661,6 +2675,9 @@ def _is_terminal_no_data_error(exc: Exception) -> bool:
             "no data available",
             "does not have data",
             "asset does not exist",
+            "unable to resolve ibkr conid",
+            "ibkr conid lookup is negatively cached",
+            "secdef/search returned no",
             # `_fetch_history_between_dates` raises this when IBKR pagination returns
             # empty before we covered the requested window. In practice this happens
             # for entitlement/stitching gaps (e.g. CONT_FUTURE 1-minute Trades) where
@@ -2843,7 +2860,9 @@ def _lookup_conid_remote(
         conid = payload[0].get("conid")
         if conid is not None:
             return int(conid)
-    raise RuntimeError(f"Unable to resolve IBKR conid for {asset.symbol} (type={asset_type})")
+    message = f"Unable to resolve IBKR conid for {asset.symbol} (type={asset_type})"
+    _record_negative_conid(key=_conid_key(asset=asset, quote=quote, exchange=exchange).to_key(), reason="no_conid", message=message)
+    raise RuntimeError(message)
 
 
 def _lookup_conid_crypto(*, asset: Asset, quote: Optional[Asset]) -> int:

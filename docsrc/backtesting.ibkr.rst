@@ -83,6 +83,15 @@ IBKR backtests cache historical bars as Parquet:
 - Local: ``LUMIBOT_CACHE_FOLDER/ibkr/...``
 - Optional S3 mirroring: configured via the standard ``LUMIBOT_CACHE_*`` variables (see :ref:`environment_variables`).
 
+Conid lookups also maintain cache files under ``LUMIBOT_CACHE_FOLDER/ibkr``:
+
+- ``conids.json`` stores successful conid resolutions.
+- ``conids_negative.json`` stores short-lived negative markers for symbols IBKR cannot resolve.
+
+Negative conid markers prevent long backtests from repeatedly retrying permanently unavailable symbols, such as
+defunct equities returned by an external universe API. These lookup failures are treated as terminal no-data
+conditions for the affected request window, not as synthetic price data.
+
 Multi-provider routing (Theta + IBKR)
 -------------------------------------
 

@@ -391,3 +391,44 @@ def test_history_period_for_request_daily_stock_index_uses_cap():
             assert period == ibkr_helper.IBKR_STOCK_INDEX_DAILY_MAX_PERIOD, (
                 f"asset_type={asset_type} bar={bar} period={period}"
             )
+
+
+def test_unresolvable_stock_conid_is_terminal_no_data():
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    assert ibkr_helper._is_terminal_no_data_error(RuntimeError("Unable to resolve IBKR conid for ARCH-DEFUNCT-2838"))
+    assert ibkr_helper._is_terminal_no_data_error(RuntimeError("IBKR conid lookup is negatively cached for ARCH-DEFUNCT-2838"))
+
+
+def test_unresolvable_stock_conid_uses_negative_cache(monkeypatch, tmp_path):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setattr(ibkr_helper, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
+    ibkr_helper._RUNTIME_CONID_CACHE.clear()
+    ibkr_helper._NEGATIVE_CONID_CACHE.clear()
+    monkeypatch.setattr(ibkr_helper, "_NEGATIVE_CONID_CACHE_LOADED", False)
+
+    calls = {"secdef": 0}
+
+    def fake_queue_request(url: str, querystring, headers=None, timeout=None):
+        if url.endswith("/ibkr/iserver/secdef/search"):
+            calls["secdef"] += 1
+            return []
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr(ibkr_helper, "queue_request", fake_queue_request)
+
+    asset = Asset(symbol="ARCH-DEFUNCT-2838", asset_type=Asset.AssetType.STOCK)
+    quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
+
+    with pytest.raises(RuntimeError, match="Unable to resolve IBKR conid"):
+        ibkr_helper._resolve_conid(asset=asset, quote=quote, exchange=None)
+
+    assert calls["secdef"] == 1
+    assert (tmp_path / "ibkr" / "conids_negative.json").exists()
+    assert "stock|ARCH-DEFUNCT-2838|USD||" in ibkr_helper._NEGATIVE_CONID_CACHE
+
+    with pytest.raises(RuntimeError, match="Unable to resolve IBKR conid"):
+        ibkr_helper._resolve_conid(asset=asset, quote=quote, exchange=None)
+
+    assert calls["secdef"] == 1

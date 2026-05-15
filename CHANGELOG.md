@@ -1,11 +1,12 @@
 # Changelog
 
-## 4.5.23 - 2026-05-15
+## 4.5.24 - 2026-05-15
 
-Deploy marker: 4.5.23 release commit (`deploy 4.5.23`)
+Deploy marker: 4.5.24 release commit (`deploy 4.5.24`)
 
 ### Fixed
 - **IBKR REST backtests now negative-cache unresolvable stock/index conid lookups.** Symbols that IBKR cannot resolve, such as defunct AlphaPicks holdings, are treated as terminal no-data and persisted in the conid negative cache so long BotSpot backtests skip them deterministically instead of hammering secdef/history endpoints until the task times out.
+- **PyPI releases now build wheel-only artifacts.** This avoids source-distribution uploads hitting PyPI project storage limits while preserving the artifact BotManager installs for backtest workers.
 
 ## 4.5.22 - Unreleased
 

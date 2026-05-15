@@ -32,6 +32,7 @@ def test_botspot_handler_dedup_and_aggregation(monkeypatch):
 
     logger = logging.getLogger("lumibot.test.botspot")
     logger.setLevel(logging.ERROR)
+    logger.propagate = False
     # Ensure no duplicate handlers from previous tests
     for h in list(logger.handlers):
         logger.removeHandler(h)
@@ -94,6 +95,7 @@ def test_botspot_handler_distinct_fingerprints(monkeypatch):
     logger_b = logging.getLogger("lumibot.test.botspot.b")
     for lg in (logger_a, logger_b):
         lg.setLevel(logging.ERROR)
+        lg.propagate = False
         for h in list(lg.handlers):
             lg.removeHandler(h)
         lg.addHandler(handler)

@@ -12,13 +12,14 @@
 
 <p align="center">
   <a href="https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=hero_botspot_button">
-    <img src="https://img.shields.io/badge/Build%20AI%20Trading%20Bots-BotSpot-38D000?style=for-the-badge&labelColor=111827" alt="Build AI trading bots on BotSpot">
+    <img src="docs/assets/readme/button_build_ai_botspot.png" alt="Build AI trading bots on BotSpot Cloud" width="430">
   </a>
+  <br>
   <a href="https://lumibot.lumiwealth.com/?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=hero_docs_button">
-    <img src="https://img.shields.io/badge/Read%20the%20Docs-Lumibot-2563EB?style=for-the-badge&labelColor=111827" alt="Read the Lumibot documentation">
+    <img src="docs/assets/readme/button_read_lumibot_docs.png" alt="Read the Lumibot documentation" width="320">
   </a>
   <a href="https://www.botspot.trade/ai-bot-builder-bootcamp?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=hero_course_button">
-    <img src="https://img.shields.io/badge/AI%20Trading%20Bootcamp-Learn-7C3AED?style=for-the-badge&labelColor=111827" alt="Join the AI Trading Bootcamp">
+    <img src="docs/assets/readme/button_ai_trading_bootcamp.png" alt="Join the AI Trading Bootcamp" width="330">
   </a>
 </p>
 
@@ -68,10 +69,11 @@ Built-in AI agent tools include market/account state, order inspection, DuckDB q
 
 <p align="center">
   <a href="https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=botspot_section_button">
-    <img src="https://img.shields.io/badge/Create%20My%20AI%20Trading%20Bot-BotSpot-38D000?style=for-the-badge&labelColor=111827" alt="Create my AI trading bot on BotSpot">
+    <img src="docs/assets/readme/button_build_ai_botspot.png" alt="Create my AI trading bot on BotSpot" width="460">
   </a>
+  <br>
   <a href="https://www.botspot.trade/ai-bot-builder-bootcamp?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=botspot_section_course_button">
-    <img src="https://img.shields.io/badge/Learn%20AI%20Trading-Bootcamp-7C3AED?style=for-the-badge&labelColor=111827" alt="Learn AI trading in the BotSpot bootcamp">
+    <img src="docs/assets/readme/button_ai_trading_bootcamp.png" alt="Learn AI trading in the BotSpot bootcamp" width="350">
   </a>
 </p>
 
@@ -143,7 +145,7 @@ For full setup guides, broker tutorials, AI-agent docs, examples, and deployment
 
 <p align="center">
   <a href="https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=deploy_section_button">
-    <img src="https://img.shields.io/badge/Open%20BotSpot%20Cloud-Build%20%2B%20Backtest%20%2B%20Run-38D000?style=for-the-badge&labelColor=111827" alt="Open BotSpot cloud">
+    <img src="docs/assets/readme/button_open_botspot_cloud.png" alt="Open BotSpot Cloud" width="460">
   </a>
 </p>
 

@@ -254,8 +254,10 @@ export BACKTESTING_DATA_SOURCE=thetadata   # or yahoo, ibkr, polygon
 Multi-provider routing by asset type:
 
 ```bash
-export BACKTESTING_DATA_SOURCE='{"default":"thetadata","crypto":"coinbase"}'
+export BACKTESTING_DATA_SOURCE='{"default":"thetadata","option":"thetadata","crypto":"ibkr","crypto_future":"ibkr","future":"ibkr","cont_future":"ibkr"}'
 ```
+
+Crypto futures/perpetual backtests can route `Asset.AssetType.CRYPTO_FUTURE` through spot crypto history. USDT symbols such as `BTCUSDT`, `ETHUSDT`, and `SOLUSDT` use the matching USD spot proxy for prices.
 
 ### Data source comparison
 

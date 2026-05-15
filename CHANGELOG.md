@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.5.20 - 2026-05-15
+
+Deploy marker: 4.5.20 release commit (`deploy 4.5.20`)
+
+### Fixed
+- **Crypto futures and perpetual backtests can use spot crypto price history through routed backtesting.** `Asset.AssetType.CRYPTO_FUTURE` requests now route through explicit `crypto_future` provider settings, falling back to `crypto` when omitted, and USDT contracts such as `BTCUSDT`, `ETHUSDT`, and `SOLUSDT` can price from the matching USD spot proxy while preserving the original futures asset for strategy-facing orders and positions.
+- **Routed backtesting now preserves day-level stock/index data in mixed option workflows.** Stock/index lookups that support option strategies avoid stale minute-frame fallbacks when daily bars are requested.
+
+### Changed
+- **Release docs now require prompt review for platform capability changes.** Deployment review includes a token-efficient BotSpot agent prompt/shared-example check alongside the existing documentation and visual asset gates.
+
 ## 4.5.19 - 2026-05-14
 
 Deploy marker: 4.5.19 release commit (`deploy 4.5.19`)

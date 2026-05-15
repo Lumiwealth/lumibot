@@ -41,11 +41,11 @@ Production uses router-mode, so performance work must use router-mode too.
 **Canonical production routing JSON:**
 
 ```json
-{"default":"thetadata","crypto":"ibkr","future":"ibkr","cont_future":"ibkr"}
+{"default":"thetadata","crypto":"ibkr","crypto_future":"ibkr","future":"ibkr","cont_future":"ibkr"}
 ```
 
 This is set via:
-- `BACKTESTING_DATA_SOURCE='{"default":"thetadata","crypto":"ibkr","future":"ibkr","cont_future":"ibkr"}'`
+- `BACKTESTING_DATA_SOURCE='{"default":"thetadata","crypto":"ibkr","crypto_future":"ibkr","future":"ibkr","cont_future":"ibkr"}'`
 
 ### 0.3 Repo + process safety (multi-agent rules)
 
@@ -174,11 +174,12 @@ Implementation references:
 Use this for all benchmarks unless explicitly investigating a single-provider path:
 
 ```bash
-export BACKTESTING_DATA_SOURCE='{"default":"thetadata","crypto":"ibkr","future":"ibkr","cont_future":"ibkr"}'
+export BACKTESTING_DATA_SOURCE='{"default":"thetadata","crypto":"ibkr","crypto_future":"ibkr","future":"ibkr","cont_future":"ibkr"}'
 ```
 
 Notes:
 - Router aliases `"futures"` → `"future"` for user convenience, but **does not imply** `"cont_future"`.
+- `crypto_future` is explicit for crypto perps/futures; if omitted, the router falls back to `crypto`.
 - When routing is wrong, speed “fixes” can be fake (you may be measuring a different provider than production).
 
 ---

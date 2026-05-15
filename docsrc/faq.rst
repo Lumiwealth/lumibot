@@ -317,7 +317,7 @@ LumiBot ships four reference demo strategies in ``lumibot/example_strategies/``:
 3. **Momentum Allocator** (``agent_momentum_allocator.py``) -- momentum + sentiment using price bars and news
 4. **M2 Liquidity** (``agent_m2_liquidity.py``) -- liquidity-driven allocation using FRED money supply data
 
-Start with the M2 Liquidity demo if you want the fewest credentials. It only needs a model-provider key because the demo uses FRED's public revised-data CSV endpoint. For strict point-in-time macro backtests, use the built-in FRED tools with ``FRED_API_KEY``.
+Start with a demo that only uses built-in market data if you want the fewest credentials. FRED macro tools require ``FRED_API_KEY`` because LumiBot uses official FRED/ALFRED vintage parameters for point-in-time macro backtests instead of revised public CSV data.
 
 How much does it cost to run AI agent backtests?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

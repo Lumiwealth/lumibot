@@ -3244,8 +3244,17 @@ class _Strategy:
             self.logger.error(traceback.format_exc())
             return False
 
-        # Get the current positions
+        # Get the current positions. Cloud consumers treat an explicit
+        # positions=[] as "verified flat", so do not publish positions unless
+        # the broker/local position read actually succeeded.
+        positions = None
+        positions_snapshot_status = "verified"
+        positions_snapshot_source = "strategy_positions_cache"
         try:
+            sync_positions = getattr(self.broker, "sync_positions", None)
+            if callable(sync_positions):
+                sync_positions(self)
+                positions_snapshot_source = "broker_positions_refresh"
             positions = self.get_positions()
             self.logger.debug(f"Number of positions: {len(positions)}")
             # DEBUG: Log position details
@@ -3255,9 +3264,10 @@ class _Strategy:
                     attrs = {k: v for k, v in pos.__dict__.items() if not k.startswith('_')}
                     self.logger.debug(f"[DEBUG] Position attrs for {pos.symbol}: {list(attrs.keys())}")
         except Exception as e:
-            self.logger.error(f"Failed to get positions: {e}")
+            positions_snapshot_status = "unverified"
+            positions_snapshot_source = "positions_refresh_failed"
+            self.logger.error(f"Failed to refresh/get positions for cloud update; omitting positions snapshot: {e}")
             self.logger.error(traceback.format_exc())
-            return False
 
         # Get the current orders
         try:
@@ -3278,14 +3288,10 @@ class _Strategy:
             "Content-Type": "application/json",
         }
 
-        # Create the data to send to the cloud
-        positions_data = [position.to_dict() for position in positions]
-
         data = {
             "data_type": "portfolio_event",
             "portfolio_value": portfolio_value,
             "cash": cash,
-            "positions": positions_data,
             "orders": [order.to_dict() for order in orders],
             "cash_events": [event.to_dict() for event in cash_events],
             "strategy_name": self._name,
@@ -3293,11 +3299,16 @@ class _Strategy:
             "account_snapshot_status": "verified",
             "account_snapshot_source": "broker_balance_refresh",
             "account_snapshot_checked_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "positions_snapshot_status": positions_snapshot_status,
+            "positions_snapshot_source": positions_snapshot_source,
         }
+        if positions is not None:
+            data["positions"] = [position.to_dict() for position in positions]
 
         self.logger.debug(
             f"Preparing to send portfolio update: value={portfolio_value}, cash={cash}, "
-            f"positions={len(positions)}, orders={len(orders)}, cash_events={len(cash_events)}"
+            f"positions={len(positions) if positions is not None else 'omitted'}, "
+            f"orders={len(orders)}, cash_events={len(cash_events)}"
         )
 
         # Helper function to recursively replace NaN in dictionaries

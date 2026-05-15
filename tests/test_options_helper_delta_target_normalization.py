@@ -124,3 +124,36 @@ def test_find_strike_for_delta_uses_model_path_for_routed_theta_options_daily_ba
     )
 
     assert strike in {90.0, 95.0, 100.0}
+
+
+def test_find_strike_for_delta_uses_model_path_for_theta_intraday_backtests():
+    class ThetaDataBacktestingPandas:
+        _timestep = "minute"
+
+    class _Broker:
+        IS_BACKTESTING_BROKER = True
+
+        def __init__(self):
+            source = ThetaDataBacktestingPandas()
+            self.option_source = source
+            self.data_source = source
+
+    strategy = _Strategy()
+    strategy.sleeptime = "1H"
+    strategy.broker = _Broker()
+    helper = OptionsHelper(strategy)
+
+    def should_not_call_delta(*_args, **_kwargs):
+        raise AssertionError("theta backtest model path should not call get_delta_for_strike")
+
+    helper.get_delta_for_strike = should_not_call_delta  # type: ignore[assignment]
+
+    strike = helper.find_strike_for_delta(
+        underlying_asset=Asset("TEST", asset_type=Asset.AssetType.STOCK),
+        underlying_price=100.0,
+        target_delta=0.30,
+        expiry=date(2026, 2, 20),
+        right="put",
+    )
+
+    assert strike in {90.0, 95.0, 100.0}

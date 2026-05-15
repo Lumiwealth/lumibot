@@ -8,14 +8,23 @@
 
 **Build deterministic trading strategies, multi-agent LLM trading systems, and hybrid strategies that backtest, paper trade, and execute through real brokers.** Lumibot is an open-source algorithmic trading framework for stocks, options, crypto, futures, forex, indexes, SEC fundamentals, macro data, technical indicators, and AI agents that can actually place orders.
 
-**Full docs:** [lumibot.lumiwealth.com](https://lumibot.lumiwealth.com/) · **No-code cloud:** [BotSpot.trade](https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot)
+**Full docs:** [lumibot.lumiwealth.com](https://lumibot.lumiwealth.com/) · **No-code cloud:** [BotSpot.trade](https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=top_text_link)
 
 <p align="center">
-  <a href="https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot">
-    <strong>Build, backtest, and deploy an AI trading bot on BotSpot</strong>
+  <a href="https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=hero_botspot_button">
+    <img src="docs/assets/readme/button_build_ai_botspot.png" alt="Build AI trading bots on BotSpot Cloud" width="430">
   </a>
   <br>
-  Describe a strategy in plain English. BotSpot generates Lumibot code, runs the backtest, and deploys it in the cloud.
+  <a href="https://lumibot.lumiwealth.com/?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=hero_docs_button">
+    <img src="docs/assets/readme/button_read_lumibot_docs.png" alt="Read the Lumibot documentation" width="320">
+  </a>
+  <a href="https://www.botspot.trade/ai-bot-builder-bootcamp?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=hero_course_button">
+    <img src="docs/assets/readme/button_ai_trading_bootcamp.png" alt="Join the AI Trading Bootcamp" width="330">
+  </a>
+</p>
+
+<p align="center">
+  <strong>Want the managed path?</strong> Describe a strategy in plain English. BotSpot generates Lumibot code, runs the backtest, and runs it in the cloud.
 </p>
 
 <p align="center">
@@ -51,17 +60,27 @@ Built-in AI agent tools include market/account state, order inspection, DuckDB q
 
 ## Build Without Code on BotSpot
 
-**[BotSpot](https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot)** is the managed cloud product built on Lumibot. Use it when you want to describe a strategy in plain English, have AI generate Lumibot code, backtest it, and deploy it without managing servers.
+**[BotSpot](https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=botspot_section_text_link)** is the managed cloud product built on Lumibot. Use it when you want to describe a strategy in plain English, have AI generate Lumibot code, backtest it, and run it without managing servers.
 
 - **Build** strategies using natural language -- the AI writes production-ready Lumibot code for you
 - **Backtest** against years of historical data with a single click
 - **Deploy** to live trading with real brokers including Alpaca, Interactive Brokers, Tradier, Schwab, Tradovate, TopstepX via ProjectX, Bitunix, Coinbase, Kraken, WEEX, KuCoin, Binance, BitMEX, Bybit, and OKX
 - **Browse** a marketplace of proven, community-built strategies you can run immediately
 
-**Start on BotSpot:** [Build, backtest, and deploy AI trading bots](https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot)
+<p align="center">
+  <a href="https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=botspot_section_button">
+    <img src="docs/assets/readme/button_build_ai_botspot.png" alt="Create my AI trading bot on BotSpot" width="460">
+  </a>
+  <br>
+  <a href="https://www.botspot.trade/ai-bot-builder-bootcamp?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=botspot_section_course_button">
+    <img src="docs/assets/readme/button_ai_trading_bootcamp.png" alt="Learn AI trading in the BotSpot bootcamp" width="350">
+  </a>
+</p>
 
 <p align="center">
-  <img src="docs/assets/readme/lumibot_botspot_launch_path.png" alt="Build on Lumibot and launch on BotSpot" width="100%">
+  <a href="https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=botspot_launch_image">
+    <img src="docs/assets/readme/lumibot_botspot_launch_path.png" alt="Build on Lumibot and launch on BotSpot" width="100%">
+  </a>
 </p>
 
 ## Quick Start
@@ -117,14 +136,18 @@ For full setup guides, broker tutorials, AI-agent docs, examples, and deployment
 
 ### Option A: BotSpot (managed cloud)
 
-[BotSpot](https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot) runs your Lumibot strategies on hosted infrastructure with scheduling, monitoring, and live execution. Build strategies with AI, no coding required.
+[BotSpot](https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=deploy_section_text_link) runs your Lumibot strategies on hosted infrastructure with scheduling, monitoring, and live execution. Build strategies with AI, no coding required.
 
 - Create trading bots using natural language
 - Backtest with historical data
 - Deploy to trade automatically 24/7
 - Join a community of algorithmic traders
 
-**[Open BotSpot.trade](https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot)**
+<p align="center">
+  <a href="https://botspot.trade/?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=deploy_section_button">
+    <img src="docs/assets/readme/button_open_botspot_cloud.png" alt="Open BotSpot Cloud" width="460">
+  </a>
+</p>
 
 <p align="center">
   <img src="docs/assets/readme/lumibot_backtest_live_parity.png" alt="One Lumibot strategy can run in backtests and live broker accounts" width="100%">
@@ -207,11 +230,11 @@ Lumibot includes a built-in AI trading agent runtime. Build agents that run iden
 Start here:
 - [Agent Documentation](https://lumibot.lumiwealth.com/agents.html)
 - [Agent Flow Design](https://lumibot.lumiwealth.com/agents_flows.html)
-- [AI Investment Committee Example](https://github.com/Lumiwealth/lumibot/blob/version/4.5.11/lumibot/example_strategies/ai_investment_committee.py)
+- [AI Investment Committee Example](lumibot/example_strategies/ai_investment_committee.py)
 - [Standalone AI Committee Demo](https://github.com/Lumiwealth/lumibot-ai-investment-committee)
-- [Stock Agent Example](https://github.com/Lumiwealth/lumibot/blob/version/4.5.11/lumibot/example_strategies/agent_stock_backtest.py)
-- [Options Agent Example](https://github.com/Lumiwealth/lumibot/blob/version/4.5.11/lumibot/example_strategies/agent_option_backtest.py)
-- [Full Guide](https://github.com/Lumiwealth/lumibot/blob/version/4.5.11/docs/AI_TRADING_AGENTS.md)
+- [Discretionary Agent Example](lumibot/example_strategies/agent_discretionary.py)
+- [News Sentiment Agent Example](lumibot/example_strategies/agent_news_sentiment.py)
+- [Full Guide](docs/AI_TRADING_AGENTS.md)
 
 ## Memory and Traceability
 
@@ -237,11 +260,9 @@ python -m lumibot.example_strategies.stock_buy_and_hold
 ls lumibot/example_strategies/
 ```
 
-Browse all examples: [example_strategies/](https://github.com/Lumiwealth/lumibot/tree/version/4.5.11/lumibot/example_strategies)
+Browse all examples: [example_strategies/](lumibot/example_strategies/)
 
-**External example repo:** [stock_example_algo](https://github.com/Lumiwealth-Strategies/stock_example_algo) (deployable to Render or Repl.it)
-
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Lumiwealth-Strategies/stock_example_algo)
+**External example repo:** [stock_example_algo](https://github.com/Lumiwealth-Strategies/stock_example_algo) shows a minimal strategy repository you can run yourself or adapt inside BotSpot.
 
 ## Backtesting Data Sources
 

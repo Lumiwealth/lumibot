@@ -2,6 +2,9 @@
 
 ## 4.5.22 - Unreleased
 
+### Fixed
+- **ThetaData option backtests no longer exhaustively download minute quote/OHLC data during delta strike selection.** `OptionsHelper.find_strike_for_delta()` now uses the existing model-based strike selector for ThetaData-routed option backtests, including intraday-cadence strategies, and leaves real historical price validation to `find_next_valid_option()` / `evaluate_option_market()`. This prevents sparse option chains from spending minutes probing empty strikes before any trade is placed.
+
 ## 4.5.21 - Unreleased
 
 ## 4.5.20 - 2026-05-15

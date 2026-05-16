@@ -33,6 +33,8 @@ This repo is frequently edited by **multiple AI sessions**. To avoid lost work:
   - **Never push directly to `dev`.** All work must land via a PR (usually from `version/X.Y.Z` → `dev`).
   - **Stay on the current branch.** If you start on a `version/*` branch, keep all commits on that branch and push that branch.
   - **Never switch branches without explicit user instruction.** If you suspect you are on the wrong branch, stop and ask.
+  - **Never update an old version branch to make a stale GitHub URL look current.** If Rob or a browser is viewing an older `version/X.Y.Z` branch, do not push current work to that old branch and do not switch to it. Give Rob the correct latest version branch URL instead. Historical version branches are release records, not redirect targets.
+  - **Always keep the canonical checkout on the latest active `version/X.Y.Z` branch.** If you discover `/Users/robertgrzesik/Development/lumibot` is on an older version branch, stop and report it unless Rob explicitly tells you to move it with `git switch` after verifying the tree is clean.
   - **PRs must be version-scoped.** If a PR is needed for review/release, the PR head must be the existing `version/X.Y.Z` branch.
   - **PR title must be release-scoped.** Use `vX.Y.Z - <summary>` and include all notable changes shipped in that version (not just one feature).
 

@@ -62,6 +62,8 @@ Release order for tearsheet metric changes:
 - Active work happens on a shared version branch: `version/X.Y.Z` (example: `version/4.4.31`).
 - **Do not create extra branches** off a version branch unless explicitly instructed.
 - **Do not push directly to `dev`.** All changes land in `dev` via PR merge.
+- **Never update an old `version/*` branch to make a stale GitHub URL look current.** Historical version branches are release records, not redirect targets. If someone is viewing an older branch, give them the latest active `version/X.Y.Z` URL instead of pushing current work to the old branch or switching the canonical checkout backwards.
+- The canonical checkout at `/Users/robertgrzesik/Development/lumibot` must stay on the latest active `version/X.Y.Z` branch. If it is on an older version branch, stop and fix that state with `git switch` only after verifying the tree is clean.
 - `setup.py` **must** match the version branch name (`X.Y.Z`).
   - When you start a new version branch, bump immediately and commit: `chore: start X.Y.Z`.
   - **Never downgrade** versions. If a bump was wrong, bump forward (and document why).

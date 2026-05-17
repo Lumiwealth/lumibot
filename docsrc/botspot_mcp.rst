@@ -175,5 +175,5 @@ Troubleshooting
 More resources
 --------------
 
-- BotSpot developer page: `https://botspot.trade/developers <https://botspot.trade/developers>`_
+- BotSpot AI agent and MCP page: `https://botspot.trade/agents <https://botspot.trade/agents>`_
 - BotSpot MCP server guide: `https://github.com/Lumiwealth/botspot_node/blob/production/docs/mcp/mcp-server-guide.md <https://github.com/Lumiwealth/botspot_node/blob/production/docs/mcp/mcp-server-guide.md>`_

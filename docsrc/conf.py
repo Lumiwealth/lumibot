@@ -117,6 +117,7 @@ html_theme_options = {
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_html"]
 html_css_files = ["custom.css", "bootstrap/css/bootstrap.css"]
+html_js_files = ["posthog.js"]
 html_extra_path = ["_extra"]
 
 

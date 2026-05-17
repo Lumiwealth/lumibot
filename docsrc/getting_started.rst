@@ -15,12 +15,14 @@ Read :doc:`agents` for the full guide.
 Need Help Building Strategies?
 ==============================
 
-Our **AI agent** was built specifically for LumiBot and can help you create strategies in minutes—no coding required. Just describe your strategy in plain English, and the AI generates the Python code for you.
+Our **AI agent** was built specifically for LumiBot and can help you create strategies in minutes. Describe your strategy in plain English, backtest it in the browser, then deploy it on managed infrastructure when you are ready.
 
 At `BotSpot <https://botspot.trade/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_getting_started>`_, you can:
 
 - **Build strategies with AI** — Describe what you want in plain English, and our AI creates the code
-- **Explore our marketplace** — Access 50+ proven trading strategies built by our community
+- **Deploy on BotSpot** — Run Lumibot strategies without managing servers, schedulers, broker credentials, or monitoring
+- **Use BotSpot MCP** — Let AI coding agents generate strategies, launch backtests, and inspect artifacts from your editor
+- **Explore the marketplace** — Browse strategy ideas, performance, visuals, and examples you can clone or adapt when the author allows it
 - **Join 2,400+ traders** — Connect with other builders in our Discord community
 - **Take our AI Bootcamp** — Live hands-on training to master automated trading
 
@@ -31,7 +33,7 @@ At `BotSpot <https://botspot.trade/?utm_source=documentation&utm_medium=referral
 
 .. important::
 
-   `Start on BotSpot <https://botspot.trade/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_getting_started>`_ if you want the managed no-code path.
+   `Start on BotSpot <https://botspot.trade/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_getting_started>`_ if you want the managed cloud path, or open the :doc:`BotSpot MCP guide <botspot_mcp>` if you want your coding agent to work directly with BotSpot.
 
 Getting Started With Lumibot
 ============================

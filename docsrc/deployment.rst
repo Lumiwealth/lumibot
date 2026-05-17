@@ -20,11 +20,12 @@ Option A — Deploy on BotSpot (Recommended)
 - **No infrastructure to manage.** No servers, no deploy files, no environment-variable setup.
 - **Broker integrations built in.** Alpaca, Interactive Brokers, Tradier, Schwab, Tradovate, TopstepX via ProjectX, Bitunix, Coinbase, Kraken, WEEX, KuCoin, Binance, BitMEX, Bybit, and OKX have documented Lumibot paths.
 - **Backtest in the browser.** Test your strategy on historical data with one click before going live.
-- **Marketplace of proven strategies.** Browse community strategies and deploy any of them without writing code.
+- **Strategy marketplace.** Browse strategy ideas, performance, visuals, and examples you can clone or adapt when the author allows it.
 - **Paper and live trading.** Start in paper mode, switch to live when you are ready.
 - **AI strategy builder.** Describe what you want in plain English and BotSpot generates Lumibot code for you.
+- **MCP for AI coding agents.** Use BotSpot from Claude, Cursor, Codex, and ChatGPT-compatible clients to generate strategies, launch backtests, inspect artifacts, and iterate.
 
-`Get started on BotSpot <https://botspot.trade/?utm_source=documentation&utm_medium=deployment_guide&utm_campaign=lumibot>`_ and deploy in minutes, no coding required.
+`Deploy on BotSpot <https://botspot.trade/deploy?utm_source=documentation&utm_medium=deployment_guide&utm_campaign=lumibot>`_, browse the `BotSpot marketplace <https://botspot.trade/marketplace?utm_source=documentation&utm_medium=deployment_guide&utm_campaign=lumibot>`_, or connect the `BotSpot MCP server <https://botspot.trade/agents?utm_source=documentation&utm_medium=deployment_guide&utm_campaign=lumibot>`_.
 
 .. tip::
 

@@ -1776,6 +1776,8 @@ class StrategyExecutor(Thread):
 
     def _setup_market_session(self, has_data_source):
         """Set up the market session for non-24/7 markets"""
+        self._send_startup_cloud_update()
+
         # Set date to the start date, but account for minutes_before_opening
         self.strategy.await_market_to_open()  # set new time and bar length. Check if hit bar max or date max.
 
@@ -1799,6 +1801,21 @@ class StrategyExecutor(Thread):
         self.lifecycle_last_date['before_starting_trading'] = self.strategy.get_datetime().date()
 
         return True
+
+    def _send_startup_cloud_update(self):
+        """Publish one live account snapshot before a live runner waits for market open."""
+        if self.strategy.is_backtesting:
+            return
+
+        try:
+            sent = self.strategy.send_update_to_cloud()
+        except Exception as e:
+            self.strategy.logger.warning(f"Could not send startup cloud update: {e}")
+            self.strategy.logger.debug(traceback.format_exc())
+            return
+
+        if sent:
+            self._last_updated_cloud = datetime.now()
 
     def _run_backtesting_loop(self, is_continuous_market, time_to_close):
         """Execute the main backtesting iteration loop"""

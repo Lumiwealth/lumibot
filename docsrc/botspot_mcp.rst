@@ -7,6 +7,12 @@ deployment monitoring, artifact analysis, and chart/visual retrieval.
 This page is intentionally practical: endpoint URLs, auth, client setup,
 and verification commands.
 
+.. image:: ../docs/assets/readme/cta_botspot_mcp.png
+   :alt: Use BotSpot MCP
+   :align: center
+   :width: 520px
+   :target: https://botspot.trade/agents?utm_source=documentation&utm_medium=mcp_guide&utm_campaign=lumibot&utm_content=mcp_primary_button
+
 Last verified
 -------------
 

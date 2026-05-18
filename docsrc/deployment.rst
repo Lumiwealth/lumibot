@@ -13,7 +13,7 @@ Pick the option that matches how much infrastructure you want to manage. Both ru
 Option A — Deploy on BotSpot (Recommended)
 ------------------------------------------
 
-`BotSpot <https://botspot.trade/?utm_source=documentation&utm_medium=deployment_guide&utm_campaign=lumibot>`_ is the managed cloud platform built on Lumibot. You upload or describe your strategy, pick a broker, and BotSpot runs it for you 24/7 with monitoring, scheduling, and failure alerts. Most Lumibot users should start here.
+`BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=deployment_guide&utm_campaign=lumibot&utm_content=deploy_top_text&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.>`_ is the managed cloud platform built on Lumibot. You upload or describe your strategy, pick a broker, and BotSpot runs it for you 24/7 with monitoring, scheduling, and failure alerts. Most Lumibot users should start here.
 
 **Why BotSpot:**
 
@@ -25,7 +25,13 @@ Option A — Deploy on BotSpot (Recommended)
 - **AI strategy builder.** Describe what you want in plain English and BotSpot generates Lumibot code for you.
 - **MCP for AI coding agents.** Use BotSpot from Claude, Cursor, Codex, and ChatGPT-compatible clients to generate strategies, launch backtests, inspect artifacts, and iterate.
 
-`Deploy on BotSpot <https://botspot.trade/deploy?utm_source=documentation&utm_medium=deployment_guide&utm_campaign=lumibot>`_, browse the `BotSpot marketplace <https://botspot.trade/marketplace?utm_source=documentation&utm_medium=deployment_guide&utm_campaign=lumibot>`_, or connect the `BotSpot MCP server <https://botspot.trade/agents?utm_source=documentation&utm_medium=deployment_guide&utm_campaign=lumibot>`_.
+.. image:: ../docs/assets/readme/cta_deploy_on_botspot.png
+   :alt: Deploy on BotSpot
+   :align: center
+   :width: 520px
+   :target: https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=deployment_guide&utm_campaign=lumibot&utm_content=deploy_primary_button&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.
+
+Browse the `BotSpot marketplace <https://botspot.trade/marketplace?utm_source=documentation&utm_medium=deployment_guide&utm_campaign=lumibot&utm_content=marketplace_text>`_, or connect the `BotSpot MCP server <https://botspot.trade/agents?utm_source=documentation&utm_medium=deployment_guide&utm_campaign=lumibot&utm_content=mcp_text>`_.
 
 .. tip::
 
@@ -49,7 +55,7 @@ Example Strategy for Deployment
 
 Use this example to see the self-hosted deployment process in action. It's not intended for real-money use. More details are available in the GitHub repository: `Example Algorithm GitHub <https://github.com/Lumiwealth-Strategies/stock_example_algo>`_
 
-To run the example strategy yourself, click the Deploy to Render button or the Run on Repl.it button below. If you would rather skip the infrastructure setup entirely, `deploy it on BotSpot <https://botspot.trade/?utm_source=documentation&utm_medium=deployment_guide&utm_campaign=lumibot>`_ instead.
+To run the example strategy yourself, click the Deploy to Render button or the Run on Repl.it button below. If you would rather skip the infrastructure setup entirely, `deploy it on BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=deployment_guide&utm_campaign=lumibot&utm_content=example_botspot_text&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.>`_ instead.
 
 .. raw:: html
 

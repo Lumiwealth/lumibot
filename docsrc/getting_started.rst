@@ -17,7 +17,7 @@ Need Help Building Strategies?
 
 Our **AI agent** was built specifically for LumiBot and can help you create strategies in minutes. Describe your strategy in plain English, backtest it in the browser, then deploy it on managed infrastructure when you are ready.
 
-At `BotSpot <https://botspot.trade/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_getting_started>`_, you can:
+At `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=getting_started&utm_campaign=lumibot&utm_content=top_text&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.>`_, you can:
 
 - **Build strategies with AI** — Describe what you want in plain English, and our AI creates the code
 - **Deploy on BotSpot** — Run Lumibot strategies without managing servers, schedulers, broker credentials, or monitoring
@@ -31,9 +31,15 @@ At `BotSpot <https://botspot.trade/?utm_source=documentation&utm_medium=referral
    :align: center
    :width: 100%
 
+.. image:: ../docs/assets/readme/cta_deploy_on_botspot.png
+   :alt: Deploy on BotSpot
+   :align: center
+   :width: 520px
+   :target: https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=getting_started&utm_campaign=lumibot&utm_content=deploy_button&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.
+
 .. important::
 
-   `Start on BotSpot <https://botspot.trade/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_getting_started>`_ if you want the managed cloud path, or open the :doc:`BotSpot MCP guide <botspot_mcp>` if you want your coding agent to work directly with BotSpot.
+   `Start on BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=getting_started&utm_campaign=lumibot&utm_content=important_start_link&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.>`_ if you want the managed cloud path, or open the :doc:`BotSpot MCP guide <botspot_mcp>` if you want your coding agent to work directly with BotSpot.
 
 Getting Started With Lumibot
 ============================

@@ -1,5 +1,7 @@
 import importlib
 import inspect
+import os
+import subprocess
 import sys
 from unittest.mock import patch
 
@@ -46,6 +48,33 @@ def test_lazy_package_exports_defer_heavy_submodule_imports(monkeypatch):
         assert target_module not in sys.modules
         getattr(module, export_name)
         assert target_module in sys.modules
+
+
+def test_top_level_import_logs_version_without_loading_credentials():
+    env = os.environ.copy()
+    env["LUMIBOT_DISABLE_DOTENV"] = "1"
+    env["LUMIBOT_DISABLE_DOTENV_LOCAL"] = "1"
+    env.pop("LUMIBOT_LOG_LEVEL", None)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; "
+                "import lumibot; "
+                "print('credentials_loaded=' + str('lumibot.credentials' in sys.modules))"
+            ),
+        ],
+        check=True,
+        capture_output=True,
+        env=env,
+        text=True,
+    )
+
+    assert f"LumiBot v" in result.stdout
+    assert "starting" in result.stdout
+    assert "credentials_loaded=False" in result.stdout
 
 
 def test_legacy_star_import_exports_resolve():

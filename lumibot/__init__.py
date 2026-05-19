@@ -1,4 +1,5 @@
 import importlib.util
+import logging
 import os
 import re
 import sys
@@ -51,6 +52,34 @@ except ImportError:
         __version__ = "unknown"
 except:
     __version__ = "unknown"
+
+
+def _log_startup_version() -> None:
+    level_name = os.environ.get("LUMIBOT_LOG_LEVEL", "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
+    logger = logging.getLogger("lumibot")
+    logger.setLevel(level)
+
+    console_handlers = [
+        handler
+        for handler in logger.handlers
+        if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler)
+    ]
+    if not console_handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
+        logger.addHandler(handler)
+        console_handlers = [handler]
+
+    for handler in console_handlers:
+        handler.setLevel(level)
+        if handler.formatter is None:
+            handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
+
+    logger.info(f"LumiBot v{__version__} starting")
+
+
+_log_startup_version()
 
 # Get the major and minor Python version
 major, minor = sys.version_info[:2]

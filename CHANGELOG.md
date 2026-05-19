@@ -1,6 +1,12 @@
 # Changelog
 
-## 4.5.26 - Unreleased
+## 4.5.26 - 2026-05-19
+
+Deploy marker: 4.5.26 release commit (`deploy 4.5.26`)
+
+### Operations
+- **PyPI project storage was cleaned up for wheel-only releases.** Historical source distributions that had matching wheels were removed from PyPI so new LumiBot releases can publish again under the project storage quota. The package release remains wheel-only.
+- **4.5.26 republishes the safe dotenv and lazy-startup release path after the 4.5.25 PyPI quota blocker.** This keeps the deployment path moving without force-moving the stale `v4.5.25` tag.
 
 ## 4.5.25 - 2026-05-15
 

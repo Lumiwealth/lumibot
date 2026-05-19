@@ -35,7 +35,7 @@ databento>=0.42.0
 holidays
 psutil
 openai
-google-adk>=1.19.0
+google-adk>=1.19.0,<2.0.0
 google-genai>=1.68.0
 anyio>=4.10.0
 mcp>=1.26.0

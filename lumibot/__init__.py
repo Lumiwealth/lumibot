@@ -1,13 +1,12 @@
+import importlib.util
 import os
-import sys
-import warnings
-import importlib
 import re
-from pathlib import Path
+import sys
+import types
+import warnings
+from importlib.machinery import ModuleSpec
 
-from lumibot.tools.lumibot_logger import get_logger
-
-logger = get_logger(__name__)
+_SETUP_VERSION_RE = re.compile(r"^\s*version\s*=\s*(['\"])(?P<version>.+?)\1\s*,?\s*$")
 
 
 def _read_version_from_setup_py() -> str | None:
@@ -18,15 +17,19 @@ def _read_version_from_setup_py() -> str | None:
     """
 
     try:
-        module_path = Path(__file__).resolve()
-        for parent in module_path.parents:
-            setup_py = parent / "setup.py"
-            if not setup_py.is_file():
-                continue
-            text = setup_py.read_text(encoding="utf-8", errors="ignore")
-            match = re.search(r"version\s*=\s*['\"]([^'\"]+)['\"]", text)
-            if match:
-                return match.group(1).strip()
+        current = os.path.dirname(os.path.abspath(__file__))
+        while True:
+            setup_py = os.path.join(current, "setup.py")
+            if os.path.isfile(setup_py):
+                with open(setup_py, encoding="utf-8", errors="ignore") as file:
+                    for line in file:
+                        match = _SETUP_VERSION_RE.match(line)
+                        if match:
+                            return match.group("version").strip()
+            parent = os.path.dirname(current)
+            if parent == current:
+                break
+            current = parent
     except Exception:
         pass
     return None
@@ -49,8 +52,6 @@ except ImportError:
 except:
     __version__ = "unknown"
 
-logger.info(f"LumiBot v{__version__} starting")
-
 # Get the major and minor Python version
 major, minor = sys.version_info[:2]
 
@@ -59,66 +60,207 @@ if (major, minor) < (3, 10):
     warnings.warn("Lumibot requires Python 3.10 or higher.", RuntimeWarning)
 
 # SOURCE PATH
-# Import constants from constants module (before importing submodules to avoid circular imports)
-from .constants import (
-    LUMIBOT_CACHE_FOLDER,
-    LUMIBOT_DEFAULT_PYTZ,
-    LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL,
-    LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE,
-    LUMIBOT_DEFAULT_TIMEZONE,
-    LUMIBOT_SOURCE_PATH,
-)
+LUMIBOT_SOURCE_PATH = os.path.dirname(os.path.abspath(__file__))
+LUMIBOT_DEFAULT_TIMEZONE = "America/New_York"
+LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL = "USD"
+LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE = "forex"
 
-# Import main submodules (after constants to avoid circular imports)
-from . import backtesting, brokers, data_sources, entities, strategies, traders
+
+def _default_cache_folder() -> str:
+    env_value = os.environ.get("LUMIBOT_CACHE_FOLDER")
+    if env_value:
+        return env_value
+    if sys.platform == "darwin":
+        return os.path.expanduser("~/Library/Caches/lumibot/1.0")
+    if os.name == "nt":
+        root = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~\\AppData\\Local")
+        return os.path.join(root, "LumiWealth", "lumibot", "Cache", "1.0")
+    root = os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache")
+    return os.path.join(root, "lumibot", "1.0")
+
+
+LUMIBOT_CACHE_FOLDER = _default_cache_folder()
 
 # Ensure cache folder exists
 if not os.path.exists(LUMIBOT_CACHE_FOLDER):
     try:
         os.makedirs(LUMIBOT_CACHE_FOLDER)
     except Exception as e:
-        logger.critical(
+        warnings.warn(
             f"""Could not create cache folder because of the following error:
             {e}. Please fix the issue to use data caching."""
         )
 
-# === Backward Compatibility Aliases ===
-# Some older code and documentation may still refer to the top-level
-# package name `entities` (e.g. `entities.asset`) that existed in
-# earlier Lumibot versions.  To avoid breaking those references we
-# expose `lumibot.entities` and its sub-modules under the legacy name
-# when the library is imported.
+_SUBMODULE_EXPORTS = {
+    "strategies",
+    "brokers",
+    "backtesting",
+    "entities",
+    "data_sources",
+    "traders",
+    "tools",
+    "components",
+    "constants",
+    "credentials",
+    "trading_builtins",
+}
 
-# Map the root package alias.
-import lumibot.entities as _lb_entities
-sys.modules.setdefault("entities", _lb_entities)
 
-# Expose common sub-modules (asset, bars, data, order, position, trading_fee)
-# so that e.g. `import entities.asset` keeps working.
-for _sub in ("asset", "bars", "data", "order", "position", "trading_fee"):
-    _full = f"lumibot.entities.{_sub}"
-    _alias = f"entities.{_sub}"
+class _EntitiesAliasLoader:
+    def create_module(self, spec):
+        return None
+
+    def exec_module(self, module):
+        load = module.__dict__.get("_load")
+        if load is not None:
+            load()
+
+
+_ENTITIES_ALIAS_LOADER = _EntitiesAliasLoader()
+
+
+class _EntitiesAliasFinder:
+    _lumibot_entities_alias_finder = True
+
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname in _ENTITY_SUBMODULE_ALIAS_NAMES:
+            return ModuleSpec(fullname, _ENTITIES_ALIAS_LOADER, is_package=False)
+        if fullname == "entities":
+            spec = ModuleSpec(fullname, _ENTITIES_ALIAS_LOADER, is_package=True)
+            spec.submodule_search_locations = _EntitiesAlias.__path__
+            return spec
+        return None
+
+
+class _EntitiesAlias(types.ModuleType):
+    _lumibot_entities_alias = True
+    __path__ = [os.path.join(os.path.dirname(os.path.abspath(__file__)), "entities")]
+    __file__ = os.path.join(os.path.dirname(os.path.abspath(__file__)), "entities", "__init__.py")
+    __package__ = "entities"
+
+    def __init__(self, name: str):
+        super().__init__(name)
+        self.__spec__ = ModuleSpec(name, _ENTITIES_ALIAS_LOADER, is_package=True)
+        self.__spec__.submodule_search_locations = self.__path__
+
+    def __getattr__(self, name):
+        import importlib
+
+        entities_module = importlib.import_module("lumibot.entities")
+        if name in getattr(entities_module, "__all__", ()):
+            value = getattr(entities_module, name)
+            setattr(self, name, value)
+            return value
+
+        alias = sys.modules.get(f"entities.{name}")
+        if alias is not None:
+            return alias
+
+        try:
+            module = importlib.import_module(f"lumibot.entities.{name}")
+            sys.modules[f"entities.{name}"] = module
+        except ModuleNotFoundError:
+            module = importlib.import_module(f"entities.{name}")
+        return module
+
+
+class _EntitiesSubmoduleAlias(types.ModuleType):
+    def __init__(self, alias_name: str, target_name: str):
+        super().__init__(alias_name)
+        self.__package__ = "entities"
+        self.__spec__ = ModuleSpec(alias_name, _ENTITIES_ALIAS_LOADER, is_package=False)
+        self._target_name = target_name
+        self._target_module = None
+
+    def _load(self):
+        import importlib
+
+        module = self._target_module
+        if module is None:
+            module = importlib.import_module(self._target_name)
+            self._target_module = module
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+    def __dir__(self):
+        return dir(self._load())
+
+
+_ENTITY_SUBMODULES = (
+    "asset",
+    "bar",
+    "bars",
+    "cash_event",
+    "chains",
+    "data",
+    "data_polars",
+    "dataline",
+    "order",
+    "position",
+    "quote",
+    "trading_fee",
+    "trading_slippage",
+    "smart_limit",
+)
+_ENTITY_SUBMODULE_ALIAS_NAMES = {f"entities.{_submodule}" for _submodule in _ENTITY_SUBMODULES}
+
+
+def _has_entities_alias_finder() -> bool:
+    return any(getattr(_finder, "_lumibot_entities_alias_finder", False) for _finder in sys.meta_path)
+
+
+def _entities_package_exists() -> bool:
+    existing = sys.modules.get("entities")
+    if existing is not None and not getattr(existing, "_lumibot_entities_alias", False):
+        return True
+    if _has_entities_alias_finder():
+        return False
     try:
-        _mod = importlib.import_module(_full)
-        sys.modules[_alias] = _mod
-    except ModuleNotFoundError as e:
-        # If a particular sub-module was removed or fails to import (e.g., due to deeper issues like 'fp')
-        # log a warning and skip. Sphinx will simply not find this specific alias.
-        logger.warning(f"[lumibot/__init__.py] Could not create alias '{_alias}' for '{_full}': {e}")
-        # Ensure the problematic alias isn't lingering if it was partially set or if it's a mock
-        if _alias in sys.modules and isinstance(sys.modules[_alias], importlib.util.LazyLoader):
-            pass # Don't remove if it's a lazy loader that might resolve later or differently
-        elif _alias in sys.modules:
-            # If it's a real module or a simple mock that failed, best to remove its alias attempt
-            # to avoid Sphinx confusion with a potentially broken module object.
-            # However, if Sphinx/autodoc is running, it might be safer to leave mocks as they are.
-            # For now, we'll log and continue, letting Sphinx handle missing modules.
-            # Reconsidering removal: could interfere with Sphinx's own mock handling.
-            pass # Reconsidering removal: could interfere with Sphinx's own mock handling
-    except ImportError as e: # Catch other import-related errors
-        logger.warning(f"[lumibot/__init__.py] ImportError while creating alias '{_alias}' for '{_full}': {e}")
-    except Exception as e: # Catch any other unexpected errors during aliasing
-        logger.warning(f"[lumibot/__init__.py] Unexpected error creating alias '{_alias}' for '{_full}': {e}")
+        return importlib.util.find_spec("entities") is not None
+    except (ImportError, AttributeError, ValueError):
+        return False
+
+
+if not _entities_package_exists():
+    if not _has_entities_alias_finder():
+        sys.meta_path.insert(0, _EntitiesAliasFinder())
+
+    sys.modules.setdefault("entities", _EntitiesAlias("entities"))
+    for _submodule in _ENTITY_SUBMODULES:
+        sys.modules.setdefault(
+            f"entities.{_submodule}",
+            _EntitiesSubmoduleAlias(f"entities.{_submodule}", f"lumibot.entities.{_submodule}"),
+        )
+
+
+def __getattr__(name):
+    if name == "LUMIBOT_DEFAULT_PYTZ":
+        from .constants import LUMIBOT_DEFAULT_PYTZ
+
+        globals()[name] = LUMIBOT_DEFAULT_PYTZ
+        return LUMIBOT_DEFAULT_PYTZ
+    if name in _SUBMODULE_EXPORTS:
+        import importlib
+
+        module = importlib.import_module(f"{__name__}.{name}")
+        globals()[name] = module
+        return module
+    if name == "get_logger":
+        from lumibot.tools.lumibot_logger import get_logger
+
+        globals()[name] = get_logger
+        return get_logger
+    if name == "logger":
+        logger = __getattr__("get_logger")(__name__)
+        globals()[name] = logger
+        return logger
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(set(globals()) | set(__all__))
 
 # Export the default timezone constants so they can be imported by other modules
 __all__ = [
@@ -134,5 +276,12 @@ __all__ = [
     'backtesting',
     'entities',
     'data_sources',
-    'traders'
+    'traders',
+    'tools',
+    'components',
+    'constants',
+    'credentials',
+    'trading_builtins',
+    'get_logger',
+    'logger',
 ]

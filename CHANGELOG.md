@@ -4,8 +4,14 @@
 
 Deploy marker: 4.5.25 release commit (`deploy 4.5.25`)
 
+### Changed
+- **Package namespace imports are now lazy-loaded.** Top-level namespaces such as `lumibot`, `lumibot.brokers`, `lumibot.data_sources`, `lumibot.entities`, `lumibot.tools`, and `lumibot.traders` defer heavy broker/data/tool imports until first use while preserving common star imports and legacy `entities.*` aliases.
+- **Dotenv loading is now safer for runtime-secret deployments.** LumiBot searches upward for the nearest `.env` instead of recursively scanning nested directories, supports sibling `.env.local` overrides for local development, and supports `LUMIBOT_DISABLE_DOTENV` / `LUMIBOT_DISABLE_DOTENV_LOCAL` for injected-env production jobs.
+
 ### Fixed
+- **CI Ruff checks now point at the current data downloader queue client path.**
 - **IBKR REST stock/index conid lookup now filters secdef results by asset type.** Ambiguous tickers such as `MHO` no longer resolve to a futures contract when the strategy requested a stock, preventing false “Chart data unavailable” failures in AlphaPicks backtests.
+- **Symbol parsing now uses a single conservative implementation.** `lumibot.tools.parse_symbol` and `lumibot.tools.helpers.parse_symbol` both normalize whitespace/case, require full OCC option-symbol matches, reject empty input, and parse OCC years as 2000-based.
 
 ## 4.5.24 - 2026-05-15
 

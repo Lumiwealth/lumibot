@@ -1,4 +1,5 @@
-import asyncio
+from __future__ import annotations
+
 import contextlib
 import hashlib
 import importlib
@@ -17,17 +18,31 @@ from datetime import date, datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-import httpx
-from anyio import run as anyio_run
-from anyio.from_thread import start_blocking_portal
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-from mcp.client.streamable_http import streamablehttp_client
-
 from .schemas import AgentRunResult, AgentTraceEvent, BoundTool, MCPServer
 
 
 _GOOGLE_SDK_NOISE_FILTERS_CONFIGURED = False
+ClientSession = None
+StdioServerParameters = None
+stdio_client = None
+streamablehttp_client = None
+
+
+def _ensure_mcp_client_imports():
+    global ClientSession, StdioServerParameters, stdio_client, streamablehttp_client
+    if ClientSession is None or StdioServerParameters is None:
+        from mcp import ClientSession as _ClientSession, StdioServerParameters as _StdioServerParameters
+
+        ClientSession = _ClientSession
+        StdioServerParameters = _StdioServerParameters
+    if stdio_client is None:
+        from mcp.client.stdio import stdio_client as _stdio_client
+
+        stdio_client = _stdio_client
+    if streamablehttp_client is None:
+        from mcp.client.streamable_http import streamablehttp_client as _streamablehttp_client
+
+        streamablehttp_client = _streamablehttp_client
 
 
 class _GoogleGenAITypesNoiseFilter(logging.Filter):
@@ -835,6 +850,7 @@ class GoogleADKRuntime:
         return _classify_agent_error(exc) not in ("transient", "unknown")
 
     def run(self, request: RuntimeRequest) -> AgentRunResult:
+        import asyncio
         import time as _time
 
         last_exc: BaseException | None = None
@@ -959,6 +975,7 @@ def _jsonable(value: Any) -> Any:
 
 
 async def _with_mcp_session(server: MCPServer, callback):
+    _ensure_mcp_client_imports()
     transport = (server.transport or "http").lower().replace("-", "_")
     if transport == "stdio":
         parameters = StdioServerParameters(
@@ -989,10 +1006,16 @@ async def _with_mcp_session(server: MCPServer, callback):
 
 
 def _run_mcp_sync(async_fn, *args):
+    import asyncio
+
     try:
         asyncio.get_running_loop()
     except RuntimeError:
+        from anyio import run as anyio_run
+
         return anyio_run(async_fn, *args)
+    from anyio.from_thread import start_blocking_portal
+
     with start_blocking_portal() as portal:
         return portal.call(async_fn, *args)
 
@@ -1031,6 +1054,8 @@ async def _call_mcp_tool_async(server: MCPServer, name: str, arguments: dict[str
 
 
 async def _legacy_http_list_tools(server: MCPServer) -> list[dict[str, Any]]:
+    import httpx
+
     payload = {
         "jsonrpc": "2.0",
         "id": "tools-list",
@@ -1047,6 +1072,8 @@ async def _legacy_http_list_tools(server: MCPServer) -> list[dict[str, Any]]:
 
 
 async def _legacy_http_call_tool(server: MCPServer, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    import httpx
+
     payload = {
         "jsonrpc": "2.0",
         "id": f"{name}-call",

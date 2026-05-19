@@ -42,6 +42,7 @@ If you’re assessing whether backtests should be sped up via parallelism, start
 | `BACKTESTING_ACCURACY_VALIDATION.md` | Accuracy validation ladder (Tier 1/2/3) + how to build live replay baselines | When defining “accuracy” for a project |
 | `BACKTESTING_PERFORMANCE.md` | How to measure and improve backtest speed (startup, downloader, caching, parity, cost) | When investigating slowness or production/local parity |
 | `BACKTESTING_SPEED_PLAYBOOK.md` | Step-by-step SOP for performance work (router-mode, evidence, tests, ledgers) | When doing speed improvements (Theta/IBKR/etc.) |
+| `IMPORTS_AND_STARTUP.md` | Lazy import contract, legacy import aliases, and symbol parsing behavior | When changing package initializers or startup-heavy imports |
 | `BACKTESTING_SECOND_LEVEL_ROADMAP.md` | Roadmap for “seconds-level” backtesting (fills magnifier, event-driven clock); implementation notes in `investigations/bot_manager.md` | When planning second-level support |
 | `ENV_VARS.md` | Complete environment variable reference with defaults and examples | When adding/changing env vars or debugging config issues |
 | `ACCEPTANCE_BACKTESTS.md` | Release gate criteria - what must pass before deployment | Before any release or version bump |

@@ -675,27 +675,9 @@ def parse_symbol(symbol):
     For stocks, simply return the stock symbol.
     TODO: Crypto and Forex support
     """
-    # Check that the symbol is a string
-    if not isinstance(symbol, str):
-        return {"type": None}
-    
-    # Pattern to match the option symbol format
-    option_pattern = r"([A-Z]+)(\d{6})([CP])(\d+)"
+    from .symbol_parser import parse_symbol as _parse_symbol
 
-    match = re.match(option_pattern, symbol)
-    if match:
-        stock_symbol, expiration, option_type, strike_price = match.groups()
-        expiration_date = dt.datetime.strptime(expiration, "%y%m%d").date()
-        option_type = "CALL" if option_type == "C" else "PUT"
-        return {
-            "type": "option",
-            "stock_symbol": stock_symbol,
-            "expiration_date": expiration_date,
-            "option_type": option_type,
-            "strike_price": round(float(strike_price) / 1000, 3),  # assuming strike price is in thousandths
-        }
-    else:
-        return {"type": "stock", "stock_symbol": symbol}
+    return _parse_symbol(symbol)
 
 
 def create_options_symbol(stock_symbol, expiration_date, option_type, strike_price):

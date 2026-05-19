@@ -21,12 +21,22 @@ This page documents environment variables used by LumiBot, with an emphasis on *
   - Do not commit real key values.
 
 ### `LUMIBOT_DISABLE_DOTENV`
-- Purpose: Disable recursive `.env` discovery (`os.walk`) at startup.
+- Purpose: Disable automatic `.env` discovery and loading at startup.
 - Values: truthy enables (`1`, `true`, `yes`); unset/`0` disables.
 - Default: disabled.
 - Why it matters:
-  - Recursive `.env` scanning can add startup latency and can accidentally load the wrong `.env` when running in a directory with nested repos.
-  - In production/BotManager backtests we rely on injected environment variables, so `.env` discovery should be off.
+  - LumiBot normally searches upward from the running script directory for the nearest `.env`, then from the current working directory if needed.
+  - LumiBot no longer recursively scans every nested directory under the start path. This reduces startup latency and lowers the chance of loading an unrelated nested repo's `.env`.
+  - In production/BotManager backtests we rely on injected environment variables, so `.env` discovery should be off with `LUMIBOT_DISABLE_DOTENV=1`.
+- Where: `lumibot/credentials.py`
+
+### `LUMIBOT_DISABLE_DOTENV_LOCAL`
+- Purpose: Disable sibling `.env.local` loading after a discovered `.env`.
+- Values: truthy enables (`1`, `true`, `yes`); unset/`0` disables.
+- Default: disabled.
+- Why it matters:
+  - When dotenv loading is enabled and a `.env` file is found, LumiBot loads a sibling `.env.local` afterward with override behavior.
+  - Local overrides are convenient for developer machines but should usually be disabled in production/runtime-secret contexts.
 - Where: `lumibot/credentials.py`
 
 ### `IS_BACKTESTING`

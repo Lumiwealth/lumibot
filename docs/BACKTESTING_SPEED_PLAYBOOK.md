@@ -146,7 +146,7 @@ Also track perceived UX latency:
 
 Backtest slowness is usually one (or more) of:
 
-1) **Startup**: container scheduling, import time, dotenv scanning, first progress row
+1) **Startup**: container scheduling, import time, dotenv discovery/loading, lazy export resolution, first progress row
 2) **Data hydration**: downloader queue waits, request fanout, cache misses
 3) **Cache IO**: S3 roundtrips, parquet reads/slices, too many small objects
 4) **Compute**: pandas transforms, per-bar strategy loop overhead, pricing
@@ -155,6 +155,10 @@ Backtest slowness is usually one (or more) of:
 
 If you learn a new recurring pattern, add it to:
 - `docs/BACKTESTING_PERFORMANCE.md`
+
+Startup-specific references:
+- `docs/IMPORTS_AND_STARTUP.md` documents the lazy import contract and compatibility tests.
+- `docs/ENV_VARS.md` documents `LUMIBOT_DISABLE_DOTENV` and `LUMIBOT_DISABLE_DOTENV_LOCAL` for production/runtime-secret contexts.
 
 ---
 

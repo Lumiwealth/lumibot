@@ -14,6 +14,12 @@
   <img src="docs/assets/readme/lumibot_ai_trading_agents_overview.png" alt="Lumibot AI trading agents overview" width="100%">
 </p>
 
+<p align="center">
+  <a href="https://botspot.trade/sales?showLogin=1&utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=top_botspot_banner&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.">
+    <img src="docs/assets/readme/botspot_primary_cta.png" alt="Build and deploy AI trading bots on BotSpot" width="100%">
+  </a>
+</p>
+
 ## What You Can Build
 
 - **Deterministic strategies:** normal Python logic, indicators, if statements, scheduled rules, position sizing, and risk controls.
@@ -55,12 +61,6 @@ Built-in AI agent tools include market/account state, order inspection, DuckDB q
 <p align="center">
   <a href="https://botspot.trade/sales?showLogin=1&utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=botspot_section_deploy_button&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.">
     <img src="docs/assets/readme/cta_deploy_on_botspot.png" alt="Deploy on BotSpot" width="520">
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://botspot.trade/sales?showLogin=1&utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=botspot_section_banner&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.">
-    <img src="docs/assets/readme/botspot_primary_cta.png" alt="Build and deploy AI trading bots on BotSpot" width="100%">
   </a>
 </p>
 

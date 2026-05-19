@@ -691,8 +691,12 @@ export LUMIBOT_CACHE_S3_PREFIX='dev/cache'
 export LUMIBOT_CACHE_S3_REGION='us-east-1'
 export LUMIBOT_CACHE_S3_VERSION='v44'
 
-# Recommended for prod-like runs (reduces startup latency and avoids accidental .env overrides)
+# Recommended for prod-like runs. BotSpot/BotManager should rely on injected env vars,
+# not local .env or .env.local files.
 export LUMIBOT_DISABLE_DOTENV='1'
+
+# Optional when you want to load .env but block developer-local overrides.
+export LUMIBOT_DISABLE_DOTENV_LOCAL='1'
 
 # Recommended for repeated perf runs (avoid browser/UI spam; artifacts are still written to logs/)
 export LUMIBOT_DISABLE_UI='1'

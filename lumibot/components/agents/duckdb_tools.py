@@ -1,11 +1,11 @@
+from __future__ import annotations
+
 import hashlib
 import re
 import time
 from collections import defaultdict
+from importlib import import_module
 from typing import Any
-
-import duckdb
-import pandas as pd
 
 from lumibot.tools.helpers import parse_timestep_qty_and_unit
 
@@ -13,6 +13,34 @@ from .asset_resolution import resolve_asset_and_quote
 
 
 _READ_ONLY_SQL_RE = re.compile(r"^\s*(select|with|show|describe|pragma|explain)\b", re.IGNORECASE)
+
+
+class _LazyModule:
+    """Proxy that imports a module on first attribute read.
+
+    object.__setattr__ and object.__getattribute__ bypass __getattr__ while the
+    internal slots are empty, avoiding recursion before the real module loads.
+    """
+
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+duckdb = _LazyModule("duckdb")
+pd = _LazyModule("pandas")
 
 
 class DuckDBQueryLayer:

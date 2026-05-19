@@ -2,11 +2,8 @@ import json
 import math
 import os
 from datetime import date, datetime, timedelta, timezone
+from importlib import import_module
 from typing import Any, Literal
-
-import requests
-
-from lumibot.entities import Asset, Order
 
 from .docs_tools import search_lumibot_docs
 from .asset_resolution import resolve_asset_and_quote
@@ -31,6 +28,55 @@ COMMON_INDICATORS = [
     "roc",
     "stoch",
 ]
+
+
+class _LazyModule:
+    """Read-only proxy that imports the target module on first attribute access.
+
+    object.__setattr__ touches the internal slots directly; callers should only
+    read attributes through this proxy so module mutation is not hidden here.
+    """
+
+    __slots__ = ("_module_name", "_module")
+
+    def __init__(self, module_name: str):
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            module = import_module(object.__getattribute__(self, "_module_name"))
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+    def __setattr__(self, name, value):
+        if name in {"_module_name", "_module"}:
+            object.__setattr__(self, name, value)
+            return
+        setattr(self._load(), name, value)
+
+    def __delattr__(self, name):
+        if name in {"_module_name", "_module"}:
+            object.__delattr__(self, name)
+            return
+        delattr(self._load(), name)
+
+
+requests = _LazyModule("requests")
+
+
+def _requests():
+    return requests
+
+
+def _asset_class():
+    from lumibot.entities import Asset
+
+    return Asset
 
 
 def _parse_datetime_value(value: Any) -> datetime | None:
@@ -476,7 +522,7 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
         if page_token:
             params["page_token"] = page_token
 
-        response = requests.get(
+        response = _requests().get(
             "https://data.alpaca.markets/v1beta1/news",
             headers=auth_headers,
             params=params,
@@ -656,7 +702,7 @@ def _bind_get_indicator(strategy: Any, manager: Any) -> BoundTool:
         asset_type: AssetTypeArg = "stock",
         parameters_json: str | None = None,
     ) -> dict[str, Any]:
-        asset = Asset(symbol, asset_type=asset_type)
+        asset = _asset_class()(symbol, asset_type=asset_type)
         indicator_name = _require_non_empty_text("indicator", indicator)
         indicator_kwargs: dict[str, Any] = {}
         if parameters_json:

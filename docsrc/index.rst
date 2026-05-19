@@ -216,6 +216,7 @@ Table of Contents
    BotSpot MCP Integration <botspot_mcp>
    GitHub <https://github.com/Lumiwealth/lumibot>
    getting_started
+   imports_and_startup
    agents
    cash_accounting
    lifecycle_methods

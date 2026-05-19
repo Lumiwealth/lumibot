@@ -146,7 +146,7 @@ Also track perceived UX latency:
 
 Backtest slowness is usually one (or more) of:
 
-1) **Startup**: container scheduling, import time, dotenv scanning, first progress row
+1) **Startup**: container scheduling, import time, dotenv discovery/loading, lazy export resolution, first progress row
 2) **Data hydration**: downloader queue waits, request fanout, cache misses
 3) **Cache IO**: S3 roundtrips, parquet reads/slices, too many small objects
 4) **Compute**: pandas transforms, per-bar strategy loop overhead, pricing
@@ -155,6 +155,10 @@ Backtest slowness is usually one (or more) of:
 
 If you learn a new recurring pattern, add it to:
 - `docs/BACKTESTING_PERFORMANCE.md`
+
+Startup-specific references:
+- `docs/IMPORTS_AND_STARTUP.md` documents the lazy import contract and compatibility tests.
+- `docs/ENV_VARS.md` documents `LUMIBOT_DISABLE_DOTENV` and `LUMIBOT_DISABLE_DOTENV_LOCAL` for production/runtime-secret contexts.
 
 ---
 
@@ -691,8 +695,12 @@ export LUMIBOT_CACHE_S3_PREFIX='dev/cache'
 export LUMIBOT_CACHE_S3_REGION='us-east-1'
 export LUMIBOT_CACHE_S3_VERSION='v44'
 
-# Recommended for prod-like runs (reduces startup latency and avoids accidental .env overrides)
+# Recommended for prod-like runs. BotSpot/BotManager should rely on injected env vars,
+# not local .env or .env.local files.
 export LUMIBOT_DISABLE_DOTENV='1'
+
+# Optional when you want to load .env but block developer-local overrides.
+export LUMIBOT_DISABLE_DOTENV_LOCAL='1'
 
 # Recommended for repeated perf runs (avoid browser/UI spam; artifacts are still written to logs/)
 export LUMIBOT_DISABLE_UI='1'

@@ -2,11 +2,15 @@ import json
 import re
 import time
 
-from openai import OpenAI
-
 from lumibot.tools.lumibot_logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def _openai_client_class():
+    from openai import OpenAI
+
+    return OpenAI
 
 class GrokHelper:
     """
@@ -39,7 +43,7 @@ class GrokHelper:
                 raise ValueError("API key is required for GrokHelper. Set it as GROK_API_KEY or XAI_API_KEY in your environment or pass it directly.")
 
         self.api_key = api_key
-        self.client = OpenAI(
+        self.client = _openai_client_class()(
             api_key=self.api_key,
             base_url="https://api.x.ai/v1",
         )

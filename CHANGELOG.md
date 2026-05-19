@@ -7,6 +7,7 @@ Deploy marker: 4.5.26 release commit (`deploy 4.5.26`)
 ### Operations
 - **PyPI project storage was cleaned up for wheel-only releases.** Historical source distributions that had matching wheels were removed from PyPI so new LumiBot releases can publish again under the project storage quota. The package release remains wheel-only.
 - **4.5.26 republishes the safe dotenv and lazy-startup release path after the 4.5.25 PyPI quota blocker.** This keeps the deployment path moving without force-moving the stale `v4.5.25` tag.
+- **Google ADK is pinned below 2.0 for release stability.** CI exposed a `google-adk` 2.0 function-declaration schema change that drops the expected `parameters` object for the built-in indicator tool. LumiBot keeps the previously passing 1.x range until the 2.x schema contract is reviewed deliberately.
 
 ## 4.5.25 - 2026-05-15
 

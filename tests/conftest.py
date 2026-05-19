@@ -86,6 +86,7 @@ if os.getcwd() != str(project_root):
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "ibkr: downloader-only IBKR tests that do not require Polygon or ThetaData credentials")
+    config.addinivalue_line("markers", "tastytrade: Tastytrade-specific apitest that does not require Polygon or ThetaData credentials")
 
 
 class _PatchProxy:
@@ -321,9 +322,11 @@ def pytest_runtest_setup(item: pytest.Item):
       - polygon: requires Polygon credentials
       - thetadata: requires ThetaData credentials
       - ibkr: downloader-only IBKR tests; does not require Polygon/ThetaData creds
+      - tastytrade: Tastytrade-specific apitest; does not require Polygon/ThetaData creds
 
     Behavior:
-      - If a test is marked with ibkr, require neither Polygon nor ThetaData.
+      - If a test is marked with ibkr or tastytrade, require neither Polygon
+        nor ThetaData.
       - If a test is marked with polygon and/or thetadata, only those
         provider credentials are required.
       - If a test has apitest/downloader but no provider-specific markers,
@@ -338,9 +341,10 @@ def pytest_runtest_setup(item: pytest.Item):
     requires_polygon = item.get_closest_marker("polygon") is not None
     requires_theta = item.get_closest_marker("thetadata") is not None
     requires_ibkr = item.get_closest_marker("ibkr") is not None
+    requires_tastytrade = item.get_closest_marker("tastytrade") is not None
 
     # Determine which providers are required
-    if requires_ibkr:
+    if requires_ibkr or requires_tastytrade:
         need_polygon = False
         need_theta = False
     elif requires_polygon or requires_theta:

@@ -13,6 +13,7 @@ from .ccxt_backtesting_data import CcxtBacktestingData
 from .example_broker_data import ExampleBrokerData
 from .interactive_brokers_rest_data import InteractiveBrokersRESTData
 from .schwab_data import SchwabData
+from .tastytrade_data import TastytradeData
 from .tradovate_data import TradovateData
 from .yahoo_data import YahooData
 

@@ -1,9 +1,9 @@
 # RELEASE 4.5.25 PYPI BLOCKER
 
-> Release status for the 4.5.25 dotenv/lazy-import startup release and the remaining package-publish blocker.
+> Release status for the 4.5.25 dotenv/lazy-import startup release, PyPI storage cleanup, and 4.5.26 follow-up release.
 
 **Last Updated:** 2026-05-19
-**Status:** Active
+**Status:** Resolved for LumiBot package release; BotManager rollout still requires its own deployment verification.
 **Audience:** Developers + AI Agents
 
 ---
@@ -12,13 +12,15 @@
 
 PR #1047 merged `version/4.5.25` into `dev` with green CI, including docs build, lint, unit shards, backtest shards, aggregate `LintAndTest`, and CodeRabbit.
 
-The code is on `dev`, but the normal Lumibot package release is blocked before BotManager rollout because PyPI is rejecting new Lumibot uploads with the project storage quota error:
+The first package publish attempt was blocked because PyPI rejected new Lumibot uploads with the project storage quota error:
 
 ```text
 400 Project size too large. Limit for project 'lumibot' total size is 10 GB.
 ```
 
-Do not update BotManager to a new LumiBot version until a published, installable LumiBot artifact exists and `python3 -m pip install --no-deps "lumibot==X.Y.Z"` succeeds.
+PyPI storage was cleaned up on 2026-05-19 by deleting old `.tar.gz` source distribution files while keeping wheels. A follow-up release `v4.5.26` was published successfully and verified installable from PyPI.
+
+Do not update BotManager to a new LumiBot version until its documented deployment workflow is followed and the required BotSpot smoke tests pass.
 
 ---
 
@@ -30,11 +32,22 @@ Do not update BotManager to a new LumiBot version until a published, installable
 - CI on deploy marker: green
 - Existing remote tag `v4.5.25`: points to older merge commit `a29e3eba01ccad44aa04d56223210ae539ac350f`
 - Existing `v4.5.25` release workflow run: https://github.com/Lumiwealth/lumibot/actions/runs/25943116545
-- PyPI index on 2026-05-19 still listed latest Lumibot as `4.5.23`, not `4.5.25`.
+- Follow-up release PR: https://github.com/Lumiwealth/lumibot/pull/1049
+- Follow-up release tag: `v4.5.26`
+- Follow-up `dev` merge commit: `5420f11843898cdf993b26ea2686effa3a3a2a4d`
+- Successful release workflow: https://github.com/Lumiwealth/lumibot/actions/runs/26114733341
+- GitHub Release: https://github.com/Lumiwealth/lumibot/releases/tag/v4.5.26
+- PyPI install check: clean venv, run from `/tmp`, `python -m pip install --no-deps lumibot==4.5.26`, then `importlib.metadata.version("lumibot") == "4.5.26"`.
 
 The older `v4.5.25` release workflow validated, tested, and built successfully, then failed during `Publish to PyPI` because of the PyPI project size limit. No GitHub Release was created.
 
-PyPI public JSON on 2026-05-19 showed Lumibot package files total approximately `10.71 GB` decimal. PyPI's documented default project limit is `10.0 GB`, so the project needs cleanup before another upload can succeed.
+PyPI public JSON before cleanup on 2026-05-19 showed Lumibot package files total approximately `10.71 GB` decimal. PyPI's documented default project limit is `10.0 GB`.
+
+After cleanup, PyPI public JSON showed:
+
+- total package file size: approximately `3.94 GB` decimal
+- source distributions remaining: `0`
+- wheel files remaining: `584`
 
 Official PyPI storage docs:
 - Project storage settings page: `https://pypi.org/manage/project/lumibot/settings/`
@@ -48,23 +61,19 @@ Official PyPI storage docs:
 - Do not silently move or reuse the existing `v4.5.25` tag without explicitly deciding how to handle the failed prior release run.
 - Do not point BotManager at `LumiBot dev`. BotManager's deployment docs say `LUMIBOT_VERSION` must select a published wheel.
 - BotManager currently has `LUMIBOT_VERSION` set to a GitHub archive URL, but its Docker templates still render `lumibot==LUMIBOT_VERSION_PLACEHOLDER`; that is not the documented package install path and should not be treated as a verified deploy path.
+- Running `importlib.metadata.version("lumibot")` from inside the repo can read stale local `lumibot.egg-info` metadata. Run package install verification from `/tmp` or another directory outside the checkout.
 
 ---
 
-## Recommended PyPI Cleanup
+## PyPI Cleanup Performed
 
-Prefer deleting old source distributions only when the same version still has a universal wheel. Do not delete whole releases unless there is a separate deprecation decision.
+Rob approved destructive cleanup in the PyPI UI on 2026-05-19. The cleanup deleted old source distributions only where wheels remained. Whole releases were not deleted.
 
-First cleanup target:
+The final authenticated PyPI management page check found no release rows that still had both a source distribution and a wheel. The public JSON check also showed zero remaining source distributions.
 
-- Delete individual `.tar.gz` source distribution files for `4.4.45` through `4.5.22`.
-- Keep the matching `py3-none-any.whl` files for those versions.
-- Expected reclaimed storage from this first target: about `1.47 GB` decimal across `39` source distribution files.
-- Expected result: enough headroom for the blocked wheel-only Lumibot release and several follow-up releases without breaking normal wheel installs for those pinned versions.
+Normal wheel installs for pinned versions should continue to work. Source-only installs for deleted `.tar.gz` filenames will not.
 
-If more headroom is needed later, the broader cleanup target is all `.tar.gz` source distributions that have a matching wheel. Public JSON showed `581` such files totaling about `6.77 GB` decimal.
-
-Chrome DevTools MCP was attempted on 2026-05-19 to drive the PyPI UI with Rob logging in, but `list_pages` timed out. Do not launch a separate browser or touch personal browser profiles as a workaround. If Chrome MCP is restored, the safe UI flow is:
+If future PyPI storage cleanup is needed, use this safe UI flow:
 
 1. Rob logs into PyPI and completes 2FA.
 2. Navigate to `https://pypi.org/manage/project/lumibot/releases/`.
@@ -77,9 +86,8 @@ Do not automate deletion unless the target file list is visible and confirmed. P
 
 ---
 
-## Next Options
+## Next Actions
 
-1. Resolve PyPI storage: delete old unnecessary release files or request a project size increase, then publish a new Lumibot version from the current `dev` merge.
-2. If choosing to preserve `4.5.25`, intentionally retarget `v4.5.25` to `e35e2a31` only after confirming no package or GitHub Release was published from the old tag.
-3. If avoiding tag movement, bump and release `4.5.26` instead once PyPI can accept uploads.
-4. Only after PyPI installability is confirmed, update BotManager `LUMIBOT_VERSION`, trigger dev/prod workflows, and run the required BotSpot backtest version smoke.
+1. Keep the canonical Lumibot checkout on `version/4.5.27`; the release workflow created it and local verification confirmed `setup.py` is `4.5.27`.
+2. Before BotManager rollout, inspect BotManager deployment docs/workflows and update only through its documented version path.
+3. After BotManager deploy, run the required BotSpot production smoke and confirm the running deployment reports `settings.json.lumibot_version == "4.5.26"`.

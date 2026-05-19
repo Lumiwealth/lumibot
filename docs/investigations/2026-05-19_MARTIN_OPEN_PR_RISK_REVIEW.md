@@ -124,3 +124,141 @@ Status: mergeable, review required, all normal CI checks passed.
 - Market data parity for #1030 and #1043: same asset/timeframe requests across provider paths, compare Bars shape, timezone, NaNs, dividends/splits, quote asset, cache hits, and last price.
 - BotSpot smoke: one representative backtest through BotSpot, one paper deployment startup path, and account snapshot/log/order event verification.
 
+## Practical Game Plan
+
+### Phase 1 - Small Safe Merge Batch
+
+Goal: get useful low-risk work into `dev` without changing broker/fill/data behavior.
+
+Merge candidates:
+
+- #1027.
+- #1029, after adding docs for dotenv discovery and production runtime secret guidance.
+
+Validation:
+
+- Full Lumibot CI after each merge.
+- Local credential smoke with `LUMIBOT_DISABLE_DOTENV=1` and `LUMIBOT_DISABLE_DOTENV_LOCAL=1`.
+- BotSpot runtime secret smoke: injected env vars should be used, local `.env` should not be loaded.
+
+### Phase 2 - Lazy Loading Push
+
+Goal: make Lumibot start faster while preserving import compatibility.
+
+Candidate:
+
+- #1028.
+
+Why prioritize it:
+
+- Startup time matters for live deployments and backtest workers.
+- Heavy optional imports like CCXT, broker SDKs, pandas-adjacent tooling, DuckDB, agent helpers, and provider clients should not load unless used.
+- This is lower trading-behavior risk than #1031 and #1030 because it should change import timing, not market data or fills.
+
+Blockers:
+
+- Currently conflicts with `dev`.
+- Changes public import/export behavior, so compatibility risk is real.
+
+Required fixes before merge:
+
+- Resolve conflicts against current `dev`.
+- Add docs for lazy import semantics, public `__all__` changes, and legacy `entities` alias behavior.
+- Keep fallback behavior boring: imports should fail loudly when the feature is used, not silently skip behavior.
+
+Validation:
+
+- Measure import time before/after with cold Python processes.
+- Verify `import lumibot`, `from lumibot import brokers`, `from lumibot.brokers import Alpaca`, `from lumibot.tools import *`, `from lumibot.entities import Asset, Order`, `import entities.order`, and BotSpot runner imports.
+- Run BotSpot deployment container startup smoke.
+- Verify broker construction for Schwab, Tradier, Alpaca, and Bitunix still works from runtime env vars.
+
+Merge call:
+
+- Worth doing soon.
+- Not a blind merge. Treat it as the next focused task after #1027/#1029.
+
+### Phase 3 - Polars/DataBento Provider Flow
+
+Goal: decide whether this matters now.
+
+Candidate:
+
+- #1043.
+
+Clarification:
+
+- This is Polars/DataBento, not Pelosi. It is about native Polars dataframes and the DataBento provider path.
+
+Assessment:
+
+- If BotSpot is not relying on DataBento Polars paths today, this is not urgent.
+- It is probably narrower than #1030, but it is not no-risk because it touches Bars/DataPolars/provider return shape.
+- Do not merge until the critical `UnboundLocalError` finding is fixed.
+
+Validation:
+
+- Reproduce and fix the mixed DataPolars/Data fallback path.
+- Add targeted regression for pandas fallback when `return_polars=True` paths are present.
+- Run DataBento/Polars test suite and one ordinary pandas-backed backtest to prove no bleed-over.
+
+Merge call:
+
+- Defer unless Martin or current work depends on it.
+- If fixed cleanly, it can merge before #1031/#1030 because it is narrower.
+
+### Phase 4 - Backtest Execution Hot Paths
+
+Goal: only merge if performance gain is large and result parity is exact.
+
+Candidate:
+
+- #1031.
+
+Assessment:
+
+- This is valuable only if the speedup is substantial and measured.
+- It is dangerous because it changes simple market order fast paths, cash mutation, futures ledgers, callbacks, terminal replay, and trade-event logging.
+- It is not the current top priority compared with live trading reliability.
+
+Required evidence:
+
+- Martin should provide before/after profiler output and benchmark numbers, not just "faster".
+- Run representative BotSpot strategies with identical data and compare every observable output.
+- Require zero unexplained differences in fills, cash, positions, order events, final equity, and tearsheets.
+
+Merge call:
+
+- Do not merge now.
+- Put in a performance/parity review lane.
+- Worth revisiting after lazy loading and live deployment reliability work.
+
+### Phase 5 - Market Data Hot Paths
+
+Goal: isolate and review provider/data changes one by one.
+
+Candidate:
+
+- #1030.
+
+Assessment:
+
+- Highest risk PR in the group.
+- Currently conflicting.
+- `gh pr checks` did not show normal CI rollup.
+- It touches live-relevant provider reads and cache behavior for Schwab, Tradier, Alpaca, Bitunix, IBKR, ThetaData, Polygon, Yahoo, DataBento, Bars/Data, and helpers.
+
+Merge call:
+
+- Do not merge as one broad optimization PR.
+- Ask Martin to split it further if possible: provider-neutral lazy helpers, IBKR cache fixes, Alpaca timeframe fix, crypto daily cache fix, Schwab/Tradier/Bitunix changes, Bars/Data fast paths.
+- Each provider slice should have its own parity tests.
+
+### Recommended Immediate Work
+
+1. Merge #1027.
+2. Add docs to #1029, then merge #1029.
+3. Create a focused task for #1028 conflict resolution and import compatibility testing.
+4. Ask Martin for benchmark evidence for #1031 and #1030 before spending more review time.
+5. Defer #1043 unless DataBento Polars is on the critical path.
+6. Keep #1030 last and push for smaller PRs.

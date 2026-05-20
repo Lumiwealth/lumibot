@@ -211,7 +211,11 @@ class Bars:
                 if target_tz:
                     current_dtype = df.schema.get("datetime")
                     current_tz = getattr(current_dtype, "time_zone", None)
-                    if current_tz != target_tz:
+                    if current_dtype == pl.Date:
+                        df = df.with_columns(
+                            pl.col("datetime").cast(pl.Datetime).dt.replace_time_zone(target_tz)
+                        )
+                    elif current_tz != target_tz:
                         df = df.with_columns(
                             pl.col("datetime").dt.convert_time_zone(target_tz)
                         )

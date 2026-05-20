@@ -103,13 +103,14 @@ class ProviderBoundaryPolarsData(PolarsData):
 class LegacyGetBarsData:
     timestep = "minute"
 
-    def __init__(self, failure_message=None):
+    def __init__(self, response, failure_message=None):
+        self.response = response
         self.failure_message = failure_message
 
     def get_bars(self, *args, **kwargs):
         if "return_polars" in kwargs:
             raise TypeError(self.failure_message or "got an unexpected keyword argument 'return_polars'")
-        return "fallback-bars"
+        return self.response
 
 
 def test_data_polars_row_count_parity():
@@ -363,14 +364,16 @@ def test_return_polars_fallback_only_swallows_unsupported_keyword_typeerror():
         datetime_end=datetime(2024, 7, 19, tzinfo=timezone.utc),
         pandas_data=[],
     )
-    source._data_store = OrderedDict({(asset, quote, "minute"): LegacyGetBarsData()})
+    response = _create_mock_ohlc_data(datetime(2024, 7, 18, tzinfo=timezone.utc), periods=1)
+    source._data_store = OrderedDict({(asset, quote, "minute"): LegacyGetBarsData(response)})
 
-    assert (
-        source.get_historical_prices(asset, length=1, timestep="minute", quote=quote, return_polars=True)
-        == "fallback-bars"
-    )
+    bars = source.get_historical_prices(asset, length=1, timestep="minute", quote=quote, return_polars=True)
+    assert bars is not None
+    assert len(bars.df) == 1
 
-    source._data_store = OrderedDict({(asset, quote, "minute"): LegacyGetBarsData("internal type bug")})
+    source._data_store = OrderedDict({
+        (asset, quote, "minute"): LegacyGetBarsData(response, failure_message="internal type bug")
+    })
     with pytest.raises(TypeError, match="internal type bug"):
         source.get_historical_prices(asset, length=1, timestep="minute", quote=quote, return_polars=True)
 

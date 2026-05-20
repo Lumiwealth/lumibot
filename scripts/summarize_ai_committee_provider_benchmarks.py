@@ -147,16 +147,22 @@ def _write_markdown(compact: list[dict[str, Any]], path: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Summarize AI committee provider benchmark artifacts.")
-    parser.add_argument("artifact_root", help="Benchmark artifact directory containing per-model result.json files.")
+    parser.add_argument(
+        "artifact_roots",
+        nargs="+",
+        help="Benchmark artifact directories containing per-model result.json files.",
+    )
     parser.add_argument("--json-out", help="Optional compact JSON output path.")
     parser.add_argument("--markdown-out", help="Optional Markdown output path.")
     args = parser.parse_args()
 
-    root = Path(args.artifact_root)
-    results = _load_results(root)
+    roots = [Path(root) for root in args.artifact_roots]
+    results = []
+    for root in roots:
+        results.extend(_load_results(root))
     compact = [_compact_result(result) for result in results]
     output = {
-        "artifact_root": str(root.resolve()),
+        "artifact_roots": [str(root.resolve()) for root in roots],
         "result_count": len(compact),
         "results": compact,
     }

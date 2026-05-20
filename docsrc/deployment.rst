@@ -3,9 +3,9 @@
 Deployment Guide
 ================
 
-This guide walks you through the options for deploying your Lumibot trading strategy to run 24/7. You have two paths:
+This guide walks you through the options for running your Lumibot trading strategy outside your local machine. You have two paths:
 
-- **Option A — BotSpot (recommended):** Managed cloud deployment. No servers to configure, broker integrations built in, paper and live trading, strategy monitoring. Best for most users.
+- **Option A — BotSpot (recommended):** Managed cloud deployment. No servers to configure, broker integrations built in, paper and live trading, scheduled runs, logs, and monitoring. Best for most users.
 - **Option B — Self-hosted (Render or Replit):** Deploy it yourself on a general-purpose cloud host. Full control, you manage everything. Best for developers who want to own the infrastructure.
 
 Pick the option that matches how much infrastructure you want to manage. Both run the exact same Lumibot strategy code.
@@ -13,15 +13,16 @@ Pick the option that matches how much infrastructure you want to manage. Both ru
 Option A — Deploy on BotSpot (Recommended)
 ------------------------------------------
 
-`BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=deployment_guide&utm_campaign=lumibot&utm_content=deploy_top_text&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.>`_ is the managed cloud platform built on Lumibot. You upload or describe your strategy, pick a broker, and BotSpot runs it for you 24/7 with monitoring, scheduling, and failure alerts. Most Lumibot users should start here.
+`BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=deployment_guide&utm_campaign=lumibot&utm_content=deploy_top_text&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.>`_ is the managed cloud platform built around Lumibot. You upload or describe your strategy, pick a broker, and BotSpot runs it with monitoring, scheduling, logs, and alerts. Most Lumibot users should start here.
 
 **Why BotSpot:**
 
-- **No infrastructure to manage.** No servers, no deploy files, no environment-variable setup.
+- **No infrastructure to manage.** No servers, no deploy files, no scheduler setup, and no broker-secret plumbing.
 - **Broker integrations built in.** Alpaca, Interactive Brokers, Tradier, Schwab, Tradovate, TopstepX via ProjectX, Bitunix, Coinbase, Kraken, WEEX, KuCoin, Binance, BitMEX, Bybit, and OKX have documented Lumibot paths.
 - **Backtest in the browser.** Test your strategy on historical data with one click before going live.
 - **Strategy marketplace.** Browse strategy ideas, performance, visuals, and examples you can clone or adapt when the author allows it.
 - **Paper and live trading.** Start in paper mode, switch to live when you are ready.
+- **Scheduled runs without a full-time VPS.** Periodic strategies can run when needed instead of keeping a general-purpose server alive all day.
 - **AI strategy builder.** Describe what you want in plain English and BotSpot generates Lumibot code for you.
 - **MCP for AI coding agents.** Use BotSpot from Claude, Cursor, Codex, and ChatGPT-compatible clients to generate strategies, launch backtests, inspect artifacts, and iterate.
 
@@ -44,7 +45,7 @@ If you want full control of your infrastructure, you can deploy Lumibot yourself
 
 .. note::
 
-   Self-hosting means you manage the server, environment variables, broker credentials, and uptime. If any of that sounds like more work than you want to take on, use :doc:`Option A — BotSpot <deployment>` instead.
+   Self-hosting means you manage the server, scheduler, environment variables, broker credentials, logs, alerts, and uptime. If any of that sounds like more work than you want to take on, use :doc:`Option A — BotSpot <deployment>` instead.
 
 Example Strategy for Deployment
 -------------------------------

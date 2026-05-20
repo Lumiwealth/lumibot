@@ -196,14 +196,14 @@ Need Extra Help?
 
    **Build Trading Bots with AI**
    
-   Want to create trading bots without writing code? Visit `BotSpot <https://botspot.trade/>`_ - our platform for building, testing, and deploying trading strategies using AI!
+   Want to create trading bots without writing code? Visit `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=home&utm_campaign=lumibot&utm_content=need_extra_help&prompt=I%20want%20to%20build%20and%20run%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.>`_ - our platform for building, testing, and running trading strategies using AI.
    
    - Create strategies using natural language
    - Backtest on historical data
    - Deploy to live markets
    - Join a community of algorithmic traders
    
-   **Get started at** `https://botspot.trade/ <https://botspot.trade/>`_
+   **Start on BotSpot:** `https://botspot.trade <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=home&utm_campaign=lumibot&utm_content=need_extra_help_start&prompt=I%20want%20to%20build%20and%20run%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.>`_
 
 Table of Contents
 *****************
@@ -212,7 +212,7 @@ Table of Contents
    :maxdepth: 2
 
    Home <self>
-   Build Bots with AI <https://botspot.trade/?utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot>
+   Build Bots with AI <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot&utm_content=sidebar_build_bots&prompt=I%20want%20to%20build%20and%20run%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.>
    BotSpot MCP Integration <botspot_mcp>
    GitHub <https://github.com/Lumiwealth/lumibot>
    getting_started
@@ -233,7 +233,7 @@ Table of Contents
    deployment
    common_mistakes
    faq
-   Get Pre-Built Strategies <https://botspot.trade/?utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot>
+   Get Pre-Built Strategies <https://botspot.trade/marketplace?utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot&utm_content=sidebar_marketplace>
 
 Indices and tables
 ==================

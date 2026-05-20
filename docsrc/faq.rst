@@ -69,7 +69,7 @@ No. For backtesting, you only need a data source. Yahoo Finance is free and requ
 Can I use LumiBot without writing code?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-If you want to create trading strategies without coding, check out `BotSpot <https://botspot.trade/>`_ -- a platform built on LumiBot that lets you build, test, and deploy strategies using AI and natural language. LumiBot itself is a Python library and does require coding.
+If you want to create trading strategies without coding, check out `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=faq&utm_campaign=lumibot&utm_content=no_code_answer&prompt=I%20want%20to%20build%20and%20run%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.>`_ -- a platform built on LumiBot that lets you build, test, and run strategies using AI and natural language. LumiBot itself is a Python library and does require coding.
 
 
 AI Trading Agents

@@ -12,24 +12,12 @@ Lumibot now supports **AI trading agents** inside the ``Strategy`` class. If you
 
 Read :doc:`agents` for the full guide.
 
-Need Help Building Strategies?
-==============================
+Need Help Building Or Running Strategies?
+=========================================
 
-Our **AI agent** was built specifically for LumiBot and can help you create strategies in minutes. Describe your strategy in plain English, backtest it in the browser, then deploy it on managed infrastructure when you are ready.
+If you want the managed path, `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=getting_started&utm_campaign=lumibot&utm_content=top_text&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.>`_ can help you create, backtest, and run Lumibot strategies without managing trading infrastructure yourself.
 
-At `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=getting_started&utm_campaign=lumibot&utm_content=top_text&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.>`_, you can:
-
-- **Build strategies with AI** — Describe what you want in plain English, and our AI creates the code
-- **Deploy on BotSpot** — Run Lumibot strategies without managing servers, schedulers, broker credentials, or monitoring
-- **Use BotSpot MCP** — Let AI coding agents generate strategies, launch backtests, and inspect artifacts from your editor
-- **Explore the marketplace** — Browse strategy ideas, performance, visuals, and examples you can clone or adapt when the author allows it
-- **Join 2,400+ traders** — Connect with other builders in our Discord community
-- **Take our AI Bootcamp** — Live hands-on training to master automated trading
-
-.. image:: ../docs/assets/readme/lumibot_botspot_launch_path.png
-   :alt: Build on Lumibot and launch on BotSpot
-   :align: center
-   :width: 100%
+Use BotSpot when you want hosted backtests, broker connections, scheduled runs, logs, alerts, and paper or live execution. This is especially helpful for strategies that only need to run daily or periodically and do not need a full-time server.
 
 .. image:: ../docs/assets/readme/cta_deploy_on_botspot.png
    :alt: Deploy on BotSpot
@@ -37,11 +25,7 @@ At `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&ut
    :width: 520px
    :target: https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=getting_started&utm_campaign=lumibot&utm_content=deploy_button&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.
 
-.. important::
-
-   `Start on BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=getting_started&utm_campaign=lumibot&utm_content=important_start_link&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.>`_ if you want the managed cloud path, or open the :doc:`BotSpot MCP guide <botspot_mcp>` if you want your coding agent to work directly with BotSpot.
-
-If you want guided training, the AI Trading Bootcamp teaches the full path from strategy idea to backtest to live deployment.
+If you want your coding agent to work directly with BotSpot, open the :doc:`BotSpot MCP guide <botspot_mcp>`. If you want guided training, the AI Trading Bootcamp teaches the full path from strategy idea to backtest to live deployment.
 
 .. image:: ../docs/assets/readme/cta_bootcamp.png
    :alt: AI Trading Bootcamp

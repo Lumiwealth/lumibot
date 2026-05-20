@@ -27,17 +27,11 @@ Start with the open-source docs, then deploy when you are ready: [Lumibot docume
 
 BotSpot is the managed cloud built around Lumibot. Use it when you want hosted backtests, broker connections, scheduled runs, logs, alerts, and paper or live deployment without maintaining your own trading infrastructure.
 
-BotSpot can help you turn a plain-English idea into Lumibot code, run backtests on hosted data, connect supported brokers, and schedule bots that only need to run daily or periodically without paying for a full-time VPS.
+BotSpot can help you turn a plain-English idea into Lumibot code, run backtests on hosted data, connect supported brokers, and schedule bots that only need to run daily or periodically without keeping a full-time server alive. It is the easier path when you want Lumibot's strategy engine without wiring schedulers, broker secrets, logs, alerts, and infrastructure yourself.
 
 <p align="center">
   <a href="https://botspot.trade/sales?showLogin=1&utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=managed_cloud_banner&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20hosted%20backtesting%2C%20broker%20connections%2C%20monitoring%2C%20and%20paper%20or%20live%20deployment.">
     <img src="docs/assets/readme/botspot_primary_cta.png" alt="Build and deploy AI trading bots on BotSpot" width="100%">
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://botspot.trade/sales?showLogin=1&utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=managed_cloud_deploy_button&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20hosted%20backtesting%2C%20broker%20connections%2C%20monitoring%2C%20and%20paper%20or%20live%20deployment.">
-    <img src="docs/assets/readme/cta_deploy_on_botspot.png" alt="Deploy on BotSpot" width="520">
   </a>
 </p>
 
@@ -59,27 +53,6 @@ Built-in AI agent tools include market/account state, order inspection, DuckDB q
 
 <p align="center">
   <img src="docs/assets/readme/lumibot_agent_flows.png" alt="Lumibot agent flows are plain Python" width="100%">
-</p>
-
-## Deploy on BotSpot
-
-**[BotSpot](https://botspot.trade/sales?showLogin=1&utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=botspot_section_text_link&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.)** is the managed product built on Lumibot. Use it when you want the strategy engine without maintaining servers, schedulers, broker credentials, monitoring, and deployment infrastructure yourself.
-
-- **AI strategy builder:** describe an idea in plain English and generate production-ready Lumibot code.
-- **Hosted backtesting and deployment:** run backtests, schedule bots, monitor logs, and connect real brokers without managing cloud infrastructure.
-- **BotSpot MCP:** let AI coding agents create strategies, run backtests, inspect results, and work with BotSpot from tools like Cursor, Claude, and ChatGPT.
-- **Marketplace:** browse strategy ideas, results, infographics, and examples you can clone or adapt when the author allows it.
-
-<p align="center">
-  <a href="https://botspot.trade/sales?showLogin=1&utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=botspot_section_deploy_button&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.">
-    <img src="docs/assets/readme/cta_deploy_on_botspot.png" alt="Deploy on BotSpot" width="520">
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://botspot.trade/sales?showLogin=1&utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=botspot_launch_image&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.">
-    <img src="docs/assets/readme/lumibot_botspot_launch_path.png" alt="Build on Lumibot and launch on BotSpot" width="100%">
-  </a>
 </p>
 
 ## Quick Start
@@ -135,18 +108,7 @@ For full setup guides, broker tutorials, AI-agent docs, examples, and deployment
 
 ### Option A: BotSpot (managed cloud)
 
-[BotSpot](https://botspot.trade/sales?showLogin=1&utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=deploy_section_text_link&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.) runs Lumibot strategies on hosted infrastructure with scheduling, monitoring, broker connections, and live execution. Use it when you want deployment without managing servers.
-
-- Generate strategies with AI or bring your own Lumibot code
-- Backtest against historical data
-- Deploy to paper or live trading
-- Monitor runs, logs, trades, and performance
-
-<p align="center">
-  <a href="https://botspot.trade/sales?showLogin=1&utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=deploy_section_button&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.">
-    <img src="docs/assets/readme/cta_deploy_on_botspot.png" alt="Deploy on BotSpot" width="520">
-  </a>
-</p>
+[BotSpot](https://botspot.trade/sales?showLogin=1&utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=deploy_live_text_link&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.) is the managed path for running Lumibot without maintaining your own server. Use it when you want hosted scheduling, broker connections, logs, alerts, and paper or live execution without wiring the infrastructure yourself. This is especially useful for strategies that only need to run periodically.
 
 <p align="center">
   <img src="docs/assets/readme/lumibot_backtest_live_parity.png" alt="One Lumibot strategy can run in backtests and live broker accounts" width="100%">

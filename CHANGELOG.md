@@ -1,6 +1,16 @@
 # Changelog
 
-## 4.5.28 - Unreleased
+## 4.5.28 - 2026-05-20
+
+Deploy marker: 4.5.28 release commit (`deploy 4.5.28`)
+
+### Fixed
+- **Broker cash-event polling now requests full available history on first successful cloud poll.** Strategies no longer limit the first cloud cash-event fetch to the last seven days, so restarted BotSpot live bots can replay available broker deposit/withdrawal history into the listener.
+- **Alpaca journal classifications now match the broker activity contract used for cash-flow adjustment.** `JNLC` cash journals are classified as external deposits/withdrawals by sign, while `JNLS` stock journals remain internal non-cash-flow activity.
+- **Tradier transfer/journal classifications now distinguish external funding from internal bookkeeping.** ACH, wire, and check funding activity is treated as deposits/withdrawals, while fee, subscription, and transfer bookkeeping descriptions stay internal unless they match cash/account movement patterns.
+
+### Operations
+- **AI committee benchmark notes now record the enforced-qualifier and three-month launch results.** The benchmark plan documents the latest qualifier outcomes and launch artifacts for the provider-comparison work.
 
 ## 4.5.27 - 2026-05-20
 

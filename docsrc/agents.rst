@@ -214,6 +214,55 @@ LumiBot handles all the common instructions internally through its base prompt. 
 
 Do not repeat instructions about position sizing, time safety, or tool usage. LumiBot already covers those in the base prompt.
 
+Token-Budgeted Agent Handoffs
+-----------------------------
+
+Multi-agent strategies often pass one agent's output into the next agent. For
+example, an evidence researcher may hand a research pack to a bull researcher,
+then a bear researcher, then a portfolio manager. These handoffs should be
+large enough to preserve useful evidence, but they must stay inside the model's
+context window.
+
+Use prompt instructions for the normal behavior and token budgeting as the
+safety rail:
+
+.. code-block:: python
+
+    from lumibot.components.agents.context_budget import budget_text_by_tokens
+
+    result = self.agents["evidence_researcher"].run(
+        task_prompt=(
+            "Build a structured evidence handoff. "
+            "Keep it under context.handoff_target_tokens tokens. "
+            "Do not pad the answer just to fill the budget."
+        ),
+        context={"handoff_target_tokens": 24000},
+    )
+
+    evidence_pack = budget_text_by_tokens(
+        result.summary or result.text,
+        max_tokens=32000,
+        label="evidence_pack",
+    ).text
+
+``handoff_target_tokens`` is the prompt target. It does not force the model to
+use that many tokens. It tells the model the upper bound for a complete,
+structured handoff. A good model can still return 5,000 or 8,000 tokens when
+that is enough.
+
+``max_tokens`` is the hard safety rail before the next agent sees the handoff.
+If the text exceeds the budget, LumiBot keeps the beginning and end and inserts
+an explicit notice that token-budget truncation happened. This prevents a
+single verbose agent from pushing the next agent beyond a provider context
+window.
+
+For 128K-context models, think about the combined context, not just one
+handoff. If the portfolio manager receives evidence, bull, and bear handoffs,
+three 32K-token handoffs can already consume roughly 96K tokens before the
+system prompt, tool schemas, runtime context, and the portfolio manager's own
+output. Larger budgets can be reasonable for bigger-context models, but they
+should be chosen intentionally.
+
 DuckDB and Time-Series Data
 ----------------------------
 

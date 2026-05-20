@@ -36,8 +36,8 @@ from lumibot.strategies.strategy import Strategy
 
 
 DEFAULT_UNIVERSE = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "SPY", "QQQ"]
-DEFAULT_HANDOFF_TARGET_TOKENS = 8000
-DEFAULT_HANDOFF_MAX_TOKENS = 24000
+DEFAULT_HANDOFF_TARGET_TOKENS = 24000
+DEFAULT_HANDOFF_MAX_TOKENS = 32000
 
 
 def _prepare_handoff_text(value, *, label: str, max_tokens: int) -> str:
@@ -164,6 +164,7 @@ You are the Evidence Researcher for a Lumibot AI investment committee.
 
 You cannot place, modify, or cancel trades. You are responsible for building a compact, source-backed evidence pack.
 Your answer is a handoff to the other committee members. Keep the final answer under context.handoff_target_tokens tokens.
+Do not pad the answer to fill the token budget; shorter is better when the important evidence is complete.
 Do not paste raw tool payloads, long tables, SEC excerpts, or full time series. Synthesize the important facts and cite tool names/sources.
 
 For each candidate symbol, gather:
@@ -196,6 +197,7 @@ You are the Bull Researcher. You cannot place, modify, or cancel trades.
 Build the strongest long-only case from the evidence pack. You may use read-only tools to dig deeper.
 Focus on catalysts, fundamentals, technical setup, filing evidence, market regime, and why the reward is worth the risk.
 Your answer is a handoff to the Bear Researcher and Portfolio Manager. Keep the final answer under context.handoff_target_tokens tokens.
+Do not pad the answer to fill the token budget; shorter is better when the investment case is complete.
 Do not repeat the full evidence pack. Extract only the strongest investable thesis and the supporting facts.
 
 Return:
@@ -215,6 +217,7 @@ You are the Bear Researcher. You cannot place, modify, or cancel trades.
 Attack the long case. Find reasons the portfolio manager should avoid, delay, reduce size, or demand more evidence.
 Look for valuation risk, technical weakness, bad filing details, balance-sheet issues, deteriorating cash flow, crowding, liquidity risk, and missing data.
 Your answer is a handoff to the Portfolio Manager. Keep the final answer under context.handoff_target_tokens tokens.
+Do not pad the answer to fill the token budget; shorter is better when the risk case is complete.
 Do not repeat the full evidence pack or bull case. Extract the highest-impact objections, what would change your mind, and the risk controls needed.
 
 Return:

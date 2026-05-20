@@ -385,7 +385,7 @@ Important benchmark runner fixes from this phase:
 
 - The paid benchmark runner now defaults `--max-model-calls` to `80` instead of `8`; the original default only allowed about two committee cycles and caused an artificial `LUMIBOT_AGENT_MAX_MODEL_CALLS` failure.
 - The paid benchmark runner now prints JSON `model_start` and `model_finished` events so long runs are observable.
-- The AI committee example now asks each role to produce a structured handoff under the strategy parameter `handoff_target_tokens`, default `8000`, and applies a reusable Lumibot token-budget helper at `handoff_max_tokens`, default `24000`, before passing text to the next role. If a model ignores the target, the helper middle-truncates with an explicit notice instead of silently chopping or crashing the strategy.
+- The AI committee example now asks each role to produce a structured handoff under the strategy parameter `handoff_target_tokens`, default `24000`, and applies a reusable Lumibot token-budget helper at `handoff_max_tokens`, default `32000`, before passing text to the next role. If a model ignores the target, the helper middle-truncates with an explicit notice instead of silently chopping or crashing the strategy. A higher target does not force the model to use the full budget; the prompt explicitly says not to pad the handoff just to fill the token budget.
 
 Artifacts:
 

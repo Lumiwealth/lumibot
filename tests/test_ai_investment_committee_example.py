@@ -16,8 +16,8 @@ def test_ai_committee_example_uses_normal_lumibot_iteration_flow():
 def test_ai_committee_example_exposes_expected_risk_controls():
     assert AIInvestmentCommitteeStrategy.parameters["max_position_pct"] == 0.20
     assert AIInvestmentCommitteeStrategy.parameters["max_new_positions_per_run"] == 2
-    assert AIInvestmentCommitteeStrategy.parameters["handoff_target_tokens"] == 8000
-    assert AIInvestmentCommitteeStrategy.parameters["handoff_max_tokens"] == 24000
+    assert AIInvestmentCommitteeStrategy.parameters["handoff_target_tokens"] == 24000
+    assert AIInvestmentCommitteeStrategy.parameters["handoff_max_tokens"] == 32000
     assert AIInvestmentCommitteeStrategy.parameters["enable_notifications"] is False
 
 

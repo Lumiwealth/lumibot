@@ -32,4 +32,10 @@ Possible variations:
 - Add a neutral agent.
 - Run multiple model providers and compare their bull and bear cases.
 - Iterate bull and bear rebuttals before the final decision.
-- Let agents only produce research, then place trades with deterministic Python.
+
+For this investment committee example, the default architecture is agent-owned
+execution: the trading-enabled `portfolio_manager` places orders through LumiBot
+agent tools when justified. Do not also parse the portfolio manager's text in
+Python and submit a second deterministic order. A hybrid where agents only
+produce research and Python places the final order is a different strategy shape,
+and should be used only when explicitly requested.

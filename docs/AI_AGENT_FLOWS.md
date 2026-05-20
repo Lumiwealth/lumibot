@@ -152,6 +152,12 @@ self.agents.create(name="portfolio_manager", model="openai/gpt-5.5", allow_tradi
 
 Use `allow_trading=False` for every agent that should not mutate broker state. That agent can still inspect read-only state and research tools. Only the final trader, portfolio manager, or deterministic Python code should submit, modify, or cancel orders.
 
+Do not combine those execution paths by accident. If the final trader or
+portfolio manager has `allow_trading=True`, it owns order submission; the
+strategy should not parse the agent's prose and submit a second Python order
+afterward. Use deterministic Python execution only for an explicit hybrid design
+where the final agent is advisory or returns validated structured JSON.
+
 ## Related Docs
 
 - `docs/AI_INVESTMENT_COMMITTEE.md`: one concrete four-agent example.

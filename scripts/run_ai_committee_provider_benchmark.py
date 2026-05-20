@@ -74,6 +74,20 @@ def _parse_date(value: str) -> datetime:
     return datetime.strptime(value, "%Y-%m-%d")
 
 
+def _load_env_file(path: Path) -> None:
+    if not path.exists():
+        return
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip("'").strip('"')
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
 def _required_key_options(model: str) -> list[str]:
     lower = model.strip().lower()
     if lower.startswith("gemini-") or lower.startswith("models/gemini"):
@@ -286,6 +300,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-new-positions-per-run", type=int, default=2)
     parser.add_argument("--max-model-calls", type=int, default=8)
     parser.add_argument("--max-run-attempts", type=int, default=2)
+    parser.add_argument("--env-file", default=".env.local", help="Local ignored env file to load before key checks.")
     parser.add_argument("--allow-missing-keys", action="store_true", help="Record failures instead of stopping on missing keys.")
     parser.add_argument("--continue-on-error", action="store_true", help="Continue to the next model if one run fails.")
     return parser.parse_args()
@@ -293,6 +308,11 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if args.env_file:
+        env_path = Path(args.env_file)
+        if not env_path.is_absolute():
+            env_path = REPO_ROOT / env_path
+        _load_env_file(env_path)
     if os.environ.get("LUMIBOT_ALLOW_PAID_AI_COMMITTEE_BACKTEST") != "1":
         raise RuntimeError(
             "This script makes real paid model calls. Set "

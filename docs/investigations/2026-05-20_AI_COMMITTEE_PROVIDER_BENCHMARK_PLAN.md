@@ -318,9 +318,8 @@ Optional second-wave models only after the primary slate works:
 Current blockers before long runs:
 
 1. Add Gemini/OpenAI keys locally so `gemini-3.5-flash` and `openai/gpt-5.4-mini` can be tested.
-2. Fix Cerebras `reasoning_content` request normalization. `cerebras/gpt-oss-120b` failed before long-run eligibility because Cerebras rejected ADK/LiteLLM assistant `reasoning_content` fields.
-3. Tighten AI committee prompt/tool availability. Post-ADK-2 DeepSeek smoke passed, but it first attempted unavailable `list_fred_series`. Either always register FRED tools for this benchmark when `FRED_API_KEY` exists or make macro/FRED instructions conditional on available tool names.
-4. Rerun one-day smoke after those fixes for every primary model and require nonzero tool calls unless the model's role genuinely does not need tools.
+2. Gemini/OpenAI keys still need one-day smoke coverage after they are added locally.
+3. Run the 14-trading-day qualifier for the models that now pass one-day smoke.
 
 Execution phases:
 
@@ -351,3 +350,29 @@ Recommendation:
 - Do the full 3-month primary slate after the smoke/qualifier fixes. The expected total is low enough that cost should not stop us.
 - Do not start with a 6-month full slate. Run 3 months first, verify trace quality and backtest outputs, then run a 6-month extension for the finalists or for all six if runtime is acceptable.
 - Drop `together_ai/openai/gpt-oss-120b` from the benchmark for now because the earlier smoke made zero tool calls.
+
+## Post-Fix One-Day Smoke: 2026-05-20
+
+Artifact root: `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260520_025556`.
+
+Window: `2026-03-30` through `2026-03-31`.
+
+Fixes validated:
+
+- Runtime now includes actual available tool names in the prompt and no longer injects FRED tool names when FRED tools are not registered.
+- AI committee example now asks for FRED macro data only when FRED tools are available.
+- Cerebras ADK/LiteLLM wrapper strips thought/reasoning parts before LiteLLM serializes history back to Cerebras, avoiding the prior `reasoning_content` rejection.
+
+Results:
+
+- `deepseek/deepseek-v4-flash`: passed. Wall time `571.3s`; model latency `121.2s`; tool calls `29`; input `276,965`, cached input `253,696`, output `8,616`; estimated cost `$0.041188` no-cache / `$0.006380` cache-adjusted. No trade.
+- `together_ai/moonshotai/Kimi-K2.5`: passed. Wall time `409.8s`; model latency `55.3s`; tool calls `11`; input `51,804`, cached input `28,160`, output `3,366`; estimated cost `$0.035327`. Bought `3` GOOGL and `1` META; one-day return `0.0004934286712645619`.
+- `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`: passed. Wall time `283.3s`; model latency `43.6s`; tool calls `16`; input `134,909`, output `1,393`; estimated cost `$0.027818`. No trade.
+- `cerebras/gpt-oss-120b`: passed. Wall time `45.8s`; model latency `2.6s`; tool calls `3`; input `60,239`, cached input `31,616`, output `1,954`; estimated cost `$0.022549`. No trade.
+
+Interpretation:
+
+- All currently keyed non-Gemini/non-OpenAI primary candidates now pass one-day smoke under ADK 2.
+- Cerebras is now mechanically working and extremely fast, but the low tool-call count means the 14-day qualifier must inspect whether it is doing enough evidence gathering.
+- Kimi remains the most interesting Together model because it used tools and placed bounded trades in both smoke runs.
+- DeepSeek Flash is cheap and tool-heavy but slow in wall time, so it belongs in the qualifier.

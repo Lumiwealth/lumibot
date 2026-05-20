@@ -3,13 +3,17 @@ import sys
 import types
 
 from lumibot.components.agents.runtime import (
+    GoogleADKRuntime,
+    RuntimeRequest,
     _aggregate_usage_metadata,
     _resolve_model_for_adk,
+    _strip_thought_parts_from_litellm_request,
     _supports_explicit_temperature_for_adk_model,
     _sync_gemini_api_key_alias,
     _sync_together_api_key_alias,
     _sync_xai_api_key_alias,
 )
+from lumibot.components.agents.schemas import BoundTool
 
 
 def test_grok_api_key_alias_populates_xai_api_key(monkeypatch):
@@ -168,6 +172,82 @@ def test_new_provider_models_route_through_litellm(monkeypatch):
     assert [kwargs["model"] for kwargs in created] == models
     assert os.environ["TOGETHERAI_API_KEY"] == "together-test-key"
     assert all("prompt_cache_key" not in kwargs for kwargs in created)
+
+
+def test_cerebras_model_uses_reasoning_content_sanitizing_wrapper(monkeypatch):
+    class FakeLiteLlm:
+        def __init__(self, **kwargs):
+            self.kwargs = dict(kwargs)
+
+    fake_module = types.ModuleType("google.adk.models.lite_llm")
+    fake_module.LiteLlm = FakeLiteLlm
+    monkeypatch.setitem(sys.modules, "google.adk.models.lite_llm", fake_module)
+
+    result = _resolve_model_for_adk("cerebras/gpt-oss-120b")
+
+    assert isinstance(result, FakeLiteLlm)
+    assert result.__class__ is not FakeLiteLlm
+    assert result.kwargs["model"] == "cerebras/gpt-oss-120b"
+
+
+def test_strip_thought_parts_from_litellm_request_preserves_normal_parts():
+    class Part:
+        def __init__(self, text: str, thought: bool = False):
+            self.text = text
+            self.thought = thought
+
+    class Content:
+        def __init__(self, role: str, parts: list[Part]):
+            self.role = role
+            self.parts = parts
+
+        def model_copy(self, update):
+            return Content(self.role, update["parts"])
+
+    request = types.SimpleNamespace(
+        contents=[
+            Content("model", [Part("private reasoning", thought=True), Part("visible answer")]),
+            Content("user", [Part("question")]),
+        ]
+    )
+
+    _strip_thought_parts_from_litellm_request(request)
+
+    assert [[part.text for part in content.parts] for content in request.contents] == [["visible answer"], ["question"]]
+
+
+def test_runtime_prompt_only_names_available_tools():
+    runtime = GoogleADKRuntime()
+    bound_tools = [
+        BoundTool(
+            name="account_positions",
+            description="Positions",
+            function=lambda: {},
+        ),
+        BoundTool(
+            name="get_indicator",
+            description="Indicator",
+            function=lambda: {},
+        ),
+    ]
+    request = RuntimeRequest(
+        agent_name="researcher",
+        model="deepseek/deepseek-v4-flash",
+        system_prompt="System prompt",
+        task_prompt=None,
+        context=None,
+        runtime_context=None,
+        memory_notes=[],
+        bound_tools=bound_tools,
+    )
+
+    instruction = runtime._instruction_for(request)
+    user_text = runtime._build_user_text(request)
+
+    assert "account_positions, get_indicator" in instruction
+    assert "Available Tools JSON" in user_text
+    assert "list_fred_series" not in user_text
+    assert "alpaca_news" not in user_text
 
 
 def test_gemini_native_path_uses_plain_model_id_for_implicit_or_adk_context_cache():

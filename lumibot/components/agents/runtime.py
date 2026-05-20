@@ -589,6 +589,36 @@ def _provider_prompt_cache_key(request: RuntimeRequest) -> str:
     return f"lumibot:{request.agent_name}:{digest[:32]}"
 
 
+def _copy_content_without_thought_parts(content: Any) -> tuple[Any, bool]:
+    parts = getattr(content, "parts", None)
+    if not parts:
+        return content, False
+    filtered_parts = [part for part in parts if not getattr(part, "thought", False)]
+    if len(filtered_parts) == len(parts):
+        return content, False
+    if hasattr(content, "model_copy"):
+        return content.model_copy(update={"parts": filtered_parts}), True
+    try:
+        return type(content)(role=getattr(content, "role", None), parts=filtered_parts), True
+    except Exception:
+        content.parts = filtered_parts
+        return content, True
+
+
+def _strip_thought_parts_from_litellm_request(llm_request: Any) -> None:
+    contents = getattr(llm_request, "contents", None)
+    if not contents:
+        return
+    updated = []
+    changed = False
+    for content in contents:
+        clean_content, content_changed = _copy_content_without_thought_parts(content)
+        updated.append(clean_content)
+        changed = changed or content_changed
+    if changed:
+        llm_request.contents = updated
+
+
 def _resolve_model_for_adk(model: Any, *, prompt_cache_key: str | None = None) -> Any:
     # Native Gemini IDs take ADK's fast path as plain strings. Any other
     # provider prefix (e.g. "openai/...", "xai/...", "anthropic/...") is
@@ -612,6 +642,18 @@ def _resolve_model_for_adk(model: Any, *, prompt_cache_key: str | None = None) -
             f"Agent model '{model}' requires the 'litellm' package. "
             "Install it with: pip install 'google-adk[extensions]' litellm"
         ) from exc
+
+    class CerebrasLiteLlm(LiteLlm):
+        async def generate_content_async(self, llm_request: Any, stream: bool = False):
+            # ADK 2 preserves provider reasoning as Gemini thought parts and
+            # LiteLLM serializes those back to `messages.*.reasoning_content`.
+            # Cerebras rejects that nonstandard message field, so strip thought
+            # parts before request conversion while preserving normal text and
+            # tool-call history.
+            _strip_thought_parts_from_litellm_request(llm_request)
+            async for response in super().generate_content_async(llm_request, stream=stream):
+                yield response
+
     kwargs: dict[str, Any] = {}
     if prompt_cache_key:
         if lower.startswith("openai/"):
@@ -623,7 +665,8 @@ def _resolve_model_for_adk(model: Any, *, prompt_cache_key: str | None = None) -
         elif lower.startswith("xai/"):
             # xAI recommends x-grok-conv-id for Chat Completions cache routing.
             kwargs["headers"] = {"x-grok-conv-id": prompt_cache_key}
-    return LiteLlm(model=model, **kwargs)
+    model_type = CerebrasLiteLlm if lower.startswith("cerebras/") else LiteLlm
+    return model_type(model=model, **kwargs)
 
 
 def _supports_explicit_temperature_for_adk_model(model: Any) -> bool:
@@ -710,15 +753,25 @@ class GoogleADKRuntime:
         lines.append("")
         lines.append("General rules:")
         lines.append("- Use tools for structured data and trading actions.")
+        if request.bound_tools:
+            tool_names = ", ".join(sorted(tool.name for tool in request.bound_tools))
+            lines.append(f"- Available tool names for this run: {tool_names}.")
+            lines.append("- Only call tool names that appear in the available tool list for this run.")
         lines.append("- Use DuckDB for time-series analysis when historical tables are available.")
         lines.append("- Return a short final summary after you finish using tools.")
         return "\n".join(lines).strip()
 
     def _build_user_text(self, request: RuntimeRequest) -> str:
         sections: list[str] = []
+        tool_names = {tool.name for tool in request.bound_tools}
         if request.runtime_context:
             sections.append(
                 f"Runtime Context JSON:\n{json.dumps(_json_safe_value(request.runtime_context), sort_keys=True, default=str)}"
+            )
+        if request.bound_tools:
+            sections.append(
+                "Available Tools JSON:\n"
+                f"{json.dumps(sorted(tool_names), sort_keys=True, default=str)}"
             )
         if request.memory_notes:
             sections.append(
@@ -728,16 +781,30 @@ class GoogleADKRuntime:
         if request.task_prompt:
             sections.append(f"Task:\n{request.task_prompt.strip()}")
         else:
+            required_categories = [
+                "account_positions or account_portfolio",
+                "market_last_price or market_load_history_table",
+                "duckdb_query after loading a price table",
+                "get_indicator or get_indicators",
+            ]
+            if "alpaca_news" in tool_names:
+                required_categories.append("alpaca_news")
+            fred_tools = sorted(name for name in tool_names if name.startswith("get_fred_") or name == "list_fred_series")
+            if fred_tools:
+                required_categories.append(" or ".join(fred_tools))
+            required_categories.extend(
+                [
+                    "get_income_statement, get_balance_sheet, get_cash_flow, or get_company_facts",
+                    "get_filings, search_filing, or get_filing_document",
+                ]
+            )
             sections.append(
                 "Task:\n"
                 "Do your normal job for the current market state. Before making a trading decision, use the available "
                 "tools to review account/portfolio state, current market prices, recent price history, technical "
-                "indicators, relevant news, macro/FRED data when configured, and SEC financial/filing evidence for "
-                "relevant single-stock candidates. Specifically, when these tools are available, include calls from "
-                "these categories: account_positions or account_portfolio; market_last_price or market_load_history_table; "
-                "duckdb_query after loading a price table; get_indicator or get_indicators; alpaca_news; list_fred_series, "
-                "get_fred_latest, get_fred_series, or get_fred_snapshot; get_income_statement, get_balance_sheet, "
-                "get_cash_flow, or get_company_facts; and get_filings, search_filing, or get_filing_document. "
+                "indicators, relevant news when configured, macro/FRED data when configured, and SEC financial/filing "
+                "evidence for relevant single-stock candidates. Specifically, include calls from these available "
+                f"categories: {'; '.join(required_categories)}. "
                 "In backtests, date-bound every external data request to the current simulated datetime and do not use "
                 "future information."
             )

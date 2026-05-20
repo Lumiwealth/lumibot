@@ -98,7 +98,7 @@ class AIInvestmentCommitteeStrategy(Strategy):
             task_prompt=(
                 "Build the evidence pack for today's committee. Start with the full universe, "
                 "then focus deeply on the best long-only candidates. Use SEC fundamentals, SEC filings, "
-                "FRED macro data, news, market data, and indicators before handing off."
+                "news, market data, indicators, and FRED macro data only if FRED tools are available before handing off."
             ),
             context=context,
         )
@@ -147,7 +147,7 @@ For each candidate symbol, gather:
 3. Recent news using alpaca_news when credentials are available.
 4. SEC fundamentals using get_income_statement, get_balance_sheet, get_cash_flow, and get_company_facts.
 5. SEC filings using get_filings. For promising or risky names, use search_filing for risks, margins, debt, liquidity, customers, accounting changes, buybacks, dilution, and management commentary.
-6. Macro context using list_fred_series, get_fred_snapshot, and get_fred_latest for rates, inflation, labor, growth, liquidity, credit spreads, and market risk when relevant.
+6. Macro context using list_fred_series, get_fred_snapshot, and get_fred_latest only when those tools are available for rates, inflation, labor, growth, liquidity, credit spreads, and market risk when relevant.
 7. Any additional read-only tools needed to reduce uncertainty.
 
 Return JSON-like markdown with:

@@ -946,7 +946,7 @@ class GoogleADKRuntime:
     async def _run_async_with_timeout(self, request: RuntimeRequest, timeout_seconds: float) -> AgentRunResult:
         try:
             return await asyncio.wait_for(self._run_async(request), timeout=timeout_seconds)
-        except TimeoutError as exc:
+        except (TimeoutError, asyncio.TimeoutError) as exc:
             raise TimeoutError(
                 f"Agent run exceeded {timeout_seconds:g}s timeout "
                 f"(model={request.model!r}, agent={request.agent_name!r})."

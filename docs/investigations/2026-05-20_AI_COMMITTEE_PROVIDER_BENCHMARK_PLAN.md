@@ -395,6 +395,7 @@ Important benchmark runner fixes from this phase:
 - The paid benchmark runner now defaults `--max-model-calls` to `80` instead of `8`; the original default only allowed about two committee cycles and caused an artificial `LUMIBOT_AGENT_MAX_MODEL_CALLS` failure.
 - The paid benchmark runner now prints JSON `model_start` and `model_finished` events so long runs are observable.
 - Benchmark artifacts can be summarized with `/Users/robertgrzesik/Development/lumibot/scripts/summarize_ai_committee_provider_benchmarks.py`, which reads per-model `result.json` files and writes compact JSON/Markdown comparisons.
+- The runner accepts `--agent-run-timeout-seconds` for slow provider qualifiers. This is a per-agent timeout, not the overall benchmark timeout. Keep the default for fast providers; use a higher value for Qwen/Kimi only if the model is making progress but individual calls exceed the runtime's default safety rail.
 - The AI committee example now asks each role to produce a structured handoff under the strategy parameter `handoff_target_tokens`, default `24000`, and applies a reusable Lumibot token-budget helper at `handoff_max_tokens`, default `32000`, before passing text to the next role. If a model ignores the target, the helper middle-truncates with an explicit notice instead of silently chopping or crashing the strategy. A higher target does not force the model to use the full budget; the prompt explicitly says not to pad the handoff just to fill the token budget.
 
 Artifacts:

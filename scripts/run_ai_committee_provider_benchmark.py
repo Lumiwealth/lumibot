@@ -231,6 +231,8 @@ def _run_one_model(model: str, args: argparse.Namespace, root: Path) -> dict[str
     os.environ["COMMITTEE_TRADER_MODEL"] = model
     os.environ["LUMIBOT_AGENT_MAX_MODEL_CALLS"] = str(args.max_model_calls)
     os.environ["LUMIBOT_AGENT_MAX_RUN_ATTEMPTS"] = str(args.max_run_attempts)
+    if args.agent_run_timeout_seconds:
+        os.environ["LUMIBOT_AGENT_RUN_TIMEOUT_SECONDS"] = str(args.agent_run_timeout_seconds)
 
     stats_file = run_dir / "stats.csv"
     trades_file = run_dir / "trades.csv"
@@ -345,6 +347,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-new-positions-per-run", type=int, default=2)
     parser.add_argument("--max-model-calls", type=int, default=80)
     parser.add_argument("--max-run-attempts", type=int, default=2)
+    parser.add_argument(
+        "--agent-run-timeout-seconds",
+        type=int,
+        default=None,
+        help="Optional per-agent runtime timeout override for slow provider qualifiers.",
+    )
     parser.add_argument("--env-file", default=".env.local", help="Local ignored env file to load before key checks.")
     parser.add_argument("--allow-missing-keys", action="store_true", help="Record failures instead of stopping on missing keys.")
     parser.add_argument("--continue-on-error", action="store_true", help="Continue to the next model if one run fails.")

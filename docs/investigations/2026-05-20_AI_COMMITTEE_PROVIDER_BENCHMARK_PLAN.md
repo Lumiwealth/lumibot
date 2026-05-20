@@ -294,3 +294,60 @@ Small practical feature plan:
 3. Add resumable runs only at step boundaries first. Full mid-token/mid-tool resume is too much. Store step outputs, trace events, model, prompt, context, and tool results; rerun only incomplete team steps.
 4. Add `AgentTeam` as a thin sequential/parallel orchestrator over existing `AgentManager.create()` agents. First version can run named agents in order or simple parallel groups, then pass summaries into the final agent. Do not expose arbitrary ADK graph nodes yet.
 5. Add structured output validation for trading decisions before adding custom graph authoring. A `decision_schema` or `output_schema` is easier to test and directly improves trading safety.
+
+## Full Benchmark Game Plan: 2026-05-20
+
+Goal: benchmark the AI Investment Committee across the practical fast/cheap model slate over the same 3-month window, using the same starting cash, fees, data, committee prompts, tool set, and risk settings. The benchmark should compare model quality, tool discipline, runtime, token/cost profile, final return, drawdown, trade count, and qualitative evidence quality.
+
+Primary model slate:
+
+- `deepseek/deepseek-v4-flash`
+- `gemini-3.5-flash`
+- `openai/gpt-5.4-mini`
+- `together_ai/moonshotai/Kimi-K2.5`
+- `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`
+- `cerebras/gpt-oss-120b`
+
+Optional second-wave models only after the primary slate works:
+
+- `cerebras/zai-glm-4.7`
+- `together_ai/moonshotai/Kimi-K2.6`
+- `deepseek/deepseek-v4-pro`, privacy-sensitive/direct DeepSeek
+- `together_ai/deepseek-ai/DeepSeek-V4-Pro`, if vendor posture matters more than cost
+
+Current blockers before long runs:
+
+1. Add Gemini/OpenAI keys locally so `gemini-3.5-flash` and `openai/gpt-5.4-mini` can be tested.
+2. Fix Cerebras `reasoning_content` request normalization. `cerebras/gpt-oss-120b` failed before long-run eligibility because Cerebras rejected ADK/LiteLLM assistant `reasoning_content` fields.
+3. Tighten AI committee prompt/tool availability. Post-ADK-2 DeepSeek smoke passed, but it first attempted unavailable `list_fred_series`. Either always register FRED tools for this benchmark when `FRED_API_KEY` exists or make macro/FRED instructions conditional on available tool names.
+4. Rerun one-day smoke after those fixes for every primary model and require nonzero tool calls unless the model's role genuinely does not need tools.
+
+Execution phases:
+
+1. One-day smoke: run every primary model for `2026-03-30` through `2026-03-31`. Passing means the run completes, writes `result.json`, writes `stats_agent_detail.parquet`, produces meaningful tool calls, and does not crash on unavailable tools.
+2. Fourteen-trading-day qualifier: run all models that pass smoke on the existing 14-trading-day baseline window. This catches high-context/tool-loop failures without spending time on 3-month runs.
+3. Three-month benchmark: run every qualifier on the exact same 3-month window. Recommended first window: the most recent completed three calendar months with stable data availability at execution time, or a fixed historical window chosen once and reused.
+4. Six-month benchmark: run only after the 3-month output looks mechanically valid. Six months is worth doing, but it should not be the first long run because bad prompt/tool behavior doubles both runtime and debugging noise.
+
+Cost estimates for the primary 6-model slate, scaled from the prior 14-trading-day AI committee artifact:
+
+- 14-trading-day qualifier total: about `$9.01` no-cache / about `$5.71` cache-adjusted where cache pricing exists.
+- 3-month primary slate total: about `$40.53` no-cache / about `$25.68` cache-adjusted where cache pricing exists.
+- 6-month primary slate total: about `$81.06` no-cache / about `$51.36` cache-adjusted where cache pricing exists.
+
+Per-model 3-month / 6-month estimates:
+
+- `deepseek/deepseek-v4-flash`: 3-month `$1.36` no-cache / `$0.42` cache-adjusted; 6-month `$2.72` no-cache / `$0.84` cache-adjusted.
+- `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`: 3-month `$2.07`; 6-month `$4.14`.
+- `cerebras/gpt-oss-120b`: 3-month `$3.43`; 6-month `$6.86`.
+- `together_ai/moonshotai/Kimi-K2.5`: 3-month `$6.02`; 6-month `$12.04`.
+- `openai/gpt-5.4-mini`: 3-month `$9.22` no-cache / `$4.58` cache-adjusted; 6-month `$18.44` no-cache / `$9.16` cache-adjusted.
+- `gemini-3.5-flash`: 3-month `$18.43` no-cache / `$9.16` cache-adjusted; 6-month `$36.86` no-cache / `$18.32` cache-adjusted.
+
+If adding `cerebras/zai-glm-4.7`, add about `$20.73` for 3 months or `$41.46` for 6 months. If adding `together_ai/moonshotai/Kimi-K2.6`, add about `$13.01` for 3 months or `$26.02` for 6 months.
+
+Recommendation:
+
+- Do the full 3-month primary slate after the smoke/qualifier fixes. The expected total is low enough that cost should not stop us.
+- Do not start with a 6-month full slate. Run 3 months first, verify trace quality and backtest outputs, then run a 6-month extension for the finalists or for all six if runtime is acceptable.
+- Drop `together_ai/openai/gpt-oss-120b` from the benchmark for now because the earlier smoke made zero tool calls.

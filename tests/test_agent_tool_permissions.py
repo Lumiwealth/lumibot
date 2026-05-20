@@ -108,9 +108,10 @@ def test_builtin_indicator_schema_is_gemini_function_declaration_compatible():
 
     declaration = FunctionTool(_wrap_tool_callable(indicator_tool))._get_declaration().model_dump(exclude_none=True)
     schema_text = str(declaration)
+    parameters = declaration.get("parameters") or declaration.get("parameters_json_schema") or {}
 
     assert "additional_properties" not in schema_text
-    assert "parameters_json" in declaration["parameters"]["properties"]
+    assert "parameters_json" in parameters["properties"]
 
 
 def test_agent_allow_trading_true_keeps_mutating_order_tools():

@@ -131,6 +131,25 @@ def __getattr__(name):
         return _get_webbrowser()
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
+
+def _coerce_datetime_index_to_utc_naive(obj):
+    """Return a copy with a comparable UTC-naive DatetimeIndex."""
+    if obj is None:
+        return None
+
+    result = obj.copy()
+    idx = pd.to_datetime(result.index, utc=True, errors="coerce")
+    result.index = idx.tz_localize(None)
+    return result
+
+
+def _coerce_datetime_column_to_utc_naive(df: pd.DataFrame, column: str = "datetime") -> pd.DataFrame:
+    """Return a copy with mixed timezone datetimes normalized for sorting/export."""
+    result = df.copy()
+    if column in result.columns:
+        result[column] = pd.to_datetime(result[column], utc=True, errors="coerce").dt.tz_localize(None)
+    return result
+
 TERMINAL_TRADE_STATUSES_FOR_MARKERS = {
     "fill",
     "filled",
@@ -778,15 +797,15 @@ def plot_indicators(
         # Build combined_df from whatever data was passed in, or empty.
         export_dfs = []
         if chart_markers_df is not None and not chart_markers_df.empty:
-            m = chart_markers_df.copy()
+            m = _coerce_datetime_column_to_utc_naive(chart_markers_df)
             m["type"] = "marker"
             export_dfs.append(m)
         if chart_lines_df is not None and not chart_lines_df.empty:
-            l = chart_lines_df.copy()
+            l = _coerce_datetime_column_to_utc_naive(chart_lines_df)
             l["type"] = "line"
             export_dfs.append(l)
         if chart_ohlc_df is not None and not chart_ohlc_df.empty:
-            o = chart_ohlc_df.copy()
+            o = _coerce_datetime_column_to_utc_naive(chart_ohlc_df)
             o["type"] = "ohlc"
             export_dfs.append(o)
         combined_df = (
@@ -813,21 +832,21 @@ def plot_indicators(
 
     # Assign "default_plot" as plot_name for markers and lines that don't have one
     if chart_markers_df is not None and not chart_markers_df.empty:
-        chart_markers_df = chart_markers_df.copy()
+        chart_markers_df = _coerce_datetime_column_to_utc_naive(chart_markers_df)
         if "plot_name" not in chart_markers_df.columns:
             chart_markers_df["plot_name"] = "default_plot"
         else:
             chart_markers_df["plot_name"] = chart_markers_df["plot_name"].fillna("default_plot")
 
     if chart_lines_df is not None and not chart_lines_df.empty:
-        chart_lines_df = chart_lines_df.copy()
+        chart_lines_df = _coerce_datetime_column_to_utc_naive(chart_lines_df)
         if "plot_name" not in chart_lines_df.columns:
             chart_lines_df["plot_name"] = "default_plot"
         else:
             chart_lines_df["plot_name"] = chart_lines_df["plot_name"].fillna("default_plot")
 
     if chart_ohlc_df is not None and not chart_ohlc_df.empty:
-        chart_ohlc_df = chart_ohlc_df.copy()
+        chart_ohlc_df = _coerce_datetime_column_to_utc_naive(chart_ohlc_df)
         if "plot_name" not in chart_ohlc_df.columns:
             chart_ohlc_df["plot_name"] = "default_plot"
         else:
@@ -1136,15 +1155,15 @@ def plot_indicators(
     ]
     export_dfs = []
     if chart_markers_df is not None and not chart_markers_df.empty:
-        markers_out = chart_markers_df.copy()
+        markers_out = _coerce_datetime_column_to_utc_naive(chart_markers_df)
         markers_out["type"] = "marker"
         export_dfs.append(markers_out)
     if chart_lines_df is not None and not chart_lines_df.empty:
-        lines_out = chart_lines_df.copy()
+        lines_out = _coerce_datetime_column_to_utc_naive(chart_lines_df)
         lines_out["type"] = "line"
         export_dfs.append(lines_out)
     if chart_ohlc_df is not None and not chart_ohlc_df.empty:
-        ohlc_out = chart_ohlc_df.copy()
+        ohlc_out = _coerce_datetime_column_to_utc_naive(chart_ohlc_df)
         ohlc_out["type"] = "ohlc"
         export_dfs.append(ohlc_out)
 
@@ -1240,7 +1259,7 @@ def plot_returns(
 
     dfs_concat = []
 
-    _df1 = strategy_df.copy()
+    _df1 = _coerce_datetime_index_to_utc_naive(strategy_df)
     _df1 = _df1.sort_index(ascending=True)
     _df1.index.name = "datetime"
     adjusted_value_col = "cash_adjusted_portfolio_value"
@@ -1252,7 +1271,7 @@ def plot_returns(
         _df1.loc[_df1.index[0], adjusted_value_col] = initial_budget
     dfs_concat.append(_df1)
 
-    _df2 = benchmark_df.copy()
+    _df2 = _coerce_datetime_index_to_utc_naive(benchmark_df)
     _df2 = _df2.sort_index(ascending=True)
     _df2.index.name = "datetime"
     _df2[benchmark_name] = (1 + _df2["return"]).cumprod()
@@ -1297,7 +1316,9 @@ def plot_returns(
         # We have trades, prepare a copy
         processed_trades_for_merge = trades_df.copy()
         if 'time' in processed_trades_for_merge.columns:
-            processed_trades_for_merge['time'] = pd.to_datetime(processed_trades_for_merge['time'])
+            processed_trades_for_merge['time'] = pd.to_datetime(
+                processed_trades_for_merge['time'], utc=True, errors="coerce"
+            ).dt.tz_localize(None)
             processed_trades_for_merge = processed_trades_for_merge.set_index('time')
             
             # Ensure all standard columns (excluding 'time') are present, filling missing ones with NA
@@ -1614,20 +1635,20 @@ def _prepare_tearsheet_returns(strategy_df: pd.DataFrame, benchmark_df: pd.DataF
         _benchmark_df = pd.DataFrame(index=benchmark_df.index)
         _benchmark_df["symbol_cumprod"] = 1
 
-    _strategy_df.index = pd.to_datetime(_strategy_df.index)
-    _benchmark_df.index = pd.to_datetime(_benchmark_df.index)
+    _strategy_df = _coerce_datetime_index_to_utc_naive(_strategy_df)
+    _benchmark_df = _coerce_datetime_index_to_utc_naive(_benchmark_df)
 
     strategy_returns = None
     if "return" in _strategy_df.columns:
         strategy_returns = pd.to_numeric(_strategy_df["return"], errors="coerce")
-        strategy_returns.index = pd.to_datetime(strategy_returns.index)
+        strategy_returns = _coerce_datetime_index_to_utc_naive(strategy_returns)
         strategy_returns = strategy_returns.sort_index()
         strategy_returns = strategy_returns.groupby(level=0).last()
         strategy_returns = ((1.0 + strategy_returns).resample("D").prod(min_count=1) - 1.0).fillna(0.0)
         strategy_returns.name = "strategy"
 
     df = pd.merge(_strategy_df, _benchmark_df, left_index=True, right_index=True, how="outer")
-    df.index = pd.to_datetime(df.index)
+    df = _coerce_datetime_index_to_utc_naive(df)
     df = df.sort_index()
 
     if "portfolio_value" in df.columns:

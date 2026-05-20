@@ -1095,8 +1095,8 @@ class OptionsHelper:
             )
         return delta
 
-    def _is_theta_option_daily_backtest(self) -> bool:
-        """Return True when option pricing is routed through ThetaData in a daily backtest cadence."""
+    def _is_theta_option_backtest(self) -> bool:
+        """Return True when option pricing is routed through ThetaData in a backtest."""
         broker = getattr(self.strategy, "broker", None)
         if broker is None or getattr(broker, "IS_BACKTESTING_BROKER", False) is not True:
             return False
@@ -1119,6 +1119,16 @@ class OptionsHelper:
 
         if not is_theta_option_provider:
             return False
+        return True
+
+    def _is_theta_option_daily_backtest(self) -> bool:
+        """Return True when option pricing is routed through ThetaData in a daily backtest cadence."""
+        if not self._is_theta_option_backtest():
+            return False
+
+        broker = getattr(self.strategy, "broker", None)
+        option_source = getattr(broker, "option_source", None)
+        data_source = option_source if option_source is not None else getattr(broker, "data_source", None)
 
         is_daily_cadence = False
         try:
@@ -1373,9 +1383,13 @@ class OptionsHelper:
                 return float(cached_strike)
 
         is_call = option_type == "CALL"
-        is_theta_daily_backtest = self._is_theta_option_daily_backtest()
+        is_theta_option_backtest = self._is_theta_option_backtest()
 
-        if is_theta_daily_backtest and candidate_strikes:
+        if is_theta_option_backtest and candidate_strikes:
+            # ThetaData option backtests can turn live-style delta probing into many minute
+            # quote/OHLC downloads for nearby strikes before the strategy has selected a
+            # contract. Use the model-based selector for the strike target, then let
+            # find_next_valid_option/evaluate_option_market validate real historical prices.
             modeled = self._select_strike_by_model_delta(
                 underlying_asset=underlying_asset,
                 underlying_price=float(underlying_price),

@@ -229,12 +229,12 @@ def test_ibkr_rest_futures_minute_prefetch_stays_unloaded_when_coverage_fails(mo
     assert (asset, quote, "minute", "AUTO") not in ds._fully_loaded_series
 
 
-def test_ibkr_rest_get_last_price_refetches_current_slice_after_underfilled_minute_prefetch(monkeypatch):
+def test_ibkr_rest_get_last_price_fetches_current_slice_without_full_window_prefetch(monkeypatch):
     """Do not answer an Apr sim-time lookup from a May-only minute cache.
 
-    Regression for the Alpha Picks option backtests: the full-window minute prefetch returned only
-    the tail of the requested window, then `get_last_price()` marked that May-only frame as fully
-    loaded. The next Apr-09 lookup failed as "outside data range" instead of fetching Apr-09 data.
+    Regression for the Alpha Picks option backtests: a full-window minute prefetch can return only
+    the tail of the requested window. Spot lookups should fetch the local simulation slice directly
+    instead of downloading the whole backtest window at minute granularity.
     """
 
     import lumibot.tools.ibkr_helper as ibkr_helper
@@ -279,7 +279,7 @@ def test_ibkr_rest_get_last_price_refetches_current_slice_after_underfilled_minu
     quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
 
     assert ds.get_last_price(asset) == 42.0
-    assert len(calls) == 2
-    assert calls[0][1].date().isoformat() == "2026-05-08"
-    assert calls[1][1].date().isoformat() == "2026-04-10"
+    assert len(calls) == 1
+    assert calls[0][0].date().isoformat() == "2026-04-09"
+    assert calls[0][1].date().isoformat() == "2026-04-10"
     assert (asset, quote, "minute", "AUTO") not in ds._fully_loaded_series

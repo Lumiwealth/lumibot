@@ -1174,10 +1174,10 @@ def test_get_trading_dates():
         ('quote'),
     ],
 )
-def test_build_cache_filename(mocker, tmpdir, datastyle):
+def test_build_cache_filename(monkeypatch, tmpdir, datastyle):
     asset = Asset("SPY")
     timespan = "1D"
-    mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmpdir))
+    monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmpdir))
     expected = tmpdir / "thetadata" / "stock" / "1d" / datastyle / f"stock_SPY_1D_{datastyle}.parquet"
     assert thetadata_helper.build_cache_filename(asset, timespan, datastyle) == expected
 
@@ -1279,8 +1279,8 @@ def test_missing_dates():
         'quote'),
     ],
 )
-def test_update_cache(mocker, tmpdir, df_all, df_cached, datastyle):
-    mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmpdir))
+def test_update_cache(monkeypatch, tmpdir, df_all, df_cached, datastyle):
+    monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmpdir))
     cache_file = thetadata_helper.build_cache_filename(Asset("SPY"), "1D", datastyle)
     
     # Empty DataFrame of df_all, don't write cache file
@@ -1583,9 +1583,9 @@ def test_get_price_data_invokes_remote_cache_manager(tmp_path, monkeypatch):
         'quote'),
     ],
 )
-def test_load_data_from_cache(mocker, tmpdir, df_cached, datastyle):
+def test_load_data_from_cache(monkeypatch, tmpdir, df_cached, datastyle):
     # Setup some basics
-    mocker.patch.object(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmpdir))
+    monkeypatch.setattr(thetadata_helper, "LUMIBOT_CACHE_FOLDER", str(tmpdir))
     asset = Asset("SPY")
     cache_file = thetadata_helper.build_cache_filename(asset, "1D", datastyle)
 

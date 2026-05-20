@@ -16,6 +16,7 @@ from lumibot.tools.helpers import parse_timestep_qty_and_unit
 logger = logging.getLogger(__name__)
 
 _DEFAULT_QUOTE_ASSET = Asset("USD", "forex")
+_USD_STABLECOIN_PROXY_QUOTES = {"USDT"}
 _DATA_CLASS = None
 
 
@@ -86,6 +87,43 @@ def _normalize_asset_type(value: Any) -> str:
     if "." in raw:
         raw = raw.split(".")[-1]
     return raw
+
+
+def _resolve_crypto_future_spot_proxy(asset: Asset, quote_asset: Asset) -> tuple[Asset, Asset, str | None]:
+    """Resolve crypto futures/perps to spot crypto history for backtesting."""
+    if _normalize_asset_type(getattr(asset, "asset_type", "")) != "crypto_future":
+        return asset, quote_asset, None
+
+    symbol = str(getattr(asset, "symbol", "") or "").strip().upper()
+    explicit_quote = str(getattr(quote_asset, "symbol", "") or "").strip().upper()
+    base_symbol = symbol
+    quote_symbol = explicit_quote or "USD"
+
+    pair_parts = [part for part in re.split(r"[/:\-]", symbol) if part]
+    if len(pair_parts) >= 2:
+        base_symbol = pair_parts[0]
+        quote_symbol = pair_parts[1]
+    else:
+        for suffix in ("USDT", "USD"):
+            if symbol.endswith(suffix) and len(symbol) > len(suffix):
+                base_symbol = symbol[: -len(suffix)]
+                quote_symbol = suffix
+                break
+
+    proxy_quote_symbol = "USD" if quote_symbol in _USD_STABLECOIN_PROXY_QUOTES else quote_symbol
+    proxy_quote_type = Asset.AssetType.FOREX if proxy_quote_symbol == "USD" else Asset.AssetType.CRYPTO
+    proxy_asset = Asset(base_symbol, asset_type=Asset.AssetType.CRYPTO)
+    proxy_quote = Asset(proxy_quote_symbol, asset_type=proxy_quote_type)
+
+    proxy_label = (
+        f"Using {proxy_asset.symbol}/{proxy_quote.symbol} spot proxy for "
+        f"{asset.symbol} crypto-futures backtest"
+    )
+    if quote_symbol in _USD_STABLECOIN_PROXY_QUOTES:
+        proxy_label += f" ({quote_symbol} mapped to USD spot)."
+    else:
+        proxy_label += "."
+    return proxy_asset, proxy_quote, proxy_label
 
 
 def _ibkr_include_after_hours(asset_type: str, timestep_unit: str) -> bool:
@@ -264,6 +302,12 @@ class _DataFrameRoutingAdapter(_RoutingAdapter):
         if snapshot_only:
             return None
 
+        original_asset = asset
+        original_quote_asset = quote_asset
+        fetch_asset, fetch_quote_asset, proxy_label = _resolve_crypto_future_spot_proxy(asset, quote_asset)
+        if proxy_label:
+            logger.info(proxy_label)
+
         end_dt = start_dt if isinstance(start_dt, datetime) else self._router.get_datetime()
         ts = timestep or self._router.get_timestep()
 
@@ -271,7 +315,7 @@ class _DataFrameRoutingAdapter(_RoutingAdapter):
             length,
             ts,
             start_dt=end_dt,
-            start_buffer=self._start_buffer(asset, provider_spec),
+            start_buffer=self._start_buffer(fetch_asset, provider_spec),
         )
 
         if ts_unit == "day":
@@ -280,7 +324,7 @@ class _DataFrameRoutingAdapter(_RoutingAdapter):
             except Exception:
                 pass
 
-        canonical_key, legacy_key = self._router._build_dataset_keys(asset, quote_asset, ts_unit)
+        canonical_key, legacy_key = self._router._build_dataset_keys(original_asset, original_quote_asset, ts_unit)
         existing = self._router._data_store.get(canonical_key)
         existing_df = getattr(existing, "df", None) if existing is not None else None
 
@@ -297,8 +341,8 @@ class _DataFrameRoutingAdapter(_RoutingAdapter):
                 pass
 
         df = self._fetch_df(
-            asset=asset,
-            quote_asset=quote_asset,
+            asset=fetch_asset,
+            quote_asset=fetch_quote_asset,
             ts_unit=ts_unit,
             start_datetime=start_datetime,
             end_dt=end_dt,
@@ -324,7 +368,7 @@ class _DataFrameRoutingAdapter(_RoutingAdapter):
         else:
             merged = df
 
-        data = _data_class()(asset, merged, timestep=ts_unit, quote=quote_asset)
+        data = _data_class()(original_asset, merged, timestep=ts_unit, quote=original_quote_asset)
         self._router._data_store[canonical_key] = data
         if legacy_key not in self._router._data_store:
             self._router._data_store[legacy_key] = data
@@ -373,6 +417,12 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         if snapshot_only:
             return None
 
+        original_asset = asset
+        original_quote_asset = quote_asset
+        fetch_asset, fetch_quote_asset, proxy_label = _resolve_crypto_future_spot_proxy(asset, quote_asset)
+        if proxy_label:
+            logger.info(proxy_label)
+
         end_dt = start_dt if isinstance(start_dt, datetime) else self._router.get_datetime()
         ts = timestep or self._router.get_timestep()
 
@@ -380,7 +430,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             length,
             ts,
             start_dt=end_dt,
-            start_buffer=self._start_buffer(asset, provider_spec),
+            start_buffer=self._start_buffer(fetch_asset, provider_spec),
         )
 
         if ts_unit == "day":
@@ -394,7 +444,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         qty = int(qty)
         unit = str(unit)
 
-        canonical_key, legacy_key = self._router._build_dataset_keys(asset, quote_asset, dataset_key)
+        canonical_key, legacy_key = self._router._build_dataset_keys(original_asset, original_quote_asset, dataset_key)
         if canonical_key in self._fully_loaded_series and canonical_key in self._router._data_store:
             return None
         if canonical_key in self._empty_prefetch_series:
@@ -414,7 +464,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             except Exception:
                 pass
 
-        asset_type = _normalize_asset_type(getattr(asset, "asset_type", ""))
+        asset_type = _normalize_asset_type(getattr(fetch_asset, "asset_type", ""))
         include_after_hours = _ibkr_include_after_hours(asset_type, unit)
         df = None
 
@@ -432,8 +482,8 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                 prefetch_start = start_datetime
             prefetch_end = self._router.datetime_end or end_dt
             df = ibkr_helper.get_price_data(
-                asset=asset,
-                quote=quote_asset,
+                asset=fetch_asset,
+                quote=fetch_quote_asset,
                 timestep=dataset_key,
                 start_dt=prefetch_start,
                 end_dt=prefetch_end,
@@ -445,7 +495,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                 return None
             if ibkr_helper.frame_covers_requested_window(
                 df,
-                asset=asset,
+                asset=fetch_asset,
                 timestep=dataset_key,
                 start_dt=prefetch_start,
                 end_dt=prefetch_end,
@@ -463,8 +513,8 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                 has_coarser_loaded = any(
                     isinstance(key, tuple)
                     and len(key) >= 3
-                    and key[0] is asset
-                    and key[1] is quote_asset
+                    and key[0] is original_asset
+                    and key[1] is original_quote_asset
                     and isinstance(key[2], str)
                     and key[2] not in {"day", "minute"}
                     for key in self._fully_loaded_series
@@ -490,8 +540,8 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
 
             prefetch_end = self._router.datetime_end or end_dt
             df = ibkr_helper.get_price_data(
-                asset=asset,
-                quote=quote_asset,
+                asset=fetch_asset,
+                quote=fetch_quote_asset,
                 timestep=dataset_key,
                 start_dt=prefetch_start,
                 end_dt=prefetch_end,
@@ -503,7 +553,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                 return None
             if ibkr_helper.frame_covers_requested_window(
                 df,
-                asset=asset,
+                asset=fetch_asset,
                 timestep=dataset_key,
                 start_dt=prefetch_start,
                 end_dt=prefetch_end,
@@ -516,8 +566,8 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                 prefetch_start = start_datetime
             prefetch_end = self._router.datetime_end or end_dt
             df = ibkr_helper.get_price_data(
-                asset=asset,
-                quote=quote_asset,
+                asset=fetch_asset,
+                quote=fetch_quote_asset,
                 timestep=dataset_key,
                 start_dt=prefetch_start,
                 end_dt=prefetch_end,
@@ -529,7 +579,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                 return None
             if ibkr_helper.frame_covers_requested_window(
                 df,
-                asset=asset,
+                asset=fetch_asset,
                 timestep=dataset_key,
                 start_dt=prefetch_start,
                 end_dt=prefetch_end,
@@ -543,8 +593,8 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             prefetch_start = start_datetime
             prefetch_end = self._router.datetime_end or end_dt
             df = ibkr_helper.get_price_data(
-                asset=asset,
-                quote=quote_asset,
+                asset=fetch_asset,
+                quote=fetch_quote_asset,
                 timestep=dataset_key,
                 start_dt=prefetch_start,
                 end_dt=prefetch_end,
@@ -556,7 +606,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                 return None
             if ibkr_helper.frame_covers_requested_window(
                 df,
-                asset=asset,
+                asset=fetch_asset,
                 timestep=dataset_key,
                 start_dt=prefetch_start,
                 end_dt=prefetch_end,
@@ -570,8 +620,8 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             prefetch_start = min(start_datetime, self._router.datetime_start - timedelta(days=lookback_days))
             prefetch_end = self._router.datetime_end or end_dt
             df = ibkr_helper.get_price_data(
-                asset=asset,
-                quote=quote_asset,
+                asset=fetch_asset,
+                quote=fetch_quote_asset,
                 timestep=dataset_key,
                 start_dt=prefetch_start,
                 end_dt=prefetch_end,
@@ -583,7 +633,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                 return None
             if ibkr_helper.frame_covers_requested_window(
                 df,
-                asset=asset,
+                asset=fetch_asset,
                 timestep=dataset_key,
                 start_dt=prefetch_start,
                 end_dt=prefetch_end,
@@ -591,8 +641,8 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                 self._fully_loaded_series.add(canonical_key)
         else:
             df = ibkr_helper.get_price_data(
-                asset=asset,
-                quote=quote_asset,
+                asset=fetch_asset,
+                quote=fetch_quote_asset,
                 timestep=dataset_key,
                 start_dt=start_datetime,
                 end_dt=end_dt,
@@ -619,7 +669,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         # a separate key (e.g., "60minute") and annotate the instance so `Data.get_bars()` can
         # slice directly without resampling each iteration.
         data_timestep = unit if unit in {"minute", "hour", "day"} else "minute"
-        data = _data_class()(asset, merged, timestep=data_timestep, quote=quote_asset)
+        data = _data_class()(original_asset, merged, timestep=data_timestep, quote=original_quote_asset)
         data._native_timestep_quantity = int(qty)  # type: ignore[attr-defined]
         data._native_timestep_unit = unit  # type: ignore[attr-defined]
         try:
@@ -997,6 +1047,9 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
     """
 
     _CONFIG_KEY = "backtesting_data_routing"
+    # Routed stock/index day requests can be backed by IBKR. Keep those requests pinned to
+    # native daily bars so a warmed minute frame cannot satisfy a daily lookup at the wrong date.
+    PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX = True
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1022,6 +1075,7 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                 "future": "ibkr",
                 "cont_future": "ibkr",
                 "crypto": "ibkr",
+                "crypto_future": "ibkr",
             }
 
         normalized: Dict[str, str] = {}
@@ -1044,6 +1098,10 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
         if future_provider and "cont_future" not in normalized:
             normalized["cont_future"] = future_provider
 
+        crypto_provider = normalized.get("crypto")
+        if crypto_provider and "crypto_future" not in normalized:
+            normalized["crypto_future"] = crypto_provider
+
         normalized.setdefault("default", "thetadata")
         return normalized
 
@@ -1052,7 +1110,10 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
             # Defensive: some unit tests construct the router via __new__ without running __init__.
             self._registry = _ProviderRegistry(self)
         asset_type = _normalize_asset_type(getattr(asset, "asset_type", ""))
-        raw = self._routing.get(asset_type) or self._routing.get("default") or "thetadata"
+        if asset_type == "crypto_future":
+            raw = self._routing.get("crypto_future") or self._routing.get("crypto") or self._routing.get("default") or "thetadata"
+        else:
+            raw = self._routing.get(asset_type) or self._routing.get("default") or "thetadata"
         return self._registry.resolve_provider_spec(raw)
 
     def _update_pandas_data(
@@ -1104,8 +1165,13 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
             spec = ProviderSpec(provider="thetadata")
 
         if spec.provider != "thetadata" and timestep == "minute":
+            asset_obj = asset if not isinstance(asset, tuple) else asset[0]
+            asset_type = str(getattr(asset_obj, "asset_type", "") or "").strip().lower()
+            prefer_native_day = bool(getattr(self, "PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX", False))
             source_timestep = str(getattr(self, "_timestep", "") or "").strip().lower()
-            if _is_day_like_timestep(source_timestep):
+            if prefer_native_day and asset_type in {"stock", "equity", "index"}:
+                timestep = "day"
+            elif _is_day_like_timestep(source_timestep):
                 timestep = "day"
             elif not bool(getattr(self, "_observed_intraday_cadence", False)) and bool(
                 getattr(self, "_effective_day_mode", False)
@@ -1133,8 +1199,13 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
             spec = ProviderSpec(provider="thetadata")
 
         if spec.provider != "thetadata" and timestep == "minute":
+            asset_obj = asset if not isinstance(asset, tuple) else asset[0]
+            asset_type = str(getattr(asset_obj, "asset_type", "") or "").strip().lower()
+            prefer_native_day = bool(getattr(self, "PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX", False))
             source_timestep = str(getattr(self, "_timestep", "") or "").strip().lower()
-            if _is_day_like_timestep(source_timestep):
+            if prefer_native_day and asset_type in {"stock", "equity", "index"}:
+                timestep = "day"
+            elif _is_day_like_timestep(source_timestep):
                 timestep = "day"
             elif not bool(getattr(self, "_observed_intraday_cadence", False)) and bool(
                 getattr(self, "_effective_day_mode", False)

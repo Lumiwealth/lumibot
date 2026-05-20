@@ -15,12 +15,24 @@ Backtesting configuration
 LUMIBOT_DISABLE_DOTENV
 ^^^^^^^^^^^^^^^^^^^^^^
 
-- Purpose: Disable recursive ``.env`` discovery (directory scanning) at startup.
+- Purpose: Disable automatic ``.env`` discovery and loading at startup.
 - Values: truthy enables (``1``, ``true``, ``yes``); unset/``0`` disables.
 - Default: disabled.
 - Notes:
-  - Recursive ``.env`` scanning can add startup latency and can accidentally load the wrong ``.env`` when running in a directory with nested repos.
-  - In production/BotManager backtests we rely on injected environment variables, so ``.env`` discovery should be off.
+  - When dotenv loading is enabled, LumiBot looks upward from the running script directory for the nearest ``.env`` file. If none is found there, it also checks upward from the current working directory.
+  - LumiBot no longer recursively scans every nested directory under the start path. This reduces startup latency and lowers the chance of loading an unrelated nested repo's ``.env`` file.
+  - In production/BotManager/BotSpot runs, prefer injected environment variables and set ``LUMIBOT_DISABLE_DOTENV=1`` so local files cannot override runtime secrets.
+
+LUMIBOT_DISABLE_DOTENV_LOCAL
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Skip the optional ``.env.local`` override file while still allowing the primary ``.env`` file.
+- Values: truthy enables (``1``, ``true``, ``yes``, ``on``); unset/``0`` disables.
+- Default: disabled.
+- Notes:
+  - When dotenv loading is enabled and a ``.env`` file is found, LumiBot also loads a sibling ``.env.local`` after ``.env`` with override behavior.
+  - Use ``.env.local`` only for local developer overrides. Do not commit it.
+  - Set ``LUMIBOT_DISABLE_DOTENV_LOCAL=1`` in repeatable test or deployment contexts where the base ``.env`` should be loaded but local overrides must be ignored.
 
 IS_BACKTESTING
 ^^^^^^^^^^^^^^

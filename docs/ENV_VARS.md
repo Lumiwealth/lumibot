@@ -21,12 +21,22 @@ This page documents environment variables used by LumiBot, with an emphasis on *
   - Do not commit real key values.
 
 ### `LUMIBOT_DISABLE_DOTENV`
-- Purpose: Disable recursive `.env` discovery (`os.walk`) at startup.
+- Purpose: Disable automatic `.env` discovery and loading at startup.
 - Values: truthy enables (`1`, `true`, `yes`); unset/`0` disables.
 - Default: disabled.
 - Why it matters:
-  - Recursive `.env` scanning can add startup latency and can accidentally load the wrong `.env` when running in a directory with nested repos.
-  - In production/BotManager backtests we rely on injected environment variables, so `.env` discovery should be off.
+  - LumiBot normally searches upward from the running script directory for the nearest `.env`, then from the current working directory if needed.
+  - LumiBot no longer recursively scans every nested directory under the start path. This reduces startup latency and lowers the chance of loading an unrelated nested repo's `.env`.
+  - In production/BotManager backtests we rely on injected environment variables, so `.env` discovery should be off with `LUMIBOT_DISABLE_DOTENV=1`.
+- Where: `lumibot/credentials.py`
+
+### `LUMIBOT_DISABLE_DOTENV_LOCAL`
+- Purpose: Disable sibling `.env.local` loading after a discovered `.env`.
+- Values: truthy enables (`1`, `true`, `yes`); unset/`0` disables.
+- Default: disabled.
+- Why it matters:
+  - When dotenv loading is enabled and a `.env` file is found, LumiBot loads a sibling `.env.local` afterward with override behavior.
+  - Local overrides are convenient for developer machines but should usually be disabled in production/runtime-secret contexts.
 - Where: `lumibot/credentials.py`
 
 ### `IS_BACKTESTING`
@@ -51,12 +61,13 @@ This page documents environment variables used by LumiBot, with an emphasis on *
   - `ibkr` / `interactivebrokersrest` / `interactive_brokers_rest` (IBKR Client Portal REST via Data Downloader)
   - `router` (multi-provider routing; defaults to Theta for stock/option/index and IBKR for futures/crypto)
   - JSON mapping (multi-provider routing by asset type), e.g.:
-    - `{"default":"thetadata","stock":"thetadata","option":"thetadata","index":"thetadata","future":"ibkr","crypto":"ibkr"}`
+    - `{"default":"thetadata","stock":"thetadata","option":"thetadata","index":"thetadata","future":"ibkr","cont_future":"ibkr","crypto":"ibkr","crypto_future":"ibkr"}`
     - Provider values are case/whitespace/_/- insensitive. Supported values include:
       - `thetadata`, `ibkr`, `polygon`, `alpaca`
       - `ccxt` (auto-select exchange from existing env/credentials)
       - supported CCXT backtesting exchange ids such as `kraken`, `binance`, `kucoin`, `bitmex`, `bybit`, and `okx`
   - `none` to disable env override and rely on code.
+- Crypto futures/perpetuals: `Asset.AssetType.CRYPTO_FUTURE` routes through `crypto_future` when present, otherwise `crypto`, then `default`. USDT contracts such as `BTCUSDT`, `ETHUSDT`, and `SOLUSDT` can use USD spot history as the backtest price proxy.
 - Where: `lumibot/strategies/_strategy.py` datasource selection logic.
 
 ## Testing / CI guardrails (engineering-only)
@@ -178,6 +189,18 @@ Selection rule (ThetaData):
 ### `DATADOWNLOADER_SKIP_LOCAL_START`
 - Purpose: Prevents any local downloader/ThetaTerminal bootstrap logic from running (backtests must use the remote downloader in production workflows).
 
+### `THETADATA_QUEUE_QUOTE_TIMEOUT`
+- Purpose: Data Downloader wait timeout for `/history/quote` requests used in point-in-time option pricing.
+- Values: seconds (float); set to `0` only if you intentionally want unbounded waits.
+- Default: `300`.
+- Notes: this is intentionally shorter than `THETADATA_QUEUE_HISTORY_TIMEOUT` so one stuck option quote fails visibly instead of making a backtest appear frozen for a full OHLC-history timeout window.
+
+### `THETADATA_QUEUE_OPTION_OHLC_TIMEOUT`
+- Purpose: Data Downloader wait timeout for `/option/history/ohlc` requests used by sparse option contract probes.
+- Values: seconds (float); set to `0` only if you intentionally want unbounded waits.
+- Default: `300`.
+- Notes: stock/index history continues to use `THETADATA_QUEUE_HISTORY_TIMEOUT`; this only bounds option OHLC requests that can otherwise stall a backtest on one illiquid contract/day.
+
 ## ThetaData option chain building (performance)
 
 These env vars are used by the ThetaData chain cache/builder in `lumibot/tools/thetadata_helper.py`.
@@ -286,7 +309,7 @@ Notes:
 - Default: `~/.lumibot/cache/sec`.
 
 ### `FRED_API_KEY`
-- Purpose: Optional official FRED/ALFRED API key for macro data tools.
+- Purpose: Required official FRED/ALFRED API key for macro data tools.
 - Default: unset.
 - Notes: Required for FRED macro data tools. Lumibot requests vintage observations with `realtime_start` and `realtime_end` for point-in-time backtests. Built-in FRED agent tools are not exposed during backtests without this key because Lumibot does not use revised public CSV fallbacks for macro data.
 

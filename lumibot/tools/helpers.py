@@ -742,6 +742,13 @@ def to_datetime_aware(dt_in):
 
 
 def parse_symbol(symbol):
+    """
+    Parse the given symbol and determine if it's an option or a stock.
+    For options, extract and return the stock symbol, expiration date (as a datetime.date object),
+    type (call or put), and strike price.
+    For stocks, simply return the stock symbol.
+    TODO: Crypto and Forex support
+    """
     from lumibot.tools.symbol_parser import parse_symbol as _parse_symbol
 
     return _parse_symbol(symbol)

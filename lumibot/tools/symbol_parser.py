@@ -4,6 +4,13 @@ import re
 _OPTION_SYMBOL_PATTERN = re.compile(r"([A-Z]+)(\d{6})([CP])(\d+)")
 
 
+def _parse_occ_expiration(expiration: str):
+    year = 2000 + int(expiration[0:2])
+    month = int(expiration[2:4])
+    day = int(expiration[4:6])
+    return dt.date(year, month, day)
+
+
 def parse_symbol(symbol):
     """
     Parse the given symbol and determine if it's an option or a stock.
@@ -13,14 +20,15 @@ def parse_symbol(symbol):
     if not isinstance(symbol, str):
         return {"type": None}
 
-    match = _OPTION_SYMBOL_PATTERN.fullmatch(symbol)
+    normalized_symbol = symbol.strip().upper()
+    if not normalized_symbol:
+        return {"type": None}
+
+    match = _OPTION_SYMBOL_PATTERN.fullmatch(normalized_symbol)
     if match:
         stock_symbol, expiration, option_type, strike_price = match.groups()
         try:
-            yy = int(expiration[0:2])
-            mm = int(expiration[2:4])
-            dd = int(expiration[4:6])
-            expiration_date = dt.date(2000 + yy, mm, dd)
+            expiration_date = _parse_occ_expiration(expiration)
         except ValueError:
             return {"type": None}
         option_type = "CALL" if option_type == "C" else "PUT"
@@ -31,4 +39,4 @@ def parse_symbol(symbol):
             "option_type": option_type,
             "strike_price": round(float(strike_price) / 1000, 3),
         }
-    return {"type": "stock", "stock_symbol": symbol}
+    return {"type": "stock", "stock_symbol": normalized_symbol}

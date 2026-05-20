@@ -21,6 +21,21 @@ def test_routed_backtesting_accepts_polygon_provider_in_json_mapping():
     assert rb._provider_spec_for_asset(asset).provider == "polygon"
 
 
+def test_routed_backtesting_crypto_future_inherits_crypto_provider():
+    routing = RoutedBacktestingPandas._normalize_routing(
+        {
+            "default": "thetadata",
+            "crypto": "ibkr",
+        }
+    )
+    rb = RoutedBacktestingPandas.__new__(RoutedBacktestingPandas)
+    rb._routing = routing  # type: ignore[attr-defined]
+    rb._registry = _ProviderRegistry(rb)  # type: ignore[attr-defined]
+
+    asset = Asset("BTCUSDT", asset_type=Asset.AssetType.CRYPTO_FUTURE)
+    assert rb._provider_spec_for_asset(asset).provider == "ibkr"
+
+
 def test_routed_backtesting_rejects_unknown_provider():
     rb = RoutedBacktestingPandas.__new__(RoutedBacktestingPandas)
     rb._registry = _ProviderRegistry(rb)  # type: ignore[attr-defined]

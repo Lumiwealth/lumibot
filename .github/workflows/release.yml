@@ -81,7 +81,7 @@ jobs:
       - name: Build package
         run: |
           set -euo pipefail
-          python -m build
+          python -m build --wheel
 
       - name: Upload dist
         uses: actions/upload-artifact@v4
@@ -156,7 +156,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           # Create the branch from dev
-          git checkout -b "${BRANCH}"
+          git switch -c "${BRANCH}"
 
           # Bump setup.py
           sed -i "s/version=\"${VERSION}\"/version=\"${NEXT_VERSION}\"/" setup.py

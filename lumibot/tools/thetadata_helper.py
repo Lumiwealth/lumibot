@@ -5228,10 +5228,14 @@ def get_request(
         if effective_timeout is None:
             try:
                 list_timeout = float(os.environ.get("THETADATA_QUEUE_LIST_TIMEOUT", "600"))
+                quote_timeout = float(os.environ.get("THETADATA_QUEUE_QUOTE_TIMEOUT", "300"))
+                option_ohlc_timeout = float(os.environ.get("THETADATA_QUEUE_OPTION_OHLC_TIMEOUT", "300"))
                 history_timeout = float(os.environ.get("THETADATA_QUEUE_HISTORY_TIMEOUT", "1800"))
                 default_timeout = float(os.environ.get("THETADATA_QUEUE_DEFAULT_TIMEOUT", "900"))
             except Exception:
                 list_timeout = 600.0
+                quote_timeout = 300.0
+                option_ohlc_timeout = 300.0
                 history_timeout = 1800.0
                 default_timeout = 900.0
 
@@ -5240,6 +5244,16 @@ def get_request(
             request_path = (urlparse(url).path or "").lower()
             if "/option/list/" in request_path:
                 effective_timeout = list_timeout if list_timeout > 0 else None
+            elif "/history/quote" in request_path:
+                # Quote history requests are used for point-in-time option pricing. They should
+                # return quickly or fail visibly; using the broader OHLC history timeout can make
+                # a backtest appear frozen on one stale quote request for 30 minutes.
+                effective_timeout = quote_timeout if quote_timeout > 0 else None
+            elif "/option/history/ohlc" in request_path:
+                # Option OHLC requests during point-in-time backtests are often one-contract,
+                # one-day probes. Bound them separately from broad stock/index history fetches so
+                # a stuck sparse option contract does not park the whole simulation for 30 minutes.
+                effective_timeout = option_ohlc_timeout if option_ohlc_timeout > 0 else None
             elif "/history/" in request_path:
                 effective_timeout = history_timeout if history_timeout > 0 else None
             else:

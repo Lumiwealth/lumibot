@@ -135,6 +135,13 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         return raw
 
     @staticmethod
+    def _normalize_lookup_asset(asset):
+        """Treat raw ticker strings as stock assets for IBKR backtest price lookups."""
+        if isinstance(asset, str):
+            return Asset(symbol=asset, asset_type=Asset.AssetType.STOCK)
+        return asset
+
+    @staticmethod
     def _ibkr_include_after_hours(asset_type: str, timestep_unit: str) -> bool:
         """Return IBKR outsideRth policy for backtests.
 
@@ -303,6 +310,17 @@ class InteractiveBrokersRESTBacktesting(PandasData):
             exchange=exchange,
             include_after_hours=include_after_hours,
         )
+        canonical_key, _ = self._build_dataset_keys(asset, quote, dataset_key, exchange)
+        data = self._data_store.get(canonical_key)
+        df = getattr(data, "df", None) if data is not None else None
+        if ibkr_helper.frame_covers_requested_window(
+            df,
+            asset=asset,
+            timestep=dataset_key,
+            start_dt=self.datetime_start,
+            end_dt=self.datetime_end,
+        ):
+            self._fully_loaded_series.add(canonical_key)
 
     @staticmethod
     @lru_cache(maxsize=256)
@@ -348,12 +366,16 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         window is prohibitively slow (and unnecessary). Prefer the daily series for crypto when
         available, which is derived from intraday history and aligned to LumiBot's day cadence.
 
-        For non-crypto, keep the existing minute-first behavior to preserve prior semantics.
+        For point-in-time intraday lookups, fetch a bounded slice around the current simulation
+        time instead of prefetching the full backtest window at minute granularity. IBKR can cap
+        large minute requests to the tail of the requested range, which is both slow and can leave
+        an April lookup backed only by May bars.
         """
         base_asset = asset
         quote_asset = quote
         if isinstance(base_asset, tuple):
             base_asset, quote_asset = base_asset
+        base_asset = self._normalize_lookup_asset(base_asset)
         quote_asset = quote_asset if quote_asset is not None else Asset("USD", "forex")
 
         effective_exchange = exchange if exchange is not None else self.exchange
@@ -407,6 +429,19 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         if asset_type in {"stock", "index"}:
             day_key = (base_asset, quote_asset, "day", self._normalize_exchange_key(effective_exchange))
             day_data = self._data_store.get(day_key)
+            if day_data is None:
+                try:
+                    self._refresh_window_around_datetime(
+                        asset=base_asset,
+                        quote=quote_asset,
+                        dataset_key="day",
+                        dt=now,
+                        exchange=effective_exchange,
+                        include_after_hours=False,
+                    )
+                    day_data = self._data_store.get(day_key)
+                except Exception:
+                    return None
             if day_data is not None:
                 try:
                     get_last_price_fast = getattr(day_data, "get_last_price_fast", None)
@@ -414,31 +449,23 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                         return get_last_price_fast(now)
                     return day_data.get_last_price(now)
                 except Exception:
-                    pass
+                    try:
+                        self._refresh_window_around_datetime(
+                            asset=base_asset,
+                            quote=quote_asset,
+                            dataset_key="day",
+                            dt=now,
+                            exchange=effective_exchange,
+                            include_after_hours=False,
+                        )
+                        day_data = self._data_store.get(day_key)
+                        if day_data is not None:
+                            return day_data.get_last_price(now)
+                    except Exception:
+                        return None
+            return None
 
         minute_key = (base_asset, quote_asset, "minute", self._normalize_exchange_key(effective_exchange))
-        if minute_key not in self._fully_loaded_series:
-            try:
-                self._update_pandas_data(
-                    base_asset,
-                    quote_asset,
-                    "minute",
-                    start_dt=self.datetime_start,
-                    end_dt=self.datetime_end,
-                    exchange=effective_exchange,
-                    include_after_hours=True,
-                )
-            except Exception:
-                pass
-            minute_data = self._data_store.get(minute_key)
-            if self._series_covers_requested_window(
-                minute_data,
-                asset=base_asset,
-                timestep="minute",
-                start_dt=self.datetime_start,
-                end_dt=self.datetime_end,
-            ):
-                self._fully_loaded_series.add(minute_key)
         data = self._data_store.get(minute_key)
         if data is not None:
             hot_cache = getattr(self, "_fully_loaded_hot_data_cache", None)
@@ -473,6 +500,22 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                         return fast(now) if callable(fast) else refreshed.get_last_price(now)
                 except Exception:
                     pass
+        elif minute_key not in self._fully_loaded_series:
+            try:
+                self._refresh_window_around_datetime(
+                    asset=base_asset,
+                    quote=quote_asset,
+                    dataset_key="minute",
+                    dt=now,
+                    exchange=effective_exchange,
+                    include_after_hours=True,
+                )
+                refreshed = self._data_store.get(minute_key)
+                if refreshed is not None:
+                    fast = getattr(refreshed, "get_last_price_fast", None)
+                    return fast(now) if callable(fast) else refreshed.get_last_price(now)
+            except Exception:
+                pass
         return None
 
     def get_quote(self, asset, quote=None, exchange=None, **kwargs):
@@ -491,6 +534,7 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         quote_asset = quote
         if isinstance(base_asset, tuple):
             base_asset, quote_asset = base_asset
+        base_asset = self._normalize_lookup_asset(base_asset)
         quote_asset = quote_asset if quote_asset is not None else Asset("USD", "forex")
 
         effective_exchange = exchange if exchange is not None else self.exchange
@@ -535,6 +579,19 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         if asset_type in {"stock", "index"}:
             day_key = (base_asset, quote_asset, "day", self._normalize_exchange_key(effective_exchange))
             day_data = self._data_store.get(day_key)
+            if day_data is None:
+                try:
+                    self._refresh_window_around_datetime(
+                        asset=base_asset,
+                        quote=quote_asset,
+                        dataset_key="day",
+                        dt=now,
+                        exchange=effective_exchange,
+                        include_after_hours=False,
+                    )
+                    day_data = self._data_store.get(day_key)
+                except Exception:
+                    return Quote(asset=base_asset)
             if day_data is not None:
                 try:
                     ohlcv_bid_ask_dict = day_data.get_quote(now)
@@ -550,35 +607,53 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                         raw_data=ohlcv_bid_ask_dict,
                     )
                 except Exception:
-                    pass
+                    try:
+                        self._refresh_window_around_datetime(
+                            asset=base_asset,
+                            quote=quote_asset,
+                            dataset_key="day",
+                            dt=now,
+                            exchange=effective_exchange,
+                            include_after_hours=False,
+                        )
+                        day_data = self._data_store.get(day_key)
+                        if day_data is not None:
+                            ohlcv_bid_ask_dict = day_data.get_quote(now)
+                            return Quote(
+                                asset=base_asset,
+                                price=ohlcv_bid_ask_dict.get("close"),
+                                bid=ohlcv_bid_ask_dict.get("bid"),
+                                ask=ohlcv_bid_ask_dict.get("ask"),
+                                volume=ohlcv_bid_ask_dict.get("volume"),
+                                timestamp=now,
+                                bid_size=ohlcv_bid_ask_dict.get("bid_size"),
+                                ask_size=ohlcv_bid_ask_dict.get("ask_size"),
+                                raw_data=ohlcv_bid_ask_dict,
+                            )
+                    except Exception:
+                        return Quote(asset=base_asset)
+            return Quote(asset=base_asset)
 
         minute_key = (base_asset, quote_asset, "minute", self._normalize_exchange_key(effective_exchange))
-        if minute_key not in self._fully_loaded_series:
-            try:
-                self._update_pandas_data(
-                    base_asset,
-                    quote_asset,
-                    "minute",
-                    start_dt=self.datetime_start,
-                    end_dt=self.datetime_end,
-                    exchange=effective_exchange,
-                    include_after_hours=True,
-                )
-            except Exception:
-                pass
-            minute_data = self._data_store.get(minute_key)
-            if self._series_covers_requested_window(
-                minute_data,
-                asset=base_asset,
-                timestep="minute",
-                start_dt=self.datetime_start,
-                end_dt=self.datetime_end,
-            ):
-                self._fully_loaded_series.add(minute_key)
-
         minute_data = self._data_store.get(minute_key)
         if minute_data is None:
-            return Quote(asset=base_asset)
+            if minute_key not in self._fully_loaded_series:
+                try:
+                    self._refresh_window_around_datetime(
+                        asset=base_asset,
+                        quote=quote_asset,
+                        dataset_key="minute",
+                        dt=now,
+                        exchange=effective_exchange,
+                        include_after_hours=True,
+                    )
+                    minute_data = self._data_store.get(minute_key)
+                except Exception:
+                    return Quote(asset=base_asset)
+            minute_data = self._data_store.get(minute_key)
+            if minute_data is None:
+                return Quote(asset=base_asset)
+
         try:
             ohlcv_bid_ask_dict = minute_data.get_quote(now)
         except Exception:

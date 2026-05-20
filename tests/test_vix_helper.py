@@ -93,7 +93,10 @@ class TestVixHelper(unittest.TestCase):
     @patch('yfinance.Ticker')
     def test_get_vix_rsi_value(self, mock_ticker_class):
         """Test getting VIX RSI value"""
+        import lumibot.components.vix_helper as vix_helper_module
         from lumibot.components.vix_helper import VixHelper
+
+        vix_helper_module._TA_MODULE = None
         helper = VixHelper(self.mock_strategy)
         
         # Mock yfinance Ticker and history method
@@ -110,11 +113,13 @@ class TestVixHelper(unittest.TestCase):
         mock_ticker.history.return_value = mock_df
         
         # This should calculate RSI using pandas_ta
+        self.assertIsNone(vix_helper_module._TA_MODULE)
         result = helper.get_vix_rsi_value(datetime.now(), window=14)
         
         # Should return a float value between 0 and 100
         self.assertIsInstance(result, (float, np.floating))
         self.assertTrue(0 <= result <= 100)
+        self.assertIsNotNone(vix_helper_module._TA_MODULE)
     
     def test_check_max_vix_1d(self):
         """Test check_max_vix_1d functionality"""

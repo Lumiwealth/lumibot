@@ -317,7 +317,7 @@ LumiBot ships four reference demo strategies in ``lumibot/example_strategies/``:
 3. **Momentum Allocator** (``agent_momentum_allocator.py``) -- momentum + sentiment using price bars and news
 4. **M2 Liquidity** (``agent_m2_liquidity.py``) -- liquidity-driven allocation using FRED money supply data
 
-Start with the M2 Liquidity demo if you want the fewest credentials. It only needs a model-provider key because the demo uses FRED's public revised-data CSV endpoint. For strict point-in-time macro backtests, use the built-in FRED tools with ``FRED_API_KEY``.
+Start with a demo that only uses built-in market data if you want the fewest credentials. FRED macro tools require ``FRED_API_KEY`` because LumiBot uses official FRED/ALFRED vintage parameters for point-in-time macro backtests instead of revised public CSV data.
 
 How much does it cost to run AI agent backtests?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -858,7 +858,15 @@ Deployment
 How do I deploy my strategy to run 24/7?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-LumiBot strategies can be deployed to **Render** ($7/month) or **Replit** ($25/month). Both platforms run your strategy as a background worker. Render is recommended for most users. See :doc:`deployment` for step-by-step instructions.
+The recommended managed path is **BotSpot**, which runs LumiBot strategies with hosted backtests, scheduling, broker connections, monitoring, logs, and paper or live execution. Start there if you want to deploy without maintaining your own server.
+
+.. image:: ../docs/assets/readme/cta_deploy_on_botspot.png
+   :alt: Deploy on BotSpot
+   :align: center
+   :width: 520px
+   :target: https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=faq&utm_campaign=lumibot&utm_content=deploy_button&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.
+
+If you want full infrastructure control, you can still self-host on Render, Replit, or another Python-capable cloud host. See :doc:`deployment` for both paths.
 
 What environment variables do I need for deployment?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

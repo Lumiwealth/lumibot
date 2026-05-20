@@ -1,6 +1,7 @@
 import os
 import time
 import logging
+from types import SimpleNamespace
 
 from lumibot.tools.lumibot_logger import BotspotErrorHandler
 
@@ -28,10 +29,11 @@ def test_botspot_handler_dedup_and_aggregation(monkeypatch):
 
     # Patch the requests.post used inside the handler
     assert handler.requests is not None, "requests should be available when API key is set"
-    monkeypatch.setattr(handler.requests, "post", fake_post)
+    handler.requests = SimpleNamespace(post=fake_post)
 
     logger = logging.getLogger("lumibot.test.botspot")
     logger.setLevel(logging.ERROR)
+    monkeypatch.setattr(logger, "propagate", False)
     # Ensure no duplicate handlers from previous tests
     for h in list(logger.handlers):
         logger.removeHandler(h)
@@ -88,12 +90,13 @@ def test_botspot_handler_distinct_fingerprints(monkeypatch):
         return DummyResp()
 
     assert handler.requests is not None
-    monkeypatch.setattr(handler.requests, "post", fake_post)
+    handler.requests = SimpleNamespace(post=fake_post)
 
     logger_a = logging.getLogger("lumibot.test.botspot.a")
     logger_b = logging.getLogger("lumibot.test.botspot.b")
     for lg in (logger_a, logger_b):
         lg.setLevel(logging.ERROR)
+        monkeypatch.setattr(lg, "propagate", False)
         for h in list(lg.handlers):
             lg.removeHandler(h)
         lg.addHandler(handler)
@@ -101,7 +104,8 @@ def test_botspot_handler_distinct_fingerprints(monkeypatch):
     logger_a.error("Alpha failure | details: A1")
     logger_b.error("Alpha failure | details: B1")
 
-    # Expect at least one send per distinct fingerprint (some environments may duplicate via propagation)
+    # Expect at least one send per distinct fingerprint. Propagation is disabled above;
+    # this stays tolerant of unrelated duplicate sends from retries or external replays.
     assert len(call_payloads) >= 2
     codes = [p["error_code"] for p in call_payloads]
     # Each logger should have produced its own error_code (based on logger name suffix before level)

@@ -1,7 +1,7 @@
 # Prod-Like Local Backtests (NVDA / SPX / Repros)
 
 This doc standardizes how we run **production-faithful** backtests locally without:
-- accidentally loading unrelated `.env` files (LumiBot can scan recursively), or
+- accidentally loading unrelated `.env` or `.env.local` files,
 - mixing artifacts across runs, or
 - running long, unbounded commands.
 
@@ -9,6 +9,8 @@ This doc standardizes how we run **production-faithful** backtests locally witho
 
 - **Always use a timeout guard**: wrap runs with `/Users/robertgrzesik/bin/safe-timeout …`.
 - **Never run from `Strategy Library/` directly** (it often contains nested `.env` files).
+- For production-like BotSpot/BotManager runs, set `LUMIBOT_DISABLE_DOTENV=1` so injected runtime environment variables are the source of truth.
+- If you intentionally allow a local `.env`, set `LUMIBOT_DISABLE_DOTENV_LOCAL=1` when `.env.local` overrides would make the run non-repeatable.
 - Prefer **short windows** (days/weeks/months) for diagnosis; only run full windows once request volume looks sane.
 - Do not delete shared caches. Use `LUMIBOT_CACHE_S3_VERSION=...` to isolate “cold namespace” simulations.
 - For repeated runs, prevent browser/UI spam (while still writing artifacts) by setting:

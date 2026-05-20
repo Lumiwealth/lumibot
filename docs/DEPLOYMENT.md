@@ -2,7 +2,7 @@
 
 > Release/deployment workflow for LumiBot (version branches, changelog, tags, and GitHub releases).
 
-**Last Updated:** 2026-05-10
+**Last Updated:** 2026-05-14
 **Status:** Active
 **Audience:** Developers + AI Agents
 
@@ -10,14 +10,15 @@
 
 ## TL;DR (do this in order)
 
-1) Get the `version/X.Y.Z` PR **green** (and ensure everyone has pushed their commits).
-2) Merge latest `dev` into `version/X.Y.Z` and re-check CI (prevents drift / missing commits from other engineers).
-3) Merge the PR into `dev` (no direct pushes to `dev`).
-4) Tag the **merge commit on `dev`** as `vX.Y.Z` (this triggers GitHub Actions to publish to PyPI + create a GitHub Release).
-5) Verify `pip install lumibot==X.Y.Z` works.
-6) **Switch your LOCAL checkout to `version/X.Y.(Z+1)`** (the release workflow auto-creates the remote branch; you must pull it and switch locally, carrying any uncommitted work via cherry-pick). Verify with `git branch --show-current` and `grep version= setup.py` before doing anything else. This is NOT optional — skipping it means every subsequent commit lands on a frozen, released branch. See step 6 for the full checklist.
-7) Trigger BotManager deploys (dev then prod) — this takes ~30 minutes and should be the last step.
-8) Post-deploy: run an MCP backtest against prod and assert `settings.json.lumibot_version == "X.Y.Z"`. See step 8.
+1) **First, make the release branch contain everything safe to ship.** Dirty files, untracked files, and local-only commits are not excuses to skip work. Review them, commit them, test them, push them, and include them in the `version/X.Y.Z` PR unless they are unsafe, secret-bearing, broken, generated junk, or explicitly out of scope.
+2) Get the `version/X.Y.Z` PR **green** after that full inclusion sweep.
+3) Merge latest `dev` into `version/X.Y.Z` and re-check CI (prevents drift / missing commits from other engineers).
+4) Merge the PR into `dev` (no direct pushes to `dev`).
+5) Tag the **merge commit on `dev`** as `vX.Y.Z` (this triggers GitHub Actions to publish to PyPI + create a GitHub Release).
+6) Verify `pip install lumibot==X.Y.Z` works.
+7) **Switch your LOCAL checkout to `version/X.Y.(Z+1)`** after the release. Carry-over is only for work that appeared after the release was tagged/published, or work intentionally excluded because it was unsafe or out of scope. Verify with `git branch --show-current`, `grep version= setup.py`, and `git status --porcelain=v1` before doing anything else. This is NOT optional. There are zero exceptions.
+8) Trigger BotManager deploys (dev then prod) only after step 7 is complete — this takes ~30 minutes and should be the last step.
+9) Post-deploy: run an MCP backtest against prod and assert `settings.json.lumibot_version == "X.Y.Z"`. See step 8.
 
 ## The `dev` Branch Is Sacred (CRITICAL)
 
@@ -61,10 +62,74 @@ Release order for tearsheet metric changes:
 - Active work happens on a shared version branch: `version/X.Y.Z` (example: `version/4.4.31`).
 - **Do not create extra branches** off a version branch unless explicitly instructed.
 - **Do not push directly to `dev`.** All changes land in `dev` via PR merge.
+- **Never update an old `version/*` branch to make a stale GitHub URL look current.** Historical version branches are release records, not redirect targets. If someone is viewing an older branch, give them the latest active `version/X.Y.Z` URL instead of pushing current work to the old branch or switching the canonical checkout backwards.
+- The canonical checkout at `/Users/robertgrzesik/Development/lumibot` must stay on the latest active `version/X.Y.Z` branch. If it is on an older version branch, stop and fix that state with `git switch` only after verifying the tree is clean.
 - `setup.py` **must** match the version branch name (`X.Y.Z`).
   - When you start a new version branch, bump immediately and commit: `chore: start X.Y.Z`.
   - **Never downgrade** versions. If a bump was wrong, bump forward (and document why).
 - After a version branch is merged to `dev`, **immediately start the next version branch** (see Step 7).
+
+---
+
+## Release Inclusion Rule (NO EXCEPTIONS)
+
+When you deploy LumiBot, deploy everything in the checkout that is safe and
+intended to ship. Do not treat dirty, untracked, or local-only files as a reason
+to omit work from the current release.
+
+Before merging/tagging `version/X.Y.Z`:
+
+1. Run `git status --porcelain=v1` and `git log --oneline origin/version/X.Y.Z..HEAD`.
+2. Review every dirty file, untracked file, and local-only commit.
+3. If it is safe and relevant, commit it to `version/X.Y.Z`, test it, push it,
+   and make sure it is included in the release PR.
+4. If it is not safe to ship, manually remove or fix it before release. Examples:
+   secrets, `.env` files, logs, generated junk, accidental binaries, broken code,
+   or work the release captain explicitly decides must not ship.
+5. If another agent has local work on the release branch, coordinate and get it
+   pushed before release. A release should not knowingly strand another agent's
+   safe work on the old branch.
+
+The normal default is inclusion, not carry-over. Carry-over exists only for
+changes that appear after the release is already tagged/published, or for work
+that was intentionally excluded from the release after review.
+
+## Post-Release Branch Switch Rule (NO EXCEPTIONS)
+
+The canonical LumiBot checkout must never remain on the just-released branch after
+a release. This applies to humans and AI agents.
+
+After the release is tagged/published, switch to `version/X.Y.(Z+1)` immediately.
+If `git status --porcelain=v1` is not empty at that point, it means work changed
+after the release or something was intentionally excluded. Do one of these
+immediately:
+
+1. Commit the dirty files on the old `version/X.Y.Z` branch as a carry-over commit,
+   switch to `version/X.Y.(Z+1)`, cherry-pick the carry-over commit, then push
+   `version/X.Y.(Z+1)`.
+2. If a dirty file is truly wrong and must not survive, manually edit it back or
+   remove only that specific generated artifact, then prove the tree is clean.
+
+Do not leave files dirty. Do not leave local-only commits on the released branch.
+Do not trigger BotManager deploys while the canonical checkout is still on
+`version/X.Y.Z`. Do not use post-release carry-over as a substitute for shipping
+safe work in the release that should have included it. Do not rely on another
+agent to fix this later.
+
+Mandatory verification after every release:
+
+```bash
+git branch --show-current            # MUST print version/X.Y.(Z+1)
+grep 'version=' setup.py | head -1   # MUST print version="X.Y.(Z+1)",
+git status --porcelain=v1            # MUST be empty
+git log --oneline origin/version/X.Y.(Z+1)..HEAD
+```
+
+If the final command prints commits, push them:
+
+```bash
+git push origin version/X.Y.(Z+1)
+```
 
 ---
 
@@ -103,13 +168,14 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
   - If it’s missing, the “Publish to PyPI” step will fail.
 - Optional: configure the GitHub environment `pypi` to require approvals (human gate).
 
-0) **Preflight: “no-loss” + security/hygiene sweep**
-   - Ensure there is **no local-only work** (multi-agent safety):
-     - `git status --porcelain=v1` (must be empty)
-     - `git log --oneline origin/version/X.Y.Z..HEAD` (must be empty)
-     - If you see unexpected local changes/commits (even if you didn’t make them), **do not proceed** until you either:
-       - review the diff, commit, and push, or
-       - intentionally discard/revert them (manually; avoid destructive git commands).
+0) **Preflight: “ship everything safe” + security/hygiene sweep**
+   - The release branch must contain every safe change in the checkout before tagging:
+     - `git status --porcelain=v1`
+     - `git log --oneline origin/version/X.Y.Z..HEAD`
+     - If you see dirty files, untracked files, or local-only commits (even if you didn’t make them), **do not proceed** until you review them.
+     - If they are safe and relevant, commit them to `version/X.Y.Z`, test them, push them, and include them in the release PR.
+     - If they are unsafe, secret-bearing, broken, generated junk, or explicitly out of scope, manually remove/fix only those files and document why they were excluded.
+     - The expected state before merge/tag is clean local checkout plus no unpushed commits, because the release PR already contains everything that should ship.
    - Review what will ship (and look for “bullshit files”):
      - `git diff --name-status origin/dev..HEAD`
      - `git diff --stat origin/dev..HEAD`
@@ -147,11 +213,16 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
    - If a change genuinely does not need docs or visuals, state that explicitly in the PR description under **Docs** with the reason.
    - If docs are changed, run the relevant docs build or at minimum inspect the changed RST/Markdown for broken references and missing images before release.
 
+0) **Agent prompt gate**
+   - For every platform capability, behavior change, broker/data-provider change, or new failure mode that strategy generation/refinement should understand, inspect the BotSpot agent prompts and shared examples.
+   - Prefer token-efficient edits: update an existing note, reminder, or example before adding a new block. Remove or compress stale wording when adding new guidance.
+   - Record prompt changes, or the reason no prompt change was needed, in the release PR under **Docs/Prompts**.
+
 0) **Sync your local repo**
    - `git switch dev && git pull --ff-only`
    - `git switch version/X.Y.Z && git pull --ff-only`
-   - Confirm clean tree: `git status --porcelain=v1` (must be empty)
-   - **IMPORTANT (multi-agent safety):** ensure *everyone* working on `version/X.Y.Z` has pushed their commits. Avoid releasing with local-only work in someone else’s clone.
+   - Confirm clean tree: `git status --porcelain=v1` (must be empty because all safe local work has already been committed and pushed)
+   - **IMPORTANT (multi-agent safety):** ensure *everyone* working on `version/X.Y.Z` has pushed their commits. Do not release while known safe work is stranded in someone else’s clone.
 
 0.5) **Bring `dev` into the version branch (avoid drift)**
    - Merge `dev` into `version/X.Y.Z` and push the merge commit.
@@ -243,12 +314,12 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
 
    6a) **The release workflow auto-creates the remote branch** `version/X.Y.(Z+1)` from `dev` (see `.github/workflows/release.yml` → "Start next version branch" job). You do NOT need to create it. You DO need to pull it and switch your local checkout to it.
 
-   6b) **Capture any local work first.** If you have uncommitted changes or local-only commits on `version/X.Y.Z`, they did not ship in the release (the release tag points at the `dev` merge commit that existed at tag time). Move them to `version/X.Y.(Z+1)`:
+   6b) **Handle only post-release or intentionally excluded work here.** This step is not a loophole for skipping safe work during release. If uncommitted changes, untracked files, or local-only commits existed before the PR merge/tag, they should already have been reviewed, committed, tested, pushed, and deployed in `X.Y.Z` unless unsafe. Carry-over is only for changes that appeared after the release was tagged/published, or changes the release captain intentionally excluded because they were unsafe or out of scope. Move those remaining changes to `version/X.Y.(Z+1)`:
 
      ```bash
      # Snapshot anything uncommitted as a throwaway commit on the OLD branch
      git status --porcelain=v1           # if non-empty, commit before switching
-     git add -u && git commit -m "wip: carry-over to X.Y.(Z+1)"
+     git add -A && git commit -m "wip: carry-over to X.Y.(Z+1)"
      # Note SHAs of all commits that are on local version/X.Y.Z but not on origin/version/X.Y.Z
      git log --oneline origin/version/X.Y.Z..HEAD
      ```
@@ -268,7 +339,7 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
      ```bash
      git branch --show-current            # MUST print version/X.Y.(Z+1)
      grep 'version=' setup.py | head -1   # MUST print version="X.Y.(Z+1)",
-     git status --porcelain=v1            # MUST be empty
+     git status --porcelain=v1            # MUST be empty after pushing carry-overs
      ```
 
      If any of those three checks is wrong, STOP and fix before proceeding. Do not trigger BotManager deploy on the wrong local branch state.

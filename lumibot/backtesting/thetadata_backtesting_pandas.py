@@ -77,6 +77,16 @@ def _parity_log(message: str, *args) -> None:
 START_BUFFER = timedelta(days=5)
 
 
+def _asset_type_token(asset) -> str:
+    asset_for_type = asset[0] if isinstance(asset, tuple) else asset
+    raw = getattr(asset_for_type, "asset_type", "")
+    raw = getattr(raw, "value", raw)
+    raw = str(raw or "").strip().lower()
+    if "." in raw:
+        raw = raw.split(".")[-1]
+    return raw
+
+
 class ThetaDataBacktestingPandas(PandasData):
     """
     Backtesting implementation of ThetaData
@@ -2826,8 +2836,20 @@ class ThetaDataBacktestingPandas(PandasData):
         # NOTE: Do not infer day-mode from "any day data exists" because intraday strategies may
         # still request daily history for indicators.
         current_mode = getattr(self, "_timestep", None)
+        asset_type_token = _asset_type_token(asset)
+        effective_day_mode = bool(getattr(self, "_effective_day_mode", False))
 
-        if current_mode == "day" and timestep == "minute":
+        if (
+            timestep == "minute"
+            and (
+                current_mode == "day"
+                or (
+                    asset_type_token in {"stock", "equity", "index"}
+                    and effective_day_mode
+                    and not bool(getattr(self, "_observed_intraday_cadence", False))
+                )
+            )
+        ):
             timestep = "day"
             logger.debug(
                 "[THETA][DEBUG][TIMESTEP_ALIGN] get_last_price aligned from minute to day for asset=%s",
@@ -2958,9 +2980,10 @@ class ThetaDataBacktestingPandas(PandasData):
                         meta["last_trade_lookback_days"] = lookback_days
                         break
 
-        # As a fallback (e.g., empty dataframe), defer to the base implementation which is
-        # still trade-based (no quote/mid contamination).
-        if value is None:
+        # As a fallback (e.g., empty dataframe), defer to the base implementation which is still
+        # trade-based (no quote/mid contamination). Do not do this for stock/index daily lookups:
+        # PandasData has no timestep argument and may resolve a stale warmed minute frame instead.
+        if value is None and not (timestep == "day" and asset_type_token in {"stock", "equity", "index"}):
             value = super().get_last_price(asset=asset, quote=quote, exchange=exchange)
 
         logger.debug(
@@ -3414,9 +3437,22 @@ class ThetaDataBacktestingPandas(PandasData):
         # (see `BacktestingBroker._try_fill_with_quote`) without forcing all quote consumers onto
         # minute-level data.
         current_mode = getattr(self, "_timestep", None)
-        self._effective_day_mode = current_mode == "day"
+        asset_type_token = _asset_type_token(asset)
+        effective_day_mode = current_mode == "day" or bool(getattr(self, "_effective_day_mode", False))
+        self._effective_day_mode = effective_day_mode
 
-        if current_mode == "day" and timestep == "minute" and not snapshot_only:
+        if (
+            timestep == "minute"
+            and not snapshot_only
+            and (
+                current_mode == "day"
+                or (
+                    asset_type_token in {"stock", "equity", "index"}
+                    and effective_day_mode
+                    and not bool(getattr(self, "_observed_intraday_cadence", False))
+                )
+            )
+        ):
             timestep = "day"
             logger.debug(
                 "[THETA][DEBUG][TIMESTEP_ALIGN] get_quote aligned from minute to day for asset=%s",
@@ -3828,15 +3864,34 @@ class ThetaDataBacktestingPandas(PandasData):
                 quote_obj = None
 
         if quote_obj is None:
-            try:
-                quote_obj = super().get_quote(asset=asset, quote=quote, exchange=exchange)
-            except Exception:
-                # Missing data (placeholders / no trades / sparse NBBO) is expected for many option
-                # contracts at many timestamps. Avoid raising and triggering high-volume error logs
-                # from Strategy.get_quote(); return an "empty" Quote instead.
-                from lumibot.entities import Quote
+            from lumibot.entities import Quote
 
-                quote_obj = Quote(asset=asset, timestamp=dt)
+            if timestep == "day" and asset_type_token in {"stock", "equity", "index"}:
+                try:
+                    day_key = self.find_asset_in_data_store(asset, quote, "day")
+                    day_data = self.pandas_data.get(day_key) if day_key is not None else None
+                    ohlcv_bid_ask_dict = day_data.get_quote(dt) if day_data is not None else {}
+                    quote_obj = Quote(
+                        asset=asset,
+                        price=ohlcv_bid_ask_dict.get("close"),
+                        bid=ohlcv_bid_ask_dict.get("bid"),
+                        ask=ohlcv_bid_ask_dict.get("ask"),
+                        volume=ohlcv_bid_ask_dict.get("volume"),
+                        timestamp=dt,
+                        bid_size=ohlcv_bid_ask_dict.get("bid_size"),
+                        ask_size=ohlcv_bid_ask_dict.get("ask_size"),
+                        raw_data=ohlcv_bid_ask_dict,
+                    )
+                except Exception:
+                    quote_obj = Quote(asset=asset, timestamp=dt)
+            else:
+                try:
+                    quote_obj = super().get_quote(asset=asset, quote=quote, exchange=exchange)
+                except Exception:
+                    # Missing data (placeholders / no trades / sparse NBBO) is expected for many option
+                    # contracts at many timestamps. Avoid raising and triggering high-volume error logs
+                    # from Strategy.get_quote(); return an "empty" Quote instead.
+                    quote_obj = Quote(asset=asset, timestamp=dt)
 
         # ThetaData quote history for options can omit actionable NBBO while still surfacing a trade-derived
         # "close" field.

@@ -7,6 +7,12 @@ deployment monitoring, artifact analysis, and chart/visual retrieval.
 This page is intentionally practical: endpoint URLs, auth, client setup,
 and verification commands.
 
+.. image:: ../docs/assets/readme/cta_botspot_mcp.png
+   :alt: Use BotSpot MCP
+   :align: center
+   :width: 520px
+   :target: https://botspot.trade/agents?utm_source=documentation&utm_medium=mcp_guide&utm_campaign=lumibot&utm_content=mcp_primary_button
+
 Last verified
 -------------
 
@@ -175,5 +181,5 @@ Troubleshooting
 More resources
 --------------
 
-- BotSpot developer page: `https://botspot.trade/developers <https://botspot.trade/developers>`_
+- BotSpot AI agent and MCP page: `https://botspot.trade/agents <https://botspot.trade/agents>`_
 - BotSpot MCP server guide: `https://github.com/Lumiwealth/botspot_node/blob/production/docs/mcp/mcp-server-guide.md <https://github.com/Lumiwealth/botspot_node/blob/production/docs/mcp/mcp-server-guide.md>`_

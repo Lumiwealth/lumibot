@@ -2661,6 +2661,17 @@ def _resolve_conid(*, asset: Asset, quote: Optional[Asset], exchange: Optional[s
             _RUNTIME_CONID_CACHE[key] = int(cached)
             return cached
 
+    if asset_type not in {"future", "cont_future"}:
+        _load_negative_conid_cache()
+        for key in candidates:
+            neg_hit = _NEGATIVE_CONID_CACHE.get(key)
+            if isinstance(neg_hit, dict):
+                cached_msg = str(neg_hit.get("message") or "").strip() or (
+                    f"IBKR conid lookup is negatively cached for {asset.symbol} (type={asset_type})."
+                )
+                logger.error("IBKR negative conid cache hit: %s", cached_msg)
+                raise RuntimeError(cached_msg)
+
     if asset_type in {"future", "cont_future"} and primary.expiration:
         same_month_cached = _lookup_same_month_future_conid_from_mapping(mapping=mapping, key=primary)
         if same_month_cached is not None:
@@ -2702,6 +2713,9 @@ def _resolve_conid(*, asset: Asset, quote: Optional[Asset], exchange: Optional[s
         if prior_alt != conid_int:
             keys_added.add(alt_key)
 
+    for key in set(candidates + [primary_key]):
+        _clear_negative_conid(key=key)
+
     cache_file.parent.mkdir(parents=True, exist_ok=True)
     cache_file.write_text(json.dumps(mapping, indent=2, sort_keys=True), encoding="utf-8")
     try:
@@ -2731,6 +2745,9 @@ def _is_terminal_no_data_error(exc: Exception) -> bool:
             "no data available",
             "does not have data",
             "asset does not exist",
+            "unable to resolve ibkr conid",
+            "ibkr conid lookup is negatively cached",
+            "secdef/search returned no",
             # `_fetch_history_between_dates` raises this when IBKR pagination returns
             # empty before we covered the requested window. In practice this happens
             # for entitlement/stitching gaps (e.g. CONT_FUTURE 1-minute Trades) where
@@ -2905,15 +2922,62 @@ def _lookup_conid_remote(
     if asset_type in {"crypto"}:
         return _lookup_conid_crypto(asset=asset, quote=quote)
 
-    # Default: fall back to secdef search and use the first conid.
+    preferred_sec_types: tuple[str, ...] = ()
+    if asset_type == "stock":
+        preferred_sec_types = ("STK",)
+    elif asset_type == "index":
+        preferred_sec_types = ("IND",)
+
+    def _payload_item_matches_sec_type(item: dict, allowed: tuple[str, ...]) -> bool:
+        if not allowed:
+            return True
+        direct = str(item.get("secType") or "").upper()
+        if direct in allowed:
+            return True
+        sections = item.get("sections")
+        if isinstance(sections, list):
+            for section in sections:
+                if isinstance(section, dict) and str(section.get("secType") or "").upper() in allowed:
+                    return True
+        return False
+
+    def _extract_conid(payload: Any, allowed: tuple[str, ...]) -> Optional[int]:
+        if not isinstance(payload, list):
+            return None
+        for item in payload:
+            if not isinstance(item, dict):
+                continue
+            if not _payload_item_matches_sec_type(item, allowed):
+                continue
+            conid = item.get("conid")
+            if conid is not None:
+                return int(conid)
+        return None
+
     base_url = _downloader_base_url()
     url = f"{base_url}/ibkr/iserver/secdef/search"
+
+    if preferred_sec_types:
+        for sec_type in preferred_sec_types:
+            payload = queue_request(
+                url=url,
+                querystring={"symbol": asset.symbol, "secType": sec_type},
+                headers=None,
+                timeout=None,
+            )
+            conid = _extract_conid(payload, (sec_type,))
+            if conid is not None:
+                return int(conid)
+
+    # Default: fall back to secdef search, but still filter ambiguous symbols by asset type.
     payload = queue_request(url=url, querystring={"symbol": asset.symbol}, headers=None, timeout=None)
-    if isinstance(payload, list) and payload:
-        conid = payload[0].get("conid")
-        if conid is not None:
-            return int(conid)
-    raise RuntimeError(f"Unable to resolve IBKR conid for {asset.symbol} (type={asset_type})")
+    conid = _extract_conid(payload, preferred_sec_types)
+    if conid is not None:
+        return int(conid)
+
+    message = f"Unable to resolve IBKR conid for {asset.symbol} (type={asset_type})"
+    _record_negative_conid(key=_conid_key(asset=asset, quote=quote, exchange=exchange).to_key(), reason="no_conid", message=message)
+    raise RuntimeError(message)
 
 
 def _lookup_conid_crypto(*, asset: Asset, quote: Optional[Asset]) -> int:

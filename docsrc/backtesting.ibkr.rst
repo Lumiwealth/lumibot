@@ -83,6 +83,15 @@ IBKR backtests cache historical bars as Parquet:
 - Local: ``LUMIBOT_CACHE_FOLDER/ibkr/...``
 - Optional S3 mirroring: configured via the standard ``LUMIBOT_CACHE_*`` variables (see :ref:`environment_variables`).
 
+Conid lookups also maintain cache files under ``LUMIBOT_CACHE_FOLDER/ibkr``:
+
+- ``conids.json`` stores successful conid resolutions.
+- ``conids_negative.json`` stores short-lived negative markers for symbols IBKR cannot resolve.
+
+Negative conid markers prevent long backtests from repeatedly retrying permanently unavailable symbols, such as
+defunct equities returned by an external universe API. These lookup failures are treated as terminal no-data
+conditions for the affected request window, not as synthetic price data.
+
 Multi-provider routing (Theta + IBKR)
 -------------------------------------
 
@@ -90,9 +99,14 @@ To use multiple providers in a single backtest (example: ThetaData for options/s
 
 .. code-block:: bash
 
-   export BACKTESTING_DATA_SOURCE='{"default":"thetadata","stock":"thetadata","option":"thetadata","index":"thetadata","future":"ibkr","crypto":"ibkr"}'
+   export BACKTESTING_DATA_SOURCE='{"default":"thetadata","stock":"thetadata","option":"thetadata","index":"thetadata","future":"ibkr","cont_future":"ibkr","crypto":"ibkr","crypto_future":"ibkr"}'
 
 Routing values are case/whitespace/_/- insensitive. For crypto, you may also route to documented CCXT backtesting paths by using either ``"ccxt"`` (auto-select exchange) or a supported CCXT backtesting exchange id directly (for example: ``"kraken"`` or ``"binance"``).
+
+Crypto futures and perpetuals
+-----------------------------
+
+For ``Asset.AssetType.CRYPTO_FUTURE`` backtests, LumiBot can load spot crypto history as a price proxy while preserving the strategy-facing futures asset for orders and positions. USDT contracts such as ``BTCUSDT``, ``ETHUSDT``, and ``SOLUSDT`` resolve to the corresponding USD spot proxy (``BTC/USD``, ``ETH/USD``, ``SOL/USD``) because common crypto perpetual venues keep the futures price close to spot. The log will state when a USD spot proxy is used.
 
 Market Data Subscriptions (IBKR)
 --------------------------------

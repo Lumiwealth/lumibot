@@ -1,5 +1,108 @@
 # Changelog
 
+## 4.5.27 - Unreleased
+
+## 4.5.26 - 2026-05-19
+
+Deploy marker: 4.5.26 release commit (`deploy 4.5.26`)
+
+### Operations
+- **PyPI project storage was cleaned up for wheel-only releases.** Historical source distributions that had matching wheels were removed from PyPI so new LumiBot releases can publish again under the project storage quota. The package release remains wheel-only.
+- **4.5.26 republishes the safe dotenv and lazy-startup release path after the 4.5.25 PyPI quota blocker.** This keeps the deployment path moving without force-moving the stale `v4.5.25` tag.
+- **Google ADK is pinned below 2.0 for release stability.** CI exposed a `google-adk` 2.0 function-declaration schema change that drops the expected `parameters` object for the built-in indicator tool. LumiBot keeps the previously passing 1.x range until the 2.x schema contract is reviewed deliberately.
+
+## 4.5.25 - 2026-05-15
+
+Deploy marker: 4.5.25 release commit (`deploy 4.5.25`)
+
+### Changed
+- **Package namespace imports are now lazy-loaded.** Top-level namespaces such as `lumibot`, `lumibot.brokers`, `lumibot.data_sources`, `lumibot.entities`, `lumibot.tools`, and `lumibot.traders` defer heavy broker/data/tool imports until first use while preserving common star imports and legacy `entities.*` aliases.
+- **Dotenv loading is now safer for runtime-secret deployments.** LumiBot searches upward for the nearest `.env` instead of recursively scanning nested directories, supports sibling `.env.local` overrides for local development, and supports `LUMIBOT_DISABLE_DOTENV` / `LUMIBOT_DISABLE_DOTENV_LOCAL` for injected-env production jobs.
+
+### Fixed
+- **CI Ruff checks now point at the current data downloader queue client path.**
+- **IBKR REST stock/index conid lookup now filters secdef results by asset type.** Ambiguous tickers such as `MHO` no longer resolve to a futures contract when the strategy requested a stock, preventing false “Chart data unavailable” failures in AlphaPicks backtests.
+- **Symbol parsing now uses a single conservative implementation.** `lumibot.tools.parse_symbol` and `lumibot.tools.helpers.parse_symbol` both normalize whitespace/case, require full OCC option-symbol matches, reject empty input, and parse OCC years as 2000-based.
+
+## 4.5.24 - 2026-05-15
+
+Deploy marker: 4.5.24 release commit (`deploy 4.5.24`)
+
+### Fixed
+- **IBKR REST backtests now negative-cache unresolvable stock/index conid lookups.** Symbols that IBKR cannot resolve, such as defunct AlphaPicks holdings, are treated as terminal no-data and persisted in the conid negative cache so long BotSpot backtests skip them deterministically instead of hammering secdef/history endpoints until the task times out.
+- **PyPI releases now build wheel-only artifacts.** This avoids source-distribution uploads hitting PyPI project storage limits while preserving the artifact BotManager installs for backtest workers.
+
+## 4.5.22 - Unreleased
+
+### Fixed
+- **ThetaData option backtests no longer exhaustively download minute quote/OHLC data during delta strike selection.** `OptionsHelper.find_strike_for_delta()` now uses the existing model-based strike selector for ThetaData-routed option backtests, including intraday-cadence strategies, and leaves real historical price validation to `find_next_valid_option()` / `evaluate_option_market()`. This prevents sparse option chains from spending minutes probing empty strikes before any trade is placed.
+
+## 4.5.21 - Unreleased
+
+## 4.5.20 - 2026-05-15
+
+Deploy marker: 4.5.20 release commit (`deploy 4.5.20`)
+
+### Fixed
+- **Crypto futures and perpetual backtests can use spot crypto price history through routed backtesting.** `Asset.AssetType.CRYPTO_FUTURE` requests now route through explicit `crypto_future` provider settings, falling back to `crypto` when omitted, and USDT contracts such as `BTCUSDT`, `ETHUSDT`, and `SOLUSDT` can price from the matching USD spot proxy while preserving the original futures asset for strategy-facing orders and positions.
+- **Routed backtesting now preserves day-level stock/index data in mixed option workflows.** Stock/index lookups that support option strategies avoid stale minute-frame fallbacks when daily bars are requested.
+
+### Changed
+- **Release docs now require prompt review for platform capability changes.** Deployment review includes a token-efficient BotSpot agent prompt/shared-example check alongside the existing documentation and visual asset gates.
+
+## 4.5.19 - 2026-05-14
+
+Deploy marker: 4.5.19 release commit (`deploy 4.5.19`)
+
+### Fixed
+- **Alpaca backtests now support multi-timeframe history requests such as `15min`.** `AlpacaBacktesting.get_historical_prices()` now requests native Alpaca minute/hour multiples where supported and only falls back to local aggregation for unsupported aliases such as multi-day bars, so strategy calls like `get_historical_prices(asset, 100, "15min")` match the public strategy API contract instead of failing validation.
+
+### Changed
+- **LumiBot release docs now include a Codex-safe remote-first release path for shared checkouts.** AI agents can avoid switching the canonical local checkout when unrelated dirty files are present while preserving the same version-branch, PR, tag, PyPI, and BotManager deployment invariants.
+
+## 4.5.18 - 2026-05-14
+
+Deploy marker: 4.5.18 release commit (`deploy 4.5.18`)
+
+### Fixed
+- **IBKR-routed stock/index lookups in option backtests now stay on native daily bars.** Implicit stock/index `get_last_price()` and `get_quote()` calls no longer fall through to IBKR minute history after an option backtest has observed intraday cadence.
+- **ThetaData option OHLC downloader waits are now bounded separately.** One stuck sparse option contract/day no longer inherits the broad OHLC history timeout used for larger history downloads.
+
+## 4.5.17 - 2026-05-14
+
+Deploy marker: 4.5.17 release commit (`deploy 4.5.17`)
+
+### Fixed
+- **ThetaData quote-history requests now use a bounded quote-specific timeout.** Point-in-time option quote lookups no longer inherit the larger OHLC history timeout, so one stuck quote request fails visibly instead of making BotSpot option backtests appear frozen early in the run.
+
+## 4.5.16 - 2026-05-14
+
+Deploy marker: 4.5.16 release commit (`deploy 4.5.16`)
+
+### Fixed
+- **Routed daily stock/index backtests no longer satisfy day lookups from stale minute frames.** `RoutedBacktestingPandas` now pins stock/index day requests to native daily bars, and `ThetaDataBacktestingPandas.get_last_price()` / `get_quote()` preserve daily cadence instead of falling back through base `PandasData` lookups that can resolve May-only minute caches during April AlphaPicks option backtests.
+
+## 4.5.15 - 2026-05-13
+
+Deploy marker: 4.5.15 release commit (`deploy 4.5.15`)
+
+### Fixed
+- **IBKR REST daily stock/index price lookups now treat raw ticker strings as stock assets.** Strategies that call `get_last_price("MU")` or `get_quote("MU")` now use the same daily stock/index refresh path as `Asset("MU", "stock")`, preventing AlphaPicks option backtests from falling back to end-anchored IBKR `1min` data when the strategy passes string symbols.
+
+## 4.5.14 - 2026-05-13
+
+Deploy marker: 4.5.14 release commit (`deploy 4.5.14`)
+
+### Fixed
+- **IBKR REST daily stock/index backtests no longer fall back to minute data after a stale daily slice.** When daily stock/index data is already loaded but missing the current simulation timestamp, `get_last_price()` and `get_quote()` now refresh a bounded daily slice around the simulation date and return empty/None if that still fails. This prevents daily AlphaPicks option backtests from making unnecessary IBKR `1min` requests anchored near the backtest end date and then trying to use May-only data for April entries.
+
+## 4.5.13 - 2026-05-13
+
+Deploy marker: 4.5.13 release commit (`deploy 4.5.13`)
+
+### Fixed
+- **IBKR REST backtesting point-in-time option price lookups now fetch bounded minute slices around the simulation time.** `get_last_price()` and `get_quote()` no longer prefetch the full backtest window for point lookups, which avoids IBKR returning only a later tail segment and then mispricing earlier AlphaPicks option entries.
+
 ## 4.5.12 - 2026-05-13
 
 Deploy marker: 4.5.12 release commit (`deploy 4.5.12`)

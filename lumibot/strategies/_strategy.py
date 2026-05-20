@@ -1880,6 +1880,10 @@ class _Strategy:
                     end_date=backtesting_end_adjusted,
                     quote=self._quote_asset,
                 )
+                if bars is None or not hasattr(bars, "df"):
+                    self.logger.error(f"Couldn't get benchmark bars from Polygon data source: {benchmark_asset}")
+                    self._benchmark_returns_df = None
+                    return
                 df = bars.df
 
                 # Add returns column

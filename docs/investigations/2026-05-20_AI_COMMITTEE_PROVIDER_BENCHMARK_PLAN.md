@@ -260,17 +260,28 @@ Get these:
 
 ## ADK 2.0 Upgrade Note: 2026-05-20
 
-Google released ADK Python `2.0.0` GA on 2026-05-19. The main new value is the Workflow Runtime: graph-based workflows, dynamic workflows, and collaborative multi-agent workflows. This is relevant to LumiBot long term because the AI Investment Committee is naturally a workflow graph, but it is not required for the current provider/model benchmark.
+Google released ADK Python `2.0.0` on 2026-05-19. The public docs currently describe ADK 2.0 as pre-GA/Beta in some places while the broader docs navigation labels ADK Python 2.0 GA as live. Treat the dependency as current but still worth extra smoke coverage. The main new value is the Workflow Runtime: graph-based workflows, dynamic workflows, and collaborative multi-agent workflows. This is relevant to LumiBot long term because the AI Investment Committee is naturally a workflow graph, but it is not required for the current provider/model benchmark.
 
 Current local state during the provider benchmark:
 
-- LumiBot pins `google-adk[extensions]>=1.19.0,<2.0.0`.
-- The installed local version was `google-adk 1.27.4`, `google-genai 1.68.0`, and `litellm 1.85.0`.
+- LumiBot was upgraded from `google-adk[extensions]>=1.19.0,<2.0.0` to `google-adk[extensions]>=2.0.0,<3.0.0`.
+- Supporting dependency pins were updated to `google-genai>=1.72.0,<2.0.0`, `litellm>=1.83.7,<=1.83.14`, and `setuptools<81`.
+- The local compatibility environment after the upgrade was `google-adk 2.0.0`, `google-genai 1.75.0`, `litellm 1.83.14`, and `setuptools 80.10.2`.
 - An isolated temporary venv import smoke with `google-adk[extensions]>=2.0.0,<2.1.0` succeeded for the runtime symbols LumiBot currently imports: `LlmAgent`, `InMemoryRunner`, `FunctionTool`, `LiteLlm`, and `google.adk.planners`.
+- Focused tests passed after one compatibility update for ADK 2's `FunctionDeclaration` schema key change from `parameters` to `parameters_json_schema`.
+- ADK 2's extension dependency chain initially installed `setuptools 82`, which removed the old `pkg_resources.get_distribution` API used by `pandas_ta_classic`. Pinning `setuptools<81` preserved the current indicator tool behavior.
 
-Recommendation:
+Tests run:
 
-- Do not upgrade production BotSpot/LumiBot directly to ADK 2.0 inside the provider benchmark change. That would mix model/provider evaluation with framework migration risk.
-- First upgrade to the latest ADK 1.x in the benchmark environment if we need newer Gemini/tool-call fixes with low risk.
-- Then test ADK 2.0 in a separate commit by relaxing the cap, running focused agent-runtime tests, running one-day paid smoke tests for `gemini-3.5-flash`, `deepseek/deepseek-v4-flash`, `together_ai/moonshotai/Kimi-K2.5`, and fixed Cerebras, and comparing event telemetry files for schema changes.
-- Consider ADK 2.0 later as a feature upgrade to express the committee as an explicit graph/collaborative workflow with deterministic routing, not as a prerequisite for Together/Cerebras/DeepSeek support.
+- `python3 -m pytest tests/test_agent_runtime_provider_keys.py tests/test_agent_tool_permissions.py -q`: `20 passed`.
+- `python3 -m pytest tests/test_agent_runtime_remote_mcp.py tests/test_agent_runtime_mcp_transports.py tests/backtest/test_agent_runtime_backtest.py tests/backtest/test_ai_committee_builtin_tools_backtest.py -q`: `20 passed`.
+- `python3 -m py_compile lumibot/components/agents/runtime.py lumibot/components/agents/manager.py scripts/run_ai_committee_provider_benchmark.py`: passed.
+
+User-facing ADK 2 feature exposure recommendation:
+
+- Do not expose raw ADK 2 classes directly in LumiBot's public agent API. That would leak framework churn into strategy code and make future ADK changes harder to absorb.
+- Expose a LumiBot-native workflow layer later, backed by ADK 2 internally. The right public concepts are likely `AgentTeam`, sequential/parallel steps, router rules, explicit output schemas, human approval checkpoints, and resumable/cancellable runs.
+- First useful product feature: declarative committee/team recipes, for example research agents in parallel, a risk reviewer, then a trader. This maps cleanly to ADK 2 collaborative/graph workflows but can stay stable as LumiBot API.
+- Second useful product feature: structured outputs per agent step, so portfolio/risk/order decisions can be validated before orders are submitted.
+- Third useful product feature: optional human-in-the-loop checkpoints for live trading workflows, especially before mutating order tools.
+- Defer fully custom graph authoring until the basic provider benchmark and team recipe API are stable. Most users need safer presets before they need arbitrary workflow graphs.

@@ -415,10 +415,24 @@ Results so far:
 - Fixed-budget rerun state: Qwen rerun with 4K tool-result budget and 900-second per-agent timeout started in `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260520_144512`. DeepSeek, Gemini, Kimi, OpenAI, and Cerebras fixed-budget reruns started in `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260520_144705`.
 - Cerebras fixed-budget rerun failed immediately with provider billing error: `Payment required to access this resource`. Earlier Cerebras qualifier passed mechanically, so the integration works, but the account/key needs billing credits before Cerebras can be included in the final three-month benchmark.
 - Tool-call discipline fix: even with 4K tool-result caps, DeepSeek used `65` tools in the first evidence call. The AI Investment Committee example now passes prompt-level budgets for research/follow-up/portfolio tool calls (`24` / `8` / `6`), and the runtime enforces those budgets by returning a budget-exceeded notice after the role uses its allowed calls. This keeps the benchmark from measuring uncontrolled tool spraying.
+- Enforced-budget 14-day qualifier artifacts:
+  - Summary JSON: `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/enforced_14d_compact_summary.json`.
+  - Summary Markdown: `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/enforced_14d_summary.md`.
+  - Shared root for OpenAI, DeepSeek, Kimi, and partial Gemini: `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260520_145742`.
+  - Qwen root: `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260520_145816`.
+
+Enforced-budget 14-day qualifier results:
+
+- `openai/gpt-5.4-mini`: passed mechanically. Wall time `629.9s`; calls `13`; tool calls `125`; input `378,434`, cached input `276,096`, output `7,740`; estimated cost `$0.318655` no-cache / `$0.132291` cache-adjusted. Stayed entirely in cash, total return `0%`.
+- `deepseek/deepseek-v4-flash`: passed mechanically. Wall time `2295.0s`; calls `13`; tool calls `122`; input `1,052,857`, cached input `896,512`, output `47,393`; estimated cost `$0.160670` no-cache / `$0.037669` cache-adjusted. Stayed entirely in cash, total return `0%`.
+- `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`: passed mechanically. Wall time `2077.2s`; calls `13`; tool calls `88`; input `518,011`, output `6,300`; estimated cost `$0.107382`. Stayed entirely in cash, total return `0%`.
+- `together_ai/moonshotai/Kimi-K2.5`: passed mechanically. Wall time `3500.2s`; calls `13`; tool calls `90`; input `506,210`, cached input `304,256`, output `26,157`; estimated cost `$0.326345`. Stayed entirely in cash, total return `0%`.
+- `gemini-3.5-flash`: did not complete the enforced 14-day qualifier in a reasonable wall-clock window and was stopped after provider demand/retry noise. Partial stats before stop: calls `7`, tool calls `170`, input `922,275`, cached input `392,443`, output `16,759`. The key/model string works, but this workload is operationally too slow/noisy in the current run.
 
 Current interpretation:
 
-- Cerebras is worth keeping in the slate. It is dramatically faster than the other currently tested providers, but its all-cash result means it should be judged on trace quality before moving to a full 3-month run.
-- Qwen is mechanically viable after bounded handoffs, but it is slow enough that 14-day and longer runs should be model-by-model with larger command timeouts or detached logs.
-- Kimi and DeepSeek should not run the 14-day qualifier until the capped handoff fix is included, because they would otherwise risk the same context blow-up.
-- For the next run, use model-by-model commands with provider-specific command timeouts: Cerebras around `30m`, Qwen at least `2h`, Kimi at least `2h`, DeepSeek at least `3h`.
+- OpenAI, DeepSeek Flash, Qwen throughput, and Kimi K2.5 are mechanically viable through ADK 2 with the enforced budgets.
+- The current AI Investment Committee settings are too conservative for a meaningful performance benchmark: every mechanically successful enforced 14-day qualifier stayed entirely in cash. A three-month run from this exact configuration would likely measure provider cost/latency more than trading quality.
+- Before spending hours on a three-month slate, either relax the portfolio manager's trade threshold / require at least one small position when the evidence is acceptable, or split the benchmark into two tracks: `mechanical/tool discipline` and `trade-seeking committee`.
+- Cerebras should remain in the slate after billing is fixed. The earlier qualifier passed mechanically and was much faster, but the current account/key hit a provider billing gate on rerun.
+- Gemini 3.5 Flash should not be included in the first three-month run unless the goal is specifically to measure Google provider availability under load; it did not finish the 14-day qualifier here.

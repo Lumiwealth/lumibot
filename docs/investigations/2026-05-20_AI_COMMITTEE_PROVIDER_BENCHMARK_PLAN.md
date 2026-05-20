@@ -257,3 +257,20 @@ Get these:
 - Whether DeepSeek V4 thinking-mode parameters need explicit LiteLLM kwargs for fair Flash vs Pro runs.
 - Whether Cerebras `zai-glm-4.7` accepts the current ADK/LiteLLM tool schema without stricter validation changes.
 - Whether to cap output tokens lower for benchmark comparability. The current runtime allows up to `65535` output tokens, which is useful but can distort cost and latency across reasoning-heavy providers.
+
+## ADK 2.0 Upgrade Note: 2026-05-20
+
+Google released ADK Python `2.0.0` GA on 2026-05-19. The main new value is the Workflow Runtime: graph-based workflows, dynamic workflows, and collaborative multi-agent workflows. This is relevant to LumiBot long term because the AI Investment Committee is naturally a workflow graph, but it is not required for the current provider/model benchmark.
+
+Current local state during the provider benchmark:
+
+- LumiBot pins `google-adk[extensions]>=1.19.0,<2.0.0`.
+- The installed local version was `google-adk 1.27.4`, `google-genai 1.68.0`, and `litellm 1.85.0`.
+- An isolated temporary venv import smoke with `google-adk[extensions]>=2.0.0,<2.1.0` succeeded for the runtime symbols LumiBot currently imports: `LlmAgent`, `InMemoryRunner`, `FunctionTool`, `LiteLlm`, and `google.adk.planners`.
+
+Recommendation:
+
+- Do not upgrade production BotSpot/LumiBot directly to ADK 2.0 inside the provider benchmark change. That would mix model/provider evaluation with framework migration risk.
+- First upgrade to the latest ADK 1.x in the benchmark environment if we need newer Gemini/tool-call fixes with low risk.
+- Then test ADK 2.0 in a separate commit by relaxing the cap, running focused agent-runtime tests, running one-day paid smoke tests for `gemini-3.5-flash`, `deepseek/deepseek-v4-flash`, `together_ai/moonshotai/Kimi-K2.5`, and fixed Cerebras, and comparing event telemetry files for schema changes.
+- Consider ADK 2.0 later as a feature upgrade to express the committee as an explicit graph/collaborative workflow with deterministic routing, not as a prerequisite for Together/Cerebras/DeepSeek support.

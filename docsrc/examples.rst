@@ -21,6 +21,14 @@ The canonical AI examples are intentionally strategy-shaped rather than toy snip
 - how to inspect ``result.summary``, traces, warnings, and replay behavior
 - how to evaluate the resulting strategy with benchmarked tearsheets
 
+Want to see deployable examples with results and visuals? Browse the BotSpot marketplace for strategy ideas you can clone or adapt when the author allows it.
+
+.. image:: ../docs/assets/readme/cta_marketplace.png
+   :alt: Browse BotSpot strategy examples
+   :align: center
+   :width: 520px
+   :target: https://botspot.trade/marketplace?utm_source=documentation&utm_medium=examples&utm_campaign=lumibot&utm_content=marketplace_button
+
 Typical AI agent pattern:
 
 .. code-block:: python

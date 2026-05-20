@@ -41,6 +41,14 @@ At `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&ut
 
    `Start on BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=getting_started&utm_campaign=lumibot&utm_content=important_start_link&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.>`_ if you want the managed cloud path, or open the :doc:`BotSpot MCP guide <botspot_mcp>` if you want your coding agent to work directly with BotSpot.
 
+If you want guided training, the AI Trading Bootcamp teaches the full path from strategy idea to backtest to live deployment.
+
+.. image:: ../docs/assets/readme/cta_bootcamp.png
+   :alt: AI Trading Bootcamp
+   :align: center
+   :width: 520px
+   :target: https://www.botspot.trade/ai-bot-builder-bootcamp?utm_source=documentation&utm_medium=getting_started&utm_campaign=lumibot&utm_content=bootcamp_button
+
 Getting Started With Lumibot
 ============================
 

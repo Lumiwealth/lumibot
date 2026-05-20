@@ -3,6 +3,14 @@ AI Trading Agents and Agentic Backtesting
 
 LumiBot lets an AI agent reason, call external tools, and execute trades **on every bar during a backtest** -- then run the exact same strategy code live. Whether you use ``@agent_tool`` to wrap any REST API as a callable tool or connect to one of 20,000+ external `MCP servers <https://modelcontextprotocol.io/>`_, LumiBot handles it in one unified codebase. A built-in replay cache makes warm reruns deterministic and fast. Whether you want to backtest an AI trading agent, build an agentic backtesting framework, or connect LLM-driven trading bots to live brokers, LumiBot handles it all.
 
+Using an AI coding agent? BotSpot MCP can generate Lumibot strategies, run backtests, inspect artifacts, and iterate from tools like Cursor, Claude, Codex, and ChatGPT-compatible clients.
+
+.. image:: ../docs/assets/readme/cta_botspot_mcp.png
+   :alt: Use BotSpot MCP
+   :align: center
+   :width: 520px
+   :target: https://botspot.trade/agents?utm_source=documentation&utm_medium=agents&utm_campaign=lumibot&utm_content=mcp_top_button
+
 .. toctree::
    :maxdepth: 1
 

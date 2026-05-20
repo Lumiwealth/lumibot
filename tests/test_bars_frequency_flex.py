@@ -139,4 +139,5 @@ def test_split_polars_date_column_converts_to_midnight_timestamp():
     split = bars.split()
 
     assert len(split) == 1
-    assert split[0].timestamp == int(datetime.combine(trade_date, datetime.min.time()).timestamp())
+    expected_dt = LUMIBOT_DEFAULT_PYTZ.localize(datetime.combine(trade_date, datetime.min.time()))
+    assert split[0].timestamp == int(expected_dt.timestamp())

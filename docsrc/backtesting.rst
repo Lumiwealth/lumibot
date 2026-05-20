@@ -26,6 +26,21 @@ This matters if you want:
 
 See :doc:`agents` for the full agent runtime guide and usage examples.
 
+Execution Notes
+===============
+
+Backtests run strategy scheduling against simulated time. LumiBot keeps the
+public scheduling APIs available, but uses a lightweight scheduler stub during
+backtests and creates live APScheduler state only for live sessions. This keeps
+backtest runs deterministic and avoids live queue/job-store work that cannot
+execute in historical time.
+
+Simple market-order backtests may use broker fast paths for order tracking and
+trade-event recording. The public behavior is unchanged: ``get_tracked_orders``,
+``get_active_tracked_orders``, and the generated trades files keep the same
+shape. Strategies with custom order lifecycle callbacks continue through the
+normal callback path.
+
 Files Generated from Backtesting
 ================================
 

@@ -157,6 +157,21 @@ Practical guidance:
   - compute inside the serial loop,
   - or artifact generation.
 
+### Scheduler and Queue Fast Paths
+
+Backtests use a lightweight scheduler stub instead of constructing live APScheduler
+state. Live scheduling is created lazily only for live sessions, so backtest runs
+do not allocate `MemoryJobStore` objects or queue machinery that cannot execute
+in simulated time. This preserves strategy-facing scheduling APIs while keeping
+the backtest loop single-threaded and deterministic.
+
+The broker also keeps simple market orders in strategy-scoped active buckets
+before they are filled. `get_tracked_orders()` and `get_active_tracked_orders()`
+can read those buckets directly instead of scanning the full historical order
+list every bar. The fast path is only for simple market orders whose callbacks
+match the default broker/executor behavior; custom lifecycle handlers continue
+through the canonical event dispatch path.
+
 See also:
 
 - `docs/BACKTESTING_PERFORMANCE.md`
@@ -171,6 +186,11 @@ The core broker for simulating trades during backtests:
 - Tracks market sessions and trading calendars
 - Handles futures margin requirements
 - Requires a `DataSourceBacktesting` instance
+- Records compact trade-event rows for hot fill paths and expands them only when
+  artifact writers need the full dictionary shape. Rows carry a private marker,
+  the event timestamp, order identity, side/type/status, quantity, price,
+  multiplier, and optional cash-event fields. This keeps the in-loop write path
+  cheap without changing the public trades artifact schema.
 
 ### 2. Data Source Hierarchy
 

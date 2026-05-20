@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.5.29 - Unreleased
+
 ## 4.5.28 - 2026-05-20
 
 Deploy marker: 4.5.28 release commit (`deploy 4.5.28`)

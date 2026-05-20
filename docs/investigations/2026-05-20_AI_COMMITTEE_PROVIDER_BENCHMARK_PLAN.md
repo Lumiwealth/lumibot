@@ -3,6 +3,14 @@
 **Date:** 2026-05-20
 **Scope:** Benchmarking the LumiBot AI Investment Committee across Gemini, OpenAI, Together AI, Kimi, Qwen, Cerebras, and optional direct DeepSeek models.
 
+## BotSpot Production Validation: 2026-05-20
+
+LumiBot `4.5.27` was released through the documented version-branch flow and installed by Bot Manager production. The release workflow `26186356776` succeeded, the GitHub release `v4.5.27` was published, and Bot Manager production deploy run `26189311837` completed after setting `LUMIBOT_VERSION=4.5.27`.
+
+The BotSpot production strategy `AI Committee Stock Allocator (Gemini 3 Flash Preview)` uses the Vertex model id `gemini-3-flash-preview`. One-day production smoke backtest `eccf8742-c3be-4614-bbeb-3c69e9d1a6d4` for revision v4 completed on LumiBot `4.5.27` and produced queryable `agent_detail.parquet`, proving the previous 4.5.26 hang / missing `alpaca_news` blocker was fixed. That run also exposed a strategy-level double-order bug: the PM agent had `allow_trading=True`, so it used `orders_submit_order`, and the Python strategy then parsed the PM ticker and submitted its own 20% allocation.
+
+Revision v5 (`d1dc0306-2c85-4e73-8e2c-a4984a63eb48`) disables direct PM trading and leaves order execution to the strategy code. Production smoke backtest `28fa5446-8066-4490-adbe-e4fbcc55f2ba` completed on LumiBot `4.5.27`, produced `agent_detail.parquet`, had zero `orders_submit_order` rows in the agent artifact, and bought only the intended code-sized allocation: 56 MSFT shares at 361.90. Treat v5 as the BotSpot live-deploy candidate; do not deploy v4.
+
 ## Recommendation
 
 Use the AI Investment Committee example as the primary benchmark. It is the right workload because it stresses the exact behavior we care about:

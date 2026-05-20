@@ -3,8 +3,6 @@ from lumibot.example_strategies.ai_investment_committee import (
     _prepare_handoff_text,
 )
 
-import pytest
-
 
 def test_ai_committee_example_uses_normal_lumibot_iteration_flow():
     parameter_names = set(AIInvestmentCommitteeStrategy.parameters)
@@ -18,18 +16,22 @@ def test_ai_committee_example_uses_normal_lumibot_iteration_flow():
 def test_ai_committee_example_exposes_expected_risk_controls():
     assert AIInvestmentCommitteeStrategy.parameters["max_position_pct"] == 0.20
     assert AIInvestmentCommitteeStrategy.parameters["max_new_positions_per_run"] == 2
-    assert AIInvestmentCommitteeStrategy.parameters["handoff_target_chars"] == 24000
+    assert AIInvestmentCommitteeStrategy.parameters["handoff_target_tokens"] == 8000
+    assert AIInvestmentCommitteeStrategy.parameters["handoff_max_tokens"] == 24000
     assert AIInvestmentCommitteeStrategy.parameters["enable_notifications"] is False
 
 
-def test_ai_committee_handoff_text_fails_loudly_when_unbounded():
-    text = "a" * 20000
+def test_ai_committee_handoff_text_is_token_budgeted():
+    text = "word " * 10000
 
-    with pytest.raises(ValueError, match="evidence_pack handoff"):
-        _prepare_handoff_text(text, label="evidence_pack", target_chars=4000)
+    handoff = _prepare_handoff_text(text, label="evidence_pack", max_tokens=1000)
+
+    assert len(handoff) < len(text)
+    assert "Token-budget safety truncation" in handoff
+    assert "evidence_pack" in handoff
 
 
 def test_ai_committee_handoff_text_passes_without_truncation():
     text = "source-backed summary"
 
-    assert _prepare_handoff_text(text, label="evidence_pack", target_chars=4000) == text
+    assert _prepare_handoff_text(text, label="evidence_pack", max_tokens=4000) == text

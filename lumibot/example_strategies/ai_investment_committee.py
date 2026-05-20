@@ -31,24 +31,17 @@ Requirements:
 
 import os
 
+from lumibot.components.agents.context_budget import budget_text_by_tokens
 from lumibot.strategies.strategy import Strategy
 
 
 DEFAULT_UNIVERSE = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "SPY", "QQQ"]
-DEFAULT_HANDOFF_TARGET_CHARS = 24000
-HANDOFF_HARD_LIMIT_MULTIPLIER = 4
+DEFAULT_HANDOFF_TARGET_TOKENS = 8000
+DEFAULT_HANDOFF_MAX_TOKENS = 24000
 
 
-def _prepare_handoff_text(value, *, label: str, target_chars: int) -> str:
-    text = "" if value is None else str(value)
-    limit = max(int(target_chars), 4000) * HANDOFF_HARD_LIMIT_MULTIPLIER
-    if len(text) > limit:
-        raise ValueError(
-            f"AI committee {label} handoff was {len(text)} characters, above the {limit} character safety limit. "
-            "The model ignored the concise handoff contract; rerun with a stricter prompt or a model that follows "
-            "bounded structured outputs."
-        )
-    return text
+def _prepare_handoff_text(value, *, label: str, max_tokens: int) -> str:
+    return budget_text_by_tokens(value, max_tokens=max_tokens, label=label).text
 
 
 class AIInvestmentCommitteeStrategy(Strategy):
@@ -56,7 +49,8 @@ class AIInvestmentCommitteeStrategy(Strategy):
         "universe": DEFAULT_UNIVERSE,
         "max_position_pct": 0.20,
         "max_new_positions_per_run": 2,
-        "handoff_target_chars": DEFAULT_HANDOFF_TARGET_CHARS,
+        "handoff_target_tokens": DEFAULT_HANDOFF_TARGET_TOKENS,
+        "handoff_max_tokens": DEFAULT_HANDOFF_MAX_TOKENS,
         "enable_notifications": False,
     }
 
@@ -106,9 +100,10 @@ class AIInvestmentCommitteeStrategy(Strategy):
             "universe": universe,
             "max_position_pct": self.parameters.get("max_position_pct", 0.20),
             "max_new_positions_per_run": self.parameters.get("max_new_positions_per_run", 2),
-            "handoff_target_chars": self.parameters.get("handoff_target_chars", DEFAULT_HANDOFF_TARGET_CHARS),
+            "handoff_target_tokens": self.parameters.get("handoff_target_tokens", DEFAULT_HANDOFF_TARGET_TOKENS),
             "datetime": self.get_datetime().isoformat(),
         }
+        handoff_max_tokens = self.parameters.get("handoff_max_tokens", DEFAULT_HANDOFF_MAX_TOKENS)
 
         evidence = self.agents["evidence_researcher"].run(
             task_prompt=(
@@ -121,7 +116,7 @@ class AIInvestmentCommitteeStrategy(Strategy):
         self.vars.last_evidence_pack = _prepare_handoff_text(
             evidence.summary or evidence.text,
             label="evidence_pack",
-            target_chars=context["handoff_target_chars"],
+            max_tokens=handoff_max_tokens,
         )
 
         bull = self.agents["bull_researcher"].run(
@@ -131,7 +126,7 @@ class AIInvestmentCommitteeStrategy(Strategy):
         self.vars.last_bull_case = _prepare_handoff_text(
             bull.summary or bull.text,
             label="bull_case",
-            target_chars=context["handoff_target_chars"],
+            max_tokens=handoff_max_tokens,
         )
 
         bear = self.agents["bear_researcher"].run(
@@ -145,7 +140,7 @@ class AIInvestmentCommitteeStrategy(Strategy):
         self.vars.last_bear_case = _prepare_handoff_text(
             bear.summary or bear.text,
             label="bear_case",
-            target_chars=context["handoff_target_chars"],
+            max_tokens=handoff_max_tokens,
         )
 
         decision = self.agents["portfolio_manager"].run(
@@ -168,7 +163,7 @@ class AIInvestmentCommitteeStrategy(Strategy):
 You are the Evidence Researcher for a Lumibot AI investment committee.
 
 You cannot place, modify, or cancel trades. You are responsible for building a compact, source-backed evidence pack.
-Your answer is a handoff to the other committee members. Keep the final answer under context.handoff_target_chars characters.
+Your answer is a handoff to the other committee members. Keep the final answer under context.handoff_target_tokens tokens.
 Do not paste raw tool payloads, long tables, SEC excerpts, or full time series. Synthesize the important facts and cite tool names/sources.
 
 For each candidate symbol, gather:
@@ -200,7 +195,7 @@ You are the Bull Researcher. You cannot place, modify, or cancel trades.
 
 Build the strongest long-only case from the evidence pack. You may use read-only tools to dig deeper.
 Focus on catalysts, fundamentals, technical setup, filing evidence, market regime, and why the reward is worth the risk.
-Your answer is a handoff to the Bear Researcher and Portfolio Manager. Keep the final answer under context.handoff_target_chars characters.
+Your answer is a handoff to the Bear Researcher and Portfolio Manager. Keep the final answer under context.handoff_target_tokens tokens.
 Do not repeat the full evidence pack. Extract only the strongest investable thesis and the supporting facts.
 
 Return:
@@ -219,7 +214,7 @@ You are the Bear Researcher. You cannot place, modify, or cancel trades.
 
 Attack the long case. Find reasons the portfolio manager should avoid, delay, reduce size, or demand more evidence.
 Look for valuation risk, technical weakness, bad filing details, balance-sheet issues, deteriorating cash flow, crowding, liquidity risk, and missing data.
-Your answer is a handoff to the Portfolio Manager. Keep the final answer under context.handoff_target_chars characters.
+Your answer is a handoff to the Portfolio Manager. Keep the final answer under context.handoff_target_tokens tokens.
 Do not repeat the full evidence pack or bull case. Extract the highest-impact objections, what would change your mind, and the risk controls needed.
 
 Return:

@@ -1,0 +1,210 @@
+# AI Committee Provider Benchmark Plan
+
+**Date:** 2026-05-20
+**Scope:** Benchmarking the LumiBot AI Investment Committee across Gemini, OpenAI, DeepSeek, Together AI, Kimi, Qwen, and Cerebras models.
+
+## Recommendation
+
+Use the AI Investment Committee example as the primary benchmark. It is the right workload because it stresses the exact behavior we care about:
+
+- multi-agent handoff quality
+- built-in LumiBot tool calling
+- SEC/FRED/news/indicator usage
+- order placement through the portfolio-manager agent
+- backtest speed, cost, and trading result quality
+
+Do not start with a full two or three month run for every model. Run the benchmark in stages:
+
+1. Single-day smoke test for every candidate model.
+2. Fourteen-trading-day comparison for models that pass the smoke test.
+3. Two or three month comparison only for finalists.
+
+This prevents wasting spend on models that fail function calling or produce useless committee behavior.
+
+## Existing Benchmark Shape
+
+The best prior real committee artifact is:
+
+`/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_real_backtests/20260507_215455`
+
+That partial run covered 14 trading days and produced:
+
+- Model calls: `56`
+- Input tokens: `1,872,570`
+- Output tokens: `143,048`
+- Cached input tokens recorded: `1,526,784`
+- Tool calls: `1,522`
+- Final partial return: `+1.6411172543334906%`
+- Final positions: `6 AAPL`, `3 GOOGL`
+
+Scale factors from this profile:
+
+- 1 month / 14 trading days: roughly `1.5x`
+- 2 months / 14 trading days: roughly `3.0x`
+- 3 months / 14 trading days: roughly `4.5x`
+
+## Existing Code Entry Points
+
+- Strategy: `/Users/robertgrzesik/Development/lumibot/lumibot/example_strategies/ai_investment_committee.py`
+- Real paid runner: `/Users/robertgrzesik/Development/lumibot/scripts/run_ai_committee_real_backtest.py`
+- Tool-smoke runner: `/Users/robertgrzesik/Development/lumibot/scripts/run_ai_committee_smoke_backtest.py`
+- Prior cost incident note: `/Users/robertgrzesik/Development/lumibot/docs/investigations/2026-05-08_openai_usage_ai_committee.md`
+
+The committee currently supports four separate model env vars:
+
+- `COMMITTEE_RESEARCH_MODEL`
+- `COMMITTEE_BULL_MODEL`
+- `COMMITTEE_BEAR_MODEL`
+- `COMMITTEE_TRADER_MODEL`
+
+For fair model comparison, set all four to the same candidate model first. Mixed committees can be tested after single-model runs identify winners.
+
+## Candidate Models
+
+### Required Baselines
+
+| Candidate | Model string | Why test |
+|---|---|---|
+| Current OpenAI mini baseline | `openai/gpt-5.4-mini` | Existing cheaper OpenAI baseline and easy cost comparator. |
+| Current strong OpenAI baseline | `openai/gpt-5.5` | Prior committee used GPT-5.5 for bull/bear/trader. Expensive but useful quality anchor. |
+| Gemini 3.5 Flash | `gemini-3.5-flash` | New May 2026 Google model. Google positions it as fast frontier-level agentic model with function calling and strong finance-agent evals. |
+
+### DeepSeek
+
+| Candidate | Model string | Why test |
+|---|---|---|
+| DeepSeek V4 Flash direct | `deepseek/deepseek-v4-flash` | Main value bet: extremely cheap, 1M context, tool calls supported, likely best cost-performance candidate. Requires `DEEPSEEK_API_KEY`. |
+| DeepSeek V4 Pro direct | `deepseek/deepseek-v4-pro` | Stronger DeepSeek quality candidate. Currently discounted through 2026-05-31 per official docs. Requires `DEEPSEEK_API_KEY`. |
+| Together DeepSeek V4 Pro | `together_ai/deepseek-ai/DeepSeek-V4-Pro` | Useful if using Together as the broad provider, but more expensive than direct DeepSeek. Requires `TOGETHERAI_API_KEY`. |
+
+### Together AI
+
+| Candidate | Model string | Why test |
+|---|---|---|
+| Kimi K2.6 | `together_ai/moonshotai/Kimi-K2.6` | Agentic/model-swarm positioning, 256K context, function calling listed by Together. |
+| Qwen3.6 Plus | `together_ai/Qwen/Qwen3.6-Plus` | Cheaper broad reasoning candidate. Test only if it passes tool-call smoke. |
+| Qwen3 235B FP8 throughput | `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput` | Very cheap throughput model. Good candidate for "can a low-cost open model actually trade?" |
+| GPT-OSS 120B on Together | `together_ai/openai/gpt-oss-120b` | Open-weight reasoning baseline via Together. Low cost, tool support listed by Together. |
+
+### Cerebras
+
+| Candidate | Model string | Why test |
+|---|---|---|
+| GPT-OSS 120B on Cerebras | `cerebras/gpt-oss-120b` | Best first Cerebras candidate: production model, 120B, official catalog lists about 3000 tokens/sec. |
+| Z.ai GLM 4.7 on Cerebras | `cerebras/zai-glm-4.7` | Preview but probably the smartest public Cerebras-hosted model for coding/tool agents. Official catalog lists about 1000 tokens/sec. |
+
+Skip `cerebras/llama3.1-8b` for committee quality unless the goal is pure speed sanity testing. It is very fast but likely too weak for this benchmark. Also note Cerebras says `llama3.1-8b` and `qwen-3-235b-a22b-instruct-2507` are scheduled for deprecation on 2026-05-27.
+
+## Cost Estimates
+
+The following estimates use the prior 14-trading-day committee token profile:
+
+- Input: `1.872570M`
+- Output: `0.143048M`
+- Cached input recorded: `1.526784M`
+
+Cache-adjusted costs are directional only. Provider-specific caching behavior differs, and LumiBot does not yet normalize provider-side cache reporting across all providers.
+
+| Candidate | 14-day no-cache estimate | 14-day cache-adjusted estimate | 3-month no-cache estimate | 3-month cache-adjusted estimate |
+|---|---:|---:|---:|---:|
+| GPT-5.4 mini | `$2.05` | `$1.02` | `$9.22` | `$4.58` |
+| Gemini 3.5 Flash standard | `$4.10` | `$2.04` | `$18.43` | `$9.16` |
+| DeepSeek V4 Flash direct | `$0.30` | `$0.09` | `$1.36` | `$0.42` |
+| DeepSeek V4 Pro direct promo | `$0.94` | `$0.28` | `$4.23` | `$1.26` |
+| Together DeepSeek V4 Pro | `$4.56` | `$1.66` | `$20.53` | `$7.47` |
+| Together Kimi K2.6 | `$2.89` | `$1.36` | `$13.01` | `$6.14` |
+| Together Qwen3.6 Plus | `$1.37` | n/a | `$6.14` | n/a |
+| Together Qwen3 235B throughput | `$0.46` | n/a | `$2.07` | n/a |
+
+Cerebras public pricing is less explicit on the current pricing page for `gpt-oss-120b` and `zai-glm-4.7`; the current official page emphasizes free/developer tiers and self-serve payment from `$10`, but does not list per-token prices for those models in the scraped page. Treat Cerebras cost as "verify in dashboard/API after key creation" before a long run.
+
+## Sources Checked
+
+- Google Gemini 3.5 announcement: https://blog.google/innovation-and-ai/models-and-research/gemini-models/gemini-3-5/
+- Google Gemini API pricing: https://ai.google.dev/gemini-api/docs/pricing
+- Google Gemini models: https://ai.google.dev/gemini-api/docs/models
+- Google DeepMind Gemini 3.5 Flash model card: https://deepmind.google/models/model-cards/gemini-3-5-flash/
+- DeepSeek official pricing: https://api-docs.deepseek.com/quick_start/pricing/
+- DeepSeek V4 release note: https://api-docs.deepseek.com/news/news260424
+- LiteLLM DeepSeek provider: https://docs.litellm.ai/docs/providers/deepseek
+- Together pricing: https://www.together.ai/pricing
+- Together serverless models: https://docs.together.ai/docs/serverless/models
+- Together Kimi K2.6 model page: https://www.together.ai/models/kimi-k26
+- LiteLLM Together provider: https://docs.litellm.ai/docs/providers/togetherai
+- Cerebras model catalog: https://inference-docs.cerebras.ai/models/overview
+- Cerebras pricing page: https://www.cerebras.ai/pricing
+- Cerebras inference page: https://www.cerebras.ai/inference
+- LiteLLM Cerebras provider: https://docs.litellm.ai/docs/providers/cerebras
+- OpenAI GPT-5.4 mini docs/pricing: https://developers.openai.com/api/docs/models/gpt-5.4-mini
+
+## Execution Plan
+
+### Phase 1: Thin Provider Support
+
+Add small runtime polish before paid tests:
+
+- Add `DEEPSEEK_API_KEY`, `TOGETHER_API_KEY` / `TOGETHERAI_API_KEY`, and `CEREBRAS_API_KEY` prechecks.
+- Add provider hints in backtest crash banners.
+- Add unit tests that `deepseek/`, `together_ai/`, and `cerebras/` model strings route through `LiteLlm`.
+- Add a dedicated benchmark runner that records model, provider, rates used, elapsed wall time, token usage, tool calls, orders, returns, drawdown, artifact paths, and error class.
+
+### Phase 2: One-Day Smoke
+
+Run every candidate over one trading day with `LUMIBOT_AGENT_MAX_MODEL_CALLS=8`.
+
+Pass/fail criteria:
+
+- Every committee role completes.
+- At least one read-only built-in tool is called by research.
+- Portfolio manager checks positions/cash/open orders before deciding.
+- Any order submitted respects max position limits.
+- Trace files and usage rows are written.
+
+### Phase 3: Fourteen Trading Days
+
+Run candidates that pass Phase 2 over the same prior 14-trading-day window. Use all-four-roles same model to keep comparison clean.
+
+Primary metrics:
+
+- Total wall-clock runtime.
+- First-event latency and total latency per agent call.
+- Tokens and cost by agent role.
+- Tool calls by agent role and tool category.
+- Backtest return, drawdown, trades, and final positions.
+- Qualitative evidence quality: did it use SEC/FRED/news/indicators, or did it hallucinate?
+
+### Phase 4: Two or Three Month Finalists
+
+Only run the finalists for two or three months. Recommended finalists likely:
+
+- `gemini-3.5-flash`
+- `deepseek/deepseek-v4-flash`
+- `deepseek/deepseek-v4-pro`
+- `together_ai/moonshotai/Kimi-K2.6`
+- `cerebras/gpt-oss-120b`
+- `cerebras/zai-glm-4.7` if the one-day smoke is good
+
+## Expected Findings
+
+- DeepSeek V4 Flash is the best cost bet. If quality is even acceptable, it will be hard to ignore.
+- DeepSeek V4 Pro direct is probably worth testing while the 75% promo lasts. It may beat Flash on hard reasoning at still-low cost.
+- Gemini 3.5 Flash is the likely closed-model quality/speed baseline. Google published strong tool-use and finance-agent model-card numbers, so it belongs in the benchmark.
+- Kimi K2.6 is worth testing because it is explicitly marketed as an agentic model and Together lists function calling.
+- Cerebras is worth testing for speed, but use `gpt-oss-120b` or `zai-glm-4.7`, not small Llama, if the goal is committee quality.
+- Qwen should be a second-tier experiment. Test one cheap throughput Qwen only after the core models pass, because the committee benchmark is more about tool discipline and finance decisions than raw low-cost text generation.
+
+## API Keys To Get
+
+Get these:
+
+- `GOOGLE_API_KEY` or `GEMINI_API_KEY` for Gemini 3.5 Flash.
+- `DEEPSEEK_API_KEY` for direct DeepSeek V4 Flash and V4 Pro. This is important because Together currently exposes DeepSeek V4 Pro, but direct DeepSeek is the clean path for V4 Flash.
+- `TOGETHER_API_KEY` for Kimi, Qwen, GPT-OSS, and Together-hosted DeepSeek.
+- `CEREBRAS_API_KEY` for fast GPT-OSS 120B and GLM 4.7 runs.
+
+## Open Implementation Questions
+
+- Whether Google ADK accepts `gemini-3.5-flash` immediately in the installed SDK version, or whether `google-adk` / `google-genai` need upgrades.
+- Whether DeepSeek V4 thinking-mode parameters need explicit LiteLLM kwargs for fair Flash vs Pro runs.
+- Whether Cerebras `zai-glm-4.7` accepts the current ADK/LiteLLM tool schema without stricter validation changes.
+- Whether to cap output tokens lower for benchmark comparability. The current runtime allows up to `65535` output tokens, which is useful but can distort cost and latency across reasoning-heavy providers.

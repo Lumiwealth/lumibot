@@ -35,14 +35,25 @@ from lumibot.strategies.strategy import Strategy
 
 
 DEFAULT_UNIVERSE = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "SPY", "QQQ"]
-DEFAULT_HANDOFF_MAX_CHARS = 16000
+DEFAULT_HANDOFF_TARGET_CHARS = 24000
+DEFAULT_HANDOFF_MAX_CHARS = 96000
+
+
+def _committee_handoff_target_chars() -> int:
+    raw = os.environ.get("COMMITTEE_HANDOFF_TARGET_CHARS")
+    if raw:
+        try:
+            return max(int(raw), 4000)
+        except Exception:
+            pass
+    return DEFAULT_HANDOFF_TARGET_CHARS
 
 
 def _committee_handoff_max_chars() -> int:
     raw = os.environ.get("COMMITTEE_HANDOFF_MAX_CHARS")
     if raw:
         try:
-            return max(int(raw), 2000)
+            return max(int(raw), 8000)
         except Exception:
             pass
     return DEFAULT_HANDOFF_MAX_CHARS
@@ -58,7 +69,8 @@ def _compact_handoff_text(value, *, label: str) -> str:
     omitted = len(text) - head - tail
     return (
         text[:head]
-        + f"\n\n[Truncated {label} handoff by {omitted} characters. Use the retained source-backed summary only.]\n\n"
+        + f"\n\n[Emergency truncation: removed {omitted} characters from {label}. "
+        "The model exceeded the committee handoff safety limit; rely only on retained source-backed evidence.]\n\n"
         + text[-tail:]
     )
 
@@ -117,6 +129,7 @@ class AIInvestmentCommitteeStrategy(Strategy):
             "universe": universe,
             "max_position_pct": self.parameters.get("max_position_pct", 0.20),
             "max_new_positions_per_run": self.parameters.get("max_new_positions_per_run", 2),
+            "handoff_target_chars": _committee_handoff_target_chars(),
             "datetime": self.get_datetime().isoformat(),
         }
 
@@ -175,6 +188,8 @@ class AIInvestmentCommitteeStrategy(Strategy):
 You are the Evidence Researcher for a Lumibot AI investment committee.
 
 You cannot place, modify, or cancel trades. You are responsible for building a compact, source-backed evidence pack.
+Your answer is a handoff to the other committee members. Keep the final answer under context.handoff_target_chars characters.
+Do not paste raw tool payloads, long tables, SEC excerpts, or full time series. Synthesize the important facts and cite tool names/sources.
 
 For each candidate symbol, gather:
 1. Market context and current/visible historical prices.
@@ -188,11 +203,11 @@ For each candidate symbol, gather:
 Return JSON-like markdown with:
 - candidate symbols reviewed
 - top long candidates
-- price/technical summary
-- fundamental summary
-- filing highlights
-- macro regime summary
-- news/catalyst summary
+- price/technical summary, with only the decisive numbers
+- fundamental summary, with only the decisive numbers
+- filing highlights, summarized in your own words
+- macro regime summary, if macro tools are available
+- news/catalyst summary, summarized in your own words
 - bull evidence
 - bear evidence
 - missing data or uncertainty
@@ -205,6 +220,8 @@ You are the Bull Researcher. You cannot place, modify, or cancel trades.
 
 Build the strongest long-only case from the evidence pack. You may use read-only tools to dig deeper.
 Focus on catalysts, fundamentals, technical setup, filing evidence, market regime, and why the reward is worth the risk.
+Your answer is a handoff to the Bear Researcher and Portfolio Manager. Keep the final answer under context.handoff_target_chars characters.
+Do not repeat the full evidence pack. Extract only the strongest investable thesis and the supporting facts.
 
 Return:
 - strongest buy candidates
@@ -222,6 +239,8 @@ You are the Bear Researcher. You cannot place, modify, or cancel trades.
 
 Attack the long case. Find reasons the portfolio manager should avoid, delay, reduce size, or demand more evidence.
 Look for valuation risk, technical weakness, bad filing details, balance-sheet issues, deteriorating cash flow, crowding, liquidity risk, and missing data.
+Your answer is a handoff to the Portfolio Manager. Keep the final answer under context.handoff_target_chars characters.
+Do not repeat the full evidence pack or bull case. Extract the highest-impact objections, what would change your mind, and the risk controls needed.
 
 Return:
 - strongest objections
@@ -234,6 +253,7 @@ Return:
     def _portfolio_manager_prompt(self) -> str:
         return """
 You are the Portfolio Manager for a long-only Lumibot strategy.
+Keep the final answer concise and decision-focused. Do not repeat the full evidence pack, bull case, or bear case.
 
 You may place real Lumibot orders, but only within the strategy risk limits. Before trading:
 1. Check current portfolio, positions, open orders, and prices.

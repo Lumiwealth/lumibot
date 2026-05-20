@@ -20,12 +20,13 @@ def test_ai_committee_example_exposes_expected_risk_controls():
 
 
 def test_ai_committee_handoff_text_is_compacted(monkeypatch):
-    monkeypatch.setenv("COMMITTEE_HANDOFF_MAX_CHARS", "2000")
+    monkeypatch.setenv("COMMITTEE_HANDOFF_MAX_CHARS", "8000")
 
-    text = "a" * 5000
+    text = "a" * 20000
     compacted = _compact_handoff_text(text, label="evidence_pack")
 
     assert len(compacted) < len(text)
-    assert "Truncated evidence_pack handoff" in compacted
+    assert "Emergency truncation" in compacted
+    assert "evidence_pack" in compacted
     assert compacted.startswith("a" * 100)
     assert compacted.endswith("a" * 100)

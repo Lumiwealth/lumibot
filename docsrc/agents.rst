@@ -263,6 +263,11 @@ and can call a narrower tool or query if it needs more detail. This matters for
 large SEC company-facts payloads, filings, news bodies, and other raw data that
 can otherwise consume an entire provider context window.
 
+The default tool-result budget is 4,000 estimated tokens per tool result. You
+can override it with ``LUMIBOT_AGENT_TOOL_RESULT_MAX_TOKENS`` when benchmarking
+models with unusually large context windows, but keep in mind that many tool
+results can accumulate inside one agent turn.
+
 For 128K-context models, think about the combined context, not just one
 handoff. If the portfolio manager receives evidence, bull, and bear handoffs,
 three 32K-token handoffs can already consume roughly 96K tokens before the

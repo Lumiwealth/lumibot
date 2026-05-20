@@ -23,7 +23,7 @@ from .context_budget import budget_text_by_tokens
 from .schemas import AgentRunResult, AgentTraceEvent, BoundTool, MCPServer
 
 
-_DEFAULT_TOOL_RESULT_MAX_TOKENS = 12000
+_DEFAULT_TOOL_RESULT_MAX_TOKENS = 4000
 _GOOGLE_SDK_NOISE_FILTERS_CONFIGURED = False
 ClientSession = None
 StdioServerParameters = None
@@ -102,13 +102,18 @@ def _tool_function_name(value: str) -> str:
 
 
 def _budget_tool_result_for_model_context(tool_name: str, value: Any) -> Any:
+    raw_max_tokens = os.environ.get("LUMIBOT_AGENT_TOOL_RESULT_MAX_TOKENS")
+    try:
+        max_tokens = int(raw_max_tokens) if raw_max_tokens else _DEFAULT_TOOL_RESULT_MAX_TOKENS
+    except (TypeError, ValueError):
+        max_tokens = _DEFAULT_TOOL_RESULT_MAX_TOKENS
     try:
         serialized = json.dumps(_json_safe_value(value), sort_keys=True, default=str)
     except Exception:
         serialized = str(value)
     budgeted = budget_text_by_tokens(
         serialized,
-        max_tokens=_DEFAULT_TOOL_RESULT_MAX_TOKENS,
+        max_tokens=max_tokens,
         label=f"tool_result:{tool_name}",
     )
     if not budgeted.was_truncated:
@@ -119,7 +124,7 @@ def _budget_tool_result_for_model_context(tool_name: str, value: Any) -> Any:
         "tool_name": tool_name,
         "original_estimated_tokens": budgeted.original_estimated_tokens,
         "estimated_tokens": budgeted.estimated_tokens,
-        "max_tokens": _DEFAULT_TOOL_RESULT_MAX_TOKENS,
+        "max_tokens": max_tokens,
         "result_excerpt": budgeted.text,
         "message": (
             "Tool result exceeded LumiBot's model-context token budget. "

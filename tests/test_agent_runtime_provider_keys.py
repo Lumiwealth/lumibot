@@ -84,7 +84,8 @@ def test_together_litellm_key_wins_over_sdk_alias(monkeypatch):
     assert os.environ["TOGETHER_API_KEY"] == "together-test-key"
 
 
-def test_large_tool_results_are_budgeted_for_model_context():
+def test_large_tool_results_are_budgeted_for_model_context(monkeypatch):
+    monkeypatch.delenv("LUMIBOT_AGENT_TOOL_RESULT_MAX_TOKENS", raising=False)
     result = _budget_tool_result_for_model_context(
         "huge_sec_payload",
         {"facts": ["revenue margin debt liquidity buyback risk "] * 50000},
@@ -94,6 +95,17 @@ def test_large_tool_results_are_budgeted_for_model_context():
     assert result["tool_name"] == "huge_sec_payload"
     assert result["original_estimated_tokens"] > result["estimated_tokens"]
     assert "Token-budget safety truncation" in result["result_excerpt"]
+
+
+def test_tool_result_budget_can_be_overridden(monkeypatch):
+    monkeypatch.setenv("LUMIBOT_AGENT_TOOL_RESULT_MAX_TOKENS", "1200")
+    result = _budget_tool_result_for_model_context(
+        "huge_sec_payload",
+        {"facts": ["revenue margin debt liquidity buyback risk "] * 50000},
+    )
+
+    assert result["lumibot_tool_result_truncated"] is True
+    assert result["max_tokens"] == 1200
 
 
 def test_aggregate_usage_metadata_sums_multiple_provider_events():

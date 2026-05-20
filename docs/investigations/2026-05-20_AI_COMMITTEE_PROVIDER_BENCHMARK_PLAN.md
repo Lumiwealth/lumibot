@@ -411,6 +411,7 @@ Results so far:
 - `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`, bounded-handoff rerun: hit the one-hour process timeout after `49` agent run summaries / `12` complete committee cycles with no repeated context-window failure. Partial usage: input `2,025,198`, output `41,640`, tool calls `363`, estimated cost `$0.430024`. The handoff contract fixed the failure mode, but Qwen needs a longer timeout to finish the qualifier.
 - Parallel rerun after token-budgeted handoffs showed `deepseek/deepseek-v4-flash` can still exceed context with raw tool results: provider rejected about `7,033,087` requested tokens against a `1,048,576` context window. This exposed a second boundary: tool results, especially raw SEC/companyfacts-style payloads, must also be token-budgeted before entering model context.
 - Runtime fix added after the DeepSeek failure: `lumibot.components.agents.context_budget.budget_text_by_tokens()` is now used at the tool-result boundary. Oversized tool results are replaced with an explicit bounded excerpt and a notice telling the model to call a narrower tool/query when more detail is needed.
+- The first Qwen run after tool-result budgeting still failed with Together's generic `Input validation error` after an earlier 300-second agent timeout. The likely remaining issue is accumulated context/request shape, not credentials. The tool-result budget was changed from a hard-coded 12K token cap to a 4K default with `LUMIBOT_AGENT_TOOL_RESULT_MAX_TOKENS` override for model-specific reruns.
 
 Current interpretation:
 

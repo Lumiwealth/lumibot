@@ -610,7 +610,7 @@ def _resolve_model_for_adk(model: Any, *, prompt_cache_key: str | None = None) -
     except ImportError as exc:
         raise ImportError(
             f"Agent model '{model}' requires the 'litellm' package. "
-            "Install it with: pip install litellm"
+            "Install it with: pip install 'google-adk[extensions]' litellm"
         ) from exc
     kwargs: dict[str, Any] = {}
     if prompt_cache_key:

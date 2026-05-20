@@ -110,22 +110,23 @@ Cache-adjusted costs are directional only. Provider-specific caching behavior di
 
 | Candidate | 14-day no-cache estimate | 14-day cache-adjusted estimate | 3-month no-cache estimate | 3-month cache-adjusted estimate |
 |---|---:|---:|---:|---:|
+| Direct DeepSeek V4 Flash (optional/privacy-sensitive) | `$0.30` | `$0.09` | `$1.36` | `$0.42` |
 | Together GPT-OSS 120B | `$0.37` | n/a | `$1.65` | n/a |
 | Together Qwen3 235B throughput | `$0.46` | n/a | `$2.07` | n/a |
 | Gemini 3.1 Flash-Lite | `$0.68` | `$0.34` | `$3.07` | `$1.53` |
 | Cerebras GPT-OSS 120B | `$0.76` | n/a | `$3.43` | n/a |
+| Direct DeepSeek V4 Pro promo (optional/privacy-sensitive) | `$0.94` | `$0.28` | `$4.23` | `$1.26` |
 | Cerebras Qwen 3 235B preview | `$1.30` | n/a | `$5.83` | n/a |
 | Together Kimi K2.5 | `$1.34` | n/a | `$6.02` | n/a |
 | Gemini 3 Flash Preview standard | `$1.37` | `$0.68` | `$6.14` | `$3.05` |
 | Together Qwen3.6 Plus | `$1.37` | n/a | `$6.14` | n/a |
 | GPT-5.4 mini | `$2.05` | `$1.02` | `$9.22` | `$4.58` |
 | Together Kimi K2.6 | `$2.89` | `$1.36` | `$13.01` | `$6.14` |
+| Direct DeepSeek V4 Pro list (optional/privacy-sensitive) | `$3.76` | `$1.12` | `$16.90` | `$5.05` |
+| Gemini 3.5 Flash standard | `$4.10` | `$2.04` | `$18.43` | `$9.16` |
 | Together DeepSeek V4 Pro | `$4.56` | `$1.66` | `$20.53` | `$7.47` |
 | Cerebras ZAI GLM 4.7 preview | `$4.61` | n/a | `$20.73` | n/a |
-| Gemini 3.5 Flash standard | `$7.37` | `$3.66` | `$33.18` | `$16.48` |
-| Direct DeepSeek V4 Flash (optional/privacy-sensitive) | `$0.30` | `$0.09` | `$1.36` | `$0.42` |
-| Direct DeepSeek V4 Pro promo (optional/privacy-sensitive) | `$0.94` | `$0.28` | `$4.23` | `$1.26` |
-| Direct DeepSeek V4 Pro list (optional/privacy-sensitive) | `$3.76` | `$1.12` | `$16.90` | `$5.05` |
+| Gemini 3.5 Flash priority | `$7.37` | `$3.66` | `$33.18` | `$16.48` |
 
 Cerebras prices found in the current pricing page data:
 
@@ -184,6 +185,29 @@ Pass/fail criteria:
 - Any order submitted respects max position limits.
 - Trace files and usage rows are written.
 
+### Phase 2 Smoke Results: 2026-05-19
+
+Artifacts:
+
+- `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260519_222927`
+- `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260519_224952`
+
+Window: `2026-03-30` through `2026-03-31`.
+
+Results:
+
+- `deepseek/deepseek-v4-flash`: passed. Wall time `496.4s`; model latency `82.6s`; input `159,720`, cached input `142,336`, output `6,890`; tool calls `15`; estimated cost `$0.024290` no-cache / `$0.004762` cache-adjusted. No trade was placed.
+- `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`: passed with a retry warning. Wall time `281.1s`; model latency `26.1s`; input `161,158`, output `1,297`; tool calls `21`; estimated cost `$0.033010`. It attempted a `list_fred_series` tool that is not in the committee toolset before retrying. No trade was placed.
+- `together_ai/openai/gpt-oss-120b`: passed but made `0` tool calls. Wall time `140.2s`; model latency `8.9s`; input `15,492`, output `1,036`; estimated cost `$0.002945`. Treat as a poor fit for the committee unless prompting or tool forcing is improved.
+- `together_ai/moonshotai/Kimi-K2.5`: passed and placed one AAPL order. Wall time `428.0s`; model latency `83.9s`; input `136,798`, cached input `99,200`, output `4,423`; tool calls `25`; estimated cost `$0.080783`; one-day total return `0.0017899582824705274`.
+- `cerebras/gpt-oss-120b`: failed with `BadRequestError`: Cerebras rejected `messages.*.assistant.reasoning_content`. This looks like an ADK/LiteLLM message-normalization issue for Cerebras, not a definitive model-quality failure.
+- The first combined batch timed out before it could write `summary.json` or test Kimi. Individual `result.json` files were still written for completed model legs. Kimi was rerun separately and completed.
+
+Current key state:
+
+- DeepSeek, Together, and Cerebras keys are present locally in the ignored env file.
+- Gemini/OpenAI keys were not present locally during this smoke, so Gemini 3.5 Flash and GPT-5.4 mini were not run yet.
+
 ### Phase 3: Fourteen Trading Days
 
 Run candidates that pass Phase 2 over the same prior 14-trading-day window. Use all-four-roles same model to keep comparison clean.
@@ -214,9 +238,9 @@ Only run the finalists for two or three months. Recommended finalists likely:
 - Together-hosted DeepSeek V4 Pro is not a cost winner. It is more expensive than direct DeepSeek V4 Pro and far more expensive than direct DeepSeek V4 Flash. Use it only if we specifically want DeepSeek behavior without calling DeepSeek's own API endpoint.
 - Direct DeepSeek V4 Flash is the best raw cost bet, but it has a privacy posture Rob does not like for proprietary trading data. Keep it optional.
 - Gemini 3.5 Flash is the likely closed-model quality/speed baseline. Google published strong tool-use and finance-agent model-card numbers, so it belongs in the benchmark.
-- Kimi K2.6 is worth a smoke test because it is explicitly marketed as an agentic model and Together lists function calling, but the current cost is high enough that it should not be a default finalist unless quality is clearly better.
-- Cerebras is worth testing for speed, but use `gpt-oss-120b` or `zai-glm-4.7`, not small Llama, if the goal is committee quality.
-- Qwen throughput is cheap enough to smoke early. Keep it only if tool discipline is acceptable.
+- Kimi K2.5 looked promising in the first smoke because it used tools and placed a bounded order. Kimi K2.6 is still worth a smoke test only if the higher price is justified by quality.
+- Cerebras is worth testing for speed, but the current ADK/LiteLLM path needs a message-normalization fix for `reasoning_content` before `cerebras/gpt-oss-120b` can complete.
+- Qwen throughput is cheap and fast enough to keep testing, but the `list_fred_series` hallucinated tool call means we should watch tool discipline carefully.
 
 ## API Keys To Get
 

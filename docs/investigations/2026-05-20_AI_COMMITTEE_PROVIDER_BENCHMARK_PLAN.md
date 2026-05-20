@@ -276,6 +276,7 @@ Tests run:
 - `python3 -m pytest tests/test_agent_runtime_provider_keys.py tests/test_agent_tool_permissions.py -q`: `20 passed`.
 - `python3 -m pytest tests/test_agent_runtime_remote_mcp.py tests/test_agent_runtime_mcp_transports.py tests/backtest/test_agent_runtime_backtest.py tests/backtest/test_ai_committee_builtin_tools_backtest.py -q`: `20 passed`.
 - `python3 -m py_compile lumibot/components/agents/runtime.py lumibot/components/agents/manager.py scripts/run_ai_committee_provider_benchmark.py`: passed.
+- Paid ADK 2 provider smoke: `deepseek/deepseek-v4-flash` over `2026-03-30` through `2026-03-31` passed in `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260520_002033`. It made `27` tool calls, used `188,335` input tokens and `6,974` output tokens, estimated `$0.028320` no-cache / `$0.006754` cache-adjusted, and placed no trades. It had a transient `list_fred_series` unavailable-tool retry before completion, which means prompt/tool availability should be tightened before large runs.
 
 User-facing ADK 2 feature exposure recommendation:
 
@@ -285,3 +286,11 @@ User-facing ADK 2 feature exposure recommendation:
 - Second useful product feature: structured outputs per agent step, so portfolio/risk/order decisions can be validated before orders are submitted.
 - Third useful product feature: optional human-in-the-loop checkpoints for live trading workflows, especially before mutating order tools.
 - Defer fully custom graph authoring until the basic provider benchmark and team recipe API are stable. Most users need safer presets before they need arbitrary workflow graphs.
+
+Small practical feature plan:
+
+1. Add a guardrail-only approval hook around mutating tools, not an interactive chat pause inside the model call. In server/backtest mode it should default to `auto_deny` or `auto_approve`; in BotSpot/live mode it can create a pending approval record and return a "pending approval" tool result instead of placing the order. This preserves server operation and avoids blocking a trading loop waiting for a human.
+2. Add cancellable runs as cooperative cancellation. Store run state keyed by `run_id`, expose `cancel_agent_run(run_id)`, and have runtime/tool wrappers check a cancellation flag between model/tool events. This will stop future work but should not pretend to interrupt an in-flight provider HTTP request.
+3. Add resumable runs only at step boundaries first. Full mid-token/mid-tool resume is too much. Store step outputs, trace events, model, prompt, context, and tool results; rerun only incomplete team steps.
+4. Add `AgentTeam` as a thin sequential/parallel orchestrator over existing `AgentManager.create()` agents. First version can run named agents in order or simple parallel groups, then pass summaries into the final agent. Do not expose arbitrary ADK graph nodes yet.
+5. Add structured output validation for trading decisions before adding custom graph authoring. A `decision_schema` or `output_schema` is easier to test and directly improves trading safety.

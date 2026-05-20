@@ -88,6 +88,50 @@ def test_alpaca_activity_normalization_maps_external_and_tax_events():
     assert tax_event.direction == "out"
 
 
+def test_alpaca_cash_journals_are_external_cash_flows_by_sign():
+    cash_journal_in = Alpaca._normalize_activity_to_cash_event(
+        {
+            "id": "evt-journal-in",
+            "activity_type": "JNLC",
+            "date": "2026-04-07",
+            "net_amount": "100000.00",
+            "status": "executed",
+        }
+    )
+    cash_journal_out = Alpaca._normalize_activity_to_cash_event(
+        {
+            "id": "evt-journal-out",
+            "activity_type": "JNLC",
+            "date": "2026-04-08",
+            "net_amount": "-2500.00",
+            "status": "executed",
+        }
+    )
+    stock_journal = Alpaca._normalize_activity_to_cash_event(
+        {
+            "id": "evt-stock-journal",
+            "activity_type": "JNLS",
+            "date": "2026-04-08",
+            "net_amount": "0.00",
+            "status": "executed",
+        }
+    )
+
+    assert cash_journal_in is not None
+    assert cash_journal_in.event_type == "deposit"
+    assert cash_journal_in.is_external_cash_flow is True
+    assert cash_journal_in.direction == "in"
+
+    assert cash_journal_out is not None
+    assert cash_journal_out.event_type == "withdrawal"
+    assert cash_journal_out.is_external_cash_flow is True
+    assert cash_journal_out.direction == "out"
+
+    assert stock_journal is not None
+    assert stock_journal.event_type == "journal"
+    assert stock_journal.is_external_cash_flow is False
+
+
 def test_alpaca_get_cash_events_fetches_transfer_page_and_normalizes():
     requests = []
 
@@ -282,6 +326,57 @@ def test_tradier_history_normalization_extracts_nested_fields_and_overrides_tran
     assert fee_event.is_external_cash_flow is False
     assert fee_event.description == "Annual IRA Fee"
     assert fee_event.direction == "out"
+
+
+def test_tradier_wire_and_transfer_classification_uses_real_account_descriptions():
+    wire_event = Tradier._normalize_history_row_to_cash_event(
+        {
+            "type": "wire",
+            "date": "2025-10-30T00:00:00Z",
+            "amount": "-4000.00",
+            "wire.description": "Journal to account 6YA54069",
+        }
+    )
+    subscription_event = Tradier._normalize_history_row_to_cash_event(
+        {
+            "type": "transfer",
+            "date": "2026-05-04T00:00:00Z",
+            "amount": "-10.00",
+            "transfer.description": "May Pro Subscription",
+        }
+    )
+    internal_type_transfer = Tradier._normalize_history_row_to_cash_event(
+        {
+            "type": "transfer",
+            "date": "2025-11-03T00:00:00Z",
+            "amount": "5681.66",
+            "transfer.description": "TFR FROM TYPE 2",
+        }
+    )
+    account_transfer = Tradier._normalize_history_row_to_cash_event(
+        {
+            "type": "transfer",
+            "date": "2025-11-03T00:00:00Z",
+            "amount": "5681.66",
+            "transfer.description": "Journal from account 6YA46406",
+        }
+    )
+
+    assert wire_event is not None
+    assert wire_event.event_type == "withdrawal"
+    assert wire_event.is_external_cash_flow is True
+
+    assert subscription_event is not None
+    assert subscription_event.event_type == "fee"
+    assert subscription_event.is_external_cash_flow is False
+
+    assert internal_type_transfer is not None
+    assert internal_type_transfer.event_type == "adjustment"
+    assert internal_type_transfer.is_external_cash_flow is False
+
+    assert account_transfer is not None
+    assert account_transfer.event_type == "deposit"
+    assert account_transfer.is_external_cash_flow is True
 
 
 def test_tradier_history_normalization_skips_zero_amount_transfers():
@@ -575,6 +670,26 @@ def test_cash_event_fetch_warning_identifies_broker(caplog):
     assert events == []
     assert "Failed to load broker cash events from tradier (_FailingBroker)" in caplog.text
     assert "string indices must be integers" in caplog.text
+
+
+def test_cloud_cash_event_first_poll_fetches_full_history_then_incremental():
+    calls = []
+
+    def get_cash_events(**kwargs):
+        calls.append(kwargs)
+        return []
+
+    dummy = _cloud_update_dummy(get_cash_events)
+
+    assert _Strategy._collect_cash_events_for_cloud(dummy) == []
+    assert calls[0]["since"] is None
+    assert calls[0]["limit"] == 5000
+    assert dummy._cash_event_initial_history_loaded is True
+
+    dummy._cash_event_last_poll_at = None
+    assert _Strategy._collect_cash_events_for_cloud(dummy) == []
+    assert calls[1]["since"] is not None
+    assert calls[1]["limit"] == 100
 
 
 def test_send_update_to_cloud_includes_cash_events_and_dedupes_on_success(monkeypatch):

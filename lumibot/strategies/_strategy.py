@@ -329,10 +329,13 @@ class _Strategy:
         self._cash_financing_events = 0
         self._cash_financing_last_credit_rate_used = None
         self._cash_financing_last_debit_rate_used = None
+        self._cash_event_initial_history_loaded = False
         self._cash_event_poll_lookback_days = 7
+        self._cash_event_initial_poll_lookback_days = None
         self._cash_event_poll_interval_seconds = 300
         self._cash_event_cloud_emit_limit = 50
         self._cash_event_fetch_limit = 100
+        self._cash_event_initial_fetch_limit = 5000
         self._cash_event_dedupe_capacity = 1000
         self._cash_event_last_poll_at = None
         self._cash_event_pending_for_cloud = []
@@ -3128,9 +3131,19 @@ class _Strategy:
         ):
             return []
 
-        lookback_days = int(getattr(self, "_cash_event_poll_lookback_days", 7) or 7)
-        fetch_limit = int(getattr(self, "_cash_event_fetch_limit", 100) or 100)
-        fetch_since = now_utc - datetime.timedelta(days=lookback_days)
+        initial_history_loaded = bool(getattr(self, "_cash_event_initial_history_loaded", False))
+        if initial_history_loaded:
+            lookback_days = int(getattr(self, "_cash_event_poll_lookback_days", 7) or 7)
+            fetch_limit = int(getattr(self, "_cash_event_fetch_limit", 100) or 100)
+            fetch_since = now_utc - datetime.timedelta(days=lookback_days)
+        else:
+            initial_lookback_days = getattr(self, "_cash_event_initial_poll_lookback_days", None)
+            fetch_limit = int(getattr(self, "_cash_event_initial_fetch_limit", 5000) or 5000)
+            fetch_since = (
+                now_utc - datetime.timedelta(days=int(initial_lookback_days))
+                if initial_lookback_days
+                else None
+            )
         self._cash_event_last_poll_at = now_utc
 
         try:
@@ -3143,6 +3156,7 @@ class _Strategy:
             )
             self.logger.debug(traceback.format_exc())
             return []
+        self._cash_event_initial_history_loaded = True
 
         sent_ids = getattr(self, "_cash_event_sent_ids", set())
         pending_ids = {

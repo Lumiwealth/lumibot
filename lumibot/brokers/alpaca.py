@@ -126,7 +126,7 @@ class Alpaca(Broker):
     TAX_ACTIVITY_TYPES = {"DIVWH", "WH"}
     FEE_ACTIVITY_TYPES = {"CFEE", "FEE"}
     INTEREST_ACTIVITY_TYPES = {"INT", "INTPNL"}
-    JOURNAL_ACTIVITY_TYPES = {"JNLC", "JNLS"}
+    JOURNAL_ACTIVITY_TYPES = {"JNL", "JNLC", "JNLS"}
     EXTERNAL_CASH_ACTIVITY_TYPES = {"ACATC", "ACATS", "CSD", "CSW"}
     TRADE_LIKE_ACTIVITY_TYPES = {"FXTRD", "OPTRD"}
     ADJUSTMENT_ACTIVITY_TYPES = {
@@ -1159,6 +1159,8 @@ class Alpaca(Broker):
             return "fee", False
         if normalized_raw_type in cls.INTEREST_ACTIVITY_TYPES:
             return "interest", False
+        if normalized_raw_type == "JNLC":
+            return ("deposit" if amount >= 0 else "withdrawal"), True
         if normalized_raw_type in cls.JOURNAL_ACTIVITY_TYPES:
             return "journal", False
         if normalized_raw_type in cls.ADJUSTMENT_ACTIVITY_TYPES:

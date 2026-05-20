@@ -1,7 +1,7 @@
 # AI Committee Provider Benchmark Plan
 
 **Date:** 2026-05-20
-**Scope:** Benchmarking the LumiBot AI Investment Committee across Gemini, OpenAI, DeepSeek, Together AI, Kimi, Qwen, and Cerebras models.
+**Scope:** Benchmarking the LumiBot AI Investment Committee across Gemini, OpenAI, Together AI, Kimi, Qwen, Cerebras, and optional direct DeepSeek models.
 
 ## Recommendation
 
@@ -69,22 +69,15 @@ For fair model comparison, set all four to the same candidate model first. Mixed
 | Current strong OpenAI baseline | `openai/gpt-5.5` | Prior committee used GPT-5.5 for bull/bear/trader. Expensive but useful quality anchor. |
 | Gemini 3.5 Flash | `gemini-3.5-flash` | New May 2026 Google model. Google positions it as fast frontier-level agentic model with function calling and strong finance-agent evals. |
 
-### DeepSeek
-
-| Candidate | Model string | Why test |
-|---|---|---|
-| DeepSeek V4 Flash direct | `deepseek/deepseek-v4-flash` | Main value bet: extremely cheap, 1M context, tool calls supported, likely best cost-performance candidate. Requires `DEEPSEEK_API_KEY`. |
-| DeepSeek V4 Pro direct | `deepseek/deepseek-v4-pro` | Stronger DeepSeek quality candidate. Currently discounted through 2026-05-31 per official docs. Requires `DEEPSEEK_API_KEY`. |
-| Together DeepSeek V4 Pro | `together_ai/deepseek-ai/DeepSeek-V4-Pro` | Useful if using Together as the broad provider, but more expensive than direct DeepSeek. Requires `TOGETHERAI_API_KEY`. |
-
 ### Together AI
 
 | Candidate | Model string | Why test |
 |---|---|---|
-| Kimi K2.6 | `together_ai/moonshotai/Kimi-K2.6` | Agentic/model-swarm positioning, 256K context, function calling listed by Together. |
-| Qwen3.6 Plus | `together_ai/Qwen/Qwen3.6-Plus` | Cheaper broad reasoning candidate. Test only if it passes tool-call smoke. |
 | Qwen3 235B FP8 throughput | `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput` | Very cheap throughput model. Good candidate for "can a low-cost open model actually trade?" |
 | GPT-OSS 120B on Together | `together_ai/openai/gpt-oss-120b` | Open-weight reasoning baseline via Together. Low cost, tool support listed by Together. |
+| Qwen3.6 Plus | `together_ai/Qwen/Qwen3.6-Plus` | Cheaper broad reasoning candidate. Test only if it passes tool-call smoke. |
+| Kimi K2.6 | `together_ai/moonshotai/Kimi-K2.6` | Agentic/model-swarm positioning, 256K context, function calling listed by Together. Expensive enough that it should not be in the first cost-sensitive finalist set unless smoke quality is clearly strong. |
+| Together DeepSeek V4 Pro | `together_ai/deepseek-ai/DeepSeek-V4-Pro` | Together-hosted DeepSeek option. More expensive than direct DeepSeek and no documented Together V4 Flash option was found, but it avoids sending requests to `api.deepseek.com`. Requires `TOGETHERAI_API_KEY`. |
 
 ### Cerebras
 
@@ -94,6 +87,15 @@ For fair model comparison, set all four to the same candidate model first. Mixed
 | Z.ai GLM 4.7 on Cerebras | `cerebras/zai-glm-4.7` | Preview but probably the smartest public Cerebras-hosted model for coding/tool agents. Official catalog lists about 1000 tokens/sec. |
 
 Skip `cerebras/llama3.1-8b` for committee quality unless the goal is pure speed sanity testing. It is very fast but likely too weak for this benchmark. Also note Cerebras says `llama3.1-8b` and `qwen-3-235b-a22b-instruct-2507` are scheduled for deprecation on 2026-05-27.
+
+### Optional Direct DeepSeek
+
+| Candidate | Model string | Why not default |
+|---|---|---|
+| DeepSeek V4 Flash direct | `deepseek/deepseek-v4-flash` | Cheapest and likely fastest DeepSeek option, but it sends requests to DeepSeek's own API endpoint. That is a privacy concern for trading data. Treat as optional Lumibot support, not the default benchmark path for proprietary trading work. |
+| DeepSeek V4 Pro direct | `deepseek/deepseek-v4-pro` | Stronger direct DeepSeek option. Currently discounted through 2026-05-31 per official docs, but same privacy concern as direct Flash. |
+
+Direct DeepSeek is useful for an open-source LumiBot feature because some users will want it. For our own trading benchmark, prefer Together/Cerebras/Gemini/OpenAI unless Rob explicitly accepts the privacy trade-off for a direct DeepSeek run.
 
 ## Cost Estimates
 
@@ -107,16 +109,33 @@ Cache-adjusted costs are directional only. Provider-specific caching behavior di
 
 | Candidate | 14-day no-cache estimate | 14-day cache-adjusted estimate | 3-month no-cache estimate | 3-month cache-adjusted estimate |
 |---|---:|---:|---:|---:|
-| GPT-5.4 mini | `$2.05` | `$1.02` | `$9.22` | `$4.58` |
-| Gemini 3.5 Flash standard | `$4.10` | `$2.04` | `$18.43` | `$9.16` |
-| DeepSeek V4 Flash direct | `$0.30` | `$0.09` | `$1.36` | `$0.42` |
-| DeepSeek V4 Pro direct promo | `$0.94` | `$0.28` | `$4.23` | `$1.26` |
-| Together DeepSeek V4 Pro | `$4.56` | `$1.66` | `$20.53` | `$7.47` |
-| Together Kimi K2.6 | `$2.89` | `$1.36` | `$13.01` | `$6.14` |
-| Together Qwen3.6 Plus | `$1.37` | n/a | `$6.14` | n/a |
 | Together Qwen3 235B throughput | `$0.46` | n/a | `$2.07` | n/a |
+| Cerebras GPT-OSS 120B | `$0.76` | n/a | `$3.43` | n/a |
+| Cerebras Qwen 3 235B preview | `$1.30` | n/a | `$5.83` | n/a |
+| Together Qwen3.6 Plus | `$1.37` | n/a | `$6.14` | n/a |
+| GPT-5.4 mini | `$2.05` | `$1.02` | `$9.22` | `$4.58` |
+| Together Kimi K2.6 | `$2.89` | `$1.36` | `$13.01` | `$6.14` |
+| Gemini 3.5 Flash standard | `$4.10` | `$2.04` | `$18.43` | `$9.16` |
+| Together DeepSeek V4 Pro | `$4.56` | `$1.66` | `$20.53` | `$7.47` |
+| Cerebras ZAI GLM 4.7 preview | `$4.61` | n/a | `$20.73` | n/a |
+| Direct DeepSeek V4 Flash (optional/privacy-sensitive) | `$0.30` | `$0.09` | `$1.36` | `$0.42` |
+| Direct DeepSeek V4 Pro promo (optional/privacy-sensitive) | `$0.94` | `$0.28` | `$4.23` | `$1.26` |
+| Direct DeepSeek V4 Pro list (optional/privacy-sensitive) | `$3.76` | `$1.12` | `$16.90` | `$5.05` |
 
-Cerebras public pricing is less explicit on the current pricing page for `gpt-oss-120b` and `zai-glm-4.7`; the current official page emphasizes free/developer tiers and self-serve payment from `$10`, but does not list per-token prices for those models in the scraped page. Treat Cerebras cost as "verify in dashboard/API after key creation" before a long run.
+Cerebras prices found in the current pricing page data:
+
+- ZAI GLM 4.7: `~1000 tokens/s`, `$2.25/M input`, `$2.75/M output`.
+- GPT OSS 120B: `~3000 tokens/s`, `$0.35/M input`, `$0.75/M output`.
+- Llama 3.1 8B: `~2200 tokens/s`, `$0.10/M input`, `$0.10/M output`; not recommended for committee quality.
+- Qwen 3 235B Instruct: `~1400 tokens/s`, `$0.60/M input`, `$1.20/M output`; preview/deprecation-sensitive, so not a primary pick.
+
+Direct DeepSeek official pricing notes:
+
+- `deepseek-v4-flash`: `$0.14/M cache-miss input`, `$0.0028/M cache-hit input`, `$0.28/M output`.
+- `deepseek-v4-pro`: list is `$1.74/M cache-miss input`, `$0.0145/M cache-hit input`, `$3.48/M output`.
+- `deepseek-v4-pro` promo is 75% off through 2026-05-31 15:59 UTC, making it `$0.435/M cache-miss input`, `$0.003625/M cache-hit input`, `$0.87/M output`.
+
+Together DeepSeek V4 Pro costs more than direct DeepSeek V4 Pro at list and much more than direct DeepSeek V4 Pro during the promo. The reason to use Together is privacy/vendor posture and operational simplicity, not lower cost.
 
 ## Sources Checked
 
@@ -178,29 +197,30 @@ Primary metrics:
 Only run the finalists for two or three months. Recommended finalists likely:
 
 - `gemini-3.5-flash`
-- `deepseek/deepseek-v4-flash`
-- `deepseek/deepseek-v4-pro`
-- `together_ai/moonshotai/Kimi-K2.6`
+- `openai/gpt-5.4-mini`
+- `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput` if tool-calling quality is acceptable
+- `together_ai/moonshotai/Kimi-K2.6` only if smoke quality justifies the higher cost
 - `cerebras/gpt-oss-120b`
 - `cerebras/zai-glm-4.7` if the one-day smoke is good
+- Optional privacy-sensitive comparison only if explicitly approved: `deepseek/deepseek-v4-flash` and `deepseek/deepseek-v4-pro`
 
 ## Expected Findings
 
-- DeepSeek V4 Flash is the best cost bet. If quality is even acceptable, it will be hard to ignore.
-- DeepSeek V4 Pro direct is probably worth testing while the 75% promo lasts. It may beat Flash on hard reasoning at still-low cost.
+- Together-hosted DeepSeek V4 Pro is not a cost winner. It is more expensive than direct DeepSeek V4 Pro and far more expensive than direct DeepSeek V4 Flash. Use it only if we specifically want DeepSeek behavior without calling DeepSeek's own API endpoint.
+- Direct DeepSeek V4 Flash is the best raw cost bet, but it has a privacy posture Rob does not like for proprietary trading data. Keep it optional.
 - Gemini 3.5 Flash is the likely closed-model quality/speed baseline. Google published strong tool-use and finance-agent model-card numbers, so it belongs in the benchmark.
-- Kimi K2.6 is worth testing because it is explicitly marketed as an agentic model and Together lists function calling.
+- Kimi K2.6 is worth a smoke test because it is explicitly marketed as an agentic model and Together lists function calling, but the current cost is high enough that it should not be a default finalist unless quality is clearly better.
 - Cerebras is worth testing for speed, but use `gpt-oss-120b` or `zai-glm-4.7`, not small Llama, if the goal is committee quality.
-- Qwen should be a second-tier experiment. Test one cheap throughput Qwen only after the core models pass, because the committee benchmark is more about tool discipline and finance decisions than raw low-cost text generation.
+- Qwen throughput is cheap enough to smoke early. Keep it only if tool discipline is acceptable.
 
 ## API Keys To Get
 
 Get these:
 
 - `GOOGLE_API_KEY` or `GEMINI_API_KEY` for Gemini 3.5 Flash.
-- `DEEPSEEK_API_KEY` for direct DeepSeek V4 Flash and V4 Pro. This is important because Together currently exposes DeepSeek V4 Pro, but direct DeepSeek is the clean path for V4 Flash.
 - `TOGETHER_API_KEY` for Kimi, Qwen, GPT-OSS, and Together-hosted DeepSeek.
 - `CEREBRAS_API_KEY` for fast GPT-OSS 120B and GLM 4.7 runs.
+- Optional only: `DEEPSEEK_API_KEY` for direct DeepSeek V4 Flash and V4 Pro if Rob explicitly accepts the privacy trade-off. Together currently documents DeepSeek V4 Pro, not DeepSeek V4 Flash, so direct DeepSeek is the clean path for Flash but is not the preferred default for private trading data.
 
 ## Open Implementation Questions
 

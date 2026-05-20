@@ -376,3 +376,32 @@ Interpretation:
 - Cerebras is now mechanically working and extremely fast, but the low tool-call count means the 14-day qualifier must inspect whether it is doing enough evidence gathering.
 - Kimi remains the most interesting Together model because it used tools and placed bounded trades in both smoke runs.
 - DeepSeek Flash is cheap and tool-heavy but slow in wall time, so it belongs in the qualifier.
+
+## 14-Day Qualifier Progress: 2026-05-20
+
+Window: `2026-03-16` through `2026-04-02`.
+
+Important benchmark runner fixes from this phase:
+
+- The paid benchmark runner now defaults `--max-model-calls` to `80` instead of `8`; the original default only allowed about two committee cycles and caused an artificial `LUMIBOT_AGENT_MAX_MODEL_CALLS` failure.
+- The paid benchmark runner now prints JSON `model_start` and `model_finished` events so long runs are observable.
+- The AI committee example now caps role-to-role handoff text with `COMMITTEE_HANDOFF_MAX_CHARS` defaulting to `16000`. This is required because some models return extremely large summaries, and feeding full evidence/bull/bear text into later roles can exceed provider context windows.
+
+Artifacts:
+
+- Cerebras full qualifier: `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260520_034143`.
+- Qwen uncapped failure: `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260520_035752`.
+- Qwen capped rerun partial: `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260520_044254`.
+
+Results so far:
+
+- `cerebras/gpt-oss-120b`: passed the full window. Wall time `926.6s`; model latency `38.1s`; call summaries `13`; tool calls `27`; input `646,373`, cached input `464,384`, output `24,428`; estimated cost `$0.244552`. It stayed in cash, so mechanical speed is strong but strategy quality still needs review.
+- `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`, uncapped: failed with `ContextWindowExceededError` after sending about `2,951,306` tokens into a `262,144` token context window. Root cause was oversized role handoffs in the committee example, not a bad API key.
+- `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`, capped rerun: hit the one-hour process guard after `49` agent run summaries / `12` complete committee cycles with no repeated context-window failure. Partial usage: input `2,025,198`, output `41,640`, tool calls `363`, estimated cost `$0.430024`. The cap fixed the failure mode, but Qwen needs a longer guard to finish the qualifier.
+
+Current interpretation:
+
+- Cerebras is worth keeping in the slate. It is dramatically faster than the other currently tested providers, but its all-cash result means it should be judged on trace quality before moving to a full 3-month run.
+- Qwen is mechanically viable after capped handoffs, but it is slow enough that 14-day and longer runs should be model-by-model with larger timeout guards or detached logs.
+- Kimi and DeepSeek should not run the 14-day qualifier until the capped handoff fix is included, because they would otherwise risk the same context blow-up.
+- For the next run, use model-by-model commands with provider-specific guards: Cerebras around `30m`, Qwen at least `2h`, Kimi at least `2h`, DeepSeek at least `3h`.

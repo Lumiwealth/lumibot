@@ -398,6 +398,8 @@ Results so far:
 - `cerebras/gpt-oss-120b`: passed the full window. Wall time `926.6s`; model latency `38.1s`; call summaries `13`; tool calls `27`; input `646,373`, cached input `464,384`, output `24,428`; estimated cost `$0.244552`. It stayed in cash, so mechanical speed is strong but strategy quality still needs review.
 - `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`, uncapped: failed with `ContextWindowExceededError` after sending about `2,951,306` tokens into a `262,144` token context window. Root cause was oversized role handoffs in the committee example, not a bad API key.
 - `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`, bounded-handoff rerun: hit the one-hour process timeout after `49` agent run summaries / `12` complete committee cycles with no repeated context-window failure. Partial usage: input `2,025,198`, output `41,640`, tool calls `363`, estimated cost `$0.430024`. The handoff contract fixed the failure mode, but Qwen needs a longer timeout to finish the qualifier.
+- Parallel rerun after token-budgeted handoffs showed `deepseek/deepseek-v4-flash` can still exceed context with raw tool results: provider rejected about `7,033,087` requested tokens against a `1,048,576` context window. This exposed a second boundary: tool results, especially raw SEC/companyfacts-style payloads, must also be token-budgeted before entering model context.
+- Runtime fix added after the DeepSeek failure: `lumibot.components.agents.context_budget.budget_text_by_tokens()` is now used at the tool-result boundary. Oversized tool results are replaced with an explicit bounded excerpt and a notice telling the model to call a narrower tool/query when more detail is needed.
 
 Current interpretation:
 

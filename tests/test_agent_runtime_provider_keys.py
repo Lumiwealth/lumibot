@@ -9,6 +9,7 @@ from lumibot.components.agents.runtime import (
     GoogleADKRuntime,
     RuntimeRequest,
     _aggregate_usage_metadata,
+    _budget_tool_result_for_model_context,
     _resolve_model_for_adk,
     _strip_thought_parts_from_litellm_request,
     _supports_explicit_temperature_for_adk_model,
@@ -81,6 +82,18 @@ def test_together_litellm_key_wins_over_sdk_alias(monkeypatch):
 
     assert os.environ["TOGETHERAI_API_KEY"] == "togetherai-test-key"
     assert os.environ["TOGETHER_API_KEY"] == "together-test-key"
+
+
+def test_large_tool_results_are_budgeted_for_model_context():
+    result = _budget_tool_result_for_model_context(
+        "huge_sec_payload",
+        {"facts": ["revenue margin debt liquidity buyback risk "] * 50000},
+    )
+
+    assert result["lumibot_tool_result_truncated"] is True
+    assert result["tool_name"] == "huge_sec_payload"
+    assert result["original_estimated_tokens"] > result["estimated_tokens"]
+    assert "Token-budget safety truncation" in result["result_excerpt"]
 
 
 def test_aggregate_usage_metadata_sums_multiple_provider_events():

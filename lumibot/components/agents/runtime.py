@@ -19,9 +19,11 @@ from datetime import date, datetime, timezone
 from typing import Any
 from uuid import uuid4
 
+from .context_budget import budget_text_by_tokens
 from .schemas import AgentRunResult, AgentTraceEvent, BoundTool, MCPServer
 
 
+_DEFAULT_TOOL_RESULT_MAX_TOKENS = 12000
 _GOOGLE_SDK_NOISE_FILTERS_CONFIGURED = False
 ClientSession = None
 StdioServerParameters = None
@@ -99,12 +101,39 @@ def _tool_function_name(value: str) -> str:
     return normalized
 
 
+def _budget_tool_result_for_model_context(tool_name: str, value: Any) -> Any:
+    try:
+        serialized = json.dumps(_json_safe_value(value), sort_keys=True, default=str)
+    except Exception:
+        serialized = str(value)
+    budgeted = budget_text_by_tokens(
+        serialized,
+        max_tokens=_DEFAULT_TOOL_RESULT_MAX_TOKENS,
+        label=f"tool_result:{tool_name}",
+    )
+    if not budgeted.was_truncated:
+        return value
+    return {
+        "ok": True,
+        "lumibot_tool_result_truncated": True,
+        "tool_name": tool_name,
+        "original_estimated_tokens": budgeted.original_estimated_tokens,
+        "estimated_tokens": budgeted.estimated_tokens,
+        "max_tokens": _DEFAULT_TOOL_RESULT_MAX_TOKENS,
+        "result_excerpt": budgeted.text,
+        "message": (
+            "Tool result exceeded LumiBot's model-context token budget. "
+            "Use the retained excerpt and call a narrower tool/query if more detail is needed."
+        ),
+    }
+
+
 def _wrap_tool_callable(tool: BoundTool):
     original = tool.function
 
     def wrapper(*args, **kwargs):
         try:
-            return _json_safe_value(original(*args, **kwargs))
+            return _budget_tool_result_for_model_context(tool.name, _json_safe_value(original(*args, **kwargs)))
         except Exception as exc:
             return _tool_error_payload(tool.name, kwargs, exc)
 

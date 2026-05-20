@@ -256,6 +256,13 @@ an explicit notice that token-budget truncation happened. This prevents a
 single verbose agent from pushing the next agent beyond a provider context
 window.
 
+LumiBot also applies a token budget to very large tool results before they are
+sent back into the model. Full trace artifacts still record that the tool was
+called, but the model sees a bounded excerpt with an explicit truncation notice
+and can call a narrower tool or query if it needs more detail. This matters for
+large SEC company-facts payloads, filings, news bodies, and other raw data that
+can otherwise consume an entire provider context window.
+
 For 128K-context models, think about the combined context, not just one
 handoff. If the portfolio manager receives evidence, bull, and bear handoffs,
 three 32K-token handoffs can already consume roughly 96K tokens before the

@@ -38,6 +38,9 @@ from lumibot.strategies.strategy import Strategy
 DEFAULT_UNIVERSE = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "SPY", "QQQ"]
 DEFAULT_HANDOFF_TARGET_TOKENS = 24000
 DEFAULT_HANDOFF_MAX_TOKENS = 32000
+DEFAULT_MAX_RESEARCH_TOOL_CALLS = 24
+DEFAULT_MAX_FOLLOWUP_TOOL_CALLS = 8
+DEFAULT_MAX_PORTFOLIO_TOOL_CALLS = 6
 
 
 def _prepare_handoff_text(value, *, label: str, max_tokens: int) -> str:
@@ -51,6 +54,9 @@ class AIInvestmentCommitteeStrategy(Strategy):
         "max_new_positions_per_run": 2,
         "handoff_target_tokens": DEFAULT_HANDOFF_TARGET_TOKENS,
         "handoff_max_tokens": DEFAULT_HANDOFF_MAX_TOKENS,
+        "max_research_tool_calls": DEFAULT_MAX_RESEARCH_TOOL_CALLS,
+        "max_followup_tool_calls": DEFAULT_MAX_FOLLOWUP_TOOL_CALLS,
+        "max_portfolio_tool_calls": DEFAULT_MAX_PORTFOLIO_TOOL_CALLS,
         "enable_notifications": False,
     }
 
@@ -101,6 +107,9 @@ class AIInvestmentCommitteeStrategy(Strategy):
             "max_position_pct": self.parameters.get("max_position_pct", 0.20),
             "max_new_positions_per_run": self.parameters.get("max_new_positions_per_run", 2),
             "handoff_target_tokens": self.parameters.get("handoff_target_tokens", DEFAULT_HANDOFF_TARGET_TOKENS),
+            "max_research_tool_calls": self.parameters.get("max_research_tool_calls", DEFAULT_MAX_RESEARCH_TOOL_CALLS),
+            "max_followup_tool_calls": self.parameters.get("max_followup_tool_calls", DEFAULT_MAX_FOLLOWUP_TOOL_CALLS),
+            "max_portfolio_tool_calls": self.parameters.get("max_portfolio_tool_calls", DEFAULT_MAX_PORTFOLIO_TOOL_CALLS),
             "datetime": self.get_datetime().isoformat(),
         }
         handoff_max_tokens = self.parameters.get("handoff_max_tokens", DEFAULT_HANDOFF_MAX_TOKENS)
@@ -176,6 +185,12 @@ For each candidate symbol, gather:
 6. Macro context using list_fred_series, get_fred_snapshot, and get_fred_latest only when those tools are available for rates, inflation, labor, growth, liquidity, credit spreads, and market risk when relevant.
 7. Any additional read-only tools needed to reduce uncertainty.
 
+Tool discipline:
+- Use no more than context.max_research_tool_calls tool calls for the whole evidence pack unless the data is contradictory or a top candidate has a clear missing fact.
+- Do not call every tool for every symbol. Screen broadly first, then investigate only the most promising or risky candidates.
+- Prefer compact tools and targeted queries over broad raw payloads.
+- Do not spend the tool-call budget just because it is available.
+
 Return JSON-like markdown with:
 - candidate symbols reviewed
 - top long candidates
@@ -199,6 +214,7 @@ Focus on catalysts, fundamentals, technical setup, filing evidence, market regim
 Your answer is a handoff to the Bear Researcher and Portfolio Manager. Keep the final answer under context.handoff_target_tokens tokens.
 Do not pad the answer to fill the token budget; shorter is better when the investment case is complete.
 Do not repeat the full evidence pack. Extract only the strongest investable thesis and the supporting facts.
+Use no more than context.max_followup_tool_calls additional tool calls. Prefer no additional tools when the evidence pack is already enough.
 
 Return:
 - strongest buy candidates
@@ -219,6 +235,7 @@ Look for valuation risk, technical weakness, bad filing details, balance-sheet i
 Your answer is a handoff to the Portfolio Manager. Keep the final answer under context.handoff_target_tokens tokens.
 Do not pad the answer to fill the token budget; shorter is better when the risk case is complete.
 Do not repeat the full evidence pack or bull case. Extract the highest-impact objections, what would change your mind, and the risk controls needed.
+Use no more than context.max_followup_tool_calls additional tool calls. Prefer no additional tools when the evidence pack and bull case are already enough.
 
 Return:
 - strongest objections
@@ -241,6 +258,8 @@ You may place real Lumibot orders, but only within the strategy risk limits. Bef
 5. Do not short. Do not use options in this v1 committee example.
 6. Prefer doing nothing when evidence is weak or contradictory.
 7. If you trade, use remember_decision and optionally notify_user.
+
+Use no more than context.max_portfolio_tool_calls tool calls before deciding. Prefer portfolio/order/price checks over new research. Do not reopen the full research process.
 
 Return:
 - final decision

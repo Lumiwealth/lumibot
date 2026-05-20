@@ -253,6 +253,9 @@ def _run_one_model(model: str, args: argparse.Namespace, root: Path) -> dict[str
         parameters={
             "max_position_pct": args.max_position_pct,
             "max_new_positions_per_run": args.max_new_positions_per_run,
+            "max_research_tool_calls": args.max_research_tool_calls,
+            "max_followup_tool_calls": args.max_followup_tool_calls,
+            "max_portfolio_tool_calls": args.max_portfolio_tool_calls,
             "enable_notifications": False,
         },
         stats_file=str(stats_file),
@@ -345,6 +348,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--budget", type=float, default=10000.0)
     parser.add_argument("--max-position-pct", type=float, default=0.20)
     parser.add_argument("--max-new-positions-per-run", type=int, default=2)
+    parser.add_argument("--max-research-tool-calls", type=int, default=24)
+    parser.add_argument("--max-followup-tool-calls", type=int, default=8)
+    parser.add_argument("--max-portfolio-tool-calls", type=int, default=6)
     parser.add_argument("--max-model-calls", type=int, default=80)
     parser.add_argument("--max-run-attempts", type=int, default=2)
     parser.add_argument(

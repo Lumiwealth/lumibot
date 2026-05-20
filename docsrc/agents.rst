@@ -275,6 +275,13 @@ system prompt, tool schemas, runtime context, and the portfolio manager's own
 output. Larger budgets can be reasonable for bigger-context models, but they
 should be chosen intentionally.
 
+Prompt-level tool discipline matters as much as token budgeting. Multi-agent
+strategies should tell research agents how many tool calls are reasonable for a
+turn, because dozens of individually bounded tool results can still create a
+large context. The AI Investment Committee example exposes
+``max_research_tool_calls``, ``max_followup_tool_calls``, and
+``max_portfolio_tool_calls`` strategy parameters for this reason.
+
 DuckDB and Time-Series Data
 ----------------------------
 

@@ -85,8 +85,14 @@ This page documents environment variables used by LumiBot, with an emphasis on *
 ## Live scheduled execution (BotSpot/BotManager)
 
 - `LUMIBOT_SCHEDULED_EXECUTION`: internal BotManager flag. Truthy values (`1`, `true`, `yes`, `y`, `on`) make `Strategy.run_live()` run one live iteration and exit.
+- `LUMIBOT_SCHEDULED_PRE_START_SECONDS` / `LUMIBOT_SCHEDULED_POST_ITERATION_SECONDS`: optional BotManager event-drain windows around the single scheduled iteration. These windows let broker streams connect before the iteration and drain callbacks after it.
 - `LUMIBOT_SCHEDULED_STATE_BACKEND`: external state backend prepared by BotManager: `s3`, `dynamodb`, or `none`. `none` disables scheduled `self.vars` file load/save.
 - `LUMIBOT_SCHEDULED_STATE_FILE`: local JSON file managed by BotManager/bootstrap code to restore and persist `self.vars` for one scheduled live run. State is restored before scheduled lifecycle hooks.
+- `BOTSPOT_RUNTIME_SECRET_ID` / `BOTSPOT_RUNTIME_SECRET_KEYS`: BotSpot runtime Vault contract for scheduled saved broker credentials and saved env vars. The runtime reads only the short-lived `deployment_runtime/` secret identified by these values.
+- `LUMIBOT_CACHE_FOLDER`: cache root used by agent runtime artifacts during scheduled runs.
+- `LUMIBOT_LIVE_ARTIFACTS_S3_BUCKET` / `LUMIBOT_LIVE_ARTIFACTS_S3_PREFIX`: BotManager upload destination for live/scheduled logs, agent runtime traces, decisions, CSV/parquet files, and `manifest.json`.
+
+Scheduled order/event callbacks are not realtime between invocations. A scheduled strategy only observes broker events during each task's pre-start/post-iteration windows and on the next broker-state refresh; use an always-on live deployment when callbacks like `on_filled_order` must fire continuously.
 
 ## Backtest output + UX flags
 

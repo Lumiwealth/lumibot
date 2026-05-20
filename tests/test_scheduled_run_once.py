@@ -3,6 +3,7 @@ import json
 import logging
 from types import SimpleNamespace
 
+from lumibot.entities import Asset
 from lumibot.strategies import strategy as strategy_module
 from lumibot.strategies._strategy import Vars, _Strategy
 from lumibot.strategies.strategy_executor import StrategyExecutor
@@ -50,6 +51,7 @@ class _DummyStrategy:
         self._last_on_trading_iteration_datetime = None
         self.portfolio_value = 100
         self.cash = 100
+        self.hide_trades = True
         self.vars = Vars()
         self.rows = []
         self.initialized = 0
@@ -84,6 +86,9 @@ class _DummyStrategy:
     def _update_portfolio_value(self):
         return None
 
+    def _update_cash(self, order, quantity, price, multiplier):
+        return None
+
     def _apply_daily_cash_financing_if_needed(self):
         return None
 
@@ -103,6 +108,12 @@ class _DummyStrategy:
         self.rows.append(row)
 
     def send_account_summary_to_discord(self):
+        return None
+
+    def send_discord_message(self, *args, **kwargs):
+        return None
+
+    def on_filled_order(self, position, order, price, quantity, multiplier):
         return None
 
     def load_variables_from_db(self):
@@ -310,3 +321,159 @@ def test_run_once_restores_state_before_lifecycle_hooks(tmp_path, monkeypatch):
     persisted = json.loads(state_file.read_text(encoding="utf-8"))
     assert persisted["count"] == 3
     assert strategy.iterations == 1
+
+
+def test_run_once_persists_state_when_no_previous_state_file_exists(tmp_path, monkeypatch):
+    state_file = tmp_path / "scheduled_state.json"
+    monkeypatch.setattr(
+        "lumibot.strategies.strategy_executor.get_trading_days",
+        lambda market: [{"date": datetime.date(2026, 5, 11)}],
+    )
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_EXECUTION", "true")
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_STATE_BACKEND", "s3")
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_STATE_FILE", str(state_file))
+
+    strategy = _ScheduledStateDummyStrategy()
+    executor = StrategyExecutor(strategy)
+    executor.sync_broker = lambda: None
+
+    assert executor.run_once() is True
+
+    persisted = json.loads(state_file.read_text(encoding="utf-8"))
+    assert persisted["ran"] == 1
+    assert strategy.iterations == 1
+
+
+def test_scheduled_state_persists_across_multiple_run_once_invocations(tmp_path, monkeypatch):
+    state_file = tmp_path / "scheduled_state.json"
+    state_file.write_text(
+        json.dumps(
+            {
+                "count": 1,
+                "saved_broker_connection": {"id": "broker-connection-1", "provider": "alpaca"},
+                "saved_env_var_sets": ["env-set-1"],
+                "_agent_runtime_state": {
+                    "research": {
+                        "memory_notes": [{"summary": "prior compact note"}],
+                        "runs": [{"date": "2026-05-10", "count": 0}],
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "lumibot.strategies.strategy_executor.get_trading_days",
+        lambda market: [{"date": datetime.date(2026, 5, 11)}, {"date": datetime.date(2026, 5, 12)}],
+    )
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_EXECUTION", "true")
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_STATE_BACKEND", "s3")
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_STATE_FILE", str(state_file))
+
+    class FilledOrder:
+        asset = SimpleNamespace(asset_type=Asset.AssetType.STOCK)
+        side = "buy"
+
+        def is_parent(self):
+            return False
+
+        def is_buy_order(self):
+            return True
+
+    class Strategy(_ScheduledStateDummyStrategy):
+        def __init__(self, now):
+            super().__init__()
+            self.now = now
+
+        def get_datetime(self):
+            return self.now
+
+        def on_trading_iteration(self):
+            self.iterations += 1
+            count = self.vars.get("count", 0)
+            seen_counts = list(self.vars.get("seen_counts", []))
+            seen_counts.append(count)
+            self.vars.set("seen_counts", seen_counts)
+            self.vars.set("count", count + 1)
+            self.vars.set(
+                "historical_bars_assumptions",
+                {
+                    "symbol": "AAPL",
+                    "lookback_days": 3,
+                    "as_of": self.get_datetime().date(),
+                    "uses_prior_close": True,
+                },
+            )
+
+            agent_state = self.vars.get("_agent_runtime_state", {})
+            research_state = agent_state.setdefault("research", {"memory_notes": [], "runs": []})
+            research_state.setdefault("memory_notes", []).append(
+                {"summary": f"iteration saw count {count}", "created_at": self.get_datetime()}
+            )
+            research_state.setdefault("runs", []).append(
+                {"date": self.get_datetime().date(), "count": count}
+            )
+            self.vars.set("_agent_runtime_state", agent_state)
+
+            self._executor.add_event(
+                StrategyExecutor.FILLED_ORDER,
+                {
+                    "position": SimpleNamespace(asset="AAPL"),
+                    "order": FilledOrder(),
+                    "price": 101.25,
+                    "quantity": 2,
+                    "multiplier": 1,
+                },
+            )
+
+        def on_filled_order(self, position, order, price, quantity, multiplier):
+            fills = list(self.vars.get("filled_callbacks", []))
+            fills.append(
+                {
+                    "date": self.get_datetime().date(),
+                    "symbol": str(position.asset),
+                    "price": price,
+                    "quantity": quantity,
+                }
+            )
+            self.vars.set("filled_callbacks", fills)
+
+    first_strategy = Strategy(datetime.datetime(2026, 5, 11, 9, 30))
+    first_executor = StrategyExecutor(first_strategy)
+    first_strategy._executor = first_executor
+    first_executor.sync_broker = lambda: None
+
+    assert first_executor.run_once() is True
+
+    after_first = json.loads(state_file.read_text(encoding="utf-8"))
+    assert after_first["count"] == 2
+    assert after_first["seen_counts"] == [1]
+    assert after_first["filled_callbacks"][0]["symbol"] == "AAPL"
+    assert after_first["_agent_runtime_state"]["research"]["memory_notes"][-1]["summary"] == "iteration saw count 1"
+
+    second_strategy = Strategy(datetime.datetime(2026, 5, 12, 9, 30))
+    second_executor = StrategyExecutor(second_strategy)
+    second_strategy._executor = second_executor
+    second_executor.sync_broker = lambda: None
+
+    assert second_executor.run_once() is True
+
+    after_second = json.loads(state_file.read_text(encoding="utf-8"))
+    assert after_second["count"] == 3
+    assert after_second["seen_counts"] == [1, 2]
+    assert after_second["saved_broker_connection"] == {"id": "broker-connection-1", "provider": "alpaca"}
+    assert after_second["saved_env_var_sets"] == ["env-set-1"]
+    assert after_second["filled_callbacks"] == [
+        {"date": {"__lumibot_type__": "date", "value": "2026-05-11"}, "symbol": "AAPL", "price": 101.25, "quantity": 2},
+        {"date": {"__lumibot_type__": "date", "value": "2026-05-12"}, "symbol": "AAPL", "price": 101.25, "quantity": 2},
+    ]
+    assert after_second["historical_bars_assumptions"] == {
+        "symbol": "AAPL",
+        "lookback_days": 3,
+        "as_of": {"__lumibot_type__": "date", "value": "2026-05-12"},
+        "uses_prior_close": True,
+    }
+    assert after_second["_agent_runtime_state"]["research"]["memory_notes"][-2:] == [
+        {"summary": "iteration saw count 1", "created_at": {"__lumibot_type__": "datetime", "value": "2026-05-11T09:30:00"}},
+        {"summary": "iteration saw count 2", "created_at": {"__lumibot_type__": "datetime", "value": "2026-05-12T09:30:00"}},
+    ]

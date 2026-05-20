@@ -3879,6 +3879,7 @@ class _Strategy:
             with open(state_file, "r", encoding="utf-8") as f:
                 data = self._deserialize_variables_from_backup(f.read())
         except FileNotFoundError:
+            self._last_backup_state = self._serialize_variables_for_backup(self.vars.all())
             self.logger.info("Scheduled state file does not exist yet. Not restoring variables.")
             return
 
@@ -3894,7 +3895,7 @@ class _Strategy:
             return
 
         state_json = self._serialize_variables_for_backup(self.vars.all())
-        if state_json == self._last_backup_state:
+        if state_json == getattr(self, "_last_backup_state", None):
             self.logger.info("No variables changed. Not backing up scheduled state.")
             return
 

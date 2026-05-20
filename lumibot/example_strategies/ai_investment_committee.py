@@ -36,43 +36,19 @@ from lumibot.strategies.strategy import Strategy
 
 DEFAULT_UNIVERSE = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "SPY", "QQQ"]
 DEFAULT_HANDOFF_TARGET_CHARS = 24000
-DEFAULT_HANDOFF_MAX_CHARS = 96000
+HANDOFF_HARD_LIMIT_MULTIPLIER = 4
 
 
-def _committee_handoff_target_chars() -> int:
-    raw = os.environ.get("COMMITTEE_HANDOFF_TARGET_CHARS")
-    if raw:
-        try:
-            return max(int(raw), 4000)
-        except Exception:
-            pass
-    return DEFAULT_HANDOFF_TARGET_CHARS
-
-
-def _committee_handoff_max_chars() -> int:
-    raw = os.environ.get("COMMITTEE_HANDOFF_MAX_CHARS")
-    if raw:
-        try:
-            return max(int(raw), 8000)
-        except Exception:
-            pass
-    return DEFAULT_HANDOFF_MAX_CHARS
-
-
-def _compact_handoff_text(value, *, label: str) -> str:
+def _prepare_handoff_text(value, *, label: str, target_chars: int) -> str:
     text = "" if value is None else str(value)
-    limit = _committee_handoff_max_chars()
-    if len(text) <= limit:
-        return text
-    head = max(limit * 2 // 3, 1)
-    tail = max(limit - head, 1)
-    omitted = len(text) - head - tail
-    return (
-        text[:head]
-        + f"\n\n[Emergency truncation: removed {omitted} characters from {label}. "
-        "The model exceeded the committee handoff safety limit; rely only on retained source-backed evidence.]\n\n"
-        + text[-tail:]
-    )
+    limit = max(int(target_chars), 4000) * HANDOFF_HARD_LIMIT_MULTIPLIER
+    if len(text) > limit:
+        raise ValueError(
+            f"AI committee {label} handoff was {len(text)} characters, above the {limit} character safety limit. "
+            "The model ignored the concise handoff contract; rerun with a stricter prompt or a model that follows "
+            "bounded structured outputs."
+        )
+    return text
 
 
 class AIInvestmentCommitteeStrategy(Strategy):
@@ -80,6 +56,7 @@ class AIInvestmentCommitteeStrategy(Strategy):
         "universe": DEFAULT_UNIVERSE,
         "max_position_pct": 0.20,
         "max_new_positions_per_run": 2,
+        "handoff_target_chars": DEFAULT_HANDOFF_TARGET_CHARS,
         "enable_notifications": False,
     }
 
@@ -129,7 +106,7 @@ class AIInvestmentCommitteeStrategy(Strategy):
             "universe": universe,
             "max_position_pct": self.parameters.get("max_position_pct", 0.20),
             "max_new_positions_per_run": self.parameters.get("max_new_positions_per_run", 2),
-            "handoff_target_chars": _committee_handoff_target_chars(),
+            "handoff_target_chars": self.parameters.get("handoff_target_chars", DEFAULT_HANDOFF_TARGET_CHARS),
             "datetime": self.get_datetime().isoformat(),
         }
 
@@ -141,18 +118,20 @@ class AIInvestmentCommitteeStrategy(Strategy):
             ),
             context=context,
         )
-        self.vars.last_evidence_pack = _compact_handoff_text(
+        self.vars.last_evidence_pack = _prepare_handoff_text(
             evidence.summary or evidence.text,
             label="evidence_pack",
+            target_chars=context["handoff_target_chars"],
         )
 
         bull = self.agents["bull_researcher"].run(
             task_prompt="Build the strongest long-only investment case from the evidence pack.",
             context={**context, "evidence_pack": self.vars.last_evidence_pack},
         )
-        self.vars.last_bull_case = _compact_handoff_text(
+        self.vars.last_bull_case = _prepare_handoff_text(
             bull.summary or bull.text,
             label="bull_case",
+            target_chars=context["handoff_target_chars"],
         )
 
         bear = self.agents["bear_researcher"].run(
@@ -163,9 +142,10 @@ class AIInvestmentCommitteeStrategy(Strategy):
                 "bull_case": self.vars.last_bull_case,
             },
         )
-        self.vars.last_bear_case = _compact_handoff_text(
+        self.vars.last_bear_case = _prepare_handoff_text(
             bear.summary or bear.text,
             label="bear_case",
+            target_chars=context["handoff_target_chars"],
         )
 
         decision = self.agents["portfolio_manager"].run(

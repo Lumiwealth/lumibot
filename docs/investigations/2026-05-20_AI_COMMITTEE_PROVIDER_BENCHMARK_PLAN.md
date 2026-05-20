@@ -385,7 +385,7 @@ Important benchmark runner fixes from this phase:
 
 - The paid benchmark runner now defaults `--max-model-calls` to `80` instead of `8`; the original default only allowed about two committee cycles and caused an artificial `LUMIBOT_AGENT_MAX_MODEL_CALLS` failure.
 - The paid benchmark runner now prints JSON `model_start` and `model_finished` events so long runs are observable.
-- The AI committee example now asks each role to produce a structured handoff under `COMMITTEE_HANDOFF_TARGET_CHARS`, default `24000`, and keeps `COMMITTEE_HANDOFF_MAX_CHARS`, default `96000`, as an emergency backstop. The model should summarize properly first; the hard cut is only to prevent runaway provider context failures when a model ignores the output contract.
+- The AI committee example now asks each role to produce a structured handoff under the strategy parameter `handoff_target_chars`, default `24000`. There is no silent truncation path. If a model returns more than `4x` the target, the strategy fails loudly with a handoff-size error so the benchmark does not continue with chopped or misleading evidence.
 
 Artifacts:
 
@@ -397,7 +397,7 @@ Results so far:
 
 - `cerebras/gpt-oss-120b`: passed the full window. Wall time `926.6s`; model latency `38.1s`; call summaries `13`; tool calls `27`; input `646,373`, cached input `464,384`, output `24,428`; estimated cost `$0.244552`. It stayed in cash, so mechanical speed is strong but strategy quality still needs review.
 - `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`, uncapped: failed with `ContextWindowExceededError` after sending about `2,951,306` tokens into a `262,144` token context window. Root cause was oversized role handoffs in the committee example, not a bad API key.
-- `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`, capped rerun: hit the one-hour process timeout after `49` agent run summaries / `12` complete committee cycles with no repeated context-window failure. Partial usage: input `2,025,198`, output `41,640`, tool calls `363`, estimated cost `$0.430024`. The handoff limit fixed the failure mode, but Qwen needs a longer timeout to finish the qualifier.
+- `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`, bounded-handoff rerun: hit the one-hour process timeout after `49` agent run summaries / `12` complete committee cycles with no repeated context-window failure. Partial usage: input `2,025,198`, output `41,640`, tool calls `363`, estimated cost `$0.430024`. The handoff contract fixed the failure mode, but Qwen needs a longer timeout to finish the qualifier.
 
 Current interpretation:
 

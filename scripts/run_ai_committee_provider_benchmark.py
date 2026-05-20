@@ -52,7 +52,7 @@ MODEL_PRICE_PER_M_TOKEN: dict[str, dict[str, float]] = {
     "together_ai/Qwen/Qwen3.6-Plus": {"input": 0.50, "output": 3.00},
     "together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput": {"input": 0.20, "output": 0.60},
     "together_ai/openai/gpt-oss-120b": {"input": 0.15, "output": 0.60},
-    "cerebras/gpt-oss-120b": {"input": 0.35, "output": 0.75},
+    "cerebras/gpt-oss-120b": {"input": 0.25, "output": 0.69},
     "cerebras/zai-glm-4.7": {"input": 2.25, "output": 2.75},
 }
 

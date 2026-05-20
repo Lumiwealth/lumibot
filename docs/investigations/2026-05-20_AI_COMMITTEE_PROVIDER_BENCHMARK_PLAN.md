@@ -114,7 +114,7 @@ Cache-adjusted costs are directional only. Provider-specific caching behavior di
 | Together GPT-OSS 120B | `$0.37` | n/a | `$1.65` | n/a |
 | Together Qwen3 235B throughput | `$0.46` | n/a | `$2.07` | n/a |
 | Gemini 3.1 Flash-Lite | `$0.68` | `$0.34` | `$3.07` | `$1.53` |
-| Cerebras GPT-OSS 120B | `$0.76` | n/a | `$3.43` | n/a |
+| Cerebras GPT-OSS 120B | `$0.57` | n/a | `$2.55` | n/a |
 | Direct DeepSeek V4 Pro promo (optional/privacy-sensitive) | `$0.94` | `$0.28` | `$4.23` | `$1.26` |
 | Cerebras Qwen 3 235B preview | `$1.30` | n/a | `$5.83` | n/a |
 | Together Kimi K2.5 | `$1.34` | n/a | `$6.02` | n/a |
@@ -128,10 +128,10 @@ Cache-adjusted costs are directional only. Provider-specific caching behavior di
 | Cerebras ZAI GLM 4.7 preview | `$4.61` | n/a | `$20.73` | n/a |
 | Gemini 3.5 Flash priority | `$7.37` | `$3.66` | `$33.18` | `$16.48` |
 
-Cerebras prices found in the current pricing page data:
+Cerebras pricing note:
 
 - ZAI GLM 4.7: `~1000 tokens/s`, `$2.25/M input`, `$2.75/M output`.
-- GPT OSS 120B: `~3000 tokens/s`, `$0.35/M input`, `$0.75/M output`.
+- GPT OSS 120B: Cerebras' launch note lists `~3000 tokens/s`, `$0.25/M input`, `$0.69/M output`. The current pricing page emphasizes account tiers and did not expose a clearer per-model replacement rate on 2026-05-20.
 - Llama 3.1 8B: `~2200 tokens/s`, `$0.10/M input`, `$0.10/M output`; not recommended for committee quality.
 - Qwen 3 235B Instruct: `~1400 tokens/s`, `$0.60/M input`, `$1.20/M output`; preview/deprecation-sensitive, so not a primary pick.
 
@@ -317,9 +317,9 @@ Optional second-wave models only after the primary slate works:
 
 Current blockers before long runs:
 
-1. Add Gemini/OpenAI keys locally so `gemini-3.5-flash` and `openai/gpt-5.4-mini` can be tested.
-2. Gemini/OpenAI keys still need one-day smoke coverage after they are added locally.
-3. Run the 14-trading-day qualifier for the models that now pass one-day smoke.
+1. Finish the fixed-runtime 14-trading-day qualifier now running in parallel.
+2. Inspect every completed artifact for tool usage, failures, trade behavior, token pressure, and whether any provider is looping or staying in cash.
+3. Start the three-month run only for models that complete the qualifier mechanically.
 
 Execution phases:
 
@@ -330,15 +330,15 @@ Execution phases:
 
 Cost estimates for the primary 6-model slate, scaled from the prior 14-trading-day AI committee artifact:
 
-- 14-trading-day qualifier total: about `$9.01` no-cache / about `$5.71` cache-adjusted where cache pricing exists.
-- 3-month primary slate total: about `$40.53` no-cache / about `$25.68` cache-adjusted where cache pricing exists.
-- 6-month primary slate total: about `$81.06` no-cache / about `$51.36` cache-adjusted where cache pricing exists.
+- 14-trading-day qualifier total: about `$8.82` no-cache / about `$5.52` cache-adjusted where cache pricing exists.
+- 3-month primary slate total: about `$39.65` no-cache / about `$24.80` cache-adjusted where cache pricing exists.
+- 6-month primary slate total: about `$79.30` no-cache / about `$49.60` cache-adjusted where cache pricing exists.
 
 Per-model 3-month / 6-month estimates:
 
 - `deepseek/deepseek-v4-flash`: 3-month `$1.36` no-cache / `$0.42` cache-adjusted; 6-month `$2.72` no-cache / `$0.84` cache-adjusted.
 - `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`: 3-month `$2.07`; 6-month `$4.14`.
-- `cerebras/gpt-oss-120b`: 3-month `$3.43`; 6-month `$6.86`.
+- `cerebras/gpt-oss-120b`: 3-month `$2.55`; 6-month `$5.10`.
 - `together_ai/moonshotai/Kimi-K2.5`: 3-month `$6.02`; 6-month `$12.04`.
 - `openai/gpt-5.4-mini`: 3-month `$9.22` no-cache / `$4.58` cache-adjusted; 6-month `$18.44` no-cache / `$9.16` cache-adjusted.
 - `gemini-3.5-flash`: 3-month `$18.43` no-cache / `$9.16` cache-adjusted; 6-month `$36.86` no-cache / `$18.32` cache-adjusted.

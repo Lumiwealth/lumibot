@@ -207,6 +207,19 @@ def _read_agent_detail(detail_path: Path) -> dict[str, Any]:
 def _run_one_model(model: str, args: argparse.Namespace, root: Path) -> dict[str, Any]:
     run_dir = root / _slug(model)
     run_dir.mkdir(parents=True, exist_ok=True)
+    print(
+        json.dumps(
+            {
+                "event": "model_start",
+                "model": model,
+                "artifact_dir": str(run_dir.resolve()),
+                "window": {"start": args.start, "end": args.end},
+                "max_model_calls": args.max_model_calls,
+            },
+            sort_keys=True,
+        ),
+        flush=True,
+    )
 
     os.environ["LUMIBOT_CACHE_FOLDER"] = str(run_dir / "cache")
     os.environ["LUMIBOT_MEMORY_DIR"] = str(run_dir / "memory")
@@ -272,6 +285,22 @@ def _run_one_model(model: str, args: argparse.Namespace, root: Path) -> dict[str
         "cost": _estimate_cost(model, detail.get("usage") or {}),
     }
     (run_dir / "result.json").write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    print(
+        json.dumps(
+            {
+                "event": "model_finished",
+                "model": model,
+                "status": "passed",
+                "wall_ms": wall_ms,
+                "call_count": detail.get("call_count"),
+                "tool_call_count": detail.get("tool_call_count"),
+                "estimated_usd": payload["cost"].get("estimated_usd"),
+                "cache_adjusted_estimated_usd": payload["cost"].get("cache_adjusted_estimated_usd"),
+            },
+            sort_keys=True,
+        ),
+        flush=True,
+    )
     return payload
 
 
@@ -290,6 +319,19 @@ def _failure_payload(model: str, root: Path, args: argparse.Namespace, exc: Base
         },
     }
     (run_dir / "result.json").write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    print(
+        json.dumps(
+            {
+                "event": "model_finished",
+                "model": model,
+                "status": "failed",
+                "error_type": exc.__class__.__name__,
+                "error_message": str(exc),
+            },
+            sort_keys=True,
+        ),
+        flush=True,
+    )
     return payload
 
 
@@ -301,7 +343,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--budget", type=float, default=10000.0)
     parser.add_argument("--max-position-pct", type=float, default=0.20)
     parser.add_argument("--max-new-positions-per-run", type=int, default=2)
-    parser.add_argument("--max-model-calls", type=int, default=8)
+    parser.add_argument("--max-model-calls", type=int, default=80)
     parser.add_argument("--max-run-attempts", type=int, default=2)
     parser.add_argument("--env-file", default=".env.local", help="Local ignored env file to load before key checks.")
     parser.add_argument("--allow-missing-keys", action="store_true", help="Record failures instead of stopping on missing keys.")
@@ -351,6 +393,8 @@ def main() -> None:
         "artifact_dir": str(root.resolve()),
         "models": args.models,
         "window": {"start": args.start, "end": args.end},
+        "max_model_calls": args.max_model_calls,
+        "max_run_attempts": args.max_run_attempts,
         "results": results,
     }
     (root / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")

@@ -41,11 +41,14 @@ DEFAULT_MODELS = [
 ]
 MODEL_PRICE_PER_M_TOKEN: dict[str, dict[str, float]] = {
     "openai/gpt-5.4-mini": {"input": 0.75, "output": 4.50, "cached_input": 0.075},
-    "gemini-3.5-flash": {"input": 1.50, "output": 9.00, "cached_input": 0.15},
+    "gemini-3.5-flash": {"input": 2.70, "output": 16.20, "cached_input": 0.27},
+    "gemini-3-flash-preview": {"input": 0.50, "output": 3.00, "cached_input": 0.05},
+    "gemini-3.1-flash-lite": {"input": 0.25, "output": 1.50, "cached_input": 0.025},
     "deepseek/deepseek-v4-flash": {"input": 0.14, "output": 0.28, "cached_input": 0.0028},
     "deepseek/deepseek-v4-pro": {"input": 1.74, "output": 3.48, "cached_input": 0.0145},
     "together_ai/deepseek-ai/DeepSeek-V4-Pro": {"input": 2.10, "output": 4.40, "cached_input": 0.20},
     "together_ai/moonshotai/Kimi-K2.6": {"input": 1.20, "output": 4.50, "cached_input": 0.20},
+    "together_ai/moonshotai/Kimi-K2.5": {"input": 0.50, "output": 2.80},
     "together_ai/Qwen/Qwen3.6-Plus": {"input": 0.50, "output": 3.00},
     "together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput": {"input": 0.20, "output": 0.60},
     "together_ai/openai/gpt-oss-120b": {"input": 0.15, "output": 0.60},

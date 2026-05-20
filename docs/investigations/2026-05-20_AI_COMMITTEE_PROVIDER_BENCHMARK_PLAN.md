@@ -110,15 +110,19 @@ Cache-adjusted costs are directional only. Provider-specific caching behavior di
 
 | Candidate | 14-day no-cache estimate | 14-day cache-adjusted estimate | 3-month no-cache estimate | 3-month cache-adjusted estimate |
 |---|---:|---:|---:|---:|
+| Together GPT-OSS 120B | `$0.37` | n/a | `$1.65` | n/a |
 | Together Qwen3 235B throughput | `$0.46` | n/a | `$2.07` | n/a |
+| Gemini 3.1 Flash-Lite | `$0.68` | `$0.34` | `$3.07` | `$1.53` |
 | Cerebras GPT-OSS 120B | `$0.76` | n/a | `$3.43` | n/a |
 | Cerebras Qwen 3 235B preview | `$1.30` | n/a | `$5.83` | n/a |
+| Together Kimi K2.5 | `$1.34` | n/a | `$6.02` | n/a |
+| Gemini 3 Flash Preview standard | `$1.37` | `$0.68` | `$6.14` | `$3.05` |
 | Together Qwen3.6 Plus | `$1.37` | n/a | `$6.14` | n/a |
 | GPT-5.4 mini | `$2.05` | `$1.02` | `$9.22` | `$4.58` |
 | Together Kimi K2.6 | `$2.89` | `$1.36` | `$13.01` | `$6.14` |
-| Gemini 3.5 Flash standard | `$4.10` | `$2.04` | `$18.43` | `$9.16` |
 | Together DeepSeek V4 Pro | `$4.56` | `$1.66` | `$20.53` | `$7.47` |
 | Cerebras ZAI GLM 4.7 preview | `$4.61` | n/a | `$20.73` | n/a |
+| Gemini 3.5 Flash standard | `$7.37` | `$3.66` | `$33.18` | `$16.48` |
 | Direct DeepSeek V4 Flash (optional/privacy-sensitive) | `$0.30` | `$0.09` | `$1.36` | `$0.42` |
 | Direct DeepSeek V4 Pro promo (optional/privacy-sensitive) | `$0.94` | `$0.28` | `$4.23` | `$1.26` |
 | Direct DeepSeek V4 Pro list (optional/privacy-sensitive) | `$3.76` | `$1.12` | `$16.90` | `$5.05` |

@@ -1,9 +1,20 @@
 # Changelog
 
-## 4.5.27 - Unreleased
+## 4.5.27 - 2026-05-20
+
+Deploy marker: 4.5.27 release commit (`deploy 4.5.27`)
 
 ### Fixed
 - **AI agent runs now have a hard wall-clock timeout.** `LUMIBOT_AGENT_RUN_TIMEOUT_SECONDS` bounds the full ADK/model/tool call, defaulting to 300 seconds, so a live or backtest strategy skips a stalled agent iteration instead of hanging indefinitely inside a provider or built-in tool call.
+- **Large AI agent tool results are now token-budgeted before re-entering model context.** Tool responses that would consume too much context are replaced with an explicit bounded excerpt and a truncation notice, preventing raw SEC/fundamental/news payloads from blowing up committee-style agent turns.
+
+### Changed
+- **AI agent tool-result budgeting is configurable.** `LUMIBOT_AGENT_TOOL_RESULT_MAX_TOKENS` overrides the default 4,000-token per-result budget for benchmark or large-context-provider runs.
+- **The AI Investment Committee example now includes runtime-enforced tool-call discipline.** Research, follow-up, and portfolio-manager agents receive explicit tool-call budgets, and the runtime returns a budget-exceeded notice after the configured call count so benchmark runs measure targeted research instead of uncontrolled tool spraying.
+
+### Operations
+- **AI committee provider benchmark tooling was expanded.** The benchmark runner can set per-agent timeout overrides and emit fixed-budget provider reruns, and `scripts/summarize_ai_committee_provider_benchmarks.py` summarizes per-model `result.json` artifacts into compact JSON/Markdown reports.
+- **AI committee benchmark documentation now records provider pricing sources, updated cost estimates, observed context-window failures, and the new tool-result/tool-call controls.**
 
 ## 4.5.26 - 2026-05-19
 

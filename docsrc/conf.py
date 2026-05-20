@@ -106,8 +106,8 @@ html_theme_options = {
     "dark_logo": "Lumibot_Logo.webp",
     'announcement': """
     <div class="footer-banner bg-warning text-dark p-3">
-        <h5>Build Lumibot Strategies with AI</h5>
-        <p>BotSpot is the managed cloud product built on LumiBot. Describe a strategy, backtest it, and deploy it without managing servers. <a href="https://botspot.trade/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_footer_banner" target="_blank" class="text-dark"><strong>Start on BotSpot.trade</strong></a>.</p>
+        <h5>Deploy Lumibot Strategies on BotSpot</h5>
+        <p>BotSpot is the managed cloud built around Lumibot. Generate strategies, run hosted backtests, connect brokers, and schedule bots without managing servers. <a href="https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=site_banner&utm_campaign=lumibot&utm_content=footer_banner&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20hosted%20backtesting%2C%20broker%20connections%2C%20monitoring%2C%20and%20paper%20or%20live%20deployment." target="_blank" class="text-dark"><strong>Start on BotSpot.trade</strong></a>.</p>
     </div>
     """
 }
@@ -182,10 +182,10 @@ _generate_sitemap()
 html_context = {
     'note': """
     <div class="important-note" style="margin-top: 20px; padding: 20px; background-color: #ffdd57; border-radius: 5px;">
-        <h3>Build Lumibot Strategies with BotSpot</h3>
-        <p>Need help turning an idea into a working LumiBot strategy? BotSpot can generate, backtest, and deploy LumiBot strategies from plain English.</p>
-        <p><strong>Use BotSpot when you want the managed cloud path instead of wiring infrastructure yourself.</strong></p>
-        <p><a href="https://botspot.trade/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_every_page" target="_blank">Start on BotSpot.trade</a>.</p>
+        <h3>Deploy Lumibot Strategies with BotSpot</h3>
+        <p>Need help turning an idea into a working Lumibot strategy? BotSpot can generate, backtest, and deploy Lumibot strategies from plain English.</p>
+        <p><strong>Use BotSpot when you want hosted backtests, broker connections, monitoring, and scheduled deployment without wiring infrastructure yourself.</strong></p>
+        <p><a href="https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=site_note&utm_campaign=lumibot&utm_content=every_page_note&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20hosted%20backtesting%2C%20broker%20connections%2C%20monitoring%2C%20and%20paper%20or%20live%20deployment." target="_blank">Start on BotSpot.trade</a>.</p>
     </div>
     """
 }

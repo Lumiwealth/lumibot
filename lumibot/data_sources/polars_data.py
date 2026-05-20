@@ -815,7 +815,9 @@ class PolarsData(DataSourceBacktesting):
                         timeshift=timeshift,
                         return_polars=True,
                     )
-                except TypeError:
+                except TypeError as exc:
+                    if "return_polars" not in str(exc):
+                        raise
                     res = data.get_bars(now, length=length, timestep=timestep, timeshift=timeshift)
             else:
                 res = data.get_bars(now, length=length, timestep=timestep, timeshift=timeshift)

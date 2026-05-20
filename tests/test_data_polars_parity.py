@@ -1,5 +1,6 @@
 """Regression coverage for Data, DataPolars, Bars, and provider-boundary Polars behavior."""
 
+from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
 from unittest.mock import PropertyMock, patch
 
@@ -97,6 +98,18 @@ class ProviderBoundaryPolarsData(PolarsData):
             }
         )
         return self.response
+
+
+class LegacyGetBarsData:
+    timestep = "minute"
+
+    def __init__(self, failure_message=None):
+        self.failure_message = failure_message
+
+    def get_bars(self, *args, **kwargs):
+        if "return_polars" in kwargs:
+            raise TypeError(self.failure_message or "got an unexpected keyword argument 'return_polars'")
+        return "fallback-bars"
 
 
 def test_data_polars_row_count_parity():
@@ -340,6 +353,26 @@ def test_provider_return_polars_keeps_internal_response_polars():
         return_polars=False,
     )
     _assert_frame_values_equal(bars.pandas_df, pandas_bars.pandas_df)
+
+
+def test_return_polars_fallback_only_swallows_unsupported_keyword_typeerror():
+    asset = Asset("LEGACY", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    source = PolarsData(
+        datetime_start=datetime(2024, 7, 18, tzinfo=timezone.utc),
+        datetime_end=datetime(2024, 7, 19, tzinfo=timezone.utc),
+        pandas_data=[],
+    )
+    source._data_store = OrderedDict({(asset, quote, "minute"): LegacyGetBarsData()})
+
+    assert (
+        source.get_historical_prices(asset, length=1, timestep="minute", quote=quote, return_polars=True)
+        == "fallback-bars"
+    )
+
+    source._data_store = OrderedDict({(asset, quote, "minute"): LegacyGetBarsData("internal type bug")})
+    with pytest.raises(TypeError, match="internal type bug"):
+        source.get_historical_prices(asset, length=1, timestep="minute", quote=quote, return_polars=True)
 
 
 @pytest.mark.parametrize("provider_frame_type", ["polars", "pandas"])

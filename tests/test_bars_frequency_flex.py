@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pandas as pd
 import polars as pl
@@ -121,3 +121,22 @@ def test_split_polars_bars_preserves_values():
     assert split[1].close == 11.25
     assert split[1].volume == 200
     assert split[1].dividend == 0.1
+
+
+def test_split_polars_date_column_converts_to_midnight_timestamp():
+    asset = Asset(symbol='DATE', asset_type='stock')
+    trade_date = date(2025, 1, 2)
+    df = pl.DataFrame({
+        'datetime': [trade_date],
+        'open': [10.0],
+        'high': [10.5],
+        'low': [9.5],
+        'close': [10.25],
+        'volume': [100],
+    }).with_columns(pl.col('datetime').cast(pl.Date))
+
+    bars = Bars(df, source='test', asset=asset, return_polars=True)
+    split = bars.split()
+
+    assert len(split) == 1
+    assert split[0].timestamp == int(datetime.combine(trade_date, datetime.min.time()).timestamp())

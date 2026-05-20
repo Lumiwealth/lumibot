@@ -1,7 +1,7 @@
 import atexit
 import re
 import weakref
-from datetime import datetime
+from datetime import date as date_type, datetime
 from decimal import Decimal
 from typing import Set, Union
 
@@ -539,7 +539,12 @@ class Bars:
         stock_splits = values.get("stock_splits", default_zero)
 
         for idx, dt_val in enumerate(datetimes):
-            timestamp = int(dt_val.timestamp()) if hasattr(dt_val, 'timestamp') else int(dt_val)
+            if hasattr(dt_val, "timestamp"):
+                timestamp = int(dt_val.timestamp())
+            elif isinstance(dt_val, date_type):
+                timestamp = int(datetime.combine(dt_val, datetime.min.time()).timestamp())
+            else:
+                timestamp = int(dt_val)
 
             item = {
                 "timestamp": timestamp,

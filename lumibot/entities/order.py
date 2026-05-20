@@ -770,6 +770,12 @@ class Order:
         obj._simple_is_option = asset_type_value == "option"
         if obj._simple_is_future:
             obj._simple_futures_ledger_key = (obj.strategy, obj.symbol, asset_type, getattr(asset, "expiration", None))
+        if quantity is not None and quantity < 0:
+            logger.warning(
+                f"Quantity for order {obj._identifier} is negative ({quantity}). "
+                "Changing to positive because quantity must always be positive for orders."
+            )
+            quantity = abs(quantity)
         if isinstance(quantity, Decimal):
             obj._quantity = quantity
         elif isinstance(quantity, float):

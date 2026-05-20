@@ -278,6 +278,19 @@ class TestOrderBasics:
         assert order.quantity == Decimal("0.1")
         assert order._simple_quantity_float == 0.1
 
+    def test_simple_market_backtest_normalizes_negative_quantity(self):
+        asset = Asset("SPY")
+        order = Order.simple_market_backtest(
+            "abc",
+            asset,
+            -2,
+            Order.OrderSide.SELL,
+        )
+
+        assert order.quantity == Decimal("2")
+        assert order._simple_quantity_float == 2.0
+        assert order.is_sell_order()
+
     def test_equivalent_status(self):
         asset = Asset("SPY")
         order1 = Order(strategy='abc', asset=asset, side="buy", quantity=100)

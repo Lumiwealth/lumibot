@@ -47,6 +47,7 @@ Scale factors from this profile:
 
 - Strategy: `/Users/robertgrzesik/Development/lumibot/lumibot/example_strategies/ai_investment_committee.py`
 - Real paid runner: `/Users/robertgrzesik/Development/lumibot/scripts/run_ai_committee_real_backtest.py`
+- Provider benchmark runner: `/Users/robertgrzesik/Development/lumibot/scripts/run_ai_committee_provider_benchmark.py`
 - Tool-smoke runner: `/Users/robertgrzesik/Development/lumibot/scripts/run_ai_committee_smoke_backtest.py`
 - Prior cost incident note: `/Users/robertgrzesik/Development/lumibot/docs/investigations/2026-05-08_openai_usage_ai_committee.md`
 
@@ -162,10 +163,10 @@ Together DeepSeek V4 Pro costs more than direct DeepSeek V4 Pro at list and much
 
 Add small runtime polish before paid tests:
 
-- Add `DEEPSEEK_API_KEY`, `TOGETHER_API_KEY` / `TOGETHERAI_API_KEY`, and `CEREBRAS_API_KEY` prechecks.
-- Add provider hints in backtest crash banners.
-- Add unit tests that `deepseek/`, `together_ai/`, and `cerebras/` model strings route through `LiteLlm`.
-- Add a dedicated benchmark runner that records model, provider, rates used, elapsed wall time, token usage, tool calls, orders, returns, drawdown, artifact paths, and error class.
+- Done in commit after this plan: add `TOGETHER_API_KEY` / `TOGETHERAI_API_KEY` alias handling.
+- Done in commit after this plan: add provider hints in backtest crash banners for `deepseek/`, `together_ai/`, and `cerebras/`.
+- Done in commit after this plan: add unit tests that `deepseek/`, `together_ai/`, and `cerebras/` model strings route through `LiteLlm`.
+- Done in commit after this plan: add `/Users/robertgrzesik/Development/lumibot/scripts/run_ai_committee_provider_benchmark.py`, a dedicated benchmark runner that records model, rates used, elapsed wall time, token usage, tool calls, trades/positions, backtest result, artifact paths, and error class.
 
 ### Phase 2: One-Day Smoke
 

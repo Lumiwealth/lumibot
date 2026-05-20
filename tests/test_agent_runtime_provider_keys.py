@@ -7,6 +7,7 @@ from lumibot.components.agents.runtime import (
     _resolve_model_for_adk,
     _supports_explicit_temperature_for_adk_model,
     _sync_gemini_api_key_alias,
+    _sync_together_api_key_alias,
     _sync_xai_api_key_alias,
 )
 
@@ -45,6 +46,34 @@ def test_google_api_key_wins_over_gemini_alias(monkeypatch):
     _sync_gemini_api_key_alias()
 
     assert os.environ["GOOGLE_API_KEY"] == "google-test-key"
+
+
+def test_together_api_key_alias_populates_litellm_key(monkeypatch):
+    monkeypatch.delenv("TOGETHERAI_API_KEY", raising=False)
+    monkeypatch.setenv("TOGETHER_API_KEY", "together-test-key")
+
+    _sync_together_api_key_alias()
+
+    assert os.environ["TOGETHERAI_API_KEY"] == "together-test-key"
+
+
+def test_together_litellm_key_populates_sdk_key(monkeypatch):
+    monkeypatch.delenv("TOGETHER_API_KEY", raising=False)
+    monkeypatch.setenv("TOGETHERAI_API_KEY", "togetherai-test-key")
+
+    _sync_together_api_key_alias()
+
+    assert os.environ["TOGETHER_API_KEY"] == "togetherai-test-key"
+
+
+def test_together_litellm_key_wins_over_sdk_alias(monkeypatch):
+    monkeypatch.setenv("TOGETHER_API_KEY", "together-test-key")
+    monkeypatch.setenv("TOGETHERAI_API_KEY", "togetherai-test-key")
+
+    _sync_together_api_key_alias()
+
+    assert os.environ["TOGETHERAI_API_KEY"] == "togetherai-test-key"
+    assert os.environ["TOGETHER_API_KEY"] == "together-test-key"
 
 
 def test_aggregate_usage_metadata_sums_multiple_provider_events():
@@ -110,6 +139,37 @@ def test_xai_model_forwards_grok_conversation_cache_header(monkeypatch):
     assert created["headers"] == {"x-grok-conv-id": "stable-prefix-key"}
 
 
+def test_new_provider_models_route_through_litellm(monkeypatch):
+    created: list[dict[str, object]] = []
+
+    class FakeLiteLlm:
+        def __init__(self, **kwargs):
+            self.kwargs = dict(kwargs)
+            created.append(self.kwargs)
+
+    fake_module = types.ModuleType("google.adk.models.lite_llm")
+    fake_module.LiteLlm = FakeLiteLlm
+    monkeypatch.setitem(sys.modules, "google.adk.models.lite_llm", fake_module)
+    monkeypatch.setenv("TOGETHER_API_KEY", "together-test-key")
+    monkeypatch.delenv("TOGETHERAI_API_KEY", raising=False)
+
+    models = [
+        "deepseek/deepseek-v4-flash",
+        "deepseek/deepseek-v4-pro",
+        "together_ai/deepseek-ai/DeepSeek-V4-Pro",
+        "together_ai/moonshotai/Kimi-K2.6",
+        "cerebras/gpt-oss-120b",
+        "cerebras/zai-glm-4.7",
+    ]
+
+    results = [_resolve_model_for_adk(model, prompt_cache_key="stable-prefix-key") for model in models]
+
+    assert all(isinstance(result, FakeLiteLlm) for result in results)
+    assert [kwargs["model"] for kwargs in created] == models
+    assert os.environ["TOGETHERAI_API_KEY"] == "together-test-key"
+    assert all("prompt_cache_key" not in kwargs for kwargs in created)
+
+
 def test_gemini_native_path_uses_plain_model_id_for_implicit_or_adk_context_cache():
     # Gemini stays on ADK's native path. Provider prompt-cache routing kwargs are
     # only for LiteLLM providers; Gemini implicit caching and ADK explicit
@@ -127,3 +187,6 @@ def test_explicit_temperature_only_sent_to_gemini_native_models():
     assert _supports_explicit_temperature_for_adk_model("openai/gpt-5.4-mini") is False
     assert _supports_explicit_temperature_for_adk_model("xai/grok-4.20-0309-reasoning") is False
     assert _supports_explicit_temperature_for_adk_model("anthropic/claude-opus-4-7") is False
+    assert _supports_explicit_temperature_for_adk_model("deepseek/deepseek-v4-flash") is False
+    assert _supports_explicit_temperature_for_adk_model("together_ai/moonshotai/Kimi-K2.6") is False
+    assert _supports_explicit_temperature_for_adk_model("cerebras/gpt-oss-120b") is False

@@ -551,6 +551,19 @@ def _sync_gemini_api_key_alias() -> None:
         os.environ["GOOGLE_API_KEY"] = os.environ["GEMINI_API_KEY"]
 
 
+def _sync_together_api_key_alias() -> None:
+    """Allow either Together's SDK key name or LiteLLM's provider key name.
+
+    Together's own examples commonly use TOGETHER_API_KEY, while LiteLLM's
+    Together provider reads TOGETHERAI_API_KEY. Mirror in both directions so
+    users can set either one.
+    """
+    if not os.environ.get("TOGETHERAI_API_KEY") and os.environ.get("TOGETHER_API_KEY"):
+        os.environ["TOGETHERAI_API_KEY"] = os.environ["TOGETHER_API_KEY"]
+    if not os.environ.get("TOGETHER_API_KEY") and os.environ.get("TOGETHERAI_API_KEY"):
+        os.environ["TOGETHER_API_KEY"] = os.environ["TOGETHERAI_API_KEY"]
+
+
 def _provider_prompt_cache_key(request: RuntimeRequest) -> str:
     """Stable provider-routing key for server-side prompt caches.
 
@@ -589,6 +602,8 @@ def _resolve_model_for_adk(model: Any, *, prompt_cache_key: str | None = None) -
         return model
     if lower.startswith("xai/"):
         _sync_xai_api_key_alias()
+    if lower.startswith("together_ai/"):
+        _sync_together_api_key_alias()
     _configure_litellm_quietly()
     try:
         from google.adk.models.lite_llm import LiteLlm

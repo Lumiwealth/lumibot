@@ -898,6 +898,9 @@ class AgentHandle:
             "openai/": ("OPENAI_API_KEY", "https://platform.openai.com/api-keys", "https://platform.openai.com/account/billing"),
             "xai/": ("XAI_API_KEY or GROK_API_KEY", "https://console.x.ai/", "https://console.x.ai/team"),
             "anthropic/": ("ANTHROPIC_API_KEY", "https://console.anthropic.com/", "https://console.anthropic.com/settings/billing"),
+            "deepseek/": ("DEEPSEEK_API_KEY", "https://platform.deepseek.com/api_keys", "https://platform.deepseek.com/usage"),
+            "together_ai/": ("TOGETHER_API_KEY or TOGETHERAI_API_KEY", "https://api.together.ai/settings/api-keys", "https://api.together.ai/settings/billing"),
+            "cerebras/": ("CEREBRAS_API_KEY", "https://cloud.cerebras.ai/platform/", "https://cloud.cerebras.ai/platform/billing"),
         }
         env_var, key_url, billing_url = ("GEMINI_API_KEY", "https://aistudio.google.com/apikey", "https://aistudio.google.com/")
         for prefix, (ev, ku, bu) in provider_hints.items():

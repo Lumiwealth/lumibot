@@ -35,6 +35,32 @@ from lumibot.strategies.strategy import Strategy
 
 
 DEFAULT_UNIVERSE = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "SPY", "QQQ"]
+DEFAULT_HANDOFF_MAX_CHARS = 16000
+
+
+def _committee_handoff_max_chars() -> int:
+    raw = os.environ.get("COMMITTEE_HANDOFF_MAX_CHARS")
+    if raw:
+        try:
+            return max(int(raw), 2000)
+        except Exception:
+            pass
+    return DEFAULT_HANDOFF_MAX_CHARS
+
+
+def _compact_handoff_text(value, *, label: str) -> str:
+    text = "" if value is None else str(value)
+    limit = _committee_handoff_max_chars()
+    if len(text) <= limit:
+        return text
+    head = max(limit * 2 // 3, 1)
+    tail = max(limit - head, 1)
+    omitted = len(text) - head - tail
+    return (
+        text[:head]
+        + f"\n\n[Truncated {label} handoff by {omitted} characters. Use the retained source-backed summary only.]\n\n"
+        + text[-tail:]
+    )
 
 
 class AIInvestmentCommitteeStrategy(Strategy):
@@ -102,13 +128,19 @@ class AIInvestmentCommitteeStrategy(Strategy):
             ),
             context=context,
         )
-        self.vars.last_evidence_pack = evidence.summary or evidence.text
+        self.vars.last_evidence_pack = _compact_handoff_text(
+            evidence.summary or evidence.text,
+            label="evidence_pack",
+        )
 
         bull = self.agents["bull_researcher"].run(
             task_prompt="Build the strongest long-only investment case from the evidence pack.",
             context={**context, "evidence_pack": self.vars.last_evidence_pack},
         )
-        self.vars.last_bull_case = bull.summary or bull.text
+        self.vars.last_bull_case = _compact_handoff_text(
+            bull.summary or bull.text,
+            label="bull_case",
+        )
 
         bear = self.agents["bear_researcher"].run(
             task_prompt="Attack the long case and identify reasons to avoid, delay, reduce, or monitor the trade.",
@@ -118,7 +150,10 @@ class AIInvestmentCommitteeStrategy(Strategy):
                 "bull_case": self.vars.last_bull_case,
             },
         )
-        self.vars.last_bear_case = bear.summary or bear.text
+        self.vars.last_bear_case = _compact_handoff_text(
+            bear.summary or bear.text,
+            label="bear_case",
+        )
 
         decision = self.agents["portfolio_manager"].run(
             task_prompt=(

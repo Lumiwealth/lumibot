@@ -108,6 +108,15 @@ The following estimates use the prior 14-trading-day committee token profile:
 
 Cache-adjusted costs are directional only. Provider-specific caching behavior differs, and LumiBot does not yet normalize provider-side cache reporting across all providers.
 
+Pricing sources checked on 2026-05-20:
+
+- OpenAI API pricing: `https://openai.com/api/pricing/`
+- Google Gemini API pricing: `https://ai.google.dev/gemini-api/docs/pricing`
+- DeepSeek model pricing: `https://api-docs.deepseek.com/quick_start/pricing`
+- Together serverless model catalog: `https://docs.together.ai/docs/serverless/models`
+- Cerebras pricing page: `https://www.cerebras.ai/pricing`
+- Cerebras gpt-oss-120B launch pricing note: `https://www.cerebras.ai/blog/cerebras-launches-openai-s-gpt-oss-120b-at-a-blistering-3-000-tokens-sec`
+
 | Candidate | 14-day no-cache estimate | 14-day cache-adjusted estimate | 3-month no-cache estimate | 3-month cache-adjusted estimate |
 |---|---:|---:|---:|---:|
 | Direct DeepSeek V4 Flash (optional/privacy-sensitive) | `$0.30` | `$0.09` | `$1.36` | `$0.42` |

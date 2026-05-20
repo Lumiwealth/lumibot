@@ -280,7 +280,10 @@ strategies should tell research agents how many tool calls are reasonable for a
 turn, because dozens of individually bounded tool results can still create a
 large context. The AI Investment Committee example exposes
 ``max_research_tool_calls``, ``max_followup_tool_calls``, and
-``max_portfolio_tool_calls`` strategy parameters for this reason.
+``max_portfolio_tool_calls`` strategy parameters for this reason. LumiBot also
+enforces these context budgets at runtime: once a role exceeds its configured
+tool-call count, additional tool calls return a budget-exceeded notice instead
+of executing.
 
 DuckDB and Time-Series Data
 ----------------------------

@@ -16,6 +16,8 @@ from lumibot.components.agents.runtime import (
     _sync_gemini_api_key_alias,
     _sync_together_api_key_alias,
     _sync_xai_api_key_alias,
+    _tool_call_budget_for_request,
+    _wrap_tool_callable,
 )
 from lumibot.components.agents.schemas import BoundTool
 
@@ -106,6 +108,39 @@ def test_tool_result_budget_can_be_overridden(monkeypatch):
 
     assert result["lumibot_tool_result_truncated"] is True
     assert result["max_tokens"] == 1200
+
+
+def test_tool_call_budget_blocks_extra_tool_calls():
+    calls = {"count": 0}
+
+    def sample_tool():
+        calls["count"] += 1
+        return {"value": calls["count"]}
+
+    tool = BoundTool(name="sample_tool", description="sample", function=sample_tool)
+    wrapped = _wrap_tool_callable(tool, tool_budget={"max": 1, "count": 0})
+
+    assert wrapped()["value"] == 1
+    blocked = wrapped()
+
+    assert calls["count"] == 1
+    assert blocked["lumibot_tool_call_budget_exceeded"] is True
+    assert blocked["max_tool_calls"] == 1
+
+
+def test_tool_call_budget_resolves_from_agent_context():
+    request = RuntimeRequest(
+        agent_name="evidence_researcher",
+        model="openai/gpt-5.4-mini",
+        system_prompt="",
+        task_prompt="",
+        context={"max_research_tool_calls": 24, "max_followup_tool_calls": 8},
+        runtime_context={},
+        memory_notes=[],
+        bound_tools=[],
+    )
+
+    assert _tool_call_budget_for_request(request) == {"max": 24, "count": 0}
 
 
 def test_aggregate_usage_metadata_sums_multiple_provider_events():

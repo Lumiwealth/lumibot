@@ -458,3 +458,24 @@ Artifact root: `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_
 Parallel launcher root: `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/parallel_3m_enforced_20260520_160510`.
 
 Launch status: all four models printed `model_start`; no key/config failure on launch.
+
+Final summary artifacts:
+
+- Compact JSON: `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/three_month_enforced_compact_summary.json`.
+- Markdown summary: `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/three_month_enforced_summary.md`.
+
+Final results:
+
+- `openai/gpt-5.4-mini`: passed mechanically. Wall time `2663.3s` (`44.4m`); calls `62`; tool calls `516`; input `1,905,639`, cached input `1,401,600`, output `38,605`; estimated cost `$1.602952` no-cache / `$0.656872` cache-adjusted. Stayed entirely in cash, total return `0%`, max drawdown `0%`, Sharpe `0`.
+- `deepseek/deepseek-v4-flash`: passed mechanically. Wall time `10343.8s` (`172.4m`); calls `62`; tool calls `552`; input `5,941,369`, cached input `5,131,008`, output `227,977`; estimated cost `$0.895625` no-cache / `$0.191651` cache-adjusted. Stayed entirely in cash, total return `0%`, max drawdown `0%`, Sharpe `0`.
+- `together_ai/moonshotai/Kimi-K2.5`: failed before completion because Together returned `Credit limit exceeded`. Partial `stats_agent_detail.parquet` before failure had calls `22`, tool calls `603`, input `1,911,570`, cached input `1,239,168`, output `92,701`.
+- `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`: failed before completion because Together returned `Credit limit exceeded`. Partial `stats_agent_detail.parquet` before failure had calls `19`, tool calls `132`, input `847,319`, cached input `0`, output `11,921`.
+
+Interpretation:
+
+- The ADK 2 + LiteLLM path works for OpenAI, direct DeepSeek, Together, and Cerebras mechanically. Provider failures in this benchmark were account/credit or operational-speed issues, not basic model-string/key wiring failures.
+- DeepSeek V4 Flash direct was cheaper than OpenAI GPT-5.4 Mini on this run, especially after cache adjustment, but it was much slower and produced far more output tokens. For this workload, DeepSeek was not a speed replacement for OpenAI.
+- The current AI Investment Committee configuration is too conservative for a trading-performance benchmark. Both completed 3-month runs stayed 100% cash, exactly matching the 14-day qualifier pattern. The next meaningful benchmark should use a `trade_seeking` committee variant or a relaxed portfolio-manager decision threshold, then rerun 14 days before spending another 3-month pass.
+- Together needs account credits before rerunning Kimi/Qwen. Based on partial usage, Kimi can consume credits quickly because it kept trying tools heavily; Qwen was lighter before the account stopped it.
+- Cerebras should be rerun after billing is fixed because the earlier 14-day run proved mechanical compatibility and it remains the only provider that looked truly fast. Do not judge Cerebras quality from the current final slate because it was excluded by billing, not model behavior.
+- Gemini 3.5 Flash should stay out of the next performance slate unless the purpose is specifically to test Google provider availability under this heavy agent workload.

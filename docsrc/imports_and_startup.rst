@@ -49,6 +49,31 @@ This means ``import lumibot`` may succeed even if an optional package needed by
 a specific broker is missing. The broker import should still fail when the
 broker is accessed.
 
+Market Data Hot Paths
+---------------------
+
+Market-data providers and helpers may defer dataframe, provider SDK, plotting,
+and math dependencies until the concrete provider path is used. If a dependency
+is missing, the error can surface when constructing or calling that provider
+rather than during ``import lumibot``. To debug, import the concrete provider
+class or call a minimal provider method directly.
+
+``Bars`` and ``Data.get_bars()`` include fast paths for already-normalized
+historical slices. ``Bars.from_pandas_fast``, ``skip_timezone``, and
+``return_polars`` avoid unnecessary conversion when the caller has already
+selected the backend and timezone semantics. Naive timestamps still use the
+default LumiBot timezone; only pass ``skip_timezone`` when the data is already
+localized correctly.
+
+ThetaData split/dividend normalization uses the current simulation datetime, or
+``BACKTESTING_END`` for deterministic full-window backtests, as the corporate
+action horizon. This keeps option strike reconstruction and chain handling
+consistent across warm-cache and replay runs.
+
+``lumibot.tools.black_scholes`` now uses a local normal-distribution helper for
+the ``cdf``/``pdf`` surface it needs, so that path no longer depends on loading
+``scipy.stats.norm`` at runtime.
+
 Symbol Parsing
 --------------
 

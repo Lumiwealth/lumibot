@@ -51,6 +51,33 @@ Lazy exports change import timing, not trading behavior:
 
 This means `import lumibot` may succeed even if an optional package needed by a specific broker is missing. The broker import should still fail when the broker is accessed.
 
+## Market Data Hot Path Notes
+
+Several market-data modules also use small local lazy loaders for dataframe,
+provider SDK, and plotting dependencies. These loaders are intentionally scoped
+to the module that owns the dependency (`yahoo_data`, DataBento/Polars helpers,
+Tradovate data, and option/math helpers) so deferred import errors point at the
+feature being used. To debug an optional dependency issue, import the concrete
+provider class or call the first provider method in an isolated shell instead of
+only testing `import lumibot`.
+
+`Bars` and `Data.get_bars()` can now keep already-normalized slices on a fast
+path. `Bars.from_pandas_fast`, `skip_timezone`, and `return_polars` avoid
+unnecessary dataframe conversion when the caller has already selected the
+backend and timezone semantics. Callers that pass naive timestamps still get the
+normal `LUMIBOT_DEFAULT_PYTZ` handling; fast-path callers are responsible for
+only using `skip_timezone` with data that is already correctly localized.
+
+ThetaData corporate-action normalization uses the simulation datetime, or
+`BACKTESTING_END` for deterministic full-window backtests, as the split/dividend
+horizon. This keeps option strike reconstruction, frame normalization, and chain
+handling consistent across warm-cache and live-like replay runs.
+
+The local Black-Scholes normal distribution replaces the previous runtime
+`scipy.stats.norm` dependency for the small `cdf`/`pdf` surface used by
+`black_scholes.py`. The API shape is preserved, but missing SciPy should no
+longer block this helper path.
+
 ---
 
 ## Compatibility Tests

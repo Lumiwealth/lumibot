@@ -2,6 +2,9 @@
 
 ## 4.5.27 - Unreleased
 
+### Fixed
+- **AI agent runs now have a hard wall-clock timeout.** `LUMIBOT_AGENT_RUN_TIMEOUT_SECONDS` bounds the full ADK/model/tool call, defaulting to 300 seconds, so a live or backtest strategy skips a stalled agent iteration instead of hanging indefinitely inside a provider or built-in tool call.
+
 ## 4.5.26 - 2026-05-19
 
 Deploy marker: 4.5.26 release commit (`deploy 4.5.26`)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import asyncio
 import hashlib
 import importlib
 import logging
@@ -925,21 +926,43 @@ class GoogleADKRuntime:
         return GoogleADKRuntime._MAX_RUN_ATTEMPTS
 
     @staticmethod
+    def _run_timeout_seconds_for_request(request: RuntimeRequest) -> float | None:
+        raw = os.environ.get("LUMIBOT_AGENT_RUN_TIMEOUT_SECONDS")
+        if raw:
+            try:
+                timeout_seconds = float(raw)
+                return timeout_seconds if timeout_seconds > 0 else None
+            except Exception:
+                pass
+        return 300.0
+
+    @staticmethod
     def _is_non_retryable(exc: BaseException) -> bool:
         # Use the shared classifier: only transient and unknown errors retry.
         # auth / config / billing surface immediately so we don't waste ~5
         # minutes of retry budget on a wrong API key.
         return _classify_agent_error(exc) not in ("transient", "unknown")
 
+    async def _run_async_with_timeout(self, request: RuntimeRequest, timeout_seconds: float) -> AgentRunResult:
+        try:
+            return await asyncio.wait_for(self._run_async(request), timeout=timeout_seconds)
+        except TimeoutError as exc:
+            raise TimeoutError(
+                f"Agent run exceeded {timeout_seconds:g}s timeout "
+                f"(model={request.model!r}, agent={request.agent_name!r})."
+            ) from exc
+
     def run(self, request: RuntimeRequest) -> AgentRunResult:
-        import asyncio
         import time as _time
 
         last_exc: BaseException | None = None
         max_attempts = self._max_attempts_for_request(request)
+        timeout_seconds = self._run_timeout_seconds_for_request(request)
         for attempt in range(1, max_attempts + 1):
             try:
-                return asyncio.run(self._run_async(request))
+                if timeout_seconds is None:
+                    return asyncio.run(self._run_async(request))
+                return asyncio.run(self._run_async_with_timeout(request, timeout_seconds))
             except (KeyboardInterrupt, SystemExit):
                 raise
             except BaseException as exc:  # noqa: BLE001 - intentional broad catch for retry

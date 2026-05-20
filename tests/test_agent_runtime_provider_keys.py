@@ -1,6 +1,9 @@
 import os
 import sys
 import types
+import asyncio
+
+import pytest
 
 from lumibot.components.agents.runtime import (
     GoogleADKRuntime,
@@ -248,6 +251,31 @@ def test_runtime_prompt_only_names_available_tools():
     assert "Available Tools JSON" in user_text
     assert "list_fred_series" not in user_text
     assert "alpaca_news" not in user_text
+
+
+def test_runtime_enforces_agent_run_timeout(monkeypatch):
+    runtime = GoogleADKRuntime()
+
+    async def never_finishes(_request):
+        await asyncio.sleep(10)
+
+    monkeypatch.setattr(runtime, "_run_async", never_finishes)
+    monkeypatch.setenv("LUMIBOT_AGENT_RUN_TIMEOUT_SECONDS", "0.01")
+    monkeypatch.setenv("LUMIBOT_AGENT_MAX_RUN_ATTEMPTS", "1")
+
+    request = RuntimeRequest(
+        agent_name="researcher",
+        model="gemini-3.5-flash",
+        system_prompt="System prompt",
+        task_prompt="Do work",
+        context=None,
+        runtime_context={"mode": "backtesting"},
+        memory_notes=[],
+        bound_tools=[],
+    )
+
+    with pytest.raises(TimeoutError, match="Agent run exceeded 0.01s timeout"):
+        runtime.run(request)
 
 
 def test_gemini_native_path_uses_plain_model_id_for_implicit_or_adk_context_cache():

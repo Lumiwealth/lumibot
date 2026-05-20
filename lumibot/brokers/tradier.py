@@ -805,9 +805,43 @@ class Tradier(Broker):
             return None
         if "tax" in normalized_description:
             return "tax"
-        if "fee" in normalized_description:
+        if "fee" in normalized_description or "subscription" in normalized_description:
             return "fee"
         return None
+
+    @staticmethod
+    def _is_tradier_external_transfer(raw_type: str, description: str | None) -> bool:
+        normalized_raw_type = str(raw_type or "").strip().lower()
+        normalized_description = str(description or "").strip().lower()
+
+        if normalized_raw_type in {"ach", "wire", "check"}:
+            return True
+        if normalized_raw_type == "journal":
+            return "journal to account" in normalized_description or "journal from account" in normalized_description
+        if normalized_raw_type != "transfer":
+            return False
+
+        internal_markers = (
+            "annual ira fee",
+            "pro subscription",
+            "clearing fee",
+            "clearing fees",
+            "mark to market",
+            "tfr to type",
+            "tfr from type",
+        )
+        if any(marker in normalized_description for marker in internal_markers):
+            return False
+
+        external_markers = (
+            "journal to account",
+            "journal from account",
+            "cash transfer",
+            "account transfer",
+            "wire transfer",
+            "ach transfer",
+        )
+        return any(marker in normalized_description for marker in external_markers)
 
     @classmethod
     def _map_cash_event_type(cls, raw_type: str, amount: float, description: str | None = None) -> tuple[str, bool]:
@@ -815,8 +849,13 @@ class Tradier(Broker):
         description_override = cls._override_cash_event_type_from_description(description)
         if description_override is not None:
             return description_override, False
-        if normalized_raw_type in {"ach", "wire", "check", "transfer"}:
-            return ("deposit" if amount >= 0 else "withdrawal"), True
+        if normalized_raw_type in {"ach", "wire", "check", "transfer", "journal"}:
+            if cls._is_tradier_external_transfer(normalized_raw_type, description):
+                return ("deposit" if amount >= 0 else "withdrawal"), True
+            if normalized_raw_type == "journal":
+                return "journal", False
+            if normalized_raw_type == "transfer":
+                return "adjustment", False
         if normalized_raw_type == "dividend":
             return "dividend", False
         if normalized_raw_type == "interest":

@@ -436,3 +436,25 @@ Current interpretation:
 - Before spending hours on a three-month slate, either relax the portfolio manager's trade threshold / require at least one small position when the evidence is acceptable, or split the benchmark into two tracks: `mechanical/tool discipline` and `trade-seeking committee`.
 - Cerebras should remain in the slate after billing is fixed. The earlier qualifier passed mechanically and was much faster, but the current account/key hit a provider billing gate on rerun.
 - Gemini 3.5 Flash should not be included in the first three-month run unless the goal is specifically to measure Google provider availability under load; it did not finish the 14-day qualifier here.
+
+## Three-Month Benchmark Run: 2026-05-20
+
+Window: `2026-01-02` through `2026-04-02`.
+
+Launched models:
+
+- `openai/gpt-5.4-mini`
+- `deepseek/deepseek-v4-flash`
+- `together_ai/moonshotai/Kimi-K2.5`
+- `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`
+
+Excluded models:
+
+- `gemini-3.5-flash`: excluded because it did not complete the enforced 14-day qualifier in a reasonable wall-clock window.
+- `cerebras/gpt-oss-120b`: excluded because the current key/account hit a Cerebras billing gate on rerun, even though an earlier 14-day qualifier passed mechanically.
+
+Artifact root: `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260520_160534`.
+
+Parallel launcher root: `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/parallel_3m_enforced_20260520_160510`.
+
+Launch status: all four models printed `model_start`; no key/config failure on launch.

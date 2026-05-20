@@ -116,3 +116,16 @@ Minimum support gate for each provider/model:
 Together AI should be a one-session implementation plus smoke testing. It gives the broad catalog Rob is asking for: Kimi, DeepSeek, Qwen, Llama, and other fast hosted open models.
 
 Cerebras should also be a one-session integration, but the product promise should be narrower: extremely fast supported Cerebras-hosted models, not "every open model." The main decision is whether to expose Cerebras as a simple model-prefix option only, or add a curated "fast mode" preset after benchmarking latency, tool correctness, and trading decision quality.
+
+## Recommendation After Rob Clarification
+
+Rob clarified the real question is whether the integrations are viable enough to justify getting API keys, not whether the provider catalogs differ.
+
+Recommendation:
+
+- Get a Cerebras key. The integration path is viable through LiteLLM/ADK, and the speed upside is large enough to justify a small smoke-test budget. Use it first for latency-sensitive agent loops where lower model latency matters more than having the broadest model catalog.
+- Get a Together AI key too. Together is the better broad-model marketplace for trying Kimi, DeepSeek, Qwen, Llama, GPT-OSS, and similar open models without adding a new provider integration for each one.
+- Implement both behind the same provider-prefix path. Do not build separate native SDK integrations unless LiteLLM/ADK fails a real tool-call smoke test.
+- First implementation should be intentionally thin: env-var aliasing, provider hints, tests, docs, and one smoke script that can run the same LumiBot agent task against `gemini`, `openai`, `anthropic`, `xai`, `together_ai`, and `cerebras` model strings.
+
+Expected outcome: this should work out of the box for simple text calls once keys and model IDs are correct, and should work for LumiBot agents after validating tool-call behavior on the exact chosen models. The validation is necessary, but it is not a reason to avoid getting the keys.

@@ -678,3 +678,29 @@ Qwen one-day no-trade diagnosis:
   moving averages, structural bearishness was not resolved, inventory/customer
   concentration risks remained, and there was no macro or news context. Capital
   stayed in cash pending clearer signals.
+
+Additional one-day provider checks:
+
+- Official Together serverless docs checked on `2026-05-21` list
+  `moonshotai/Kimi-K2.6`, `deepseek-ai/DeepSeek-V4-Pro`,
+  `openai/gpt-oss-120b`, and `Qwen/Qwen3-235B-A22B-Instruct-2507-tput` as
+  function-calling chat models.
+- Tiny LiteLLM checks with the local Together key:
+  - `together_ai/openai/gpt-oss-120b`: succeeded.
+  - `together_ai/moonshotai/Kimi-K2.6`: failed with Together
+    `Credit limit exceeded`, even for a 3-token test.
+  - `together_ai/deepseek-ai/DeepSeek-V4-Pro`: failed with Together
+    `Credit limit exceeded`, even for a 3-token test.
+- Tiny Cerebras checks:
+  - `cerebras/gpt-oss-120b`: failed with Cerebras `Payment required`.
+  - `cerebras/zai-glm-4.7`: failed with Cerebras `Payment required`.
+- Reran `together_ai/openai/gpt-oss-120b` one-day smoke at
+  `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260521_191259`.
+- GPT-OSS result: passed. Wall time `103.4s`; calls `4`; tool calls `52`;
+  input `70,177`, output `13,391`; estimated cost `$0.018561`. It stayed in
+  cash with `0%` return.
+- GPT-OSS trace quality note: evidence researcher used all `52` tool calls, but
+  bull researcher, bear researcher, and portfolio manager used zero tools. The
+  final decision was no trade. Treat it as mechanically compatible and cheap,
+  but weaker than Qwen/OpenAI for this committee because the later committee
+  roles did not independently verify the handoff.

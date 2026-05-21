@@ -1,6 +1,20 @@
 # Changelog
 
-## 4.5.29 - Unreleased
+## 4.5.29 - 2026-05-20
+
+Deploy marker: 4.5.29 release commit (`deploy 4.5.29`)
+
+### Fixed
+- **AI agent runtime no longer blocks tool calls with hidden runtime budgets.** The runtime-enforced tool-call budget introduced in 4.5.28 has been removed because it could block execution tools such as `orders_submit_order` and invalidate agent trading results.
+- **AI agent tool results and committee handoffs are no longer silently token-truncated by the benchmark path.** Large handoffs/tool results now preserve the model-visible evidence instead of replacing it with middle-truncated excerpts.
+- **AI benchmark usage accounting now aggregates raw traces across all committee roles.** The provider benchmark runner no longer relies on a last-writer detail artifact that undercounted multi-agent token usage and cost.
+- **Multi-agent detail parquet files now include all agent rows for stats-file backtests.** Observability artifacts for committee-style strategies include every role instead of only the most recent writer.
+
+### Changed
+- **The AI Investment Committee example uses prompt guidance instead of numeric tool-call caps.** The example still asks agents to be concise and targeted, but it does not impose hidden research/follow-up/portfolio tool budgets.
+
+### Operations
+- **The AI committee provider benchmark plan marks the enforced 4.5.28 results invalid for trading conclusions.** The investigation doc records why hidden tool-call and truncation controls polluted the prior 14-day and three-month results, and documents the safer one-model smoke-test plan for Cerebras, direct DeepSeek Flash, and Together after billing propagation.
 
 ## 4.5.28 - 2026-05-20
 

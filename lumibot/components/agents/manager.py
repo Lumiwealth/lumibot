@@ -1644,7 +1644,8 @@ class AgentManager:
         agent_rows = self._observability_rows.setdefault(handle.name, [])
         agent_rows.extend(rows)
         self._observability_all_rows.extend(rows)
-        if isinstance(getattr(self.strategy, "stats_file", None) or getattr(self.strategy, "_stats_file", None), str):
+        configured_stats_file = getattr(self.strategy, "stats_file", None) or getattr(self.strategy, "_stats_file", None)
+        if isinstance(configured_stats_file, str) and configured_stats_file:
             detail_rows = self._observability_all_rows
         else:
             detail_rows = agent_rows

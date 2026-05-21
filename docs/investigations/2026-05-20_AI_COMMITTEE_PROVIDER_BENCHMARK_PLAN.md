@@ -53,14 +53,14 @@ Paid smoke attempts:
   `Credit limit exceeded` before the first model call. Kimi K2.5 is now a
   historical artifact only; do not include it in new benchmark slates.
 - After Rob added Together credits, a one-day Qwen3 235B throughput smoke was
-  attempted with `--max-model-calls 4`, but Together still returned
+  attempted with the historical `--max-model-calls 4` retry flag, but Together still returned
   `Credit limit exceeded` before the first model call. Do not retry repeatedly;
   Together's billing message says balances can take up to five minutes to
   update.
 - Direct DeepSeek V4 Flash was rerun over `2026-02-12` through `2026-02-14`,
   a small window that previously had blocked order attempts.
 - Artifact root:
-  `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260520_204010/deepseek_deepseek-v4-flash`.
+  `<repo_root>/artifacts/ai_committee_provider_benchmarks/20260520_204010/deepseek_deepseek-v4-flash`.
 - Result: passed mechanically; `8` raw traces, `315` tool calls,
   `3,584,209` input tokens, `3,212,672` cached input tokens, `73,136` output
   tokens, `30,119` thinking tokens.

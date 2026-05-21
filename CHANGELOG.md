@@ -12,8 +12,6 @@ Deploy marker: 4.5.29 release commit (`deploy 4.5.29`)
 
 ### Changed
 - **The AI Investment Committee example uses prompt guidance instead of numeric tool-call caps.** The example still asks agents to be concise and targeted, but it does not impose hidden research/follow-up/portfolio tool budgets.
-
-### Operations
 - **The AI committee provider benchmark plan marks the enforced 4.5.28 results invalid for trading conclusions.** The investigation doc records why hidden tool-call and truncation controls polluted the prior 14-day and three-month results, and documents the safer one-model smoke-test plan for Cerebras, direct DeepSeek Flash, and Together after billing propagation.
 
 ## 4.5.28 - 2026-05-20

@@ -158,11 +158,13 @@ def _usage_from_raw_traces(run_dir: Path) -> dict[str, Any]:
     by_agent: dict[str, Any] = {}
     tool_call_count = 0
     latency_ms = 0
+    parsed_trace_count = 0
     for trace_file in trace_files:
         try:
             trace = json.loads(trace_file.read_text(encoding="utf-8"))
         except Exception:
             continue
+        parsed_trace_count += 1
         agent_name = str(trace.get("agent") or trace_file.parent.name)
         trace_usage = trace.get("usage") or {}
         trace_timing = trace.get("timing") or {}
@@ -203,14 +205,15 @@ def _usage_from_raw_traces(run_dir: Path) -> dict[str, Any]:
         agent_payload["tool_call_count"] += call_tool_count
         agent_payload["latency_ms"] += call_latency_ms
     return {
-        "detail_path": str(trace_root.resolve()) if trace_files else None,
+        "detail_path": str(trace_root.resolve()) if parsed_trace_count else None,
         "usage": usage,
         "tool_call_count": tool_call_count,
-        "call_count": len(trace_files),
+        "call_count": parsed_trace_count,
         "latency_ms": latency_ms,
         "by_agent": by_agent,
         "source": "raw_traces",
         "trace_file_count": len(trace_files),
+        "parsed_trace_count": parsed_trace_count,
     }
 
 

@@ -47,11 +47,16 @@ Validation:
   `bull_researcher`, `bear_researcher`, and `portfolio_manager`, instead of
   the broken `62`-call last-agent summary.
 
-Paid smoke attempt:
+Paid smoke attempts:
 
 - Together Kimi K2.5 could not be rerun because Together returned
-  `Credit limit exceeded` before the first model call. Add Together credits
-  before rerunning Kimi/Qwen.
+  `Credit limit exceeded` before the first model call. Kimi K2.5 is now a
+  historical artifact only; do not include it in new benchmark slates.
+- After Rob added Together credits, a one-day Qwen3 235B throughput smoke was
+  attempted with `--max-model-calls 4`, but Together still returned
+  `Credit limit exceeded` before the first model call. Do not retry repeatedly;
+  Together's billing message says balances can take up to five minutes to
+  update.
 - Direct DeepSeek V4 Flash was rerun over `2026-02-12` through `2026-02-14`,
   a small window that previously had blocked order attempts.
 - Artifact root:
@@ -65,9 +70,11 @@ Paid smoke attempt:
   decision, not a budget block. Portfolio-manager traces for both days say
   `NO TRADE`; no `orders_submit_order` call was blocked.
 
-Next meaningful proof of actual order execution should use Kimi K2.5 after
-Together credits are added, because earlier Kimi smoke runs did place bounded
-orders before the account later hit the credit limit.
+Next Together smoke should use a cheaper current model first:
+`together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput` or
+`together_ai/openai/gpt-oss-120b`. Kimi should mean Kimi K2.6 only, and only as
+an expensive compatibility/quality sample, not as a cost-sensitive benchmark
+default.
 
 ## Recommendation
 
@@ -142,7 +149,7 @@ For fair model comparison, set all four to the same candidate model first. Mixed
 |---|---|---|
 | Qwen3 235B FP8 throughput | `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput` | Very cheap throughput model. Good candidate for "can a low-cost open model actually trade?" |
 | GPT-OSS 120B on Together | `together_ai/openai/gpt-oss-120b` | Open-weight reasoning baseline via Together. Low cost, tool support listed by Together. |
-| Qwen3.6 Plus | `together_ai/Qwen/Qwen3.6-Plus` | Cheaper broad reasoning candidate. Test only if it passes tool-call smoke. |
+| Qwen3.6 Plus | `together_ai/Qwen/Qwen3.6-Plus` | Cheaper broad reasoning candidate, but Together's current table does not clearly list function-calling support for it. Test only if a tool-call smoke confirms it works. |
 | Kimi K2.6 | `together_ai/moonshotai/Kimi-K2.6` | Agentic/model-swarm positioning, 256K context, function calling listed by Together. Expensive enough that it should not be in the first cost-sensitive finalist set unless smoke quality is clearly strong. |
 | Together DeepSeek V4 Pro | `together_ai/deepseek-ai/DeepSeek-V4-Pro` | Together-hosted DeepSeek option. More expensive than direct DeepSeek and no documented Together V4 Flash option was found, but it avoids sending requests to `api.deepseek.com`. Requires `TOGETHERAI_API_KEY`. |
 
@@ -313,7 +320,7 @@ Only run the finalists for two or three months. Recommended finalists likely:
 - Together-hosted DeepSeek V4 Pro is not a cost winner. It is more expensive than direct DeepSeek V4 Pro and far more expensive than direct DeepSeek V4 Flash. Use it only if we specifically want DeepSeek behavior without calling DeepSeek's own API endpoint.
 - Direct DeepSeek V4 Flash is the best raw cost bet, but it has a privacy posture Rob does not like for proprietary trading data. Keep it optional.
 - Gemini 3.5 Flash is the likely closed-model quality/speed baseline. Google published strong tool-use and finance-agent model-card numbers, so it belongs in the benchmark.
-- Kimi K2.5 looked promising in the first smoke because it used tools and placed a bounded order. Kimi K2.6 is still worth a smoke test only if the higher price is justified by quality.
+- Kimi K2.5 looked promising in historical smoke runs because it used tools and placed bounded orders, but it should not be used going forward. If testing Kimi, use Kimi K2.6 only, and treat it as an expensive compatibility/quality sample.
 - Cerebras is worth testing for speed, but the current ADK/LiteLLM path needs a message-normalization fix for `reasoning_content` before `cerebras/gpt-oss-120b` can complete.
 - Qwen throughput is cheap and fast enough to keep testing, but the `list_fred_series` hallucinated tool call means we should watch tool discipline carefully.
 

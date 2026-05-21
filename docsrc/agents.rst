@@ -222,21 +222,18 @@ LumiBot handles all the common instructions internally through its base prompt. 
 
 Do not repeat instructions about position sizing, time safety, or tool usage. LumiBot already covers those in the base prompt.
 
-Token-Budgeted Agent Handoffs
------------------------------
+Agent Handoffs
+--------------
 
 Multi-agent strategies often pass one agent's output into the next agent. For
 example, an evidence researcher may hand a research pack to a bull researcher,
 then a bear researcher, then a portfolio manager. These handoffs should be
-large enough to preserve useful evidence, but they must stay inside the model's
-context window.
+large enough to preserve useful evidence while still being concise enough for
+the next model call.
 
-Use prompt instructions for the normal behavior and token budgeting as the
-safety rail:
+Prefer prompt instructions and structured output requests:
 
 .. code-block:: python
-
-    from lumibot.components.agents.context_budget import budget_text_by_tokens
 
     result = self.agents["evidence_researcher"].run(
         task_prompt=(
@@ -247,51 +244,31 @@ safety rail:
         context={"handoff_target_tokens": 24000},
     )
 
-    evidence_pack = budget_text_by_tokens(
-        result.summary or result.text,
-        max_tokens=32000,
-        label="evidence_pack",
-    ).text
+    evidence_pack = result.summary or result.text
 
 ``handoff_target_tokens`` is the prompt target. It does not force the model to
 use that many tokens. It tells the model the upper bound for a complete,
 structured handoff. A good model can still return 5,000 or 8,000 tokens when
 that is enough.
 
-``max_tokens`` is the hard safety rail before the next agent sees the handoff.
-If the text exceeds the budget, LumiBot keeps the beginning and end and inserts
-an explicit notice that token-budget truncation happened. This prevents a
-single verbose agent from pushing the next agent beyond a provider context
-window.
-
-LumiBot also applies a token budget to very large tool results before they are
-sent back into the model. Full trace artifacts still record that the tool was
-called, but the model sees a bounded excerpt with an explicit truncation notice
-and can call a narrower tool or query if it needs more detail. This matters for
-large SEC company-facts payloads, filings, news bodies, and other raw data that
-can otherwise consume an entire provider context window.
-
-The default tool-result budget is 4,000 estimated tokens per tool result. You
-can override it with ``LUMIBOT_AGENT_TOOL_RESULT_MAX_TOKENS`` when benchmarking
-models with unusually large context windows, but keep in mind that many tool
-results can accumulate inside one agent turn.
+Do not silently truncate handoffs or tool results in order to make a backtest
+fit a provider context window. Silent truncation changes the evidence the next
+agent sees and can turn a trading-quality benchmark into a benchmark of the
+truncation policy. If a handoff is too large, prefer narrower tools, better
+role prompts, provider-appropriate model selection, or a clear failure with
+diagnostics.
 
 For 128K-context models, think about the combined context, not just one
 handoff. If the portfolio manager receives evidence, bull, and bear handoffs,
 three 32K-token handoffs can already consume roughly 96K tokens before the
 system prompt, tool schemas, runtime context, and the portfolio manager's own
-output. Larger budgets can be reasonable for bigger-context models, but they
-should be chosen intentionally.
+output.
 
-Prompt-level tool discipline matters as much as token budgeting. Multi-agent
-strategies should tell research agents how many tool calls are reasonable for a
-turn, because dozens of individually bounded tool results can still create a
-large context. The AI Investment Committee example exposes
-``max_research_tool_calls``, ``max_followup_tool_calls``, and
-``max_portfolio_tool_calls`` strategy parameters for this reason. LumiBot also
-enforces these context budgets at runtime: once a role exceeds its configured
-tool-call count, additional tool calls return a budget-exceeded notice instead
-of executing.
+Do not add hidden runtime tool-call budgets to trading benchmarks. Blocking
+tools can invalidate results by preventing execution tools, such as order
+submission, from running. If you need to control paid benchmark spend, use an
+explicit outer run cap such as ``LUMIBOT_AGENT_MAX_MODEL_CALLS`` and treat the
+run as failed when the cap is reached.
 
 DuckDB and Time-Series Data
 ----------------------------

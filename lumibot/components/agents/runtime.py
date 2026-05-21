@@ -19,11 +19,9 @@ from datetime import date, datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from .context_budget import budget_text_by_tokens
 from .schemas import AgentRunResult, AgentTraceEvent, BoundTool, MCPServer
 
 
-_DEFAULT_TOOL_RESULT_MAX_TOKENS = 4000
 _GOOGLE_SDK_NOISE_FILTERS_CONFIGURED = False
 ClientSession = None
 StdioServerParameters = None
@@ -101,59 +99,12 @@ def _tool_function_name(value: str) -> str:
     return normalized
 
 
-def _budget_tool_result_for_model_context(tool_name: str, value: Any) -> Any:
-    raw_max_tokens = os.environ.get("LUMIBOT_AGENT_TOOL_RESULT_MAX_TOKENS")
-    try:
-        max_tokens = int(raw_max_tokens) if raw_max_tokens else _DEFAULT_TOOL_RESULT_MAX_TOKENS
-    except (TypeError, ValueError):
-        max_tokens = _DEFAULT_TOOL_RESULT_MAX_TOKENS
-    try:
-        serialized = json.dumps(_json_safe_value(value), sort_keys=True, default=str)
-    except Exception:
-        serialized = str(value)
-    budgeted = budget_text_by_tokens(
-        serialized,
-        max_tokens=max_tokens,
-        label=f"tool_result:{tool_name}",
-    )
-    if not budgeted.was_truncated:
-        return value
-    return {
-        "ok": True,
-        "lumibot_tool_result_truncated": True,
-        "tool_name": tool_name,
-        "original_estimated_tokens": budgeted.original_estimated_tokens,
-        "estimated_tokens": budgeted.estimated_tokens,
-        "max_tokens": max_tokens,
-        "result_excerpt": budgeted.text,
-        "message": (
-            "Tool result exceeded LumiBot's model-context token budget. "
-            "Use the retained excerpt and call a narrower tool/query if more detail is needed."
-        ),
-    }
-
-
-def _wrap_tool_callable(tool: BoundTool, tool_budget: dict[str, int] | None = None):
+def _wrap_tool_callable(tool: BoundTool):
     original = tool.function
 
     def wrapper(*args, **kwargs):
         try:
-            if tool_budget is not None:
-                tool_budget["count"] = int(tool_budget.get("count", 0)) + 1
-                max_calls = int(tool_budget.get("max", 0))
-                if max_calls >= 0 and tool_budget["count"] > max_calls:
-                    return {
-                        "ok": False,
-                        "lumibot_tool_call_budget_exceeded": True,
-                        "tool_name": tool.name,
-                        "call_number": tool_budget["count"],
-                        "max_tool_calls": max_calls,
-                        "message": (
-                            "This agent has reached its LumiBot tool-call budget for the current run. "
-                            "Stop calling tools and make the best concise decision from existing evidence."
-                        ),
-                    }
-            return _budget_tool_result_for_model_context(tool.name, _json_safe_value(original(*args, **kwargs)))
+            return _json_safe_value(original(*args, **kwargs))
         except Exception as exc:
             return _tool_error_payload(tool.name, kwargs, exc)
 
@@ -168,25 +119,6 @@ def _wrap_tool_callable(tool: BoundTool, tool_budget: dict[str, int] | None = No
     if isinstance(annotations, dict):
         wrapper.__annotations__ = dict(annotations)
     return wrapper
-
-
-def _tool_call_budget_for_request(request: "RuntimeRequest") -> dict[str, int] | None:
-    context = request.context if isinstance(request.context, dict) else {}
-    raw = context.get("max_tool_calls")
-    agent_name = str(request.agent_name or "").lower()
-    if raw is None and "evidence" in agent_name:
-        raw = context.get("max_research_tool_calls")
-    if raw is None and "portfolio" in agent_name:
-        raw = context.get("max_portfolio_tool_calls")
-    if raw is None:
-        raw = context.get("max_followup_tool_calls")
-    if raw is None:
-        return None
-    try:
-        max_calls = int(raw)
-    except (TypeError, ValueError):
-        return None
-    return {"max": max(max_calls, 0), "count": 0}
 
 
 def _json_safe_value(value: Any) -> Any:
@@ -888,8 +820,7 @@ class GoogleADKRuntime:
         first_event_perf: float | None = None
         LlmAgentType, InMemoryRunnerType, genai_types, function_tool_type = self._ensure_adk()
         tool_name_map = {_tool_function_name(tool.name): tool.name for tool in request.bound_tools}
-        tool_budget = _tool_call_budget_for_request(request)
-        tools = [function_tool_type(_wrap_tool_callable(tool, tool_budget=tool_budget)) for tool in request.bound_tools]
+        tools = [function_tool_type(_wrap_tool_callable(tool)) for tool in request.bound_tools]
         config_kwargs: dict[str, Any] = {
             "max_output_tokens": 65535,
         }

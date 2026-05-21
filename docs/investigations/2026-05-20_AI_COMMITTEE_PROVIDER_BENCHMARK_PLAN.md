@@ -3,6 +3,79 @@
 **Date:** 2026-05-20
 **Scope:** Benchmarking the LumiBot AI Investment Committee across Gemini, OpenAI, Together AI, Kimi, Qwen, Cerebras, and optional direct DeepSeek models.
 
+## Correction: Hidden Safety Rails Invalidated The Enforced Results
+
+The enforced 14-day and three-month benchmark results below are not valid
+trading-performance evidence. They used hidden behavior controls that changed
+the thing being measured:
+
+- Runtime tool-call budgets returned budget-exceeded payloads instead of
+  executing additional tools. This blocked `orders_submit_order`, so models
+  that tried to trade could be forced into all-cash results.
+- Prompt-level numeric tool-call budgets changed the agent behavior under test.
+  Benchmark prompts may ask agents to be concise and targeted, but they should
+  not impose arbitrary tool counts unless the experiment is explicitly about
+  constrained agents.
+- Handoff/tool-result truncation changed the evidence available to downstream
+  agents. Context problems should be handled with narrower tools, structured
+  outputs, provider-appropriate model selection, or clear diagnostic failures,
+  not hidden middle truncation.
+- The cost summaries undercounted usage because the compact summary read a
+  last-writer agent detail artifact instead of aggregating every committee role
+  from raw traces or a combined all-agent detail file.
+
+Before spending on another full benchmark, remove those hidden controls, fix
+usage aggregation, and rerun a very small smoke test that verifies order tools
+execute normally.
+
+## Post-Correction Smoke: 2026-05-20 Local
+
+Fixes applied before rerunning:
+
+- Removed runtime tool-call budget enforcement from the agent runtime.
+- Removed prompt-level numeric tool-call budgets from the AI Investment
+  Committee example and benchmark runner.
+- Removed handoff/tool-result truncation from the benchmark path.
+- Fixed benchmark usage accounting to aggregate raw trace files across every
+  committee role instead of trusting a last-writer detail artifact.
+
+Validation:
+
+- Focused tests passed: `python3 -m pytest tests/test_agent_runtime_provider_keys.py tests/test_ai_investment_committee_example.py`.
+- Raw-trace usage aggregation was checked against an old OpenAI artifact and
+  correctly found `248` traces across `evidence_researcher`,
+  `bull_researcher`, `bear_researcher`, and `portfolio_manager`, instead of
+  the broken `62`-call last-agent summary.
+
+Paid smoke attempts:
+
+- Together Kimi K2.5 could not be rerun because Together returned
+  `Credit limit exceeded` before the first model call. Kimi K2.5 is now a
+  historical artifact only; do not include it in new benchmark slates.
+- After Rob added Together credits, a one-day Qwen3 235B throughput smoke was
+  attempted with the historical `--max-model-calls 4` retry flag, but Together still returned
+  `Credit limit exceeded` before the first model call. Do not retry repeatedly;
+  Together's billing message says balances can take up to five minutes to
+  update.
+- Direct DeepSeek V4 Flash was rerun over `2026-02-12` through `2026-02-14`,
+  a small window that previously had blocked order attempts.
+- Artifact root:
+  `<repo_root>/artifacts/ai_committee_provider_benchmarks/20260520_204010/deepseek_deepseek-v4-flash`.
+- Result: passed mechanically; `8` raw traces, `315` tool calls,
+  `3,584,209` input tokens, `3,212,672` cached input tokens, `73,136` output
+  tokens, `30,119` thinking tokens.
+- Estimated cost using static price map: `$0.522267` no-cache,
+  `$0.081489` cache-adjusted.
+- Trading result: still `0%` return and cash-only, but this was a model
+  decision, not a budget block. Portfolio-manager traces for both days say
+  `NO TRADE`; no `orders_submit_order` call was blocked.
+
+Next Together smoke should use a cheaper current model first:
+`together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput` or
+`together_ai/openai/gpt-oss-120b`. Kimi should mean Kimi K2.6 only, and only as
+an expensive compatibility/quality sample, not as a cost-sensitive benchmark
+default.
+
 ## Recommendation
 
 Use the AI Investment Committee example as the primary benchmark. It is the right workload because it stresses the exact behavior we care about:
@@ -76,7 +149,7 @@ For fair model comparison, set all four to the same candidate model first. Mixed
 |---|---|---|
 | Qwen3 235B FP8 throughput | `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput` | Very cheap throughput model. Good candidate for "can a low-cost open model actually trade?" |
 | GPT-OSS 120B on Together | `together_ai/openai/gpt-oss-120b` | Open-weight reasoning baseline via Together. Low cost, tool support listed by Together. |
-| Qwen3.6 Plus | `together_ai/Qwen/Qwen3.6-Plus` | Cheaper broad reasoning candidate. Test only if it passes tool-call smoke. |
+| Qwen3.6 Plus | `together_ai/Qwen/Qwen3.6-Plus` | Cheaper broad reasoning candidate, but Together's current table does not clearly list function-calling support for it. Test only if a tool-call smoke confirms it works. |
 | Kimi K2.6 | `together_ai/moonshotai/Kimi-K2.6` | Agentic/model-swarm positioning, 256K context, function calling listed by Together. Expensive enough that it should not be in the first cost-sensitive finalist set unless smoke quality is clearly strong. |
 | Together DeepSeek V4 Pro | `together_ai/deepseek-ai/DeepSeek-V4-Pro` | Together-hosted DeepSeek option. More expensive than direct DeepSeek and no documented Together V4 Flash option was found, but it avoids sending requests to `api.deepseek.com`. Requires `TOGETHERAI_API_KEY`. |
 
@@ -247,7 +320,7 @@ Only run the finalists for two or three months. Recommended finalists likely:
 - Together-hosted DeepSeek V4 Pro is not a cost winner. It is more expensive than direct DeepSeek V4 Pro and far more expensive than direct DeepSeek V4 Flash. Use it only if we specifically want DeepSeek behavior without calling DeepSeek's own API endpoint.
 - Direct DeepSeek V4 Flash is the best raw cost bet, but it has a privacy posture Rob does not like for proprietary trading data. Keep it optional.
 - Gemini 3.5 Flash is the likely closed-model quality/speed baseline. Google published strong tool-use and finance-agent model-card numbers, so it belongs in the benchmark.
-- Kimi K2.5 looked promising in the first smoke because it used tools and placed a bounded order. Kimi K2.6 is still worth a smoke test only if the higher price is justified by quality.
+- Kimi K2.5 looked promising in historical smoke runs because it used tools and placed bounded orders, but it should not be used going forward. If testing Kimi, use Kimi K2.6 only, and treat it as an expensive compatibility/quality sample.
 - Cerebras is worth testing for speed, but the current ADK/LiteLLM path needs a message-normalization fix for `reasoning_content` before `cerebras/gpt-oss-120b` can complete.
 - Qwen throughput is cheap and fast enough to keep testing, but the `list_fred_series` hallucinated tool call means we should watch tool discipline carefully.
 
@@ -396,7 +469,7 @@ Important benchmark runner fixes from this phase:
 - The paid benchmark runner now prints JSON `model_start` and `model_finished` events so long runs are observable.
 - Benchmark artifacts can be summarized with `/Users/robertgrzesik/Development/lumibot/scripts/summarize_ai_committee_provider_benchmarks.py`, which reads per-model `result.json` files and writes compact JSON/Markdown comparisons.
 - The runner accepts `--agent-run-timeout-seconds` for slow provider qualifiers. This is a per-agent timeout, not the overall benchmark timeout. Keep the default for fast providers; use a higher value for Qwen/Kimi only if the model is making progress but individual calls exceed the runtime's default safety rail.
-- The AI committee example now asks each role to produce a structured handoff under the strategy parameter `handoff_target_tokens`, default `24000`, and applies a reusable Lumibot token-budget helper at `handoff_max_tokens`, default `32000`, before passing text to the next role. If a model ignores the target, the helper middle-truncates with an explicit notice instead of silently chopping or crashing the strategy. A higher target does not force the model to use the full budget; the prompt explicitly says not to pad the handoff just to fill the token budget.
+- Historical note, now reverted: the AI committee example briefly applied a reusable token-budget helper at `handoff_max_tokens` before passing text to the next role. This was a bad benchmark control because middle truncation changed the evidence seen by downstream agents.
 
 Artifacts:
 
@@ -410,11 +483,11 @@ Results so far:
 - `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`, uncapped: failed with `ContextWindowExceededError` after sending about `2,951,306` tokens into a `262,144` token context window. Root cause was oversized role handoffs in the committee example, not a bad API key.
 - `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`, bounded-handoff rerun: hit the one-hour process timeout after `49` agent run summaries / `12` complete committee cycles with no repeated context-window failure. Partial usage: input `2,025,198`, output `41,640`, tool calls `363`, estimated cost `$0.430024`. The handoff contract fixed the failure mode, but Qwen needs a longer timeout to finish the qualifier.
 - Parallel rerun after token-budgeted handoffs showed `deepseek/deepseek-v4-flash` can still exceed context with raw tool results: provider rejected about `7,033,087` requested tokens against a `1,048,576` context window. This exposed a second boundary: tool results, especially raw SEC/companyfacts-style payloads, must also be token-budgeted before entering model context.
-- Runtime fix added after the DeepSeek failure: `lumibot.components.agents.context_budget.budget_text_by_tokens()` is now used at the tool-result boundary. Oversized tool results are replaced with an explicit bounded excerpt and a notice telling the model to call a narrower tool/query when more detail is needed.
-- The first Qwen run after tool-result budgeting still failed with Together's generic `Input validation error` after an earlier 300-second agent timeout. The likely remaining issue is accumulated context/request shape, not credentials. The tool-result budget was changed from a hard-coded 12K token cap to a 4K default with `LUMIBOT_AGENT_TOOL_RESULT_MAX_TOKENS` override for model-specific reruns.
+- Historical note, now reverted: runtime tool-result budgeting was added after the DeepSeek failure, then removed because bounded excerpts changed model-visible evidence and invalidated the benchmark.
+- The first Qwen run after tool-result budgeting still failed with Together's generic `Input validation error` after an earlier 300-second agent timeout. The likely remaining issue was accumulated context/request shape, not credentials.
 - Fixed-budget rerun state: Qwen rerun with 4K tool-result budget and 900-second per-agent timeout started in `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260520_144512`. DeepSeek, Gemini, Kimi, OpenAI, and Cerebras fixed-budget reruns started in `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260520_144705`.
 - Cerebras fixed-budget rerun failed immediately with provider billing error: `Payment required to access this resource`. Earlier Cerebras qualifier passed mechanically, so the integration works, but the account/key needs billing credits before Cerebras can be included in the final three-month benchmark.
-- Tool-call discipline fix: even with 4K tool-result caps, DeepSeek used `65` tools in the first evidence call. The AI Investment Committee example now passes prompt-level budgets for research/follow-up/portfolio tool calls (`24` / `8` / `6`), and the runtime enforces those budgets by returning a budget-exceeded notice after the role uses its allowed calls. This keeps the benchmark from measuring uncontrolled tool spraying.
+- Historical note, now reverted: a runtime tool-call enforcement change was added after DeepSeek used `65` tools in one evidence call. That was the wrong fix because it blocked later execution tools and invalidated trading results.
 - Enforced-budget 14-day qualifier artifacts:
   - Summary JSON: `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/enforced_14d_compact_summary.json`.
   - Summary Markdown: `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/enforced_14d_summary.md`.

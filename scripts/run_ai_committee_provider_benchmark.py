@@ -145,6 +145,78 @@ def _estimate_cost(model: str, usage: dict[str, int]) -> dict[str, Any]:
     return payload
 
 
+def _usage_from_raw_traces(run_dir: Path) -> dict[str, Any]:
+    trace_root = run_dir / "cache" / "agent_runtime" / "traces"
+    trace_files = sorted(trace_root.glob("*/*.json")) if trace_root.exists() else []
+    usage = {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "cached_input_tokens": 0,
+        "thinking_tokens": 0,
+    }
+    by_agent: dict[str, Any] = {}
+    tool_call_count = 0
+    latency_ms = 0
+    parsed_trace_count = 0
+    for trace_file in trace_files:
+        try:
+            trace = json.loads(trace_file.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        parsed_trace_count += 1
+        agent_name = str(trace.get("agent") or trace_file.parent.name)
+        trace_usage = trace.get("usage") or {}
+        trace_timing = trace.get("timing") or {}
+        trace_tool_calls = trace.get("tool_calls") or []
+        input_tokens = int(trace_usage.get("prompt_token_count") or 0)
+        output_tokens = int(trace_usage.get("candidates_token_count") or 0)
+        total_tokens = int(trace_usage.get("total_token_count") or input_tokens + output_tokens)
+        cached_input_tokens = int(trace_usage.get("cached_content_token_count") or 0)
+        thinking_tokens = int(trace_usage.get("thoughts_token_count") or 0)
+        call_latency_ms = int(trace_timing.get("call_latency_ms") or 0)
+        call_tool_count = len(trace_tool_calls)
+        usage["input_tokens"] += input_tokens
+        usage["output_tokens"] += output_tokens
+        usage["total_tokens"] += total_tokens
+        usage["cached_input_tokens"] += cached_input_tokens
+        usage["thinking_tokens"] += thinking_tokens
+        tool_call_count += call_tool_count
+        latency_ms += call_latency_ms
+        agent_payload = by_agent.setdefault(
+            agent_name,
+            {
+                "call_count": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "total_tokens": 0,
+                "cached_input_tokens": 0,
+                "thinking_tokens": 0,
+                "tool_call_count": 0,
+                "latency_ms": 0,
+            },
+        )
+        agent_payload["call_count"] += 1
+        agent_payload["input_tokens"] += input_tokens
+        agent_payload["output_tokens"] += output_tokens
+        agent_payload["total_tokens"] += total_tokens
+        agent_payload["cached_input_tokens"] += cached_input_tokens
+        agent_payload["thinking_tokens"] += thinking_tokens
+        agent_payload["tool_call_count"] += call_tool_count
+        agent_payload["latency_ms"] += call_latency_ms
+    return {
+        "detail_path": str(trace_root.resolve()) if parsed_trace_count else None,
+        "usage": usage,
+        "tool_call_count": tool_call_count,
+        "call_count": parsed_trace_count,
+        "latency_ms": latency_ms,
+        "by_agent": by_agent,
+        "source": "raw_traces",
+        "trace_file_count": len(trace_files),
+        "parsed_trace_count": parsed_trace_count,
+    }
+
+
 def _read_agent_detail(detail_path: Path) -> dict[str, Any]:
     if not detail_path.exists():
         return {
@@ -201,7 +273,15 @@ def _read_agent_detail(detail_path: Path) -> dict[str, Any]:
         "call_count": int(len(summaries)),
         "latency_ms": total("call_latency_ms"),
         "by_agent": by_agent,
+        "source": "stats_agent_detail",
     }
+
+
+def _read_agent_usage(run_dir: Path) -> dict[str, Any]:
+    trace_detail = _usage_from_raw_traces(run_dir)
+    if trace_detail.get("call_count"):
+        return trace_detail
+    return _read_agent_detail(run_dir / "stats_agent_detail.parquet")
 
 
 def _run_one_model(model: str, args: argparse.Namespace, root: Path) -> dict[str, Any]:
@@ -253,9 +333,6 @@ def _run_one_model(model: str, args: argparse.Namespace, root: Path) -> dict[str
         parameters={
             "max_position_pct": args.max_position_pct,
             "max_new_positions_per_run": args.max_new_positions_per_run,
-            "max_research_tool_calls": args.max_research_tool_calls,
-            "max_followup_tool_calls": args.max_followup_tool_calls,
-            "max_portfolio_tool_calls": args.max_portfolio_tool_calls,
             "enable_notifications": False,
         },
         stats_file=str(stats_file),
@@ -272,7 +349,7 @@ def _run_one_model(model: str, args: argparse.Namespace, root: Path) -> dict[str
         quiet_logs=True,
     )
     wall_ms = int((time.perf_counter() - started) * 1000)
-    detail = _read_agent_detail(run_dir / "stats_agent_detail.parquet")
+    detail = _read_agent_usage(run_dir)
     positions = [repr(position) for position in strategy.get_positions(include_cash_positions=True)]
     payload = {
         "model": model,
@@ -348,9 +425,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--budget", type=float, default=10000.0)
     parser.add_argument("--max-position-pct", type=float, default=0.20)
     parser.add_argument("--max-new-positions-per-run", type=int, default=2)
-    parser.add_argument("--max-research-tool-calls", type=int, default=24)
-    parser.add_argument("--max-followup-tool-calls", type=int, default=8)
-    parser.add_argument("--max-portfolio-tool-calls", type=int, default=6)
     parser.add_argument("--max-model-calls", type=int, default=80)
     parser.add_argument("--max-run-attempts", type=int, default=2)
     parser.add_argument(

@@ -9,14 +9,12 @@ from lumibot.components.agents.runtime import (
     GoogleADKRuntime,
     RuntimeRequest,
     _aggregate_usage_metadata,
-    _budget_tool_result_for_model_context,
     _resolve_model_for_adk,
     _strip_thought_parts_from_litellm_request,
     _supports_explicit_temperature_for_adk_model,
     _sync_gemini_api_key_alias,
     _sync_together_api_key_alias,
     _sync_xai_api_key_alias,
-    _tool_call_budget_for_request,
     _wrap_tool_callable,
 )
 from lumibot.components.agents.schemas import BoundTool
@@ -86,31 +84,7 @@ def test_together_litellm_key_wins_over_sdk_alias(monkeypatch):
     assert os.environ["TOGETHER_API_KEY"] == "together-test-key"
 
 
-def test_large_tool_results_are_budgeted_for_model_context(monkeypatch):
-    monkeypatch.delenv("LUMIBOT_AGENT_TOOL_RESULT_MAX_TOKENS", raising=False)
-    result = _budget_tool_result_for_model_context(
-        "huge_sec_payload",
-        {"facts": ["revenue margin debt liquidity buyback risk "] * 50000},
-    )
-
-    assert result["lumibot_tool_result_truncated"] is True
-    assert result["tool_name"] == "huge_sec_payload"
-    assert result["original_estimated_tokens"] > result["estimated_tokens"]
-    assert "Token-budget safety truncation" in result["result_excerpt"]
-
-
-def test_tool_result_budget_can_be_overridden(monkeypatch):
-    monkeypatch.setenv("LUMIBOT_AGENT_TOOL_RESULT_MAX_TOKENS", "1200")
-    result = _budget_tool_result_for_model_context(
-        "huge_sec_payload",
-        {"facts": ["revenue margin debt liquidity buyback risk "] * 50000},
-    )
-
-    assert result["lumibot_tool_result_truncated"] is True
-    assert result["max_tokens"] == 1200
-
-
-def test_tool_call_budget_blocks_extra_tool_calls():
+def test_wrapped_tool_does_not_block_repeated_calls():
     calls = {"count": 0}
 
     def sample_tool():
@@ -118,29 +92,11 @@ def test_tool_call_budget_blocks_extra_tool_calls():
         return {"value": calls["count"]}
 
     tool = BoundTool(name="sample_tool", description="sample", function=sample_tool)
-    wrapped = _wrap_tool_callable(tool, tool_budget={"max": 1, "count": 0})
+    wrapped = _wrap_tool_callable(tool)
 
     assert wrapped()["value"] == 1
-    blocked = wrapped()
-
-    assert calls["count"] == 1
-    assert blocked["lumibot_tool_call_budget_exceeded"] is True
-    assert blocked["max_tool_calls"] == 1
-
-
-def test_tool_call_budget_resolves_from_agent_context():
-    request = RuntimeRequest(
-        agent_name="evidence_researcher",
-        model="openai/gpt-5.4-mini",
-        system_prompt="",
-        task_prompt="",
-        context={"max_research_tool_calls": 24, "max_followup_tool_calls": 8},
-        runtime_context={},
-        memory_notes=[],
-        bound_tools=[],
-    )
-
-    assert _tool_call_budget_for_request(request) == {"max": 24, "count": 0}
+    assert wrapped()["value"] == 2
+    assert calls["count"] == 2
 
 
 def test_aggregate_usage_metadata_sums_multiple_provider_events():

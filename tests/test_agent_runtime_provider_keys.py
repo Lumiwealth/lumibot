@@ -294,6 +294,22 @@ def test_runtime_enforces_agent_run_timeout(monkeypatch):
         runtime.run(request)
 
 
+def test_runtime_default_agent_run_timeout_is_30_minutes(monkeypatch):
+    monkeypatch.delenv("LUMIBOT_AGENT_RUN_TIMEOUT_SECONDS", raising=False)
+    request = RuntimeRequest(
+        agent_name="researcher",
+        model="gemini-3.5-flash",
+        system_prompt="System prompt",
+        task_prompt="Do work",
+        context=None,
+        runtime_context={"mode": "backtesting"},
+        memory_notes=[],
+        bound_tools=[],
+    )
+
+    assert GoogleADKRuntime._run_timeout_seconds_for_request(request) == 1800.0
+
+
 def test_gemini_native_path_uses_plain_model_id_for_implicit_or_adk_context_cache():
     # Gemini stays on ADK's native path. Provider prompt-cache routing kwargs are
     # only for LiteLLM providers; Gemini implicit caching and ADK explicit

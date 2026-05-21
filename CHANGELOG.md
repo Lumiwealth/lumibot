@@ -2,6 +2,9 @@
 
 ## 4.5.30 - Unreleased
 
+### Changed
+- **AI agent runs now default to a 30-minute timeout.** `LUMIBOT_AGENT_RUN_TIMEOUT_SECONDS` still overrides the full ADK/model/tool-call timeout, and non-positive values still disable it, but the unset default is now 1800 seconds so slower multi-tool agents are not treated as failed after only five minutes.
+
 ## 4.5.29 - 2026-05-20
 
 Deploy marker: 4.5.29 release commit (`deploy 4.5.29`)

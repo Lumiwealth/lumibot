@@ -905,6 +905,7 @@ class GoogleADKRuntime:
     # AgentHandle.run) catches the failure and skips this iteration so
     # the strategy stays alive and retries on the next bar.
     _MAX_RUN_ATTEMPTS = 10
+    _DEFAULT_RUN_TIMEOUT_SECONDS = 1800.0
     _RETRY_BACKOFF_SECONDS = (2.0, 3.0, 5.0, 10.0, 20.0, 30.0, 45.0, 60.0, 60.0, 60.0)
 
     @staticmethod
@@ -934,7 +935,10 @@ class GoogleADKRuntime:
                 return timeout_seconds if timeout_seconds > 0 else None
             except Exception:
                 pass
-        return 300.0
+        # Agentic trading/research runs can legitimately spend many minutes
+        # across model calls and tool calls. Keep the default high enough for
+        # realistic multi-tool agents while still preventing indefinite hangs.
+        return GoogleADKRuntime._DEFAULT_RUN_TIMEOUT_SECONDS
 
     @staticmethod
     def _is_non_retryable(exc: BaseException) -> bool:

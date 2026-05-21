@@ -1485,6 +1485,7 @@ class AgentManager:
         self._observability_totals: dict[str, dict[str, int]] = {}
         self._observability_call_index: dict[str, int] = {}
         self._observability_rows: dict[str, list[dict[str, Any]]] = {}
+        self._observability_all_rows: list[dict[str, Any]] = []
 
     def __getitem__(self, item: str) -> AgentHandle:
         return self._agents[item]
@@ -1642,7 +1643,12 @@ class AgentManager:
             )
         agent_rows = self._observability_rows.setdefault(handle.name, [])
         agent_rows.extend(rows)
-        detail_df = _get_pandas().DataFrame(agent_rows, columns=_AGENT_DETAIL_COLUMNS)
+        self._observability_all_rows.extend(rows)
+        if isinstance(getattr(self.strategy, "stats_file", None) or getattr(self.strategy, "_stats_file", None), str):
+            detail_rows = self._observability_all_rows
+        else:
+            detail_rows = agent_rows
+        detail_df = _get_pandas().DataFrame(detail_rows, columns=_AGENT_DETAIL_COLUMNS)
         (
             coerce_object_columns_to_json_strings,
             is_parquet_required,

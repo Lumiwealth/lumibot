@@ -441,6 +441,27 @@ class UsageTelemetryStrategy(Strategy):
         self.agents["research"].run(context={"symbol": "AGST"})
 
 
+class MultiAgentUsageTelemetryStrategy(Strategy):
+    runtime_class = UsageTelemetryRuntime
+
+    def initialize(self):
+        self.sleeptime = "1D"
+        from lumibot.components.agents import BuiltinTools
+
+        for name in ("research", "portfolio"):
+            self.agents.create(
+                name=name,
+                system_prompt=f"Capture token usage for {name}.",
+                default_model="stub-usage-telemetry",
+                tools=[BuiltinTools.account.portfolio()],
+                _runtime=self.runtime_class(),
+            )
+
+    def on_trading_iteration(self):
+        self.agents["research"].run(context={"symbol": "AGST"})
+        self.agents["portfolio"].run(context={"symbol": "AGST"})
+
+
 class FutureTimestampWarningStrategy(Strategy):
     runtime_class = FutureTimestampRuntime
 
@@ -768,6 +789,40 @@ def test_agent_detail_parquet_has_single_token_summary_row_and_full_events(monke
     usage_rows = df[df["event_kind"] == "usage"]
     assert usage_rows["event_input_tokens"].sum() == sum(1000 + idx for idx in call_numbers)
     assert usage_rows["event_cached_input_tokens"].sum() == sum(700 + idx for idx in call_numbers)
+
+
+@pytest.mark.usefixtures("disable_datasource_override")
+def test_agent_detail_parquet_combines_multiple_agents(monkeypatch, tmp_path):
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
+    UsageTelemetryRuntime.call_count = 0
+    _, strategy = MultiAgentUsageTelemetryStrategy.run_backtest(
+        datasource_class=PandasDataBacktesting,
+        backtesting_start=datetime(2025, 1, 6),
+        backtesting_end=datetime(2025, 1, 7),
+        pandas_data=_build_stock_pandas_data(),
+        benchmark_asset=None,
+        analyze_backtest=False,
+        show_plot=False,
+        save_tearsheet=False,
+        show_tearsheet=False,
+        show_indicators=False,
+        save_logfile=False,
+        show_progress_bar=False,
+        quiet_logs=True,
+    )
+
+    detail_parquet = Path(strategy.parameters["agent_portfolio_detail_parquet"])
+    assert detail_parquet == Path(strategy.parameters["agent_research_detail_parquet"])
+    df = pd.read_parquet(detail_parquet)
+    summaries = df[df["event_kind"] == "call_summary"]
+
+    assert set(summaries["agent_name"]) == {"research", "portfolio"}
+    assert len(summaries) == UsageTelemetryRuntime.call_count
+    assert summaries.groupby("agent_name").size().to_dict()["research"] > 0
+    assert summaries.groupby("agent_name").size().to_dict()["portfolio"] > 0
+    call_numbers = list(range(1, UsageTelemetryRuntime.call_count + 1))
+    assert summaries["call_input_tokens"].sum() == sum(1000 + idx for idx in call_numbers)
+    assert summaries["call_output_tokens"].sum() == sum(200 + idx for idx in call_numbers)
 
 
 @pytest.mark.usefixtures("disable_datasource_override")

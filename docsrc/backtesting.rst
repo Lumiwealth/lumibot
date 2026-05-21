@@ -15,18 +15,19 @@ It is recommended to use Yahoo Backtesting for daily stock backtesting, ThetaDat
 Managed Backtesting on BotSpot
 ==============================
 
-If you want to test strategies without setting up every data feed and local run environment yourself, `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=backtesting&utm_campaign=lumibot&utm_content=managed_backtesting_text&prompt=I%20want%20to%20backtest%20a%20Lumibot%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20hosted%20backtesting%2C%20compare%20strategy%20variants%2C%20and%20prepare%20paper%20or%20live%20deployment.>`_ can run supported Lumibot backtests on hosted infrastructure. This is useful when you want to:
+Backtesting is better on `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=backtesting&utm_campaign=lumibot&utm_content=managed_backtesting_text&sample=lumibot_deploy_sample>`_ when you want to move faster than a local setup. BotSpot already has the workflow around Lumibot: hosted data setup, parallel backtest workers, generated artifacts, charts, logs, and the path from a passing backtest into paper or live trading.
 
-- use AI prompts tuned for Lumibot to create or revise a strategy
-- run multiple backtests in parallel and compare variants
-- inspect charts, trades, logs, artifacts, and audit history in one place
-- move a passing strategy into paper or live trading with supported broker connections
+- **Backtesting data included.** Use supported hosted stock, futures, options, macro, filings, and other data sources without sourcing every vendor, API key, downloader, and local file yourself. Some data is included; premium datasets can be much cheaper than buying direct subscriptions.
+- **Parallel experiments.** Launch multiple strategy variants on BotSpot servers and compare results instead of waiting for one local run at a time.
+- **Better artifacts.** Inspect charts, trades, logs, files, decisions, and audit history from one place instead of stitching together local output folders.
+- **Lumibot-tuned iteration.** BotSpot's AI workflows and MCP tools understand Lumibot strategy structure, so Codex, Claude Code, Cursor, and other agents can run backtests and inspect results instead of only editing Python.
+- **Ready for deployment.** A strategy that survives backtesting can move into paper or live trading with supported broker connections, monitoring, alerts, and kill-switch controls already available.
 
 .. image:: ../docs/assets/readme/cta_deploy_on_botspot.png
-   :alt: Backtest and deploy on BotSpot
+   :alt: Try backtesting a sample Lumibot strategy on BotSpot
    :align: center
    :width: 520px
-   :target: https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=backtesting&utm_campaign=lumibot&utm_content=managed_backtesting_button&prompt=I%20want%20to%20backtest%20a%20Lumibot%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20hosted%20backtesting%2C%20compare%20strategy%20variants%2C%20and%20prepare%20paper%20or%20live%20deployment.
+   :target: https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=backtesting&utm_campaign=lumibot&utm_content=managed_backtesting_button&sample=lumibot_deploy_sample
 
 Agentic Backtesting
 ===================

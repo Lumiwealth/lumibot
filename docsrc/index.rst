@@ -196,17 +196,17 @@ Need Extra Help?
 
    **Build Trading Bots with AI**
    
-   Want to create trading bots without writing code or managing servers? Visit `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=home&utm_campaign=lumibot&utm_content=need_extra_help&prompt=I%20want%20to%20build%20and%20run%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.>`_ - our managed cloud for building, backtesting, and running Lumibot strategies using AI.
+   Lumibot is easier to run on `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=home&utm_campaign=lumibot&utm_content=need_extra_help&sample=lumibot_deploy_sample>`_ because the strategy code, hosted data, backtests, broker connections, deployment, monitoring, and AI workflow are already connected.
    
-   - Create Lumibot strategies with AI prompts tuned for this framework
-   - Backtest on hosted data and inspect charts, logs, trades, and artifacts
-   - Compare strategy variants with parallel backtests on BotSpot servers
-   - Connect supported brokers through the website
-   - Schedule paper or live runs without maintaining your own server
-   - Monitor running bots with alerts, audit history, and kill-switch controls
-   - Work from the browser, your phone, Claude, ChatGPT, Telegram, Discord, or BotSpot MCP
+   - **Backtesting data included:** run supported backtests without sourcing every vendor and local data file yourself.
+   - **Cheaper deployment at scale:** schedule periodic bots on managed Lumibot infrastructure instead of paying for always-on servers per strategy.
+   - **Lumibot-tuned AI:** use prompts and workflows built for Lumibot code, backtests, artifacts, brokers, and deployment.
+   - **MCP for coding agents:** let Codex, Claude Code, Cursor, and other agents launch backtests, inspect artifacts, and prepare deployment.
+   - **Marketplace and strategy library:** browse, clone, adapt, run, or publish strategies when the author allows it.
+   - **Observability and control:** inspect charts, trades, logs, audit history, alerts, account checks, and kill switches.
+   - **Work from anywhere:** use the web app, your phone, Telegram, Discord, Claude, ChatGPT, or BotSpot MCP.
    
-   **Start on BotSpot:** `https://botspot.trade <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=home&utm_campaign=lumibot&utm_content=need_extra_help_start&prompt=I%20want%20to%20build%20and%20run%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.>`_
+   **Try a sample Lumibot strategy on BotSpot:** `https://botspot.trade <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=home&utm_campaign=lumibot&utm_content=need_extra_help_start&sample=lumibot_deploy_sample>`_
 
 Table of Contents
 *****************
@@ -215,7 +215,7 @@ Table of Contents
    :maxdepth: 2
 
    Home <self>
-   Build Bots with AI <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot&utm_content=sidebar_build_bots&prompt=I%20want%20to%20build%20and%20run%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.>
+   Build Bots with AI <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot&utm_content=sidebar_build_bots&sample=lumibot_deploy_sample>
    BotSpot MCP Integration <botspot_mcp>
    GitHub <https://github.com/Lumiwealth/lumibot>
    getting_started

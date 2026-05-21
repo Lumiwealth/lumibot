@@ -15,23 +15,23 @@ Read :doc:`agents` for the full guide.
 Need Help Building Or Running Strategies?
 =========================================
 
-If you want the managed path, `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=getting_started&utm_campaign=lumibot&utm_content=top_text&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.>`_ can help you create, backtest, and run Lumibot strategies without managing trading infrastructure yourself.
+Lumibot is open source, but the full workflow is better on `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=getting_started&utm_campaign=lumibot&utm_content=top_text&sample=lumibot_deploy_sample>`_ when you want to build, backtest, and run strategies without assembling every data source, broker connection, server, scheduler, log pipeline, and monitoring tool yourself.
 
-Use BotSpot when you want the easier path from idea to running strategy:
+BotSpot gives Lumibot users a managed layer around the code:
 
-- create or revise Lumibot code with AI prompts tuned for this framework
-- run supported backtests on hosted data instead of wiring every data feed locally
-- compare multiple backtests in parallel on BotSpot servers
-- connect supported brokers through the website
-- inspect charts, logs, trades, artifacts, and audit history in one place
-- schedule periodic paper or live runs without keeping a full-time server online
-- work from the browser, your phone, Claude, ChatGPT, Telegram, Discord, or BotSpot MCP
+- **Backtesting data included.** Use supported hosted datasets without wrangling every vendor, API key, downloader, and local file yourself.
+- **Cheaper deployment at scale.** Run scheduled or periodic bots on infrastructure built for Lumibot instead of paying for a separate always-on cloud server per strategy.
+- **Lumibot-tuned AI.** Generate and revise strategies with workflows built around Lumibot conventions, backtests, artifacts, brokers, and deployment.
+- **MCP for coding agents.** Let Codex, Claude Code, Cursor, and other MCP clients launch backtests, inspect artifacts, compare results, and prepare deployment.
+- **Marketplace and strategy library.** Start from existing strategy examples, clone or adapt code when allowed, run marketplace strategies, or publish your own.
+- **Monitoring and control.** Inspect charts, logs, trades, account state, audit history, alerts, and kill switches from one place.
+- **Work from anywhere.** Use the web app, your phone, Telegram, Discord, Claude, ChatGPT, or BotSpot MCP without losing your strategy context.
 
 .. image:: ../docs/assets/readme/cta_deploy_on_botspot.png
-   :alt: Deploy on BotSpot
+   :alt: Try deploying a sample Lumibot strategy on BotSpot
    :align: center
    :width: 520px
-   :target: https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=getting_started&utm_campaign=lumibot&utm_content=deploy_button&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.
+   :target: https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=getting_started&utm_campaign=lumibot&utm_content=deploy_button&sample=lumibot_deploy_sample
 
 If you want your coding agent to work directly with BotSpot, open the :doc:`BotSpot MCP guide <botspot_mcp>`. If you want guided training, the AI Trading Bootcamp teaches the full path from strategy idea to backtest to live deployment.
 

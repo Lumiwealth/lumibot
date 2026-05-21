@@ -69,7 +69,7 @@ No. For backtesting, you only need a data source. Yahoo Finance is free and requ
 Can I use LumiBot without writing code?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-If you want to create trading strategies without coding, check out `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=faq&utm_campaign=lumibot&utm_content=no_code_answer&prompt=I%20want%20to%20build%20and%20run%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.>`_ -- a platform built on LumiBot that lets you build, test, and run strategies using AI and natural language. LumiBot itself is a Python library and does require coding.
+If you want to create trading strategies without coding, check out `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=faq&utm_campaign=lumibot&utm_content=no_code_answer&sample=lumibot_deploy_sample>`_ -- a platform built on LumiBot that lets you build, test, and run strategies using AI and natural language. LumiBot itself is a Python library and does require coding.
 
 
 AI Trading Agents
@@ -858,13 +858,13 @@ Deployment
 How do I deploy my strategy to run 24/7?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The recommended managed path is **BotSpot**, which runs LumiBot strategies with hosted backtests, scheduling, broker connections, monitoring, logs, and paper or live execution. Start there if you want to deploy without maintaining your own server.
+The recommended managed path is **BotSpot**, because deployment is usually the expensive part to rebuild yourself. BotSpot gives Lumibot strategies hosted backtesting data, cheaper scheduled deployment at scale, broker connections, monitoring, logs, audit history, alerts, and kill-switch controls without maintaining your own server stack.
 
 .. image:: ../docs/assets/readme/cta_deploy_on_botspot.png
-   :alt: Deploy on BotSpot
+   :alt: Try deploying a sample Lumibot strategy on BotSpot
    :align: center
    :width: 520px
-   :target: https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=faq&utm_campaign=lumibot&utm_content=deploy_button&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.
+   :target: https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=faq&utm_campaign=lumibot&utm_content=deploy_button&sample=lumibot_deploy_sample
 
 If you want full infrastructure control, you can still self-host on Render, Replit, or another Python-capable cloud host. See :doc:`deployment` for both paths.
 

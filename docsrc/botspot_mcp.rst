@@ -4,6 +4,12 @@ BotSpot MCP Integration
 BotSpot exposes a public MCP server for strategy generation, backtesting,
 deployment monitoring, artifact analysis, and chart/visual retrieval.
 
+This is the piece that makes BotSpot useful even when you already use Codex,
+Claude Code, Cursor, or another coding agent. A generic agent can write Python,
+but the BotSpot MCP gives that agent Lumibot-specific tools: launch hosted
+backtests, inspect charts and artifacts, compare runs, work with strategies in
+the marketplace, and prepare deployment without leaving the coding workflow.
+
 This page is intentionally practical: endpoint URLs, auth, client setup,
 and verification commands.
 

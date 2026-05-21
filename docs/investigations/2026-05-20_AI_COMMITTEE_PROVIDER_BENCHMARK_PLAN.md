@@ -654,3 +654,27 @@ Together billing follow-up:
 - Interpretation: Together API access is now working for the local key. The
   earlier `Credit limit exceeded` result was likely billing propagation or
   provider account state, not a LumiBot integration failure.
+
+Qwen one-day no-trade diagnosis:
+
+- Backtest window was `2026-03-30` through `2026-03-31`, which produced one
+  daily committee cycle at `2026-03-30 09:30 America/New_York`.
+- Evidence Researcher used `62` tools. It screened SPY, QQQ, NVDA, AAPL, MSFT,
+  AMZN, META, GOOGL, and TSLA, then selected NVDA as the top long candidate.
+  It cited strong NVDA fundamentals and AI leadership, but also bearish
+  technicals, elevated inventory, customer concentration, and missing news/macro
+  data.
+- Bull Researcher used `16` tools. It argued NVDA was the strongest buy
+  candidate because of AI/GPU leadership, strong profitability, buybacks, and a
+  potentially oversold RSI around `35.8`.
+- Bear Researcher used `23` tools. It challenged the trade because NVDA was
+  below its 50-day and 200-day moving averages, MACD was negative, inventory was
+  elevated, and customer concentration risk was unresolved.
+- Portfolio Manager used `14` tools. It checked portfolio/positions, NVDA price
+  and indicators, filings, company facts, and history. It did not call
+  `orders_submit_order`.
+- Final Portfolio Manager decision: no trade. It explicitly said NVDA's
+  fundamentals and oversold RSI were not enough because the stock was below key
+  moving averages, structural bearishness was not resolved, inventory/customer
+  concentration risks remained, and there was no macro or news context. Capital
+  stayed in cash pending clearer signals.

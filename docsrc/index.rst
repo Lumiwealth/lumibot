@@ -196,12 +196,15 @@ Need Extra Help?
 
    **Build Trading Bots with AI**
    
-   Want to create trading bots without writing code? Visit `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=home&utm_campaign=lumibot&utm_content=need_extra_help&prompt=I%20want%20to%20build%20and%20run%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.>`_ - our platform for building, testing, and running trading strategies using AI.
+   Want to create trading bots without writing code or managing servers? Visit `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=home&utm_campaign=lumibot&utm_content=need_extra_help&prompt=I%20want%20to%20build%20and%20run%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.>`_ - our managed cloud for building, backtesting, and running Lumibot strategies using AI.
    
-   - Create strategies using natural language
-   - Backtest on historical data
-   - Deploy to live markets
-   - Join a community of algorithmic traders
+   - Create Lumibot strategies with AI prompts tuned for this framework
+   - Backtest on hosted data and inspect charts, logs, trades, and artifacts
+   - Compare strategy variants with parallel backtests on BotSpot servers
+   - Connect supported brokers through the website
+   - Schedule paper or live runs without maintaining your own server
+   - Monitor running bots with alerts, audit history, and kill-switch controls
+   - Work from the browser, your phone, Claude, ChatGPT, Telegram, Discord, or BotSpot MCP
    
    **Start on BotSpot:** `https://botspot.trade <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=home&utm_campaign=lumibot&utm_content=need_extra_help_start&prompt=I%20want%20to%20build%20and%20run%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.>`_
 

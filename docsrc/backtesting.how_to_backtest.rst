@@ -36,6 +36,12 @@ Once installed, you can use an IDE like **Visual Studio Code (VS Code)** or **Py
    4. Open a terminal in VS Code and install LumiBot using `pip install lumibot`.
    5. You're ready to start backtesting with LumiBot!
 
+.. tip::
+
+   **Want hosted backtests instead?**
+
+   `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=how_to_backtest&utm_campaign=lumibot&utm_content=hosted_backtests_tip&prompt=I%20want%20to%20backtest%20a%20Lumibot%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20hosted%20backtesting%2C%20compare%20strategy%20variants%2C%20and%20prepare%20paper%20or%20live%20deployment.>`_ can help you create or revise Lumibot code with AI, run supported backtests on hosted data, compare multiple variants in parallel, and inspect charts, trades, logs, artifacts, and audit history without wiring the full local environment first.
+
 Choosing a Data Source
 -----------------------------------
 

@@ -12,6 +12,22 @@ Lumibot has multiple modes for backtesting:
 
 It is recommended to use Yahoo Backtesting for daily stock backtesting, ThetaData Backtesting for stocks/options/index data, and Interactive Brokers (REST) Backtesting for futures and crypto data. Pandas Backtesting is an advanced feature that allows you to test any type of data you have in CSV format but requires more work to setup and is not recommended for most users.
 
+Managed Backtesting on BotSpot
+==============================
+
+If you want to test strategies without setting up every data feed and local run environment yourself, `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=backtesting&utm_campaign=lumibot&utm_content=managed_backtesting_text&prompt=I%20want%20to%20backtest%20a%20Lumibot%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20hosted%20backtesting%2C%20compare%20strategy%20variants%2C%20and%20prepare%20paper%20or%20live%20deployment.>`_ can run supported Lumibot backtests on hosted infrastructure. This is useful when you want to:
+
+- use AI prompts tuned for Lumibot to create or revise a strategy
+- run multiple backtests in parallel and compare variants
+- inspect charts, trades, logs, artifacts, and audit history in one place
+- move a passing strategy into paper or live trading with supported broker connections
+
+.. image:: ../docs/assets/readme/cta_deploy_on_botspot.png
+   :alt: Backtest and deploy on BotSpot
+   :align: center
+   :width: 520px
+   :target: https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=backtesting&utm_campaign=lumibot&utm_content=managed_backtesting_button&prompt=I%20want%20to%20backtest%20a%20Lumibot%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20hosted%20backtesting%2C%20compare%20strategy%20variants%2C%20and%20prepare%20paper%20or%20live%20deployment.
+
 Agentic Backtesting
 ===================
 

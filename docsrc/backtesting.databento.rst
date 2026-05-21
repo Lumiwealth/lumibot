@@ -14,6 +14,10 @@ DataBento provides:
 - **Clean data processing** with corporate action adjustments
 - **API-based access** for automated data retrieval
 
+.. tip::
+
+   If you want to test DataBento-backed or other supported Lumibot strategies without managing the full local setup, `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=databento&utm_campaign=lumibot&utm_content=hosted_backtesting_tip&prompt=I%20want%20to%20backtest%20a%20Lumibot%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20hosted%20backtesting%2C%20compare%20strategy%20variants%2C%20and%20prepare%20paper%20or%20live%20deployment.>`_ can help create or revise the strategy, run hosted backtests where supported, compare variants in parallel, and inspect the resulting charts, logs, trades, and artifacts.
+
 Setting Up DataBento
 ====================
 

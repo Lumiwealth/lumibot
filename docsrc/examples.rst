@@ -21,7 +21,7 @@ The canonical AI examples are intentionally strategy-shaped rather than toy snip
 - how to inspect ``result.summary``, traces, warnings, and replay behavior
 - how to evaluate the resulting strategy with benchmarked tearsheets
 
-Want to see deployable examples with results and visuals? Browse the BotSpot marketplace for strategy ideas you can clone or adapt when the author allows it.
+Want to see deployable examples with results and visuals? Browse the BotSpot marketplace for strategy ideas you can clone or adapt when the author allows it. BotSpot can also help you turn an example into a working Lumibot strategy, run supported backtests on hosted data, compare variants in parallel, and then move the same code path into paper or live trading with broker connections, logs, alerts, and monitoring.
 
 .. image:: ../docs/assets/readme/cta_marketplace.png
    :alt: Browse BotSpot strategy examples

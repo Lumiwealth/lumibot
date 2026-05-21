@@ -105,9 +105,9 @@ html_theme_options = {
     "light_logo": "Lumibot_Logo.webp",
     "dark_logo": "Lumibot_Logo.webp",
     'announcement': """
-    <div class="footer-banner bg-warning text-dark p-3">
+    <div class="footer-banner bg-warning text-dark p-3" style="white-space: normal; line-height: 1.35;">
         <h5>Run Lumibot Strategies on BotSpot</h5>
-        <p>BotSpot is the managed cloud built around Lumibot. Use it for hosted backtests, broker connections, scheduled runs, logs, alerts, and paper or live execution without maintaining your own trading infrastructure. <a href="https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=site_banner&utm_campaign=lumibot&utm_content=footer_banner&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20hosted%20backtesting%2C%20broker%20connections%2C%20monitoring%2C%20and%20paper%20or%20live%20deployment." target="_blank" class="text-dark"><strong>Start on BotSpot.trade</strong></a>.</p>
+        <p>Use BotSpot for Lumibot-tuned AI strategy generation, hosted backtests, broker connections, monitoring, and paper or live runs without maintaining your own server. <a href="https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=site_banner&utm_campaign=lumibot&utm_content=footer_banner&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20hosted%20backtesting%2C%20broker%20connections%2C%20monitoring%2C%20and%20paper%20or%20live%20deployment." target="_blank" class="text-dark"><strong>Start on BotSpot.trade</strong></a>.</p>
     </div>
     """
 }
@@ -183,8 +183,8 @@ html_context = {
     'note': """
     <div class="important-note" style="margin-top: 20px; padding: 20px; background-color: #ffdd57; border-radius: 5px;">
         <h3>Run Lumibot Strategies with BotSpot</h3>
-        <p>Need help turning an idea into a working Lumibot strategy? BotSpot can generate code, run hosted backtests, connect brokers, and schedule Lumibot strategies from plain English.</p>
-        <p><strong>Use BotSpot when you want broker connections, logs, alerts, monitoring, and scheduled runs without wiring infrastructure yourself.</strong></p>
+        <p>Need help turning an idea into a working Lumibot strategy? BotSpot can generate Lumibot code with framework-specific AI prompts, run supported backtests on hosted data, compare variants in parallel, connect brokers, and schedule paper or live runs.</p>
+        <p><strong>Use BotSpot when you want charts, logs, alerts, audit history, account monitoring, kill-switch controls, and broker-connected deployment without wiring infrastructure yourself.</strong></p>
         <p><a href="https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=site_note&utm_campaign=lumibot&utm_content=every_page_note&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20hosted%20backtesting%2C%20broker%20connections%2C%20monitoring%2C%20and%20paper%20or%20live%20deployment." target="_blank">Start on BotSpot.trade</a>.</p>
     </div>
     """

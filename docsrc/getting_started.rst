@@ -17,7 +17,15 @@ Need Help Building Or Running Strategies?
 
 If you want the managed path, `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=getting_started&utm_campaign=lumibot&utm_content=top_text&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.>`_ can help you create, backtest, and run Lumibot strategies without managing trading infrastructure yourself.
 
-Use BotSpot when you want hosted backtests, broker connections, scheduled runs, logs, alerts, and paper or live execution. This is especially helpful for strategies that only need to run daily or periodically and do not need a full-time server.
+Use BotSpot when you want the easier path from idea to running strategy:
+
+- create or revise Lumibot code with AI prompts tuned for this framework
+- run supported backtests on hosted data instead of wiring every data feed locally
+- compare multiple backtests in parallel on BotSpot servers
+- connect supported brokers through the website
+- inspect charts, logs, trades, artifacts, and audit history in one place
+- schedule periodic paper or live runs without keeping a full-time server online
+- work from the browser, your phone, Claude, ChatGPT, Telegram, Discord, or BotSpot MCP
 
 .. image:: ../docs/assets/readme/cta_deploy_on_botspot.png
    :alt: Deploy on BotSpot

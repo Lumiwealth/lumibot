@@ -5,6 +5,14 @@ LumiBot lets an AI agent reason, call external tools, and execute trades **on ev
 
 Using an AI coding agent? BotSpot MCP can generate Lumibot strategies, run backtests, inspect artifacts, and iterate from tools like Cursor, Claude, Codex, and ChatGPT-compatible clients.
 
+BotSpot is strongest when you want the agent workflow plus the managed cloud around it:
+
+- Lumibot-specific prompts for strategy generation, debugging, and revision
+- hosted backtests with charts, trades, logs, decisions, and audit artifacts
+- parallel backtests for comparing agent prompts, model choices, and strategy variants
+- broker-connected paper or live runs without maintaining your own scheduler or server
+- browser, phone, Claude, ChatGPT, Telegram, Discord, and MCP access to the same workflow
+
 .. image:: ../docs/assets/readme/cta_botspot_mcp.png
    :alt: Use BotSpot MCP
    :align: center

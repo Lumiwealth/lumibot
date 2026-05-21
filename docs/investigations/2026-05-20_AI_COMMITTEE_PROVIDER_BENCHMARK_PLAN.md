@@ -640,3 +640,17 @@ Current interpretation after the clean rerun:
   Cerebras billing are fixed and DeepSeek/Gemini have an explicit context/latency
   design. The next safe long run is OpenAI-only, or a two-model run after the
   blocked providers are unblocked.
+
+Together billing follow-up:
+
+- Rob confirmed the Together console showed remaining credit, then a tiny
+  LiteLLM call with the local key succeeded.
+- Reran `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput` one-day smoke at
+  `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260521_144017`.
+- Result: passed. Wall time `713.8s`; calls `4`; tool calls `115`; input
+  `751,068`, output `7,407`; estimated cost `$0.154658`. It stayed in cash
+  with `0%` return. No error/timeout/credit messages appeared in the backtest
+  log.
+- Interpretation: Together API access is now working for the local key. The
+  earlier `Credit limit exceeded` result was likely billing propagation or
+  provider account state, not a LumiBot integration failure.

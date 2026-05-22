@@ -150,17 +150,6 @@ def _install_fake_schwab_runtime(monkeypatch, refreshed_token=None, refresh_resu
     return FakeOAuth2Session
 
 
-def _schwab_token_payload(access_token, refresh_token):
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "issued_at": int(time.time() * 1000),
-        "expires_in": 1800,
-        "token_type": "Bearer",
-        "scope": "api",
-    }
-
-
 def _write_schwab_token(path, *, access_token="existing-access", refresh_token="existing-refresh"):
     path.write_text(
         json.dumps(
@@ -214,11 +203,11 @@ def test_schwab_prefers_existing_token_file_over_stale_env_payload(monkeypatch, 
     _assert_private_posix_file(token_path)
 
 
-def test_schwab_scheduled_startup_refreshes_and_rewrites_token(monkeypatch, tmp_path):
+def test_schwab_scheduled_startup_does_not_force_refresh(monkeypatch, tmp_path):
     from lumibot.brokers.schwab import Schwab
 
     token_path = tmp_path / "schwab_token.json"
-    _write_schwab_token(token_path, access_token="old-access", refresh_token="old-refresh")
+    _write_schwab_token(token_path, access_token="runtime-access", refresh_token="runtime-refresh")
     fake_session_cls = _install_fake_schwab_runtime(monkeypatch)
     monkeypatch.setenv("LUMIBOT_SCHEDULED_EXECUTION", "true")
 
@@ -233,78 +222,28 @@ def test_schwab_scheduled_startup_refreshes_and_rewrites_token(monkeypatch, tmp_
     )
 
     session = fake_session_cls.instances[0]
-    assert session.refresh_calls == [
-        (
-            "https://api.schwabapi.com/v1/oauth/token",
-            "old-refresh",
-            {"client_id": "app-key", "client_secret": "app-secret"},
-        )
-    ]
+    assert session.refresh_calls == []
     token_data = json.loads(token_path.read_text(encoding="utf-8"))
-    assert token_data["token"]["access_token"] == "refreshed-access"
-    assert token_data["token"]["refresh_token"] == "rotated-refresh"
+    assert token_data["token"]["access_token"] == "runtime-access"
+    assert token_data["token"]["refresh_token"] == "runtime-refresh"
     _assert_private_posix_file(token_path)
 
 
-def test_schwab_scheduled_refresh_falls_back_to_new_env_payload(monkeypatch, tmp_path):
+def test_schwab_preserves_token_file_when_client_init_fails_transiently(monkeypatch, tmp_path):
+    import lumibot.brokers.schwab as schwab_module
     from lumibot.brokers.schwab import Schwab
-    from lumibot.tools import SchwabHelper
 
     token_path = tmp_path / "schwab_token.json"
-    _write_schwab_token(token_path, access_token="expired-access", refresh_token="expired-refresh")
-    fallback_refreshed = _schwab_token_payload("fallback-access", "fallback-rotated-refresh")
-    fake_session_cls = _install_fake_schwab_runtime(
-        monkeypatch,
-        refresh_results=[RuntimeError("expired refresh token"), fallback_refreshed],
-    )
-    monkeypatch.setenv("LUMIBOT_SCHEDULED_EXECUTION", "true")
-    monkeypatch.setenv("SCHWAB_TOKEN", "new-linked-payload")
+    _write_schwab_token(token_path, access_token="runtime-access", refresh_token="runtime-refresh")
+    _install_fake_schwab_runtime(monkeypatch)
 
-    def write_fallback_payload(payload, path):
-        assert payload == "new-linked-payload"
-        _write_schwab_token(path, access_token="fallback-seed-access", refresh_token="fallback-seed-refresh")
+    class FailingClient:
+        def __init__(self, *_args, **_kwargs):
+            raise TimeoutError("network timeout while initializing client")
 
-    monkeypatch.setattr(SchwabHelper, "_save_payload_str_to_token_file", write_fallback_payload)
+    monkeypatch.setattr(schwab_module, "Client", FailingClient)
 
-    Schwab(
-        config={
-            "SCHWAB_ACCOUNT_NUMBER": "12345678",
-            "SCHWAB_APP_KEY": "app-key",
-            "SCHWAB_APP_SECRET": "app-secret",
-            "SCHWAB_TOKEN_PATH": str(token_path),
-        },
-        data_source=object(),
-    )
-
-    assert len(fake_session_cls.instances) == 2
-    assert fake_session_cls.instances[0].refresh_calls[0][1] == "expired-refresh"
-    assert fake_session_cls.instances[1].refresh_calls[0][1] == "fallback-seed-refresh"
-    token_data = json.loads(token_path.read_text(encoding="utf-8"))
-    assert token_data["token"]["access_token"] == "fallback-access"
-    assert token_data["token"]["refresh_token"] == "fallback-rotated-refresh"
-    _assert_private_posix_file(token_path)
-
-
-def test_schwab_scheduled_failed_fallback_preserves_existing_token(monkeypatch, tmp_path):
-    from lumibot.brokers.schwab import Schwab
-    from lumibot.tools import SchwabHelper
-
-    token_path = tmp_path / "schwab_token.json"
-    _write_schwab_token(token_path, access_token="persisted-access", refresh_token="persisted-refresh")
-    _install_fake_schwab_runtime(
-        monkeypatch,
-        refresh_results=[RuntimeError("expired refresh token"), RuntimeError("fallback refresh token expired")],
-    )
-    monkeypatch.setenv("LUMIBOT_SCHEDULED_EXECUTION", "true")
-    monkeypatch.setenv("SCHWAB_TOKEN", "stale-linked-payload")
-
-    def write_fallback_payload(payload, path):
-        assert payload == "stale-linked-payload"
-        _write_schwab_token(path, access_token="stale-access", refresh_token="stale-refresh")
-
-    monkeypatch.setattr(SchwabHelper, "_save_payload_str_to_token_file", write_fallback_payload)
-
-    with pytest.raises(ConnectionError, match="Schwab scheduled startup token refresh failed"):
+    with pytest.raises(ConnectionError):
         Schwab(
             config={
                 "SCHWAB_ACCOUNT_NUMBER": "12345678",
@@ -316,53 +255,6 @@ def test_schwab_scheduled_failed_fallback_preserves_existing_token(monkeypatch, 
         )
 
     token_data = json.loads(token_path.read_text(encoding="utf-8"))
-    assert token_data["token"]["access_token"] == "persisted-access"
-    assert token_data["token"]["refresh_token"] == "persisted-refresh"
+    assert token_data["token"]["access_token"] == "runtime-access"
+    assert token_data["token"]["refresh_token"] == "runtime-refresh"
     _assert_private_posix_file(token_path)
-
-
-def test_schwab_scheduled_failed_fallback_does_not_mask_restore_failure(monkeypatch, tmp_path):
-    from lumibot.brokers.schwab import Schwab
-    from lumibot.tools import SchwabHelper
-
-    token_path = tmp_path / "schwab_token.json"
-    _write_schwab_token(token_path, access_token="persisted-access", refresh_token="persisted-refresh")
-    _install_fake_schwab_runtime(
-        monkeypatch,
-        refresh_results=[RuntimeError("expired refresh token"), RuntimeError("fallback refresh token expired")],
-    )
-    monkeypatch.setenv("LUMIBOT_SCHEDULED_EXECUTION", "true")
-    monkeypatch.setenv("SCHWAB_TOKEN", "stale-linked-payload")
-    should_fail_restore = {"value": False}
-
-    def write_fallback_payload(payload, path):
-        assert payload == "stale-linked-payload"
-        should_fail_restore["value"] = True
-        _write_schwab_token(path, access_token="stale-access", refresh_token="stale-refresh")
-
-    original_write_token_file = SchwabHelper._write_token_file
-
-    def fail_original_restore(path, token_data):
-        if should_fail_restore["value"] and token_data.get("token", {}).get("access_token") == "persisted-access":
-            raise RuntimeError("restore failed")
-        return original_write_token_file(path, token_data)
-
-    monkeypatch.setattr(SchwabHelper, "_save_payload_str_to_token_file", write_fallback_payload)
-    monkeypatch.setattr(SchwabHelper, "_write_token_file", fail_original_restore)
-
-    with pytest.raises(ConnectionError, match="Schwab scheduled startup token refresh failed") as exc_info:
-        Schwab(
-            config={
-                "SCHWAB_ACCOUNT_NUMBER": "12345678",
-                "SCHWAB_APP_KEY": "app-key",
-                "SCHWAB_APP_SECRET": "app-secret",
-                "SCHWAB_TOKEN_PATH": str(token_path),
-            },
-            data_source=object(),
-        )
-
-    inner_error = exc_info.value.__cause__
-    assert isinstance(inner_error, ConnectionError)
-    assert isinstance(inner_error.__cause__, RuntimeError)
-    assert str(inner_error.__cause__) == "fallback refresh token expired"
-    assert not token_path.exists()

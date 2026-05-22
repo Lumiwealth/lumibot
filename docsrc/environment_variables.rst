@@ -508,7 +508,7 @@ SCHWAB_TOKEN
 SCHWAB_TOKEN_PATH
 ^^^^^^^^^^^^^^^^^
 
-- Purpose: Optional path for the local Schwab token JSON file. Scheduled BotSpot tasks use this path to restore and persist the latest refreshed token across ephemeral containers.
+- Purpose: Optional path for the local Schwab token JSON file. Use a durable path when the runtime filesystem is ephemeral and you are not using a platform-managed credential store.
 - Values: Filesystem path.
 
 SCHWAB_BACKEND_CALLBACK_URL

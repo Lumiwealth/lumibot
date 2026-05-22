@@ -393,6 +393,9 @@ TRADIER_ACCESS_TOKEN
 
 - Purpose: Tradier API access token.
 - Values: Obtain from Tradier dashboard (**do not hardcode**).
+- Note: Tradier dashboard API tokens do not expire. Tradier partner OAuth
+  access tokens expire after 24 hours and should be supplied as the
+  platform-managed ``TRADIER_TOKEN`` payload instead.
 
 TRADIER_ACCOUNT_NUMBER
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -406,6 +409,17 @@ TRADIER_IS_PAPER
 - Purpose: Toggle between paper and live trading.
 - Values: ``true`` (paper) / ``false`` (live).
 - Default: ``true`` (paper trading).
+
+TRADIER_TOKEN
+^^^^^^^^^^^^^
+
+- Purpose: Optional base64url JSON OAuth token payload for BotSpot/partner
+  integrations.
+- Values: OAuth payload containing at least ``access_token`` and, for durable
+  scheduled use, ``refresh_token``.
+- Note: Partner OAuth access tokens expire after 24 hours. BotSpot scheduled
+  deployments refresh the canonical Vault credential before launch; local
+  LumiBot refresh is best-effort for long-running processes.
 
 Interactive Brokers
 -------------------

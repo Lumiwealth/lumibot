@@ -857,9 +857,7 @@ class Broker(ABC):
             position_lumi = position_lumi[0] if len(position_lumi) > 0 else None
 
             if position_lumi:
-                # Compare to existing lumi position.
-                if position_lumi.quantity != position.quantity:
-                    position_lumi.quantity = position.quantity
+                self._sync_position_fields_from_broker(position_lumi, position)
 
                 # No current brokers have any way to distinguish between strategies for an open position.
                 # Therefore, we will just update the strategy to the current strategy.
@@ -867,7 +865,10 @@ class Broker(ABC):
                 # can create ones that have no strategy attached. This will ensure that all stored positions have a
                 # strategy with subsequent updates.
                 if strategy:
-                    position_lumi.strategy = strategy.name if not isinstance(strategy, str) else strategy
+                    strategy_name = strategy.name if not isinstance(strategy, str) else strategy
+                    if position_lumi.strategy != strategy_name:
+                        position_lumi.strategy = strategy_name
+                        self._filled_positions.revision += 1
             else:
                 # Add to positions in lumibot, position does not exist
                 # in lumibot.
@@ -884,6 +885,46 @@ class Broker(ABC):
                     break
             if not found and (position.asset not in self.quote_assets):
                 self._filled_positions.remove(position)
+
+    def _sync_position_fields_from_broker(self, position_lumi, position_broker):
+        """
+        Refresh an existing tracked position from a broker-sourced position.
+
+        Broker adapters attach mark data such as current_price, market_value,
+        and pnl to the Position object. When the same asset already exists in
+        the local tracker, copying only quantity leaves stale mark fields next
+        to the fresh broker quantity. That produces impossible cloud snapshots
+        like 744 shares with a two-share market value.
+        """
+        changed = False
+        broker_fields = (
+            "quantity",
+            "avg_fill_price",
+            "current_price",
+            "market_value",
+            "pnl",
+            "pnl_percent",
+            "side",
+            "available",
+            "hold",
+            "asset_type",
+            "exchange",
+            "currency",
+            "multiplier",
+        )
+
+        for field in broker_fields:
+            if hasattr(position_broker, field):
+                new_value = getattr(position_broker, field)
+                if getattr(position_lumi, field, None) != new_value:
+                    setattr(position_lumi, field, new_value)
+                    changed = True
+            elif hasattr(position_lumi, field) and field not in {"quantity", "avg_fill_price", "available", "hold"}:
+                delattr(position_lumi, field)
+                changed = True
+
+        if changed:
+            self._filled_positions.revision += 1
 
     # =========Market functions=======================
 

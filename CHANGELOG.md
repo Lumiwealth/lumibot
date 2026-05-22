@@ -5,6 +5,9 @@
 ### Changed
 - **AI Investment Committee example now supports explicit cash parking.** The example keeps growth equities and defensive cash-parking ETFs separate, defaults cash-parking symbols to `SGOV`, `BIL`, and `SHV`, and asks the Portfolio Manager to consider short-duration Treasury/cash ETFs when no growth-equity candidate clears the risk/reward bar.
 
+### Fixed
+- **Live broker position sync now refreshes broker mark fields on existing positions.** When a broker refresh updates an already-tracked asset, Lumibot now copies current price, market value, P&L, side, and related broker fields instead of only updating quantity, preventing impossible BotSpot position snapshots such as hundreds of shares with a stale two-share market value.
+
 ## 4.5.30 - Unreleased
 
 ### Changed

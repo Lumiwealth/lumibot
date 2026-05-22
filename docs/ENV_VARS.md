@@ -89,7 +89,7 @@ This page documents environment variables used by LumiBot, with an emphasis on *
 - `LUMIBOT_SCHEDULED_STATE_BACKEND`: external state backend prepared by BotManager: `s3`, `dynamodb`, or `none`. `none` disables scheduled `self.vars` file load/save.
 - `LUMIBOT_SCHEDULED_STATE_FILE`: local JSON file managed by BotManager/bootstrap code to restore and persist `self.vars` for one scheduled live run. State is restored before scheduled lifecycle hooks. Malformed state, non-serializable values, oversized/deep state, non-finite numbers, and sensitive-looking keys fail the scheduled run instead of silently continuing.
 - `BOTSPOT_RUNTIME_SECRET_ID` / `BOTSPOT_RUNTIME_SECRET_KEYS`: BotSpot runtime Vault contract for scheduled saved broker credentials and saved env vars. The runtime reads only the short-lived `deployment_runtime/` secret identified by these values.
-- `LUMIBOT_CACHE_FOLDER`: cache root used by agent runtime artifacts during scheduled runs.
+- `LUMIBOT_CACHE_FOLDER`: local cache root used by market data, agent runtime artifacts, and scheduled-run artifacts. It is read during import/startup, so set it before launching LumiBot.
 - `LUMIBOT_LIVE_ARTIFACTS_S3_BUCKET` / `LUMIBOT_LIVE_ARTIFACTS_S3_PREFIX`: BotManager upload destination for live/scheduled logs, agent runtime traces, decisions, CSV/parquet files, and `manifest.json`.
 
 Scheduled order/event callbacks are not realtime between invocations. A scheduled strategy only observes broker events during each task's pre-start/post-iteration windows and on the next broker-state refresh; use an always-on live deployment when callbacks like `on_filled_order` must fire continuously.
@@ -259,9 +259,7 @@ These env vars are used by the ThetaData chain cache/builder in `lumibot/tools/t
   - `LUMIBOT_CACHE_BACKEND=s3`
   - `LUMIBOT_CACHE_MODE=readwrite` (or `readonly`)
 
-### `LUMIBOT_CACHE_FOLDER`
-- Purpose: Override the local cache folder (useful to simulate a fresh ECS task).
-- Notes: This is read at import/startup time; changing it mid-run will not relocate already-created paths.
+Local cache path override behavior is controlled by `LUMIBOT_CACHE_FOLDER`; see the canonical scheduled-execution entry above. This is useful when simulating a fresh ECS task.
 
 ### `LUMIBOT_CACHE_S3_BUCKET`, `LUMIBOT_CACHE_S3_PREFIX`, `LUMIBOT_CACHE_S3_REGION`
 - Purpose: S3 target configuration.

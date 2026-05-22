@@ -347,6 +347,22 @@ def test_scheduled_state_preserves_decimal_precision_and_type():
     assert isinstance(restored["price"], Decimal)
 
 
+def test_scheduled_state_preserves_sets_with_stable_encoding():
+    original = {
+        "symbols": {"MSFT", "AAPL"},
+        "typed_values": {Decimal("1.25"), Decimal("3.50")},
+    }
+
+    first_json = _Strategy._serialize_variables_for_backup(original)
+    second_json = _Strategy._serialize_variables_for_backup(original)
+    restored = _Strategy._deserialize_variables_from_backup(first_json)
+
+    assert first_json == second_json
+    assert restored == original
+    assert isinstance(restored["symbols"], set)
+    assert isinstance(restored["typed_values"], set)
+
+
 def test_run_once_restores_state_before_closed_market_exit(tmp_path, monkeypatch):
     state_file = tmp_path / "scheduled_state.json"
     state_file.write_text('{"count": 2}', encoding="utf-8")

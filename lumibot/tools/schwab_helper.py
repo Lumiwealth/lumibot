@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import tempfile
 import time
 import traceback
 import urllib.parse
@@ -20,11 +21,18 @@ class SchwabHelper:
     @staticmethod
     def _write_token_file(token_path: Path, token_data: dict):
         token_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = token_path.with_name(f"{token_path.name}.tmp")
-        fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        fd, tmp_name = tempfile.mkstemp(
+            prefix=f"{token_path.name}.",
+            suffix=".tmp",
+            dir=str(token_path.parent),
+        )
+        tmp_path = Path(tmp_name)
         try:
+            os.chmod(tmp_path, 0o600)
             with os.fdopen(fd, "w", encoding="utf-8") as fp:
                 json.dump(token_data, fp)
+                fp.flush()
+                os.fsync(fp.fileno())
             os.replace(tmp_path, token_path)
             os.chmod(token_path, 0o600)
         except Exception:

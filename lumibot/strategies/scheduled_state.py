@@ -1,12 +1,14 @@
 import datetime
 import json
 import math
-import os
 from decimal import Decimal
 
 TYPE_KEY = "__lumibot_type__"
 VALUE_KEY = "value"
 ESCAPED_DICT_TYPE = "__lumibot_literal_dict__"
+MAX_STATE_BYTES = 65536
+MAX_STATE_DEPTH = 16
+MAX_STATE_NODES = 4096
 
 SENSITIVE_KEY_MARKERS = (
     "api_key",
@@ -33,27 +35,8 @@ SENSITIVE_KEY_MARKERS = (
 )
 
 
-def _int_env(name, default, minimum):
-    raw_value = os.environ.get(name, str(default))
-    try:
-        value = int(raw_value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"{name} must be an integer") from exc
-    if value < minimum:
-        raise ValueError(f"{name} must be at least {minimum}")
-    return value
-
-
-def _max_bytes():
-    return _int_env("LUMIBOT_SCHEDULED_STATE_MAX_BYTES", 65536, 1024)
-
-
-def _max_depth():
-    return _int_env("LUMIBOT_SCHEDULED_STATE_MAX_DEPTH", 16, 1)
-
-
-def _max_nodes():
-    return _int_env("LUMIBOT_SCHEDULED_STATE_MAX_NODES", 4096, 1)
+def _stable_encoded_key(value):
+    return json.dumps(value, sort_keys=True, default=str, separators=(",", ":"))
 
 
 def encode_variable_for_backup(value):
@@ -78,7 +61,11 @@ def encode_variable_for_backup(value):
     if isinstance(value, list):
         return [encode_variable_for_backup(nested) for nested in value]
     if isinstance(value, set):
-        return [encode_variable_for_backup(nested) for nested in value]
+        encoded_items = [encode_variable_for_backup(nested) for nested in value]
+        return {
+            TYPE_KEY: "set",
+            VALUE_KEY: sorted(encoded_items, key=_stable_encoded_key),
+        }
     return value
 
 
@@ -95,6 +82,8 @@ def decode_variable_from_backup(value):
                 return Decimal(raw_value)
             if value_type == "tuple":
                 return tuple(decode_variable_from_backup(nested) for nested in raw_value)
+            if value_type == "set":
+                return {decode_variable_from_backup(nested) for nested in raw_value}
             if value_type == ESCAPED_DICT_TYPE:
                 if not isinstance(raw_value, list):
                     raise ValueError("Escaped variables dict must contain key/value pairs")
@@ -113,7 +102,7 @@ def _json_default(obj):
     if isinstance(obj, Decimal):
         return {TYPE_KEY: "decimal", VALUE_KEY: str(obj)}
     if isinstance(obj, set):
-        return [encode_variable_for_backup(nested) for nested in obj]
+        return encode_variable_for_backup(obj)
     raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
 
 
@@ -123,8 +112,8 @@ def validate_scheduled_state(state):
 
     sensitive_paths = []
     nodes_seen = 0
-    max_depth = _max_depth()
-    max_nodes = _max_nodes()
+    max_depth = MAX_STATE_DEPTH
+    max_nodes = MAX_STATE_NODES
     stack = [(state, "$", 0)]
     while stack:
         current, path, depth = stack.pop()
@@ -161,7 +150,7 @@ def validate_scheduled_state(state):
 
 def validate_scheduled_state_json(json_data):
     state_size = len(json_data.encode("utf-8"))
-    max_bytes = _max_bytes()
+    max_bytes = MAX_STATE_BYTES
     if state_size > max_bytes:
         raise ValueError(f"Scheduled state is {state_size} bytes, above max {max_bytes} bytes")
     validate_scheduled_state(json.loads(json_data))

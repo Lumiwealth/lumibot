@@ -4,76 +4,25 @@ import logging
 import uuid
 from datetime import datetime, timedelta
 from functools import lru_cache
-from importlib import import_module
 from typing import Optional
 
+from lumibot.backtesting.interactive_brokers_rest_helpers import (
+    USD_FOREX as _USD_FOREX,
+    bars_class as _bars_class,
+    build_dataset_keys as _build_dataset_keys,
+    data_class as _data_class,
+    ibkr_helper,
+    ibkr_include_after_hours as _ibkr_include_after_hours,
+    normalize_asset_type as _normalize_asset_type,
+    normalize_exchange_key as _normalize_exchange_key,
+    normalize_timestep_key as _normalize_timestep_key,
+    parse_timestep_qty_and_unit as _parse_timestep_qty_and_unit,
+    pd,
+)
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset
 
 logger = logging.getLogger(__name__)
-
-_USD_FOREX = Asset("USD", "forex")
-
-
-class _LazyModule:
-    __slots__ = ("_module_name", "_module")
-
-    def __init__(self, module_name: str):
-        object.__setattr__(self, "_module_name", module_name)
-        object.__setattr__(self, "_module", None)
-
-    def _load(self):
-        module = object.__getattribute__(self, "_module")
-        if module is None:
-            module = import_module(object.__getattribute__(self, "_module_name"))
-            object.__setattr__(self, "_module", module)
-        return module
-
-    def __getattr__(self, name):
-        return getattr(self._load(), name)
-
-    def __setattr__(self, name, value):
-        setattr(self._load(), name, value)
-
-    def __delattr__(self, name):
-        if name in {"_module_name", "_module"}:
-            object.__delattr__(self, name)
-        else:
-            delattr(self._load(), name)
-
-
-pd = _LazyModule("pandas")
-ibkr_helper = _LazyModule("lumibot.tools.ibkr_helper")
-_DATA_CLASS = None
-_BARS_CLASS = None
-_PARSE_TIMESTEP_QTY_AND_UNIT = None
-
-
-def _data_class():
-    global _DATA_CLASS
-    if _DATA_CLASS is None:
-        from lumibot.entities import Data
-
-        _DATA_CLASS = Data
-    return _DATA_CLASS
-
-
-def _bars_class():
-    global _BARS_CLASS
-    if _BARS_CLASS is None:
-        from lumibot.entities.bars import Bars
-
-        _BARS_CLASS = Bars
-    return _BARS_CLASS
-
-
-def _parse_timestep_qty_and_unit(*args, **kwargs):
-    global _PARSE_TIMESTEP_QTY_AND_UNIT
-    if _PARSE_TIMESTEP_QTY_AND_UNIT is None:
-        from lumibot.tools.helpers import parse_timestep_qty_and_unit
-
-        _PARSE_TIMESTEP_QTY_AND_UNIT = parse_timestep_qty_and_unit
-    return _PARSE_TIMESTEP_QTY_AND_UNIT(*args, **kwargs)
 
 
 class InteractiveBrokersRESTBacktesting(PandasData):
@@ -122,17 +71,10 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         # forward-filling the last available price for the rest of the run.
         self._fully_loaded_series: set[tuple] = set()
 
-    @staticmethod
-    def _normalize_exchange_key(exchange: Optional[str]) -> str:
-        exch = (exchange or "").strip().upper()
-        return exch or "AUTO"
-
-    @staticmethod
-    def _normalize_asset_type(value: object) -> str:
-        raw = str(value or "").strip().lower()
-        if "." in raw:
-            raw = raw.split(".")[-1]
-        return raw
+    _normalize_exchange_key = staticmethod(_normalize_exchange_key)
+    _normalize_asset_type = staticmethod(_normalize_asset_type)
+    _ibkr_include_after_hours = staticmethod(_ibkr_include_after_hours)
+    _normalize_timestep_key = staticmethod(_normalize_timestep_key)
 
     @staticmethod
     def _normalize_lookup_asset(asset):
@@ -141,15 +83,6 @@ class InteractiveBrokersRESTBacktesting(PandasData):
             return Asset(symbol=asset, asset_type=Asset.AssetType.STOCK)
         return asset
 
-    @staticmethod
-    def _ibkr_include_after_hours(asset_type: str, timestep_unit: str) -> bool:
-        """Return IBKR outsideRth policy for backtests.
-
-        Stock/index day bars should be regular-session only so they line up with
-        ThetaData/Yahoo daily semantics.
-        """
-        return not (asset_type in {"stock", "index"} and timestep_unit == "day")
-
     def _build_dataset_keys(
         self,
         asset: Asset,
@@ -157,28 +90,7 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         dataset_key: str,
         exchange: Optional[str],
     ) -> tuple[tuple, tuple]:
-        quote_asset = quote if quote is not None else _USD_FOREX
-        exch = self._normalize_exchange_key(exchange)
-        canonical_key = (asset, quote_asset, dataset_key, exch)
-        legacy_key = (asset, quote_asset, exch)
-        return canonical_key, legacy_key
-
-    @staticmethod
-    def _normalize_timestep_key(timestep: str) -> str:
-        """Normalize a user-facing timestep into a stable series key.
-
-        - Preserves multi-minute multipliers (e.g., "15min" -> "15minute") so cached datasets do
-          not collide with "minute".
-        - Keeps the `Data.timestep` base unit as "minute"/"day" for compatibility.
-        """
-        if timestep in {"minute", "day", "hour"}:
-            return timestep
-        qty, unit = _parse_timestep_qty_and_unit(timestep)
-        qty = int(qty)
-        unit = str(unit)
-        if qty == 1:
-            return unit
-        return f"{qty}{unit}"
+        return _build_dataset_keys(asset, quote, dataset_key, exchange)
 
     def get_historical_prices(
         self,

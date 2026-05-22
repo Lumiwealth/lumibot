@@ -4,6 +4,7 @@ from lumibot.tools.symbol_parser import parse_symbol
 
 
 def test_parse_option_symbol_requires_full_match_and_valid_date():
+    """Verify OCC option parsing only accepts full matches with valid expiration dates."""
     parsed = parse_symbol("AAPL250621C00100000")
 
     assert parsed["type"] == "option"
@@ -20,6 +21,7 @@ def test_parse_option_symbol_requires_full_match_and_valid_date():
 
 
 def test_parse_symbol_normalizes_stock_and_option_input():
+    """Verify stock and option inputs are stripped, uppercased, and rejected when empty."""
     parsed = parse_symbol("  aapl250621c00100000  ")
 
     assert parsed["type"] == "option"
@@ -35,6 +37,7 @@ def test_parse_symbol_normalizes_stock_and_option_input():
 
 
 def test_parse_option_symbol_uses_2000_based_occ_years():
+    """Verify OCC YY expirations are interpreted as years in the 2000s."""
     parsed = parse_symbol("AAPL990101P00100000")
 
     assert parsed["type"] == "option"

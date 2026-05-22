@@ -56,7 +56,19 @@ def test_ibkr_rest_backtesting_plumbs_history_source(monkeypatch):
 def test_ibkr_rest_hot_cache_key_uses_asset_values():
     class CachedData:
         def get_native_bars_fast(self, *_args, **_kwargs):
-            return 12.5
+            idx = pd.DatetimeIndex(
+                [datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc)]
+            ).tz_convert(ZoneInfo("America/New_York"))
+            return pd.DataFrame(
+                {
+                    "open": [12.0],
+                    "high": [13.0],
+                    "low": [11.5],
+                    "close": [12.5],
+                    "volume": [100],
+                },
+                index=idx,
+            )
 
     ds = InteractiveBrokersRESTBacktesting(
         datetime_start=datetime(2025, 1, 1, tzinfo=timezone.utc),
@@ -79,7 +91,10 @@ def test_ibkr_rest_hot_cache_key_uses_asset_values():
         quote=Asset(symbol="USD", asset_type=Asset.AssetType.FOREX),
     )
 
-    assert result == 12.5
+    assert result is not None
+    assert result.df["close"].iloc[-1] == 12.5
+    assert result.asset == cached_asset
+    assert result.quote == cached_quote
 
 
 def test_ibkr_rest_stock_daily_uses_rth(monkeypatch):

@@ -61,6 +61,13 @@ feature being used. To debug an optional dependency issue, import the concrete
 provider class or call the first provider method in an isolated shell instead of
 only testing `import lumibot`.
 
+ProjectX helpers lazily resolve `pandas`, `requests`, and
+`signalrcore.hub_connection_builder`. `SIGNALR_AVAILABLE` only reports whether
+the SignalR builder module can be discovered; call
+`_hub_connection_builder_class()` at runtime when constructing a streaming
+connection so missing optional SignalR dependencies fail at the streaming
+feature boundary rather than during LumiBot import.
+
 `Bars` and `Data.get_bars()` can now keep already-normalized slices on a fast
 path. `Bars.from_pandas_fast`, `skip_timezone`, and `return_polars` avoid
 unnecessary dataframe conversion when the caller has already selected the

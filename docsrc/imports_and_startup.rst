@@ -58,6 +58,13 @@ is missing, the error can surface when constructing or calling that provider
 rather than during ``import lumibot``. To debug, import the concrete provider
 class or call a minimal provider method directly.
 
+ProjectX helpers lazily resolve ``pandas``, ``requests``, and
+``signalrcore.hub_connection_builder``. ``SIGNALR_AVAILABLE`` only reports
+whether the SignalR builder module can be discovered; call
+``_hub_connection_builder_class()`` at runtime when constructing a streaming
+connection so missing optional SignalR dependencies fail at the streaming
+feature boundary rather than during LumiBot import.
+
 ``Bars`` and ``Data.get_bars()`` include fast paths for already-normalized
 historical slices. ``Bars.from_pandas_fast``, ``skip_timezone``, and
 ``return_polars`` avoid unnecessary conversion when the caller has already

@@ -1,7 +1,10 @@
 import datetime
 import json
 import logging
+from decimal import Decimal
 from types import SimpleNamespace
+
+import pytest
 
 from lumibot.entities import Asset
 from lumibot.strategies import strategy as strategy_module
@@ -271,6 +274,77 @@ def test_scheduled_state_file_loads_and_persists_self_vars(tmp_path, monkeypatch
         "__lumibot_type__": "tuple",
         "value": [1, {"__lumibot_type__": "date", "value": "2026-05-13"}],
     }
+
+
+def test_scheduled_state_load_errors_fail_closed(tmp_path, monkeypatch):
+    state_file = tmp_path / "scheduled_state.json"
+    state_file.write_text("{bad json", encoding="utf-8")
+    strategy = object.__new__(_Strategy)
+    strategy.is_backtesting = False
+    strategy.vars = Vars()
+    strategy.logger = logging.getLogger("test_scheduled_state")
+
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_EXECUTION", "true")
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_STATE_BACKEND", "s3")
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_STATE_FILE", str(state_file))
+
+    with pytest.raises(json.JSONDecodeError):
+        _Strategy.load_variables_from_db(strategy)
+
+
+def test_scheduled_state_backup_errors_fail_closed(tmp_path, monkeypatch):
+    state_file = tmp_path / "scheduled_state.json"
+    strategy = object.__new__(_Strategy)
+    strategy.is_backtesting = False
+    strategy.vars = Vars()
+    strategy.vars.set("not_json", object())
+    strategy.logger = logging.getLogger("test_scheduled_state")
+
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_EXECUTION", "true")
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_STATE_BACKEND", "s3")
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_STATE_FILE", str(state_file))
+
+    with pytest.raises(TypeError):
+        _Strategy.backup_variables_to_db(strategy)
+    assert not state_file.exists()
+
+
+def test_scheduled_state_rejects_sensitive_keys_before_local_write(tmp_path, monkeypatch):
+    state_file = tmp_path / "scheduled_state.json"
+    strategy = object.__new__(_Strategy)
+    strategy.is_backtesting = False
+    strategy.vars = Vars()
+    strategy.vars.set("api_key", "do-not-persist")
+    strategy.logger = logging.getLogger("test_scheduled_state")
+
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_EXECUTION", "true")
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_STATE_BACKEND", "s3")
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_STATE_FILE", str(state_file))
+
+    with pytest.raises(ValueError, match="sensitive-looking keys"):
+        _Strategy.backup_variables_to_db(strategy)
+    assert not state_file.exists()
+
+
+def test_scheduled_state_escapes_reserved_type_marker_dicts():
+    original = {"payload": {"__lumibot_type__": "date", "value": "2026-05-12"}}
+
+    restored = _Strategy._deserialize_variables_from_backup(
+        _Strategy._serialize_variables_for_backup(original)
+    )
+
+    assert restored == original
+
+
+def test_scheduled_state_preserves_decimal_precision_and_type():
+    original = {"price": Decimal("123.456789123456789")}
+
+    restored = _Strategy._deserialize_variables_from_backup(
+        _Strategy._serialize_variables_for_backup(original)
+    )
+
+    assert restored == original
+    assert isinstance(restored["price"], Decimal)
 
 
 def test_run_once_restores_state_before_closed_market_exit(tmp_path, monkeypatch):

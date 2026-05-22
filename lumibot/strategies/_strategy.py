@@ -78,6 +78,12 @@ from ..tools import (
     to_datetime_aware,
 )
 from ..traders import Trader
+from .scheduled_state import (
+    decode_variable_from_backup,
+    deserialize_variables_from_backup,
+    encode_variable_for_backup,
+    serialize_variables_for_backup,
+)
 from .strategy_executor import StrategyExecutor
 
 # Set the stats table name for when storing stats in a database, defined by db_connection_str
@@ -3825,50 +3831,19 @@ class _Strategy:
 
     @staticmethod
     def _encode_variable_for_backup(value):
-        if isinstance(value, datetime.datetime):
-            return {"__lumibot_type__": "datetime", "value": value.isoformat()}
-        if isinstance(value, datetime.date):
-            return {"__lumibot_type__": "date", "value": value.isoformat()}
-        if isinstance(value, dict):
-            return {key: _Strategy._encode_variable_for_backup(nested) for key, nested in value.items()}
-        if isinstance(value, tuple):
-            return {
-                "__lumibot_type__": "tuple",
-                "value": [_Strategy._encode_variable_for_backup(nested) for nested in value],
-            }
-        if isinstance(value, list):
-            return [_Strategy._encode_variable_for_backup(nested) for nested in value]
-        return value
+        return encode_variable_for_backup(value)
 
     @staticmethod
     def _decode_variable_from_backup(value):
-        if isinstance(value, dict):
-            if set(value.keys()) == {"__lumibot_type__", "value"}:
-                if value["__lumibot_type__"] == "datetime":
-                    return datetime.datetime.fromisoformat(value["value"])
-                if value["__lumibot_type__"] == "date":
-                    return datetime.datetime.strptime(value["value"], "%Y-%m-%d").date()
-                if value["__lumibot_type__"] == "tuple":
-                    return tuple(_Strategy._decode_variable_from_backup(nested) for nested in value["value"])
-            return {key: _Strategy._decode_variable_from_backup(nested) for key, nested in value.items()}
-        if isinstance(value, list):
-            return [_Strategy._decode_variable_from_backup(nested) for nested in value]
-        return value
+        return decode_variable_from_backup(value)
 
     @classmethod
     def _serialize_variables_for_backup(cls, variables):
-        return json.dumps(
-            cls._encode_variable_for_backup(variables),
-            sort_keys=True,
-            cls=SafeJSONEncoder,
-        )
+        return serialize_variables_for_backup(variables)
 
     @classmethod
     def _deserialize_variables_from_backup(cls, json_data):
-        data = json.loads(json_data)
-        if not isinstance(data, dict):
-            raise ValueError("Variables backup must contain a JSON object")
-        return {key: cls._decode_variable_from_backup(value) for key, value in data.items()}
+        return deserialize_variables_from_backup(json_data)
 
     def _load_variables_from_scheduled_state_file(self):
         state_file = os.environ.get("LUMIBOT_SCHEDULED_STATE_FILE")
@@ -3928,6 +3903,7 @@ class _Strategy:
                 self._backup_variables_to_scheduled_state_file()
             except Exception as e:
                 self.logger.error(f"Error backing up variables to scheduled state file: {e}", exc_info=True)
+                raise
             return
 
         if not hasattr(self, "db_connection_str") or self.db_connection_str is None or self.db_connection_str == "" or not self.should_backup_variables_to_database:
@@ -4020,6 +3996,7 @@ class _Strategy:
                 self._load_variables_from_scheduled_state_file()
             except Exception as e:
                 self.logger.error(f"Error loading variables from scheduled state file: {e}", exc_info=True)
+                raise
             return
     
         if not hasattr(self, "db_connection_str") or self.db_connection_str is None or not self.should_backup_variables_to_database:

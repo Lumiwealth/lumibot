@@ -1,6 +1,7 @@
 import datetime
 import os
 import unittest
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 import pandas as pd
@@ -366,6 +367,36 @@ class TestBacktestingBroker:
         row = broker._trade_event_log_rows[-1]
         assert row["audit.hello"] == "world"
         assert not hasattr(order, "_audit")
+
+    def test_direct_filled_order_failure_skips_post_fill_side_effects(self):
+        broker = BacktestingBroker.__new__(BacktestingBroker)
+        default_action = object()
+        broker.stream = SimpleNamespace(_actions_mapping={broker.FILLED_ORDER: default_action})
+        broker._default_filled_order_stream_action = default_action
+        broker._backtest_audit_enabled = False
+        broker._process_filled_order = MagicMock(side_effect=RuntimeError("boom"))
+        broker._process_futures_fill = MagicMock()
+        broker._on_filled_order = MagicMock()
+        broker._record_fast_backtest_trade_event = MagicMock()
+        broker.calculate_trade_cost = MagicMock(return_value=Decimal("1.25"))
+        broker._apply_trade_cost = MagicMock()
+        broker.get_tracked_order = MagicMock()
+        broker._futures_lot_ledgers = {}
+
+        order = Order(
+            asset=Asset("SPY"),
+            quantity=1,
+            side="buy",
+            order_type=Order.OrderType.MARKET,
+            strategy="test",
+        )
+        strategy = SimpleNamespace(broker=broker)
+
+        broker._execute_filled_order(order, 101.0, Decimal("1"), strategy)
+
+        broker._record_fast_backtest_trade_event.assert_not_called()
+        broker._apply_trade_cost.assert_not_called()
+        broker.get_tracked_order.assert_not_called()
 
     def test_get_next_trading_day_marks_end_of_trading_days(self):
         """Regression: reaching end of trading calendar should stop backtest (no infinite loop)."""

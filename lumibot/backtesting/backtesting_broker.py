@@ -2492,6 +2492,18 @@ class BacktestingBroker(Broker):
         if audit_enabled is None:
             audit_enabled = self._truthy_env(os.environ.get("LUMIBOT_BACKTEST_AUDIT"))
         if actions is not None and actions.get(self.FILLED_ORDER) is default_action and not audit_enabled:
+            fill_committed = False
+            rollback_cash = None
+            rollback_ledger_key = None
+            rollback_ledger = None
+            if deferred_futures_fill:
+                rollback_cash = self._get_strategy_cash_fast(strategy)
+                rollback_ledger_key = getattr(order, "_simple_futures_ledger_key", None)
+                if rollback_ledger_key is None:
+                    rollback_ledger_key = self._get_futures_ledger_key(strategy, order.asset)
+                rollback_ledger = [lot.copy() for lot in self._futures_lot_ledgers.get(rollback_ledger_key, [])]
+            elif crypto_new_cash is not None:
+                rollback_cash = self._get_strategy_cash_fast(strategy)
             try:
                 position = self._process_filled_order(order, price, filled_quantity_f)
                 if deferred_futures_fill:
@@ -2500,9 +2512,23 @@ class BacktestingBroker(Broker):
                     self._set_strategy_cash_fast(strategy, crypto_new_cash)
                 if position and not self._should_skip_default_filled_callback(order):
                     self._on_filled_order(position, order, price, filled_quantity_f, multiplier)
-                self._record_fast_backtest_trade_event(order, price, filled_quantity_f, multiplier)
+                fill_committed = True
             except Exception:
+                if rollback_cash is not None:
+                    self._set_strategy_cash_fast(strategy, rollback_cash)
+                if rollback_ledger_key is not None:
+                    if rollback_ledger:
+                        self._futures_lot_ledgers[rollback_ledger_key] = rollback_ledger
+                    else:
+                        self._futures_lot_ledgers.pop(rollback_ledger_key, None)
                 logger.error(traceback.format_exc())
+                return
+
+            if fill_committed:
+                try:
+                    self._record_fast_backtest_trade_event(order, price, filled_quantity_f, multiplier)
+                except Exception:
+                    logger.error(traceback.format_exc())
         else:
             self.stream.dispatch(
                 self.FILLED_ORDER,

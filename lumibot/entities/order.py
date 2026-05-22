@@ -1511,30 +1511,24 @@ class Order:
     # ======Setting the events methods===========
 
     def set_new(self):
-        if self._new_event is None:
-            self._new_event = _LazyEvent()
-        self._new_event.set()
+        if self._new_event is not None:
+            self._new_event.set()
 
     def set_canceled(self):
-        if self._canceled_event is None:
-            self._canceled_event = _LazyEvent()
-        self._canceled_event.set()
-        if self._closed_event is None:
-            self._closed_event = _LazyEvent()
-        self._closed_event.set()
+        if self._canceled_event is not None:
+            self._canceled_event.set()
+        if self._closed_event is not None:
+            self._closed_event.set()
 
     def set_partially_filled(self):
-        if self._partial_filled_event is None:
-            self._partial_filled_event = _LazyEvent()
-        self._partial_filled_event.set()
+        if self._partial_filled_event is not None:
+            self._partial_filled_event.set()
 
     def set_filled(self):
-        if self._filled_event is None:
-            self._filled_event = _LazyEvent()
-        self._filled_event.set()
-        if self._closed_event is None:
-            self._closed_event = _LazyEvent()
-        self._closed_event.set()
+        if self._filled_event is not None:
+            self._filled_event.set()
+        if self._closed_event is not None:
+            self._closed_event.set()
 
     # =========Waiting methods==================
 

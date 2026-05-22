@@ -266,6 +266,26 @@ class TestOrderBasics:
         assert order.error_message == "boom"
         assert order._closed_event is None
 
+    def test_simple_market_backtest_status_setters_do_not_allocate_events(self):
+        asset = Asset("SPY")
+        order = Order.simple_market_backtest(
+            "abc",
+            asset,
+            1,
+            Order.OrderSide.BUY,
+        )
+
+        order.set_new()
+        order.set_partially_filled()
+        order.set_filled()
+        order.set_canceled()
+
+        assert order._new_event is None
+        assert order._partial_filled_event is None
+        assert order._filled_event is None
+        assert order._canceled_event is None
+        assert order._closed_event is None
+
     def test_simple_market_backtest_float_quantity_matches_regular_order_precision(self):
         asset = Asset("SPY")
         order = Order.simple_market_backtest(

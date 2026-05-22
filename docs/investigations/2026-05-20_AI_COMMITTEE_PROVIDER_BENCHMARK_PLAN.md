@@ -552,3 +552,155 @@ Interpretation:
 - Together needs account credits before rerunning Kimi/Qwen. Based on partial usage, Kimi can consume credits quickly because it kept trying tools heavily; Qwen was lighter before the account stopped it.
 - Cerebras should be rerun after billing is fixed because the earlier 14-day run proved mechanical compatibility and it remains the only provider that looked truly fast. Do not judge Cerebras quality from the current final slate because it was excluded by billing, not model behavior.
 - Gemini 3.5 Flash should stay out of the next performance slate unless the purpose is specifically to test Google provider availability under this heavy agent workload.
+
+## Clean Post-Guardrail Smoke And Qualifier: 2026-05-21
+
+Baseline:
+
+- LumiBot `4.5.29` was deployed through BotManager to remove the hidden
+  tool-call and truncation controls from `4.5.28`.
+- Local checkout for this run was `version/4.5.30`.
+- These runs used the current paid benchmark runner with raw-trace usage
+  aggregation. No runtime tool-call blocker was added for this rerun.
+
+One-day smoke window: `2026-03-30` through `2026-03-31`.
+
+Artifact roots:
+
+- Together/Cerebras smoke:
+  `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260521_135112`.
+- OpenAI/Gemini/DeepSeek smoke:
+  `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260521_135217`.
+
+One-day smoke results:
+
+- `openai/gpt-5.4-mini`: passed. Wall time `82.0s`; calls `4`; tool calls
+  `112`; input `284,810`, cached input `174,464`, output `8,244`; estimated
+  cost `$0.250706` no-cache / `$0.132942` cache-adjusted. It bought `39`
+  AAPL and finished `+1.396%`.
+- `gemini-3.5-flash`: passed. Wall time `325.4s`; calls `4`; tool calls
+  `87`; input `1,785,112`, cached input `1,104,597`, output `11,671`,
+  thinking `18,542`; estimated cost `$2.782707` no-cache / `$1.291501`
+  cache-adjusted. It bought `3` GOOGL and `2` MSFT and finished `+0.010%`.
+- `deepseek/deepseek-v4-flash`: failed with `ContextWindowExceededError`.
+  DeepSeek rejected a downstream committee request of about `1,676,815`
+  tokens against its `1,048,576` token context limit. This is a committee
+  context-design failure, not an API key failure.
+- `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`: failed before a useful
+  model run with Together `Credit limit exceeded`. Rob had added credits, but
+  the API still rejected the request. Do not repeatedly retry this until the
+  Together billing page confirms usable balance.
+- `cerebras/gpt-oss-120b`: failed before a useful model run with Cerebras
+  `Payment required to access this resource`. Earlier Cerebras runs proved
+  compatibility, so this is currently an account/billing gate.
+
+14-day qualifier window: `2026-03-16` through `2026-04-02`.
+
+14-day artifacts:
+
+- First OpenAI/Gemini parallel attempt:
+  `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260521_135919`.
+- Clean OpenAI rerun with higher file-descriptor limit:
+  `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260521_142158`.
+
+14-day results:
+
+- `openai/gpt-5.4-mini`: clean rerun passed. Wall time `704.8s`; calls `52`;
+  tool calls `839`; input `2,482,864`, cached input `1,614,720`, output
+  `77,426`; estimated cost `$2.210565` no-cache / `$1.120629`
+  cache-adjusted. It bought `32` GOOGL on the first committee cycle, held it,
+  and finished `-8.5166%`. The clean rerun backtest log had no error/timeout
+  matches.
+- `gemini-3.5-flash`: 14-day run was stopped after repeated 300-second
+  per-agent timeouts. Partial usage before stop: calls `6`, tool calls `164`,
+  input `3,336,568`, cached input `2,485,246`, output `15,667`, thinking
+  `25,023`; estimated partial cost `$5.145855` no-cache / `$1.790773`
+  cache-adjusted. Treat this as operationally invalid for 14-day comparison.
+- First parallel OpenAI attempt also passed but is superseded by the clean
+  rerun because the parallel run hit `Too many open files` transient errors and
+  skipped several later agent iterations.
+
+Current interpretation after the clean rerun:
+
+- The benchmark now proves the current committee can trade with OpenAI and
+  Gemini under the post-guardrail code path. The earlier all-cash conclusion is
+  no longer true for the clean smoke/qualifier.
+- OpenAI GPT-5.4 Mini is the current usable baseline: it completed the one-day
+  and 14-day runs, called tools heavily, submitted an order, and produced
+  raw-trace cost accounting.
+- Gemini 3.5 Flash can trade in the one-day smoke, but it is too slow and
+  expensive in the current committee shape to include in a full three-month run
+  without first reducing per-agent latency/context size.
+- Direct DeepSeek V4 Flash is blocked by context size under the no-truncation
+  path. It needs a real structured handoff / narrower-tool design, not a hidden
+  truncation or tool-call budget.
+- Together and Cerebras are blocked by provider account billing, not Lumibot
+  model-string wiring.
+- Do not launch a new three-month multi-model benchmark until Together and
+  Cerebras billing are fixed and DeepSeek/Gemini have an explicit context/latency
+  design. The next safe long run is OpenAI-only, or a two-model run after the
+  blocked providers are unblocked.
+
+Together billing follow-up:
+
+- Rob confirmed the Together console showed remaining credit, then a tiny
+  LiteLLM call with the local key succeeded.
+- Reran `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput` one-day smoke at
+  `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260521_144017`.
+- Result: passed. Wall time `713.8s`; calls `4`; tool calls `115`; input
+  `751,068`, output `7,407`; estimated cost `$0.154658`. It stayed in cash
+  with `0%` return. No error/timeout/credit messages appeared in the backtest
+  log.
+- Interpretation: Together API access is now working for the local key. The
+  earlier `Credit limit exceeded` result was likely billing propagation or
+  provider account state, not a LumiBot integration failure.
+
+Qwen one-day no-trade diagnosis:
+
+- Backtest window was `2026-03-30` through `2026-03-31`, which produced one
+  daily committee cycle at `2026-03-30 09:30 America/New_York`.
+- Evidence Researcher used `62` tools. It screened SPY, QQQ, NVDA, AAPL, MSFT,
+  AMZN, META, GOOGL, and TSLA, then selected NVDA as the top long candidate.
+  It cited strong NVDA fundamentals and AI leadership, but also bearish
+  technicals, elevated inventory, customer concentration, and missing news/macro
+  data.
+- Bull Researcher used `16` tools. It argued NVDA was the strongest buy
+  candidate because of AI/GPU leadership, strong profitability, buybacks, and a
+  potentially oversold RSI around `35.8`.
+- Bear Researcher used `23` tools. It challenged the trade because NVDA was
+  below its 50-day and 200-day moving averages, MACD was negative, inventory was
+  elevated, and customer concentration risk was unresolved.
+- Portfolio Manager used `14` tools. It checked portfolio/positions, NVDA price
+  and indicators, filings, company facts, and history. It did not call
+  `orders_submit_order`.
+- Final Portfolio Manager decision: no trade. It explicitly said NVDA's
+  fundamentals and oversold RSI were not enough because the stock was below key
+  moving averages, structural bearishness was not resolved, inventory/customer
+  concentration risks remained, and there was no macro or news context. Capital
+  stayed in cash pending clearer signals.
+
+Additional one-day provider checks:
+
+- Official Together serverless docs checked on `2026-05-21` list
+  `moonshotai/Kimi-K2.6`, `deepseek-ai/DeepSeek-V4-Pro`,
+  `openai/gpt-oss-120b`, and `Qwen/Qwen3-235B-A22B-Instruct-2507-tput` as
+  function-calling chat models.
+- Tiny LiteLLM checks with the local Together key:
+  - `together_ai/openai/gpt-oss-120b`: succeeded.
+  - `together_ai/moonshotai/Kimi-K2.6`: failed with Together
+    `Credit limit exceeded`, even for a 3-token test.
+  - `together_ai/deepseek-ai/DeepSeek-V4-Pro`: failed with Together
+    `Credit limit exceeded`, even for a 3-token test.
+- Tiny Cerebras checks:
+  - `cerebras/gpt-oss-120b`: failed with Cerebras `Payment required`.
+  - `cerebras/zai-glm-4.7`: failed with Cerebras `Payment required`.
+- Reran `together_ai/openai/gpt-oss-120b` one-day smoke at
+  `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260521_191259`.
+- GPT-OSS result: passed. Wall time `103.4s`; calls `4`; tool calls `52`;
+  input `70,177`, output `13,391`; estimated cost `$0.018561`. It stayed in
+  cash with `0%` return.
+- GPT-OSS trace quality note: evidence researcher used all `52` tool calls, but
+  bull researcher, bear researcher, and portfolio manager used zero tools. The
+  final decision was no trade. Treat it as mechanically compatible and cheap,
+  but weaker than Qwen/OpenAI for this committee because the later committee
+  roles did not independently verify the handoff.

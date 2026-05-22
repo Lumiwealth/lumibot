@@ -9,6 +9,7 @@ from decimal import Decimal
 from enum import Enum
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 from lumibot.constants import LUMIBOT_CACHE_FOLDER
 
@@ -37,6 +38,8 @@ def _normalize_json(value: Any) -> Any:
         return [_normalize_json(item) for item in value]
     if isinstance(value, (datetime, date)):
         return value.isoformat()
+    if isinstance(value, UUID):
+        return str(value)
     if isinstance(value, Decimal):
         return float(value)
     data = getattr(value, "__dict__", None)
@@ -52,7 +55,7 @@ def _normalize_json(value: Any) -> Any:
             return _normalize_json(value.to_minimal_dict())
         except Exception:
             return str(value)
-    return value
+    return str(value)
 
 
 def _cache_root() -> Path:

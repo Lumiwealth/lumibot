@@ -16,8 +16,9 @@ import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
+from enum import Enum
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from .schemas import AgentRunResult, AgentTraceEvent, BoundTool, MCPServer
 
@@ -132,6 +133,10 @@ def _json_safe_value(value: Any) -> Any:
         return value if math.isfinite(value) else None
     if isinstance(value, (datetime, date)):
         return value.isoformat()
+    if isinstance(value, UUID):
+        return str(value)
+    if isinstance(value, Enum):
+        return _json_safe_value(value.value)
     if isinstance(value, list):
         return [_json_safe_value(item) for item in value]
     if isinstance(value, tuple):
@@ -152,7 +157,7 @@ def _json_safe_value(value: Any) -> Any:
             pass
         else:
             return coerced if math.isfinite(coerced) else None
-    return value
+    return str(value)
 
 
 def _to_serializable_dict(value: Any) -> dict[str, Any] | None:
@@ -483,6 +488,8 @@ def _classify_agent_error(exc: BaseException) -> str:
     if "invalid model" in message_lower or "model not found" in message_lower:
         return "config"
     if "context length" in message_lower or "context_length" in message_lower or "context window" in message_lower:
+        return "config"
+    if "not json serializable" in message_lower or "not json-serializable" in message_lower:
         return "config"
 
     return "unknown"
@@ -916,6 +923,12 @@ class GoogleADKRuntime:
                 return max(int(raw), 1)
             except Exception:
                 pass
+        mutating_order_tools = {"orders_submit_order", "orders_cancel_order", "orders_modify_order"}
+        if any(tool.name in mutating_order_tools for tool in request.bound_tools):
+            # Retrying the whole agent run after a broker-side effect can duplicate orders.
+            # Research-only agents keep the larger retry budget; trading agents fail fast
+            # and let the next scheduled/bar iteration re-evaluate from current broker state.
+            return 1
         mode = ""
         if isinstance(request.runtime_context, dict):
             mode = str(request.runtime_context.get("mode") or "").strip().lower()

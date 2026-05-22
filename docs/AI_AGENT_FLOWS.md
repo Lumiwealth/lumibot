@@ -158,6 +158,12 @@ strategy should not parse the agent's prose and submit a second Python order
 afterward. Use deterministic Python execution only for an explicit hybrid design
 where the final agent is advisory or returns validated structured JSON.
 
+When mutating order tools are available, LumiBot defaults the whole-agent retry
+budget to one attempt. This is intentional: if a broker-side effect succeeds and
+a provider/runtime error happens afterward, retrying the entire agent run can
+submit, cancel, or modify orders a second time. Research-only agents keep the
+larger retry budget because they do not mutate broker state.
+
 ## Related Docs
 
 - `docs/AI_INVESTMENT_COMMITTEE.md`: one concrete four-agent example.

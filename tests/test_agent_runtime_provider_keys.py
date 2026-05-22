@@ -2,6 +2,7 @@ import os
 import sys
 import types
 import asyncio
+from uuid import UUID
 
 import pytest
 
@@ -15,6 +16,7 @@ from lumibot.components.agents.runtime import (
     _sync_gemini_api_key_alias,
     _sync_together_api_key_alias,
     _sync_xai_api_key_alias,
+    _classify_agent_error,
     _wrap_tool_callable,
 )
 from lumibot.components.agents.schemas import BoundTool
@@ -97,6 +99,47 @@ def test_wrapped_tool_does_not_block_repeated_calls():
     assert wrapped()["value"] == 1
     assert wrapped()["value"] == 2
     assert calls["count"] == 2
+
+
+def test_wrapped_tool_coerces_uuid_payloads_before_provider_serialization():
+    order_id = UUID("65616ce1-92f4-4634-af48-a88c296bc0e9")
+
+    def sample_tool():
+        return {
+            "order": {
+                "identifier": order_id,
+                "nested": [order_id],
+            }
+        }
+
+    tool = BoundTool(name="sample_tool", description="sample", function=sample_tool)
+    wrapped = _wrap_tool_callable(tool)
+    result = wrapped()
+
+    assert result["order"]["identifier"] == str(order_id)
+    assert result["order"]["nested"] == [str(order_id)]
+
+
+def test_json_serialization_errors_are_not_retried_as_transient():
+    assert _classify_agent_error(TypeError("Object of type UUID is not JSON serializable")) == "config"
+
+
+def test_mutating_order_tools_disable_whole_run_retries_by_default(monkeypatch):
+    monkeypatch.delenv("LUMIBOT_AGENT_MAX_RUN_ATTEMPTS", raising=False)
+    request = RuntimeRequest(
+        agent_name="pm",
+        model="gemini-3.5-flash",
+        system_prompt="trade",
+        task_prompt="",
+        context=None,
+        runtime_context={"mode": "live"},
+        memory_notes=[],
+        bound_tools=[
+            BoundTool(name="orders_submit_order", description="submit", function=lambda: {"ok": True}),
+        ],
+    )
+
+    assert GoogleADKRuntime._max_attempts_for_request(request) == 1
 
 
 def test_aggregate_usage_metadata_sums_multiple_provider_events():

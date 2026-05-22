@@ -4,6 +4,10 @@
 
 ### Changed
 - **AI agent runs now default to a 30-minute timeout.** `LUMIBOT_AGENT_RUN_TIMEOUT_SECONDS` still overrides the full ADK/model/tool-call timeout, and non-positive values still disable it, but the unset default is now 1800 seconds so slower multi-tool agents are not treated as failed after only five minutes.
+- **Trading-enabled AI agent runs no longer retry the whole run by default when mutating order tools are available.** This prevents duplicate broker-side effects when a provider/runtime error happens after `orders_submit_order`, `orders_cancel_order`, or `orders_modify_order` has already executed. Read-only research agents keep the larger retry budget, and `LUMIBOT_AGENT_MAX_RUN_ATTEMPTS` can still explicitly override the default.
+
+### Fixed
+- **AI agent tool outputs now coerce UUIDs and other non-JSON scalars before they reach Google ADK/provider serialization.** Submitted order identifiers and similar broker payload fields are converted to JSON-safe values instead of causing `Object of type UUID is not JSON serializable` failures after an order side effect.
 
 ## 4.5.29 - 2026-05-20
 

@@ -56,6 +56,7 @@ class Tradier(Broker):
     # OAuth refresh endpoint (only available for approved Tradier partner apps).
     _OAUTH_REFRESH_URL = "https://api.tradier.com/v1/oauth/refreshtoken"
     _OAUTH_REFRESH_SKEW_SECONDS = 60  # Refresh a bit early to avoid edge-of-expiry failures.
+    _OAUTH_DEFAULT_ACCESS_TOKEN_EXPIRES_IN_SECONDS = 24 * 60 * 60
 
     @staticmethod
     def _decode_base64url_json(payload_str: str) -> dict:
@@ -80,7 +81,7 @@ class Tradier(Broker):
     def _oauth_token_needs_refresh(self) -> bool:
         expires_at = getattr(self, "_oauth_token_expires_at", None)
         if not expires_at:
-            return False
+            return True
         return time.time() >= float(expires_at) - self._OAUTH_REFRESH_SKEW_SECONDS
 
     def _apply_access_token(self, new_access_token: str) -> None:
@@ -186,9 +187,12 @@ class Tradier(Broker):
             expires_in = token_json.get("expires_in")
             try:
                 issued_at_ms = int(token_json.get("issued_at"))
-                expires_in_s = int(float(expires_in)) if expires_in is not None else None
-                if expires_in_s:
-                    self._oauth_token_expires_at = issued_at_ms / 1000.0 + expires_in_s
+                expires_in_s = (
+                    int(float(expires_in))
+                    if expires_in is not None
+                    else self._OAUTH_DEFAULT_ACCESS_TOKEN_EXPIRES_IN_SECONDS
+                )
+                self._oauth_token_expires_at = issued_at_ms / 1000.0 + expires_in_s
             except Exception:
                 # If we can't parse expiry, keep existing best-effort expiry (or none).
                 pass
@@ -315,8 +319,13 @@ class Tradier(Broker):
 
             try:
                 issued_at_ms = int(token_json.get("issued_at") or 0)
-                expires_in_s = int(float(token_json.get("expires_in"))) if token_json.get("expires_in") is not None else None
-                if issued_at_ms and expires_in_s:
+                expires_in = token_json.get("expires_in")
+                expires_in_s = (
+                    int(float(expires_in))
+                    if expires_in is not None
+                    else self._OAUTH_DEFAULT_ACCESS_TOKEN_EXPIRES_IN_SECONDS
+                )
+                if issued_at_ms:
                     self._oauth_token_expires_at = issued_at_ms / 1000.0 + expires_in_s
             except Exception:
                 # No reliable expiry metadata; refresh-on-401 hook still applies.

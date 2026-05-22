@@ -200,6 +200,7 @@ def test_schwab_prefers_existing_token_file_over_stale_env_payload(monkeypatch, 
     assert save_payload.call_count == 0
     token_data = json.loads(token_path.read_text(encoding="utf-8"))
     assert token_data["token"]["refresh_token"] == "fresh-refresh"
+    assert token_data["token"]["refresh_token_expires_in"] == 604800
     _assert_private_posix_file(token_path)
 
 
@@ -226,6 +227,43 @@ def test_schwab_scheduled_startup_does_not_force_refresh(monkeypatch, tmp_path):
     token_data = json.loads(token_path.read_text(encoding="utf-8"))
     assert token_data["token"]["access_token"] == "runtime-access"
     assert token_data["token"]["refresh_token"] == "runtime-refresh"
+    assert token_data["token"]["refresh_token_expires_in"] == 604800
+    _assert_private_posix_file(token_path)
+
+
+def test_schwab_token_updater_preserves_refresh_token_metadata(monkeypatch, tmp_path):
+    from lumibot.brokers.schwab import Schwab
+
+    token_path = tmp_path / "schwab_token.json"
+    _write_schwab_token(token_path, access_token="runtime-access", refresh_token="runtime-refresh")
+    fake_session_cls = _install_fake_schwab_runtime(monkeypatch)
+
+    Schwab(
+        config={
+            "SCHWAB_ACCOUNT_NUMBER": "12345678",
+            "SCHWAB_APP_KEY": "app-key",
+            "SCHWAB_APP_SECRET": "app-secret",
+            "SCHWAB_TOKEN_PATH": str(token_path),
+        },
+        data_source=object(),
+    )
+
+    original_token_data = json.loads(token_path.read_text(encoding="utf-8"))
+    original_refresh_issued_at = original_token_data["token"]["refresh_token_issued_at"]
+
+    session = fake_session_cls.instances[0]
+    session.token_updater({
+        "access_token": "new-access",
+        "expires_in": 1800,
+        "token_type": "Bearer",
+        "scope": "api",
+    })
+
+    token_data = json.loads(token_path.read_text(encoding="utf-8"))
+    assert token_data["token"]["access_token"] == "new-access"
+    assert token_data["token"]["refresh_token"] == "runtime-refresh"
+    assert token_data["token"]["refresh_token_issued_at"] == original_refresh_issued_at
+    assert token_data["token"]["refresh_token_expires_in"] == 604800
     _assert_private_posix_file(token_path)
 
 

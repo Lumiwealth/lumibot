@@ -251,14 +251,27 @@ class Schwab(Broker):
                 try:
                     updated_token = dict(updated_token or {})
                     now_ms = int(time.time() * 1000)
+                    existing_refresh_token = token_dict_for_session.get("refresh_token")
+                    updated_refresh_token = updated_token.get("refresh_token")
                     updated_token.setdefault("issued_at", now_ms)
-                    updated_token.setdefault("refresh_token_issued_at", now_ms)
                     updated_token.setdefault("expires_in", token_dict_for_session.get("expires_in", 1800))
-                    updated_token.setdefault("refresh_token_expires_in", token_dict_for_session.get("refresh_token_expires_in", 7776000))
+                    updated_token.setdefault(
+                        "refresh_token_expires_in",
+                        token_dict_for_session.get(
+                            "refresh_token_expires_in",
+                            SchwabHelper.REFRESH_TOKEN_EXPIRES_IN_SECONDS,
+                        ),
+                    )
                     updated_token.setdefault("token_type", token_dict_for_session.get("token_type", "Bearer"))
                     updated_token.setdefault("scope", token_dict_for_session.get("scope", "api"))
-                    if not updated_token.get("refresh_token") and token_dict_for_session.get("refresh_token"):
-                        updated_token["refresh_token"] = token_dict_for_session["refresh_token"]
+                    if updated_refresh_token and updated_refresh_token != existing_refresh_token:
+                        updated_token["refresh_token_issued_at"] = now_ms
+                    elif token_dict_for_session.get("refresh_token_issued_at") is not None:
+                        updated_token["refresh_token_issued_at"] = token_dict_for_session["refresh_token_issued_at"]
+                    else:
+                        updated_token.pop("refresh_token_issued_at", None)
+                    if not updated_token.get("refresh_token") and existing_refresh_token:
+                        updated_token["refresh_token"] = existing_refresh_token
                     updated_token.pop("id_token", None)
                     wrapped = {
                         "creation_timestamp": int(time.time()),

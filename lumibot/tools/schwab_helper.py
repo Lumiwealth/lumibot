@@ -18,6 +18,8 @@ from .lumibot_logger import get_logger
 logger = get_logger(__name__)
 
 class SchwabHelper:
+    REFRESH_TOKEN_EXPIRES_IN_SECONDS = 7 * 24 * 3600
+
     @staticmethod
     def _write_token_file(token_path: Path, token_data: dict):
         token_path.parent.mkdir(parents=True, exist_ok=True)
@@ -76,7 +78,7 @@ class SchwabHelper:
                 "issued_at": now_ms,
                 "refresh_token_issued_at": now_ms,
                 "expires_in": 1800,
-                "refresh_token_expires_in": 90 * 24 * 3600, # Changed from 7776000 for clarity (90 days)
+                "refresh_token_expires_in": SchwabHelper.REFRESH_TOKEN_EXPIRES_IN_SECONDS,
                 "token_type": "Bearer",
                 "scope": "api",
             }
@@ -268,7 +270,10 @@ class SchwabHelper:
             "issued_at": now_ms,
             "refresh_token_issued_at": now_ms,
             "expires_in": token_data_from_payload.get("expires_in", 1800),
-            "refresh_token_expires_in": token_data_from_payload.get("refresh_token_expires_in", 7776000),
+            "refresh_token_expires_in": token_data_from_payload.get(
+                "refresh_token_expires_in",
+                SchwabHelper.REFRESH_TOKEN_EXPIRES_IN_SECONDS,
+            ),
             "token_type": token_data_from_payload.get("token_type", "Bearer"),
             "scope": token_data_from_payload.get("scope", "api"),
         }

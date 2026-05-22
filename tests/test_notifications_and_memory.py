@@ -1,5 +1,8 @@
+import stat
+import sys
 from datetime import datetime, timezone
 
+import pytest
 import requests
 
 from lumibot.components.memory import MemoryStore
@@ -85,3 +88,20 @@ def test_memory_store_records_and_searches_decisions(tmp_path):
     assert thesis["kind"] == "thesis"
     assert result["count"] >= 2
     assert any("services margin" in row["text"] for row in result["results"])
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permissions not supported on Windows")
+def test_memory_store_uses_private_posix_permissions(tmp_path):
+    store = MemoryStore(_Strategy(), root_dir=tmp_path)
+
+    store.remember_decision("Bought AAPL because filings and indicators were strong.", symbol="AAPL", action="buy")
+    store.remember_lesson("Do not chase entries after earnings gaps.", symbol="AAPL")
+    store.open_thesis("AAPL long thesis based on services margin resilience.", symbol="AAPL")
+
+    strategy_dir = tmp_path / "Unit_Memory_Strategy"
+    assert stat.S_IMODE(tmp_path.stat().st_mode) == 0o700
+    assert stat.S_IMODE(strategy_dir.stat().st_mode) == 0o700
+    assert stat.S_IMODE((strategy_dir / "decisions.jsonl").stat().st_mode) == 0o600
+    assert stat.S_IMODE((strategy_dir / "lessons.jsonl").stat().st_mode) == 0o600
+    assert stat.S_IMODE((strategy_dir / "theses.jsonl").stat().st_mode) == 0o600
+    assert stat.S_IMODE((strategy_dir / "memories.jsonl").stat().st_mode) == 0o600

@@ -1,6 +1,11 @@
 """
 Simple test cases for broker initialization error handling.
 """
+import json
+import stat
+import sys
+import time
+
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -72,3 +77,292 @@ class TestBrokerInitializationSimple:
         except Exception as e:
             # Other exceptions are acceptable for this test since we're only testing the broker None case
             pass
+
+
+def _install_fake_schwab_runtime(monkeypatch, refreshed_token=None, refresh_results=None):
+    from lumibot.brokers.broker import Broker
+    import lumibot.brokers.schwab as schwab_module
+
+    refresh_results = list(refresh_results or [])
+
+    class FakeAccountNumbersResponse:
+        status_code = 200
+
+        def json(self):
+            return [{"accountNumber": "12345678", "hashValue": "hash-123"}]
+
+    class FakeClient:
+        class Account:
+            class Fields:
+                POSITIONS = "positions"
+
+        def __init__(self, api_key, session):
+            self.api_key = api_key
+            self.session = session
+
+        def get_account_numbers(self):
+            return FakeAccountNumbersResponse()
+
+    class FakeOAuth2Session:
+        instances = []
+
+        def __init__(self, client_id, token, auto_refresh_url, auto_refresh_kwargs, token_updater):
+            self.client_id = client_id
+            self.token = token
+            self.auto_refresh_url = auto_refresh_url
+            self.auto_refresh_kwargs = auto_refresh_kwargs
+            self.token_updater = token_updater
+            self.refresh_calls = []
+            self.hooks = []
+            self.instances.append(self)
+
+        def register_compliance_hook(self, hook_type, hook):
+            self.hooks.append((hook_type, hook))
+
+        def refresh_token(self, token_url, refresh_token, **kwargs):
+            self.refresh_calls.append((token_url, refresh_token, kwargs))
+            if refresh_results:
+                result = refresh_results.pop(0)
+                if isinstance(result, Exception):
+                    raise result
+                self.token = result
+            else:
+                self.token = refreshed_token or {
+                    "access_token": "refreshed-access",
+                    "refresh_token": "rotated-refresh",
+                    "issued_at": int(time.time() * 1000),
+                    "expires_in": 1800,
+                    "token_type": "Bearer",
+                    "scope": "api",
+                }
+            return self.token
+
+    def fake_broker_init(self, name="", data_source=None, config=None, **_kwargs):
+        self.name = name
+        self.data_source = data_source
+        self.config = config
+        self.quote_assets = set()
+
+    monkeypatch.setattr(Broker, "__init__", fake_broker_init)
+    monkeypatch.setattr(schwab_module, "Client", FakeClient)
+    monkeypatch.setattr(schwab_module.Schwab, "_finish_initialization", lambda self, *_args, **_kwargs: None)
+    monkeypatch.setattr("requests_oauthlib.OAuth2Session", FakeOAuth2Session)
+    return FakeOAuth2Session
+
+
+def _schwab_token_payload(access_token, refresh_token):
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "issued_at": int(time.time() * 1000),
+        "expires_in": 1800,
+        "token_type": "Bearer",
+        "scope": "api",
+    }
+
+
+def _write_schwab_token(path, *, access_token="existing-access", refresh_token="existing-refresh"):
+    path.write_text(
+        json.dumps(
+            {
+                "creation_timestamp": int(time.time()),
+                "token": {
+                    "access_token": access_token,
+                    "refresh_token": refresh_token,
+                    "issued_at": int(time.time() * 1000),
+                    "expires_in": 1800,
+                    "token_type": "Bearer",
+                    "scope": "api",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def _assert_private_posix_file(path):
+    if sys.platform != "win32":
+        assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+
+def test_schwab_prefers_existing_token_file_over_stale_env_payload(monkeypatch, tmp_path):
+    from lumibot.brokers.schwab import Schwab
+    from lumibot.tools import SchwabHelper
+
+    token_path = tmp_path / "schwab_token.json"
+    _write_schwab_token(token_path, access_token="fresh-access", refresh_token="fresh-refresh")
+    _install_fake_schwab_runtime(monkeypatch)
+    monkeypatch.setenv("SCHWAB_TOKEN", "stale-original-payload")
+    monkeypatch.delenv("LUMIBOT_SCHEDULED_EXECUTION", raising=False)
+
+    save_payload = MagicMock(side_effect=AssertionError("SCHWAB_TOKEN should only seed a missing token file"))
+    monkeypatch.setattr(SchwabHelper, "_save_payload_str_to_token_file", save_payload)
+
+    Schwab(
+        config={
+            "SCHWAB_ACCOUNT_NUMBER": "12345678",
+            "SCHWAB_APP_KEY": "app-key",
+            "SCHWAB_APP_SECRET": "app-secret",
+            "SCHWAB_TOKEN_PATH": str(token_path),
+        },
+        data_source=object(),
+    )
+
+    assert save_payload.call_count == 0
+    token_data = json.loads(token_path.read_text(encoding="utf-8"))
+    assert token_data["token"]["refresh_token"] == "fresh-refresh"
+    _assert_private_posix_file(token_path)
+
+
+def test_schwab_scheduled_startup_refreshes_and_rewrites_token(monkeypatch, tmp_path):
+    from lumibot.brokers.schwab import Schwab
+
+    token_path = tmp_path / "schwab_token.json"
+    _write_schwab_token(token_path, access_token="old-access", refresh_token="old-refresh")
+    fake_session_cls = _install_fake_schwab_runtime(monkeypatch)
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_EXECUTION", "true")
+
+    Schwab(
+        config={
+            "SCHWAB_ACCOUNT_NUMBER": "12345678",
+            "SCHWAB_APP_KEY": "app-key",
+            "SCHWAB_APP_SECRET": "app-secret",
+            "SCHWAB_TOKEN_PATH": str(token_path),
+        },
+        data_source=object(),
+    )
+
+    session = fake_session_cls.instances[0]
+    assert session.refresh_calls == [
+        (
+            "https://api.schwabapi.com/v1/oauth/token",
+            "old-refresh",
+            {"client_id": "app-key", "client_secret": "app-secret"},
+        )
+    ]
+    token_data = json.loads(token_path.read_text(encoding="utf-8"))
+    assert token_data["token"]["access_token"] == "refreshed-access"
+    assert token_data["token"]["refresh_token"] == "rotated-refresh"
+    _assert_private_posix_file(token_path)
+
+
+def test_schwab_scheduled_refresh_falls_back_to_new_env_payload(monkeypatch, tmp_path):
+    from lumibot.brokers.schwab import Schwab
+    from lumibot.tools import SchwabHelper
+
+    token_path = tmp_path / "schwab_token.json"
+    _write_schwab_token(token_path, access_token="expired-access", refresh_token="expired-refresh")
+    fallback_refreshed = _schwab_token_payload("fallback-access", "fallback-rotated-refresh")
+    fake_session_cls = _install_fake_schwab_runtime(
+        monkeypatch,
+        refresh_results=[RuntimeError("expired refresh token"), fallback_refreshed],
+    )
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_EXECUTION", "true")
+    monkeypatch.setenv("SCHWAB_TOKEN", "new-linked-payload")
+
+    def write_fallback_payload(payload, path):
+        assert payload == "new-linked-payload"
+        _write_schwab_token(path, access_token="fallback-seed-access", refresh_token="fallback-seed-refresh")
+
+    monkeypatch.setattr(SchwabHelper, "_save_payload_str_to_token_file", write_fallback_payload)
+
+    Schwab(
+        config={
+            "SCHWAB_ACCOUNT_NUMBER": "12345678",
+            "SCHWAB_APP_KEY": "app-key",
+            "SCHWAB_APP_SECRET": "app-secret",
+            "SCHWAB_TOKEN_PATH": str(token_path),
+        },
+        data_source=object(),
+    )
+
+    assert len(fake_session_cls.instances) == 2
+    assert fake_session_cls.instances[0].refresh_calls[0][1] == "expired-refresh"
+    assert fake_session_cls.instances[1].refresh_calls[0][1] == "fallback-seed-refresh"
+    token_data = json.loads(token_path.read_text(encoding="utf-8"))
+    assert token_data["token"]["access_token"] == "fallback-access"
+    assert token_data["token"]["refresh_token"] == "fallback-rotated-refresh"
+    _assert_private_posix_file(token_path)
+
+
+def test_schwab_scheduled_failed_fallback_preserves_existing_token(monkeypatch, tmp_path):
+    from lumibot.brokers.schwab import Schwab
+    from lumibot.tools import SchwabHelper
+
+    token_path = tmp_path / "schwab_token.json"
+    _write_schwab_token(token_path, access_token="persisted-access", refresh_token="persisted-refresh")
+    _install_fake_schwab_runtime(
+        monkeypatch,
+        refresh_results=[RuntimeError("expired refresh token"), RuntimeError("fallback refresh token expired")],
+    )
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_EXECUTION", "true")
+    monkeypatch.setenv("SCHWAB_TOKEN", "stale-linked-payload")
+
+    def write_fallback_payload(payload, path):
+        assert payload == "stale-linked-payload"
+        _write_schwab_token(path, access_token="stale-access", refresh_token="stale-refresh")
+
+    monkeypatch.setattr(SchwabHelper, "_save_payload_str_to_token_file", write_fallback_payload)
+
+    with pytest.raises(ConnectionError, match="Schwab scheduled startup token refresh failed"):
+        Schwab(
+            config={
+                "SCHWAB_ACCOUNT_NUMBER": "12345678",
+                "SCHWAB_APP_KEY": "app-key",
+                "SCHWAB_APP_SECRET": "app-secret",
+                "SCHWAB_TOKEN_PATH": str(token_path),
+            },
+            data_source=object(),
+        )
+
+    token_data = json.loads(token_path.read_text(encoding="utf-8"))
+    assert token_data["token"]["access_token"] == "persisted-access"
+    assert token_data["token"]["refresh_token"] == "persisted-refresh"
+    _assert_private_posix_file(token_path)
+
+
+def test_schwab_scheduled_failed_fallback_does_not_mask_restore_failure(monkeypatch, tmp_path):
+    from lumibot.brokers.schwab import Schwab
+    from lumibot.tools import SchwabHelper
+
+    token_path = tmp_path / "schwab_token.json"
+    _write_schwab_token(token_path, access_token="persisted-access", refresh_token="persisted-refresh")
+    _install_fake_schwab_runtime(
+        monkeypatch,
+        refresh_results=[RuntimeError("expired refresh token"), RuntimeError("fallback refresh token expired")],
+    )
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_EXECUTION", "true")
+    monkeypatch.setenv("SCHWAB_TOKEN", "stale-linked-payload")
+    should_fail_restore = {"value": False}
+
+    def write_fallback_payload(payload, path):
+        assert payload == "stale-linked-payload"
+        should_fail_restore["value"] = True
+        _write_schwab_token(path, access_token="stale-access", refresh_token="stale-refresh")
+
+    original_write_token_file = SchwabHelper._write_token_file
+
+    def fail_original_restore(path, token_data):
+        if should_fail_restore["value"] and token_data.get("token", {}).get("access_token") == "persisted-access":
+            raise RuntimeError("restore failed")
+        return original_write_token_file(path, token_data)
+
+    monkeypatch.setattr(SchwabHelper, "_save_payload_str_to_token_file", write_fallback_payload)
+    monkeypatch.setattr(SchwabHelper, "_write_token_file", fail_original_restore)
+
+    with pytest.raises(ConnectionError, match="Schwab scheduled startup token refresh failed") as exc_info:
+        Schwab(
+            config={
+                "SCHWAB_ACCOUNT_NUMBER": "12345678",
+                "SCHWAB_APP_KEY": "app-key",
+                "SCHWAB_APP_SECRET": "app-secret",
+                "SCHWAB_TOKEN_PATH": str(token_path),
+            },
+            data_source=object(),
+        )
+
+    inner_error = exc_info.value.__cause__
+    assert isinstance(inner_error, ConnectionError)
+    assert isinstance(inner_error.__cause__, RuntimeError)
+    assert str(inner_error.__cause__) == "fallback refresh token expired"
+    assert not token_path.exists()

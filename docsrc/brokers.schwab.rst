@@ -160,6 +160,8 @@ Token Life-cycle & Auto-refresh
 * Access-token ≈ 30 min, refresh-token ≈ 7 days (per Schwab policy).
 * Lumibot configures an `OAuth2Session` with ``auto_refresh_url`` so that tokens
   refresh themselves quietly in the background every ~25 min.
+* When running as a scheduled BotSpot task (``LUMIBOT_SCHEDULED_EXECUTION=true``),
+  Lumibot refreshes the Schwab token once during startup before trading begins.
 * The refreshed token is written back to `token.json`; it rolls the 7-day window
   forward.  As long as the bot is running (or restarted at least once a week)
   you never need to log in again.

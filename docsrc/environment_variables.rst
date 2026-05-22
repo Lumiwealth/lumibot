@@ -505,6 +505,12 @@ SCHWAB_TOKEN
 - Purpose: Optional pre-existing OAuth token.
 - Values: Token string (**do not hardcode**).
 
+SCHWAB_TOKEN_PATH
+^^^^^^^^^^^^^^^^^
+
+- Purpose: Optional path for the local Schwab token JSON file. Scheduled BotSpot tasks use this path to restore and persist the latest refreshed token across ephemeral containers.
+- Values: Filesystem path.
+
 SCHWAB_BACKEND_CALLBACK_URL
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

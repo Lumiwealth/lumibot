@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import time
 import traceback
 import urllib.parse
@@ -16,6 +17,23 @@ from .lumibot_logger import get_logger
 logger = get_logger(__name__)
 
 class SchwabHelper:
+    @staticmethod
+    def _write_token_file(token_path: Path, token_data: dict):
+        token_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = token_path.with_name(f"{token_path.name}.tmp")
+        fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fp:
+                json.dump(token_data, fp)
+            os.replace(tmp_path, token_path)
+            os.chmod(token_path, 0o600)
+        except Exception:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            raise
+
     @staticmethod
     def _ensure_token_metadata(token_path: Path):
         """
@@ -64,9 +82,7 @@ class SchwabHelper:
                 "creation_timestamp": creation_ts,
                 "token": tok,
             }
-            # Use 'w' mode to overwrite the file completely
-            with token_path.open("w", encoding="utf-8") as fp:
-                json.dump(wrapped, fp)
+            SchwabHelper._write_token_file(token_path, wrapped)
             logger.info(f"[DEBUG] Token file successfully written and wrapped by _ensure_token_metadata to {token_path}")
 
         except Exception as e:
@@ -259,8 +275,7 @@ class SchwabHelper:
             "creation_timestamp": int(time.time()),
             "token": final_token_data,
         }
-        with token_path.open("w", encoding="utf-8") as fp:
-            json.dump(wrapped_token, fp)
+        SchwabHelper._write_token_file(token_path, wrapped_token)
         logger.info(f"Token payload processed and saved to {token_path}")
 
 __all__ = [

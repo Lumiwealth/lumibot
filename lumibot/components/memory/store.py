@@ -11,6 +11,13 @@ def _safe_name(value: Any) -> str:
     return re.sub(r"[^A-Za-z0-9_.=-]+", "_", text).strip("_")
 
 
+def _chmod_private(path: Path, mode: int) -> None:
+    try:
+        os.chmod(path, mode)
+    except OSError:
+        pass
+
+
 class MemoryStore:
     """Local JSONL memory store for agentic strategy decisions and lessons."""
 
@@ -19,7 +26,10 @@ class MemoryStore:
         strategy_name = _safe_name(getattr(strategy, "name", None) or strategy.__class__.__name__)
         self.root_dir = Path(root_dir or os.environ.get("LUMIBOT_MEMORY_DIR") or Path.cwd() / ".lumibot" / "memory")
         self.strategy_dir = self.root_dir / strategy_name
+        self.root_dir.mkdir(parents=True, exist_ok=True)
+        _chmod_private(self.root_dir, 0o700)
         self.strategy_dir.mkdir(parents=True, exist_ok=True)
+        _chmod_private(self.strategy_dir, 0o700)
 
     def remember(
         self,
@@ -129,8 +139,11 @@ class MemoryStore:
 
     def _append(self, filename: str, entry: dict[str, Any]) -> None:
         path = self.strategy_dir / filename
-        with path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(entry, sort_keys=True) + "\n")
+        line = json.dumps(entry, sort_keys=True) + "\n"
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        with os.fdopen(fd, "a", encoding="utf-8") as fh:
+            fh.write(line)
+        _chmod_private(path, 0o600)
 
     def _read_jsonl(self, path: Path) -> list[dict[str, Any]]:
         if not path.exists():

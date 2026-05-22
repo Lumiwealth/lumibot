@@ -728,3 +728,113 @@ reason for no trade.
 Do not include Kimi K2.6 in the immediate run because of Together budget risk.
 Run preflight, one-day smoke, 14-day qualifier, and then the three-month
 benchmark for the affordable/current slate only.
+
+## Cash-Parking Benchmark Run Results: 2026-05-22
+
+Code checkpoint:
+
+- Commit `b4c6d4de` added explicit cash-parking support to the AI Investment
+  Committee example.
+- Focused tests passed:
+  `/Users/robertgrzesik/Development/bin/safe-timeout 300s .venv/bin/python -m pytest tests/test_ai_investment_committee_example.py tests/test_agent_runtime_provider_keys.py`.
+
+Provider preflight:
+
+- `deepseek/deepseek-v4-flash`: tiny provider call passed.
+- `deepseek/deepseek-v4-pro`: tiny provider call passed, but the one-day smoke
+  was too slow/expensive for the immediate long slate.
+- `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`: tiny provider call
+  passed and emitted a tool call.
+- `cerebras/gpt-oss-120b`: blocked by Cerebras `Payment required`.
+- `cerebras/zai-glm-4.7`: blocked by Cerebras `Payment required`.
+
+One-day smoke root:
+`/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260522_022521`.
+
+One-day smoke results:
+
+- `openai/gpt-5.4-mini`: passed. Wall time `86.5s`; calls `4`; tool calls
+  `109`; estimated cost `$0.243075` no-cache / `$0.120560`
+  cache-adjusted. Stayed in cash.
+- `gemini-3.5-flash`: passed. Wall time `574.8s`; calls `4`; tool calls
+  `124`; estimated cost `$4.515954` no-cache / `$2.075280`
+  cache-adjusted. Bought `5` MSFT and `3` META, return `+0.0774%`.
+- `deepseek/deepseek-v4-flash`: passed. Wall time `416.9s`; calls `4`;
+  tool calls `157`; estimated cost `$0.255643` no-cache / `$0.042076`
+  cache-adjusted. Bought `99` SGOV, return `-0.1095%`.
+- `deepseek/deepseek-v4-pro`: passed. Wall time `1262.0s`; calls `4`; tool
+  calls `136`; estimated cost `$1.533062` no-cache / `$0.381919`
+  cache-adjusted. Stayed in cash. Excluded from longer runs because it was
+  much slower and more expensive than Flash without a better one-day result.
+- `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`: passed. Wall time
+  `119.0s`; calls `4`; tool calls `79`; estimated cost `$0.063686`. Stayed in
+  cash.
+
+14-day qualifier roots:
+
+- OpenAI, DeepSeek, Qwen:
+  `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260522_030741`.
+- Gemini:
+  `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260522_032215`.
+
+14-day qualifier results:
+
+- `openai/gpt-5.4-mini`: passed. Wall time `768.5s`; calls `52`; tool calls
+  `1244`; estimated cost `$3.163435` no-cache / `$1.476303`
+  cache-adjusted. Return `-0.9592%`; max drawdown `1.034%`; final positions
+  included `99` SGOV and `4` GOOGL, but the final USD cash position was
+  negative. This exposed that prompt-only risk controls are not enough.
+- `gemini-3.5-flash`: passed but was operationally poor. Wall time `5454.9s`
+  (`90.9m`); calls `52`; tool calls `1579`; estimated cost `$48.208215`
+  no-cache / `$17.093065` cache-adjusted. Return `-1.1493%`; max drawdown
+  `1.538%`; final positions included AAPL plus SGOV/BIL/SHV. Do not run a
+  three-month Gemini benchmark until the committee workload is made cheaper and
+  faster.
+- `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`: failed with
+  `ContextWindowExceededError`. Together rejected an input of about
+  `2,986,192` tokens against the model's `262,144` context window. Partial raw
+  traces before failure: calls `7`; tool calls `143`; prompt tokens
+  `1,336,749`; output tokens `10,388`.
+- `deepseek/deepseek-v4-flash`: failed with `ContextWindowExceededError`.
+  DeepSeek rejected an input of about `2,052,201` tokens against the model's
+  `1,048,576` context window. Partial raw traces before failure: calls `42`;
+  tool calls `1412`; prompt tokens `15,678,494`; output tokens `340,125`;
+  cached input tokens `13,932,928`. DeepSeek also hallucinated
+  `get_spy_indicators`, which is not an available tool name.
+
+Three-month benchmark root:
+`/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260522_034259`.
+
+Three-month result:
+
+- `openai/gpt-5.4-mini`: passed mechanically over `2026-01-02` through
+  `2026-04-02` with `--max-model-calls 320`. Wall time `3432.8s` (`57.2m`);
+  calls `248`; tool calls `5320`; input tokens `15,566,873`; output tokens
+  `452,604`; cached input tokens `10,333,568`; estimated cost `$13.711873`
+  no-cache / `$6.736714` cache-adjusted. Return `-28.672%`; max drawdown
+  `30.908%`; Sharpe `-2.1924`.
+
+Critical interpretation:
+
+- The cash-parking prompt worked mechanically: DeepSeek Flash bought SGOV in
+  the one-day smoke, and Gemini bought SGOV/BIL/SHV in the 14-day qualifier.
+- The current committee is still not safe enough as an autonomous trading
+  example because the OpenAI long runs ended with negative USD cash despite the
+  prompt risk limits. The benchmark caught a real issue: the example needs
+  code-level order/risk validation, not just system-prompt instructions.
+- Qwen and direct DeepSeek Flash cannot be taken to three months with the
+  current committee/tool payload shape. Their provider keys and one-day tool
+  paths work, but multi-day committee context exceeds model limits.
+- Gemini can complete 14 days, but its observed 14-day cost and wall time make
+  a three-month run irresponsible until the workload is reduced.
+- Cerebras remains blocked by account billing, not by the Lumibot integration.
+
+Next required fix before another full paid slate:
+
+- Add code-level order validation to the AI Investment Committee example so the
+  Portfolio Manager cannot exceed available cash, max position size, or the
+  maximum number of new positions merely because the prompt asked it not to.
+- Redesign the committee context/tool payload shape for smaller-context models.
+  This should be structured evidence, narrower tool outputs, and/or provider
+  aware compact research modes, not hidden middle truncation or tool-call
+  blocking.

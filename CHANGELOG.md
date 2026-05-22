@@ -2,6 +2,9 @@
 
 ## 4.5.31 - Unreleased
 
+### Changed
+- **AI Investment Committee example now supports explicit cash parking.** The example keeps growth equities and defensive cash-parking ETFs separate, defaults cash-parking symbols to `SGOV`, `BIL`, and `SHV`, and asks the Portfolio Manager to consider short-duration Treasury/cash ETFs when no growth-equity candidate clears the risk/reward bar.
+
 ## 4.5.30 - Unreleased
 
 ### Changed

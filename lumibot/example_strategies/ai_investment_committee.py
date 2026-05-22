@@ -35,6 +35,7 @@ from lumibot.strategies.strategy import Strategy
 
 
 DEFAULT_UNIVERSE = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "SPY", "QQQ"]
+DEFAULT_CASH_PARKING_SYMBOLS = ["SGOV", "BIL", "SHV"]
 DEFAULT_HANDOFF_TARGET_TOKENS = 24000
 
 
@@ -45,6 +46,7 @@ def _prepare_handoff_text(value) -> str:
 class AIInvestmentCommitteeStrategy(Strategy):
     parameters = {
         "universe": DEFAULT_UNIVERSE,
+        "cash_parking_symbols": DEFAULT_CASH_PARKING_SYMBOLS,
         "max_position_pct": 0.20,
         "max_new_positions_per_run": 2,
         "handoff_target_tokens": DEFAULT_HANDOFF_TARGET_TOKENS,
@@ -93,8 +95,12 @@ class AIInvestmentCommitteeStrategy(Strategy):
 
     def on_trading_iteration(self):
         universe = list(self.parameters.get("universe") or DEFAULT_UNIVERSE)
+        cash_parking_symbols = list(self.parameters.get("cash_parking_symbols") or [])
+        tradable_symbols = list(dict.fromkeys([*universe, *cash_parking_symbols]))
         context = {
             "universe": universe,
+            "cash_parking_symbols": cash_parking_symbols,
+            "tradable_symbols": tradable_symbols,
             "max_position_pct": self.parameters.get("max_position_pct", 0.20),
             "max_new_positions_per_run": self.parameters.get("max_new_positions_per_run", 2),
             "handoff_target_tokens": self.parameters.get("handoff_target_tokens", DEFAULT_HANDOFF_TARGET_TOKENS),
@@ -105,7 +111,9 @@ class AIInvestmentCommitteeStrategy(Strategy):
             task_prompt=(
                 "Build the evidence pack for today's committee. Start with the full universe, "
                 "then focus deeply on the best long-only candidates. Use SEC fundamentals, SEC filings, "
-                "news, market data, indicators, and FRED macro data only if FRED tools are available before handing off."
+                "news, market data, indicators, and FRED macro data only if FRED tools are available. "
+                "Also review context.cash_parking_symbols as low-risk cash-parking alternatives, using price, "
+                "volatility, and trend data rather than corporate SEC fundamentals for those ETFs."
             ),
             context=context,
         )
@@ -130,8 +138,10 @@ class AIInvestmentCommitteeStrategy(Strategy):
         decision = self.agents["portfolio_manager"].run(
             task_prompt=(
                 "Make the final long-only portfolio decision. Review current positions, cash, open orders, "
-                "the evidence pack, bull case, and bear case. Trade only symbols in context.universe. Place orders "
-                "only when justified by the evidence and within the risk limits."
+                "the evidence pack, bull case, and bear case. Trade only symbols in context.tradable_symbols. "
+                "If no growth-equity candidate clears the risk/reward bar, consider parking idle cash in a "
+                "short-duration Treasury or cash ETF from context.cash_parking_symbols. Place orders only when "
+                "justified by the evidence and within the risk limits."
             ),
             context={
                 **context,
@@ -158,7 +168,8 @@ For each candidate symbol, gather:
 4. SEC fundamentals using get_income_statement, get_balance_sheet, get_cash_flow, and get_company_facts.
 5. SEC filings using get_filings. For promising or risky names, use search_filing for risks, margins, debt, liquidity, customers, accounting changes, buybacks, dilution, and management commentary.
 6. Macro context using list_fred_series, get_fred_snapshot, and get_fred_latest only when those tools are available for rates, inflation, labor, growth, liquidity, credit spreads, and market risk when relevant.
-7. Any additional read-only tools needed to reduce uncertainty.
+7. Cash-parking context for context.cash_parking_symbols. Treat these as short-duration Treasury/cash ETF alternatives for idle cash; use price, volatility, drawdown/trend, and macro/rate context. Do not run corporate SEC fundamental analysis on cash-parking ETFs.
+8. Any additional read-only tools needed to reduce uncertainty.
 
 Tool discipline:
 - Do not call every tool for every symbol. Screen broadly first, then investigate only the most promising or risky candidates.
@@ -228,10 +239,11 @@ You may place real Lumibot orders, but only within the strategy risk limits. Bef
 1. Check current portfolio, positions, open orders, and prices.
 2. Review the evidence pack, bull case, and bear case.
 3. Respect max_position_pct and max_new_positions_per_run from context.
-4. Trade only symbols in context.universe. Do not buy defensive cash ETFs, alternative symbols, or assets outside the reviewed universe unless the user added them to the universe.
+4. Trade only symbols in context.tradable_symbols. Growth-equity trades must come from context.universe. Defensive cash-parking trades must come from context.cash_parking_symbols.
 5. Do not short. Do not use options in this v1 committee example.
-6. Prefer doing nothing when evidence is weak or contradictory.
-7. If you trade, use remember_decision and optionally notify_user.
+6. If no growth-equity candidate clears the risk/reward bar, consider parking idle cash in a short-duration Treasury or cash ETF from context.cash_parking_symbols instead of leaving all capital idle.
+7. Prefer doing nothing only when both the growth-equity case and the cash-parking case are weak, unavailable, or outside risk limits.
+8. If you trade, use remember_decision and optionally notify_user.
 
 Prefer portfolio/order/price checks over new research. Do not reopen the full research process.
 

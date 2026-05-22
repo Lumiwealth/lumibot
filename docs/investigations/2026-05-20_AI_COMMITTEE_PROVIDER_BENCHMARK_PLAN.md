@@ -704,3 +704,27 @@ Additional one-day provider checks:
   final decision was no trade. Treat it as mechanically compatible and cheap,
   but weaker than Qwen/OpenAI for this committee because the later committee
   roles did not independently verify the handoff.
+
+## Cash-Parking Benchmark Update: 2026-05-22
+
+The next benchmark should not treat "stay entirely in cash" as the only
+conservative action. The AI Investment Committee example now exposes
+`cash_parking_symbols`, defaulting to `SGOV`, `BIL`, and `SHV`, separately from
+the growth-equity universe. The Evidence Researcher is instructed to review
+those symbols as short-duration Treasury/cash ETF alternatives using price,
+volatility, drawdown/trend, and macro/rate context rather than corporate SEC
+fundamental analysis. The Portfolio Manager may trade only
+`context.tradable_symbols`, with growth-equity trades coming from
+`context.universe` and defensive cash-parking trades coming from
+`context.cash_parking_symbols`.
+
+This is an explicit example feature, not a hidden benchmark guardrail. A model
+can still decide to do nothing, but it should now explain why both the growth
+case and the cash-parking case are weak, unavailable, or outside risk limits.
+The next model-comparison slate should inspect whether each model either buys a
+reasonable growth candidate, parks cash defensively, or gives a defensible
+reason for no trade.
+
+Do not include Kimi K2.6 in the immediate run because of Together budget risk.
+Run preflight, one-day smoke, 14-day qualifier, and then the three-month
+benchmark for the affordable/current slate only.

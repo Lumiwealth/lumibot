@@ -2,6 +2,9 @@
 
 ## 4.5.32 - Unreleased
 
+### Fixed
+- **Schwab position sync now skips unsupported mutual-fund and bond positions instead of crashing.** Accounts that contain asset classes LumiBot does not model can still sync supported stocks, ETFs, options, futures, and cash-like positions.
+
 ## 4.5.31 - 2026-05-23
 
 Deploy marker: 4.5.31 release commit (`deploy 4.5.31`)

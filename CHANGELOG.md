@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.5.32 - 2026-05-23
+
+Deploy marker: 4.5.32 release commit (`deploy 4.5.32`)
+
+### Changed
+- **Lumibot README and docs now frame the agent examples as AI trading teams.** The public docs refresh the BotSpot CTAs, favicon/logo assets, and agent-flow visuals while keeping the existing examples and links intact.
+
+### Fixed
+- **Schwab position sync now skips unsupported mutual-fund and bond positions instead of crashing.** Accounts that contain asset classes LumiBot does not model can still sync supported stocks, ETFs, options, futures, and cash-like positions.
+- **SEC normalized statements now pick the freshest fact across equivalent tags.** Revenue and similar mapped fields no longer get stuck on an older taxonomy tag when a newer filing reports the same field under another supported SEC company-facts tag.
+
 ## 4.5.31 - 2026-05-23
 
 Deploy marker: 4.5.31 release commit (`deploy 4.5.31`)

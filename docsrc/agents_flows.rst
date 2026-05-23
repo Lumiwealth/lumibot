@@ -1,9 +1,9 @@
-Agent Flows
-===========
+Design Your AI Trading Team
+===========================
 
-An agent flow is the way your strategy calls one or more agents during normal
+An AI trading team is the way your strategy calls one or more agents during normal
 LumiBot lifecycle methods such as ``on_trading_iteration()``. It is just Python.
-There is no required graph framework, no fixed committee structure, and no
+There is no required graph framework, no fixed team structure, and no
 single "correct" shape.
 
 You can use one agent, fifteen agents, a deterministic strategy with one AI
@@ -12,7 +12,7 @@ built-in tools, point-in-time backtesting, replay artifacts, and order
 permissions. Your strategy decides the flow.
 
 .. image:: ../docs/assets/readme/lumibot_agent_flows.png
-   :alt: Lumibot agent flows are plain Python
+   :alt: Design your AI trading team with Lumibot
    :align: center
    :width: 100%
 
@@ -52,7 +52,7 @@ Common Flow Patterns
    technical indicators, alternative data, risk, sector context, or valuation.
    Their summaries feed a decision agent or deterministic order logic.
 
-**Multi-model committee**
+**Multi-model team**
    Several providers or models produce independent bull and bear cases. A final
    synthesis step compares them. For example, OpenAI, Gemini, Claude, and Grok
    can each produce a view before one portfolio manager decides.
@@ -187,7 +187,7 @@ models. The common pattern is:
 - stronger model for adversarial reasoning or final trade decisions
 - different providers when you want independent perspectives
 
-For a four-agent committee, that can look like this:
+For a four-agent trading team, that can look like this:
 
 .. code-block:: python
 
@@ -208,6 +208,6 @@ Where To Go Next
 ----------------
 
 - :doc:`agents_builtin_tools` explains the built-in tools available to agents.
-- :doc:`agents_investment_committee` shows one concrete four-agent example.
+- :doc:`agents_investment_committee` shows one concrete four-agent AI trading team.
 - :doc:`agents_memory` explains how agents can remember decisions and lessons.
 - :doc:`agents_observability` explains traces and replay artifacts.

@@ -106,11 +106,13 @@ html_theme_options = {
     "dark_logo": "Lumibot_Logo.webp",
     'announcement': """
     <div class="footer-banner bg-warning text-dark p-3" style="white-space: normal; line-height: 1.35;">
-        <h5>Run Lumibot Strategies on BotSpot</h5>
-        <p>Use BotSpot for Lumibot-tuned AI strategy generation, hosted backtests, broker connections, monitoring, and paper or live runs without maintaining your own server. <a href="https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=site_banner&utm_campaign=lumibot&utm_content=footer_banner&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20hosted%20backtesting%2C%20broker%20connections%2C%20monitoring%2C%20and%20paper%20or%20live%20deployment." target="_blank" class="text-dark"><strong>Start on BotSpot.trade</strong></a>.</p>
+        <h5>Run Lumibot on BotSpot</h5>
+        <p>Hosted backtests, brokers, monitoring, and cheaper scheduled deployment. <a href="https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=site_banner&utm_campaign=lumibot&utm_content=footer_banner&sample=lumibot_deploy_sample" target="_blank" class="text-dark"><strong>Try a sample strategy</strong></a>.</p>
     </div>
     """
 }
+
+html_favicon = "_html/botspot_favicon.png"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -168,24 +170,13 @@ def _generate_sitemap() -> None:
 
 _generate_sitemap()
 
-# html_theme_options = {
-#     "announcement": """
-#     <div class="important-note" style="margin-top: 20px; padding: 20px; background-color: #ffdd57; border-radius: 5px;">
-#         <h3>Important!</h3>
-#         <p>If you need extra help building your strategies and making them profitable, Lumiwealth has you covered. By visiting Lumiwealth, you not only learn how to use the Lumibot library but also gain access to a wealth of highly profitable algorithms.</p>
-#         <p><strong>Our strategies have shown exceptional results, with some achieving over 100% annual returns and others reaching up to 1,000% in backtesting.</strong></p>
-#         <p>Join our community of traders, take comprehensive courses, and access our library of profitable trading bots. Visit <a href="https://www.lumiwealth.com/?utm_source=documentation&utm_medium=referral&utm_campaign=lumibot_every_page" target="_blank">Lumiwealth</a> to learn more.</p>
-#     </div>
-#     """
-# }
-
 html_context = {
     'note': """
     <div class="important-note" style="margin-top: 20px; padding: 20px; background-color: #ffdd57; border-radius: 5px;">
-        <h3>Run Lumibot Strategies with BotSpot</h3>
-        <p>Need help turning an idea into a working Lumibot strategy? BotSpot can generate Lumibot code with framework-specific AI prompts, run supported backtests on hosted data, compare variants in parallel, connect brokers, and schedule paper or live runs.</p>
-        <p><strong>Use BotSpot when you want charts, logs, alerts, audit history, account monitoring, kill-switch controls, and broker-connected deployment without wiring infrastructure yourself.</strong></p>
-        <p><a href="https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=site_note&utm_campaign=lumibot&utm_content=every_page_note&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20hosted%20backtesting%2C%20broker%20connections%2C%20monitoring%2C%20and%20paper%20or%20live%20deployment." target="_blank">Start on BotSpot.trade</a>.</p>
+        <h3>Run Lumibot on BotSpot</h3>
+        <p>BotSpot adds the hosted layer around Lumibot: tuned AI workflows, hosted backtests, parallel experiments, broker connections, logs, alerts, audit history, account monitoring, and kill-switch controls.</p>
+        <p><strong>Use it when you want the strategy engine without wiring your own scheduler, data feeds, broker-secret store, and monitoring stack.</strong></p>
+        <p><a href="https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=site_note&utm_campaign=lumibot&utm_content=every_page_note&sample=lumibot_deploy_sample" target="_blank">Try a sample strategy on BotSpot</a>.</p>
     </div>
     """
 }

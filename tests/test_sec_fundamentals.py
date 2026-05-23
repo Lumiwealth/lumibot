@@ -61,6 +61,65 @@ def test_sec_fundamentals_are_point_in_time_gated_and_cached(monkeypatch, tmp_pa
     assert len(calls) == 2
 
 
+def test_income_statement_uses_freshest_fact_across_mapped_tags(monkeypatch, tmp_path):
+    def fake_get(url, **kwargs):
+        if url.endswith("company_tickers.json"):
+            return _Response(payload={"0": {"ticker": "NVDA", "cik_str": 1045810, "title": "NVIDIA Corp."}})
+        if "companyfacts" in url:
+            return _Response(
+                payload={
+                    "facts": {
+                        "us-gaap": {
+                            "RevenueFromContractWithCustomerExcludingAssessedTax": {
+                                "units": {
+                                    "USD": [
+                                        {
+                                            "val": 26914000000,
+                                            "filed": "2022-03-18",
+                                            "form": "10-K",
+                                            "fy": 2022,
+                                            "fp": "FY",
+                                            "frame": "CY2021",
+                                            "start": "2021-02-01",
+                                            "end": "2022-01-30",
+                                            "accn": "old-revenue-tag",
+                                        }
+                                    ]
+                                }
+                            },
+                            "Revenues": {
+                                "units": {
+                                    "USD": [
+                                        {
+                                            "val": 81615000000,
+                                            "filed": "2026-05-20",
+                                            "form": "10-Q",
+                                            "fy": 2027,
+                                            "fp": "Q1",
+                                            "frame": "CY2026Q1",
+                                            "start": "2026-01-26",
+                                            "end": "2026-04-26",
+                                            "accn": "fresh-revenue-tag",
+                                        }
+                                    ]
+                                }
+                            },
+                        }
+                    }
+                }
+            )
+        raise AssertionError(url)
+
+    monkeypatch.setattr("lumibot.fundamentals.sec.requests.get", fake_get)
+    sec = SECFundamentals(cache_dir=tmp_path, min_request_interval_seconds=0)
+
+    result = sec.get_income_statement("NVDA", as_of=datetime(2026, 5, 22, tzinfo=timezone.utc))
+
+    assert result["values"]["revenue"]["tag"] == "Revenues"
+    assert result["values"]["revenue"]["value"] == 81615000000
+    assert result["values"]["revenue"]["accession_number"] == "fresh-revenue-tag"
+
+
 def test_sec_filings_and_keyword_search(monkeypatch, tmp_path):
     def fake_get(url, **kwargs):
         if url.endswith("company_tickers.json"):

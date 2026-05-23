@@ -41,8 +41,8 @@ macro data, memory, and notifications.
    :alt: Lumibot agent tool permissions
 
 Use ``allow_trading=True`` only for the final agent that is allowed to place or
-change orders. In an investment committee workflow, that is usually the
-portfolio manager or trader agent.
+change orders. In an AI trading team workflow, that is usually the portfolio
+manager or trader agent.
 
 Market And Account State
 ------------------------

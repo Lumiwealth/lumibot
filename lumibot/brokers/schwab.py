@@ -496,16 +496,9 @@ class Schwab(Broker):
                         symbol=symbol,
                         asset_type=Asset.AssetType.FUTURE,
                     )
-                elif asset_type == 'BOND':
-                    asset = Asset(
-                        symbol=symbol,
-                        asset_type=Asset.AssetType.BOND,
-                    )
-                elif asset_type == 'MUTUAL_FUND':
-                    asset = Asset(
-                        symbol=symbol,
-                        asset_type=Asset.AssetType.MUTUAL_FUND,
-                    )
+                elif asset_type in {'BOND', 'MUTUAL_FUND'}:
+                    logger.warning(colored(f"Skipping unsupported Schwab asset type: {asset_type} for symbol: {symbol}", "yellow"))
+                    continue
                 elif asset_type == 'COLLECTIVE_INVESTMENT':
                     # Handle ETFs like CQQQ, UPRO as stocks
                     asset = Asset(

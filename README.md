@@ -49,18 +49,25 @@ Lumibot now includes a built-in AI agent runtime for financial research, reasoni
 
 Classic Python strategies are still first-class. The point is not to replace deterministic trading logic. The point is that Lumibot lets you choose the right level of intelligence: fixed rules, AI agents, or a hybrid where Python handles the hard gates and agents reason through evidence.
 
-An investment committee is one example pattern:
+An AI trading team is one example pattern:
 
 <p align="center">
-  <img src="docs/assets/readme/lumibot_investment_committee_architecture.png" alt="Lumibot AI investment committee architecture" width="100%">
+  <img src="docs/assets/readme/lumibot_investment_committee_architecture.png" alt="Lumibot AI trading team workflow" width="100%">
 </p>
 
-In that pattern, read-only research agents gather evidence and a trading-enabled portfolio manager decides whether to place Lumibot orders. It is one pattern, not the only pattern. You can build a single-agent strategy, a specialist research flow, bull/bear/neutral committees, model-vs-model debates, deterministic execution gates, or agent reviewers layered on top of normal Python logic.
+In that pattern, each agent has a job:
+
+1. **Research Agent:** builds the evidence pack from market data, filings, fundamentals, news, macro data, and indicators.
+2. **Bull Agent:** turns that evidence into the strongest long thesis.
+3. **Bear Agent:** challenges the thesis, looks for risk, and argues for avoiding, delaying, or reducing the trade.
+4. **Portfolio Manager Agent:** checks cash, positions, open orders, and risk limits, then decides whether to trade.
+
+It is one team shape, not the only one. You can build a single-agent strategy, a specialist research flow, bull/bear/neutral teams, model-vs-model debates, deterministic execution gates, or agent reviewers layered on top of normal Python logic.
 
 Built-in AI agent tools include market/account state, order inspection, DuckDB queries, documentation search, Alpaca news when credentials exist, technical indicators, SEC fundamentals and filings, FRED macro data, local memory, and Telegram notifications.
 
 <p align="center">
-  <img src="docs/assets/readme/lumibot_agent_flows.png" alt="Lumibot agent flows are plain Python" width="100%">
+  <img src="docs/assets/readme/lumibot_agent_flows.png" alt="Design your AI trading team with Lumibot" width="100%">
 </p>
 
 ## Quick Start
@@ -214,8 +221,8 @@ Use **[BotSpot MCP](https://botspot.trade/agents?utm_source=github&utm_medium=re
 
 Start here:
 - [Agent Documentation](https://lumibot.lumiwealth.com/agents.html)
-- [Agent Flow Design](https://lumibot.lumiwealth.com/agents_flows.html)
-- [AI Investment Committee Example](lumibot/example_strategies/ai_investment_committee.py)
+- [AI Trading Team Flow Design](https://lumibot.lumiwealth.com/agents_flows.html)
+- [AI Trading Team Example](lumibot/example_strategies/ai_investment_committee.py)
 - [Standalone AI Committee Demo](https://github.com/Lumiwealth/lumibot-ai-investment-committee)
 - [Discretionary Agent Example](lumibot/example_strategies/agent_discretionary.py)
 - [News Sentiment Agent Example](lumibot/example_strategies/agent_news_sentiment.py)

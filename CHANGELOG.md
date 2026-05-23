@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.5.31 - Unreleased
+## 4.5.31 - 2026-05-23
+
+Deploy marker: 4.5.31 release commit (`deploy 4.5.31`)
 
 ### Changed
 - **AI Investment Committee example now supports explicit cash parking.** The example keeps growth equities and defensive cash-parking ETFs separate, defaults cash-parking symbols to `SGOV`, `BIL`, and `SHV`, and asks the Portfolio Manager to consider short-duration Treasury/cash ETFs when no growth-equity candidate clears the risk/reward bar.
@@ -8,6 +10,9 @@
 ### Fixed
 - **Live broker position sync now refreshes broker mark fields on existing positions.** When a broker refresh updates an already-tracked asset, Lumibot now copies current price, market value, P&L, side, and related broker fields instead of only updating quantity, preventing impossible BotSpot position snapshots such as hundreds of shares with a stale two-share market value.
 - **Live FRED macro requests no longer use tomorrow's real-time date after UTC midnight.** Default FRED/ALFRED requests clamp the live as-of date to FRED's current Central-time date, preventing after-hours agents from receiving 400 errors while preserving explicit historical `as_of` backtest requests.
+
+### Operations
+- **AI committee benchmark notes now record the context-budget follow-up plan.** The investigation doc captures the recommended runtime input-budget layer, affected provider context limits, and the rerun sequence after context-failure review.
 
 ## 4.5.30 - Unreleased
 

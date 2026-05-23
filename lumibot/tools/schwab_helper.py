@@ -66,7 +66,21 @@ class SchwabHelper:
         try: # Add try-except around file operations
             with token_path.open("r+", encoding="utf-8") as fp:
                 tok_raw = json.load(fp)
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            logger.error(f"[DEBUG] Token file is not valid JSON and will be deleted: {e}")
+            logger.error(traceback.format_exc())
+            try:
+                token_path.unlink(missing_ok=True)
+                logger.warning(f"[DEBUG] Deleted corrupted token file: {token_path}")
+            except Exception as unlink_e:
+                logger.error(f"[DEBUG] Failed to delete corrupted token file: {unlink_e}")
+            return
+        except Exception as e:
+            logger.error(f"[DEBUG] Could not read token file; preserving it: {e}")
+            logger.error(traceback.format_exc())
+            return
 
+        try:
             # If already wrapped, just update the token part
             if "creation_timestamp" in tok_raw and "token" in tok_raw:
                 creation_ts = tok_raw["creation_timestamp"]
@@ -104,12 +118,7 @@ class SchwabHelper:
         except Exception as e:
             logger.error(f"[DEBUG] Error in _ensure_token_metadata: {e}")
             logger.error(traceback.format_exc())
-            # If error occurs, try to delete the potentially corrupted file
-            try:
-                token_path.unlink(missing_ok=True)
-                logger.warning(f"[DEBUG] Deleted potentially corrupted token file due to error in _ensure_token_metadata: {token_path}")
-            except Exception as unlink_e:
-                logger.error(f"[DEBUG] Failed to delete token file after error in _ensure_token_metadata: {unlink_e}")
+            logger.warning(f"[DEBUG] Preserving existing token file after metadata rewrite failure: {token_path}")
 
     @staticmethod
     def _initiate_schwab_auth_and_get_token_payload(api_key: str, backend_callback_url: str, token_path: Path) -> bool:

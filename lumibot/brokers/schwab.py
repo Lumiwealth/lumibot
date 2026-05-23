@@ -180,7 +180,7 @@ class Schwab(Broker):
             config.get("LUMIBOT_SCHEDULED_EXECUTION")
             or os.environ.get("LUMIBOT_SCHEDULED_EXECUTION", "")
         )
-        scheduled_execution = str(scheduled_execution_value).strip().lower() in {"1", "true", "yes", "on"}
+        scheduled_execution = str(scheduled_execution_value).strip().lower() in {"1", "true", "yes", "y", "on"}
 
         def _use_existing_token_file():
             nonlocal token_available_and_valid

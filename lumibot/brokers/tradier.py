@@ -318,15 +318,19 @@ class Tradier(Broker):
             self._oauth_client_secret = os.environ.get("TRADIER_OAUTH_CLIENT_SECRET")
 
             try:
-                issued_at_ms = int(token_json.get("issued_at") or 0)
+                issued_at_raw = token_json.get("issued_at")
+                issued_at_ms = (
+                    int(issued_at_raw)
+                    if issued_at_raw not in (None, "")
+                    else int(time.time() * 1000)
+                )
                 expires_in = token_json.get("expires_in")
                 expires_in_s = (
                     int(float(expires_in))
                     if expires_in is not None
                     else self._OAUTH_DEFAULT_ACCESS_TOKEN_EXPIRES_IN_SECONDS
                 )
-                if issued_at_ms:
-                    self._oauth_token_expires_at = issued_at_ms / 1000.0 + expires_in_s
+                self._oauth_token_expires_at = issued_at_ms / 1000.0 + expires_in_s
             except Exception:
                 # No reliable expiry metadata; refresh-on-401 hook still applies.
                 pass

@@ -216,7 +216,7 @@ def test_schwab_scheduled_runtime_payload_overrides_existing_token_file(monkeypa
     token_path = tmp_path / "schwab_token.json"
     _write_schwab_token(token_path, access_token="old-file-access", refresh_token="old-file-refresh")
     _install_fake_schwab_runtime(monkeypatch)
-    monkeypatch.setenv("LUMIBOT_SCHEDULED_EXECUTION", "true")
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_EXECUTION", "y")
     monkeypatch.setenv(
         "SCHWAB_TOKEN",
         _schwab_payload_b64(
@@ -242,6 +242,24 @@ def test_schwab_scheduled_runtime_payload_overrides_existing_token_file(monkeypa
     assert token_data["token"]["refresh_token"] == "runtime-refresh"
     assert token_data["token"]["refresh_token_expires_in"] == 604800
     _assert_private_posix_file(token_path)
+
+
+def test_schwab_metadata_rewrite_failure_preserves_existing_token(monkeypatch, tmp_path):
+    from lumibot.tools import SchwabHelper
+
+    token_path = tmp_path / "schwab_token.json"
+    _write_schwab_token(token_path, access_token="runtime-access", refresh_token="runtime-refresh")
+    original_contents = token_path.read_text(encoding="utf-8")
+
+    def _fail_write(*_args, **_kwargs):
+        raise OSError("simulated atomic rewrite failure")
+
+    monkeypatch.setattr(SchwabHelper, "_write_token_file", _fail_write)
+
+    SchwabHelper._ensure_token_metadata(token_path)
+
+    assert token_path.exists()
+    assert token_path.read_text(encoding="utf-8") == original_contents
 
 
 def test_schwab_scheduled_startup_does_not_force_refresh(monkeypatch, tmp_path):

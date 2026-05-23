@@ -41,10 +41,10 @@
 
 /* Ensure the sidebar and other elements have padding/margin to avoid overlap */
 .sidebar-scroll {
-    padding-bottom: 150px; /* Adjust according to footer height */
+    padding-bottom: 110px; /* Adjust according to footer height */
 }
 .content {
-    margin-bottom: 150px; /* Adjust according to footer height */
+    margin-bottom: 110px; /* Adjust according to footer height */
 }
 
 .announcement {
@@ -58,7 +58,7 @@
     flex-direction: column;
     align-items: center;
     text-align: center;
-    height: 90px; /* Default height for larger devices */
+    height: 76px; /* Default height for larger devices */
     overflow-x: hidden; /* Prevent horizontal overflow */
     box-sizing: border-box; /* Ensure padding is included in width */
 }
@@ -66,13 +66,13 @@
 /* Media query for very small devices */
 @media (max-width: 480px) {
     .announcement {
-        height: 120px; /* Override height for very small devices */
+        height: 112px; /* Override height for very small devices */
     }
 }
 
 .announcement-content {
     padding: 0;
-    height: 90px;
+    height: 76px;
     width: 100%;
     box-sizing: border-box; /* Ensure padding is included in width */
 }
@@ -80,7 +80,7 @@
 /* Media query for very small devices */
 @media (max-width: 480px) {
     .announcement-content {
-        height: 120px; /* Override height for very small devices */
+        height: 112px; /* Override height for very small devices */
     }
 }
 

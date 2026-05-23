@@ -107,7 +107,7 @@ html_theme_options = {
     'announcement': """
     <div class="footer-banner bg-warning text-dark p-3" style="white-space: normal; line-height: 1.35;">
         <h5>Run Lumibot on BotSpot</h5>
-        <p>Hosted data, parallel backtests, broker connections, monitoring, and cheaper scheduled deployment for Lumibot strategies. <a href="https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=site_banner&utm_campaign=lumibot&utm_content=footer_banner&sample=lumibot_deploy_sample" target="_blank" class="text-dark"><strong>Try a sample strategy</strong></a>.</p>
+        <p>Hosted backtests, brokers, monitoring, and cheaper scheduled deployment. <a href="https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=site_banner&utm_campaign=lumibot&utm_content=footer_banner&sample=lumibot_deploy_sample" target="_blank" class="text-dark"><strong>Try a sample strategy</strong></a>.</p>
     </div>
     """
 }

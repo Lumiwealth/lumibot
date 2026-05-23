@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.5.32 - Unreleased
+## 4.5.32 - 2026-05-23
+
+Deploy marker: 4.5.32 release commit (`deploy 4.5.32`)
 
 ### Changed
 - **Lumibot README and docs now frame the agent examples as AI trading teams.** The public docs refresh the BotSpot CTAs, favicon/logo assets, and agent-flow visuals while keeping the existing examples and links intact.

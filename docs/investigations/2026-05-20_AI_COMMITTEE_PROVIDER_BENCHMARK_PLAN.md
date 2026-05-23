@@ -704,3 +704,235 @@ Additional one-day provider checks:
   final decision was no trade. Treat it as mechanically compatible and cheap,
   but weaker than Qwen/OpenAI for this committee because the later committee
   roles did not independently verify the handoff.
+
+## Cash-Parking Benchmark Update: 2026-05-22
+
+The next benchmark should not treat "stay entirely in cash" as the only
+conservative action. The AI Investment Committee example now exposes
+`cash_parking_symbols`, defaulting to `SGOV`, `BIL`, and `SHV`, separately from
+the growth-equity universe. The Evidence Researcher is instructed to review
+those symbols as short-duration Treasury/cash ETF alternatives using price,
+volatility, drawdown/trend, and macro/rate context rather than corporate SEC
+fundamental analysis. The Portfolio Manager may trade only
+`context.tradable_symbols`, with growth-equity trades coming from
+`context.universe` and defensive cash-parking trades coming from
+`context.cash_parking_symbols`.
+
+This is an explicit example feature, not a hidden benchmark guardrail. A model
+can still decide to do nothing, but it should now explain why both the growth
+case and the cash-parking case are weak, unavailable, or outside risk limits.
+The next model-comparison slate should inspect whether each model either buys a
+reasonable growth candidate, parks cash defensively, or gives a defensible
+reason for no trade.
+
+Do not include Kimi K2.6 in the immediate run because of Together budget risk.
+Run preflight, one-day smoke, 14-day qualifier, and then the three-month
+benchmark for the affordable/current slate only.
+
+## Cash-Parking Benchmark Run Results: 2026-05-22
+
+Code checkpoint:
+
+- Commit `b4c6d4de` added explicit cash-parking support to the AI Investment
+  Committee example.
+- Focused tests passed:
+  `/Users/robertgrzesik/Development/bin/safe-timeout 300s .venv/bin/python -m pytest tests/test_ai_investment_committee_example.py tests/test_agent_runtime_provider_keys.py`.
+
+Provider preflight:
+
+- `deepseek/deepseek-v4-flash`: tiny provider call passed.
+- `deepseek/deepseek-v4-pro`: tiny provider call passed, but the one-day smoke
+  was too slow/expensive for the immediate long slate.
+- `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`: tiny provider call
+  passed and emitted a tool call.
+- `cerebras/gpt-oss-120b`: blocked by Cerebras `Payment required`.
+- `cerebras/zai-glm-4.7`: blocked by Cerebras `Payment required`.
+
+One-day smoke root:
+`/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260522_022521`.
+
+One-day smoke results:
+
+- `openai/gpt-5.4-mini`: passed. Wall time `86.5s`; calls `4`; tool calls
+  `109`; estimated cost `$0.243075` no-cache / `$0.120560`
+  cache-adjusted. Stayed in cash.
+- `gemini-3.5-flash`: passed. Wall time `574.8s`; calls `4`; tool calls
+  `124`; estimated cost `$4.515954` no-cache / `$2.075280`
+  cache-adjusted. Bought `5` MSFT and `3` META, return `+0.0774%`.
+- `deepseek/deepseek-v4-flash`: passed. Wall time `416.9s`; calls `4`;
+  tool calls `157`; estimated cost `$0.255643` no-cache / `$0.042076`
+  cache-adjusted. Bought `99` SGOV, return `-0.1095%`.
+- `deepseek/deepseek-v4-pro`: passed. Wall time `1262.0s`; calls `4`; tool
+  calls `136`; estimated cost `$1.533062` no-cache / `$0.381919`
+  cache-adjusted. Stayed in cash. Excluded from longer runs because it was
+  much slower and more expensive than Flash without a better one-day result.
+- `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`: passed. Wall time
+  `119.0s`; calls `4`; tool calls `79`; estimated cost `$0.063686`. Stayed in
+  cash.
+
+14-day qualifier roots:
+
+- OpenAI, DeepSeek, Qwen:
+  `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260522_030741`.
+- Gemini:
+  `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260522_032215`.
+
+14-day qualifier results:
+
+- `openai/gpt-5.4-mini`: passed. Wall time `768.5s`; calls `52`; tool calls
+  `1244`; estimated cost `$3.163435` no-cache / `$1.476303`
+  cache-adjusted. Return `-0.9592%`; max drawdown `1.034%`; final positions
+  included `99` SGOV and `4` GOOGL, but the final USD cash position was
+  negative. This exposed that prompt-only risk controls are not enough.
+- `gemini-3.5-flash`: passed but was operationally poor. Wall time `5454.9s`
+  (`90.9m`); calls `52`; tool calls `1579`; estimated cost `$48.208215`
+  no-cache / `$17.093065` cache-adjusted. Return `-1.1493%`; max drawdown
+  `1.538%`; final positions included AAPL plus SGOV/BIL/SHV. Do not run a
+  three-month Gemini benchmark until the committee workload is made cheaper and
+  faster.
+- `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`: failed with
+  `ContextWindowExceededError`. Together rejected an input of about
+  `2,986,192` tokens against the model's `262,144` context window. Partial raw
+  traces before failure: calls `7`; tool calls `143`; prompt tokens
+  `1,336,749`; output tokens `10,388`.
+- `deepseek/deepseek-v4-flash`: failed with `ContextWindowExceededError`.
+  DeepSeek rejected an input of about `2,052,201` tokens against the model's
+  `1,048,576` context window. Partial raw traces before failure: calls `42`;
+  tool calls `1412`; prompt tokens `15,678,494`; output tokens `340,125`;
+  cached input tokens `13,932,928`. DeepSeek also hallucinated
+  `get_spy_indicators`, which is not an available tool name.
+
+Three-month benchmark root:
+`/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260522_034259`.
+
+Three-month result:
+
+- `openai/gpt-5.4-mini`: passed mechanically over `2026-01-02` through
+  `2026-04-02` with `--max-model-calls 320`. Wall time `3432.8s` (`57.2m`);
+  calls `248`; tool calls `5320`; input tokens `15,566,873`; output tokens
+  `452,604`; cached input tokens `10,333,568`; estimated cost `$13.711873`
+  no-cache / `$6.736714` cache-adjusted. Return `-28.672%`; max drawdown
+  `30.908%`; Sharpe `-2.1924`.
+
+Critical interpretation:
+
+- The cash-parking prompt worked mechanically: DeepSeek Flash bought SGOV in
+  the one-day smoke, and Gemini bought SGOV/BIL/SHV in the 14-day qualifier.
+- The current committee is still not safe enough as an autonomous trading
+  example because the OpenAI long runs ended with negative USD cash despite the
+  prompt risk limits. The benchmark caught a real issue: the example needs
+  code-level order/risk validation, not just system-prompt instructions.
+- Qwen and direct DeepSeek Flash cannot be taken to three months with the
+  current committee/tool payload shape. Their provider keys and one-day tool
+  paths work, but multi-day committee context exceeds model limits.
+- Gemini can complete 14 days, but its observed 14-day cost and wall time make
+  a three-month run irresponsible until the workload is reduced.
+- Cerebras remains blocked by account billing, not by the Lumibot integration.
+
+Next required fix before another full paid slate:
+
+- Add code-level order validation to the AI Investment Committee example so the
+  Portfolio Manager cannot exceed available cash, max position size, or the
+  maximum number of new positions merely because the prompt asked it not to.
+- Redesign the committee context/tool payload shape for smaller-context models.
+  This should be structured evidence, narrower tool outputs, and/or provider
+  aware compact research modes, not hidden middle truncation or tool-call
+  blocking.
+
+## Follow-Up Plan After Context-Failure Review: 2026-05-22
+
+Scope: Rob explicitly rejected globally smaller tool outputs and rejected
+changing the AI committee prompt for the next fair benchmark. The least
+destructive fix is therefore model-input budgeting at the runtime boundary, not
+tool-output rewriting and not benchmark-specific prompt changes.
+
+Light cost audit:
+
+- The OpenAI dashboard screenshot for `2026-05-22` showed about `$9.68` of
+  BotSpot project spend for the day. That is consistent with the artifact
+  estimates once cached input pricing is considered.
+- The `20260522` OpenAI benchmark artifacts estimate about `$0.120560`
+  cache-adjusted for the one-day smoke, `$1.476303` cache-adjusted for the
+  14-day qualifier, and `$6.736714` cache-adjusted for the three-month run.
+  That totals about `$8.33` for the visible OpenAI benchmark legs before any
+  tiny preflights and unrelated BotSpot OpenAI traffic.
+- Conclusion: the cache-adjusted estimate is probably the useful number for
+  OpenAI spend planning. The no-cache number is a worst-case stress estimate,
+  not what the dashboard appears to be charging for these repeated prompts.
+
+Provider facts checked from official docs:
+
+- OpenAI pricing currently lists `gpt-5.4-mini` at `$0.75/M` input,
+  `$0.075/M` cached input, and `$4.50/M` output.
+- Google Gemini docs list `gemini-3-flash-preview` at a `1M / 64k` context and
+  `$0.50/M` input, `$0.05/M` cached input, and `$3/M` output. The docs did not
+  expose a clearly named `gemini-3.5-flash` API pricing row in the pages checked
+  during this pass, so any `gemini-3.5-flash` long-run decision should be
+  validated against the actual billing page or a fresh 7-day usage sample.
+- DeepSeek official docs list `deepseek-v4-flash` and `deepseek-v4-pro` at
+  `1M` context, max `384K` output, JSON output support, and tool-call support.
+  The official CNY prices are much cheaper than Gemini/OpenAI for Flash.
+- Together official serverless docs list
+  `Qwen/Qwen3-235B-A22B-Instruct-2507-tput` at `262144` context,
+  `$0.20/M` input, `$0.60/M` output, no cached input price, function calling
+  yes, and structured outputs yes.
+
+Recommended context fix:
+
+1. Add a runtime input-budget layer before the ADK call, inside the path that
+   builds the user message. Preserve the Lumibot base system prompt, strategy
+   system prompt, tool declarations, and task instructions.
+2. Estimate tokens for `instruction + user/context` using a cheap estimator
+   such as `tiktoken` when available and a conservative fallback otherwise.
+   Reserve room for output, tool schemas, ADK overhead, and tokenizer error.
+3. Resolve a model context limit from a small model registry seeded from
+   provider docs, with a user override for unknown/new models. Known current
+   limits needed for this benchmark: Qwen throughput `262144`, DeepSeek V4
+   Flash `1048576`, OpenAI GPT-5.4 Mini `400000`, Gemini Flash-family `1M`.
+4. If the request is within budget, do nothing. OpenAI/Gemini/good models keep
+   the full context.
+5. If the request is over budget, compact only the variable input sections:
+   runtime context extras, persistent memory notes, and oversized values inside
+   `User Context JSON` such as prior committee handoffs. Do not cut the base
+   prompt, strategy prompt, task text, or tool list.
+6. Keep JSON valid by truncating individual large string values before
+   `json.dumps`, not by slicing the final JSON text in the middle. Include
+   explicit metadata such as `truncated_for_model_context`, original estimated
+   tokens, target tokens, and affected context paths.
+7. Emit an artifact/log warning whenever this happens. It should be observable
+   and auditable, not hidden.
+
+This should be a general Lumibot agent-runtime feature, not an AI committee
+special case. It fixes the guaranteed provider rejection path while avoiding a
+global reduction in tool outputs for stronger models.
+
+Benchmark sequence after that fix:
+
+1. Unit tests for the input-budget layer: system prompt preserved, tool list
+   preserved, JSON remains valid, warning emitted, and no truncation below the
+   limit.
+2. One-day reruns only for the broken/affected models first:
+   `deepseek/deepseek-v4-flash` and
+   `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`.
+3. One cheap one-day OpenAI control run only if the input-budget code path is
+   shared enough that regression risk is real.
+4. Seven-day qualifier instead of 14 days for the next paid ladder. Use it to
+   estimate tokens, cost, wall time, tool discipline, and whether the model
+   trades or defensibly parks cash.
+5. Three-month finalist runs only after the 7-day qualifier passes. Do not
+   rerun the three-month OpenAI baseline unless the runtime change materially
+   changes OpenAI inputs.
+6. Keep Kimi K2.6 out of the immediate ladder until budget is explicitly
+   approved. Keep Cerebras out until the account `Payment required` block is
+   resolved.
+
+Prompt-control API follow-up:
+
+- Current Lumibot code lets users pass `system_prompt`/`prompt` to
+  `self.agents.create`, but the Lumibot base system prompt is always prepended.
+  Docs explain that the user prompt can override the default investor style, but
+  they do not document a supported way to remove or replace the base prompt.
+- A future API should expose this deliberately, for example
+  `base_prompt="default" | "minimal" | "none"` or
+  `include_lumibot_base_prompt=False`, with clear docs about the risks of
+  removing backtest safety and execution guidance.

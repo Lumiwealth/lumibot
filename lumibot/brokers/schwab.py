@@ -1944,7 +1944,7 @@ class Schwab(Broker):
             if key in tracked_dict:
                 # Update existing position
                 tracked_position = tracked_dict[key]
-                tracked_position.quantity = position.quantity
+                self._sync_position_fields_from_broker(tracked_position, position)
             else:
                 # Add new position
                 self._filled_positions.append(position)

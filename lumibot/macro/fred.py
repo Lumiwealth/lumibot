@@ -6,11 +6,13 @@ import time
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import requests
 
 
 FRED_API_BASE_URL = "https://api.stlouisfed.org/fred"
+FRED_REALTIME_TIMEZONE = ZoneInfo("America/Chicago")
 
 
 CURATED_FRED_SERIES: dict[str, dict[str, str]] = {
@@ -63,6 +65,10 @@ def _date_text(value: Any | None) -> str | None:
     return parsed.date().isoformat()
 
 
+def _fred_realtime_today() -> date:
+    return datetime.now(FRED_REALTIME_TIMEZONE).date()
+
+
 def _safe_float(value: Any) -> float | None:
     text = str(value or "").strip()
     if not text or text == ".":
@@ -107,6 +113,13 @@ class FREDMacroData:
             except Exception:
                 pass
         return datetime.now(timezone.utc)
+
+    def _effective_as_of_date(self, as_of: Any | None) -> date:
+        as_of_dt = _as_of_datetime(as_of) if as_of is not None else self._strategy_as_of()
+        as_of_date = as_of_dt.date()
+        if as_of is None:
+            as_of_date = min(as_of_date, _fred_realtime_today())
+        return as_of_date
 
     def _cache_path(self, *parts: str) -> Path:
         safe = [re.sub(r"[^A-Za-z0-9_.=-]+", "_", str(part)).strip("_") for part in parts]
@@ -158,8 +171,7 @@ class FREDMacroData:
         series = str(series_id or "").strip().upper()
         if not series:
             raise ValueError("series_id is required.")
-        as_of_dt = _as_of_datetime(as_of) if as_of is not None else self._strategy_as_of()
-        as_of_date = as_of_dt.date()
+        as_of_date = self._effective_as_of_date(as_of)
         start_text = _date_text(start)
         end_text = _date_text(end)
         if end_text is None or date.fromisoformat(end_text) > as_of_date:
@@ -190,8 +202,7 @@ class FREDMacroData:
                 values[series_id.upper()] = self.get_latest(series_id, as_of=as_of)["latest"]
             except Exception as exc:
                 errors[series_id.upper()] = str(exc)
-        as_of_dt = _as_of_datetime(as_of) if as_of is not None else self._strategy_as_of()
-        return {"source": "fred", "as_of": as_of_dt.isoformat(), "values": values, "errors": errors}
+        return {"source": "fred", "as_of": self._effective_as_of_date(as_of).isoformat(), "values": values, "errors": errors}
 
     def _get_series_from_api(
         self,

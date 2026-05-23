@@ -7,6 +7,7 @@
 
 ### Fixed
 - **Schwab position sync now skips unsupported mutual-fund and bond positions instead of crashing.** Accounts that contain asset classes LumiBot does not model can still sync supported stocks, ETFs, options, futures, and cash-like positions.
+- **SEC normalized statements now pick the freshest fact across equivalent tags.** Revenue and similar mapped fields no longer get stuck on an older taxonomy tag when a newer filing reports the same field under another supported SEC company-facts tag.
 
 ## 4.5.31 - 2026-05-23
 

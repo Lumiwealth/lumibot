@@ -268,14 +268,9 @@ class SECFundamentals:
         facts = raw_facts.get("facts", {}).get("us-gaap", {})
         values: dict[str, Any] = {}
         for field, tags in tag_map.items():
-            for tag in tags:
-                tag_payload = facts.get(tag)
-                if not tag_payload:
-                    continue
-                latest = self._latest_fact_from_units(tag_payload.get("units", {}), as_of_dt)
-                if latest is not None:
-                    values[field] = {"tag": tag, **latest}
-                    break
+            latest = self._latest_fact_for_tags(facts, tags, as_of_dt)
+            if latest is not None:
+                values[field] = latest
         return {
             "symbol": symbol.upper(),
             "cik": self.ticker_to_cik(symbol),
@@ -283,6 +278,33 @@ class SECFundamentals:
             "as_of": as_of_dt.isoformat(),
             "values": values,
         }
+
+    def _latest_fact_for_tags(
+        self,
+        facts: dict[str, Any],
+        tags: list[str],
+        as_of: datetime,
+    ) -> dict[str, Any] | None:
+        candidates: list[tuple[str, dict[str, Any]]] = []
+        for tag in tags:
+            tag_payload = facts.get(tag)
+            if not tag_payload:
+                continue
+            latest = self._latest_fact_from_units(tag_payload.get("units", {}), as_of)
+            if latest is not None:
+                candidates.append((tag, latest))
+        if not candidates:
+            return None
+        candidates.sort(
+            key=lambda item: (
+                str(item[1].get("filed") or ""),
+                str(item[1].get("end") or ""),
+                -tags.index(item[0]),
+            ),
+            reverse=True,
+        )
+        tag, latest = candidates[0]
+        return {"tag": tag, **latest}
 
     def _latest_fact_from_units(self, units: dict[str, Any], as_of: datetime) -> dict[str, Any] | None:
         candidates: list[dict[str, Any]] = []

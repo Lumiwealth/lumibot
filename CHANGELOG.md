@@ -7,6 +7,7 @@
 
 ### Fixed
 - **Live broker position sync now refreshes broker mark fields on existing positions.** When a broker refresh updates an already-tracked asset, Lumibot now copies current price, market value, P&L, side, and related broker fields instead of only updating quantity, preventing impossible BotSpot position snapshots such as hundreds of shares with a stale two-share market value.
+- **Live FRED macro requests no longer use tomorrow's real-time date after UTC midnight.** Default FRED/ALFRED requests clamp the live as-of date to FRED's current Central-time date, preventing after-hours agents from receiving 400 errors while preserving explicit historical `as_of` backtest requests.
 
 ## 4.5.30 - Unreleased
 

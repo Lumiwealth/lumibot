@@ -33,6 +33,13 @@ from lumibot.trading_builtins import PollingStream
 LUMI_DEFAULT_APP_KEY = "RfUVxotUc8p6CbeCwFmophgNZSat0TLv"
 LUMI_DEFAULT_CALLBACK = "https://api.botspot.trade/broker_oauth/schwab"
 
+def _should_delete_token_file_after_init_error(error):
+    if isinstance(error, json.JSONDecodeError):
+        return True
+    message = str(error or "").lower()
+    corrupt_markers = ("corrupt", "malformed", "invalid token", "token file", "json", "decode")
+    return any(marker in message for marker in corrupt_markers)
+
 class Schwab(Broker):
     """
     Broker implementation for Schwab API.
@@ -169,9 +176,34 @@ class Schwab(Broker):
             logger.warning(f"[Schwab] Could not create token directory {token_path.parent}: {_mkdir_e}")
 
         token_available_and_valid = False
+        scheduled_execution_value = (
+            config.get("LUMIBOT_SCHEDULED_EXECUTION")
+            or os.environ.get("LUMIBOT_SCHEDULED_EXECUTION", "")
+        )
+        scheduled_execution = str(scheduled_execution_value).strip().lower() in {"1", "true", "yes", "on"}
 
-        if token_payload_env:
-            logger.info("[Schwab] SCHWAB_TOKEN environment variable found. Processing it.")
+        def _use_existing_token_file():
+            nonlocal token_available_and_valid
+            if token_available_and_valid or not token_path.exists() or token_path.stat().st_size <= 0:
+                return
+            logger.info(f"[Schwab] Existing token file found at {token_path}. Validating...")
+            try:
+                SchwabHelper._ensure_token_metadata(token_path)
+                if SchwabHelper._is_token_valid_for_schwab_py(token_path):
+                    token_available_and_valid = True
+                    logger.info(f"[Schwab] Existing token file {token_path} is valid after metadata check.")
+                else:
+                    logger.warning(f"[Schwab] Existing token file {token_path} is invalid after checks. Deleting.")
+                    token_path.unlink(missing_ok=True)
+            except Exception as e:
+                logger.warning(f"[Schwab] Error validating/fixing existing token file {token_path}: {e}. Deleting.")
+                if token_path.exists(): token_path.unlink(missing_ok=True)
+
+        def _seed_token_file_from_payload():
+            nonlocal token_available_and_valid
+            if token_available_and_valid or not token_payload_env:
+                return
+            logger.info("[Schwab] SCHWAB_TOKEN environment variable found and no valid token file exists. Processing it.")
             try:
                 SchwabHelper._save_payload_str_to_token_file(token_payload_env, token_path)
                 if SchwabHelper._is_token_valid_for_schwab_py(token_path):
@@ -189,19 +221,17 @@ class Schwab(Broker):
                 logger.error(f"[Schwab] Error processing SCHWAB_TOKEN: {e}")
                 if token_path.exists(): token_path.unlink(missing_ok=True)
 
-        if not token_available_and_valid and token_path.exists() and token_path.stat().st_size > 0:
-            logger.info(f"[Schwab] Existing token file found at {token_path}. Validating...")
-            try:
-                SchwabHelper._ensure_token_metadata(token_path)
-                if SchwabHelper._is_token_valid_for_schwab_py(token_path):
-                    token_available_and_valid = True
-                    logger.info(f"[Schwab] Existing token file {token_path} is valid after metadata check.")
-                else:
-                    logger.warning(f"[Schwab] Existing token file {token_path} is invalid after checks. Deleting.")
-                    token_path.unlink(missing_ok=True)
-            except Exception as e:
-                logger.warning(f"[Schwab] Error validating/fixing existing token file {token_path}: {e}. Deleting.")
-                if token_path.exists(): token_path.unlink(missing_ok=True)
+        payload_seed_attempted = False
+        if scheduled_execution and token_payload_env:
+            logger.info("[Schwab] Scheduled execution detected; using SCHWAB_TOKEN runtime payload before any local token file.")
+            _seed_token_file_from_payload()
+            payload_seed_attempted = True
+
+        if not token_available_and_valid:
+            _use_existing_token_file()
+
+        if not token_available_and_valid and token_payload_env and not payload_seed_attempted:
+            _seed_token_file_from_payload()
 
         if not token_available_and_valid:
             logger.info("[Schwab] No valid token found. Initiating user authorization flow to obtain token payload.")
@@ -242,15 +272,42 @@ class Schwab(Broker):
             def _update_token(updated_token):
                 """Write refreshed token back to token.json so it persists across restarts."""
                 try:
+                    updated_token = dict(updated_token or {})
+                    now_ms = int(time.time() * 1000)
+                    existing_refresh_token = token_dict_for_session.get("refresh_token")
+                    updated_refresh_token = updated_token.get("refresh_token")
+                    updated_token.setdefault("issued_at", now_ms)
+                    updated_token.setdefault("expires_in", token_dict_for_session.get("expires_in", 1800))
+                    updated_token.setdefault(
+                        "refresh_token_expires_in",
+                        token_dict_for_session.get(
+                            "refresh_token_expires_in",
+                            SchwabHelper.REFRESH_TOKEN_EXPIRES_IN_SECONDS,
+                        ),
+                    )
+                    updated_token.setdefault("token_type", token_dict_for_session.get("token_type", "Bearer"))
+                    updated_token.setdefault("scope", token_dict_for_session.get("scope", "api"))
+                    if updated_refresh_token and updated_refresh_token != existing_refresh_token:
+                        updated_token["refresh_token_issued_at"] = now_ms
+                    elif token_dict_for_session.get("refresh_token_issued_at") is not None:
+                        updated_token["refresh_token_issued_at"] = token_dict_for_session["refresh_token_issued_at"]
+                    else:
+                        updated_token.pop("refresh_token_issued_at", None)
+                    if not updated_token.get("refresh_token") and existing_refresh_token:
+                        updated_token["refresh_token"] = existing_refresh_token
+                    updated_token.pop("id_token", None)
                     wrapped = {
                         "creation_timestamp": int(time.time()),
                         "token": updated_token,
                     }
-                    with open(token_path, "w", encoding="utf-8") as fp:
-                        json.dump(wrapped, fp)
+                    SchwabHelper._write_token_file(token_path, wrapped)
+                    token_dict_for_session.clear()
+                    token_dict_for_session.update(updated_token)
                     logger.info(f"[Schwab] Token automatically refreshed and written to {token_path}")
+                    return updated_token
                 except Exception as e_write:
                     logger.error(f"[Schwab] Failed to write refreshed token to file: {e_write}")
+                    raise
 
             # Build kwargs for token refresh – only include client_secret if it actually exists
             refresh_kwargs = {
@@ -261,25 +318,31 @@ class Schwab(Broker):
             if client_secret_env:
                 refresh_kwargs["client_secret"] = client_secret_env
 
-            #add expires_at to token_dict_for_session. This is needed for the auto_refresh to work. Otherwise oauth2session always thinks it expires 30min from startup
-            token_dict_for_session['expires_at'] = int(token_dict_for_session['issued_at']/1000 + (token_dict_for_session['expires_in']) - 30) #30 second buffer
-            
-            oauth_session = _OAS(
-                client_id=api_key,
-                token=token_dict_for_session,
-                auto_refresh_url="https://api.schwabapi.com/v1/oauth/token",
-                auto_refresh_kwargs=refresh_kwargs,
-                token_updater=_update_token,
-            )
+            def _prepare_token_for_session(token_dict):
+                # add expires_at to token_dict_for_session. This is needed for the auto_refresh to work. Otherwise oauth2session always thinks it expires 30min from startup
+                token_dict["expires_at"] = int(token_dict["issued_at"] / 1000 + token_dict["expires_in"] - 30) #30 second buffer
+                return token_dict
 
-            if api_key and client_secret_env:
-                def _refresh_token_hook(token_url, headers, body):
-                    headers['Authorization'] = f"Basic {base64.b64encode(f'{api_key}:{client_secret_env}'.encode()).decode()}"
-                    logger.info(f"[Schwab] Refreshing token with auth headers")
-                    return token_url, headers, body
+            def _build_oauth_session(token_dict):
+                session = _OAS(
+                    client_id=api_key,
+                    token=_prepare_token_for_session(token_dict),
+                    auto_refresh_url="https://api.schwabapi.com/v1/oauth/token",
+                    auto_refresh_kwargs=refresh_kwargs,
+                    token_updater=_update_token,
+                )
 
-                #create refresh hook. This is beacuse oa2session does not perform refreshes with auth headers, only with json bodies. 
-                oauth_session.register_compliance_hook("refresh_token_request", _refresh_token_hook)
+                if api_key and client_secret_env:
+                    def _refresh_token_hook(token_url, headers, body):
+                        headers['Authorization'] = f"Basic {base64.b64encode(f'{api_key}:{client_secret_env}'.encode()).decode()}"
+                        logger.info(f"[Schwab] Refreshing token with auth headers")
+                        return token_url, headers, body
+
+                    # Create refresh hook because OAuth2Session does not add Schwab's auth header by default.
+                    session.register_compliance_hook("refresh_token_request", _refresh_token_hook)
+                return session
+
+            oauth_session = _build_oauth_session(token_dict_for_session)
 
             # NOTE: schwab-py >=1.6 removed the app_secret parameter from the Client constructor.
             # Passing it raises: TypeError: BaseClient.__init__() got an unexpected keyword argument 'app_secret'.
@@ -297,9 +360,11 @@ class Schwab(Broker):
         except Exception as e:
             logger.error(colored(f"[Schwab] Error initializing Schwab client from token file {token_path}: {e}", "red"))
             logger.error(traceback.format_exc())
-            if token_path.exists():
+            if token_path.exists() and _should_delete_token_file_after_init_error(e):
                 logger.warning(f"[Schwab] Deleting potentially corrupt token file: {token_path}")
                 token_path.unlink(missing_ok=True)
+            elif token_path.exists():
+                logger.warning(f"[Schwab] Preserving token file after non-corrupt initialization error: {token_path}")
             self.schwab_authorization_error = True
             raise ConnectionError(
                 f"Failed to initialize Schwab client: {e}. "

@@ -139,6 +139,47 @@ class TestTradierBroker:
 
         assert broker._tradier_access_token == "new-access"
 
+    def test_oauth_refreshes_on_startup_when_expiry_metadata_missing(self, monkeypatch):
+        token_json = {
+            "access_token": "old-access",
+            "refresh_token": "oauth-refresh",
+        }
+        monkeypatch.setenv("TRADIER_TOKEN", self._b64url(token_json))
+        monkeypatch.setenv("TRADIER_REFRESH_TOKEN", "oauth-refresh")
+        monkeypatch.setenv("TRADIER_OAUTH_CLIENT_ID", "cid")
+        monkeypatch.setenv("TRADIER_OAUTH_CLIENT_SECRET", "secret")
+
+        class _Resp:
+            ok = True
+            status_code = 200
+            text = ""
+
+            def json(self):
+                return {
+                    "access_token": "new-access",
+                    "expires_in": 86400,
+                    "issued_at": int(time.time() * 1000),
+                }
+
+        from lumibot.brokers import tradier as tradier_module
+
+        calls = []
+
+        def _fake_post(*args, **kwargs):
+            calls.append((args, kwargs))
+            return _Resp()
+
+        monkeypatch.setattr(tradier_module.requests, "post", _fake_post)
+
+        broker = Tradier(
+            config={"ACCESS_TOKEN": None, "ACCOUNT_NUMBER": "1234", "PAPER": True},
+            connect_stream=False,
+        )
+
+        assert calls
+        assert broker._tradier_access_token == "new-access"
+        assert broker._oauth_token_expires_at is not None
+
     def test_modify_order(self, mocker):
         broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True, connect_stream=False)
         mock_modify = mocker.patch.object(broker.tradier.orders, "modify")

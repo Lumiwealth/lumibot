@@ -1,5 +1,6 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
+import lumibot.macro.fred as fred_module
 from lumibot.macro import FREDMacroData
 
 
@@ -65,6 +66,37 @@ def test_fred_api_mode_uses_vintage_params_and_filters_future_observations(monke
     assert params["realtime_start"] == "2025-01-15"
     assert params["realtime_end"] == "2025-01-15"
     assert params["observation_end"] == "2025-01-15"
+
+
+def test_fred_default_as_of_clamps_to_fred_realtime_today(monkeypatch, tmp_path):
+    calls = []
+
+    class StrategyAfterUtcMidnight:
+        def get_datetime(self):
+            return datetime(2026, 5, 23, 1, 30, tzinfo=timezone.utc)
+
+    def fake_get(url, **kwargs):
+        calls.append((url, kwargs))
+        return _Response(
+            payload={
+                "observations": [
+                    {"date": "2026-05-21", "value": "4.57", "realtime_start": "2026-05-22", "realtime_end": "2026-05-22"}
+                ]
+            }
+        )
+
+    monkeypatch.setenv("FRED_API_KEY", "test-key")
+    monkeypatch.setattr(fred_module, "_fred_realtime_today", lambda: date(2026, 5, 22))
+    monkeypatch.setattr("lumibot.macro.fred.requests.get", fake_get)
+    fred = FREDMacroData(StrategyAfterUtcMidnight(), cache_dir=tmp_path, min_request_interval_seconds=0)
+
+    result = fred.get_series("DGS10")
+
+    assert result["as_of"] == "2026-05-22"
+    params = calls[0][1]["params"]
+    assert params["realtime_start"] == "2026-05-22"
+    assert params["realtime_end"] == "2026-05-22"
+    assert params["observation_end"] == "2026-05-22"
 
 
 def test_fred_snapshot_reports_per_series_errors(monkeypatch, tmp_path):

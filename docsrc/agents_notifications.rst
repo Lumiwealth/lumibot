@@ -21,7 +21,7 @@ Send a notification:
 
 .. code-block:: python
 
-   self.notify("Trade decision", "Bought AAPL after committee review.")
+   self.notify("Trade decision", "Bought AAPL after AI trading team review.")
 
 Backtest Defaults
 -----------------

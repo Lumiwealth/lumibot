@@ -2,6 +2,9 @@
 
 ## 4.5.32 - Unreleased
 
+### Changed
+- **Lumibot README and docs now frame the agent examples as AI trading teams.** The public docs refresh the BotSpot CTAs, favicon/logo assets, and agent-flow visuals while keeping the existing examples and links intact.
+
 ### Fixed
 - **Schwab position sync now skips unsupported mutual-fund and bond positions instead of crashing.** Accounts that contain asset classes LumiBot does not model can still sync supported stocks, ETFs, options, futures, and cash-like positions.
 

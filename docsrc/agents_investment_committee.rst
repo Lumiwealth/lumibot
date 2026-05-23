@@ -1,13 +1,13 @@
-AI Investment Committee Example
-===============================
+AI Trading Team Example
+=======================
 
-This page describes one concrete agent-flow example: a four-agent investment
-committee. It is not the only way to build with LumiBot agents. Start with
+This page describes one concrete agent-flow example: a four-agent AI trading
+team. It is not the only way to build with LumiBot agents. Start with
 :doc:`agents_flows` if you want the broader design space: single-agent flows,
-specialist desks, multi-model committees, iterated debates, and hybrid
+specialist desks, multi-model teams, iterated debates, and hybrid
 deterministic-plus-agent strategies.
 
-The investment committee pattern is useful when you want a strategy to:
+The AI trading team pattern is useful when you want a strategy to:
 
 - gather evidence from multiple built-in research tools
 - create separate bull and bear analyses
@@ -16,7 +16,7 @@ The investment committee pattern is useful when you want a strategy to:
 - submit orders only from the final trading-enabled step
 
 .. image:: ../docs/assets/readme/lumibot_investment_committee_architecture.png
-   :alt: Lumibot AI investment committee architecture
+   :alt: Lumibot AI trading team workflow
 
 Reference Implementation
 ------------------------
@@ -82,7 +82,7 @@ agent's context.
 .. code-block:: python
 
    evidence = self.agents["evidence_researcher"].run(
-       task_prompt="Build the evidence pack for today's committee.",
+       task_prompt="Build the evidence pack for today's AI trading team.",
        context=context,
    )
 
@@ -141,7 +141,7 @@ prompted to check cash, positions, open orders, and risk limits before trading.
 How To Modify This Pattern
 --------------------------
 
-You can make this committee smaller, larger, deterministic, or multi-model:
+You can make this team smaller, larger, deterministic, or multi-model:
 
 - Remove bull and bear and use only a researcher plus trader.
 - Add a neutral agent.
@@ -152,7 +152,7 @@ You can make this committee smaller, larger, deterministic, or multi-model:
 - Let agents only write research, then place orders with deterministic Python.
 - Add a hard Python risk gate after the portfolio manager's recommendation.
 
-The reference committee is a flagship example because it is easy to understand
+The reference team is a flagship example because it is easy to understand
 and demonstrates research, debate, permissions, memory, notifications, and real
 orders in one workflow. It is not a limit on what LumiBot can express.
 
@@ -164,4 +164,4 @@ memory JSONL files, SEC/FRED cache files, and run summaries. This makes it
 possible to answer why a trade was placed after the backtest completes.
 
 .. image:: ../docs/assets/ai_committee/docs_backtest_artifacts.png
-   :alt: Lumibot AI committee backtest artifact traceability
+   :alt: Lumibot AI trading team backtest artifact traceability

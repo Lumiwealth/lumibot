@@ -1,7 +1,7 @@
-Lumibot: Backtesting and Algorithmic Trading Library
-====================================================
+Lumibot: Backtestable AI Trading Teams in Python
+================================================
 
-**An Easy to Use and Powerful Backtesting and Trading Library for Crypto, Stocks, Options, Futures and FOREX**
+**Build deterministic strategies, AI trading teams, and hybrid Python trading systems that backtest, paper trade, and run live.**
 
 .. raw:: html
    :file: _html/main.html
@@ -24,8 +24,8 @@ LumiBot is built for **AI agents that reason, call external tools, and make trad
 Key AI agent docs:
 
 - :doc:`agents` -- main guide: agentic backtesting framework, MCP trading tools, and competitive positioning
-- :doc:`agents_flows` -- design single-agent, multi-agent, debate, committee, and hybrid flows
-- :doc:`agents_investment_committee` -- one concrete multi-agent investment committee example
+- :doc:`agents_flows` -- design single-agent, multi-agent, debate, team, and hybrid flows
+- :doc:`agents_investment_committee` -- one concrete AI trading team example
 - :doc:`fundamentals` -- SEC fundamentals and filing research tools
 - :doc:`macro_data` -- FRED macro data tools and point-in-time behavior
 - :doc:`agents_builtin_tools` -- built-in tools, indicators, and trading permissions
@@ -105,7 +105,7 @@ Here's some code to get you started:
 Step 3: Take Your Bot Live
 ---------------------------
 
-Once you have backtested your strategy and found it to be profitable on historical data, you can take your bot live. Notice how the strategy code is exactly the same. Here's an example using Alpaca (you can create a free Paper Trading account here in minutes: `https://alpaca.markets/ <https://alpaca.markets/>`_).
+Once you have backtested your strategy and understand how it behaves on historical data, you can take your bot to paper trading or live trading. Notice how the strategy code is exactly the same. Here's an example using Alpaca (you can create a free Paper Trading account here in minutes: `https://alpaca.markets/ <https://alpaca.markets/>`_).
 
 .. code-block:: python
 
@@ -184,7 +184,7 @@ If you would like to learn how to modify your strategies, we suggest that you fi
 
 We also have some more sample code that you can check out here: `https://github.com/Lumiwealth/lumibot/tree/dev/lumibot/example_strategies <https://github.com/Lumiwealth/lumibot/tree/dev/lumibot/example_strategies>`_
 
-We wish you good luck with your trading strategies. Don't forget us when you're swimming in cash!
+Next, explore the AI agent docs if you want a strategy that researches evidence, debates bull and bear cases, checks risk, and trades from the same Python lifecycle.
 
 Need Extra Help?
 ****************

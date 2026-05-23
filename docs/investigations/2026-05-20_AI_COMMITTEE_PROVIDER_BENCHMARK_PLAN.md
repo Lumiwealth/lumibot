@@ -838,3 +838,101 @@ Next required fix before another full paid slate:
   This should be structured evidence, narrower tool outputs, and/or provider
   aware compact research modes, not hidden middle truncation or tool-call
   blocking.
+
+## Follow-Up Plan After Context-Failure Review: 2026-05-22
+
+Scope: Rob explicitly rejected globally smaller tool outputs and rejected
+changing the AI committee prompt for the next fair benchmark. The least
+destructive fix is therefore model-input budgeting at the runtime boundary, not
+tool-output rewriting and not benchmark-specific prompt changes.
+
+Light cost audit:
+
+- The OpenAI dashboard screenshot for `2026-05-22` showed about `$9.68` of
+  BotSpot project spend for the day. That is consistent with the artifact
+  estimates once cached input pricing is considered.
+- The `20260522` OpenAI benchmark artifacts estimate about `$0.120560`
+  cache-adjusted for the one-day smoke, `$1.476303` cache-adjusted for the
+  14-day qualifier, and `$6.736714` cache-adjusted for the three-month run.
+  That totals about `$8.33` for the visible OpenAI benchmark legs before any
+  tiny preflights and unrelated BotSpot OpenAI traffic.
+- Conclusion: the cache-adjusted estimate is probably the useful number for
+  OpenAI spend planning. The no-cache number is a worst-case stress estimate,
+  not what the dashboard appears to be charging for these repeated prompts.
+
+Provider facts checked from official docs:
+
+- OpenAI pricing currently lists `gpt-5.4-mini` at `$0.75/M` input,
+  `$0.075/M` cached input, and `$4.50/M` output.
+- Google Gemini docs list `gemini-3-flash-preview` at a `1M / 64k` context and
+  `$0.50/M` input, `$0.05/M` cached input, and `$3/M` output. The docs did not
+  expose a clearly named `gemini-3.5-flash` API pricing row in the pages checked
+  during this pass, so any `gemini-3.5-flash` long-run decision should be
+  validated against the actual billing page or a fresh 7-day usage sample.
+- DeepSeek official docs list `deepseek-v4-flash` and `deepseek-v4-pro` at
+  `1M` context, max `384K` output, JSON output support, and tool-call support.
+  The official CNY prices are much cheaper than Gemini/OpenAI for Flash.
+- Together official serverless docs list
+  `Qwen/Qwen3-235B-A22B-Instruct-2507-tput` at `262144` context,
+  `$0.20/M` input, `$0.60/M` output, no cached input price, function calling
+  yes, and structured outputs yes.
+
+Recommended context fix:
+
+1. Add a runtime input-budget layer before the ADK call, inside the path that
+   builds the user message. Preserve the Lumibot base system prompt, strategy
+   system prompt, tool declarations, and task instructions.
+2. Estimate tokens for `instruction + user/context` using a cheap estimator
+   such as `tiktoken` when available and a conservative fallback otherwise.
+   Reserve room for output, tool schemas, ADK overhead, and tokenizer error.
+3. Resolve a model context limit from a small model registry seeded from
+   provider docs, with a user override for unknown/new models. Known current
+   limits needed for this benchmark: Qwen throughput `262144`, DeepSeek V4
+   Flash `1048576`, OpenAI GPT-5.4 Mini `400000`, Gemini Flash-family `1M`.
+4. If the request is within budget, do nothing. OpenAI/Gemini/good models keep
+   the full context.
+5. If the request is over budget, compact only the variable input sections:
+   runtime context extras, persistent memory notes, and oversized values inside
+   `User Context JSON` such as prior committee handoffs. Do not cut the base
+   prompt, strategy prompt, task text, or tool list.
+6. Keep JSON valid by truncating individual large string values before
+   `json.dumps`, not by slicing the final JSON text in the middle. Include
+   explicit metadata such as `truncated_for_model_context`, original estimated
+   tokens, target tokens, and affected context paths.
+7. Emit an artifact/log warning whenever this happens. It should be observable
+   and auditable, not hidden.
+
+This should be a general Lumibot agent-runtime feature, not an AI committee
+special case. It fixes the guaranteed provider rejection path while avoiding a
+global reduction in tool outputs for stronger models.
+
+Benchmark sequence after that fix:
+
+1. Unit tests for the input-budget layer: system prompt preserved, tool list
+   preserved, JSON remains valid, warning emitted, and no truncation below the
+   limit.
+2. One-day reruns only for the broken/affected models first:
+   `deepseek/deepseek-v4-flash` and
+   `together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput`.
+3. One cheap one-day OpenAI control run only if the input-budget code path is
+   shared enough that regression risk is real.
+4. Seven-day qualifier instead of 14 days for the next paid ladder. Use it to
+   estimate tokens, cost, wall time, tool discipline, and whether the model
+   trades or defensibly parks cash.
+5. Three-month finalist runs only after the 7-day qualifier passes. Do not
+   rerun the three-month OpenAI baseline unless the runtime change materially
+   changes OpenAI inputs.
+6. Keep Kimi K2.6 out of the immediate ladder until budget is explicitly
+   approved. Keep Cerebras out until the account `Payment required` block is
+   resolved.
+
+Prompt-control API follow-up:
+
+- Current Lumibot code lets users pass `system_prompt`/`prompt` to
+  `self.agents.create`, but the Lumibot base system prompt is always prepended.
+  Docs explain that the user prompt can override the default investor style, but
+  they do not document a supported way to remove or replace the base prompt.
+- A future API should expose this deliberately, for example
+  `base_prompt="default" | "minimal" | "none"` or
+  `include_lumibot_base_prompt=False`, with clear docs about the risks of
+  removing backtest safety and execution guidance.

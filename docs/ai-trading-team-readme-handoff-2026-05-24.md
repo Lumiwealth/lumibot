@@ -20,7 +20,15 @@ Original generated copy:
 
 ## Screenshot
 
-Use Rob's cropped screenshot from the Codex thread, not regenerated screenshots or alternate crops.
+Use Rob's cropped screenshot:
+
+`/Users/robertgrzesik/Development/lumibot/docs/assets/ai-trading-team-example/ai-trading-team-tearsheet-rob-crop-2026-05-24.png`
+
+This was copied from:
+
+`/Users/robertgrzesik/Desktop/Screenshot 2026-05-24 at 4.49.13 PM.png`
+
+Do not use regenerated screenshots or alternate crops.
 
 Expected screenshot content:
 

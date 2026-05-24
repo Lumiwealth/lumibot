@@ -4,9 +4,9 @@
 [![Python](https://img.shields.io/pypi/pyversions/lumibot)](https://pypi.org/project/lumibot/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-# Lumibot: Backtestable AI Trading Agents for Algorithmic Trading
+# Lumibot: Backtestable AI Agents and Python Algorithmic Trading
 
-**Build deterministic trading strategies, multi-agent LLM trading systems, and hybrid strategies that backtest, paper trade, and execute through real brokers.** Lumibot is an open-source algorithmic trading framework for stocks, options, crypto, futures, forex, indexes, SEC fundamentals, macro data, technical indicators, and AI agents that can actually place orders.
+**Build deterministic trading strategies, AI trading agents, and AI trading teams for stocks, options, crypto, futures, forex, SEC filings, FRED macro data, technical indicators, and real brokers.** Backtest, paper trade, or run live with the same Python code.
 
 **Full docs:** [lumibot.lumiwealth.com](https://lumibot.lumiwealth.com/) · **Managed cloud:** [BotSpot.trade](https://botspot.trade/sales?showLogin=1&utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=top_text_link&sample=lumibot_readme_deploy) · **MCP:** [BotSpot for AI coding agents](https://botspot.trade/agents?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=top_mcp_link)
 
@@ -69,6 +69,111 @@ Built-in AI agent tools include market/account state, order inspection, DuckDB q
 <p align="center">
   <img src="docs/assets/readme/lumibot_agent_flows.png" alt="Design your AI trading team with Lumibot" width="100%">
 </p>
+
+### Copy-Paste AI Trading Team Example
+
+Set `GEMINI_API_KEY`, then save this as `ai_trading_team.py` and run `python ai_trading_team.py`. The example creates four agents: a researcher, a bull case agent, a bear case agent, and a trader agent. The researcher, bull, and bear agents are read-only; the trader agent is the only one allowed to place orders.
+
+```python
+from datetime import datetime
+
+from lumibot.strategies.strategy import Strategy
+
+
+class AITradingTeamStrategy(Strategy):
+    parameters = {
+        "universe": ["TQQQ", "SQQQ", "SOXL", "SOXS", "UPRO", "SPXU", "TECL", "TECS"],
+    }
+
+    def initialize(self):
+        self.sleeptime = "1D"
+        # Three agents debate. The trader agent is the only one allowed to place orders.
+        self.agents.create(
+            name="researcher",
+            model="gemini-3.1-flash-lite",
+            allow_trading=False,
+            system_prompt="Rank the ETFs by upside. Be direct.",
+        )
+        self.agents.create(
+            name="bull",
+            model="gemini-3.1-flash-lite",
+            allow_trading=False,
+            system_prompt="Argue for the strongest money-making trade.",
+        )
+        self.agents.create(
+            name="bear",
+            model="gemini-3.1-flash-lite",
+            allow_trading=False,
+            system_prompt="Point out the biggest risk, briefly.",
+        )
+        self.agents.create(
+            name="trader",
+            model="gemini-3.1-flash-lite",
+            allow_trading=True,
+            system_prompt="Buy one ETF from the universe aggressively. Use nearly all cash.",
+        )
+
+    def on_trading_iteration(self):
+        context = {
+            "date": self.get_datetime().date().isoformat(),
+            "universe": self.parameters["universe"],
+        }
+        research = self.agents["researcher"].run(
+            task_prompt="Pick the strongest ETF.",
+            context=context,
+        )
+        bull = self.agents["bull"].run(
+            task_prompt="Make the bull case.",
+            context={**context, "research": research.summary},
+        )
+        bear = self.agents["bear"].run(
+            task_prompt="Make the bear case.",
+            context={**context, "research": research.summary, "bull": bull.summary},
+        )
+        self.agents["trader"].run(
+            task_prompt="Sell anything that is not the pick, then buy the best ETF with nearly all available cash.",
+            context={**context, "research": research.summary, "bull": bull.summary, "bear": bear.summary},
+        )
+
+
+if __name__ == "__main__":
+    from lumibot.backtesting import YahooDataBacktesting
+
+    AITradingTeamStrategy.backtest(
+        YahooDataBacktesting,
+        datetime(2026, 4, 7),
+        datetime(2026, 5, 22),
+    )
+```
+
+Example backtest artifact from this sample strategy:
+
+<p align="center">
+  <img src="docs/assets/ai-trading-team-example/ai-trading-team-tearsheet-rob-crop-2026-05-24.png" alt="AI trading team backtest tear sheet compared to SPY" width="100%">
+</p>
+
+Backtests are not expected future performance. The point is that the full AI trading team runs inside Lumibot's normal backtest loop, so the decisions, orders, and artifacts are inspectable before you connect a broker.
+
+To run the same strategy in paper trading or live trading, keep the strategy class and replace the `if __name__ == "__main__":` block with a broker runner:
+
+```python
+if __name__ == "__main__":
+    from lumibot.brokers import Alpaca
+    from lumibot.traders import Trader
+
+    ALPACA_CONFIG = {
+        "API_KEY": "YOUR_ALPACA_API_KEY",
+        "API_SECRET": "YOUR_ALPACA_SECRET",
+        "PAPER": True,
+    }
+
+    broker = Alpaca(ALPACA_CONFIG)
+    strategy = AITradingTeamStrategy(broker=broker)
+
+    trader = Trader()
+    trader.add_strategy(strategy)
+    trader.run_all()
+```
 
 ## Quick Start
 
@@ -222,7 +327,7 @@ Use **[BotSpot MCP](https://botspot.trade/agents?utm_source=github&utm_medium=re
 Start here:
 - [Agent Documentation](https://lumibot.lumiwealth.com/agents.html)
 - [AI Trading Team Flow Design](https://lumibot.lumiwealth.com/agents_flows.html)
-- [AI Trading Team Example](lumibot/example_strategies/ai_investment_committee.py)
+- [AI Trading Team Example](lumibot/example_strategies/ai_trading_team.py)
 - [Standalone AI Committee Demo](https://github.com/Lumiwealth/lumibot-ai-investment-committee)
 - [Discretionary Agent Example](lumibot/example_strategies/agent_discretionary.py)
 - [News Sentiment Agent Example](lumibot/example_strategies/agent_news_sentiment.py)

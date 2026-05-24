@@ -34,7 +34,7 @@ project = "Lumibot"
 copyright = "2021, Lumiwealth"
 author = "Lumiwealth Inc."
 
-html_title = "Lumibot Documentation"
+html_title = "Lumibot: Backtestable AI Agents and Python Algorithmic Trading"
 
 source_paths = ["lumibot.brokers", "backtesting"]
 
@@ -104,12 +104,6 @@ html_theme_options = {
     "sidebar_hide_name": True,
     "light_logo": "Lumibot_Logo.webp",
     "dark_logo": "Lumibot_Logo.webp",
-    'announcement': """
-    <div class="footer-banner bg-warning text-dark p-3" style="white-space: normal; line-height: 1.35;">
-        <h5>Run Lumibot on BotSpot</h5>
-        <p>Hosted backtests, brokers, monitoring, and cheaper scheduled deployment. <a href="https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=site_banner&utm_campaign=lumibot&utm_content=footer_banner&sample=lumibot_deploy_sample" target="_blank" class="text-dark"><strong>Try a sample strategy</strong></a>.</p>
-    </div>
-    """
 }
 
 html_favicon = "_html/botspot_favicon.png"

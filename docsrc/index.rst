@@ -1,7 +1,7 @@
-Lumibot: Backtestable AI Trading Teams in Python
-================================================
+Lumibot: Backtestable AI Agents and Python Algorithmic Trading
+==============================================================
 
-**Build deterministic strategies, AI trading teams, and hybrid Python trading systems that backtest, paper trade, and run live.**
+**Build deterministic trading strategies, AI trading agents, and AI trading teams for stocks, options, crypto, futures, forex, SEC filings, FRED macro data, technical indicators, and real brokers. Backtest, paper trade, or run live with the same Python code.**
 
 .. raw:: html
    :file: _html/main.html
@@ -34,6 +34,114 @@ Key AI agent docs:
 - :doc:`agents_observability` -- traces, replay cache, warnings, and debugging workflow
 
 Start with :doc:`agents` to learn how LumiBot puts AI agents inside the backtest loop with external MCP tools.
+
+Copy-Paste AI Trading Team Example
+**********************************
+
+This example creates four agents: a researcher, a bull case agent, a bear case agent, and a trader agent. The researcher, bull, and bear agents are read-only. The trader agent is the only one allowed to place orders.
+
+Set ``GEMINI_API_KEY``, save this as ``ai_trading_team.py``, then run ``python ai_trading_team.py``.
+
+.. code-block:: python
+
+    from datetime import datetime
+
+    from lumibot.strategies.strategy import Strategy
+
+
+    class AITradingTeamStrategy(Strategy):
+        parameters = {
+            "universe": ["TQQQ", "SQQQ", "SOXL", "SOXS", "UPRO", "SPXU", "TECL", "TECS"],
+        }
+
+        def initialize(self):
+            self.sleeptime = "1D"
+            # Three agents debate. The trader agent is the only one allowed to place orders.
+            self.agents.create(
+                name="researcher",
+                model="gemini-3.1-flash-lite",
+                allow_trading=False,
+                system_prompt="Rank the ETFs by upside. Be direct.",
+            )
+            self.agents.create(
+                name="bull",
+                model="gemini-3.1-flash-lite",
+                allow_trading=False,
+                system_prompt="Argue for the strongest money-making trade.",
+            )
+            self.agents.create(
+                name="bear",
+                model="gemini-3.1-flash-lite",
+                allow_trading=False,
+                system_prompt="Point out the biggest risk, briefly.",
+            )
+            self.agents.create(
+                name="trader",
+                model="gemini-3.1-flash-lite",
+                allow_trading=True,
+                system_prompt="Buy one ETF from the universe aggressively. Use nearly all cash.",
+            )
+
+        def on_trading_iteration(self):
+            context = {
+                "date": self.get_datetime().date().isoformat(),
+                "universe": self.parameters["universe"],
+            }
+            research = self.agents["researcher"].run(
+                task_prompt="Pick the strongest ETF.",
+                context=context,
+            )
+            bull = self.agents["bull"].run(
+                task_prompt="Make the bull case.",
+                context={**context, "research": research.summary},
+            )
+            bear = self.agents["bear"].run(
+                task_prompt="Make the bear case.",
+                context={**context, "research": research.summary, "bull": bull.summary},
+            )
+            self.agents["trader"].run(
+                task_prompt="Sell anything that is not the pick, then buy the best ETF with nearly all available cash.",
+                context={**context, "research": research.summary, "bull": bull.summary, "bear": bear.summary},
+            )
+
+
+    if __name__ == "__main__":
+        from lumibot.backtesting import YahooDataBacktesting
+
+        AITradingTeamStrategy.backtest(
+            YahooDataBacktesting,
+            datetime(2026, 4, 7),
+            datetime(2026, 5, 22),
+        )
+
+Example backtest artifact from this sample strategy:
+
+.. image:: ../docs/assets/ai-trading-team-example/ai-trading-team-tearsheet-rob-crop-2026-05-24.png
+   :alt: AI trading team backtest tear sheet compared to SPY
+   :width: 100%
+
+Backtests are not expected future performance. The point is that the full AI trading team runs inside Lumibot's normal backtest loop, so the decisions, orders, and artifacts are inspectable before you connect a broker.
+
+To run the same strategy in paper trading or live trading, keep the strategy class and replace the ``if __name__ == "__main__":`` block with a broker runner:
+
+.. code-block:: python
+
+    if __name__ == "__main__":
+        from lumibot.brokers import Alpaca
+        from lumibot.traders import Trader
+
+        ALPACA_CONFIG = {
+            "API_KEY": "YOUR_ALPACA_API_KEY",
+            "API_SECRET": "YOUR_ALPACA_SECRET",
+            "PAPER": True,
+        }
+
+        broker = Alpaca(ALPACA_CONFIG)
+        strategy = AITradingTeamStrategy(broker=broker)
+
+        trader = Trader()
+        trader.add_strategy(strategy)
+        trader.run_all()
 
 Cash Accounting
 ***************

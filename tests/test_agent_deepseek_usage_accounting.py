@@ -1,5 +1,9 @@
 from lumibot.components.agents.manager import _usage_breakdown
-from lumibot.components.agents.runtime import _aggregate_usage_metadata, _prune_request_contents_for_context_window
+from lumibot.components.agents.runtime import (
+    _aggregate_usage_metadata,
+    _prune_large_context_strings,
+    _prune_request_contents_for_context_window,
+)
 
 from scripts.run_ai_committee_provider_benchmark import _estimate_cost as estimate_benchmark_cost
 from scripts.summarize_ai_committee_provider_benchmarks import _estimate_cost as estimate_summary_cost
@@ -110,3 +114,20 @@ def test_deepseek_context_pruning_replaces_only_older_tool_results():
     recent_response = contents[-1].parts[0].function_response.response
     assert older_response["lumibot_context_pruned"] is True
     assert recent_response["payload"] == "x" * 2_000
+
+
+def test_deepseek_context_string_pruning_preserves_edges():
+    payload, pruned = _prune_large_context_strings(
+        {
+            "evidence_pack": "start-" + ("x" * 1_000) + "-end",
+            "small": "keep",
+        },
+        max_string_chars=120,
+    )
+
+    assert pruned == 1
+    assert payload["small"] == "keep"
+    assert payload["evidence_pack"].startswith("start-")
+    assert payload["evidence_pack"].endswith("-end")
+    assert "Pruned" in payload["evidence_pack"]
+    assert len(payload["evidence_pack"]) <= 120

@@ -614,6 +614,66 @@ def _model_context_limit_tokens(model: Any) -> int | None:
     return None
 
 
+def _model_context_string_limit_chars(model: Any) -> int | None:
+    if not isinstance(model, str):
+        return None
+    lower = model.strip().lower()
+    if lower.startswith("deepseek/deepseek-v4-"):
+        return 80_000
+    return None
+
+
+def _truncate_preserving_edges(text: str, max_chars: int, *, label: str) -> str:
+    if len(text) <= max_chars:
+        return text
+    head_chars = max(max_chars // 2, 0)
+    tail_chars = max(max_chars - head_chars, 0)
+    omitted = len(text) - head_chars - tail_chars
+    notice = (
+        f"\n\n[Lumibot input context pruned {omitted} characters from {label} "
+        "to stay within the receiving model context window. Beginning and end "
+        "are preserved.]\n\n"
+    )
+    if len(notice) >= max_chars:
+        notice = f"\n[Pruned {omitted} chars from {label}.]\n"
+    available = max(max_chars - len(notice), 0)
+    head_chars = available // 2
+    tail_chars = available - head_chars
+    return f"{text[:head_chars]}{notice}{text[-tail_chars:] if tail_chars else ''}"
+
+
+def _prune_large_context_strings(value: Any, *, max_string_chars: int, path: str = "context") -> tuple[Any, int]:
+    if isinstance(value, str):
+        if len(value) <= max_string_chars:
+            return value, 0
+        return _truncate_preserving_edges(value, max_string_chars, label=path), 1
+    if isinstance(value, dict):
+        pruned = 0
+        output: dict[str, Any] = {}
+        for key, item in value.items():
+            child, child_pruned = _prune_large_context_strings(
+                item,
+                max_string_chars=max_string_chars,
+                path=f"{path}.{key}",
+            )
+            output[str(key)] = child
+            pruned += child_pruned
+        return output, pruned
+    if isinstance(value, list):
+        pruned = 0
+        output = []
+        for idx, item in enumerate(value):
+            child, child_pruned = _prune_large_context_strings(
+                item,
+                max_string_chars=max_string_chars,
+                path=f"{path}[{idx}]",
+            )
+            output.append(child)
+            pruned += child_pruned
+        return output, pruned
+    return value, 0
+
+
 def _serialized_content_length(value: Any) -> int:
     try:
         if hasattr(value, "model_dump"):
@@ -657,7 +717,7 @@ def _prune_request_contents_for_context_window(
     contents: list[Any],
     *,
     context_limit_tokens: int,
-    reserve_ratio: float = 0.55,
+    reserve_ratio: float = 0.25,
     preserve_recent_tool_results: int = 8,
 ) -> dict[str, Any] | None:
     """Trim oversized historical tool results before provider context failure.
@@ -926,9 +986,19 @@ class GoogleADKRuntime:
                 f"{json.dumps(sorted(tool_names), sort_keys=True, default=str)}"
             )
         if request.memory_notes:
+            memory_notes = _json_safe_value(request.memory_notes[-5:])
+            context_string_limit = _model_context_string_limit_chars(request.model)
+            if context_string_limit:
+                memory_notes, memory_pruned = _prune_large_context_strings(
+                    memory_notes,
+                    max_string_chars=max(context_string_limit // 2, 1),
+                    path="memory_notes",
+                )
+                if memory_pruned:
+                    sections.append(f"Lumibot Context Notice:\nPruned {memory_pruned} oversized memory string(s).")
             sections.append(
                 "Persistent Memory JSON:\n"
-                f"{json.dumps(_json_safe_value(request.memory_notes[-5:]), sort_keys=True, default=str)}"
+                f"{json.dumps(memory_notes, sort_keys=True, default=str)}"
             )
         if request.task_prompt:
             sections.append(f"Task:\n{request.task_prompt.strip()}")
@@ -961,7 +1031,17 @@ class GoogleADKRuntime:
                 "future information."
             )
         if request.context:
-            sections.append(f"User Context JSON:\n{json.dumps(_json_safe_value(request.context), sort_keys=True, default=str)}")
+            context_payload = _json_safe_value(request.context)
+            context_string_limit = _model_context_string_limit_chars(request.model)
+            if context_string_limit:
+                context_payload, context_pruned = _prune_large_context_strings(
+                    context_payload,
+                    max_string_chars=context_string_limit,
+                    path="context",
+                )
+                if context_pruned:
+                    sections.append(f"Lumibot Context Notice:\nPruned {context_pruned} oversized context string(s).")
+            sections.append(f"User Context JSON:\n{json.dumps(context_payload, sort_keys=True, default=str)}")
         return "\n\n".join(sections)
 
     async def _run_async(self, request: RuntimeRequest) -> AgentRunResult:

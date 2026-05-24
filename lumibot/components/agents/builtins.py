@@ -383,6 +383,17 @@ ALPACA_NEWS_DESCRIPTION = (
 )
 
 
+ADANOS_MARKET_SENTIMENT_DESCRIPTION = (
+    "Fetch Adanos Market Sentiment API data for US equities using ADANOS_API_KEY. "
+    "Use this as an optional external sentiment signal alongside prices, indicators, news, "
+    "SEC filings, and macro data. "
+    "Sources can be reddit, x, news, polymarket, or a comma-separated subset. "
+    "Set mode='stock' with symbol for per-stock sentiment, or mode='market' for broad market sentiment. "
+    "In backtests, end defaults to the current simulated date so the tool does not request data "
+    "after the strategy datetime."
+)
+
+
 def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
     def _warn_unavailable() -> None:
         message = (
@@ -592,6 +603,90 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
         description=ALPACA_NEWS_DESCRIPTION,
         function=alpaca_news,
         metadata={"kind": "builtin"},
+    )
+
+
+def _bind_adanos_market_sentiment(strategy: Any, manager: Any) -> BoundTool:
+    def _warn_unavailable() -> None:
+        message = (
+            "[agents] adanos_market_sentiment is not configured and will not be exposed. "
+            "Set ADANOS_API_KEY to use Adanos Market Sentiment API data."
+        )
+        if manager is not None:
+            warned = getattr(manager, "_warned_unavailable_builtin_tools", None)
+            if warned is None:
+                warned = set()
+                manager._warned_unavailable_builtin_tools = warned
+            if "adanos_market_sentiment" in warned:
+                return
+            warned.add("adanos_market_sentiment")
+        log_message = getattr(strategy, "log_message", None)
+        if callable(log_message):
+            try:
+                log_message(message, color="yellow")
+                return
+            except Exception:
+                pass
+        warning = getattr(manager, "warning", None) if manager is not None else None
+        if callable(warning):
+            warning(message)
+
+    sentiment_client = getattr(strategy, "sentiment", None)
+    api_key = str(getattr(sentiment_client, "api_key", "") or os.environ.get("ADANOS_API_KEY") or "").strip()
+
+    def unavailable_adanos_market_sentiment(**kwargs: Any) -> dict[str, Any]:
+        return {
+            "ok": False,
+            "tool_error": True,
+            "error": {
+                "type": "MissingCredentials",
+                "message": "ADANOS_API_KEY is required to fetch Adanos market sentiment data.",
+            },
+            "results": {},
+        }
+
+    if not api_key:
+        _warn_unavailable()
+        return BoundTool(
+            name="adanos_market_sentiment",
+            description=ADANOS_MARKET_SENTIMENT_DESCRIPTION,
+            function=unavailable_adanos_market_sentiment,
+            source="builtin",
+            metadata={
+                "kind": "sentiment",
+                "disabled": True,
+                "disabled_reason": "missing ADANOS_API_KEY",
+            },
+        )
+
+    if sentiment_client is None:
+        from lumibot.sentiment import AdanosMarketSentiment
+
+        sentiment_client = AdanosMarketSentiment(strategy)
+
+    def adanos_market_sentiment(
+        *,
+        symbol: str = "",
+        sources: str = "reddit,x,news,polymarket",
+        days: int = 7,
+        end: str | None = None,
+        mode: str = "stock",
+    ) -> dict[str, Any]:
+        mode_text = str(mode or "stock").strip().lower()
+        if mode_text == "market":
+            result = sentiment_client.get_market_sentiment(sources=sources, days=days, end=end)
+        elif mode_text == "stock":
+            result = sentiment_client.get_stock_sentiment(symbol, sources=sources, days=days, end=end)
+        else:
+            raise ValueError("mode must be 'stock' or 'market'.")
+        return {"ok": not bool(result.get("errors")), **result}
+
+    return BoundTool(
+        name="adanos_market_sentiment",
+        description=ADANOS_MARKET_SENTIMENT_DESCRIPTION,
+        function=adanos_market_sentiment,
+        source="builtin",
+        metadata={"kind": "sentiment"},
     )
 
 
@@ -1252,6 +1347,15 @@ class _NewsTools:
         )
 
 
+class _SentimentTools:
+    def adanos_market_sentiment(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="adanos_market_sentiment",
+            description=ADANOS_MARKET_SENTIMENT_DESCRIPTION,
+            binder=_bind_adanos_market_sentiment,
+        )
+
+
 class _IndicatorTools:
     def list_indicators(self) -> ToolDefinition:
         return ToolDefinition(name="list_indicators", description="List common technical indicators.", binder=_bind_list_indicators)
@@ -1363,6 +1467,7 @@ class _BuiltinTools:
     duckdb = _DuckDBTools()
     docs = _DocsTools()
     news = _NewsTools()
+    sentiment = _SentimentTools()
     indicators = _IndicatorTools()
     fundamentals = _FundamentalTools()
     macro = _MacroTools()
@@ -1380,6 +1485,7 @@ class _BuiltinTools:
             self.duckdb.query(),
             self.docs.search(),
             self.news.alpaca_news(),
+            self.sentiment.adanos_market_sentiment(),
             self.indicators.list_indicators(),
             self.indicators.get_indicator(),
             self.indicators.get_indicators(),

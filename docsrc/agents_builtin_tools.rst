@@ -108,6 +108,18 @@ using realtime parameters. LumiBot's built-in FRED tools do not use public CSV
 fallbacks; macro tool output should either come from the official API or fail
 clearly.
 
+Adanos Market Sentiment
+-----------------------
+
+If ``ADANOS_API_KEY`` is configured, LumiBot exposes
+``adanos_market_sentiment`` as an optional agent evidence tool. It can request
+US-equity sentiment for a single stock or broad market sentiment from Adanos
+sources including Reddit, X / FinTwit, news, and Polymarket.
+
+In backtests, the tool defaults its ``end`` bound to the current simulated date
+so agents do not request data after the strategy datetime. Strategies can also
+call the same helper directly through ``self.sentiment``.
+
 News
 ----
 

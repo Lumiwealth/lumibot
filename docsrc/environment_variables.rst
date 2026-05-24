@@ -770,6 +770,22 @@ LUMIBOT_FRED_CACHE_DIR
 - Purpose: Override local FRED macro data cache.
 - Default: ``~/.lumibot/cache/fred``.
 
+ADANOS_API_KEY
+^^^^^^^^^^^^^^
+
+- Purpose: Optional Adanos Market Sentiment API key for the
+  ``adanos_market_sentiment`` built-in agent tool and
+  ``strategy.sentiment`` helper.
+- Default: unset.
+- Notes: When set, LumiBot can fetch US-equity sentiment from Reddit,
+  X / FinTwit, news, and Polymarket via the Adanos API.
+
+ADANOS_API_BASE_URL
+^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Override the Adanos API base URL.
+- Default: ``https://api.adanos.org``.
+
 LUMIBOT_MEMORY_DIR
 ^^^^^^^^^^^^^^^^^^
 

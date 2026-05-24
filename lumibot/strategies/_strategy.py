@@ -616,6 +616,9 @@ class _Strategy:
         from lumibot.macro import FREDMacroData
         self.macro = FREDMacroData(self)
 
+        from lumibot.sentiment import AdanosMarketSentiment
+        self.sentiment = AdanosMarketSentiment(self)
+
         from lumibot.components.notifications import NotificationManager
         self.notifications = NotificationManager(self)
 

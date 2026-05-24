@@ -1,38 +1,20 @@
 from types import SimpleNamespace
 
 from lumibot.brokers.schwab import Schwab
-from lumibot.entities import Asset
+from lumibot.entities import Asset, Order
 
 
 class _Response:
     status_code = 200
     text = "OK"
 
+    def __init__(self, positions):
+        self._positions = positions
+
     def json(self):
         return {
             "securitiesAccount": {
-                "positions": [
-                    {
-                        "instrument": {
-                            "assetType": "MUTUAL_FUND",
-                            "symbol": "SWVXX",
-                        },
-                        "longQuantity": 10,
-                        "shortQuantity": 0,
-                        "averagePrice": 1.0,
-                        "marketValue": 10.0,
-                    },
-                    {
-                        "instrument": {
-                            "assetType": "EQUITY",
-                            "symbol": "SPY",
-                        },
-                        "longQuantity": 3,
-                        "shortQuantity": 0,
-                        "averagePrice": 500.0,
-                        "marketValue": 1500.0,
-                    },
-                ],
+                "positions": self._positions,
             },
         }
 
@@ -40,16 +22,43 @@ class _Response:
 class _Client:
     Account = SimpleNamespace(Fields=SimpleNamespace(POSITIONS="positions"))
 
+    def __init__(self, positions):
+        self._positions = positions
+
     def get_account(self, hash_value, fields):
-        return _Response()
+        return _Response(self._positions)
 
 
-def test_schwab_pull_positions_skips_unsupported_mutual_funds():
+def _position(asset_type, symbol, quantity=1, **instrument):
+    return {
+        "instrument": {
+            "assetType": asset_type,
+            "symbol": symbol,
+            **instrument,
+        },
+        "longQuantity": quantity,
+        "shortQuantity": 0,
+        "averagePrice": 1.0,
+        "marketValue": float(quantity),
+    }
+
+
+def _broker_with_positions(positions):
     broker = Schwab.__new__(Schwab)
     broker._broker_fully_ready = True
     broker.schwab_authorization_error = False
-    broker.client = _Client()
+    broker.client = _Client(positions)
     broker.hash_value = "account-hash"
+    return broker
+
+
+def test_schwab_pull_positions_skips_unsupported_mutual_funds():
+    broker = _broker_with_positions(
+        [
+            _position("MUTUAL_FUND", "SWVXX", quantity=10),
+            _position("EQUITY", "SPY", quantity=3),
+        ]
+    )
 
     positions = broker._pull_positions(SimpleNamespace(name="unit-test"))
 
@@ -57,3 +66,79 @@ def test_schwab_pull_positions_skips_unsupported_mutual_funds():
     assert positions[0].asset.symbol == "SPY"
     assert positions[0].asset.asset_type == Asset.AssetType.STOCK
     assert positions[0].quantity == 3
+
+
+def test_schwab_pull_positions_skips_unsupported_and_unknown_asset_types_without_losing_supported_assets():
+    broker = _broker_with_positions(
+        [
+            _position("MUTUAL_FUND", "SWVXX", quantity=10),
+            _position("BOND", "912797LG9", quantity=5),
+            _position("UNRECOGNIZED_NEW_TYPE", "MYSTERY", quantity=7),
+            _position("EQUITY", "SPY", quantity=3),
+            _position("ETF", "QQQ", quantity=4),
+            _position("COLLECTIVE_INVESTMENT", "CQQQ", quantity=2),
+            _position("CASH", "USD", quantity=100),
+            _position("MONEY_MARKET_FUND", "SWVXX", quantity=20),
+            _position("CASH_EQUIVALENT", "CASH", quantity=30),
+            _position("FUTURE", "/ES", quantity=1),
+            _position("OPTION", "SPY   260116C00500000", quantity=1),
+        ]
+    )
+
+    positions = broker._pull_positions(SimpleNamespace(name="unit-test"))
+
+    by_symbol_and_type = {(position.asset.symbol, position.asset.asset_type): position for position in positions}
+    assert ("SPY", Asset.AssetType.STOCK) in by_symbol_and_type
+    assert ("QQQ", Asset.AssetType.STOCK) in by_symbol_and_type
+    assert ("CQQQ", Asset.AssetType.STOCK) in by_symbol_and_type
+    assert ("USD", Asset.AssetType.FOREX) in by_symbol_and_type
+    assert ("SWVXX", Asset.AssetType.FOREX) in by_symbol_and_type
+    assert ("CASH", Asset.AssetType.FOREX) in by_symbol_and_type
+    assert ("/ES", Asset.AssetType.FUTURE) in by_symbol_and_type
+
+    option_positions = [
+        position
+        for position in positions
+        if position.asset.asset_type == Asset.AssetType.OPTION
+    ]
+    assert len(option_positions) == 1
+    assert option_positions[0].asset.symbol == "SPY"
+    assert option_positions[0].asset.strike == 500.0
+
+    returned_symbols = {position.asset.symbol for position in positions}
+    assert "912797LG9" not in returned_symbols
+    assert "MYSTERY" not in returned_symbols
+    # Mutual funds are intentionally not tracked as stock-like assets.
+    assert ("SWVXX", Asset.AssetType.STOCK) not in by_symbol_and_type
+
+
+def test_schwab_parse_simple_order_skips_unsupported_order_leg_types_without_dropping_supported_legs():
+    broker = Schwab.__new__(Schwab)
+    order = {
+        "orderId": "12345",
+        "enteredTime": "2026-05-22T15:30:00+0000",
+        "orderType": "MARKET",
+        "status": "FILLED",
+        "orderLegCollection": [
+            {
+                "instruction": "SELL",
+                "quantity": 10,
+                "orderLegType": "MUTUAL_FUND",
+                "instrument": {"symbol": "SWVXX"},
+            },
+            {
+                "instruction": "BUY",
+                "quantity": 3,
+                "orderLegType": "EQUITY",
+                "instrument": {"symbol": "SPY"},
+            },
+        ],
+    }
+
+    parsed = broker._parse_simple_order(order, strategy_name="unit-test")
+
+    assert len(parsed) == 1
+    assert parsed[0].identifier == "12345"
+    assert parsed[0].side == Order.OrderSide.BUY
+    assert parsed[0].asset.symbol == "SPY"
+    assert parsed[0].asset.asset_type == Asset.AssetType.STOCK

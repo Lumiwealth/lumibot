@@ -1510,7 +1510,7 @@ def _prepare_tearsheet_returns(strategy_df: pd.DataFrame, benchmark_df: pd.DataF
     # columns, etc.). QuantStats only needs the cash-flow-adjusted return series (preferred) or
     # enough information to derive it from portfolio value + external cash flows.
     strategy_columns = []
-    for column in ("return", "portfolio_value", "cash_adjustments_net_total"):
+    for column in ("cash_adjusted_portfolio_value", "portfolio_value", "cash_adjustments_net_total", "return"):
         if column in strategy_df.columns:
             strategy_columns.append(column)
 
@@ -1532,8 +1532,14 @@ def _prepare_tearsheet_returns(strategy_df: pd.DataFrame, benchmark_df: pd.DataF
     _strategy_df = _coerce_datetime_index_to_utc_naive(_strategy_df)
     _benchmark_df = _coerce_datetime_index_to_utc_naive(_benchmark_df)
 
+    strategy_value_column = None
+    if "cash_adjusted_portfolio_value" in _strategy_df.columns:
+        strategy_value_column = "cash_adjusted_portfolio_value"
+    elif "portfolio_value" in _strategy_df.columns:
+        strategy_value_column = "portfolio_value"
+
     strategy_returns = None
-    if "return" in _strategy_df.columns:
+    if strategy_value_column is None and "return" in _strategy_df.columns:
         strategy_returns = pd.to_numeric(_strategy_df["return"], errors="coerce")
         strategy_returns = _coerce_datetime_index_to_utc_naive(strategy_returns)
         strategy_returns = strategy_returns.sort_index()
@@ -1541,77 +1547,71 @@ def _prepare_tearsheet_returns(strategy_df: pd.DataFrame, benchmark_df: pd.DataF
         strategy_returns = ((1.0 + strategy_returns).resample("D").prod(min_count=1) - 1.0).fillna(0.0)
         strategy_returns.name = "strategy"
 
-    df = pd.merge(_strategy_df, _benchmark_df, left_index=True, right_index=True, how="outer")
-    df = _coerce_datetime_index_to_utc_naive(df)
-    df = df.sort_index()
+    if strategy_returns is None:
+        strategy_values = pd.to_numeric(_strategy_df[strategy_value_column], errors="coerce")
+        strategy_values = strategy_values.sort_index().groupby(level=0).last().dropna()
+        if strategy_values.empty:
+            return None
 
-    if "portfolio_value" in df.columns:
-        df["portfolio_value"] = df["portfolio_value"].ffill()
-        df["portfolio_value"] = df["portfolio_value"].bfill()
+        strategy_frame = pd.DataFrame({strategy_value_column: strategy_values})
 
-    if "symbol_cumprod" in df.columns:
-        df["symbol_cumprod"] = df["symbol_cumprod"].ffill()
-        first_symbol = df["symbol_cumprod"].dropna().iloc[0] if not df["symbol_cumprod"].dropna().empty else 1
-    else:
-        first_symbol = 1
-        df["symbol_cumprod"] = 1
+        # Seed the resample with the true initial equity so that pct_change sees day 0 -> day 1 moves.
+        # Preserve the initial cumulative external cash total as well so the first daily return does
+        # not accidentally absorb initialize()-time deposits/withdrawals.
+        first_strategy_idx = pd.to_datetime(strategy_values.index.min())
+        initial_equity = strategy_values.loc[first_strategy_idx]
 
-    df.loc[df.index[0], "symbol_cumprod"] = 1 if pd.isna(first_symbol) else first_symbol
-
-    # Seed the resample with the true initial equity so that pct_change sees day 0 -> day 1 moves.
-    # Preserve the initial cumulative external cash total as well so the first daily return does
-    # not accidentally absorb initialize()-time deposits/withdrawals.
-    first_strategy_idx = _strategy_df.index.min()
-    if pd.notna(first_strategy_idx) and "portfolio_value" in _strategy_df.columns:
-        first_strategy_idx = pd.to_datetime(first_strategy_idx)
-        initial_equity = _strategy_df.loc[first_strategy_idx, "portfolio_value"]
-        if isinstance(initial_equity, pd.Series):
-            initial_equity = initial_equity.iloc[-1]
-
-        initial_cash_adjustments_total = 0.0
         if "cash_adjustments_net_total" in _strategy_df.columns:
-            initial_cash_adjustments_total = _strategy_df.loc[first_strategy_idx, "cash_adjustments_net_total"]
-            if isinstance(initial_cash_adjustments_total, pd.Series):
-                initial_cash_adjustments_total = initial_cash_adjustments_total.iloc[-1]
+            cash_adjustments = pd.to_numeric(_strategy_df["cash_adjustments_net_total"], errors="coerce")
+            cash_adjustments = cash_adjustments.sort_index().groupby(level=0).last()
+            strategy_frame["cash_adjustments_net_total"] = cash_adjustments
+            initial_cash_adjustments_total = cash_adjustments.loc[first_strategy_idx]
+        else:
+            initial_cash_adjustments_total = 0.0
 
         anchor_idx = first_strategy_idx.normalize() - pd.Timedelta(microseconds=1)
         anchor_row = pd.DataFrame(
             {
-                "portfolio_value": [initial_equity],
-                "symbol_cumprod": [first_symbol if not pd.isna(first_symbol) else 1],
+                strategy_value_column: [initial_equity],
                 "cash_adjustments_net_total": [initial_cash_adjustments_total],
             },
             index=[anchor_idx],
         )
-        df = pd.concat([anchor_row, df], axis=0, sort=True)
-        df = df[~df.index.duplicated(keep="last")]
+        strategy_frame = pd.concat([anchor_row, strategy_frame], axis=0, sort=True)
+        strategy_frame = strategy_frame[~strategy_frame.index.duplicated(keep="last")]
 
-    # Resample to daily cadence and forward-fill non-trading days.
-    # NOTE: Use forward-fill (not backfill) so weekends/holidays carry the last known value.
-    # Backfilling would leak future values into prior days and can distort volatility-matched charts.
-    df = df.resample("D").last()
-    if "portfolio_value" in df.columns:
-        df["portfolio_value"] = df["portfolio_value"].ffill()
-    df["symbol_cumprod"] = df["symbol_cumprod"].ffill()
+        # Resample strategy and benchmark independently. Merging first can make a later
+        # benchmark-only row win `.last()` for a date and erase that day's strategy move.
+        strategy_daily = strategy_frame.resample("D").last()
+        strategy_daily[strategy_value_column] = strategy_daily[strategy_value_column].ffill()
 
-    if strategy_returns is not None:
-        df["strategy"] = strategy_returns.reindex(df.index).fillna(0.0)
-    else:
         cumulative_external_flows = None
-        if "cash_adjustments_net_total" in df.columns:
-            df["cash_adjustments_net_total"] = pd.to_numeric(
-                df["cash_adjustments_net_total"], errors="coerce"
+        if "cash_adjustments_net_total" in strategy_daily.columns:
+            strategy_daily["cash_adjustments_net_total"] = pd.to_numeric(
+                strategy_daily["cash_adjustments_net_total"], errors="coerce"
             ).ffill().fillna(0.0)
-            cumulative_external_flows = df["cash_adjustments_net_total"]
+            cumulative_external_flows = strategy_daily["cash_adjustments_net_total"]
 
-        df["strategy"] = cash_flow_adjusted_returns(
-            df["portfolio_value"],
+        strategy_returns = cash_flow_adjusted_returns(
+            strategy_daily[strategy_value_column],
             cumulative_external_flows,
         ).fillna(0.0)
+        strategy_returns.name = "strategy"
 
-    df["benchmark"] = df["symbol_cumprod"].pct_change(fill_method=None).fillna(0)
+    if "symbol_cumprod" in _benchmark_df.columns:
+        benchmark_cumprod = pd.to_numeric(_benchmark_df["symbol_cumprod"], errors="coerce")
+        benchmark_cumprod = benchmark_cumprod.sort_index().groupby(level=0).last().dropna()
+        if benchmark_cumprod.empty:
+            benchmark_returns = pd.Series(0.0, index=strategy_returns.index, name="benchmark")
+        else:
+            benchmark_daily = benchmark_cumprod.resample("D").last().ffill()
+            benchmark_returns = benchmark_daily.pct_change(fill_method=None).fillna(0.0)
+            benchmark_returns = benchmark_returns.reindex(strategy_returns.index).fillna(0.0)
+            benchmark_returns.name = "benchmark"
+    else:
+        benchmark_returns = pd.Series(0.0, index=strategy_returns.index, name="benchmark")
 
-    df_final = df.loc[:, ["strategy", "benchmark"]]
+    df_final = pd.concat([strategy_returns, benchmark_returns], axis=1)
     df_final.index = pd.to_datetime(df_final.index)
     df_final.index = df_final.index.tz_localize(None)
 

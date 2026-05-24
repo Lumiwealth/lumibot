@@ -1,19 +1,27 @@
-from lumibot.example_strategies.ai_trading_team import AITradingTeamStrategy, MODEL, UNIVERSE
+import inspect
+
+import lumibot.example_strategies.ai_trading_team as example
+from lumibot.example_strategies.ai_trading_team import AITradingTeamStrategy
 
 
-def test_ai_trading_team_is_copy_paste_focused():
-    assert MODEL == "gemini-3.1-flash-lite"
-    assert AITradingTeamStrategy.parameters["universe"] == UNIVERSE
-    assert AITradingTeamStrategy.parameters["rebalance_every"] == 5
-    assert "model" not in AITradingTeamStrategy.parameters
+def test_ai_trading_team_is_bare_bones():
+    assert list(AITradingTeamStrategy.parameters) == ["universe"]
+    assert not hasattr(example, "MODEL")
+    assert not hasattr(example, "UNIVERSE")
+    assert not hasattr(AITradingTeamStrategy, "rotate_portfolio")
 
 
 def test_ai_trading_team_uses_leveraged_etfs():
-    assert {"TQQQ", "SQQQ", "SOXL", "SOXS"}.issubset(set(UNIVERSE))
+    universe = set(AITradingTeamStrategy.parameters["universe"])
+
+    assert {"TQQQ", "SQQQ", "SOXL", "SOXS"}.issubset(universe)
 
 
-def test_ai_trading_team_rotate_tool_is_marked_mutating():
-    metadata = getattr(AITradingTeamStrategy.rotate_portfolio, "_lumibot_agent_tool")
+def test_ai_trading_team_avoids_example_knobs():
+    source = inspect.getsource(example)
 
-    assert metadata["name"] == "rotate_portfolio"
-    assert metadata["mutates_trading"] is True
+    assert "@agent_tool" not in source
+    assert "benchmark_asset" not in source
+    assert "TradingFee" not in source
+    assert "budget=" not in source
+    assert "quiet_logs" not in source

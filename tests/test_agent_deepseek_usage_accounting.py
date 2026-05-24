@@ -3,6 +3,7 @@ from lumibot.components.agents.runtime import (
     _aggregate_usage_metadata,
     _prune_large_context_strings,
     _prune_request_contents_for_context_window,
+    _prune_tool_response_for_context_window,
 )
 
 from scripts.run_ai_committee_provider_benchmark import _estimate_cost as estimate_benchmark_cost
@@ -131,3 +132,17 @@ def test_deepseek_context_string_pruning_preserves_edges():
     assert payload["evidence_pack"].endswith("-end")
     assert "Pruned" in payload["evidence_pack"]
     assert len(payload["evidence_pack"]) <= 120
+
+
+def test_deepseek_tool_response_pruning_returns_excerpt():
+    result = _prune_tool_response_for_context_window(
+        {"rows": ["start", "x" * 10_000, "end"]},
+        tool_name="market_load_history_table",
+        max_chars=500,
+    )
+
+    assert result is not None
+    assert result["lumibot_tool_result_pruned"] is True
+    assert result["tool_name"] == "market_load_history_table"
+    assert result["original_chars"] > 500
+    assert len(result["excerpt"]) <= 500

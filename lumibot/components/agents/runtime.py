@@ -718,7 +718,8 @@ def _prune_request_contents_for_context_window(
     *,
     context_limit_tokens: int,
     reserve_ratio: float = 0.05,
-    preserve_recent_tool_results: int = 8,
+    preserve_recent_tool_results: int = 4,
+    always_prune_older_tool_results: bool = False,
 ) -> dict[str, Any] | None:
     """Trim oversized historical tool results before provider context failure.
 
@@ -733,14 +734,17 @@ def _prune_request_contents_for_context_window(
 
     max_chars = int(context_limit_tokens * reserve_ratio)
     before_chars = _request_contents_length(contents)
-    if before_chars <= max_chars:
-        return None
 
     tool_response_parts: list[Any] = []
     for content in contents:
         for part in getattr(content, "parts", None) or []:
             if _part_has_function_response(part):
                 tool_response_parts.append(part)
+
+    should_prune_for_size = before_chars > max_chars
+    should_prune_for_history = always_prune_older_tool_results and len(tool_response_parts) > preserve_recent_tool_results
+    if not should_prune_for_size and not should_prune_for_history:
+        return None
 
     if len(tool_response_parts) <= preserve_recent_tool_results:
         return None
@@ -755,7 +759,7 @@ def _prune_request_contents_for_context_window(
     candidates = tool_response_parts[: -preserve_recent_tool_results]
     candidates.sort(key=_function_response_payload_length, reverse=True)
     for part in candidates:
-        if _request_contents_length(contents) <= max_chars:
+        if should_prune_for_size and _request_contents_length(contents) <= max_chars:
             break
         if _replace_function_response_payload(part, replacement_message):
             pruned += 1
@@ -958,6 +962,7 @@ class GoogleADKRuntime:
             pruning = _prune_request_contents_for_context_window(
                 contents,
                 context_limit_tokens=context_limit,
+                always_prune_older_tool_results=True,
             )
             if pruning:
                 logging.getLogger(__name__).warning(

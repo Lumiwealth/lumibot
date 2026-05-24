@@ -306,6 +306,8 @@ def _usage_breakdown(payload: Any, *, cache_hit: bool) -> dict[str, int]:
         "cache_creation.ephemeral_1h_input_tokens",
     )
     uncached_input_tokens = _usage_value(payload, "prompt_cache_miss_tokens", "prompt_tokens_details.uncached_tokens")
+    if input_tokens <= 0 and (cached_input_tokens > 0 or uncached_input_tokens > 0):
+        input_tokens = cached_input_tokens + uncached_input_tokens
     if uncached_input_tokens <= 0:
         uncached_input_tokens = max(input_tokens - cached_input_tokens, 0)
     tool_use_input_tokens = _usage_value(payload, "tool_use_prompt_token_count")

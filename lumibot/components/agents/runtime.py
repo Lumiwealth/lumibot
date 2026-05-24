@@ -257,15 +257,23 @@ def _aggregate_usage_metadata(payloads: list[dict[str, Any]]) -> dict[str, Any] 
     aggregate: dict[str, Any] = dict(payloads[-1])
     additive_keys = {
         "cached_content_token_count",
+        "cached_input_tokens",
+        "cached_prompt_tokens",
+        "cached_tokens",
+        "cache_creation_input_tokens",
+        "cache_read_input_tokens",
         "candidates_token_count",
+        "completion_tokens",
         "prompt_token_count",
+        "prompt_cache_hit_tokens",
+        "prompt_cache_miss_tokens",
+        "prompt_tokens",
+        "reasoning_tokens",
         "thoughts_token_count",
         "tool_use_prompt_token_count",
         "total_token_count",
-        "completion_tokens",
         "input_tokens",
         "output_tokens",
-        "prompt_tokens",
         "total_tokens",
     }
     for key in additive_keys:
@@ -597,6 +605,113 @@ def _provider_prompt_cache_key(request: RuntimeRequest) -> str:
     return f"lumibot:{request.agent_name}:{digest[:32]}"
 
 
+def _model_context_limit_tokens(model: Any) -> int | None:
+    if not isinstance(model, str):
+        return None
+    lower = model.strip().lower()
+    if lower.startswith("deepseek/deepseek-v4-"):
+        return 1_048_576
+    return None
+
+
+def _serialized_content_length(value: Any) -> int:
+    try:
+        if hasattr(value, "model_dump"):
+            return len(json.dumps(_json_safe_value(value.model_dump(mode="json")), sort_keys=True, default=str))
+        return len(json.dumps(_json_safe_value(value), sort_keys=True, default=str))
+    except Exception:
+        return len(repr(value))
+
+
+def _request_contents_length(contents: list[Any]) -> int:
+    return sum(_serialized_content_length(content) for content in contents)
+
+
+def _part_has_function_response(part: Any) -> bool:
+    return getattr(part, "function_response", None) is not None
+
+
+def _function_response_payload_length(part: Any) -> int:
+    function_response = getattr(part, "function_response", None)
+    if function_response is None:
+        return 0
+    return _serialized_content_length(getattr(function_response, "response", None))
+
+
+def _replace_function_response_payload(part: Any, message: str) -> bool:
+    function_response = getattr(part, "function_response", None)
+    if function_response is None:
+        return False
+    replacement = {
+        "lumibot_context_pruned": True,
+        "message": message,
+    }
+    try:
+        function_response.response = replacement
+        return True
+    except Exception:
+        return False
+
+
+def _prune_request_contents_for_context_window(
+    contents: list[Any],
+    *,
+    context_limit_tokens: int,
+    reserve_ratio: float = 0.55,
+    preserve_recent_tool_results: int = 8,
+) -> dict[str, Any] | None:
+    """Trim oversized historical tool results before provider context failure.
+
+    This is input-side context pruning. It leaves the Lumibot system prompt,
+    task, tool declarations, function-call sequence, and most recent tool
+    results intact. Only older tool-result payloads are replaced, and only when
+    the serialized request is already larger than a conservative provider-window
+    budget.
+    """
+    if not contents:
+        return None
+
+    max_chars = int(context_limit_tokens * reserve_ratio)
+    before_chars = _request_contents_length(contents)
+    if before_chars <= max_chars:
+        return None
+
+    tool_response_parts: list[Any] = []
+    for content in contents:
+        for part in getattr(content, "parts", None) or []:
+            if _part_has_function_response(part):
+                tool_response_parts.append(part)
+
+    if len(tool_response_parts) <= preserve_recent_tool_results:
+        return None
+
+    pruned = 0
+    replacement_message = (
+        "Older tool result omitted by Lumibot before this model call because "
+        "the provider context window would otherwise be exceeded. Use the most "
+        "recent visible tool results or call a targeted tool again if this older "
+        "detail is still required."
+    )
+    candidates = tool_response_parts[: -preserve_recent_tool_results]
+    candidates.sort(key=_function_response_payload_length, reverse=True)
+    for part in candidates:
+        if _request_contents_length(contents) <= max_chars:
+            break
+        if _replace_function_response_payload(part, replacement_message):
+            pruned += 1
+
+    after_chars = _request_contents_length(contents)
+    if pruned <= 0:
+        return None
+    return {
+        "type": "provider_context_pruning",
+        "pruned_tool_results": pruned,
+        "before_chars": before_chars,
+        "after_chars": after_chars,
+        "max_chars": max_chars,
+    }
+
+
 def _copy_content_without_thought_parts(content: Any) -> tuple[Any, bool]:
     parts = getattr(content, "parts", None)
     if not parts:
@@ -769,6 +884,35 @@ class GoogleADKRuntime:
         lines.append("- Return a short final summary after you finish using tools.")
         return "\n".join(lines).strip()
 
+    def _before_model_context_pruning_callback(self, request: RuntimeRequest):
+        context_limit = _model_context_limit_tokens(request.model)
+        if not context_limit:
+            return None
+
+        def _callback(*args: Any, callback_context: Any = None, llm_request: Any = None, **_kwargs: Any) -> None:
+            if llm_request is None and len(args) >= 2:
+                llm_request = args[1]
+            contents = getattr(llm_request, "contents", None)
+            if not isinstance(contents, list):
+                return None
+            pruning = _prune_request_contents_for_context_window(
+                contents,
+                context_limit_tokens=context_limit,
+            )
+            if pruning:
+                logging.getLogger(__name__).warning(
+                    "Pruned %s older tool result payload(s) for model=%s before provider context window overflow "
+                    "(request chars %s -> %s, budget %s).",
+                    pruning["pruned_tool_results"],
+                    request.model,
+                    pruning["before_chars"],
+                    pruning["after_chars"],
+                    pruning["max_chars"],
+                )
+            return None
+
+        return _callback
+
     def _build_user_text(self, request: RuntimeRequest) -> str:
         sections: list[str] = []
         tool_names = {tool.name for tool in request.bound_tools}
@@ -844,6 +988,7 @@ class GoogleADKRuntime:
             tools=tools,
             generate_content_config=genai_types.GenerateContentConfig(**config_kwargs),
             planner=planner,
+            before_model_callback=self._before_model_context_pruning_callback(request),
         )
         runner = InMemoryRunnerType(agent=agent, app_name="lumibot-agents")
         session_id = str(uuid4())

@@ -28,6 +28,7 @@ os.environ.setdefault("LUMIBOT_DISABLE_DOTENV", "1")
 os.environ.setdefault("LUMIBOT_DISABLE_BACKTEST_PERFORMANCE_TRACKING", "1")
 
 from lumibot.backtesting import YahooDataBacktesting
+from lumibot.components.agents.manager import _usage_breakdown
 from lumibot.entities import Asset, TradingFee
 from lumibot.example_strategies.ai_investment_committee import AIInvestmentCommitteeStrategy
 
@@ -45,7 +46,7 @@ MODEL_PRICE_PER_M_TOKEN: dict[str, dict[str, float]] = {
     "gemini-3-flash-preview": {"input": 0.50, "output": 3.00, "cached_input": 0.05},
     "gemini-3.1-flash-lite": {"input": 0.25, "output": 1.50, "cached_input": 0.025},
     "deepseek/deepseek-v4-flash": {"input": 0.14, "output": 0.28, "cached_input": 0.0028},
-    "deepseek/deepseek-v4-pro": {"input": 1.74, "output": 3.48, "cached_input": 0.0145},
+    "deepseek/deepseek-v4-pro": {"input": 0.435, "output": 0.87, "cached_input": 0.003625},
     "together_ai/deepseek-ai/DeepSeek-V4-Pro": {"input": 2.10, "output": 4.40, "cached_input": 0.20},
     "together_ai/moonshotai/Kimi-K2.6": {"input": 1.20, "output": 4.50, "cached_input": 0.20},
     "together_ai/moonshotai/Kimi-K2.5": {"input": 0.50, "output": 2.80},
@@ -126,13 +127,21 @@ def _estimate_cost(model: str, usage: dict[str, int]) -> dict[str, Any]:
     input_tokens = int(usage.get("input_tokens") or 0)
     output_tokens = int(usage.get("output_tokens") or 0)
     cached_input_tokens = int(usage.get("cached_input_tokens") or 0)
-    uncached_input_tokens = max(input_tokens - cached_input_tokens, 0)
+    uncached_input_tokens = int(usage.get("uncached_input_tokens") or 0)
+    if input_tokens <= 0 and (cached_input_tokens > 0 or uncached_input_tokens > 0):
+        input_tokens = cached_input_tokens + uncached_input_tokens
+    if uncached_input_tokens <= 0:
+        uncached_input_tokens = max(input_tokens - cached_input_tokens, 0)
     no_cache = (input_tokens / 1_000_000) * prices["input"] + (output_tokens / 1_000_000) * prices["output"]
+    cache_hit_rate = cached_input_tokens / input_tokens if input_tokens > 0 else None
     payload = {
         "estimated_usd": round(no_cache, 6),
         "input_per_m": prices["input"],
         "output_per_m": prices["output"],
-        "price_source": "static_2026_05_20_provider_docs",
+        "price_source": "static_2026_05_24_provider_docs",
+        "cache_hit_rate": round(cache_hit_rate, 6) if cache_hit_rate is not None else None,
+        "uncached_input_tokens": uncached_input_tokens,
+        "cached_input_tokens": cached_input_tokens,
     }
     if "cached_input" in prices:
         cache_adjusted = (
@@ -153,7 +162,10 @@ def _usage_from_raw_traces(run_dir: Path) -> dict[str, Any]:
         "output_tokens": 0,
         "total_tokens": 0,
         "cached_input_tokens": 0,
+        "cache_write_input_tokens": 0,
+        "uncached_input_tokens": 0,
         "thinking_tokens": 0,
+        "tool_use_input_tokens": 0,
     }
     by_agent: dict[str, Any] = {}
     tool_call_count = 0
@@ -169,18 +181,25 @@ def _usage_from_raw_traces(run_dir: Path) -> dict[str, Any]:
         trace_usage = trace.get("usage") or {}
         trace_timing = trace.get("timing") or {}
         trace_tool_calls = trace.get("tool_calls") or []
-        input_tokens = int(trace_usage.get("prompt_token_count") or 0)
-        output_tokens = int(trace_usage.get("candidates_token_count") or 0)
-        total_tokens = int(trace_usage.get("total_token_count") or input_tokens + output_tokens)
-        cached_input_tokens = int(trace_usage.get("cached_content_token_count") or 0)
-        thinking_tokens = int(trace_usage.get("thoughts_token_count") or 0)
+        usage_breakdown = _usage_breakdown(trace_usage, cache_hit=False)
+        input_tokens = usage_breakdown["input_tokens"]
+        output_tokens = usage_breakdown["output_tokens"]
+        total_tokens = usage_breakdown["total_tokens"]
+        cached_input_tokens = usage_breakdown["cached_input_tokens"]
+        cache_write_input_tokens = usage_breakdown["cache_write_input_tokens"]
+        uncached_input_tokens = usage_breakdown["uncached_input_tokens"]
+        thinking_tokens = usage_breakdown["thinking_tokens"]
+        tool_use_input_tokens = usage_breakdown["tool_use_input_tokens"]
         call_latency_ms = int(trace_timing.get("call_latency_ms") or 0)
         call_tool_count = len(trace_tool_calls)
         usage["input_tokens"] += input_tokens
         usage["output_tokens"] += output_tokens
         usage["total_tokens"] += total_tokens
         usage["cached_input_tokens"] += cached_input_tokens
+        usage["cache_write_input_tokens"] += cache_write_input_tokens
+        usage["uncached_input_tokens"] += uncached_input_tokens
         usage["thinking_tokens"] += thinking_tokens
+        usage["tool_use_input_tokens"] += tool_use_input_tokens
         tool_call_count += call_tool_count
         latency_ms += call_latency_ms
         agent_payload = by_agent.setdefault(
@@ -191,7 +210,10 @@ def _usage_from_raw_traces(run_dir: Path) -> dict[str, Any]:
                 "output_tokens": 0,
                 "total_tokens": 0,
                 "cached_input_tokens": 0,
+                "cache_write_input_tokens": 0,
+                "uncached_input_tokens": 0,
                 "thinking_tokens": 0,
+                "tool_use_input_tokens": 0,
                 "tool_call_count": 0,
                 "latency_ms": 0,
             },
@@ -201,7 +223,10 @@ def _usage_from_raw_traces(run_dir: Path) -> dict[str, Any]:
         agent_payload["output_tokens"] += output_tokens
         agent_payload["total_tokens"] += total_tokens
         agent_payload["cached_input_tokens"] += cached_input_tokens
+        agent_payload["cache_write_input_tokens"] += cache_write_input_tokens
+        agent_payload["uncached_input_tokens"] += uncached_input_tokens
         agent_payload["thinking_tokens"] += thinking_tokens
+        agent_payload["tool_use_input_tokens"] += tool_use_input_tokens
         agent_payload["tool_call_count"] += call_tool_count
         agent_payload["latency_ms"] += call_latency_ms
     return {
@@ -253,7 +278,10 @@ def _read_agent_detail(detail_path: Path) -> dict[str, Any]:
         "output_tokens": total("call_output_tokens"),
         "total_tokens": total("call_total_tokens"),
         "cached_input_tokens": total("call_cached_input_tokens"),
+        "cache_write_input_tokens": total("call_cache_write_input_tokens"),
+        "uncached_input_tokens": total("call_uncached_input_tokens"),
         "thinking_tokens": total("call_thinking_tokens"),
+        "tool_use_input_tokens": total("call_tool_use_input_tokens"),
     }
     by_agent: dict[str, Any] = {}
     if "agent_name" in summaries:
@@ -263,6 +291,11 @@ def _read_agent_detail(detail_path: Path) -> dict[str, Any]:
                 "input_tokens": int(pd.to_numeric(group.get("call_input_tokens"), errors="coerce").fillna(0).sum()),
                 "output_tokens": int(pd.to_numeric(group.get("call_output_tokens"), errors="coerce").fillna(0).sum()),
                 "total_tokens": int(pd.to_numeric(group.get("call_total_tokens"), errors="coerce").fillna(0).sum()),
+                "cached_input_tokens": int(pd.to_numeric(group.get("call_cached_input_tokens"), errors="coerce").fillna(0).sum()),
+                "cache_write_input_tokens": int(pd.to_numeric(group.get("call_cache_write_input_tokens"), errors="coerce").fillna(0).sum()),
+                "uncached_input_tokens": int(pd.to_numeric(group.get("call_uncached_input_tokens"), errors="coerce").fillna(0).sum()),
+                "thinking_tokens": int(pd.to_numeric(group.get("call_thinking_tokens"), errors="coerce").fillna(0).sum()),
+                "tool_use_input_tokens": int(pd.to_numeric(group.get("call_tool_use_input_tokens"), errors="coerce").fillna(0).sum()),
                 "tool_call_count": int(pd.to_numeric(group.get("tool_call_count"), errors="coerce").fillna(0).sum()),
                 "latency_ms": int(pd.to_numeric(group.get("call_latency_ms"), errors="coerce").fillna(0).sum()),
             }

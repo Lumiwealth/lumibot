@@ -64,6 +64,8 @@ def _require_key_for_model(model: str) -> None:
         keys = ("XAI_API_KEY", "GROK_API_KEY")
     elif lower.startswith("anthropic/"):
         keys = ("ANTHROPIC_API_KEY",)
+    elif lower.startswith("deepseek/"):
+        keys = ("DEEPSEEK_API_KEY",)
     else:
         keys = ()
     if keys and not any(os.environ.get(key) for key in keys):

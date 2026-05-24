@@ -1004,3 +1004,94 @@ Model-selection implication:
   the artifact is useful marketing and product proof: model, provider, cost,
   tokens, tool calls, speed, return, drawdown, trade count, tool-call errors,
   no-trade rationale, and trace-quality notes.
+
+## DeepSeek Cache Validation And Seven-Day Qualifier: 2026-05-24
+
+Scope:
+
+- Narrowed live benchmark slate to `deepseek/deepseek-v4-flash`,
+  `deepseek/deepseek-v4-pro`, and `gemini-3.1-flash-lite`.
+- Goal was to prove provider-side cache telemetry, cache-adjusted cost
+  estimates, tool calling, and AI committee trading behavior before launching
+  the three-month benchmark.
+
+Code changes made before paid runs:
+
+- Runtime usage aggregation now preserves DeepSeek-style
+  `prompt_cache_hit_tokens` and `prompt_cache_miss_tokens` across multiple ADK
+  usage events.
+- Generic usage parsing now derives total input tokens from cached + uncached
+  tokens when a provider reports only hit/miss fields.
+- Provider benchmark scripts now use the same usage parser for raw traces,
+  report `uncached_input_tokens`, `cache_hit_rate`, and cache-adjusted costs,
+  and use current DeepSeek V4 Pro pricing.
+- `scripts/run_agent_prompt_cache_probe.py` now recognizes `DEEPSEEK_API_KEY`.
+- Added regression tests in
+  `tests/test_agent_deepseek_usage_accounting.py`.
+
+Provider cache probe result:
+
+- Root:
+  `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260524_cache_probes`
+- `deepseek/deepseek-v4-flash`: cache observed. Call 3 reported `15,232`
+  cached input tokens out of `15,364` total input tokens.
+- `deepseek/deepseek-v4-pro`: cache observed. Call 3 reported `15,232`
+  cached input tokens out of `15,364` total input tokens.
+- `gemini-3.1-flash-lite`: cache observed but less consistently in the probe.
+  Call 2 reported `12,260` cached input tokens out of `15,130`; call 3
+  reported zero cached input tokens.
+
+One-day smoke result:
+
+- Root:
+  `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260524_130551`
+- All three models passed, called tools, and bought SGOV.
+- `gemini-3.1-flash-lite`: `4` calls, `23` tool calls, `60.8%` cache hit
+  rate, `$0.023578` cache-adjusted estimated cost.
+- `deepseek/deepseek-v4-flash`: `4` calls, `162` tool calls, `88.9%` cache
+  hit rate, `$0.046304` cache-adjusted estimated cost.
+- `deepseek/deepseek-v4-pro`: `4` calls, `148` tool calls, `81.7%` cache hit
+  rate, `$0.107665` cache-adjusted estimated cost.
+
+Seven-day qualifier result:
+
+- Gemini root:
+  `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260524_131854`
+- Corrected DeepSeek root:
+  `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260524_135446`
+- `gemini-3.1-flash-lite`: passed. `24` calls, `57` tool calls, `54.1%`
+  cache hit rate, `$0.075634` cache-adjusted estimated cost, return
+  `-0.0501%`, max drawdown `0.1095%`, final position `99` SGOV.
+- `deepseek/deepseek-v4-flash`: passed after context pruning. `24` calls,
+  `886` tool calls, `89.4%` cache hit rate, `$0.229344` cache-adjusted
+  estimated cost, return `-1.0715%`, max drawdown `1.1165%`, final position
+  `98` SGOV. It hallucinated an invalid tool name once and recovered on retry.
+- `deepseek/deepseek-v4-pro`: passed after context pruning. `24` calls, `793`
+  tool calls, `87.2%` cache hit rate, `$0.539917` cache-adjusted estimated
+  cost, return `-0.0621%`, max drawdown `0.1116%`, final position `99` SGOV.
+
+DeepSeek context-window finding:
+
+- DeepSeek caching is working and materially reduces cost, but cached tokens
+  still count toward the provider context window.
+- The first no-pruning seven-day DeepSeek rerun failed with context-window
+  requests of about `2.39M` tokens for V4 Flash and `3.26M` tokens for V4 Pro
+  against DeepSeek's `1,048,576` token window.
+- The fix is not a tool-call budget and not output truncation. The implemented
+  fix is DeepSeek-only adaptive input pruning at the ADK `before_model_callback`
+  boundary. It preserves the system prompt, task, function-call sequence, and
+  most recent tool results, and replaces only older tool-result payloads when
+  the serialized provider request is already above a conservative DeepSeek
+  context budget.
+
+Invalid artifacts to ignore:
+
+- `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260524_134118`
+  is invalid. A callback signature bug caused every DeepSeek agent call to fail
+  and skip, so the run produced zero-token "passed" results that should not be
+  used.
+
+Next step:
+
+- Launch three-month runs for the same three models using the corrected
+  telemetry and DeepSeek input-pruning path.

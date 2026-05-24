@@ -619,7 +619,7 @@ def _model_context_string_limit_chars(model: Any) -> int | None:
         return None
     lower = model.strip().lower()
     if lower.startswith("deepseek/deepseek-v4-"):
-        return 80_000
+        return 20_000
     return None
 
 
@@ -717,7 +717,7 @@ def _prune_request_contents_for_context_window(
     contents: list[Any],
     *,
     context_limit_tokens: int,
-    reserve_ratio: float = 0.25,
+    reserve_ratio: float = 0.05,
     preserve_recent_tool_results: int = 8,
 ) -> dict[str, Any] | None:
     """Trim oversized historical tool results before provider context failure.

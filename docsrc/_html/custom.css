@@ -37,6 +37,105 @@
 
 .course-list {
     margin-bottom: 60px;
+    margin-top: 18px;
+}
+
+.course-list h3,
+.course-list p {
+    color: inherit;
+}
+
+.course-list .list-unstyled {
+    padding-left: 0;
+}
+
+.course-list .list-unstyled li {
+    margin-bottom: 10px;
+    font-size: 1.05em;
+}
+
+.course-cta-row {
+    margin-top: 10px;
+    margin-bottom: 26px;
+}
+
+.course-button,
+.course-button:visited {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 46px;
+    margin: 10px 8px 14px;
+    padding: 12px 22px;
+    border-radius: 6px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.2;
+    text-decoration: none !important;
+    box-shadow: 0 10px 22px rgba(17, 24, 39, 0.18);
+}
+
+.course-button-primary,
+.course-button-primary:visited,
+.course-button-primary:hover,
+.course-button-primary:focus,
+.course-button-primary:active {
+    background: #c86f1f !important;
+    border-color: #c86f1f !important;
+    color: #ffffff !important;
+}
+
+.course-button-primary:hover {
+    background: #a95816 !important;
+    border-color: #a95816 !important;
+}
+
+.course-button-secondary,
+.course-button-secondary:visited {
+    background: #ffffff !important;
+    border: 1px solid #2563eb !important;
+    color: #1d4ed8 !important;
+}
+
+.course-button-secondary:hover,
+.course-button-secondary:focus,
+.course-button-secondary:active {
+    background: #eff6ff !important;
+    border-color: #1d4ed8 !important;
+    color: #1e40af !important;
+}
+
+a.btn.course-button,
+a.btn.course-button:visited,
+a.btn.course-button:hover,
+a.btn.course-button:focus,
+a.btn.course-button:active {
+    text-decoration: none !important;
+}
+
+.lumibot-doc-image {
+    display: block;
+    margin: 18px auto 42px;
+}
+
+@media (prefers-color-scheme: dark) {
+    .course-button {
+        box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
+    }
+
+    .course-button-secondary,
+    .course-button-secondary:visited {
+        background: #111827 !important;
+        border-color: #60a5fa !important;
+        color: #bfdbfe !important;
+    }
+
+    .course-button-secondary:hover,
+    .course-button-secondary:focus,
+    .course-button-secondary:active {
+        background: #1e3a8a !important;
+        color: #ffffff !important;
+    }
 }
 
 /* Ensure the sidebar and other elements have padding/margin to avoid overlap */

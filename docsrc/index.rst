@@ -97,43 +97,6 @@ Once you have backtested your strategy and understand how it behaves on historic
 
    **Remember to start with a paper trading account** to ensure everything works as expected before moving to live trading.
 
-All Together
-************
-
-Here's the complete code:
-
-.. code-block:: python
-
-    from datetime import datetime
-    from lumibot.backtesting import YahooDataBacktesting
-    from lumibot.brokers import Alpaca
-    from lumibot.strategies import Strategy
-    from lumibot.traders import Trader
-
-    ALPACA_CONFIG = {
-        "API_KEY": "YOUR_ALPACA_API_KEY",
-        "API_SECRET": "YOUR_ALPACA_SECRET",
-        "PAPER": True
-    }
-
-    class MyStrategy(Strategy):
-        def on_trading_iteration(self):
-            if self.first_iteration:
-                aapl_price = self.get_last_price("AAPL")
-                quantity = self.portfolio_value // aapl_price
-                order = self.create_order("AAPL", quantity, "buy")
-                self.submit_order(order)
-
-    trader = Trader()
-    broker = Alpaca(ALPACA_CONFIG)
-    strategy = MyStrategy(broker=broker)
-
-    # Run the strategy live
-    trader.add_strategy(strategy)
-    trader.run_all()
-
-Or you can download the file here: `https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/simple_start_single_file.py <https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/simple_start_single_file.py>`_
-
 Backtestable AI Trading Agents
 ******************************
 
@@ -171,6 +134,7 @@ An AI trading team is just a group of agents with different jobs inside the same
 .. image:: ../docs/assets/readme/lumibot_agent_flows.png
    :alt: Design your AI trading team with Lumibot
    :width: 100%
+   :class: lumibot-doc-image
 
 Example: Research, Bull, Bear, and Trader Agents
 ************************************************
@@ -180,6 +144,7 @@ Here is one example pattern: a researcher gathers evidence, bull and bear agents
 .. image:: ../docs/assets/readme/lumibot_investment_committee_architecture.png
    :alt: Lumibot AI trading team workflow
    :width: 100%
+   :class: lumibot-doc-image
 
 In this pattern, each agent has a job:
 
@@ -276,7 +241,7 @@ Example backtest artifact from this sample strategy:
    :alt: AI trading team backtest tear sheet compared to SPY
    :width: 100%
 
-Backtests are not expected future performance. The point is that the full AI trading team runs inside Lumibot's normal backtest loop, so the decisions, orders, and artifacts are inspectable before you connect a broker.
+The result is intentionally eye-catching, but the exact percentage is not the point. The point is that the full AI trading team runs inside Lumibot's normal backtest loop, so the decisions, orders, and artifacts are inspectable before you connect a broker. Backtests are not expected future performance.
 
 To run the same strategy in paper trading or live trading, keep the strategy class and replace the ``if __name__ == "__main__":`` block with a broker runner:
 
@@ -325,24 +290,12 @@ Next, explore the AI agent docs if you want a strategy that researches evidence,
 Need Extra Help?
 ****************
 
+If you want a guided path instead of piecing everything together from docs, start with the AI Trading Bootcamp. It teaches the full workflow: turn an idea into a Lumibot strategy, backtest it, inspect the artifacts, connect a broker, and decide when it is ready for paper or live trading.
+
+BotSpot is the cheaper, easier way to run Lumibot once you want hosted data, parallel backtests, broker connections, monitoring, alerts, audit history, and scheduled deployment without maintaining your own trading server.
+
 .. raw:: html
    :file: _html/course_list.html
-
-.. important::
-
-   **Build Trading Bots with AI**
-   
-   Lumibot is easier to run on `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=home&utm_campaign=lumibot&utm_content=need_extra_help&sample=lumibot_deploy_sample>`_ because the strategy code, hosted data, backtests, broker connections, deployment, monitoring, and AI workflow are already connected.
-   
-   - **Backtesting data included:** run supported backtests without sourcing every vendor and local data file yourself.
-   - **Cheaper deployment at scale:** schedule periodic bots on managed Lumibot infrastructure instead of paying for always-on servers per strategy.
-   - **Lumibot-tuned AI:** use prompts and workflows built for Lumibot code, backtests, artifacts, brokers, and deployment.
-   - **MCP for coding agents:** let Codex, Claude Code, Cursor, and other agents launch backtests, inspect artifacts, and prepare deployment.
-   - **Marketplace and strategy library:** browse, clone, adapt, run, or publish strategies when the author allows it.
-   - **Observability and control:** inspect charts, trades, logs, audit history, alerts, account checks, and kill switches.
-   - **Work from anywhere:** use the web app, your phone, Telegram, Discord, Claude, ChatGPT, or BotSpot MCP.
-   
-   **Try a sample Lumibot strategy on BotSpot:** `https://botspot.trade <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=home&utm_campaign=lumibot&utm_content=need_extra_help_start&sample=lumibot_deploy_sample>`_
 
 Table of Contents
 *****************

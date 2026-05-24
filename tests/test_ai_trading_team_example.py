@@ -25,3 +25,10 @@ def test_ai_trading_team_avoids_example_knobs():
     assert "TradingFee" not in source
     assert "budget=" not in source
     assert "quiet_logs" not in source
+
+
+def test_ai_trading_team_uses_agent_run_keywords():
+    source = inspect.getsource(AITradingTeamStrategy.on_trading_iteration)
+
+    assert ".run(\"" not in source
+    assert "task_prompt=" in source

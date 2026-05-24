@@ -936,3 +936,71 @@ Prompt-control API follow-up:
   `base_prompt="default" | "minimal" | "none"` or
   `include_lumibot_base_prompt=False`, with clear docs about the risks of
   removing backtest safety and execution guidance.
+
+## Model Slate Reframe: 2026-05-24
+
+Rob's current preference is to stop optimizing for weaker open models and focus
+the trading-agent benchmark on models that are plausibly strong enough for real
+money workflows. The relevant slate is now first-party OpenAI, Google Gemini,
+DeepSeek direct, xAI Grok, and optional Anthropic comparisons. Together-hosted
+models and Qwen are not priority targets unless a specific model becomes
+clearly competitive.
+
+Email check:
+
+- No direct DeepSeek promo email was found in Rob's work or personal Gmail.
+- The relevant evidence is the official DeepSeek pricing page, not the inbox.
+
+DeepSeek pricing interpretation:
+
+- DeepSeek V4 Pro is effectively 75% cheaper than its original listed price:
+  the official page shows `2.5折`, meaning 25% of original price, against
+  stricken original prices. The same note says the promo ends on
+  `2026-05-31 23:59` Beijing time and then the model is officially adjusted to
+  one quarter of the original price.
+- Current DeepSeek V4 Pro displayed pricing is:
+  - cache-hit input: `0.025 CNY/M` tokens
+  - cache-miss input: `3 CNY/M` tokens
+  - output: `6 CNY/M` tokens
+- DeepSeek V4 Flash is not the discounted model; it is already extremely cheap:
+  - cache-hit input: `0.02 CNY/M` tokens
+  - cache-miss input: `1 CNY/M` tokens
+  - output: `2 CNY/M` tokens
+- Using CNY/USD about `0.147`, this is approximately:
+  - DeepSeek V4 Flash: `$0.003/M` cached input, `$0.147/M` input,
+    `$0.294/M` output
+  - DeepSeek V4 Pro current displayed price: `$0.004/M` cached input,
+    `$0.441/M` input, `$0.883/M` output
+
+Cost comparison using the completed OpenAI three-month committee token shape:
+
+- Token shape: `5.233M` uncached input, `10.334M` cached input, `0.453M`
+  output.
+- Estimated equivalent run cost:
+  - DeepSeek V4 Flash direct: about `$0.93`
+  - Gemini 3.1 Flash-Lite: about `$2.25`
+  - DeepSeek V4 Pro current displayed price: about `$2.75`
+  - Gemini 3 Flash Preview: about `$4.49`
+  - OpenAI GPT-5.4 Mini: about `$6.74`
+  - xAI Grok 4.3: about `$9.74`
+  - Gemini 3.5 Flash: about `$13.47`
+  - Claude Haiku 4.5: about `$8.53`
+  - Claude Sonnet 4.6/4.5: about `$25.59`
+  - Claude Opus 4.7/4.6/4.5: about `$42.65`
+
+Model-selection implication:
+
+- The immediate benchmark slate should be:
+  1. `openai/gpt-5.4-mini`
+  2. `gemini-3.5-flash`
+  3. `gemini-3.1-flash-lite`
+  4. `deepseek/deepseek-v4-pro`
+  5. `deepseek/deepseek-v4-flash`
+  6. `xai/grok-4.3` or the current LiteLLM-compatible Grok 4.3 alias
+  7. Optional expensive control: Claude Sonnet 4.6
+- Run the same prompt and same committee roles on each model first. Mixed-role
+  committees should wait until same-model baselines exist.
+- BotSpot should eventually expose this as a public model benchmark page because
+  the artifact is useful marketing and product proof: model, provider, cost,
+  tokens, tool calls, speed, return, drawdown, trade count, tool-call errors,
+  no-trade rationale, and trace-quality notes.

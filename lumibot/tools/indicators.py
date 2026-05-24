@@ -1879,74 +1879,6 @@ def create_tearsheet(
             _write_tearsheet_metrics_json(f"quantstats_error: {exc}")
             return
 
-    # QuantStats occasionally emits malformed or low-precision percent cells
-    # (e.g., "-" or "-11%" instead of "-11.89%"). Our CI acceptance harness pins to 0.01%
-    # resolution, so normalize the headline metrics using stable computations over the exact
-    # return series passed into QuantStats (df_final).
-    try:
-        import re
-
-        if isinstance(result, pd.DataFrame) and "Strategy" in result.columns:
-            # Acceptance baselines are pinned to 0.01% resolution.
-            percent_re = re.compile(r"^-?\\d[\\d,]*\\.\\d{2}%$")
-
-            def _is_valid_percent(value: object) -> bool:
-                if value is None:
-                    return False
-                s = str(value).strip()
-                return bool(percent_re.match(s))
-
-            def _fmt_percent(value: float) -> str:
-                return f"{float(value) * 100.0:.2f}%"
-
-            try:
-                import quantstats_lumi as _qs
-
-                strat_returns = _qs.utils._prepare_returns(df_final["strategy"].astype(float))
-                bench_returns = _qs.utils._prepare_returns(df_final["benchmark"].astype(float))
-
-                headline_values = {
-                    "Total Return": (
-                        float(_qs.stats.comp(strat_returns)),
-                        float(_qs.stats.comp(bench_returns)),
-                    ),
-                    "CAGR% (Annual Return)": (
-                        float(_qs.stats.cagr(strat_returns)),
-                        float(_qs.stats.cagr(bench_returns)),
-                    ),
-                    "Max Drawdown": (
-                        float(_qs.stats.max_drawdown(strat_returns)),  # negative fraction
-                        float(_qs.stats.max_drawdown(bench_returns)),  # negative fraction
-                    ),
-                }
-            except Exception:
-                headline_values = {}
-
-            # Best-effort detect benchmark column (QuantStats names it using `df_final["benchmark"].name`).
-            # QuantStats emits metrics with `Metric` as the index name, not a column.
-            benchmark_cols = [c for c in result.columns if c != "Strategy"]
-            benchmark_col = benchmark_cols[0] if benchmark_cols else None
-
-            for metric_name, pair in headline_values.items():
-                idx = None
-                if "Metric" in result.columns:
-                    row = result.index[result["Metric"] == metric_name]
-                    if len(row) == 1:
-                        idx = row[0]
-                else:
-                    if metric_name in result.index:
-                        idx = metric_name
-                if idx is None:
-                    continue
-
-                if not _is_valid_percent(result.at[idx, "Strategy"]):
-                    result.at[idx, "Strategy"] = _fmt_percent(pair[0])
-
-                if benchmark_col is not None and not _is_valid_percent(result.at[idx, benchmark_col]):
-                    result.at[idx, benchmark_col] = _fmt_percent(pair[1])
-    except Exception:  # pragma: no cover
-        pass
-
     def _coerce_tearsheet_metric_value(value):
         if value is None:
             return None
@@ -1966,6 +1898,7 @@ def create_tearsheet(
                 rf=risk_free_rate,
                 display=False,
                 custom_metrics=custom_metrics,
+                match_dates=False,
             )
 
         if not isinstance(metrics_df, pd.DataFrame) or metrics_df.empty:
@@ -2018,6 +1951,7 @@ def create_tearsheet(
                         output=tearsheet_metrics_file,
                         summary_only=True,
                         custom_metrics=custom_metrics,
+                        match_dates=False,
                     )
             else:
                 _write_tearsheet_metrics_json_fallback()

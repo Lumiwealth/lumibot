@@ -16,7 +16,7 @@ class AITradingTeamStrategy(Strategy):
 
     def initialize(self):
         self.sleeptime = "1D"
-        # Three agents debate. The trader agent is the only one allowed to place orders.
+        # The first three agents are read-only. They can reason, but cannot trade.
         self.agents.create(
             name="researcher",
             model="gemini-3.1-flash-lite",
@@ -35,6 +35,7 @@ class AITradingTeamStrategy(Strategy):
             allow_trading=False,
             system_prompt="Point out the biggest risk, briefly.",
         )
+        # Only this final agent can submit orders through Lumibot.
         self.agents.create(
             name="trader",
             model="gemini-3.1-flash-lite",
@@ -43,7 +44,7 @@ class AITradingTeamStrategy(Strategy):
         )
 
     def on_trading_iteration(self):
-        # Keep the handoff tiny so the example is easy to read.
+        # Each trading day, pass the same market context through the team.
         context = {
             "date": self.get_datetime().date().isoformat(),
             "universe": self.parameters["universe"],

@@ -43,36 +43,76 @@ BotSpot is not a generic chatbot bolted onto a broker account. Its AI workflows,
   </a>
 </p>
 
+## Quick Start
+
+```bash
+pip install lumibot
+```
+
+```python
+from datetime import datetime
+from lumibot.strategies import Strategy
+from lumibot.backtesting import YahooDataBacktesting
+
+class MyStrategy(Strategy):
+    def on_trading_iteration(self):
+        if self.first_iteration:
+            aapl = self.create_order("AAPL", 10, "buy")
+            self.submit_order(aapl)
+
+MyStrategy.backtest(
+    YahooDataBacktesting,
+    datetime(2023, 1, 1),
+    datetime(2024, 1, 1),
+)
+```
+
+```bash
+python my_strategy.py
+```
+
+That same strategy code works with live brokers. Just swap the broker class.
+
+For full setup guides, broker tutorials, AI-agent docs, examples, and deployment notes, use the **[Lumibot documentation](https://lumibot.lumiwealth.com/)**.
+
 ## Backtestable AI Trading Agents
 
 Lumibot now includes a built-in AI agent runtime for financial research, reasoning, debate, risk review, and trade execution. Agents can inspect market data, read filings, query indicators, search memory, compare macro context, and submit orders through the same Lumibot strategy loop used by normal backtests and live trading.
 
-Classic Python strategies are still first-class. The point is not to replace deterministic trading logic. The point is that Lumibot lets you choose the right level of intelligence: fixed rules, AI agents, or a hybrid where Python handles the hard gates and agents reason through evidence.
-
-An AI trading team is one example pattern:
-
-<p align="center">
-  <img src="docs/assets/readme/lumibot_investment_committee_architecture.png" alt="Lumibot AI trading team workflow" width="100%">
-</p>
-
-In that pattern, each agent has a job:
-
-1. **Research Agent:** builds the evidence pack from market data, filings, fundamentals, news, macro data, and indicators.
-2. **Bull Agent:** turns that evidence into the strongest long thesis.
-3. **Bear Agent:** challenges the thesis, looks for risk, and argues for avoiding, delaying, or reducing the trade.
-4. **Portfolio Manager Agent:** checks cash, positions, open orders, and risk limits, then decides whether to trade.
-
-It is one team shape, not the only one. You can build a single-agent strategy, a specialist research flow, bull/bear/neutral teams, model-vs-model debates, deterministic execution gates, or agent reviewers layered on top of normal Python logic.
+Classic Python strategies are still first-class. Lumibot lets you choose the right level of intelligence: fixed rules, AI agents, or a hybrid where Python handles the hard gates and agents reason through evidence.
 
 Built-in AI agent tools include market/account state, order inspection, DuckDB queries, documentation search, Alpaca news when credentials exist, technical indicators, SEC fundamentals and filings, FRED macro data, local memory, and Telegram notifications.
+
+### Design Your AI Trading Team
+
+An AI trading team is just a group of agents with different jobs inside the same Lumibot strategy. You can build a single-agent strategy, a specialist research flow, bull/bear/neutral teams, model-vs-model debates, deterministic execution gates, or agent reviewers layered on top of normal Python logic.
 
 <p align="center">
   <img src="docs/assets/readme/lumibot_agent_flows.png" alt="Design your AI trading team with Lumibot" width="100%">
 </p>
 
-### Copy-Paste AI Trading Team Example
+### Example: Research, Bull, Bear, and Trader Agents
 
-Set `GEMINI_API_KEY`, then save this as `ai_trading_team.py` and run `python ai_trading_team.py`. The example creates four agents: a researcher, a bull case agent, a bear case agent, and a trader agent. The researcher, bull, and bear agents are read-only; the trader agent is the only one allowed to place orders.
+Here is one example pattern: a researcher gathers evidence, bull and bear agents debate the trade, and a trader agent decides what to buy or sell.
+
+<p align="center">
+  <img src="docs/assets/readme/lumibot_investment_committee_architecture.png" alt="Lumibot AI trading team workflow" width="100%">
+</p>
+
+In this pattern, each agent has a job:
+
+1. **Research Agent:** builds the evidence pack from market data, filings, fundamentals, news, macro data, and indicators.
+2. **Bull Agent:** turns that evidence into the strongest long thesis.
+3. **Bear Agent:** challenges the thesis, looks for risk, and argues for avoiding, delaying, or reducing the trade.
+4. **Trader / Portfolio Manager Agent:** checks cash, positions, open orders, and risk limits, then decides whether to trade.
+
+The copy-paste example below implements that exact team. It uses Gemini Flash Lite because it is fast and inexpensive for experiments. Set `GEMINI_API_KEY` first:
+
+```bash
+export GEMINI_API_KEY='your-key-here'
+```
+
+Then save this as `ai_trading_team.py` and run `python ai_trading_team.py`. If the key is missing or invalid, Lumibot stops the backtest and prints a clear `GEMINI_API_KEY` error with a link to create a key.
 
 ```python
 from datetime import datetime
@@ -87,7 +127,7 @@ class AITradingTeamStrategy(Strategy):
 
     def initialize(self):
         self.sleeptime = "1D"
-        # Three agents debate. The trader agent is the only one allowed to place orders.
+        # The first three agents are read-only. They can reason, but cannot trade.
         self.agents.create(
             name="researcher",
             model="gemini-3.1-flash-lite",
@@ -106,6 +146,7 @@ class AITradingTeamStrategy(Strategy):
             allow_trading=False,
             system_prompt="Point out the biggest risk, briefly.",
         )
+        # Only this final agent can submit orders through Lumibot.
         self.agents.create(
             name="trader",
             model="gemini-3.1-flash-lite",
@@ -114,6 +155,7 @@ class AITradingTeamStrategy(Strategy):
         )
 
     def on_trading_iteration(self):
+        # Each trading day, pass the same market context through the team.
         context = {
             "date": self.get_datetime().date().isoformat(),
             "universe": self.parameters["universe"],
@@ -174,38 +216,6 @@ if __name__ == "__main__":
     trader.add_strategy(strategy)
     trader.run_all()
 ```
-
-## Quick Start
-
-```bash
-pip install lumibot
-```
-
-```python
-from datetime import datetime
-from lumibot.strategies import Strategy
-from lumibot.backtesting import YahooDataBacktesting
-
-class MyStrategy(Strategy):
-    def on_trading_iteration(self):
-        if self.first_iteration:
-            aapl = self.create_order("AAPL", 10, "buy")
-            self.submit_order(aapl)
-
-MyStrategy.backtest(
-    YahooDataBacktesting,
-    datetime(2023, 1, 1),
-    datetime(2024, 1, 1),
-)
-```
-
-```bash
-python my_strategy.py
-```
-
-That same strategy code works with live brokers. Just swap the broker class.
-
-For full setup guides, broker tutorials, AI-agent docs, examples, and deployment notes, use the **[Lumibot documentation](https://lumibot.lumiwealth.com/)**.
 
 ## Why Lumibot?
 

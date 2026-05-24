@@ -6,157 +6,6 @@ Lumibot: Backtestable AI Agents and Python Algorithmic Trading
 .. raw:: html
    :file: _html/main.html
 
-AI Trading Agents -- Backtest AI Agents with Real External Tools
-*****************************************************************
-
-LumiBot is built for **AI agents that reason, call external tools, and make trading decisions on every bar during a backtest** -- then run the exact same code live. This is real agentic backtesting: the LLM is inside the simulation loop, not bolted onto the side.
-
-- **Backtest AI trading agents** with real external data from 20,000+ MCP servers
-- **LLM in the loop on every bar** -- the agent reasons over point-in-time market state, calls tools, and submits orders
-- **Replay caching** makes warm backtest reruns deterministic and fast (zero LLM calls on rerun)
-- **Any LLM provider per agent** -- use a cheaper model for evidence gathering and a stronger model for debate/trading
-- **Built-in SEC fundamentals and filings** -- agents can inspect income statements, balance sheets, cash flow, company facts, and annual reports
-- **Built-in FRED macro data** -- agents can inspect rates, inflation, labor, growth, liquidity, credit spreads, and market-risk series
-- **Trading permissions** -- research agents can use read-only tools while portfolio-manager agents place orders
-- **Same code for backtest and live** -- write once, backtest it, deploy it
-- **External MCP servers are just a URL** -- no local scripts, no npm installs
-
-Key AI agent docs:
-
-- :doc:`agents` -- main guide: agentic backtesting framework, MCP trading tools, and competitive positioning
-- :doc:`agents_flows` -- design single-agent, multi-agent, debate, team, and hybrid flows
-- :doc:`agents_investment_committee` -- one concrete AI trading team example
-- :doc:`fundamentals` -- SEC fundamentals and filing research tools
-- :doc:`macro_data` -- FRED macro data tools and point-in-time behavior
-- :doc:`agents_builtin_tools` -- built-in tools, indicators, and trading permissions
-- :doc:`agents_quickstart` -- quick start with code examples for AI agent backtesting
-- :doc:`agents_canonical_demos` -- three reference demos: news sentiment, macro risk, and M2 liquidity
-- :doc:`agents_observability` -- traces, replay cache, warnings, and debugging workflow
-
-Start with :doc:`agents` to learn how LumiBot puts AI agents inside the backtest loop with external MCP tools.
-
-Copy-Paste AI Trading Team Example
-**********************************
-
-This example creates four agents: a researcher, a bull case agent, a bear case agent, and a trader agent. The researcher, bull, and bear agents are read-only. The trader agent is the only one allowed to place orders.
-
-Set ``GEMINI_API_KEY``, save this as ``ai_trading_team.py``, then run ``python ai_trading_team.py``.
-
-.. code-block:: python
-
-    from datetime import datetime
-
-    from lumibot.strategies.strategy import Strategy
-
-
-    class AITradingTeamStrategy(Strategy):
-        parameters = {
-            "universe": ["TQQQ", "SQQQ", "SOXL", "SOXS", "UPRO", "SPXU", "TECL", "TECS"],
-        }
-
-        def initialize(self):
-            self.sleeptime = "1D"
-            # Three agents debate. The trader agent is the only one allowed to place orders.
-            self.agents.create(
-                name="researcher",
-                model="gemini-3.1-flash-lite",
-                allow_trading=False,
-                system_prompt="Rank the ETFs by upside. Be direct.",
-            )
-            self.agents.create(
-                name="bull",
-                model="gemini-3.1-flash-lite",
-                allow_trading=False,
-                system_prompt="Argue for the strongest money-making trade.",
-            )
-            self.agents.create(
-                name="bear",
-                model="gemini-3.1-flash-lite",
-                allow_trading=False,
-                system_prompt="Point out the biggest risk, briefly.",
-            )
-            self.agents.create(
-                name="trader",
-                model="gemini-3.1-flash-lite",
-                allow_trading=True,
-                system_prompt="Buy one ETF from the universe aggressively. Use nearly all cash.",
-            )
-
-        def on_trading_iteration(self):
-            context = {
-                "date": self.get_datetime().date().isoformat(),
-                "universe": self.parameters["universe"],
-            }
-            research = self.agents["researcher"].run(
-                task_prompt="Pick the strongest ETF.",
-                context=context,
-            )
-            bull = self.agents["bull"].run(
-                task_prompt="Make the bull case.",
-                context={**context, "research": research.summary},
-            )
-            bear = self.agents["bear"].run(
-                task_prompt="Make the bear case.",
-                context={**context, "research": research.summary, "bull": bull.summary},
-            )
-            self.agents["trader"].run(
-                task_prompt="Sell anything that is not the pick, then buy the best ETF with nearly all available cash.",
-                context={**context, "research": research.summary, "bull": bull.summary, "bear": bear.summary},
-            )
-
-
-    if __name__ == "__main__":
-        from lumibot.backtesting import YahooDataBacktesting
-
-        AITradingTeamStrategy.backtest(
-            YahooDataBacktesting,
-            datetime(2026, 4, 7),
-            datetime(2026, 5, 22),
-        )
-
-Example backtest artifact from this sample strategy:
-
-.. image:: ../docs/assets/ai-trading-team-example/ai-trading-team-tearsheet-rob-crop-2026-05-24.png
-   :alt: AI trading team backtest tear sheet compared to SPY
-   :width: 100%
-
-Backtests are not expected future performance. The point is that the full AI trading team runs inside Lumibot's normal backtest loop, so the decisions, orders, and artifacts are inspectable before you connect a broker.
-
-To run the same strategy in paper trading or live trading, keep the strategy class and replace the ``if __name__ == "__main__":`` block with a broker runner:
-
-.. code-block:: python
-
-    if __name__ == "__main__":
-        from lumibot.brokers import Alpaca
-        from lumibot.traders import Trader
-
-        ALPACA_CONFIG = {
-            "API_KEY": "YOUR_ALPACA_API_KEY",
-            "API_SECRET": "YOUR_ALPACA_SECRET",
-            "PAPER": True,
-        }
-
-        broker = Alpaca(ALPACA_CONFIG)
-        strategy = AITradingTeamStrategy(broker=broker)
-
-        trader = Trader()
-        trader.add_strategy(strategy)
-        trader.run_all()
-
-Cash Accounting
-***************
-
-Lumibot supports explicit cash accounting for both backtests and live broker
-telemetry. Use the strategy cash methods for deposits, withdrawals, direct
-cash adjustments, and financing setup, then review the resulting
-cash-adjusted returns in the standard backtest artifacts.
-
-- Backtests keep external cashflows out of strategy performance
-- Live cloud payloads can include normalized broker ``cash_events``
-- Listener storage keeps raw normalized events in a dedicated event table
-
-Start with :doc:`cash_accounting` for the end-to-end guide.
-
 Getting Started
 ****************
 
@@ -284,6 +133,185 @@ Here's the complete code:
     trader.run_all()
 
 Or you can download the file here: `https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/simple_start_single_file.py <https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/simple_start_single_file.py>`_
+
+Backtestable AI Trading Agents
+******************************
+
+LumiBot is built for **AI agents that reason, call external tools, and make trading decisions on every bar during a backtest** -- then run the exact same code live. This is real agentic backtesting: the LLM is inside the simulation loop, not bolted onto the side.
+
+Classic Python strategies are still first-class. LumiBot lets you choose the right level of intelligence: fixed rules, AI agents, or a hybrid where Python handles the hard gates and agents reason through evidence.
+
+- **Backtest AI trading agents** with real external data from 20,000+ MCP servers
+- **LLM in the loop on every bar** -- the agent reasons over point-in-time market state, calls tools, and submits orders
+- **Replay caching** makes warm backtest reruns deterministic and fast (zero LLM calls on rerun)
+- **Any LLM provider per agent** -- use a cheaper model for evidence gathering and a stronger model for debate/trading
+- **Built-in SEC fundamentals and filings** -- agents can inspect income statements, balance sheets, cash flow, company facts, and annual reports
+- **Built-in FRED macro data** -- agents can inspect rates, inflation, labor, growth, liquidity, credit spreads, and market-risk series
+- **Trading permissions** -- research agents can use read-only tools while portfolio-manager agents place orders
+- **Same code for backtest and live** -- write once, backtest it, deploy it
+- **External MCP servers are just a URL** -- no local scripts, no npm installs
+
+Key AI agent docs:
+
+- :doc:`agents` -- main guide: agentic backtesting framework, MCP trading tools, and competitive positioning
+- :doc:`agents_flows` -- design single-agent, multi-agent, debate, team, and hybrid flows
+- :doc:`agents_investment_committee` -- one concrete AI trading team example
+- :doc:`fundamentals` -- SEC fundamentals and filing research tools
+- :doc:`macro_data` -- FRED macro data tools and point-in-time behavior
+- :doc:`agents_builtin_tools` -- built-in tools, indicators, and trading permissions
+- :doc:`agents_quickstart` -- quick start with code examples for AI agent backtesting
+- :doc:`agents_canonical_demos` -- three reference demos: news sentiment, macro risk, and M2 liquidity
+- :doc:`agents_observability` -- traces, replay cache, warnings, and debugging workflow
+
+Design Your AI Trading Team
+***************************
+
+An AI trading team is just a group of agents with different jobs inside the same LumiBot strategy. You can build a single-agent strategy, a specialist research flow, bull/bear/neutral teams, model-vs-model debates, deterministic execution gates, or agent reviewers layered on top of normal Python logic.
+
+.. image:: ../docs/assets/readme/lumibot_agent_flows.png
+   :alt: Design your AI trading team with Lumibot
+   :width: 100%
+
+Example: Research, Bull, Bear, and Trader Agents
+************************************************
+
+Here is one example pattern: a researcher gathers evidence, bull and bear agents debate the trade, and a trader agent decides what to buy or sell.
+
+.. image:: ../docs/assets/readme/lumibot_investment_committee_architecture.png
+   :alt: Lumibot AI trading team workflow
+   :width: 100%
+
+In this pattern, each agent has a job:
+
+1. **Research Agent:** builds the evidence pack from market data, filings, fundamentals, news, macro data, and indicators.
+2. **Bull Agent:** turns that evidence into the strongest long thesis.
+3. **Bear Agent:** challenges the thesis, looks for risk, and argues for avoiding, delaying, or reducing the trade.
+4. **Trader / Portfolio Manager Agent:** checks cash, positions, open orders, and risk limits, then decides whether to trade.
+
+The copy-paste example below implements that exact team. It uses Gemini Flash Lite because it is fast and inexpensive for experiments. Set ``GEMINI_API_KEY`` first:
+
+.. code-block:: bash
+
+    export GEMINI_API_KEY='your-key-here'
+
+Then save this as ``ai_trading_team.py`` and run ``python ai_trading_team.py``. If the key is missing or invalid, LumiBot stops the backtest and prints a clear ``GEMINI_API_KEY`` error with a link to create a key.
+
+.. code-block:: python
+
+    from datetime import datetime
+
+    from lumibot.strategies.strategy import Strategy
+
+
+    class AITradingTeamStrategy(Strategy):
+        parameters = {
+            "universe": ["TQQQ", "SQQQ", "SOXL", "SOXS", "UPRO", "SPXU", "TECL", "TECS"],
+        }
+
+        def initialize(self):
+            self.sleeptime = "1D"
+            # The first three agents are read-only. They can reason, but cannot trade.
+            self.agents.create(
+                name="researcher",
+                model="gemini-3.1-flash-lite",
+                allow_trading=False,
+                system_prompt="Rank the ETFs by upside. Be direct.",
+            )
+            self.agents.create(
+                name="bull",
+                model="gemini-3.1-flash-lite",
+                allow_trading=False,
+                system_prompt="Argue for the strongest money-making trade.",
+            )
+            self.agents.create(
+                name="bear",
+                model="gemini-3.1-flash-lite",
+                allow_trading=False,
+                system_prompt="Point out the biggest risk, briefly.",
+            )
+            # Only this final agent can submit orders through Lumibot.
+            self.agents.create(
+                name="trader",
+                model="gemini-3.1-flash-lite",
+                allow_trading=True,
+                system_prompt="Buy one ETF from the universe aggressively. Use nearly all cash.",
+            )
+
+        def on_trading_iteration(self):
+            # Each trading day, pass the same market context through the team.
+            context = {
+                "date": self.get_datetime().date().isoformat(),
+                "universe": self.parameters["universe"],
+            }
+            research = self.agents["researcher"].run(
+                task_prompt="Pick the strongest ETF.",
+                context=context,
+            )
+            bull = self.agents["bull"].run(
+                task_prompt="Make the bull case.",
+                context={**context, "research": research.summary},
+            )
+            bear = self.agents["bear"].run(
+                task_prompt="Make the bear case.",
+                context={**context, "research": research.summary, "bull": bull.summary},
+            )
+            self.agents["trader"].run(
+                task_prompt="Sell anything that is not the pick, then buy the best ETF with nearly all available cash.",
+                context={**context, "research": research.summary, "bull": bull.summary, "bear": bear.summary},
+            )
+
+
+    if __name__ == "__main__":
+        from lumibot.backtesting import YahooDataBacktesting
+
+        AITradingTeamStrategy.backtest(
+            YahooDataBacktesting,
+            datetime(2026, 4, 7),
+            datetime(2026, 5, 22),
+        )
+
+Example backtest artifact from this sample strategy:
+
+.. image:: ../docs/assets/ai-trading-team-example/ai-trading-team-tearsheet-rob-crop-2026-05-24.png
+   :alt: AI trading team backtest tear sheet compared to SPY
+   :width: 100%
+
+Backtests are not expected future performance. The point is that the full AI trading team runs inside Lumibot's normal backtest loop, so the decisions, orders, and artifacts are inspectable before you connect a broker.
+
+To run the same strategy in paper trading or live trading, keep the strategy class and replace the ``if __name__ == "__main__":`` block with a broker runner:
+
+.. code-block:: python
+
+    if __name__ == "__main__":
+        from lumibot.brokers import Alpaca
+        from lumibot.traders import Trader
+
+        ALPACA_CONFIG = {
+            "API_KEY": "YOUR_ALPACA_API_KEY",
+            "API_SECRET": "YOUR_ALPACA_SECRET",
+            "PAPER": True,
+        }
+
+        broker = Alpaca(ALPACA_CONFIG)
+        strategy = AITradingTeamStrategy(broker=broker)
+
+        trader = Trader()
+        trader.add_strategy(strategy)
+        trader.run_all()
+
+Cash Accounting
+***************
+
+Lumibot supports explicit cash accounting for both backtests and live broker
+telemetry. Use the strategy cash methods for deposits, withdrawals, direct
+cash adjustments, and financing setup, then review the resulting
+cash-adjusted returns in the standard backtest artifacts.
+
+- Backtests keep external cashflows out of strategy performance
+- Live cloud payloads can include normalized broker ``cash_events``
+- Listener storage keeps raw normalized events in a dedicated event table
+
+Start with :doc:`cash_accounting` for the end-to-end guide.
 
 Additional Resources
 ********************

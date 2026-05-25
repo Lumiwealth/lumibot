@@ -75,10 +75,11 @@ refresh tokens as non-expiring. LumiBot can refresh an OAuth payload when
 ``TRADIER_TOKEN`` includes a ``refresh_token`` and
 ``TRADIER_OAUTH_CLIENT_ID`` / ``TRADIER_OAUTH_CLIENT_SECRET`` are configured.
 
-For BotSpot scheduled deployments, the platform refreshes the canonical Tradier
-OAuth credential in Vault before each short-lived runtime secret is issued. The
-scheduled container should treat the runtime credential as ephemeral and should
-not be the durable source of truth for refreshed tokens.
+For BotSpot managed runtimes, LumiBot writes refreshed OAuth token material to a
+BotSpot-provided handoff file when ``BOTSPOT_TRADIER_TOKEN_ROTATION_PATH`` is
+set. BotManager then forwards only allowlisted rotated token fields through the
+platform's audited token-rotation path. User strategies should treat runtime
+credentials as ephemeral and should not persist refreshed tokens themselves.
 
 Then you can run your strategy as you normally would:
 

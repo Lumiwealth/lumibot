@@ -120,6 +120,39 @@ class Tradier(Broker):
                 pass
             _update_client(getattr(ds, "tradier", None))
 
+    def _write_oauth_rotation_file(self, *, access_token: str, refresh_token: str | None) -> None:
+        """Best-effort handoff for BotManager's narrow token-rotation path."""
+        path = os.environ.get("BOTSPOT_TRADIER_TOKEN_ROTATION_PATH")
+        if not path or not access_token:
+            return
+        payload = {"TRADIER_ACCESS_TOKEN": access_token}
+        if refresh_token:
+            payload["TRADIER_REFRESH_TOKEN"] = refresh_token
+        try:
+            parent = os.path.dirname(path)
+            if parent:
+                os.makedirs(parent, exist_ok=True)
+                os.chmod(parent, 0o700)
+            tmp_path = f"{path}.tmp"
+            fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                    fd = None
+                    json.dump(payload, handle)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                os.replace(tmp_path, path)
+                os.chmod(path, 0o600)
+            finally:
+                if fd is not None:
+                    os.close(fd)
+        except Exception as exc:
+            try:
+                os.unlink(f"{path}.tmp")
+            except Exception:
+                pass
+            logger.warning("[Tradier] Could not write OAuth token rotation handoff file: %s", exc.__class__.__name__)
+
     def _refresh_oauth_token(self, *, force: bool = False) -> bool:
         """Refresh Tradier OAuth token if possible. Returns True on successful refresh."""
         if not self._oauth_enabled():
@@ -181,7 +214,7 @@ class Tradier(Broker):
             # Refresh token is typically stable for Tradier partner apps, but handle the case where it changes.
             new_refresh_token = token_json.get("refresh_token")
             if new_refresh_token and new_refresh_token != refresh_token:
-                logger.warning("[Tradier] OAuth refresh rotated refresh_token; rotation is not persisted in env vars and may require re-linking later.")
+                logger.warning("[Tradier] OAuth refresh rotated refresh_token; handing off for runtime token rotation when configured.")
                 self._oauth_refresh_token = new_refresh_token
 
             expires_in = token_json.get("expires_in")
@@ -198,6 +231,10 @@ class Tradier(Broker):
                 pass
 
             self._apply_access_token(new_access_token)
+            self._write_oauth_rotation_file(
+                access_token=new_access_token,
+                refresh_token=self._oauth_refresh_token,
+            )
             return True
 
     def _install_oauth_refresh_hooks(self) -> None:

@@ -401,6 +401,13 @@ TRADIER_IS_PAPER
 - Values: ``true`` (paper) / ``false`` (live).
 - Default: ``true`` (paper trading).
 
+BOTSPOT_TRADIER_TOKEN_ROTATION_PATH
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: BotSpot-managed runtime handoff file for refreshed Tradier OAuth tokens.
+- Values: Absolute file path provided by BotSpot runtime.
+- Note: Internal platform variable. User strategies should not set it.
+
 Interactive Brokers
 -------------------
 

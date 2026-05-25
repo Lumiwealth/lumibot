@@ -3301,6 +3301,10 @@ class _Strategy:
             "x-api-key": f"{self.lumiwealth_api_key}",
             "Content-Type": "application/json",
         }
+        redacted_headers = {
+            key: ("<redacted>" if key.lower() == "x-api-key" else value)
+            for key, value in headers.items()
+        }
 
         data = {
             "data_type": "portfolio_event",
@@ -3344,7 +3348,7 @@ class _Strategy:
             json_data = json.dumps(data, default=str)
             data_size_kb = len(json_data.encode('utf-8')) / 1024
             self.logger.debug(f"Sending {data_size_kb:.2f} KB of data to {LUMIWEALTH_URL}")
-            self.logger.debug(f"Request headers: {headers}")
+            self.logger.debug(f"Request headers: {redacted_headers}")
 
             response = requests.post(LUMIWEALTH_URL, headers=headers, data=json_data)
 

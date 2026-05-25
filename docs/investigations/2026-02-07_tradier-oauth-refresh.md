@@ -28,6 +28,7 @@ BotSpot injects:
 - `TRADIER_REFRESH_TOKEN` (optional)
 - `TRADIER_OAUTH_CLIENT_ID` (required to refresh)
 - `TRADIER_OAUTH_CLIENT_SECRET` (required to refresh)
+- `BOTSPOT_TRADIER_TOKEN_ROTATION_PATH` (internal BotSpot runtime handoff path)
 
 Notes:
 
@@ -49,12 +50,16 @@ File: `lumibot/brokers/tradier.py`
 - When a refresh succeeds, the broker updates the access token across:
   - broker’s `lumiwealth_tradier` client
   - data source’s `lumiwealth_tradier` client
+- When `BOTSPOT_TRADIER_TOKEN_ROTATION_PATH` is configured, a successful refresh
+  also writes a 0600 JSON handoff file containing only allowlisted rotated token
+  fields for BotManager's audited Vault rotation path.
 
 ## Limitations / Operational Notes
 
-- If Tradier rotates the refresh token on refresh, the new refresh token cannot be persisted back into task env vars.
-  - The code logs a warning if refresh-token rotation is detected.
-  - If rotation happens, users may need to re-link after the old refresh token becomes invalid.
+- Task environment variables are still ephemeral. Durability comes from
+  BotManager reading the handoff file after the run and calling the platform's
+  narrow token-rotation endpoint.
+- If the handoff path is not configured, refresh remains in-process only.
 
 ## Tests
 
@@ -63,4 +68,4 @@ File: `tests/test_tradier.py`
 - Added unit tests for:
   - decoding OAuth payload into `access_token`
   - refreshing token when payload is expired (requests mocked; no network)
-
+  - writing the token-rotation handoff file without logging token values

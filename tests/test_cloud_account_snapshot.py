@@ -5,8 +5,11 @@ from lumibot.strategies._strategy import _Strategy
 
 
 class _Logger:
+    def __init__(self):
+        self.debug_messages = []
+
     def debug(self, *args, **kwargs):
-        pass
+        self.debug_messages.append(" ".join(str(arg) for arg in args))
 
     def info(self, *args, **kwargs):
         pass
@@ -84,6 +87,22 @@ def test_cloud_update_refreshes_positions_before_publish(monkeypatch):
     assert payloads[0]["positions"] == []
     assert payloads[0]["positions_snapshot_status"] == "verified"
     assert payloads[0]["positions_snapshot_source"] == "broker_positions_refresh"
+
+
+def test_cloud_update_redacts_listener_key_from_debug_headers(monkeypatch):
+    strategy = _fake_strategy(balances_updated=True)
+
+    def fake_post(url, headers=None, data=None, **kwargs):
+        return _Response()
+
+    monkeypatch.setattr("lumibot.strategies._strategy.requests.post", fake_post)
+
+    result = _Strategy.send_update_to_cloud(strategy)
+
+    assert result is not False
+    debug_text = "\n".join(strategy.logger.debug_messages)
+    assert "test-api-key" not in debug_text
+    assert "'x-api-key': '<redacted>'" in debug_text
 
 
 def test_cloud_update_omits_positions_when_position_refresh_fails(monkeypatch):

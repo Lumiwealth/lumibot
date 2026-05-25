@@ -139,6 +139,50 @@ class TestTradierBroker:
 
         assert broker._tradier_access_token == "new-access"
 
+    def test_oauth_refresh_writes_rotation_handoff_file(self, monkeypatch, tmp_path):
+        token_json = {
+            "access_token": "old-access",
+            "refresh_token": "oauth-refresh",
+            "expires_in": 1,
+            "issued_at": int((time.time() - 3600) * 1000),
+        }
+        rotation_path = tmp_path / "tradier-token-rotation.json"
+        monkeypatch.setenv("TRADIER_TOKEN", self._b64url(token_json))
+        monkeypatch.setenv("TRADIER_REFRESH_TOKEN", "oauth-refresh")
+        monkeypatch.setenv("TRADIER_OAUTH_CLIENT_ID", "cid")
+        monkeypatch.setenv("TRADIER_OAUTH_CLIENT_SECRET", "secret")
+        monkeypatch.setenv("BOTSPOT_TRADIER_TOKEN_ROTATION_PATH", str(rotation_path))
+
+        class _Resp:
+            ok = True
+            status_code = 200
+            text = ""
+
+            def json(self):
+                return {
+                    "access_token": "new-access",
+                    "refresh_token": "new-refresh",
+                    "expires_in": 86400,
+                    "issued_at": int(time.time() * 1000),
+                }
+
+        from lumibot.brokers import tradier as tradier_module
+
+        monkeypatch.setattr(tradier_module.requests, "post", lambda *_args, **_kwargs: _Resp())
+
+        broker = Tradier(
+            config={"ACCESS_TOKEN": None, "ACCOUNT_NUMBER": "1234", "PAPER": True},
+            connect_stream=False,
+        )
+
+        assert broker._tradier_access_token == "new-access"
+        handoff = json.loads(rotation_path.read_text(encoding="utf-8"))
+        assert handoff == {
+            "TRADIER_ACCESS_TOKEN": "new-access",
+            "TRADIER_REFRESH_TOKEN": "new-refresh",
+        }
+        assert oct(rotation_path.stat().st_mode & 0o777) == "0o600"
+
     def test_oauth_defaults_expiry_when_issued_at_missing(self, monkeypatch):
         token_json = {
             "access_token": "old-access",

@@ -7,6 +7,7 @@
 
 # Cache files
 lumibot/cache
+.lumibot/
 *cache*
 !lumibot/tools/backtest_cache.py
 !lumibot/tools/parquet_series_cache.py

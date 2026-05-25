@@ -1095,3 +1095,67 @@ Next step:
 
 - Launch three-month runs for the same three models using the corrected
   telemetry and DeepSeek input-pruning path.
+
+## Three-Month Benchmark Attempt: 2026-05-24
+
+Scope:
+
+- Window: `2026-01-02` through `2026-04-02`.
+- Models: `gemini-3.1-flash-lite`, `deepseek/deepseek-v4-flash`, and
+  `deepseek/deepseek-v4-pro`.
+- Prompt: unchanged AI Investment Committee prompt.
+- DeepSeek runtime path: DeepSeek-only input/context pruning remained enabled
+  to stay under DeepSeek's `1,048,576` token context window. No tool-call budget
+  or output truncation was used.
+
+Completed result:
+
+- `gemini-3.1-flash-lite` completed successfully.
+- Artifact:
+  `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260524_150814/gemini-3.1-flash-lite/result.json`
+- Runtime: `799.3s`.
+- Agent calls: `248`.
+- Tool calls: `657`.
+- Input tokens: `6,513,913`.
+- Cached input tokens: `3,306,171`.
+- Uncached input tokens: `3,207,742`.
+- Cache hit rate: `50.8%`.
+- Output tokens: `128,077`.
+- Estimated cost: `$1.820594` no-cache, `$1.076705` cache-adjusted.
+- Return: `-2.698%`.
+- Max drawdown: `3.168%`.
+- Sharpe: `-2.8718`.
+- Final positions: cash plus `96` SGOV.
+
+DeepSeek three-month attempt:
+
+- Artifact root:
+  `/Users/robertgrzesik/Development/lumibot/artifacts/ai_committee_provider_benchmarks/20260524_172355`
+- Both DeepSeek runs were stopped by DeepSeek API `402 Payment Required` /
+  `Insufficient Balance` errors. This was a provider-account funding failure,
+  not a Lumibot context-window failure.
+- `deepseek/deepseek-v4-flash` reached `92` completed agent calls before the
+  balance failure. Partial raw-trace telemetry: `76,940,450` input tokens,
+  `67,948,800` cached input tokens, `8,991,650` uncached input tokens,
+  `1,383,146` output tokens, `594,822` thinking tokens, `88.3%` cache hit
+  rate, about `$1.022944` cache-adjusted estimated cost versus `$2.735254`
+  estimated no-cache cost.
+- `deepseek/deepseek-v4-pro` reached `58` completed agent calls before the
+  balance failure. Partial raw-trace telemetry: `16,405,431` input tokens,
+  `13,604,608` cached input tokens, `2,800,823` uncached input tokens,
+  `599,321` output tokens, `267,386` thinking tokens, `82.9%` cache hit rate,
+  about `$1.789084` cache-adjusted estimated cost versus `$7.657772` estimated
+  no-cache cost.
+
+Interpretation:
+
+- Provider-side caching is working and is now measurable from raw traces.
+- DeepSeek cache savings are material: the failed long run showed roughly
+  `82.9%` to `88.3%` cached input before the balance stopped the run.
+- DeepSeek remains much slower than Gemini for this exact committee workload.
+  The failed long run had been running for roughly three hours before the
+  provider balance stopped it, and neither DeepSeek model had reached the full
+  three-month endpoint.
+- The next valid DeepSeek three-month attempt requires funded DeepSeek credit
+  first. Rerun from the same artifact-aware benchmark command; do not change
+  the prompt if the goal is model-to-model comparability.

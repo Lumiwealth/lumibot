@@ -1074,14 +1074,29 @@ def _bind_memory_remember(strategy: Any, manager: Any) -> BoundTool:
     def remember(text: str, kind: str = "memory", tags: list[str] | None = None) -> dict[str, Any]:
         return strategy.memory.remember(text, kind=kind, tags=tags)
 
-    return BoundTool(name="remember", description="Store a local Lumibot agent memory or note as JSONL.", function=remember, source="builtin", metadata={"kind": "memory"})
+    return BoundTool(name="remember", description="Store a local Lumibot agent memory or note.", function=remember, source="builtin", metadata={"kind": "memory"})
 
 
 def _bind_memory_search(strategy: Any, manager: Any) -> BoundTool:
-    def search_memory(query: str, limit: int = 10, kind: str | None = None) -> dict[str, Any]:
-        return strategy.memory.search(query, limit=limit, kind=kind)
+    def search_memory(
+        query: str,
+        limit: int = 10,
+        kind: str | None = None,
+        symbol: str | None = None,
+        status: str | None = None,
+    ) -> dict[str, Any]:
+        return strategy.memory.search(query, limit=limit, kind=kind, symbol=symbol, status=status)
 
-    return BoundTool(name="search_memory", description="Search local Lumibot agent memories, lessons, decisions, and theses.", function=search_memory, source="builtin", metadata={"kind": "memory"})
+    return BoundTool(
+        name="search_memory",
+        description=(
+            "Search local Lumibot agent memories, lessons, decisions, and theses. "
+            "Use symbol/status filters when checking an open thesis for a held position."
+        ),
+        function=search_memory,
+        source="builtin",
+        metadata={"kind": "memory"},
+    )
 
 
 def _bind_remember_decision(strategy: Any, manager: Any) -> BoundTool:

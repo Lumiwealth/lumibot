@@ -133,6 +133,7 @@ def test_mutating_order_tools_disable_whole_run_retries_by_default(monkeypatch):
         task_prompt="",
         context=None,
         runtime_context={"mode": "live"},
+        memory_state=None,
         memory_notes=[],
         bound_tools=[
             BoundTool(name="orders_submit_order", description="submit", function=lambda: {"ok": True}),
@@ -299,6 +300,7 @@ def test_runtime_prompt_only_names_available_tools():
         task_prompt=None,
         context=None,
         runtime_context=None,
+        memory_state={"open_theses": [{"symbol": "TQQQ", "text": "Momentum holds."}]},
         memory_notes=[],
         bound_tools=bound_tools,
     )
@@ -308,6 +310,8 @@ def test_runtime_prompt_only_names_available_tools():
 
     assert "account_positions, get_indicator" in instruction
     assert "Available Tools JSON" in user_text
+    assert "Lumibot Memory State JSON" in user_text
+    assert "Momentum holds." in user_text
     assert "list_fred_series" not in user_text
     assert "alpaca_news" not in user_text
 
@@ -329,6 +333,7 @@ def test_runtime_enforces_agent_run_timeout(monkeypatch):
         task_prompt="Do work",
         context=None,
         runtime_context={"mode": "backtesting"},
+        memory_state=None,
         memory_notes=[],
         bound_tools=[],
     )
@@ -346,6 +351,7 @@ def test_runtime_default_agent_run_timeout_is_30_minutes(monkeypatch):
         task_prompt="Do work",
         context=None,
         runtime_context={"mode": "backtesting"},
+        memory_state=None,
         memory_notes=[],
         bound_tools=[],
     )

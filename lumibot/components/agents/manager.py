@@ -354,6 +354,8 @@ _AGENT_DETAIL_COLUMNS = [
     "effective_system_prompt",
     "context_text",
     "runtime_context_text",
+    "memory_state_text",
+    "memory_retrieval_ids",
     "warning_messages",
     "event_input_tokens",
     "event_output_tokens",
@@ -378,6 +380,54 @@ _AGENT_DETAIL_COLUMNS = [
     "call_first_event_latency_ms",
     "trace_path",
 ]
+
+
+def _agent_symbol(value: Any) -> str | None:
+    text = str(value or "").strip().upper()
+    return text or None
+
+
+def _held_position_symbols(runtime_context: dict[str, Any]) -> set[str]:
+    symbols: set[str] = set()
+    for position in runtime_context.get("positions") or []:
+        if not isinstance(position, dict):
+            continue
+        quantity = position.get("quantity", position.get("qty", position.get("shares")))
+        try:
+            if float(quantity or 0) == 0:
+                continue
+        except Exception:
+            pass
+        symbol = _agent_symbol(position.get("symbol"))
+        if symbol and symbol not in {"USD", "CASH"}:
+            symbols.add(symbol)
+    return symbols
+
+
+def _order_tool_symbols(result: AgentRunResult) -> set[str]:
+    symbols: set[str] = set()
+    for event in result.tool_calls:
+        if not str(event.tool_name or "").startswith("orders_"):
+            continue
+        payload = event.payload if isinstance(event.payload, dict) else {}
+        symbol = _agent_symbol(payload.get("symbol"))
+        if symbol:
+            symbols.add(symbol)
+    return symbols
+
+
+def _memory_retrieval_ids(result: AgentRunResult) -> list[str]:
+    retrieval_ids: list[str] = []
+    for event in result.tool_results:
+        if event.tool_name != "search_memory":
+            continue
+        payload = _unwrap_tool_payload(event.payload)
+        if not isinstance(payload, dict):
+            continue
+        retrieval_id = payload.get("retrieval_id")
+        if retrieval_id:
+            retrieval_ids.append(str(retrieval_id))
+    return retrieval_ids
 
 
 def _unwrap_tool_payload(payload: Any) -> Any:
@@ -650,6 +700,22 @@ class AgentHandle:
             )
         return projected
 
+    def _memory_state(self, runtime_context: dict[str, Any]) -> dict[str, Any] | None:
+        memory = getattr(self.manager.strategy, "memory", None)
+        if memory is None or not hasattr(memory, "compact_state"):
+            return None
+        try:
+            return memory.compact_state(symbols=sorted(_held_position_symbols(runtime_context)))
+        except Exception as exc:
+            return {
+                "schema_version": 1,
+                "error": f"{exc.__class__.__name__}: {str(exc)[:300]}",
+                "retrieval_policy": (
+                    "If holding a symbol and planning to add, reduce, or sell it, "
+                    "call search_memory for the open thesis first."
+                ),
+            }
+
     def _event_timestamp(self) -> str:
         current_dt = _current_strategy_datetime(self.manager.strategy)
         if current_dt is not None and hasattr(current_dt, "isoformat"):
@@ -742,6 +808,7 @@ class AgentHandle:
             "Use your available tools to gather evidence before making any trading decision. Do not guess when a tool can give you the answer.",
             "Before placing any trade, use tools to check current positions, available cash, and portfolio value.",
             "Load recent price history for any asset you are considering and inspect it before deciding.",
+            "If you already hold a position and are considering adding, reducing, or selling it, call search_memory for the open thesis first and compare the current evidence against that thesis.",
             "When available, use the built-in evidence stack before making a material equity decision: account/portfolio tools, current market prices, recent price history, DuckDB analysis, technical indicators, relevant news, macro/FRED data, SEC financial statements, SEC company facts, and SEC filings.",
             "Do not submit a material equity order until you have called account/portfolio tools, market price/history tools, at least one technical indicator tool, a relevant news tool when configured, a macro/FRED tool when configured, and SEC financial/filing tools for relevant single-stock candidates.",
             "For ETFs, indexes, or broad-market trades, use SEC financial/filing tools on the most relevant single-stock candidates, holdings, or alternatives you are considering; do not skip the category just because the final instrument is an ETF.",
@@ -958,6 +1025,7 @@ class AgentHandle:
         context: dict[str, Any] | None,
         model: str,
         runtime_context: dict[str, Any],
+        memory_state: dict[str, Any] | None,
         effective_system_prompt: str,
         base_system_prompt: str,
     ) -> dict[str, Any]:
@@ -969,6 +1037,7 @@ class AgentHandle:
             "task_prompt": task_prompt,
             "context": context or {},
             "runtime_context": runtime_context,
+            "memory_state": memory_state or {},
             "model": model,
             "tool_surface": [
                 {
@@ -1111,6 +1180,36 @@ class AgentHandle:
                     "message": "Agent used an order tool without prior visible non-order data/tool calls in the same run.",
                 }
             )
+        held_symbols = _held_position_symbols(runtime_context)
+        ordered_held_symbols = sorted(_order_tool_symbols(result).intersection(held_symbols))
+        if ordered_held_symbols and "search_memory" not in tool_names:
+            message = (
+                "Agent used an order tool on currently held symbol(s) without first calling "
+                f"search_memory for the open thesis: {', '.join(ordered_held_symbols)}."
+            )
+            warnings.append(
+                {
+                    "kind": "position_order_without_memory_thesis",
+                    "symbols": ordered_held_symbols,
+                    "message": message,
+                }
+            )
+            memory = getattr(self.manager.strategy, "memory", None)
+            if memory is not None and hasattr(memory, "record_warning"):
+                try:
+                    memory.record_warning(
+                        message,
+                        kind="position_order_without_memory_thesis",
+                        metadata={
+                            "agent_name": self.name,
+                            "model": result.model,
+                            "symbols": ordered_held_symbols,
+                            "tool_sequence": tool_names,
+                            "current_datetime": runtime_context.get("current_datetime"),
+                        },
+                    )
+                except Exception:
+                    pass
         for event in result.tool_results:
             payload = event.payload if isinstance(event.payload, dict) else None
             if not payload:
@@ -1244,6 +1343,7 @@ class AgentHandle:
             task_prompt = kwargs["task"]
         model_name = model or self.default_model
         runtime_context = self._runtime_context()
+        memory_state = self._memory_state(runtime_context)
         base_system_prompt = self._base_system_prompt(runtime_context)
         effective_system_prompt = self._compose_system_prompt(runtime_context)
         cache_payload = self._cache_payload(
@@ -1251,6 +1351,7 @@ class AgentHandle:
             context=context,
             model=model_name,
             runtime_context=runtime_context,
+            memory_state=memory_state,
             effective_system_prompt=effective_system_prompt,
             base_system_prompt=base_system_prompt,
         )
@@ -1281,6 +1382,7 @@ class AgentHandle:
             task_prompt=task_prompt,
             context=context,
             runtime_context=runtime_context,
+            memory_state=memory_state,
             memory_notes=self._memory_prompt_notes(),
             bound_tools=self._ensure_bound_tools(),
             provider_prompt_cache_key=_provider_prompt_cache_key(
@@ -1548,6 +1650,8 @@ class AgentManager:
         effective_system_prompt = _sanitize_csv_text(cache_payload.get("effective_system_prompt") or "")
         context_text = _flatten_csv_value(cache_payload.get("context") or {})
         runtime_context_text = _flatten_csv_value(cache_payload.get("runtime_context") or {})
+        memory_state_text = _flatten_csv_value(cache_payload.get("memory_state") or {})
+        memory_retrieval_ids = ", ".join(_memory_retrieval_ids(result))
         timing = _runtime_timing_payload(result)
         common: dict[str, Any] = {
             "timestamp": result.ended_at or handle._event_timestamp(),
@@ -1569,6 +1673,8 @@ class AgentManager:
             "effective_system_prompt": effective_system_prompt,
             "context_text": context_text,
             "runtime_context_text": runtime_context_text,
+            "memory_state_text": memory_state_text,
+            "memory_retrieval_ids": memory_retrieval_ids,
             "warning_messages": warning_messages,
             **timing,
             "trace_path": trace_path,
@@ -1807,6 +1913,17 @@ class AgentManager:
             usage=usage,
             call_index=call_index,
         )
+        memory = getattr(self.strategy, "memory", None)
+        if memory is not None and hasattr(memory, "export_artifacts"):
+            try:
+                detail_stem = detail_parquet_path.stem
+                if detail_stem.endswith("_agent_detail"):
+                    prefix = detail_stem[: -len("_agent_detail")] + "_agent_memory"
+                else:
+                    prefix = f"{handle.name}_agent_memory"
+                memory.export_artifacts(detail_parquet_path.parent, prefix=prefix)
+            except Exception as exc:
+                self._log_warning(f"Could not export agent memory artifacts: {exc}")
         self._update_strategy_parameters_for_agent(
             agent_name=handle.name,
             model=result.model,

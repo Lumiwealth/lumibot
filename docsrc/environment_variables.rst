@@ -773,8 +773,17 @@ LUMIBOT_FRED_CACHE_DIR
 LUMIBOT_MEMORY_DIR
 ^^^^^^^^^^^^^^^^^^
 
-- Purpose: Override local JSONL agent memory root.
+- Purpose: Override local SQLite agent memory root.
 - Default: ``.lumibot/memory`` under the current working directory.
+
+LUMIBOT_MEMORY_EXPORT_PARQUET
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Enable or disable best-effort Parquet exports for agent memory
+  events, retrievals, and current state.
+- Default: ``1``.
+- Notes: SQLite is still the live memory store. Parquet exports are derived
+  artifacts for DuckDB queries, BotSpot uploads, and post-run inspection.
 
 LUMIBOT_AGENT_MEMORY_NOTE_MAX_CHARS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

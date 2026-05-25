@@ -115,6 +115,7 @@ export GEMINI_API_KEY='your-key-here'
 Then save this as `ai_trading_team.py` and run `python ai_trading_team.py`. If the key is missing or invalid, Lumibot stops the backtest and prints a clear `GEMINI_API_KEY` error with a link to create a key.
 
 ```python
+import os
 from datetime import datetime
 
 from lumibot.strategies.strategy import Strategy
@@ -122,34 +123,35 @@ from lumibot.strategies.strategy import Strategy
 
 class AITradingTeamStrategy(Strategy):
     parameters = {
-        "universe": ["TQQQ", "SQQQ", "SOXL", "SOXS", "UPRO", "SPXU", "TECL", "TECS"],
+        "universe": ["TQQQ", "SQQQ", "UPRO", "SPXU", "UDOW", "SDOW", "TNA", "TZA", "TECL", "TECS", "SOXL", "SOXS", "WEBL", "WEBS", "FAS", "FAZ", "LABU", "LABD", "ERX", "ERY", "GUSH", "DRIP", "DRN", "DRV", "TMF", "TMV", "NUGT", "DUST"],
     }
 
     def initialize(self):
         self.sleeptime = "1D"
+        model = os.environ.get("AI_TRADING_TEAM_MODEL", "gemini-3.1-flash-lite")
         # The first three agents are read-only. They can reason, but cannot trade.
         self.agents.create(
             name="researcher",
-            model="gemini-3.1-flash-lite",
+            model=model,
             allow_trading=False,
             system_prompt="Rank the ETFs by upside. Be direct.",
         )
         self.agents.create(
             name="bull",
-            model="gemini-3.1-flash-lite",
+            model=model,
             allow_trading=False,
             system_prompt="Argue for the strongest money-making trade.",
         )
         self.agents.create(
             name="bear",
-            model="gemini-3.1-flash-lite",
+            model=model,
             allow_trading=False,
             system_prompt="Point out the biggest risk, briefly.",
         )
         # Only this final agent can submit orders through Lumibot.
         self.agents.create(
             name="trader",
-            model="gemini-3.1-flash-lite",
+            model=model,
             allow_trading=True,
             system_prompt="Buy one ETF from the universe aggressively. Use nearly all cash.",
         )

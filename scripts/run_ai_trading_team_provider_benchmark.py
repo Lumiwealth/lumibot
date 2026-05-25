@@ -209,7 +209,7 @@ def main() -> None:
         details = "; ".join(f"{model}: {label}" for model, label in missing.items())
         raise RuntimeError(f"Missing required provider API key(s): {details}")
 
-    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}_{os.getpid()}"
     root = ARTIFACT_ROOT / run_id
     root.mkdir(parents=True, exist_ok=True)
     results = []

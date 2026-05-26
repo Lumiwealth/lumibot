@@ -15,7 +15,7 @@ from schwab.client import Client
 from schwab.streaming import StreamClient
 from termcolor import colored
 
-from .broker import Broker
+from .broker import Broker, LumibotBrokerAPIError
 from lumibot.data_sources import SchwabData  # Import YahooData
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.lumibot_logger import get_logger
@@ -1862,19 +1862,54 @@ class Schwab(Broker):
         -------
         None
         """
+        if order.is_filled() or order.is_canceled():
+            return
+
+        if not order.identifier:
+            raise ValueError("Order identifier is not set, unable to cancel order. Did you remember to submit it?")
+
         # Add check for authorization error first
         if self.schwab_authorization_error:
-            logger.error(colored(f"Schwab authorization failed previously. Cannot cancel order {order.identifier}.", "red"))
-            return
+            error_msg = f"Schwab authorization failed previously. Cannot cancel order {order.identifier}."
+            logger.error(colored(error_msg, "red"))
+            raise LumibotBrokerAPIError(error_msg)
 
         # Add check for valid client and hash_value
         if not self.client or not self.hash_value:
-            logger.error(colored(f"Schwab client or account hash not initialized. Cannot cancel order {order.identifier}.", "red"))
-            return # Return early
+            error_msg = f"Schwab client or account hash not initialized. Cannot cancel order {order.identifier}."
+            logger.error(colored(error_msg, "red"))
+            raise LumibotBrokerAPIError(error_msg)
 
-        logger.error(colored(f"Method 'cancel_order' for order {order} is not yet implemented.", "red"))
-        # Implementation needed: call self.client.cancel_order(self.hash_value, order.identifier)
-        # Handle response and potentially dispatch CANCELED_ORDER or ERROR_ORDER events
+        try:
+            # schwab-py expects (order_id, account_hash) and issues
+            # DELETE /trader/v1/accounts/{account_hash}/orders/{order_id}.
+            response = self.client.cancel_order(order.identifier, self.hash_value)
+        except Exception as exc:
+            error_msg = f"Error canceling Schwab order {order.identifier}: {exc}"
+            logger.error(colored(error_msg, "red"))
+            raise LumibotBrokerAPIError(error_msg) from exc
+
+        status_code = getattr(response, "status_code", None)
+        if status_code is None:
+            error_msg = f"Error canceling Schwab order {order.identifier}: unexpected response {type(response).__name__}"
+            logger.error(colored(error_msg, "red"))
+            raise LumibotBrokerAPIError(error_msg)
+
+        if not 200 <= int(status_code) < 300:
+            response_text = getattr(response, "text", "")
+            error_msg = f"Error canceling Schwab order {order.identifier}: HTTP {status_code}"
+            if response_text:
+                error_msg += f" - {response_text}"
+            logger.error(colored(error_msg, "red"))
+            raise LumibotBrokerAPIError(error_msg)
+
+        logger.info(colored(f"Schwab cancel accepted for order {order.identifier}.", "green"))
+
+        if getattr(self, "stream", None) and hasattr(self.stream, "dispatch"):
+            self.stream.dispatch(self.CANCELED_ORDER, wait_until_complete=True, order=order)
+        else:
+            order.status = self.CANCELED_ORDER
+            order.set_canceled()
         return None
 
     def _launch_stream(self):

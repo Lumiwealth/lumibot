@@ -133,6 +133,89 @@ def test_read_only_tool_result_cache_is_shared_across_agent_handles():
     assert calls["count"] == 1
 
 
+def test_explicit_tool_scope_can_exclude_default_builtin_tools():
+    strategy = _Strategy()
+    manager = AgentManager(strategy)
+
+    def binder(strategy, manager):
+        def research_only_tool(symbol: str) -> dict:
+            return {"symbol": symbol}
+
+        return BoundTool(
+            name="research_only_tool",
+            description="Research-only test tool.",
+            function=research_only_tool,
+            source="custom",
+        )
+
+    tool_definition = ToolDefinition(name="research_only_tool", description="Research-only test tool.", binder=binder)
+    agent = manager.create(
+        name="scoped_researcher",
+        tools=[tool_definition],
+        allow_trading=False,
+        include_builtin_tools=False,
+    )
+
+    tool_names = {tool.name for tool in agent._ensure_bound_tools()}
+
+    assert tool_names == {"research_only_tool"}
+
+
+def test_get_filings_future_report_date_does_not_trigger_lookahead_warning():
+    strategy = _Strategy()
+    manager = AgentManager(strategy)
+    agent = manager.create(name="researcher", allow_trading=False)
+    result = AgentRunResult(
+        summary="RESULT: done",
+        model="test",
+        events=[
+            AgentTraceEvent(
+                kind="tool_call",
+                tool_name="get_filings",
+                payload={"symbol": "NVDA", "as_of": "2026-05-21"},
+            ),
+            AgentTraceEvent(
+                kind="tool_result",
+                tool_name="get_filings",
+                payload={
+                    "filings": [
+                        {
+                            "filing_date": "2026-05-12",
+                            "acceptance_datetime": "2026-05-12T20:42:13.000Z",
+                            "report_date": "2026-06-24",
+                        }
+                    ]
+                },
+            ),
+        ],
+    )
+
+    warnings = agent._derive_warnings(
+        result,
+        {"mode": "backtesting", "current_datetime": "2026-05-21T13:30:00+00:00"},
+    )
+
+    assert not [warning for warning in warnings if warning["kind"] == "future_timestamp"]
+
+
+def test_no_tool_warning_is_skipped_when_agent_has_no_tools():
+    strategy = _Strategy()
+    manager = AgentManager(strategy)
+    agent = manager.create(name="debater", tools=[], include_builtin_tools=False, allow_trading=False)
+    result = AgentRunResult(
+        summary="RESULT: reasoned from context",
+        model="test",
+        events=[AgentTraceEvent(kind="text", text="RESULT: reasoned from context")],
+    )
+
+    warnings = agent._derive_warnings(
+        result,
+        {"mode": "backtesting", "current_datetime": "2026-05-21T13:30:00+00:00"},
+    )
+
+    assert not [warning for warning in warnings if warning["kind"] == "no_tool_calls"]
+
+
 def test_order_tool_serialization_handles_uuid_identifiers():
     import json
     from uuid import uuid4

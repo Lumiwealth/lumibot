@@ -654,6 +654,7 @@ class AgentHandle:
         mcp_servers: list[MCPServer] | None = None,
         runtime: Any | None = None,
         allow_trading: bool = True,
+        include_builtin_tools: bool = True,
     ) -> None:
         self.manager = manager
         self.name = name
@@ -664,9 +665,10 @@ class AgentHandle:
         builtin_tools = self._filter_tools_for_trading_permission(BuiltinTools.all())
         if tools is None:
             self._tool_inputs = builtin_tools
-        else:
-            # Always include built-in tools, plus any custom tools the user added
+        elif include_builtin_tools:
             self._tool_inputs = builtin_tools + self._filter_tools_for_trading_permission(list(tools))
+        else:
+            self._tool_inputs = self._filter_tools_for_trading_permission(list(tools))
         self._mcp_servers = mcp_servers or []
         google_runtime, _RuntimeRequest, _StubAgentRuntime, _call_mcp_tool = _get_runtime_imports()
         self._runtime = runtime or google_runtime(mcp_servers=self._mcp_servers)
@@ -1163,7 +1165,7 @@ class AgentHandle:
         warnings: list[dict[str, Any]] = []
         current_dt = _parse_datetime_like(runtime_context.get("current_datetime"))
         mode = runtime_context.get("mode")
-        if not result.tool_calls:
+        if self._ensure_bound_tools() and not result.tool_calls:
             warnings.append(
                 {
                     "kind": "no_tool_calls",
@@ -1245,6 +1247,8 @@ class AgentHandle:
                 if not payload:
                     continue
                 for path, raw_value, parsed in _iter_timestamp_candidates(payload):
+                    if event.tool_name == "get_filings" and path.endswith(".report_date"):
+                        continue
                     if parsed > current_dt:
                         warnings.append(
                             {
@@ -2028,6 +2032,7 @@ class AgentManager:
         cadence: str | None = None,
         allow_trading: bool | None = None,
         _runtime: Any | None = None,
+        include_builtin_tools: bool = True,
     ) -> AgentHandle:
         if name in self._agents:
             raise ValueError(f"Agent with name {name!r} already exists.")
@@ -2045,6 +2050,7 @@ class AgentManager:
             mcp_servers=mcp_servers,
             runtime=_runtime,
             allow_trading=resolved_allow_trading,
+            include_builtin_tools=include_builtin_tools,
         )
         if cadence is not None:
             self.strategy.log_message(

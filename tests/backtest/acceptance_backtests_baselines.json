@@ -50,21 +50,21 @@
       "strategy_name": "LeapsCallDebitSpread"
     },
     {
-      "backtest_time_seconds": 12.327514332951978,
-      "baseline_run_id": "TqqqSma200Strategy_2026-05-26_02-07_JlNyfJ",
+      "backtest_time_seconds": 30.45,
+      "baseline_run_id": "TqqqSma200Strategy_2026-05-26_06-19_unCMrY",
       "data_source": "thetadata",
       "end_date": "2025-12-01",
       "lumibot_version": "4.5.34",
       "max_backtest_time_seconds": 180,
       "metrics_centipercent": {
-        "cagr": 3804,
-        "max_drawdown": -4999,
-        "total_return": 630800
+        "cagr": 4133,
+        "max_drawdown": -4840,
+        "total_return": 858500
       },
       "metrics_raw": {
-        "cagr": "38.04%",
-        "max_drawdown": "-49.99%",
-        "total_return": "6,308%"
+        "cagr": "41.33%",
+        "max_drawdown": "-48.40%",
+        "total_return": "8,585.00%"
       },
       "script_filename": "TQQQ 200-Day MA.py",
       "settings_backtesting_end": "2025-11-30 23:59:00-05:00",

@@ -1,6 +1,19 @@
 # Changelog
 
-## 4.5.33 - Unreleased
+## 4.5.34 - Unreleased
+
+### Changed
+- **AI Investment Committee agents now use explicit role-specific tool surfaces.** Strategies can opt out of automatically adding every built-in tool by passing `include_builtin_tools=False`, letting examples keep research, debate, and trading responsibilities separate.
+- **The AI Investment Committee example now keeps Bull and Bear agents argumentative by default.** The Evidence Researcher gathers the bounded evidence pack, Bull and Bear reason over that handoff without reopening the tool loop, and the Portfolio Manager keeps only portfolio/order/price/memory/notification tools.
+
+### Fixed
+- **Cached agent tools preserve their callable signatures.** Provider function declarations for cached read-only tools now retain required arguments, preventing missing-argument failures such as `get_fred_snapshot` without `series_ids` or `get_company_facts` without `symbol`.
+- **AI order tool results are JSON-safe after broker side effects.** UUID-like order identifiers are serialized before reaching the provider runtime, preventing duplicate-order retry paths caused by post-submit JSON serialization errors.
+- **SEC normalized statements avoid mixing stale facts across filings.** Fundamental statement helpers now keep fields anchored to a coherent filing/period when possible, preventing old revenue or cash-flow facts from leaking into fresh analysis.
+- **Backtest look-ahead warnings no longer flag future SEC proxy meeting dates as future data.** `get_filings` still gates filings by acceptance/filing availability, but a public filing's future `report_date` does not create a false warning.
+
+### Operations
+- **AI committee observability validation now has real Gemini artifact proof.** A one-day `gemini-3.5-flash` paid backtest completed end-to-end with four agent traces, role-level tool-call counts, raw trace artifacts, and `stats_agent_detail.parquet` for post-run inspection.
 
 ## 4.5.32 - 2026-05-23
 

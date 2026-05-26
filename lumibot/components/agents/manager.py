@@ -1,4 +1,6 @@
 import hashlib
+import functools
+import inspect
 import json
 import os
 import re
@@ -1627,6 +1629,7 @@ class AgentManager:
         if not cache_scope or os.environ.get("LUMIBOT_AGENT_TOOL_CACHE", "1").strip().lower() in {"0", "false", "no"}:
             return tool
 
+        @functools.wraps(tool.function)
         def cached_function(*args: Any, **kwargs: Any) -> Any:
             cache_key = self._tool_result_cache_key(tool, cache_scope, args, kwargs)
             cached = self._tool_result_cache.get(cache_key)
@@ -1651,6 +1654,11 @@ class AgentManager:
             result = tool.function(*args, **kwargs)
             self._tool_result_cache[cache_key] = _normalize_json(result)
             return result
+
+        try:
+            cached_function.__signature__ = inspect.signature(tool.function)  # type: ignore[attr-defined]
+        except (TypeError, ValueError):
+            pass
 
         return BoundTool(
             name=tool.name,

@@ -65,6 +65,7 @@ def test_agent_allow_trading_false_removes_only_mutating_order_tools(monkeypatch
     monkeypatch.delenv("FRED_API_KEY", raising=False)
     strategy = _Strategy()
     manager = AgentManager(strategy)
+    monkeypatch.setenv("FRED_API_KEY", "")
 
     agent = manager.create(name="researcher", model="openai/gpt-5.4-mini", allow_trading=False)
     tool_names = {tool.name for tool in agent._ensure_bound_tools()}
@@ -98,6 +99,8 @@ def test_agent_backtest_keeps_fred_tools_when_fred_api_key_is_set(monkeypatch):
 
 
 def test_read_only_tool_result_cache_is_shared_across_agent_handles():
+    import inspect
+
     strategy = _Strategy()
     manager = AgentManager(strategy)
     calls = {"count": 0}
@@ -122,6 +125,7 @@ def test_read_only_tool_result_cache_is_shared_across_agent_handles():
     first_tool = next(tool for tool in first._ensure_bound_tools() if tool.name == "cached_research_tool")
     second_tool = next(tool for tool in second._ensure_bound_tools() if tool.name == "cached_research_tool")
 
+    assert "symbol" in inspect.signature(first_tool.function).parameters
     assert first_tool.function(symbol="NVDA")["count"] == 1
     cached = second_tool.function(symbol="NVDA")
     assert cached["count"] == 1

@@ -17,6 +17,10 @@ Artifact roots:
 
 - One-day smoke: `/Users/robertgrzesik/Development/lumibot/artifacts/ai_trading_team_provider_benchmarks/20260524_232138`
 - Seven-day window: `/Users/robertgrzesik/Development/lumibot/artifacts/ai_trading_team_provider_benchmarks/20260524_235130`
+- README-window memory smoke:
+  - `/Users/robertgrzesik/Development/lumibot/artifacts/ai_trading_team_provider_benchmarks/20260525_220127_693539_44135/gemini-3.1-flash-lite`
+  - `/Users/robertgrzesik/Development/lumibot/artifacts/ai_trading_team_provider_benchmarks/20260525_220127_693541_44137/gemini-3.1-flash-lite`
+  - `/Users/robertgrzesik/Development/lumibot/artifacts/ai_trading_team_provider_benchmarks/20260525_220127_693544_44136/gemini-3.1-flash-lite`
 
 Pricing source:
 
@@ -132,6 +136,105 @@ Window: 2026-05-15 to 2026-05-22.
 - Estimated cost without cache pricing: $0.202610
 - Final position: 547 shares of `SOXL`, with about $8,651 cash
 - Submitted orders: one market buy for `SOXL`
+
+## README-Window Memory Smoke
+
+Window: 2026-04-07 to 2026-05-22.
+
+Command shape:
+
+```bash
+LUMIBOT_ALLOW_PAID_AI_TRADING_TEAM_BACKTEST=1 \
+python3 scripts/run_ai_trading_team_provider_benchmark.py \
+  --models gemini-3.1-flash-lite \
+  --start 2026-04-07 \
+  --end 2026-05-22 \
+  --max-run-attempts 1 \
+  --agent-run-timeout-seconds 1800 \
+  --env-file .env.local
+```
+
+Three runs were started in parallel as separate processes. The process-level wall
+time was about 15 minutes because the slowest individual run finished in 14.63
+minutes.
+
+Benchmark assets over the same Yahoo adjusted-close window:
+
+- `SPY`: +13.11%
+- `QQQ`: +21.91%
+- `SOXL`: +236.98%
+
+Run 1:
+
+- Artifact root: `/Users/robertgrzesik/Development/lumibot/artifacts/ai_trading_team_provider_benchmarks/20260525_220127_693539_44135/gemini-3.1-flash-lite`
+- Status: passed
+- Return: +198.42%
+- Max drawdown: 23.24%
+- Wall time: 13.39 minutes
+- Model calls: 132
+- Tool calls: 1,100
+- Input tokens: 4,615,701
+- Cached input tokens: 3,273,066
+- Output tokens: 103,621
+- Cache hit rate: 70.91%
+- Estimated cost with cache pricing: $0.572917
+- Estimated cost without cache pricing: $1.309357
+- Final position: 1,860 shares of `SOXL`, with about -$1,035 cash
+- Memory artifacts: 46 memory events, 10 retrievals, 13 current memory-state rows
+- Memory result: no `position_order_without_memory_thesis` warnings
+
+Run 2:
+
+- Artifact root: `/Users/robertgrzesik/Development/lumibot/artifacts/ai_trading_team_provider_benchmarks/20260525_220127_693541_44137/gemini-3.1-flash-lite`
+- Status: passed
+- Return: +198.42%
+- Max drawdown: 23.24%
+- Wall time: 13.16 minutes
+- Model calls: 132
+- Tool calls: 1,195
+- Input tokens: 4,366,934
+- Cached input tokens: 2,799,200
+- Output tokens: 117,594
+- Cache hit rate: 64.10%
+- Estimated cost with cache pricing: $0.638305
+- Estimated cost without cache pricing: $1.268124
+- Final position: 1,860 shares of `SOXL`, with about -$1,035 cash
+- Memory artifacts: 6 memory events, 8 retrievals, 6 current memory-state rows
+- Memory result: no `position_order_without_memory_thesis` warnings
+
+Run 3:
+
+- Artifact root: `/Users/robertgrzesik/Development/lumibot/artifacts/ai_trading_team_provider_benchmarks/20260525_220127_693544_44136/gemini-3.1-flash-lite`
+- Status: passed
+- Return: +198.81%
+- Max drawdown: 23.17%
+- Wall time: 14.63 minutes
+- Model calls: 132
+- Tool calls: 1,015
+- Input tokens: 5,713,162
+- Cached input tokens: 4,050,556
+- Output tokens: 107,294
+- Cache hit rate: 70.90%
+- Estimated cost with cache pricing: $0.677856
+- Estimated cost without cache pricing: $1.589231
+- Final position: 1,856 shares of `SOXL`, with about -$7 cash
+- Memory artifacts: 65 memory events, 30 retrievals, 32 current memory-state rows
+- Memory result: no `position_order_without_memory_thesis` warnings
+
+Observations:
+
+- The README-window behavior reproduced: all three runs landed in `SOXL` and
+  returned about +198% over the README window.
+- The team beat `SPY` and `QQQ` during this window, but did not beat simple
+  buy-and-hold `SOXL`.
+- SQLite-backed memory exported all three queryable Parquet artifacts:
+  `*_memory_events.parquet`, `*_memory_retrievals.parquet`, and
+  `*_memory_state.parquet`.
+- `Lumibot Memory State JSON` was present on every agent call summary row.
+- The non-blocking position-thesis warning did not fire, which means these runs
+  did not show the trader changing a held symbol without first retrieving memory.
+- The remaining noise is mostly DuckDB query syntax/column mistakes from the
+  model. Those are prompt/tool-ergonomics issues, not memory-store failures.
 
 ## Takeaways
 

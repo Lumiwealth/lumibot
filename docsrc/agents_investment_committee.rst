@@ -1,8 +1,9 @@
 AI Trading Team Example
 =======================
 
-This page describes one concrete agent-flow example: a four-agent AI trading
-team. It is not the only way to build with LumiBot agents. Start with
+This page describes the legacy large-cap bull/bear AI trading team that was
+originally called the AI investment committee. It is not the only way to build
+with LumiBot agents. Start with
 :doc:`agents_flows` if you want the broader design space: single-agent flows,
 specialist desks, multi-model teams, iterated debates, and hybrid
 deterministic-plus-agent strategies.
@@ -22,7 +23,8 @@ Reference Implementation
 ------------------------
 
 The full runnable example lives at
-``lumibot/example_strategies/ai_investment_committee.py``.
+``lumibot/example_strategies/ai_trading_team_bull_bear_large_cap_stocks.py``.
+The legacy ``ai_investment_committee.py`` import path still works.
 
 It runs inside normal LumiBot lifecycle code. There is no LangGraph dependency
 and no external debate service. The strategy creates agents in ``initialize()``

@@ -24,7 +24,9 @@ os.environ.setdefault("LUMIBOT_DISABLE_BACKTEST_PERFORMANCE_TRACKING", "1")
 
 from lumibot.backtesting import YahooDataBacktesting
 from lumibot.entities import Asset, TradingFee
-from lumibot.example_strategies.ai_investment_committee import AIInvestmentCommitteeStrategy
+from lumibot.example_strategies.ai_trading_team_bull_bear_large_cap_stocks import (
+    AITradingTeamBullBearLargeCapStocksStrategy,
+)
 
 
 ARTIFACT_ROOT = Path("artifacts") / "ai_committee_real_backtests"
@@ -87,7 +89,7 @@ def main() -> None:
     logfile = artifact_dir / "backtest.log"
 
     trading_fee = TradingFee(percent_fee=0.001)
-    result, strategy = AIInvestmentCommitteeStrategy.run_backtest(
+    result, strategy = AITradingTeamBullBearLargeCapStocksStrategy.run_backtest(
         datasource_class=YahooDataBacktesting,
         backtesting_start=datetime(2026, 3, 29),
         backtesting_end=datetime(2026, 4, 29),

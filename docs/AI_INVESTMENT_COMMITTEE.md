@@ -1,10 +1,14 @@
-# AI Investment Committee
+# AI Trading Team Large-Cap Stocks
 
-The AI investment committee is one example of a Lumibot agent flow. It is not the only agent architecture Lumibot supports.
+This page is kept for compatibility with the older "AI Investment Committee" name. The current example name is **AI Trading Team Bull/Bear Large-Cap Stocks**.
 
 Lumibot agent flows are plain Python. A strategy can use one agent, two agents, a large specialist committee, a multi-model debate, or a hybrid where agents research and deterministic Python places the final order.
 
 Reference implementation:
+
+`lumibot/example_strategies/ai_trading_team_bull_bear_large_cap_stocks.py`
+
+The legacy import path still works:
 
 `lumibot/example_strategies/ai_investment_committee.py`
 

@@ -54,7 +54,8 @@ If you’re assessing whether backtests should be sped up via parallelism, start
 | `AI_TRADING_AGENTS.md` | Architecture, roadmap, prompt model, observability model, external MCP strategy, and acceptance-test plan for LumiBot's AI trading agent runtime | When documenting or planning LumiBot's AI trading agent feature set |
 | `AI_AGENT_RUNTIME_PLAN.md` | Research summary, implementation notes, and follow-on plan for agentic strategies | When planning runtime internals, replay caching, memory, and tool plumbing |
 | `AI_AGENT_FLOWS.md` | General agent-flow patterns: single-agent, multi-agent, committee, debate, and deterministic hybrid workflows | When designing an agent strategy shape before choosing specific tools |
-| `AI_INVESTMENT_COMMITTEE.md` | One concrete multi-agent investment committee example with researcher, bull, bear, and portfolio-manager roles | When building or modifying that flagship example |
+| `AI_TRADING_TEAM_EXAMPLES.md` | Copy-paste AI trading team examples: leveraged ETF, large-cap stocks, Dalio, Buffett, Ackman, and Citadel-style teams | When adding or modifying agent strategy examples |
+| `AI_INVESTMENT_COMMITTEE.md` | Legacy note for the original investment committee example, now superseded by AI trading team examples | When maintaining backward compatibility |
 | `AI_AGENT_BUILTIN_TOOLS.md` | Built-in agent tools, trading permissions, indicators, fundamentals, memory, and notifications | When changing the agent tool surface |
 | `SEC_FUNDAMENTALS.md` | SEC fundamentals, filings, point-in-time gating, and cache behavior | When working on fundamentals or filings |
 | `FRED_MACRO_DATA.md` | FRED macro data tools, API-key behavior, backtest date gating, and cache behavior | When working on macro data or agent macro tools |

@@ -33,6 +33,16 @@ def test_ai_committee_prompt_allows_cash_parking_without_expanding_growth_univer
     assert "Defensive cash-parking trades must come from context.cash_parking_symbols" in portfolio_prompt
 
 
+def test_ai_committee_uses_bounded_agent_tool_surfaces():
+    strategy = object()
+    evidence_tool_names = {tool.name for tool in AIInvestmentCommitteeStrategy._evidence_tools(strategy)}
+    debate_tool_names = {tool.name for tool in AIInvestmentCommitteeStrategy._debate_tools(strategy)}
+
+    assert "search_filing" not in evidence_tool_names
+    assert "get_filing_section" not in evidence_tool_names
+    assert debate_tool_names == set()
+
+
 def test_ai_committee_handoff_text_is_not_truncated():
     text = "word " * 10000
 

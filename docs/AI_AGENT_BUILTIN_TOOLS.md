@@ -48,12 +48,20 @@ Built-in FRED tools require `FRED_API_KEY` so Lumibot can request official FRED/
 Memory tools:
 
 - `remember`
-- `search_memory`
+- `search_memory` (supports `kind`, `symbol`, and `status` filters)
 - `remember_decision`
 - `remember_lesson`
 - `open_thesis`
 - `update_thesis`
 - `close_thesis`
+
+Agent memory is SQLite-backed while the strategy runs. Lumibot also exports memory Parquet artifacts for review:
+
+- `*_memory_events.parquet`
+- `*_memory_retrievals.parquet`
+- `*_memory_state.parquet`
+
+When an agent is holding a position and plans to add, reduce, or sell that symbol, it should call `search_memory` for the open thesis first. Lumibot records a non-blocking warning when an order tool touches a held symbol without that retrieval.
 
 Notification tool:
 

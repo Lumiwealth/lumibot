@@ -352,6 +352,7 @@ class RuntimeRequest:
     task_prompt: str | None
     context: dict[str, Any] | None
     runtime_context: dict[str, Any] | None
+    memory_state: dict[str, Any] | None
     memory_notes: list[dict[str, Any]]
     bound_tools: list[BoundTool]
     provider_prompt_cache_key: str | None = None
@@ -1034,6 +1035,11 @@ class GoogleADKRuntime:
             sections.append(
                 "Available Tools JSON:\n"
                 f"{json.dumps(sorted(tool_names), sort_keys=True, default=str)}"
+            )
+        if request.memory_state:
+            sections.append(
+                "Lumibot Memory State JSON:\n"
+                f"{json.dumps(_json_safe_value(request.memory_state), sort_keys=True, default=str)}"
             )
         if request.memory_notes:
             memory_notes = _json_safe_value(request.memory_notes[-5:])

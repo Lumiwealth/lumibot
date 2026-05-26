@@ -1,4 +1,6 @@
 import hashlib
+import functools
+import inspect
 import json
 import os
 import re
@@ -354,6 +356,8 @@ _AGENT_DETAIL_COLUMNS = [
     "effective_system_prompt",
     "context_text",
     "runtime_context_text",
+    "memory_state_text",
+    "memory_retrieval_ids",
     "warning_messages",
     "event_input_tokens",
     "event_output_tokens",
@@ -378,6 +382,54 @@ _AGENT_DETAIL_COLUMNS = [
     "call_first_event_latency_ms",
     "trace_path",
 ]
+
+
+def _agent_symbol(value: Any) -> str | None:
+    text = str(value or "").strip().upper()
+    return text or None
+
+
+def _held_position_symbols(runtime_context: dict[str, Any]) -> set[str]:
+    symbols: set[str] = set()
+    for position in runtime_context.get("positions") or []:
+        if not isinstance(position, dict):
+            continue
+        quantity = position.get("quantity", position.get("qty", position.get("shares")))
+        try:
+            if float(quantity or 0) == 0:
+                continue
+        except Exception:
+            pass
+        symbol = _agent_symbol(position.get("symbol"))
+        if symbol and symbol not in {"USD", "CASH"}:
+            symbols.add(symbol)
+    return symbols
+
+
+def _order_tool_symbols(result: AgentRunResult) -> set[str]:
+    symbols: set[str] = set()
+    for event in result.tool_calls:
+        if not str(event.tool_name or "").startswith("orders_"):
+            continue
+        payload = event.payload if isinstance(event.payload, dict) else {}
+        symbol = _agent_symbol(payload.get("symbol"))
+        if symbol:
+            symbols.add(symbol)
+    return symbols
+
+
+def _memory_retrieval_ids(result: AgentRunResult) -> list[str]:
+    retrieval_ids: list[str] = []
+    for event in result.tool_results:
+        if event.tool_name != "search_memory":
+            continue
+        payload = _unwrap_tool_payload(event.payload)
+        if not isinstance(payload, dict):
+            continue
+        retrieval_id = payload.get("retrieval_id")
+        if retrieval_id:
+            retrieval_ids.append(str(retrieval_id))
+    return retrieval_ids
 
 
 def _unwrap_tool_payload(payload: Any) -> Any:
@@ -555,6 +607,16 @@ def _stable_tool_metadata_for_cache(tool: BoundTool) -> dict[str, Any]:
     return {key: value for key, value in stable.items() if value is not None}
 
 
+def _strategy_day_key(strategy: Any) -> str:
+    current_dt = _current_strategy_datetime(strategy)
+    if hasattr(current_dt, "date"):
+        try:
+            return current_dt.date().isoformat()
+        except Exception:
+            pass
+    return _iso_or_none(current_dt) or "unknown"
+
+
 def _provider_prompt_cache_key(
     *,
     agent_name: str,
@@ -592,6 +654,7 @@ class AgentHandle:
         mcp_servers: list[MCPServer] | None = None,
         runtime: Any | None = None,
         allow_trading: bool = True,
+        include_builtin_tools: bool = True,
     ) -> None:
         self.manager = manager
         self.name = name
@@ -602,9 +665,10 @@ class AgentHandle:
         builtin_tools = self._filter_tools_for_trading_permission(BuiltinTools.all())
         if tools is None:
             self._tool_inputs = builtin_tools
-        else:
-            # Always include built-in tools, plus any custom tools the user added
+        elif include_builtin_tools:
             self._tool_inputs = builtin_tools + self._filter_tools_for_trading_permission(list(tools))
+        else:
+            self._tool_inputs = self._filter_tools_for_trading_permission(list(tools))
         self._mcp_servers = mcp_servers or []
         google_runtime, _RuntimeRequest, _StubAgentRuntime, _call_mcp_tool = _get_runtime_imports()
         self._runtime = runtime or google_runtime(mcp_servers=self._mcp_servers)
@@ -649,6 +713,22 @@ class AgentHandle:
                 }
             )
         return projected
+
+    def _memory_state(self, runtime_context: dict[str, Any]) -> dict[str, Any] | None:
+        memory = getattr(self.manager.strategy, "memory", None)
+        if memory is None or not hasattr(memory, "compact_state"):
+            return None
+        try:
+            return memory.compact_state(symbols=sorted(_held_position_symbols(runtime_context)))
+        except Exception as exc:
+            return {
+                "schema_version": 1,
+                "error": f"{exc.__class__.__name__}: {str(exc)[:300]}",
+                "retrieval_policy": (
+                    "If holding a symbol and planning to add, reduce, or sell it, "
+                    "call search_memory for the open thesis first."
+                ),
+            }
 
     def _event_timestamp(self) -> str:
         current_dt = _current_strategy_datetime(self.manager.strategy)
@@ -742,9 +822,11 @@ class AgentHandle:
             "Use your available tools to gather evidence before making any trading decision. Do not guess when a tool can give you the answer.",
             "Before placing any trade, use tools to check current positions, available cash, and portfolio value.",
             "Load recent price history for any asset you are considering and inspect it before deciding.",
+            "If you already hold a position and are considering adding, reducing, or selling it, call search_memory for the open thesis first and compare the current evidence against that thesis.",
             "When available, use the built-in evidence stack before making a material equity decision: account/portfolio tools, current market prices, recent price history, DuckDB analysis, technical indicators, relevant news, macro/FRED data, SEC financial statements, SEC company facts, and SEC filings.",
             "Do not submit a material equity order until you have called account/portfolio tools, market price/history tools, at least one technical indicator tool, a relevant news tool when configured, a macro/FRED tool when configured, and SEC financial/filing tools for relevant single-stock candidates.",
             "For ETFs, indexes, or broad-market trades, use SEC financial/filing tools on the most relevant single-stock candidates, holdings, or alternatives you are considering; do not skip the category just because the final instrument is an ETF.",
+            "Do not repeat identical read-only evidence calls if the current task context already includes fresh results from another agent; reference those results and call again only when they are missing, stale, or conflicting.",
             "If the user asks for an aggressive or concentrated strategy, let that user strategy prompt override the default investor style, but still ground the decision in tool evidence, position sizing, broker constraints, and backtesting look-ahead safety.",
             "When querying DuckDB tables, use datetime for timestamp columns and close for price columns unless the loaded sample rows clearly show different column names.",
             "When you have access to external MCP tools, explore what they offer and use them. You do not need to be told which specific tool to call.",
@@ -877,7 +959,7 @@ class AgentHandle:
                 tool = bind_callable_tool(entry).binder(self.manager.strategy, self.manager)
             if bool((tool.metadata or {}).get("disabled")):
                 continue
-            bound.append(tool)
+            bound.append(self.manager._with_tool_result_cache(tool))
         bound.extend(self._build_remote_tools())
         # Built-ins are auto-included, but strategies may also explicitly pass
         # a BuiltinTools entry. ADK rejects duplicate function declarations, so
@@ -958,6 +1040,7 @@ class AgentHandle:
         context: dict[str, Any] | None,
         model: str,
         runtime_context: dict[str, Any],
+        memory_state: dict[str, Any] | None,
         effective_system_prompt: str,
         base_system_prompt: str,
     ) -> dict[str, Any]:
@@ -969,6 +1052,7 @@ class AgentHandle:
             "task_prompt": task_prompt,
             "context": context or {},
             "runtime_context": runtime_context,
+            "memory_state": memory_state or {},
             "model": model,
             "tool_surface": [
                 {
@@ -1081,7 +1165,7 @@ class AgentHandle:
         warnings: list[dict[str, Any]] = []
         current_dt = _parse_datetime_like(runtime_context.get("current_datetime"))
         mode = runtime_context.get("mode")
-        if not result.tool_calls:
+        if self._ensure_bound_tools() and not result.tool_calls:
             warnings.append(
                 {
                     "kind": "no_tool_calls",
@@ -1111,6 +1195,36 @@ class AgentHandle:
                     "message": "Agent used an order tool without prior visible non-order data/tool calls in the same run.",
                 }
             )
+        held_symbols = _held_position_symbols(runtime_context)
+        ordered_held_symbols = sorted(_order_tool_symbols(result).intersection(held_symbols))
+        if ordered_held_symbols and "search_memory" not in tool_names:
+            message = (
+                "Agent used an order tool on currently held symbol(s) without first calling "
+                f"search_memory for the open thesis: {', '.join(ordered_held_symbols)}."
+            )
+            warnings.append(
+                {
+                    "kind": "position_order_without_memory_thesis",
+                    "symbols": ordered_held_symbols,
+                    "message": message,
+                }
+            )
+            memory = getattr(self.manager.strategy, "memory", None)
+            if memory is not None and hasattr(memory, "record_warning"):
+                try:
+                    memory.record_warning(
+                        message,
+                        kind="position_order_without_memory_thesis",
+                        metadata={
+                            "agent_name": self.name,
+                            "model": result.model,
+                            "symbols": ordered_held_symbols,
+                            "tool_sequence": tool_names,
+                            "current_datetime": runtime_context.get("current_datetime"),
+                        },
+                    )
+                except Exception:
+                    pass
         for event in result.tool_results:
             payload = event.payload if isinstance(event.payload, dict) else None
             if not payload:
@@ -1133,6 +1247,8 @@ class AgentHandle:
                 if not payload:
                     continue
                 for path, raw_value, parsed in _iter_timestamp_candidates(payload):
+                    if event.tool_name == "get_filings" and path.endswith(".report_date"):
+                        continue
                     if parsed > current_dt:
                         warnings.append(
                             {
@@ -1244,6 +1360,7 @@ class AgentHandle:
             task_prompt = kwargs["task"]
         model_name = model or self.default_model
         runtime_context = self._runtime_context()
+        memory_state = self._memory_state(runtime_context)
         base_system_prompt = self._base_system_prompt(runtime_context)
         effective_system_prompt = self._compose_system_prompt(runtime_context)
         cache_payload = self._cache_payload(
@@ -1251,6 +1368,7 @@ class AgentHandle:
             context=context,
             model=model_name,
             runtime_context=runtime_context,
+            memory_state=memory_state,
             effective_system_prompt=effective_system_prompt,
             base_system_prompt=base_system_prompt,
         )
@@ -1281,6 +1399,7 @@ class AgentHandle:
             task_prompt=task_prompt,
             context=context,
             runtime_context=runtime_context,
+            memory_state=memory_state,
             memory_notes=self._memory_prompt_notes(),
             bound_tools=self._ensure_bound_tools(),
             provider_prompt_cache_key=_provider_prompt_cache_key(
@@ -1488,6 +1607,7 @@ class AgentManager:
         self._observability_call_index: dict[str, int] = {}
         self._observability_rows: dict[str, list[dict[str, Any]]] = {}
         self._observability_all_rows: list[dict[str, Any]] = []
+        self._tool_result_cache: dict[str, Any] = {}
 
     def __getitem__(self, item: str) -> AgentHandle:
         return self._agents[item]
@@ -1506,6 +1626,72 @@ class AgentManager:
             params["agent_model_calls"] = self._model_call_count
             if limit is not None:
                 params["agent_max_model_calls"] = limit
+
+    def _with_tool_result_cache(self, tool: BoundTool) -> BoundTool:
+        metadata = dict(tool.metadata or {})
+        cache_scope = str(metadata.get("cache_scope") or "").strip()
+        if not cache_scope or os.environ.get("LUMIBOT_AGENT_TOOL_CACHE", "1").strip().lower() in {"0", "false", "no"}:
+            return tool
+
+        @functools.wraps(tool.function)
+        def cached_function(*args: Any, **kwargs: Any) -> Any:
+            cache_key = self._tool_result_cache_key(tool, cache_scope, args, kwargs)
+            cached = self._tool_result_cache.get(cache_key)
+            if cached is not None:
+                payload = _normalize_json(cached)
+                if isinstance(payload, dict):
+                    return {
+                        **payload,
+                        "_lumibot_tool_cache": {
+                            "hit": True,
+                            "scope": cache_scope,
+                        },
+                    }
+                return {
+                    "ok": True,
+                    "value": payload,
+                    "_lumibot_tool_cache": {
+                        "hit": True,
+                        "scope": cache_scope,
+                    },
+                }
+            result = tool.function(*args, **kwargs)
+            self._tool_result_cache[cache_key] = _normalize_json(result)
+            return result
+
+        try:
+            cached_function.__signature__ = inspect.signature(tool.function)  # type: ignore[attr-defined]
+        except (TypeError, ValueError):
+            pass
+
+        return BoundTool(
+            name=tool.name,
+            description=tool.description,
+            function=cached_function,
+            source=tool.source,
+            metadata={**metadata, "tool_result_cache": True},
+        )
+
+    def _tool_result_cache_key(
+        self,
+        tool: BoundTool,
+        cache_scope: str,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> str:
+        if cache_scope == "strategy_day":
+            scope_value = _strategy_day_key(self.strategy)
+        else:
+            scope_value = _iso_or_none(_current_strategy_datetime(self.strategy)) or "unknown"
+        payload = {
+            "tool": tool.name,
+            "scope": cache_scope,
+            "scope_value": scope_value,
+            "args": args,
+            "kwargs": kwargs,
+        }
+        normalized = json.dumps(_normalize_json(payload), sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
     def _artifact_path(self, agent_name: str, suffix: str) -> Path:
         stats_file = getattr(self.strategy, "stats_file", None) or getattr(self.strategy, "_stats_file", None)
@@ -1548,6 +1734,8 @@ class AgentManager:
         effective_system_prompt = _sanitize_csv_text(cache_payload.get("effective_system_prompt") or "")
         context_text = _flatten_csv_value(cache_payload.get("context") or {})
         runtime_context_text = _flatten_csv_value(cache_payload.get("runtime_context") or {})
+        memory_state_text = _flatten_csv_value(cache_payload.get("memory_state") or {})
+        memory_retrieval_ids = ", ".join(_memory_retrieval_ids(result))
         timing = _runtime_timing_payload(result)
         common: dict[str, Any] = {
             "timestamp": result.ended_at or handle._event_timestamp(),
@@ -1569,6 +1757,8 @@ class AgentManager:
             "effective_system_prompt": effective_system_prompt,
             "context_text": context_text,
             "runtime_context_text": runtime_context_text,
+            "memory_state_text": memory_state_text,
+            "memory_retrieval_ids": memory_retrieval_ids,
             "warning_messages": warning_messages,
             **timing,
             "trace_path": trace_path,
@@ -1807,6 +1997,17 @@ class AgentManager:
             usage=usage,
             call_index=call_index,
         )
+        memory = getattr(self.strategy, "memory", None)
+        if memory is not None and hasattr(memory, "export_artifacts"):
+            try:
+                detail_stem = detail_parquet_path.stem
+                if detail_stem.endswith("_agent_detail"):
+                    prefix = detail_stem[: -len("_agent_detail")] + "_agent_memory"
+                else:
+                    prefix = f"{handle.name}_agent_memory"
+                memory.export_artifacts(detail_parquet_path.parent, prefix=prefix)
+            except Exception as exc:
+                self._log_warning(f"Could not export agent memory artifacts: {exc}")
         self._update_strategy_parameters_for_agent(
             agent_name=handle.name,
             model=result.model,
@@ -1831,6 +2032,7 @@ class AgentManager:
         cadence: str | None = None,
         allow_trading: bool | None = None,
         _runtime: Any | None = None,
+        include_builtin_tools: bool = True,
     ) -> AgentHandle:
         if name in self._agents:
             raise ValueError(f"Agent with name {name!r} already exists.")
@@ -1848,6 +2050,7 @@ class AgentManager:
             mcp_servers=mcp_servers,
             runtime=_runtime,
             allow_trading=resolved_allow_trading,
+            include_builtin_tools=include_builtin_tools,
         )
         if cadence is not None:
             self.strategy.log_message(

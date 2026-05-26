@@ -3,12 +3,12 @@ Agent Memory
 
 Lumibot includes native local memory for agentic strategies. Memory lets an
 agent record why it made a decision, search prior lessons, keep an open thesis,
-and leave files that a human can inspect after a backtest or live run.
+and leave artifacts that a human can inspect after a backtest or live run.
 
-Memory is intentionally simple in version 1: local JSONL files, strategy-time
-timestamps, keyword search, and explicit tools the agent can call. It is not an
-external MCP server, not a vector database requirement, and not hidden state in
-an LLM provider.
+Memory is SQLite-backed while the strategy runs. SQLite gives Lumibot a real
+local database for append-only events, projections, retrieval provenance, and
+future backend portability without requiring Postgres or a vector database for
+local use.
 
 .. image:: ../docs/assets/ai_committee/docs_memory_lifecycle.png
    :alt: Lumibot agent memory lifecycle
@@ -22,8 +22,9 @@ questions such as:
 * Why did the agent buy, hold, reduce, or skip?
 * What evidence mattered at the time?
 * Which thesis is still open?
-* What lesson did the agent learn after a trade closed or a thesis failed?
-* Did the same risk appear in a prior backtest iteration?
+* What lesson was validated after an outcome?
+* Did the same risk appear in a prior iteration?
+* Did the agent retrieve the open thesis before changing a held position?
 
 This makes AI strategies easier to audit. It also gives future agent calls a
 small, searchable context instead of forcing every run to rediscover the same
@@ -49,6 +50,10 @@ By default, memory is stored under:
 .. code-block:: text
 
    .lumibot/memory/<strategy_name>/
+      memory.sqlite
+      agent_memory_memory_events.parquet
+      agent_memory_memory_retrievals.parquet
+      agent_memory_memory_state.parquet
 
 Override the root directory with:
 
@@ -56,15 +61,28 @@ Override the root directory with:
 
    export LUMIBOT_MEMORY_DIR=/path/to/lumibot-memory
 
-Lumibot writes JSONL files:
+Set ``LUMIBOT_MEMORY_EXPORT_PARQUET=0`` to disable best-effort Parquet exports.
 
-* ``memories.jsonl`` -- general memories and lessons
-* ``decisions.jsonl`` -- trading decisions and rationale
-* ``lessons.jsonl`` -- compact lessons, usually after an outcome is known
-* ``theses.jsonl`` -- opened, updated, and closed theses
+Data Model
+----------
 
-These files are append-only and human-readable. They are designed to be easy to
-ship as artifacts, review in a pull request, or inspect after a backtest.
+The SQLite database has three core tables:
+
+``memory_events``
+   Append-only ledger of memory writes, decisions, lessons, thesis changes,
+   warnings, and other memory events.
+
+``memory_index``
+   Current searchable projection of memories, decisions, lessons, and theses.
+   This is the fast path for ``search_memory`` and compact state injection.
+
+``memory_retrievals``
+   Retrieval provenance for every ``search_memory`` call: query, filters,
+   candidate IDs, selected IDs, and the rendered text made available to the
+   agent.
+
+Lumibot writes to SQLite during execution. Parquet files are derived artifacts
+for review, DuckDB queries, BotSpot uploads, and post-run analysis.
 
 Agent Tools
 -----------
@@ -72,28 +90,56 @@ Agent Tools
 Agents get these memory tools by default:
 
 ``remember``
-   Store a general note with optional tags and metadata.
+   Store a general note with optional tags.
 
 ``search_memory``
-   Search local memory files by keyword. Results are ranked by simple keyword
-   match and timestamp.
+   Search local memories, decisions, lessons, and theses. It supports
+   ``kind``, ``symbol``, and ``status`` filters. Every call is recorded in
+   ``memory_retrievals``.
 
 ``remember_decision``
    Record a trading decision with optional symbol, action, evidence, and tags.
 
 ``remember_lesson``
-   Record a compact lesson with optional symbol and outcome metadata. Lessons
-   are written to both ``lessons.jsonl`` and ``memories.jsonl`` so they are easy
-   to find later.
+   Record a compact lesson. Lessons are ``proposed`` by default and should only
+   become ``validated`` when outcome metadata confirms they held up.
 
 ``open_thesis``
    Open an investment thesis, usually before or at trade entry.
 
 ``update_thesis``
-   Add an update to an existing thesis.
+   Replace the current searchable thesis text while keeping the full event
+   history in ``memory_events``.
 
 ``close_thesis``
    Close a thesis with optional outcome metadata.
+
+Compact State Injection
+-----------------------
+
+Every agent call receives a small ``Lumibot Memory State JSON`` section. It
+contains:
+
+* open theses
+* current position rationales
+* validated lessons
+* the retrieval policy
+
+This injected state is intentionally compact. It gives the model the current
+state of memory without flooding the prompt. Deeper history should be retrieved
+with ``search_memory``.
+
+Thesis Retrieval Warnings
+-------------------------
+
+When an agent already holds a position and uses an order tool to add, reduce,
+or sell that symbol, it should first call ``search_memory`` for the open
+thesis.
+
+Lumibot does not block the order if the agent skips retrieval. It records a
+non-blocking observability warning and a memory event. This keeps the trading
+path unblocked while making the behavior visible in ``agent_detail.parquet`` and
+``*_memory_events.parquet``.
 
 Common Patterns
 ---------------
@@ -108,15 +154,15 @@ Common Patterns
    evidence changes, and ``close_thesis`` when the position exits or the thesis
    is invalidated.
 
-**Lessons after outcomes**
-   On trade close, or after a fixed horizon, summarize what happened with
-   ``remember_lesson``. Good lessons are short and reusable: what signal worked,
-   what failed, and what should be checked next time.
+**Validated lessons**
+   Proposed lessons are cheap to write. Validated lessons should require
+   outcome data. This prevents the model from treating every reflection as a
+   proven rule.
 
 **Search before acting**
-   Before a final trade decision, ask the agent to call ``search_memory`` for
-   the symbol, sector, or setup type. This helps the agent avoid repeating a
-   mistake from an earlier iteration.
+   Before changing a held position, ask the agent to call ``search_memory`` for
+   the symbol and open thesis. This helps the agent compare the original reason
+   for the trade against current evidence.
 
 Example Prompt
 --------------
@@ -125,11 +171,11 @@ Example Prompt
 
    self.agents.create(
        name="portfolio_manager",
-       model="openai/gpt-5.5",
+       model="openai/gpt-5.4-mini",
        allow_trading=True,
        system_prompt=(
-           "Review the evidence and risk limits before trading. "
-           "Before any trade, search memory for the symbol and setup. "
+           "Review evidence and risk before trading. "
+           "Before changing a held position, search memory for the open thesis. "
            "After the decision, record a compact decision memory with the "
            "symbol, action, main evidence, and invalidation condition."
        ),
@@ -150,8 +196,8 @@ Traceability
 ------------
 
 Memory complements Lumibot's normal backtest artifacts. Agent traces show the
-prompt, tool calls, tool results, and summaries. Memory files show what the
-agent chose to preserve for future iterations.
+prompt, tool calls, tool results, and summaries. Memory artifacts show what the
+agent preserved, what it retrieved, and what current state was available.
 
 .. image:: ../docs/assets/ai_committee/docs_backtest_artifacts.png
    :alt: Lumibot backtest artifacts and agent memory
@@ -163,3 +209,4 @@ Review memory after a run when you want to answer:
 * What thesis was open at the time?
 * What lesson did it write after the outcome?
 * Did the agent search prior memories before acting?
+* Did the agent retrieve memory before changing a held position?

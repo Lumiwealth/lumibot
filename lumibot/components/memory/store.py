@@ -1,9 +1,15 @@
+import hashlib
 import json
 import os
 import re
+import sqlite3
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+
+SCHEMA_VERSION = 1
 
 
 def _safe_name(value: Any) -> str:
@@ -11,15 +17,51 @@ def _safe_name(value: Any) -> str:
     return re.sub(r"[^A-Za-z0-9_.=-]+", "_", text).strip("_")
 
 
+def _json_dumps(value: Any) -> str:
+    try:
+        return json.dumps(value if value is not None else {}, sort_keys=True, default=str)
+    except Exception:
+        return json.dumps({"repr": repr(value)}, sort_keys=True)
+
+
+def _json_loads(value: Any, default: Any) -> Any:
+    if value in (None, ""):
+        return default
+    try:
+        return json.loads(str(value))
+    except Exception:
+        return default
+
+
+def _compact_text(value: Any, *, limit: int) -> str:
+    text = str(value or "").strip()
+    if len(text) <= limit:
+        return text
+    return text[: max(limit - 15, 1)].rstrip() + "... [truncated]"
+
+
+def _normalize_symbol(value: Any) -> str | None:
+    text = str(value or "").strip().upper()
+    return text or None
+
+
 class MemoryStore:
-    """Local JSONL memory store for agentic strategy decisions and lessons."""
+    """SQLite-backed memory store for Lumibot trading agents.
+
+    The SQLite database is the live write path. Events are append-only; the
+    `memory_index` table is a projection that makes current state and search
+    cheap. Parquet exports are derived artifacts for observability.
+    """
 
     def __init__(self, strategy: Any, *, root_dir: str | os.PathLike[str] | None = None) -> None:
         self.strategy = strategy
-        strategy_name = _safe_name(getattr(strategy, "name", None) or strategy.__class__.__name__)
+        self.strategy_name = getattr(strategy, "name", None) or strategy.__class__.__name__
+        safe_strategy_name = _safe_name(self.strategy_name)
         self.root_dir = Path(root_dir or os.environ.get("LUMIBOT_MEMORY_DIR") or Path.cwd() / ".lumibot" / "memory")
-        self.strategy_dir = self.root_dir / strategy_name
+        self.strategy_dir = self.root_dir / safe_strategy_name
         self.strategy_dir.mkdir(parents=True, exist_ok=True)
+        self.db_path = self.strategy_dir / "memory.sqlite"
+        self._ensure_schema()
 
     def remember(
         self,
@@ -29,9 +71,17 @@ class MemoryStore:
         tags: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        entry = self._entry(kind=kind, text=text, tags=tags, metadata=metadata)
-        self._append("memories.jsonl", entry)
-        return entry
+        memory_id = f"{_safe_name(kind)}_{uuid.uuid4().hex}"
+        return self._record_projection_event(
+            event_type="memory.created",
+            subject_type=kind,
+            subject_id=memory_id,
+            kind=kind,
+            status="active",
+            text=text,
+            tags=tags,
+            metadata=metadata,
+        )
 
     def remember_decision(
         self,
@@ -43,9 +93,18 @@ class MemoryStore:
         tags: list[str] | None = None,
     ) -> dict[str, Any]:
         metadata = {"symbol": symbol, "action": action, "evidence": evidence or {}}
-        entry = self._entry(kind="decision", text=text, tags=tags, metadata=metadata)
-        self._append("decisions.jsonl", entry)
-        return entry
+        memory_id = f"decision_{uuid.uuid4().hex}"
+        return self._record_projection_event(
+            event_type="decision.recorded",
+            subject_type="decision",
+            subject_id=memory_id,
+            kind="decision",
+            status="recorded",
+            text=text,
+            symbol=symbol,
+            tags=tags,
+            metadata=metadata,
+        )
 
     def remember_lesson(
         self,
@@ -55,11 +114,21 @@ class MemoryStore:
         outcome: dict[str, Any] | None = None,
         tags: list[str] | None = None,
     ) -> dict[str, Any]:
-        metadata = {"symbol": symbol, "outcome": outcome or {}}
-        entry = self._entry(kind="lesson", text=text, tags=tags, metadata=metadata)
-        self._append("lessons.jsonl", entry)
-        self._append("memories.jsonl", entry)
-        return entry
+        outcome = outcome or {}
+        status = "validated" if outcome.get("validated") is True else "proposed"
+        metadata = {"symbol": symbol, "outcome": outcome}
+        memory_id = f"lesson_{uuid.uuid4().hex}"
+        return self._record_projection_event(
+            event_type=f"lesson.{status}",
+            subject_type="lesson",
+            subject_id=memory_id,
+            kind="lesson",
+            status=status,
+            text=text,
+            symbol=symbol,
+            tags=tags,
+            metadata=metadata,
+        )
 
     def open_thesis(
         self,
@@ -70,51 +139,565 @@ class MemoryStore:
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         metadata = {"symbol": symbol, **(metadata or {}), "status": "open"}
-        entry = self._entry(kind="thesis", text=text, tags=tags, metadata=metadata)
-        self._append("theses.jsonl", entry)
-        return entry
+        memory_id = f"thesis_{uuid.uuid4().hex}"
+        return self._record_projection_event(
+            event_type="thesis.opened",
+            subject_type="thesis",
+            subject_id=memory_id,
+            kind="thesis",
+            status="open",
+            text=text,
+            symbol=symbol,
+            tags=tags,
+            metadata=metadata,
+        )
 
     def update_thesis(self, thesis_id: str, text: str, *, metadata: dict[str, Any] | None = None) -> dict[str, Any]:
-        entry = self._entry(kind="thesis_update", text=text, metadata={"thesis_id": thesis_id, **(metadata or {})})
-        self._append("theses.jsonl", entry)
-        return entry
+        existing = self.get(thesis_id)
+        symbol = metadata.get("symbol") if isinstance(metadata, dict) else None
+        if not symbol and existing:
+            symbol = existing.get("symbol") or (existing.get("metadata") or {}).get("symbol")
+        merged_metadata = {"thesis_id": thesis_id, **(metadata or {}), "status": "open"}
+        return self._record_projection_event(
+            event_type="thesis.updated",
+            subject_type="thesis",
+            subject_id=thesis_id,
+            kind="thesis",
+            status="open",
+            text=text,
+            symbol=symbol,
+            tags=None,
+            metadata=merged_metadata,
+        )
 
     def close_thesis(self, thesis_id: str, text: str, *, outcome: dict[str, Any] | None = None) -> dict[str, Any]:
-        entry = self._entry(kind="thesis_close", text=text, metadata={"thesis_id": thesis_id, "outcome": outcome or {}})
-        self._append("theses.jsonl", entry)
-        return entry
+        existing = self.get(thesis_id)
+        symbol = existing.get("symbol") if existing else None
+        return self._record_projection_event(
+            event_type="thesis.closed",
+            subject_type="thesis",
+            subject_id=thesis_id,
+            kind="thesis",
+            status="closed",
+            text=text,
+            symbol=symbol,
+            tags=None,
+            metadata={"thesis_id": thesis_id, "outcome": outcome or {}, "status": "closed"},
+        )
 
-    def search(self, query: str, *, limit: int = 10, kind: str | None = None) -> dict[str, Any]:
-        terms = [term.lower() for term in re.split(r"\s+", str(query or "").strip()) if term]
-        rows = []
-        for path in sorted(self.strategy_dir.glob("*.jsonl")):
-            for entry in self._read_jsonl(path):
-                if kind and entry.get("kind") != kind:
-                    continue
-                haystack = json.dumps(entry, sort_keys=True).lower()
-                score = sum(1 for term in terms if term in haystack) if terms else 1
-                if score > 0:
-                    rows.append((score, entry))
-        rows.sort(key=lambda item: (item[0], item[1].get("timestamp", "")), reverse=True)
-        return {"query": query, "count": len(rows), "results": [entry for _, entry in rows[: max(int(limit), 1)]]}
+    def record_warning(
+        self,
+        text: str,
+        *,
+        kind: str = "agent_warning",
+        symbol: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        event = self._append_event(
+            event_type=kind,
+            subject_type="warning",
+            subject_id=f"warning_{uuid.uuid4().hex}",
+            text=text,
+            symbol=symbol,
+            metadata=metadata or {},
+            payload={"warning": text, "metadata": metadata or {}},
+        )
+        self._export_artifacts_best_effort()
+        return event
 
-    def _entry(
+    def get(self, memory_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM memory_index WHERE memory_id = ?", (memory_id,)).fetchone()
+        return self._row_to_memory(row) if row else None
+
+    def search(
+        self,
+        query: str,
+        *,
+        limit: int = 10,
+        kind: str | None = None,
+        symbol: str | None = None,
+        status: str | None = None,
+        agent_name: str | None = None,
+        model_call_id: str | None = None,
+    ) -> dict[str, Any]:
+        query_text = str(query or "").strip()
+        terms = [term.lower() for term in re.split(r"\s+", query_text) if term]
+        normalized_symbol = _normalize_symbol(symbol)
+        max_results = max(int(limit or 10), 1)
+        with self._connect() as conn:
+            index_rows = conn.execute(
+                """
+                SELECT *
+                FROM memory_index
+                WHERE (? IS NULL OR kind = ?)
+                  AND (? IS NULL OR symbol = ?)
+                  AND (? IS NULL OR status = ?)
+                """,
+                (kind, kind, normalized_symbol, normalized_symbol, status, status),
+            ).fetchall()
+            event_rows = conn.execute(
+                """
+                SELECT *
+                FROM memory_events
+                WHERE subject_id IS NOT NULL
+                  AND (? IS NULL OR symbol = ?)
+                """,
+                (normalized_symbol, normalized_symbol),
+            ).fetchall()
+        scored: list[tuple[int, str, dict[str, Any]]] = []
+        seen_ids: set[str] = set()
+        for row in index_rows:
+            item = self._row_to_memory(row)
+            seen_ids.add(f"index:{item.get('memory_id')}")
+            haystack = _json_dumps(item).lower()
+            score = sum(1 for term in terms if term in haystack) if terms else 1
+            if score > 0:
+                scored.append((score, item.get("updated_at") or "", item))
+        for row in event_rows:
+            item = self._row_to_event_memory(row)
+            if kind is not None and item.get("kind") != kind:
+                continue
+            if status is not None and item.get("status") != status:
+                continue
+            item_id = f"event:{item.get('event_id')}"
+            if item_id in seen_ids:
+                continue
+            haystack = _json_dumps(item).lower()
+            score = sum(1 for term in terms if term in haystack) if terms else 1
+            if score > 0:
+                scored.append((score, item.get("timestamp") or "", item))
+                seen_ids.add(item_id)
+        scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
+        results = [item for _, _, item in scored[:max_results]]
+        retrieval = self.record_retrieval(
+            query=query_text,
+            kind=kind,
+            symbol=normalized_symbol,
+            status=status,
+            limit=max_results,
+            candidates=[item for _, _, item in scored],
+            selected=results,
+            agent_name=agent_name,
+            model_call_id=model_call_id,
+        )
+        return {
+            "query": query_text,
+            "kind": kind,
+            "symbol": normalized_symbol,
+            "status": status,
+            "count": len(scored),
+            "retrieval_id": retrieval["retrieval_id"],
+            "results": results,
+        }
+
+    def record_retrieval(
         self,
         *,
+        query: str,
+        kind: str | None,
+        symbol: str | None,
+        status: str | None,
+        limit: int,
+        candidates: list[dict[str, Any]],
+        selected: list[dict[str, Any]],
+        rendered_text: str | None = None,
+        agent_name: str | None = None,
+        model_call_id: str | None = None,
+    ) -> dict[str, Any]:
+        retrieval_id = f"retrieval_{uuid.uuid4().hex}"
+        timestamp = self._timestamp()
+        candidate_ids = [str(item.get("id") or item.get("memory_id")) for item in candidates if item.get("id") or item.get("memory_id")]
+        selected_ids = [str(item.get("id") or item.get("memory_id")) for item in selected if item.get("id") or item.get("memory_id")]
+        rendered = rendered_text if rendered_text is not None else "\n\n".join(
+            f"{item.get('kind')} {item.get('symbol') or ''} {item.get('status') or ''}: {item.get('text') or ''}".strip()
+            for item in selected
+        )
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO memory_retrievals (
+                    retrieval_id, timestamp, wall_time, strategy, agent_name, model_call_id,
+                    query, kind, symbol, status, result_limit, candidate_ids_json,
+                    selected_ids_json, rendered_text, schema_version
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    retrieval_id,
+                    timestamp,
+                    self._wall_time(),
+                    self.strategy_name,
+                    agent_name,
+                    model_call_id,
+                    query,
+                    kind,
+                    symbol,
+                    status,
+                    int(limit),
+                    _json_dumps(candidate_ids),
+                    _json_dumps(selected_ids),
+                    rendered,
+                    SCHEMA_VERSION,
+                ),
+            )
+        self._export_artifacts_best_effort()
+        return {"retrieval_id": retrieval_id, "selected_ids": selected_ids, "candidate_ids": candidate_ids}
+
+    def compact_state(
+        self,
+        *,
+        symbols: list[str] | None = None,
+        max_theses: int = 8,
+        max_lessons: int = 8,
+        max_chars_per_item: int = 900,
+    ) -> dict[str, Any]:
+        normalized_symbols = sorted({symbol for symbol in (_normalize_symbol(item) for item in (symbols or [])) if symbol})
+        with self._connect() as conn:
+            open_theses_rows = conn.execute(
+                """
+                SELECT *
+                FROM memory_index
+                WHERE kind = 'thesis' AND status = 'open'
+                ORDER BY updated_at DESC
+                LIMIT ?
+                """,
+                (max(int(max_theses), 1),),
+            ).fetchall()
+            lesson_rows = conn.execute(
+                """
+                SELECT *
+                FROM memory_index
+                WHERE kind = 'lesson' AND status = 'validated'
+                ORDER BY updated_at DESC
+                LIMIT ?
+                """,
+                (max(int(max_lessons), 1),),
+            ).fetchall()
+        open_theses = [self._compact_memory_item(self._row_to_memory(row), max_chars=max_chars_per_item) for row in open_theses_rows]
+        lessons = [self._compact_memory_item(self._row_to_memory(row), max_chars=max_chars_per_item) for row in lesson_rows]
+        position_rationales = [
+            item
+            for item in open_theses
+            if normalized_symbols and _normalize_symbol(item.get("symbol")) in normalized_symbols
+        ]
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "as_of": self._timestamp(),
+            "strategy": self.strategy_name,
+            "held_symbols": normalized_symbols,
+            "open_theses": open_theses,
+            "current_position_rationales": position_rationales,
+            "validated_lessons": lessons,
+            "retrieval_policy": (
+                "If an agent is holding a symbol and plans to add, reduce, or sell it, "
+                "it should call search_memory for the open thesis first."
+            ),
+        }
+
+    def export_artifacts(self, output_dir: str | os.PathLike[str] | None = None, *, prefix: str | None = None) -> dict[str, str]:
+        import pandas as pd
+
+        output_path = Path(output_dir or self.strategy_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        file_prefix = _safe_name(prefix or "agent_memory")
+        table_map = {
+            "memory_events": "memory_events",
+            "memory_retrievals": "memory_retrievals",
+            "memory_state": "memory_index",
+        }
+        written: dict[str, str] = {}
+        with self._connect() as conn:
+            for artifact_name, table_name in table_map.items():
+                df = pd.read_sql_query(f"SELECT * FROM {table_name}", conn)
+                path = output_path / f"{file_prefix}_{artifact_name}.parquet"
+                df.to_parquet(path, index=False, compression="zstd")
+                written[artifact_name] = str(path)
+        return written
+
+    def _connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        return conn
+
+    def _ensure_schema(self) -> None:
+        with self._connect() as conn:
+            conn.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS memory_events (
+                    event_id TEXT PRIMARY KEY,
+                    sequence INTEGER NOT NULL UNIQUE,
+                    timestamp TEXT NOT NULL,
+                    wall_time TEXT NOT NULL,
+                    strategy TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    subject_type TEXT,
+                    subject_id TEXT,
+                    symbol TEXT,
+                    agent_name TEXT,
+                    model_call_id TEXT,
+                    retrieval_id TEXT,
+                    text TEXT,
+                    tags_json TEXT NOT NULL,
+                    metadata_json TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    payload_hash TEXT NOT NULL,
+                    schema_version INTEGER NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_memory_events_subject ON memory_events(subject_type, subject_id);
+                CREATE INDEX IF NOT EXISTS idx_memory_events_symbol ON memory_events(symbol);
+                CREATE INDEX IF NOT EXISTS idx_memory_events_type ON memory_events(event_type);
+
+                CREATE TABLE IF NOT EXISTS memory_index (
+                    memory_id TEXT PRIMARY KEY,
+                    latest_event_id TEXT NOT NULL,
+                    kind TEXT NOT NULL,
+                    status TEXT,
+                    symbol TEXT,
+                    text TEXT NOT NULL,
+                    tags_json TEXT NOT NULL,
+                    metadata_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    schema_version INTEGER NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_memory_index_kind ON memory_index(kind);
+                CREATE INDEX IF NOT EXISTS idx_memory_index_symbol ON memory_index(symbol);
+                CREATE INDEX IF NOT EXISTS idx_memory_index_status ON memory_index(status);
+
+                CREATE TABLE IF NOT EXISTS memory_retrievals (
+                    retrieval_id TEXT PRIMARY KEY,
+                    timestamp TEXT NOT NULL,
+                    wall_time TEXT NOT NULL,
+                    strategy TEXT NOT NULL,
+                    agent_name TEXT,
+                    model_call_id TEXT,
+                    query TEXT NOT NULL,
+                    kind TEXT,
+                    symbol TEXT,
+                    status TEXT,
+                    result_limit INTEGER NOT NULL,
+                    candidate_ids_json TEXT NOT NULL,
+                    selected_ids_json TEXT NOT NULL,
+                    rendered_text TEXT NOT NULL,
+                    schema_version INTEGER NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_memory_retrievals_symbol ON memory_retrievals(symbol);
+                CREATE INDEX IF NOT EXISTS idx_memory_retrievals_agent ON memory_retrievals(agent_name);
+                """
+            )
+
+    def _record_projection_event(
+        self,
+        *,
+        event_type: str,
+        subject_type: str,
+        subject_id: str,
         kind: str,
+        status: str,
         text: str,
+        symbol: str | None = None,
         tags: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        now = self._timestamp()
+        event = self._append_event(
+            event_type=event_type,
+            subject_type=subject_type,
+            subject_id=subject_id,
+            text=text,
+            symbol=symbol,
+            tags=tags,
+            metadata=metadata or {},
+            payload={
+                "kind": kind,
+                "status": status,
+                "text": text,
+                "symbol": symbol,
+                "tags": tags or [],
+                "metadata": metadata or {},
+            },
+        )
+        self._upsert_projection(
+            memory_id=subject_id,
+            event_id=event["event_id"],
+            kind=kind,
+            status=status,
+            text=text,
+            symbol=symbol,
+            tags=tags,
+            metadata=metadata,
+            timestamp=event["timestamp"],
+        )
+        self._export_artifacts_best_effort()
+        return self.get(subject_id) or event
+
+    def _append_event(
+        self,
+        *,
+        event_type: str,
+        subject_type: str | None,
+        subject_id: str | None,
+        text: str,
+        symbol: str | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+        payload: dict[str, Any] | None = None,
+        agent_name: str | None = None,
+        model_call_id: str | None = None,
+        retrieval_id: str | None = None,
+    ) -> dict[str, Any]:
+        timestamp = self._timestamp()
+        wall_time = self._wall_time()
+        event_id = f"event_{uuid.uuid4().hex}"
+        tags_json = _json_dumps(list(tags or []))
+        metadata_json = _json_dumps(metadata or {})
+        payload_json = _json_dumps(payload or {})
+        payload_hash = hashlib.sha256(payload_json.encode("utf-8")).hexdigest()
+        normalized_symbol = _normalize_symbol(symbol or (metadata or {}).get("symbol"))
+        with self._connect() as conn:
+            sequence = int(conn.execute("SELECT COALESCE(MAX(sequence), 0) + 1 FROM memory_events").fetchone()[0])
+            conn.execute(
+                """
+                INSERT INTO memory_events (
+                    event_id, sequence, timestamp, wall_time, strategy, event_type,
+                    subject_type, subject_id, symbol, agent_name, model_call_id,
+                    retrieval_id, text, tags_json, metadata_json, payload_json,
+                    payload_hash, schema_version
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    event_id,
+                    sequence,
+                    timestamp,
+                    wall_time,
+                    self.strategy_name,
+                    event_type,
+                    subject_type,
+                    subject_id,
+                    normalized_symbol,
+                    agent_name,
+                    model_call_id,
+                    retrieval_id,
+                    str(text or "").strip(),
+                    tags_json,
+                    metadata_json,
+                    payload_json,
+                    payload_hash,
+                    SCHEMA_VERSION,
+                ),
+            )
         return {
-            "id": f"{kind}_{now.replace(':', '').replace('-', '').replace('.', '')}",
-            "timestamp": now,
-            "strategy": getattr(self.strategy, "name", None) or self.strategy.__class__.__name__,
-            "kind": kind,
+            "event_id": event_id,
+            "sequence": sequence,
+            "timestamp": timestamp,
+            "strategy": self.strategy_name,
+            "event_type": event_type,
+            "subject_type": subject_type,
+            "subject_id": subject_id,
+            "symbol": normalized_symbol,
             "text": str(text or "").strip(),
             "tags": list(tags or []),
             "metadata": metadata or {},
+        }
+
+    def _upsert_projection(
+        self,
+        *,
+        memory_id: str,
+        event_id: str,
+        kind: str,
+        status: str,
+        text: str,
+        symbol: str | None,
+        tags: list[str] | None,
+        metadata: dict[str, Any] | None,
+        timestamp: str,
+    ) -> None:
+        normalized_symbol = _normalize_symbol(symbol or (metadata or {}).get("symbol"))
+        with self._connect() as conn:
+            existing = conn.execute("SELECT created_at FROM memory_index WHERE memory_id = ?", (memory_id,)).fetchone()
+            created_at = existing["created_at"] if existing else timestamp
+            conn.execute(
+                """
+                INSERT INTO memory_index (
+                    memory_id, latest_event_id, kind, status, symbol, text,
+                    tags_json, metadata_json, created_at, updated_at, schema_version
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(memory_id) DO UPDATE SET
+                    latest_event_id = excluded.latest_event_id,
+                    kind = excluded.kind,
+                    status = excluded.status,
+                    symbol = excluded.symbol,
+                    text = excluded.text,
+                    tags_json = excluded.tags_json,
+                    metadata_json = excluded.metadata_json,
+                    updated_at = excluded.updated_at,
+                    schema_version = excluded.schema_version
+                """,
+                (
+                    memory_id,
+                    event_id,
+                    kind,
+                    status,
+                    normalized_symbol,
+                    str(text or "").strip(),
+                    _json_dumps(list(tags or [])),
+                    _json_dumps(metadata or {}),
+                    created_at,
+                    timestamp,
+                    SCHEMA_VERSION,
+                ),
+            )
+
+    def _compact_memory_item(self, item: dict[str, Any], *, max_chars: int) -> dict[str, Any]:
+        return {
+            "id": item.get("id") or item.get("memory_id"),
+            "kind": item.get("kind"),
+            "status": item.get("status"),
+            "symbol": item.get("symbol"),
+            "updated_at": item.get("updated_at"),
+            "text": _compact_text(item.get("text"), limit=max_chars),
+            "tags": item.get("tags") or [],
+            "metadata": item.get("metadata") or {},
+        }
+
+    def _row_to_memory(self, row: sqlite3.Row) -> dict[str, Any]:
+        return {
+            "id": row["memory_id"],
+            "memory_id": row["memory_id"],
+            "latest_event_id": row["latest_event_id"],
+            "timestamp": row["updated_at"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+            "strategy": self.strategy_name,
+            "kind": row["kind"],
+            "status": row["status"],
+            "symbol": row["symbol"],
+            "text": row["text"],
+            "tags": _json_loads(row["tags_json"], []),
+            "metadata": _json_loads(row["metadata_json"], {}),
+        }
+
+    def _row_to_event_memory(self, row: sqlite3.Row) -> dict[str, Any]:
+        payload = _json_loads(row["payload_json"], {})
+        metadata = _json_loads(row["metadata_json"], {})
+        return {
+            "id": row["event_id"],
+            "event_id": row["event_id"],
+            "memory_id": row["subject_id"],
+            "timestamp": row["timestamp"],
+            "created_at": row["timestamp"],
+            "updated_at": row["timestamp"],
+            "strategy": self.strategy_name,
+            "kind": payload.get("kind") or row["subject_type"],
+            "status": payload.get("status"),
+            "symbol": row["symbol"],
+            "text": row["text"],
+            "tags": _json_loads(row["tags_json"], []),
+            "metadata": metadata,
+            "event_type": row["event_type"],
+            "source": "event_history",
         }
 
     def _timestamp(self) -> str:
@@ -125,22 +708,16 @@ class MemoryStore:
                     return value.isoformat()
             except Exception:
                 pass
+        return self._wall_time()
+
+    @staticmethod
+    def _wall_time() -> str:
         return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
-    def _append(self, filename: str, entry: dict[str, Any]) -> None:
-        path = self.strategy_dir / filename
-        with path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(entry, sort_keys=True) + "\n")
-
-    def _read_jsonl(self, path: Path) -> list[dict[str, Any]]:
-        if not path.exists():
-            return []
-        rows = []
-        for line in path.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            try:
-                rows.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
-        return rows
+    def _export_artifacts_best_effort(self) -> None:
+        if str(os.environ.get("LUMIBOT_MEMORY_EXPORT_PARQUET", "1")).strip().lower() in {"0", "false", "no", "off"}:
+            return
+        try:
+            self.export_artifacts(self.strategy_dir, prefix="agent_memory")
+        except Exception:
+            pass

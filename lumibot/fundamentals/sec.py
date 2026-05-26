@@ -1,3 +1,4 @@
+import html
 import json
 import os
 import re
@@ -106,10 +107,48 @@ def _same_tz(value: datetime, reference: datetime) -> datetime:
 
 def _strip_html(text: str) -> str:
     text = re.sub(r"(?is)<script.*?</script>|<style.*?</style>", " ", text)
+    text = re.sub(r"(?is)<ix:hidden.*?</ix:hidden>", " ", text)
+    text = re.sub(r"(?is)</?(?:p|div|br|tr|table|section|article|h[1-6])\b[^>]*>", "\n", text)
     text = re.sub(r"(?s)<[^>]+>", " ", text)
-    text = re.sub(r"&nbsp;?", " ", text)
-    text = re.sub(r"\s+", " ", text)
+    text = html.unescape(text)
+    text = re.sub(r"[ \t\r\f\v]+", " ", text)
+    text = re.sub(r"\n\s+", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
+
+
+_FILING_SECTION_RE = re.compile(
+    r"(?im)(?:^|\n)\s*(item\s+(?:1a|1b|1|2|3|4|5|6|7a|7|8|9a|9b|9|10|11|12|13|14|15)\.?\s+[^\n]{0,180})"
+)
+
+
+def _filing_section_id(heading: str) -> str:
+    match = re.search(r"(?i)item\s+(1a|1b|1|2|3|4|5|6|7a|7|8|9a|9b|9|10|11|12|13|14|15)", heading)
+    if not match:
+        return ""
+    return f"item_{match.group(1).lower()}"
+
+
+def _section_alias_candidates(section: str) -> list[str]:
+    normalized = re.sub(r"[^a-z0-9]+", "_", str(section or "").strip().lower()).strip("_")
+    aliases = {
+        "risk": ["item_1a"],
+        "risk_factors": ["item_1a"],
+        "business": ["item_1"],
+        "mda": ["item_7", "item_2"],
+        "md_a": ["item_7", "item_2"],
+        "management_discussion": ["item_7", "item_2"],
+        "results_of_operations": ["item_7", "item_2"],
+        "liquidity": ["item_7", "item_2"],
+        "market_risk": ["item_7a", "item_3"],
+        "financial_statements": ["item_8", "item_1"],
+        "controls": ["item_9a", "item_4"],
+    }
+    if normalized.startswith("item_"):
+        return [normalized]
+    if normalized.startswith("item"):
+        return [f"item_{normalized[4:]}"]
+    return aliases.get(normalized, [normalized])
 
 
 class SECFundamentals:
@@ -266,18 +305,154 @@ class SECFundamentals:
             return raw_facts
         as_of_dt = _as_of_datetime(as_of) if as_of is not None else self._strategy_as_of()
         facts = raw_facts.get("facts", {}).get("us-gaap", {})
-        values: dict[str, Any] = {}
+        field_candidates: dict[str, list[dict[str, Any]]] = {}
         for field, tags in tag_map.items():
-            latest = self._latest_fact_for_tags(facts, tags, as_of_dt)
-            if latest is not None:
-                values[field] = latest
+            candidates = self._fact_candidates_for_tags(facts, tags, as_of_dt)
+            if candidates:
+                field_candidates[field] = candidates
+
+        anchor = self._statement_anchor(field_candidates)
+        values: dict[str, Any] = {}
+        warnings: list[dict[str, Any]] = []
+        for field, candidates in field_candidates.items():
+            chosen = self._best_matching_statement_fact(candidates, anchor)
+            if chosen is not None:
+                values[field] = chosen
+                continue
+            latest = candidates[0]
+            warnings.append(
+                {
+                    "field": field,
+                    "message": (
+                        "Latest fact did not match the statement period anchor and was omitted "
+                        "to avoid mixing facts from different SEC filings or periods."
+                    ),
+                    "latest_candidate": {
+                        key: latest.get(key)
+                        for key in ("tag", "filed", "form", "fy", "fp", "start", "end", "accession_number")
+                    },
+                    "anchor": {
+                        key: anchor.get(key) if anchor else None
+                        for key in ("tag", "filed", "form", "fy", "fp", "start", "end", "accession_number")
+                    },
+                }
+            )
         return {
             "symbol": symbol.upper(),
             "cik": self.ticker_to_cik(symbol),
             "statement": statement,
             "as_of": as_of_dt.isoformat(),
             "values": values,
+            "anchor": {
+                key: anchor.get(key)
+                for key in ("tag", "filed", "form", "fy", "fp", "start", "end", "accession_number")
+            }
+            if anchor
+            else None,
+            "warnings": warnings,
         }
+
+    def _fact_candidates_for_tags(
+        self,
+        facts: dict[str, Any],
+        tags: list[str],
+        as_of: datetime,
+    ) -> list[dict[str, Any]]:
+        candidates: list[dict[str, Any]] = []
+        for tag in tags:
+            tag_payload = facts.get(tag)
+            if not tag_payload:
+                continue
+            units = tag_payload.get("units", {})
+            for unit, unit_facts in units.items():
+                if not isinstance(unit_facts, list):
+                    continue
+                for fact in unit_facts:
+                    if not isinstance(fact, dict):
+                        continue
+                    filed = _parse_dt(fact.get("filed") or fact.get("acceptanceDateTime"))
+                    if filed is None:
+                        continue
+                    filed = _same_tz(filed, as_of)
+                    if filed > as_of:
+                        continue
+                    candidates.append(
+                        {
+                            "tag": tag,
+                            "value": fact.get("val"),
+                            "unit": unit,
+                            "filed": fact.get("filed"),
+                            "form": fact.get("form"),
+                            "fy": fact.get("fy"),
+                            "fp": fact.get("fp"),
+                            "frame": fact.get("frame"),
+                            "start": fact.get("start"),
+                            "end": fact.get("end"),
+                            "accession_number": fact.get("accn"),
+                        }
+                    )
+        candidates.sort(key=lambda row: self._statement_candidate_sort_key(row, tags), reverse=True)
+        return candidates
+
+    def _statement_candidate_sort_key(self, row: dict[str, Any], tags: list[str] | None = None) -> tuple[Any, ...]:
+        form_priority = {
+            "10-K": 5,
+            "20-F": 5,
+            "40-F": 5,
+            "10-Q": 4,
+            "8-K": 2,
+        }.get(str(row.get("form") or "").upper(), 1)
+        tag_priority = 0
+        if tags:
+            try:
+                tag_priority = len(tags) - tags.index(str(row.get("tag") or ""))
+            except ValueError:
+                tag_priority = 0
+        return (
+            str(row.get("filed") or ""),
+            str(row.get("end") or ""),
+            str(row.get("start") or ""),
+            form_priority,
+            tag_priority,
+        )
+
+    def _statement_anchor(self, field_candidates: dict[str, list[dict[str, Any]]]) -> dict[str, Any] | None:
+        candidates: list[dict[str, Any]] = []
+        for rows in field_candidates.values():
+            candidates.extend(rows)
+        if not candidates:
+            return None
+        return sorted(candidates, key=lambda row: self._statement_candidate_sort_key(row), reverse=True)[0]
+
+    def _best_matching_statement_fact(
+        self,
+        candidates: list[dict[str, Any]],
+        anchor: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        if not candidates:
+            return None
+        if anchor is None:
+            return candidates[0]
+        for candidate in candidates:
+            if self._same_statement_period(candidate, anchor):
+                return candidate
+        return None
+
+    def _same_statement_period(self, candidate: dict[str, Any], anchor: dict[str, Any]) -> bool:
+        candidate_accn = str(candidate.get("accession_number") or "").strip()
+        anchor_accn = str(anchor.get("accession_number") or "").strip()
+        if candidate_accn and anchor_accn and candidate_accn == anchor_accn:
+            return True
+        candidate_end = str(candidate.get("end") or "").strip()
+        anchor_end = str(anchor.get("end") or "").strip()
+        if not candidate_end or not anchor_end or candidate_end != anchor_end:
+            return False
+        for key in ("start", "fy", "fp", "form"):
+            candidate_value = str(candidate.get(key) or "").strip()
+            anchor_value = str(anchor.get(key) or "").strip()
+            if candidate_value and anchor_value and candidate_value != anchor_value:
+                return False
+        return True
 
     def _latest_fact_for_tags(
         self,
@@ -462,6 +637,124 @@ class SECFundamentals:
             "truncated": truncated,
             "max_chars": max_chars,
         }
+
+    def list_filing_sections(
+        self,
+        symbol: str,
+        *,
+        accession_number: str,
+        primary_document: str | None = None,
+    ) -> dict[str, Any]:
+        text_result = self.get_filing_document(
+            symbol,
+            accession_number=accession_number,
+            primary_document=primary_document,
+            as_text=True,
+            max_chars=None,
+        )
+        text = text_result["text"]
+        sections = self._detect_filing_sections(text)
+        return {
+            "symbol": symbol.upper(),
+            "accession_number": accession_number,
+            "document_url": text_result["document_url"],
+            "section_count": len(sections),
+            "sections": [
+                {
+                    "section_id": section["section_id"],
+                    "heading": section["heading"],
+                    "start": section["start"],
+                    "end": section["end"],
+                    "char_count": max(int(section["end"]) - int(section["start"]), 0),
+                }
+                for section in sections
+            ],
+        }
+
+    def get_filing_section(
+        self,
+        symbol: str,
+        *,
+        accession_number: str,
+        section: str,
+        primary_document: str | None = None,
+        max_chars: int | None = 12000,
+    ) -> dict[str, Any]:
+        text_result = self.get_filing_document(
+            symbol,
+            accession_number=accession_number,
+            primary_document=primary_document,
+            as_text=True,
+            max_chars=None,
+        )
+        text = text_result["text"]
+        sections = self._detect_filing_sections(text)
+        candidate_ids = _section_alias_candidates(section)
+        matching_sections = [entry for entry in sections if entry["section_id"] in candidate_ids]
+        selected = max(
+            matching_sections,
+            key=lambda entry: max(int(entry["end"]) - int(entry["start"]), 0),
+            default=None,
+        )
+        if selected is None:
+            return {
+                "ok": False,
+                "symbol": symbol.upper(),
+                "accession_number": accession_number,
+                "requested_section": section,
+                "available_sections": [
+                    {"section_id": entry["section_id"], "heading": entry["heading"]} for entry in sections
+                ],
+                "document_url": text_result["document_url"],
+                "error": {
+                    "type": "SectionNotFound",
+                    "message": f"Could not find section {section!r} in filing.",
+                },
+            }
+        section_text = text[int(selected["start"]) : int(selected["end"])].strip()
+        original_length = len(section_text)
+        truncated = False
+        if max_chars is not None and original_length > int(max_chars):
+            section_text = section_text[: int(max_chars)]
+            truncated = True
+        return {
+            "ok": True,
+            "symbol": symbol.upper(),
+            "accession_number": accession_number,
+            "requested_section": section,
+            "section_id": selected["section_id"],
+            "heading": selected["heading"],
+            "document_url": text_result["document_url"],
+            "text": section_text,
+            "original_length": original_length,
+            "truncated": truncated,
+            "max_chars": max_chars,
+        }
+
+    def _detect_filing_sections(self, text: str) -> list[dict[str, Any]]:
+        matches: list[dict[str, Any]] = []
+        seen: set[tuple[str, int]] = set()
+        for match in _FILING_SECTION_RE.finditer(text):
+            heading = re.sub(r"\s+", " ", match.group(1)).strip()
+            section_id = _filing_section_id(heading)
+            if not section_id:
+                continue
+            key = (section_id, match.start(1))
+            if key in seen:
+                continue
+            seen.add(key)
+            matches.append(
+                {
+                    "section_id": section_id,
+                    "heading": heading,
+                    "start": match.start(1),
+                    "end": len(text),
+                }
+            )
+        for index, section in enumerate(matches):
+            if index + 1 < len(matches):
+                section["end"] = matches[index + 1]["start"]
+        return matches
 
     def _filing_url(self, cik: Any, accession_number: str, primary_document: str) -> str:
         cik_int = str(int(str(cik).lstrip("0") or "0"))

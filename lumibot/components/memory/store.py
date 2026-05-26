@@ -70,6 +70,9 @@ class MemoryStore:
         kind: str = "memory",
         tags: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
+        agent_name: str | None = None,
+        model_call_id: str | None = None,
+        retrieval_id: str | None = None,
     ) -> dict[str, Any]:
         memory_id = f"{_safe_name(kind)}_{uuid.uuid4().hex}"
         return self._record_projection_event(
@@ -81,6 +84,9 @@ class MemoryStore:
             text=text,
             tags=tags,
             metadata=metadata,
+            agent_name=agent_name,
+            model_call_id=model_call_id,
+            retrieval_id=retrieval_id,
         )
 
     def remember_decision(
@@ -91,6 +97,9 @@ class MemoryStore:
         action: str | None = None,
         evidence: dict[str, Any] | None = None,
         tags: list[str] | None = None,
+        agent_name: str | None = None,
+        model_call_id: str | None = None,
+        retrieval_id: str | None = None,
     ) -> dict[str, Any]:
         metadata = {"symbol": symbol, "action": action, "evidence": evidence or {}}
         memory_id = f"decision_{uuid.uuid4().hex}"
@@ -104,6 +113,66 @@ class MemoryStore:
             symbol=symbol,
             tags=tags,
             metadata=metadata,
+            agent_name=agent_name,
+            model_call_id=model_call_id,
+            retrieval_id=retrieval_id,
+        )
+
+    def remember_proposal(
+        self,
+        text: str,
+        *,
+        symbol: str | None = None,
+        action: str | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+        agent_name: str | None = None,
+        model_call_id: str | None = None,
+        retrieval_id: str | None = None,
+    ) -> dict[str, Any]:
+        merged_metadata = {"symbol": symbol, "action": action, **(metadata or {})}
+        memory_id = f"proposal_{uuid.uuid4().hex}"
+        return self._record_projection_event(
+            event_type="proposal.recorded",
+            subject_type="proposal",
+            subject_id=memory_id,
+            kind="proposal",
+            status="proposed",
+            text=text,
+            symbol=symbol,
+            tags=tags,
+            metadata=merged_metadata,
+            agent_name=agent_name,
+            model_call_id=model_call_id,
+            retrieval_id=retrieval_id,
+        )
+
+    def remember_risk_note(
+        self,
+        text: str,
+        *,
+        symbol: str | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+        agent_name: str | None = None,
+        model_call_id: str | None = None,
+        retrieval_id: str | None = None,
+    ) -> dict[str, Any]:
+        merged_metadata = {"symbol": symbol, **(metadata or {})}
+        memory_id = f"risk_note_{uuid.uuid4().hex}"
+        return self._record_projection_event(
+            event_type="risk_note.recorded",
+            subject_type="risk_note",
+            subject_id=memory_id,
+            kind="risk_note",
+            status="active",
+            text=text,
+            symbol=symbol,
+            tags=tags,
+            metadata=merged_metadata,
+            agent_name=agent_name,
+            model_call_id=model_call_id,
+            retrieval_id=retrieval_id,
         )
 
     def remember_lesson(
@@ -113,6 +182,9 @@ class MemoryStore:
         symbol: str | None = None,
         outcome: dict[str, Any] | None = None,
         tags: list[str] | None = None,
+        agent_name: str | None = None,
+        model_call_id: str | None = None,
+        retrieval_id: str | None = None,
     ) -> dict[str, Any]:
         outcome = outcome or {}
         status = "validated" if outcome.get("validated") is True else "proposed"
@@ -128,6 +200,9 @@ class MemoryStore:
             symbol=symbol,
             tags=tags,
             metadata=metadata,
+            agent_name=agent_name,
+            model_call_id=model_call_id,
+            retrieval_id=retrieval_id,
         )
 
     def open_thesis(
@@ -137,6 +212,9 @@ class MemoryStore:
         symbol: str | None = None,
         tags: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
+        agent_name: str | None = None,
+        model_call_id: str | None = None,
+        retrieval_id: str | None = None,
     ) -> dict[str, Any]:
         metadata = {"symbol": symbol, **(metadata or {}), "status": "open"}
         memory_id = f"thesis_{uuid.uuid4().hex}"
@@ -150,9 +228,21 @@ class MemoryStore:
             symbol=symbol,
             tags=tags,
             metadata=metadata,
+            agent_name=agent_name,
+            model_call_id=model_call_id,
+            retrieval_id=retrieval_id,
         )
 
-    def update_thesis(self, thesis_id: str, text: str, *, metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+    def update_thesis(
+        self,
+        thesis_id: str,
+        text: str,
+        *,
+        metadata: dict[str, Any] | None = None,
+        agent_name: str | None = None,
+        model_call_id: str | None = None,
+        retrieval_id: str | None = None,
+    ) -> dict[str, Any]:
         existing = self.get(thesis_id)
         symbol = metadata.get("symbol") if isinstance(metadata, dict) else None
         if not symbol and existing:
@@ -168,9 +258,21 @@ class MemoryStore:
             symbol=symbol,
             tags=None,
             metadata=merged_metadata,
+            agent_name=agent_name,
+            model_call_id=model_call_id,
+            retrieval_id=retrieval_id,
         )
 
-    def close_thesis(self, thesis_id: str, text: str, *, outcome: dict[str, Any] | None = None) -> dict[str, Any]:
+    def close_thesis(
+        self,
+        thesis_id: str,
+        text: str,
+        *,
+        outcome: dict[str, Any] | None = None,
+        agent_name: str | None = None,
+        model_call_id: str | None = None,
+        retrieval_id: str | None = None,
+    ) -> dict[str, Any]:
         existing = self.get(thesis_id)
         symbol = existing.get("symbol") if existing else None
         return self._record_projection_event(
@@ -183,6 +285,9 @@ class MemoryStore:
             symbol=symbol,
             tags=None,
             metadata={"thesis_id": thesis_id, "outcome": outcome or {}, "status": "closed"},
+            agent_name=agent_name,
+            model_call_id=model_call_id,
+            retrieval_id=retrieval_id,
         )
 
     def record_warning(
@@ -192,6 +297,9 @@ class MemoryStore:
         kind: str = "agent_warning",
         symbol: str | None = None,
         metadata: dict[str, Any] | None = None,
+        agent_name: str | None = None,
+        model_call_id: str | None = None,
+        retrieval_id: str | None = None,
     ) -> dict[str, Any]:
         event = self._append_event(
             event_type=kind,
@@ -201,6 +309,65 @@ class MemoryStore:
             symbol=symbol,
             metadata=metadata or {},
             payload={"warning": text, "metadata": metadata or {}},
+            agent_name=agent_name,
+            model_call_id=model_call_id,
+            retrieval_id=retrieval_id,
+        )
+        self._export_artifacts_best_effort()
+        return event
+
+    def record_order_submitted(
+        self,
+        *,
+        order: Any = None,
+        symbol: str | None = None,
+        side: str | None = None,
+        quantity: Any = None,
+        order_type: str | None = None,
+        asset_type: str | None = None,
+        order_payload: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
+        agent_name: str | None = None,
+        model_call_id: str | None = None,
+        retrieval_id: str | None = None,
+        **order_kwargs: Any,
+    ) -> dict[str, Any]:
+        order_id = None
+        if isinstance(order_payload, dict):
+            order_id = order_payload.get("identifier")
+        order_id = order_id or getattr(order, "identifier", None) or getattr(order, "id", None) or uuid.uuid4().hex
+        payload = {
+            "kind": "order",
+            "status": "submitted",
+            "symbol": symbol,
+            "side": side,
+            "quantity": quantity,
+            "order_type": order_type,
+            "asset_type": asset_type,
+            "order": order_payload or {},
+            "arguments": {key: value for key, value in order_kwargs.items() if value is not None},
+            "metadata": metadata or {},
+        }
+        text_parts = ["Submitted order"]
+        if side:
+            text_parts.append(str(side))
+        if quantity is not None:
+            text_parts.append(str(quantity))
+        if symbol:
+            text_parts.append(str(symbol).upper())
+        if order_type:
+            text_parts.append(f"as {order_type}")
+        event = self._append_event(
+            event_type="order.submitted",
+            subject_type="order",
+            subject_id=f"order_{_safe_name(order_id)}",
+            text=" ".join(text_parts),
+            symbol=symbol,
+            metadata=payload,
+            payload=payload,
+            agent_name=agent_name,
+            model_call_id=model_call_id,
+            retrieval_id=retrieval_id,
         )
         self._export_artifacts_best_effort()
         return event
@@ -350,6 +517,7 @@ class MemoryStore:
         max_theses: int = 8,
         max_lessons: int = 8,
         max_chars_per_item: int = 900,
+        update_open_thesis_outcomes: bool = True,
     ) -> dict[str, Any]:
         normalized_symbols = sorted({symbol for symbol in (_normalize_symbol(item) for item in (symbols or [])) if symbol})
         with self._connect() as conn:
@@ -373,6 +541,11 @@ class MemoryStore:
                 """,
                 (max(int(max_lessons), 1),),
             ).fetchall()
+        if update_open_thesis_outcomes:
+            try:
+                self._record_open_thesis_outcome_observations(open_theses_rows, normalized_symbols)
+            except Exception:
+                pass
         open_theses = [self._compact_memory_item(self._row_to_memory(row), max_chars=max_chars_per_item) for row in open_theses_rows]
         lessons = [self._compact_memory_item(self._row_to_memory(row), max_chars=max_chars_per_item) for row in lesson_rows]
         position_rationales = [
@@ -488,6 +661,115 @@ class MemoryStore:
                 """
             )
 
+    @staticmethod
+    def _coerce_float(value: Any) -> float | None:
+        try:
+            parsed = float(value)
+        except Exception:
+            return None
+        return parsed
+
+    def _held_positions_by_symbol(self) -> dict[str, dict[str, Any]]:
+        get_positions = getattr(self.strategy, "get_positions", None)
+        if not callable(get_positions):
+            return {}
+        try:
+            positions = get_positions(include_cash_positions=False)
+        except TypeError:
+            positions = get_positions()
+        except Exception:
+            return {}
+        held: dict[str, dict[str, Any]] = {}
+        for position in positions or []:
+            asset = getattr(position, "asset", None)
+            symbol = _normalize_symbol(getattr(asset, "symbol", None) or getattr(position, "symbol", None))
+            if not symbol:
+                continue
+            quantity = self._coerce_float(getattr(position, "quantity", None))
+            if quantity in (None, 0):
+                continue
+            last_price = None
+            get_last_price = getattr(self.strategy, "get_last_price", None)
+            if callable(get_last_price):
+                try:
+                    last_price = self._coerce_float(get_last_price(asset))
+                except Exception:
+                    last_price = None
+            held[symbol] = {
+                "symbol": symbol,
+                "quantity": quantity,
+                "asset_type": getattr(asset, "asset_type", None),
+                "last_price": last_price,
+                "market_value": quantity * last_price if quantity is not None and last_price is not None else None,
+            }
+        return held
+
+    def _has_event_for_subject_on_date(self, *, event_type: str, subject_id: str, date_prefix: str) -> bool:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT 1
+                FROM memory_events
+                WHERE event_type = ? AND subject_id = ? AND timestamp LIKE ?
+                LIMIT 1
+                """,
+                (event_type, subject_id, f"{date_prefix}%"),
+            ).fetchone()
+        return row is not None
+
+    def _record_open_thesis_outcome_observations(
+        self,
+        open_theses_rows: list[sqlite3.Row],
+        normalized_symbols: list[str],
+    ) -> None:
+        if not open_theses_rows:
+            return
+        held_positions = self._held_positions_by_symbol()
+        if not held_positions:
+            return
+        current_date = self._timestamp()[:10]
+        wrote_event = False
+        symbol_filter = set(normalized_symbols)
+        for row in open_theses_rows:
+            item = self._row_to_memory(row)
+            thesis_id = str(item.get("memory_id") or "")
+            symbol = _normalize_symbol(item.get("symbol") or (item.get("metadata") or {}).get("symbol"))
+            if not thesis_id or not symbol:
+                continue
+            if symbol_filter and symbol not in symbol_filter:
+                continue
+            position = held_positions.get(symbol)
+            if not position:
+                continue
+            if self._has_event_for_subject_on_date(
+                event_type="thesis.outcome_observed",
+                subject_id=thesis_id,
+                date_prefix=current_date,
+            ):
+                continue
+            metadata = {
+                "thesis_id": thesis_id,
+                "symbol": symbol,
+                "status": "observed",
+                "position": position,
+                "observed_date": current_date,
+            }
+            self._append_event(
+                event_type="thesis.outcome_observed",
+                subject_type="thesis",
+                subject_id=thesis_id,
+                text=(
+                    f"Observed open thesis for {symbol}: quantity={position.get('quantity')} "
+                    f"last_price={position.get('last_price')} market_value={position.get('market_value')}"
+                ),
+                symbol=symbol,
+                metadata=metadata,
+                payload={"kind": "thesis_outcome", "status": "observed", **metadata},
+            )
+            wrote_event = True
+        if wrote_event:
+            self._export_artifacts_best_effort()
+
     def _record_projection_event(
         self,
         *,
@@ -500,6 +782,9 @@ class MemoryStore:
         symbol: str | None = None,
         tags: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
+        agent_name: str | None = None,
+        model_call_id: str | None = None,
+        retrieval_id: str | None = None,
     ) -> dict[str, Any]:
         event = self._append_event(
             event_type=event_type,
@@ -517,6 +802,9 @@ class MemoryStore:
                 "tags": tags or [],
                 "metadata": metadata or {},
             },
+            agent_name=agent_name,
+            model_call_id=model_call_id,
+            retrieval_id=retrieval_id,
         )
         self._upsert_projection(
             memory_id=subject_id,
@@ -596,6 +884,9 @@ class MemoryStore:
             "subject_type": subject_type,
             "subject_id": subject_id,
             "symbol": normalized_symbol,
+            "agent_name": agent_name,
+            "model_call_id": model_call_id,
+            "retrieval_id": retrieval_id,
             "text": str(text or "").strip(),
             "tags": list(tags or []),
             "metadata": metadata or {},

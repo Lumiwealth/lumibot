@@ -347,7 +347,7 @@ Start here:
 
 ## Memory and Traceability
 
-AI strategies can record decisions, lessons, open theses, tool calls, and run artifacts as local SQLite and Parquet files. This makes an AI backtest reviewable instead of a black box: you can inspect why the agent traded, which tools it used, what memory it retrieved, and what it remembered for later iterations.
+AI strategies can record proposals, risk notes, actual trading decisions, submitted orders, lessons, open theses, tool calls, and run artifacts as local SQLite and Parquet files. This makes an AI backtest reviewable instead of a black box: you can inspect why the agent traded, which tools it used, what memory it retrieved, and what it remembered for later iterations. Memory events include agent/model-call provenance when they come from agent tools.
 
 <p align="center">
   <img src="docs/assets/readme/lumibot_memory_notifications.png" alt="Lumibot AI memory and notifications" width="100%">

@@ -34,8 +34,12 @@ class _Runtime:
         from lumibot.components.agents.runtime import _wrap_tool_callable
 
         type(self).last_request = request
-        tool_map = {tool.name: _wrap_tool_callable(tool) for tool in request.bound_tools}
+        tool_context = {"agent_name": request.agent_name, "model_call_id": request.model_call_id}
+        tool_map = {tool.name: _wrap_tool_callable(tool, tool_context) for tool in request.bound_tools}
         assert "orders_submit_order" not in tool_map
+        assert "remember_decision" not in tool_map
+        assert "remember_proposal" in tool_map
+        assert "remember_risk_note" in tool_map
         memory_result = tool_map["search_memory"](query="AAPL", limit=1)
         notify_result = tool_map["notify_user"](title="Test", message="Backtest dry run")
         events = [
@@ -73,6 +77,9 @@ def test_agent_allow_trading_false_removes_only_mutating_order_tools(monkeypatch
     assert "orders_submit_order" not in tool_names
     assert "orders_cancel_order" not in tool_names
     assert "orders_modify_order" not in tool_names
+    assert "remember_decision" not in tool_names
+    assert "remember_proposal" in tool_names
+    assert "remember_risk_note" in tool_names
     assert "orders_open_orders" in tool_names
     assert "account_positions" in tool_names
     assert "get_income_statement" in tool_names
@@ -239,6 +246,54 @@ def test_order_tool_serialization_handles_uuid_identifiers():
     assert isinstance(payload["identifier"], str)
 
 
+def test_order_submit_tool_records_memory_event(monkeypatch, tmp_path):
+    import pandas as pd
+
+    from lumibot.components.agents.builtins import _bind_submit_order
+    from lumibot.components.agents.runtime import _wrap_tool_callable
+    from lumibot.components.memory import MemoryStore
+
+    class _Asset:
+        symbol = "TQQQ"
+        asset_type = "stock"
+
+    class _Order:
+        identifier = "order-123"
+        status = "submitted"
+        side = "buy"
+        asset = _Asset()
+        quantity = 10
+        order_type = "market"
+        time_in_force = "day"
+        limit_price = None
+        stop_price = None
+
+    class _OrderStrategy(_Strategy):
+        def create_order(self, *args, **kwargs):
+            return _Order()
+
+        def submit_order(self, order):
+            return order
+
+    strategy = _OrderStrategy()
+    strategy.memory = MemoryStore(strategy, root_dir=tmp_path)
+    monkeypatch.setattr(
+        "lumibot.components.agents.builtins.resolve_asset_and_quote",
+        lambda *args, **kwargs: (_Asset(), None),
+    )
+
+    tool = _bind_submit_order(strategy, manager=None)
+    wrapped = _wrap_tool_callable(tool, {"agent_name": "trader", "model_call_id": "call-order-1"})
+    result = wrapped(symbol="TQQQ", quantity=10, side="buy")
+
+    assert result["order"]["identifier"] == "order-123"
+    events = pd.read_parquet(strategy.memory.export_artifacts(tmp_path, prefix="order_memory")["memory_events"])
+    order_events = events[events["event_type"] == "order.submitted"]
+    assert len(order_events) == 1
+    assert order_events.iloc[0]["agent_name"] == "trader"
+    assert order_events.iloc[0]["model_call_id"] == "call-order-1"
+
+
 def test_builtin_indicator_schema_is_gemini_function_declaration_compatible():
     pytest.importorskip("google.adk.tools.function_tool")
     from google.adk.tools.function_tool import FunctionTool
@@ -296,6 +351,12 @@ def test_read_only_agent_runtime_can_use_non_trading_tools(tmp_path):
     assert _Runtime.last_request.model == "openai/gpt-5.4-mini"
     assert any(event.tool_name == "search_memory" for event in result.tool_calls)
     assert any(event.tool_name == "notify_user" for event in result.tool_calls)
+    retrievals = strategy.memory.export_artifacts(tmp_path, prefix="runtime_memory")["memory_retrievals"]
+    import pandas as pd
+
+    retrieval_rows = pd.read_parquet(retrievals)
+    assert set(retrieval_rows["agent_name"]) == {"researcher_runtime"}
+    assert _Runtime.last_request.model_call_id in set(retrieval_rows["model_call_id"])
 
 
 def test_agent_runtime_memory_notes_are_compacted(monkeypatch, tmp_path):

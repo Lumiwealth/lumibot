@@ -27,11 +27,13 @@ review without changing broker state.
        system_prompt="Gather market data, indicators, news, filings, fundamentals, and macro context.",
    )
 
-With ``allow_trading=False``, LumiBot removes only tools that mutate orders:
+With ``allow_trading=False``, LumiBot removes tools that mutate orders and the
+actual-decision memory write:
 
 - submit order
 - modify order
 - cancel order
+- remember decision
 
 Read-only tools remain available. A research agent can still inspect cash,
 positions, open orders, historical prices, indicators, news, SEC filings, FRED
@@ -125,11 +127,14 @@ agent inspect LumiBot usage patterns when it needs framework guidance.
 Memory
 ------
 
-Memory tools write local JSONL files so agent decisions remain inspectable:
+Memory tools write local SQLite and Parquet artifacts so agent decisions remain
+inspectable:
 
 - ``remember``
 - ``search_memory``
-- ``remember_decision``
+- ``remember_proposal``
+- ``remember_risk_note``
+- ``remember_decision`` (trading-capable agents only)
 - ``remember_lesson``
 - ``open_thesis``
 - ``update_thesis``
@@ -138,6 +143,12 @@ Memory tools write local JSONL files so agent decisions remain inspectable:
 Memory works in both backtests and live runs. In a backtest, memory is part of
 the run artifact trail. In live trading, it can preserve context across
 iterations and restarts when the same memory directory is reused.
+
+Use ``remember_proposal`` for research ideas and ``remember_risk_note`` for
+bear-case notes. Use ``remember_decision`` only for the final trading decision.
+When ``orders_submit_order`` submits an order, Lumibot automatically records an
+``order.submitted`` memory event. Memory events and retrievals include
+``agent_name`` and ``model_call_id`` when they came from an agent tool call.
 
 Notifications
 -------------

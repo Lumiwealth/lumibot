@@ -987,3 +987,15 @@ the desired final contract. The memory artifacts should be self-describing.
 3. Automatically record executed orders into memory from Lumibot itself, so memory always has a mechanical source-of-truth record for actual trades.
 4. Add a daily outcome update step for open theses: unrealized return, drawdown since entry, whether thesis remains valid, and what would invalidate it.
 5. Add tests that assert memory events exported to Parquet include attribution and that an executed order creates a matching factual memory event.
+
+## Remediation Implemented
+
+Implemented on 2026-05-26 after this audit:
+
+1. Agent memory tools now receive active `agent_name` and `model_call_id` context from the runtime. Memory events and retrievals written by agent tools carry those fields directly in SQLite and Parquet.
+2. `remember_decision` is now treated as an actual trading decision write and is removed when `allow_trading=False`. Read-only agents can use `remember_proposal` and `remember_risk_note` instead.
+3. `orders_submit_order` records an append-only `order.submitted` memory event after Lumibot submits the order.
+4. Open theses receive a best-effort once-per-day `thesis.outcome_observed` event while the thesis symbol is held, including quantity, last price when available, and market value when available.
+5. Targeted tests cover provenance export, read-only tool permissions, proposal/risk-note writes, automatic order events, and once-per-day thesis outcome observations.
+
+Still not solved in this pass: semantic/vector retrieval and automated validation or rejection of lessons against realized returns. The new outcome observations provide the factual trail needed for that next layer, but they do not yet decide whether a lesson is proven.

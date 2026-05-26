@@ -8,6 +8,7 @@ from typing import Any, Literal
 from .docs_tools import search_lumibot_docs
 from .asset_resolution import resolve_asset_and_quote
 from .schemas import BoundTool, ToolDefinition
+from .tool_context import current_agent_tool_context
 
 
 AssetTypeArg = Literal["stock", "option", "future", "cont_future", "forex", "crypto", "index", "multileg", "us_equity"]
@@ -28,6 +29,16 @@ COMMON_INDICATORS = [
     "roc",
     "stoch",
 ]
+
+
+def _agent_memory_context_kwargs() -> dict[str, Any]:
+    context = current_agent_tool_context()
+    kwargs: dict[str, Any] = {}
+    for key in ("agent_name", "model_call_id"):
+        value = context.get(key)
+        if value:
+            kwargs[key] = value
+    return kwargs
 
 
 class _LazyModule:
@@ -1143,7 +1154,7 @@ def _bind_notify_user(strategy: Any, manager: Any) -> BoundTool:
 
 def _bind_memory_remember(strategy: Any, manager: Any) -> BoundTool:
     def remember(text: str, kind: str = "memory", tags: list[str] | None = None) -> dict[str, Any]:
-        return strategy.memory.remember(text, kind=kind, tags=tags)
+        return strategy.memory.remember(text, kind=kind, tags=tags, **_agent_memory_context_kwargs())
 
     return BoundTool(name="remember", description="Store a local Lumibot agent memory or note.", function=remember, source="builtin", metadata={"kind": "memory"})
 
@@ -1156,7 +1167,14 @@ def _bind_memory_search(strategy: Any, manager: Any) -> BoundTool:
         symbol: str | None = None,
         status: str | None = None,
     ) -> dict[str, Any]:
-        return strategy.memory.search(query, limit=limit, kind=kind, symbol=symbol, status=status)
+        return strategy.memory.search(
+            query,
+            limit=limit,
+            kind=kind,
+            symbol=symbol,
+            status=status,
+            **_agent_memory_context_kwargs(),
+        )
 
     return BoundTool(
         name="search_memory",
@@ -1172,35 +1190,90 @@ def _bind_memory_search(strategy: Any, manager: Any) -> BoundTool:
 
 def _bind_remember_decision(strategy: Any, manager: Any) -> BoundTool:
     def remember_decision(text: str, symbol: str | None = None, action: str | None = None) -> dict[str, Any]:
-        return strategy.memory.remember_decision(text, symbol=symbol, action=action)
+        return strategy.memory.remember_decision(text, symbol=symbol, action=action, **_agent_memory_context_kwargs())
 
-    return BoundTool(name="remember_decision", description="Record an AI trading decision in the local decision journal.", function=remember_decision, source="builtin", metadata={"kind": "memory"})
+    return BoundTool(
+        name="remember_decision",
+        description=(
+            "Record an actual AI trading decision in the local decision journal. "
+            "Use this for the final trading agent's executed or intentional decision, not for research proposals."
+        ),
+        function=remember_decision,
+        source="builtin",
+        metadata={"kind": "memory", "mutates_trading": True},
+    )
+
+
+def _bind_remember_proposal(strategy: Any, manager: Any) -> BoundTool:
+    def remember_proposal(
+        text: str,
+        symbol: str | None = None,
+        action: str | None = None,
+        tags: list[str] | None = None,
+    ) -> dict[str, Any]:
+        return strategy.memory.remember_proposal(
+            text,
+            symbol=symbol,
+            action=action,
+            tags=tags,
+            **_agent_memory_context_kwargs(),
+        )
+
+    return BoundTool(
+        name="remember_proposal",
+        description="Record a research proposal or non-final trade idea without marking it as an executed trading decision.",
+        function=remember_proposal,
+        source="builtin",
+        metadata={"kind": "memory"},
+    )
+
+
+def _bind_remember_risk_note(strategy: Any, manager: Any) -> BoundTool:
+    def remember_risk_note(
+        text: str,
+        symbol: str | None = None,
+        tags: list[str] | None = None,
+    ) -> dict[str, Any]:
+        return strategy.memory.remember_risk_note(
+            text,
+            symbol=symbol,
+            tags=tags,
+            **_agent_memory_context_kwargs(),
+        )
+
+    return BoundTool(
+        name="remember_risk_note",
+        description="Record a compact risk note or bear-case memory without marking it as an executed trading decision.",
+        function=remember_risk_note,
+        source="builtin",
+        metadata={"kind": "memory"},
+    )
 
 
 def _bind_remember_lesson(strategy: Any, manager: Any) -> BoundTool:
     def remember_lesson(text: str, symbol: str | None = None) -> dict[str, Any]:
-        return strategy.memory.remember_lesson(text, symbol=symbol)
+        return strategy.memory.remember_lesson(text, symbol=symbol, **_agent_memory_context_kwargs())
 
     return BoundTool(name="remember_lesson", description="Record a compact trading lesson for future agent runs.", function=remember_lesson, source="builtin", metadata={"kind": "memory"})
 
 
 def _bind_open_thesis(strategy: Any, manager: Any) -> BoundTool:
     def open_thesis(text: str, symbol: str | None = None, tags: list[str] | None = None) -> dict[str, Any]:
-        return strategy.memory.open_thesis(text, symbol=symbol, tags=tags)
+        return strategy.memory.open_thesis(text, symbol=symbol, tags=tags, **_agent_memory_context_kwargs())
 
     return BoundTool(name="open_thesis", description="Open a hedge-fund-style investment thesis in local Lumibot memory.", function=open_thesis, source="builtin", metadata={"kind": "memory"})
 
 
 def _bind_update_thesis(strategy: Any, manager: Any) -> BoundTool:
     def update_thesis(thesis_id: str, text: str) -> dict[str, Any]:
-        return strategy.memory.update_thesis(thesis_id, text)
+        return strategy.memory.update_thesis(thesis_id, text, **_agent_memory_context_kwargs())
 
     return BoundTool(name="update_thesis", description="Append an update to an open investment thesis.", function=update_thesis, source="builtin", metadata={"kind": "memory"})
 
 
 def _bind_close_thesis(strategy: Any, manager: Any) -> BoundTool:
     def close_thesis(thesis_id: str, text: str) -> dict[str, Any]:
-        return strategy.memory.close_thesis(thesis_id, text)
+        return strategy.memory.close_thesis(thesis_id, text, **_agent_memory_context_kwargs())
 
     return BoundTool(name="close_thesis", description="Close an investment thesis and record its outcome/reflection.", function=close_thesis, source="builtin", metadata={"kind": "memory"})
 
@@ -1259,7 +1332,31 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
             time_in_force=time_in_force,
         )
         submitted = strategy.submit_order(created)
-        return {"order": _order_to_dict(submitted)}
+        order_payload = _order_to_dict(submitted)
+        memory = getattr(strategy, "memory", None)
+        if memory is not None and hasattr(memory, "record_order_submitted"):
+            try:
+                memory.record_order_submitted(
+                    order=submitted,
+                    symbol=symbol,
+                    side=side,
+                    quantity=quantity,
+                    order_type=order_type,
+                    asset_type=asset_type,
+                    limit_price=limit_price,
+                    stop_price=stop_price,
+                    stop_limit_price=stop_limit_price,
+                    trail_price=trail_price,
+                    trail_percent=trail_percent,
+                    quote_symbol=quote_symbol,
+                    exchange=exchange,
+                    time_in_force=time_in_force,
+                    order_payload=order_payload,
+                    **_agent_memory_context_kwargs(),
+                )
+            except Exception:
+                pass
+        return {"order": order_payload}
 
     return BoundTool(
         name="orders_submit_order",
@@ -1405,7 +1502,18 @@ class _MemoryTools:
         return ToolDefinition(name="search_memory", description="Search local memories.", binder=_bind_memory_search)
 
     def remember_decision(self) -> ToolDefinition:
-        return ToolDefinition(name="remember_decision", description="Record an agent decision.", binder=_bind_remember_decision)
+        return ToolDefinition(
+            name="remember_decision",
+            description="Record an actual trading decision.",
+            binder=_bind_remember_decision,
+            metadata={"mutates_trading": True},
+        )
+
+    def remember_proposal(self) -> ToolDefinition:
+        return ToolDefinition(name="remember_proposal", description="Record a non-final trade proposal.", binder=_bind_remember_proposal)
+
+    def remember_risk_note(self) -> ToolDefinition:
+        return ToolDefinition(name="remember_risk_note", description="Record a compact risk note.", binder=_bind_remember_risk_note)
 
     def remember_lesson(self) -> ToolDefinition:
         return ToolDefinition(name="remember_lesson", description="Record a compact lesson.", binder=_bind_remember_lesson)
@@ -1491,6 +1599,8 @@ class _BuiltinTools:
             self.notifications.notify_user(),
             self.memory.remember(),
             self.memory.search(),
+            self.memory.remember_proposal(),
+            self.memory.remember_risk_note(),
             self.memory.remember_decision(),
             self.memory.remember_lesson(),
             self.memory.open_thesis(),

@@ -15,6 +15,7 @@
 ### Operations
 - **AI committee observability validation now has real Gemini artifact proof.** A one-day `gemini-3.5-flash` paid backtest completed end-to-end with four agent traces, role-level tool-call counts, raw trace artifacts, and `stats_agent_detail.parquet` for post-run inspection.
 - **TQQQ SMA200 ThetaData acceptance baseline was refreshed for the canonical CI cache result.** The 4.5.34 GitHub Actions S3-backed acceptance run produced `858500` centipercent total return, replacing the stale older baseline while preserving the queue-free ThetaData contract.
+- **MELI Deep Drawdown acceptance runtime cap now allows normal CI runner variance.** The metric contract is unchanged, but the runtime ceiling was raised from 600s to 660s after GitHub Actions missed the old cap by 3.6s.
 
 ## 4.5.32 - 2026-05-23
 

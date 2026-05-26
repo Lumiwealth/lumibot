@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.5.34 - Unreleased
+## 4.5.34 - 2026-05-26
+
+Deploy marker: 4.5.34 release commit (`deploy 4.5.34`)
 
 ### Changed
 - **AI Investment Committee agents now use explicit role-specific tool surfaces.** Strategies can opt out of automatically adding every built-in tool by passing `include_builtin_tools=False`, letting examples keep research, debate, and trading responsibilities separate.

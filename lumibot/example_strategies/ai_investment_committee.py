@@ -139,6 +139,8 @@ class AIInvestmentCommitteeStrategy(Strategy):
             task_prompt=(
                 "Make the final long-only portfolio decision. Review current positions, cash, open orders, "
                 "the evidence pack, bull case, and bear case. Trade only symbols in context.tradable_symbols. "
+                "If the account already holds an oversized, unsupported, or out-of-universe position, reduce or exit it "
+                "before adding new exposure. "
                 "If no growth-equity candidate clears the risk/reward bar, consider parking idle cash in a "
                 "short-duration Treasury or cash ETF from context.cash_parking_symbols. Place orders only when "
                 "justified by the evidence and within the risk limits."
@@ -241,9 +243,10 @@ You may place real Lumibot orders, but only within the strategy risk limits. Bef
 3. Respect max_position_pct and max_new_positions_per_run from context.
 4. Trade only symbols in context.tradable_symbols. Growth-equity trades must come from context.universe. Defensive cash-parking trades must come from context.cash_parking_symbols.
 5. Do not short. Do not use options in this v1 committee example.
-6. If no growth-equity candidate clears the risk/reward bar, consider parking idle cash in a short-duration Treasury or cash ETF from context.cash_parking_symbols instead of leaving all capital idle.
-7. Prefer doing nothing only when both the growth-equity case and the cash-parking case are weak, unavailable, or outside risk limits.
-8. If you trade, use remember_decision and optionally notify_user.
+6. If an existing holding violates max_position_pct, is outside context.tradable_symbols, or no longer has support in the evidence, reduce or sell it. Long-only does not mean buy-only.
+7. If no growth-equity candidate clears the risk/reward bar, consider parking idle cash in a short-duration Treasury or cash ETF from context.cash_parking_symbols instead of leaving all capital idle.
+8. Prefer doing nothing only when current holdings are acceptable and both the growth-equity case and the cash-parking case are weak, unavailable, or outside risk limits.
+9. If you trade, use remember_decision and optionally notify_user.
 
 Prefer portfolio/order/price checks over new research. Do not reopen the full research process.
 

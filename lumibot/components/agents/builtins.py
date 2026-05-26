@@ -180,15 +180,15 @@ def _order_to_dict(order: Any) -> dict[str, Any]:
     except Exception:
         quantity = quantity
     return {
-        "identifier": getattr(order, "identifier", None),
-        "status": getattr(order, "status", None),
-        "side": getattr(order, "side", None),
+        "identifier": _jsonable(getattr(order, "identifier", None)),
+        "status": _jsonable(getattr(order, "status", None)),
+        "side": _jsonable(getattr(order, "side", None)),
         "asset": asset_payload,
         "quantity": quantity,
-        "order_type": getattr(order, "order_type", None),
-        "time_in_force": getattr(order, "time_in_force", None),
-        "limit_price": getattr(order, "limit_price", None),
-        "stop_price": getattr(order, "stop_price", None),
+        "order_type": _jsonable(getattr(order, "order_type", None)),
+        "time_in_force": _jsonable(getattr(order, "time_in_force", None)),
+        "limit_price": _jsonable(getattr(order, "limit_price", None)),
+        "stop_price": _jsonable(getattr(order, "stop_price", None)),
     }
 
 
@@ -660,17 +660,26 @@ def _bind_modify_order(strategy: Any, manager: Any) -> BoundTool:
 
 
 def _jsonable(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
     if hasattr(value, "as_dict"):
-        return value.as_dict()
+        return _jsonable(value.as_dict())
     if hasattr(value, "item"):
         try:
-            return value.item()
+            return _jsonable(value.item())
         except Exception:
             pass
     if isinstance(value, dict):
         return {str(k): _jsonable(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
         return [_jsonable(v) for v in value]
+    try:
+        json.dumps(value)
+        return value
+    except TypeError:
+        return str(value)
     return value
 
 
@@ -786,10 +795,13 @@ def _bind_get_income_statement(strategy: Any, manager: Any) -> BoundTool:
 
     return BoundTool(
         name="get_income_statement",
-        description="Get SEC income statement facts for a US equity, gated to as_of or the current strategy datetime.",
+        description=(
+            "Get SEC income statement facts for a US equity, gated to as_of or the current strategy datetime. "
+            "Fields are kept within one SEC filing/statement period when possible; mismatched old facts are omitted with warnings."
+        ),
         function=get_income_statement,
         source="builtin",
-        metadata={"kind": "fundamentals"},
+        metadata={"kind": "fundamentals", "cache_scope": "strategy_day"},
     )
 
 
@@ -799,10 +811,13 @@ def _bind_get_balance_sheet(strategy: Any, manager: Any) -> BoundTool:
 
     return BoundTool(
         name="get_balance_sheet",
-        description="Get SEC balance sheet facts for a US equity, gated to as_of or the current strategy datetime.",
+        description=(
+            "Get SEC balance sheet facts for a US equity, gated to as_of or the current strategy datetime. "
+            "Fields are kept within one SEC filing/statement period when possible; mismatched old facts are omitted with warnings."
+        ),
         function=get_balance_sheet,
         source="builtin",
-        metadata={"kind": "fundamentals"},
+        metadata={"kind": "fundamentals", "cache_scope": "strategy_day"},
     )
 
 
@@ -812,10 +827,13 @@ def _bind_get_cash_flow(strategy: Any, manager: Any) -> BoundTool:
 
     return BoundTool(
         name="get_cash_flow",
-        description="Get SEC cash flow facts for a US equity, gated to as_of or the current strategy datetime.",
+        description=(
+            "Get SEC cash flow facts for a US equity, gated to as_of or the current strategy datetime. "
+            "Fields are kept within one SEC filing/statement period when possible; mismatched old facts are omitted with warnings."
+        ),
         function=get_cash_flow,
         source="builtin",
-        metadata={"kind": "fundamentals"},
+        metadata={"kind": "fundamentals", "cache_scope": "strategy_day"},
     )
 
 
@@ -836,7 +854,7 @@ def _bind_get_company_facts(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=get_company_facts,
         source="builtin",
-        metadata={"kind": "fundamentals"},
+        metadata={"kind": "fundamentals", "cache_scope": "strategy_day"},
     )
 
 
@@ -852,7 +870,7 @@ def _bind_get_filings(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=get_filings,
         source="builtin",
-        metadata={"kind": "filings"},
+        metadata={"kind": "filings", "cache_scope": "strategy_day"},
     )
 
 
@@ -881,7 +899,7 @@ def _bind_search_filing(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=search_filing,
         source="builtin",
-        metadata={"kind": "filings"},
+        metadata={"kind": "filings", "cache_scope": "strategy_day"},
     )
 
 
@@ -907,7 +925,60 @@ def _bind_get_filing_document(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=get_filing_document,
         source="builtin",
-        metadata={"kind": "filings"},
+        metadata={"kind": "filings", "cache_scope": "strategy_day"},
+    )
+
+
+def _bind_list_filing_sections(strategy: Any, manager: Any) -> BoundTool:
+    def list_filing_sections(
+        symbol: str,
+        accession_number: str,
+        primary_document: str | None = None,
+    ) -> dict[str, Any]:
+        return strategy.fundamentals.list_filing_sections(
+            symbol,
+            accession_number=accession_number,
+            primary_document=primary_document,
+        )
+
+    return BoundTool(
+        name="list_filing_sections",
+        description=(
+            "List detected sections in a SEC filing, such as item_1a risk factors, item_7 MD&A, "
+            "item_7a market risk, and item_8 financial statements. Use after get_filings before reading a long report."
+        ),
+        function=list_filing_sections,
+        source="builtin",
+        metadata={"kind": "filings", "cache_scope": "strategy_day"},
+    )
+
+
+def _bind_get_filing_section(strategy: Any, manager: Any) -> BoundTool:
+    def get_filing_section(
+        symbol: str,
+        accession_number: str,
+        section: str,
+        primary_document: str | None = None,
+        max_chars: int | None = 12000,
+    ) -> dict[str, Any]:
+        return strategy.fundamentals.get_filing_section(
+            symbol,
+            accession_number=accession_number,
+            section=section,
+            primary_document=primary_document,
+            max_chars=max_chars,
+        )
+
+    return BoundTool(
+        name="get_filing_section",
+        description=(
+            "Read one sanitized text section from a SEC filing without loading the whole report. "
+            "Useful section values include risk_factors, mda, liquidity, results_of_operations, market_risk, "
+            "financial_statements, controls, or exact IDs like item_1a and item_7."
+        ),
+        function=get_filing_section,
+        source="builtin",
+        metadata={"kind": "filings", "cache_scope": "strategy_day"},
     )
 
 
@@ -983,7 +1054,7 @@ def _bind_list_fred_series(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=list_fred_series,
         source="builtin",
-        metadata={"kind": "macro"},
+        metadata={"kind": "macro", "cache_scope": "strategy_day"},
     )
 
 
@@ -1010,7 +1081,7 @@ def _bind_get_fred_series(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=get_fred_series,
         source="builtin",
-        metadata={"kind": "macro"},
+        metadata={"kind": "macro", "cache_scope": "strategy_day"},
     )
 
 
@@ -1029,7 +1100,7 @@ def _bind_get_fred_latest(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=get_fred_latest,
         source="builtin",
-        metadata={"kind": "macro"},
+        metadata={"kind": "macro", "cache_scope": "strategy_day"},
     )
 
 
@@ -1049,7 +1120,7 @@ def _bind_get_fred_snapshot(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=get_fred_snapshot,
         source="builtin",
-        metadata={"kind": "macro"},
+        metadata={"kind": "macro", "cache_scope": "strategy_day"},
     )
 
 
@@ -1300,6 +1371,12 @@ class _FundamentalTools:
     def filing_document(self) -> ToolDefinition:
         return ToolDefinition(name="get_filing_document", description="Read a SEC filing document.", binder=_bind_get_filing_document)
 
+    def list_filing_sections(self) -> ToolDefinition:
+        return ToolDefinition(name="list_filing_sections", description="List SEC filing sections.", binder=_bind_list_filing_sections)
+
+    def filing_section(self) -> ToolDefinition:
+        return ToolDefinition(name="get_filing_section", description="Read one SEC filing section.", binder=_bind_get_filing_section)
+
 
 class _MacroTools:
     def list_fred_series(self) -> ToolDefinition:
@@ -1405,6 +1482,8 @@ class _BuiltinTools:
             self.fundamentals.filings(),
             self.fundamentals.search_filing(),
             self.fundamentals.filing_document(),
+            self.fundamentals.list_filing_sections(),
+            self.fundamentals.filing_section(),
             self.macro.list_fred_series(),
             self.macro.get_fred_series(),
             self.macro.get_fred_latest(),

@@ -605,6 +605,16 @@ def _stable_tool_metadata_for_cache(tool: BoundTool) -> dict[str, Any]:
     return {key: value for key, value in stable.items() if value is not None}
 
 
+def _strategy_day_key(strategy: Any) -> str:
+    current_dt = _current_strategy_datetime(strategy)
+    if hasattr(current_dt, "date"):
+        try:
+            return current_dt.date().isoformat()
+        except Exception:
+            pass
+    return _iso_or_none(current_dt) or "unknown"
+
+
 def _provider_prompt_cache_key(
     *,
     agent_name: str,
@@ -812,6 +822,7 @@ class AgentHandle:
             "When available, use the built-in evidence stack before making a material equity decision: account/portfolio tools, current market prices, recent price history, DuckDB analysis, technical indicators, relevant news, macro/FRED data, SEC financial statements, SEC company facts, and SEC filings.",
             "Do not submit a material equity order until you have called account/portfolio tools, market price/history tools, at least one technical indicator tool, a relevant news tool when configured, a macro/FRED tool when configured, and SEC financial/filing tools for relevant single-stock candidates.",
             "For ETFs, indexes, or broad-market trades, use SEC financial/filing tools on the most relevant single-stock candidates, holdings, or alternatives you are considering; do not skip the category just because the final instrument is an ETF.",
+            "Do not repeat identical read-only evidence calls if the current task context already includes fresh results from another agent; reference those results and call again only when they are missing, stale, or conflicting.",
             "If the user asks for an aggressive or concentrated strategy, let that user strategy prompt override the default investor style, but still ground the decision in tool evidence, position sizing, broker constraints, and backtesting look-ahead safety.",
             "When querying DuckDB tables, use datetime for timestamp columns and close for price columns unless the loaded sample rows clearly show different column names.",
             "When you have access to external MCP tools, explore what they offer and use them. You do not need to be told which specific tool to call.",
@@ -944,7 +955,7 @@ class AgentHandle:
                 tool = bind_callable_tool(entry).binder(self.manager.strategy, self.manager)
             if bool((tool.metadata or {}).get("disabled")):
                 continue
-            bound.append(tool)
+            bound.append(self.manager._with_tool_result_cache(tool))
         bound.extend(self._build_remote_tools())
         # Built-ins are auto-included, but strategies may also explicitly pass
         # a BuiltinTools entry. ADK rejects duplicate function declarations, so
@@ -1590,6 +1601,7 @@ class AgentManager:
         self._observability_call_index: dict[str, int] = {}
         self._observability_rows: dict[str, list[dict[str, Any]]] = {}
         self._observability_all_rows: list[dict[str, Any]] = []
+        self._tool_result_cache: dict[str, Any] = {}
 
     def __getitem__(self, item: str) -> AgentHandle:
         return self._agents[item]
@@ -1608,6 +1620,66 @@ class AgentManager:
             params["agent_model_calls"] = self._model_call_count
             if limit is not None:
                 params["agent_max_model_calls"] = limit
+
+    def _with_tool_result_cache(self, tool: BoundTool) -> BoundTool:
+        metadata = dict(tool.metadata or {})
+        cache_scope = str(metadata.get("cache_scope") or "").strip()
+        if not cache_scope or os.environ.get("LUMIBOT_AGENT_TOOL_CACHE", "1").strip().lower() in {"0", "false", "no"}:
+            return tool
+
+        def cached_function(*args: Any, **kwargs: Any) -> Any:
+            cache_key = self._tool_result_cache_key(tool, cache_scope, args, kwargs)
+            cached = self._tool_result_cache.get(cache_key)
+            if cached is not None:
+                payload = _normalize_json(cached)
+                if isinstance(payload, dict):
+                    return {
+                        **payload,
+                        "_lumibot_tool_cache": {
+                            "hit": True,
+                            "scope": cache_scope,
+                        },
+                    }
+                return {
+                    "ok": True,
+                    "value": payload,
+                    "_lumibot_tool_cache": {
+                        "hit": True,
+                        "scope": cache_scope,
+                    },
+                }
+            result = tool.function(*args, **kwargs)
+            self._tool_result_cache[cache_key] = _normalize_json(result)
+            return result
+
+        return BoundTool(
+            name=tool.name,
+            description=tool.description,
+            function=cached_function,
+            source=tool.source,
+            metadata={**metadata, "tool_result_cache": True},
+        )
+
+    def _tool_result_cache_key(
+        self,
+        tool: BoundTool,
+        cache_scope: str,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> str:
+        if cache_scope == "strategy_day":
+            scope_value = _strategy_day_key(self.strategy)
+        else:
+            scope_value = _iso_or_none(_current_strategy_datetime(self.strategy)) or "unknown"
+        payload = {
+            "tool": tool.name,
+            "scope": cache_scope,
+            "scope_value": scope_value,
+            "args": args,
+            "kwargs": kwargs,
+        }
+        normalized = json.dumps(_normalize_json(payload), sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
     def _artifact_path(self, agent_name: str, suffix: str) -> Path:
         stats_file = getattr(self.strategy, "stats_file", None) or getattr(self.strategy, "_stats_file", None)

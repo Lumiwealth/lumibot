@@ -120,6 +120,80 @@ def test_income_statement_uses_freshest_fact_across_mapped_tags(monkeypatch, tmp
     assert result["values"]["revenue"]["accession_number"] == "fresh-revenue-tag"
 
 
+def test_income_statement_does_not_mix_old_fact_into_new_statement(monkeypatch, tmp_path):
+    def fake_get(url, **kwargs):
+        if url.endswith("company_tickers.json"):
+            return _Response(payload={"0": {"ticker": "COST", "cik_str": 909832, "title": "Costco Wholesale Corp."}})
+        if "companyfacts" in url:
+            return _Response(
+                payload={
+                    "facts": {
+                        "us-gaap": {
+                            "Revenues": {
+                                "units": {
+                                    "USD": [
+                                        {
+                                            "val": 63720000000,
+                                            "filed": "2026-03-12",
+                                            "form": "10-Q",
+                                            "fy": 2026,
+                                            "fp": "Q2",
+                                            "start": "2025-09-01",
+                                            "end": "2026-02-15",
+                                            "accn": "fresh-10q",
+                                        }
+                                    ]
+                                }
+                            },
+                            "NetIncomeLoss": {
+                                "units": {
+                                    "USD": [
+                                        {
+                                            "val": 1788000000,
+                                            "filed": "2026-03-12",
+                                            "form": "10-Q",
+                                            "fy": 2026,
+                                            "fp": "Q2",
+                                            "start": "2025-09-01",
+                                            "end": "2026-02-15",
+                                            "accn": "fresh-10q",
+                                        }
+                                    ]
+                                }
+                            },
+                            "GrossProfit": {
+                                "units": {
+                                    "USD": [
+                                        {
+                                            "val": 17400000000,
+                                            "filed": "2019-10-11",
+                                            "form": "10-K",
+                                            "fy": 2019,
+                                            "fp": "FY",
+                                            "start": "2018-09-03",
+                                            "end": "2019-09-01",
+                                            "accn": "stale-10k",
+                                        }
+                                    ]
+                                }
+                            },
+                        }
+                    }
+                }
+            )
+        raise AssertionError(url)
+
+    monkeypatch.setattr("lumibot.fundamentals.sec.requests.get", fake_get)
+    sec = SECFundamentals(cache_dir=tmp_path, min_request_interval_seconds=0)
+
+    result = sec.get_income_statement("COST", as_of=datetime(2026, 5, 22, tzinfo=timezone.utc))
+
+    assert result["values"]["revenue"]["accession_number"] == "fresh-10q"
+    assert result["values"]["net_income"]["accession_number"] == "fresh-10q"
+    assert "gross_profit" not in result["values"]
+    assert result["warnings"][0]["field"] == "gross_profit"
+
+
 def test_sec_filings_and_keyword_search(monkeypatch, tmp_path):
     def fake_get(url, **kwargs):
         if url.endswith("company_tickers.json"):
@@ -160,6 +234,56 @@ def test_sec_filings_and_keyword_search(monkeypatch, tmp_path):
     )
     assert matches["match_count"] >= 1
     assert "Customer concentration" in matches["matches"][0]["context"]
+
+
+def test_sec_filing_sections_can_be_listed_and_read(monkeypatch, tmp_path):
+    filing_html = """
+    <html><body>
+    <p>Item 7. Management's Discussion and Analysis</p>
+    <p>short table of contents entry</p>
+    <h1>Item 1A. Risk Factors</h1>
+    <p>Customer concentration and supply chain risks could affect results.</p>
+    <h1>Item 7. Management's Discussion and Analysis</h1>
+    <p>Revenue increased because demand improved. Liquidity remains strong.</p>
+    <h1>Item 8. Financial Statements and Supplementary Data</h1>
+    <p>Audited financial statements follow.</p>
+    </body></html>
+    """
+
+    def fake_get(url, **kwargs):
+        if url.endswith("company_tickers.json"):
+            return _Response(payload={"0": {"ticker": "AAPL", "cik_str": 320193, "title": "Apple Inc."}})
+        if "submissions" in url:
+            return _Response(
+                payload={
+                    "cik": "0000320193",
+                    "filings": {
+                        "recent": {
+                            "form": ["10-K"],
+                            "accessionNumber": ["0000320193-24-000001"],
+                            "filingDate": ["2024-11-01"],
+                            "reportDate": ["2024-09-30"],
+                            "acceptanceDateTime": ["2024-11-01T12:00:00.000Z"],
+                            "primaryDocument": ["aapl-20240930.htm"],
+                            "primaryDocDescription": ["10-K"],
+                        }
+                    },
+                }
+            )
+        if "Archives/edgar/data" in url:
+            return _Response(text=filing_html)
+        raise AssertionError(url)
+
+    monkeypatch.setattr("lumibot.fundamentals.sec.requests.get", fake_get)
+    sec = SECFundamentals(cache_dir=tmp_path, min_request_interval_seconds=0)
+
+    sections = sec.list_filing_sections("AAPL", accession_number="0000320193-24-000001")
+    assert [section["section_id"] for section in sections["sections"]] == ["item_7", "item_1a", "item_7", "item_8"]
+
+    mda = sec.get_filing_section("AAPL", accession_number="0000320193-24-000001", section="mda")
+    assert mda["ok"] is True
+    assert mda["section_id"] == "item_7"
+    assert "Revenue increased" in mda["text"]
 
 
 def test_company_facts_are_compact_by_default(monkeypatch, tmp_path):

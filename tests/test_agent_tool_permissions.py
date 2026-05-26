@@ -4,6 +4,7 @@ import pytest
 
 from lumibot.components.agents import AgentManager, AgentRunResult, AgentTraceEvent
 from lumibot.components.agents.manager import AgentModelCallLimitExceeded
+from lumibot.components.agents.schemas import BoundTool, ToolDefinition
 
 
 class _Vars(dict):
@@ -60,7 +61,8 @@ class _LongSummaryRuntime:
         )
 
 
-def test_agent_allow_trading_false_removes_only_mutating_order_tools():
+def test_agent_allow_trading_false_removes_only_mutating_order_tools(monkeypatch):
+    monkeypatch.delenv("FRED_API_KEY", raising=False)
     strategy = _Strategy()
     manager = AgentManager(strategy)
 
@@ -93,6 +95,61 @@ def test_agent_backtest_keeps_fred_tools_when_fred_api_key_is_set(monkeypatch):
     assert "get_fred_series" in tool_names
     assert "get_fred_latest" in tool_names
     assert "get_fred_snapshot" in tool_names
+
+
+def test_read_only_tool_result_cache_is_shared_across_agent_handles():
+    strategy = _Strategy()
+    manager = AgentManager(strategy)
+    calls = {"count": 0}
+
+    def binder(strategy, manager):
+        def cached_tool(symbol: str) -> dict:
+            calls["count"] += 1
+            return {"ok": True, "symbol": symbol, "count": calls["count"]}
+
+        return BoundTool(
+            name="cached_research_tool",
+            description="Cached research tool.",
+            function=cached_tool,
+            source="builtin",
+            metadata={"kind": "fundamentals", "cache_scope": "strategy_day"},
+        )
+
+    tool_definition = ToolDefinition(name="cached_research_tool", description="Cached research tool.", binder=binder)
+    first = manager.create(name="first", tools=[tool_definition], allow_trading=False)
+    second = manager.create(name="second", tools=[tool_definition], allow_trading=False)
+
+    first_tool = next(tool for tool in first._ensure_bound_tools() if tool.name == "cached_research_tool")
+    second_tool = next(tool for tool in second._ensure_bound_tools() if tool.name == "cached_research_tool")
+
+    assert first_tool.function(symbol="NVDA")["count"] == 1
+    cached = second_tool.function(symbol="NVDA")
+    assert cached["count"] == 1
+    assert cached["_lumibot_tool_cache"]["hit"] is True
+    assert calls["count"] == 1
+
+
+def test_order_tool_serialization_handles_uuid_identifiers():
+    import json
+    from uuid import uuid4
+
+    from lumibot.components.agents.builtins import _order_to_dict
+
+    class _Order:
+        identifier = uuid4()
+        status = "submitted"
+        side = "buy"
+        asset = None
+        quantity = 1
+        order_type = "market"
+        time_in_force = "day"
+        limit_price = None
+        stop_price = None
+
+    payload = _order_to_dict(_Order())
+
+    json.dumps(payload)
+    assert isinstance(payload["identifier"], str)
 
 
 def test_builtin_indicator_schema_is_gemini_function_declaration_compatible():

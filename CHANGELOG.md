@@ -9,6 +9,7 @@
 ### Fixed
 - **Cached agent tools preserve their callable signatures.** Provider function declarations for cached read-only tools now retain required arguments, preventing missing-argument failures such as `get_fred_snapshot` without `series_ids` or `get_company_facts` without `symbol`.
 - **AI order tool results are JSON-safe after broker side effects.** UUID-like order identifiers are serialized before reaching the provider runtime, preventing duplicate-order retry paths caused by post-submit JSON serialization errors.
+- **Agent memory search includes append-only event history.** `search_memory` now finds prior thesis, decision, and lesson text even after the current memory projection changes status or text, keeping live observability searchable after updates and closes.
 - **SEC normalized statements avoid mixing stale facts across filings.** Fundamental statement helpers now keep fields anchored to a coherent filing/period when possible, preventing old revenue or cash-flow facts from leaking into fresh analysis.
 - **Backtest look-ahead warnings no longer flag future SEC proxy meeting dates as future data.** `get_filings` still gates filings by acceptance/filing availability, but a public filing's future `report_date` does not create a false warning.
 

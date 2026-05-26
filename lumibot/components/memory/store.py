@@ -226,7 +226,7 @@ class MemoryStore:
         normalized_symbol = _normalize_symbol(symbol)
         max_results = max(int(limit or 10), 1)
         with self._connect() as conn:
-            rows = conn.execute(
+            index_rows = conn.execute(
                 """
                 SELECT *
                 FROM memory_index
@@ -236,13 +236,38 @@ class MemoryStore:
                 """,
                 (kind, kind, normalized_symbol, normalized_symbol, status, status),
             ).fetchall()
+            event_rows = conn.execute(
+                """
+                SELECT *
+                FROM memory_events
+                WHERE subject_id IS NOT NULL
+                  AND (? IS NULL OR symbol = ?)
+                """,
+                (normalized_symbol, normalized_symbol),
+            ).fetchall()
         scored: list[tuple[int, str, dict[str, Any]]] = []
-        for row in rows:
+        seen_ids: set[str] = set()
+        for row in index_rows:
             item = self._row_to_memory(row)
+            seen_ids.add(f"index:{item.get('memory_id')}")
             haystack = _json_dumps(item).lower()
             score = sum(1 for term in terms if term in haystack) if terms else 1
             if score > 0:
                 scored.append((score, item.get("updated_at") or "", item))
+        for row in event_rows:
+            item = self._row_to_event_memory(row)
+            if kind is not None and item.get("kind") != kind:
+                continue
+            if status is not None and item.get("status") != status:
+                continue
+            item_id = f"event:{item.get('event_id')}"
+            if item_id in seen_ids:
+                continue
+            haystack = _json_dumps(item).lower()
+            score = sum(1 for term in terms if term in haystack) if terms else 1
+            if score > 0:
+                scored.append((score, item.get("timestamp") or "", item))
+                seen_ids.add(item_id)
         scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
         results = [item for _, _, item in scored[:max_results]]
         retrieval = self.record_retrieval(
@@ -652,6 +677,27 @@ class MemoryStore:
             "text": row["text"],
             "tags": _json_loads(row["tags_json"], []),
             "metadata": _json_loads(row["metadata_json"], {}),
+        }
+
+    def _row_to_event_memory(self, row: sqlite3.Row) -> dict[str, Any]:
+        payload = _json_loads(row["payload_json"], {})
+        metadata = _json_loads(row["metadata_json"], {})
+        return {
+            "id": row["event_id"],
+            "event_id": row["event_id"],
+            "memory_id": row["subject_id"],
+            "timestamp": row["timestamp"],
+            "created_at": row["timestamp"],
+            "updated_at": row["timestamp"],
+            "strategy": self.strategy_name,
+            "kind": payload.get("kind") or row["subject_type"],
+            "status": payload.get("status"),
+            "symbol": row["symbol"],
+            "text": row["text"],
+            "tags": _json_loads(row["tags_json"], []),
+            "metadata": metadata,
+            "event_type": row["event_type"],
+            "source": "event_history",
         }
 
     def _timestamp(self) -> str:

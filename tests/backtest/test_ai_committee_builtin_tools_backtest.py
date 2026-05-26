@@ -1,4 +1,5 @@
 import json
+import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -382,9 +383,15 @@ def test_ai_committee_builtin_tools_execute_inside_backtest(monkeypatch, tmp_pat
     assert results["order"]["order"]["side"] == "buy"
     assert strategy.get_position(Asset("AAPL", Asset.AssetType.STOCK)) is not None
 
-    memory_files = list((Path(tmp_path) / "memory").rglob("*.jsonl"))
-    assert memory_files
-    assert any("Committee bought one share" in path.read_text() for path in memory_files)
+    memory_db_files = list((Path(tmp_path) / "memory").rglob("memory.sqlite"))
+    assert memory_db_files
+    with sqlite3.connect(memory_db_files[0]) as conn:
+        decision_count = conn.execute(
+            "SELECT COUNT(*) FROM memory_events WHERE text LIKE ?",
+            ("%Committee bought one share%",),
+        ).fetchone()[0]
+    assert decision_count >= 1
+    assert list((Path(tmp_path) / "memory").rglob("agent_memory_memory_events.parquet"))
 
     summary_file = Path(tmp_path / "cache" / "agent_runtime" / "agent_run_summaries.jsonl")
     assert summary_file.exists()

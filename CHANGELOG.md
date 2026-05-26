@@ -14,6 +14,7 @@
 
 ### Operations
 - **AI committee observability validation now has real Gemini artifact proof.** A one-day `gemini-3.5-flash` paid backtest completed end-to-end with four agent traces, role-level tool-call counts, raw trace artifacts, and `stats_agent_detail.parquet` for post-run inspection.
+- **TQQQ SMA200 ThetaData acceptance baseline was refreshed for the stable 4.5.34 result.** Two warm-cache 4.5.34 runs produced the same `630800` centipercent total return with zero downloader queue submissions, replacing the older 4.4.59/4.5.32 baseline.
 
 ## 4.5.32 - 2026-05-23
 

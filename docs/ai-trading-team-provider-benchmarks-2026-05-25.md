@@ -158,11 +158,24 @@ Three runs were started in parallel as separate processes. The process-level wal
 time was about 15 minutes because the slowest individual run finished in 14.63
 minutes.
 
-Benchmark assets over the same Yahoo adjusted-close window:
+External Yahoo adjusted-close reference points:
 
-- `SPY`: +13.11%
-- `QQQ`: +21.91%
-- `SOXL`: +236.98%
+- 2026-04-07 close through 2026-05-21 close:
+  - `SPY`: +12.67%
+  - `QQQ`: +21.39%
+  - `SOXL`: +215.46%
+- 2026-04-07 close through 2026-05-22 close:
+  - `SPY`: +13.11%
+  - `QQQ`: +21.91%
+  - `SOXL`: +236.98%
+
+Important audit note: those adjusted-close reference points are not exactly the
+same as Lumibot's simulated execution and valuation path. The three backtests
+iterate through 2026-05-21, and the agent saw `SOXL` at $161.00 on the final
+iteration. Runs 1 and 2 bought 1,860 shares of `SOXL` once on 2026-04-07 and
+held it. Their +198.42% result is therefore best interpreted as the Lumibot
+execution-path buy-and-hold result for that initial `SOXL` trade, not as a
+separate active-trading edge over `SOXL`.
 
 Run 1:
 
@@ -223,10 +236,15 @@ Run 3:
 
 Observations:
 
-- The README-window behavior reproduced: all three runs landed in `SOXL` and
-  returned about +198% over the README window.
-- The team beat `SPY` and `QQQ` during this window, but did not beat simple
-  buy-and-hold `SOXL`.
+- The README-window behavior reproduced: all three runs identified `SOXL` as the
+  strongest ETF on every researcher call and returned about +198% over the
+  README window.
+- Runs 1 and 2 were effectively one-trade `SOXL` buy-and-hold runs. Run 3
+  briefly rotated from `SOXL` to `LABU` on 2026-05-11, reversed back to `SOXL`
+  on 2026-05-12, and still ended near the same result.
+- The team beat `SPY` and `QQQ` during this window. It should not be described
+  as beating `SOXL`; on the two identical runs, it mostly replicated a leveraged
+  `SOXL` hold after selecting it on the first day.
 - SQLite-backed memory exported all three queryable Parquet artifacts:
   `*_memory_events.parquet`, `*_memory_retrievals.parquet`, and
   `*_memory_state.parquet`.
@@ -235,6 +253,11 @@ Observations:
   did not show the trader changing a held symbol without first retrieving memory.
 - The remaining noise is mostly DuckDB query syntax/column mistakes from the
   model. Those are prompt/tool-ergonomics issues, not memory-store failures.
+- The convergence appears to come mainly from the example design: the researcher
+  ranks 252-day ETF momentum every day, `SOXL` dominates that ranking throughout
+  the window, and the trader prompt says to buy one ETF aggressively with nearly
+  all cash. Memory likely makes the hold rationale stickier, but the first-day
+  `SOXL` selection happens before memory has any history.
 
 ## Takeaways
 

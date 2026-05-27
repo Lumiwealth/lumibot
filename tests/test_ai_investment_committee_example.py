@@ -3,9 +3,13 @@ from lumibot.example_strategies.ai_investment_committee import (
     DEFAULT_CASH_PARKING_SYMBOLS,
     _prepare_handoff_text,
 )
+from lumibot.example_strategies.ai_trading_team_bull_bear_large_cap_stocks import (
+    AITradingTeamBullBearLargeCapStocksStrategy,
+)
 
 
 def test_ai_committee_example_uses_normal_lumibot_iteration_flow():
+    assert AIInvestmentCommitteeStrategy is AITradingTeamBullBearLargeCapStocksStrategy
     parameter_names = set(AIInvestmentCommitteeStrategy.parameters)
 
     assert "run_once" not in parameter_names

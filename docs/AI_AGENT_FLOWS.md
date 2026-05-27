@@ -166,7 +166,8 @@ larger retry budget because they do not mutate broker state.
 
 ## Related Docs
 
-- `docs/AI_INVESTMENT_COMMITTEE.md`: one concrete four-agent example.
+- `docs/AI_TRADING_TEAM_EXAMPLES.md`: copy-paste AI trading team examples.
+- `docs/AI_INVESTMENT_COMMITTEE.md`: legacy large-cap bull/bear team page.
 - `docs/AI_AGENT_BUILTIN_TOOLS.md`: built-in tools and permissions.
 - `docs/AI_AGENT_MEMORY.md`: local memory tools.
 - `docs/AI_AGENT_NOTIFICATIONS.md`: notification tools.

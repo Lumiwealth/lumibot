@@ -25,7 +25,9 @@ os.environ.setdefault("LUMIBOT_DISABLE_BACKTEST_PERFORMANCE_TRACKING", "1")
 
 from lumibot.backtesting import YahooDataBacktesting
 from lumibot.entities import Asset
-from lumibot.example_strategies.ai_trading_team import AITradingTeamStrategy
+from lumibot.example_strategies.ai_trading_team_bull_bear_leveraged_etf import (
+    AITradingTeamBullBearLeveragedETFStrategy,
+)
 from scripts.run_ai_committee_provider_benchmark import (
     _estimate_cost,
     _json_safe,
@@ -76,7 +78,7 @@ def _run_one_model(model: str, args: argparse.Namespace, root: Path) -> dict[str
     logfile = run_dir / "backtest.log"
     started = time.perf_counter()
     try:
-        result, strategy = AITradingTeamStrategy.run_backtest(
+        result, strategy = AITradingTeamBullBearLeveragedETFStrategy.run_backtest(
             datasource_class=YahooDataBacktesting,
             backtesting_start=_parse_date(args.start),
             backtesting_end=_parse_date(args.end),

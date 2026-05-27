@@ -318,7 +318,7 @@ Notes:
 - Default: `~/.lumibot/cache/fred`.
 
 ### `LUMIBOT_MEMORY_DIR`
-- Purpose: Override the local JSONL agent memory root.
+- Purpose: Override the local SQLite agent memory root.
 - Default: `.lumibot/memory` under the current working directory.
 
 ### `LUMIBOT_AGENT_MEMORY_NOTE_MAX_CHARS`

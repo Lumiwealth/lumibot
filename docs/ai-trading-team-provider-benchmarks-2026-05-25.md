@@ -1,7 +1,8 @@
 # AI Trading Team Provider Benchmarks - 2026-05-25
 
 This note records the first provider comparison for the simple `AITradingTeamStrategy`
-example in `lumibot/example_strategies/ai_trading_team.py`.
+example that now lives at `lumibot/example_strategies/ai_trading_team_bull_bear_leveraged_etf.py`.
+The old `lumibot/example_strategies/ai_trading_team.py` import path is kept as a compatibility wrapper.
 
 Strategy universe:
 

@@ -112,7 +112,7 @@ The copy-paste example below implements that exact team. It uses Gemini Flash Li
 export GEMINI_API_KEY='your-key-here'
 ```
 
-Then save this as `ai_trading_team.py` and run `python ai_trading_team.py`. If the key is missing or invalid, Lumibot stops the backtest and prints a clear `GEMINI_API_KEY` error with a link to create a key.
+Then save this as `ai_trading_team_bull_bear_leveraged_etf.py` and run `python ai_trading_team_bull_bear_leveraged_etf.py`. If the key is missing or invalid, Lumibot stops the backtest and prints a clear `GEMINI_API_KEY` error with a link to create a key.
 
 ```python
 import os
@@ -121,7 +121,7 @@ from datetime import datetime
 from lumibot.strategies.strategy import Strategy
 
 
-class AITradingTeamStrategy(Strategy):
+class AITradingTeamBullBearLeveragedETFStrategy(Strategy):
     parameters = {
         "universe": ["TQQQ", "SQQQ", "UPRO", "SPXU", "UDOW", "SDOW", "TNA", "TZA", "TECL", "TECS", "SOXL", "SOXS", "WEBL", "WEBS", "FAS", "FAZ", "LABU", "LABD", "ERX", "ERY", "GUSH", "DRIP", "DRN", "DRV", "TMF", "TMV", "NUGT", "DUST"],
     }
@@ -183,7 +183,7 @@ class AITradingTeamStrategy(Strategy):
 if __name__ == "__main__":
     from lumibot.backtesting import YahooDataBacktesting
 
-    AITradingTeamStrategy.backtest(
+    AITradingTeamBullBearLeveragedETFStrategy.backtest(
         YahooDataBacktesting,
         datetime(2026, 4, 7),
         datetime(2026, 5, 22),
@@ -212,7 +212,7 @@ if __name__ == "__main__":
     }
 
     broker = Alpaca(ALPACA_CONFIG)
-    strategy = AITradingTeamStrategy(broker=broker)
+    strategy = AITradingTeamBullBearLeveragedETFStrategy(broker=broker)
 
     trader = Trader()
     trader.add_strategy(strategy)
@@ -339,7 +339,8 @@ Use **[BotSpot MCP](https://botspot.trade/agents?utm_source=github&utm_medium=re
 Start here:
 - [Agent Documentation](https://lumibot.lumiwealth.com/agents.html)
 - [AI Trading Team Flow Design](https://lumibot.lumiwealth.com/agents_flows.html)
-- [AI Trading Team Example](lumibot/example_strategies/ai_trading_team.py)
+- [AI Trading Team Examples](docs/AI_TRADING_TEAM_EXAMPLES.md)
+- [Leveraged ETF AI Trading Team](lumibot/example_strategies/ai_trading_team_bull_bear_leveraged_etf.py)
 - [Standalone AI Committee Demo](https://github.com/Lumiwealth/lumibot-ai-investment-committee)
 - [Discretionary Agent Example](lumibot/example_strategies/agent_discretionary.py)
 - [News Sentiment Agent Example](lumibot/example_strategies/agent_news_sentiment.py)
@@ -347,7 +348,7 @@ Start here:
 
 ## Memory and Traceability
 
-AI strategies can record decisions, lessons, open theses, tool calls, and run artifacts as local SQLite and Parquet files. This makes an AI backtest reviewable instead of a black box: you can inspect why the agent traded, which tools it used, what memory it retrieved, and what it remembered for later iterations.
+AI strategies can record proposals, risk notes, actual trading decisions, submitted orders, lessons, open theses, tool calls, and run artifacts as local SQLite and Parquet files. This makes an AI backtest reviewable instead of a black box: you can inspect why the agent traded, which tools it used, what memory it retrieved, and what it remembered for later iterations. Memory events include agent/model-call provenance when they come from agent tools.
 
 <p align="center">
   <img src="docs/assets/readme/lumibot_memory_notifications.png" alt="Lumibot AI memory and notifications" width="100%">

@@ -69,8 +69,9 @@ Data Model
 The SQLite database has three core tables:
 
 ``memory_events``
-   Append-only ledger of memory writes, decisions, lessons, thesis changes,
-   warnings, and other memory events.
+   Append-only ledger of memory writes, proposals, risk notes, decisions,
+   lessons, thesis changes, submitted orders, warnings, outcome observations,
+   and other memory events.
 
 ``memory_index``
    Current searchable projection of memories, decisions, lessons, and theses.
@@ -83,6 +84,11 @@ The SQLite database has three core tables:
 
 Lumibot writes to SQLite during execution. Parquet files are derived artifacts
 for review, DuckDB queries, BotSpot uploads, and post-run analysis.
+
+When a memory event or retrieval comes from an agent tool call, Lumibot records
+``agent_name`` and ``model_call_id``. The ``model_call_id`` is the stable
+replay-cache key for that agent request, so memory artifacts can be joined back
+to ``agent_detail.parquet``.
 
 Agent Tools
 -----------
@@ -97,8 +103,18 @@ Agents get these memory tools by default:
    ``kind``, ``symbol``, and ``status`` filters. Every call is recorded in
    ``memory_retrievals``.
 
+``remember_proposal``
+   Record a non-final research proposal or trade idea. This is available to
+   read-only agents.
+
+``remember_risk_note``
+   Record a compact bear-case or risk note. This is available to read-only
+   agents.
+
 ``remember_decision``
-   Record a trading decision with optional symbol, action, evidence, and tags.
+   Record an actual trading decision with optional symbol, action, evidence,
+   and tags. This is reserved for trading-capable agents, because a read-only
+   researcher should not write memory that looks like an executed decision.
 
 ``remember_lesson``
    Record a compact lesson. Lessons are ``proposed`` by default and should only
@@ -128,6 +144,12 @@ contains:
 This injected state is intentionally compact. It gives the model the current
 state of memory without flooding the prompt. Deeper history should be retrieved
 with ``search_memory``.
+
+Lumibot also records execution-side memory. When an agent submits an order with
+``orders_submit_order``, Lumibot writes an append-only ``order.submitted``
+event after the order is submitted. Open theses receive a best-effort daily
+``thesis.outcome_observed`` event while the symbol is held, including current
+quantity, last price when available, and market value when available.
 
 Thesis Retrieval Warnings
 -------------------------

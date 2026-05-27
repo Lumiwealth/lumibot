@@ -1,5 +1,8 @@
 from types import SimpleNamespace
 
+import pytest
+
+from lumibot.brokers.broker import LumibotBrokerAPIError
 from lumibot.brokers.schwab import Schwab
 from lumibot.entities import Asset, Order
 
@@ -29,6 +32,33 @@ class _Client:
         return _Response(self._positions)
 
 
+class _CancelResponse:
+    def __init__(self, status_code=204, text=""):
+        self.status_code = status_code
+        self.text = text
+
+
+class _CancelClient:
+    def __init__(self, response=None, exc=None):
+        self.response = response if response is not None else _CancelResponse()
+        self.exc = exc
+        self.cancel_calls = []
+
+    def cancel_order(self, order_id, account_hash):
+        self.cancel_calls.append((order_id, account_hash))
+        if self.exc:
+            raise self.exc
+        return self.response
+
+
+class _Stream:
+    def __init__(self):
+        self.dispatched = []
+
+    def dispatch(self, event, wait_until_complete=False, **payload):
+        self.dispatched.append((event, wait_until_complete, payload))
+
+
 def _position(asset_type, symbol, quantity=1, **instrument):
     return {
         "instrument": {
@@ -50,6 +80,27 @@ def _broker_with_positions(positions):
     broker.client = _Client(positions)
     broker.hash_value = "account-hash"
     return broker
+
+
+def _broker_for_cancel(client=None, stream=None):
+    broker = Schwab.__new__(Schwab)
+    broker.schwab_authorization_error = False
+    broker.client = client if client is not None else _CancelClient()
+    broker.hash_value = "account-hash"
+    broker.stream = stream
+    return broker
+
+
+def _order(status=Order.OrderStatus.SUBMITTED, identifier="order-123"):
+    return Order(
+        strategy="unit-test",
+        asset=Asset("LW"),
+        quantity=1,
+        side=Order.OrderSide.BUY,
+        order_type=Order.OrderType.LIMIT,
+        identifier=identifier,
+        status=status,
+    )
 
 
 def test_schwab_pull_positions_skips_unsupported_mutual_funds():
@@ -142,3 +193,60 @@ def test_schwab_parse_simple_order_skips_unsupported_order_leg_types_without_dro
     assert parsed[0].side == Order.OrderSide.BUY
     assert parsed[0].asset.symbol == "SPY"
     assert parsed[0].asset.asset_type == Asset.AssetType.STOCK
+
+
+def test_schwab_cancel_order_calls_client_with_order_id_then_account_hash():
+    client = _CancelClient()
+    stream = _Stream()
+    broker = _broker_for_cancel(client=client, stream=stream)
+    order = _order()
+
+    broker.cancel_order(order)
+
+    assert client.cancel_calls == [("order-123", "account-hash")]
+    assert stream.dispatched == [
+        (broker.CANCELED_ORDER, True, {"order": order}),
+    ]
+
+
+def test_schwab_cancel_order_marks_canceled_without_stream_after_success():
+    client = _CancelClient()
+    broker = _broker_for_cancel(client=client, stream=None)
+    order = _order()
+
+    broker.cancel_order(order)
+
+    assert client.cancel_calls == [("order-123", "account-hash")]
+    assert order.status == broker.CANCELED_ORDER
+    assert order.is_canceled()
+
+
+def test_schwab_cancel_order_noops_for_terminal_orders():
+    client = _CancelClient()
+    broker = _broker_for_cancel(client=client)
+
+    broker.cancel_order(_order(status=Order.OrderStatus.FILLED))
+    broker.cancel_order(_order(status=Order.OrderStatus.CANCELED))
+
+    assert client.cancel_calls == []
+
+
+def test_schwab_cancel_order_requires_identifier():
+    broker = _broker_for_cancel()
+    order = _order()
+    order.identifier = None
+
+    with pytest.raises(ValueError, match="Order identifier is not set"):
+        broker.cancel_order(order)
+
+
+def test_schwab_cancel_order_raises_on_http_error_without_marking_canceled():
+    client = _CancelClient(response=_CancelResponse(status_code=400, text="cannot cancel"))
+    broker = _broker_for_cancel(client=client)
+    order = _order()
+
+    with pytest.raises(LumibotBrokerAPIError, match="HTTP 400"):
+        broker.cancel_order(order)
+
+    assert client.cancel_calls == [("order-123", "account-hash")]
+    assert order.status == Order.OrderStatus.SUBMITTED

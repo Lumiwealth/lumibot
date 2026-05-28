@@ -886,6 +886,255 @@ class Broker(ABC):
             if not found and (position.asset not in self.quote_assets):
                 self._filled_positions.remove(position)
 
+    def refresh_positions(self, strategy, ttl_seconds: float = 1.0):
+        """Refresh live broker positions with a short throttle.
+
+        Backtesting brokers are deterministic and should not perform live broker
+        reads from strategy accessors.
+        """
+        if self.IS_BACKTESTING_BROKER:
+            return
+
+        strategy_name = self._strategy_name_from_input(strategy)
+        now = time.monotonic()
+        cache = getattr(self, "_live_positions_refresh_at", None)
+        if cache is None:
+            cache = {}
+            self._live_positions_refresh_at = cache
+
+        last_refresh = cache.get(strategy_name)
+        if last_refresh is not None and now - last_refresh < ttl_seconds:
+            return
+
+        self.sync_positions(strategy)
+        cache[strategy_name] = now
+
+    def _invalidate_order_caches(self):
+        self._tracked_orders_cache_key = None
+        self._tracked_orders_filter_cache.clear()
+        self._active_tracked_orders_filter_cache.clear()
+
+    @staticmethod
+    def _get_all_order_identifiers(orders_broker: list[Order]) -> set:
+        broker_identifiers = set()
+        for order in orders_broker:
+            if order is None:
+                continue
+            broker_identifiers.add(order.identifier)
+            for child_order in order.child_orders:
+                broker_identifiers.add(child_order.identifier)
+        return broker_identifiers
+
+    def _process_broker_synced_order(self, order):
+        """Add a broker-sourced order to the local trackers using its broker status."""
+        if order.status == Order.OrderStatus.FILLED:
+            self._process_new_order(order)
+            self._process_filled_order(order, order.avg_fill_price, order.quantity)
+        elif order.status == Order.OrderStatus.CANCELED:
+            self._process_new_order(order)
+            self._process_canceled_order(order)
+        elif order.status == Order.OrderStatus.PARTIALLY_FILLED:
+            self._process_new_order(order)
+            self._process_partially_filled_order(order, order.avg_fill_price, order.quantity)
+        elif order.status == Order.OrderStatus.ERROR:
+            self._process_new_order(order)
+            self._process_error_order(order, order.error_message)
+        elif order.is_active():
+            self._process_new_order(order)
+
+    def _refresh_missing_active_order_from_broker(
+        self,
+        order_lumi,
+        strategy_name,
+        strategy_object=None,
+        broker_order_count=0,
+        logger_obj=None,
+    ):
+        """Refresh an active local order by id before treating a broad-list miss as terminal.
+
+        Schwab and some other brokers can return incomplete recent-order lists during
+        reconnects, account-history parsing errors, or transient API failures. A broad
+        list miss is not proof that the broker canceled the order.
+        """
+        log = logger_obj or getattr(self, "logger", logger)
+        if not order_lumi.identifier:
+            log.warning(f"Active order {order_lumi} has no broker identifier; leaving it active.")
+            return False
+
+        try:
+            response = self._pull_broker_order(order_lumi.identifier)
+        except Exception as exc:
+            log.warning(
+                f"Active order {order_lumi} (id={order_lumi.identifier}) was missing from the broad broker "
+                f"order list (bkr cnt={broker_order_count}), and direct lookup failed: {exc}. "
+                "Leaving the local order active instead of marking it canceled."
+            )
+            return False
+
+        if not response:
+            log.warning(
+                f"Active order {order_lumi} (id={order_lumi.identifier}) was missing from the broad broker "
+                f"order list (bkr cnt={broker_order_count}), and direct lookup returned no order. "
+                "Leaving the local order active instead of marking it canceled."
+            )
+            return False
+
+        try:
+            broker_order = self._parse_broker_order(response, strategy_name, strategy_object=strategy_object)
+        except Exception as exc:
+            log.warning(
+                f"Active order {order_lumi} (id={order_lumi.identifier}) was missing from the broad broker "
+                f"order list (bkr cnt={broker_order_count}), and direct lookup parsing failed: {exc}. "
+                "Leaving the local order active instead of marking it canceled."
+            )
+            return False
+
+        if broker_order is None:
+            log.warning(
+                f"Active order {order_lumi} (id={order_lumi.identifier}) was missing from the broad broker "
+                f"order list (bkr cnt={broker_order_count}), and direct lookup could not be parsed. "
+                "Leaving the local order active instead of marking it canceled."
+            )
+            return False
+
+        candidates = [broker_order, *getattr(broker_order, "child_orders", [])]
+        matched_order = next(
+            (candidate for candidate in candidates if candidate.identifier == order_lumi.identifier),
+            broker_order,
+        )
+
+        changed = False
+        if not order_lumi.equivalent_status(matched_order.status):
+            order_lumi.status = matched_order.status
+            changed = True
+
+        if order_lumi.quantity != matched_order.quantity:
+            order_lumi.quantity = matched_order.quantity
+            changed = True
+
+        for order_attr in ("limit_price", "stop_price"):
+            local_value = getattr(order_lumi, order_attr, None)
+            broker_value = getattr(matched_order, order_attr, None)
+            if local_value != broker_value:
+                setattr(order_lumi, order_attr, broker_value)
+                changed = True
+
+        log.info(
+            f"Refreshed local order {order_lumi} (id={order_lumi.identifier}) with direct broker lookup "
+            f"after broad order-list miss. Broker status is {matched_order.status}."
+        )
+        return changed
+
+    def sync_orders(self, strategy):
+        """Sync broker orders into Lumibot without promoting stale terminal history.
+
+        Some brokers return broad recent account history from their order-list
+        endpoint. Unknown terminal orders from that history should not become
+        new active orders for the current strategy.
+        """
+        if self.IS_BACKTESTING_BROKER:
+            return
+
+        strategy_name = self._strategy_name_from_input(strategy)
+        orders_broker = self._pull_all_orders(strategy_name, strategy)
+        orders_broker = [order for order in orders_broker if order is not None]
+        if len(orders_broker) == 0:
+            return
+
+        changed = False
+        orders_lumi = self.get_all_orders()
+
+        for order in orders_broker:
+            matches = [ord_lumi for ord_lumi in orders_lumi if ord_lumi.identifier == order.identifier]
+            if len(matches) > 1:
+                logger.warning(
+                    f"Multiple orders found in lumibot with the same identifier {order.identifier}. "
+                    f"This should not happen and indicates a bug in the order tracking. Orders: {matches}"
+                )
+                order_lumi = self._clean_order_trackers(order)
+            else:
+                order_lumi = matches[0] if len(matches) > 0 else None
+
+            if order_lumi:
+                if not order_lumi.equivalent_status(order.status):
+                    order_lumi.status = order.status
+                    changed = True
+
+                if order_lumi.quantity != order.quantity:
+                    order_lumi.quantity = order.quantity
+                    changed = True
+
+                for order_attr in ("limit_price", "stop_price"):
+                    olumi = getattr(order_lumi, order_attr)
+                    obroker = getattr(order, order_attr)
+                    if olumi != obroker:
+                        setattr(order_lumi, order_attr, obroker)
+                        changed = True
+            elif self._first_iteration or order.is_active():
+                self._process_broker_synced_order(order)
+                changed = True
+
+        broker_identifiers = self._get_all_order_identifiers(orders_broker)
+        for order_lumi in orders_lumi:
+            if order_lumi.identifier in broker_identifiers:
+                continue
+
+            if hasattr(order_lumi, '_synced_from_broker') and order_lumi._synced_from_broker:
+                logger.debug(
+                    f"Skipping auto-cancellation for synced order {order_lumi} (id={order_lumi.identifier}) - "
+                    f"was synced from broker and may have been filled/canceled between sync and validation"
+                )
+                continue
+
+            if order_lumi.is_active():
+                if hasattr(order_lumi, 'created_at') and order_lumi.created_at:
+                    age = datetime.now() - order_lumi.created_at.replace(tzinfo=None)
+                    if age < timedelta(seconds=10):
+                        logger.debug(
+                            f"Order {order_lumi} (id={order_lumi.identifier}) is only {age.seconds}s old, "
+                            f"skipping auto-cancel (might be filling)"
+                        )
+                        continue
+
+                if order_lumi.order_type and order_lumi.order_type == Order.OrderType.MARKET:
+                    logger.info(
+                        f"Market order {order_lumi} (id={order_lumi.identifier}) not found in broker, "
+                        f"likely filled instantly - skipping cancel"
+                    )
+                    continue
+
+                changed = (
+                    self._refresh_missing_active_order_from_broker(
+                        order_lumi,
+                        strategy_name,
+                        strategy_object=strategy,
+                        broker_order_count=len(orders_broker),
+                    )
+                    or changed
+                )
+
+        if changed:
+            self._invalidate_order_caches()
+
+    def refresh_orders(self, strategy, ttl_seconds: float = 1.0):
+        """Refresh live broker orders with a short throttle."""
+        if self.IS_BACKTESTING_BROKER:
+            return
+
+        strategy_name = self._strategy_name_from_input(strategy)
+        now = time.monotonic()
+        cache = getattr(self, "_live_orders_refresh_at", None)
+        if cache is None:
+            cache = {}
+            self._live_orders_refresh_at = cache
+
+        last_refresh = cache.get(strategy_name)
+        if last_refresh is not None and now - last_refresh < ttl_seconds:
+            return
+
+        self.sync_orders(strategy)
+        cache[strategy_name] = now
+
     def _sync_position_fields_from_broker(self, position_lumi, position_broker):
         """
         Refresh an existing tracked position from a broker-sourced position.

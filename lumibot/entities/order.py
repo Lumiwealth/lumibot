@@ -122,7 +122,7 @@ STATUS_ALIAS_MAP = {
     "cash": "cash_settled",
     "expired": "expired",  # Alpaca/Tradier status
     "filled": "fill",  # IBKR/Alpaca/Tradier status
-    "partially_filled": "partial_filled",  # Alpaca/Tradier status
+    "partially_filled": "partial_fill",  # Alpaca/Tradier status
     "pending": "open",  # Tradier status
     "presubmitted": "new",  # IBKR status
     "apicancelled": "canceled",  # IBKR status
@@ -192,6 +192,14 @@ class Order:
         EXERCISED = "exercised"
         ERROR = "error"
         EXPIRED = "expired"
+
+    ACTIVE_STATUSES = (
+        OrderStatus.UNPROCESSED,
+        OrderStatus.SUBMITTED,
+        OrderStatus.OPEN,
+        OrderStatus.NEW,
+        OrderStatus.PARTIALLY_FILLED,
+    )
 
     # PERF: avoid iterating Enum classes in every `Order.__init__` call (hot path in backtests).
     _ORDER_CLASS_BY_VALUE = {oc.value: oc for oc in OrderClass}

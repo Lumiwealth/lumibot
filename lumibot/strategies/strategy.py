@@ -1103,7 +1103,12 @@ class Strategy(_Strategy):
         self.log_message("Warning: get_tracked_position() is deprecated, please use get_position() instead.")
         self.get_position(asset)
 
-    def get_position(self, asset: Union[str, Asset]):
+    def get_position(
+        self,
+        asset: Union[str, Asset],
+        broker_refresh: bool = True,
+        broker_refresh_ttl_seconds: float = 1.0,
+    ):
         """Get a tracked position given an asset for the current
         strategy.
 
@@ -1142,6 +1147,10 @@ class Strategy(_Strategy):
             self.logger.error(f"Asset in get_position() must be an Asset object or a string. You entered {asset}.")
             return None
 
+        self._refresh_live_positions(
+            broker_refresh=broker_refresh,
+            broker_refresh_ttl_seconds=broker_refresh_ttl_seconds,
+        )
         asset = self._sanitize_user_asset(asset)
         
         # For non-continuous futures, use existing exact matching
@@ -1371,7 +1380,12 @@ class Strategy(_Strategy):
             debit_rate_annual=debit_rate_annual,
         )
 
-    def get_positions(self, include_cash_positions: bool = False):
+    def get_positions(
+        self,
+        include_cash_positions: bool = False,
+        broker_refresh: bool = True,
+        broker_refresh_ttl_seconds: float = 1.0,
+    ):
         """Get all positions for the account.
 
         Parameters
@@ -1397,6 +1411,10 @@ class Strategy(_Strategy):
         >>>     self.log_message(position.asset)
 
         """
+        self._refresh_live_positions(
+            broker_refresh=broker_refresh,
+            broker_refresh_ttl_seconds=broker_refresh_ttl_seconds,
+        )
         include_cash = include_cash_positions or self.include_cash_positions
         filled_positions = getattr(self.broker, "_filled_positions", None)
         filled_positions_revision = getattr(filled_positions, "revision", 0)
@@ -1469,7 +1487,53 @@ class Strategy(_Strategy):
         self.log_message("Warning: get_tracked_order() is deprecated, please use get_order() instead.")
         return self.get_order(identifier)
 
-    def get_order(self, identifier: str):
+    def _refresh_live_orders(self, broker_refresh: bool = True, broker_refresh_ttl_seconds: float = 1.0):
+        if not broker_refresh or self.broker.IS_BACKTESTING_BROKER:
+            return
+        refresh_orders = getattr(self.broker, "refresh_orders", None)
+        if refresh_orders is not None:
+            refresh_orders(self, ttl_seconds=broker_refresh_ttl_seconds)
+
+    def _refresh_live_positions(self, broker_refresh: bool = True, broker_refresh_ttl_seconds: float = 1.0):
+        if not broker_refresh or self.broker.IS_BACKTESTING_BROKER:
+            return
+        refresh_positions = getattr(self.broker, "refresh_positions", None)
+        if refresh_positions is not None:
+            refresh_positions(self, ttl_seconds=broker_refresh_ttl_seconds)
+            if hasattr(self, "_positions_cache"):
+                self._positions_cache.clear()
+
+    @staticmethod
+    def _normalize_order_statuses(statuses):
+        if statuses is None:
+            return None
+
+        if isinstance(statuses, Order.OrderStatus):
+            return {statuses}
+
+        if isinstance(statuses, str):
+            raise TypeError("statuses must use Order.OrderStatus enum values, not raw strings")
+
+        try:
+            normalized_statuses = set(statuses)
+        except TypeError as exc:
+            raise TypeError("statuses must be an Order.OrderStatus or an iterable of Order.OrderStatus values") from exc
+
+        for status in normalized_statuses:
+            if not isinstance(status, Order.OrderStatus):
+                raise TypeError("statuses must use Order.OrderStatus enum values, not raw strings")
+
+        return normalized_statuses
+
+    @staticmethod
+    def _order_matches_statuses(order: Order, statuses) -> bool:
+        try:
+            order_status = Order.OrderStatus(order.status)
+        except ValueError:
+            return False
+        return order_status in statuses
+
+    def get_order(self, identifier: str, broker_refresh: bool = True, broker_refresh_ttl_seconds: float = 1.0):
         """Get a tracked order given an identifier. Check the details of the order including status, etc.
 
         Returns
@@ -1484,6 +1548,7 @@ class Strategy(_Strategy):
         >>> # Show the status of the order
         >>> self.log_message(order.status)
         """
+        self._refresh_live_orders(broker_refresh=broker_refresh, broker_refresh_ttl_seconds=broker_refresh_ttl_seconds)
         order = self.broker.get_tracked_order(identifier)
         if order is not None and order.strategy == self.name:
             return order
@@ -1495,13 +1560,21 @@ class Strategy(_Strategy):
         self.log_message("Warning: get_tracked_orders() is deprecated, please use get_orders() instead.")
         return self.get_orders()
 
-    def get_orders(self, identifiers: list[str] = None):
-        """Get all the current open orders.
+    def get_orders(
+        self,
+        identifiers: list[str] = None,
+        statuses=None,
+        broker_refresh: bool = True,
+        broker_refresh_ttl_seconds: float = 1.0,
+    ):
+        """Get tracked orders, optionally filtered by identifiers and OrderStatus values.
 
         Parameters
         ----------
         identifiers : list of str
             A list of order identifiers to filter the orders by. If None, returns all tracked orders for the strategy.
+        statuses : Order.OrderStatus or iterable of Order.OrderStatus
+            Optional enum status filter. Use Order.ACTIVE_STATUSES for currently active/open orders.
 
         Returns
         -------
@@ -1516,21 +1589,20 @@ class Strategy(_Strategy):
         >>>     # Show the status of each order
         >>>     self.log_message(order.status)
 
-        >>> # Get all open orders
-        >>> orders = self.get_tracked_orders()
+        >>> # Get active/open orders
+        >>> orders = self.get_orders(statuses=Order.ACTIVE_STATUSES)
         >>> for order in orders:
-        >>>     # Show the status of each order
-        >>>     self.log_message(order.status)
-        >>>     # Check if the order is open
-        >>>     if order.status == "open":
-        >>>         # Cancel the order
-        >>>         self.cancel_order(order)
+        >>>     self.cancel_order(order)
 
         """
+        normalized_statuses = self._normalize_order_statuses(statuses)
+        self._refresh_live_orders(broker_refresh=broker_refresh, broker_refresh_ttl_seconds=broker_refresh_ttl_seconds)
         all_orders = self.broker.get_tracked_orders(self.name)
         if identifiers:
-            filtered_orders = [order for order in all_orders if order.identifier in identifiers]
-            return filtered_orders
+            identifier_set = set(identifiers)
+            all_orders = [order for order in all_orders if order.identifier in identifier_set]
+        if normalized_statuses is not None:
+            all_orders = [order for order in all_orders if self._order_matches_statuses(order, normalized_statuses)]
         return all_orders
 
     def get_tracked_assets(self):

@@ -46,6 +46,7 @@ class Schwab(Broker):
     """
 
     NAME = "Schwab"
+    UNSUPPORTED_ORDER_LEG_TYPES = {"BOND", "MUTUAL_FUND"}
     POLL_EVENT = PollingStream.POLL_EVENT
 
     def __init__(
@@ -791,7 +792,16 @@ class Schwab(Broker):
                 if simple_orders:
                     return simple_orders[0]  # Return the first order
 
-            # If we couldn't parse anything, return None
+            # If Schwab returns account-level mutual fund/bond activity in order history,
+            # skip it quietly. Lumibot cannot represent those instruments as tradable
+            # broker orders, but they should not poison stock/option order refresh.
+            if self._order_has_only_unsupported_legs(response):
+                logger.info(colored(
+                    f"Skipping unsupported Schwab order leg type(s) for order ID: {response.get('orderId', '')}",
+                    "yellow",
+                ))
+                return None
+
             logger.warning(colored("Could not parse any valid orders from response", "yellow"))
             return None
 
@@ -799,6 +809,20 @@ class Schwab(Broker):
             logger.error(colored(f"Error parsing broker order: {str(e)}", "red"))
             logger.error(traceback.format_exc())
             return None
+
+    def _order_has_only_unsupported_legs(self, schwab_order: dict) -> bool:
+        legs = schwab_order.get("orderLegCollection", [])
+        if legs:
+            return all(
+                leg.get("orderLegType", "") in self.UNSUPPORTED_ORDER_LEG_TYPES
+                for leg in legs
+            )
+
+        child_orders = schwab_order.get("childOrderStrategies") or []
+        return bool(child_orders) and all(
+            self._order_has_only_unsupported_legs(child_order)
+            for child_order in child_orders
+        )
 
     def _parse_simple_order(self, schwab_order: dict, strategy_name: str) -> List[Order]:
         """
@@ -907,6 +931,15 @@ class Schwab(Broker):
                     logger.error(colored(f"No symbol found for order leg in order ID: {order_id}", "red"))
                     continue
 
+                asset_type_str = schwab_leg.get("orderLegType", "")
+                if asset_type_str in self.UNSUPPORTED_ORDER_LEG_TYPES:
+                    logger.info(colored(
+                        f"Skipping unsupported Schwab order leg type: {asset_type_str} "
+                        f"for symbol: {symbol}, order ID: {order_id}",
+                        "yellow",
+                    ))
+                    continue
+
                 # Get the quantity
                 quantity = schwab_leg.get("quantity", 0)
                 if quantity <= 0:
@@ -941,7 +974,6 @@ class Schwab(Broker):
                     "INDEX": Asset.AssetType.INDEX
                 }
 
-                asset_type_str = schwab_leg.get("orderLegType", "")
                 asset_type = asset_type_map.get(asset_type_str)
 
                 if not asset_type:

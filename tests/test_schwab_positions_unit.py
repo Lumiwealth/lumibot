@@ -195,6 +195,26 @@ def test_schwab_parse_simple_order_skips_unsupported_order_leg_types_without_dro
     assert parsed[0].asset.asset_type == Asset.AssetType.STOCK
 
 
+def test_schwab_parse_broker_order_skips_unsupported_only_order_history():
+    broker = Schwab.__new__(Schwab)
+    order = {
+        "orderId": "mutual-fund-activity",
+        "enteredTime": "2026-05-22T15:30:00+0000",
+        "orderType": "MARKET",
+        "status": "FILLED",
+        "orderLegCollection": [
+            {
+                "instruction": "SELL",
+                "quantity": 10,
+                "orderLegType": "MUTUAL_FUND",
+                "instrument": {"symbol": "SWVXX"},
+            },
+        ],
+    }
+
+    assert broker._parse_broker_order(order, strategy_name="unit-test") is None
+
+
 def test_schwab_cancel_order_calls_client_with_order_id_then_account_hash():
     client = _CancelClient()
     stream = _Stream()

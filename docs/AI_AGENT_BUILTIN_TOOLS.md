@@ -22,11 +22,12 @@ Trading permission:
 self.agents.create(name="researcher", allow_trading=False)
 ```
 
-`allow_trading=False` removes mutating order tools only:
+`allow_trading=False` removes mutating order tools and actual-decision writes:
 
 - `orders_submit_order`
 - `orders_cancel_order`
 - `orders_modify_order`
+- `remember_decision`
 
 It keeps read-only tools, including `orders_open_orders`, positions, portfolio, market data, indicators, SEC filings, FRED macro data, memory, and notifications.
 
@@ -49,7 +50,9 @@ Memory tools:
 
 - `remember`
 - `search_memory` (supports `kind`, `symbol`, and `status` filters)
-- `remember_decision`
+- `remember_proposal`
+- `remember_risk_note`
+- `remember_decision` (trading-capable agents only)
 - `remember_lesson`
 - `open_thesis`
 - `update_thesis`
@@ -60,6 +63,8 @@ Agent memory is SQLite-backed while the strategy runs. Lumibot also exports memo
 - `*_memory_events.parquet`
 - `*_memory_retrievals.parquet`
 - `*_memory_state.parquet`
+
+Use `remember_proposal` for research ideas and `remember_risk_note` for bear-case notes. Use `remember_decision` only for the final trading decision. `orders_submit_order` automatically records an `order.submitted` memory event after Lumibot submits the order, and memory events/retrievals carry `agent_name` and `model_call_id` when they came from an agent tool call.
 
 When an agent is holding a position and plans to add, reduce, or sell that symbol, it should call `search_memory` for the open thesis first. Lumibot records a non-blocking warning when an order tool touches a held symbol without that retrieval.
 

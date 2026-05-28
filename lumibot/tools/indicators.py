@@ -1,4 +1,5 @@
 import contextlib
+import html
 import json
 import math
 import os
@@ -1890,6 +1891,53 @@ def create_tearsheet(
             return None
         return value
 
+    def _append_custom_metrics_to_tearsheet_html_if_missing() -> None:
+        """Keep custom metrics visible when QuantStats omits them."""
+        if not custom_metrics or not isinstance(custom_metrics, dict) or not tearsheet_file:
+            return
+        try:
+            tearsheet_path = str(tearsheet_file)
+            if not os.path.exists(tearsheet_path):
+                return
+            with open(tearsheet_path, "r", encoding="utf-8") as handle:
+                contents = handle.read()
+
+            metric_items = [
+                (str(key), _coerce_tearsheet_metric_value(value))
+                for key, value in custom_metrics.items()
+                if str(key).strip()
+            ]
+            if not metric_items:
+                return
+            if all(label in contents for label, _ in metric_items):
+                return
+
+            rows = "\n".join(
+                "<tr>"
+                f"<td>{html.escape(label)}</td>"
+                f"<td>{html.escape(str(value))}</td>"
+                "</tr>"
+                for label, value in metric_items
+            )
+            custom_section = f"""
+<section class="custom-metrics">
+  <h2>Custom Metrics</h2>
+  <table>
+    <tbody>
+{rows}
+    </tbody>
+  </table>
+</section>
+"""
+            if "</body>" in contents:
+                contents = contents.replace("</body>", custom_section + "\n</body>", 1)
+            else:
+                contents += custom_section
+            with open(tearsheet_path, "w", encoding="utf-8") as handle:
+                handle.write(contents)
+        except Exception as exc:
+            logger.warning("Failed to append custom metrics to tearsheet HTML: %s", exc)
+
     def _write_tearsheet_metrics_json_fallback() -> None:
         with open(os.devnull, "w") as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
             metrics_df = qs.reports.metrics(
@@ -1924,6 +1972,12 @@ def create_tearsheet(
             if benchmark_col is not None:
                 benchmark_scalar_metrics[metric_name] = _coerce_tearsheet_metric_value(row.get(benchmark_col))
 
+        if isinstance(custom_metrics, dict):
+            for key, value in custom_metrics.items():
+                metric_name = str(key).strip()
+                if metric_name:
+                    scalar_metrics[metric_name] = _coerce_tearsheet_metric_value(value)
+
         payload = {
             "metadata": {
                 "summary_only": True,
@@ -1937,6 +1991,8 @@ def create_tearsheet(
 
         with open(str(tearsheet_metrics_file), "w", encoding="utf-8") as handle:
             json.dump(payload, handle, indent=2)
+
+    _append_custom_metrics_to_tearsheet_html_if_missing()
 
     # Generate machine-readable tearsheet metrics JSON alongside the HTML tearsheet.
     if tearsheet_metrics_file:

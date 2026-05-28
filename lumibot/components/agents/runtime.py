@@ -21,6 +21,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from .schemas import AgentRunResult, AgentTraceEvent, BoundTool, MCPServer
+from .tool_context import agent_tool_context
 
 
 _GOOGLE_SDK_NOISE_FILTERS_CONFIGURED = False
@@ -100,12 +101,13 @@ def _tool_function_name(value: str) -> str:
     return normalized
 
 
-def _wrap_tool_callable(tool: BoundTool):
+def _wrap_tool_callable(tool: BoundTool, tool_context: dict[str, Any] | None = None):
     original = tool.function
 
     def wrapper(*args, **kwargs):
         try:
-            return _json_safe_value(original(*args, **kwargs))
+            with agent_tool_context(tool_context):
+                return _json_safe_value(original(*args, **kwargs))
         except Exception as exc:
             return _tool_error_payload(tool.name, kwargs, exc)
 
@@ -355,6 +357,7 @@ class RuntimeRequest:
     memory_state: dict[str, Any] | None
     memory_notes: list[dict[str, Any]]
     bound_tools: list[BoundTool]
+    model_call_id: str | None = None
     provider_prompt_cache_key: str | None = None
 
 
@@ -1107,7 +1110,11 @@ class GoogleADKRuntime:
         first_event_perf: float | None = None
         LlmAgentType, InMemoryRunnerType, genai_types, function_tool_type = self._ensure_adk()
         tool_name_map = {_tool_function_name(tool.name): tool.name for tool in request.bound_tools}
-        tools = [function_tool_type(_wrap_tool_callable(tool)) for tool in request.bound_tools]
+        active_tool_context = {
+            "agent_name": request.agent_name,
+            "model_call_id": request.model_call_id,
+        }
+        tools = [function_tool_type(_wrap_tool_callable(tool, active_tool_context)) for tool in request.bound_tools]
         config_kwargs: dict[str, Any] = {
             "max_output_tokens": 65535,
         }
@@ -1315,7 +1322,11 @@ class StubAgentRuntime:
             )
         if request.bound_tools:
             first_tool = request.bound_tools[0]
-            tool_result = first_tool.function() if callable(first_tool.function) else None
+            if callable(first_tool.function):
+                with agent_tool_context({"agent_name": request.agent_name, "model_call_id": request.model_call_id}):
+                    tool_result = first_tool.function()
+            else:
+                tool_result = None
             events.append(
                 AgentTraceEvent(
                     kind="tool_call",

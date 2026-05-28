@@ -2,574 +2,578 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://lumibot.lumiwealth.com/</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_builtin_tools.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_canonical_demos.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
+  </url>
+  <url>
+    <loc>https://lumibot.lumiwealth.com/agents_examples.html</loc>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_flows.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_investment_committee.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_memory.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_notifications.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_observability.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_quickstart.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/backtesting.backtesting_function.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/backtesting.databento.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/backtesting.how_to_backtest.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/backtesting.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/backtesting.ibkr.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/backtesting.indicators_files.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/backtesting.logs_csv.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/backtesting.pandas.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/backtesting.performance.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/backtesting.polygon.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/backtesting.tearsheet_html.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/backtesting.thetadata.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/backtesting.trades_files.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/backtesting.yahoo.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/botspot_mcp.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.alpaca.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.bitunix.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.ccxt.binance.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.ccxt.bitmex.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.ccxt.bybit.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.ccxt.coinbase.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.ccxt.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.ccxt.kraken.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.ccxt.kucoin.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.ccxt.okx.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.ccxt.weex.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.interactive_brokers.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.interactive_brokers_legacy.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.projectx.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.schwab.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.tradier.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.tradovate.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/cash_accounting.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/common_mistakes.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/deployment.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/entities.asset.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/entities.bars.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/entities.chains.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/entities.data.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/entities.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/entities.order.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/entities.position.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/entities.smart_limit.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/entities.trading_fee.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/entities.trading_slippage.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/environment_variables.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/examples.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/faq.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/fundamentals.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/futures.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/getting_started.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/imports_and_startup.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/index.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/indicators.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lifecycle_methods.after_market_closes.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lifecycle_methods.before_market_closes.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lifecycle_methods.before_market_opens.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lifecycle_methods.before_starting_trading.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lifecycle_methods.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lifecycle_methods.initialize.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lifecycle_methods.on_abrupt_closing.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lifecycle_methods.on_bot_crash.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lifecycle_methods.on_canceled_order.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lifecycle_methods.on_filled_order.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lifecycle_methods.on_new_order.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lifecycle_methods.on_parameters_updated.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lifecycle_methods.on_partially_filled_order.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lifecycle_methods.on_trading_iteration.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lifecycle_methods.summary.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lifecycle_methods.tearsheet_custom_metrics.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lifecycle_methods.trace_stats.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lumibot.backtesting.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lumibot.data_sources.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lumibot.strategies.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lumibot.traders.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/macro_data.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/options_helper.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/reference.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/smart_limit.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.account.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.chart.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.chart/lumibot.strategies.strategy.Strategy.add_line.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.chart/lumibot.strategies.strategy.Strategy.add_marker.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.chart/lumibot.strategies.strategy.Strategy.get_lines_df.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.chart/lumibot.strategies.strategy.Strategy.get_markers_df.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.data.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.datetime.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_datetime.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_datetime_range.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_last_day.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_last_minute.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_round_day.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_round_minute.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_timestamp.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.datetime/lumibot.strategies.strategy.Strategy.localize_datetime.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.datetime/lumibot.strategies.strategy.Strategy.to_default_timezone.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.misc.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.misc/lumibot.strategies.strategy.Strategy.await_market_to_close.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.misc/lumibot.strategies.strategy.Strategy.await_market_to_open.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.misc/lumibot.strategies.strategy.Strategy.get_parameters.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.misc/lumibot.strategies.strategy.Strategy.log_message.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.misc/lumibot.strategies.strategy.Strategy.register_cron_callback.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.misc/lumibot.strategies.strategy.Strategy.set_market.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.misc/lumibot.strategies.strategy.Strategy.sleep.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.misc/lumibot.strategies.strategy.Strategy.update_parameters.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_registration.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.options.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.options/lumibot.strategies.strategy.Strategy.get_chain.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.options/lumibot.strategies.strategy.Strategy.get_chains.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.options/lumibot.strategies.strategy.Strategy.get_expiration.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.options/lumibot.strategies.strategy.Strategy.get_greeks.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.options/lumibot.strategies.strategy.Strategy.get_multiplier.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.options/lumibot.strategies.strategy.Strategy.get_next_trading_day.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.options/lumibot.strategies.strategy.Strategy.get_strikes.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.options/lumibot.strategies.strategy.Strategy.options_expiry_to_datetime_date.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.options/strategies.strategy.Strategy.get_chain.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.options/strategies.strategy.Strategy.get_chains.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.options/strategies.strategy.Strategy.get_expiration.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.options/strategies.strategy.Strategy.get_greeks.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.options/strategies.strategy.Strategy.get_multiplier.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.options/strategies.strategy.Strategy.get_next_trading_day.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.options/strategies.strategy.Strategy.get_option_expiration_after_date.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.options/strategies.strategy.Strategy.get_strikes.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.options/strategies.strategy.Strategy.options_expiry_to_datetime_date.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.orders.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.parameters.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_properties.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/vars.html</loc>
-    <lastmod>2026-05-23</lastmod>
+    <lastmod>2026-05-26</lastmod>
   </url>
 </urlset>

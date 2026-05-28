@@ -385,6 +385,8 @@ class StrategyExecutor(Thread):
 
                 if order_lumi:
                     # Compare the orders.
+                    if not order_lumi.equivalent_status(order.status):
+                        order_lumi.status = order.status
                     if order_lumi.quantity != order.quantity:
                         order_lumi.quantity = order.quantity
                     order_attrs = [
@@ -468,8 +470,10 @@ class StrategyExecutor(Thread):
                             self.broker._process_new_order(order)
                             self.broker._process_error_order(order, order.error_message)
                     else:
-                        # Add to order in lumibot.
-                        self.broker._process_new_order(order)
+                        # Some brokers return broad recent history from the order-list endpoint.
+                        # Do not promote old filled/canceled/error history into a fresh active order.
+                        if order.is_active():
+                            self.broker._process_new_order(order)
 
             broker_identifiers = self._get_all_order_identifiers(orders_broker)
             for order_lumi in orders_lumi:
@@ -509,12 +513,15 @@ class StrategyExecutor(Thread):
                             )
                             continue
                         
-                        self.strategy.logger.info(
-                            f"Cannot find order {order_lumi} (id={order_lumi.identifier}) in broker "
-                            f"(bkr cnt={len(orders_broker)}), canceling."
+                        self.broker._refresh_missing_active_order_from_broker(
+                            order_lumi,
+                            self.strategy.name,
+                            strategy_object=self.strategy,
+                            broker_order_count=len(orders_broker),
+                            logger_obj=self.strategy.logger,
                         )
-                        self.broker._process_trade_event(order_lumi, "canceled")
 
+        self.broker._invalidate_order_caches()
         self.broker._hold_trade_events = False
         self.broker.process_held_trades()
 

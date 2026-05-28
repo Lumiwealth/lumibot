@@ -16,6 +16,50 @@ Artifact roots:
 - Memory content quality is mixed. It captured useful theses and retrievals, but non-trading agents can write decision memories that may not match executed orders. Run 1 records a `900` share SOXL decision while the trader actually bought `1,860` shares.
 - Memory did not cause the initial SOXL convergence. The first SOXL selection happened before history existed. Memory mainly helped later hold/rotate explanations and made the run auditable.
 
+## Post-Fix Rerun
+
+After adding memory provenance, explicit proposal/risk-note tools, trader-only
+decision memory, submitted-order memory events, and automatic open-thesis
+outcome observations, I reran the README-window benchmark once with
+`gemini-3.1-flash-lite`.
+
+Artifact root:
+
+- `/Users/robertgrzesik/Development/lumibot/artifacts/ai_trading_team_provider_benchmarks/20260526_183105_724192_19419/gemini-3.1-flash-lite`
+
+Result:
+
+- Status: passed
+- Window: 2026-04-07 through 2026-05-21 market close
+- Wall time: 600.1 seconds
+- Final portfolio value: `$298,424.80`
+- Total return on `$100,000`: `198.42%`
+- Max drawdown: `-23.24%`
+- Final position: `1,860` shares of `SOXL`
+- Final cash: `-$1,035.20`
+- Agent calls: `132`
+- Tool calls: `1,088`
+- Cache-adjusted estimated model cost: `$0.679018`
+
+Memory artifact checks:
+
+- `memory_events`: `78` rows
+- `memory_retrievals`: `5` rows
+- `memory_state`: `45` rows
+- `decision.recorded`: `23` rows, all attributed to `trader`
+- `order.submitted`: `1` row, attributed to `trader`
+- `proposal.recorded`: `1` row, attributed to `bull`
+- `risk_note.recorded`: `20` rows, attributed to `bear` or `trader`
+- `thesis.outcome_observed`: `32` rows, automatically recorded by the runtime with no agent attribution
+- Retrievals: `5` rows, all attributed to `trader`, each with a non-null `model_call_id`
+
+Audit conclusion:
+
+- The provenance bug is fixed for model-originated memory writes and retrievals.
+- Read-only agents no longer write `decision.recorded`; they write proposals or risk notes.
+- Submitted orders now appear in memory, so the executed trade and remembered decision can be compared from the same memory artifact family.
+- Automatic outcome observations are intentionally runtime-authored, so their `agent_name` and `model_call_id` remain null.
+
 ## Artifact And Schema Check
 
 ### run1
@@ -987,3 +1031,15 @@ the desired final contract. The memory artifacts should be self-describing.
 3. Automatically record executed orders into memory from Lumibot itself, so memory always has a mechanical source-of-truth record for actual trades.
 4. Add a daily outcome update step for open theses: unrealized return, drawdown since entry, whether thesis remains valid, and what would invalidate it.
 5. Add tests that assert memory events exported to Parquet include attribution and that an executed order creates a matching factual memory event.
+
+## Remediation Implemented
+
+Implemented on 2026-05-26 after this audit:
+
+1. Agent memory tools now receive active `agent_name` and `model_call_id` context from the runtime. Memory events and retrievals written by agent tools carry those fields directly in SQLite and Parquet.
+2. `remember_decision` is now treated as an actual trading decision write and is removed when `allow_trading=False`. Read-only agents can use `remember_proposal` and `remember_risk_note` instead.
+3. `orders_submit_order` records an append-only `order.submitted` memory event after Lumibot submits the order.
+4. Open theses receive a best-effort once-per-day `thesis.outcome_observed` event while the thesis symbol is held, including quantity, last price when available, and market value when available.
+5. Targeted tests cover provenance export, read-only tool permissions, proposal/risk-note writes, automatic order events, and once-per-day thesis outcome observations.
+
+Still not solved in this pass: semantic/vector retrieval and automated validation or rejection of lessons against realized returns. The new outcome observations provide the factual trail needed for that next layer, but they do not yet decide whether a lesson is proven.

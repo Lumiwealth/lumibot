@@ -15,7 +15,7 @@ from schwab.client import Client
 from schwab.streaming import StreamClient
 from termcolor import colored
 
-from .broker import Broker
+from .broker import Broker, LumibotBrokerAPIError
 from lumibot.data_sources import SchwabData  # Import YahooData
 from lumibot.entities import Asset, Order, Position
 from lumibot.tools.lumibot_logger import get_logger
@@ -46,6 +46,7 @@ class Schwab(Broker):
     """
 
     NAME = "Schwab"
+    UNSUPPORTED_ORDER_LEG_TYPES = {"BOND", "MUTUAL_FUND"}
     POLL_EVENT = PollingStream.POLL_EVENT
 
     def __init__(
@@ -791,7 +792,16 @@ class Schwab(Broker):
                 if simple_orders:
                     return simple_orders[0]  # Return the first order
 
-            # If we couldn't parse anything, return None
+            # If Schwab returns account-level mutual fund/bond activity in order history,
+            # skip it quietly. Lumibot cannot represent those instruments as tradable
+            # broker orders, but they should not poison stock/option order refresh.
+            if self._order_has_only_unsupported_legs(response):
+                logger.info(colored(
+                    f"Skipping unsupported Schwab order leg type(s) for order ID: {response.get('orderId', '')}",
+                    "yellow",
+                ))
+                return None
+
             logger.warning(colored("Could not parse any valid orders from response", "yellow"))
             return None
 
@@ -799,6 +809,20 @@ class Schwab(Broker):
             logger.error(colored(f"Error parsing broker order: {str(e)}", "red"))
             logger.error(traceback.format_exc())
             return None
+
+    def _order_has_only_unsupported_legs(self, schwab_order: dict) -> bool:
+        legs = schwab_order.get("orderLegCollection", [])
+        if legs:
+            return all(
+                leg.get("orderLegType", "") in self.UNSUPPORTED_ORDER_LEG_TYPES
+                for leg in legs
+            )
+
+        child_orders = schwab_order.get("childOrderStrategies") or []
+        return bool(child_orders) and all(
+            self._order_has_only_unsupported_legs(child_order)
+            for child_order in child_orders
+        )
 
     def _parse_simple_order(self, schwab_order: dict, strategy_name: str) -> List[Order]:
         """
@@ -907,6 +931,15 @@ class Schwab(Broker):
                     logger.error(colored(f"No symbol found for order leg in order ID: {order_id}", "red"))
                     continue
 
+                asset_type_str = schwab_leg.get("orderLegType", "")
+                if asset_type_str in self.UNSUPPORTED_ORDER_LEG_TYPES:
+                    logger.info(colored(
+                        f"Skipping unsupported Schwab order leg type: {asset_type_str} "
+                        f"for symbol: {symbol}, order ID: {order_id}",
+                        "yellow",
+                    ))
+                    continue
+
                 # Get the quantity
                 quantity = schwab_leg.get("quantity", 0)
                 if quantity <= 0:
@@ -941,7 +974,6 @@ class Schwab(Broker):
                     "INDEX": Asset.AssetType.INDEX
                 }
 
-                asset_type_str = schwab_leg.get("orderLegType", "")
                 asset_type = asset_type_map.get(asset_type_str)
 
                 if not asset_type:
@@ -1862,19 +1894,54 @@ class Schwab(Broker):
         -------
         None
         """
+        if order.is_filled() or order.is_canceled():
+            return
+
+        if not order.identifier:
+            raise ValueError("Order identifier is not set, unable to cancel order. Did you remember to submit it?")
+
         # Add check for authorization error first
         if self.schwab_authorization_error:
-            logger.error(colored(f"Schwab authorization failed previously. Cannot cancel order {order.identifier}.", "red"))
-            return
+            error_msg = f"Schwab authorization failed previously. Cannot cancel order {order.identifier}."
+            logger.error(colored(error_msg, "red"))
+            raise LumibotBrokerAPIError(error_msg)
 
         # Add check for valid client and hash_value
         if not self.client or not self.hash_value:
-            logger.error(colored(f"Schwab client or account hash not initialized. Cannot cancel order {order.identifier}.", "red"))
-            return # Return early
+            error_msg = f"Schwab client or account hash not initialized. Cannot cancel order {order.identifier}."
+            logger.error(colored(error_msg, "red"))
+            raise LumibotBrokerAPIError(error_msg)
 
-        logger.error(colored(f"Method 'cancel_order' for order {order} is not yet implemented.", "red"))
-        # Implementation needed: call self.client.cancel_order(self.hash_value, order.identifier)
-        # Handle response and potentially dispatch CANCELED_ORDER or ERROR_ORDER events
+        try:
+            # schwab-py expects (order_id, account_hash) and issues
+            # DELETE /trader/v1/accounts/{account_hash}/orders/{order_id}.
+            response = self.client.cancel_order(order.identifier, self.hash_value)
+        except Exception as exc:
+            error_msg = f"Error canceling Schwab order {order.identifier}: {exc}"
+            logger.error(colored(error_msg, "red"))
+            raise LumibotBrokerAPIError(error_msg) from exc
+
+        status_code = getattr(response, "status_code", None)
+        if status_code is None:
+            error_msg = f"Error canceling Schwab order {order.identifier}: unexpected response {type(response).__name__}"
+            logger.error(colored(error_msg, "red"))
+            raise LumibotBrokerAPIError(error_msg)
+
+        if not 200 <= int(status_code) < 300:
+            response_text = getattr(response, "text", "")
+            error_msg = f"Error canceling Schwab order {order.identifier}: HTTP {status_code}"
+            if response_text:
+                error_msg += f" - {response_text}"
+            logger.error(colored(error_msg, "red"))
+            raise LumibotBrokerAPIError(error_msg)
+
+        logger.info(colored(f"Schwab cancel accepted for order {order.identifier}.", "green"))
+
+        if getattr(self, "stream", None) and hasattr(self.stream, "dispatch"):
+            self.stream.dispatch(self.CANCELED_ORDER, wait_until_complete=True, order=order)
+        else:
+            order.status = self.CANCELED_ORDER
+            order.set_canceled()
         return None
 
     def _launch_stream(self):

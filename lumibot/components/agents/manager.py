@@ -13,6 +13,7 @@ from typing import Any
 from lumibot import LUMIBOT_CACHE_FOLDER
 
 from .schemas import AgentRunResult, AgentTraceEvent, BoundTool, MCPServer, ToolDefinition
+from .tool_context import agent_tool_context
 from .tools import bind_callable_tool
 
 
@@ -1159,7 +1160,8 @@ class AgentHandle:
             if not bool(tool.metadata.get("replay_on_cache")):
                 continue
             payload = event.payload if isinstance(event.payload, dict) else {}
-            tool.function(**payload)
+            with agent_tool_context({"agent_name": self.name, "model_call_id": result.cache_key}):
+                tool.function(**payload)
 
     def _derive_warnings(self, result: AgentRunResult, runtime_context: dict[str, Any]) -> list[dict[str, Any]]:
         warnings: list[dict[str, Any]] = []
@@ -1215,6 +1217,8 @@ class AgentHandle:
                     memory.record_warning(
                         message,
                         kind="position_order_without_memory_thesis",
+                        agent_name=self.name,
+                        model_call_id=result.cache_key,
                         metadata={
                             "agent_name": self.name,
                             "model": result.model,
@@ -1402,6 +1406,7 @@ class AgentHandle:
             memory_state=memory_state,
             memory_notes=self._memory_prompt_notes(),
             bound_tools=self._ensure_bound_tools(),
+            model_call_id=cache_key,
             provider_prompt_cache_key=_provider_prompt_cache_key(
                 agent_name=self.name,
                 model=model_name,

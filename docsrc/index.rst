@@ -118,7 +118,8 @@ Key AI agent docs:
 
 - :doc:`agents` -- main guide: agentic backtesting framework, MCP trading tools, and competitive positioning
 - :doc:`agents_flows` -- design single-agent, multi-agent, debate, team, and hybrid flows
-- :doc:`agents_investment_committee` -- one concrete AI trading team example
+- :doc:`agents_examples` -- copy-paste AI trading team examples
+- :doc:`agents_investment_committee` -- legacy large-cap bull/bear team page
 - :doc:`fundamentals` -- SEC fundamentals and filing research tools
 - :doc:`macro_data` -- FRED macro data tools and point-in-time behavior
 - :doc:`agents_builtin_tools` -- built-in tools, indicators, and trading permissions
@@ -159,7 +160,7 @@ The copy-paste example below implements that exact team. It uses Gemini Flash Li
 
     export GEMINI_API_KEY='your-key-here'
 
-Then save this as ``ai_trading_team.py`` and run ``python ai_trading_team.py``. If the key is missing or invalid, LumiBot stops the backtest and prints a clear ``GEMINI_API_KEY`` error with a link to create a key.
+Then save this as ``ai_trading_team_bull_bear_leveraged_etf.py`` and run ``python ai_trading_team_bull_bear_leveraged_etf.py``. If the key is missing or invalid, LumiBot stops the backtest and prints a clear ``GEMINI_API_KEY`` error with a link to create a key.
 
 .. code-block:: python
 
@@ -169,7 +170,7 @@ Then save this as ``ai_trading_team.py`` and run ``python ai_trading_team.py``. 
     from lumibot.strategies.strategy import Strategy
 
 
-    class AITradingTeamStrategy(Strategy):
+    class AITradingTeamBullBearLeveragedETFStrategy(Strategy):
         parameters = {
             "universe": ["TQQQ", "SQQQ", "UPRO", "SPXU", "UDOW", "SDOW", "TNA", "TZA", "TECL", "TECS", "SOXL", "SOXS", "WEBL", "WEBS", "FAS", "FAZ", "LABU", "LABD", "ERX", "ERY", "GUSH", "DRIP", "DRN", "DRV", "TMF", "TMV", "NUGT", "DUST"],
         }
@@ -231,7 +232,7 @@ Then save this as ``ai_trading_team.py`` and run ``python ai_trading_team.py``. 
     if __name__ == "__main__":
         from lumibot.backtesting import YahooDataBacktesting
 
-        AITradingTeamStrategy.backtest(
+        AITradingTeamBullBearLeveragedETFStrategy.backtest(
             YahooDataBacktesting,
             datetime(2026, 4, 7),
             datetime(2026, 5, 22),
@@ -260,7 +261,7 @@ To run the same strategy in paper trading or live trading, keep the strategy cla
         }
 
         broker = Alpaca(ALPACA_CONFIG)
-        strategy = AITradingTeamStrategy(broker=broker)
+        strategy = AITradingTeamBullBearLeveragedETFStrategy(broker=broker)
 
         trader = Trader()
         trader.add_strategy(strategy)

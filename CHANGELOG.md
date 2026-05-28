@@ -1,12 +1,27 @@
 # Changelog
 
-## 4.5.34 - Unreleased
+## 4.5.35 - 2026-05-28
+
+Deploy marker: 4.5.35 release commit (`deploy 4.5.35`)
+
+### Fixed
+- **Schwab order refresh now skips unsupported mutual-fund and bond order-history legs.** Schwab accounts with sweep-fund activity such as `MUTUAL_FUND` order legs no longer poison order parsing for supported stock, option, future, forex, and index orders.
+- **Live order accessors now support active-order filtering with broker refresh.** Strategies can call `get_orders(statuses=Order.ACTIVE_STATUSES)` or `get_order(order_id)` to refresh live broker order state before making cancel/hedge decisions.
+- **Broad broker order-list misses no longer create fake local cancels.** If an active local order is missing from a broad broker list, Lumibot now performs a direct broker lookup by order id before updating local state; if that lookup fails, the order remains active with a warning instead of being marked canceled locally.
+
+### Docs
+- **Live order and position refresh guidance documents active-order filters and broker reconciliation safety.** The new docs explain when generated/refined strategies should use `Order.ACTIVE_STATUSES` and how Lumibot handles incomplete broker order-list responses.
+
+## 4.5.34 - 2026-05-26
+
+Deploy marker: 4.5.34 release commit (`deploy 4.5.34`)
 
 ### Changed
 - **AI Investment Committee agents now use explicit role-specific tool surfaces.** Strategies can opt out of automatically adding every built-in tool by passing `include_builtin_tools=False`, letting examples keep research, debate, and trading responsibilities separate.
 - **The AI Investment Committee example now keeps Bull and Bear agents argumentative by default.** The Evidence Researcher gathers the bounded evidence pack, Bull and Bear reason over that handoff without reopening the tool loop, and the Portfolio Manager keeps only portfolio/order/price/memory/notification tools.
 
 ### Fixed
+- **Schwab live order cancellation now calls the broker API.** `Schwab.cancel_order()` now sends the order ID and account hash to `schwab-py` instead of logging an unimplemented-method error, validates missing IDs/setup failures, and dispatches a cancel event after Schwab accepts the cancel.
 - **Cached agent tools preserve their callable signatures.** Provider function declarations for cached read-only tools now retain required arguments, preventing missing-argument failures such as `get_fred_snapshot` without `series_ids` or `get_company_facts` without `symbol`.
 - **AI order tool results are JSON-safe after broker side effects.** UUID-like order identifiers are serialized before reaching the provider runtime, preventing duplicate-order retry paths caused by post-submit JSON serialization errors.
 - **Agent memory search includes append-only event history.** `search_memory` now finds prior thesis, decision, and lesson text even after the current memory projection changes status or text, keeping live observability searchable after updates and closes.

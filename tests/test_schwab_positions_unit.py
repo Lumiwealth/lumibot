@@ -215,6 +215,26 @@ def test_schwab_parse_broker_order_skips_unsupported_only_order_history():
     assert broker._parse_broker_order(order, strategy_name="unit-test") is None
 
 
+def test_schwab_parse_broker_order_skips_unsupported_exercise_order_history():
+    broker = Schwab.__new__(Schwab)
+    order = {
+        "orderId": "exercise-activity",
+        "enteredTime": "2026-05-22T15:30:00+0000",
+        "orderType": "EXERCISE",
+        "status": "FILLED",
+        "orderLegCollection": [
+            {
+                "instruction": "BUY",
+                "quantity": 1,
+                "orderLegType": "OPTION",
+                "instrument": {"symbol": "SPY   260522C00500000"},
+            },
+        ],
+    }
+
+    assert broker._parse_broker_order(order, strategy_name="unit-test") is None
+
+
 def test_schwab_cancel_order_calls_client_with_order_id_then_account_hash():
     client = _CancelClient()
     stream = _Stream()

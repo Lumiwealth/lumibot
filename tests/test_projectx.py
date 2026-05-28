@@ -349,7 +349,7 @@ class TestProjectXBroker:
             (4, "canceled", "Expired (mapped to canceled)"),
             (5, "error", "Rejected (mapped to error)"),
             (6, "new", "Pending/New order"),
-            (7, "partial_filled", "Partially filled"),
+            (7, Order.OrderStatus.PARTIALLY_FILLED, "Partially filled"),
         ]
 
         mock_asset = Asset(symbol="MES", asset_type=Asset.AssetType.CONT_FUTURE)
@@ -417,9 +417,9 @@ class TestProjectXBrokerIntegration:
 
         # Should return converted orders
         assert len(orders) == 2
-        assert orders[0].id == "111"
+        assert orders[0].identifier == "111"
         assert orders[0].status == "open"
-        assert orders[1].id == "222"
+        assert orders[1].identifier == "222"
         assert orders[1].status == "fill"
 
     def test_position_sync_workflow(self, projectx_broker):

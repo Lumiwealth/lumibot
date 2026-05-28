@@ -1,6 +1,16 @@
 # Changelog
 
-## 4.5.35 - Unreleased
+## 4.5.35 - 2026-05-28
+
+Deploy marker: 4.5.35 release commit (`deploy 4.5.35`)
+
+### Fixed
+- **Schwab order refresh now skips unsupported mutual-fund and bond order-history legs.** Schwab accounts with sweep-fund activity such as `MUTUAL_FUND` order legs no longer poison order parsing for supported stock, option, future, forex, and index orders.
+- **Live order accessors now support active-order filtering with broker refresh.** Strategies can call `get_orders(statuses=Order.ACTIVE_STATUSES)` or `get_order(order_id)` to refresh live broker order state before making cancel/hedge decisions.
+- **Broad broker order-list misses no longer create fake local cancels.** If an active local order is missing from a broad broker list, Lumibot now performs a direct broker lookup by order id before updating local state; if that lookup fails, the order remains active with a warning instead of being marked canceled locally.
+
+### Docs
+- **Live order and position refresh guidance documents active-order filters and broker reconciliation safety.** The new docs explain when generated/refined strategies should use `Order.ACTIVE_STATUSES` and how Lumibot handles incomplete broker order-list responses.
 
 ## 4.5.34 - 2026-05-26
 

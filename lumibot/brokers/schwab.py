@@ -47,6 +47,7 @@ class Schwab(Broker):
 
     NAME = "Schwab"
     UNSUPPORTED_ORDER_LEG_TYPES = {"BOND", "MUTUAL_FUND"}
+    UNSUPPORTED_ORDER_TYPES = {"EXERCISE"}
     POLL_EVENT = PollingStream.POLL_EVENT
 
     def __init__(
@@ -786,6 +787,13 @@ class Schwab(Broker):
                 # If we get here and have child orders, return the first one
                 if child_order_objects:
                     return child_order_objects[0]
+            elif response.get("orderType") in self.UNSUPPORTED_ORDER_TYPES:
+                logger.info(colored(
+                    f"Skipping unsupported Schwab order type: {response.get('orderType')} "
+                    f"for order ID: {response.get('orderId', '')}",
+                    "yellow",
+                ))
+                return None
             else:
                 # Process simple order
                 simple_orders = self._parse_simple_order(response, strategy_name)

@@ -1,5 +1,6 @@
 import os
 import time
+from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -48,6 +49,40 @@ def _poll_all_for_order(broker, order_id, strategy_name, *, timeout_seconds=4.0)
         if raw or time.perf_counter() >= deadline:
             return raw, parsed
         time.sleep(0.25)
+
+
+def _select_tsll_call_asset(broker):
+    underlying = Asset("TSLL", asset_type=Asset.AssetType.STOCK)
+    chains = broker.data_source.get_chains(underlying, strike_count=20)
+    call_chains = (chains or {}).get("Chains", {}).get("CALL", {})
+    if not call_chains:
+        pytest.skip("No TSLL call option chain available from Schwab.")
+
+    today = date.today()
+    expirations = sorted(
+        expiration
+        for expiration in call_chains
+        if date.fromisoformat(expiration) >= today
+    )
+    if not expirations:
+        pytest.skip("No future TSLL call expiration available from Schwab.")
+
+    expiration = expirations[0]
+    strikes = call_chains.get(expiration) or []
+    if not strikes:
+        pytest.skip("No TSLL call strikes available from Schwab.")
+
+    quote = broker.data_source.get_quote(underlying)
+    last_price = float(getattr(quote, "price", None) or broker.data_source.get_last_price(underlying))
+    strike = min(strikes, key=lambda value: abs(float(value) - last_price))
+
+    return Asset(
+        "TSLL",
+        asset_type=Asset.AssetType.OPTION,
+        expiration=date.fromisoformat(expiration),
+        strike=float(strike),
+        right="CALL",
+    )
 
 
 def test_schwab_live_submit_read_cancel_refresh(monkeypatch):
@@ -108,6 +143,76 @@ def test_schwab_live_submit_read_cancel_refresh(monkeypatch):
         )
         assert post_cancel_all["status"] in {"CANCELED", "CANCELLED"}
         assert post_cancel_all_parsed.is_canceled()
+    finally:
+        if submitted and submitted.identifier:
+            try:
+                raw = broker._pull_broker_order(submitted.identifier)
+                status = str(raw.get("status", "") if raw else "").upper()
+                if status not in {"CANCELED", "CANCELLED", "FILLED", "REJECTED", "EXPIRED"}:
+                    broker.cancel_order(submitted)
+            except Exception:
+                pass
+
+
+def test_schwab_live_option_modify_read_cancel(monkeypatch):
+    """Places, replaces, reads, and cancels one real TSLL call limit order.
+
+    This is intentionally marked apitest because it uses the real Schwab API.
+    The limit is deliberately far below the selected option's expected market
+    value so the order should rest, then be replaced, then be canceled.
+    """
+
+    broker = _schwab_broker(monkeypatch)
+    strategy_name = "schwab-live-option-modify-apitest"
+    asset = _select_tsll_call_asset(broker)
+    submitted = None
+
+    order = Order(
+        strategy=strategy_name,
+        asset=asset,
+        quantity=1,
+        side=Order.OrderSide.BUY_TO_OPEN,
+        order_type=Order.OrderType.LIMIT,
+        limit_price=0.05,
+        time_in_force="day",
+        tag=strategy_name,
+    )
+
+    try:
+        submitted = broker._submit_order(order)
+        assert submitted is not None
+        assert submitted.identifier
+
+        raw_single = broker._pull_broker_order(submitted.identifier)
+        parsed_single = broker._parse_broker_order(raw_single, strategy_name)
+        assert raw_single is not None
+        assert parsed_single is not None
+        assert parsed_single.identifier == submitted.identifier
+
+        raw_all, parsed_all = _poll_all_for_order(broker, submitted.identifier, strategy_name)
+        assert raw_all is not None
+        assert parsed_all is not None
+        assert parsed_all.identifier == submitted.identifier
+
+        original_id = submitted.identifier
+        broker._modify_order(submitted, limit_price=0.10)
+        assert submitted.identifier
+        assert submitted.identifier != original_id
+        assert original_id in getattr(submitted, "previous_identifiers", [])
+        assert submitted.limit_price == 0.10
+
+        replaced_single = broker._pull_broker_order(submitted.identifier)
+        replaced_parsed = broker._parse_broker_order(replaced_single, strategy_name)
+        assert replaced_single is not None
+        assert replaced_parsed is not None
+        assert replaced_parsed.identifier == submitted.identifier
+
+        broker.cancel_order(submitted)
+
+        post_cancel_single = broker._pull_broker_order(submitted.identifier)
+        post_cancel_parsed = broker._parse_broker_order(post_cancel_single, strategy_name)
+        assert post_cancel_single["status"] in {"CANCELED", "CANCELLED"}
+        assert post_cancel_parsed.is_canceled()
     finally:
         if submitted and submitted.identifier:
             try:

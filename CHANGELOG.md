@@ -1,9 +1,16 @@
 # Changelog
 
-## 4.5.38 - 2026-05-29
+## 4.5.39 - 2026-05-29
 
 ### Fixed
 - **Schwab simple stock and option order replacement now builds broker specs correctly.** `modify_order()` now reuses the same Schwab stock/option order builders used for new submissions instead of calling missing replacement helper methods, and it safely tracks previous order IDs when Schwab returns a replacement ID.
+
+### Tests
+- **Schwab live option replace smoke coverage now exercises the Titus failure path.** The live API test submits a TSLL option limit order, reads it directly and from the active order list, replaces it through Schwab's order-replace endpoint, reads the replacement, cancels it, and confirms the canceled state.
+
+## 4.5.38 - 2026-05-29
+
+Deploy marker: 4.5.38 release commit (`Bump LumiBot to 4.5.38`)
 
 ## 4.5.37 - Unreleased
 

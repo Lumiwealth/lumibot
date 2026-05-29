@@ -1,4 +1,5 @@
 import logging
+from datetime import date
 from threading import RLock
 from types import SimpleNamespace
 
@@ -84,6 +85,30 @@ class _OrderResponse:
         }
 
 
+class _ReplaceResponse:
+    status_code = 201
+    text = ""
+
+    def __init__(self, order_id="replacement-456"):
+        self.headers = {"Location": f"https://api.schwabapi.com/trader/v1/accounts/hash/orders/{order_id}"}
+
+
+class _ReplaceClient:
+    def __init__(self, original_order=None, response=None):
+        self.original_order = original_order if original_order is not None else _option_order_payload()
+        self.response = response if response is not None else _ReplaceResponse()
+        self.get_order_calls = []
+        self.replace_calls = []
+
+    def get_order(self, order_id, account_hash):
+        self.get_order_calls.append((order_id, account_hash))
+        return SimpleNamespace(status_code=200, json=lambda: self.original_order)
+
+    def replace_order(self, account_hash, order_id, order_spec):
+        self.replace_calls.append((account_hash, order_id, order_spec))
+        return self.response
+
+
 class _Stream:
     def __init__(self):
         self.dispatched = []
@@ -144,6 +169,50 @@ def _order(status=Order.OrderStatus.SUBMITTED, identifier="order-123"):
     )
 
 
+def _option_asset():
+    return Asset(
+        "LW",
+        asset_type=Asset.AssetType.OPTION,
+        expiration=date(2026, 5, 29),
+        strike=38.0,
+        right="CALL",
+    )
+
+
+def _option_order_payload(order_id="order-123", status="WORKING"):
+    return {
+        "orderId": order_id,
+        "orderType": "LIMIT",
+        "status": status,
+        "orderLegCollection": [
+            {
+                "instruction": "BUY_TO_OPEN",
+                "quantity": 1,
+                "orderLegType": "OPTION",
+                "instrument": {
+                    "assetType": "OPTION",
+                    "symbol": "LW    260529C00038000",
+                    "putCall": "CALL",
+                    "underlyingSymbol": "LW",
+                },
+            },
+        ],
+    }
+
+
+def _option_order(identifier="order-123", limit_price=4.84):
+    return Order(
+        strategy="unit-test",
+        asset=_option_asset(),
+        quantity=1,
+        side=Order.OrderSide.BUY_TO_OPEN,
+        order_type=Order.OrderType.LIMIT,
+        limit_price=limit_price,
+        identifier=identifier,
+        status=Order.OrderStatus.SUBMITTED,
+    )
+
+
 def test_schwab_pull_positions_preserves_mutual_funds_as_unknown_or_cash_like_records():
     broker = _broker_with_positions(
         [
@@ -159,6 +228,8 @@ def test_schwab_pull_positions_preserves_mutual_funds_as_unknown_or_cash_like_re
     assert by_symbol["SPY"].quantity == 3
     assert by_symbol["SWVXX"].asset.asset_type == Asset.AssetType.UNKNOWN
     assert by_symbol["SWVXX"].raw_asset_type == "MUTUAL_FUND"
+    assert by_symbol["SWVXX"].broker_parse_warning is None
+    assert by_symbol["SWVXX"].broker_parse_degraded is False
 
 
 def test_schwab_pull_positions_preserves_unknown_asset_types_without_losing_supported_assets():
@@ -263,6 +334,44 @@ def test_schwab_parse_simple_order_preserves_unknown_legs_without_dropping_suppo
     assert by_symbol["SPY"].asset.asset_type == Asset.AssetType.STOCK
 
 
+def test_schwab_option_replacement_uses_option_builder_and_updates_identifier():
+    client = _ReplaceClient()
+    broker = Schwab.__new__(Schwab)
+    broker.schwab_authorization_error = False
+    broker.client = client
+    broker.hash_value = "account-hash"
+    order = _option_order()
+
+    broker._modify_order(order, limit_price=4.75)
+
+    assert client.get_order_calls == [("order-123", "account-hash")]
+    assert len(client.replace_calls) == 1
+    account_hash, original_id, replacement_spec = client.replace_calls[0]
+    assert account_hash == "account-hash"
+    assert original_id == "order-123"
+    assert replacement_spec["orderType"] == "LIMIT"
+    assert replacement_spec["price"] == "4.75"
+    assert replacement_spec["duration"] == "DAY"
+    assert replacement_spec["session"] == "NORMAL"
+    assert replacement_spec["orderLegCollection"][0]["instruction"] == "BUY_TO_OPEN"
+    assert replacement_spec["orderLegCollection"][0]["instrument"]["assetType"] == "OPTION"
+    assert replacement_spec["orderLegCollection"][0]["instrument"]["symbol"] == "LW    260529C00038000"
+    assert order.previous_identifiers == ["order-123"]
+    assert order.identifier == "replacement-456"
+    assert order.limit_price == 4.75
+
+
+def test_schwab_prepare_option_replacement_spec_restores_order_on_failure(monkeypatch):
+    broker = Schwab.__new__(Schwab)
+    order = _option_order(limit_price=4.84)
+
+    monkeypatch.setattr(broker, "_build_order_spec_from_builder", lambda *_args, **_kwargs: None)
+
+    assert broker._prepare_option_order_spec(order, limit_price=4.75, tag="replacement") is None
+    assert order.limit_price == 4.84
+    assert order.tag == ""
+
+
 def test_schwab_parse_broker_order_preserves_unknown_only_order_history():
     broker = Schwab.__new__(Schwab)
     order = {
@@ -289,7 +398,7 @@ def test_schwab_parse_broker_order_preserves_unknown_only_order_history():
     assert parsed.status == Order.OrderStatus.FILLED
 
 
-def test_schwab_parse_broker_order_preserves_unknown_exercise_order_history():
+def test_schwab_parse_broker_order_preserves_known_exercise_order_history_without_warning(caplog):
     broker = Schwab.__new__(Schwab)
     order = {
         "orderId": "exercise-activity",
@@ -306,13 +415,15 @@ def test_schwab_parse_broker_order_preserves_unknown_exercise_order_history():
         ],
     }
 
-    parsed = broker._parse_broker_order(order, strategy_name="unit-test")
+    with caplog.at_level(logging.WARNING):
+        parsed = broker._parse_broker_order(order, strategy_name="unit-test")
 
     assert parsed is not None
     assert parsed.identifier == "exercise-activity"
     assert parsed.order_type == Order.OrderType.UNKNOWN
     assert parsed.raw_order_type == "EXERCISE"
     assert parsed.status == Order.OrderStatus.FILLED
+    assert "Unknown Schwab order type 'EXERCISE'" not in caplog.text
 
 
 def test_schwab_parse_simple_order_preserves_unknown_order_type_without_error_logs(caplog):
@@ -600,3 +711,13 @@ def test_schwab_cancel_order_raises_on_http_error_without_marking_canceled():
 
     assert client.cancel_calls == [("order-123", "account-hash")]
     assert order.status == Order.OrderStatus.SUBMITTED
+
+
+def test_schwab_run_stream_without_stream_returns_without_traceback(caplog):
+    broker = Schwab.__new__(Schwab)
+    broker.stream = None
+
+    broker._run_stream()
+
+    assert "skipping stream runner" in caplog.text
+    assert "Traceback" not in caplog.text

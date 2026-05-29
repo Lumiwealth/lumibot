@@ -2,7 +2,7 @@
 
 > Release/deployment workflow for LumiBot (version branches, changelog, tags, and GitHub releases).
 
-**Last Updated:** 2026-05-14
+**Last Updated:** 2026-05-29
 **Status:** Active
 **Audience:** Developers + AI Agents
 
@@ -10,15 +10,16 @@
 
 ## TL;DR (do this in order)
 
-1) **First, make the release branch contain everything safe to ship.** Dirty files, untracked files, and local-only commits are not excuses to skip work. Review them, commit them, test them, push them, and include them in the `version/X.Y.Z` PR unless they are unsafe, secret-bearing, broken, generated junk, or explicitly out of scope.
-2) Get the `version/X.Y.Z` PR **green** after that full inclusion sweep.
-3) Merge latest `dev` into `version/X.Y.Z` and re-check CI (prevents drift / missing commits from other engineers).
-4) Merge the PR into `dev` (no direct pushes to `dev`).
-5) Tag the **merge commit on `dev`** as `vX.Y.Z` (this triggers GitHub Actions to publish to PyPI + create a GitHub Release).
-6) Verify `pip install lumibot==X.Y.Z` works.
-7) **Switch your LOCAL checkout to `version/X.Y.(Z+1)`** after the release. Carry-over is only for work that appeared after the release was tagged/published, or work intentionally excluded because it was unsafe or out of scope. Verify with `git branch --show-current`, `grep version= setup.py`, and `git status --porcelain=v1` before doing anything else. This is NOT optional. There are zero exceptions.
-8) Trigger BotManager deploys (dev then prod) only after step 7 is complete — this takes ~30 minutes and should be the last step.
-9) Post-deploy: run an MCP backtest against prod and assert `settings.json.lumibot_version == "X.Y.Z"`. See step 8.
+1) **Run the release preflight first.** If branch, `setup.py`, `CHANGELOG.md`, tag, or `dev` state is inconsistent, stop. Do not tag. Do not deploy BotManager. Fix the branch first.
+2) **Make the release branch contain everything safe to ship.** Dirty files, untracked files, and local-only commits are not excuses to skip work. Review them, commit them, test them, push them, and include them in the `version/X.Y.Z` PR unless they are unsafe, secret-bearing, broken, generated junk, or explicitly out of scope.
+3) Get the `version/X.Y.Z` PR **green** after that full inclusion sweep.
+4) Merge latest `dev` into `version/X.Y.Z` and re-check CI (prevents drift / missing commits from other engineers).
+5) Merge the PR into `dev` (no direct pushes to `dev`).
+6) Tag the **merge commit on `dev`** as `vX.Y.Z` (this triggers GitHub Actions to publish to PyPI + create a GitHub Release).
+7) Verify `pip install lumibot==X.Y.Z` works.
+8) **Switch your LOCAL checkout to `version/X.Y.(Z+1)`** after the release. Carry-over is only for work that appeared after the release was tagged/published, or work intentionally excluded because it was unsafe or out of scope. Verify with `git branch --show-current`, `grep version= setup.py`, and `git status --porcelain=v1` before doing anything else. This is NOT optional. There are zero exceptions.
+9) Trigger BotManager deploys (dev then prod) only after step 8 is complete — this takes ~30 minutes and should be the last step.
+10) Post-deploy: run an MCP backtest against prod and assert `settings.json.lumibot_version == "X.Y.Z"`. See step 8.
 
 ## The `dev` Branch Is Sacred (CRITICAL)
 
@@ -67,7 +68,66 @@ Release order for tearsheet metric changes:
 - `setup.py` **must** match the version branch name (`X.Y.Z`).
   - When you start a new version branch, bump immediately and commit: `chore: start X.Y.Z`.
   - **Never downgrade** versions. If a bump was wrong, bump forward (and document why).
+- If `setup.py` is ahead of the current branch suffix, stop immediately. Do not keep committing on that stale branch. Create or switch to the matching `version/X.Y.Z` branch, verify it, and push it.
 - After a version branch is merged to `dev`, **immediately start the next version branch** (see Step 7).
+
+## Release Preflight Hard Stop (MANDATORY)
+
+Run this before changing versions, tagging, creating a release, or triggering BotManager deploys:
+
+```bash
+set -e
+
+branch="$(git branch --show-current)"
+setup_version="$(python3 - <<'PY'
+import re
+from pathlib import Path
+text = Path("setup.py").read_text()
+match = re.search(r'version=["\']([^"\']+)["\']', text)
+if not match:
+    raise SystemExit("MISSING setup.py version")
+print(match.group(1))
+PY
+)"
+expected_branch="version/${setup_version}"
+latest_tag="$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)"
+
+echo "branch=${branch}"
+echo "setup.py=${setup_version}"
+echo "expected_branch=${expected_branch}"
+echo "latest_tag=${latest_tag}"
+git fetch origin dev --tags --prune
+git status --porcelain=v1
+
+test "${branch}" = "${expected_branch}" || {
+  echo "ERROR: branch/setup.py mismatch. Switch to ${expected_branch} or fix setup.py before release."
+  exit 1
+}
+
+test -z "$(git status --porcelain=v1)" || {
+  echo "ERROR: dirty or untracked files. Review, commit, or manually remove before release."
+  exit 1
+}
+
+git merge-base --is-ancestor origin/dev HEAD || {
+  echo "ERROR: release branch is not based on origin/dev."
+  exit 1
+}
+
+git log --oneline "origin/${branch}..HEAD"
+```
+
+If this preflight fails, the release is blocked. Do not "just bump setup.py" on the old branch. Do not tag from the old branch. Do not deploy BotManager while this is failing.
+
+Known bad state example:
+
+```text
+branch=version/4.5.37
+setup.py=4.5.40
+expected_branch=version/4.5.40
+```
+
+That state means the checkout is stale. Create or switch to the correct branch before doing anything else.
 
 ---
 
@@ -169,6 +229,7 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
 - Optional: configure the GitHub environment `pypi` to require approvals (human gate).
 
 0) **Preflight: “ship everything safe” + security/hygiene sweep**
+   - Run the mandatory release preflight above. If it fails, stop. Fix branch/version state before release work continues.
    - The release branch must contain every safe change in the checkout before tagging:
      - `git status --porcelain=v1`
      - `git log --oneline origin/version/X.Y.Z..HEAD`
@@ -221,6 +282,10 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
 0) **Sync your local repo**
    - `git switch dev && git pull --ff-only`
    - `git switch version/X.Y.Z && git pull --ff-only`
+   - Confirm branch and package version match:
+     - `git branch --show-current` must print `version/X.Y.Z`.
+     - `grep 'version=' setup.py | head -1` must print `version="X.Y.Z",`.
+     - If these disagree, stop and fix the branch. Do not keep working.
    - Confirm clean tree: `git status --porcelain=v1` (must be empty because all safe local work has already been committed and pushed)
    - **IMPORTANT (multi-agent safety):** ensure *everyone* working on `version/X.Y.Z` has pushed their commits. Do not release while known safe work is stranded in someone else’s clone.
 
@@ -262,6 +327,10 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
    - Why we merge to `dev` *before* tagging: tagging the `dev` merge commit guarantees `dev` includes exactly what shipped,
      and the next `version/*` branch cut from `dev` cannot “miss” released commits.
    - Create an annotated tag `vX.Y.Z` pointing at the *merge commit on `dev`* (or the deploy-marker commit if it was fast-forwarded).
+   - Before tagging, verify you are tagging `dev`, not a stale version branch:
+     - `git branch --show-current` must print `dev`.
+     - `grep 'version=' setup.py | head -1` must print `version="X.Y.Z",`.
+     - `git merge-base --is-ancestor HEAD origin/dev` must pass.
    - Push the tag to GitHub.
    - Let `.github/workflows/release.yml` run:
      - validates tag ↔ `setup.py`,
@@ -344,6 +413,26 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
 
      If any of those three checks is wrong, STOP and fix before proceeding. Do not trigger BotManager deploy on the wrong local branch state.
 
+     If GitHub Actions created the next branch but your local checkout is still on the released branch, fix your local checkout immediately:
+
+     ```bash
+     git fetch origin
+     git switch version/X.Y.(Z+1)
+     git pull --ff-only
+     ```
+
+     If the next branch does not exist, create it from `dev`, not from the released branch:
+
+     ```bash
+     git switch dev
+     git pull --ff-only
+     git switch -c version/X.Y.(Z+1)
+     # bump setup.py and CHANGELOG.md
+     git add setup.py CHANGELOG.md
+     git commit -m "chore: start X.Y.(Z+1)"
+     git push -u origin version/X.Y.(Z+1)
+     ```
+
    6f) **Push** anything you cherry-picked:
 
      ```bash
@@ -415,6 +504,9 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
 - **Version drift (`setup.py` doesn’t match the branch name)** breaks traceability and confuses deployments.
   - Fix: enforce “`setup.py` == `version/X.Y.Z`” as a hard invariant.
   - Never downgrade versions; always bump forward if something went wrong.
+- **Continuing work on a stale version branch after bumping `setup.py` creates fake releases.**
+  - Symptom: the branch says `version/4.5.37`, `setup.py` says `4.5.40`, and tags or BotManager deploys no longer tell you what actually shipped.
+  - Fix: stop immediately, create or switch to the matching branch, push it, and do not tag until that branch is merged back to `dev`.
 - **Publishing to PyPI without pushing the `vX.Y.Z` tag first** breaks traceability.
   - The repo’s release workflow is tag-driven. If the version is already on PyPI, pushing the tag later will
     cause the publish step to fail (PyPI rejects re-uploading the same version), and the GitHub Release step

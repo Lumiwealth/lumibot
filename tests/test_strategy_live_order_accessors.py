@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from threading import RLock
 
 import pytest
@@ -115,13 +116,13 @@ def _strategy():
     return strategy, broker
 
 
-def _order(strategy_name, identifier, status, symbol="SPY"):
+def _order(strategy_name, identifier, status, symbol="SPY", order_type=Order.OrderType.LIMIT):
     return Order(
         strategy=strategy_name,
         asset=Asset(symbol, asset_type=Asset.AssetType.STOCK),
         quantity=1,
         side=Order.OrderSide.BUY,
-        order_type=Order.OrderType.LIMIT,
+        order_type=order_type,
         identifier=identifier,
         status=status,
     )
@@ -229,6 +230,61 @@ def test_live_order_list_miss_without_direct_match_does_not_fake_cancel():
 
     assert refreshed is tracked
     assert refreshed.status == Order.OrderStatus.OPEN
+
+
+def test_live_market_order_list_miss_uses_direct_lookup_before_terminal_update():
+    strategy, broker = _strategy()
+    tracked = _order(
+        strategy.name,
+        "market-1",
+        Order.OrderStatus.OPEN,
+        order_type=Order.OrderType.MARKET,
+    )
+    tracked.created_at = datetime.now() - timedelta(seconds=30)
+    broker._new_orders.append(tracked)
+    broker.broker_orders = [_order(strategy.name, "other-order", Order.OrderStatus.OPEN)]
+    broker.direct_orders["market-1"] = _order(strategy.name, "market-1", Order.OrderStatus.FILLED)
+
+    active_orders = strategy.get_orders(statuses=Order.ACTIVE_STATUSES)
+
+    assert "market-1" not in {order.identifier for order in active_orders}
+    assert tracked.status == Order.OrderStatus.FILLED
+
+
+def test_live_market_order_list_miss_without_direct_match_becomes_non_active_unknown():
+    strategy, broker = _strategy()
+    tracked = _order(
+        strategy.name,
+        "market-1",
+        Order.OrderStatus.OPEN,
+        order_type=Order.OrderType.MARKET,
+    )
+    tracked.created_at = datetime.now() - timedelta(seconds=30)
+    broker._new_orders.append(tracked)
+    broker.broker_orders = [_order(strategy.name, "other-order", Order.OrderStatus.OPEN)]
+
+    active_orders = strategy.get_orders(statuses=Order.ACTIVE_STATUSES)
+
+    assert "market-1" not in {order.identifier for order in active_orders}
+    assert tracked.status == Order.OrderStatus.UNKNOWN
+
+
+def test_live_market_order_list_miss_with_empty_broad_list_is_reconciled():
+    strategy, broker = _strategy()
+    tracked = _order(
+        strategy.name,
+        "market-1",
+        Order.OrderStatus.OPEN,
+        order_type=Order.OrderType.MARKET,
+    )
+    tracked.created_at = datetime.now() - timedelta(seconds=30)
+    broker._new_orders.append(tracked)
+    broker.broker_orders = []
+
+    active_orders = strategy.get_orders(statuses=Order.ACTIVE_STATUSES)
+
+    assert active_orders == []
+    assert tracked.status == Order.OrderStatus.UNKNOWN
 
 
 def test_live_get_positions_refreshes_every_call_by_default():

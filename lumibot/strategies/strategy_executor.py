@@ -364,7 +364,7 @@ class StrategyExecutor(Thread):
         orders_broker = self.broker._pull_all_orders(self.name, self.strategy)
         # Filter out None orders to prevent crashes
         orders_broker = [order for order in orders_broker if order is not None]
-        if len(orders_broker) > 0:
+        if len(orders_broker) > 0 or self.broker.get_all_orders():
             orders_lumi = self.broker.get_all_orders()
 
             # Check orders at the broker against those in lumibot.
@@ -505,20 +505,15 @@ class StrategyExecutor(Thread):
                                 )
                                 continue
                         
-                        # Check if it's a market order that might have filled instantly
-                        if order_lumi.order_type and order_lumi.order_type == Order.OrderType.MARKET:
-                            self.strategy.logger.info(
-                                f"Market order {order_lumi} (id={order_lumi.identifier}) not found in broker, "
-                                f"likely filled instantly - skipping cancel"
-                            )
-                            continue
-                        
                         self.broker._refresh_missing_active_order_from_broker(
                             order_lumi,
                             self.strategy.name,
                             strategy_object=self.strategy,
                             broker_order_count=len(orders_broker),
                             logger_obj=self.strategy.logger,
+                            terminalize_missing=(
+                                order_lumi.order_type and order_lumi.order_type == Order.OrderType.MARKET
+                            ),
                         )
 
         self.broker._invalidate_order_caches()

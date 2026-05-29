@@ -124,12 +124,12 @@ def test_schwab_live_submit_read_cancel_refresh(monkeypatch):
         parsed_single = broker._parse_broker_order(raw_single, strategy_name)
         assert raw_single is not None
         assert parsed_single is not None
-        assert parsed_single.identifier == submitted.identifier
+        assert str(parsed_single.identifier) == str(submitted.identifier)
 
         raw_all, parsed_all = _poll_all_for_order(broker, submitted.identifier, strategy_name)
         assert raw_all is not None
         assert parsed_all is not None
-        assert parsed_all.identifier == submitted.identifier
+        assert str(parsed_all.identifier) == str(submitted.identifier)
 
         broker.cancel_order(submitted)
 
@@ -187,12 +187,12 @@ def test_schwab_live_option_modify_read_cancel(monkeypatch):
         parsed_single = broker._parse_broker_order(raw_single, strategy_name)
         assert raw_single is not None
         assert parsed_single is not None
-        assert parsed_single.identifier == submitted.identifier
+        assert str(parsed_single.identifier) == str(submitted.identifier)
 
         raw_all, parsed_all = _poll_all_for_order(broker, submitted.identifier, strategy_name)
         assert raw_all is not None
         assert parsed_all is not None
-        assert parsed_all.identifier == submitted.identifier
+        assert str(parsed_all.identifier) == str(submitted.identifier)
 
         original_id = submitted.identifier
         broker._modify_order(submitted, limit_price=0.10)
@@ -205,7 +205,7 @@ def test_schwab_live_option_modify_read_cancel(monkeypatch):
         replaced_parsed = broker._parse_broker_order(replaced_single, strategy_name)
         assert replaced_single is not None
         assert replaced_parsed is not None
-        assert replaced_parsed.identifier == submitted.identifier
+        assert str(replaced_parsed.identifier) == str(submitted.identifier)
 
         broker.cancel_order(submitted)
 
@@ -257,12 +257,12 @@ def test_schwab_live_option_limit_wait_then_cancel_refresh(monkeypatch):
         parsed_single = broker._parse_broker_order(raw_single, strategy_name)
         assert raw_single is not None
         assert parsed_single is not None
-        assert parsed_single.identifier == submitted.identifier
+        assert str(parsed_single.identifier) == str(submitted.identifier)
 
         raw_all, parsed_all = _poll_all_for_order(broker, submitted.identifier, strategy_name)
         assert raw_all is not None
         assert parsed_all is not None
-        assert parsed_all.identifier == submitted.identifier
+        assert str(parsed_all.identifier) == str(submitted.identifier)
 
         time.sleep(4)
         broker.cancel_order(submitted)

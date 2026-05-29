@@ -1814,6 +1814,146 @@ class Schwab(Broker):
             logger.error(traceback.format_exc())
             return None
 
+    def _build_order_spec_from_builder(self, order_builder, time_in_force=None):
+        """Apply Schwab defaults and return the final API order spec."""
+        if not order_builder:
+            return None
+
+        try:
+            from schwab.orders.common import Duration, Session
+        except ImportError:
+            logger.error(colored("Failed to import Schwab order enums. Make sure the schwab-py library is installed.", "red"))
+            return None
+
+        try:
+            tif = time_in_force or "day"
+            if tif == "day":
+                order_builder = order_builder.set_duration(Duration.DAY)
+            elif tif == "gtc":
+                order_builder = order_builder.set_duration(Duration.GOOD_TILL_CANCEL)
+            elif tif == "opg":
+                order_builder = order_builder.set_duration(Duration.ON_THE_OPEN)
+            elif tif == "cls":
+                order_builder = order_builder.set_duration(Duration.ON_THE_CLOSE)
+
+            order_builder = order_builder.set_session(Session.NORMAL)
+            order_spec = order_builder.build()
+
+            if "order_spec" in order_spec:
+                order_spec = order_spec["order_spec"]
+
+            return order_spec
+        except Exception as e:
+            logger.error(colored(f"Error building Schwab order specification: {e}", "red"))
+            logger.error(traceback.format_exc())
+            return None
+
+    def _prepare_stock_order_spec(self, order, limit_price=None, stop_price=None, tag=None):
+        """
+        Prepare a Schwab replacement order spec for a stock order.
+
+        Schwab modifies orders by replacing them, so this reuses the same
+        builder path used for new stock submissions and only temporarily applies
+        the requested replacement prices while building the spec.
+        """
+        try:
+            from schwab.orders.equities import (
+                equity_buy_limit,
+                equity_buy_market,
+                equity_buy_to_cover_limit,
+                equity_buy_to_cover_market,
+                equity_sell_limit,
+                equity_sell_market,
+                equity_sell_short_limit,
+                equity_sell_short_market,
+            )
+        except ImportError:
+            logger.error(colored("Failed to import Schwab stock order templates. Make sure the schwab-py library is installed.", "red"))
+            return None
+
+        original_limit_price = order.limit_price
+        original_stop_price = order.stop_price
+        original_tag = order.tag
+
+        try:
+            if limit_price is not None:
+                order.limit_price = limit_price
+            if stop_price is not None:
+                order.stop_price = stop_price
+            if tag is not None:
+                order.tag = tag
+
+            order_builder = self._prepare_stock_order_builder(
+                order,
+                equity_buy_market,
+                equity_buy_limit,
+                equity_sell_market,
+                equity_sell_limit,
+                equity_sell_short_market,
+                equity_sell_short_limit,
+                equity_buy_to_cover_market,
+                equity_buy_to_cover_limit,
+            )
+            return self._build_order_spec_from_builder(order_builder, order.time_in_force)
+        finally:
+            order.limit_price = original_limit_price
+            order.stop_price = original_stop_price
+            order.tag = original_tag
+
+    def _prepare_option_order_spec(self, order, limit_price=None, stop_price=None, tag=None):
+        """
+        Prepare a Schwab replacement order spec for an option order.
+
+        This is the replacement-side equivalent of `_prepare_option_order_builder`.
+        It intentionally uses the same Schwab option templates as new submits so
+        option modify/replace does not drift from normal option order creation.
+        """
+        try:
+            from schwab.orders.options import (
+                OptionSymbol,
+                option_buy_to_close_limit,
+                option_buy_to_close_market,
+                option_buy_to_open_limit,
+                option_buy_to_open_market,
+                option_sell_to_close_limit,
+                option_sell_to_close_market,
+                option_sell_to_open_limit,
+                option_sell_to_open_market,
+            )
+        except ImportError:
+            logger.error(colored("Failed to import Schwab option order templates. Make sure the schwab-py library is installed.", "red"))
+            return None
+
+        original_limit_price = order.limit_price
+        original_stop_price = order.stop_price
+        original_tag = order.tag
+
+        try:
+            if limit_price is not None:
+                order.limit_price = limit_price
+            if stop_price is not None:
+                order.stop_price = stop_price
+            if tag is not None:
+                order.tag = tag
+
+            order_builder = self._prepare_option_order_builder(
+                order,
+                option_buy_to_open_market,
+                option_buy_to_open_limit,
+                option_sell_to_open_market,
+                option_sell_to_open_limit,
+                option_buy_to_close_market,
+                option_buy_to_close_limit,
+                option_sell_to_close_market,
+                option_sell_to_close_limit,
+                OptionSymbol,
+            )
+            return self._build_order_spec_from_builder(order_builder, order.time_in_force)
+        finally:
+            order.limit_price = original_limit_price
+            order.stop_price = original_stop_price
+            order.tag = original_tag
+
     def _prepare_futures_order_builder(self, order, OrderBuilder):
         """
         Prepare the order builder for futures orders using Schwab generic order builder.
@@ -1970,7 +2110,7 @@ class Schwab(Broker):
 
             # Update the order with the new identifier
 
-            order.previous_identifiers = order.previous_identifiers or []
+            order.previous_identifiers = getattr(order, "previous_identifiers", None) or []
             order.previous_identifiers.append(order.identifier)
             order.identifier = new_order_id
             # Update price information
@@ -2018,9 +2158,9 @@ class Schwab(Broker):
 
         # Create the replacement order spec based on asset type
         if order.asset.asset_type == Asset.AssetType.STOCK:
-            return self._prepare_stock_order_spec(order, final_limit_price, tag)
+            return self._prepare_stock_order_spec(order, final_limit_price, final_stop_price, tag)
         elif order.asset.asset_type == Asset.AssetType.OPTION:
-            return self._prepare_option_order_spec(order, final_limit_price, tag)
+            return self._prepare_option_order_spec(order, final_limit_price, final_stop_price, tag)
         else:
             logger.error(colored(f"Asset type {order.asset.asset_type} is not supported for order modification", "red"))
             return None

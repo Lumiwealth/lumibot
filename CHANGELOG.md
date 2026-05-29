@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.5.38 - 2026-05-29
+
+### Fixed
+- **Schwab simple stock and option order replacement now builds broker specs correctly.** `modify_order()` now reuses the same Schwab stock/option order builders used for new submissions instead of calling missing replacement helper methods, and it safely tracks previous order IDs when Schwab returns a replacement ID.
+
 ## 4.5.37 - Unreleased
 
 ## 4.5.36 - Unreleased

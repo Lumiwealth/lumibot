@@ -111,6 +111,14 @@ Use enum status filters for active/open order checks:
 Do not use raw string status filters. For duplicate-order guards, filter by
 active status and by the exact asset or option contract.
 
+Simple stock and single-leg option ``self.modify_order(...)`` calls use Schwab's
+replace-order endpoint. Schwab returns a new broker order id for the replacement;
+LumiBot updates the order object's ``identifier`` and keeps the old id in
+``previous_identifiers``. For timeout logic where the intended behavior is to
+remove the order, prefer ``self.cancel_order(order)`` plus a direct
+``self.get_order(order.identifier)`` confirmation instead of modifying the
+order into a different price.
+
 Schwab account history can include rows that are not ordinary strategy orders,
 such as mutual funds, sweep/cash-equivalent records, bonds, option exercise
 records, or future Schwab asset/order/status values. LumiBot preserves

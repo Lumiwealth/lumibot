@@ -76,13 +76,17 @@ Release order for tearsheet metric changes:
 Run this before changing versions, tagging, creating a release, or triggering BotManager deploys:
 
 ```bash
+set -e
+
 branch="$(git branch --show-current)"
 setup_version="$(python3 - <<'PY'
 import re
 from pathlib import Path
 text = Path("setup.py").read_text()
 match = re.search(r'version=["\']([^"\']+)["\']', text)
-raise SystemExit(match.group(1) if match else "MISSING")
+if not match:
+    raise SystemExit("MISSING setup.py version")
+print(match.group(1))
 PY
 )"
 expected_branch="version/${setup_version}"

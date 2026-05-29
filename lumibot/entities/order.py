@@ -115,6 +115,7 @@ VALID_STATUS = [
     "exercise",
     "exercised",
     "expired",
+    "unknown",
 ]
 STATUS_ALIAS_MAP = {
     "cancelled": "canceled",
@@ -167,6 +168,7 @@ class Order:
         STOP_LIMIT = "stop_limit"
         TRAIL = "trailing_stop"
         SMART_LIMIT = "smart_limit"
+        UNKNOWN = "unknown"
 
     class OrderSide(StrEnum):
         BUY = "buy"
@@ -177,6 +179,7 @@ class Order:
         BUY_TO_CLOSE = "buy_to_close"
         SELL_TO_OPEN = "sell_to_open"
         SELL_TO_CLOSE = "sell_to_close"
+        UNKNOWN = "unknown"
 
     class OrderStatus(StrEnum):
         UNPROCESSED = "unprocessed"
@@ -192,6 +195,7 @@ class Order:
         EXERCISED = "exercised"
         ERROR = "error"
         EXPIRED = "expired"
+        UNKNOWN = "unknown"
 
     ACTIVE_STATUSES = (
         OrderStatus.UNPROCESSED,
@@ -1228,6 +1232,8 @@ class Order:
         """
         # Fast-path: most orders are simple and active; avoid recursively scanning children
         # unless the parent itself is no longer active.
+        if self.status == self.OrderStatus.UNKNOWN:
+            return False
         if not self.is_filled() and not self.is_canceled():
             return True
         if not self.child_orders:

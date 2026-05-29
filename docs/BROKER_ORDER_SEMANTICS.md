@@ -2,7 +2,7 @@
 
 > Notes on live broker behavior that affect backtesting semantics (extended hours, order types, and “market closed / no data” handling).
 
-**Last Updated:** 2026-01-22
+**Last Updated:** 2026-05-28
 **Status:** Active
 **Audience:** Developers, AI Agents
 
@@ -48,6 +48,26 @@ When behavior differs across brokers, we need broker-scoped semantics (or a docu
 ---
 
 ## Broker notes (public sources, summarized)
+
+### Unknown Broker Objects And Refresh Resilience
+
+Live brokers can return account records that LumiBot does not fully understand yet:
+
+- future order types or statuses added by the broker
+- option exercise/account-history rows
+- mutual funds, bonds, sweep funds, cash-equivalent rows, or future asset classes
+- partial rows with fields missing or formatted differently than expected
+
+LumiBot should not fail an entire order, position, or balance refresh because one broker row is unfamiliar. The current policy is:
+
+- Preserve representable unknown orders and positions with `UNKNOWN` enum values.
+- Attach raw broker metadata to the returned entity so the row can be diagnosed later.
+- Warn instead of raising for unknown broker asset/order/status/side values.
+- Skip only truly unrepresentable rows, such as no usable symbol/instrument identifier or non-numeric quantity.
+- If a Schwab position refresh is degraded by skipped rows, update parsed rows but do not remove tracked positions just because they were absent from the partial parse.
+- Never write cash or portfolio value as `0` because a broker balance refresh failed. `get_cash()` and `get_portfolio_value()` return `None` on failed fresh reads and leave cached internal values unchanged.
+
+This policy is intentionally different from order mutation behavior. Submit, cancel, and modify failures still fail loudly. The resilience policy applies to reading/parsing broker state, not hiding failed state-changing requests.
 
 ## Verified behavior table (append-only)
 

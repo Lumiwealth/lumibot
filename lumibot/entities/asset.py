@@ -166,6 +166,7 @@ class Asset:
         CRYPTO = "crypto" # Crypto
         INDEX = "index" # Index
         MULTILEG = "multileg" # Multileg option
+        UNKNOWN = "unknown" # Broker object Lumibot cannot classify yet
 
     class AutoExpiry(StrEnum):
         FRONT_MONTH = "front_month"  # Front month (rolling; determined by broker/data source)

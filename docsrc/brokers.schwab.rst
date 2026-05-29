@@ -72,6 +72,56 @@ Supported functionality
 
 Multi-leg option spreads, advanced orders (OCO/OTO), and futures trades are not yet implemented.
 
+Order and position freshness
+----------------------------
+
+In live trading, LumiBot refreshes broker state before returning from:
+
+* ``self.get_order(order_id)``
+* ``self.get_orders(...)``
+* ``self.get_position(asset)``
+* ``self.get_positions()``
+* ``self.get_cash()``
+* ``self.get_portfolio_value()``
+
+After submitting an order, use direct order lookup when checking that exact
+order:
+
+.. code-block:: python
+
+   submitted = self.submit_order(order)
+   latest = self.get_order(submitted.identifier)
+
+Schwab can expose a just-submitted order through direct lookup before it appears
+in the broad account order list. If your strategy must use ``self.get_orders(...)``
+immediately after submitting, add a short LumiBot sleep first:
+
+.. code-block:: python
+
+   submitted = self.submit_order(order)
+   self.sleep(1, process_pending_orders=True)
+   active_orders = self.get_orders(statuses=Order.ACTIVE_STATUSES)
+
+Use enum status filters for active/open order checks:
+
+.. code-block:: python
+
+   active_orders = self.get_orders(statuses=Order.ACTIVE_STATUSES)
+
+Do not use raw string status filters. For duplicate-order guards, filter by
+active status and by the exact asset or option contract.
+
+Schwab account history can include rows that are not ordinary strategy orders,
+such as mutual funds, sweep/cash-equivalent records, bonds, option exercise
+records, or future Schwab asset/order/status values. LumiBot preserves
+representable unknown Schwab records as ``Asset.AssetType.UNKNOWN``,
+``Order.OrderType.UNKNOWN``, ``Order.OrderSide.UNKNOWN``, or
+``Order.OrderStatus.UNKNOWN`` instead of failing the whole broker refresh.
+
+If Schwab cannot return fresh cash or portfolio value, ``self.get_cash()`` and
+``self.get_portfolio_value()`` return ``None`` and leave cached values unchanged.
+Do not treat ``None`` as zero.
+
 Example ``.env``
 ----------------
 

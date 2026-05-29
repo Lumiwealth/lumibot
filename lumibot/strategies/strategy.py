@@ -1107,7 +1107,7 @@ class Strategy(_Strategy):
         self,
         asset: Union[str, Asset],
         broker_refresh: bool = True,
-        broker_refresh_ttl_seconds: float = 1.0,
+        broker_refresh_ttl_seconds: float = 0.0,
     ):
         """Get a tracked position given an asset for the current
         strategy.
@@ -1264,6 +1264,8 @@ class Strategy(_Strategy):
         """
         Query the broker to get the current portfolio value (cash + net equity). This is a slow,
         expensive call, if you want the fast "last seen" value, use the `self.portfolio_value` property instead.
+        In live trading this forces a fresh broker balance refresh. If the broker cannot return a
+        fresh value, this returns None and leaves the cached portfolio value unchanged.
 
         Parameters
         ----------
@@ -1271,28 +1273,39 @@ class Strategy(_Strategy):
 
         Returns
         -------
-        float
+        float or None
             The current portfolio value, which is the sum of the cash and net equity. This is the total value of your
              account, which is the amount of money you would have if you sold all your assets and closed all your
              positions. For crypto assets, this is the total value of your account in the quote asset (eg. USDT if
-            that is your quote asset).
+            that is your quote asset). Returns None if the live broker refresh fails.
         """
-        self.update_broker_balances(force_update=False)
+        if not self.update_broker_balances(force_update=True):
+            return None
         return self._portfolio_value
 
     def get_cash(self):
         """Get the current cash value in your account.
 
+        In live trading this forces a fresh broker balance refresh. If the broker cannot return a
+        fresh value, this returns None and leaves the cached cash value unchanged.
+
         Parameters
         ----------
         None
 
         Returns
         -------
-        float
-            The current cash value. This is the amount of cash you have in your account, which is the amount of money you can use to buy assets. For crypto assets, this is the amount of the quote asset you have in your account (eg. USDT if that is your quote asset).
+        float or None
+            The current cash value. This is the amount of cash you have in your account, which is the amount of money you can use to buy assets. For crypto assets, this is the amount of the quote asset you have in your account (eg. USDT if that is your quote asset). Returns None if the live broker refresh fails.
         """
-        return self.cash
+        if not self.update_broker_balances(force_update=True):
+            return None
+
+        cash_position = self.get_position(
+            self._quote_asset,
+            broker_refresh=False,
+        )
+        return cash_position.quantity if cash_position else None
 
     def adjust_cash(self, amount: float, reason: str = "manual_adjustment", allow_negative: bool | None = None) -> float:
         """Adjust cash directly during backtesting.
@@ -1384,7 +1397,7 @@ class Strategy(_Strategy):
         self,
         include_cash_positions: bool = False,
         broker_refresh: bool = True,
-        broker_refresh_ttl_seconds: float = 1.0,
+        broker_refresh_ttl_seconds: float = 0.0,
     ):
         """Get all positions for the account.
 
@@ -1487,14 +1500,14 @@ class Strategy(_Strategy):
         self.log_message("Warning: get_tracked_order() is deprecated, please use get_order() instead.")
         return self.get_order(identifier)
 
-    def _refresh_live_orders(self, broker_refresh: bool = True, broker_refresh_ttl_seconds: float = 1.0):
+    def _refresh_live_orders(self, broker_refresh: bool = True, broker_refresh_ttl_seconds: float = 0.0):
         if not broker_refresh or self.broker.IS_BACKTESTING_BROKER:
             return
         refresh_orders = getattr(self.broker, "refresh_orders", None)
         if refresh_orders is not None:
             refresh_orders(self, ttl_seconds=broker_refresh_ttl_seconds)
 
-    def _refresh_live_positions(self, broker_refresh: bool = True, broker_refresh_ttl_seconds: float = 1.0):
+    def _refresh_live_positions(self, broker_refresh: bool = True, broker_refresh_ttl_seconds: float = 0.0):
         if not broker_refresh or self.broker.IS_BACKTESTING_BROKER:
             return
         refresh_positions = getattr(self.broker, "refresh_positions", None)
@@ -1533,8 +1546,13 @@ class Strategy(_Strategy):
             return False
         return order_status in statuses
 
-    def get_order(self, identifier: str, broker_refresh: bool = True, broker_refresh_ttl_seconds: float = 1.0):
+    def get_order(self, identifier: str, broker_refresh: bool = True, broker_refresh_ttl_seconds: float = 0.0):
         """Get a tracked order given an identifier. Check the details of the order including status, etc.
+
+        In live trading this refreshes broker order state before returning by default. Use this
+        direct lookup after submitting an order if you need to verify that same order immediately.
+        Some brokers can expose a just-submitted order through direct order lookup before it appears
+        in broad account order-list endpoints.
 
         Returns
         -------
@@ -1565,9 +1583,18 @@ class Strategy(_Strategy):
         identifiers: list[str] = None,
         statuses=None,
         broker_refresh: bool = True,
-        broker_refresh_ttl_seconds: float = 1.0,
+        broker_refresh_ttl_seconds: float = 0.0,
     ):
         """Get tracked orders, optionally filtered by identifiers and OrderStatus values.
+
+        In live trading this refreshes broker order state before returning by default. For
+        currently active/open orders, use `statuses=Order.ACTIVE_STATUSES`; raw string status
+        filters are rejected to avoid typos and broker-specific wording.
+
+        If you need to verify the exact order immediately after `submit_order(order)`, prefer
+        `self.get_order(order.identifier)`. Broad broker order-list endpoints used by
+        `get_orders(...)` can lag briefly after submit; if broad-list logic must run immediately
+        after submit, use a short `self.sleep(..., process_pending_orders=True)` first.
 
         Parameters
         ----------

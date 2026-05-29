@@ -1087,6 +1087,11 @@ class _Strategy:
 
             if broker_balances is not None:
                 cash, position_value, portfolio_value = broker_balances
+                if cash is None or position_value is None or portfolio_value is None:
+                    self.logger.warning(
+                        "Broker returned incomplete balances; leaving cached cash and portfolio values unchanged."
+                    )
+                    return False
 
                 # Update cash position instead of setting _cash directly
                 self._set_cash_position(cash)

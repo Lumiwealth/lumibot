@@ -1,10 +1,13 @@
+import logging
+from threading import RLock
 from types import SimpleNamespace
 
 import pytest
 
 from lumibot.brokers.broker import LumibotBrokerAPIError
 from lumibot.brokers.schwab import Schwab
-from lumibot.entities import Asset, Order
+from lumibot.entities import Asset, Order, Position
+from lumibot.trading_builtins import SafeList
 
 
 class _Response:
@@ -51,6 +54,36 @@ class _CancelClient:
         return self.response
 
 
+class _OrderClient:
+    def __init__(self, response=None):
+        self.response = response if response is not None else _OrderResponse()
+        self.get_order_calls = []
+
+    def get_order(self, order_id, account_hash):
+        self.get_order_calls.append((order_id, account_hash))
+        return self.response
+
+
+class _OrderResponse:
+    status_code = 200
+    text = "OK"
+
+    def json(self):
+        return {
+            "orderId": "order-123",
+            "orderType": "LIMIT",
+            "status": "WORKING",
+            "orderLegCollection": [
+                {
+                    "instruction": "BUY",
+                    "quantity": 1,
+                    "orderLegType": "EQUITY",
+                    "instrument": {"symbol": "SPY"},
+                },
+            ],
+        }
+
+
 class _Stream:
     def __init__(self):
         self.dispatched = []
@@ -91,6 +124,14 @@ def _broker_for_cancel(client=None, stream=None):
     return broker
 
 
+def _broker_for_order_pull(client=None):
+    broker = Schwab.__new__(Schwab)
+    broker.schwab_authorization_error = False
+    broker.client = client if client is not None else _OrderClient()
+    broker.hash_value = "account-hash"
+    return broker
+
+
 def _order(status=Order.OrderStatus.SUBMITTED, identifier="order-123"):
     return Order(
         strategy="unit-test",
@@ -103,7 +144,7 @@ def _order(status=Order.OrderStatus.SUBMITTED, identifier="order-123"):
     )
 
 
-def test_schwab_pull_positions_skips_unsupported_mutual_funds():
+def test_schwab_pull_positions_preserves_mutual_funds_as_unknown_or_cash_like_records():
     broker = _broker_with_positions(
         [
             _position("MUTUAL_FUND", "SWVXX", quantity=10),
@@ -113,13 +154,14 @@ def test_schwab_pull_positions_skips_unsupported_mutual_funds():
 
     positions = broker._pull_positions(SimpleNamespace(name="unit-test"))
 
-    assert len(positions) == 1
-    assert positions[0].asset.symbol == "SPY"
-    assert positions[0].asset.asset_type == Asset.AssetType.STOCK
-    assert positions[0].quantity == 3
+    by_symbol = {position.asset.symbol: position for position in positions}
+    assert by_symbol["SPY"].asset.asset_type == Asset.AssetType.STOCK
+    assert by_symbol["SPY"].quantity == 3
+    assert by_symbol["SWVXX"].asset.asset_type == Asset.AssetType.UNKNOWN
+    assert by_symbol["SWVXX"].raw_asset_type == "MUTUAL_FUND"
 
 
-def test_schwab_pull_positions_skips_unsupported_and_unknown_asset_types_without_losing_supported_assets():
+def test_schwab_pull_positions_preserves_unknown_asset_types_without_losing_supported_assets():
     broker = _broker_with_positions(
         [
             _position("MUTUAL_FUND", "SWVXX", quantity=10),
@@ -146,6 +188,8 @@ def test_schwab_pull_positions_skips_unsupported_and_unknown_asset_types_without
     assert ("SWVXX", Asset.AssetType.FOREX) in by_symbol_and_type
     assert ("CASH", Asset.AssetType.FOREX) in by_symbol_and_type
     assert ("/ES", Asset.AssetType.FUTURE) in by_symbol_and_type
+    assert ("912797LG9", Asset.AssetType.UNKNOWN) in by_symbol_and_type
+    assert ("MYSTERY", Asset.AssetType.UNKNOWN) in by_symbol_and_type
 
     option_positions = [
         position
@@ -156,14 +200,36 @@ def test_schwab_pull_positions_skips_unsupported_and_unknown_asset_types_without
     assert option_positions[0].asset.symbol == "SPY"
     assert option_positions[0].asset.strike == 500.0
 
-    returned_symbols = {position.asset.symbol for position in positions}
-    assert "912797LG9" not in returned_symbols
-    assert "MYSTERY" not in returned_symbols
-    # Mutual funds are intentionally not tracked as stock-like assets.
-    assert ("SWVXX", Asset.AssetType.STOCK) not in by_symbol_and_type
+    assert by_symbol_and_type[("MYSTERY", Asset.AssetType.UNKNOWN)].raw_asset_type == "UNRECOGNIZED_NEW_TYPE"
 
 
-def test_schwab_parse_simple_order_skips_unsupported_order_leg_types_without_dropping_supported_legs():
+def test_schwab_pull_positions_skips_malformed_quantity_without_losing_supported_assets(caplog):
+    broker = _broker_with_positions(
+        [
+            {
+                "instrument": {
+                    "assetType": "EQUITY",
+                    "symbol": "BROKEN",
+                },
+                "longQuantity": "not-a-number",
+                "shortQuantity": 0,
+                "averagePrice": 1.0,
+                "marketValue": 1.0,
+            },
+            _position("EQUITY", "SPY", quantity=3),
+        ]
+    )
+
+    with caplog.at_level(logging.WARNING):
+        positions = broker._pull_positions(SimpleNamespace(name="unit-test"))
+
+    assert len(positions) == 1
+    assert positions[0].asset.symbol == "SPY"
+    assert positions[0].quantity == 3
+    assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
+
+
+def test_schwab_parse_simple_order_preserves_unknown_legs_without_dropping_supported_legs():
     broker = Schwab.__new__(Schwab)
     order = {
         "orderId": "12345",
@@ -188,14 +254,16 @@ def test_schwab_parse_simple_order_skips_unsupported_order_leg_types_without_dro
 
     parsed = broker._parse_simple_order(order, strategy_name="unit-test")
 
-    assert len(parsed) == 1
-    assert parsed[0].identifier == "12345"
-    assert parsed[0].side == Order.OrderSide.BUY
-    assert parsed[0].asset.symbol == "SPY"
-    assert parsed[0].asset.asset_type == Asset.AssetType.STOCK
+    assert len(parsed) == 2
+    by_symbol = {order.asset.symbol: order for order in parsed}
+    assert by_symbol["SWVXX"].asset.asset_type == Asset.AssetType.UNKNOWN
+    assert by_symbol["SWVXX"].raw_asset_type == "MUTUAL_FUND"
+    assert by_symbol["SPY"].identifier == "12345"
+    assert by_symbol["SPY"].side == Order.OrderSide.BUY
+    assert by_symbol["SPY"].asset.asset_type == Asset.AssetType.STOCK
 
 
-def test_schwab_parse_broker_order_skips_unsupported_only_order_history():
+def test_schwab_parse_broker_order_preserves_unknown_only_order_history():
     broker = Schwab.__new__(Schwab)
     order = {
         "orderId": "mutual-fund-activity",
@@ -212,10 +280,16 @@ def test_schwab_parse_broker_order_skips_unsupported_only_order_history():
         ],
     }
 
-    assert broker._parse_broker_order(order, strategy_name="unit-test") is None
+    parsed = broker._parse_broker_order(order, strategy_name="unit-test")
+
+    assert parsed is not None
+    assert parsed.identifier == "mutual-fund-activity"
+    assert parsed.asset.symbol == "SWVXX"
+    assert parsed.asset.asset_type == Asset.AssetType.UNKNOWN
+    assert parsed.status == Order.OrderStatus.FILLED
 
 
-def test_schwab_parse_broker_order_skips_unsupported_exercise_order_history():
+def test_schwab_parse_broker_order_preserves_unknown_exercise_order_history():
     broker = Schwab.__new__(Schwab)
     order = {
         "orderId": "exercise-activity",
@@ -232,7 +306,233 @@ def test_schwab_parse_broker_order_skips_unsupported_exercise_order_history():
         ],
     }
 
-    assert broker._parse_broker_order(order, strategy_name="unit-test") is None
+    parsed = broker._parse_broker_order(order, strategy_name="unit-test")
+
+    assert parsed is not None
+    assert parsed.identifier == "exercise-activity"
+    assert parsed.order_type == Order.OrderType.UNKNOWN
+    assert parsed.raw_order_type == "EXERCISE"
+    assert parsed.status == Order.OrderStatus.FILLED
+
+
+def test_schwab_parse_simple_order_preserves_unknown_order_type_without_error_logs(caplog):
+    broker = Schwab.__new__(Schwab)
+    order = {
+        "orderId": "unknown-history",
+        "enteredTime": "2026-05-22T15:30:00+0000",
+        "orderType": "SOMETHING_SCHWAB_ADDED",
+        "status": "FILLED",
+        "orderLegCollection": [
+            {
+                "instruction": "BUY",
+                "quantity": 1,
+                "orderLegType": "OPTION",
+                "instrument": {"symbol": "SPY   260522C00500000"},
+            },
+        ],
+    }
+
+    with caplog.at_level(logging.WARNING):
+        parsed = broker._parse_simple_order(order, strategy_name="unit-test")
+
+    assert len(parsed) == 1
+    assert parsed[0].order_type == Order.OrderType.UNKNOWN
+    assert parsed[0].raw_order_type == "SOMETHING_SCHWAB_ADDED"
+    assert parsed[0].status == Order.OrderStatus.FILLED
+    assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
+
+
+def test_schwab_parse_broker_order_preserves_child_exercise_without_error_logs(caplog):
+    broker = Schwab.__new__(Schwab)
+    order = {
+        "orderId": "parent-history",
+        "orderStrategyType": "TRIGGER",
+        "childOrderStrategies": [
+            {
+                "orderId": "child-exercise",
+                "enteredTime": "2026-05-22T15:30:00+0000",
+                "orderType": "EXERCISE",
+                "status": "FILLED",
+                "orderLegCollection": [
+                    {
+                        "instruction": "BUY",
+                        "quantity": 1,
+                        "orderLegType": "OPTION",
+                        "instrument": {"symbol": "SPY   260522C00500000"},
+                    },
+                ],
+            },
+        ],
+    }
+
+    with caplog.at_level(logging.WARNING):
+        parsed = broker._parse_broker_order(order, strategy_name="unit-test")
+
+    assert parsed is not None
+    assert parsed.identifier == "child-exercise"
+    assert parsed.order_type == Order.OrderType.UNKNOWN
+    assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
+
+
+def test_schwab_parse_broker_order_keeps_supported_child_when_sibling_is_unknown_history():
+    broker = Schwab.__new__(Schwab)
+    order = {
+        "orderId": "parent-mixed",
+        "orderStrategyType": "TRIGGER",
+        "childOrderStrategies": [
+            {
+                "orderId": "child-unknown-history",
+                "enteredTime": "2026-05-22T15:30:00+0000",
+                "orderType": "SOMETHING_SCHWAB_ADDED",
+                "status": "FILLED",
+                "orderLegCollection": [
+                    {
+                        "instruction": "BUY",
+                        "quantity": 1,
+                        "orderLegType": "OPTION",
+                        "instrument": {"symbol": "SPY   260522C00500000"},
+                    },
+                ],
+            },
+            {
+                "orderId": "child-supported",
+                "enteredTime": "2026-05-22T15:30:00+0000",
+                "orderType": "LIMIT",
+                "status": "WORKING",
+                "price": 500.0,
+                "orderLegCollection": [
+                    {
+                        "instruction": "BUY",
+                        "quantity": 1,
+                        "orderLegType": "EQUITY",
+                        "instrument": {"symbol": "SPY"},
+                    },
+                ],
+            },
+        ],
+    }
+
+    parsed = broker._parse_broker_order(order, strategy_name="unit-test")
+
+    assert parsed is not None
+    assert parsed.identifier == "child-supported"
+    assert parsed.asset.symbol == "SPY"
+
+
+def test_schwab_parse_broker_order_preserves_unsupported_mutual_fund_without_error_logs(caplog):
+    broker = Schwab.__new__(Schwab)
+    order = {
+        "orderId": "mutual-fund-activity",
+        "enteredTime": "2026-05-22T15:30:00+0000",
+        "orderType": "MARKET",
+        "status": "FILLED",
+        "orderLegCollection": [
+            {
+                "instruction": "SELL",
+                "quantity": 10,
+                "orderLegType": "MUTUAL_FUND",
+                "instrument": {"symbol": "SWVXX"},
+            },
+        ],
+    }
+
+    with caplog.at_level(logging.WARNING):
+        parsed = broker._parse_broker_order(order, strategy_name="unit-test")
+
+    assert parsed is not None
+    assert parsed.asset.symbol == "SWVXX"
+    assert parsed.asset.asset_type == Asset.AssetType.UNKNOWN
+    assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
+
+
+def test_schwab_unknown_active_order_type_with_working_status_matches_active_filter():
+    broker = Schwab.__new__(Schwab)
+    order = {
+        "orderId": "unknown-active",
+        "enteredTime": "2026-05-22T15:30:00+0000",
+        "orderType": "FUTURE_SCHWAB_TYPE",
+        "status": "WORKING",
+        "orderLegCollection": [
+            {
+                "instruction": "BUY",
+                "quantity": 1,
+                "orderLegType": "FUTURE_SCHWAB_ASSET",
+                "instrument": {"symbol": "MYSTERY"},
+            },
+        ],
+    }
+
+    parsed = broker._parse_broker_order(order, strategy_name="unit-test")
+
+    assert parsed.status == Order.OrderStatus.NEW
+    assert parsed.order_type == Order.OrderType.UNKNOWN
+    assert parsed.asset.asset_type == Asset.AssetType.UNKNOWN
+    assert Order.OrderStatus(parsed.status) in Order.ACTIVE_STATUSES
+
+
+def test_schwab_unknown_status_is_returned_but_not_active():
+    broker = Schwab.__new__(Schwab)
+    order = {
+        "orderId": "unknown-status",
+        "enteredTime": "2026-05-22T15:30:00+0000",
+        "orderType": "LIMIT",
+        "status": "SCHWAB_FUTURE_STATUS",
+        "orderLegCollection": [
+            {
+                "instruction": "BUY",
+                "quantity": 1,
+                "orderLegType": "EQUITY",
+                "instrument": {"symbol": "SPY"},
+            },
+        ],
+    }
+
+    parsed = broker._parse_broker_order(order, strategy_name="unit-test")
+
+    assert parsed is not None
+    assert parsed.status == Order.OrderStatus.UNKNOWN
+    assert not parsed.is_active()
+
+
+def test_schwab_degraded_position_sync_does_not_remove_missing_tracked_positions():
+    broker = _broker_with_positions(
+        [
+            {
+                "instrument": {"assetType": "EQUITY", "symbol": "BROKEN"},
+                "longQuantity": "not-a-number",
+                "shortQuantity": 0,
+            },
+            _position("EQUITY", "SPY", quantity=3),
+        ]
+    )
+    broker._lock = RLock()
+    broker._filled_positions = SafeList(broker._lock)
+    broker._tracked_positions_cache = {}
+    broker.quote_assets = []
+    stale_asset = Asset("OLD", asset_type=Asset.AssetType.STOCK)
+    broker._filled_positions.append(Position("unit-test", stale_asset, 5))
+
+    broker.sync_positions(SimpleNamespace(name="unit-test"))
+
+    symbols = {position.asset.symbol for position in broker._filled_positions.get_list()}
+    assert "OLD" in symbols
+    assert "SPY" in symbols
+
+
+def test_schwab_complete_position_sync_removes_missing_tracked_positions():
+    broker = _broker_with_positions([_position("EQUITY", "SPY", quantity=3)])
+    broker._lock = RLock()
+    broker._filled_positions = SafeList(broker._lock)
+    broker._tracked_positions_cache = {}
+    broker.quote_assets = []
+    stale_asset = Asset("OLD", asset_type=Asset.AssetType.STOCK)
+    broker._filled_positions.append(Position("unit-test", stale_asset, 5))
+
+    broker.sync_positions(SimpleNamespace(name="unit-test"))
+
+    symbols = {position.asset.symbol for position in broker._filled_positions.get_list()}
+    assert "OLD" not in symbols
+    assert "SPY" in symbols
 
 
 def test_schwab_cancel_order_calls_client_with_order_id_then_account_hash():
@@ -247,6 +547,16 @@ def test_schwab_cancel_order_calls_client_with_order_id_then_account_hash():
     assert stream.dispatched == [
         (broker.CANCELED_ORDER, True, {"order": order}),
     ]
+
+
+def test_schwab_pull_broker_order_calls_client_with_order_id_then_account_hash():
+    client = _OrderClient()
+    broker = _broker_for_order_pull(client=client)
+
+    raw = broker._pull_broker_order("order-123")
+
+    assert client.get_order_calls == [("order-123", "account-hash")]
+    assert raw["orderId"] == "order-123"
 
 
 def test_schwab_cancel_order_marks_canceled_without_stream_after_success():

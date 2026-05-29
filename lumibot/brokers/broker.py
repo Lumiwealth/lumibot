@@ -886,7 +886,7 @@ class Broker(ABC):
             if not found and (position.asset not in self.quote_assets):
                 self._filled_positions.remove(position)
 
-    def refresh_positions(self, strategy, ttl_seconds: float = 1.0):
+    def refresh_positions(self, strategy, ttl_seconds: float = 0.0):
         """Refresh live broker positions with a short throttle.
 
         Backtesting brokers are deterministic and should not perform live broker
@@ -1116,7 +1116,7 @@ class Broker(ABC):
         if changed:
             self._invalidate_order_caches()
 
-    def refresh_orders(self, strategy, ttl_seconds: float = 1.0):
+    def refresh_orders(self, strategy, ttl_seconds: float = 0.0):
         """Refresh live broker orders with a short throttle."""
         if self.IS_BACKTESTING_BROKER:
             return

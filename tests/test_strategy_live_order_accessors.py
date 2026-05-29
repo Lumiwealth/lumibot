@@ -44,6 +44,8 @@ class _LiveBroker(Broker):
         self.broker_positions = []
         self.order_pull_count = 0
         self.position_pull_count = 0
+        self.balance_pull_count = 0
+        self.broker_balances = (100000.0, {}, 100000.0)
 
     def is_market_open(self):
         return True
@@ -61,7 +63,8 @@ class _LiveBroker(Broker):
         return order
 
     def _get_balances_at_broker(self, quote_asset, strategy):
-        return 100000.0, {}, 100000.0
+        self.balance_pull_count += 1
+        return self.broker_balances
 
     def get_historical_account_value(self):
         return {}
@@ -165,7 +168,7 @@ def test_partially_filled_alias_maps_to_partial_fill_status():
     assert order.status == Order.OrderStatus.PARTIALLY_FILLED
 
 
-def test_live_get_orders_refreshes_once_per_ttl_and_ignores_stale_terminal_history():
+def test_live_get_orders_refreshes_every_call_by_default_and_ignores_stale_terminal_history():
     strategy, broker = _strategy()
     broker.broker_orders = [
         _order(strategy.name, "old-filled", Order.OrderStatus.FILLED),
@@ -177,6 +180,16 @@ def test_live_get_orders_refreshes_once_per_ttl_and_ignores_stale_terminal_histo
 
     assert [order.identifier for order in first] == ["live-open"]
     assert [order.identifier for order in second] == ["live-open"]
+    assert broker.order_pull_count == 2
+
+
+def test_live_get_orders_can_still_use_explicit_ttl():
+    strategy, broker = _strategy()
+    broker.broker_orders = [_order(strategy.name, "live-open", Order.OrderStatus.OPEN)]
+
+    strategy.get_orders(statuses=Order.ACTIVE_STATUSES, broker_refresh_ttl_seconds=1.0)
+    strategy.get_orders(statuses=Order.ACTIVE_STATUSES, broker_refresh_ttl_seconds=1.0)
+
     assert broker.order_pull_count == 1
 
 
@@ -218,7 +231,7 @@ def test_live_order_list_miss_without_direct_match_does_not_fake_cancel():
     assert refreshed.status == Order.OrderStatus.OPEN
 
 
-def test_live_get_positions_refreshes_once_per_ttl():
+def test_live_get_positions_refreshes_every_call_by_default():
     strategy, broker = _strategy()
     asset = Asset("SPY", asset_type=Asset.AssetType.STOCK)
     broker.broker_positions = [Position(strategy.name, asset, 3)]
@@ -228,4 +241,40 @@ def test_live_get_positions_refreshes_once_per_ttl():
 
     assert position.quantity == 3
     assert [item.asset for item in positions] == [asset]
+    assert broker.position_pull_count == 2
+
+
+def test_live_get_positions_can_still_use_explicit_ttl():
+    strategy, broker = _strategy()
+    asset = Asset("SPY", asset_type=Asset.AssetType.STOCK)
+    broker.broker_positions = [Position(strategy.name, asset, 3)]
+
+    strategy.get_position(asset, broker_refresh_ttl_seconds=1.0)
+    strategy.get_positions(broker_refresh_ttl_seconds=1.0)
+
     assert broker.position_pull_count == 1
+
+
+def test_get_cash_and_portfolio_value_force_fresh_balance_reads():
+    strategy, broker = _strategy()
+    broker.broker_balances = (1234.0, 100.0, 1334.0)
+
+    broker.balance_pull_count = 0
+    assert strategy.get_cash() == 1234.0
+    after_cash = broker.balance_pull_count
+    assert strategy.get_portfolio_value() == 1334.0
+    assert after_cash >= 1
+    assert broker.balance_pull_count > after_cash
+
+
+def test_get_cash_and_portfolio_value_return_none_without_overwriting_cached_values():
+    strategy, broker = _strategy()
+    broker.broker_balances = (5000.0, 100.0, 5100.0)
+    assert strategy.get_cash() == 5000.0
+    assert strategy.get_portfolio_value() == 5100.0
+
+    broker.broker_balances = None
+    assert strategy.get_cash() is None
+    assert strategy.get_portfolio_value() is None
+    assert strategy.cash == 5000.0
+    assert strategy.portfolio_value == 5100.0

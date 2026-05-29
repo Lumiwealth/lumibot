@@ -337,9 +337,9 @@ class StrategyExecutor(Thread):
                 else:
                     self.strategy.logger.info(
                         f"Unable to get the cash balance after {cash_broker_max_retries} "
-                        f"tries, setting cash to zero."
+                        f"tries; leaving last known cash and portfolio values unchanged."
                     )
-                    broker_balances = 0
+                    break
             else:
                 cash_balance = broker_balances[0]
                 portfolio_value = broker_balances[2]

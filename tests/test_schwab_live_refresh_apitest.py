@@ -222,3 +222,77 @@ def test_schwab_live_option_modify_read_cancel(monkeypatch):
                     broker.cancel_order(submitted)
             except Exception:
                 pass
+
+
+def test_schwab_live_option_limit_wait_then_cancel_refresh(monkeypatch):
+    """Places a safe option limit order, waits, cancels, and confirms Schwab state.
+
+    This covers the Titus-style path where strategy code submits an option limit
+    order, gives Schwab a short window to fill it, then cancels if it is still
+    open. The low limit is intended to rest instead of filling.
+    """
+
+    broker = _schwab_broker(monkeypatch)
+    strategy_name = "schwab-live-option-timeout-cancel-apitest"
+    asset = _select_tsll_call_asset(broker)
+    submitted = None
+
+    order = Order(
+        strategy=strategy_name,
+        asset=asset,
+        quantity=1,
+        side=Order.OrderSide.BUY_TO_OPEN,
+        order_type=Order.OrderType.LIMIT,
+        limit_price=0.05,
+        time_in_force="day",
+        tag=strategy_name,
+    )
+
+    try:
+        submitted = broker._submit_order(order)
+        assert submitted is not None
+        assert submitted.identifier
+
+        raw_single = broker._pull_broker_order(submitted.identifier)
+        parsed_single = broker._parse_broker_order(raw_single, strategy_name)
+        assert raw_single is not None
+        assert parsed_single is not None
+        assert parsed_single.identifier == submitted.identifier
+
+        raw_all, parsed_all = _poll_all_for_order(broker, submitted.identifier, strategy_name)
+        assert raw_all is not None
+        assert parsed_all is not None
+        assert parsed_all.identifier == submitted.identifier
+
+        time.sleep(4)
+        broker.cancel_order(submitted)
+
+        deadline = time.perf_counter() + 8
+        post_cancel_single = None
+        post_cancel_parsed = None
+        while time.perf_counter() < deadline:
+            post_cancel_single = broker._pull_broker_order(submitted.identifier)
+            post_cancel_parsed = broker._parse_broker_order(post_cancel_single, strategy_name)
+            if post_cancel_parsed and post_cancel_parsed.is_canceled():
+                break
+            time.sleep(0.5)
+
+        assert post_cancel_single is not None
+        assert post_cancel_parsed is not None
+        assert post_cancel_parsed.is_canceled()
+
+        post_cancel_all, post_cancel_all_parsed = _poll_all_for_order(
+            broker, submitted.identifier, strategy_name
+        )
+        assert post_cancel_all is not None
+        assert post_cancel_all_parsed is not None
+        assert post_cancel_all_parsed.is_canceled()
+    finally:
+        if submitted and submitted.identifier:
+            try:
+                raw = broker._pull_broker_order(submitted.identifier)
+                status = str(raw.get("status", "") if raw else "").upper()
+                if status not in {"CANCELED", "CANCELLED", "FILLED", "REJECTED", "EXPIRED"}:
+                    broker.cancel_order(submitted)
+            except Exception:
+                pass

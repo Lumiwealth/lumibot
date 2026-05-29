@@ -2,6 +2,8 @@
 
 ## 4.5.40 - 2026-05-29
 
+Deploy marker: `deploy 4.5.40`
+
 ### Fixed
 - **Schwab market-order reconciliation no longer leaves missing live hedge orders active forever.** Active local market orders missing from Schwab's broad order list now go through direct broker lookup like other active orders; if the broker still returns no order after the existing new-order grace window, Lumibot marks the local order `UNKNOWN` and non-active instead of letting it block future active-order checks.
 - **Schwab simple stock and option order replacement now builds broker specs correctly.** `modify_order()` now reuses the same Schwab stock/option order builders used for new submissions instead of calling missing replacement helper methods, and it safely tracks previous order IDs when Schwab returns a replacement ID.

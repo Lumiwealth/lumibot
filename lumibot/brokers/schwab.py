@@ -1315,15 +1315,14 @@ class Schwab(Broker):
                 logger.error(traceback.format_exc())
 
     def _run_stream(self):
+        stream = getattr(self, "stream", None)
+        if not stream:
+            logger.warning(colored("Schwab stream object not initialized, skipping stream runner.", "yellow"))
+            return
         self._stream_established()
         try:
-            # Add check to ensure self.stream is initialized
-            if self.stream:
-                logger.info(colored("Starting Schwab stream...", "green"))
-                self.stream._run()
-            else:
-                # Log that the stream object wasn't created, likely due to init failure
-                logger.error(colored("Schwab stream object not initialized, cannot run stream.", "red"))
+            logger.info(colored("Starting Schwab stream...", "green"))
+            stream._run()
         except Exception as e:
             logger.error(f"Error running Schwab stream: {e}")
             logger.error(traceback.format_exc())

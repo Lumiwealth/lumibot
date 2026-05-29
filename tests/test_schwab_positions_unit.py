@@ -600,3 +600,13 @@ def test_schwab_cancel_order_raises_on_http_error_without_marking_canceled():
 
     assert client.cancel_calls == [("order-123", "account-hash")]
     assert order.status == Order.OrderStatus.SUBMITTED
+
+
+def test_schwab_run_stream_without_stream_returns_without_traceback(caplog):
+    broker = Schwab.__new__(Schwab)
+    broker.stream = None
+
+    broker._run_stream()
+
+    assert "skipping stream runner" in caplog.text
+    assert "Traceback" not in caplog.text

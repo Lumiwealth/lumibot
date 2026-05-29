@@ -228,6 +228,8 @@ def test_schwab_pull_positions_preserves_mutual_funds_as_unknown_or_cash_like_re
     assert by_symbol["SPY"].quantity == 3
     assert by_symbol["SWVXX"].asset.asset_type == Asset.AssetType.UNKNOWN
     assert by_symbol["SWVXX"].raw_asset_type == "MUTUAL_FUND"
+    assert by_symbol["SWVXX"].broker_parse_warning is None
+    assert by_symbol["SWVXX"].broker_parse_degraded is False
 
 
 def test_schwab_pull_positions_preserves_unknown_asset_types_without_losing_supported_assets():
@@ -396,7 +398,7 @@ def test_schwab_parse_broker_order_preserves_unknown_only_order_history():
     assert parsed.status == Order.OrderStatus.FILLED
 
 
-def test_schwab_parse_broker_order_preserves_unknown_exercise_order_history():
+def test_schwab_parse_broker_order_preserves_known_exercise_order_history_without_warning(caplog):
     broker = Schwab.__new__(Schwab)
     order = {
         "orderId": "exercise-activity",
@@ -413,13 +415,15 @@ def test_schwab_parse_broker_order_preserves_unknown_exercise_order_history():
         ],
     }
 
-    parsed = broker._parse_broker_order(order, strategy_name="unit-test")
+    with caplog.at_level(logging.WARNING):
+        parsed = broker._parse_broker_order(order, strategy_name="unit-test")
 
     assert parsed is not None
     assert parsed.identifier == "exercise-activity"
     assert parsed.order_type == Order.OrderType.UNKNOWN
     assert parsed.raw_order_type == "EXERCISE"
     assert parsed.status == Order.OrderStatus.FILLED
+    assert "Unknown Schwab order type 'EXERCISE'" not in caplog.text
 
 
 def test_schwab_parse_simple_order_preserves_unknown_order_type_without_error_logs(caplog):

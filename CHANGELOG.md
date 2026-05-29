@@ -1,12 +1,19 @@
 # Changelog
 
-## 4.5.39 - 2026-05-29
+## 4.5.40 - 2026-05-29
 
 ### Fixed
+- **Schwab market-order reconciliation no longer leaves missing live hedge orders active forever.** Active local market orders missing from Schwab's broad order list now go through direct broker lookup like other active orders; if the broker still returns no order after the existing new-order grace window, Lumibot marks the local order `UNKNOWN` and non-active instead of letting it block future active-order checks.
 - **Schwab simple stock and option order replacement now builds broker specs correctly.** `modify_order()` now reuses the same Schwab stock/option order builders used for new submissions instead of calling missing replacement helper methods, and it safely tracks previous order IDs when Schwab returns a replacement ID.
+- **Known Schwab account-history rows are quieter.** Schwab `MUTUAL_FUND` position rows and `EXERCISE` order-history rows are preserved without noisy unknown-warning spam, while truly new/unknown asset and order types still warn and preserve raw broker data.
 
 ### Tests
 - **Schwab live option replace smoke coverage now exercises the Titus failure path.** The live API test submits a TSLL option limit order, reads it directly and from the active order list, replaces it through Schwab's order-replace endpoint, reads the replacement, cancels it, and confirms the canceled state.
+- **Market-order broad-list miss regression coverage was added.** Unit tests cover active market orders missing from non-empty and empty broker order lists, including direct filled reconciliation and unresolved missing-order terminalization to non-active `UNKNOWN`.
+
+## 4.5.39 - 2026-05-29
+
+Canceled release candidate. Do not deploy.
 
 ## 4.5.38 - 2026-05-29
 

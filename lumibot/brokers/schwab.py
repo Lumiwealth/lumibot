@@ -569,11 +569,13 @@ class Schwab(Broker):
             "MONEY_MARKET_FUND": Asset.AssetType.FOREX,
             "CASH": Asset.AssetType.FOREX,
         }
+        known_unsupported_asset_types = {"MUTUAL_FUND"}
         mapped_asset_type = known_asset_types.get(raw_asset_type, Asset.AssetType.UNKNOWN)
+        is_known_unsupported = raw_asset_type in known_unsupported_asset_types
         if mapped_asset_type == Asset.AssetType.STOCK:
             symbol = self._normalize_symbol_for_internal(symbol, asset_type=Asset.AssetType.STOCK)
 
-        if mapped_asset_type == Asset.AssetType.UNKNOWN:
+        if mapped_asset_type == Asset.AssetType.UNKNOWN and not is_known_unsupported:
             logger.warning(colored(
                 f"Unknown Schwab asset type {raw_asset_type!r} for {context}; preserving broker row as unknown.",
                 "yellow",
@@ -584,9 +586,11 @@ class Schwab(Broker):
             raw_payload,
             raw_asset_type=raw_asset_type,
             broker_parse_warning=(
-                f"Unknown Schwab asset type: {raw_asset_type}" if mapped_asset_type == Asset.AssetType.UNKNOWN else None
+                f"Unknown Schwab asset type: {raw_asset_type}"
+                if mapped_asset_type == Asset.AssetType.UNKNOWN and not is_known_unsupported
+                else None
             ),
-            broker_parse_degraded=(mapped_asset_type == Asset.AssetType.UNKNOWN),
+            broker_parse_degraded=(mapped_asset_type == Asset.AssetType.UNKNOWN and not is_known_unsupported),
         )
 
     # Position methods
@@ -967,6 +971,10 @@ class Schwab(Broker):
         }
         if raw_order_type in order_type_map:
             return order_type_map[raw_order_type]
+
+        known_non_strategy_history_types = {"EXERCISE"}
+        if raw_order_type in known_non_strategy_history_types:
+            return Order.OrderType.UNKNOWN
 
         logger.warning(colored(
             f"Unknown Schwab order type {raw_order_type!r}; preserving broker order as unknown.",

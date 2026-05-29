@@ -942,6 +942,26 @@ class Broker(ABC):
         elif order.is_active():
             self._process_new_order(order)
 
+    def _mark_missing_order_unknown(
+        self,
+        order_lumi,
+        broker_order_count=0,
+        logger_obj=None,
+        reason="direct lookup returned no order",
+    ):
+        """Mark an unresolved missing local order non-active without pretending it canceled."""
+        log = logger_obj or getattr(self, "logger", logger)
+        order_lumi.status = Order.OrderStatus.UNKNOWN
+        order_lumi.error_message = (
+            f"Local active order was missing from the broad broker order list "
+            f"(bkr cnt={broker_order_count}); {reason}."
+        )
+        log.warning(
+            f"Marking missing local order {order_lumi} (id={order_lumi.identifier}) as UNKNOWN/non-active; "
+            f"{reason}."
+        )
+        return True
+
     def _refresh_missing_active_order_from_broker(
         self,
         order_lumi,
@@ -949,6 +969,7 @@ class Broker(ABC):
         strategy_object=None,
         broker_order_count=0,
         logger_obj=None,
+        terminalize_missing=False,
     ):
         """Refresh an active local order by id before treating a broad-list miss as terminal.
 
@@ -972,6 +993,13 @@ class Broker(ABC):
             return False
 
         if not response:
+            if terminalize_missing:
+                return self._mark_missing_order_unknown(
+                    order_lumi,
+                    broker_order_count=broker_order_count,
+                    logger_obj=log,
+                    reason="direct lookup returned no order",
+                )
             log.warning(
                 f"Active order {order_lumi} (id={order_lumi.identifier}) was missing from the broad broker "
                 f"order list (bkr cnt={broker_order_count}), and direct lookup returned no order. "
@@ -1038,8 +1066,6 @@ class Broker(ABC):
         strategy_name = self._strategy_name_from_input(strategy)
         orders_broker = self._pull_all_orders(strategy_name, strategy)
         orders_broker = [order for order in orders_broker if order is not None]
-        if len(orders_broker) == 0:
-            return
 
         changed = False
         orders_lumi = self.get_all_orders()
@@ -1096,19 +1122,15 @@ class Broker(ABC):
                         )
                         continue
 
-                if order_lumi.order_type and order_lumi.order_type == Order.OrderType.MARKET:
-                    logger.info(
-                        f"Market order {order_lumi} (id={order_lumi.identifier}) not found in broker, "
-                        f"likely filled instantly - skipping cancel"
-                    )
-                    continue
-
                 changed = (
                     self._refresh_missing_active_order_from_broker(
                         order_lumi,
                         strategy_name,
                         strategy_object=strategy,
                         broker_order_count=len(orders_broker),
+                        terminalize_missing=(
+                            order_lumi.order_type and order_lumi.order_type == Order.OrderType.MARKET
+                        ),
                     )
                     or changed
                 )

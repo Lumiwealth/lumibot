@@ -42,12 +42,5 @@ Examples
    Sector-pod team that compares sector ETFs through cyclical, defensive, and
    risk lenses.
 
-Backward Compatibility
-----------------------
-
-Legacy imports still work:
-
-* ``lumibot/example_strategies/ai_trading_team.py``
-* ``lumibot/example_strategies/ai_investment_committee.py``
-
+``ai_trading_team.py`` remains the shortest alias for the leveraged ETF example.
 New code should prefer the descriptive filenames above.

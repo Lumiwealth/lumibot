@@ -26,7 +26,6 @@ BotSpot is strongest when you want the agent workflow plus the managed cloud aro
    agents_flows
    agents_examples
    agents_builtin_tools
-   agents_investment_committee
    agents_canonical_demos
    agents_observability
    agents_memory

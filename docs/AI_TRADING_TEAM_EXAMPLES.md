@@ -37,9 +37,4 @@ These examples are inspired by public investing styles and firms. They are not a
 - `docs/assets/ai-trading-team-workflows/bill-ackman-concentrated.png`
 - `docs/assets/ai-trading-team-workflows/citadel-sector-pods.png`
 
-Legacy imports still work:
-
-- `lumibot/example_strategies/ai_trading_team.py`
-- `lumibot/example_strategies/ai_investment_committee.py`
-
-New code should prefer the descriptive filenames above.
+`lumibot/example_strategies/ai_trading_team.py` remains the shortest alias for the leveraged ETF example. New code should prefer the descriptive filenames above.

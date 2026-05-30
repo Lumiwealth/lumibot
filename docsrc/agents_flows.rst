@@ -209,6 +209,5 @@ Where To Go Next
 
 - :doc:`agents_builtin_tools` explains the built-in tools available to agents.
 - :doc:`agents_examples` lists the copy-paste AI trading team examples.
-- :doc:`agents_investment_committee` shows the legacy large-cap bull/bear team page.
 - :doc:`agents_memory` explains how agents can remember decisions and lessons.
 - :doc:`agents_observability` explains traces and replay artifacts.

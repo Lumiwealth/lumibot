@@ -932,18 +932,25 @@ class Schwab(Broker):
                             strategy=strategy_name,
                             order_class=Order.OrderClass.OCO,
                             asset=asset,  # Include asset parameter
+                            child_orders=child_order_objects,
+                            identifier=response.get("orderId"),
                         )
-
-                        # Set the child orders for the OCO order
-                        order.child_orders = child_order_objects
+                        order.status = self._schwab_status_to_lumibot(response.get("status", "UNKNOWN"))
                         return order
 
                 if order_strategy_type == "TRIGGER" and len(child_order_objects) > 0:
                     parent_orders = self._parse_simple_order(response, strategy_name)
                     if parent_orders:
                         parent_order = parent_orders[0]
-                        parent_order.order_class = Order.OrderClass.OTO
-                        parent_order.child_orders = child_order_objects
+                        if (
+                            len(child_order_objects) == 1
+                            and child_order_objects[0].order_class is Order.OrderClass.OCO
+                        ):
+                            parent_order.order_class = Order.OrderClass.BRACKET
+                            parent_order.child_orders = child_order_objects[0].child_orders
+                        else:
+                            parent_order.order_class = Order.OrderClass.OTO
+                            parent_order.child_orders = child_order_objects
                         return parent_order
 
                 # If we get here and have child orders, return the first one
@@ -1395,8 +1402,12 @@ class Schwab(Broker):
 
             if order.order_class is Order.OrderClass.OTO:
                 order_builder = self._prepare_oto_order_builder(order)
+            elif order.order_class is Order.OrderClass.OCO:
+                order_builder = self._prepare_oco_order_builder(order)
+            elif order.order_class is Order.OrderClass.BRACKET:
+                order_builder = self._prepare_bracket_order_builder(order)
             elif order.is_advanced_order():
-                logger.error(colored("Only OTO advanced orders are implemented for Schwab broker.", "red"))
+                logger.error(colored("Only OTO, OCO, and bracket advanced orders are implemented for Schwab broker.", "red"))
                 return None
             else:
                 order_builder = self._prepare_schwab_single_order_builder(order)
@@ -1405,7 +1416,11 @@ class Schwab(Broker):
                 logger.error(colored(f"Failed to create order builder for {order}", "red"))
                 return None
 
-            order_spec = self._build_order_spec_from_builder(order_builder, order.time_in_force)
+            order_spec = self._build_order_spec_from_builder(
+                order_builder,
+                order.time_in_force,
+                apply_defaults=order.order_class is not Order.OrderClass.OCO,
+            )
             if not order_spec:
                 return None
 
@@ -1573,6 +1588,44 @@ class Schwab(Broker):
 
         return first_triggers_second(parent_builder, child_builder)
 
+    def _prepare_oco_order_builder(self, order):
+        """Prepare a Schwab OCO order for exactly two child orders."""
+        if len(order.child_orders) != 2:
+            logger.error(colored("Schwab OCO orders require exactly two child orders.", "red"))
+            return None
+
+        try:
+            from schwab.orders.common import one_cancels_other
+        except ImportError:
+            logger.error(colored("Failed to import Schwab OCO helpers. Make sure the schwab-py library is installed.", "red"))
+            return None
+
+        first_builder = self._prepare_schwab_single_order_builder(order.child_orders[0])
+        second_builder = self._prepare_schwab_single_order_builder(order.child_orders[1])
+        if not first_builder or not second_builder:
+            return None
+
+        return one_cancels_other(first_builder, second_builder)
+
+    def _prepare_bracket_order_builder(self, order):
+        """Prepare a Schwab bracket as parent order triggering an OCO exit pair."""
+        if len(order.child_orders) != 2:
+            logger.error(colored("Schwab bracket orders require exactly two child orders.", "red"))
+            return None
+
+        try:
+            from schwab.orders.common import first_triggers_second
+        except ImportError:
+            logger.error(colored("Failed to import Schwab bracket helpers. Make sure the schwab-py library is installed.", "red"))
+            return None
+
+        parent_builder = self._prepare_schwab_single_order_builder(order)
+        oco_builder = self._prepare_oco_order_builder(order)
+        if not parent_builder or not oco_builder:
+            return None
+
+        return first_triggers_second(parent_builder, oco_builder)
+
     def _prepare_stock_order_builder(self, order, equity_buy_market, equity_buy_limit,
                                    equity_sell_market, equity_sell_limit,
                                    equity_sell_short_market, equity_sell_short_limit,
@@ -1652,18 +1705,13 @@ class Schwab(Broker):
             # Then try to add stop price to the builder object through manual modification
             if order_builder:
                 try:
-                    # Add stop price to the order spec - this is a hack since the templates don't support it directly
-                    order_spec = order_builder.order_spec
+                    from schwab.orders.common import OrderType
+
                     if order.order_type == Order.OrderType.STOP:
-                        order_spec["orderType"] = "STOP"
+                        order_builder = order_builder.set_order_type(OrderType.STOP)
                     else:
-                        order_spec["orderType"] = "STOP_LIMIT"
-
-                    # Add stop price
-                    order_spec["stopPrice"] = str(order.stop_price)
-
-                    # Reconstruct builder with modified spec
-                    order_builder._order_spec = order_spec
+                        order_builder = order_builder.set_order_type(OrderType.STOP_LIMIT)
+                    order_builder = order_builder.set_stop_price(str(order.stop_price))
                 except Exception as e:
                     logger.error(colored(f"Failed to modify order builder for stop/stop-limit order: {e}", "red"))
                     return None
@@ -1807,18 +1855,13 @@ class Schwab(Broker):
                 # Then modify the order spec to add stop price
                 if order_builder and order.stop_price is not None:
                     try:
-                        # Add stop price to the order spec
-                        order_spec = order_builder.order_spec
+                        from schwab.orders.common import OrderType
+
                         if order.order_type == Order.OrderType.STOP:
-                            order_spec["orderType"] = "STOP"
+                            order_builder = order_builder.set_order_type(OrderType.STOP)
                         else:
-                            order_spec["orderType"] = "STOP_LIMIT"
-
-                        # Add stop price
-                        order_spec["stopPrice"] = str(order.stop_price)
-
-                        # Reconstruct builder with modified spec
-                        order_builder._order_spec = order_spec
+                            order_builder = order_builder.set_order_type(OrderType.STOP_LIMIT)
+                        order_builder = order_builder.set_stop_price(str(order.stop_price))
                     except Exception as e:
                         logger.error(colored(f"Failed to modify order builder for stop/stop-limit option order: {e}", "red"))
                         return None
@@ -1839,7 +1882,7 @@ class Schwab(Broker):
             logger.error(traceback.format_exc())
             return None
 
-    def _build_order_spec_from_builder(self, order_builder, time_in_force=None):
+    def _build_order_spec_from_builder(self, order_builder, time_in_force=None, apply_defaults=True):
         """Apply Schwab defaults and return the final API order spec."""
         if not order_builder:
             return None
@@ -1852,16 +1895,17 @@ class Schwab(Broker):
 
         try:
             tif = time_in_force or "day"
-            if tif == "day":
-                order_builder = order_builder.set_duration(Duration.DAY)
-            elif tif == "gtc":
-                order_builder = order_builder.set_duration(Duration.GOOD_TILL_CANCEL)
-            elif tif == "opg":
-                order_builder = order_builder.set_duration(Duration.ON_THE_OPEN)
-            elif tif == "cls":
-                order_builder = order_builder.set_duration(Duration.ON_THE_CLOSE)
+            if apply_defaults:
+                if tif == "day":
+                    order_builder = order_builder.set_duration(Duration.DAY)
+                elif tif == "gtc":
+                    order_builder = order_builder.set_duration(Duration.GOOD_TILL_CANCEL)
+                elif tif == "opg":
+                    order_builder = order_builder.set_duration(Duration.ON_THE_OPEN)
+                elif tif == "cls":
+                    order_builder = order_builder.set_duration(Duration.ON_THE_CLOSE)
 
-            order_builder = order_builder.set_session(Session.NORMAL)
+                order_builder = order_builder.set_session(Session.NORMAL)
             order_spec = order_builder.build()
 
             if "order_spec" in order_spec:

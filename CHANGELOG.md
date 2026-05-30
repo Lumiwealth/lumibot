@@ -4,13 +4,14 @@
 
 ### Added
 - **Schwab OTO trigger orders now support explicit parent/child orders.** `Order(order_class=Order.OrderClass.OTO, child_orders=[...])` can now represent a single cross-asset child order, such as an option entry that triggers a stock hedge order, without requiring synthetic secondary limit/stop fields.
-- **Schwab OTO submissions now build Schwab `TRIGGER` order specs.** The Schwab broker uses `schwab-py` trigger-order builders for one stock/ETF/options parent and one stock/ETF/options child order. OCO and bracket orders remain intentionally unsupported until separately implemented and live-tested.
+- **Schwab OTO, OCO, and bracket submissions now build Schwab advanced-order specs.** The Schwab broker uses `schwab-py` trigger and one-cancels-other builders for single stock/ETF/options parent and child orders. Multi-leg option spreads remain intentionally unsupported until separately implemented and live-tested.
 
 ### Fixed
 - **Schwab trigger-order reads now preserve parent and child order structure.** Broker responses with `orderStrategyType=TRIGGER` parse back into an OTO parent with child orders instead of flattening the response to the first active child.
+- **Schwab stop and stop-limit order builders now use the installed `schwab-py` builder API.** This fixes advanced orders with stop exits on current `schwab-py` versions where direct `order_spec` mutation is not available.
 
 ### Tests
-- **OTO unit coverage now validates cross-asset parent/child construction, Schwab trigger spec generation, and Schwab trigger-response parsing.** A live Schwab API smoke test was also added to submit, read, and cancel a nonmarketable OTO order when credentials are available and the market is closed.
+- **Advanced-order unit coverage now validates OTO, OCO, and bracket spec generation plus Schwab trigger-response parsing.** Live Schwab API smoke tests were also added to submit, read, and cancel nonmarketable OTO, OCO, and bracket orders when credentials are available and the market is closed.
 
 ## 4.5.40 - 2026-05-29
 

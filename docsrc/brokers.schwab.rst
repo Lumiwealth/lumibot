@@ -68,10 +68,11 @@ Supported functionality
 * Equities and ETF trading (market, limit, stop, stop-limit).
 * Single-leg options (buy/sell, open/close).
 * OTO / one-triggers-other orders for single stock/ETF and option parent/child orders (experimental; live broker validation recommended before production use).
+* OCO / one-cancels-other and bracket orders for single stock/ETF and option orders (experimental; live broker validation recommended before production use).
 * Streaming quotes for equities/options.
 * Historical bars – up to 15 years daily, 6 months intraday.
 
-Multi-leg option spreads, OCO orders, bracket orders, and futures trades are not yet implemented.
+Multi-leg option spreads and futures trades are not yet implemented.
 
 Order and position freshness
 ----------------------------
@@ -299,13 +300,13 @@ Supported Assets & Order Types
     - ✔
     - ✔
     - ✔
-    - OTO only (experimental)
+    - OTO/OCO/bracket (experimental)
   * - Options
     - ✔ (buy/sell, open/close)
     - ✔
     - —
     - —
-    - OTO only (experimental)
+    - OTO/OCO/bracket (experimental)
   * - Futures
     - ✖ (quotes only)
     - ✖
@@ -313,8 +314,8 @@ Supported Assets & Order Types
     - ✖
     - ✖
 
-- Multi-leg/spread options, OCO orders, and bracket orders are not yet implemented in Lumibot.
-- Schwab OTO orders use Schwab's trigger-order support and should be live-tested with the target account and order shape before relying on them in production.
+- Multi-leg/spread options are not yet implemented in Lumibot.
+- Schwab OTO, OCO, and bracket orders use Schwab's trigger and one-cancels-other support and should be live-tested with the target account and order shape before relying on them in production.
 - **Futures trading is not supported; only streaming quotes are available.**
 
 Market Data
@@ -338,7 +339,7 @@ Known Issues & Best Practices
 
 - Initial OAuth requires browser login every 7 days.
 - `token.json` must be unique per account/app.
-- OTO advanced orders are experimental. OCO and bracket orders are not yet supported.
+- OTO, OCO, and bracket advanced orders are experimental.
 - Callback URL must match exactly (including trailing slash).
 - Refresh tokens proactively (every 28–29 min) to avoid expiry.
 - Secure `token.json` (chmod 600) and rotate secrets regularly.

@@ -223,6 +223,28 @@ def _stock_market_order(side=Order.OrderSide.SELL_SHORT, quantity=100):
     )
 
 
+def _stock_limit_order(side=Order.OrderSide.SELL, quantity=1, limit_price=20.0):
+    return Order(
+        strategy="unit-test",
+        asset=Asset("TSLL", asset_type=Asset.AssetType.STOCK),
+        quantity=quantity,
+        side=side,
+        order_type=Order.OrderType.LIMIT,
+        limit_price=limit_price,
+    )
+
+
+def _stock_stop_order(side=Order.OrderSide.SELL, quantity=1, stop_price=5.0):
+    return Order(
+        strategy="unit-test",
+        asset=Asset("TSLL", asset_type=Asset.AssetType.STOCK),
+        quantity=quantity,
+        side=side,
+        order_type=Order.OrderType.STOP,
+        stop_price=stop_price,
+    )
+
+
 def test_schwab_pull_positions_preserves_mutual_funds_as_unknown_or_cash_like_records():
     broker = _broker_with_positions(
         [
@@ -403,6 +425,64 @@ def test_schwab_prepare_oto_order_builder_builds_trigger_with_cross_asset_child(
     assert child_spec["orderLegCollection"][0]["instrument"]["symbol"] == "LW"
 
 
+def test_schwab_prepare_oco_order_builder_builds_oco_exit_pair():
+    broker = Schwab.__new__(Schwab)
+    order = Order(
+        strategy="unit-test",
+        asset=Asset("TSLL", asset_type=Asset.AssetType.STOCK),
+        quantity=1,
+        side=Order.OrderSide.SELL,
+        order_class=Order.OrderClass.OCO,
+        child_orders=[
+            _stock_limit_order(limit_price=20.0),
+            _stock_stop_order(stop_price=5.0),
+        ],
+    )
+
+    order_builder = broker._prepare_oco_order_builder(order)
+    order_spec = broker._build_order_spec_from_builder(order_builder, order.time_in_force, apply_defaults=False)
+
+    assert order_spec["orderStrategyType"] == "OCO"
+    assert "orderLegCollection" not in order_spec
+    assert len(order_spec["childOrderStrategies"]) == 2
+    assert order_spec["childOrderStrategies"][0]["orderType"] == "LIMIT"
+    assert order_spec["childOrderStrategies"][0]["price"] in {"20.00", "20.0000"}
+    assert order_spec["childOrderStrategies"][1]["orderType"] == "STOP"
+    assert order_spec["childOrderStrategies"][1]["stopPrice"] == "5.0"
+
+
+def test_schwab_prepare_bracket_order_builder_builds_trigger_with_oco_children():
+    broker = Schwab.__new__(Schwab)
+    order = Order(
+        strategy="unit-test",
+        asset=Asset("TSLL", asset_type=Asset.AssetType.STOCK),
+        quantity=1,
+        side=Order.OrderSide.BUY,
+        order_type=Order.OrderType.LIMIT,
+        limit_price=10.0,
+        order_class=Order.OrderClass.BRACKET,
+        child_orders=[
+            _stock_limit_order(limit_price=20.0),
+            _stock_stop_order(stop_price=5.0),
+        ],
+    )
+
+    order_builder = broker._prepare_bracket_order_builder(order)
+    order_spec = broker._build_order_spec_from_builder(order_builder, order.time_in_force)
+
+    assert order_spec["orderStrategyType"] == "TRIGGER"
+    assert order_spec["orderType"] == "LIMIT"
+    assert order_spec["price"] in {"10.00", "10.0000"}
+    assert order_spec["orderLegCollection"][0]["instruction"] == "BUY"
+    assert len(order_spec["childOrderStrategies"]) == 1
+
+    oco_spec = order_spec["childOrderStrategies"][0]
+    assert oco_spec["orderStrategyType"] == "OCO"
+    assert len(oco_spec["childOrderStrategies"]) == 2
+    assert oco_spec["childOrderStrategies"][0]["orderType"] == "LIMIT"
+    assert oco_spec["childOrderStrategies"][1]["orderType"] == "STOP"
+
+
 def test_schwab_prepare_option_replacement_spec_restores_order_on_failure(monkeypatch):
     broker = Schwab.__new__(Schwab)
     order = _option_order(limit_price=4.84)
@@ -578,6 +658,72 @@ def test_schwab_parse_trigger_order_preserves_parent_and_child_orders():
     assert parsed.child_orders[0].identifier == "child-hedge"
     assert parsed.child_orders[0].asset.asset_type == Asset.AssetType.STOCK
     assert parsed.child_orders[0].side == Order.OrderSide.SELL_SHORT
+
+
+def test_schwab_parse_trigger_oco_order_preserves_bracket_children():
+    broker = Schwab.__new__(Schwab)
+    order = {
+        "orderId": "parent-bracket",
+        "orderStrategyType": "TRIGGER",
+        "enteredTime": "2026-05-22T15:30:00+0000",
+        "orderType": "LIMIT",
+        "price": 10.0,
+        "status": "WORKING",
+        "orderLegCollection": [
+            {
+                "instruction": "BUY",
+                "quantity": 1,
+                "orderLegType": "EQUITY",
+                "instrument": {"assetType": "EQUITY", "symbol": "TSLL"},
+            },
+        ],
+        "childOrderStrategies": [
+            {
+                "orderStrategyType": "OCO",
+                "childOrderStrategies": [
+                    {
+                        "orderId": "take-profit",
+                        "enteredTime": "2026-05-22T15:31:00+0000",
+                        "orderType": "LIMIT",
+                        "status": "PENDING_ACTIVATION",
+                        "price": 20.0,
+                        "orderLegCollection": [
+                            {
+                                "instruction": "SELL",
+                                "quantity": 1,
+                                "orderLegType": "EQUITY",
+                                "instrument": {"assetType": "EQUITY", "symbol": "TSLL"},
+                            },
+                        ],
+                    },
+                    {
+                        "orderId": "stop-loss",
+                        "enteredTime": "2026-05-22T15:31:00+0000",
+                        "orderType": "STOP",
+                        "status": "PENDING_ACTIVATION",
+                        "stopPrice": 5.0,
+                        "orderLegCollection": [
+                            {
+                                "instruction": "SELL",
+                                "quantity": 1,
+                                "orderLegType": "EQUITY",
+                                "instrument": {"assetType": "EQUITY", "symbol": "TSLL"},
+                            },
+                        ],
+                    },
+                ],
+            },
+        ],
+    }
+
+    parsed = broker._parse_broker_order(order, strategy_name="unit-test")
+
+    assert parsed is not None
+    assert parsed.identifier == "parent-bracket"
+    assert parsed.order_class == Order.OrderClass.BRACKET
+    assert len(parsed.child_orders) == 2
+    assert parsed.child_orders[0].identifier == "take-profit"
+    assert parsed.child_orders[1].identifier == "stop-loss"
 
 
 def test_schwab_parse_broker_order_keeps_supported_child_when_sibling_is_unknown_history():

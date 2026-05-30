@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.5.41 - Unreleased
+## 4.5.41 - 2026-05-30
+
+Deploy marker: `deploy 4.5.41`
 
 ### Added
 - **Schwab OTO trigger orders now support explicit parent/child orders.** `Order(order_class=Order.OrderClass.OTO, child_orders=[...])` can now represent a single cross-asset child order, such as an option entry that triggers a stock hedge order, without requiring synthetic secondary limit/stop fields.

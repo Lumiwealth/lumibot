@@ -16,17 +16,26 @@ These examples are inspired by public investing styles and firms. They are not a
 - `lumibot/example_strategies/ai_trading_team_bull_bear_large_cap_stocks.py`
   Large-cap stock team with evidence, bull, bear, and portfolio-manager roles.
 
-- `lumibot/example_strategies/ai_trading_team_ray_dalio_all_weather.py`
-  Macro-regime and all-weather-style ETF allocation team.
+- `lumibot/example_strategies/ai_trading_team_ray_dalio_idea_meritocracy.py`
+  Growth, inflation, debt/liquidity, and thoughtful-disagreement agents debate one macro ETF idea.
 
 - `lumibot/example_strategies/ai_trading_team_warren_buffett_value.py`
-  Annual-report, moat, valuation, and long-term business-quality team.
+  Annual-report, valuation-skeptic, and portfolio-manager flow for business-quality investing.
 
 - `lumibot/example_strategies/ai_trading_team_bill_ackman_concentrated.py`
   Concentrated high-conviction large-cap team with an activist bull case and short-seller bear case.
 
 - `lumibot/example_strategies/ai_trading_team_citadel_sector_pods.py`
-  Sector-pod team that compares sector ETFs through cyclical, defensive, and risk lenses.
+  Sector-pod team with technology, financials, healthcare, energy, consumer, risk, and portfolio-manager roles.
+
+## Workflow diagrams
+
+- `docs/assets/ai-trading-team-workflows/bull-bear-leveraged-etf.png`
+- `docs/assets/ai-trading-team-workflows/bull-bear-large-cap-stocks.png`
+- `docs/assets/ai-trading-team-workflows/ray-dalio-idea-meritocracy.png`
+- `docs/assets/ai-trading-team-workflows/warren-buffett-value.png`
+- `docs/assets/ai-trading-team-workflows/bill-ackman-concentrated.png`
+- `docs/assets/ai-trading-team-workflows/citadel-sector-pods.png`
 
 Legacy imports still work:
 

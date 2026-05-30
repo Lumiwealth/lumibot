@@ -130,6 +130,16 @@ def _require_non_empty_text(name: str, value: Any) -> str:
     return text
 
 
+def _require_single_symbol_text(name: str, value: Any) -> str:
+    text = _require_non_empty_text(name, value)
+    if "," in text:
+        raise ValueError(
+            f"{name} must be one tradable symbol, not a comma-separated list. "
+            "Call this tool once per symbol."
+        )
+    return text
+
+
 def _require_positive_int(name: str, value: Any) -> int:
     try:
         parsed = int(value)
@@ -148,6 +158,55 @@ def _require_positive_number(name: str, value: Any) -> float:
     if not math.isfinite(parsed) or parsed <= 0:
         raise ValueError(f"{name} must be a finite number greater than 0.")
     return parsed
+
+
+def _agent_tool_calls_for_current_run() -> list[dict[str, Any]]:
+    context = current_agent_tool_context()
+    calls = context.get("tool_calls")
+    if isinstance(calls, list):
+        return [call for call in calls if isinstance(call, dict)]
+    return []
+
+
+def _tool_call_was_successful(call: dict[str, Any]) -> bool:
+    return call.get("ok") is not False
+
+
+def _has_successful_tool_call(tool_name: str) -> bool:
+    return any(
+        call.get("tool_name") == tool_name and _tool_call_was_successful(call)
+        for call in _agent_tool_calls_for_current_run()
+    )
+
+
+def _has_successful_market_last_price_for_symbol(symbol: str) -> bool:
+    normalized_symbol = str(symbol or "").strip().upper()
+    for call in _agent_tool_calls_for_current_run():
+        if call.get("tool_name") != "market_last_price" or not _tool_call_was_successful(call):
+            continue
+        arguments = call.get("arguments") if isinstance(call.get("arguments"), dict) else {}
+        if str(arguments.get("symbol") or "").strip().upper() == normalized_symbol:
+            return True
+    return False
+
+
+def _require_agent_order_readiness(symbol: str) -> None:
+    context = current_agent_tool_context()
+    if not bool(context.get("enforce_order_readiness")):
+        return
+    missing: list[str] = []
+    if not _has_successful_tool_call("account_portfolio"):
+        missing.append("account_portfolio")
+    if not _has_successful_tool_call("account_positions"):
+        missing.append("account_positions")
+    if not _has_successful_market_last_price_for_symbol(symbol):
+        missing.append(f"market_last_price(symbol={symbol!r})")
+    if missing:
+        raise ValueError(
+            "ORDER_READINESS_REQUIRED: Before submitting an order, call "
+            f"{', '.join(missing)} in this same agent run. "
+            "Agents must inspect cash, portfolio value, positions, and the latest price for the ordered asset before trading."
+        )
 
 
 def _asset_to_dict(asset: Any) -> dict[str, Any] | str:
@@ -254,7 +313,7 @@ def _bind_last_price(strategy: Any, manager: Any) -> BoundTool:
         quote_symbol: str | None = None,
         exchange: str | None = None,
     ) -> dict[str, Any]:
-        symbol = _require_non_empty_text("symbol", symbol)
+        symbol = _require_single_symbol_text("symbol", symbol)
         asset, quote = resolve_asset_and_quote(
             strategy,
             symbol=symbol,
@@ -278,6 +337,7 @@ def _bind_last_price(strategy: Any, manager: Any) -> BoundTool:
             "Get the current last price for one asset. "
             "Arguments: symbol, asset_type, optional expiration/strike/right for derivatives, optional quote_symbol, optional exchange. "
             "Valid asset_type values: stock, option, future, cont_future, forex, crypto, index, multileg, us_equity. "
+            "The symbol argument must be one tradable symbol, not a comma-separated universe; call once per symbol when comparing multiple assets. "
             "Use stock for normal equities. Do not pass economic series ids such as DCOILWTICO, FEDFUNDS, or M2SL as market symbols; use macro/FRED tools for those instead. "
             "Example: market_last_price(symbol='SPY', asset_type='stock')."
         ),
@@ -301,7 +361,7 @@ def _bind_load_history(strategy: Any, manager: Any) -> BoundTool:
         right: str | None = None,
         include_after_hours: bool = True,
     ) -> dict[str, Any]:
-        symbol = _require_non_empty_text("symbol", symbol)
+        symbol = _require_single_symbol_text("symbol", symbol)
         length = _require_positive_int("length", length)
         timestep = _require_non_empty_text("timestep", timestep)
         return manager.duckdb.load_history_table(
@@ -324,6 +384,7 @@ def _bind_load_history(strategy: Any, manager: Any) -> BoundTool:
             "Load visible historical bars into DuckDB and return the table metadata. "
             "Arguments: symbol, length, timestep, optional table_name, asset_type, quote_symbol, exchange, expiration, strike, right, include_after_hours. "
             "Valid asset_type values: stock, option, future, cont_future, forex, crypto, index, multileg, us_equity. "
+            "The symbol argument must be the exact tradable symbol, such as XLY or SPY, not a generated table name such as XLY_HIST. "
             "Use stock for normal equities. If asset_type is omitted, stock is assumed. Do not pass economic series ids such as DCOILWTICO, FEDFUNDS, or M2SL as market symbols; use macro/FRED tools for those instead. "
             "The loaded price tables usually expose columns such as datetime, open, high, low, close, volume, bid, ask, dividend, and dividend_yield. "
             "Use datetime for timestamps and close for the traded price unless the returned sample rows show otherwise. "
@@ -1298,8 +1359,9 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
         exchange: str | None = None,
         time_in_force: TimeInForceArg = "day",
     ) -> dict[str, Any]:
-        symbol = _require_non_empty_text("symbol", symbol)
+        symbol = _require_single_symbol_text("symbol", symbol)
         quantity = _require_positive_number("quantity", quantity)
+        _require_agent_order_readiness(symbol)
         if order_type == "limit" and limit_price is None:
             raise ValueError("orders_submit_order with order_type='limit' requires limit_price.")
         if order_type in {"stop", "stop_limit"} and stop_price is None:
@@ -1365,6 +1427,7 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
             "Arguments: symbol, quantity, side, optional asset_type, expiration, strike, right, order_type, limit_price, stop_price, stop_limit_price, trail_price, trail_percent, quote_symbol, exchange, time_in_force. "
             "Valid asset_type values: stock, option, future, cont_future, forex, crypto, index, multileg, us_equity. "
             "Use stock for normal equities. "
+            "Before using this tool, call account_portfolio, account_positions, and market_last_price for the same symbol in the current agent run; otherwise the order is rejected with ORDER_READINESS_REQUIRED. "
             "Valid side values: buy, sell, buy_to_open, sell_to_close, sell_short, buy_to_cover. "
             "Valid order_type values: market, limit, stop, stop_limit, trailing_stop, smart_limit. "
             "Valid time_in_force values: day, gtc, gtd. "

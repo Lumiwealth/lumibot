@@ -31,7 +31,16 @@ def _event(kind: str, *, text: str | None = None, tool_name: str | None = None, 
 def _invoke_tool(request, events, tool_name: str, **kwargs):
     from lumibot.components.agents.runtime import _wrap_tool_callable
 
-    tool_map = {tool.name: _wrap_tool_callable(tool) for tool in request.bound_tools}
+    tool_context = getattr(request, "_test_tool_context", None)
+    if tool_context is None:
+        tool_context = {
+            "agent_name": request.agent_name,
+            "model_call_id": request.model_call_id,
+            "enforce_order_readiness": True,
+            "tool_calls": [],
+        }
+        setattr(request, "_test_tool_context", tool_context)
+    tool_map = {tool.name: _wrap_tool_callable(tool, tool_context) for tool in request.bound_tools}
     events.append(_event("tool_call", tool_name=tool_name, payload=kwargs))
     result = tool_map[tool_name](**kwargs)
     payload = result if isinstance(result, dict) else {"value": result}
@@ -46,6 +55,8 @@ class StockPlanRuntime:
         type(self).call_count += 1
         events = [_event("thinking", text="Inspecting current stock state.")]
         positions = _invoke_tool(request, events, "account_positions")
+        _invoke_tool(request, events, "account_portfolio")
+        _invoke_tool(request, events, "market_last_price", symbol=request.context["symbol"], asset_type="stock")
         table = _invoke_tool(
             request,
             events,
@@ -92,6 +103,17 @@ class OptionPlanRuntime:
         type(self).call_count += 1
         events = [_event("thinking", text="Inspecting current option state.")]
         positions = _invoke_tool(request, events, "account_positions")
+        _invoke_tool(request, events, "account_portfolio")
+        _invoke_tool(
+            request,
+            events,
+            "market_last_price",
+            symbol=request.context["symbol"],
+            asset_type="option",
+            expiration=request.context["expiration"],
+            strike=request.context["strike"],
+            right=request.context["right"],
+        )
         table = _invoke_tool(
             request,
             events,
@@ -144,6 +166,8 @@ class MinuteStressRuntime:
         type(self).call_count += 1
         events = [_event("thinking", text="Stress-testing minute DuckDB history refresh.")]
         positions = _invoke_tool(request, events, "account_positions")
+        _invoke_tool(request, events, "account_portfolio")
+        _invoke_tool(request, events, "market_last_price", symbol=request.context["symbol"], asset_type="stock")
         table = _invoke_tool(
             request,
             events,
@@ -280,6 +304,7 @@ class AgentStockBacktestStrategy(Strategy):
             tools=[
                 self._builtin_positions(),
                 self._builtin_portfolio(),
+                self._builtin_last_price(),
                 self._builtin_history(),
                 self._builtin_query(),
                 self._builtin_submit(),
@@ -301,6 +326,11 @@ class AgentStockBacktestStrategy(Strategy):
         from lumibot.components.agents import BuiltinTools
 
         return BuiltinTools.market.load_history_table()
+
+    def _builtin_last_price(self):
+        from lumibot.components.agents import BuiltinTools
+
+        return BuiltinTools.market.last_price()
 
     def _builtin_query(self):
         from lumibot.components.agents import BuiltinTools
@@ -346,6 +376,8 @@ class AgentOptionBacktestStrategy(Strategy):
             default_model="stub-option",
             tools=[
                 BuiltinTools.account.positions(),
+                BuiltinTools.account.portfolio(),
+                BuiltinTools.market.last_price(),
                 BuiltinTools.market.load_history_table(),
                 BuiltinTools.duckdb.query(),
                 BuiltinTools.orders.submit(),
@@ -380,6 +412,8 @@ class AgentMinuteStressBacktestStrategy(Strategy):
             default_model="stub-minute-stress",
             tools=[
                 BuiltinTools.account.positions(),
+                BuiltinTools.account.portfolio(),
+                BuiltinTools.market.last_price(),
                 BuiltinTools.market.load_history_table(),
                 BuiltinTools.duckdb.query(),
                 BuiltinTools.orders.submit(),

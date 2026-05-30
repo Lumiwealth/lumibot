@@ -5,13 +5,17 @@
 ### Added
 - **Schwab OTO trigger orders now support explicit parent/child orders.** `Order(order_class=Order.OrderClass.OTO, child_orders=[...])` can now represent a single cross-asset child order, such as an option entry that triggers a stock hedge order, without requiring synthetic secondary limit/stop fields.
 - **Schwab OTO, OCO, and bracket submissions now build Schwab advanced-order specs.** The Schwab broker uses `schwab-py` trigger and one-cancels-other builders for single stock/ETF/options parent and child orders. Multi-leg option spreads remain intentionally unsupported until separately implemented and live-tested.
+- **AI trading team examples now cover six distinct agent workflows.** Public docs and example files include bull/bear leveraged ETFs, bull/bear large-cap stocks, Ray Dalio-style idea meritocracy, Warren Buffett-style value, Bill Ackman-style concentrated investing, and Citadel-style sector pods with matching workflow diagrams.
 
 ### Fixed
 - **Schwab trigger-order reads now preserve parent and child order structure.** Broker responses with `orderStrategyType=TRIGGER` parse back into an OTO parent with child orders instead of flattening the response to the first active child.
 - **Schwab stop and stop-limit order builders now use the installed `schwab-py` builder API.** This fixes advanced orders with stop exits on current `schwab-py` versions where direct `order_spec` mutation is not available.
+- **AI agent order submission now requires fresh account, position, and price context.** Trading agents must check cash, portfolio value, positions, and the ordered asset's last price before `orders_submit_order`; missing context returns a structured error instead of submitting an impossible order or silently resizing it.
+- **Long AI agent runs no longer inherit ADK's 500-call default cap.** LumiBot now owns timeout/retry behavior for agent runs instead of letting Google ADK stop complex multi-tool runs with `LlmCallsLimitExceededError`.
 
 ### Tests
 - **Advanced-order unit coverage now validates OTO, OCO, and bracket spec generation plus Schwab trigger-response parsing.** Live Schwab API smoke tests were also added to submit, read, and cancel nonmarketable OTO, OCO, and bracket orders when credentials are available and the market is closed.
+- **Agent order-readiness tests cover missing account context, missing last price, valid submissions, and comma-separated symbol rejection.**
 
 ## 4.5.40 - 2026-05-29
 

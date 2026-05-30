@@ -52,6 +52,17 @@ This strategy creates an agent that uses only the default built-in tools. No ext
 
 The agent has access to all built-in tools (positions, portfolio, prices, history, DuckDB, orders, docs) without listing them.
 
+Trading agents must inspect account state before submitting an order. In the
+same agent run, ``orders_submit_order`` requires successful calls to
+``account_portfolio``, ``account_positions``, and ``market_last_price`` for the
+ordered symbol. If those checks are missing, LumiBot returns
+``ORDER_READINESS_REQUIRED`` and the agent can recover by calling the missing
+tools and trying again.
+
+Market-price tools accept one tradable symbol per call. For a universe, call
+``market_last_price`` once per symbol or load each symbol's history table
+separately.
+
 ``@agent_tool`` Example (Primary Pattern)
 -------------------------------------------
 

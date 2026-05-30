@@ -339,8 +339,8 @@ Use **[BotSpot MCP](https://botspot.trade/agents?utm_source=github&utm_medium=re
 Start here:
 - [Agent Documentation](https://lumibot.lumiwealth.com/agents.html)
 - [AI Trading Team Flow Design](https://lumibot.lumiwealth.com/agents_flows.html)
-- [AI Trading Team Examples](docs/AI_TRADING_TEAM_EXAMPLES.md)
-- [Leveraged ETF AI Trading Team](lumibot/example_strategies/ai_trading_team_bull_bear_leveraged_etf.py)
+- [AI Trading Team Examples](https://lumibot.lumiwealth.com/agents_examples.html)
+- [Leveraged ETF](lumibot/example_strategies/ai_trading_team_bull_bear_leveraged_etf.py), [large-cap stocks](lumibot/example_strategies/ai_trading_team_bull_bear_large_cap_stocks.py), [Ray Dalio idea meritocracy](lumibot/example_strategies/ai_trading_team_ray_dalio_idea_meritocracy.py), [Warren Buffett value](lumibot/example_strategies/ai_trading_team_warren_buffett_value.py), [Bill Ackman concentrated](lumibot/example_strategies/ai_trading_team_bill_ackman_concentrated.py), and [Citadel sector pods](lumibot/example_strategies/ai_trading_team_citadel_sector_pods.py)
 - [Standalone AI Committee Demo](https://github.com/Lumiwealth/lumibot-ai-investment-committee)
 - [Discretionary Agent Example](lumibot/example_strategies/agent_discretionary.py)
 - [News Sentiment Agent Example](lumibot/example_strategies/agent_news_sentiment.py)

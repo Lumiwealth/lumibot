@@ -105,11 +105,23 @@ def _wrap_tool_callable(tool: BoundTool, tool_context: dict[str, Any] | None = N
     original = tool.function
 
     def wrapper(*args, **kwargs):
+        result: Any
         try:
             with agent_tool_context(tool_context):
-                return _json_safe_value(original(*args, **kwargs))
+                result = _json_safe_value(original(*args, **kwargs))
         except Exception as exc:
-            return _tool_error_payload(tool.name, kwargs, exc)
+            result = _tool_error_payload(tool.name, kwargs, exc)
+        if isinstance(tool_context, dict):
+            calls = tool_context.setdefault("tool_calls", [])
+            if isinstance(calls, list):
+                calls.append(
+                    {
+                        "tool_name": tool.name,
+                        "arguments": _json_safe_value(dict(kwargs or {})),
+                        "ok": not (isinstance(result, dict) and result.get("tool_error") is True),
+                    }
+                )
+        return result
 
     wrapper.__name__ = _tool_function_name(tool.name)
     wrapper.__qualname__ = wrapper.__name__
@@ -1109,10 +1121,13 @@ class GoogleADKRuntime:
         first_event_at: str | None = None
         first_event_perf: float | None = None
         LlmAgentType, InMemoryRunnerType, genai_types, function_tool_type = self._ensure_adk()
+        run_config_module = importlib.import_module("google.adk.agents.run_config")
         tool_name_map = {_tool_function_name(tool.name): tool.name for tool in request.bound_tools}
         active_tool_context = {
             "agent_name": request.agent_name,
             "model_call_id": request.model_call_id,
+            "enforce_order_readiness": True,
+            "tool_calls": [],
         }
         tools = [function_tool_type(_wrap_tool_callable(tool, active_tool_context)) for tool in request.bound_tools]
         config_kwargs: dict[str, Any] = {
@@ -1147,7 +1162,13 @@ class GoogleADKRuntime:
             parts=[genai_types.Part(text=self._build_user_text(request))],
         )
         events: list[AgentTraceEvent] = []
-        async for event in runner.run_async(user_id=user_id, session_id=session_id, new_message=content):
+        run_config = run_config_module.RunConfig(max_llm_calls=sys.maxsize - 1)
+        async for event in runner.run_async(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=content,
+            run_config=run_config,
+        ):
             normalized_events = _normalize_event(event)
             if normalized_events and first_event_perf is None:
                 first_event_perf = time.perf_counter()
@@ -1322,9 +1343,14 @@ class StubAgentRuntime:
             )
         if request.bound_tools:
             first_tool = request.bound_tools[0]
+            tool_context = {
+                "agent_name": request.agent_name,
+                "model_call_id": request.model_call_id,
+                "enforce_order_readiness": True,
+                "tool_calls": [],
+            }
             if callable(first_tool.function):
-                with agent_tool_context({"agent_name": request.agent_name, "model_call_id": request.model_call_id}):
-                    tool_result = first_tool.function()
+                tool_result = _wrap_tool_callable(first_tool, tool_context)()
             else:
                 tool_result = None
             events.append(

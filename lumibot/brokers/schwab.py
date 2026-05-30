@@ -938,6 +938,14 @@ class Schwab(Broker):
                         order.child_orders = child_order_objects
                         return order
 
+                if order_strategy_type == "TRIGGER" and len(child_order_objects) > 0:
+                    parent_orders = self._parse_simple_order(response, strategy_name)
+                    if parent_orders:
+                        parent_order = parent_orders[0]
+                        parent_order.order_class = Order.OrderClass.OTO
+                        parent_order.child_orders = child_order_objects
+                        return parent_order
+
                 # If we get here and have child orders, return the first one
                 if child_order_objects:
                     active_children = [child for child in child_order_objects if child.is_active()]
@@ -1385,93 +1393,21 @@ class Schwab(Broker):
             # Replace any characters that might cause issues
             tag = re.sub(r'[^a-zA-Z0-9-]', '-', tag)
 
-            # Import Schwab order templates
-            try:
-                from schwab.orders.common import Duration, OrderType, Session
-                from schwab.orders.equities import (
-                    equity_buy_limit,
-                    equity_buy_market,
-                    equity_buy_to_cover_limit,
-                    equity_buy_to_cover_market,
-                    equity_sell_limit,
-                    equity_sell_market,
-                    equity_sell_short_limit,
-                    equity_sell_short_market,
-                )
-                from schwab.orders.generic import OrderBuilder
-                from schwab.orders.options import (
-                    OptionSymbol,
-                    option_buy_to_close_limit,
-                    option_buy_to_close_market,
-                    option_buy_to_open_limit,
-                    option_buy_to_open_market,
-                    option_sell_to_close_limit,
-                    option_sell_to_close_market,
-                    option_sell_to_open_limit,
-                    option_sell_to_open_market,
-                )
-            except ImportError:
-                logger.error(colored("Failed to import Schwab order templates. Make sure the schwab-py library is installed.", "red"))
+            if order.order_class is Order.OrderClass.OTO:
+                order_builder = self._prepare_oto_order_builder(order)
+            elif order.is_advanced_order():
+                logger.error(colored("Only OTO advanced orders are implemented for Schwab broker.", "red"))
                 return None
-
-            # Create the appropriate order builder based on asset type and order details
-            order_builder = None
-
-            # Handle different order types
-            if order.is_advanced_order():
-                logger.error(colored("Advanced orders (OCO/OTO/Bracket) are not yet implemented for Schwab broker.", "red"))
-                return None
-
-            elif order.asset.asset_type == Asset.AssetType.STOCK:
-                order_builder = self._prepare_stock_order_builder(order, equity_buy_market, equity_buy_limit,
-                                                               equity_sell_market, equity_sell_limit,
-                                                               equity_sell_short_market, equity_sell_short_limit,
-                                                               equity_buy_to_cover_market, equity_buy_to_cover_limit)
-
-            elif order.asset.asset_type == Asset.AssetType.OPTION:
-                order_builder = self._prepare_option_order_builder(order, option_buy_to_open_market, option_buy_to_open_limit,
-                                                               option_sell_to_open_market, option_sell_to_open_limit,
-                                                               option_buy_to_close_market, option_buy_to_close_limit,
-                                                               option_sell_to_close_market, option_sell_to_close_limit,
-                                                               OptionSymbol)
-
-            elif order.asset.asset_type == Asset.AssetType.FUTURE:
-                order_builder = self._prepare_futures_order_builder(order, OrderBuilder)
-
             else:
-                logger.error(colored(f"Asset type {order.asset.asset_type} is not supported by Schwab broker.", "red"))
-                return None
+                order_builder = self._prepare_schwab_single_order_builder(order)
 
             if not order_builder:
                 logger.error(colored(f"Failed to create order builder for {order}", "red"))
                 return None
 
-            # Set duration and session
-            try:
-                tif = order.time_in_force or "day"
-                if tif == "day":
-                    order_builder = order_builder.set_duration(Duration.DAY)
-                elif tif == "gtc":
-                    order_builder = order_builder.set_duration(Duration.GOOD_TILL_CANCEL)
-                elif tif == "opg":
-                    order_builder = order_builder.set_duration(Duration.ON_THE_OPEN)
-                elif tif == "cls":
-                    order_builder = order_builder.set_duration(Duration.ON_THE_CLOSE)
-
-                # Set normal session
-                order_builder = order_builder.set_session(Session.NORMAL)
-
-                # Build the order spec
-                order_spec = order_builder.build()
-            except Exception as e:
-                logger.error(colored(f"Error building order specification: {e}", "red"))
+            order_spec = self._build_order_spec_from_builder(order_builder, order.time_in_force)
+            if not order_spec:
                 return None
-
-            # IMPORTANT: Verify that we don't have a nested 'order_spec' inside the order_spec
-            # This is the key fix for the validation error
-            if "order_spec" in order_spec:
-                # If order_spec contains another order_spec, use the inner one
-                order_spec = order_spec["order_spec"]
 
             # Log the final order request - reduce verbosity
             logger.info(colored(f"Sending order to Schwab: {order.asset.symbol, order.quantity} @ {order.limit_price or 'market'}", "cyan"))
@@ -1555,6 +1491,87 @@ class Schwab(Broker):
                 self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)
 
             return None
+
+    def _prepare_schwab_single_order_builder(self, order):
+        """Prepare a Schwab OrderBuilder for one non-advanced stock/option/future order."""
+        try:
+            from schwab.orders.equities import (
+                equity_buy_limit,
+                equity_buy_market,
+                equity_buy_to_cover_limit,
+                equity_buy_to_cover_market,
+                equity_sell_limit,
+                equity_sell_market,
+                equity_sell_short_limit,
+                equity_sell_short_market,
+            )
+            from schwab.orders.generic import OrderBuilder
+            from schwab.orders.options import (
+                OptionSymbol,
+                option_buy_to_close_limit,
+                option_buy_to_close_market,
+                option_buy_to_open_limit,
+                option_buy_to_open_market,
+                option_sell_to_close_limit,
+                option_sell_to_close_market,
+                option_sell_to_open_limit,
+                option_sell_to_open_market,
+            )
+        except ImportError:
+            logger.error(colored("Failed to import Schwab order templates. Make sure the schwab-py library is installed.", "red"))
+            return None
+
+        if order.asset.asset_type == Asset.AssetType.STOCK:
+            return self._prepare_stock_order_builder(
+                order,
+                equity_buy_market,
+                equity_buy_limit,
+                equity_sell_market,
+                equity_sell_limit,
+                equity_sell_short_market,
+                equity_sell_short_limit,
+                equity_buy_to_cover_market,
+                equity_buy_to_cover_limit,
+            )
+
+        if order.asset.asset_type == Asset.AssetType.OPTION:
+            return self._prepare_option_order_builder(
+                order,
+                option_buy_to_open_market,
+                option_buy_to_open_limit,
+                option_sell_to_open_market,
+                option_sell_to_open_limit,
+                option_buy_to_close_market,
+                option_buy_to_close_limit,
+                option_sell_to_close_market,
+                option_sell_to_close_limit,
+                OptionSymbol,
+            )
+
+        if order.asset.asset_type == Asset.AssetType.FUTURE:
+            return self._prepare_futures_order_builder(order, OrderBuilder)
+
+        logger.error(colored(f"Asset type {order.asset.asset_type} is not supported by Schwab broker.", "red"))
+        return None
+
+    def _prepare_oto_order_builder(self, order):
+        """Prepare a Schwab TRIGGER order for Lumibot OTO orders."""
+        if len(order.child_orders) != 1:
+            logger.error(colored("Schwab OTO orders require exactly one child order.", "red"))
+            return None
+
+        try:
+            from schwab.orders.common import first_triggers_second
+        except ImportError:
+            logger.error(colored("Failed to import Schwab OTO helpers. Make sure the schwab-py library is installed.", "red"))
+            return None
+
+        parent_builder = self._prepare_schwab_single_order_builder(order)
+        child_builder = self._prepare_schwab_single_order_builder(order.child_orders[0])
+        if not parent_builder or not child_builder:
+            return None
+
+        return first_triggers_second(parent_builder, child_builder)
 
     def _prepare_stock_order_builder(self, order, equity_buy_market, equity_buy_limit,
                                    equity_sell_market, equity_sell_limit,

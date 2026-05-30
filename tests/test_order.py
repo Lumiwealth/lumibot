@@ -1,3 +1,5 @@
+from datetime import date
+
 import pytest
 
 from lumibot.entities import Asset, Order
@@ -333,6 +335,36 @@ class TestOrderAdvanced:
         assert order.child_orders[1].is_stop_order()
         assert order.child_orders[1].stop_price == 99.0
         assert order.child_orders[1].stop_limit_price == 99.10
+
+    def test_oto_accepts_explicit_cross_asset_child_order(self):
+        parent_asset = Asset(
+            "LW",
+            asset_type=Asset.AssetType.OPTION,
+            expiration=date(2026, 5, 29),
+            strike=38.0,
+            right="CALL",
+        )
+        child_order = Order(
+            strategy="unit-test",
+            asset=Asset("LW"),
+            quantity=100,
+            side=Order.OrderSide.SELL_SHORT,
+            order_type=Order.OrderType.MARKET,
+        )
+
+        order = Order(
+            strategy="unit-test",
+            asset=parent_asset,
+            quantity=1,
+            side=Order.OrderSide.SELL_TO_OPEN,
+            order_type=Order.OrderType.LIMIT,
+            limit_price=0.05,
+            order_class=Order.OrderClass.OTO,
+            child_orders=[child_order],
+        )
+
+        assert order.order_class == Order.OrderClass.OTO
+        assert order.child_orders == [child_order]
 
     def test_is_equivalent_status(self):
         assert Order.is_equivalent_status("pending_new", Order.OrderStatus.NEW)

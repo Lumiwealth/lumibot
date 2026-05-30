@@ -213,6 +213,16 @@ def _option_order(identifier="order-123", limit_price=4.84):
     )
 
 
+def _stock_market_order(side=Order.OrderSide.SELL_SHORT, quantity=100):
+    return Order(
+        strategy="unit-test",
+        asset=Asset("LW", asset_type=Asset.AssetType.STOCK),
+        quantity=quantity,
+        side=side,
+        order_type=Order.OrderType.MARKET,
+    )
+
+
 def test_schwab_pull_positions_preserves_mutual_funds_as_unknown_or_cash_like_records():
     broker = _broker_with_positions(
         [
@@ -361,6 +371,38 @@ def test_schwab_option_replacement_uses_option_builder_and_updates_identifier():
     assert order.limit_price == 4.75
 
 
+def test_schwab_prepare_oto_order_builder_builds_trigger_with_cross_asset_child():
+    broker = Schwab.__new__(Schwab)
+    parent = Order(
+        strategy="unit-test",
+        asset=_option_asset(),
+        quantity=1,
+        side=Order.OrderSide.SELL_TO_OPEN,
+        order_type=Order.OrderType.LIMIT,
+        limit_price=0.05,
+        order_class=Order.OrderClass.OTO,
+        child_orders=[_stock_market_order()],
+    )
+
+    order_builder = broker._prepare_oto_order_builder(parent)
+    order_spec = broker._build_order_spec_from_builder(order_builder, parent.time_in_force)
+
+    assert order_spec["orderStrategyType"] == "TRIGGER"
+    assert order_spec["orderType"] == "LIMIT"
+    assert order_spec["price"] in {"0.05", "0.0500"}
+    assert order_spec["orderLegCollection"][0]["instruction"] == "SELL_TO_OPEN"
+    assert order_spec["orderLegCollection"][0]["instrument"]["assetType"] == "OPTION"
+    assert order_spec["orderLegCollection"][0]["instrument"]["symbol"] == "LW    260529C00038000"
+
+    assert len(order_spec["childOrderStrategies"]) == 1
+    child_spec = order_spec["childOrderStrategies"][0]
+    assert child_spec["orderStrategyType"] == "SINGLE"
+    assert child_spec["orderType"] == "MARKET"
+    assert child_spec["orderLegCollection"][0]["instruction"] == "SELL_SHORT"
+    assert child_spec["orderLegCollection"][0]["instrument"]["assetType"] == "EQUITY"
+    assert child_spec["orderLegCollection"][0]["instrument"]["symbol"] == "LW"
+
+
 def test_schwab_prepare_option_replacement_spec_restores_order_on_failure(monkeypatch):
     broker = Schwab.__new__(Schwab)
     order = _option_order(limit_price=4.84)
@@ -483,6 +525,59 @@ def test_schwab_parse_broker_order_preserves_child_exercise_without_error_logs(c
     assert parsed.identifier == "child-exercise"
     assert parsed.order_type == Order.OrderType.UNKNOWN
     assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
+
+
+def test_schwab_parse_trigger_order_preserves_parent_and_child_orders():
+    broker = Schwab.__new__(Schwab)
+    order = {
+        "orderId": "parent-trigger",
+        "orderStrategyType": "TRIGGER",
+        "enteredTime": "2026-05-22T15:30:00+0000",
+        "orderType": "LIMIT",
+        "price": 0.05,
+        "status": "WORKING",
+        "orderLegCollection": [
+            {
+                "instruction": "SELL_TO_OPEN",
+                "quantity": 1,
+                "orderLegType": "OPTION",
+                "instrument": {
+                    "assetType": "OPTION",
+                    "symbol": "LW    260529C00038000",
+                    "putCall": "CALL",
+                    "underlyingSymbol": "LW",
+                },
+            },
+        ],
+        "childOrderStrategies": [
+            {
+                "orderId": "child-hedge",
+                "enteredTime": "2026-05-22T15:30:01+0000",
+                "orderType": "MARKET",
+                "status": "PENDING_ACTIVATION",
+                "orderLegCollection": [
+                    {
+                        "instruction": "SELL_SHORT",
+                        "quantity": 100,
+                        "orderLegType": "EQUITY",
+                        "instrument": {"assetType": "EQUITY", "symbol": "LW"},
+                    },
+                ],
+            },
+        ],
+    }
+
+    parsed = broker._parse_broker_order(order, strategy_name="unit-test")
+
+    assert parsed is not None
+    assert parsed.identifier == "parent-trigger"
+    assert parsed.order_class == Order.OrderClass.OTO
+    assert parsed.asset.asset_type == Asset.AssetType.OPTION
+    assert parsed.asset.symbol == "LW"
+    assert len(parsed.child_orders) == 1
+    assert parsed.child_orders[0].identifier == "child-hedge"
+    assert parsed.child_orders[0].asset.asset_type == Asset.AssetType.STOCK
+    assert parsed.child_orders[0].side == Order.OrderSide.SELL_SHORT
 
 
 def test_schwab_parse_broker_order_keeps_supported_child_when_sibling_is_unknown_history():

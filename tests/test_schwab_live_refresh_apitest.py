@@ -296,3 +296,437 @@ def test_schwab_live_option_limit_wait_then_cancel_refresh(monkeypatch):
                     broker.cancel_order(submitted)
             except Exception:
                 pass
+
+
+def test_schwab_live_oto_submit_read_cancel(monkeypatch):
+    """Places a safe nonmarketable OTO, reads parent/child structure, and cancels.
+
+    This verifies Schwab accepts the TRIGGER order payload. It intentionally
+    uses nonmarketable stock limits and skips while the market is open so the
+    parent should rest instead of filling and activating the child.
+    """
+
+    broker = _schwab_broker(monkeypatch)
+    if broker.is_market_open():
+        pytest.skip("Market is open; not placing a nonmarketable OTO smoke order.")
+
+    strategy_name = "schwab-live-oto-apitest"
+    asset = Asset("TSLL", asset_type=Asset.AssetType.STOCK)
+    quote = broker.data_source.get_quote(asset)
+    last_price = float(getattr(quote, "price", None) or broker.data_source.get_last_price(asset))
+    assert last_price > 0
+
+    parent_limit = max(round(last_price * 0.50, 2), 0.01)
+    child_limit = round(last_price * 2.0, 2)
+    child_order = Order(
+        strategy=strategy_name,
+        asset=asset,
+        quantity=1,
+        side=Order.OrderSide.SELL,
+        order_type=Order.OrderType.LIMIT,
+        limit_price=child_limit,
+        time_in_force="day",
+        tag=strategy_name,
+    )
+    order = Order(
+        strategy=strategy_name,
+        asset=asset,
+        quantity=1,
+        side=Order.OrderSide.BUY,
+        order_type=Order.OrderType.LIMIT,
+        limit_price=parent_limit,
+        order_class=Order.OrderClass.OTO,
+        child_orders=[child_order],
+        time_in_force="day",
+        tag=strategy_name,
+    )
+
+    submitted = None
+    try:
+        submitted = broker._submit_order(order)
+        assert submitted is not None
+        assert submitted.identifier
+
+        raw_single = broker._pull_broker_order(submitted.identifier)
+        parsed_single = broker._parse_broker_order(raw_single, strategy_name)
+        assert raw_single is not None
+        assert raw_single.get("orderStrategyType") == "TRIGGER"
+        assert raw_single.get("childOrderStrategies")
+        assert parsed_single is not None
+        assert parsed_single.order_class == Order.OrderClass.OTO
+        assert parsed_single.child_orders
+
+        broker.cancel_order(submitted)
+
+        post_cancel_single = broker._pull_broker_order(submitted.identifier)
+        post_cancel_parsed = broker._parse_broker_order(post_cancel_single, strategy_name)
+        assert post_cancel_single["status"] in {"CANCELED", "CANCELLED"}
+        assert post_cancel_parsed.is_canceled()
+    finally:
+        if submitted and submitted.identifier:
+            try:
+                raw = broker._pull_broker_order(submitted.identifier)
+                status = str(raw.get("status", "") if raw else "").upper()
+                if status not in {"CANCELED", "CANCELLED", "FILLED", "REJECTED", "EXPIRED"}:
+                    broker.cancel_order(submitted)
+            except Exception:
+                pass
+
+
+def test_schwab_live_oco_submit_read_cancel(monkeypatch):
+    """Places a safe nonmarketable OCO, reads child structure, and cancels."""
+
+    broker = _schwab_broker(monkeypatch)
+    if broker.is_market_open():
+        pytest.skip("Market is open; not placing a nonmarketable OCO smoke order.")
+
+    strategy_name = "schwab-live-oco-apitest"
+    asset = Asset("TSLL", asset_type=Asset.AssetType.STOCK)
+    quote = broker.data_source.get_quote(asset)
+    last_price = float(getattr(quote, "price", None) or broker.data_source.get_last_price(asset))
+    assert last_price > 0
+
+    limit_order = Order(
+        strategy=strategy_name,
+        asset=asset,
+        quantity=1,
+        side=Order.OrderSide.BUY,
+        order_type=Order.OrderType.LIMIT,
+        limit_price=max(round(last_price * 0.50, 2), 0.01),
+        time_in_force="day",
+        tag=strategy_name,
+    )
+    stop_order = Order(
+        strategy=strategy_name,
+        asset=asset,
+        quantity=1,
+        side=Order.OrderSide.BUY,
+        order_type=Order.OrderType.STOP,
+        stop_price=round(last_price * 2.0, 2),
+        time_in_force="day",
+        tag=strategy_name,
+    )
+    order = Order(
+        strategy=strategy_name,
+        asset=asset,
+        quantity=1,
+        side=Order.OrderSide.BUY,
+        order_class=Order.OrderClass.OCO,
+        child_orders=[limit_order, stop_order],
+        time_in_force="day",
+        tag=strategy_name,
+    )
+
+    submitted = None
+    try:
+        submitted = broker._submit_order(order)
+        assert submitted is not None
+        assert submitted.identifier
+
+        raw_single = broker._pull_broker_order(submitted.identifier)
+        parsed_single = broker._parse_broker_order(raw_single, strategy_name)
+        assert raw_single is not None
+        assert raw_single.get("orderStrategyType") == "OCO"
+        assert len(raw_single.get("childOrderStrategies") or []) == 2
+        assert parsed_single is not None
+        assert parsed_single.order_class == Order.OrderClass.OCO
+        assert len(parsed_single.child_orders) == 2
+
+        broker.cancel_order(submitted)
+
+        post_cancel_single = broker._pull_broker_order(submitted.identifier)
+        post_cancel_parsed = broker._parse_broker_order(post_cancel_single, strategy_name)
+        assert post_cancel_single["status"] in {"CANCELED", "CANCELLED"}
+        assert post_cancel_parsed.is_canceled()
+    finally:
+        if submitted and submitted.identifier:
+            try:
+                raw = broker._pull_broker_order(submitted.identifier)
+                status = str(raw.get("status", "") if raw else "").upper()
+                if status not in {"CANCELED", "CANCELLED", "FILLED", "REJECTED", "EXPIRED"}:
+                    broker.cancel_order(submitted)
+            except Exception:
+                pass
+
+
+def test_schwab_live_bracket_submit_read_cancel(monkeypatch):
+    """Places a safe nonmarketable bracket, reads trigger/OCO structure, and cancels."""
+
+    broker = _schwab_broker(monkeypatch)
+    if broker.is_market_open():
+        pytest.skip("Market is open; not placing a nonmarketable bracket smoke order.")
+
+    strategy_name = "schwab-live-bracket-apitest"
+    asset = Asset("TSLL", asset_type=Asset.AssetType.STOCK)
+    quote = broker.data_source.get_quote(asset)
+    last_price = float(getattr(quote, "price", None) or broker.data_source.get_last_price(asset))
+    assert last_price > 0
+
+    take_profit = Order(
+        strategy=strategy_name,
+        asset=asset,
+        quantity=1,
+        side=Order.OrderSide.SELL,
+        order_type=Order.OrderType.LIMIT,
+        limit_price=round(last_price * 2.0, 2),
+        time_in_force="day",
+        tag=strategy_name,
+    )
+    stop_loss = Order(
+        strategy=strategy_name,
+        asset=asset,
+        quantity=1,
+        side=Order.OrderSide.SELL,
+        order_type=Order.OrderType.STOP,
+        stop_price=max(round(last_price * 0.25, 2), 0.01),
+        time_in_force="day",
+        tag=strategy_name,
+    )
+    order = Order(
+        strategy=strategy_name,
+        asset=asset,
+        quantity=1,
+        side=Order.OrderSide.BUY,
+        order_type=Order.OrderType.LIMIT,
+        limit_price=max(round(last_price * 0.50, 2), 0.01),
+        order_class=Order.OrderClass.BRACKET,
+        child_orders=[take_profit, stop_loss],
+        time_in_force="day",
+        tag=strategy_name,
+    )
+
+    submitted = None
+    try:
+        submitted = broker._submit_order(order)
+        assert submitted is not None
+        assert submitted.identifier
+
+        raw_single = broker._pull_broker_order(submitted.identifier)
+        parsed_single = broker._parse_broker_order(raw_single, strategy_name)
+        assert raw_single is not None
+        assert raw_single.get("orderStrategyType") == "TRIGGER"
+        child_strategies = raw_single.get("childOrderStrategies") or []
+        assert len(child_strategies) == 1
+        assert child_strategies[0].get("orderStrategyType") == "OCO"
+        assert parsed_single is not None
+        assert parsed_single.order_class == Order.OrderClass.BRACKET
+        assert len(parsed_single.child_orders) == 2
+
+        broker.cancel_order(submitted)
+
+        post_cancel_single = broker._pull_broker_order(submitted.identifier)
+        post_cancel_parsed = broker._parse_broker_order(post_cancel_single, strategy_name)
+        assert post_cancel_single["status"] in {"CANCELED", "CANCELLED"}
+        assert post_cancel_parsed.is_canceled()
+    finally:
+        if submitted and submitted.identifier:
+            try:
+                raw = broker._pull_broker_order(submitted.identifier)
+                status = str(raw.get("status", "") if raw else "").upper()
+                if status not in {"CANCELED", "CANCELLED", "FILLED", "REJECTED", "EXPIRED"}:
+                    broker.cancel_order(submitted)
+            except Exception:
+                pass
+
+
+def test_schwab_live_option_oto_submit_read_cancel(monkeypatch):
+    """Places a safe nonmarketable option OTO, reads structure, and cancels."""
+
+    broker = _schwab_broker(monkeypatch)
+    strategy_name = "schwab-live-option-oto-apitest"
+    asset = _select_tsll_call_asset(broker)
+    child_order = Order(
+        strategy=strategy_name,
+        asset=asset,
+        quantity=1,
+        side=Order.OrderSide.SELL_TO_CLOSE,
+        order_type=Order.OrderType.LIMIT,
+        limit_price=0.25,
+        time_in_force="day",
+        tag=strategy_name,
+    )
+    order = Order(
+        strategy=strategy_name,
+        asset=asset,
+        quantity=1,
+        side=Order.OrderSide.BUY_TO_OPEN,
+        order_type=Order.OrderType.LIMIT,
+        limit_price=0.05,
+        order_class=Order.OrderClass.OTO,
+        child_orders=[child_order],
+        time_in_force="day",
+        tag=strategy_name,
+    )
+
+    submitted = None
+    try:
+        submitted = broker._submit_order(order)
+        assert submitted is not None
+        assert submitted.identifier
+
+        raw_single = broker._pull_broker_order(submitted.identifier)
+        parsed_single = broker._parse_broker_order(raw_single, strategy_name)
+        assert raw_single is not None
+        assert raw_single.get("orderStrategyType") == "TRIGGER"
+        assert raw_single.get("childOrderStrategies")
+        assert parsed_single is not None
+        assert parsed_single.order_class == Order.OrderClass.OTO
+        assert parsed_single.child_orders
+
+        broker.cancel_order(submitted)
+
+        post_cancel_single = broker._pull_broker_order(submitted.identifier)
+        post_cancel_parsed = broker._parse_broker_order(post_cancel_single, strategy_name)
+        assert post_cancel_single["status"] in {"CANCELED", "CANCELLED"}
+        assert post_cancel_parsed.is_canceled()
+    finally:
+        if submitted and submitted.identifier:
+            try:
+                raw = broker._pull_broker_order(submitted.identifier)
+                status = str(raw.get("status", "") if raw else "").upper()
+                if status not in {"CANCELED", "CANCELLED", "FILLED", "REJECTED", "EXPIRED"}:
+                    broker.cancel_order(submitted)
+            except Exception:
+                pass
+
+
+def test_schwab_live_option_oco_submit_read_cancel(monkeypatch):
+    """Places a safe nonmarketable option OCO, reads child structure, and cancels."""
+
+    broker = _schwab_broker(monkeypatch)
+    strategy_name = "schwab-live-option-oco-apitest"
+    asset = _select_tsll_call_asset(broker)
+    first_order = Order(
+        strategy=strategy_name,
+        asset=asset,
+        quantity=1,
+        side=Order.OrderSide.BUY_TO_OPEN,
+        order_type=Order.OrderType.LIMIT,
+        limit_price=0.05,
+        time_in_force="day",
+        tag=strategy_name,
+    )
+    second_order = Order(
+        strategy=strategy_name,
+        asset=asset,
+        quantity=1,
+        side=Order.OrderSide.BUY_TO_OPEN,
+        order_type=Order.OrderType.LIMIT,
+        limit_price=0.10,
+        time_in_force="day",
+        tag=strategy_name,
+    )
+    order = Order(
+        strategy=strategy_name,
+        asset=asset,
+        quantity=1,
+        side=Order.OrderSide.BUY_TO_OPEN,
+        order_class=Order.OrderClass.OCO,
+        child_orders=[first_order, second_order],
+        time_in_force="day",
+        tag=strategy_name,
+    )
+
+    submitted = None
+    try:
+        submitted = broker._submit_order(order)
+        assert submitted is not None
+        assert submitted.identifier
+
+        raw_single = broker._pull_broker_order(submitted.identifier)
+        parsed_single = broker._parse_broker_order(raw_single, strategy_name)
+        assert raw_single is not None
+        assert raw_single.get("orderStrategyType") == "OCO"
+        assert len(raw_single.get("childOrderStrategies") or []) == 2
+        assert parsed_single is not None
+        assert parsed_single.order_class == Order.OrderClass.OCO
+        assert len(parsed_single.child_orders) == 2
+
+        broker.cancel_order(submitted)
+
+        post_cancel_single = broker._pull_broker_order(submitted.identifier)
+        post_cancel_parsed = broker._parse_broker_order(post_cancel_single, strategy_name)
+        assert post_cancel_single["status"] in {"CANCELED", "CANCELLED"}
+        assert post_cancel_parsed.is_canceled()
+    finally:
+        if submitted and submitted.identifier:
+            try:
+                raw = broker._pull_broker_order(submitted.identifier)
+                status = str(raw.get("status", "") if raw else "").upper()
+                if status not in {"CANCELED", "CANCELLED", "FILLED", "REJECTED", "EXPIRED"}:
+                    broker.cancel_order(submitted)
+            except Exception:
+                pass
+
+
+def test_schwab_live_option_bracket_submit_read_cancel(monkeypatch):
+    """Places a safe nonmarketable option bracket, reads trigger/OCO structure, and cancels."""
+
+    broker = _schwab_broker(monkeypatch)
+    strategy_name = "schwab-live-option-bracket-apitest"
+    asset = _select_tsll_call_asset(broker)
+    take_profit = Order(
+        strategy=strategy_name,
+        asset=asset,
+        quantity=1,
+        side=Order.OrderSide.SELL_TO_CLOSE,
+        order_type=Order.OrderType.LIMIT,
+        limit_price=0.25,
+        time_in_force="day",
+        tag=strategy_name,
+    )
+    stop_loss = Order(
+        strategy=strategy_name,
+        asset=asset,
+        quantity=1,
+        side=Order.OrderSide.SELL_TO_CLOSE,
+        order_type=Order.OrderType.STOP,
+        stop_price=0.01,
+        time_in_force="day",
+        tag=strategy_name,
+    )
+    order = Order(
+        strategy=strategy_name,
+        asset=asset,
+        quantity=1,
+        side=Order.OrderSide.BUY_TO_OPEN,
+        order_type=Order.OrderType.LIMIT,
+        limit_price=0.05,
+        order_class=Order.OrderClass.BRACKET,
+        child_orders=[take_profit, stop_loss],
+        time_in_force="day",
+        tag=strategy_name,
+    )
+
+    submitted = None
+    try:
+        submitted = broker._submit_order(order)
+        assert submitted is not None
+        assert submitted.identifier
+
+        raw_single = broker._pull_broker_order(submitted.identifier)
+        parsed_single = broker._parse_broker_order(raw_single, strategy_name)
+        assert raw_single is not None
+        assert raw_single.get("orderStrategyType") == "TRIGGER"
+        child_strategies = raw_single.get("childOrderStrategies") or []
+        assert len(child_strategies) == 1
+        assert child_strategies[0].get("orderStrategyType") == "OCO"
+        assert parsed_single is not None
+        assert parsed_single.order_class == Order.OrderClass.BRACKET
+        assert len(parsed_single.child_orders) == 2
+
+        broker.cancel_order(submitted)
+
+        post_cancel_single = broker._pull_broker_order(submitted.identifier)
+        post_cancel_parsed = broker._parse_broker_order(post_cancel_single, strategy_name)
+        assert post_cancel_single["status"] in {"CANCELED", "CANCELLED"}
+        assert post_cancel_parsed.is_canceled()
+    finally:
+        if submitted and submitted.identifier:
+            try:
+                raw = broker._pull_broker_order(submitted.identifier)
+                status = str(raw.get("status", "") if raw else "").upper()
+                if status not in {"CANCELED", "CANCELLED", "FILLED", "REJECTED", "EXPIRED"}:
+                    broker.cancel_order(submitted)
+            except Exception:
+                pass

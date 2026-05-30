@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import pytest
 
-from lumibot.components.agents import AgentManager, AgentRunResult, AgentTraceEvent
+from lumibot.components.agents import AgentManager, AgentRunResult, AgentTraceEvent, BuiltinTools
 from lumibot.components.agents.manager import AgentModelCallLimitExceeded
 from lumibot.components.agents.schemas import BoundTool, ToolDefinition
 
@@ -25,6 +26,54 @@ class _Strategy:
 
     def log_message(self, *args, **kwargs):
         return None
+
+
+class _OrderReadinessStrategy(_Strategy):
+    def __init__(self):
+        self.submitted_orders = []
+
+    def get_positions(self, include_cash_positions=True):
+        return []
+
+    def get_cash(self):
+        return 100000.0
+
+    def get_portfolio_value(self):
+        return 100000.0
+
+    def get_last_price(self, asset, quote=None, exchange=None):
+        return 100.0
+
+    def create_order(self, asset, quantity, side, **kwargs):
+        return SimpleNamespace(
+            identifier="test-order",
+            status="new",
+            side=side,
+            asset=asset,
+            quantity=quantity,
+            order_type=kwargs.get("order_type", "market"),
+            time_in_force=kwargs.get("time_in_force", "day"),
+            limit_price=kwargs.get("limit_price"),
+            stop_price=kwargs.get("stop_price"),
+        )
+
+    def submit_order(self, order):
+        self.submitted_orders.append(order)
+        return order
+
+
+def _wrap_builtin_tools(strategy, tool_definitions):
+    from lumibot.components.agents.runtime import _wrap_tool_callable
+
+    manager = AgentManager(strategy)
+    tools = [definition.binder(strategy, manager) for definition in tool_definitions]
+    tool_context = {
+        "agent_name": "trader",
+        "model_call_id": "test-model-call",
+        "enforce_order_readiness": True,
+        "tool_calls": [],
+    }
+    return {tool.name: _wrap_tool_callable(tool, tool_context) for tool in tools}
 
 
 class _Runtime:
@@ -325,6 +374,135 @@ def test_agent_allow_trading_true_keeps_mutating_order_tools():
     assert "orders_modify_order" in tool_names
     assert "orders_open_orders" in tool_names
     assert agent.default_model == "openai/gpt-5.5"
+
+
+def test_agent_order_tool_rejects_when_account_context_was_not_checked():
+    strategy = _OrderReadinessStrategy()
+    tool_map = _wrap_builtin_tools(
+        strategy,
+        [
+            BuiltinTools.account.positions(),
+            BuiltinTools.account.portfolio(),
+            BuiltinTools.market.last_price(),
+            BuiltinTools.orders.submit(),
+        ],
+    )
+
+    result = tool_map["orders_submit_order"](
+        symbol="SPY",
+        quantity=1,
+        side="buy",
+        asset_type="stock",
+        order_type="market",
+    )
+
+    assert result["tool_error"] is True
+    assert result["error"]["type"] == "ValueError"
+    assert "ORDER_READINESS_REQUIRED" in result["error"]["message"]
+    assert "account_portfolio" in result["error"]["message"]
+    assert "account_positions" in result["error"]["message"]
+    assert "market_last_price" in result["error"]["message"]
+    assert strategy.submitted_orders == []
+
+
+def test_agent_order_tool_submits_after_account_context_was_checked():
+    strategy = _OrderReadinessStrategy()
+    tool_map = _wrap_builtin_tools(
+        strategy,
+        [
+            BuiltinTools.account.positions(),
+            BuiltinTools.account.portfolio(),
+            BuiltinTools.market.last_price(),
+            BuiltinTools.orders.submit(),
+        ],
+    )
+
+    tool_map["account_portfolio"]()
+    tool_map["account_positions"]()
+    tool_map["market_last_price"](symbol="SPY", asset_type="stock")
+    result = tool_map["orders_submit_order"](
+        symbol="SPY",
+        quantity=1,
+        side="buy",
+        asset_type="stock",
+        order_type="market",
+    )
+
+    assert "tool_error" not in result
+    assert result["order"]["asset"]["symbol"] == "SPY"
+    assert len(strategy.submitted_orders) == 1
+
+
+def test_agent_order_tool_requires_last_price_for_ordered_symbol():
+    strategy = _OrderReadinessStrategy()
+    tool_map = _wrap_builtin_tools(
+        strategy,
+        [
+            BuiltinTools.account.positions(),
+            BuiltinTools.account.portfolio(),
+            BuiltinTools.market.last_price(),
+            BuiltinTools.orders.submit(),
+        ],
+    )
+
+    tool_map["account_portfolio"]()
+    tool_map["account_positions"]()
+    tool_map["market_last_price"](symbol="QQQ", asset_type="stock")
+    result = tool_map["orders_submit_order"](
+        symbol="SPY",
+        quantity=1,
+        side="buy",
+        asset_type="stock",
+        order_type="market",
+    )
+
+    assert result["tool_error"] is True
+    assert "market_last_price(symbol='SPY')" in result["error"]["message"]
+    assert strategy.submitted_orders == []
+
+
+def test_market_last_price_rejects_comma_separated_symbols():
+    strategy = _OrderReadinessStrategy()
+    tool_map = _wrap_builtin_tools(
+        strategy,
+        [
+            BuiltinTools.market.last_price(),
+        ],
+    )
+
+    result = tool_map["market_last_price"](symbol="TQQQ,SQQQ", asset_type="stock")
+
+    assert result["tool_error"] is True
+    assert result["error"]["type"] == "ValueError"
+    assert "one tradable symbol" in result["error"]["message"]
+
+
+def test_order_submit_rejects_comma_separated_symbols():
+    strategy = _OrderReadinessStrategy()
+    tool_map = _wrap_builtin_tools(
+        strategy,
+        [
+            BuiltinTools.account.positions(),
+            BuiltinTools.account.portfolio(),
+            BuiltinTools.market.last_price(),
+            BuiltinTools.orders.submit(),
+        ],
+    )
+
+    tool_map["account_portfolio"]()
+    tool_map["account_positions"]()
+    result = tool_map["orders_submit_order"](
+        symbol="TQQQ,SQQQ",
+        quantity=1,
+        side="buy",
+        asset_type="stock",
+        order_type="market",
+    )
+
+    assert result["tool_error"] is True
+    assert result["error"]["type"] == "ValueError"
+    assert "one tradable symbol" in result["error"]["message"]
+    assert strategy.submitted_orders == []
 
 
 def test_read_only_agent_runtime_can_use_non_trading_tools(tmp_path):

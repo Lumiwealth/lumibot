@@ -29,16 +29,10 @@ class AITradingTeamWarrenBuffettValueStrategy(Strategy):
             system_prompt="Find the best business quality from filings, fundamentals, cash flow, balance sheet strength, and durability.",
         )
         self.agents.create(
-            name="moat_analyst",
-            model=model,
-            allow_trading=False,
-            system_prompt="Argue for the company with the strongest moat, pricing power, management quality, and long-term compounding.",
-        )
-        self.agents.create(
             name="valuation_skeptic",
             model=model,
             allow_trading=False,
-            system_prompt="Reject weak or overpriced ideas. Focus on leverage, dilution, cyclicality, accounting quality, and margin of safety.",
+            system_prompt="Challenge the business-quality case. Require a margin of safety and reject weak or overpriced ideas.",
         )
         self.agents.create(
             name="portfolio_manager",
@@ -53,14 +47,13 @@ class AITradingTeamWarrenBuffettValueStrategy(Strategy):
             "universe": self.parameters["universe"],
         }
         report = self.agents["annual_report_reader"].run(task_prompt="Pick the highest-quality business.", context=context)
-        moat = self.agents["moat_analyst"].run(task_prompt="Make the long-term owner case.", context={**context, "report": report.summary})
         skeptic = self.agents["valuation_skeptic"].run(
-            task_prompt="Challenge the valuation and business-quality case.",
-            context={**context, "report": report.summary, "moat": moat.summary},
+            task_prompt="Challenge the valuation and business-quality case. Require margin of safety.",
+            context={**context, "report": report.summary},
         )
         self.agents["portfolio_manager"].run(
             task_prompt="Sell anything that is not the best long-term compounder, then buy the best stock with nearly all available cash.",
-            context={**context, "report": report.summary, "moat": moat.summary, "skeptic": skeptic.summary},
+            context={**context, "report": report.summary, "skeptic": skeptic.summary},
         )
 
 

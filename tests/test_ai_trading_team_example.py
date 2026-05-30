@@ -11,8 +11,11 @@ from lumibot.example_strategies.ai_trading_team_bull_bear_leveraged_etf import (
 from lumibot.example_strategies.ai_trading_team_citadel_sector_pods import (
     AITradingTeamCitadelSectorPodsStrategy,
 )
-from lumibot.example_strategies.ai_trading_team_ray_dalio_all_weather import (
-    AITradingTeamRayDalioAllWeatherStrategy,
+from lumibot.example_strategies.ai_trading_team_bull_bear_large_cap_stocks import (
+    AITradingTeamBullBearLargeCapStocksStrategy,
+)
+from lumibot.example_strategies.ai_trading_team_ray_dalio_idea_meritocracy import (
+    AITradingTeamRayDalioIdeaMeritocracyStrategy,
 )
 from lumibot.example_strategies.ai_trading_team_warren_buffett_value import (
     AITradingTeamWarrenBuffettValueStrategy,
@@ -52,7 +55,8 @@ def test_ai_trading_team_uses_agent_run_keywords():
 
 def test_ai_trading_team_variants_import_and_define_universes():
     variants = {
-        AITradingTeamRayDalioAllWeatherStrategy: {"SPY", "TLT", "GLD", "DBC"},
+        AITradingTeamBullBearLargeCapStocksStrategy: {"AAPL", "MSFT", "NVDA", "GOOGL"},
+        AITradingTeamRayDalioIdeaMeritocracyStrategy: {"SPY", "QQQ", "TLT", "GLD"},
         AITradingTeamWarrenBuffettValueStrategy: {"AAPL", "KO", "AXP", "COST"},
         AITradingTeamBillAckmanConcentratedStrategy: {"GOOGL", "CMG", "HLT", "QSR"},
         AITradingTeamCitadelSectorPodsStrategy: {"XLK", "XLF", "XLV", "XLE"},
@@ -66,14 +70,15 @@ def test_ai_trading_team_variants_import_and_define_universes():
 
 
 def test_ai_trading_team_variants_keep_one_trading_agent():
-    variant_classes = [
-        AITradingTeamRayDalioAllWeatherStrategy,
-        AITradingTeamWarrenBuffettValueStrategy,
-        AITradingTeamBillAckmanConcentratedStrategy,
-        AITradingTeamCitadelSectorPodsStrategy,
-    ]
+    variant_classes = {
+        AITradingTeamBullBearLargeCapStocksStrategy: 3,
+        AITradingTeamRayDalioIdeaMeritocracyStrategy: 4,
+        AITradingTeamWarrenBuffettValueStrategy: 2,
+        AITradingTeamBillAckmanConcentratedStrategy: 3,
+        AITradingTeamCitadelSectorPodsStrategy: 6,
+    }
 
-    for strategy_class in variant_classes:
+    for strategy_class, read_only_count in variant_classes.items():
         source = inspect.getsource(strategy_class.initialize)
         assert source.count("allow_trading=True") == 1
-        assert source.count("allow_trading=False") == 3
+        assert source.count("allow_trading=False") == read_only_count

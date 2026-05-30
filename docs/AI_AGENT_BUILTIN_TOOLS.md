@@ -31,6 +31,18 @@ self.agents.create(name="researcher", allow_trading=False)
 
 It keeps read-only tools, including `orders_open_orders`, positions, portfolio, market data, indicators, SEC filings, FRED macro data, memory, and notifications.
 
+Order readiness:
+
+Before an agent can submit an order with `orders_submit_order`, it must inspect account and price context in the same agent run:
+
+- `account_portfolio` for cash and portfolio value
+- `account_positions` for current holdings
+- `market_last_price` for the ordered symbol
+
+If any of those checks are missing, the order tool returns a structured `ORDER_READINESS_REQUIRED` error instead of submitting the order. Lumibot does not silently resize orders and does not apply universal margin rules across asset classes; the agent must use the checked cash, portfolio value, positions, and price to size the explicit order it submits.
+
+Market-price tools accept one tradable symbol per call. Do not pass a comma-separated universe to `market_last_price` or `market_load_history_table`; call the tool once per symbol or load each symbol into DuckDB separately before querying.
+
 Indicator tools:
 
 - `list_indicators`

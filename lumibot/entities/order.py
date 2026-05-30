@@ -1020,15 +1020,16 @@ class Order:
             # parent order is an entry order and the child order is either the stop or limit order that will be
             # placed if the parent order is filled. It is expected that the broker object will submit the
             # parent (entry) order as well as the child order.
-            if secondary_limit_price is not None and secondary_stop_price is not None:
-                raise ValueError("Order class is OTO but both secondary limit and stop prices have been provided. "
-                                 "OTO only allows for one of these values.")
-            if secondary_limit_price is None and secondary_stop_price is None:
-                raise ValueError("Order class is OTO but no secondary limit or stop prices have been provided. Must "
-                                 "provide exactly one of 'secondary_limit_price' or 'secondary_stop_price'.")
-
             # Implement child orders: Open Position Order, one Triggered Order (Limit or Stop)
             if not self.child_orders:
+                if secondary_limit_price is not None and secondary_stop_price is not None:
+                    raise ValueError("Order class is OTO but both secondary limit and stop prices have been provided. "
+                                     "OTO only allows for one of these values.")
+                if secondary_limit_price is None and secondary_stop_price is None:
+                    raise ValueError("Order class is OTO but no child order, secondary limit price, or secondary stop "
+                                     "price has been provided. Must provide exactly one child order or one of "
+                                     "'secondary_limit_price' or 'secondary_stop_price'.")
+
                 child_side = self.OrderSide.SELL_TO_CLOSE if self.is_buy_order() else self.OrderSide.BUY_TO_CLOSE
                 if secondary_limit_price is not None:
                     self.child_orders.append(
@@ -1057,6 +1058,11 @@ class Order:
                             quote=self.quote,
                         )
                     )
+            elif len(self.child_orders) == 1:
+                if not isinstance(self.child_orders[0], Order):
+                    raise ValueError("OTO child order must be of type Order")
+            else:
+                raise ValueError("Order class is OTO but child_orders must contain exactly one child order.")
 
             # Error check that only 1 child order exists
             if len(self.child_orders) != 1:

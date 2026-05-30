@@ -118,8 +118,7 @@ Key AI agent docs:
 
 - :doc:`agents` -- main guide: agentic backtesting framework, MCP trading tools, and competitive positioning
 - :doc:`agents_flows` -- design single-agent, multi-agent, debate, team, and hybrid flows
-- :doc:`agents_examples` -- copy-paste AI trading team examples
-- :doc:`agents_investment_committee` -- legacy large-cap bull/bear team page
+- :doc:`agents_examples` -- copy-paste AI trading team examples, including leveraged ETFs, large-cap stocks, Ray Dalio idea meritocracy, Warren Buffett value, Bill Ackman concentrated, and Citadel sector pods
 - :doc:`fundamentals` -- SEC fundamentals and filing research tools
 - :doc:`macro_data` -- FRED macro data tools and point-in-time behavior
 - :doc:`agents_builtin_tools` -- built-in tools, indicators, and trading permissions

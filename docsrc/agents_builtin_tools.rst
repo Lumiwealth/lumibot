@@ -46,6 +46,32 @@ Use ``allow_trading=True`` only for the final agent that is allowed to place or
 change orders. In an AI trading team workflow, that is usually the portfolio
 manager or trader agent.
 
+Order Readiness
+---------------
+
+Agent order tools are intentionally broker-like: LumiBot either submits the
+exact order requested or rejects it. It does not silently resize, clip, or
+normalize a requested order into a different order.
+
+Before ``orders_submit_order`` can submit an order, the agent must inspect the
+required account and price context in the same agent run:
+
+- ``account_portfolio`` for cash and portfolio value
+- ``account_positions`` for current holdings
+- ``market_last_price`` for the ordered symbol
+
+If those checks are missing, the order tool returns an
+``ORDER_READINESS_REQUIRED`` error to the agent instead of submitting the order.
+This is not a universal margin model. LumiBot does not try to enforce one
+broker/country/asset-class leverage rule across stocks, ETFs, options, futures,
+forex, and crypto. The readiness gate only prevents blind trading; sizing
+judgment remains with the strategy and agent.
+
+Market-price tools accept one tradable symbol per call. Do not pass a
+comma-separated universe to ``market_last_price`` or
+``market_load_history_table``; call the tool once per symbol or load each
+symbol into DuckDB separately before querying.
+
 Market And Account State
 ------------------------
 

@@ -1,9 +1,12 @@
 """Ray Dalio / Bridgewater-inspired idea-meritocracy AI trading team example.
 
-Set GEMINI_API_KEY, then run:
+Set GEMINI_API_KEY plus Alpaca credentials, then run paper trading:
     python ai_trading_team_ray_dalio_idea_meritocracy.py
+
+Set IS_BACKTESTING=True in the runner to run the historical example instead.
 """
 
+import os
 from datetime import datetime
 
 from lumibot.strategies.strategy import Strategy
@@ -16,33 +19,34 @@ class AITradingTeamRayDalioIdeaMeritocracyStrategy(Strategy):
 
     def initialize(self):
         self.sleeptime = "1D"
+        model = os.environ.get("AI_TRADING_TEAM_MODEL", "gemini-3.1-flash-lite")
         self.agents.create(
             name="growth_agent",
-            model="gemini-3.1-flash-lite",
+            model=model,
             allow_trading=False,
             system_prompt="Argue which ETFs win if growth improves. Be direct and expose weak assumptions.",
         )
         self.agents.create(
             name="inflation_agent",
-            model="gemini-3.1-flash-lite",
+            model=model,
             allow_trading=False,
             system_prompt="Argue which ETFs win or lose if inflation and rates surprise. Be direct.",
         )
         self.agents.create(
             name="debt_liquidity_agent",
-            model="gemini-3.1-flash-lite",
+            model=model,
             allow_trading=False,
             system_prompt="Argue from debt, liquidity, currency, and policy pressure. Be direct.",
         )
         self.agents.create(
             name="thoughtful_disagreement",
-            model="gemini-3.1-flash-lite",
+            model=model,
             allow_trading=False,
             system_prompt="Challenge all views with thoughtful disagreement. Identify the best idea after stress testing.",
         )
         self.agents.create(
             name="trader",
-            model="gemini-3.1-flash-lite",
+            model=model,
             allow_trading=True,
             system_prompt="Choose the best macro idea after the disagreement. Buy one ETF aggressively with nearly all cash.",
         )
@@ -66,10 +70,29 @@ class AITradingTeamRayDalioIdeaMeritocracyStrategy(Strategy):
 
 
 if __name__ == "__main__":
-    from lumibot.backtesting import YahooDataBacktesting
+    IS_BACKTESTING = False
 
-    AITradingTeamRayDalioIdeaMeritocracyStrategy.backtest(
-        YahooDataBacktesting,
-        datetime(2026, 4, 7),
-        datetime(2026, 5, 22),
-    )
+    if IS_BACKTESTING:
+        from lumibot.backtesting import YahooDataBacktesting
+
+        AITradingTeamRayDalioIdeaMeritocracyStrategy.backtest(
+            YahooDataBacktesting,
+            datetime(2026, 4, 7),
+            datetime(2026, 5, 22),
+        )
+    else:
+        from lumibot.brokers import Alpaca
+        from lumibot.traders import Trader
+
+        ALPACA_CONFIG = {
+            "API_KEY": os.environ["ALPACA_API_KEY"],
+            "API_SECRET": os.environ["ALPACA_API_SECRET"],
+            "PAPER": os.environ.get("ALPACA_IS_PAPER", "true").lower() != "false",
+        }
+
+        broker = Alpaca(ALPACA_CONFIG)
+        strategy = AITradingTeamRayDalioIdeaMeritocracyStrategy(broker=broker)
+
+        trader = Trader()
+        trader.add_strategy(strategy)
+        trader.run_all()

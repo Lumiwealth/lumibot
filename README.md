@@ -86,13 +86,26 @@ In this pattern, each agent has a job:
 3. **Bear Agent:** challenges the thesis, looks for risk, and argues for avoiding, delaying, or reducing the trade.
 4. **Trader / Portfolio Manager Agent:** checks cash, positions, open orders, and risk limits, then decides whether to trade.
 
-The copy-paste example below implements that exact team. It uses Gemini Flash Lite because it is fast and inexpensive for experiments. Set `GEMINI_API_KEY` first:
+The copy-paste example below implements that exact team. It uses Gemini Flash Lite because it is fast and inexpensive for experiments.
+
+To run it with a broker in paper mode, set your AI and Alpaca credentials and run the file:
 
 ```bash
 export GEMINI_API_KEY='your-key-here'
+export ALPACA_API_KEY='your-alpaca-key'
+export ALPACA_API_SECRET='your-alpaca-secret'
+export ALPACA_IS_PAPER=true
+python ai_trading_team_bull_bear_leveraged_etf.py
 ```
 
-Then save this as `ai_trading_team_bull_bear_leveraged_etf.py` and run `python ai_trading_team_bull_bear_leveraged_etf.py`. If the key is missing or invalid, Lumibot stops the backtest and prints a clear `GEMINI_API_KEY` error with a link to create a key.
+To backtest the same strategy instead, change `IS_BACKTESTING = False` to `IS_BACKTESTING = True` in the runner:
+
+```bash
+export GEMINI_API_KEY='your-key-here'
+python ai_trading_team_bull_bear_leveraged_etf.py
+```
+
+Save this as `ai_trading_team_bull_bear_leveraged_etf.py`. If an AI key is missing or invalid, Lumibot stops and prints a clear provider key error with a link to create a key.
 
 ```python
 import os
@@ -161,13 +174,32 @@ class AITradingTeamBullBearLeveragedETFStrategy(Strategy):
 
 
 if __name__ == "__main__":
-    from lumibot.backtesting import YahooDataBacktesting
+    IS_BACKTESTING = False
 
-    AITradingTeamBullBearLeveragedETFStrategy.backtest(
-        YahooDataBacktesting,
-        datetime(2026, 4, 7),
-        datetime(2026, 5, 22),
-    )
+    if IS_BACKTESTING:
+        from lumibot.backtesting import YahooDataBacktesting
+
+        AITradingTeamBullBearLeveragedETFStrategy.backtest(
+            YahooDataBacktesting,
+            datetime(2026, 4, 7),
+            datetime(2026, 5, 22),
+        )
+    else:
+        from lumibot.brokers import Alpaca
+        from lumibot.traders import Trader
+
+        ALPACA_CONFIG = {
+            "API_KEY": os.environ["ALPACA_API_KEY"],
+            "API_SECRET": os.environ["ALPACA_API_SECRET"],
+            "PAPER": os.environ.get("ALPACA_IS_PAPER", "true").lower() != "false",
+        }
+
+        broker = Alpaca(ALPACA_CONFIG)
+        strategy = AITradingTeamBullBearLeveragedETFStrategy(broker=broker)
+
+        trader = Trader()
+        trader.add_strategy(strategy)
+        trader.run_all()
 ```
 
 Example backtest artifact from this sample strategy:
@@ -176,39 +208,18 @@ Example backtest artifact from this sample strategy:
   <img src="docs/assets/ai-trading-team-example/ai-trading-team-tearsheet-rob-crop-2026-05-24.png" alt="AI trading team backtest tear sheet compared to SPY" width="100%">
 </p>
 
-Backtests are not expected future performance. The point is that the full AI trading team runs inside Lumibot's normal backtest loop, so the decisions, orders, and artifacts are inspectable before you connect a broker.
+Backtests are not expected future performance. The point is that the full AI trading team runs inside Lumibot's normal broker and backtest loops, so the decisions, orders, and artifacts are inspectable before you connect real money.
 
 ### More AI Trading Team Examples
 
-These examples use the same pattern: one Lumibot strategy, multiple AI agents with specific jobs, and only the final trading or portfolio-manager agent allowed to submit orders.
+These examples show different ways to organize an AI trading team. Each page explains the inspiration, the agent flow, how to run it with a broker in paper mode, and how to backtest it.
 
-1. **[Citadel sector pods AI trading team](https://lumibot.lumiwealth.com/agents_example_citadel_sector_pods.html):** sector-specific pod agents research technology, healthcare, financials, industrials, consumer stocks, and macro context before a portfolio manager allocates capital. Source: [`ai_trading_team_citadel_sector_pods.py`](lumibot/example_strategies/ai_trading_team_citadel_sector_pods.py).
-2. **[Warren Buffett value AI trading team](https://lumibot.lumiwealth.com/agents_example_warren_buffett_value.html):** value-focused agents study business quality, financial strength, valuation, and margin of safety before making a long-term stock decision. Source: [`ai_trading_team_warren_buffett_value.py`](lumibot/example_strategies/ai_trading_team_warren_buffett_value.py).
-3. **[Ray Dalio idea meritocracy AI trading team](https://lumibot.lumiwealth.com/agents_example_ray_dalio_idea_meritocracy.html):** independent agents argue macro, equity, rates, and risk perspectives before a decision agent weighs the arguments. Source: [`ai_trading_team_ray_dalio_idea_meritocracy.py`](lumibot/example_strategies/ai_trading_team_ray_dalio_idea_meritocracy.py).
-4. **[Bill Ackman concentrated AI trading team](https://lumibot.lumiwealth.com/agents_example_bill_ackman_concentrated.html):** agents look for durable, high-conviction large-cap opportunities and challenge the thesis before taking a focused position. Source: [`ai_trading_team_bill_ackman_concentrated.py`](lumibot/example_strategies/ai_trading_team_bill_ackman_concentrated.py).
-5. **[Bull/bear leveraged ETF AI trading team](https://lumibot.lumiwealth.com/agents_example_bull_bear_leveraged_etf.html):** researcher, bull, bear, and trader agents choose between leveraged long and inverse ETFs. Source: [`ai_trading_team_bull_bear_leveraged_etf.py`](lumibot/example_strategies/ai_trading_team_bull_bear_leveraged_etf.py).
-6. **[Bull/bear large-cap stocks AI trading team](https://lumibot.lumiwealth.com/agents_example_bull_bear_large_cap_stocks.html):** the same bull/bear debate pattern applied to large-cap equities instead of leveraged ETFs. Source: [`ai_trading_team_bull_bear_large_cap_stocks.py`](lumibot/example_strategies/ai_trading_team_bull_bear_large_cap_stocks.py).
-
-To run the same strategy in paper trading or live trading, keep the strategy class and replace the `if __name__ == "__main__":` block with a broker runner:
-
-```python
-if __name__ == "__main__":
-    from lumibot.brokers import Alpaca
-    from lumibot.traders import Trader
-
-    ALPACA_CONFIG = {
-        "API_KEY": "YOUR_ALPACA_API_KEY",
-        "API_SECRET": "YOUR_ALPACA_SECRET",
-        "PAPER": True,
-    }
-
-    broker = Alpaca(ALPACA_CONFIG)
-    strategy = AITradingTeamBullBearLeveragedETFStrategy(broker=broker)
-
-    trader = Trader()
-    trader.add_strategy(strategy)
-    trader.run_all()
-```
+1. **[Citadel sector pods AI trading team](https://lumibot.lumiwealth.com/agents_example_citadel_sector_pods.html):** inspired by the pod-style structure associated with Ken Griffin's Citadel: sector specialists pitch their best ideas, a risk manager challenges crowding and drawdown risk, and a portfolio manager rotates into the strongest sector ETF. Source: [`ai_trading_team_citadel_sector_pods.py`](lumibot/example_strategies/ai_trading_team_citadel_sector_pods.py).
+2. **[Warren Buffett value AI trading team](https://lumibot.lumiwealth.com/agents_example_warren_buffett_value.html):** uses AI agents like a patient value-investing desk: one agent digs into business quality and annual reports, one demands valuation discipline, and the portfolio manager only buys the best long-term compounder. Source: [`ai_trading_team_warren_buffett_value.py`](lumibot/example_strategies/ai_trading_team_warren_buffett_value.py).
+3. **[Ray Dalio idea meritocracy AI trading team](https://lumibot.lumiwealth.com/agents_example_ray_dalio_idea_meritocracy.html):** turns Bridgewater-style thoughtful disagreement into a macro ETF workflow, with growth, inflation, liquidity, and disagreement agents arguing before the trader acts. Source: [`ai_trading_team_ray_dalio_idea_meritocracy.py`](lumibot/example_strategies/ai_trading_team_ray_dalio_idea_meritocracy.py).
+4. **[Bill Ackman concentrated AI trading team](https://lumibot.lumiwealth.com/agents_example_bill_ackman_concentrated.html):** inspired by Pershing Square-style concentrated investing: find one great business, make the activist bull case, attack it like a short seller, then let the portfolio manager take a focused position if the thesis survives. Source: [`ai_trading_team_bill_ackman_concentrated.py`](lumibot/example_strategies/ai_trading_team_bill_ackman_concentrated.py).
+5. **[Bull/bear leveraged ETF AI trading team](https://lumibot.lumiwealth.com/agents_example_bull_bear_leveraged_etf.html):** a fast, aggressive demo where bull and bear agents debate leveraged long and inverse ETFs before the trader rotates into one high-conviction ETF. Source: [`ai_trading_team_bull_bear_leveraged_etf.py`](lumibot/example_strategies/ai_trading_team_bull_bear_leveraged_etf.py).
+6. **[Bull/bear large-cap stocks AI trading team](https://lumibot.lumiwealth.com/agents_example_bull_bear_large_cap_stocks.html):** the same debate structure applied to familiar large-cap stocks, which makes it easier to inspect each agent's reasoning before using more volatile instruments. Source: [`ai_trading_team_bull_bear_large_cap_stocks.py`](lumibot/example_strategies/ai_trading_team_bull_bear_large_cap_stocks.py).
 
 ## Run Lumibot Without Managing Servers
 

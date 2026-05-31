@@ -24,6 +24,13 @@ How the team works
 * ``bear`` points out the biggest risk.
 * ``trader`` sells non-picks, buys the chosen ETF, and is the only agent allowed to trade.
 
+Backtest snapshot
+-----------------
+
+.. image:: ../docs/assets/ai-trading-team-backtests/bull-bear-leveraged-etf-backtest-top.png
+   :alt: Top of the bull bear leveraged ETF AI trading team backtest tear sheet
+   :width: 100%
+
 Run it with a broker
 --------------------
 

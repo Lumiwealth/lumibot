@@ -23,6 +23,13 @@ How the team works
 * ``short_seller_bear`` attacks leverage, governance, accounting, competition, and valuation risk.
 * ``portfolio_manager`` builds one concentrated position and is the only agent allowed to trade.
 
+Backtest snapshot
+-----------------
+
+.. image:: ../docs/assets/ai-trading-team-backtests/bill-ackman-concentrated-backtest-top.png
+   :alt: Top of the Bill Ackman concentrated AI trading team backtest tear sheet
+   :width: 100%
+
 Run it with a broker
 --------------------
 

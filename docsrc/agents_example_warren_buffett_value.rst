@@ -24,6 +24,13 @@ How the team works
 * ``valuation_skeptic`` challenges valuation and asks for a margin of safety.
 * ``portfolio_manager`` buys the best long-term compounder and is the only agent allowed to trade.
 
+Backtest snapshot
+-----------------
+
+.. image:: ../docs/assets/ai-trading-team-backtests/warren-buffett-value-backtest-top.png
+   :alt: Top of the Warren Buffett value AI trading team backtest tear sheet
+   :width: 100%
+
 Run it with a broker
 --------------------
 

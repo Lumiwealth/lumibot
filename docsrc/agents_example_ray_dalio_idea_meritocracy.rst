@@ -25,6 +25,13 @@ How the team works
 * ``thoughtful_disagreement`` challenges the other agents and names the strongest idea.
 * ``trader`` buys the best macro ETF idea and is the only agent allowed to trade.
 
+Backtest snapshot
+-----------------
+
+.. image:: ../docs/assets/ai-trading-team-backtests/ray-dalio-idea-meritocracy-backtest-top.png
+   :alt: Top of the Ray Dalio idea meritocracy AI trading team backtest tear sheet
+   :width: 100%
+
 Run it with a broker
 --------------------
 

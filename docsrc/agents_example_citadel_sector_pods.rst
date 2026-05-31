@@ -28,6 +28,13 @@ How the team works
 * ``risk_manager`` challenges crowding, drawdown, macro, and reversal risk.
 * ``portfolio_manager`` rotates into the strongest sector ETF and is the only agent allowed to trade.
 
+Backtest snapshot
+-----------------
+
+.. image:: ../docs/assets/ai-trading-team-backtests/citadel-sector-pods-backtest-top.png
+   :alt: Top of the Citadel sector pods AI trading team backtest tear sheet
+   :width: 100%
+
 Run it with a broker
 --------------------
 

@@ -71,6 +71,19 @@ python lumibot/example_strategies/ai_trading_team_citadel_sector_pods.py
 - `docs/assets/ai-trading-team-workflows/bill-ackman-concentrated.png`
 - `docs/assets/ai-trading-team-workflows/citadel-sector-pods.png`
 
+## Backtest snapshots
+
+Each public example page should include a top-of-backtest screenshot generated
+from saved benchmark artifacts, so readers can immediately see the strategy
+equity curve, SPY comparison, return, drawdown, Sharpe, and final position.
+
+- `docs/assets/ai-trading-team-backtests/bull-bear-leveraged-etf-backtest-top.png`
+- `docs/assets/ai-trading-team-backtests/bull-bear-large-cap-stocks-backtest-top.png`
+- `docs/assets/ai-trading-team-backtests/ray-dalio-idea-meritocracy-backtest-top.png`
+- `docs/assets/ai-trading-team-backtests/warren-buffett-value-backtest-top.png`
+- `docs/assets/ai-trading-team-backtests/bill-ackman-concentrated-backtest-top.png`
+- `docs/assets/ai-trading-team-backtests/citadel-sector-pods-backtest-top.png`
+
 `lumibot/example_strategies/ai_trading_team.py` remains the shortest alias for
 the leveraged ETF example. New code should prefer the descriptive filenames
 above.

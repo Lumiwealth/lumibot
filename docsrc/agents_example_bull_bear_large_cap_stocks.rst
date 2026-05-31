@@ -23,6 +23,13 @@ How the team works
 * ``bear`` flags the biggest risk.
 * ``trader`` sells non-picks, buys the chosen stock, and is the only agent allowed to trade.
 
+Backtest snapshot
+-----------------
+
+.. image:: ../docs/assets/ai-trading-team-backtests/bull-bear-large-cap-stocks-backtest-top.png
+   :alt: Top of the bull bear large cap stocks AI trading team backtest tear sheet
+   :width: 100%
+
 Run it with a broker
 --------------------
 

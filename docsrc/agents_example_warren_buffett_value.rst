@@ -17,6 +17,8 @@ agent plays valuation skeptic and asks whether the price still leaves a margin
 of safety. The portfolio manager only trades if the business-quality case and
 valuation discipline both survive.
 
+`See this strategy running live on BotSpot <https://botspot.trade/marketplace/strategy/bdd324e9-8026-4115-b26e-30cccf6e00e8>`__
+
 How the team works
 ------------------
 

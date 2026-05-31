@@ -15,6 +15,8 @@ candidate, the activist bull looks for catalysts and value creation, the
 short-seller bear attacks the thesis, and the portfolio manager decides whether
 one concentrated position is still justified.
 
+`See this strategy running live on BotSpot <https://botspot.trade/marketplace/strategy/d56d5bf1-293b-44d8-a18c-bdda969b82f3>`__
+
 How the team works
 ------------------
 

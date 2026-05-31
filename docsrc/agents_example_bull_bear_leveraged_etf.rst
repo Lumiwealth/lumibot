@@ -16,6 +16,8 @@ choose risk-on or risk-off exposure. That makes the decision trail easy to
 audit: you can inspect why the agents liked a sector, why the bear agent
 objected, and why the final trader still bought or sold.
 
+`See this strategy running live on BotSpot <https://botspot.trade/marketplace/strategy/4aa43848-54d6-48bf-b2e4-b266f9fec6ad>`__
+
 How the team works
 ------------------
 

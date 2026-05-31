@@ -23,26 +23,6 @@
 
 Start with the open-source docs, then deploy when you are ready: [Lumibot documentation](https://lumibot.lumiwealth.com/?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=what_you_can_build_docs) · [Try a sample Lumibot strategy on BotSpot](https://botspot.trade/sales?showLogin=1&utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=what_you_can_build_botspot&sample=lumibot_readme_deploy)
 
-## Run Lumibot Without Managing Servers
-
-BotSpot is the managed cloud built around Lumibot. It makes Lumibot easier and cheaper to run because the data, backtesting workers, broker connections, scheduling, monitoring, logs, alerts, and kill switches are already wired together.
-
-BotSpot is not a generic chatbot bolted onto a broker account. Its AI workflows, prompts, MCP tools, backtest setup, broker paths, and deployment flow are built for Lumibot.
-
-- **Backtesting data included.** Use hosted stock, futures, options, FRED macro, SEC filing, and other supported data without wrangling every feed and API key yourself. Some data is included; premium data can be much cheaper than buying direct subscriptions for occasional experiments.
-- **Cheaper deployment at scale.** Scheduled and periodic bots should not need a full always-on server per strategy. BotSpot runs Lumibot bots on managed infrastructure built for this workflow, with monitoring and controls included.
-- **Lumibot-tuned AI.** Generic coding tools can write Python, but BotSpot is tuned for Lumibot strategy structure, broker setup, backtests, artifacts, and deployment.
-- **MCP for coding agents.** Connect BotSpot to Codex, Claude Code, Cursor, and other MCP clients so your coding agent can run backtests, inspect artifacts, compare results, and prepare deployment instead of only generating code.
-- **Work from anywhere.** Use the same strategy workspace from the web, your phone, Telegram, Discord, Claude, ChatGPT, and coding tools. Start in one place and continue in another.
-- **Marketplace and strategy library.** Browse existing strategy code, clone and adapt strategies, run strategies where available, and publish your own strategies when you are ready.
-- **Observability and control.** Inspect why a bot bought or sold, review charts, logs, decisions, orders, notifications, audit history, and kill-switch controls in one place.
-
-<p align="center">
-  <a href="https://botspot.trade/sales?showLogin=1&utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=managed_cloud_banner&sample=lumibot_readme_deploy">
-    <img src="docs/assets/readme/botspot_primary_cta.png" alt="Build and deploy AI trading bots on BotSpot" width="100%">
-  </a>
-</p>
-
 ## Quick Start
 
 ```bash
@@ -75,7 +55,7 @@ That same strategy code works with live brokers. Just swap the broker class.
 
 For full setup guides, broker tutorials, AI-agent docs, examples, and deployment notes, use the **[Lumibot documentation](https://lumibot.lumiwealth.com/)**.
 
-## Backtestable AI Trading Agents
+## AI Trading Team
 
 Lumibot now includes a built-in AI agent runtime for financial research, reasoning, debate, risk review, and trade execution. Agents can inspect market data, read filings, query indicators, search memory, compare macro context, and submit orders through the same Lumibot strategy loop used by normal backtests and live trading.
 
@@ -198,6 +178,17 @@ Example backtest artifact from this sample strategy:
 
 Backtests are not expected future performance. The point is that the full AI trading team runs inside Lumibot's normal backtest loop, so the decisions, orders, and artifacts are inspectable before you connect a broker.
 
+### More AI Trading Team Examples
+
+These examples use the same pattern: one Lumibot strategy, multiple AI agents with specific jobs, and only the final trading or portfolio-manager agent allowed to submit orders.
+
+1. **[Citadel sector pods AI trading team](https://lumibot.lumiwealth.com/agents_example_citadel_sector_pods.html):** sector-specific pod agents research technology, healthcare, financials, industrials, consumer stocks, and macro context before a portfolio manager allocates capital. Source: [`ai_trading_team_citadel_sector_pods.py`](lumibot/example_strategies/ai_trading_team_citadel_sector_pods.py).
+2. **[Warren Buffett value AI trading team](https://lumibot.lumiwealth.com/agents_example_warren_buffett_value.html):** value-focused agents study business quality, financial strength, valuation, and margin of safety before making a long-term stock decision. Source: [`ai_trading_team_warren_buffett_value.py`](lumibot/example_strategies/ai_trading_team_warren_buffett_value.py).
+3. **[Ray Dalio idea meritocracy AI trading team](https://lumibot.lumiwealth.com/agents_example_ray_dalio_idea_meritocracy.html):** independent agents argue macro, equity, rates, and risk perspectives before a decision agent weighs the arguments. Source: [`ai_trading_team_ray_dalio_idea_meritocracy.py`](lumibot/example_strategies/ai_trading_team_ray_dalio_idea_meritocracy.py).
+4. **[Bill Ackman concentrated AI trading team](https://lumibot.lumiwealth.com/agents_example_bill_ackman_concentrated.html):** agents look for durable, high-conviction large-cap opportunities and challenge the thesis before taking a focused position. Source: [`ai_trading_team_bill_ackman_concentrated.py`](lumibot/example_strategies/ai_trading_team_bill_ackman_concentrated.py).
+5. **[Bull/bear leveraged ETF AI trading team](https://lumibot.lumiwealth.com/agents_example_bull_bear_leveraged_etf.html):** researcher, bull, bear, and trader agents choose between leveraged long and inverse ETFs. Source: [`ai_trading_team_bull_bear_leveraged_etf.py`](lumibot/example_strategies/ai_trading_team_bull_bear_leveraged_etf.py).
+6. **[Bull/bear large-cap stocks AI trading team](https://lumibot.lumiwealth.com/agents_example_bull_bear_large_cap_stocks.html):** the same bull/bear debate pattern applied to large-cap equities instead of leveraged ETFs. Source: [`ai_trading_team_bull_bear_large_cap_stocks.py`](lumibot/example_strategies/ai_trading_team_bull_bear_large_cap_stocks.py).
+
 To run the same strategy in paper trading or live trading, keep the strategy class and replace the `if __name__ == "__main__":` block with a broker runner:
 
 ```python
@@ -218,6 +209,26 @@ if __name__ == "__main__":
     trader.add_strategy(strategy)
     trader.run_all()
 ```
+
+## Run Lumibot Without Managing Servers
+
+BotSpot is the managed cloud built around Lumibot. It makes Lumibot easier and cheaper to run because the data, backtesting workers, broker connections, scheduling, monitoring, logs, alerts, and kill switches are already wired together.
+
+BotSpot is not a generic chatbot bolted onto a broker account. Its AI workflows, prompts, MCP tools, backtest setup, broker paths, and deployment flow are built for Lumibot.
+
+- **Backtesting data included.** Use hosted stock, futures, options, FRED macro, SEC filing, and other supported data without wrangling every feed and API key yourself. Some data is included; premium data can be much cheaper than buying direct subscriptions for occasional experiments.
+- **Cheaper deployment at scale.** Scheduled and periodic bots should not need a full always-on server per strategy. BotSpot runs Lumibot bots on managed infrastructure built for this workflow, with monitoring and controls included.
+- **Lumibot-tuned AI.** Generic coding tools can write Python, but BotSpot is tuned for Lumibot strategy structure, broker setup, backtests, artifacts, and deployment.
+- **MCP for coding agents.** Connect BotSpot to Codex, Claude Code, Cursor, and other MCP clients so your coding agent can run backtests, inspect artifacts, compare results, and prepare deployment instead of only generating code.
+- **Work from anywhere.** Use the same strategy workspace from the web, your phone, Telegram, Discord, Claude, ChatGPT, and coding tools. Start in one place and continue in another.
+- **Marketplace and strategy library.** Browse existing strategy code, clone and adapt strategies, run strategies where available, and publish your own strategies when you are ready.
+- **Observability and control.** Inspect why a bot bought or sold, review charts, logs, decisions, orders, notifications, audit history, and kill-switch controls in one place.
+
+<p align="center">
+  <a href="https://botspot.trade/sales?showLogin=1&utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=managed_cloud_banner&sample=lumibot_readme_deploy">
+    <img src="docs/assets/readme/botspot_primary_cta.png" alt="Build and deploy AI trading bots on BotSpot" width="100%">
+  </a>
+</p>
 
 ## Why Lumibot?
 

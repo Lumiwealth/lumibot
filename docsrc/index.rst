@@ -97,8 +97,8 @@ Once you have backtested your strategy and understand how it behaves on historic
 
    **Remember to start with a paper trading account** to ensure everything works as expected before moving to live trading.
 
-Backtestable AI Trading Agents
-******************************
+AI Trading Team
+***************
 
 LumiBot is built for **AI agents that reason, call external tools, and make trading decisions on every bar during a backtest** -- then run the exact same code live. This is real agentic backtesting: the LLM is inside the simulation loop, not bolted onto the side.
 
@@ -125,6 +125,18 @@ Key AI agent docs:
 - :doc:`agents_quickstart` -- quick start with code examples for AI agent backtesting
 - :doc:`agents_canonical_demos` -- three reference demos: news sentiment, macro risk, and M2 liquidity
 - :doc:`agents_observability` -- traces, replay cache, warnings, and debugging workflow
+
+More AI Trading Team Examples
+*****************************
+
+These examples use the same pattern: one Lumibot strategy, multiple AI agents with specific jobs, and only the final trading or portfolio-manager agent allowed to submit orders.
+
+1. :doc:`agents_example_citadel_sector_pods` -- sector-specific pod agents research technology, healthcare, financials, industrials, consumer stocks, and macro context before a portfolio manager allocates capital.
+2. :doc:`agents_example_warren_buffett_value` -- value-focused agents study business quality, financial strength, valuation, and margin of safety before making a long-term stock decision.
+3. :doc:`agents_example_ray_dalio_idea_meritocracy` -- independent agents argue macro, equity, rates, and risk perspectives before a decision agent weighs the arguments.
+4. :doc:`agents_example_bill_ackman_concentrated` -- agents look for durable, high-conviction large-cap opportunities and challenge the thesis before taking a focused position.
+5. :doc:`agents_example_bull_bear_leveraged_etf` -- researcher, bull, bear, and trader agents choose between leveraged long and inverse ETFs.
+6. :doc:`agents_example_bull_bear_large_cap_stocks` -- the same bull/bear debate pattern applied to large-cap equities instead of leveraged ETFs.
 
 Design Your AI Trading Team
 ***************************

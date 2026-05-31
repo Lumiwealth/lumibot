@@ -17,6 +17,8 @@ portfolio manager has permission to submit orders. It is a good example when
 you want to test whether specialist agents can create better decisions than one
 single broad prompt.
 
+`See this strategy running live on BotSpot <https://botspot.trade/marketplace/strategy/0b4576c7-f78b-4477-ba3a-630758fb0168>`__
+
 How the team works
 ------------------
 

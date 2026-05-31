@@ -16,6 +16,8 @@ one argues from inflation and rates, one argues from debt, liquidity, currency,
 and policy pressure, then a disagreement agent stress-tests all three before
 the trader picks one ETF.
 
+`See this strategy running live on BotSpot <https://botspot.trade/marketplace/strategy/81af73b8-7dec-4941-ba35-d5a06fee6863>`__
+
 How the team works
 ------------------
 

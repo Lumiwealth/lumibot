@@ -15,6 +15,8 @@ case, the bear agent forces a risk check, and the trader decides whether to
 rotate into the pick. Because the symbols are recognizable, it is easier to
 read the trace and decide whether the agents are making sensible arguments.
 
+`See this strategy running live on BotSpot <https://botspot.trade/marketplace/strategy/932f3661-c552-4723-b247-869518a5d30f>`__
+
 How the team works
 ------------------
 

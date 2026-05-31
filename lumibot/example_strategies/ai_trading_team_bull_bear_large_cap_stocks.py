@@ -1,9 +1,12 @@
 """Bull/bear large-cap stock AI trading team example.
 
-Set GEMINI_API_KEY, then run:
+Set GEMINI_API_KEY plus Alpaca credentials, then run paper trading:
     python ai_trading_team_bull_bear_large_cap_stocks.py
+
+Set IS_BACKTESTING=True in the runner to run the historical example instead.
 """
 
+import os
 from datetime import datetime
 
 from lumibot.strategies.strategy import Strategy
@@ -16,27 +19,28 @@ class AITradingTeamBullBearLargeCapStocksStrategy(Strategy):
 
     def initialize(self):
         self.sleeptime = "1D"
+        model = os.environ.get("AI_TRADING_TEAM_MODEL", "gemini-3.1-flash-lite")
         self.agents.create(
             name="researcher",
-            model="gemini-3.1-flash-lite",
+            model=model,
             allow_trading=False,
             system_prompt="Rank the large-cap stocks by upside. Be direct.",
         )
         self.agents.create(
             name="bull",
-            model="gemini-3.1-flash-lite",
+            model=model,
             allow_trading=False,
             system_prompt="Argue for the strongest money-making stock.",
         )
         self.agents.create(
             name="bear",
-            model="gemini-3.1-flash-lite",
+            model=model,
             allow_trading=False,
             system_prompt="Point out the biggest risk, briefly.",
         )
         self.agents.create(
             name="trader",
-            model="gemini-3.1-flash-lite",
+            model=model,
             allow_trading=True,
             system_prompt="Buy one stock from the universe aggressively. Use nearly all cash.",
         )
@@ -56,10 +60,29 @@ class AITradingTeamBullBearLargeCapStocksStrategy(Strategy):
 
 
 if __name__ == "__main__":
-    from lumibot.backtesting import YahooDataBacktesting
+    IS_BACKTESTING = False
 
-    AITradingTeamBullBearLargeCapStocksStrategy.backtest(
-        YahooDataBacktesting,
-        datetime(2026, 4, 7),
-        datetime(2026, 5, 22),
-    )
+    if IS_BACKTESTING:
+        from lumibot.backtesting import YahooDataBacktesting
+
+        AITradingTeamBullBearLargeCapStocksStrategy.backtest(
+            YahooDataBacktesting,
+            datetime(2026, 4, 7),
+            datetime(2026, 5, 22),
+        )
+    else:
+        from lumibot.brokers import Alpaca
+        from lumibot.traders import Trader
+
+        ALPACA_CONFIG = {
+            "API_KEY": os.environ["ALPACA_API_KEY"],
+            "API_SECRET": os.environ["ALPACA_API_SECRET"],
+            "PAPER": os.environ.get("ALPACA_IS_PAPER", "true").lower() != "false",
+        }
+
+        broker = Alpaca(ALPACA_CONFIG)
+        strategy = AITradingTeamBullBearLargeCapStocksStrategy(broker=broker)
+
+        trader = Trader()
+        trader.add_strategy(strategy)
+        trader.run_all()

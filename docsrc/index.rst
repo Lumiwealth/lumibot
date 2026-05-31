@@ -126,18 +126,6 @@ Key AI agent docs:
 - :doc:`agents_canonical_demos` -- three reference demos: news sentiment, macro risk, and M2 liquidity
 - :doc:`agents_observability` -- traces, replay cache, warnings, and debugging workflow
 
-More AI Trading Team Examples
-*****************************
-
-These examples use the same pattern: one Lumibot strategy, multiple AI agents with specific jobs, and only the final trading or portfolio-manager agent allowed to submit orders.
-
-1. :doc:`agents_example_citadel_sector_pods` -- sector-specific pod agents research technology, healthcare, financials, industrials, consumer stocks, and macro context before a portfolio manager allocates capital.
-2. :doc:`agents_example_warren_buffett_value` -- value-focused agents study business quality, financial strength, valuation, and margin of safety before making a long-term stock decision.
-3. :doc:`agents_example_ray_dalio_idea_meritocracy` -- independent agents argue macro, equity, rates, and risk perspectives before a decision agent weighs the arguments.
-4. :doc:`agents_example_bill_ackman_concentrated` -- agents look for durable, high-conviction large-cap opportunities and challenge the thesis before taking a focused position.
-5. :doc:`agents_example_bull_bear_leveraged_etf` -- researcher, bull, bear, and trader agents choose between leveraged long and inverse ETFs.
-6. :doc:`agents_example_bull_bear_large_cap_stocks` -- the same bull/bear debate pattern applied to large-cap equities instead of leveraged ETFs.
-
 Design Your AI Trading Team
 ***************************
 
@@ -165,13 +153,26 @@ In this pattern, each agent has a job:
 3. **Bear Agent:** challenges the thesis, looks for risk, and argues for avoiding, delaying, or reducing the trade.
 4. **Trader / Portfolio Manager Agent:** checks cash, positions, open orders, and risk limits, then decides whether to trade.
 
-The copy-paste example below implements that exact team. It uses Gemini Flash Lite because it is fast and inexpensive for experiments. Set ``GEMINI_API_KEY`` first:
+The copy-paste example below implements that exact team. It uses Gemini Flash Lite because it is fast and inexpensive for experiments.
+
+To run it with a broker in paper mode, set your AI and Alpaca credentials and run the file:
 
 .. code-block:: bash
 
     export GEMINI_API_KEY='your-key-here'
+    export ALPACA_API_KEY='your-alpaca-key'
+    export ALPACA_API_SECRET='your-alpaca-secret'
+    export ALPACA_IS_PAPER=true
+    python ai_trading_team_bull_bear_leveraged_etf.py
 
-Then save this as ``ai_trading_team_bull_bear_leveraged_etf.py`` and run ``python ai_trading_team_bull_bear_leveraged_etf.py``. If the key is missing or invalid, LumiBot stops the backtest and prints a clear ``GEMINI_API_KEY`` error with a link to create a key.
+To backtest the same strategy instead, change ``IS_BACKTESTING = False`` to ``IS_BACKTESTING = True`` in the runner:
+
+.. code-block:: bash
+
+    export GEMINI_API_KEY='your-key-here'
+    python ai_trading_team_bull_bear_leveraged_etf.py
+
+Save this as ``ai_trading_team_bull_bear_leveraged_etf.py``. If an AI key is missing or invalid, LumiBot stops and prints a clear provider key error with a link to create a key.
 
 .. code-block:: python
 
@@ -241,13 +242,32 @@ Then save this as ``ai_trading_team_bull_bear_leveraged_etf.py`` and run ``pytho
 
 
     if __name__ == "__main__":
-        from lumibot.backtesting import YahooDataBacktesting
+        IS_BACKTESTING = False
 
-        AITradingTeamBullBearLeveragedETFStrategy.backtest(
-            YahooDataBacktesting,
-            datetime(2026, 4, 7),
-            datetime(2026, 5, 22),
-        )
+        if IS_BACKTESTING:
+            from lumibot.backtesting import YahooDataBacktesting
+
+            AITradingTeamBullBearLeveragedETFStrategy.backtest(
+                YahooDataBacktesting,
+                datetime(2026, 4, 7),
+                datetime(2026, 5, 22),
+            )
+        else:
+            from lumibot.brokers import Alpaca
+            from lumibot.traders import Trader
+
+            ALPACA_CONFIG = {
+                "API_KEY": os.environ["ALPACA_API_KEY"],
+                "API_SECRET": os.environ["ALPACA_API_SECRET"],
+                "PAPER": os.environ.get("ALPACA_IS_PAPER", "true").lower() != "false",
+            }
+
+            broker = Alpaca(ALPACA_CONFIG)
+            strategy = AITradingTeamBullBearLeveragedETFStrategy(broker=broker)
+
+            trader = Trader()
+            trader.add_strategy(strategy)
+            trader.run_all()
 
 Example backtest artifact from this sample strategy:
 
@@ -255,28 +275,19 @@ Example backtest artifact from this sample strategy:
    :alt: AI trading team backtest tear sheet compared to SPY
    :width: 100%
 
-The result is intentionally eye-catching, but the exact percentage is not the point. The point is that the full AI trading team runs inside Lumibot's normal backtest loop, so the decisions, orders, and artifacts are inspectable before you connect a broker. Backtests are not expected future performance.
+The result is intentionally eye-catching, but the exact percentage is not the point. The point is that the full AI trading team runs inside Lumibot's normal broker and backtest loops, so the decisions, orders, and artifacts are inspectable before you connect real money. Backtests are not expected future performance.
 
-To run the same strategy in paper trading or live trading, keep the strategy class and replace the ``if __name__ == "__main__":`` block with a broker runner:
+More AI Trading Team Examples
+*****************************
 
-.. code-block:: python
+These examples show different ways to organize an AI trading team. Each page explains the inspiration, the agent flow, how to run it with a broker in paper mode, and how to backtest it.
 
-    if __name__ == "__main__":
-        from lumibot.brokers import Alpaca
-        from lumibot.traders import Trader
-
-        ALPACA_CONFIG = {
-            "API_KEY": "YOUR_ALPACA_API_KEY",
-            "API_SECRET": "YOUR_ALPACA_SECRET",
-            "PAPER": True,
-        }
-
-        broker = Alpaca(ALPACA_CONFIG)
-        strategy = AITradingTeamBullBearLeveragedETFStrategy(broker=broker)
-
-        trader = Trader()
-        trader.add_strategy(strategy)
-        trader.run_all()
+1. :doc:`agents_example_citadel_sector_pods` -- inspired by the pod-style structure associated with Ken Griffin's Citadel: sector specialists pitch their best ideas, a risk manager challenges crowding and drawdown risk, and a portfolio manager rotates into the strongest sector ETF.
+2. :doc:`agents_example_warren_buffett_value` -- uses AI agents like a patient value-investing desk: one agent digs into business quality and annual reports, one demands valuation discipline, and the portfolio manager only buys the best long-term compounder.
+3. :doc:`agents_example_ray_dalio_idea_meritocracy` -- turns Bridgewater-style thoughtful disagreement into a macro ETF workflow, with growth, inflation, liquidity, and disagreement agents arguing before the trader acts.
+4. :doc:`agents_example_bill_ackman_concentrated` -- inspired by Pershing Square-style concentrated investing: find one great business, make the activist bull case, attack it like a short seller, then let the portfolio manager take a focused position if the thesis survives.
+5. :doc:`agents_example_bull_bear_leveraged_etf` -- a fast, aggressive demo where bull and bear agents debate leveraged long and inverse ETFs before the trader rotates into one high-conviction ETF.
+6. :doc:`agents_example_bull_bear_large_cap_stocks` -- the same debate structure applied to familiar large-cap stocks, which makes it easier to inspect each agent's reasoning before using more volatile instruments.
 
 Cash Accounting
 ***************

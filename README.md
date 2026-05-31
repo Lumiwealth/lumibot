@@ -243,18 +243,38 @@ BotSpot is not a generic chatbot bolted onto a broker account. Its AI workflows,
 
 ## Why Lumibot?
 
-| Feature | Lumibot | Backtrader | Freqtrade | Zipline | Backtesting.py | Jesse |
-|---------|---------|------------|-----------|---------|----------------|-------|
-| **Same code: backtest + live** | Yes | Yes | Yes (crypto) | No | No | Yes (paid) |
-| **Stocks** | Yes | Yes | No | Yes | Yes | No |
-| **Options** | **Yes** | No | No | No | No | No |
-| **Crypto** | Yes | Limited | Yes | No | Yes | Yes |
-| **Futures** | Yes | Limited | Crypto only | Partial | Yes | Crypto only |
-| **Forex** | Yes | Outdated | No | No | Yes | No |
-| **AI agent runtime** | Built-in | No | FreqAI (ML) | No | No | ML pipeline |
-| **Brokers** | Alpaca, IBKR, Tradier, Schwab, Tradovate, TopstepX (via ProjectX), Bitunix, plus selected CCXT crypto paths | IB only (outdated) | 10+ crypto exchanges | None | None | 8+ crypto (paid) |
-| **Actively maintained** | Yes (2026) | No (since 2023) | Yes | Minimal | Moderate | Yes |
-| **License** | MIT | GPL-3.0 | GPL-3.0 | Apache-2.0 | AGPL-3.0 | MIT |
+AI trading projects have proved that people want agentic trading workflows. Lumibot's edge is that those workflows run inside a real Python trading framework: you can backtest the agent decisions, inspect artifacts, paper trade, and connect to brokers without rewriting the strategy.
+
+### Compared with AI trading agent projects
+
+| Project | Main angle | AI agents / teams | Backtest agent decisions | Paper/live broker path | Deterministic Python strategies | Hosted data/deploy/monitoring |
+|---------|------------|-------------------|--------------------------|------------------------|---------------------------------|-------------------------------|
+| **Lumibot + BotSpot** | Python strategies, AI trading teams, backtests, brokers, hosted deployment | **Yes** | **Yes** | **Yes: Alpaca, IBKR, Tradier, Schwab, Tradovate, ProjectX, Bitunix, selected CCXT** | **Yes** | **Yes, through BotSpot** |
+| TradingAgents | Multi-agent LLM trading research framework | Yes | Research/demo oriented | Not the main focus | Limited | No |
+| ai-hedge-fund | Educational AI hedge fund with named investor-style agents | Yes | Demo/backtest oriented | Not the main focus | Limited | No |
+| OpenAlice | One-person Wall Street agent concept | Yes | Emerging/experimental | Local/self-run focus | Limited | No |
+| QuantDinger | Self-hosted AI quant operating system | Yes | Yes | Crypto, IBKR, MT5, Alpaca | Yes | Self-hosted |
+| Vibe-Trading | Personal trading agent | Yes | Yes | Agent trading platform focus | Limited | Platform-specific |
+| AI-Trader | Agent-native trading platform | Yes | Platform focus | Platform focus | Limited | Platform-specific |
+| OpenBB | Financial data platform for analysts, quants, and AI agents | Tooling for agents | Not a strategy backtester | No broker execution framework | No | OpenBB workspace/platform |
+| Qlib | AI-oriented quant research platform | Research/ML agents | Quant research backtests | Limited live focus | Research pipelines | No |
+
+See the docs comparison pages for more detail: [Lumibot vs TradingAgents](https://lumibot.lumiwealth.com/lumibot_vs_tradingagents.html), [Lumibot vs ai-hedge-fund](https://lumibot.lumiwealth.com/lumibot_vs_ai_hedge_fund.html), [Lumibot vs OpenAlice](https://lumibot.lumiwealth.com/lumibot_vs_openalice.html), and [Lumibot vs QuantDinger](https://lumibot.lumiwealth.com/lumibot_vs_quantdinger.html).
+
+### Compared with backtesting libraries
+
+| Feature | Lumibot | Backtrader | Freqtrade | Zipline | Backtesting.py | Jesse | vectorbt | NautilusTrader | Hummingbot |
+|---------|---------|------------|-----------|---------|----------------|-------|----------|----------------|------------|
+| **Same code: backtest + live** | Yes | Yes | Yes (crypto) | No | No | Yes (paid) | No | Yes | Yes (crypto) |
+| **Stocks** | Yes | Yes | No | Yes | Yes | No | Yes | Yes | No |
+| **Options** | **Yes** | No | No | No | No | No | No | Limited | No |
+| **Crypto** | Yes | Limited | Yes | No | Yes | Yes | Yes | Yes | Yes |
+| **Futures** | Yes | Limited | Crypto only | Partial | Yes | Crypto only | Yes | Yes | Perpetuals/crypto venues |
+| **Forex** | Yes | Outdated | No | No | Yes | No | Yes | Yes | No |
+| **AI agent runtime** | Built-in | No | FreqAI (ML) | No | No | ML pipeline | No | No | Scripts/controllers |
+| **Broker execution** | Alpaca, IBKR, Tradier, Schwab, Tradovate, TopstepX (via ProjectX), Bitunix, selected CCXT | IB only (outdated) | Crypto exchanges | None | None | Crypto exchanges | No | Exchange adapters | Crypto exchanges |
+| **Hosted deployment path** | BotSpot | No | No | No | No | Paid cloud | No | No | Hummingbot Foundation/enterprise ecosystem |
+| **License** | MIT | GPL-3.0 | GPL-3.0 | Apache-2.0 | AGPL-3.0 | MIT | Apache-2.0 | LGPL-3.0 | Apache-2.0 |
 
 **Switching from Backtrader?** See our [migration guide](docs/MIGRATING_FROM_BACKTRADER.md) for a side-by-side comparison with code examples.
 

@@ -146,6 +146,21 @@ a.btn.course-button:active {
     margin-bottom: 110px; /* Adjust according to footer height */
 }
 
+/* Wide comparison tables should be readable on mobile instead of forcing the
+   whole documentation page to overflow horizontally. */
+.table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.table-wrapper table {
+    max-width: 100%;
+}
+
+.table-wrapper table.wide-comparison-table {
+    min-width: 900px;
+}
+
 .announcement {
     position: fixed;
     bottom: 0;

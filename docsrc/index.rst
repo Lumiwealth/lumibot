@@ -322,6 +322,136 @@ BotSpot is the cheaper, easier way to run Lumibot once you want hosted data, par
 .. raw:: html
    :file: _html/course_list.html
 
+Why Lumibot?
+************
+
+AI trading projects have proved that people want agentic trading workflows.
+Lumibot's edge is that those workflows run inside a real Python trading
+framework: you can backtest the agent decisions, inspect artifacts, paper
+trade, and connect to brokers without rewriting the strategy.
+
+Compared With AI Trading Agent Projects
+---------------------------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 18 18 18 20 18
+
+   * - Project
+     - AI trading teams
+     - Backtest decisions
+     - Paper/live broker path
+     - Hosted deploy/monitoring
+   * - Lumibot + BotSpot
+     - Yes
+     - Yes
+     - Yes: Alpaca, IBKR, Tradier, Schwab, Tradovate, ProjectX, Bitunix, selected CCXT
+     - Yes, through BotSpot
+   * - TradingAgents
+     - Yes
+     - Research/demo oriented
+     - Not the main focus
+     - No
+   * - ai-hedge-fund
+     - Yes
+     - Demo/backtest oriented
+     - Not the main focus
+     - No
+   * - OpenAlice
+     - Yes
+     - Experimental
+     - Local/self-run focus
+     - No
+   * - QuantDinger
+     - Yes
+     - Yes
+     - Crypto, IBKR, MT5, Alpaca
+     - Self-hosted
+   * - Vibe-Trading
+     - Yes
+     - Yes
+     - Agent platform focus
+     - Platform-specific
+   * - AI-Trader
+     - Yes
+     - Platform focus
+     - Platform focus
+     - Platform-specific
+   * - OpenBB
+     - Tooling for agents
+     - Not a strategy backtester
+     - No broker execution framework
+     - OpenBB platform
+   * - Qlib
+     - Research/ML agents
+     - Quant research backtests
+     - Limited live focus
+     - No
+
+Read the detailed comparison page: :doc:`ai_trading_project_comparison`.
+
+Compared With Backtesting Libraries
+-----------------------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 18 18 18 18 18 18
+
+   * - Library
+     - Same code: backtest + live
+     - Assets
+     - AI agent runtime
+     - Broker/live path
+     - Hosted deployment
+   * - Lumibot
+     - Yes
+     - Stocks, options, crypto, futures, forex
+     - Built-in
+     - Alpaca, IBKR, Tradier, Schwab, Tradovate, ProjectX, Bitunix, selected CCXT
+     - BotSpot
+   * - Backtrader
+     - Yes
+     - Stocks, limited crypto/futures, outdated forex
+     - No
+     - IB only/outdated
+     - No
+   * - Freqtrade
+     - Crypto
+     - Crypto
+     - FreqAI/ML
+     - Crypto exchanges
+     - No
+   * - Zipline
+     - No
+     - Stocks
+     - No
+     - None
+     - No
+   * - Backtesting.py
+     - No
+     - Stocks, crypto, futures, forex
+     - No
+     - None
+     - No
+   * - vectorbt
+     - No
+     - Stocks, crypto, futures, forex
+     - No
+     - No
+     - No
+   * - NautilusTrader
+     - Yes
+     - Stocks, crypto, futures, forex, limited options
+     - No
+     - Exchange adapters
+     - No
+   * - Hummingbot
+     - Crypto
+     - Crypto market making
+     - Scripts/controllers
+     - Crypto exchanges
+     - Ecosystem/enterprise options
+
 Table of Contents
 *****************
 
@@ -335,6 +465,7 @@ Table of Contents
    getting_started
    imports_and_startup
    agents
+   ai_trading_project_comparison
    cash_accounting
    lifecycle_methods
    strategy_methods

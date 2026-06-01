@@ -39,7 +39,7 @@ After a release is published, the next version branch must be cut from `dev` imm
 For tearsheet metric contract changes, LumiBot should require:
 
 ```text
-quantstats-lumi>=1.1.3,<1.2.0
+quantstats-lumi>=1.1.5,<1.2.0
 ```
 
 Release order for tearsheet metric changes:

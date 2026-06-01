@@ -74,7 +74,7 @@ setuptools.setup(
         "yappi>=1.6.0",
         # SciPy 1.14.0+ supports NumPy 2.x
         "scipy>=1.14.0",
-        "quantstats-lumi>=1.1.4,<1.2.0",
+        "quantstats-lumi>=1.1.5,<1.2.0",
         "python-dotenv",  # Secret Storage
         "ccxt>=4.5.50",  # 4.5.50+ includes WEEX exchange support
         "termcolor",

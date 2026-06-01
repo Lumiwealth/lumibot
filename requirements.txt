@@ -16,7 +16,7 @@ bcrypt
 pytest
 yappi>=1.6.0
 scipy>=1.14.0
-quantstats-lumi>=1.1.4,<1.2.0
+quantstats-lumi>=1.1.5,<1.2.0
 python-dotenv  # Secret Storage
 ccxt>=4.5.50
 termcolor>=2.0

@@ -99,6 +99,11 @@ Live scheduled execution (BotSpot/BotManager)
 ---------------------------------------------
 
 - ``LUMIBOT_SCHEDULED_EXECUTION``: internal BotManager flag. Truthy values (``1``, ``true``, ``yes``, ``y``, ``on``) make ``Strategy.run_live()`` run one live iteration and exit.
+- ``LUMIBOT_SCHEDULED_TARGET_RUN_AT``: UTC ISO-8601 target time for exact scheduled runs. When present, LumiBot initializes the strategy/broker first, waits locally until this timestamp immediately before ``on_trading_iteration()``, and skips the iteration if the drift budget is exceeded.
+- ``LUMIBOT_SCHEDULED_PRE_START_AT``: UTC ISO-8601 pre-start time used by BotManager telemetry to compare scheduler launch timing with the requested target.
+- ``LUMIBOT_SCHEDULED_MAX_TARGET_DRIFT_MS``: maximum allowed late drift in milliseconds for exact scheduled runs. Defaults to ``1000``.
+- ``LUMIBOT_SCHEDULED_POST_ITERATION_SECONDS``: drain window after the one live iteration. During this window LumiBot continues processing broker/order queue events before exiting.
+- ``LUMIBOT_SCHEDULED_TIMING_FILE``: local JSON timing file written by LumiBot for BotManager bootstrap telemetry.
 - ``LUMIBOT_SCHEDULED_STATE_BACKEND``: external state backend prepared by BotManager: ``s3``, ``dynamodb``, or ``none``. ``none`` disables scheduled ``self.vars`` file load/save.
 - ``LUMIBOT_SCHEDULED_STATE_FILE``: local JSON file managed by BotManager/bootstrap code to restore and persist ``self.vars`` for one scheduled live run. State is restored before scheduled lifecycle hooks.
 

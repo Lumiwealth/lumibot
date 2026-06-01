@@ -2,6 +2,9 @@
 
 ## 4.5.43 - Unreleased
 
+### Added
+- **Exact BotManager scheduled runs now wait locally for `targetRunAt`.** Scheduled one-shot live runs can initialize early, wait immediately before `on_trading_iteration()`, write timing telemetry, skip late iterations that exceed the drift budget, and drain post-iteration broker events before exit.
+
 ## 4.5.42 - Unreleased
 
 Deploy marker: `deploy 4.5.42`

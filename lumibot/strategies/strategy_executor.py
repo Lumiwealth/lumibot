@@ -20,6 +20,7 @@ from apscheduler.triggers.cron import CronTrigger
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset, Order
 from lumibot.entities import Asset
+from lumibot.strategies.scheduled_timing import ScheduledRunTiming
 from lumibot.tools import append_locals, get_trading_days, staticdecorator
 from lumibot.tools.smart_limit_utils import (
     build_price_ladder,
@@ -57,6 +58,7 @@ class StrategyExecutor(Thread):
         # Store any exception that occurs during execution
         self.exception = None
         self._run_once_requested = False
+        self._scheduled_timing = ScheduledRunTiming(logger=self.strategy.logger)
 
         # Create a dictionary of job stores. A job store is where the scheduler persists its jobs. In this case,
         # we create an in-memory job store for "default" and "On_Trading_Iteration" which is the job store we will
@@ -108,6 +110,36 @@ class StrategyExecutor(Thread):
             append_locals(self.strategy.on_trading_iteration)
             if self._capture_locals
             else self.strategy.on_trading_iteration
+        )
+
+    def _scheduled_now_utc(self):
+        return self._scheduled_timing.now_utc()
+
+    @staticmethod
+    def _scheduled_iso(value):
+        return ScheduledRunTiming.iso(value)
+
+    def _scheduled_record_timing(self, **fields):
+        self._scheduled_timing.record(**fields)
+
+    def _scheduled_write_timing(self):
+        self._scheduled_timing.write()
+
+    def _scheduled_wait_until_target(self):
+        return self._scheduled_timing.wait_until_target(
+            now_utc=self._scheduled_now_utc,
+            monotonic=time.monotonic,
+            sleep=time.sleep,
+            log_message=self.strategy.log_message,
+        )
+
+    def _scheduled_drain_after_iteration(self):
+        self._scheduled_timing.drain_after_iteration(
+            stop_event=self.stop_event,
+            process_queue=self.process_queue,
+            now_utc=self._scheduled_now_utc,
+            monotonic=time.monotonic,
+            sleep=time.sleep,
         )
 
     def _is_continuous_market(self, market_name):
@@ -2032,9 +2064,25 @@ class StrategyExecutor(Thread):
 
         self.cron_count_target = 1
         self.cron_count = 0
+        if not self._scheduled_wait_until_target():
+            return False
         try:
+            self._scheduled_record_timing(
+                iteration_started_at=self._scheduled_iso(self._scheduled_now_utc()),
+                status="iteration_started",
+            )
             self._on_trading_iteration()
+            self._scheduled_record_timing(
+                iteration_finished_at=self._scheduled_iso(self._scheduled_now_utc()),
+                status="iteration_finished",
+            )
             self.process_queue()
+            self._scheduled_drain_after_iteration()
+            self._scheduled_record_timing(
+                status="completed",
+                exact_timing_verified=True,
+            )
+            return True
         finally:
             self._in_trading_iteration = False
 
@@ -2046,12 +2094,17 @@ class StrategyExecutor(Thread):
 
             self._initialize()
             self.broker.initialize_market_calendars(get_trading_days(self.broker.market))
-            self._run_live_once()
-            self._on_strategy_end()
+            self._scheduled_record_timing(
+                strategy_initialized_at=self._scheduled_iso(self._scheduled_now_utc()),
+                status="strategy_initialized",
+            )
+            iteration_ran = self._run_live_once()
+            if iteration_ran:
+                self._on_strategy_end()
 
             self.result = self.strategy._analysis
             self.gracefully_exit()
-            return True
+            return bool(iteration_ran)
         except Exception as e:
             try:
                 self.strategy.logger.error(e)

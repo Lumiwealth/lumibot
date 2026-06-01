@@ -245,16 +245,18 @@ BotSpot is not a generic chatbot bolted onto a broker account. Its AI workflows,
 
 ## Why Lumibot?
 
-AI trading projects have proved that people want agentic trading workflows. Lumibot's edge is that those workflows run inside a real Python trading framework: you can backtest the agent decisions, inspect artifacts, paper trade, and connect to brokers without rewriting the strategy.
+AI trading projects have proved that people want agentic trading workflows. Lumibot's edge is that those workflows run inside a real Python trading framework: you can backtest the agent decisions, inspect artifacts, add Python guardrails, paper trade, and connect to brokers without rewriting the strategy.
+
+That matters because an AI trading demo is not the same thing as a trading system. Without backtests and broker-aware strategy code, you are mostly trusting prompts. Lumibot lets you iterate faster: test the agent flow on historical data, see what it would have bought or sold, tighten the Python risk checks, then run the same lifecycle in paper or live trading.
 
 ### Compared with AI trading agent projects
 
 | Project | Main angle | AI agents / teams | Backtest agent decisions | Paper/live broker path | Deterministic Python strategies | Hosted data/deploy/monitoring |
 |---------|------------|-------------------|--------------------------|------------------------|---------------------------------|-------------------------------|
-| **Lumibot + BotSpot** | Python strategies, AI trading teams, backtests, brokers, hosted deployment | **Yes** | **Yes** | **Yes: Alpaca, IBKR, Tradier, Schwab, Tradovate, ProjectX, Bitunix, selected CCXT** | **Yes** | **Yes, through BotSpot** |
-| TradingAgents | Multi-agent LLM trading research framework | Yes | Research/demo oriented | Not the main focus | Limited | No |
-| ai-hedge-fund | Educational AI hedge fund with named investor-style agents | Yes | Demo/backtest oriented | Not the main focus | Limited | No |
-| OpenAlice | One-person Wall Street agent concept | Yes | Emerging/experimental | Local/self-run focus | Limited | No |
+| **Lumibot + BotSpot** | Python strategies, flexible AI trading teams, hybrid guardrails, backtests, brokers, hosted deployment | **Flexible teams, debates, specialist desks, and deterministic gates** | **Replayable decisions, orders, traces, artifacts, charts, logs** | **Yes: Alpaca, IBKR, Tradier, Schwab, Tradovate, ProjectX, Bitunix, selected CCXT** | **Yes** | **Hosted data, parallel backtests, deployment, monitoring, MCP, alerts, kill switches** |
+| TradingAgents | Multi-agent LLM trading research framework | Yes, with a specific research/debate structure | Research/demo oriented | Not the main focus | Limited | No |
+| ai-hedge-fund | Educational AI hedge fund with named investor-style agents | Yes, with investor-style personas | Demo/backtest oriented | Not the main focus | Limited | No |
+| OpenAlice | One-person Wall Street agent concept | Yes, end-to-end agent concept | Emerging/experimental | Local/self-run focus | Limited | No |
 | QuantDinger | Self-hosted AI quant operating system | Yes | Yes | Crypto, IBKR, MT5, Alpaca | Yes | Self-hosted |
 | Vibe-Trading | Personal trading agent | Yes | Yes | Agent trading platform focus | Limited | Platform-specific |
 | AI-Trader | Agent-native trading platform | Yes | Platform focus | Platform focus | Limited | Platform-specific |

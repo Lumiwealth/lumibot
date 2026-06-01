@@ -35,6 +35,7 @@ copyright = "2021, Lumiwealth"
 author = "Lumiwealth Inc."
 
 html_title = "Lumibot: Backtestable AI Agents and Python Algorithmic Trading"
+html_baseurl = "https://lumibot.lumiwealth.com/"
 
 source_paths = ["lumibot.brokers", "backtesting"]
 
@@ -106,7 +107,7 @@ html_theme_options = {
     "dark_logo": "Lumibot_Logo.webp",
 }
 
-html_favicon = "_html/botspot_favicon.png"
+html_favicon = "_html/lumibot_favicon_192.png"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

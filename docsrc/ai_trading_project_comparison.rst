@@ -3,8 +3,15 @@ AI Trading Project Comparison
 
 AI trading projects have proved that people want agentic trading workflows.
 Lumibot's edge is that those workflows run inside a real Python trading
-framework: you can backtest the agent decisions, inspect artifacts, paper
-trade, and connect to brokers without rewriting the strategy.
+framework. You can backtest the agent decisions, inspect artifacts, add
+normal Python guardrails, paper trade, and connect to brokers without
+rewriting the strategy.
+
+This is the practical difference: a research agent that sounds smart is still
+not a trading system. Lumibot lets you test the same agent flow against
+historical data, inspect what it would have done, tighten the rules around
+cash, positions, risk, and order submission, then move the same strategy toward
+paper or live trading when it is ready.
 
 Quick Comparison
 ****************
@@ -22,29 +29,29 @@ Quick Comparison
      - Deterministic Python strategies
      - Hosted data/deploy/monitoring
    * - Lumibot + BotSpot
-     - Python strategies, AI trading teams, backtests, brokers, hosted deployment
-     - Yes
-     - Yes
+     - Python strategies, flexible AI trading teams, hybrid guardrails, backtests, brokers, hosted deployment
+     - Yes: single agents, teams, debates, specialist desks, deterministic gates
+     - Yes: replayable decisions, orders, traces, artifacts, charts, logs
      - Yes: Alpaca, IBKR, Tradier, Schwab, Tradovate, ProjectX, Bitunix, selected CCXT
      - Yes
-     - Yes, through BotSpot
+     - Yes: hosted data, parallel backtests, deployment, monitoring, MCP tools, alerts, kill switches
    * - TradingAgents
      - Multi-agent LLM trading research framework
-     - Yes
+     - Yes, with a specific research/debate structure
      - Research/demo oriented
      - Not the main focus
      - Limited
      - No
    * - ai-hedge-fund
      - Educational AI hedge fund with named investor-style agents
-     - Yes
+     - Yes, with investor-style personas
      - Demo/backtest oriented
      - Not the main focus
      - Limited
      - No
    * - OpenAlice
      - One-person Wall Street agent concept
-     - Yes
+     - Yes, with an end-to-end agent-product concept
      - Emerging/experimental
      - Local/self-run focus
      - Limited
@@ -102,15 +109,24 @@ Why Lumibot Is Different
 Most AI trading demos stop at research, a notebook, or a simulated agent
 conversation. Lumibot is built around the strategy lifecycle:
 
-- write normal Python strategy code
-- add one or more AI agents where reasoning helps
-- backtest the agent decisions inside the same loop used by normal strategies
-- inspect orders, traces, memory, charts, logs, and tearsheets
-- paper trade or run live with supported brokers
-- use BotSpot when you want hosted data, parallel backtests, deployment,
-  monitoring, alerts, audit history, and kill switches
+- **Design the agent flow you want:** single agent, research-to-trade,
+  bull/bear/neutral team, specialist desk, model debate, or a hybrid flow.
+- **Keep Python in control:** use deterministic strategy code for hard gates,
+  cash checks, position limits, symbol filters, order sizing, and risk rules.
+- **Backtest the actual decisions:** run the agents inside the backtest loop,
+  then inspect orders, traces, replay cache, charts, logs, and tearsheets.
+- **Move from test to operation:** paper trade or run live with supported
+  brokers using the same strategy lifecycle.
+- **Use BotSpot when you want the managed layer:** hosted data, parallel
+  backtests, broker connections, deployment, monitoring, alerts, audit history,
+  MCP tools, and kill switches.
 
 That combination matters because the hard part is not only getting an AI model
 to say what it would buy. The hard part is turning the idea into a strategy
 that can be replayed, inspected, connected to broker state, and operated over
 time.
+
+Backtesting does not prove that a strategy will make money in the future. It
+does something more practical: it forces the agent, tools, prompts, Python
+guardrails, and broker-facing order logic to run through a repeatable trading
+lifecycle before you trust it with real execution.

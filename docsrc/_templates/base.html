@@ -1,0 +1,79 @@
+{% extends "!base.html" %}
+
+{% block extrahead %}
+{{ super() }}
+{% set page_url = 'https://lumibot.lumiwealth.com/' if pagename == 'index' else 'https://lumibot.lumiwealth.com/' ~ pagename ~ '.html' %}
+{% set page_description = 'Lumibot is a Python framework for deterministic trading strategies, AI trading teams, and hybrid trading systems that backtest, paper trade, and run live with real brokers.' %}
+<link rel="icon" type="image/png" sizes="192x192" href="{{ pathto('_static/lumibot_favicon_192.png', 1) }}">
+<link rel="icon" type="image/png" sizes="512x512" href="{{ pathto('_static/lumibot_favicon_512.png', 1) }}">
+<link rel="apple-touch-icon" sizes="192x192" href="{{ pathto('_static/lumibot_favicon_192.png', 1) }}">
+<meta name="description" content="{{ page_description }}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Lumibot">
+<meta property="og:title" content="{{ title|striptags|trim }} - Lumibot">
+<meta property="og:description" content="{{ page_description }}">
+<meta property="og:url" content="{{ page_url }}">
+<meta property="og:image" content="https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png">
+<meta property="og:image:width" content="852">
+<meta property="og:image:height" content="852">
+<meta property="og:image:alt" content="Lumibot AI trading robot logo">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ title|striptags|trim }} - Lumibot">
+<meta name="twitter:description" content="{{ page_description }}">
+<meta name="twitter:image" content="https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://lumibot.lumiwealth.com/#organization",
+      "name": "Lumiwealth",
+      "url": "https://botspot.trade",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png",
+        "width": 852,
+        "height": 852
+      },
+      "sameAs": [
+        "https://github.com/Lumiwealth/lumibot"
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://lumibot.lumiwealth.com/#website",
+      "name": "Lumibot Documentation",
+      "alternateName": "Lumibot",
+      "url": "https://lumibot.lumiwealth.com/",
+      "publisher": {
+        "@id": "https://lumibot.lumiwealth.com/#organization"
+      }
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "@id": "https://lumibot.lumiwealth.com/#software",
+      "name": "Lumibot",
+      "alternateName": "LumiBot",
+      "description": "Python framework for deterministic trading strategies, AI trading teams, hybrid strategy logic, backtesting, paper trading, and live broker workflows.",
+      "codeRepository": "https://github.com/Lumiwealth/lumibot",
+      "programmingLanguage": "Python",
+      "url": "https://lumibot.lumiwealth.com/",
+      "image": "https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png",
+      "publisher": {
+        "@id": "https://lumibot.lumiwealth.com/#organization"
+      },
+      "keywords": [
+        "algorithmic trading",
+        "AI trading agents",
+        "AI trading teams",
+        "backtesting",
+        "paper trading",
+        "live trading",
+        "broker integration"
+      ]
+    }
+  ]
+}
+</script>
+{% endblock %}

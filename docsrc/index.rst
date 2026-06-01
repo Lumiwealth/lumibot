@@ -329,8 +329,15 @@ Why Lumibot?
 
 AI trading projects have proved that people want agentic trading workflows.
 Lumibot's edge is that those workflows run inside a real Python trading
-framework: you can backtest the agent decisions, inspect artifacts, paper
-trade, and connect to brokers without rewriting the strategy.
+framework. You can backtest the agent decisions, inspect the artifacts, add
+normal Python guardrails, paper trade, and connect to brokers without
+rewriting the strategy.
+
+That matters because an AI trading demo is not the same thing as a trading
+system. Without backtests and broker-aware strategy code, you are mostly
+trusting prompts. Lumibot lets you iterate faster: test the agent flow on
+historical data, see what it would have bought or sold, tighten the Python
+risk checks, then run the same lifecycle in paper or live trading.
 
 Compared With AI Trading Agent Projects
 ---------------------------------------
@@ -345,22 +352,22 @@ Compared With AI Trading Agent Projects
      - Paper/live broker path
      - Hosted deploy/monitoring
    * - Lumibot + BotSpot
-     - Yes
-     - Yes
+     - Flexible teams, single agents, debates, hybrid flows, and deterministic gates
+     - Yes: replayable decisions, orders, traces, artifacts, charts, logs
      - Yes: Alpaca, IBKR, Tradier, Schwab, Tradovate, ProjectX, Bitunix, selected CCXT
-     - Yes, through BotSpot
+     - Yes: hosted data, parallel backtests, deployment, monitoring, MCP, alerts, kill switches
    * - TradingAgents
-     - Yes
+     - Yes, focused on a specific multi-agent research structure
      - Research/demo oriented
      - Not the main focus
      - No
    * - ai-hedge-fund
-     - Yes
+     - Yes, focused on named investor-style agents
      - Demo/backtest oriented
      - Not the main focus
      - No
    * - OpenAlice
-     - Yes
+     - Yes, one-person Wall Street agent concept
      - Experimental
      - Local/self-run focus
      - No
@@ -370,7 +377,7 @@ Compared With AI Trading Agent Projects
      - Crypto, IBKR, MT5, Alpaca
      - Self-hosted
    * - Vibe-Trading
-     - Yes
+     - Yes, personal trading agent flow
      - Yes
      - Agent platform focus
      - Platform-specific

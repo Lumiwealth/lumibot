@@ -58,7 +58,8 @@ class StrategyExecutor(Thread):
         # Store any exception that occurs during execution
         self.exception = None
         self._run_once_requested = False
-        self._scheduled_timing = ScheduledRunTiming(logger=self.strategy.logger)
+        strategy_logger = getattr(self.strategy, "logger", logger)
+        self._scheduled_timing = ScheduledRunTiming(logger=strategy_logger)
 
         # Create a dictionary of job stores. A job store is where the scheduler persists its jobs. In this case,
         # we create an in-memory job store for "default" and "On_Trading_Iteration" which is the job store we will

@@ -1,14 +1,12 @@
 import inspect
-import json
 import logging
 import math
 import os
 import time
 import traceback
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from decimal import Decimal
 from functools import wraps
-from pathlib import Path
 from queue import Empty, Queue
 from threading import Event, Lock, Thread
 
@@ -22,6 +20,7 @@ from apscheduler.triggers.cron import CronTrigger
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset, Order
 from lumibot.entities import Asset
+from lumibot.strategies.scheduled_timing import ScheduledRunTiming
 from lumibot.tools import append_locals, get_trading_days, staticdecorator
 from lumibot.tools.smart_limit_utils import (
     build_price_ladder,
@@ -59,7 +58,7 @@ class StrategyExecutor(Thread):
         # Store any exception that occurs during execution
         self.exception = None
         self._run_once_requested = False
-        self._scheduled_timing = {}
+        self._scheduled_timing = ScheduledRunTiming(logger=self.strategy.logger)
 
         # Create a dictionary of job stores. A job store is where the scheduler persists its jobs. In this case,
         # we create an in-memory job store for "default" and "On_Trading_Iteration" which is the job store we will
@@ -113,149 +112,37 @@ class StrategyExecutor(Thread):
             else self.strategy.on_trading_iteration
         )
 
-    @staticmethod
-    def _scheduled_truthy(value):
-        return str(value or "").strip().lower() in {"1", "true", "yes", "y", "on"}
-
     def _scheduled_exact_enabled(self):
-        return self._scheduled_truthy(os.environ.get("LUMIBOT_SCHEDULED_EXECUTION")) and bool(
-            os.environ.get("LUMIBOT_SCHEDULED_TARGET_RUN_AT")
-        )
-
-    @staticmethod
-    def _scheduled_parse_datetime(raw_value):
-        if raw_value in (None, ""):
-            return None
-        value = str(raw_value).strip()
-        if value.endswith("Z"):
-            value = value[:-1] + "+00:00"
-        parsed = datetime.fromisoformat(value)
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=timezone.utc)
-        return parsed.astimezone(timezone.utc)
+        return self._scheduled_timing.exact_enabled()
 
     def _scheduled_now_utc(self):
-        return datetime.now(timezone.utc)
+        return self._scheduled_timing.now_utc()
 
     @staticmethod
     def _scheduled_iso(value):
-        if value is None:
-            return None
-        if value.tzinfo is None:
-            value = value.replace(tzinfo=timezone.utc)
-        return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
-
-    def _scheduled_int_env(self, name, default):
-        try:
-            return int(os.environ.get(name, default))
-        except (TypeError, ValueError):
-            return default
-
-    def _scheduled_timing_path(self):
-        raw_path = os.environ.get("LUMIBOT_SCHEDULED_TIMING_FILE")
-        return Path(raw_path) if raw_path else None
+        return ScheduledRunTiming.iso(value)
 
     def _scheduled_record_timing(self, **fields):
-        if not self._scheduled_exact_enabled():
-            return
-        payload = {
-            key: value
-            for key, value in fields.items()
-            if value is not None
-        }
-        self._scheduled_timing.update(payload)
-        self._scheduled_write_timing()
+        self._scheduled_timing.record(**fields)
 
     def _scheduled_write_timing(self):
-        path = self._scheduled_timing_path()
-        if not path:
-            return
-        target_run_at = os.environ.get("LUMIBOT_SCHEDULED_TARGET_RUN_AT")
-        payload = {
-            "target_run_at": target_run_at,
-            "pre_start_at": os.environ.get("LUMIBOT_SCHEDULED_PRE_START_AT"),
-            "max_target_drift_ms": self._scheduled_int_env("LUMIBOT_SCHEDULED_MAX_TARGET_DRIFT_MS", 1000),
-            "post_iteration_seconds": self._scheduled_int_env("LUMIBOT_SCHEDULED_POST_ITERATION_SECONDS", 0),
-            **self._scheduled_timing,
-        }
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            tmp_path = path.with_suffix(path.suffix + ".tmp")
-            tmp_path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
-            tmp_path.replace(path)
-        except Exception as exc:
-            self.strategy.logger.warning("Failed to write scheduled timing JSON: %s", exc)
+        self._scheduled_timing.write()
 
     def _scheduled_wait_until_target(self):
-        if not self._scheduled_exact_enabled():
-            return True
-        target = self._scheduled_parse_datetime(os.environ.get("LUMIBOT_SCHEDULED_TARGET_RUN_AT"))
-        if target is None:
-            return True
-        max_drift_ms = self._scheduled_int_env("LUMIBOT_SCHEDULED_MAX_TARGET_DRIFT_MS", 1000)
-        wait_started = self._scheduled_now_utc()
-        monotonic_started = time.monotonic()
-        self._scheduled_record_timing(
-            wait_started_at=self._scheduled_iso(wait_started),
-            status="waiting_for_target",
-            exact_timing_verified=False,
+        return self._scheduled_timing.wait_until_target(
+            now_utc=self._scheduled_now_utc,
+            monotonic=time.monotonic,
+            sleep=time.sleep,
+            log_message=self.strategy.log_message,
         )
-        while True:
-            now = self._scheduled_now_utc()
-            remaining_seconds = (target - now).total_seconds()
-            if remaining_seconds <= 0:
-                break
-            sleep_seconds = min(1.0, remaining_seconds)
-            if remaining_seconds > 0.05:
-                sleep_seconds = min(sleep_seconds, max(remaining_seconds - 0.05, 0.001))
-            time.sleep(max(sleep_seconds, 0.0))
-
-        wait_finished = self._scheduled_now_utc()
-        drift_ms = int(round((wait_finished - target).total_seconds() * 1000))
-        local_wait_seconds = max(time.monotonic() - monotonic_started, 0)
-        if drift_ms > max_drift_ms:
-            self.strategy.log_message(
-                f"Scheduled target missed by {drift_ms}ms; skipping trading iteration", color="red"
-            )
-            self._scheduled_record_timing(
-                wait_finished_at=self._scheduled_iso(wait_finished),
-                local_wait_seconds=local_wait_seconds,
-                target_drift_ms=drift_ms,
-                status="missed_target",
-                exact_timing_verified=False,
-            )
-            return False
-        self._scheduled_record_timing(
-            wait_finished_at=self._scheduled_iso(wait_finished),
-            local_wait_seconds=local_wait_seconds,
-            target_drift_ms=drift_ms,
-            status="target_reached",
-            exact_timing_verified=True,
-        )
-        return True
 
     def _scheduled_drain_after_iteration(self):
-        if not self._scheduled_truthy(os.environ.get("LUMIBOT_SCHEDULED_EXECUTION")):
-            return
-        post_iteration_seconds = self._scheduled_int_env("LUMIBOT_SCHEDULED_POST_ITERATION_SECONDS", 0)
-        if post_iteration_seconds <= 0:
-            return
-        drain_started = self._scheduled_now_utc()
-        deadline = time.monotonic() + post_iteration_seconds
-        self._scheduled_record_timing(
-            drain_started_at=self._scheduled_iso(drain_started),
-            status="draining",
-        )
-        while not self.stop_event.is_set():
-            self.process_queue()
-            remaining_seconds = deadline - time.monotonic()
-            if remaining_seconds <= 0:
-                break
-            time.sleep(min(0.5, remaining_seconds))
-        self.process_queue()
-        self._scheduled_record_timing(
-            drain_finished_at=self._scheduled_iso(self._scheduled_now_utc()),
-            status="drained",
+        self._scheduled_timing.drain_after_iteration(
+            stop_event=self.stop_event,
+            process_queue=self.process_queue,
+            now_utc=self._scheduled_now_utc,
+            monotonic=time.monotonic,
+            sleep=time.sleep,
         )
 
     def _is_continuous_market(self, market_name):

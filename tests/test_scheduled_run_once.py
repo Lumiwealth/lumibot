@@ -208,10 +208,45 @@ def test_scheduled_exact_run_skips_when_target_drift_exceeds_budget(tmp_path, mo
     assert strategy.initialized == 1
     assert strategy.iterations == 0
     assert strategy.ended == 0
+    assert strategy.backups >= 1
+    assert strategy.broker.closed is True
     timing = json.loads(timing_file.read_text(encoding="utf-8"))
     assert timing["status"] == "missed_target"
     assert timing["target_drift_ms"] == 2000
     assert timing["exact_timing_verified"] is False
+
+
+def test_scheduled_exact_run_drains_after_iteration(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "lumibot.strategies.strategy_executor.get_trading_days",
+        lambda market: [{"date": datetime.date(2026, 5, 11)}],
+    )
+    fake_mono = {"value": 0.0}
+    queue_calls = {"count": 0}
+    base = datetime.datetime(2026, 5, 11, 13, 30, tzinfo=datetime.timezone.utc)
+    timing_file = tmp_path / "scheduled_timing.json"
+    strategy = _DummyStrategy()
+    executor = StrategyExecutor(strategy)
+    executor.sync_broker = lambda: None
+    executor.process_queue = lambda: queue_calls.__setitem__("count", queue_calls["count"] + 1)
+
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_EXECUTION", "true")
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_TARGET_RUN_AT", base.isoformat().replace("+00:00", "Z"))
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_MAX_TARGET_DRIFT_MS", "1000")
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_POST_ITERATION_SECONDS", "1")
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_TIMING_FILE", str(timing_file))
+    monkeypatch.setattr(StrategyExecutor, "_scheduled_now_utc", lambda self: base + datetime.timedelta(seconds=fake_mono["value"]))
+    monkeypatch.setattr(strategy_executor_module.time, "monotonic", lambda: fake_mono["value"])
+    monkeypatch.setattr(strategy_executor_module.time, "sleep", lambda seconds: fake_mono.__setitem__("value", fake_mono["value"] + seconds))
+
+    assert executor.run_once() is True
+
+    timing = json.loads(timing_file.read_text(encoding="utf-8"))
+    assert strategy.iterations == 1
+    assert queue_calls["count"] >= 4
+    assert timing["drain_started_at"] == "2026-05-11T13:30:00Z"
+    assert timing["drain_finished_at"] == "2026-05-11T13:30:01Z"
+    assert timing["status"] == "completed"
 
 
 def test_trader_run_all_run_once_uses_executor_run_once():

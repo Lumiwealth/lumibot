@@ -51,7 +51,7 @@ jobs:
           # quantstats-lumi 1.1.5 is required by LumiBot but is not on PyPI yet.
           # Install the released source commit first so the docs runner can satisfy
           # requirements.txt without lowering LumiBot's dependency floor.
-          pip install "quantstats-lumi @ git+https://github.com/Lumiwealth/quantstats_lumi.git@c16c92be9469c4540dcf3d703eb3ef00da93e7d4"
+          pip install "quantstats-lumi @ git+https://github.com/Lumiwealth/quantstats_lumi.git@v1.1.5"
           pip install -r requirements_dev.txt
           pip install sphinx furo sphinx-llms-txt
 

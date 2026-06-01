@@ -25,9 +25,13 @@ Start with the open-source docs, then deploy when you are ready: [Lumibot docume
 
 ## Quick Start
 
+### Backtest a strategy
+
 ```bash
 pip install lumibot
 ```
+
+Save this as `my_strategy.py`:
 
 ```python
 from datetime import datetime
@@ -51,7 +55,37 @@ MyStrategy.backtest(
 python my_strategy.py
 ```
 
-That same strategy code works with live brokers. Just swap the broker class.
+### Run the same strategy with a paper broker
+
+After the backtest works, keep the `MyStrategy` class and replace the final `MyStrategy.backtest(...)` call with a broker runner. This example uses Alpaca paper trading:
+
+```bash
+export ALPACA_API_KEY='your-alpaca-key'
+export ALPACA_API_SECRET='your-alpaca-secret'
+export ALPACA_IS_PAPER=true
+python my_strategy.py
+```
+
+```python
+import os
+from lumibot.brokers import Alpaca
+from lumibot.traders import Trader
+
+ALPACA_CONFIG = {
+    "API_KEY": os.environ["ALPACA_API_KEY"],
+    "API_SECRET": os.environ["ALPACA_API_SECRET"],
+    "PAPER": os.environ.get("ALPACA_IS_PAPER", "true").lower() != "false",
+}
+
+broker = Alpaca(ALPACA_CONFIG)
+strategy = MyStrategy(broker=broker)
+
+trader = Trader()
+trader.add_strategy(strategy)
+trader.run_all()
+```
+
+Start with paper trading. When you are ready for live trading, use the same strategy class and switch your broker account/configuration intentionally.
 
 For full setup guides, broker tutorials, AI-agent docs, examples, and deployment notes, use the **[Lumibot documentation](https://lumibot.lumiwealth.com/)**.
 

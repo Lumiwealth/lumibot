@@ -118,6 +118,14 @@ a.btn.course-button:active {
     margin: 18px auto 42px;
 }
 
+/* Subtle rounding keeps diagrams and screenshots from looking harsh in dark
+   mode without changing the documentation layout. */
+.content img:not(.sidebar-logo):not(.only-light):not(.only-dark),
+article img:not(.sidebar-logo):not(.only-light):not(.only-dark),
+.bd-article img:not(.sidebar-logo):not(.only-light):not(.only-dark) {
+    border-radius: 8px;
+}
+
 @media (prefers-color-scheme: dark) {
     .course-button {
         box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);

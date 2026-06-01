@@ -3,8 +3,20 @@ name: Documentation (GitHub Pages)
 on:
   pull_request:
     branches: [dev]
+    paths:
+      - "docsrc/**"
+      - "docs/**"
+      - "README.md"
+      - "requirements_dev.txt"
+      - ".github/workflows/docs.yml"
   push:
     branches: [dev]
+    paths:
+      - "docsrc/**"
+      - "docs/**"
+      - "README.md"
+      - "requirements_dev.txt"
+      - ".github/workflows/docs.yml"
 
 permissions:
   contents: write
@@ -70,4 +82,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-

@@ -71,8 +71,16 @@ class Tradier(Broker):
     @staticmethod
     def _is_auth_error(err: Exception) -> bool:
         msg = str(err or "")
-        # lumiwealth_tradier raises: "Error: 401 - <body>"
-        return "Error: 401" in msg or msg.strip().startswith("401")
+        lower_msg = msg.lower()
+        # lumiwealth_tradier raises "Error: 401 - <body>". Its retry session can also
+        # raise urllib3/requests retry errors such as "too many 401 error responses"
+        # before lumiwealth_tradier gets a response object to wrap.
+        return (
+            "Error: 401" in msg
+            or msg.strip().startswith("401")
+            or "too many 401" in lower_msg
+            or "401 error responses" in lower_msg
+        )
 
     def _oauth_enabled(self) -> bool:
         return bool(getattr(self, "_oauth_token_payload_b64", None))
@@ -216,7 +224,7 @@ class Tradier(Broker):
                 self._refresh_oauth_token(force=False)
                 try:
                     return orig_request(*args, **kwargs)
-                except TradierApiError as e:
+                except Exception as e:
                     # Retry once on auth errors after forcing a refresh.
                     if self._is_auth_error(e) and self._refresh_oauth_token(force=True):
                         return orig_request(*args, **kwargs)

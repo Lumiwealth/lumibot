@@ -2,6 +2,9 @@
 
 ## 4.5.42 - Unreleased
 
+### Fixed
+- **Tradier OAuth deployments now refresh after retry-layer 401 failures.** The Tradier broker catches retry-library errors such as `too many 401 error responses`, forces one OAuth refresh, and retries the broker read instead of failing before the refresh hook can run.
+
 ## 4.5.41 - 2026-05-30
 
 Deploy marker: `deploy 4.5.41`

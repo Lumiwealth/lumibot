@@ -6,6 +6,11 @@ Lumibot: Backtestable AI Agents and Python Algorithmic Trading
 .. raw:: html
    :file: _html/main.html
 
+.. image:: ../docs/assets/home/lumibot_strategy_lifecycle_homepage.png
+   :alt: Lumibot strategy lifecycle from market data and filings to Python rules, AI agents, backtest reports, paper trading, and live brokers
+   :width: 100%
+   :class: lumibot-doc-image
+
 Getting Started
 ****************
 

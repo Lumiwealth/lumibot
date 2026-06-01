@@ -923,6 +923,32 @@ def test_schwab_cancel_order_marks_canceled_without_stream_after_success():
     assert order.is_canceled()
 
 
+def test_schwab_cancel_order_marks_advanced_order_children_canceled():
+    client = _CancelClient()
+    stream = _Stream()
+    broker = _broker_for_cancel(client=client, stream=stream)
+    order = Order(
+        strategy="unit-test",
+        asset=Asset("LW"),
+        quantity=1,
+        side=Order.OrderSide.SELL,
+        limit_price=999,
+        stop_price=1,
+        order_class=Order.OrderClass.OCO,
+        identifier="oco-parent",
+        status=Order.OrderStatus.SUBMITTED,
+    )
+
+    assert order.is_active()
+
+    broker.cancel_order(order)
+
+    assert client.cancel_calls == [("oco-parent", "account-hash")]
+    assert order.is_canceled()
+    assert all(child.is_canceled() for child in order.child_orders)
+    assert not order.is_active()
+
+
 def test_schwab_cancel_order_noops_for_terminal_orders():
     client = _CancelClient()
     broker = _broker_for_cancel(client=client)

@@ -2302,12 +2302,20 @@ class Schwab(Broker):
 
         logger.info(colored(f"Schwab cancel accepted for order {order.identifier}.", "green"))
 
+        self._mark_order_tree_canceled(order)
+
         if getattr(self, "stream", None) and hasattr(self.stream, "dispatch"):
             self.stream.dispatch(self.CANCELED_ORDER, wait_until_complete=True, order=order)
         else:
-            order.status = self.CANCELED_ORDER
             order.set_canceled()
         return None
+
+    def _mark_order_tree_canceled(self, order: Order) -> None:
+        """Mark a canceled Schwab parent order and all local child legs terminal."""
+        order.status = self.CANCELED_ORDER
+        order.set_canceled()
+        for child_order in getattr(order, "child_orders", []) or []:
+            self._mark_order_tree_canceled(child_order)
 
     def _launch_stream(self):
         """Set the asynchronous actions to be executed when events are sent via socket streams"""

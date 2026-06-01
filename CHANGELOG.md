@@ -1,6 +1,14 @@
 # Changelog
 
-## 4.5.42 - Unreleased
+## 4.5.43 - Unreleased
+
+### Fixed
+- **Schwab advanced-order cancels now terminalize local child legs.** When Schwab accepts canceling an OTO, OCO, or bracket parent order, LumiBot marks the local parent and child orders canceled so strategy active-order guards do not keep seeing canceled advanced orders as active.
+
+### Tests
+- **Rob-owned Schwab live smoke now mirrors Titus-style option cancel and broker-native hedge structures.** The smoke submits a TSLL option limit order, waits four seconds, cancels and verifies the canceled broker state, then submits/read/cancels OTO and bracket option structures against Schwab.
+
+## 4.5.42 - 2026-06-01
 
 Deploy marker: `deploy 4.5.42`
 

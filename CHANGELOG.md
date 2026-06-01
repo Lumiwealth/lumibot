@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.5.45 - Unreleased
+
 ## 4.5.44 - Unreleased
 
 ### Added

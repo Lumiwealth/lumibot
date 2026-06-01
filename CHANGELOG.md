@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.5.43 - Unreleased
+
 ## 4.5.42 - Unreleased
 
 Deploy marker: `deploy 4.5.42`

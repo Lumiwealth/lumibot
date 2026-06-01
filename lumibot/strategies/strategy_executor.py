@@ -112,9 +112,6 @@ class StrategyExecutor(Thread):
             else self.strategy.on_trading_iteration
         )
 
-    def _scheduled_exact_enabled(self):
-        return self._scheduled_timing.exact_enabled()
-
     def _scheduled_now_utc(self):
         return self._scheduled_timing.now_utc()
 

@@ -285,3 +285,37 @@ Next market-hours validation:
 3. Confirm the hedge order is submitted immediately, not after the next 1 minute iteration.
 4. Confirm no broad `get_orders()` scan blocks the hedge.
 5. If OTO/bracket is used, confirm Schwab triggers the child order after the parent fill.
+
+## Filled Option To Stock Hedge Proof, June 2, 2026
+
+Rob-owned Schwab account suffix used: `4364`.
+
+Summary file:
+
+- `tmp/schwab_titus_live_fill_hedge_1780429984.json`
+
+Command:
+
+```bash
+/Users/robertgrzesik/Development/bin/safe-timeout 180s \
+  python3 scripts/schwab_titus_live_fill_hedge_smoke.py \
+  --account-suffix 4364 \
+  --token-path schwab_token.json \
+  --option-qty 1 \
+  --hedge-qty 100 \
+  --fill-timeout-seconds 12 \
+  --summary-path tmp/schwab_titus_live_fill_hedge_1780429984.json
+```
+
+Result:
+
+- selected TSLL `2026-06-05 $15 CALL`,
+- submitted one option contract at a marketable limit,
+- direct exact-order read confirmed the option order filled,
+- submitted the 100-share TSLL hedge `0.661s` after fill detection,
+- direct exact-order read confirmed the hedge filled,
+- restored the 100 TSLL shares,
+- sold to close the option contract,
+- result `pass=true`, `cleanup_pass=true`.
+
+This proves the corrected fast-order structure can run a real Schwab fill-to-hedge path without waiting for the next one-minute strategy cycle. It still does not prove Titus's exact production deployment, because this was a Rob-owned controlled smoke using TSLL instead of Titus's LW symbol.

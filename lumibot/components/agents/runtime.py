@@ -371,9 +371,31 @@ class RuntimeRequest:
     bound_tools: list[BoundTool]
     model_call_id: str | None = None
     provider_prompt_cache_key: str | None = None
+    model_request_timeout_seconds: float | None = None
+    run_timeout_seconds: float | None = None
 
 
 _LITELLM_CONFIGURED = False
+
+
+def _coerce_positive_timeout_seconds(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        timeout_seconds = float(value)
+    except Exception:
+        return None
+    return timeout_seconds if timeout_seconds > 0 else None
+
+
+def _parse_timeout_seconds(value: Any) -> tuple[bool, float | None]:
+    if value is None:
+        return False, None
+    try:
+        timeout_seconds = float(value)
+    except Exception:
+        return False, None
+    return True, timeout_seconds if timeout_seconds > 0 else None
 
 
 # Error classification for AI agent calls.
@@ -840,7 +862,19 @@ def _strip_thought_parts_from_litellm_request(llm_request: Any) -> None:
         llm_request.contents = updated
 
 
-def _resolve_model_for_adk(model: Any, *, prompt_cache_key: str | None = None) -> Any:
+def _is_native_gemini_model(model: Any) -> bool:
+    if not isinstance(model, str):
+        return False
+    lower = model.strip().lower()
+    return lower.startswith("gemini-") or lower.startswith("models/gemini")
+
+
+def _resolve_model_for_adk(
+    model: Any,
+    *,
+    prompt_cache_key: str | None = None,
+    model_request_timeout_seconds: float | None = None,
+) -> Any:
     # Native Gemini IDs take ADK's fast path as plain strings. Any other
     # provider prefix (e.g. "openai/...", "xai/...", "anthropic/...") is
     # routed through google.adk.models.lite_llm.LiteLlm which normalizes
@@ -848,7 +882,7 @@ def _resolve_model_for_adk(model: Any, *, prompt_cache_key: str | None = None) -
     if not isinstance(model, str):
         return model
     lower = model.strip().lower()
-    if lower.startswith("gemini-") or lower.startswith("models/gemini"):
+    if _is_native_gemini_model(model):
         _sync_gemini_api_key_alias()
         return model
     if lower.startswith("xai/"):
@@ -876,6 +910,11 @@ def _resolve_model_for_adk(model: Any, *, prompt_cache_key: str | None = None) -
                 yield response
 
     kwargs: dict[str, Any] = {}
+    resolved_timeout_seconds = _coerce_positive_timeout_seconds(model_request_timeout_seconds)
+    if resolved_timeout_seconds is not None:
+        # google.adk.models.lite_llm.LiteLlm forwards additional args to
+        # LiteLLM's acompletion call. LiteLLM accepts timeout in seconds.
+        kwargs["timeout"] = resolved_timeout_seconds
     if prompt_cache_key:
         if lower.startswith("openai/"):
             # OpenAI prompt caching is automatic for long shared prefixes. The
@@ -900,10 +939,7 @@ def _supports_explicit_temperature_for_adk_model(model: Any) -> bool:
     Gemini-native path; let LiteLLM providers use their provider defaults unless
     a future explicit per-provider compatibility layer is added.
     """
-    if not isinstance(model, str):
-        return False
-    lower = model.strip().lower()
-    return lower.startswith("gemini-") or lower.startswith("models/gemini")
+    return _is_native_gemini_model(model)
 
 
 class GoogleADKRuntime:
@@ -1130,17 +1166,29 @@ class GoogleADKRuntime:
             "tool_calls": [],
         }
         tools = [function_tool_type(_wrap_tool_callable(tool, active_tool_context)) for tool in request.bound_tools]
-        config_kwargs: dict[str, Any] = {
-            "max_output_tokens": 65535,
-        }
-        if _supports_explicit_temperature_for_adk_model(request.model):
-            config_kwargs["temperature"] = 0.0
+        config_kwargs = self._generate_content_config_kwargs_for_request(request, genai_types)
+        model_request_timeout_seconds = self._model_request_timeout_seconds_for_request(request)
+        run_timeout_seconds = self._run_timeout_seconds_for_request(request)
+        model_timeout_label = (
+            f"{model_request_timeout_seconds:g}s" if model_request_timeout_seconds is not None else "disabled"
+        )
+        run_timeout_label = f"{run_timeout_seconds:g}s" if run_timeout_seconds is not None else "disabled"
+        try:
+            sys.stderr.write(
+                f"[lumibot.agents] starting agent '{request.agent_name}' "
+                f"(model={request.model!r}, model_request_timeout={model_timeout_label}, "
+                f"run_timeout={run_timeout_label}).\n"
+            )
+            sys.stderr.flush()
+        except Exception:
+            pass
         planner = self._maybe_build_gemini_thinking_planner(request.model, genai_types)
         agent = LlmAgentType(
             name=request.agent_name,
             model=_resolve_model_for_adk(
                 request.model,
                 prompt_cache_key=request.provider_prompt_cache_key or _provider_prompt_cache_key(request),
+                model_request_timeout_seconds=model_request_timeout_seconds,
             ),
             instruction=self._instruction_for(request),
             tools=tools,
@@ -1173,6 +1221,15 @@ class GoogleADKRuntime:
             if normalized_events and first_event_perf is None:
                 first_event_perf = time.perf_counter()
                 first_event_at = _utc_iso_timestamp()
+                try:
+                    sys.stderr.write(
+                        f"[lumibot.agents] first ADK event for agent '{request.agent_name}' "
+                        f"(model={request.model!r}) after "
+                        f"{max(int((first_event_perf - started_perf) * 1000), 0)}ms.\n"
+                    )
+                    sys.stderr.flush()
+                except Exception:
+                    pass
             timestamp = _utc_iso_timestamp()
             for normalized_event in normalized_events:
                 normalized_event.timestamp = timestamp
@@ -1223,7 +1280,37 @@ class GoogleADKRuntime:
     # the strategy stays alive and retries on the next bar.
     _MAX_RUN_ATTEMPTS = 10
     _DEFAULT_RUN_TIMEOUT_SECONDS = 1800.0
+    _DEFAULT_MODEL_REQUEST_TIMEOUT_SECONDS = 600.0
     _RETRY_BACKOFF_SECONDS = (2.0, 3.0, 5.0, 10.0, 20.0, 30.0, 45.0, 60.0, 60.0, 60.0)
+
+    @staticmethod
+    def _model_request_timeout_seconds_for_request(request: RuntimeRequest) -> float | None:
+        if request.model_request_timeout_seconds is not None:
+            return _coerce_positive_timeout_seconds(request.model_request_timeout_seconds)
+        raw = os.environ.get("LUMIBOT_AGENT_MODEL_REQUEST_TIMEOUT_SECONDS")
+        if raw is not None:
+            parsed, timeout_seconds = _parse_timeout_seconds(raw)
+            if parsed:
+                return timeout_seconds
+        # This is the provider/model HTTP request timeout, not the full agent
+        # run timeout. Multi-tool agents can still run longer via the outer
+        # run timeout; one wedged model request should not.
+        return GoogleADKRuntime._DEFAULT_MODEL_REQUEST_TIMEOUT_SECONDS
+
+    @staticmethod
+    def _generate_content_config_kwargs_for_request(request: RuntimeRequest, genai_types: Any) -> dict[str, Any]:
+        config_kwargs: dict[str, Any] = {
+            "max_output_tokens": 65535,
+        }
+        if _supports_explicit_temperature_for_adk_model(request.model):
+            config_kwargs["temperature"] = 0.0
+        request_timeout_seconds = GoogleADKRuntime._model_request_timeout_seconds_for_request(request)
+        if _is_native_gemini_model(request.model) and request_timeout_seconds is not None:
+            timeout_millis = max(int(request_timeout_seconds * 1000), 1)
+            http_options_type = getattr(genai_types, "HttpOptions", None)
+            if http_options_type is not None:
+                config_kwargs["http_options"] = http_options_type(timeout=timeout_millis)
+        return config_kwargs
 
     @staticmethod
     def _max_attempts_for_request(request: RuntimeRequest) -> int:
@@ -1251,13 +1338,13 @@ class GoogleADKRuntime:
 
     @staticmethod
     def _run_timeout_seconds_for_request(request: RuntimeRequest) -> float | None:
+        if request.run_timeout_seconds is not None:
+            return _coerce_positive_timeout_seconds(request.run_timeout_seconds)
         raw = os.environ.get("LUMIBOT_AGENT_RUN_TIMEOUT_SECONDS")
-        if raw:
-            try:
-                timeout_seconds = float(raw)
-                return timeout_seconds if timeout_seconds > 0 else None
-            except Exception:
-                pass
+        if raw is not None:
+            parsed, timeout_seconds = _parse_timeout_seconds(raw)
+            if parsed:
+                return timeout_seconds
         # Agentic trading/research runs can legitimately spend many minutes
         # across model calls and tool calls. Keep the default high enough for
         # realistic multi-tool agents while still preventing indefinite hangs.

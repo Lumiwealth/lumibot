@@ -114,6 +114,18 @@ class _LongSummaryRuntime:
         )
 
 
+class _CaptureRuntime:
+    requests = []
+
+    def run(self, request):
+        type(self).requests.append(request)
+        return AgentRunResult(
+            summary="Captured runtime request.",
+            model=request.model,
+            events=[AgentTraceEvent(kind="text", text="Captured runtime request.")],
+        )
+
+
 def test_agent_allow_trading_false_removes_only_mutating_order_tools(monkeypatch):
     monkeypatch.delenv("FRED_API_KEY", raising=False)
     strategy = _Strategy()
@@ -138,6 +150,37 @@ def test_agent_allow_trading_false_removes_only_mutating_order_tools(monkeypatch
     assert "get_fred_latest" not in tool_names
     assert "get_fred_snapshot" not in tool_names
     assert agent.default_model == "openai/gpt-5.4-mini"
+
+
+def test_agent_timeout_options_forward_to_runtime_request(monkeypatch):
+    monkeypatch.delenv("FRED_API_KEY", raising=False)
+    _CaptureRuntime.requests = []
+    strategy = _Strategy()
+    strategy.vars = _Vars()
+    strategy.is_backtesting = False
+    manager = AgentManager(strategy)
+    manager.create(
+        name="timed",
+        system_prompt="Capture timeouts.",
+        model="gemini-3.5-flash",
+        tools=[],
+        include_builtin_tools=False,
+        _runtime=_CaptureRuntime(),
+        model_request_timeout_seconds=123,
+        run_timeout_seconds=456,
+    )
+
+    manager["timed"].run(task_prompt="Use defaults.")
+    manager["timed"].run(
+        task_prompt="Use overrides.",
+        model_request_timeout_seconds=7,
+        run_timeout_seconds=8,
+    )
+
+    assert _CaptureRuntime.requests[0].model_request_timeout_seconds == 123
+    assert _CaptureRuntime.requests[0].run_timeout_seconds == 456
+    assert _CaptureRuntime.requests[1].model_request_timeout_seconds == 7
+    assert _CaptureRuntime.requests[1].run_timeout_seconds == 8
 
 
 def test_agent_backtest_keeps_fred_tools_when_fred_api_key_is_set(monkeypatch):

@@ -2,7 +2,7 @@
 
 > Release/deployment workflow for LumiBot (version branches, changelog, tags, and GitHub releases).
 
-**Last Updated:** 2026-05-29
+**Last Updated:** 2026-06-03
 **Status:** Active
 **Audience:** Developers + AI Agents
 
@@ -17,7 +17,10 @@
 5) Merge the PR into `dev` (no direct pushes to `dev`).
 6) Tag the **merge commit on `dev`** as `vX.Y.Z` (this triggers GitHub Actions to publish to PyPI + create a GitHub Release).
 7) Verify `pip install lumibot==X.Y.Z` works.
-8) **Switch your LOCAL checkout to `version/X.Y.(Z+1)`** after the release. Carry-over is only for work that appeared after the release was tagged/published, or work intentionally excluded because it was unsafe or out of scope. Verify with `git branch --show-current`, `grep version= setup.py`, and `git status --porcelain=v1` before doing anything else. This is NOT optional. There are zero exceptions.
+8) **Switch your LOCAL checkout to `version/X.Y.(Z+1)`** after the release. Carry-over is only for work that appeared after the release was tagged/published, or work intentionally excluded because it was unsafe or out of scope. This is NOT optional. There are zero exceptions.
+   - Required verification command before saying the release is complete:
+     `python3 scripts/verify_release_checkout_state.py --post-release-of X.Y.Z`
+   - If that command fails, the release is not complete. Fix the checkout state before doing anything else.
 9) Trigger BotManager deploys (dev then prod) only after step 8 is complete — this takes ~30 minutes and should be the last step.
 10) Post-deploy: run an MCP backtest against prod and assert `settings.json.lumibot_version == "X.Y.Z"`. See step 8.
 
@@ -183,6 +186,7 @@ git branch --show-current            # MUST print version/X.Y.(Z+1)
 grep 'version=' setup.py | head -1   # MUST print version="X.Y.(Z+1)",
 git status --porcelain=v1            # MUST be empty
 git log --oneline origin/version/X.Y.(Z+1)..HEAD
+python3 scripts/verify_release_checkout_state.py --post-release-of X.Y.Z
 ```
 
 If the final command prints commits, push them:
@@ -409,9 +413,10 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
      git branch --show-current            # MUST print version/X.Y.(Z+1)
      grep 'version=' setup.py | head -1   # MUST print version="X.Y.(Z+1)",
      git status --porcelain=v1            # MUST be empty after pushing carry-overs
+     python3 scripts/verify_release_checkout_state.py --post-release-of X.Y.Z
      ```
 
-     If any of those three checks is wrong, STOP and fix before proceeding. Do not trigger BotManager deploy on the wrong local branch state.
+     If any of these checks is wrong, STOP and fix before proceeding. Do not trigger BotManager deploy on the wrong local branch state.
 
      If GitHub Actions created the next branch but your local checkout is still on the released branch, fix your local checkout immediately:
 

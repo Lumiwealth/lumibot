@@ -656,12 +656,16 @@ class AgentHandle:
         runtime: Any | None = None,
         allow_trading: bool = True,
         include_builtin_tools: bool = True,
+        model_request_timeout_seconds: float | None = None,
+        run_timeout_seconds: float | None = None,
     ) -> None:
         self.manager = manager
         self.name = name
         self.system_prompt = system_prompt
         self.default_model = default_model
         self.allow_trading = bool(allow_trading)
+        self.model_request_timeout_seconds = model_request_timeout_seconds
+        self.run_timeout_seconds = run_timeout_seconds
         from .builtins import BuiltinTools
         builtin_tools = self._filter_tools_for_trading_permission(BuiltinTools.all())
         if tools is None:
@@ -1361,11 +1365,25 @@ class AgentHandle:
         task_prompt: str | None = None,
         context: dict[str, Any] | None = None,
         model: str | None = None,
+        model_request_timeout_seconds: float | None = None,
+        run_timeout_seconds: float | None = None,
         **kwargs: Any,
     ) -> AgentRunResult:
         if "task" in kwargs and task_prompt is None:
             task_prompt = kwargs["task"]
+        if "model_request_timeout" in kwargs and model_request_timeout_seconds is None:
+            model_request_timeout_seconds = kwargs["model_request_timeout"]
+        if "run_timeout" in kwargs and run_timeout_seconds is None:
+            run_timeout_seconds = kwargs["run_timeout"]
         model_name = model or self.default_model
+        resolved_model_request_timeout_seconds = (
+            model_request_timeout_seconds
+            if model_request_timeout_seconds is not None
+            else self.model_request_timeout_seconds
+        )
+        resolved_run_timeout_seconds = (
+            run_timeout_seconds if run_timeout_seconds is not None else self.run_timeout_seconds
+        )
         runtime_context = self._runtime_context()
         memory_state = self._memory_state(runtime_context)
         base_system_prompt = self._base_system_prompt(runtime_context)
@@ -1416,6 +1434,8 @@ class AgentHandle:
                 effective_system_prompt=effective_system_prompt,
                 bound_tools=self._ensure_bound_tools(),
             ),
+            model_request_timeout_seconds=resolved_model_request_timeout_seconds,
+            run_timeout_seconds=resolved_run_timeout_seconds,
         )
         self.manager._reserve_model_call(agent_name=self.name, model=model_name)
         # Strategy-level safety net with live-vs-backtest branching.
@@ -2041,6 +2061,8 @@ class AgentManager:
         allow_trading: bool | None = None,
         _runtime: Any | None = None,
         include_builtin_tools: bool = True,
+        model_request_timeout_seconds: float | None = None,
+        run_timeout_seconds: float | None = None,
     ) -> AgentHandle:
         if name in self._agents:
             raise ValueError(f"Agent with name {name!r} already exists.")
@@ -2059,6 +2081,8 @@ class AgentManager:
             runtime=_runtime,
             allow_trading=resolved_allow_trading,
             include_builtin_tools=include_builtin_tools,
+            model_request_timeout_seconds=model_request_timeout_seconds,
+            run_timeout_seconds=run_timeout_seconds,
         )
         if cadence is not None:
             self.strategy.log_message(

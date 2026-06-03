@@ -489,13 +489,47 @@ Error Handling and Reliability
 
    This section describes error handling **specific to AI agent calls**. The rest of LumiBot's main-loop error handling (strategy executor, brokers, data sources) is unchanged. The behavior below is scoped to ``AgentHandle.run()`` and ``GoogleADKRuntime.run()``; it does not alter how non-agent code paths react to exceptions.
 
-LumiBot's AI agent stack has three retry/safety layers that together keep live trading alive through provider outages and surface backtest-time bugs clearly:
+LumiBot's AI agent stack has four timeout/retry/safety layers that together keep live trading alive through provider outages and surface backtest-time bugs clearly:
 
-1. **LiteLLM-level HTTP retries.** When using non-Gemini providers, LiteLLM retries each individual HTTP call 3 times with provider-aware backoff (429 Retry-After awareness, capped exponential). Configured automatically in ``_configure_litellm_quietly`` (``num_retries=3``, ``drop_params=True``, ``suppress_debug_info=True``).
+1. **Provider request timeout.** Each individual model request has a default **10 minute** timeout. Native Gemini models receive this as ``google.genai.types.HttpOptions(timeout=...)``. LiteLLM-backed providers receive it as LiteLLM's ``timeout`` argument. This prevents one wedged provider call from freezing an agent for the full run budget.
 
-2. **Runtime-level attempt retries.** ``GoogleADKRuntime.run()`` retries the full agent call up to **10 times** with capped exponential backoff (2s, 3s, 5s, 10s, 20s, 30s, 45s, 60s, 60s, 60s — total budget ~5 minutes). This covers session-setup errors, ADK runner glitches, and provider 5xx storms that LiteLLM's inner retry couldn't fix. Only transient and unknown errors retry; auth/config/billing errors surface immediately so we do not waste 5 minutes retrying a wrong API key.
+2. **LiteLLM-level HTTP retries.** When using non-Gemini providers, LiteLLM retries each individual HTTP call 3 times with provider-aware backoff (429 Retry-After awareness, capped exponential). Configured automatically in ``_configure_litellm_quietly`` (``num_retries=3``, ``drop_params=True``, ``suppress_debug_info=True``).
 
-3. **Strategy-level safety net with live-vs-backtest branch.** ``AgentHandle.run()`` wraps the runtime call in a final catch. Behavior depends on two things: the error category and whether the strategy is in backtest mode or live.
+3. **Runtime-level attempt retries.** ``GoogleADKRuntime.run()`` retries the full agent call up to **10 times** with capped exponential backoff (2s, 3s, 5s, 10s, 20s, 30s, 45s, 60s, 60s, 60s — total budget ~5 minutes). This covers session-setup errors, ADK runner glitches, and provider 5xx storms that LiteLLM's inner retry couldn't fix. Only transient and unknown errors retry; auth/config/billing errors surface immediately so we do not waste 5 minutes retrying a wrong API key.
+
+4. **Strategy-level safety net with live-vs-backtest branch.** ``AgentHandle.run()`` wraps the runtime call in a final catch. Behavior depends on two things: the error category and whether the strategy is in backtest mode or live.
+
+Timeout configuration
+~~~~~~~~~~~~~~~~~~~~~
+
+The provider request timeout is different from the full agent run timeout:
+
+- ``model_request_timeout_seconds`` controls one model/API request. Default: ``600`` seconds.
+- ``run_timeout_seconds`` controls the whole agent run, including model calls, tool calls, and retries. Default: ``1800`` seconds.
+
+Set these when creating an agent:
+
+.. code-block:: python
+
+    self.agents.create(
+        name="researcher",
+        model="gemini-3.5-flash",
+        system_prompt="Research the best trade.",
+        model_request_timeout_seconds=600,
+        run_timeout_seconds=1800,
+    )
+
+Or override them for one call:
+
+.. code-block:: python
+
+    self.agents["researcher"].run(
+        task_prompt="Run a deeper research pass.",
+        model_request_timeout_seconds=900,
+        run_timeout_seconds=2400,
+    )
+
+Advanced operators can also set ``LUMIBOT_AGENT_MODEL_REQUEST_TIMEOUT_SECONDS`` and ``LUMIBOT_AGENT_RUN_TIMEOUT_SECONDS``. A non-positive value disables that timeout. LumiBot logs every cold agent call with the effective timeout values and logs the latency to the first ADK event, which helps distinguish a stuck provider request from an agent that is actively calling tools.
 
 Error classifier buckets
 ~~~~~~~~~~~~~~~~~~~~~~~~

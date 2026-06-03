@@ -2,6 +2,13 @@
 
 ## 4.5.45 - Unreleased
 
+### Added
+- **AI agent model calls now have provider-level request timeouts.** Native Gemini requests pass a Google GenAI HTTP timeout and LiteLLM-backed providers pass a LiteLLM completion timeout, preventing one stalled model request from freezing a strategy for the full agent-run budget.
+- **AI agent timeout settings are configurable from strategy code.** `self.agents.create(...)` and `agent.run(...)` now accept `model_request_timeout_seconds` and `run_timeout_seconds`, with documented defaults of 600 seconds per model request and 1800 seconds for the whole agent run.
+
+### Fixed
+- **Agent runtime traces now log the effective timeout settings and first ADK event latency.** This makes it clear whether a run is stuck waiting on the model provider or actively making progress through ADK/tool events.
+
 ## 4.5.44 - Unreleased
 
 ### Added

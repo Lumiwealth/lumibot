@@ -188,6 +188,29 @@ def test_openai_model_forwards_prompt_cache_key_and_24h_retention(monkeypatch):
     assert created["prompt_cache_retention"] == "24h"
 
 
+def test_litellm_model_forwards_model_request_timeout(monkeypatch):
+    created: dict[str, object] = {}
+
+    class FakeLiteLlm:
+        def __init__(self, **kwargs):
+            created.update(kwargs)
+
+    fake_module = types.ModuleType("google.adk.models.lite_llm")
+    fake_module.LiteLlm = FakeLiteLlm
+    monkeypatch.setitem(sys.modules, "google.adk.models.lite_llm", fake_module)
+
+    result = _resolve_model_for_adk(
+        "openai/gpt-5.4-mini",
+        prompt_cache_key="stable-prefix-key",
+        model_request_timeout_seconds=12.5,
+    )
+
+    assert isinstance(result, FakeLiteLlm)
+    assert created["model"] == "openai/gpt-5.4-mini"
+    assert created["timeout"] == 12.5
+    assert created["prompt_cache_key"] == "stable-prefix-key"
+
+
 def test_xai_model_forwards_grok_conversation_cache_header(monkeypatch):
     created: dict[str, object] = {}
 
@@ -357,6 +380,63 @@ def test_runtime_default_agent_run_timeout_is_30_minutes(monkeypatch):
     )
 
     assert GoogleADKRuntime._run_timeout_seconds_for_request(request) == 1800.0
+
+
+def test_runtime_default_model_request_timeout_is_10_minutes(monkeypatch):
+    monkeypatch.delenv("LUMIBOT_AGENT_MODEL_REQUEST_TIMEOUT_SECONDS", raising=False)
+    request = RuntimeRequest(
+        agent_name="researcher",
+        model="gemini-3.5-flash",
+        system_prompt="System prompt",
+        task_prompt="Do work",
+        context=None,
+        runtime_context={"mode": "backtesting"},
+        memory_state=None,
+        memory_notes=[],
+        bound_tools=[],
+    )
+
+    assert GoogleADKRuntime._model_request_timeout_seconds_for_request(request) == 600.0
+
+
+def test_runtime_model_request_timeout_can_be_configured_on_request():
+    request = RuntimeRequest(
+        agent_name="researcher",
+        model="gemini-3.5-flash",
+        system_prompt="System prompt",
+        task_prompt="Do work",
+        context=None,
+        runtime_context={"mode": "backtesting"},
+        memory_state=None,
+        memory_notes=[],
+        bound_tools=[],
+        model_request_timeout_seconds=42,
+    )
+
+    assert GoogleADKRuntime._model_request_timeout_seconds_for_request(request) == 42.0
+
+
+def test_gemini_generate_content_config_sets_http_timeout_in_milliseconds(monkeypatch):
+    monkeypatch.delenv("LUMIBOT_AGENT_MODEL_REQUEST_TIMEOUT_SECONDS", raising=False)
+    from google.genai import types as genai_types
+
+    request = RuntimeRequest(
+        agent_name="researcher",
+        model="gemini-3.5-flash",
+        system_prompt="System prompt",
+        task_prompt="Do work",
+        context=None,
+        runtime_context={"mode": "backtesting"},
+        memory_state=None,
+        memory_notes=[],
+        bound_tools=[],
+        model_request_timeout_seconds=12.25,
+    )
+
+    config_kwargs = GoogleADKRuntime._generate_content_config_kwargs_for_request(request, genai_types)
+
+    assert config_kwargs["http_options"].timeout == 12250
+    assert genai_types.GenerateContentConfig(**config_kwargs).http_options.timeout == 12250
 
 
 def test_gemini_native_path_uses_plain_model_id_for_implicit_or_adk_context_cache():

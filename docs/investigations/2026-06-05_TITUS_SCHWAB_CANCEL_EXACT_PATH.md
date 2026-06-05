@@ -4,7 +4,9 @@ One-line description: Documents the exact-strategy reproduction of Titus's Schwa
 
 Last Updated: 2026-06-05
 
-Status: Active investigation; local broker fix proven, deployment/release still required.
+Status: Broker fix released in LumiBot 4.5.47 and deployed to BotManager
+development and production. Exact Titus strategy still needs a fresh market-hours
+run on the deployed image.
 
 Audience: LumiBot, BotSpot, and support agents debugging live Schwab order execution.
 
@@ -172,6 +174,35 @@ The BotSpot Agent fast-order skill should keep steering new strategy code toward
 `ERROR` as the portable Lumibot status while accepting `REJECTED` as
 compatibility wording.
 
+## Release And Deployment Evidence
+
+LumiBot 4.5.47 contains the Schwab/Tradier broker-adapter direct-call fix and
+the `Order.OrderStatus.REJECTED` compatibility alias.
+
+- LumiBot PR `#1078` merged to `dev` at
+  `d190153ba9aeb4f311279908a6e07831dab3d07e`.
+- LumiBot PR `#1079` merged to `dev` at
+  `7f78e66615c72094e3d7c9b404fe8e5dfffdd3a9`.
+- Git tag `v4.5.47` points to
+  `7f78e66615c72094e3d7c9b404fe8e5dfffdd3a9`.
+- GitHub release workflow `27043071439` completed successfully and published
+  `lumibot==4.5.47`.
+- Direct PyPI install check returned `Version: 4.5.47`.
+
+BotManager was then pointed at LumiBot 4.5.47 with repository variable
+`LUMIBOT_VERSION=4.5.47`.
+
+- BotManager production workflow `27044088862` completed successfully:
+  `https://github.com/Lumiwealth/bot_manager/actions/runs/27044088862`
+- BotManager development workflow `27044060685` completed successfully:
+  `https://github.com/Lumiwealth/bot_manager/actions/runs/27044060685`
+- Both deploy logs showed `LUMIBOT_VERSION: 4.5.47`, installed
+  `lumibot==4.5.47`, and started with `LumiBot v4.5.47 starting`.
+
+This proves the fixed LumiBot package was built into the BotManager dev and
+production deployment images. It does not yet prove Titus's exact strategy has
+passed on the deployed runtime; that requires a new market-hours run.
+
 ## Process Correction
 
 For future customer broker incidents:
@@ -186,3 +217,18 @@ For future customer broker incidents:
    documented as impossible to run.
 6. Keep a private evidence directory with exact logs, code revisions, cleanup
    proof, and a short investigation doc before summarizing status to Rob.
+
+## Remaining Work
+
+1. Run Titus's exact strategy path again during market hours using the deployed
+   BotManager image with LumiBot 4.5.47.
+2. Compare the deployed run timeline against local proof: order placement,
+   cancel request, Schwab HTTP response, direct broker status, and any cleanup
+   order.
+3. Use the support log export work to capture complete deployment logs instead
+   of relying on partial console evidence.
+4. Decide whether to deploy the BotSpot Agent fast-order skill update after
+   isolating it from unrelated dirty files in `botspot_agent`.
+5. Audit the broader explicit broker action contract across adapters, especially
+   cancel and modify behavior, so no adapter silently skips a requested broker
+   action based only on local cached status.

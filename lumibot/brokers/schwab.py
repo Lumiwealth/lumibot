@@ -358,18 +358,40 @@ class Schwab(Broker):
             resp_accounts = self.client.get_account_numbers()
             if hasattr(resp_accounts, 'status_code') and resp_accounts.status_code == 200:
                 accounts_json = resp_accounts.json()
-                # Find entry matching our account number; fall back to first
+                # Find entry matching our account number. BotSpot often passes
+                # the last 3-4 account digits, so allow a unique suffix match.
                 target_acc = None
                 for acc in accounts_json:
                     if str(acc.get('accountNumber')) == str(self.account_number):
                         target_acc = acc
                         break
                 if not target_acc and accounts_json:
-                    target_acc = accounts_json[0]
-                    logger.warning(
-                        "[Schwab] Could not match account number %s; using first account hash from API response.",
-                        self._mask_account_number(self.account_number),
-                    )
+                    account_lookup = str(self.account_number)
+                    min_suffix_length = 3
+                    suffix_matches = []
+                    if len(account_lookup) >= min_suffix_length:
+                        suffix_matches = [
+                            acc for acc in accounts_json
+                            if str(acc.get('accountNumber', '')).endswith(account_lookup)
+                        ]
+                    if len(suffix_matches) == 1:
+                        target_acc = suffix_matches[0]
+                        self.account_number = str(target_acc.get('accountNumber'))
+                        logger.info(
+                            "[Schwab] Matched account suffix %s to account %s.",
+                            self._mask_account_number(str(self.account_number)[-4:]),
+                            self._mask_account_number(self.account_number),
+                        )
+                    elif len(suffix_matches) > 1:
+                        raise ValueError(
+                            f"Schwab account suffix {self._mask_account_number(self.account_number)} "
+                            "matched multiple accounts. Provide the full account number."
+                        )
+                    else:
+                        raise ValueError(
+                            f"Could not match Schwab account {self._mask_account_number(self.account_number)} "
+                            "to any account returned by Schwab."
+                        )
 
                 if target_acc and 'hashValue' in target_acc:
                     hash_value = target_acc['hashValue']
@@ -2111,9 +2133,11 @@ class Schwab(Broker):
     def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
                       stop_price: Union[float, None] = None):
         """
-        Modify an order at the broker. Nothing will be done for orders that are already cancelled or filled. You are
-        only allowed to change the limit price and/or stop price. If you want to change the quantity,
-        you must cancel the order and submit a new one.
+        Modify an order at the broker by sending an explicit replace request to
+        Schwab. The broker response is the source of truth even if local status
+        appears terminal. Only limit and/or stop price can be changed. If you
+        want to change the quantity, you must cancel the order and submit a new
+        one.
         
         Parameters
         ----------
@@ -2133,10 +2157,6 @@ class Schwab(Broker):
         if not self.client or not self.hash_value:
             logger.error(colored(f"Schwab client or account hash not initialized. Cannot modify order {order.identifier}.", "red"))
             return # Return early
-
-        # Check if the order is already cancelled or filled
-        if order.is_filled() or order.is_canceled():
-            return
 
         if not order.identifier:
             logger.error(colored("Order identifier is not set, unable to modify order. Did you remember to submit it?", "red"))
@@ -2248,7 +2268,9 @@ class Schwab(Broker):
 
     def cancel_order(self, order: Order) -> None:
         """
-        Cancel an order at the broker. Nothing will be done for orders that are already cancelled or filled.
+        Cancel an order at the broker by sending an explicit cancel request to
+        Schwab. The broker response is the source of truth even if local status
+        appears terminal.
         
         Parameters
         ----------
@@ -2259,15 +2281,6 @@ class Schwab(Broker):
         -------
         None
         """
-        if order.is_filled() or order.is_canceled():
-            logger.info(
-                "[SchwabCancelTelemetry] skip_terminal "
-                f"order_id={order.identifier or '<missing>'} "
-                f"symbol={getattr(getattr(order, 'asset', None), 'symbol', '<missing>')} "
-                f"local_status={getattr(order, 'status', '<missing>')}"
-            )
-            return
-
         if not order.identifier:
             logger.error(
                 "[SchwabCancelTelemetry] missing_identifier "

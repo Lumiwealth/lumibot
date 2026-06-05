@@ -18,6 +18,38 @@ These rules are mandatory whenever you work on ThetaData integrations.
 
 Backtesting “accuracy” is measured against live broker behavior when possible (replay a live-traded interval and reproduce fills + PnL within tolerances). Vendor parity (e.g., stored DataBento artifacts) is a regression signal, not absolute truth.
 
+## Customer Broker Bug Reproduction (CRITICAL)
+
+When a customer reports a live broker execution problem, do not accept a nearby
+unit test, smoke script, direct broker call, or simplified order flow as proof
+that the customer issue is understood. First reproduce the exact customer path
+whenever feasible:
+
+- exact saved strategy revision or deployed artifact;
+- same broker and asset class;
+- same order type and lifecycle path;
+- same local strategy/order state transitions;
+- same account selection behavior, with masked account suffix verification;
+- full logs from start through cleanup.
+
+If a simpler smoke test passes, report it only as a smoke test. Do not tell Rob
+the customer issue is fixed until the customer strategy path has either
+reproduced and passed, or you have clearly documented why that exact path cannot
+be run.
+
+Broker adapters must never treat local `CANCELLING` as terminal before sending
+the broker cancel request. A broker preflight that skips cancel when local status
+is `CANCELLING` can prevent the broker from ever receiving the cancel call. See
+`docs/investigations/2026-06-05_TITUS_SCHWAB_CANCEL_EXACT_PATH.md` for the
+incident that established this rule.
+
+Broker adapter methods that are supposed to contact the broker, especially
+`cancel_order()` and `_modify_order()`, must not silently no-op because of local
+Lumibot status helpers such as `order.is_canceled()`. If the broker request can
+be made, make it and let the broker return success or rejection. Local status can
+be used for strategy workflow decisions, not to suppress an explicit broker API
+call.
+
 ## Multi-Agent Collaboration (CRITICAL)
 This repo is frequently edited by **multiple AI sessions**. To avoid lost work:
 

@@ -901,6 +901,19 @@ def test_schwab_cancel_order_calls_client_with_order_id_then_account_hash():
     ]
 
 
+def test_schwab_cancel_order_calls_client_even_when_local_status_is_cancelling():
+    client = _CancelClient()
+    broker = _broker_for_cancel(client=client)
+    order = _order(status=Order.OrderStatus.SUBMITTED)
+
+    # Strategy.cancel_order sets local status to CANCELLING before calling the
+    # broker. Schwab must still receive the cancel request in that exact path.
+    order.status = Order.OrderStatus.CANCELLING
+    broker.cancel_order(order)
+
+    assert client.cancel_calls == [("order-123", "account-hash")]
+
+
 def test_schwab_pull_broker_order_calls_client_with_order_id_then_account_hash():
     client = _OrderClient()
     broker = _broker_for_order_pull(client=client)
@@ -949,14 +962,47 @@ def test_schwab_cancel_order_marks_advanced_order_children_canceled():
     assert not order.is_active()
 
 
-def test_schwab_cancel_order_noops_for_terminal_orders():
+@pytest.mark.parametrize(
+    "status",
+    [
+        Order.OrderStatus.CANCELED,
+        Order.OrderStatus.FILLED,
+        Order.OrderStatus.ERROR,
+        Order.OrderStatus.EXPIRED,
+    ],
+)
+def test_schwab_cancel_order_still_calls_broker_for_local_terminal_statuses(status):
     client = _CancelClient()
     broker = _broker_for_cancel(client=client)
 
-    broker.cancel_order(_order(status=Order.OrderStatus.FILLED))
-    broker.cancel_order(_order(status=Order.OrderStatus.CANCELED))
+    broker.cancel_order(_order(status=status))
 
-    assert client.cancel_calls == []
+    assert client.cancel_calls == [("order-123", "account-hash")]
+
+
+@pytest.mark.parametrize(
+    "status",
+    [
+        Order.OrderStatus.CANCELLING,
+        Order.OrderStatus.CANCELED,
+        Order.OrderStatus.FILLED,
+        Order.OrderStatus.ERROR,
+        Order.OrderStatus.EXPIRED,
+    ],
+)
+def test_schwab_modify_order_still_calls_broker_for_local_statuses(status):
+    client = _ReplaceClient()
+    broker = Schwab.__new__(Schwab)
+    broker.schwab_authorization_error = False
+    broker.client = client
+    broker.hash_value = "account-hash"
+    order = _option_order()
+    order.status = status
+
+    broker._modify_order(order, limit_price=4.75)
+
+    assert client.get_order_calls == [("order-123", "account-hash")]
+    assert len(client.replace_calls) == 1
 
 
 def test_schwab_cancel_order_requires_identifier():

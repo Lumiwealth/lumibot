@@ -2,6 +2,13 @@
 
 ## 4.5.47 - Unreleased
 
+### Fixed
+- **Explicit broker cancel/modify calls no longer get suppressed by local order state.** Schwab and Tradier now send `cancel_order()` and `_modify_order()` requests to the broker even when Lumibot's local order status is already `CANCELLING`, filled, canceled, expired, or errored, preventing a strategy-side cancel-pending state from blocking the actual broker API call.
+- **Rejected broker-status checks now have a compatibility alias.** `Order.OrderStatus.REJECTED` maps to Lumibot's existing `ERROR` status so generated strategies that check rejected outcomes do not crash while new strategy guidance moves toward `ERROR`.
+
+### Tests
+- **Schwab and Tradier regression tests now cover local terminal/cancel-pending states.** The targeted tests include the exact lifecycle where strategy code marks an order `CANCELLING` before broker cancel and assert the broker API is still called.
+
 ## 4.5.46 - Unreleased
 
 ### Added

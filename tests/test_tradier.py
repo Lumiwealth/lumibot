@@ -157,11 +157,54 @@ class TestTradierBroker:
         broker._modify_order(order, limit_price=100.0)
         assert mock_modify.called
 
-        # Filled or cancelled orders are not touched
+        # Explicit broker modify requests should still be sent even if local
+        # status looks terminal. The broker is the source of truth.
         mock_modify.reset_mock()
         order.status = order.OrderStatus.FILLED
         broker._modify_order(order, limit_price=100.0)
-        assert not mock_modify.called
+        assert mock_modify.called
+
+    @pytest.mark.parametrize(
+        "status",
+        [
+            Order.OrderStatus.CANCELLING,
+            Order.OrderStatus.CANCELED,
+            Order.OrderStatus.FILLED,
+            Order.OrderStatus.ERROR,
+            Order.OrderStatus.EXPIRED,
+        ],
+    )
+    def test_cancel_order_calls_broker_api_even_when_local_status_is_terminal(self, mocker, status):
+        broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True, connect_stream=False)
+        mock_cancel = mocker.patch.object(broker.tradier.orders, "cancel")
+        order = Order("my_strat", Asset("SPY"), 10, Order.OrderSide.SELL, order_type="limit")
+        order.identifier = "123456"
+        order.status = status
+
+        broker.cancel_order(order)
+
+        mock_cancel.assert_called_once_with("123456")
+
+    @pytest.mark.parametrize(
+        "status",
+        [
+            Order.OrderStatus.CANCELLING,
+            Order.OrderStatus.CANCELED,
+            Order.OrderStatus.FILLED,
+            Order.OrderStatus.ERROR,
+            Order.OrderStatus.EXPIRED,
+        ],
+    )
+    def test_modify_order_calls_broker_api_even_when_local_status_is_terminal(self, mocker, status):
+        broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True, connect_stream=False)
+        mock_modify = mocker.patch.object(broker.tradier.orders, "modify")
+        order = Order("my_strat", Asset("SPY"), 10, Order.OrderSide.SELL, order_type="limit")
+        order.identifier = "123456"
+        order.status = status
+
+        broker._modify_order(order, limit_price=100.0)
+
+        assert mock_modify.called
 
     def test_tradier_side2lumi(self):
         broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True, connect_stream=False)

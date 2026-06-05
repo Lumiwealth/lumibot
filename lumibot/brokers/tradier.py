@@ -397,10 +397,7 @@ class Tradier(Broker):
             return
 
     def cancel_order(self, order: Order):
-        """Cancels an order at the broker. Nothing will be done for orders that are already cancelled or filled."""
-        # Check if the order is already cancelled or filled
-        if order.is_filled() or order.is_canceled():
-            return
+        """Cancels an order at the broker."""
 
         if not order.identifier:
             raise ValueError("Order identifier is not set, unable to cancel order. Did you remember to submit it?")
@@ -412,14 +409,10 @@ class Tradier(Broker):
                       limit_price: Union[float, None] = None,
                       stop_price: Union[float, None] = None):
         """
-        Modify an order at the broker. Nothing will be done for orders that are already cancelled or filled. You are
-        only allowed to change the limit price and/or stop price. If you want to change the quantity,
-        you must cancel the order and submit a new one (Tradier limitation).
+        Modify an order at the broker. You are only allowed to change the limit
+        price and/or stop price. If you want to change the quantity, you must
+        cancel the order and submit a new one (Tradier limitation).
         """
-        # Check if the order is already cancelled or filled
-        if order.is_filled() or order.is_canceled():
-            return
-
         if not order.identifier:
             raise ValueError("Order identifier is not set, unable to modify order. Did you remember to submit it?")
 

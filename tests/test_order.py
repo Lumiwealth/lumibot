@@ -6,6 +6,10 @@ from lumibot.entities import Asset, Order
 
 
 class TestOrderBasics:
+    def test_rejected_status_aliases_error_for_broker_rejection_compatibility(self):
+        assert Order.OrderStatus.REJECTED == Order.OrderStatus.ERROR
+        assert Order.OrderStatus.REJECTED.value == "error"
+
     def test_side_must_be_one_of(self):
         assert Order(asset=Asset("SPY"), quantity=10, side="buy", strategy='abc').side == 'buy'
         assert Order(asset=Asset("SPY"), quantity=10, side="sell", strategy='abc').side == 'sell'

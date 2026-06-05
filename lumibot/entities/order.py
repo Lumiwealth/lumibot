@@ -194,6 +194,7 @@ class Order:
         ASSIGNED = "assigned"
         EXERCISED = "exercised"
         ERROR = "error"
+        REJECTED = "error"
         EXPIRED = "expired"
         UNKNOWN = "unknown"
 

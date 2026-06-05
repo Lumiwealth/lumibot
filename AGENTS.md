@@ -18,6 +18,39 @@ These rules are mandatory whenever you work on ThetaData integrations.
 
 Backtesting “accuracy” is measured against live broker behavior when possible (replay a live-traded interval and reproduce fills + PnL within tolerances). Vendor parity (e.g., stored DataBento artifacts) is a regression signal, not absolute truth.
 
+## Customer Broker Bug Reproduction (CRITICAL)
+
+When a customer reports a live broker execution problem, do not accept a nearby
+unit test, smoke script, direct broker call, or simplified order flow as proof
+that the customer issue is understood. First reproduce the exact customer path
+whenever feasible:
+
+- exact saved strategy revision or deployed artifact;
+- same broker and asset class;
+- same order type and lifecycle path;
+- same local strategy/order state transitions;
+- same account selection behavior, with masked account suffix verification;
+- full logs from start through cleanup.
+
+If a simpler smoke test passes, report it only as a smoke test. Do not tell Rob
+the customer issue is fixed until the customer strategy path has either
+reproduced and passed, or you have clearly documented why that exact path cannot
+be run.
+
+Specific Schwab lesson from the Titus cancel incident on 2026-06-05:
+strategy code may treat `CANCELLING` as an intermediate "do not block the next
+step forever" state, but the Schwab broker adapter must not treat local
+`CANCELLING` as terminal before it sends the cancel request to Schwab. A broker
+preflight that skips cancel when local status is `CANCELLING` can prevent Schwab
+from ever receiving the cancel call.
+
+Broker adapter methods that are supposed to contact the broker, especially
+`cancel_order()` and `_modify_order()`, must not silently no-op because of local
+Lumibot status helpers such as `order.is_canceled()`. If the broker request can
+be made, make it and let the broker return success or rejection. Local status can
+be used for strategy workflow decisions, not to suppress an explicit broker API
+call.
+
 ## Multi-Agent Collaboration (CRITICAL)
 This repo is frequently edited by **multiple AI sessions**. To avoid lost work:
 

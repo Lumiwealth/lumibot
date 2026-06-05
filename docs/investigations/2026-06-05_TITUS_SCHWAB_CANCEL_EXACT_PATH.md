@@ -138,7 +138,7 @@ The local change in `lumibot/brokers/schwab.py` does two things:
    remaining broker-adapter `order.is_canceled()` preflight guards after this
    change.
 
-## Remaining Strategy Fix
+## Strategy Guidance
 
 Titus v85 contains generated code that checks:
 
@@ -146,15 +146,16 @@ Titus v85 contains generated code that checks:
 refreshed.status == Order.OrderStatus.REJECTED
 ```
 
-That enum does not exist. Schwab rejected/error orders are represented in the
-observed Lumibot path as:
+Schwab rejected/error orders are represented in the observed Lumibot path as:
 
 ```python
 Order.OrderStatus.ERROR
 ```
 
-Generated fast-trading strategies should handle rejected broker outcomes by
-checking `ERROR` and other terminal non-filled states, for example:
+LumiBot now also provides `Order.OrderStatus.REJECTED` as a compatibility alias
+for `ERROR` so generated strategies that use the broker-style word do not crash.
+New generated fast-trading strategies should still prefer `ERROR` and other
+terminal non-filled states, for example:
 
 ```python
 if refreshed and refreshed.status in {
@@ -167,9 +168,9 @@ if refreshed and refreshed.status in {
     continue
 ```
 
-This is a strategy-generation/skill prompt issue, and LumiBot now also provides
-`Order.OrderStatus.REJECTED` as a compatibility alias for `ERROR` so generated
-strategies that use the broker-style word do not crash.
+The BotSpot Agent fast-order skill should keep steering new strategy code toward
+`ERROR` as the portable Lumibot status while accepting `REJECTED` as
+compatibility wording.
 
 ## Process Correction
 

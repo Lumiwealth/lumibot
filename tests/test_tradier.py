@@ -155,14 +155,14 @@ class TestTradierBroker:
         # Modify sent to API
         order.identifier = "123456"
         broker._modify_order(order, limit_price=100.0)
-        assert mock_modify.called
+        mock_modify.assert_called_once_with("123456", limit_price=100.0, stop_price=None)
 
         # Explicit broker modify requests should still be sent even if local
         # status looks terminal. The broker is the source of truth.
         mock_modify.reset_mock()
         order.status = order.OrderStatus.FILLED
         broker._modify_order(order, limit_price=100.0)
-        assert mock_modify.called
+        mock_modify.assert_called_once_with("123456", limit_price=100.0, stop_price=None)
 
     @pytest.mark.parametrize(
         "status",
@@ -204,7 +204,7 @@ class TestTradierBroker:
 
         broker._modify_order(order, limit_price=100.0)
 
-        assert mock_modify.called
+        mock_modify.assert_called_once_with("123456", limit_price=100.0, stop_price=None)
 
     def test_tradier_side2lumi(self):
         broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True, connect_stream=False)

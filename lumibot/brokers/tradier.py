@@ -397,13 +397,15 @@ class Tradier(Broker):
             return
 
     def cancel_order(self, order: Order):
-        """Cancels an order at the broker."""
+        """Cancel an order at the broker with an explicit broker request."""
 
         if not order.identifier:
             raise ValueError("Order identifier is not set, unable to cancel order. Did you remember to submit it?")
 
-        # Cancel the order
-        self.tradier.orders.cancel(order.identifier)
+        try:
+            self.tradier.orders.cancel(order.identifier)
+        except TradierApiError as e:
+            raise LumibotBrokerAPIError(f"Unable to cancel order at broker. {e}") from e
 
     def _modify_order(self, order: Order,
                       limit_price: Union[float, None] = None,

@@ -37,12 +37,11 @@ the customer issue is fixed until the customer strategy path has either
 reproduced and passed, or you have clearly documented why that exact path cannot
 be run.
 
-Specific Schwab lesson from the Titus cancel incident on 2026-06-05:
-strategy code may treat `CANCELLING` as an intermediate "do not block the next
-step forever" state, but the Schwab broker adapter must not treat local
-`CANCELLING` as terminal before it sends the cancel request to Schwab. A broker
-preflight that skips cancel when local status is `CANCELLING` can prevent Schwab
-from ever receiving the cancel call.
+Broker adapters must never treat local `CANCELLING` as terminal before sending
+the broker cancel request. A broker preflight that skips cancel when local status
+is `CANCELLING` can prevent the broker from ever receiving the cancel call. See
+`docs/investigations/2026-06-05_TITUS_SCHWAB_CANCEL_EXACT_PATH.md` for the
+incident that established this rule.
 
 Broker adapter methods that are supposed to contact the broker, especially
 `cancel_order()` and `_modify_order()`, must not silently no-op because of local

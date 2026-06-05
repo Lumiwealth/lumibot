@@ -366,10 +366,14 @@ class Schwab(Broker):
                         target_acc = acc
                         break
                 if not target_acc and accounts_json:
-                    suffix_matches = [
-                        acc for acc in accounts_json
-                        if str(acc.get('accountNumber', '')).endswith(str(self.account_number))
-                    ]
+                    account_lookup = str(self.account_number)
+                    min_suffix_length = 3
+                    suffix_matches = []
+                    if len(account_lookup) >= min_suffix_length:
+                        suffix_matches = [
+                            acc for acc in accounts_json
+                            if str(acc.get('accountNumber', '')).endswith(account_lookup)
+                        ]
                     if len(suffix_matches) == 1:
                         target_acc = suffix_matches[0]
                         self.account_number = str(target_acc.get('accountNumber'))
@@ -2129,9 +2133,11 @@ class Schwab(Broker):
     def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
                       stop_price: Union[float, None] = None):
         """
-        Modify an order at the broker. Nothing will be done for orders that are already cancelled or filled. You are
-        only allowed to change the limit price and/or stop price. If you want to change the quantity,
-        you must cancel the order and submit a new one.
+        Modify an order at the broker by sending an explicit replace request to
+        Schwab. The broker response is the source of truth even if local status
+        appears terminal. Only limit and/or stop price can be changed. If you
+        want to change the quantity, you must cancel the order and submit a new
+        one.
         
         Parameters
         ----------
@@ -2262,7 +2268,9 @@ class Schwab(Broker):
 
     def cancel_order(self, order: Order) -> None:
         """
-        Cancel an order at the broker. Nothing will be done for orders that are already cancelled or filled.
+        Cancel an order at the broker by sending an explicit cancel request to
+        Schwab. The broker response is the source of truth even if local status
+        appears terminal.
         
         Parameters
         ----------

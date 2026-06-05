@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -21,6 +22,11 @@ from lumibot.tools.schwab_helper import SchwabHelper
 
 
 TERMINAL_STATUSES = {"CANCELED", "CANCELLED", "FILLED", "REJECTED", "EXPIRED"}
+LOCAL_SCHWAB_ENV_KEYS = {
+    "SCHWAB_APP_KEY",
+    "SCHWAB_APP_SECRET",
+    "SCHWAB_BACKEND_CALLBACK_URL",
+}
 
 
 def _suffix(value: Any, length: int = 8) -> str:
@@ -92,7 +98,29 @@ def _select_account_by_suffix(broker: Schwab, account_suffix: str) -> dict[str, 
     }
 
 
+def _load_local_schwab_app_env() -> dict[str, bool]:
+    """Load local Schwab app credentials for token refresh during Rob-owned smokes."""
+    env_path = Path(__file__).resolve().parents[2] / "botspot_node" / ".env-local"
+    if not env_path.exists():
+        return {}
+
+    loaded: dict[str, bool] = {}
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if key not in LOCAL_SCHWAB_ENV_KEYS or os.environ.get(key):
+            continue
+        os.environ[key] = value.strip().strip('"').strip("'")
+        loaded[key] = bool(os.environ[key])
+    return loaded
+
+
 def _make_broker(token_path: Path, token_payload: str | None, account_suffix: str) -> tuple[Schwab, dict[str, str]]:
+    _load_local_schwab_app_env()
+
     if token_payload:
         SchwabHelper._save_payload_str_to_token_file(token_payload, token_path)
         token_path.chmod(0o600)

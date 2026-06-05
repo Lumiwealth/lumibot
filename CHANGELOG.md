@@ -2,6 +2,12 @@
 
 ## 4.5.46 - Unreleased
 
+### Added
+- **Schwab cancels now emit order-level diagnostic telemetry.** `Schwab.cancel_order()` logs request metadata, Schwab response status and elapsed time, and a best-effort direct order read after cancel acceptance so support can distinguish missing cancel requests, broker rejection, delayed broker state, and strategy-loop lockups.
+
+### Tests
+- **Rob-owned Schwab live cancel diagnostics now cover Titus-style fast option cancels.** Local smoke helpers can load the existing gitignored Schwab token and app metadata, submit a nonmarketable option order, cancel by exact order id, confirm broker state, and optionally compare broad order-list timing outside the hot path.
+
 ## 4.5.45 - Unreleased
 
 ### Added

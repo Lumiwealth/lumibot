@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.5.47 - Unreleased
+## 4.5.47 - 2026-06-05
+
+Deploy marker: `e51a0478`
 
 ### Fixed
 - **Explicit broker cancel/modify calls no longer get suppressed by local order state.** Schwab and Tradier now send `cancel_order()` and `_modify_order()` requests to the broker even when Lumibot's local order status is already `CANCELLING`, filled, canceled, expired, or errored, preventing a strategy-side cancel-pending state from blocking the actual broker API call.

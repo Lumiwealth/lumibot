@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.5.48 - Unreleased
+
 ## 4.5.47 - 2026-06-05
 
 Deploy marker: `e51a0478`

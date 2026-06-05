@@ -2260,23 +2260,60 @@ class Schwab(Broker):
         None
         """
         if order.is_filled() or order.is_canceled():
+            logger.info(
+                "[SchwabCancelTelemetry] skip_terminal "
+                f"order_id={order.identifier or '<missing>'} "
+                f"symbol={getattr(getattr(order, 'asset', None), 'symbol', '<missing>')} "
+                f"local_status={getattr(order, 'status', '<missing>')}"
+            )
             return
 
         if not order.identifier:
+            logger.error(
+                "[SchwabCancelTelemetry] missing_identifier "
+                f"symbol={getattr(getattr(order, 'asset', None), 'symbol', '<missing>')} "
+                f"side={getattr(order, 'side', '<missing>')} "
+                f"quantity={getattr(order, 'quantity', '<missing>')} "
+                f"local_status={getattr(order, 'status', '<missing>')}"
+            )
             raise ValueError("Order identifier is not set, unable to cancel order. Did you remember to submit it?")
 
         # Add check for authorization error first
         if self.schwab_authorization_error:
             error_msg = f"Schwab authorization failed previously. Cannot cancel order {order.identifier}."
+            logger.error(
+                "[SchwabCancelTelemetry] auth_blocked "
+                f"order_id={order.identifier} "
+                f"symbol={getattr(getattr(order, 'asset', None), 'symbol', '<missing>')} "
+                f"local_status={getattr(order, 'status', '<missing>')}"
+            )
             logger.error(colored(error_msg, "red"))
             raise LumibotBrokerAPIError(error_msg)
 
         # Add check for valid client and hash_value
         if not self.client or not self.hash_value:
             error_msg = f"Schwab client or account hash not initialized. Cannot cancel order {order.identifier}."
+            logger.error(
+                "[SchwabCancelTelemetry] client_not_ready "
+                f"order_id={order.identifier} "
+                f"has_client={bool(self.client)} "
+                f"has_hash={bool(self.hash_value)}"
+            )
             logger.error(colored(error_msg, "red"))
             raise LumibotBrokerAPIError(error_msg)
 
+        logger.info(
+            "[SchwabCancelTelemetry] request "
+            f"order_id={order.identifier} "
+            f"symbol={getattr(getattr(order, 'asset', None), 'symbol', '<missing>')} "
+            f"asset_type={getattr(getattr(order, 'asset', None), 'asset_type', '<missing>')} "
+            f"side={getattr(order, 'side', '<missing>')} "
+            f"quantity={getattr(order, 'quantity', '<missing>')} "
+            f"order_type={getattr(order, 'order_type', '<missing>')} "
+            f"local_status={getattr(order, 'status', '<missing>')} "
+            f"account_hash={self._mask_hash_value(self.hash_value)}"
+        )
+        cancel_started = time.perf_counter()
         try:
             # schwab-py expects (order_id, account_hash) and issues
             # DELETE /trader/v1/accounts/{account_hash}/orders/{order_id}.
@@ -2287,13 +2324,28 @@ class Schwab(Broker):
             raise LumibotBrokerAPIError(error_msg) from exc
 
         status_code = getattr(response, "status_code", None)
+        elapsed_ms = int((time.perf_counter() - cancel_started) * 1000)
         if status_code is None:
             error_msg = f"Error canceling Schwab order {order.identifier}: unexpected response {type(response).__name__}"
+            logger.error(
+                "[SchwabCancelTelemetry] response_missing_status "
+                f"order_id={order.identifier} "
+                f"response_type={type(response).__name__} "
+                f"elapsed_ms={elapsed_ms}"
+            )
             logger.error(colored(error_msg, "red"))
             raise LumibotBrokerAPIError(error_msg)
 
+        response_text = getattr(response, "text", "")
+        logger.info(
+            "[SchwabCancelTelemetry] response "
+            f"order_id={order.identifier} "
+            f"http_status={status_code} "
+            f"elapsed_ms={elapsed_ms} "
+            f"body={response_text[:500] if response_text else '<empty>'}"
+        )
+
         if not 200 <= int(status_code) < 300:
-            response_text = getattr(response, "text", "")
             error_msg = f"Error canceling Schwab order {order.identifier}: HTTP {status_code}"
             if response_text:
                 error_msg += f" - {response_text}"
@@ -2301,6 +2353,7 @@ class Schwab(Broker):
             raise LumibotBrokerAPIError(error_msg)
 
         logger.info(colored(f"Schwab cancel accepted for order {order.identifier}.", "green"))
+        self._log_cancel_direct_read(order.identifier, "after_cancel_accept")
 
         self._mark_order_tree_canceled(order)
 
@@ -2309,6 +2362,55 @@ class Schwab(Broker):
         else:
             order.set_canceled()
         return None
+
+    def _log_cancel_direct_read(self, order_id: str, context: str) -> None:
+        """Best-effort direct order read used only for Schwab cancel diagnostics."""
+        if not self.client or not self.hash_value or not hasattr(self.client, "get_order"):
+            logger.info(
+                "[SchwabCancelTelemetry] direct_read_skipped "
+                f"order_id={order_id} context={context} reason=client_not_capable"
+            )
+            return
+
+        try:
+            response = self.client.get_order(order_id, self.hash_value)
+        except Exception as exc:
+            logger.warning(
+                "[SchwabCancelTelemetry] direct_read_exception "
+                f"order_id={order_id} context={context} error={exc}"
+            )
+            return
+
+        status_code = getattr(response, "status_code", None)
+        if status_code != 200:
+            logger.warning(
+                "[SchwabCancelTelemetry] direct_read_http_error "
+                f"order_id={order_id} context={context} http_status={status_code} "
+                f"body={getattr(response, 'text', '')[:500]}"
+            )
+            return
+
+        try:
+            raw = response.json()
+        except Exception as exc:
+            logger.warning(
+                "[SchwabCancelTelemetry] direct_read_json_error "
+                f"order_id={order_id} context={context} error={exc}"
+            )
+            return
+
+        logger.info(
+            "[SchwabCancelTelemetry] direct_read "
+            f"order_id={order_id} context={context} "
+            f"broker_status={raw.get('status', '<missing>')} "
+            f"order_type={raw.get('orderType', '<missing>')} "
+            f"strategy_type={raw.get('orderStrategyType', '<missing>')} "
+            f"entered_time={raw.get('enteredTime', '<missing>')} "
+            f"close_time={raw.get('closeTime', '<missing>')} "
+            f"cancelable={raw.get('cancelable', '<missing>')} "
+            f"editable={raw.get('editable', '<missing>')} "
+            f"child_count={len(raw.get('childOrderStrategies') or [])}"
+        )
 
     def _mark_order_tree_canceled(self, order: Order) -> None:
         """Mark a canceled Schwab parent order and all local child legs terminal."""

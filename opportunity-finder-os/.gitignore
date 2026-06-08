@@ -1,0 +1,8 @@
+node_modules
+.next
+out
+dist
+*.tsbuildinfo
+prisma/dev.db
+prisma/dev.db-journal
+npm-debug.log*

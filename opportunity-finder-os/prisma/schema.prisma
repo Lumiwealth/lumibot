@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Lead {
+  id                                  String   @id @default(cuid())
+  company_name                        String
+  category                            String
+  website                             String?
+  location                            String?
+  contact_name                        String?
+  contact_title                       String?
+  contact_email                       String?
+  linkedin_url                        String?
+  warm_intro_source                   String?
+  notes                               String?
+  estimated_budget                    String?
+  urgency                             Int      @default(3)
+  remote_friendly                     Boolean  @default(true)
+  ability_to_pay                      Int      @default(3)
+  fit_with_my_background              Int      @default(3)
+  need_for_ai_product_help            Int      @default(3)
+  relevance_to_lcs                    Int      @default(3)
+  relevance_to_decision_intelligence  Int      @default(3)
+  family_office_or_wealth_fit         Int      @default(3)
+  institutional_education_fit         Int      @default(3)
+  accessibility_of_decision_maker     Int      @default(3)
+  warm_intro_strength                 Int      @default(1)
+  remote_or_fractional_fit            Int      @default(3)
+  fit_score                           Int      @default(0)
+  stage                               String   @default("Found")
+  next_action                         String?
+  last_contacted_date                 DateTime?
+  follow_up_date                      DateTime?
+  suggested_offer                     String?
+  personalized_angle                  String?
+  monthly_revenue_potential           String?
+  objection_risk                      String?
+  confidence_level                    String?
+  priority_level                      String   @default("Worth Testing")
+  created_at                          DateTime @default(now())
+  updated_at                          DateTime @updatedAt
+
+  @@index([category])
+  @@index([stage])
+  @@index([priority_level])
+  @@index([follow_up_date])
+  @@index([fit_score])
+}

@@ -5,6 +5,8 @@ from lumibot.sentiment import AdanosMarketSentiment
 
 
 class _Strategy:
+    """Strategy test fixture with a fixed backtest datetime and log capture."""
+
     is_backtesting = True
     broker = None
 
@@ -20,6 +22,8 @@ class _Strategy:
 
 
 class _Response:
+    """Lightweight HTTP response stub returning the stored JSON payload."""
+
     def __init__(self, payload):
         self._payload = payload
 
@@ -47,10 +51,26 @@ def test_adanos_client_fetches_stock_sentiment_with_strategy_date_bound(monkeypa
     assert result["end"] == "2026-05-20"
     assert result["sources"] == ["reddit", "news"]
     assert result["results"]["reddit"]["sentiment_score"] == 0.42
+    assert len(calls) == 2
     assert calls[0]["url"] == "https://adanos.test/reddit/stocks/v1/stock/AAPL"
     assert calls[0]["headers"] == {"X-API-Key": "test-key"}
     assert calls[0]["params"] == {"days": 5, "to": "2026-05-20"}
     assert calls[0]["timeout"] == 3
+    assert calls[1]["url"] == "https://adanos.test/news/stocks/v1/stock/AAPL"
+    assert calls[1]["headers"] == {"X-API-Key": "test-key"}
+    assert calls[1]["params"] == {"days": 5, "to": "2026-05-20"}
+    assert calls[1]["timeout"] == 3
+
+
+def test_adanos_client_rejects_empty_sources():
+    client = AdanosMarketSentiment(_Strategy(), api_key="test-key", base_url="https://adanos.test")
+
+    try:
+        client.get_stock_sentiment("AAPL", sources="")
+    except ValueError as exc:
+        assert "No Adanos sources provided" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for empty Adanos sources")
 
 
 def test_adanos_client_requires_api_key(monkeypatch):

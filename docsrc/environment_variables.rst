@@ -738,8 +738,8 @@ ANTHROPIC_API_KEY
 
 Other providers (Groq, Mistral, Cohere, Fireworks, Together, etc.) use the provider-prefixed id format and the corresponding provider env var; see the LiteLLM documentation for the full list.
 
-SEC fundamentals and agent memory
----------------------------------
+SEC fundamentals, market sentiment, and agent memory
+----------------------------------------------------
 
 LUMIBOT_SEC_USER_AGENT
 ^^^^^^^^^^^^^^^^^^^^^^

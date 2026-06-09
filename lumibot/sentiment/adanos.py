@@ -48,6 +48,8 @@ def _source_list(sources: list[str] | tuple[str, ...] | str | None) -> list[str]
         requested = [part.strip().lower() for part in sources.split(",") if part.strip()]
     else:
         requested = [str(part).strip().lower() for part in sources if str(part).strip()]
+    if not requested:
+        raise ValueError("No Adanos sources provided.")
     invalid = [source for source in requested if source not in ADANOS_SOURCES]
     if invalid:
         raise ValueError(f"Unsupported Adanos source(s): {', '.join(invalid)}")

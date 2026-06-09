@@ -139,6 +139,55 @@ class TestTradierBroker:
 
         assert broker._tradier_access_token == "new-access"
 
+    def test_oauth_refresh_writes_botspot_rotation_artifact(self, monkeypatch, tmp_path):
+        token_json = {
+            "access_token": "old-access",
+            "refresh_token": "old-refresh",
+            "expires_in": 1,
+            "issued_at": int((time.time() - 3600) * 1000),
+        }
+        rotation_path = tmp_path / "tradier_token_rotation.json"
+        monkeypatch.setenv("TRADIER_TOKEN", self._b64url(token_json))
+        monkeypatch.setenv("TRADIER_REFRESH_TOKEN", "old-refresh")
+        monkeypatch.setenv("TRADIER_OAUTH_CLIENT_ID", "cid")
+        monkeypatch.setenv("TRADIER_OAUTH_CLIENT_SECRET", "secret")
+        monkeypatch.setenv("BOTSPOT_TRADIER_TOKEN_ROTATION_PATH", str(rotation_path))
+
+        class _Resp:
+            ok = True
+            status_code = 200
+            text = ""
+
+            def json(self):
+                return {
+                    "access_token": "new-access",
+                    "refresh_token": "new-refresh",
+                    "expires_in": 86400,
+                    "issued_at": int(time.time() * 1000),
+                }
+
+        from lumibot.brokers import tradier as tradier_module
+
+        monkeypatch.setattr(tradier_module.requests, "post", lambda *args, **kwargs: _Resp())
+
+        Tradier(
+            config={"ACCESS_TOKEN": None, "ACCOUNT_NUMBER": "1234", "PAPER": True},
+            connect_stream=False,
+        )
+
+        artifact = json.loads(rotation_path.read_text(encoding="utf-8"))
+        assert artifact["TRADIER_ACCESS_TOKEN"] == "new-access"
+        assert artifact["TRADIER_REFRESH_TOKEN"] == "new-refresh"
+        decoded_token = self._decode_b64url(artifact["TRADIER_TOKEN"])
+        assert decoded_token["access_token"] == "new-access"
+        assert decoded_token["refresh_token"] == "new-refresh"
+
+    def _decode_b64url(self, payload: str) -> dict:
+        missing_padding = len(payload) % 4
+        if missing_padding:
+            payload += "=" * (4 - missing_padding)
+        return json.loads(base64.urlsafe_b64decode(payload).decode("utf-8"))
+
     def test_modify_order(self, mocker):
         broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True, connect_stream=False)
         mock_modify = mocker.patch.object(broker.tradier.orders, "modify")

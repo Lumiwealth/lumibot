@@ -69,6 +69,12 @@ class Tradier(Broker):
         return json.loads(decoded_bytes.decode("utf-8"))
 
     @staticmethod
+    def _encode_base64url_json(payload: dict) -> str:
+        """Encode a JSON payload as unpadded base64url."""
+        raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+    @staticmethod
     def _is_auth_error(err: Exception) -> bool:
         msg = str(err or "")
         lower_msg = msg.lower()
@@ -126,6 +132,46 @@ class Tradier(Broker):
             except Exception:
                 pass
             _update_client(getattr(ds, "tradier", None))
+
+    def _persist_oauth_rotation(self, token_json: dict, new_access_token: str, new_refresh_token: str | None) -> None:
+        """Write rotated BotSpot Tradier OAuth tokens for Bot Manager persistence."""
+        rotation_path = os.environ.get("BOTSPOT_TRADIER_TOKEN_ROTATION_PATH")
+        if not rotation_path:
+            return
+
+        refresh_token = new_refresh_token or getattr(self, "_oauth_refresh_token", None)
+        payload = dict(token_json)
+        payload["access_token"] = new_access_token
+        if refresh_token:
+            payload["refresh_token"] = refresh_token
+
+        rotated_values = {
+            "TRADIER_ACCESS_TOKEN": new_access_token,
+            "TRADIER_TOKEN": self._encode_base64url_json(payload),
+        }
+        if refresh_token:
+            rotated_values["TRADIER_REFRESH_TOKEN"] = refresh_token
+
+        tmp_path = f"{rotation_path}.tmp.{os.getpid()}.{threading.get_ident()}"
+        try:
+            rotation_dir = os.path.dirname(rotation_path)
+            if rotation_dir:
+                os.makedirs(rotation_dir, mode=0o700, exist_ok=True)
+            with open(tmp_path, "w", encoding="utf-8") as handle:
+                json.dump(rotated_values, handle, separators=(",", ":"))
+            os.chmod(tmp_path, 0o600)
+            os.replace(tmp_path, rotation_path)
+            try:
+                os.chmod(rotation_path, 0o600)
+            except OSError:
+                pass
+        except Exception as e:
+            try:
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+            except OSError:
+                pass
+            logger.warning(f"[Tradier] Failed to persist OAuth token rotation artifact: {e}")
 
     def _refresh_oauth_token(self, *, force: bool = False) -> bool:
         """Refresh Tradier OAuth token if possible. Returns True on successful refresh."""
@@ -185,10 +231,8 @@ class Tradier(Broker):
                 logger.warning("[Tradier] OAuth refresh response missing access_token.")
                 return False
 
-            # Refresh token is typically stable for Tradier partner apps, but handle the case where it changes.
             new_refresh_token = token_json.get("refresh_token")
-            if new_refresh_token and new_refresh_token != refresh_token:
-                logger.warning("[Tradier] OAuth refresh rotated refresh_token; rotation is not persisted in env vars and may require re-linking later.")
+            if new_refresh_token:
                 self._oauth_refresh_token = new_refresh_token
 
             expires_in = token_json.get("expires_in")
@@ -202,6 +246,7 @@ class Tradier(Broker):
                 pass
 
             self._apply_access_token(new_access_token)
+            self._persist_oauth_rotation(token_json, new_access_token, new_refresh_token)
             return True
 
     def _install_oauth_refresh_hooks(self) -> None:

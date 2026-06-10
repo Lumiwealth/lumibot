@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import base64
 import json
+import os
+import tempfile
 import time
 import traceback
 import urllib.parse
@@ -16,6 +18,38 @@ from .lumibot_logger import get_logger
 logger = get_logger(__name__)
 
 class SchwabHelper:
+    REFRESH_TOKEN_EXPIRES_IN_SECONDS = 7 * 24 * 3600
+
+    @staticmethod
+    def _write_token_file(token_path: Path, token_data: dict):
+        token_path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_name = tempfile.mkstemp(
+            prefix=f"{token_path.name}.",
+            suffix=".tmp",
+            dir=str(token_path.parent),
+        )
+        tmp_path = Path(tmp_name)
+        try:
+            os.chmod(tmp_path, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as fp:
+                fd = None
+                json.dump(token_data, fp)
+                fp.flush()
+                os.fsync(fp.fileno())
+            os.replace(tmp_path, token_path)
+            os.chmod(token_path, 0o600)
+        except Exception:
+            if fd is not None:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            raise
+
     @staticmethod
     def _ensure_token_metadata(token_path: Path):
         """
@@ -32,7 +66,21 @@ class SchwabHelper:
         try: # Add try-except around file operations
             with token_path.open("r+", encoding="utf-8") as fp:
                 tok_raw = json.load(fp)
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            logger.error(f"[DEBUG] Token file is not valid JSON and will be deleted: {e}")
+            logger.error(traceback.format_exc())
+            try:
+                token_path.unlink(missing_ok=True)
+                logger.warning(f"[DEBUG] Deleted corrupted token file: {token_path}")
+            except Exception as unlink_e:
+                logger.error(f"[DEBUG] Failed to delete corrupted token file: {unlink_e}")
+            return
+        except Exception as e:
+            logger.error(f"[DEBUG] Could not read token file; preserving it: {e}")
+            logger.error(traceback.format_exc())
+            return
 
+        try:
             # If already wrapped, just update the token part
             if "creation_timestamp" in tok_raw and "token" in tok_raw:
                 creation_ts = tok_raw["creation_timestamp"]
@@ -50,7 +98,7 @@ class SchwabHelper:
                 "issued_at": now_ms,
                 "refresh_token_issued_at": now_ms,
                 "expires_in": 1800,
-                "refresh_token_expires_in": 90 * 24 * 3600, # Changed from 7776000 for clarity (90 days)
+                "refresh_token_expires_in": SchwabHelper.REFRESH_TOKEN_EXPIRES_IN_SECONDS,
                 "token_type": "Bearer",
                 "scope": "api",
             }
@@ -64,20 +112,13 @@ class SchwabHelper:
                 "creation_timestamp": creation_ts,
                 "token": tok,
             }
-            # Use 'w' mode to overwrite the file completely
-            with token_path.open("w", encoding="utf-8") as fp:
-                json.dump(wrapped, fp)
+            SchwabHelper._write_token_file(token_path, wrapped)
             logger.info(f"[DEBUG] Token file successfully written and wrapped by _ensure_token_metadata to {token_path}")
 
         except Exception as e:
             logger.error(f"[DEBUG] Error in _ensure_token_metadata: {e}")
             logger.error(traceback.format_exc())
-            # If error occurs, try to delete the potentially corrupted file
-            try:
-                token_path.unlink(missing_ok=True)
-                logger.warning(f"[DEBUG] Deleted potentially corrupted token file due to error in _ensure_token_metadata: {token_path}")
-            except Exception as unlink_e:
-                logger.error(f"[DEBUG] Failed to delete token file after error in _ensure_token_metadata: {unlink_e}")
+            logger.warning(f"[DEBUG] Preserving existing token file after metadata rewrite failure: {token_path}")
 
     @staticmethod
     def _initiate_schwab_auth_and_get_token_payload(api_key: str, backend_callback_url: str, token_path: Path) -> bool:
@@ -244,7 +285,10 @@ class SchwabHelper:
             "issued_at": now_ms,
             "refresh_token_issued_at": now_ms,
             "expires_in": token_data_from_payload.get("expires_in", 1800),
-            "refresh_token_expires_in": token_data_from_payload.get("refresh_token_expires_in", 7776000),
+            "refresh_token_expires_in": token_data_from_payload.get(
+                "refresh_token_expires_in",
+                SchwabHelper.REFRESH_TOKEN_EXPIRES_IN_SECONDS,
+            ),
             "token_type": token_data_from_payload.get("token_type", "Bearer"),
             "scope": token_data_from_payload.get("scope", "api"),
         }
@@ -259,8 +303,7 @@ class SchwabHelper:
             "creation_timestamp": int(time.time()),
             "token": final_token_data,
         }
-        with token_path.open("w", encoding="utf-8") as fp:
-            json.dump(wrapped_token, fp)
+        SchwabHelper._write_token_file(token_path, wrapped_token)
         logger.info(f"Token payload processed and saved to {token_path}")
 
 __all__ = [

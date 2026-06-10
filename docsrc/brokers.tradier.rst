@@ -63,6 +63,24 @@ To run your strategy, you'll first need to instantiate your chosen broker with t
 
     broker = Tradier(config=TRADIER_CONFIG)
 
+Token Lifetime Notes
+--------------------
+
+Tradier dashboard API tokens, such as ``TRADIER_ACCESS_TOKEN`` from the API
+Access page, do not expire under Tradier's current token model.
+
+Tradier partner OAuth access tokens are different: they expire after 24 hours.
+Approved partner apps can receive refresh tokens, and Tradier documents those
+refresh tokens as non-expiring. LumiBot can refresh an OAuth payload when
+``TRADIER_TOKEN`` includes a ``refresh_token`` and
+``TRADIER_OAUTH_CLIENT_ID`` / ``TRADIER_OAUTH_CLIENT_SECRET`` are configured.
+
+For BotSpot managed runtimes, LumiBot writes refreshed OAuth token material to a
+BotSpot-provided handoff file when ``BOTSPOT_TRADIER_TOKEN_ROTATION_PATH`` is
+set. BotManager then forwards only allowlisted rotated token fields through the
+platform's audited token-rotation path. User strategies should treat runtime
+credentials as ephemeral and should not persist refreshed tokens themselves.
+
 Then you can run your strategy as you normally would:
 
 .. code-block:: python

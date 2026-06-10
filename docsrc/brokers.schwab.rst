@@ -213,18 +213,25 @@ To use Schwab with Lumibot, you need to set the following environment variables 
 
 .. important::
    `SCHWAB_TOKEN` is only read **once** (on first run) to build `token.json`.
-   After that, automatic refresh keeps the file current; you do **not** need to
-   rotate the env-var every 7 days.
+   After that, automatic refresh keeps the token current.  For local or
+   persistent-filesystem deployments, that updates `token.json`.  In BotSpot
+   scheduled deployments, credentials are refreshed in Vault before each
+   invocation; the scheduled runtime payload is used for the current invocation
+   and no `token.json` persists across invocations.
 
 Token Life-cycle & Auto-refresh
 -------------------------------
 
 * Access-token ≈ 30 min, refresh-token ≈ 7 days (per Schwab policy).
 * Lumibot configures an `OAuth2Session` with ``auto_refresh_url`` so that tokens
-  refresh themselves quietly in the background every ~25 min.
-* The refreshed token is written back to `token.json`; it rolls the 7-day window
-  forward.  As long as the bot is running (or restarted at least once a week)
-  you never need to log in again.
+  refresh as needed during broker API calls.
+* When running as a scheduled BotSpot task (``LUMIBOT_SCHEDULED_EXECUTION=true``),
+  BotSpot refreshes the saved Schwab broker credential in Vault before issuing
+  the short-lived runtime secret.  The ephemeral task does not persist OAuth
+  token files across invocations.
+* Outside BotSpot-managed credentials, place `token.json` on durable storage if
+  the runtime filesystem is ephemeral.  A refreshed local token file is only
+  useful across restarts when the file survives the restart.
 * Only if the service is **offline for >7 days** will the refresh-token expire.
   In that case repeat the browser login once and redeploy the new payload or
   token file.

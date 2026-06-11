@@ -3283,7 +3283,36 @@ class BacktestingBroker(Broker):
             return None, None
 
         try:
+            now_ts = pd.Timestamp(now)
+            start_ts = pd.Timestamp(getattr(data_obj, "datetime_start", None))
+            end_ts = pd.Timestamp(getattr(data_obj, "datetime_end", None))
+
+            if pd.isna(now_ts) or pd.isna(start_ts) or pd.isna(end_ts):
+                return None, None
+
+            if now_ts.tzinfo is not None and start_ts.tzinfo is not None:
+                now_for_start = now_ts.tz_convert(start_ts.tzinfo)
+                start_cmp = start_ts
+            else:
+                now_for_start = now_ts.tz_localize(None) if now_ts.tzinfo is not None else now_ts
+                start_cmp = start_ts.tz_localize(None) if start_ts.tzinfo is not None else start_ts
+
+            if now_ts.tzinfo is not None and end_ts.tzinfo is not None:
+                now_for_end = now_ts.tz_convert(end_ts.tzinfo)
+                end_cmp = end_ts
+            else:
+                now_for_end = now_ts.tz_localize(None) if now_ts.tzinfo is not None else now_ts
+                end_cmp = end_ts.tz_localize(None) if end_ts.tzinfo is not None else end_ts
+
+            if now_for_start < start_cmp or now_for_end > end_cmp:
+                return None, None
+        except Exception:
+            return None, None
+
+        try:
             i = data_obj.get_iter_count(now)
+            if i < 0:
+                return None, None
             bid = bid_line.dataline[i]
             ask = ask_line.dataline[i]
         except Exception:

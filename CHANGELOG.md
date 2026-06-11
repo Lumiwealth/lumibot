@@ -2,6 +2,12 @@
 
 ## 4.5.48 - Unreleased
 
+### Fixed
+- **IBKR crypto quote fills now reject underfilled cache windows.** The fast quote-fill path validates that the simulated timestamp is inside the cached data object's actual coverage before reading bid/ask, preventing market orders from filling against out-of-window BTC quote rows when the downloader only returned later history.
+
+### Tests
+- **IBKR crypto backtesting coverage now reproduces an underfilled BTC cache window.** The regression test starts a backtest before the first available BTC minute row and asserts the fast quote-fill helper returns no bid/ask instead of fabricating a fill.
+
 ## 4.5.47 - 2026-06-05
 
 Deploy marker: `e51a0478`

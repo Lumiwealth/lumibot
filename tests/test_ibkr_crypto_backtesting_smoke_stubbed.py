@@ -122,6 +122,59 @@ def test_ibkr_rest_backtesting_crypto_market_orders_fill_at_ask_and_bid(monkeypa
     assert sell.get_fill_price() == pytest.approx(expected_bid_1, rel=1e-12)
 
 
+def test_ibkr_rest_fast_crypto_quote_fill_rejects_underfilled_cache_before_start(monkeypatch):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    backtest_start = pd.Timestamp("2026-03-09 00:00", tz="America/New_York")
+    first_real_bar = pd.Timestamp("2026-03-22 03:00", tz="America/New_York")
+    idx = pd.date_range(first_real_bar, periods=3, freq="1min", tz="America/New_York")
+    df = pd.DataFrame(
+        {
+            "open": [62_700.0, 62_710.0, 62_720.0],
+            "high": [62_750.0, 62_760.0, 62_770.0],
+            "low": [62_650.0, 62_660.0, 62_670.0],
+            "close": [62_718.0, 62_728.0, 62_738.0],
+            "bid": [62_717.0, 62_727.0, 62_737.0],
+            "ask": [62_719.0, 62_729.0, 62_739.0],
+            "volume": [1_000, 1_000, 1_000],
+        },
+        index=idx,
+    )
+
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+        return df
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
+
+    data_source = InteractiveBrokersRESTBacktesting(
+        datetime_start=backtest_start.to_pydatetime(),
+        datetime_end=(idx[-1] + pd.Timedelta(minutes=1)).to_pydatetime(),
+        market="24/7",
+        show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+    )
+    data_source.load_data()
+
+    broker = BacktestingBroker(data_source=data_source)
+    broker.initialize_market_calendars(data_source.get_trading_days_pandas())
+    broker._first_iteration = False
+
+    base = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+    data_source.get_historical_prices_between_dates(
+        (base, quote),
+        timestep="minute",
+        quote=quote,
+        start_date=backtest_start.to_pydatetime(),
+        end_date=idx[-1].to_pydatetime(),
+    )
+
+    broker._update_datetime(pd.Timestamp("2026-03-12 08:00", tz="America/New_York").to_pydatetime())
+
+    assert broker._fast_get_bid_ask_for_fill(base, quote) == (None, None)
+
+
 def test_ibkr_rest_backtesting_crypto_limit_orders_fill_against_quotes(monkeypatch):
     import lumibot.tools.ibkr_helper as ibkr_helper
 

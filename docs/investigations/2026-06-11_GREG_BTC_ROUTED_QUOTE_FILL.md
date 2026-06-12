@@ -2,7 +2,7 @@
 
 One-line description: Production artifact diagnosis and LumiBot fix for Greg's BTC backtest drop caused by out-of-window IBKR crypto prices.
 Last Updated: 2026-06-12
-Status: Fix implemented on `version/4.5.48`; production artifacts parsed; full local replay remains Data Downloader-bound
+Status: Fixed in `v4.5.48`; production Bot Manager rerun of the April 15-19 window completed with no stale fills
 Audience: LumiBot, BotSpot Node, and BotSpot support engineers
 
 ## Overview
@@ -220,20 +220,43 @@ Result on 2026-06-12:
 - `24 passed`
 - one third-party `websockets.legacy` deprecation warning
 
+Production release and runtime validation:
+
+- LumiBot `v4.5.48` was published and installed by Bot Manager production and
+  development image builds. Production GitHub Actions run `27403208749` and
+  development run `27403207949` both logged `LUMIBOT_VERSION=4.5.48` and
+  `lumibot==4.5.48` in the dependency/backtest image builds.
+- A production BotSpot/Bot Manager rerun used Greg's same revision
+  `9c8e12ce-7ffd-438e-907d-57a13660a1f8` for `2026-04-15` through
+  `2026-04-18 23:59` with budget `1300`. New manager bot/backtest id:
+  `4aca383a-3688-4ca7-a058-cfd98586c7e7`.
+- The completed rerun `settings.json` reported `lumibot_version: 4.5.48`,
+  Data Downloader base URL `http://data-downloader.lumiwealth.com:8080`, and
+  remote cache `backend=s3`, `mode=readwrite`, `bucket=lumibot-cache-prod`,
+  `prefix=prod/cache`, `version=v1`.
+- The completed rerun still logged underfilled IBKR BTC hourly data and explicit
+  "data refresh required instead of using stale bars" messages, but those
+  missing-data conditions no longer produced out-of-window fills.
+- `trades.parquet` and `trade_events.parquet` each had 12 lifecycle rows:
+  6 `new` BTC buy orders and 6 `canceled` BTC buy orders. They had
+  0 priced rows, 0 filled-quantity rows, and 0 rows at stale price `70511.75`.
+- `stats.parquet` had 1,154 rows with `portfolio_value` min/max exactly
+  `1300`, `cash` min/max exactly `1300`, `return` min/max `0`, and
+  0 rows with positions.
+
 ## Required Follow-Up
 
-Before telling a customer that a rerun will exactly match a new expected
-full-window result, run a completed post-fix backtest in BotSpot/Bot Manager and
-compare its final stats. The current code-level fix is regression-tested, but
-the same-turn local full-window replay was downloader-bound.
+The April 15-19 production rerun proves the stale-fill failure no longer occurs
+in the reported April drop window. Before promising an exact new result for the
+entire March 9-June 5 customer backtest, run the full original window again and
+compare final stats.
 
-1. Build and publish LumiBot `4.5.48`.
-2. Trigger a new Greg-window BotSpot backtest from the executed revision or a
-   support clone.
-3. Confirm the rerun no longer has the stale `70511.75` repeated fills and that
-   fills fall inside or near the relevant BTC quote/OHLC frame.
-4. Separately investigate why fresh local replay needs to hydrate many BTC
-   minute chunks despite production S3 cache configuration; that is a
-   performance/cache-coverage issue, not the root data-integrity bug fixed here.
+Remaining follow-up:
+
+1. Run the full `2026-03-09` to `2026-06-05` window after `v4.5.48` if Greg or
+   support needs exact replacement metrics for the full reported run.
+2. Investigate why fresh local replay needs to hydrate many BTC minute chunks
+   despite production S3 cache configuration; that is a performance/cache
+   coverage issue, not the root data-integrity bug fixed here.
 
 Do not add fake trades, synthetic bars, carry-forward bid/ask rows, or strategy-specific patches to make this backtest look better. Missing data must stay missing.

@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.5.48 - Unreleased
+## 4.5.48 - 2026-06-12
+
+Deploy marker: `pending`
 
 ### Fixed
 - **Tradier OAuth token rotations now persist back to the broker config.** When a live Tradier request refreshes an expired access token, the broker updates the in-memory auth config so the next request uses the rotated token instead of repeatedly retrying with the stale token.

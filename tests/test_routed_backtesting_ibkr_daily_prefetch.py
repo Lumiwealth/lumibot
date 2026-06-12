@@ -120,6 +120,118 @@ def test_routed_backtesting_crypto_daily_tuple_lookup_uses_prefetched_canonical_
     assert not bars.df.empty
 
 
+def test_routed_ibkr_crypto_intraday_rejects_stale_underfilled_last_price_and_quote(monkeypatch):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    ny = "America/New_York"
+    stale_ts = pd.Timestamp("2026-03-24 00:00", tz=ny)
+    sim_ts = pd.Timestamp("2026-04-17 10:00", tz=ny)
+    calls: list[tuple[datetime, datetime, str]] = []
+
+    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+        calls.append((start_dt, end_dt, str(timestep)))
+        df = pd.DataFrame(
+            {
+                "open": [70511.75],
+                "high": [70511.75],
+                "low": [70511.75],
+                "close": [70511.75],
+                "bid": [70510.75],
+                "ask": [70512.75],
+                "volume": [1.0],
+            },
+            index=pd.DatetimeIndex([stale_ts]),
+        )
+        df.index.name = "timestamp"
+        return df
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", _fake_get_price_data)
+    monkeypatch.setattr(ibkr_helper, "frame_covers_requested_window", lambda *args, **kwargs: False)
+
+    source = RoutedBacktestingPandas(
+        datetime_start=pd.Timestamp("2026-03-09 00:00", tz=ny).to_pydatetime(),
+        datetime_end=pd.Timestamp("2026-06-05 00:00", tz=ny).to_pydatetime(),
+        market="24/7",
+        show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+    )
+    source.load_data()
+    source._update_datetime(sim_ts.to_pydatetime())
+
+    base = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+    assert source.get_last_price(base, timestep="minute", quote=quote) is None
+
+    quote_obj = source.get_quote(base, quote=quote, timestep="minute")
+    assert quote_obj.price is None
+    assert quote_obj.bid is None
+    assert quote_obj.ask is None
+
+    key = source.find_asset_in_data_store(base, quote, "minute")
+    assert key is not None
+    data = source._data_store[key]
+    assert data.strict_end_check is True
+    assert float(data.df["close"].iloc[-1]) == 70511.75
+    assert calls
+
+
+def test_routed_ibkr_crypto_intraday_rejects_future_underfilled_last_price_and_quote(monkeypatch):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    ny = "America/New_York"
+    future_ts = pd.Timestamp("2026-03-24 00:00", tz=ny)
+    sim_ts = pd.Timestamp("2026-03-12 07:00", tz=ny)
+    calls: list[tuple[datetime, datetime, str]] = []
+
+    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+        calls.append((start_dt, end_dt, str(timestep)))
+        df = pd.DataFrame(
+            {
+                "open": [70511.75],
+                "high": [70511.75],
+                "low": [70511.75],
+                "close": [70511.75],
+                "bid": [70510.75],
+                "ask": [70512.75],
+                "volume": [1.0],
+            },
+            index=pd.DatetimeIndex([future_ts]),
+        )
+        df.index.name = "timestamp"
+        return df
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", _fake_get_price_data)
+    monkeypatch.setattr(ibkr_helper, "frame_covers_requested_window", lambda *args, **kwargs: False)
+
+    source = RoutedBacktestingPandas(
+        datetime_start=pd.Timestamp("2026-03-09 00:00", tz=ny).to_pydatetime(),
+        datetime_end=pd.Timestamp("2026-06-05 00:00", tz=ny).to_pydatetime(),
+        market="24/7",
+        show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+    )
+    source.load_data()
+    source._update_datetime(sim_ts.to_pydatetime())
+
+    base = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+    assert source.get_last_price(base, timestep="minute", quote=quote) is None
+
+    quote_obj = source.get_quote(base, quote=quote, timestep="minute")
+    assert quote_obj.price is None
+    assert quote_obj.bid is None
+    assert quote_obj.ask is None
+
+    key = source.find_asset_in_data_store(base, quote, "minute")
+    assert key is not None
+    data = source._data_store[key]
+    assert data.strict_end_check is True
+    assert float(data.df["close"].iloc[0]) == 70511.75
+    assert calls
+
+
 def test_routed_backtesting_prefetches_ibkr_stock_daily_with_full_lookback(monkeypatch):
     calls: list[tuple[datetime, datetime, str]] = []
 

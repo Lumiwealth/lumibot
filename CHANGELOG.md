@@ -1,5 +1,22 @@
 # Changelog
 
+## 4.5.48 - 2026-06-12
+
+Deploy marker: `pending`
+
+### Fixed
+- **Tradier OAuth token rotations now persist back to the broker config.** When a live Tradier request refreshes an expired access token, the broker updates the in-memory auth config so the next request uses the rotated token instead of repeatedly retrying with the stale token.
+- **IBKR crypto quote fills now reject underfilled cache windows.** The fast quote-fill path validates that the simulated timestamp is inside the cached data object's actual coverage before reading bid/ask, preventing market orders from filling against out-of-window BTC quote rows when the downloader only returned later history.
+- **Routed IBKR crypto prices and quotes now reject stale or future intraday frames.** BotSpot Auto crypto routing marks intraday IBKR data as strict, validates full-window coverage before marking crypto/futures series loaded, and prevents `get_last_price()` or `get_quote()` from treating out-of-window cached BTC rows as the current simulation price.
+
+### Docs
+- **Titus Schwab cancel evidence now records deployment and market-hours retest findings.** The investigation note separates the fixed broker cancel path from the remaining strategy-level Titus risks around fills before cancel, rejected stock hedges, retry behavior, and Schwab option smart-limit support.
+
+### Tests
+- **Tradier OAuth refresh coverage now asserts rotated tokens are reused.** The regression tests verify refresh state is persisted after retry-layer 401 responses.
+- **IBKR crypto backtesting coverage now reproduces an underfilled BTC cache window.** The regression test starts a backtest before the first available BTC minute row and asserts the fast quote-fill helper returns no bid/ask instead of fabricating a fill.
+- **Routed IBKR coverage now tests stale-after-end and future-before-start frames.** Direct and routed regressions verify that `get_last_price()` and `get_quote()` return missing data instead of stale/future BTC values when an intraday cache frame does not cover the simulated timestamp.
+
 ## 4.5.47 - 2026-06-05
 
 Deploy marker: `e51a0478`

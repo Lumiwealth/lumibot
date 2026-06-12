@@ -177,6 +177,12 @@ def main() -> int:
         help="Override LUMIBOT_CACHE_S3_PREFIX (alternative to cache-version)",
     )
     parser.add_argument(
+        "--cache-mode",
+        default=None,
+        choices=["disabled", "readonly", "readwrite"],
+        help="Override LUMIBOT_CACHE_MODE without editing the dotenv file.",
+    )
+    parser.add_argument(
         "--use-dotenv-s3-keys",
         action="store_true",
         help="Use LUMIBOT_CACHE_S3_ACCESS_KEY_ID/SECRET from the dotenv file instead of the host AWS credential chain.",
@@ -313,6 +319,9 @@ def main() -> int:
         env["LUMIBOT_CACHE_FOLDER"] = args.cache_folder
         Path(args.cache_folder).mkdir(parents=True, exist_ok=True)
 
+    if args.cache_mode:
+        env["LUMIBOT_CACHE_MODE"] = args.cache_mode
+
     if args.cache_version:
         env["LUMIBOT_CACHE_S3_VERSION"] = args.cache_version
 
@@ -326,6 +335,7 @@ def main() -> int:
     print(f"[run] window={args.start} -> {args.end}")
     print(f"[run] workdir={workdir}")
     print(f"[run] cache_folder={env.get('LUMIBOT_CACHE_FOLDER')}")
+    print(f"[run] cache_mode={env.get('LUMIBOT_CACHE_MODE')}")
     print(f"[run] cache_s3_bucket={env.get('LUMIBOT_CACHE_S3_BUCKET')}")
     print(f"[run] cache_s3_prefix={env.get('LUMIBOT_CACHE_S3_PREFIX')}")
     print(f"[run] cache_s3_version={env.get('LUMIBOT_CACHE_S3_VERSION')}")
@@ -415,6 +425,7 @@ def main() -> int:
             "metrics": subprocess_metrics,
             "cache": {
                 "folder": env.get("LUMIBOT_CACHE_FOLDER"),
+                "mode": env.get("LUMIBOT_CACHE_MODE"),
                 "s3_bucket": env.get("LUMIBOT_CACHE_S3_BUCKET"),
                 "s3_prefix": env.get("LUMIBOT_CACHE_S3_PREFIX"),
                 "s3_version": env.get("LUMIBOT_CACHE_S3_VERSION"),

@@ -4,7 +4,9 @@ One-line description: Documents the exact-strategy reproduction of Titus's Schwa
 
 Last Updated: 2026-06-05
 
-Status: Active investigation; local broker fix proven, deployment/release still required.
+Status: Broker fix released in LumiBot 4.5.47 and deployed to BotManager
+development and production. Exact Titus strategy still needs a fresh market-hours
+run on the deployed image.
 
 Audience: LumiBot, BotSpot, and support agents debugging live Schwab order execution.
 
@@ -172,6 +174,100 @@ The BotSpot Agent fast-order skill should keep steering new strategy code toward
 `ERROR` as the portable Lumibot status while accepting `REJECTED` as
 compatibility wording.
 
+## Release And Deployment Evidence
+
+LumiBot 4.5.47 contains the Schwab/Tradier broker-adapter direct-call fix and
+the `Order.OrderStatus.REJECTED` compatibility alias.
+
+- LumiBot PR `#1078` merged to `dev` at
+  `d190153ba9aeb4f311279908a6e07831dab3d07e`.
+- LumiBot PR `#1079` merged to `dev` at
+  `7f78e66615c72094e3d7c9b404fe8e5dfffdd3a9`.
+- Git tag `v4.5.47` points to
+  `7f78e66615c72094e3d7c9b404fe8e5dfffdd3a9`.
+- GitHub release workflow `27043071439` completed successfully and published
+  `lumibot==4.5.47`.
+- Direct PyPI install check returned `Version: 4.5.47`.
+
+BotManager was then pointed at LumiBot 4.5.47 with repository variable
+`LUMIBOT_VERSION=4.5.47`.
+
+- BotManager production workflow `27044088862` completed successfully:
+  `https://github.com/Lumiwealth/bot_manager/actions/runs/27044088862`
+- BotManager development workflow `27044060685` completed successfully:
+  `https://github.com/Lumiwealth/bot_manager/actions/runs/27044060685`
+- Both deploy logs showed `LUMIBOT_VERSION: 4.5.47`, installed
+  `lumibot==4.5.47`, and started with `LumiBot v4.5.47 starting`.
+
+This proves the fixed LumiBot package was built into the BotManager dev and
+production deployment images. It does not yet prove Titus's exact strategy has
+passed on the deployed runtime; that requires a new market-hours run.
+
+## 2026-06-08 Market-Hours Local Schwab Retest
+
+All tests below used the local Schwab token path and verified the intended
+account by masked suffix in private artifacts. Raw artifacts are in:
+
+- `logs/titus_private/imported_cancel_methods_20260608_20260608_145618.log`
+- `logs/titus_private/imported_cancel_methods_20260608_20260608_145618.json`
+- `logs/titus_private/exact_v85_full_live_20260608_20260608_150135.log`
+- `logs/titus_private/reconcile_exact_v85_full_live_20260608_1501.json`
+
+### Exact v85 cancel methods
+
+The imported-method harness loaded the exact saved v85 revision:
+
+`logs/titus_private/revision_v85_ffe083f0-13cc-42b8-b9bc-4ac451a61d41.py`
+
+It submitted two deliberately low-priced LW option limit orders and invoked the
+revision's original cancel paths:
+
+1. `_cancel_and_confirm`
+2. `_manage_pending_buy`
+
+Both orders were `WORKING` before cancel. Both Schwab cancel API calls returned
+HTTP 200. Direct Schwab order reads immediately after cancel showed `CANCELED`.
+Measured method elapsed times were about 1.5-1.7 seconds.
+
+### Exact v85 full strategy class
+
+A run-only wrapper was created at:
+
+`logs/titus_private/run_exact_v85_full_live_20260608.py`
+
+The wrapper imports the exact saved v85 file without editing it, injects the live
+Schwab broker, runs the strategy for a bounded window, then reconciles/cancels
+orders. The first full run proved:
+
+- The exact strategy submitted LW option buy orders.
+- Two pending buy orders hit the strategy's cancel path.
+- Schwab returned HTTP 200 for both cancels.
+- Direct Schwab reads showed `CANCELED`.
+- The cancel requests were sent even when the local order status was already
+  `cancelling`, which proves the fixed broker adapter is no longer skipping the
+  broker call because of local status.
+
+The run also exposed separate strategy/broker behavior that is not the original
+cancel-skip bug:
+
+- One LW option buy filled before cancellation.
+- The strategy then attempted a stock hedge fallback using repeated `SELL_SHORT`
+  market orders for 100 LW shares. Schwab rejected each stock short hedge
+  attempt.
+- After the hedge rejection loop, the strategy resumed scanning and submitted
+  more buy candidates.
+- One later open LW option order was canceled during reconciliation.
+- One filled LW option position remained after the test:
+  `LW 2026-06-12 39 CALL`, quantity `1`.
+- During forced stop, Schwab option smart-limit modification logged:
+  `Order type smart_limit not supported for options with Schwab templates.`
+
+Current conclusion: the direct Schwab cancel bug is fixed locally in this exact
+strategy path. The remaining Titus risk is likely not "cancel_order never reaches
+Schwab" anymore; it is now the strategy's broader flow: fills before cancel,
+rejected stock hedge fallback, repeated retry behavior, and Schwab option
+smart-limit modification support.
+
 ## Process Correction
 
 For future customer broker incidents:
@@ -186,3 +282,18 @@ For future customer broker incidents:
    documented as impossible to run.
 6. Keep a private evidence directory with exact logs, code revisions, cleanup
    proof, and a short investigation doc before summarizing status to Rob.
+
+## Remaining Work
+
+1. Run Titus's exact strategy path again during market hours using the deployed
+   BotManager image with LumiBot 4.5.47.
+2. Compare the deployed run timeline against local proof: order placement,
+   cancel request, Schwab HTTP response, direct broker status, and any cleanup
+   order.
+3. Use the support log export work to capture complete deployment logs instead
+   of relying on partial console evidence.
+4. Decide whether to deploy the BotSpot Agent fast-order skill update after
+   isolating it from unrelated dirty files in `botspot_agent`.
+5. Audit the broader explicit broker action contract across adapters, especially
+   cancel and modify behavior, so no adapter silently skips a requested broker
+   action based only on local cached status.

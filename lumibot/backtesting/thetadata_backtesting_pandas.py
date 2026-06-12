@@ -2847,6 +2847,34 @@ class ThetaDataBacktestingPandas(PandasData):
                 data_obj = self.pandas_data.get((key[0], key[1]))
             if data_obj is None or not hasattr(data_obj, "df") or data_obj.df is None:
                 return None
+            if bool(getattr(data_obj, "strict_end_check", False)):
+                try:
+                    normalized_dt = self._normalize_default_timezone(dt) if dt is not None else None
+                    normalized_start = self._normalize_default_timezone(getattr(data_obj, "datetime_start", None))
+                    normalized_end = self._normalize_default_timezone(getattr(data_obj, "datetime_end", None))
+                    if (
+                        normalized_dt is not None
+                        and normalized_start is not None
+                        and normalized_dt < normalized_start
+                    ):
+                        logger.info(
+                            "[THETA][DEBUG][LAST_PRICE] strict start check rejected future frame for %s at dt=%s frame_start=%s",
+                            key,
+                            normalized_dt,
+                            normalized_start,
+                        )
+                        return None
+                    if normalized_dt is not None and normalized_end is not None and normalized_dt > normalized_end:
+                        logger.info(
+                            "[THETA][DEBUG][LAST_PRICE] strict end check rejected stale frame for %s at dt=%s frame_end=%s",
+                            key,
+                            normalized_dt,
+                            normalized_end,
+                        )
+                        return None
+                except Exception:
+                    logger.debug("[THETA][DEBUG][LAST_PRICE] strict end check failed", exc_info=True)
+                    return None
 
             df = data_obj.df
             close_series = df.get("close")
@@ -3724,9 +3752,16 @@ class ThetaDataBacktestingPandas(PandasData):
                     candidate_df = getattr(candidate_data, "df", None)
                     if candidate_df is not None and not candidate_df.empty and self._frame_has_quote_columns(candidate_df):
                         data_end = getattr(candidate_data, "datetime_end", None)
+                        data_start = getattr(candidate_data, "datetime_start", None)
                         normalized_dt = self._normalize_default_timezone(dt) if dt is not None else None
+                        normalized_start = self._normalize_default_timezone(data_start) if data_start is not None else None
                         normalized_end = self._normalize_default_timezone(data_end) if data_end is not None else None
-                        if normalized_dt is not None and normalized_end is not None and normalized_dt <= normalized_end:
+                        if (
+                            normalized_dt is not None
+                            and normalized_start is not None
+                            and normalized_end is not None
+                            and normalized_start <= normalized_dt <= normalized_end
+                        ):
                             should_refresh = False
                             fast_data = candidate_data
         except Exception:

@@ -166,6 +166,96 @@ def test_ibkr_rest_crypto_minute_prefetch_stays_unloaded_when_coverage_fails(mon
     assert (asset, quote, "minute", "AUTO") not in ds._fully_loaded_series
 
 
+def test_ibkr_rest_crypto_last_price_rejects_stale_underfilled_intraday_frame(monkeypatch):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    ny = ZoneInfo("America/New_York")
+    stale_dt = datetime(2026, 3, 24, 0, 0, tzinfo=ny)
+    sim_dt = datetime(2026, 4, 17, 10, 0, tzinfo=ny)
+
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+        idx = pd.DatetimeIndex([stale_dt])
+        return pd.DataFrame(
+            {
+                "open": [70511.75],
+                "high": [70511.75],
+                "low": [70511.75],
+                "close": [70511.75],
+                "bid": [70510.75],
+                "ask": [70512.75],
+                "volume": [1.0],
+            },
+            index=idx,
+        )
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
+    monkeypatch.setattr(ibkr_helper, "frame_covers_requested_window", lambda *args, **kwargs: False)
+
+    ds = InteractiveBrokersRESTBacktesting(
+        datetime_start=datetime(2026, 3, 9, tzinfo=ny),
+        datetime_end=datetime(2026, 6, 5, tzinfo=ny),
+        market="24/7",
+        show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+    )
+    ds._update_datetime(sim_dt)
+
+    asset = Asset(symbol="BTC", asset_type=Asset.AssetType.CRYPTO)
+    quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
+
+    assert ds.get_last_price(asset, quote=quote) is None
+
+    key = (asset, quote, "minute", "AUTO")
+    data = ds._data_store[key]
+    assert data.strict_end_check is True
+    assert float(data.df["close"].iloc[-1]) == 70511.75
+
+
+def test_ibkr_rest_crypto_last_price_rejects_future_underfilled_intraday_frame(monkeypatch):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    ny = ZoneInfo("America/New_York")
+    future_dt = datetime(2026, 3, 24, 0, 0, tzinfo=ny)
+    sim_dt = datetime(2026, 3, 12, 7, 0, tzinfo=ny)
+
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+        idx = pd.DatetimeIndex([future_dt])
+        return pd.DataFrame(
+            {
+                "open": [70511.75],
+                "high": [70511.75],
+                "low": [70511.75],
+                "close": [70511.75],
+                "bid": [70510.75],
+                "ask": [70512.75],
+                "volume": [1.0],
+            },
+            index=idx,
+        )
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
+    monkeypatch.setattr(ibkr_helper, "frame_covers_requested_window", lambda *args, **kwargs: False)
+
+    ds = InteractiveBrokersRESTBacktesting(
+        datetime_start=datetime(2026, 3, 9, tzinfo=ny),
+        datetime_end=datetime(2026, 6, 5, tzinfo=ny),
+        market="24/7",
+        show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+    )
+    ds._update_datetime(sim_dt)
+
+    asset = Asset(symbol="BTC", asset_type=Asset.AssetType.CRYPTO)
+    quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
+
+    assert ds.get_last_price(asset, quote=quote) is None
+
+    key = (asset, quote, "minute", "AUTO")
+    data = ds._data_store[key]
+    assert data.strict_end_check is True
+    assert float(data.df["close"].iloc[0]) == 70511.75
+
+
 def test_ibkr_rest_futures_minute_prefetch_stays_unloaded_when_coverage_fails(monkeypatch):
     import lumibot.tools.ibkr_helper as ibkr_helper
 

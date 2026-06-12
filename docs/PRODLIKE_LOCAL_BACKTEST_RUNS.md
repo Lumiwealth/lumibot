@@ -13,6 +13,9 @@ This doc standardizes how we run **production-faithful** backtests locally witho
 - If you intentionally allow a local `.env`, set `LUMIBOT_DISABLE_DOTENV_LOCAL=1` when `.env.local` overrides would make the run non-repeatable.
 - Prefer **short windows** (days/weeks/months) for diagnosis; only run full windows once request volume looks sane.
 - Do not delete shared caches. Use `LUMIBOT_CACHE_S3_VERSION=...` to isolate “cold namespace” simulations.
+- Use `--cache-mode readonly` when you want a fresh local cache folder to hydrate
+  from the configured S3 namespace without uploading or mutating shared cache
+  objects.
 - For repeated runs, prevent browser/UI spam (while still writing artifacts) by setting:
   - `LUMIBOT_DISABLE_UI=1`
 

@@ -574,6 +574,7 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         unit = str(unit)
         data_timestep = unit if unit in {"minute", "day"} else "minute"
         data = Data(asset, merged, timestep=data_timestep, quote=quote)
+        data.strict_end_check = data_timestep != "day"
         data._native_timestep_quantity = int(qty)  # type: ignore[attr-defined]
         data._native_timestep_unit = unit  # type: ignore[attr-defined]
         # CRITICAL: Pandas backtesting expects each Data object to have `iter_index`/datalines

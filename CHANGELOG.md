@@ -4,9 +4,11 @@
 
 ### Fixed
 - **IBKR crypto quote fills now reject underfilled cache windows.** The fast quote-fill path validates that the simulated timestamp is inside the cached data object's actual coverage before reading bid/ask, preventing market orders from filling against out-of-window BTC quote rows when the downloader only returned later history.
+- **Routed IBKR crypto prices and quotes now reject stale or future intraday frames.** BotSpot Auto crypto routing marks intraday IBKR data as strict, validates full-window coverage before marking crypto/futures series loaded, and prevents `get_last_price()` or `get_quote()` from treating out-of-window cached BTC rows as the current simulation price.
 
 ### Tests
 - **IBKR crypto backtesting coverage now reproduces an underfilled BTC cache window.** The regression test starts a backtest before the first available BTC minute row and asserts the fast quote-fill helper returns no bid/ask instead of fabricating a fill.
+- **Routed IBKR coverage now tests stale-after-end and future-before-start frames.** Direct and routed regressions verify that `get_last_price()` and `get_quote()` return missing data instead of stale/future BTC values when an intraday cache frame does not cover the simulated timestamp.
 
 ## 4.5.47 - 2026-06-05
 

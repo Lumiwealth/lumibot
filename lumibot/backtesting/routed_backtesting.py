@@ -325,6 +325,7 @@ class _DataFrameRoutingAdapter(_RoutingAdapter):
             merged = df
 
         data = Data(original_asset, merged, timestep=ts_unit, quote=original_quote_asset)
+        data.strict_end_check = ts_unit != "day"
         self._router._data_store[canonical_key] = data
         if legacy_key not in self._router._data_store:
             self._router._data_store[legacy_key] = data
@@ -626,6 +627,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         # slice directly without resampling each iteration.
         data_timestep = unit if unit in {"minute", "hour", "day"} else "minute"
         data = Data(original_asset, merged, timestep=data_timestep, quote=original_quote_asset)
+        data.strict_end_check = data_timestep != "day"
         data._native_timestep_quantity = int(qty)  # type: ignore[attr-defined]
         data._native_timestep_unit = unit  # type: ignore[attr-defined]
         try:
@@ -696,7 +698,14 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             )
             if df is None or df.empty:
                 return None
-            self._fully_loaded_series.add(canonical_key)
+            if ibkr_helper.frame_covers_requested_window(
+                df,
+                asset=asset,
+                timestep=ts_unit,
+                start_dt=prefetch_start,
+                end_dt=prefetch_end,
+            ):
+                self._fully_loaded_series.add(canonical_key)
             return df
 
         if asset_type == "crypto" and ts_unit in {"minute", "hour"} and canonical_key not in self._fully_loaded_series:
@@ -717,7 +726,14 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             )
             if df is None or df.empty:
                 return None
-            self._fully_loaded_series.add(canonical_key)
+            if ibkr_helper.frame_covers_requested_window(
+                df,
+                asset=asset,
+                timestep=ts_unit,
+                start_dt=prefetch_start,
+                end_dt=prefetch_end,
+            ):
+                self._fully_loaded_series.add(canonical_key)
             return df
 
         if asset_type == "crypto" and ts_unit == "day" and canonical_key not in self._fully_loaded_series:
@@ -739,7 +755,14 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             )
             if df is None or df.empty:
                 return None
-            self._fully_loaded_series.add(canonical_key)
+            if ibkr_helper.frame_covers_requested_window(
+                df,
+                asset=asset,
+                timestep=ts_unit,
+                start_dt=prefetch_start,
+                end_dt=prefetch_end,
+            ):
+                self._fully_loaded_series.add(canonical_key)
             return df
 
         return ibkr_helper.get_price_data(

@@ -400,6 +400,92 @@ def test_unresolvable_stock_conid_is_terminal_no_data():
     assert ibkr_helper._is_terminal_no_data_error(RuntimeError("IBKR conid lookup is negatively cached for ARCH-DEFUNCT-2838"))
 
 
+def test_ibkr_malformed_rebuild_failure_is_terminal_no_data():
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    assert ibkr_helper._is_terminal_no_data_error(
+        RuntimeError(
+            "Request abc permanently failed: IBKR history remained invalid after rebuild "
+            "(conid=72539702 period=1000min bar=1min reason=mid:malformed_history_payload)"
+        )
+    )
+    assert ibkr_helper._is_terminal_no_data_error(
+        RuntimeError(
+            "IBKR history remained invalid after rebuild "
+            "(conid=72539702 period=1000min bar=1min reason=tail:malformed_history_payload)"
+        )
+    )
+    assert not ibkr_helper._is_terminal_no_data_error(
+        RuntimeError(
+            "IBKR history remained invalid after rebuild "
+            "(conid=72539702 period=1000min bar=1min reason=mid:overlap_bar_mismatch:1775834580000)"
+        )
+    )
+    assert not ibkr_helper._is_terminal_no_data_error(RuntimeError("Timed out waiting for downloader queue"))
+
+
+def test_ibkr_malformed_rebuild_failure_records_missing_window_and_suppresses_refetch(monkeypatch, tmp_path):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setattr(ibkr_helper, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
+    ibkr_helper._RUNTIME_HISTORY_NO_DATA_WINDOWS.clear()
+
+    asset = Asset(symbol="TQQQ", asset_type=Asset.AssetType.STOCK)
+    quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
+    start = datetime(2015, 12, 30, 3, 43, tzinfo=timezone.utc)
+    end = datetime(2015, 12, 30, 20, 23, tzinfo=timezone.utc)
+    calls = {"fetch": 0}
+
+    def _raise_permanent_malformed_history(**kwargs):
+        calls["fetch"] += 1
+        raise RuntimeError(
+            "Request 01baaf8d permanently failed: IBKR history remained invalid after rebuild "
+            "(conid=72539702 period=1000min bar=1min reason=mid:malformed_history_payload)"
+        )
+
+    monkeypatch.setattr(ibkr_helper, "_fetch_history_between_dates", _raise_permanent_malformed_history)
+
+    first = ibkr_helper.get_price_data(
+        asset=asset,
+        quote=quote,
+        timestep="minute",
+        start_dt=start,
+        end_dt=end,
+        exchange=None,
+        include_after_hours=True,
+        source="Trades",
+    )
+
+    assert first.empty
+    assert calls["fetch"] == 1
+
+    cache_file = ibkr_helper._cache_file_for(
+        asset=asset,
+        quote=quote,
+        timestep="minute",
+        exchange=None,
+        source="Trades",
+        include_after_hours=True,
+    )
+    cached = pd.read_parquet(cache_file)
+    assert len(cached) == 2
+    assert cached["missing"].fillna(False).astype(bool).all()
+
+    second = ibkr_helper.get_price_data(
+        asset=asset,
+        quote=quote,
+        timestep="minute",
+        start_dt=start + timedelta(minutes=5),
+        end_dt=end - timedelta(minutes=5),
+        exchange=None,
+        include_after_hours=True,
+        source="Trades",
+    )
+
+    assert second.empty
+    assert calls["fetch"] == 1
+
+
 def test_unresolvable_stock_conid_uses_negative_cache(monkeypatch, tmp_path):
     import lumibot.tools.ibkr_helper as ibkr_helper
 

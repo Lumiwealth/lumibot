@@ -2668,6 +2668,12 @@ def _is_not_found_error(cache_manager, exc: Exception) -> bool:
 
 def _is_terminal_no_data_error(exc: Exception) -> bool:
     msg = str(exc).lower()
+    # Data Downloader only emits this after the IBKR history response failed validation, was
+    # rebuilt from smaller windows, and still could not produce a cacheable payload. Treat the
+    # known malformed-payload variant as terminal for the requested window so backtests do not
+    # repeatedly resubmit the same dead 1-minute range.
+    if "ibkr history remained invalid after rebuild" in msg and "malformed_history_payload" in msg:
+        return True
     return any(
         token in msg
         for token in (

@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 import pytz
+import pytest
 
 from lumibot.entities import Asset
 from lumibot.entities.data import Data
@@ -159,3 +160,54 @@ class TestDataGetLastPriceTradeOnly:
         tz = pytz.timezone("America/New_York")
         dt = tz.localize(datetime(2024, 1, 3, 9, 30))
         assert data.get_last_price(dt) == 5.0
+
+    def test_strict_intraday_rejects_stale_bar_inside_sparse_frame(self):
+        asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+        tz = pytz.timezone("America/New_York")
+        stale_dt = tz.localize(datetime(2026, 3, 23, 23, 58))
+        future_dt = tz.localize(datetime(2026, 4, 20, 0, 0))
+        request_dt = tz.localize(datetime(2026, 4, 15, 0, 0))
+        df = (
+            pd.DataFrame(
+                {
+                    "datetime": [stale_dt, future_dt],
+                    "open": [70511.75, 73830.25],
+                    "high": [70521.50, 73847.50],
+                    "low": [70505.75, 73771.75],
+                    "close": [70511.75, 73835.75],
+                    "volume": [0.01964, 0.577128],
+                }
+            )
+            .set_index("datetime")
+        )
+
+        data = Data(asset, df, timestep="minute", quote=Asset("USD", asset_type=Asset.AssetType.FOREX))
+        data.strict_end_check = True
+
+        with pytest.raises(ValueError, match="resolved to stale .*data refresh required"):
+            data.get_last_price(request_dt)
+
+    def test_strict_intraday_allows_recent_bar_within_tolerance(self):
+        asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+        tz = pytz.timezone("America/New_York")
+        bar_dt = tz.localize(datetime(2026, 4, 15, 0, 0))
+        request_dt = bar_dt + timedelta(minutes=2)
+        future_dt = bar_dt + timedelta(minutes=5)
+        df = (
+            pd.DataFrame(
+                {
+                    "datetime": [bar_dt, future_dt],
+                    "open": [70500.0, 70520.0],
+                    "high": [70525.0, 70535.0],
+                    "low": [70490.0, 70510.0],
+                    "close": [70511.75, 70530.0],
+                    "volume": [1.0, 1.0],
+                }
+            )
+            .set_index("datetime")
+        )
+
+        data = Data(asset, df, timestep="minute", quote=Asset("USD", asset_type=Asset.AssetType.FOREX))
+        data.strict_end_check = True
+
+        assert data.get_last_price(request_dt) == 70511.75

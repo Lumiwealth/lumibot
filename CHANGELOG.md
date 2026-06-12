@@ -2,6 +2,16 @@
 
 ## 4.5.49 - Unreleased
 
+### Fixed
+- **Strict intraday data reads now reject stale bars inside sparse cache frames.** When strict end checking is enabled, minute/hour data must resolve to a recent bar near the simulated timestamp instead of walking back days or weeks to the previous real BTC row inside a broader cache object.
+- **Malformed rebuilt IBKR history windows are terminal no-data windows.** If the Data Downloader exhausts the rebuild path and still returns a malformed IBKR history payload, LumiBot records the requested range as missing instead of repeatedly refetching the same invalid minute window.
+
+### Docs
+- **Greg BTC stale-fill investigation now documents the S3 cache and Data Downloader root cause.** The note records the bad production BTC cache object, the queued downloader proof that stale crypto tails were marked complete/cacheable, and the required cache quarantine path.
+
+### Tests
+- **Data entity tests now reproduce stale BTC bars inside sparse intraday frames.** Regression coverage asserts strict minute reads reject March BTC data when an April simulation timestamp is requested, while allowing recent bars inside the configured tolerance.
+
 ## 4.5.48 - 2026-06-12
 
 Deploy marker: `pending`

@@ -702,6 +702,86 @@ class Data:
         self._iter_count_last_dt_key = dt_key
         return i
 
+    def _strict_intraday_bar_age_tolerance(self) -> Optional[datetime.timedelta]:
+        if not getattr(self, "strict_end_check", False):
+            return None
+        try:
+            quantity, unit = parse_timestep_qty_and_unit(getattr(self, "timestep", None))
+            quantity = max(1, int(quantity or 1))
+        except Exception:
+            quantity = 1
+            unit = getattr(self, "timestep", None)
+
+        unit_text = str(unit or "").strip().lower()
+        if unit_text == "minute":
+            return datetime.timedelta(minutes=quantity * 3)
+        if unit_text == "hour":
+            return datetime.timedelta(hours=quantity * 3)
+        return None
+
+    def _timestamp_for_iter_count(self, iter_count: int) -> Optional[pd.Timestamp]:
+        try:
+            if iter_count < 0:
+                return None
+            raw_timestamp = self.datalines["datetime"].dataline[iter_count]
+        except Exception:
+            return None
+        try:
+            timestamp = pd.Timestamp(raw_timestamp)
+        except Exception:
+            return None
+        if pd.isna(timestamp):
+            return None
+        return timestamp
+
+    def _strict_intraday_stale_bar_error(
+        self,
+        *,
+        dt_key,
+        iter_count: int,
+        length,
+        timeshift,
+    ) -> Optional[str]:
+        tolerance = self._strict_intraday_bar_age_tolerance()
+        if tolerance is None:
+            return None
+
+        bar_ts = self._timestamp_for_iter_count(iter_count)
+        if bar_ts is None:
+            return None
+        try:
+            dt_ts = pd.Timestamp(dt_key)
+        except Exception:
+            return None
+        if pd.isna(dt_ts):
+            return None
+
+        try:
+            if bar_ts.tzinfo is not None and dt_ts.tzinfo is not None:
+                dt_cmp = dt_ts.tz_convert(bar_ts.tzinfo)
+                bar_cmp = bar_ts
+            elif bar_ts.tzinfo is not None:
+                dt_cmp = dt_ts.tz_localize(bar_ts.tzinfo)
+                bar_cmp = bar_ts
+            elif dt_ts.tzinfo is not None:
+                dt_cmp = dt_ts
+                bar_cmp = bar_ts.tz_localize(dt_ts.tzinfo)
+            else:
+                dt_cmp = dt_ts
+                bar_cmp = bar_ts
+        except Exception:
+            return None
+
+        gap = dt_cmp - bar_cmp
+        if gap <= tolerance:
+            return None
+
+        return (
+            f"The date you are looking for ({dt_key}) for ({self.asset}) resolved to stale "
+            f"{getattr(self, 'timestep', None)} data at {bar_ts} with gap={gap}, "
+            f"length={length}, and timeshift={timeshift}; data refresh required instead of using stale bars."
+        )
+
     def check_data(func):
         # Validates if the provided date, length, timeshift, and timestep
         # will return data. Runs function if data, returns None if no data.
@@ -780,6 +860,15 @@ class Data:
 
             # Use the optimized iter-count implementation (dict hit, cursor, or searchsorted fallback).
             i = self.get_iter_count(dt_key)
+
+            stale_bar_error = self._strict_intraday_stale_bar_error(
+                dt_key=dt_key,
+                iter_count=i,
+                length=length,
+                timeshift=timeshift,
+            )
+            if stale_bar_error is not None:
+                raise ValueError(stale_bar_error)
 
             data_index = i + 1 - length - timeshift
             is_data = data_index >= 0

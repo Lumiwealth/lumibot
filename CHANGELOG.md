@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.5.49 - Unreleased
+
 ## 4.5.48 - 2026-06-12
 
 Deploy marker: `pending`

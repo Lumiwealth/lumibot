@@ -2,7 +2,7 @@
 
 One-line description: Production artifact diagnosis and LumiBot fix for Greg's BTC backtest drop caused by out-of-window IBKR crypto prices.
 Last Updated: 2026-06-12
-Status: Fixed in `v4.5.48`; production Bot Manager rerun of the April 15-19 window completed with no stale fills
+Status: Fixed in `v4.5.49` plus Data Downloader commit `0fb287a`; `v4.5.50` fixes a separate progress payload stall found during full-window reruns
 Audience: LumiBot, BotSpot Node, and BotSpot support engineers
 
 ## Overview
@@ -176,8 +176,9 @@ same `frame_covers_requested_window()` gate to those paths.
 
 ## Implemented Fix
 
-The fix on `version/4.5.48` now covers all three unsafe surfaces found during
-the audit:
+The fix series covers all unsafe surfaces found during the audit.
+
+`v4.5.48` covered the direct and routed LumiBot stale-fill surfaces:
 
 - `BacktestingBroker._fast_get_bid_ask_for_fill()` rejects direct IBKR fast-fill
   data when the simulated timestamp is outside the cached object's
@@ -198,6 +199,51 @@ the audit:
 If coverage is missing, LumiBot now returns `None`/empty `Quote` for the price
 surface instead of carrying a stale or future intraday row into strategy sizing,
 markers, or fills.
+
+`v4.5.49` added the deeper stale-bar guard Rob asked for after reviewing the
+first pass:
+
+- `Data` now rejects strict intraday minute/hour lookups when the nearest row is
+  older than the allowed bar-age tolerance, even if the broader cached frame
+  technically overlaps the requested window.
+- IBKR malformed/underfilled rebuild failures are classified as terminal no-data
+  failures instead of being silently reinterpreted as usable history.
+
+The Data Downloader was also fixed and deployed at commit
+`0fb287a15e17086edb25a5e5cc2329228484ad11`:
+
+- 24/7 crypto history no longer preemptively rebuilds one-week minute requests
+  before validating the top-level provider response.
+- Stale-tail BTC responses are returned as `classification=partial` with
+  `cache_write_policy=deny`, so they are not written back into the S3 cache.
+- IBKR Crypto Basic weekend closures are treated as valid closed-market tails
+  only through the documented Friday 16:00 ET to Sunday 03:00 ET closure. After
+  Sunday 03:00 ET, a Friday tail is still stale and must rebuild or return a
+  partial/no-cache response.
+
+`v4.5.50` fixes a separate backtest progress stall found while rerunning Greg's
+full window after the data-integrity fixes:
+
+- Production full-window rerun
+  `bench-default-f6f00d6f-7348-42eb-ab70-9dc00d05fa16` used LumiBot `4.5.49`,
+  production Data Downloader, and `lumibot-cache-prod/prod/cache/v1`.
+- It was force-stopped after staying pinned at simulation
+  `2026-03-12 05:15:00`, `3.70%`, with cash/portfolio still `1300.00` and no
+  positions/orders. The visible warnings were warmup/history-shortage warnings,
+  not stale fills.
+- Targeted rerun `bench-default-f297a164-f219-40d6-8562-6df9e9877653` covered
+  the old `70511.75` Mar 25/Mar 26 fill window. It advanced to
+  `2026-03-26 01:35:00`, `76.66%`, still with no positions/orders and no
+  `70511.75` or order/fill logs, then pinned on Greg strategy's intrabar
+  cooldown path.
+- Root cause found in the framework path: `StrategyExecutor.safe_sleep()` builds
+  the progress payload before advancing simulated time, and the payload called
+  `strategy.get_portfolio_value()`, which forces a fresh valuation. Progress
+  logging should never be able to block `_update_datetime()`.
+- `v4.5.50` changes progress payloads to use cached `strategy.portfolio_value`
+  with cash fallback. This does not change order fills, stats valuation, or
+  strategy trading logic; it only prevents UI progress logging from blocking
+  simulated time advancement.
 
 Regression coverage was added for direct and routed paths:
 
@@ -244,18 +290,74 @@ Production release and runtime validation:
   `1300`, `cash` min/max exactly `1300`, `return` min/max `0`, and
   0 rows with positions.
 
+Final `v4.5.49` production validation:
+
+- LumiBot `v4.5.49` release workflow `27446507001` completed successfully.
+- Bot Manager production workflow `27447738117` and development workflow
+  `27447738160` both completed successfully. Production logs showed
+  `LUMIBOT_VERSION=4.5.49`, `uv pip install ... "lumibot==4.5.49"`, and
+  `LumiBot v4.5.49 starting` during the image build.
+- Data Downloader production workflow `27450318925` completed successfully and
+  live `/version` later reported
+  `0fb287a15e17086edb25a5e5cc2329228484ad11`, including the IBKR Crypto Basic
+  weekend-tail fix.
+- A production-routed BTC one-week/minute probe for end time
+  `2026-04-19 00:00:00 UTC` returned
+  `classification=partial`, `cache_write_policy=deny`, `rebuild_count=0`,
+  `first_timestamp=2026-04-17T03:20:00+00:00`, and
+  `last_timestamp=2026-04-17T19:59:00+00:00`. That proves stale-tail BTC data is
+  no longer allowed to warm cache.
+- Final production Bot Manager rerun:
+  `bench-default-44b87f29-04b9-4570-a61a-95760d4c89a8`, window
+  `2026-04-15` through `2026-04-19 23:59`, executed Greg's production
+  `main.py` with the original routed data-source JSON and prod cache
+  `lumibot-cache-prod/prod/cache/v1`.
+- The rerun settings reported `lumibot_version: 4.5.49`, the original
+  `backtesting_data_sources` JSON, production Data Downloader, and remote cache
+  `backend=s3`, `mode=readwrite`, `bucket=lumibot-cache-prod`,
+  `prefix=prod/cache`, `version=v1`.
+- `trades.csv` had 0 rows, 0 priced fills, and no `70511.75` value.
+- `stats.csv` had 1,442 rows with `portfolio_value` min/max exactly `1300`,
+  `cash` min/max exactly `1300`, `return` min/max `0`, and all positions empty.
+- `indicators.csv` had 52 rows, no `70511.75` value, and only emitted indicator
+  rows near the available BTC history window.
+- Logs explicitly surfaced missing/stale history instead of using stale bars,
+  including `data refresh required instead of using stale bars` after the BTC
+  data ended at `2026-04-19 22:00:00-04:00`.
+
+`v4.5.50` local validation before release:
+
+- `pytest -q tests/backtest/test_strategy_executor_progress_payload.py`
+  returned `2 passed`.
+- `pytest -q tests/backtest/test_strategy_executor_progress_payload.py tests/backtest/test_backtesting_broker_processing.py tests/backtest/test_strategy_executor_backtest_end_clamp.py`
+  returned `45 passed`.
+- The new regression asserts that backtest progress payload generation does not
+  call `get_portfolio_value()`, which would force fresh valuation before the
+  simulated clock advances.
+
+The bad production S3 BTC minute cache objects remain identified but not
+quarantined from this machine because the available AWS profiles were denied
+`s3:PutObject`/versioning access to `lumibot-cache-prod`. Do not bump the whole
+production cache version to work around this. If direct cleanup is needed, use a
+principal with write/delete permissions and surgically quarantine only:
+
+- `s3://lumibot-cache-prod/prod/cache/v1/ibkr/crypto/minute/bars/crypto_BTC_USD_minute_ZEROHASH_TRADES_AHR.parquet`
+- `s3://lumibot-cache-prod/prod/cache/v1/ibkr/crypto/minute/bars/crypto_BTC_USDT_minute_ZEROHASH_TRADES_AHR.parquet`
+
 ## Required Follow-Up
 
 The April 15-19 production rerun proves the stale-fill failure no longer occurs
-in the reported April drop window. Before promising an exact new result for the
-entire March 9-June 5 customer backtest, run the full original window again and
-compare final stats.
+in the reported April drop window. The post-`0fb287a` full and targeted reruns
+then exposed the separate progress-payload stall fixed in `v4.5.50`. Before
+promising an exact new result for the entire March 9-June 5 customer backtest,
+deploy `v4.5.50`, rerun the full original window again, and compare final stats.
 
 Remaining follow-up:
 
-1. Run the full `2026-03-09` to `2026-06-05` window after `v4.5.48` if Greg or
-   support needs exact replacement metrics for the full reported run.
-2. Investigate why fresh local replay needs to hydrate many BTC minute chunks
+1. Release and deploy LumiBot `v4.5.50` through Bot Manager.
+2. Rerun the full `2026-03-09` to `2026-06-05` window after `v4.5.50` and
+   verify completion, no `70511.75` fills, and final replacement metrics.
+3. Investigate why fresh local replay needs to hydrate many BTC minute chunks
    despite production S3 cache configuration; that is a performance/cache
    coverage issue, not the root data-integrity bug fixed here.
 

@@ -255,9 +255,19 @@ class StrategyExecutor(Thread):
         if not show_progress and not log_progress:
             return {}
 
+        cash_value = getattr(self.strategy, "cash", None)
+        # Progress logging runs before advancing the backtest clock. It must not
+        # force a fresh portfolio valuation because valuation can trigger price
+        # lookups at data edges and block simulated time advancement.
+        portfolio_value = getattr(self.strategy, "portfolio_value", None)
+        if portfolio_value is None:
+            portfolio_value = getattr(self.strategy, "_portfolio_value", None)
+        if portfolio_value is None:
+            portfolio_value = cash_value
+
         payload = {
-            "cash": self.strategy.cash,
-            "portfolio_value": self.strategy.get_portfolio_value(),
+            "cash": cash_value,
+            "portfolio_value": portfolio_value,
         }
 
         should_capture_snapshot = log_progress

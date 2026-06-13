@@ -2539,6 +2539,13 @@ class BacktestingBroker(Broker):
                                     filled_quantity=filled_quantity,
                                     strategy=strategy,
                                 )
+                                if self._requires_current_execution_bar(order, str(timestep), data_source_name):
+                                    if self._cancel_market_order_with_unavailable_execution_data(
+                                        order,
+                                        f"no {timestep} execution bar near {self.datetime}",
+                                        strategy=strategy,
+                                    ):
+                                        continue
                                 continue
                         elif order.is_sell_order():
                             if bid is not None and not self._is_invalid_price(bid) and limit_price <= bid:
@@ -2937,9 +2944,15 @@ class BacktestingBroker(Broker):
                     dt = df.index[0]
                     if self._requires_current_execution_bar(order, str(timestep), data_source_name):
                         if not self._execution_bar_matches_datetime(dt, self.datetime, str(timestep)):
+                            if self._cancel_market_order_with_unavailable_execution_data(
+                                order,
+                                f"selected {timestep} bar {dt} does not match current sim dt {self.datetime}",
+                                strategy=strategy,
+                            ):
+                                continue
                             logger.warning(
                                 "[FILL][REJECT] Selected %s bar %s does not match current sim dt %s for %s; "
-                                "leaving order open instead of using stale/as-of data (order=%s).",
+                                "leaving non-market order open instead of using stale/as-of data (order=%s).",
                                 timestep,
                                 dt,
                                 self.datetime,
@@ -2963,6 +2976,16 @@ class BacktestingBroker(Broker):
                             sim_ts_for_check = sim_ts_for_check.tz_convert(selected_ts.tz)
                         max_fill_distance = timedelta(days=7) if str(timestep) == "day" else timedelta(days=1)
                         if abs(selected_ts - sim_ts_for_check) > max_fill_distance:
+                            reason = (
+                                f"selected bar {selected_ts} is "
+                                f"{abs(selected_ts - sim_ts_for_check)} away from sim dt {sim_ts_for_check}"
+                            )
+                            if self._cancel_market_order_with_unavailable_execution_data(
+                                order,
+                                reason,
+                                strategy=strategy,
+                            ):
+                                continue
                             logger.error(
                                 "[FILL][REJECT] Selected bar %s is %s away from sim dt %s for %s; "
                                 "refusing to fabricate fill (order=%s).",
@@ -3289,6 +3312,43 @@ class BacktestingBroker(Broker):
 
         asset = getattr(order, "asset", None) if order is not None else None
         return self._resolve_provider_key_for_asset(asset) == "ibkr"
+
+    def _cancel_market_order_with_unavailable_execution_data(
+        self,
+        order: Optional[Order],
+        reason: str,
+        strategy=None,
+    ) -> bool:
+        """Cancel immediate market orders when current execution data is unavailable."""
+        if order is None:
+            return False
+        if order.order_type != Order.OrderType.MARKET:
+            return False
+        try:
+            if not order.is_active():
+                return True
+        except Exception:
+            pass
+
+        symbol = getattr(getattr(order, "asset", None), "symbol", getattr(order, "asset", "<unknown>"))
+        identifier = getattr(order, "identifier", getattr(order, "id", "<unknown>"))
+        logger.warning(
+            "[FILL][CANCEL] Current execution data unavailable for market order %s %s; "
+            "canceling instead of carrying it into a future bar. reason=%s",
+            symbol,
+            identifier,
+            reason,
+        )
+        if strategy is not None:
+            try:
+                strategy.log_message(
+                    f"[FILL][CANCEL] Market order {identifier} for {symbol} canceled: {reason}",
+                    color="yellow",
+                )
+            except Exception:
+                pass
+        self.cancel_order(order)
+        return True
 
     def _quote_source_timestamp(self, quote) -> Optional[Any]:
         raw = getattr(quote, "raw_data", None)

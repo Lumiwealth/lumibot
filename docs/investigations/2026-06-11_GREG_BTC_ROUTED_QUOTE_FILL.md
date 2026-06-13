@@ -465,3 +465,88 @@ Local test evidence:
 One existing IBKR crypto OCO/OTO smoke fixture had only bars through `00:01`
 while the test clock advanced to `00:02`; it was updated to include the real
 `00:02` bar. The old fixture was implicitly depending on stale `00:01` data.
+
+## 2026-06-13 Full Greg Window Replay And Market-Order Lifecycle Fix
+
+Rob asked for a local rerun of the original Greg window to prove the current
+v4.5.52 execution guard does not grab wrong-date BTC bars. Two local full-window
+replays were run against Greg's executed production code:
+
+- strategy code:
+  `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/prod-artifacts/executed-code/main.py`
+- original window: `2026-03-09` through `2026-06-05`
+- data source: router
+- cache mode: read-only
+- cache bucket/prefix/version: `lumibot-cache-dev`, `dev/cache`, `v1`
+- production Data Downloader credentials were loaded from the approved local
+  env files, but raw credential values were not logged or documented.
+
+First v4.5.52 replay after the current-bar guard:
+
+- artifact root:
+  `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260613/local-v4552-full-mar09-jun05`
+- result: exit code `0`, elapsed `972.2s`
+- proof the wrong-date fill path was blocked:
+  - `strict start check rejected future frame`: `4,058`
+  - `resolved to stale hour data`: `6,204`
+  - `[FILL][REJECT]`: `1,534,550`
+  - every parsed `[FILL][REJECT]` selected the same stale minute bar,
+    `2026-03-27 15:59:00-04:00`, while the simulation clock was between
+    `2026-04-01 04:00:00-04:00` and `2026-05-31 02:55:00-04:00`
+  - old stale price strings `70511.75`, `70510.75`, and `70512.75` did not
+    appear in the new trade output.
+
+That proved the original wrong-date price selection was blocked, but it exposed
+a second bug: market orders rejected for missing current data were left open.
+Seventy market orders submitted between April 1 and May 25 later filled together
+on `2026-05-31 03:00:00-04:00` once a valid current BTC minute bar existed.
+Those fills used a matching May 31 bar, not March data, but the lifecycle was
+still wrong because market orders must not wait days or weeks for future data.
+
+The local follow-up fix changes strict IBKR/routed-IBKR execution paths so a
+market order is canceled when current execution data is unavailable. Non-market
+orders remain open because limit/stop orders can legitimately wait for future
+trigger conditions.
+
+Second v4.5.52 replay after the market-order lifecycle fix:
+
+- artifact root:
+  `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260613/local-v4552-full-mar09-jun05-market-cancel`
+- result: exit code `0`, elapsed `617.7s`
+- trade events: `176` rows total
+  - `new`: `88`
+  - `canceled`: `84`
+  - `fill`: `4`
+- filled rows:
+  - `2026-03-23 12:00:00-04:00`, buy BTC at `70100.75`
+  - `2026-03-23 17:00:00-04:00`, sell BTC at `70888.00`
+  - `2026-03-25 11:00:00-04:00`, buy BTC at `71219.75`
+  - `2026-03-26 07:00:00-04:00`, sell BTC at `69481.00`
+- all filled rows had `fill time == audit.bar.datetime` with max absolute
+  mismatch `0.0` seconds.
+- inferred submit-to-fill delay for filled rows had max `0.0` days.
+- `[FILL][CANCEL]`: `280` log lines, representing `70` unique market orders
+  canceled when the selected execution bar was stale.
+- `[FILL][REJECT]`: `0`
+- stale May 31 mass-fill timestamp `2026-05-31 03:00:00-04:00`: `0`
+- old stale price strings `70511.75`, `70510.75`, and `70512.75`: `0`
+- final stats:
+  - starting portfolio value: `1300.0`
+  - ending portfolio value: `1195.363451301118`
+  - minimum portfolio value: `1126.1195532480024`
+  - tearsheet total return: `-8%`
+
+Additional local test evidence after the lifecycle fix:
+
+```bash
+python3 -m pytest -q tests/test_backtesting_broker.py tests/test_data_entity.py tests/test_ibkr_crypto_backtesting_smoke_stubbed.py tests/test_interactive_brokers_rest_backtesting_unit.py tests/backtest/test_backtesting_broker_processing.py tests/backtest/test_quote_fill_fallback.py
+```
+
+Result: `101 passed, 1 warning`.
+
+Current conclusion: local v4.5.52 now prevents the stale/wrong-date BTC price
+from being used for execution fills, and it also prevents market orders from
+surviving missing-data gaps until a future bar appears. Missing data is still
+present and still needs the separate Data Downloader/cache fix, but the backtest
+no longer turns missing BTC minutes into either March-price April fills or
+weeks-late market fills.

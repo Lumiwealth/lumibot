@@ -341,6 +341,50 @@ class TestBacktestingBroker:
         assert broker._execution_bar_matches_datetime(stale_dt, sim_dt, "minute") is False
         assert broker._execution_bar_matches_datetime(future_dt, sim_dt, "minute") is False
 
+    def test_stale_current_bar_cancels_market_order_not_limit_order(self):
+        broker = BacktestingBroker.__new__(BacktestingBroker)
+        broker.cancel_order = MagicMock()
+        strategy = MagicMock()
+        asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+        quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+        market_order = Order(
+            "test",
+            asset=asset,
+            quote=quote,
+            quantity=1,
+            side="buy",
+            order_type=Order.OrderType.MARKET,
+        )
+        market_order.status = Order.OrderStatus.NEW
+
+        assert broker._cancel_market_order_with_unavailable_execution_data(
+            market_order,
+            "selected minute bar is stale",
+            strategy=strategy,
+        ) is True
+        broker.cancel_order.assert_called_once_with(market_order)
+        strategy.log_message.assert_called_once()
+
+        broker.cancel_order.reset_mock()
+        limit_order = Order(
+            "test",
+            asset=asset,
+            quote=quote,
+            quantity=1,
+            side="buy",
+            order_type=Order.OrderType.LIMIT,
+            limit_price=100,
+        )
+        limit_order.status = Order.OrderStatus.NEW
+
+        assert broker._cancel_market_order_with_unavailable_execution_data(
+            limit_order,
+            "selected minute bar is stale",
+            strategy=strategy,
+        ) is False
+        broker.cancel_order.assert_not_called()
+
     def test_get_active_tracked_orders_fallback_respects_asset_filter(self):
         broker = BacktestingBroker.__new__(BacktestingBroker)
         asset = Asset("SPY")

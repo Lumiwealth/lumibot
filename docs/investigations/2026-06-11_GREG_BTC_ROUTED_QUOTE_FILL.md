@@ -426,3 +426,42 @@ Next fix should be root-cause oriented:
    defaulting BotSpot Auto cache version to `v44`.
 4. After code fixes, surgically invalidate only the affected production BTC
    cache objects proven bad. Do not bump the global production cache version.
+
+## 2026-06-13 Local Execution-Path Guard In v4.5.52
+
+The next local fix is intentionally independent of Interactive Brokers Crypto
+Plus approval. Crypto Plus should improve 24/7 data availability, but LumiBot
+must still fail honestly when the downloader/cache returns sparse intraday data.
+
+Local v4.5.52 changes add a current execution-bar invariant for IBKR and
+routed-IBKR intraday fills:
+
+- `Data.get_quote()` now includes `bar_timestamp` and `bar_timestep` in
+  `raw_data` so a quote fill can prove which source row supplied bid/ask.
+- Direct IBKR fast bid/ask fills reject the selected row when the row timestamp
+  is not in the current simulated minute/hour bucket.
+- Quote-based market, marketable-limit, and fallback fills reject IBKR/routed
+  IBKR quotes whose source `bar_timestamp` does not match the current simulated
+  execution bucket.
+- OHLC fill selection now applies the same current-bucket check for
+  IBKR/routed-IBKR intraday data before reading `open/high/low/close`.
+
+This is stricter than the earlier `Data.strict_end_check` tolerance. Generic
+historical data reads may still use as-of semantics where that is expected, but
+an execution fill cannot turn March 24 BTC data into an April 17 fill just
+because both rows live inside the same cache object. If the current minute/hour
+is missing, the order remains unfilled or the quote path returns `None`.
+
+Local test evidence:
+
+- `python3 -m pytest -q tests/test_data_entity.py tests/test_backtesting_broker.py`
+  returned `39 passed`.
+- `python3 -m pytest -q tests/test_ibkr_crypto_backtesting_smoke_stubbed.py tests/test_interactive_brokers_rest_backtesting_unit.py`
+  returned `15 passed`.
+- `python3 -m pytest -q tests/backtest/test_backtesting_broker_processing.py tests/backtest/test_quote_fill_fallback.py`
+  returned `46 passed`.
+- Combined targeted run across those six files returned `100 passed`.
+
+One existing IBKR crypto OCO/OTO smoke fixture had only bars through `00:01`
+while the test clock advanced to `00:02`; it was updated to include the real
+`00:02` bar. The old fixture was implicitly depending on stale `00:01` data.

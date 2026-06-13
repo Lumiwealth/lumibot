@@ -211,3 +211,33 @@ class TestDataGetLastPriceTradeOnly:
         data.strict_end_check = True
 
         assert data.get_last_price(request_dt) == 70511.75
+
+    def test_get_quote_includes_source_bar_provenance(self):
+        asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+        tz = pytz.timezone("America/New_York")
+        bar_dt = tz.localize(datetime(2026, 4, 15, 0, 0))
+        request_dt = bar_dt + timedelta(minutes=2)
+        df = (
+            pd.DataFrame(
+                {
+                    "datetime": [bar_dt],
+                    "open": [70500.0],
+                    "high": [70525.0],
+                    "low": [70490.0],
+                    "close": [70511.75],
+                    "volume": [1.0],
+                    "bid": [70510.75],
+                    "ask": [70512.75],
+                }
+            )
+            .set_index("datetime")
+        )
+
+        data = Data(asset, df, timestep="minute", quote=Asset("USD", asset_type=Asset.AssetType.FOREX))
+
+        quote = data.get_quote(request_dt)
+
+        assert quote["bid"] == 70510.75
+        assert quote["ask"] == 70512.75
+        assert quote["bar_timestamp"] == bar_dt
+        assert quote["bar_timestep"] == "minute"

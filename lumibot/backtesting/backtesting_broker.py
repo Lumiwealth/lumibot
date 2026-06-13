@@ -20,6 +20,7 @@ from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Order, Position, SmartLimitConfig, TradingFee
 from lumibot.tools.smart_limit_utils import build_price_ladder, compute_final_price, compute_mid, expected_fill_price, infer_tick_size, round_to_tick
 from lumibot.tools.lumibot_logger import get_logger
+from lumibot.tools.helpers import parse_timestep_qty_and_unit
 from lumibot.trading_builtins import CustomStream
 
 try:
@@ -2281,6 +2282,8 @@ class BacktestingBroker(Broker):
                         quote = self.get_quote(order.asset, quote=order.quote)
                     except Exception:
                         quote = None
+                    if quote is not None and not self._quote_matches_current_execution_bar(quote, order):
+                        quote = None
 
                 bid = self._coerce_price(getattr(quote, "bid", None)) if quote is not None else None
                 ask = self._coerce_price(getattr(quote, "ask", None)) if quote is not None else None
@@ -2504,6 +2507,8 @@ class BacktestingBroker(Broker):
                     try:
                         quote = self.get_quote(order.asset, quote=order.quote)
                     except Exception:
+                        quote = None
+                    if quote is not None and not self._quote_matches_current_execution_bar(quote, order):
                         quote = None
 
                     bid = self._coerce_price(getattr(quote, "bid", None)) if quote is not None else None
@@ -2930,6 +2935,18 @@ class BacktestingBroker(Broker):
                         df = df_original.iloc[-1:]
 
                     dt = df.index[0]
+                    if self._requires_current_execution_bar(order, str(timestep), data_source_name):
+                        if not self._execution_bar_matches_datetime(dt, self.datetime, str(timestep)):
+                            logger.warning(
+                                "[FILL][REJECT] Selected %s bar %s does not match current sim dt %s for %s; "
+                                "leaving order open instead of using stale/as-of data (order=%s).",
+                                timestep,
+                                dt,
+                                self.datetime,
+                                getattr(order.asset, "symbol", order.asset),
+                                getattr(order, "identifier", getattr(order, "id", "<unknown>")),
+                            )
+                            continue
                     # FABRICATION GUARD (2026-04-15 incident fix): never price a fill
                     # from a bar that is more than `max_fill_distance_days` away from the
                     # simulated clock. This catches the flat-price class of bugs where
@@ -3190,6 +3207,118 @@ class BacktestingBroker(Broker):
     def _bar_has_missing_prices(self, *values) -> bool:
         return any(self._is_invalid_price(val) for val in values)
 
+    def _coerce_timestamps_for_execution_check(self, bar_dt, sim_dt) -> tuple[Optional[pd.Timestamp], Optional[pd.Timestamp]]:
+        try:
+            bar_ts = pd.Timestamp(bar_dt)
+            sim_ts = pd.Timestamp(sim_dt)
+        except Exception:
+            return None, None
+
+        if pd.isna(bar_ts) or pd.isna(sim_ts):
+            return None, None
+
+        try:
+            if bar_ts.tzinfo is not None and sim_ts.tzinfo is not None:
+                bar_ts = bar_ts.tz_convert(sim_ts.tzinfo)
+            elif bar_ts.tzinfo is not None and sim_ts.tzinfo is None:
+                bar_ts = bar_ts.tz_localize(None)
+            elif bar_ts.tzinfo is None and sim_ts.tzinfo is not None:
+                bar_ts = bar_ts.tz_localize(sim_ts.tzinfo)
+        except Exception:
+            try:
+                bar_ts = bar_ts.tz_localize(None) if bar_ts.tzinfo is not None else bar_ts
+                sim_ts = sim_ts.tz_localize(None) if sim_ts.tzinfo is not None else sim_ts
+            except Exception:
+                return None, None
+
+        return bar_ts, sim_ts
+
+    def _execution_bar_matches_datetime(self, bar_dt, sim_dt, timestep) -> bool:
+        """Return True only when an execution bar belongs to the current sim bucket."""
+        bar_ts, sim_ts = self._coerce_timestamps_for_execution_check(bar_dt, sim_dt)
+        if bar_ts is None or sim_ts is None:
+            return False
+
+        try:
+            quantity, unit = parse_timestep_qty_and_unit(timestep)
+            quantity = max(1, int(quantity or 1))
+        except Exception:
+            quantity = 1
+            unit = str(timestep or "").strip().lower()
+
+        unit = str(unit or "").strip().lower()
+        if unit == "day":
+            return bar_ts.date() == sim_ts.date()
+        if unit == "hour":
+            freq = f"{quantity}h"
+            return bar_ts.floor(freq) == sim_ts.floor(freq)
+        if unit == "minute":
+            freq = f"{quantity}min"
+            return bar_ts.floor(freq) == sim_ts.floor(freq)
+
+        return bar_ts == sim_ts
+
+    def _execution_timestep_for_data_obj(self, data_obj, fallback: Optional[str] = None) -> str:
+        try:
+            quantity = getattr(data_obj, "_native_timestep_quantity", None)
+            unit = getattr(data_obj, "_native_timestep_unit", None)
+            if quantity and unit:
+                return f"{int(quantity)} {unit}"
+        except Exception:
+            pass
+        return str(getattr(data_obj, "timestep", None) or fallback or "minute")
+
+    def _requires_current_execution_bar(
+        self,
+        order: Optional[Order],
+        timestep: Optional[str],
+        data_source_name: Optional[str] = None,
+    ) -> bool:
+        try:
+            _, unit = parse_timestep_qty_and_unit(timestep or getattr(getattr(self, "data_source", None), "_timestep", None))
+        except Exception:
+            unit = str(timestep or "").strip().lower()
+        if str(unit or "").strip().lower() == "day":
+            return False
+
+        source = getattr(self, "data_source", None)
+        source_name = data_source_name or str(getattr(source, "SOURCE", "") or "").upper()
+        source_class_name = source.__class__.__name__ if source is not None else ""
+        if source_name == "INTERACTIVEBROKERSREST" or source_class_name == "InteractiveBrokersRESTBacktesting":
+            return True
+
+        asset = getattr(order, "asset", None) if order is not None else None
+        return self._resolve_provider_key_for_asset(asset) == "ibkr"
+
+    def _quote_source_timestamp(self, quote) -> Optional[Any]:
+        raw = getattr(quote, "raw_data", None)
+        if isinstance(raw, dict):
+            for key in ("bar_timestamp", "datetime", "last_trade_time", "last_bid_time", "last_ask_time"):
+                value = raw.get(key)
+                if value is not None:
+                    return value
+
+        for attr in ("quote_time", "bid_time", "ask_time"):
+            value = getattr(quote, attr, None)
+            if value is not None:
+                return value
+
+        return None
+
+    def _quote_matches_current_execution_bar(self, quote, order: Order, timestep: Optional[str] = None) -> bool:
+        raw = getattr(quote, "raw_data", None)
+        if timestep is None and isinstance(raw, dict):
+            timestep = raw.get("bar_timestep")
+        timestep = timestep or getattr(getattr(self, "data_source", None), "_timestep", None) or "minute"
+        if not self._requires_current_execution_bar(order, timestep):
+            return True
+
+        source_timestamp = self._quote_source_timestamp(quote)
+        if source_timestamp is None:
+            return False
+
+        return self._execution_bar_matches_datetime(source_timestamp, self.datetime, timestep)
+
     def _fast_get_bid_ask_for_fill(
         self,
         asset: Asset,
@@ -3312,6 +3441,13 @@ class BacktestingBroker(Broker):
         try:
             i = data_obj.get_iter_count(now)
             if i < 0:
+                return None, None
+            try:
+                bar_ts = data_obj._timestamp_for_iter_count(i)
+            except Exception:
+                bar_ts = None
+            data_timestep = self._execution_timestep_for_data_obj(data_obj, fallback=str(timestep))
+            if bar_ts is None or not self._execution_bar_matches_datetime(bar_ts, now, data_timestep):
                 return None, None
             bid = bid_line.dataline[i]
             ask = ask_line.dataline[i]
@@ -3676,6 +3812,8 @@ class BacktestingBroker(Broker):
             return None
 
         if quote is None:
+            return None
+        if not self._quote_matches_current_execution_bar(quote, order):
             return None
 
         bid = self._coerce_price(getattr(quote, "bid", None))

@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.5.52 - Unreleased
+
+### Fixed
+- **IBKR intraday fills now require the current execution bar.** Direct IBKR and routed-IBKR quote, fast bid/ask, and OHLC fill paths reject minute/hour source rows that do not match the current simulated execution bucket, preventing sparse BTC cache objects from reusing older real rows as current fills.
+
+### Docs
+- **Greg BTC investigation now records the local execution-path guard.** The note separates the Crypto Plus data-availability issue from the LumiBot no-stale-fill invariant and lists local targeted test evidence.
+
+### Tests
+- **Sparse IBKR crypto regressions now cover stale quote and fast-fill rejection.** Tests assert source-bar quote provenance, stale routed-IBKR quote-fill rejection, exact minute-bucket matching, and a corrected IBKR crypto OCO/OTO fixture that no longer relies on stale prior-minute data.
+
 ## 4.5.50 - Unreleased
 
 ## 4.5.49 - Unreleased

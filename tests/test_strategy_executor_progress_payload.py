@@ -27,9 +27,13 @@ class _NoTelemetryStrategy:
 
 
 def test_build_backtest_progress_payload_progress_only_skips_snapshot_serialization():
+    def fail_fresh_valuation():
+        raise AssertionError("progress payload should use cached portfolio value")
+
     strategy = SimpleNamespace(
         cash=100.0,
-        get_portfolio_value=lambda: 123.0,
+        portfolio_value=123.0,
+        get_portfolio_value=fail_fresh_valuation,
         get_positions=lambda: (_ for _ in ()).throw(AssertionError("positions should not be serialized")),
         name="test",
     )
@@ -78,9 +82,13 @@ def test_process_pandas_daily_data_skips_progress_payload_when_outputs_disabled(
 
 
 def test_build_backtest_progress_payload_falls_back_on_snapshot_errors():
+    def fail_fresh_valuation():
+        raise AssertionError("progress payload should use cached portfolio value")
+
     strategy = SimpleNamespace(
         cash=100.0,
-        get_portfolio_value=lambda: 123.0,
+        portfolio_value=123.0,
+        get_portfolio_value=fail_fresh_valuation,
         get_positions=lambda: (_ for _ in ()).throw(RuntimeError("boom")),
         _initial_budget=1000.0,
         name="test",

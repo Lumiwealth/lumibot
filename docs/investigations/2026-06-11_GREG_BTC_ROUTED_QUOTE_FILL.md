@@ -2,7 +2,7 @@
 
 One-line description: Production artifact diagnosis and LumiBot fix for Greg's BTC backtest drop caused by out-of-window IBKR crypto prices.
 Last Updated: 2026-06-12
-Status: Fixed in `v4.5.49` plus Data Downloader commit `0fb287a`; `v4.5.50` fixes a separate progress payload stall found during full-window reruns
+Status: Fixed in `v4.5.49` plus Data Downloader commit `0fb287a`; `v4.5.51` fixes a separate progress payload stall found during full-window reruns
 Audience: LumiBot, BotSpot Node, and BotSpot support engineers
 
 ## Overview
@@ -221,7 +221,7 @@ The Data Downloader was also fixed and deployed at commit
   Sunday 03:00 ET, a Friday tail is still stale and must rebuild or return a
   partial/no-cache response.
 
-`v4.5.50` fixes a separate backtest progress stall found while rerunning Greg's
+`v4.5.51` fixes a separate backtest progress stall found while rerunning Greg's
 full window after the data-integrity fixes:
 
 - Production full-window rerun
@@ -240,10 +240,13 @@ full window after the data-integrity fixes:
   the progress payload before advancing simulated time, and the payload called
   `strategy.get_portfolio_value()`, which forces a fresh valuation. Progress
   logging should never be able to block `_update_datetime()`.
-- `v4.5.50` changes progress payloads to use cached `strategy.portfolio_value`
+- `v4.5.51` changes progress payloads to use cached `strategy.portfolio_value`
   with cash fallback. This does not change order fills, stats valuation, or
   strategy trading logic; it only prevents UI progress logging from blocking
   simulated time advancement.
+- The earlier `v4.5.50` tag failed release tests before PyPI/GitHub publication
+  because existing tests still expected progress payloads to force a fresh
+  `get_portfolio_value()` call. It is superseded by `v4.5.51`.
 
 Regression coverage was added for direct and routed paths:
 
@@ -325,7 +328,7 @@ Final `v4.5.49` production validation:
   including `data refresh required instead of using stale bars` after the BTC
   data ended at `2026-04-19 22:00:00-04:00`.
 
-`v4.5.50` local validation before release:
+`v4.5.51` local validation before release:
 
 - `pytest -q tests/backtest/test_strategy_executor_progress_payload.py`
   returned `2 passed`.
@@ -348,14 +351,14 @@ principal with write/delete permissions and surgically quarantine only:
 
 The April 15-19 production rerun proves the stale-fill failure no longer occurs
 in the reported April drop window. The post-`0fb287a` full and targeted reruns
-then exposed the separate progress-payload stall fixed in `v4.5.50`. Before
+then exposed the separate progress-payload stall fixed in `v4.5.51`. Before
 promising an exact new result for the entire March 9-June 5 customer backtest,
-deploy `v4.5.50`, rerun the full original window again, and compare final stats.
+deploy `v4.5.51`, rerun the full original window again, and compare final stats.
 
 Remaining follow-up:
 
-1. Release and deploy LumiBot `v4.5.50` through Bot Manager.
-2. Rerun the full `2026-03-09` to `2026-06-05` window after `v4.5.50` and
+1. Release and deploy LumiBot `v4.5.51` through Bot Manager.
+2. Rerun the full `2026-03-09` to `2026-06-05` window after `v4.5.51` and
    verify completion, no `70511.75` fills, and final replacement metrics.
 3. Investigate why fresh local replay needs to hydrate many BTC minute chunks
    despite production S3 cache configuration; that is a performance/cache

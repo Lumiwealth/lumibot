@@ -2,7 +2,7 @@
 
 One-line description: Production artifact comparison for TQQQ Smart Money Concepts v15-v19 across BotSpot Auto/IBKR and ThetaData, with local replay limitations.
 Last Updated: 2026-06-14
-Status: Production evidence gathered; prior local replay matrix is invalid for provider comparison because `.env.local` overwrote the intended provider to `ibkr`
+Status: Production evidence gathered and corrected local replay matrix completed
 Audience: LumiBot, BotSpot Node, Bot Manager, and strategy support engineers
 
 ## Overview
@@ -319,6 +319,48 @@ The local runner script created for this investigation is:
 
 That script is useful for smoke and harness work, but it should not be treated
 as production-equivalent. Use `scripts/run_backtest_prodlike.py` instead.
+
+## Corrected Local Matrix Results
+
+Completed on 2026-06-14 with:
+
+- local LumiBot root: `/Users/robertgrzesik/Development/lumibot`
+- local LumiBot version: `4.5.52`
+- runner: `/Users/robertgrzesik/Development/lumibot/scripts/run_backtest_prodlike.py`
+- `LUMIBOT_DISABLE_DOTENV=1`
+- production Data Downloader env
+- S3 cache: `lumibot-cache-prod/prod/cache/v1`, `readwrite`
+- window: `2016-01-21` to `2026-04-16`
+
+Durable artifact folder:
+
+- `/Users/robertgrzesik/Development/lumibot/logs/tqqq_provider_matrix_20260614_150508/`
+- summary markdown: `/Users/robertgrzesik/Development/lumibot/logs/tqqq_provider_matrix_20260614_150508/summary_matrix.md`
+- summary JSON: `/Users/robertgrzesik/Development/lumibot/logs/tqqq_provider_matrix_20260614_150508/summary_matrix.json`
+
+The smoke runs first verified that all child settings files recorded the
+intended provider, local LumiBot `4.5.52`, no `.env` / `.env.local` loads, and
+prod cache identifiers. Then the full matrix was run.
+
+| Scenario | Provider recorded | Runtime | Total return | CAGR | Max DD | Stops new/cancel/fill | No pandas bars | Queue submits |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| v15 ThetaData | `thetadata` | `130.2s` | `4851.00%` | `46.40%` | `-41.13%` | `0/55/20` | `0` | `0` |
+| v15 BotSpot Auto | router JSON | `44.0s` | `4670.00%` | `45.87%` | `-40.89%` | `0/54/21` | `0` | `0` |
+| v19 ThetaData | `thetadata` | `199.7s` | `3666.00%` | `42.54%` | `-70.36%` | `251/250/22` | `0` | `0` |
+| v19 BotSpot Auto | router JSON | `99.4s` | `192.00%` | `11.03%` | `-41.31%` | `196/390/0` | `390` | `0` |
+
+Important interpretation:
+
+- The corrected local run confirms v15 is high-return on both ThetaData and
+  BotSpot Auto when the provider wiring is correct.
+- The corrected local run reproduces the v19 ThetaData high-return/high-drawdown
+  profile.
+- The corrected local run reproduces the v19 BotSpot Auto low-return profile and
+  the IBKR stop-order symptom: stop orders are created, then canceled; there are
+  zero stop fills and `390` `No pandas bars` log matches.
+- No full scenario submitted downloader queue jobs. These were warm prod-cache
+  replays, so this matrix validates provider/execution behavior, not downloader
+  throughput under cache misses.
 
 ## Correct Local Replay Path
 

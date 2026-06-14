@@ -28,6 +28,9 @@ Key behavior:
 - Writes artifacts to `workdir/logs/` (`*_tearsheet.html`, `*_trades.csv`, `*_logs.csv`, `*_settings.json`).
 - Prints a small “scoreboard” and writes `workdir/metrics.json` (wall time + queue submits + Theta STALE count + top endpoint families) so runs are comparable.
 - Loads downloader + S3 config from `botspot_node/.env-local` **without printing secrets**.
+- Forwards `THETADATA_USERNAME`, `THETADATA_PASSWORD`, and
+  `THETADATA_API_KEY` from the dotenv when present, matching BotSpot Node's
+  provider environment injection.
 - Optionally copies artifacts into another folder (e.g., `Strategy Library/logs`) via `--copy-artifacts-to`.
 - For investigations, you can enable:
   - `--audit` → sets `LUMIBOT_BACKTEST_AUDIT=1` (adds `audit.*` columns to trade logs)
@@ -132,6 +135,9 @@ mkdir -p "$BASE/cache/v15_theta" "$BASE/runs/v15_theta"
     --workdir "$BASE/runs/v15_theta" \
     --cache-folder "$BASE/cache/v15_theta" \
     --cache-mode readwrite \
+    --cache-bucket lumibot-cache-prod \
+    --cache-prefix prod/cache \
+    --cache-version v1 \
     --subprocess-log "$BASE/runs/v15_theta/subprocess.log"
 ```
 

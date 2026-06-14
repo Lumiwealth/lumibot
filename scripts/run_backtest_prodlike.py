@@ -177,6 +177,11 @@ def main() -> int:
         help="Override LUMIBOT_CACHE_S3_PREFIX (alternative to cache-version)",
     )
     parser.add_argument(
+        "--cache-bucket",
+        default=None,
+        help="Override LUMIBOT_CACHE_S3_BUCKET without editing the dotenv file.",
+    )
+    parser.add_argument(
         "--cache-mode",
         default=None,
         choices=["disabled", "readonly", "readwrite"],
@@ -291,6 +296,9 @@ def main() -> int:
         "DATADOWNLOADER_API_KEY",
         "DATADOWNLOADER_API_KEY_HEADER",
         "DATADOWNLOADER_SKIP_LOCAL_START",
+        "THETADATA_USERNAME",
+        "THETADATA_PASSWORD",
+        "THETADATA_API_KEY",
     ]:
         if k in dotenv:
             env[k] = dotenv[k]
@@ -328,9 +336,13 @@ def main() -> int:
     if args.cache_prefix:
         env["LUMIBOT_CACHE_S3_PREFIX"] = args.cache_prefix
 
+    if args.cache_bucket:
+        env["LUMIBOT_CACHE_S3_BUCKET"] = args.cache_bucket
+
     started_at = time.time()
     print(f"[run] label={label}")
     print(f"[run] main={main_py}")
+    print(f"[run] lumibot_root={lumibot_root}")
     print(f"[run] data_source={env.get('BACKTESTING_DATA_SOURCE')}")
     print(f"[run] window={args.start} -> {args.end}")
     print(f"[run] workdir={workdir}")

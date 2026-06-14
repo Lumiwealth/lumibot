@@ -1,8 +1,8 @@
 # TQQQ SMC Provider Difference Investigation
 
 One-line description: Production artifact comparison for TQQQ Smart Money Concepts v15-v19 across BotSpot Auto/IBKR and ThetaData, with local replay limitations.
-Last Updated: 2026-06-13
-Status: Evidence gathered; v15 ThetaData full-window run remains missing because this MCP session cannot set provider state without a BotSpot conversation binding
+Last Updated: 2026-06-14
+Status: Production evidence gathered; prior local replay matrix is invalid for provider comparison because `.env.local` overwrote the intended provider to `ibkr`
 Audience: LumiBot, BotSpot Node, Bot Manager, and strategy support engineers
 
 ## Overview
@@ -20,8 +20,8 @@ The requested historical comparison window is:
 - Strategy ID: `b6b0d5a6-375b-4bc5-8e3d-cdffc73e25f2`
 - AI strategy ID: `79797013-87f9-4631-b544-b9178753b98f`
 
-The main conclusion is that this is not one single provider bug. There are two
-separate effects:
+The main production-artifact conclusion is that this is not one single provider
+bug. There are two separate effects:
 
 1. Version 19 changed strategy behavior versus versions 17/18 by re-allowing
    startup-sync / mid-trend entries. That appears to explain why ThetaData
@@ -267,9 +267,28 @@ Local artifacts are under:
 
 - `/Users/robertgrzesik/Development/lumibot/logs/tqqq_provider_diff_20260613/`
 
+### 2026-06-14 correction
+
 The local smoke matrix for `2016-01-21` to `2016-03-01` completed for the four
-requested scenario labels but had zero trades. That run is useful only as a
-harness smoke test:
+requested scenario labels, but it must not be used as provider evidence.
+Although the redacted manifests recorded labels such as `v15_theta_data`, every
+completed child settings file recorded:
+
+```text
+backtesting_data_sources=ibkr
+lumibot_version=4.5.52
+```
+
+The child stdout explains why:
+
+```text
+.env file loaded from: /Users/robertgrzesik/Development/lumibot/.env
+.env.local file loaded from: /Users/robertgrzesik/Development/lumibot/.env.local
+```
+
+That `.env.local` currently sets `BACKTESTING_DATA_SOURCE=ibkr`, and the custom
+runner did not set `LUMIBOT_DISABLE_DOTENV=1`. Result: the four local labels
+were effectively IBKR runs, not a valid ThetaData vs BotSpot Auto matrix.
 
 - `/Users/robertgrzesik/Development/lumibot/logs/tqqq_provider_diff_20260613/summaries/matrix_2016-01-21_2016-03-01.json`
 
@@ -278,12 +297,12 @@ The full local replay attempts are not valid final comparison results:
 - The current local checkout is on `version/4.5.52`, not the historical
   production `4.5.3` or the current deployed Bot Manager `4.5.49` used by the
   fresh v19 BotSpot Auto production run.
-- The working tree already had broker/test modifications during this
-  investigation.
+- The custom runner merged env from several local files instead of mirroring the
+  BotSpot Node -> Bot Manager env chain.
 - The local v15 ThetaData full attempt had `BACKTESTING_DATA_SOURCE=ThetaData`
-  in its manifest, but the runtime still entered an IBKR helper path and
-  submitted IBKR history jobs for TQQQ stop fill checks. That attempt was
-  stopped and must not be counted as a valid v15 ThetaData result.
+  in its manifest, but the runtime loaded repo `.env`/`.env.local` and entered
+  IBKR. That attempt was stopped and must not be counted as a valid v15
+  ThetaData result.
 - The local v15 BotSpot Auto full attempt also crawled because the current
   local broker guard repeatedly rejected selected minute bars that did not match
   the exact simulated hourly timestamp.
@@ -299,27 +318,44 @@ The local runner script created for this investigation is:
 - `/Users/robertgrzesik/Development/lumibot/scripts/run_tqqq_provider_diff.py`
 
 That script is useful for smoke and harness work, but it should not be treated
-as production-equivalent until the provider selection and runtime-version
-issues above are fixed.
+as production-equivalent. Use `scripts/run_backtest_prodlike.py` instead.
 
-## Why The Exact v15 ThetaData Scenario Is Still Missing
+## Correct Local Replay Path
 
-The current MCP session can query production artifacts and start revision-ID
-backtests that default to BotSpot Auto, but it cannot change the conversation's
-data provider. The tool returned:
+v15 ThetaData is runnable locally. The MCP `set_data_provider` limitation only
+applies to cloud BotSpot/MCP starts from a session without a BotSpot
+conversation binding; it is not a limitation of local LumiBot code.
+
+For local replay:
+
+1. Run the exported saved revision file directly with
+   `/Users/robertgrzesik/Development/lumibot/scripts/run_backtest_prodlike.py`.
+2. Pass `--lumibot-root /Users/robertgrzesik/Development/lumibot` so the child
+   uses the local checkout, not the pip-installed LumiBot package.
+3. Use `LUMIBOT_DISABLE_DOTENV=1` through the canonical runner so repo
+   `.env.local` cannot overwrite the provider.
+4. Pass `BACKTESTING_DATA_SOURCE` through `--data-source`:
+   - ThetaData: `thetadata`
+   - BotSpot Auto:
+     `{"default":"ibkr","stock":"ibkr","index":"ibkr","option":"thetadata","crypto":"ibkr","crypto_future":"ibkr","future":"ibkr","cont_future":"ibkr"}`
+5. Use a production-like dotenv/env source for downloader and S3 cache settings.
+   This Mac's `botspot_node/.env-local` points at the dev cache namespace, so it
+   is not exact production parity for the TQQQ comparison.
+6. Verify the child `*_settings.json` before trusting the run. It must record
+   the intended `backtesting_data_sources`; if it says `ibkr` for a ThetaData
+   scenario, the run is invalid.
+
+The cloud MCP issue observed during the production-artifact pass was:
 
 ```text
 ConversationId is required to change data provider
 ```
 
-It returned the same conversation-binding error for `switch_active_strategy`.
+That only means a revision-ID-only cloud MCP start from that session would have
+defaulted to BotSpot Auto. It does not block a proper local replay.
 
-Therefore, from this MCP context, starting a v15 full-window backtest would
-produce another BotSpot Auto run, not ThetaData. That would not answer Rob's
-requested four-scenario matrix.
-
-Existing production history also does not contain a v15 ThetaData full-window
-run for `2016-01-21` to `2026-04-16`.
+Existing production history still does not contain a completed v15 ThetaData
+full-window run for `2016-01-21` to `2026-04-16` in the queried BotSpot history.
 
 ## Current Working Theory
 
@@ -340,11 +376,11 @@ This investigation supports three separate findings:
 
 ## Recommended Next Steps
 
-1. Run a true v15 ThetaData full-window production backtest from a BotSpot
-   conversation/session where `set_data_provider(theta_data)` works, or from a
-   direct authenticated Node API path that explicitly accepts `dataProvider` in
-   the request body. Do not count a revision-ID-only MCP start from this session;
-   it defaults to BotSpot Auto.
+1. Re-run the four requested local scenarios with the canonical prod-like
+   runner, not `scripts/run_tqqq_provider_diff.py`: v15 ThetaData, v15 BotSpot
+   Auto, v19 ThetaData, and v19 BotSpot Auto for `2016-01-21` to `2026-04-16`.
+   Start with a short smoke window only to validate env/import/cache proof, then
+   run the full window.
 2. For the v19 ThetaData drawdown regression, compare v18 and v19 trade lists by
    entry reason. The first focus should be the `14` v19 `startup sync mid-trend`
    entries and their subsequent drawdown contribution.
@@ -356,4 +392,3 @@ This investigation supports three separate findings:
 4. Keep the fixes separate. A strategy revision fix may be needed to undo or
    narrow v19 mid-trend entry behavior. A LumiBot/BotSpot Auto fix may be needed
    for IBKR stop-order fill/cancel handling at after-hours hourly timestamps.
-

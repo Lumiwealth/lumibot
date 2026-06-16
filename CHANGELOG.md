@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.5.52 - Unreleased
+
+### Fixed
+- **BotSpot snapshot runs can force Schwab and Tradier OAuth token refresh.** Schwab rewrites the existing token file on startup when requested, Tradier OAuth writes the existing BotSpot rotation handoff artifact, and Tradier API-token mode remains unchanged.
+
 ## 4.5.50 - Unreleased
 
 ## 4.5.49 - Unreleased

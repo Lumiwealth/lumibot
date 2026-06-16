@@ -33,6 +33,8 @@ def test_oauth_force_refresh_when_not_expired_writes_botspot_rotation_artifact(m
     monkeypatch.setenv("TRADIER_OAUTH_CLIENT_SECRET", "secret")
     monkeypatch.setenv("BOTSPOT_TRADIER_TOKEN_ROTATION_PATH", str(rotation_path))
     monkeypatch.setenv("BOTSPOT_FORCE_BROKER_TOKEN_REFRESH", "true")
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://127.0.0.1:1")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "test")
 
     class _Resp:
         ok = True
@@ -82,6 +84,8 @@ def test_oauth_force_refresh_failure_raises(monkeypatch):
     monkeypatch.setenv("TRADIER_TOKEN", _b64url(token_json))
     monkeypatch.setenv("TRADIER_REFRESH_TOKEN", "old-refresh")
     monkeypatch.setenv("BOTSPOT_FORCE_BROKER_TOKEN_REFRESH", "true")
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://127.0.0.1:1")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "test")
 
     with pytest.raises(RuntimeError, match="Forced OAuth token refresh failed"):
         Tradier(
@@ -94,6 +98,8 @@ def test_force_refresh_is_noop_for_api_token_mode(monkeypatch):
     from lumibot.brokers import tradier as tradier_module
 
     monkeypatch.setenv("BOTSPOT_FORCE_BROKER_TOKEN_REFRESH", "true")
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://127.0.0.1:1")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "test")
     monkeypatch.delenv("TRADIER_TOKEN", raising=False)
     monkeypatch.setattr(
         tradier_module.requests,

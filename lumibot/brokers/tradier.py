@@ -418,6 +418,7 @@ class Tradier(Broker):
 
         # Install request wrappers before Broker initializes streams/threads.
         self.data_source = data_source
+        self._apply_access_token(self._tradier_access_token)
         self._install_oauth_refresh_hooks()
 
         super().__init__(

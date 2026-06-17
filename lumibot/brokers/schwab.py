@@ -33,6 +33,17 @@ from lumibot.trading_builtins import PollingStream
 LUMI_DEFAULT_APP_KEY = "RfUVxotUc8p6CbeCwFmophgNZSat0TLv"
 LUMI_DEFAULT_CALLBACK = "https://api.botspot.trade/broker_oauth/schwab"
 
+
+def _botspot_force_broker_token_refresh() -> bool:
+    return (os.environ.get("BOTSPOT_FORCE_BROKER_TOKEN_REFRESH") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "y",
+        "on",
+    }
+
+
 class Schwab(Broker):
     """
     Broker implementation for Schwab API.
@@ -169,8 +180,7 @@ class Schwab(Broker):
             self.schwab_authorization_error = True
             raise ValueError("Schwab App Key (SCHWAB_APP_KEY) not found in config or environment variables.")
 
-        # Remove all app_secret handling
-        logger.info("[Schwab] SCHWAB_APP_SECRET is no longer used by this Python client.")
+        logger.info("[Schwab] SCHWAB_APP_SECRET is used only for OAuth token refresh when configured.")
 
         schwab_backend_redirect_uri = (
             config.get("SCHWAB_BACKEND_CALLBACK_URL")
@@ -287,9 +297,29 @@ class Schwab(Broker):
             def _update_token(updated_token):
                 """Write refreshed token back to token.json so it persists across restarts."""
                 try:
+                    if not isinstance(updated_token, dict):
+                        raise ValueError("Refreshed Schwab token payload is not a JSON object.")
+                    next_token = dict(token_dict_for_session)
+                    next_token.update(updated_token)
+                    if not next_token.get("refresh_token") and token_dict_for_session.get("refresh_token"):
+                        next_token["refresh_token"] = token_dict_for_session["refresh_token"]
+                    now_ms = int(time.time() * 1000)
+                    next_token.setdefault("issued_at", now_ms)
+                    next_token.setdefault("refresh_token_issued_at", token_dict_for_session.get("refresh_token_issued_at", now_ms))
+                    next_token.setdefault("expires_in", token_dict_for_session.get("expires_in", 1800))
+                    next_token.setdefault(
+                        "refresh_token_expires_in",
+                        token_dict_for_session.get("refresh_token_expires_in", 90 * 24 * 3600),
+                    )
+                    next_token.setdefault("token_type", token_dict_for_session.get("token_type", "Bearer"))
+                    next_token.setdefault("scope", token_dict_for_session.get("scope", "api"))
+                    next_token.pop("id_token", None)
+
+                    token_dict_for_session.clear()
+                    token_dict_for_session.update(next_token)
                     wrapped = {
-                        "creation_timestamp": int(time.time()),
-                        "token": updated_token,
+                        "creation_timestamp": wrapped_token_data.get("creation_timestamp", int(time.time())),
+                        "token": token_dict_for_session,
                     }
                     with open(token_path, "w", encoding="utf-8") as fp:
                         json.dump(wrapped, fp)
@@ -325,6 +355,24 @@ class Schwab(Broker):
 
                 #create refresh hook. This is beacuse oa2session does not perform refreshes with auth headers, only with json bodies. 
                 oauth_session.register_compliance_hook("refresh_token_request", _refresh_token_hook)
+
+            if _botspot_force_broker_token_refresh():
+                refresh_token_value = token_dict_for_session.get("refresh_token")
+                if not refresh_token_value:
+                    raise ConnectionError("[Schwab] Forced token refresh requires a refresh_token.")
+                if not client_secret_env:
+                    raise ConnectionError("[Schwab] Forced token refresh requires SCHWAB_APP_SECRET.")
+                try:
+                    refreshed_token = oauth_session.refresh_token(
+                        oauth_session.auto_refresh_url,
+                        refresh_token=refresh_token_value,
+                        **refresh_kwargs,
+                    )
+                except Exception as e_refresh:
+                    raise ConnectionError("[Schwab] Forced token refresh failed for BotSpot snapshot runtime.") from e_refresh
+                if not isinstance(refreshed_token, dict) or not refreshed_token.get("access_token"):
+                    raise ConnectionError("[Schwab] Forced token refresh response did not include access_token.")
+                _update_token(refreshed_token)
 
             # NOTE: schwab-py >=1.6 removed the app_secret parameter from the Client constructor.
             # Passing it raises: TypeError: BaseClient.__init__() got an unexpected keyword argument 'app_secret'.

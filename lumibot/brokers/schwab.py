@@ -44,6 +44,10 @@ def _botspot_force_broker_token_refresh() -> bool:
     }
 
 
+class SchwabTokenPersistenceError(RuntimeError):
+    """Raised when a refreshed Schwab OAuth token cannot be durably written."""
+
+
 class Schwab(Broker):
     """
     Broker implementation for Schwab API.
@@ -296,6 +300,7 @@ class Schwab(Broker):
 
             def _update_token(updated_token):
                 """Write refreshed token back to token.json so it persists across restarts."""
+                tmp_token_path = token_path.with_name(f".{token_path.name}.tmp.{os.getpid()}.{time.time_ns()}")
                 try:
                     if not isinstance(updated_token, dict):
                         raise ValueError("Refreshed Schwab token payload is not a JSON object.")
@@ -321,11 +326,24 @@ class Schwab(Broker):
                         "creation_timestamp": wrapped_token_data.get("creation_timestamp", int(time.time())),
                         "token": token_dict_for_session,
                     }
-                    with open(token_path, "w", encoding="utf-8") as fp:
+                    with open(tmp_token_path, "w", encoding="utf-8") as fp:
                         json.dump(wrapped, fp)
+                    os.chmod(tmp_token_path, 0o600)
+                    os.replace(tmp_token_path, token_path)
+                    try:
+                        os.chmod(token_path, 0o600)
+                    except OSError:
+                        pass
                     logger.info(f"[Schwab] Token automatically refreshed and written to {token_path}")
                 except Exception as e_write:
+                    try:
+                        tmp_token_path.unlink(missing_ok=True)
+                    except OSError:
+                        pass
                     logger.error(f"[Schwab] Failed to write refreshed token to file: {e_write}")
+                    raise SchwabTokenPersistenceError(
+                        f"[Schwab] Failed to write refreshed token to file {token_path}: {e_write}"
+                    ) from e_write
 
             # Build kwargs for token refresh – only include client_secret if it actually exists
             refresh_kwargs = {
@@ -390,7 +408,7 @@ class Schwab(Broker):
         except Exception as e:
             logger.error(colored(f"[Schwab] Error initializing Schwab client from token file {token_path}: {e}", "red"))
             logger.error(traceback.format_exc())
-            if token_path.exists():
+            if token_path.exists() and not isinstance(e, SchwabTokenPersistenceError):
                 logger.warning(f"[Schwab] Deleting potentially corrupt token file: {token_path}")
                 token_path.unlink(missing_ok=True)
             self.schwab_authorization_error = True

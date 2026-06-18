@@ -5,12 +5,15 @@
 ### Fixed
 - **IBKR intraday fills now require the current execution bar.** Direct IBKR and routed-IBKR quote, fast bid/ask, and OHLC fill paths reject minute/hour source rows that do not match the current simulated execution bucket, preventing sparse BTC cache objects from reusing older real rows as current fills.
 - **BotSpot snapshot runs can force Schwab and Tradier OAuth token refresh.** Schwab rewrites the existing token file on startup when requested, Tradier OAuth writes the existing BotSpot rotation handoff artifact, and Tradier API-token mode remains unchanged.
+- **Tradier OAuth refresh now has a public durable token-file path.** `TRADIER_TOKEN_PATH` loads provider token JSON, writes refreshed token material back atomically, and fails loudly when refreshed token material cannot be persisted. Schwab refreshed-token writes now also fail loudly instead of hiding a failed token-file write.
 
 ### Docs
 - **Greg BTC investigation now records the local execution-path guard.** The note separates the Crypto Plus data-availability issue from the LumiBot no-stale-fill invariant and lists local targeted test evidence.
+- **Tradier docs now describe OAuth token-file durability.** The broker docs and environment-variable reference explain `TRADIER_TOKEN_PATH` separately from manual `TRADIER_ACCESS_TOKEN` usage.
 
 ### Tests
 - **Sparse IBKR crypto regressions now cover stale quote and fast-fill rejection.** Tests assert source-bar quote provenance, stale routed-IBKR quote-fill rejection, exact minute-bucket matching, and a corrected IBKR crypto OCO/OTO fixture that no longer relies on stale prior-minute data.
+- **Broker OAuth refresh tests now cover durable write failures.** Tradier tests assert forced refresh updates `TRADIER_TOKEN_PATH` and fails if the file cannot be written; Schwab tests assert forced refresh fails if the refreshed token file cannot be written while preserving the old valid file.
 
 ## 4.5.50 - Unreleased
 

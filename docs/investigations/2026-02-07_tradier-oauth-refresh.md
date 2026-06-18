@@ -56,6 +56,31 @@ File: `lumibot/brokers/tradier.py`
   - The code logs a warning if refresh-token rotation is detected.
   - If rotation happens, users may need to re-link after the old refresh token becomes invalid.
 
+## 2026-06-18 Addendum: Public Token File Contract
+
+The limitation above was not an acceptable endpoint for OAuth support. Tradier now has a public provider-token file path so OAuth refresh can be durable without exposing BotSpot-specific runtime artifacts in LumiBot's public API.
+
+Implemented public LumiBot contract:
+
+- Support `TRADIER_TOKEN_PATH`.
+- Load a provider token payload from that file.
+- Accept access token, refresh token, expiry metadata, and provider/client metadata needed for refresh.
+- Refresh on expiry or after a recoverable auth failure when a refresh token and OAuth client credentials are present.
+- Atomically write the updated provider token payload back to the same file.
+- Fail the refresh if the updated provider token file cannot be written.
+- Keep manual `TRADIER_ACCESS_TOKEN` mode working for existing API-token users.
+- Do not expose BotSpot, Bot Manager, Vault, broker credential ids, token rotation grants, or managed-runtime artifact paths in the public API/docs.
+
+BotSpot can privately map this token file to Node/Vault writeback inside Bot Manager, but LumiBot should only care about provider token semantics.
+
+Proof required before calling this fixed:
+
+1. Create or receive a real Tradier OAuth token file with a refresh token.
+2. Force or simulate access-token expiry.
+3. Run a read-only Tradier broker call.
+4. Verify refresh succeeds, the in-memory access token updates, and the token file changes.
+5. Restart from the changed token file and verify the next read-only call succeeds without relinking.
+
 ## Tests
 
 File: `tests/test_tradier.py`
@@ -63,4 +88,5 @@ File: `tests/test_tradier.py`
 - Added unit tests for:
   - decoding OAuth payload into `access_token`
   - refreshing token when payload is expired (requests mocked; no network)
-
+- 2026-06-18 follow-up tests cover `TRADIER_TOKEN_PATH` forced refresh writing the updated token file and failing loudly if the token file cannot be written.
+- 2026-06-18 Schwab follow-up tests cover forced refresh failing loudly if the refreshed Schwab token file cannot be written while preserving the old valid token file.

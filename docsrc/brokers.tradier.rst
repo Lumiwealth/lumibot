@@ -23,8 +23,16 @@ Once you have an account and you've logged in you can find your Account Number a
       TRADIER_ACCESS_TOKEN=your_access_token_here
       TRADIER_ACCOUNT_NUMBER=your_account_number_here
       TRADIER_IS_PAPER=true
-   
+
    That's it! LumiBot handles the rest automatically.
+
+   For Tradier OAuth integrations, use ``TRADIER_TOKEN_PATH`` instead of placing
+   the token payload directly in your strategy code. The file should contain a
+   provider token JSON payload with fields such as ``access_token``,
+   ``refresh_token``, ``expires_in``, and ``issued_at``. When LumiBot refreshes
+   the OAuth token, it writes the updated payload back to the same file. If that
+   write fails, LumiBot fails the refresh rather than pretending the new token was
+   durable.
 
 Configuration
 -------------
@@ -51,6 +59,20 @@ or more generally:
         "ACCOUNT_NUMBER": "your_account_number",
         "PAPER": True,
     }
+
+For OAuth token-file usage, set the account and paper/live mode as usual, then
+point LumiBot at the provider token file:
+
+.. code-block:: bash
+
+   TRADIER_TOKEN_PATH=/secure/path/tradier_token.json
+   TRADIER_ACCOUNT_NUMBER=your_account_number
+   TRADIER_IS_PAPER=true
+   TRADIER_OAUTH_CLIENT_ID=your_oauth_client_id
+   TRADIER_OAUTH_CLIENT_SECRET=your_oauth_client_secret
+
+``TRADIER_ACCESS_TOKEN`` remains supported for manual API-token users. The token
+file path is for OAuth flows that need refresh-token durability.
 
 Running Your Strategy
 ---------------------

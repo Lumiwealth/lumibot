@@ -183,3 +183,79 @@ def test_schwab_force_refresh_on_startup_rewrites_token(monkeypatch, tmp_path):
     assert rewritten["creation_timestamp"] == 1
     assert rewritten["token"]["access_token"] == "new-access"
     assert rewritten["token"]["refresh_token"] == "new-refresh"
+
+
+def test_schwab_force_refresh_fails_if_token_file_cannot_be_rewritten(monkeypatch, tmp_path):
+    from lumibot.brokers import broker as broker_module
+    from lumibot.brokers import schwab as schwab_module
+    import requests_oauthlib
+
+    token_path = tmp_path / "schwab_token.json"
+    token_path.write_text(
+        json.dumps(
+            {
+                "creation_timestamp": 1,
+                "token": {
+                    "access_token": "old-access",
+                    "refresh_token": "old-refresh",
+                    "issued_at": int(time.time() * 1000),
+                    "expires_in": 1800,
+                    "refresh_token_issued_at": int(time.time() * 1000),
+                    "refresh_token_expires_in": 7776000,
+                    "token_type": "Bearer",
+                    "scope": "api",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _OAuth2Session:
+        def __init__(
+            self,
+            *,
+            client_id,
+            token,
+            auto_refresh_url,
+            auto_refresh_kwargs,
+            token_updater,
+        ):
+            self.token_updater = token_updater
+            self.auto_refresh_url = auto_refresh_url
+
+        def register_compliance_hook(self, hook_type, hook):
+            return None
+
+        def refresh_token(self, token_url, *, refresh_token, **kwargs):
+            return {
+                "access_token": "new-access",
+                "refresh_token": "new-refresh",
+                "expires_in": 1800,
+                "issued_at": int(time.time() * 1000),
+            }
+
+    monkeypatch.setenv("BOTSPOT_FORCE_BROKER_TOKEN_REFRESH", "true")
+    monkeypatch.setenv("SCHWAB_APP_SECRET", "secret")
+    monkeypatch.setattr(requests_oauthlib, "OAuth2Session", _OAuth2Session)
+    monkeypatch.setattr(broker_module.Broker, "_start_orders_thread", lambda self: None)
+    monkeypatch.setattr(schwab_module.Schwab, "_finish_initialization", lambda self, *args, **kwargs: None)
+    monkeypatch.setattr(schwab_module.Schwab, "_get_stream_object", lambda self: None)
+    monkeypatch.setattr(
+        schwab_module.os,
+        "replace",
+        lambda *args, **kwargs: (_ for _ in ()).throw(OSError("disk full")),
+    )
+
+    with pytest.raises(ConnectionError, match="Failed to initialize Schwab client"):
+        schwab_module.Schwab(
+            config={
+                "SCHWAB_ACCOUNT_NUMBER": "5678",
+                "SCHWAB_APP_KEY": "app-key",
+                "SCHWAB_APP_SECRET": "secret",
+                "SCHWAB_TOKEN_PATH": str(token_path),
+            }
+        )
+
+    preserved = json.loads(token_path.read_text(encoding="utf-8"))
+    assert preserved["token"]["access_token"] == "old-access"
+    assert preserved["token"]["refresh_token"] == "old-refresh"

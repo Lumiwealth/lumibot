@@ -27,6 +27,16 @@ from lumibot.trading_builtins import PollingStream
 logger = get_logger(__name__)
 
 
+def _botspot_force_broker_token_refresh() -> bool:
+    return (os.environ.get("BOTSPOT_FORCE_BROKER_TOKEN_REFRESH") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "y",
+        "on",
+    }
+
+
 class Tradier(Broker):
     """
     Broker that connects to Tradier API to place orders and retrieve data. Tradier API only supports Order streaming
@@ -385,8 +395,13 @@ class Tradier(Broker):
         self._tradier_paper = paper
         self.polling_interval = polling_interval
 
-        # If this is an OAuth token, refresh before building API clients (best-effort).
-        self._refresh_oauth_token(force=False)
+        # If this is an OAuth token, refresh before building API clients. Snapshot
+        # runtimes can force this so BotSpot receives fresh token material to persist.
+        force_token_refresh = _botspot_force_broker_token_refresh()
+        if self._oauth_enabled():
+            refreshed = self._refresh_oauth_token(force=force_token_refresh)
+            if force_token_refresh and not refreshed:
+                raise RuntimeError("[Tradier] Forced OAuth token refresh failed for BotSpot snapshot runtime.")
 
         # Create the Tradier object
         self.tradier = _Tradier(account_number, self._tradier_access_token, paper)
@@ -403,6 +418,7 @@ class Tradier(Broker):
 
         # Install request wrappers before Broker initializes streams/threads.
         self.data_source = data_source
+        self._apply_access_token(self._tradier_access_token)
         self._install_oauth_refresh_hooks()
 
         super().__init__(

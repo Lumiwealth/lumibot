@@ -1,6 +1,9 @@
 """
 Simple test cases for broker initialization error handling.
 """
+import json
+import time
+
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -72,3 +75,111 @@ class TestBrokerInitializationSimple:
         except Exception as e:
             # Other exceptions are acceptable for this test since we're only testing the broker None case
             pass
+
+
+def test_schwab_force_refresh_on_startup_rewrites_token(monkeypatch, tmp_path):
+    from lumibot.brokers import broker as broker_module
+    from lumibot.brokers import schwab as schwab_module
+    import requests_oauthlib
+
+    token_path = tmp_path / "schwab_token.json"
+    token_path.write_text(
+        json.dumps(
+            {
+                "creation_timestamp": 1,
+                "token": {
+                    "access_token": "old-access",
+                    "refresh_token": "old-refresh",
+                    "issued_at": int(time.time() * 1000),
+                    "expires_in": 1800,
+                    "refresh_token_issued_at": int(time.time() * 1000),
+                    "refresh_token_expires_in": 7776000,
+                    "token_type": "Bearer",
+                    "scope": "api",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _OAuth2Session:
+        instances = []
+
+        def __init__(
+            self,
+            *,
+            client_id,
+            token,
+            auto_refresh_url,
+            auto_refresh_kwargs,
+            token_updater,
+        ):
+            self.client_id = client_id
+            self.token = token
+            self.auto_refresh_url = auto_refresh_url
+            self.auto_refresh_kwargs = auto_refresh_kwargs
+            self.token_updater = token_updater
+            self.refresh_calls = []
+            self.hooks = []
+            self.instances.append(self)
+
+        def register_compliance_hook(self, hook_type, hook):
+            self.hooks.append((hook_type, hook))
+
+        def refresh_token(self, token_url, *, refresh_token, **kwargs):
+            self.refresh_calls.append(
+                {
+                    "token_url": token_url,
+                    "refresh_token": refresh_token,
+                    "kwargs": kwargs,
+                }
+            )
+            return {
+                "access_token": "new-access",
+                "refresh_token": "new-refresh",
+                "expires_in": 1800,
+                "issued_at": int(time.time() * 1000),
+            }
+
+    class _AccountResponse:
+        status_code = 200
+
+        def json(self):
+            return [{"accountNumber": "12345678", "hashValue": "hash-123"}]
+
+    class _Client:
+        def __init__(self, *, api_key, session):
+            self.api_key = api_key
+            self.session = session
+
+        def get_account_numbers(self):
+            return _AccountResponse()
+
+    monkeypatch.setenv("BOTSPOT_FORCE_BROKER_TOKEN_REFRESH", "true")
+    monkeypatch.setenv("SCHWAB_APP_SECRET", "secret")
+    monkeypatch.setattr(requests_oauthlib, "OAuth2Session", _OAuth2Session)
+    monkeypatch.setattr(schwab_module, "Client", _Client)
+    monkeypatch.setattr(broker_module.Broker, "_start_orders_thread", lambda self: None)
+    monkeypatch.setattr(schwab_module.Schwab, "_finish_initialization", lambda self, *args, **kwargs: None)
+    monkeypatch.setattr(schwab_module.Schwab, "_get_stream_object", lambda self: None)
+
+    broker = schwab_module.Schwab(
+        config={
+            "SCHWAB_ACCOUNT_NUMBER": "5678",
+            "SCHWAB_APP_KEY": "app-key",
+            "SCHWAB_APP_SECRET": "secret",
+            "SCHWAB_TOKEN_PATH": str(token_path),
+        }
+    )
+
+    assert broker.client.session.refresh_calls == [
+        {
+            "token_url": "https://api.schwabapi.com/v1/oauth/token",
+            "refresh_token": "old-refresh",
+            "kwargs": {"client_id": "app-key", "client_secret": "secret"},
+        }
+    ]
+    rewritten = json.loads(token_path.read_text(encoding="utf-8"))
+    assert rewritten["creation_timestamp"] == 1
+    assert rewritten["token"]["access_token"] == "new-access"
+    assert rewritten["token"]["refresh_token"] == "new-refresh"

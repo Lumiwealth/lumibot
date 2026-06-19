@@ -2,7 +2,7 @@
 
 One-line description: Production artifact comparison for TQQQ Smart Money Concepts v15-v19 across BotSpot Auto/IBKR and ThetaData, with local replay limitations.
 Last Updated: 2026-06-19
-Status: Local LumiBot fix implemented and prod-like 2013-2026 matrix validated; provider divergence narrowed to warmup/data availability plus small OHLC differences
+Status: Local LumiBot fix implemented and prod-like 2013-2026 matrix validated; remaining v19 70% drawdown is strategy behavior, not the old IBKR pending-fill loop
 Audience: LumiBot, BotSpot Node, Bot Manager, and strategy support engineers
 
 ## Overview
@@ -639,6 +639,91 @@ Current conclusion:
 5. v10/v14/v18 are not needed to prove the LumiBot/provider fix. They may still
    be useful for strategy-level revision history, but the current v15/v19 matrix
    answers the slow-backtest and provider-reconciliation question.
+
+### 2026-06-19 Strategy Drawdown Follow-Up
+
+Rob asked whether the roughly `-70%` v19 max drawdown is real after the
+LumiBot/IBKR pending-fill fix, and whether the remaining issue is still a
+provider or backtester problem.
+
+The current evidence says the v19 max drawdown is real for this strategy
+revision. Both providers now land in the same drawdown family:
+
+| Scenario | Full-window runtime | Total return | CAGR | Max DD | Peak | Valley | Worst daily return |
+| --- | ---: | ---: | ---: | ---: | --- | --- | ---: |
+| v15 BotSpot Auto / IBKR | `58.8s` | `15,967%` | `45.98%` | `-40.89%` | `2021-11-05` | `2022-01-14` | `-22.95%` |
+| v15 ThetaData | `175.7s` | `18,481%` | `47.57%` | `-41.13%` | `2021-11-05` | `2022-01-14` | `-22.79%` |
+| v19 BotSpot Auto / IBKR | `140.0s` | `11,817%` | `42.77%` | `-70.78%` | `2020-09-02` | `2020-10-02` | `-63.97%` |
+| v19 ThetaData | `256.7s` | `14,452%` | `44.91%` | `-70.36%` | `2020-09-02` | `2020-10-02` | `-63.45%` |
+
+The drawdown source of truth is the generated `*_stats.parquet` files, not the
+manual trade-only equity reconstruction scratch files. The stats parquet files
+contain the backtest's own `portfolio_value`, `cash`, `positions`, `return`,
+and `cash_adjusted_portfolio_value` series.
+
+The major v19 drawdown branch starts around `2020-09-04`. v19 repeatedly buys
+TQQQ near the daily open and is stopped near the same daily low through hourly
+iterations on the same daily bar. Example v19 BotSpot Auto events:
+
+```text
+2020-09-03 17:00 buy 139096 TQQQ @ 20.84
+2020-09-04 00:00 sell stop 139096 TQQQ @ 16.236
+2020-09-04 01:00 buy 104980 TQQQ @ 18.17
+2020-09-04 02:00 sell stop 104980 TQQQ @ 16.236
+2020-09-04 03:00 buy 94112 TQQQ @ 18.17
+2020-09-04 04:00 sell stop 94112 TQQQ @ 16.236
+...
+2020-09-04 15:00 buy 48850 TQQQ @ 18.17
+2020-09-04 16:00 sell stop 48850 TQQQ @ 16.236
+```
+
+This stop level is plausible from real provider OHLC, not an obvious phantom
+price:
+
+- IBKR `2020-09-04` TQQQ daily bar:
+  open `18.17`, high `18.79`, low `15.48`, close `17.70`.
+- ThetaData `2020-09-04` TQQQ daily bar:
+  open `18.13625`, high `18.7875`, low `15.4825`, close `17.705`.
+
+The strategy-level root cause is not simply "daily gating was removed." A
+candidate v19 file restored a v15-style daily gate while keeping v19 simple
+sequential stop orders and startup sync. That candidate still produced roughly
+the same drawdown:
+
+- Candidate file:
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_matrix_current_20260619_175256/audit_deep/v19_candidate_restore_daily_gate_main.py`
+- Candidate run stats:
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_strategy_candidates_20260619/v19_restore_daily_gate_auto_prod_stats_summary.json`
+- Result: total return `10,244.69%`, max DD `-70.76%`, same
+  `2020-09-02` peak and `2020-10-02` valley.
+
+Why that candidate still failed: v19's simple stop flow calls
+`_reset_smc_state()` after stop fills. `_reset_smc_state()` clears
+`cached_last_dt`, so a restored daily gate is wiped after each stop-out. Then
+startup-sync mid-trend can re-enter on the same daily signal bar. That creates
+the repeated same-day buy/stop loop.
+
+Current strategy conclusion:
+
+1. The old LumiBot/IBKR issue was a pending-fill timestep bug. That caused
+   `No pandas bars` stop loops and runaway TQQQ minute-history requests. It is
+   fixed in this local branch for the TQQQ v19 BotSpot Auto shape.
+2. The current v19 `-70%` drawdown is separate. It comes from v19 strategy
+   state: simple sequential stops, reset-after-stop behavior, no durable
+   same-daily-bar trade lockout, and restored startup-sync mid-trend entries.
+3. A v20 strategy fix should preserve broker-compatible simple stop orders, but
+   add a durable "one decision / no re-entry after stop or exit per daily signal
+   bar" lockout that is not cleared by `_reset_smc_state()`. It should also
+   decide whether startup sync is allowed only once at startup or after every
+   full strategy state reset.
+
+Deep drawdown artifacts:
+
+- `/Users/robertgrzesik/Development/lumibot/logs/tqqq_matrix_current_20260619_175256/audit_deep/stats_drawdown_summary.json`
+- `/Users/robertgrzesik/Development/lumibot/logs/tqqq_matrix_current_20260619_175256/audit_deep/stats_drawdown_summary.csv`
+- `/Users/robertgrzesik/Development/lumibot/logs/tqqq_matrix_current_20260619_175256/audit_deep/v19_auto_trades_near_worst_period_return.csv`
+- `/Users/robertgrzesik/Development/lumibot/logs/tqqq_matrix_current_20260619_175256/audit_deep/v15_auto_trades_near_worst_period_return.csv`
+- `/Users/robertgrzesik/Development/lumibot/logs/tqqq_matrix_current_20260619_175256/audit_deep/v19_theta_trades_near_worst_period_return.csv`
 
 ## Previous Recommended Next Steps (Superseded By 2026-06-19 Matrix)
 

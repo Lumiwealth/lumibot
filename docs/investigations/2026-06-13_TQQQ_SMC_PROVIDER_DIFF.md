@@ -416,6 +416,25 @@ This investigation supports three separate findings:
    no longer shows that exact symptom. Do not conflate the v16 missing-price
    failure with the v19 stop-cancel failure.
 
+### 2026-06-19 Fill Granularity Risk Note
+
+Do not fix the v19 BotSpot Auto slowdown by blindly forcing all hourly stock
+backtests to daily fills. That would be too broad and could break legitimate
+intraday stock strategies. The safe boundary is narrower:
+
+- The strategy/data-source contract for this failure shape is daily stock/index
+  OHLC routed to IBKR, even though the strategy clock wakes hourly.
+- Routed IBKR stock/index lookups already prefer native daily bars for
+  `get_last_price()` and `get_quote()`; the unaligned call site is the pending
+  order OHLC fill path in `BacktestingBroker.process_pending_orders()`.
+- A fix should make pending stock/index order fills honor the same native-day
+  data-source contract only when the data source explicitly advertises that
+  strict daily policy. It must not relax current-bar matching for crypto,
+  futures, options, or true intraday stock strategies.
+- Regression tests must prove both sides: the v19-shaped standalone stop path no
+  longer requests TQQQ `1min` full-window history, and explicit intraday paths
+  still require current intraday bars.
+
 ## Recommended Next Steps
 
 1. Re-run the four requested local scenarios with the canonical prod-like

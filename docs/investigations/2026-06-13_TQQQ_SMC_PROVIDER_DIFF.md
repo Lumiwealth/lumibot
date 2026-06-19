@@ -2,7 +2,7 @@
 
 One-line description: Production artifact comparison for TQQQ Smart Money Concepts v15-v19 across BotSpot Auto/IBKR and ThetaData, with local replay limitations.
 Last Updated: 2026-06-19
-Status: Production DB history audited; local replay and fix/validation plan defined
+Status: Local LumiBot fix implemented and prod-like 2013-2026 matrix validated; provider divergence narrowed to warmup/data availability plus small OHLC differences
 Audience: LumiBot, BotSpot Node, Bot Manager, and strategy support engineers
 
 ## Overview
@@ -503,7 +503,144 @@ The artifacts that prove this are:
 - generated `*_settings.json`, `*_logs.csv`, `*_trades.csv`,
   `*_trade_events.csv`, and tear sheet files under the same run folder.
 
-## Recommended Next Steps
+### 2026-06-19 Current-Branch Original-Window Matrix
+
+After the fill-timestep resolver change, the original stuck-window comparison
+was rerun locally with the canonical prod-like runner:
+
+- Runner:
+  `/Users/robertgrzesik/Development/lumibot/scripts/run_backtest_prodlike.py`
+- Strategy files:
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_provider_diff_20260613/code/v15_main.py`
+  and
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_provider_diff_20260613/code/v19_main.py`
+- Window: `2013-01-01` to `2026-06-05`
+- Local LumiBot root:
+  `/Users/robertgrzesik/Development/lumibot`
+- Local LumiBot version: `4.5.52`
+- Git branch/SHA: `version/4.5.52` /
+  `8f7923bb85037eee9cff400035b5cfbae51a7c5c`
+- Cache: `lumibot-cache-prod`, prefix `prod/cache`, version `v1`,
+  mode `readwrite`
+- Durable artifact folder:
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_matrix_current_20260619_175256/`
+- Audit bundle:
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_matrix_current_20260619_175256/audit/`
+
+Each run's `runner_stdout.log` records the provenance Rob requested:
+
+- child `lumibot.__file__`
+- LumiBot version
+- git branch/SHA/dirty state
+- imported `backtesting_broker.py` path
+- imported `routed_backtesting.py` path
+- strategy SHA-256
+- provider string
+- cache bucket/prefix/version/mode
+- artifact manifest path
+
+The child import probe proved local source imports for every scenario:
+
+- `lumibot.__file__`:
+  `/Users/robertgrzesik/Development/lumibot/lumibot/__init__.py`
+- `backtesting_broker.py`:
+  `/Users/robertgrzesik/Development/lumibot/lumibot/backtesting/backtesting_broker.py`
+- `routed_backtesting.py`:
+  `/Users/robertgrzesik/Development/lumibot/lumibot/backtesting/routed_backtesting.py`
+
+Matrix summary:
+
+| Scenario | Runtime | Total return | CAGR | Max DD | Buy market fills | Sell market fills | Stop fills | Stop cancels | Queue submits | TQQQ `1min` matches | Pending no-pandas matches |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| v15 ThetaData | `175.7s` | `18,481%` | `47.57%` | `-41.13%` | `181` | `73` | `24` | `72` | `1` | `0` | `0` |
+| v15 BotSpot Auto / IBKR | `58.8s` | `15,967%` | `45.98%` | `-40.89%` | `191` | `73` | `28` | `71` | `0` | `0` | `0` |
+| v19 ThetaData | `256.7s` | `14,452%` | `44.91%` | `-70.36%` | `342` | `74` | `26` | `334` | `0` | `0` | `0` |
+| v19 BotSpot Auto / IBKR | `140.0s` | `11,817%` | `42.77%` | `-70.78%` | `354` | `74` | `34` | `346` | `0` | `0` | `0` |
+
+This is the main speed/regression proof. Before the resolver fix, the v19
+BotSpot Auto original-window run was stopped at simulated
+`2013-01-03 03:00`, only `0.04%` complete, with an ETA around
+`6 days, 21:07:45`, repeated TQQQ `1min` history requests, and a pending
+no-pandas stop loop. After the fix, the same original-window v19 BotSpot Auto
+shape completed in `140.0s` with real stop fills and zero matches for the old
+failure signatures.
+
+Generated audit files:
+
+- `/Users/robertgrzesik/Development/lumibot/logs/tqqq_matrix_current_20260619_175256/audit/audit_summary.md`
+- `/Users/robertgrzesik/Development/lumibot/logs/tqqq_matrix_current_20260619_175256/audit/matrix_summary.csv`
+- `/Users/robertgrzesik/Development/lumibot/logs/tqqq_matrix_current_20260619_175256/audit/matrix_summary.json`
+- `/Users/robertgrzesik/Development/lumibot/logs/tqqq_matrix_current_20260619_175256/audit/fill_alignment_summary.csv`
+- `/Users/robertgrzesik/Development/lumibot/logs/tqqq_matrix_current_20260619_175256/audit/log_signal_summary.csv`
+- `/Users/robertgrzesik/Development/lumibot/logs/tqqq_matrix_current_20260619_175256/audit/provider_warmup_and_ohlc_summary.json`
+- `/Users/robertgrzesik/Development/lumibot/logs/tqqq_matrix_current_20260619_175256/audit/provider_ohlc_diff_tqqq_daily.csv`
+- `/Users/robertgrzesik/Development/lumibot/logs/tqqq_matrix_current_20260619_175256/audit/provider_ohlc_spot_checks.csv`
+- `/Users/robertgrzesik/Development/lumibot/logs/tqqq_matrix_current_20260619_175256/audit/v15_theta_vs_v15_auto_ibkr_fill_alignment.csv`
+- `/Users/robertgrzesik/Development/lumibot/logs/tqqq_matrix_current_20260619_175256/audit/v19_theta_vs_v19_auto_ibkr_fill_alignment.csv`
+
+### 2026-06-19 Provider And Trade Audit Conclusion
+
+The remaining ThetaData versus BotSpot Auto / IBKR difference is not the old
+broken pending-stop loop. It starts at the beginning of the simulation because
+the providers have different usable warmup history for TQQQ:
+
+- Strategy requires `210` daily bars before it can trade.
+- IBKR cached TQQQ daily bars have real rows from
+  `2010-02-22 16:00:00-05:00` through
+  `2026-06-17 16:00:00-04:00` (`4104` rows).
+- ThetaData cached TQQQ daily bars have real rows from
+  `2012-06-01 16:00:00-04:00` through
+  `2026-06-04 16:00:00-04:00` (`3527` rows).
+- Before `2013-01-01`, IBKR has `721` real daily rows; ThetaData has `146`.
+- Through `2013-01-03`, IBKR has `723` real daily rows; ThetaData has `148`.
+- Through `2013-04-11`, IBKR has `790` real daily rows; ThetaData has `215`.
+
+That produces the first trade divergence:
+
+| Provider | First v15/v19 TQQQ fill | Price | Quantity | Reason |
+| --- | --- | ---: | ---: | --- |
+| BotSpot Auto / IBKR | `2013-01-03 00:00:00-05:00` | `0.59` | `166101` | Enough pre-2013 warmup history exists. |
+| ThetaData | `2013-04-11 00:00:00-04:00` | `0.6585416666666667` | `147808` | Earlier 2013 iterations log `Insufficient data length (146 bars, need 210)`. |
+
+Provider spot checks show the common-date TQQQ OHLC is close, but not bit-for-bit
+identical:
+
+| Date | IBKR OHLC | ThetaData OHLC | Close diff |
+| --- | --- | --- | ---: |
+| `2013-01-03` | `0.59 / 0.59 / 0.58 / 0.58` | `0.589583 / 0.593438 / 0.575313 / 0.581042` | `0.1796%` |
+| `2013-04-11` | `0.66 / 0.67 / 0.66 / 0.66` | `0.658542 / 0.666979 / 0.656250 / 0.661875` | `0.2841%` |
+| `2020-03-16` | `5.06 / 6.08 / 4.62 / 4.66` | `5.06 / 6.075 / 4.62375 / 4.65625` | `-0.0805%` |
+| `2022-11-10` | `10.07 / 10.77 / 9.85 / 10.73` | `10.075 / 10.77 / 9.85 / 10.725` | `-0.0466%` |
+| `2026-06-04` | `83.47 / 86.25 / 82.47 / 85.22` | `83.50 / 86.245 / 82.475 / 85.22` | `0.0000%` |
+
+Common-date close differences across the cached TQQQ daily files:
+
+- Mean ThetaData-vs-IBKR close difference: `-0.0065%`
+- Standard deviation: `0.1711%`
+- Minimum: `-1.1880%`
+- Maximum: `0.9530%`
+
+The trade sequence comparison flags the first fill as divergent for both v15
+and v19 because the providers begin trading on different dates. After that, the
+sequence becomes path-dependent, so later naive fill-sequence differences are a
+consequence of the first warmup divergence and compounded sizing/equity path.
+
+Current conclusion:
+
+1. The LumiBot v19 BotSpot Auto slow path is fixed in this local branch.
+2. BotSpot Auto / IBKR now gives the same drawdown family as ThetaData for v19
+   (`-70.78%` versus `-70.36%`) and close CAGR family (`42.77%` versus
+   `44.91%`), not the old low-return/no-stop-fill result.
+3. v15 also reconciles closely by behavior (`45.98%` Auto CAGR versus
+   `47.57%` ThetaData CAGR; `-40.89%` versus `-41.13%` max drawdown).
+4. The remaining return spread is mostly explainable from provider warmup/data
+   availability at the `2013-01-01` start and small adjusted-OHLC differences,
+   not from a remaining IBKR pending-fill loop.
+5. v10/v14/v18 are not needed to prove the LumiBot/provider fix. They may still
+   be useful for strategy-level revision history, but the current v15/v19 matrix
+   answers the slow-backtest and provider-reconciliation question.
+
+## Previous Recommended Next Steps (Superseded By 2026-06-19 Matrix)
 
 1. Re-run the four requested local scenarios with the canonical prod-like
    runner, not `scripts/run_tqqq_provider_diff.py`: v15 ThetaData, v15 BotSpot

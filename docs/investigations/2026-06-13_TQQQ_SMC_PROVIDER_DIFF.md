@@ -435,6 +435,74 @@ intraday stock strategies. The safe boundary is narrower:
   longer requests TQQQ `1min` full-window history, and explicit intraday paths
   still require current intraday bars.
 
+### 2026-06-19 Implementation Update
+
+The broker change should be understood as a fill-timestep resolver, not a broad
+daily-bar override. `BacktestingBroker` now resolves the OHLC timestep for
+pending order fills through `_resolve_order_fill_timestep()`.
+
+The resolver keeps the data source's default timestep unless all of these are
+true:
+
+- the order asset is stock/index, not an option;
+- the active provider for that asset resolves to IBKR;
+- the data source explicitly advertises
+  `PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX=True`;
+- no intraday series is already loaded for that same order asset; and
+- daily-mode evidence exists through the source timestep, `_effective_day_mode`,
+  or a loaded native daily series.
+
+This is intentionally narrower than "hourly strategy uses day fills." A true
+intraday stock strategy with an intraday series already loaded keeps its
+intraday fill timestep. Crypto, futures, and options are excluded from the
+stock/index daily resolver. The existing current-bar checks remain in place:
+minute/hour IBKR fills still require the selected bar to match the current
+simulation bucket, while day fills compare by date.
+
+### 2026-06-19 Tiny Real-Data Validation
+
+The first real-data gate after the implementation used local LumiBot code,
+production Data Downloader configuration, and the production S3 cache namespace:
+
+- Run folder:
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_fix_validation_20260619_174637/runs/tqqq_v19_auto_tiny`
+- Strategy file:
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_provider_diff_20260613/code/v19_main.py`
+- Window: `2013-01-01` to `2013-01-10`
+- Provider:
+  `{"default":"ibkr","stock":"ibkr","index":"ibkr","option":"thetadata","crypto":"ibkr","crypto_future":"ibkr","future":"ibkr","cont_future":"ibkr"}`
+- Cache: `lumibot-cache-prod`, prefix `prod/cache`, version `v1`,
+  mode `readwrite`
+- Wall time: `7.5s`
+- Queue submits: `0`
+
+The runner provenance artifact recorded the child process importing local
+LumiBot code:
+
+- `lumibot.__file__`:
+  `/Users/robertgrzesik/Development/lumibot/lumibot/__init__.py`
+- LumiBot version: `4.5.52`
+- `backtesting_broker.py`:
+  `/Users/robertgrzesik/Development/lumibot/lumibot/backtesting/backtesting_broker.py`
+- `routed_backtesting.py`:
+  `/Users/robertgrzesik/Development/lumibot/lumibot/backtesting/routed_backtesting.py`
+
+Failure-signature scan for this run:
+
+- `1min` history burst matches: `0`
+- `[FILL][PENDING]` / `No pandas bars` loop matches: `0`
+- accidental `.env` / `.env.local` load messages: `0`
+- stop-related events present: `50`
+
+The artifacts that prove this are:
+
+- `child_import_provenance.json`
+- `metrics.json`
+- `artifact_manifest.json`
+- `subprocess.log`
+- generated `*_settings.json`, `*_logs.csv`, `*_trades.csv`,
+  `*_trade_events.csv`, and tear sheet files under the same run folder.
+
 ## Recommended Next Steps
 
 1. Re-run the four requested local scenarios with the canonical prod-like

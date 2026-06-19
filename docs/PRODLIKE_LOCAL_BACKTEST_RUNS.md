@@ -27,6 +27,11 @@ Key behavior:
 - Runs the strategy in a **clean per-run workdir** under `~/Documents/Development/backtest_runs/…`.
 - Writes artifacts to `workdir/logs/` (`*_tearsheet.html`, `*_trades.csv`, `*_logs.csv`, `*_settings.json`).
 - Prints a small “scoreboard” and writes `workdir/metrics.json` (wall time + queue submits + Theta STALE count + top endpoint families) so runs are comparable.
+- Writes `workdir/child_import_provenance.json` before the strategy starts,
+  using the exact child-process environment. This records `lumibot.__file__`,
+  LumiBot version, `backtesting_broker.py`, and `routed_backtesting.py`.
+- Writes `workdir/artifact_manifest.json` with source artifact paths, sizes,
+  hashes, and any copied artifact paths.
 - Loads downloader + S3 config from `botspot_node/.env-local` **without printing secrets**.
 - Forwards `THETADATA_USERNAME`, `THETADATA_PASSWORD`, and
   `THETADATA_API_KEY` from the dotenv when present, matching BotSpot Node's
@@ -157,12 +162,16 @@ Minimum proof before trusting a result:
 
 - runner output prints local `--lumibot-root`, intended cache bucket/prefix/version,
   and intended data source;
+- runner output prints `strategy_sha256`, git branch/SHA/dirty status, and child
+  import paths for LumiBot, `backtesting_broker.py`, and `routed_backtesting.py`;
 - child stdout does not contain `.env file loaded from:` or `.env.local file loaded from:`;
 - `*_settings.json` records the intended `backtesting_data_sources`;
-- `*_settings.json` records the expected local LumiBot version, and the separate
-  import-path proof above shows the child can import the local checkout;
+- `child_import_provenance.json` records the expected local
+  `/Users/robertgrzesik/Development/lumibot/lumibot/__init__.py` import path;
 - `metrics.json` and subprocess log are saved under the durable repo-local run
   folder, not `/tmp`;
+- `artifact_manifest.json` records the exact artifacts and copied outputs used
+  for comparison;
 - warm/cold comparisons use the same cache mode on both sides.
 
 ## NVDA example (short-window diagnostic)

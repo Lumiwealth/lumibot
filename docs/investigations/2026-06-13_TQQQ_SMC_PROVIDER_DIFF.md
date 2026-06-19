@@ -1,8 +1,8 @@
 # TQQQ SMC Provider Difference Investigation
 
 One-line description: Production artifact comparison for TQQQ Smart Money Concepts v15-v19 across BotSpot Auto/IBKR and ThetaData, with local replay limitations.
-Last Updated: 2026-06-14
-Status: Production evidence gathered and corrected local replay matrix completed
+Last Updated: 2026-06-19
+Status: Production DB history audited; local replay and fix/validation plan defined
 Audience: LumiBot, BotSpot Node, Bot Manager, and strategy support engineers
 
 ## Overview
@@ -434,3 +434,144 @@ This investigation supports three separate findings:
 4. Keep the fixes separate. A strategy revision fix may be needed to undo or
    narrow v19 mid-trend entry behavior. A LumiBot/BotSpot Auto fix may be needed
    for IBKR stop-order fill/cancel handling at after-hours hourly timestamps.
+
+## 2026-06-17 Original-Window Update
+
+Durable artifact summary:
+
+- `/Users/robertgrzesik/Development/lumibot/logs/tqqq_original_window_20260617_221608/summary.md`
+
+The original `2013-01-01` to `2026-06-05` local replay was run with the
+canonical prod-like runner, local LumiBot `4.5.52`, production data downloader,
+and `lumibot-cache-prod/prod/cache/v1`.
+
+Completed scenarios:
+
+| Scenario | Runtime | Total return | CAGR | Max DD | Stop fills | Stop cancels | No pandas bars | Queue submit requests |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| v15 ThetaData | `336.8s` | `18,495%` | `47.58%` | `-41.13%` | `24` | `72` | `0` | `17` |
+| v15 BotSpot Auto | `501.1s` | `15,577%` | `45.71%` | `-40.89%` | `28` | `71` | `0` | `12` |
+| v19 ThetaData | `385.5s` | `14,464%` | `44.92%` | `-70.36%` | `26` | `334` | `0` | `17` |
+
+The v19 BotSpot Auto original-window run was intentionally stopped locally after
+it reproduced the pathological path. It was only `0.04%` complete, at simulated
+time `2013-01-03 03:00`, and its ETA had grown to about `6 days, 21:07:45`.
+Before being stopped it had already submitted `21` adjacent-deduplicated
+downloader requests, including repeated `ibkr/iserver/marketdata/history`
+requests for TQQQ `1min` data from 2026 backward in 1000-minute chunks.
+
+The partial v19 BotSpot Auto log also showed:
+
+- `Placed STOP`: `3`
+- stop fills: `0`
+- stop cancels: `2`
+- `[FILL][PENDING]`: `4`
+- `no pandas bars`: `4`
+
+This narrows the primary BotSpot Auto issue. v19 changed from OTO child stops to
+standalone simple stops created in `on_filled_order()`. The standalone stop path
+then hits IBKR/routed execution handling that tries intraday/minute history and
+keeps canceling/replacing stops. v15 does not hit this path, which explains why
+v15 Auto remains close to v15 ThetaData while v19 Auto diverges badly.
+
+The most suspicious code path is pending-order execution cadence in
+`lumibot/backtesting/backtesting_broker.py`. v19 creates standalone `STOP`
+orders in `on_filled_order()`, and `process_pending_orders()` then calls
+`data_source.get_historical_prices()` directly for those pending orders. The
+routed provider already aligns `get_last_price()` and `get_quote()` away from
+minute data in daily stock/index mode, but this pending-order OHLC path can
+still request IBKR minute history. In the failed v19 Auto path, that is exactly
+what happened: it requested TQQQ `1min` history from 2026 backward while the
+simulation clock was still on `2013-01-03`.
+
+Current targeted plan:
+
+1. Add a stop-order lifecycle test that reproduces the v19 shape: routed IBKR
+   stock, effective daily mode, standalone stop, and no current intraday pandas
+   bar. The stop must not trigger repeated minute-history backfills or immediate
+   cancel/replace churn solely because an hourly timestamp lacks an intraday bar.
+2. Patch the smallest pending-order execution cadence path so stock/index
+   orders routed to IBKR continue to evaluate against daily bars when the run is
+   effectively daily-stock mode. Do not relax stale/future fill guards for crypto
+   or futures.
+3. Add a regression proving standalone stock/index `STOP` orders do not cause
+   routed IBKR minute full-window prefetches when daily data is already the
+   strategy cadence.
+4. Re-run a tiny original-start v19 BotSpot Auto proof first. Only after that
+   passes, re-run the full original-window v19 BotSpot Auto run and compare it
+   to v19 ThetaData.
+
+## 2026-06-19 Production DB Message Audit
+
+Read-only production DB access used `botspot_ro` through the documented local
+tunnel. No production writes were made. Relevant conversation IDs:
+
+- Original strategy conversation:
+  `779c8f3d-edd6-45d8-bf62-26b6e56a596b`
+- June marketplace / long-backtest conversation:
+  `a771ccb2-f26d-4db2-9f56-badcbe411907`
+
+The conversation history explains why the strategy moved from daily-ish behavior
+to hourly checks:
+
+- Version 8 restored the high-performing Version 5-style TQQQ SMC logic for
+  `2016-01-21` to `2026-04-16`.
+- Version 9 removed `set_market("24/5")` and kept `sleeptime="1D"` because Rob
+  explicitly objected to hourly trading.
+- Version 10 restored `24/5` and changed to `sleeptime="1H"` after the agent
+  argued the backtest/live behavior depended on after-hours / overnight close
+  handling. The assistant claimed this was a "1-hour safety timer" because the
+  strategy still used daily bars.
+- Version 11 added startup sync because the live bot started mid-trend and did
+  not buy immediately.
+- Version 12 added a daily date gate because the hourly checks were recalculating
+  daily-bar logic repeatedly and making the backtest crawl / whipsaw.
+- Version 14 was presented as the high-performing fixed version: `45.32%` CAGR,
+  `-40.89%` max drawdown, hourly checks with calendar gating, startup sync, and
+  `24/5`.
+- Version 15 changed only the live order class from bracket to OTO so Alpaca
+  would accept a stop-loss-only protective order.
+- Version 16 changed from OTO to broker-agnostic simple sequential stops via
+  `on_filled_order`.
+- Versions 17/18 deliberately removed daily gating and reverted entry logic
+  toward Version 10/fresh-signal behavior.
+- Version 19 deliberately restored startup sync while keeping simple sequential
+  stops and daily gating removed.
+
+Important correction from the DB audit: v19's hourly / no daily-gate behavior was
+intentional in the strategy revision trail, but it was introduced as a strategy
+attempt to recover Version 10-like behavior while keeping broker-compatible
+simple orders. That does not make the current LumiBot stop-order behavior
+correct. It means the LumiBot fix must support this legitimate strategy shape:
+
+- hourly backtest cadence,
+- stock/index data routed to IBKR by BotSpot Auto,
+- strategy logic based on daily bars,
+- standalone simple stop orders created from `on_filled_order`,
+- no fallback to stale/future intraday bars.
+
+The June conversation confirms the original stuck backtest:
+
+- Revision: v19 `daf149d3-314e-47e4-a611-7a5499cc25a4`
+- Backtest: `e45351dd-da46-4c61-9204-bd9394b569be`
+- Requested window: `2013-01-01` to `2026-06-05`
+- Provider: `botspot_auto`
+
+### Accuracy Acceptance Direction
+
+Speed alone is not sufficient, and provider parity alone is not sufficient.
+ThetaData can be wrong too. The final validation needs a trade audit matrix:
+
+1. Prove local runner provenance for every run: local `lumibot.__file__`, git SHA,
+   dirty status, strategy code hash, provider string, cache bucket/prefix/version,
+   and artifact paths.
+2. Fix the v19 BotSpot Auto pathological stop/minute-fetch path, then prove the
+   same short window no longer requests repeated TQQQ `1min` full-window history
+   from 2026 while sim time is in 2013.
+3. Run full-window v15/v19 across ThetaData and BotSpot Auto, then compare
+   summary metrics, order counts, stop fills/cancels, cash events, and first
+   divergent trade timestamps.
+4. For meaningful divergences, inspect the provider bars and the order lifecycle
+   around the trade. Decide which provider/path is more plausible from bar OHLC,
+   timestamp alignment, split/dividend handling, after-hours handling, and
+   backtester fill rules. Do not assume ThetaData is the source of truth.

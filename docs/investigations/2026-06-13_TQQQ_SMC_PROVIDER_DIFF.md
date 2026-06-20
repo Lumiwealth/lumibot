@@ -884,3 +884,84 @@ ThetaData can be wrong too. The final validation needs a trade audit matrix:
    around the trade. Decide which provider/path is more plausible from bar OHLC,
    timestamp alignment, split/dividend handling, after-hours handling, and
    backtester fill rules. Do not assume ThetaData is the source of truth.
+
+## 2026-06-19 v20 Strategy Candidate Validation
+
+After the LumiBot pending-fill fix was validated, the remaining large
+performance/drawdown problem was not provider speed. It was v19 strategy
+behavior. v19 intentionally removed daily gating and restored startup sync while
+also using standalone simple stop orders. That combination allowed a repeated
+same-daily-bar stop/re-entry loop during the September 2020 drawdown branch.
+
+The v20 candidate keeps the v19 simple-order stop flow, but adds durable
+daily-signal-bar lockouts:
+
+- stop/exit fills record the daily signal bar,
+- flat entries are blocked on the same daily bar after an exit or stop fill,
+- startup sync is allowed once per run,
+- fresh Bullish CHoCH/BOS entries remain allowed on later daily bars.
+
+This is a strategy fix, not a LumiBot provider fallback. It does not change
+provider routing and does not rely on ThetaData being the source of truth.
+
+Validated candidate:
+
+- Local strategy file:
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_strategy_candidates_20260619/code/v20_daily_lockout_main.py`
+- Local and BotSpot content hash:
+  `599f0529f0635d2fcb4fc215120a1c0e3cc42640c8d2e8721e264a9c55587849`
+- Base revision: v19 `daf149d3-314e-47e4-a611-7a5499cc25a4`
+- Saved BotSpot revision: v20 `275934ae-b2b0-4585-9c26-b52d63c25fb4`
+- LumiBot commit used for local validation: `0d337d7f`
+- Audit summary:
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_strategy_candidates_20260619/audit/v20_daily_lockout_audit.md`
+
+Full-window run matrix for `2013-01-01` to `2026-06-05`:
+
+| Scenario | Runtime | Total return | CAGR | Max DD | Buy fills | Stop fills | Queue submits | TQQQ 1min | No pandas bars |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| v15 Auto/IBKR | `58.8s` | `15,967%` | `45.98%` | `-40.89%` | `191` | `28` | `0` | `0` | `0` |
+| v15 ThetaData | `175.7s` | `18,481%` | `47.57%` | `-41.13%` | `181` | `24` | `2` | `0` | `0` |
+| v19 Auto/IBKR | `140.0s` | `11,817%` | `42.77%` | `-70.78%` | `354` | `34` | `0` | `0` | `0` |
+| v19 ThetaData | `256.7s` | `14,452%` | `44.91%` | `-70.36%` | `342` | `26` | `0` | `0` | `0` |
+| v20 Auto/IBKR | `143.9s` | `34,852%` | `54.68%` | `-28.85%` | `324` | `12` | `0` | `0` | `0` |
+| v20 ThetaData | `278.2s` | `31,952%` | `53.69%` | `-28.93%` | `315` | `9` | `0` | `0` | `0` |
+
+The v20 provider comparison is now in the same family. Auto/IBKR and ThetaData
+still do not match tick-for-tick, but they agree on the important question:
+the v19 70% drawdown branch disappears when same-daily-bar re-entry is blocked.
+The remaining provider spread is small enough to audit trade-by-trade instead
+of being a proof of a provider-routing failure.
+
+September 2020 branch evidence:
+
+- v19 Auto/IBKR and v19 ThetaData each produced `48` trade rows between
+  `2020-09-03` and `2020-09-05`, including `9` buy fills and `9` stop fills.
+- v20 Auto/IBKR and v20 ThetaData each produced only `3` trade rows in that
+  window: the September 3 exit/cancel lifecycle and no September 4 re-entry /
+  stop cascade.
+- v20 Auto/IBKR logged `1` startup-sync entry, `82` fresh-signal entries, and
+  `1201` blocked entries.
+- v20 ThetaData logged `1` startup-sync entry, `80` fresh-signal entries, and
+  `1909` blocked entries.
+
+The validated full-window v20 runs used local LumiBot source:
+`/Users/robertgrzesik/Development/lumibot/lumibot/__init__.py`. The artifact
+manifests record the imported `backtesting_broker.py`, imported
+`routed_backtesting.py`, provider string, strategy hash, cache
+bucket/prefix/version/mode, copied artifacts, branch/SHA, and dirty status.
+
+Primary artifacts:
+
+- v20 Auto/IBKR run:
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_strategy_candidates_20260619/runs/v20_auto_original`
+- v20 ThetaData run:
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_strategy_candidates_20260619/runs/v20_theta_original`
+- Trade/audit matrix:
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_strategy_candidates_20260619/audit/v15_v19_v20_matrix_summary.csv`
+
+Remaining caution: a short isolated 2020 Auto smoke on a cold local cache was
+stopped because it repeatedly redownloaded the same IBKR daily history window.
+That did not reproduce the old TQQQ `1min` pending-fill loop and did not affect
+the full-window warm-cache validation, but it is still worth tracking separately
+as a cold-cache / short-window downloader efficiency issue.

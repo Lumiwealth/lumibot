@@ -709,10 +709,10 @@ IBKR backtesting uses the shared Data Downloader and is cached locally (and opti
   export BACKTESTING_DATA_SOURCE='{"default":"thetadata","stock":"thetadata","option":"thetadata","index":"thetadata","future":"ibkr","cont_future":"ibkr","crypto":"ibkr","crypto_future":"ibkr"}'
   ```
   - You can also route crypto to documented CCXT backtesting paths by using either:
-    - `{"crypto":"ccxt"}` (auto-select exchange from existing env/credentials), or
-    - a supported CCXT backtesting exchange id directly, e.g. `{"crypto":"kraken"}` or `{"crypto":"binance"}`.
+    - `{"crypto":"ccxt"}` (auto-select exchange from existing env/credentials; defaults to Coinbase when no exchange credential/config is available), or
+    - a supported CCXT backtesting exchange id directly, e.g. `{"crypto":"coinbase"}`.
 
-For `Asset.AssetType.CRYPTO_FUTURE`, routed backtesting fetches spot crypto history as the price source while storing bars against the original futures asset. USDT contracts such as `BTCUSDT`, `ETHUSDT`, and `SOLUSDT` use the USD spot proxy (`BTC/USD`, `ETH/USD`, `SOL/USD`) and log the proxy mapping.
+For `Asset.AssetType.CRYPTO_FUTURE`, routed backtesting fetches spot crypto history as the price source while storing bars against the original futures asset. Quote assets are preserved exactly. USDT contracts such as `BTCUSDT`, `ETHUSDT`, and `SOLUSDT` use `BTC/USDT`, `ETH/USDT`, and `SOL/USDT`; if the exact pair has no provider data, LumiBot treats that as missing data instead of silently falling back to USD.
 
 #### Crypto daily bars (important semantics)
 

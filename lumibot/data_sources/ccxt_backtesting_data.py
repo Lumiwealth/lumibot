@@ -24,6 +24,7 @@ class CcxtBacktestingData(DataSourceBacktesting):
     MIN_TIMESTEP = "day"
     TIMESTEP_MAPPING = [
         {"timestep": "minute", "representations": ["1m"]},
+        {"timestep": "hour", "representations": ["1h"]},
         {"timestep": "day", "representations": ["1d"]},
     ]
 
@@ -81,7 +82,7 @@ class CcxtBacktestingData(DataSourceBacktesting):
             asset (tuple[Asset,Asset]): base asset and quote asset
                                         ex) (Asset(symbol="SOL",asset_type="crypto"),Asset(symbol="USDT",asset_type="crypto"))
             length (int, optional): Number of data to import. Defaults to None.
-            timestep (str, optional): "day", "minute". Defaults to "minute".
+            timestep (str, optional): "day", "hour", "minute". Defaults to "minute".
             timeshift (int, optional): The amount of shift for a given datetime. Defaults to None.
             quote (Asset, optional): quote asset. Defaults to Asset.
             exchange (Any, optional): exchange. Defaults to None.
@@ -153,6 +154,8 @@ class CcxtBacktestingData(DataSourceBacktesting):
 
             if parsed_timestep == "1d":
                 start_dt = start_dt - timedelta(days=self._download_start_dt_prebuffer)
+            elif parsed_timestep == "1h":
+                start_dt = start_dt - timedelta(hours=self._download_start_dt_prebuffer)
             else:
                 start_dt = start_dt - timedelta(minutes=self._download_start_dt_prebuffer)
 
@@ -162,8 +165,9 @@ class CcxtBacktestingData(DataSourceBacktesting):
                 end_dt
             )
 
-            data.index = data.index.tz_localize("UTC")
-            data.index = data.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+            if data is not None and not data.empty:
+                data.index = data.index.tz_localize("UTC")
+                data.index = data.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
             result[symbol] = data
 
         return result

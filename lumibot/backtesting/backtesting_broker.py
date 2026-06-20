@@ -2412,6 +2412,12 @@ class BacktestingBroker(Broker):
                     # Quote was available but did not satisfy fill conditions; keep the order open
                     # and retry on the next bar without forcing an OHLC download.
                     if bid is not None and ask is not None:
+                        if self._cancel_unfilled_immediate_time_in_force(
+                            order,
+                            f"quote bid/ask did not satisfy {order.order_type} at {self.datetime}",
+                            strategy=strategy,
+                        ):
+                            continue
                         continue
 
             #############################
@@ -2424,7 +2430,11 @@ class BacktestingBroker(Broker):
                 # passing -1 minute yields an effective +1 minute guard that keeps us on the previously
                 # completed bar. See tests/*_lookahead for regression coverage.
                 timeshift = timedelta(minutes=-1)
-                if data_source_name in {"DATABENTO", "DATABENTO_POLARS"}:
+                if data_source_name == "CCXT":
+                    # Crypto candles can be legitimately sparse. Do not look ahead to the
+                    # next provider candle and record the fill at the older sim timestamp.
+                    timeshift = None
+                elif data_source_name in {"DATABENTO", "DATABENTO_POLARS"}:
                     # DataBento feeds can skip minutes around maintenance windows. Giving it a two-minute
                     # cushion mirrors the legacy Polygon behaviour and avoids falling through gaps.
                     timeshift = timedelta(minutes=-2)
@@ -2480,6 +2490,15 @@ class BacktestingBroker(Broker):
                     low = ohlc.df['low'][-1]
                     close = ohlc.df['close'][-1]
                     volume = ohlc.df['volume'][-1]
+
+                if self._requires_current_execution_bar(order, str(order_fill_timestep), data_source_name):
+                    if not self._execution_bar_matches_datetime(dt, self.datetime, str(order_fill_timestep)):
+                        self._handle_unavailable_execution_data(
+                            order,
+                            f"selected {order_fill_timestep} bar {dt} does not match current sim dt {self.datetime}",
+                            strategy=strategy,
+                        )
+                        continue
 
             # Get the OHLCV data for the asset if we're using a Pandas-backed data source.
             #
@@ -3163,6 +3182,12 @@ class BacktestingBroker(Broker):
                     strategy=strategy,
                 )
             else:
+                if self._cancel_unfilled_immediate_time_in_force(
+                    order,
+                    f"{order.order_type} did not execute on current bar at {self.datetime}",
+                    strategy=strategy,
+                ):
+                    continue
                 if strategy is not None:
                     display_symbol = getattr(order.asset, "symbol", order.asset)
                     order_identifier = getattr(order, "identifier", None)
@@ -3306,11 +3331,14 @@ class BacktestingBroker(Broker):
         source = getattr(self, "data_source", None)
         source_name = data_source_name or str(getattr(source, "SOURCE", "") or "").upper()
         source_class_name = source.__class__.__name__ if source is not None else ""
-        if source_name == "INTERACTIVEBROKERSREST" or source_class_name == "InteractiveBrokersRESTBacktesting":
+        if source_name in {"INTERACTIVEBROKERSREST", "CCXT"} or source_class_name in {
+            "InteractiveBrokersRESTBacktesting",
+            "CcxtBacktestingData",
+        }:
             return True
 
         asset = getattr(order, "asset", None) if order is not None else None
-        return self._resolve_provider_key_for_asset(asset) == "ibkr"
+        return self._resolve_provider_key_for_asset(asset) in {"ibkr", "ccxt"}
 
     def _defer_market_order_with_unavailable_execution_data(
         self,
@@ -3356,6 +3384,31 @@ class BacktestingBroker(Broker):
                 pass
         return left.date() == right.date()
 
+    def _order_uses_crypto_utc_day(self, order: Optional[Order]) -> bool:
+        if order is None:
+            return False
+        for candidate in (getattr(order, "asset", None), getattr(order, "quote", None)):
+            asset_type = self._normalize_asset_type(getattr(candidate, "asset_type", ""))
+            if asset_type in {"crypto", "crypto_future"}:
+                return True
+        return False
+
+    def _timestamps_same_order_date(self, left: pd.Timestamp, right: pd.Timestamp, order: Optional[Order]) -> bool:
+        if not self._order_uses_crypto_utc_day(order):
+            return self._timestamps_same_date(left, right)
+        try:
+            if left.tzinfo is None:
+                left = left.tz_localize("UTC")
+            else:
+                left = left.tz_convert("UTC")
+            if right.tzinfo is None:
+                right = right.tz_localize("UTC")
+            else:
+                right = right.tz_convert("UTC")
+        except Exception:
+            pass
+        return left.date() == right.date()
+
     def _order_time_in_force_elapsed(
         self,
         order: Optional[Order],
@@ -3380,7 +3433,7 @@ class BacktestingBroker(Broker):
 
         if tif in {"day", "good_for_day", "gfd"}:
             created_at = self._coerce_order_datetime(getattr(order, "_date_created", None)) or now
-            if not self._timestamps_same_date(created_at, now):
+            if not self._timestamps_same_order_date(created_at, now, order):
                 return True
             if not include_session_close:
                 return False
@@ -3496,6 +3549,40 @@ class BacktestingBroker(Broker):
                 )
             except Exception:
                 pass
+        return True
+
+    def _cancel_unfilled_immediate_time_in_force(
+        self,
+        order: Optional[Order],
+        reason: str,
+        strategy=None,
+    ) -> bool:
+        """Cancel IOC/FOK orders that reached a current quote/bar but did not execute."""
+        if order is None:
+            return False
+        tif = self._normalize_time_in_force(order)
+        if tif not in {"ioc", "immediate_or_cancel", "fok", "fill_or_kill"}:
+            return False
+
+        symbol = getattr(getattr(order, "asset", None), "symbol", getattr(order, "asset", "<unknown>"))
+        identifier = getattr(order, "identifier", getattr(order, "id", "<unknown>"))
+        logger.warning(
+            "[FILL][CANCEL] Canceling unfilled %s order %s %s at %s. reason=%s",
+            tif,
+            symbol,
+            identifier,
+            self.datetime,
+            reason,
+        )
+        if strategy is not None:
+            try:
+                strategy.log_message(
+                    f"[FILL][CANCEL] Order {identifier} for {symbol} canceled ({tif}): {reason}",
+                    color="yellow",
+                )
+            except Exception:
+                pass
+        self.cancel_order(order)
         return True
 
     def _quote_source_timestamp(self, quote) -> Optional[Any]:

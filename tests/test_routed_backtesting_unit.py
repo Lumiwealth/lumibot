@@ -52,7 +52,7 @@ def test_router_routes_crypto_to_ibkr(monkeypatch):
     assert ds._data_store
 
 
-def test_router_routes_crypto_future_to_spot_usd_proxy(monkeypatch):
+def test_router_routes_crypto_future_to_exact_quote_spot_proxy(monkeypatch):
     import lumibot.tools.thetadata_helper as thetadata_helper
     import lumibot.tools.ibkr_helper as ibkr_helper
     import lumibot.backtesting.routed_backtesting as routed_backtesting
@@ -96,12 +96,13 @@ def test_router_routes_crypto_future_to_spot_usd_proxy(monkeypatch):
     ds._update_pandas_data(perp, quote, length=2, timestep="minute", start_dt=datetime(2025, 1, 2, tzinfo=timezone.utc))
 
     assert captured["asset"] == Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
-    assert captured["quote"] == Asset("USD", asset_type=Asset.AssetType.FOREX)
+    assert captured["quote"] == Asset("USDT", asset_type=Asset.AssetType.CRYPTO)
     assert (perp, quote, "minute") in ds._data_store
     stored = ds._data_store[(perp, quote, "minute")]
     assert stored.asset == perp
     assert stored.quote == quote
-    assert any("USDT mapped to USD spot" in message for message in log_messages)
+    assert any("Using BTC/USDT spot proxy" in message for message in log_messages)
+    assert not any("mapped to USD" in message for message in log_messages)
 
 
 def test_router_accepts_futures_key_alias(monkeypatch):

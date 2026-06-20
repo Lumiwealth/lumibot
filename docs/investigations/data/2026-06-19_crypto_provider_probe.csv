@@ -1,0 +1,133 @@
+provider,pair,timeframe,window,expected,rows,unique_times,missing_expected,extra_times,coverage_pct,first,last,elapsed_s,requests,status,notes
+coinbase,BTC/USD,1m,2016-06-18,1440,1425,1425,15,0,98.9583,2016-06-18T00:00:00+00:00,2016-06-18T23:59:00+00:00,1.227,5,ok,
+coinbase,BTC/USD,1h,2016-06-18,24,24,24,0,0,100.0,2016-06-18T00:00:00+00:00,2016-06-18T23:00:00+00:00,0.223,1,ok,
+coinbase,BTC/USD,1d,2016-06-18,1,1,1,0,0,100.0,2016-06-18T00:00:00+00:00,2016-06-18T00:00:00+00:00,0.203,1,ok,
+coinbase,BTC/USD,1m,2020-01-01,1440,1440,1440,0,0,100.0,2020-01-01T00:00:00+00:00,2020-01-01T23:59:00+00:00,1.482,5,ok,
+coinbase,BTC/USD,1h,2020-01-01,24,24,24,0,0,100.0,2020-01-01T00:00:00+00:00,2020-01-01T23:00:00+00:00,0.284,1,ok,
+coinbase,BTC/USD,1d,2020-01-01,1,1,1,0,0,100.0,2020-01-01T00:00:00+00:00,2020-01-01T00:00:00+00:00,0.232,1,ok,
+coinbase,BTC/USD,1m,2024-01-01,1440,1440,1440,0,0,100.0,2024-01-01T00:00:00+00:00,2024-01-01T23:59:00+00:00,1.267,5,ok,
+coinbase,BTC/USD,1h,2024-01-01,24,24,24,0,0,100.0,2024-01-01T00:00:00+00:00,2024-01-01T23:00:00+00:00,0.23,1,ok,
+coinbase,BTC/USD,1d,2024-01-01,1,1,1,0,0,100.0,2024-01-01T00:00:00+00:00,2024-01-01T00:00:00+00:00,0.321,1,ok,
+coinbase,BTC/USD,1m,2026-06-18,1440,1440,1440,0,0,100.0,2026-06-18T00:00:00+00:00,2026-06-18T23:59:00+00:00,1.191,5,ok,
+coinbase,BTC/USD,1h,2026-06-18,24,24,24,0,0,100.0,2026-06-18T00:00:00+00:00,2026-06-18T23:00:00+00:00,0.194,1,ok,
+coinbase,BTC/USD,1d,2026-06-18,1,1,1,0,0,100.0,2026-06-18T00:00:00+00:00,2026-06-18T00:00:00+00:00,0.257,1,ok,
+coinbase,BTC/USD,1d,2016-01-01_to_2026-06-18,3822,3822,3822,0,0,100.0,2016-01-01T00:00:00+00:00,2026-06-18T00:00:00+00:00,3.289,13,ok,
+coinbase,BTC/USDT,1m,2016-06-18,1440,0,0,1440,0,0.0,,,1.1,5,ok,
+coinbase,BTC/USDT,1h,2016-06-18,24,0,0,24,0,0.0,,,0.196,1,ok,
+coinbase,BTC/USDT,1d,2016-06-18,1,0,0,1,0,0.0,,,0.247,1,ok,
+coinbase,BTC/USDT,1m,2020-01-01,1440,0,0,1440,0,0.0,,,1.16,5,ok,
+coinbase,BTC/USDT,1h,2020-01-01,24,0,0,24,0,0.0,,,0.205,1,ok,
+coinbase,BTC/USDT,1d,2020-01-01,1,0,0,1,0,0.0,,,0.221,1,ok,
+coinbase,BTC/USDT,1m,2024-01-01,1440,892,892,548,0,61.9444,2024-01-01T00:00:00+00:00,2024-01-01T23:59:00+00:00,1.179,5,ok,
+coinbase,BTC/USDT,1h,2024-01-01,24,24,24,0,0,100.0,2024-01-01T00:00:00+00:00,2024-01-01T23:00:00+00:00,0.188,1,ok,
+coinbase,BTC/USDT,1d,2024-01-01,1,1,1,0,0,100.0,2024-01-01T00:00:00+00:00,2024-01-01T00:00:00+00:00,0.199,1,ok,
+coinbase,BTC/USDT,1m,2026-06-18,1440,874,874,566,0,60.6944,2026-06-18T00:00:00+00:00,2026-06-18T23:57:00+00:00,1.137,5,ok,
+coinbase,BTC/USDT,1h,2026-06-18,24,24,24,0,0,100.0,2026-06-18T00:00:00+00:00,2026-06-18T23:00:00+00:00,0.193,1,ok,
+coinbase,BTC/USDT,1d,2026-06-18,1,1,1,0,0,100.0,2026-06-18T00:00:00+00:00,2026-06-18T00:00:00+00:00,0.207,1,ok,
+coinbase,BTC/USDT,1d,2016-01-01_to_2026-06-18,3822,1872,1872,1950,0,48.9796,2021-05-04T00:00:00+00:00,2026-06-18T00:00:00+00:00,2.898,13,ok,
+coinbase,BTC/EUR,1m,2016-06-18,1440,743,743,697,0,51.5972,2016-06-18T00:01:00+00:00,2016-06-18T23:52:00+00:00,1.007,5,ok,
+coinbase,BTC/EUR,1h,2016-06-18,24,24,24,0,0,100.0,2016-06-18T00:00:00+00:00,2016-06-18T23:00:00+00:00,0.202,1,ok,
+coinbase,BTC/EUR,1d,2016-06-18,1,1,1,0,0,100.0,2016-06-18T00:00:00+00:00,2016-06-18T00:00:00+00:00,0.186,1,ok,
+coinbase,BTC/EUR,1m,2020-01-01,1440,1311,1311,129,0,91.0417,2020-01-01T00:00:00+00:00,2020-01-01T23:59:00+00:00,2.223,5,ok,
+coinbase,BTC/EUR,1h,2020-01-01,24,24,24,0,0,100.0,2020-01-01T00:00:00+00:00,2020-01-01T23:00:00+00:00,0.221,1,ok,
+coinbase,BTC/EUR,1d,2020-01-01,1,1,1,0,0,100.0,2020-01-01T00:00:00+00:00,2020-01-01T00:00:00+00:00,0.212,1,ok,
+coinbase,BTC/EUR,1m,2024-01-01,1440,1387,1387,53,0,96.3194,2024-01-01T00:00:00+00:00,2024-01-01T23:59:00+00:00,1.247,5,ok,
+coinbase,BTC/EUR,1h,2024-01-01,24,24,24,0,0,100.0,2024-01-01T00:00:00+00:00,2024-01-01T23:00:00+00:00,0.204,1,ok,
+coinbase,BTC/EUR,1d,2024-01-01,1,1,1,0,0,100.0,2024-01-01T00:00:00+00:00,2024-01-01T00:00:00+00:00,0.224,1,ok,
+coinbase,BTC/EUR,1m,2026-06-18,1440,1403,1403,37,0,97.4306,2026-06-18T00:00:00+00:00,2026-06-18T23:59:00+00:00,1.126,5,ok,
+coinbase,BTC/EUR,1h,2026-06-18,24,24,24,0,0,100.0,2026-06-18T00:00:00+00:00,2026-06-18T23:00:00+00:00,0.192,1,ok,
+coinbase,BTC/EUR,1d,2026-06-18,1,1,1,0,0,100.0,2026-06-18T00:00:00+00:00,2026-06-18T00:00:00+00:00,0.266,1,ok,
+coinbase,BTC/EUR,1d,2016-01-01_to_2026-06-18,3822,3821,3821,1,0,99.9738,2016-01-01T00:00:00+00:00,2026-06-18T00:00:00+00:00,2.985,13,ok,
+binanceus,BTC/USD,1m,2016-06-18,1440,0,0,1440,0,0.0,,,0.173,1,ok,
+binanceus,BTC/USD,1h,2016-06-18,24,0,0,24,0,0.0,,,0.185,1,ok,
+binanceus,BTC/USD,1d,2016-06-18,1,0,0,1,0,0.0,,,0.175,1,ok,
+binanceus,BTC/USD,1m,2020-01-01,1440,1440,1440,0,0,100.0,2020-01-01T00:00:00+00:00,2020-01-01T23:59:00+00:00,0.537,2,ok,
+binanceus,BTC/USD,1h,2020-01-01,24,24,24,0,0,100.0,2020-01-01T00:00:00+00:00,2020-01-01T23:00:00+00:00,0.198,1,ok,
+binanceus,BTC/USD,1d,2020-01-01,1,1,1,0,0,100.0,2020-01-01T00:00:00+00:00,2020-01-01T00:00:00+00:00,0.211,1,ok,
+binanceus,BTC/USD,1m,2024-01-01,1440,0,0,1440,0,0.0,,,0.19,1,ok,
+binanceus,BTC/USD,1h,2024-01-01,24,0,0,24,0,0.0,,,0.208,1,ok,
+binanceus,BTC/USD,1d,2024-01-01,1,0,0,1,0,0.0,,,0.189,1,ok,
+binanceus,BTC/USD,1m,2026-06-18,1440,1440,1440,0,0,100.0,2026-06-18T00:00:00+00:00,2026-06-18T23:59:00+00:00,0.622,2,ok,
+binanceus,BTC/USD,1h,2026-06-18,24,24,24,0,0,100.0,2026-06-18T00:00:00+00:00,2026-06-18T23:00:00+00:00,0.19,1,ok,
+binanceus,BTC/USD,1d,2026-06-18,1,1,1,0,0,100.0,2026-06-18T00:00:00+00:00,2026-06-18T00:00:00+00:00,0.197,1,ok,
+binanceus,BTC/USD,1d,2016-01-01_to_2026-06-18,3822,1882,1882,1940,0,49.2412,2019-09-17T00:00:00+00:00,2026-06-18T00:00:00+00:00,0.651,2,ok,
+binanceus,BTC/USDT,1m,2016-06-18,1440,0,0,1440,0,0.0,,,0.203,1,ok,
+binanceus,BTC/USDT,1h,2016-06-18,24,0,0,24,0,0.0,,,0.218,1,ok,
+binanceus,BTC/USDT,1d,2016-06-18,1,0,0,1,0,0.0,,,0.167,1,ok,
+binanceus,BTC/USDT,1m,2020-01-01,1440,1440,1440,0,0,100.0,2020-01-01T00:00:00+00:00,2020-01-01T23:59:00+00:00,0.814,2,ok,
+binanceus,BTC/USDT,1h,2020-01-01,24,24,24,0,0,100.0,2020-01-01T00:00:00+00:00,2020-01-01T23:00:00+00:00,0.481,1,ok,
+binanceus,BTC/USDT,1d,2020-01-01,1,1,1,0,0,100.0,2020-01-01T00:00:00+00:00,2020-01-01T00:00:00+00:00,0.328,1,ok,
+binanceus,BTC/USDT,1m,2024-01-01,1440,1440,1440,0,0,100.0,2024-01-01T00:00:00+00:00,2024-01-01T23:59:00+00:00,0.931,2,ok,
+binanceus,BTC/USDT,1h,2024-01-01,24,24,24,0,0,100.0,2024-01-01T00:00:00+00:00,2024-01-01T23:00:00+00:00,0.31,1,ok,
+binanceus,BTC/USDT,1d,2024-01-01,1,1,1,0,0,100.0,2024-01-01T00:00:00+00:00,2024-01-01T00:00:00+00:00,0.255,1,ok,
+binanceus,BTC/USDT,1m,2026-06-18,1440,1440,1440,0,0,100.0,2026-06-18T00:00:00+00:00,2026-06-18T23:59:00+00:00,0.583,2,ok,
+binanceus,BTC/USDT,1h,2026-06-18,24,24,24,0,0,100.0,2026-06-18T00:00:00+00:00,2026-06-18T23:00:00+00:00,0.2,1,ok,
+binanceus,BTC/USDT,1d,2026-06-18,1,1,1,0,0,100.0,2026-06-18T00:00:00+00:00,2026-06-18T00:00:00+00:00,0.2,1,ok,
+binanceus,BTC/USDT,1d,2016-01-01_to_2026-06-18,3822,2461,2461,1361,0,64.3904,2019-09-23T00:00:00+00:00,2026-06-18T00:00:00+00:00,0.998,3,ok,
+binanceus,BTC/EUR,1m,2016-06-18,1440,0,0,1440,0,0.0,,,0.206,1,<HTTPError 400: 'Bad Request'>,
+binanceus,BTC/EUR,1h,2016-06-18,24,0,0,24,0,0.0,,,0.196,1,<HTTPError 400: 'Bad Request'>,
+binanceus,BTC/EUR,1d,2016-06-18,1,0,0,1,0,0.0,,,0.208,1,<HTTPError 400: 'Bad Request'>,
+binanceus,BTC/EUR,1m,2020-01-01,1440,0,0,1440,0,0.0,,,0.18,1,<HTTPError 400: 'Bad Request'>,
+binanceus,BTC/EUR,1h,2020-01-01,24,0,0,24,0,0.0,,,0.164,1,<HTTPError 400: 'Bad Request'>,
+binanceus,BTC/EUR,1d,2020-01-01,1,0,0,1,0,0.0,,,0.169,1,<HTTPError 400: 'Bad Request'>,
+binanceus,BTC/EUR,1m,2024-01-01,1440,0,0,1440,0,0.0,,,0.162,1,<HTTPError 400: 'Bad Request'>,
+binanceus,BTC/EUR,1h,2024-01-01,24,0,0,24,0,0.0,,,0.183,1,<HTTPError 400: 'Bad Request'>,
+binanceus,BTC/EUR,1d,2024-01-01,1,0,0,1,0,0.0,,,0.16,1,<HTTPError 400: 'Bad Request'>,
+binanceus,BTC/EUR,1m,2026-06-18,1440,0,0,1440,0,0.0,,,0.161,1,<HTTPError 400: 'Bad Request'>,
+binanceus,BTC/EUR,1h,2026-06-18,24,0,0,24,0,0.0,,,0.171,1,<HTTPError 400: 'Bad Request'>,
+binanceus,BTC/EUR,1d,2026-06-18,1,0,0,1,0,0.0,,,0.159,1,<HTTPError 400: 'Bad Request'>,
+binanceus,BTC/EUR,1d,2016-01-01_to_2026-06-18,3822,0,0,3822,0,0.0,,,0.217,1,<HTTPError 400: 'Bad Request'>,
+kraken_rest_ohlc,BTC/USD,1m,2016-06-18,1440,721,721,1440,721,0.0,2026-06-19T11:15:00+00:00,2026-06-19T23:15:00+00:00,0.307,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/USD,1h,2016-06-18,24,721,721,24,721,0.0,2026-05-20T23:00:00+00:00,2026-06-19T23:00:00+00:00,0.297,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/USD,1d,2016-06-18,1,721,721,1,721,0.0,2024-06-29T00:00:00+00:00,2026-06-19T00:00:00+00:00,0.331,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/USD,1m,2020-01-01,1440,721,721,1440,721,0.0,2026-06-19T11:15:00+00:00,2026-06-19T23:15:00+00:00,0.297,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/USD,1h,2020-01-01,24,721,721,24,721,0.0,2026-05-20T23:00:00+00:00,2026-06-19T23:00:00+00:00,0.301,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/USD,1d,2020-01-01,1,721,721,1,721,0.0,2024-06-29T00:00:00+00:00,2026-06-19T00:00:00+00:00,0.335,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/USD,1m,2024-01-01,1440,721,721,1440,721,0.0,2026-06-19T11:15:00+00:00,2026-06-19T23:15:00+00:00,0.278,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/USD,1h,2024-01-01,24,721,721,24,721,0.0,2026-05-20T23:00:00+00:00,2026-06-19T23:00:00+00:00,0.308,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/USD,1d,2024-01-01,1,721,721,1,721,0.0,2024-06-29T00:00:00+00:00,2026-06-19T00:00:00+00:00,0.317,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/USD,1m,2026-06-18,1440,0,0,1440,0,0.0,,,0.272,1,errors=['EGeneral:Too many requests'],REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/USD,1h,2026-06-18,24,0,0,24,0,0.0,,,0.274,1,errors=['EGeneral:Too many requests'],REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/USD,1d,2026-06-18,1,0,0,1,0,0.0,,,0.266,1,errors=['EGeneral:Too many requests'],REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/USDT,1m,2016-06-18,1440,721,721,1440,721,0.0,2026-06-19T11:15:00+00:00,2026-06-19T23:15:00+00:00,0.284,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/USDT,1h,2016-06-18,24,721,721,24,721,0.0,2026-05-20T23:00:00+00:00,2026-06-19T23:00:00+00:00,0.303,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/USDT,1d,2016-06-18,1,721,721,1,721,0.0,2024-06-29T00:00:00+00:00,2026-06-19T00:00:00+00:00,0.297,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/USDT,1m,2020-01-01,1440,721,721,1440,721,0.0,2026-06-19T11:15:00+00:00,2026-06-19T23:15:00+00:00,0.283,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/USDT,1h,2020-01-01,24,721,721,24,721,0.0,2026-05-20T23:00:00+00:00,2026-06-19T23:00:00+00:00,0.306,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/USDT,1d,2020-01-01,1,721,721,1,721,0.0,2024-06-29T00:00:00+00:00,2026-06-19T00:00:00+00:00,0.3,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/USDT,1m,2024-01-01,1440,721,721,1440,721,0.0,2026-06-19T11:15:00+00:00,2026-06-19T23:15:00+00:00,0.306,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/USDT,1h,2024-01-01,24,721,721,24,721,0.0,2026-05-20T23:00:00+00:00,2026-06-19T23:00:00+00:00,0.298,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/USDT,1d,2024-01-01,1,721,721,1,721,0.0,2024-06-29T00:00:00+00:00,2026-06-19T00:00:00+00:00,0.311,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/USDT,1m,2026-06-18,1440,0,0,1440,0,0.0,,,0.263,1,errors=['EGeneral:Too many requests'],REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/USDT,1h,2026-06-18,24,0,0,24,0,0.0,,,0.279,1,errors=['EGeneral:Too many requests'],REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/USDT,1d,2026-06-18,1,0,0,1,0,0.0,,,0.289,1,errors=['EGeneral:Too many requests'],REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/EUR,1m,2016-06-18,1440,721,721,1440,721,0.0,2026-06-19T11:15:00+00:00,2026-06-19T23:15:00+00:00,0.3,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/EUR,1h,2016-06-18,24,721,721,24,721,0.0,2026-05-20T23:00:00+00:00,2026-06-19T23:00:00+00:00,0.322,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/EUR,1d,2016-06-18,1,721,721,1,721,0.0,2024-06-29T00:00:00+00:00,2026-06-19T00:00:00+00:00,0.303,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/EUR,1m,2020-01-01,1440,721,721,1440,721,0.0,2026-06-19T11:15:00+00:00,2026-06-19T23:15:00+00:00,0.302,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/EUR,1h,2020-01-01,24,721,721,24,721,0.0,2026-05-20T23:00:00+00:00,2026-06-19T23:00:00+00:00,0.29,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/EUR,1d,2020-01-01,1,721,721,1,721,0.0,2024-06-29T00:00:00+00:00,2026-06-19T00:00:00+00:00,0.288,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/EUR,1m,2024-01-01,1440,721,721,1440,721,0.0,2026-06-19T11:15:00+00:00,2026-06-19T23:15:00+00:00,0.315,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/EUR,1h,2024-01-01,24,721,721,24,721,0.0,2026-05-20T23:00:00+00:00,2026-06-19T23:00:00+00:00,0.29,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/EUR,1d,2024-01-01,1,721,721,1,721,0.0,2024-06-29T00:00:00+00:00,2026-06-19T00:00:00+00:00,0.319,1,ok,REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/EUR,1m,2026-06-18,1440,0,0,1440,0,0.0,,,0.295,1,errors=['EGeneral:Too many requests'],REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/EUR,1h,2026-06-18,24,0,0,24,0,0.0,,,0.306,1,errors=['EGeneral:Too many requests'],REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+kraken_rest_ohlc,BTC/EUR,1d,2026-06-18,1,0,0,1,0,0.0,,,0.315,1,errors=['EGeneral:Too many requests'],REST OHLC is recent-tail limited; not valid for old history if returned times do not overlap request
+gemini_public_candles,BTC/USD,1m,endpoint_tail_no_start_end,,1440,1440,,,,2026-06-18T23:16:00+00:00,2026-06-19T23:15:00+00:00,0.474,1,ok,Public endpoint tested has no start/end params; not enough for arbitrary 2016 backtests
+gemini_public_candles,BTC/USD,1h,endpoint_tail_no_start_end,,0,0,,,,,,0.289,1,<HTTPError 400: 'Bad Request'>,Public endpoint tested has no start/end params; not enough for arbitrary 2016 backtests
+gemini_public_candles,BTC/USD,1d,endpoint_tail_no_start_end,,0,0,,,,,,0.29,1,<HTTPError 400: 'Bad Request'>,Public endpoint tested has no start/end params; not enough for arbitrary 2016 backtests
+gemini_public_candles,BTC/USDT,1m,endpoint_tail_no_start_end,,1284,1284,,,,2026-06-18T23:16:00+00:00,2026-06-19T20:39:00+00:00,0.475,1,ok,Public endpoint tested has no start/end params; not enough for arbitrary 2016 backtests
+gemini_public_candles,BTC/USDT,1h,endpoint_tail_no_start_end,,0,0,,,,,,0.505,1,<HTTPError 400: 'Bad Request'>,Public endpoint tested has no start/end params; not enough for arbitrary 2016 backtests
+gemini_public_candles,BTC/USDT,1d,endpoint_tail_no_start_end,,0,0,,,,,,0.368,1,<HTTPError 400: 'Bad Request'>,Public endpoint tested has no start/end params; not enough for arbitrary 2016 backtests
+gemini_public_candles,BTC/EUR,1m,endpoint_tail_no_start_end,,1284,1284,,,,2026-06-18T23:16:00+00:00,2026-06-19T20:39:00+00:00,0.419,1,ok,Public endpoint tested has no start/end params; not enough for arbitrary 2016 backtests
+gemini_public_candles,BTC/EUR,1h,endpoint_tail_no_start_end,,0,0,,,,,,0.783,1,<HTTPError 400: 'Bad Request'>,Public endpoint tested has no start/end params; not enough for arbitrary 2016 backtests
+gemini_public_candles,BTC/EUR,1d,endpoint_tail_no_start_end,,0,0,,,,,,1.543,1,<HTTPError 400: 'Bad Request'>,Public endpoint tested has no start/end params; not enough for arbitrary 2016 backtests
+kucoin_public,BTC/USD,1m,2026-06-18_probe,6,0,0,6,0,0.0,,,3.118,1,"{""msg"": ""Sorry! Your IP is from restricted area,we cannot provide the service."", ""code"": ""400302""}",Public API returned restricted-area from this environment in prior probe
+kucoin_public,BTC/USD,1h,2026-06-18_probe,6,0,0,6,0,0.0,,,3.191,1,"{""msg"": ""Sorry! Your IP is from restricted area,we cannot provide the service."", ""code"": ""400302""}",Public API returned restricted-area from this environment in prior probe
+kucoin_public,BTC/USD,1d,2026-06-18_probe,6,0,0,6,0,0.0,,,0.995,1,"{""msg"": ""Sorry! Your IP is from restricted area,we cannot provide the service."", ""code"": ""400302""}",Public API returned restricted-area from this environment in prior probe
+kucoin_public,BTC/USDT,1m,2026-06-18_probe,6,0,0,6,0,0.0,,,0.433,1,"{""msg"": ""Sorry! Your IP is from restricted area,we cannot provide the service."", ""code"": ""400302""}",Public API returned restricted-area from this environment in prior probe
+kucoin_public,BTC/USDT,1h,2026-06-18_probe,6,0,0,6,0,0.0,,,0.428,1,"{""msg"": ""Sorry! Your IP is from restricted area,we cannot provide the service."", ""code"": ""400302""}",Public API returned restricted-area from this environment in prior probe
+kucoin_public,BTC/USDT,1d,2026-06-18_probe,6,0,0,6,0,0.0,,,0.459,1,"{""msg"": ""Sorry! Your IP is from restricted area,we cannot provide the service."", ""code"": ""400302""}",Public API returned restricted-area from this environment in prior probe
+kucoin_public,BTC/EUR,1m,2026-06-18_probe,6,0,0,6,0,0.0,,,0.473,1,"{""msg"": ""Sorry! Your IP is from restricted area,we cannot provide the service."", ""code"": ""400302""}",Public API returned restricted-area from this environment in prior probe
+kucoin_public,BTC/EUR,1h,2026-06-18_probe,6,0,0,6,0,0.0,,,0.57,1,"{""msg"": ""Sorry! Your IP is from restricted area,we cannot provide the service."", ""code"": ""400302""}",Public API returned restricted-area from this environment in prior probe
+kucoin_public,BTC/EUR,1d,2026-06-18_probe,6,0,0,6,0,0.0,,,0.415,1,"{""msg"": ""Sorry! Your IP is from restricted area,we cannot provide the service."", ""code"": ""400302""}",Public API returned restricted-area from this environment in prior probe

@@ -10,10 +10,17 @@ from pandas import DataFrame
 from ..constants import LUMIBOT_CACHE_FOLDER
 from lumibot.tools.lumibot_logger import get_logger
 import math
-import numpy as np
 from typing import Union
 
 logger = get_logger(__name__)
+
+_TIMEFRAME_SECONDS = {
+    "1m": 60,
+    "1h": 60 * 60,
+    "1d": 24 * 60 * 60,
+}
+_OHLCV_CACHE_COLUMNS = ["datetime", "open", "high", "low", "close", "volume", "missing"]
+
 
 class CcxtCacheDB:
     """A ccxt data cache class using duckdb.
@@ -123,6 +130,8 @@ class CcxtCacheDB:
                              where datetime  between  ? and ?
                              order by datetime asc
                              """,(start,end)).fetch_df()
+
+        df = self._filter_executable_rows(df)
         df.drop_duplicates(inplace=True,subset=['datetime'])
         df.set_index("datetime", inplace=True)
         return df
@@ -171,12 +180,11 @@ class CcxtCacheDB:
 
         self.logger.info(f"download ranges :\n{self._table_str(download_ranges,headers=['from','to'])}")
 
+        if timeframe not in _TIMEFRAME_SECONDS:
+            raise ValueError(f"Unsupported CCXT timeframe {timeframe!r}; expected one of {sorted(_TIMEFRAME_SECONDS)}")
+
         for download_start,download_end in download_ranges:
-            range_cnt = download_end - download_start
-            if timeframe == "1m":
-                range_cnt = math.ceil(range_cnt.total_seconds() / 60)
-            elif timeframe == "1d":
-                range_cnt = range_cnt.days
+            range_cnt = self._count_timeframe_units(download_start, download_end, timeframe)
 
             if range_cnt > limit:
                 raise Exception(f"Request download range {range_cnt} is greater than download limit {limit}")
@@ -193,8 +201,12 @@ class CcxtCacheDB:
                 start_dt = cache_range[0]
                 end_dt = cache_range[1]
             else:
-                start_dt = df.datetime.min()
-                end_dt = df.datetime.max()
+                # Cache ranges are coverage metadata, not proof that every bar inside the
+                # range exists. Empty/no-tick responses still satisfy "we asked the
+                # provider for this window" so warm-cache reads do not keep retrying and
+                # never synthesize executable bars.
+                start_dt = cache_range[0]
+                end_dt = cache_range[1]
 
             with duckdb.connect(cache_file) as con:
                 # insert new cache data range
@@ -234,7 +246,8 @@ class CcxtCacheDB:
                             start_dt DATETIME ,
                             end_dt DATETIME)""")
             # insert df to cache db
-            con.execute("""INSERT INTO candles SELECT *  from df""")
+            if df is not None and not df.empty:
+                con.execute("""INSERT INTO candles SELECT *  from df""")
 
 
     def _calc_download_ranges(self,symbol:str,timeframe:str,
@@ -298,7 +311,7 @@ class CcxtCacheDB:
             id=row['id']
             e=row['end_dt']
             s=row['start_dt']
-            if (s < new_start and new_start < e) or (new_start < s and e < new_end) or (s < new_end and new_end < e):
+            if s <= new_end and new_start <= e:
                 return  id, s, e
             else:
                 return pd.NaT,pd.NaT,pd.NaT
@@ -362,7 +375,7 @@ class CcxtCacheDB:
             logger.error(
                 f"A request for market data for {symbol} was submitted. " f"The market for that pair does not exist"
             )
-            return None
+            return self._empty_ohlcv_frame()
 
         if end is None or start is None:
             raise Exception("Start and end must be specified")
@@ -424,6 +437,9 @@ class CcxtCacheDB:
                 break
 
 
+        if df_ret is None:
+            return self._empty_ohlcv_frame()
+
         df_ret.drop_duplicates(inplace=True)
         df_ret.reset_index(inplace=True)
 
@@ -431,8 +447,7 @@ class CcxtCacheDB:
 
 
     def _fill_missing_data(self, df:DataFrame, freq:str)->DataFrame:
-        """If datetime is missing from the candle data, fill in the missing data.
-        Missing data is marked with a 1 in the missing column and 0 for the rest.
+        """Normalize provider candles without fabricating missing executable bars.
 
         Args:
             df (DataFrame): candle data (datetime, open, high, low, close, volume)
@@ -441,19 +456,70 @@ class CcxtCacheDB:
         Returns:
             DataFrame: candle data (datetime, open, high, low, close, volume, missing)
         """
-        df.set_index("datetime", inplace=True)
-        if freq == "1d":
-            dt_range = pd.date_range(start=df.index.min(), end=df.index.max(), freq="D")
-        else:
-            dt_range = pd.date_range(start=df.index.min(), end=df.index.max(), freq="min")
+        return self._filter_executable_rows(df)
 
-        df_complete = df.reindex(dt_range).ffill()
-        df_complete['missing'] = np.where(df_complete.index.isin(df.index), 0, 1)
-        #  Change "datetime" to come to the front
-        #  When inserting DB, make sure that the datetime comes to the first colmun.
-        df_complete.insert(0,"datetime", df_complete.index)
-        df_complete.reset_index(drop=True, inplace=True)
-        return df_complete
+    def _empty_ohlcv_frame(self) -> DataFrame:
+        return pd.DataFrame(
+            {
+                "datetime": pd.Series(dtype="datetime64[ns]"),
+                "open": pd.Series(dtype="float64"),
+                "high": pd.Series(dtype="float64"),
+                "low": pd.Series(dtype="float64"),
+                "close": pd.Series(dtype="float64"),
+                "volume": pd.Series(dtype="float64"),
+                "missing": pd.Series(dtype="int64"),
+            }
+        )
+
+    def _count_timeframe_units(self, start: datetime, end: datetime, timeframe: str) -> int:
+        seconds = _TIMEFRAME_SECONDS.get(timeframe)
+        if seconds is None:
+            raise ValueError(f"Unsupported CCXT timeframe {timeframe!r}; expected one of {sorted(_TIMEFRAME_SECONDS)}")
+        return max(0, math.ceil((end - start).total_seconds() / seconds))
+
+    def _filter_executable_rows(self, df:Union[DataFrame, None])->DataFrame:
+        """Return only real provider bars that are safe to expose to strategies."""
+        if df is None or df.empty:
+            return self._empty_ohlcv_frame()
+
+        df = df.copy()
+        if "datetime" not in df.columns:
+            df.reset_index(inplace=True)
+            if "datetime" not in df.columns and "index" in df.columns:
+                df.rename(columns={"index": "datetime"}, inplace=True)
+
+        if "datetime" not in df.columns:
+            return self._empty_ohlcv_frame()
+
+        df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+        df.dropna(subset=["datetime"], inplace=True)
+
+        if "missing" in df.columns:
+            try:
+                missing_values = df["missing"].fillna(0).astype(int)
+                df = df[missing_values == 0]
+            except Exception:
+                df = df[df["missing"].isna() | df["missing"].isin([0, False, "0", "False", "false"])]
+
+        for col in ("open", "high", "low", "close"):
+            if col not in df.columns:
+                return self._empty_ohlcv_frame()
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        if "volume" not in df.columns:
+            df["volume"] = 0
+        df["volume"] = pd.to_numeric(df["volume"], errors="coerce").fillna(0)
+
+        df.dropna(subset=["open", "high", "low", "close"], inplace=True)
+        if df.empty:
+            return self._empty_ohlcv_frame()
+
+        df["missing"] = 0
+        df = df[_OHLCV_CACHE_COLUMNS]
+        df.drop_duplicates(inplace=True, subset=["datetime"])
+        df.sort_values("datetime", inplace=True)
+        df.reset_index(drop=True, inplace=True)
+        return df
 
 
     def _table_str(self, df, headers="keys"):

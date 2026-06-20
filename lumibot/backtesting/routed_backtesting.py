@@ -20,7 +20,6 @@ from lumibot.tools.helpers import parse_timestep_qty_and_unit
 logger = logging.getLogger(__name__)
 
 _DEFAULT_QUOTE_ASSET = Asset("USD", "forex")
-_USD_STABLECOIN_PROXY_QUOTES = {"USDT"}
 
 
 class RoutingProviderError(ValueError):
@@ -66,7 +65,7 @@ def _resolve_crypto_future_spot_proxy(asset: Asset, quote_asset: Asset) -> tuple
                 quote_symbol = suffix
                 break
 
-    proxy_quote_symbol = "USD" if quote_symbol in _USD_STABLECOIN_PROXY_QUOTES else quote_symbol
+    proxy_quote_symbol = quote_symbol
     proxy_quote_type = Asset.AssetType.FOREX if proxy_quote_symbol == "USD" else Asset.AssetType.CRYPTO
     proxy_asset = Asset(base_symbol, asset_type=Asset.AssetType.CRYPTO)
     proxy_quote = Asset(proxy_quote_symbol, asset_type=proxy_quote_type)
@@ -75,10 +74,7 @@ def _resolve_crypto_future_spot_proxy(asset: Asset, quote_asset: Asset) -> tuple
         f"Using {proxy_asset.symbol}/{proxy_quote.symbol} spot proxy for "
         f"{asset.symbol} crypto-futures backtest"
     )
-    if quote_symbol in _USD_STABLECOIN_PROXY_QUOTES:
-        proxy_label += f" ({quote_symbol} mapped to USD spot)."
-    else:
-        proxy_label += "."
+    proxy_label += "."
     return proxy_asset, proxy_quote, proxy_label
 
 
@@ -112,7 +108,7 @@ def _infer_default_ccxt_exchange_id() -> str:
     """Infer a CCXT exchange id from existing environment/credentials.
 
     This avoids introducing a new env var just for routing. When nothing is configured,
-    we fall back to CCXT's common default used in this codebase: binance.
+    use Coinbase's public market-data API as the default crypto backtesting source.
     """
     env_hint = (os.environ.get("DATA_SOURCE") or os.environ.get("TRADING_BROKER") or "").strip()
     if env_hint:
@@ -124,7 +120,7 @@ def _infer_default_ccxt_exchange_id() -> str:
         return "coinbase"
     if (KRAKEN_CONFIG.get("apiKey") or "").strip():
         return "kraken"
-    return "binance"
+    return "coinbase"
 
 
 def _align_timestamp_to_index_tz(ts_value: datetime, ref_index_ts: pd.Timestamp) -> pd.Timestamp:
@@ -939,10 +935,12 @@ class _CcxtRoutingAdapter(_DataFrameRoutingAdapter):
 
         if ts_unit == "minute":
             timeframe = "1m"
+        elif ts_unit == "hour":
+            timeframe = "1h"
         elif ts_unit == "day":
             timeframe = "1d"
         else:
-            raise RoutingProviderError(f"CCXT routing only supports minute/day timesteps, got {ts_unit!r}.")
+            raise RoutingProviderError(f"CCXT routing only supports minute/hour/day timesteps, got {ts_unit!r}.")
 
         symbol = f"{asset.symbol.upper()}/{quote_asset.symbol.upper()}"
         df = cache_db.download_ohlcv(symbol, timeframe, start_datetime, end_dt)

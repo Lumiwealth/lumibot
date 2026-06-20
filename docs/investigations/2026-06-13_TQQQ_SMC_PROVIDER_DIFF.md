@@ -965,3 +965,62 @@ stopped because it repeatedly redownloaded the same IBKR daily history window.
 That did not reproduce the old TQQQ `1min` pending-fill loop and did not affect
 the full-window warm-cache validation, but it is still worth tracking separately
 as a cold-cache / short-window downloader efficiency issue.
+
+### 24/5 Execution Sensitivity
+
+The v20 strategy result above is real as a LumiBot `set_market("24/5")`
+backtest result, but it is not yet proven live-realistic for TQQQ. A local
+Auto/IBKR sensitivity run removed only the `self.set_market("24/5")` call from
+the same v20 code and kept the same original window, local LumiBot source,
+production downloader, and warm production cache.
+
+Sensitivity candidate:
+
+- Local strategy file:
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_strategy_candidates_20260619/code/v20_daily_lockout_no24_main.py`
+- Strategy hash:
+  `18fad4996294dbc136b80b5c627067636b8889edcdc9753fd4f05b81168c9b4e`
+- Run artifacts:
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_strategy_candidates_20260619/runs/v20_auto_no24_original`
+
+Result:
+
+| Scenario | Runtime | Total return | CAGR | Max DD | Longest DD days | Sharpe | Worst year | 10Y annualized |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| v20 Auto/IBKR with `24/5` | `143.9s` | `34,852%` | `54.68%` | `-28.85%` | `564` | `1.57` | `-16.83%` | `61.99%` |
+| v20 Auto/IBKR without `24/5` | `170.3s` | `236%` | `9.46%` | `-55.58%` | `2,196` | `0.33` | `-35.85%` | `14.41%` |
+
+Trade timing also changes materially:
+
+- v20 `24/5`: `406` fills, `100.0%` after-hours / extended-hours by timestamp.
+  Fill hours were mostly `16:00`, `17:00`, `18:00`, `19:00`, plus a small number
+  at `00:00` to `03:00`.
+- v20 no-`24/5`: `340` fills, only `5.0%` after-hours / extended-hours by
+  timestamp. Most fills moved to `09:30`, `10:30`, `11:30`, and `12:30`.
+
+Calendar-year comparison:
+
+| Year | v19 Auto return | v19 Auto max DD | v20 `24/5` return | v20 `24/5` max DD | v20 no-`24/5` return | v20 no-`24/5` max DD |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 2013 | `30.10%` | `-28.97%` | `59.22%` | `-13.07%` | `9.78%` | `-18.02%` |
+| 2014 | `69.23%` | `-7.82%` | `69.23%` | `-7.82%` | `29.78%` | `-10.08%` |
+| 2015 | `10.15%` | `-15.35%` | `4.43%` | `-15.35%` | `-35.85%` | `-37.72%` |
+| 2016 | `9.23%` | `-15.25%` | `10.10%` | `-15.25%` | `-8.00%` | `-26.39%` |
+| 2017 | `78.98%` | `-9.31%` | `78.98%` | `-9.31%` | `9.85%` | `-25.86%` |
+| 2018 | `32.46%` | `-21.22%` | `32.46%` | `-21.22%` | `-17.43%` | `-36.34%` |
+| 2019 | `76.21%` | `-7.77%` | `76.21%` | `-7.77%` | `40.32%` | `-15.51%` |
+| 2020 | `2.75%` | `-70.78%` | `156.25%` | `-20.02%` | `56.89%` | `-29.11%` |
+| 2021 | `62.91%` | `-16.95%` | `62.91%` | `-16.95%` | `34.42%` | `-21.56%` |
+| 2022 | `-16.83%` | `-19.16%` | `-16.83%` | `-19.16%` | `-16.83%` | `-19.16%` |
+| 2023 | `150.32%` | `-10.63%` | `159.19%` | `-10.63%` | `47.29%` | `-24.22%` |
+| 2024 | `53.30%` | `-17.54%` | `53.30%` | `-17.54%` | `-5.10%` | `-32.41%` |
+| 2025 | `41.46%` | `-13.82%` | `37.36%` | `-13.82%` | `9.64%` | `-15.93%` |
+| 2026 | `42.51%` | `-15.57%` | `42.51%` | `-15.57%` | `16.89%` | `-28.76%` |
+
+Recommendation as of this audit: do **not** restart real-money or paper bots
+onto v20 solely because of the `54.68%` CAGR headline. v20 likely fixes the v19
+same-day stop/re-entry churn, but the spectacular return depends on the
+strategy's `24/5` execution semantics. Before live/paper migration, decide
+whether TQQQ should really trade through this strategy as `24/5`, or create a
+v21 candidate that keeps the same-day lockout while using execution assumptions
+that match the intended live broker session.

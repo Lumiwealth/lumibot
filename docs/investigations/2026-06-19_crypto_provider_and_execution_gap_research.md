@@ -62,14 +62,68 @@ python3 -m pytest \
   tests/test_backtesting_ccxt_execution_semantics.py -q
 ```
 
-Result on 2026-06-20 after adding sparse GTC/GTD regression coverage:
-`36 passed, 2 skipped`.
+Result on 2026-06-20 after adding sparse GTC/GTD regression coverage and the
+CCXT UTC cache-boundary regression:
+`39 passed, 2 skipped`.
 
-This is not a production release sign-off and does not yet prove Greg's full
-strategy window. The remaining proof step is to run Greg's exact saved strategy
-and exact requested pair through the Coinbase-only route with production-like
-settings, then compare the resulting fills, missing-data diagnostics, and equity
-curve against the prior failure.
+### Greg Local Replay - 2026-06-20
+
+Greg's saved production strategy was replayed locally with production-like
+routing and Coinbase for crypto:
+
+```bash
+python3 scripts/run_backtest_prodlike.py \
+  --main /Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/prod-artifacts/executed-code/main.py \
+  --start 2026-03-15 \
+  --end 2026-04-20 \
+  --data-source '{"default":"thetadata","stock":"thetadata","index":"thetadata","option":"thetadata","future":"ibkr","cont_future":"ibkr","crypto":"coinbase","crypto_future":"coinbase"}' \
+  --cache-mode disabled \
+  --label greg_coinbase_mar15_apr20_20260620_utcfix2 \
+  --audit
+```
+
+Artifact folder:
+`/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/local-runs/greg_coinbase_mar15_apr20_20260620_utcfix2`
+
+Result:
+
+- Backtest completed successfully in 454 seconds.
+- Trades CSV: 21 lines, meaning 10 filled trade rows plus new-order rows and
+  header.
+- Trade events CSV: 21 lines.
+- The filled rows all used `audit.timestep=minute`.
+- `audit.bar.datetime` matched the trade event time exactly for every fill.
+  Maximum absolute fill timestamp gap was `0.0` seconds.
+- Grep over the subprocess log and strategy log found no stale/future timestamp
+  errors, no traceback, and no "after available data" cache-boundary failures.
+
+Primary evidence:
+
+- Trades CSV:
+  `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/local-runs/greg_coinbase_mar15_apr20_20260620_utcfix2/logs/MultiMineralBot_2026-06-19_22-50_0dPozs_trades.csv`
+- Trade events CSV:
+  `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/local-runs/greg_coinbase_mar15_apr20_20260620_utcfix2/logs/MultiMineralBot_2026-06-19_22-50_0dPozs_trade_events.csv`
+- Metrics JSON:
+  `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/local-runs/greg_coinbase_mar15_apr20_20260620_utcfix2/metrics.json`
+- Subprocess log:
+  `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/local-runs/greg_coinbase_mar15_apr20_20260620_utcfix2/subprocess.log`
+
+The replay also exposed and confirmed the CCXT cache timezone bug. Before the
+cache-boundary fix, aware New York datetimes were stripped to naive values before
+DuckDB cache queries, so `2026-03-15 00:00 America/New_York` was treated as
+`2026-03-15 00:00 UTC` instead of `2026-03-15 04:00 UTC`. That caused the local
+Coinbase cache to look four hours short and produced repeated "after available
+data" errors. `CcxtCacheDB` now converts aware request bounds to UTC before
+dropping timezone metadata.
+
+One related note: Greg's saved strategy parameters say `BTC/USDT`, but the
+production entrypoint in the captured artifact passes `quote_asset=USD` to
+`run_backtest`. The replay therefore proves the captured production code path as
+saved, not a rewritten `BTC/USDT` strategy.
+
+This is still not a production deployment sign-off. It is local proof that the
+Coinbase-routed replay completes and that this run's actual fills are recorded
+at the executable minute-bar timestamps rather than at stale or future prices.
 
 ## Provider Findings
 

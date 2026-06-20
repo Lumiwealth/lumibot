@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 import logging
 import pandas as pd
+import pytz
 
 import lumibot.tools.ccxt_data_store as ccxt_data_store
 
@@ -77,6 +78,31 @@ def test_ccxt_cache_supports_hour_timeframe_without_synthesizing_gaps(tmp_path, 
     assert calls[0]["limit"] <= 24
     assert list(df.index) == [pd.Timestamp("2026-01-01 00:00:00"), pd.Timestamp("2026-01-01 02:00:00")]
     assert pd.Timestamp("2026-01-01 01:00:00") not in df.index
+
+
+def test_ccxt_cache_converts_aware_request_bounds_to_utc_before_query(tmp_path, monkeypatch):
+    cache = _cache_without_live_exchange(tmp_path, monkeypatch)
+    ny = pytz.timezone("America/New_York")
+    calls = []
+
+    def fake_get_barset(symbol, timeframe, limit, start, end):
+        calls.append({"symbol": symbol, "timeframe": timeframe, "start": start, "end": end})
+        return _bars(
+            (datetime(2026, 3, 15, 0, 0), 90.0, 91.0, 89.0, 90.5, 9.0),
+            (datetime(2026, 3, 15, 4, 0), 100.0, 101.0, 99.0, 100.5, 10.0),
+            (datetime(2026, 3, 15, 5, 0), 101.0, 102.0, 100.0, 101.5, 11.0),
+        )
+
+    monkeypatch.setattr(cache, "_get_barset_from_api", fake_get_barset)
+
+    requested_start = ny.localize(datetime(2026, 3, 15, 0, 0))
+    requested_end = ny.localize(datetime(2026, 3, 15, 0, 0))
+    df = cache.download_ohlcv("BTC/USD", "1h", requested_start, requested_end)
+
+    assert calls
+    assert calls[0]["start"] == datetime(2026, 3, 15, 0, 0)
+    assert calls[0]["end"] == datetime(2026, 3, 15, 23, 59, 59, 999999)
+    assert list(df.index) == [pd.Timestamp("2026-03-15 04:00:00")]
 
 
 def test_ccxt_cache_uses_native_day_timeframe_without_synthesizing_missing_days(tmp_path, monkeypatch):

@@ -238,6 +238,14 @@ class _DataFrameRoutingAdapter(_RoutingAdapter):
     ) -> pd.DataFrame | None:
         raise NotImplementedError
 
+    def _normalize_fetched_index(self, df: pd.DataFrame) -> pd.DataFrame:
+        if isinstance(df.index, pd.DatetimeIndex):
+            if df.index.tz is None:
+                df.index = df.index.tz_localize("UTC")
+            df.index = df.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+            df = df.sort_index()
+        return df
+
     def update_pandas_data(
         self,
         *,
@@ -308,11 +316,7 @@ class _DataFrameRoutingAdapter(_RoutingAdapter):
         if df is None or df.empty:
             return None
 
-        if isinstance(df.index, pd.DatetimeIndex):
-            if df.index.tz is None:
-                df.index = df.index.tz_localize("UTC")
-            df.index = df.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
-            df = df.sort_index()
+        df = self._normalize_fetched_index(df)
 
         if existing_df is not None and isinstance(existing_df, pd.DataFrame) and not existing_df.empty:
             merged = pd.concat([existing_df, df], axis=0).sort_index()
@@ -947,7 +951,10 @@ class _CcxtRoutingAdapter(_DataFrameRoutingAdapter):
         if df is None or df.empty:
             return None
 
-        df.index = df.index.tz_localize("UTC").tz_convert(LUMIBOT_DEFAULT_PYTZ)
+        if isinstance(df.index, pd.DatetimeIndex):
+            if df.index.tz is None:
+                df.index = df.index.tz_localize("UTC")
+            df.index = df.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
         return df.sort_index()
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 import pandas as pd
+import pytz
 
 from lumibot.backtesting.routed_backtesting import RoutedBacktestingPandas
 from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestingPandas
@@ -32,6 +33,43 @@ def test_data_supports_hour_timestep_and_get_bars():
     assert bars is not None
     assert len(bars) == 2
     assert list(bars.columns)[:4] == ["open", "high", "low", "close"]
+
+
+def test_data_native_hour_timeshift_minus_one_includes_current_bar():
+    asset = Asset(symbol="BTC", asset_type=Asset.AssetType.CRYPTO)
+    quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
+
+    idx = pd.DatetimeIndex(
+        [
+            datetime(2026, 3, 15, 2, 0, tzinfo=timezone.utc),
+            datetime(2026, 3, 15, 3, 0, tzinfo=timezone.utc),
+            datetime(2026, 3, 15, 4, 0, tzinfo=timezone.utc),
+        ]
+    )
+    df = pd.DataFrame(
+        {
+            "open": [90.0, 95.0, 100.0],
+            "high": [91.0, 96.0, 101.0],
+            "low": [89.0, 94.0, 99.0],
+            "close": [90.5, 95.5, 100.5],
+            "volume": [9.0, 9.5, 10.0],
+        },
+        index=idx,
+    )
+
+    data = Data(asset, df, timestep="hour", quote=quote)
+    bars = data.get_bars(
+        dt=datetime(2026, 3, 15, 4, 0, tzinfo=timezone.utc),
+        length=1,
+        timestep="hour",
+        timeshift=-1,
+    )
+
+    assert bars is not None
+    assert len(bars) == 1
+    assert bars.index[-1].tz_convert("UTC") == pd.Timestamp("2026-03-15 04:00:00+00:00")
+    assert bars["close"].iloc[-1] == 100.5
+    assert getattr(data, "_get_bars_slice_cache_key")[0] == "native_1"
 
 
 def test_routed_backtesting_allows_hour_history_for_futures(monkeypatch):
@@ -138,3 +176,71 @@ def test_routed_backtesting_allows_hour_history_for_ccxt_crypto(monkeypatch):
     assert bars is not None
     assert getattr(bars, "df", None) is not None
     assert not bars.df.empty
+
+
+def test_routed_ccxt_hour_history_handles_new_york_midnight_as_utc_cache_boundary(monkeypatch):
+    import lumibot.tools.ccxt_data_store as ccxt_data_store
+    import lumibot.tools.thetadata_helper as thetadata_helper
+
+    monkeypatch.setattr(ThetaDataBacktestingPandas, "kill_processes_by_name", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(thetadata_helper, "reset_theta_terminal_tracking", lambda *_args, **_kwargs: None)
+
+    calls = []
+    ny = pytz.timezone("America/New_York")
+
+    class _FakeCcxtCache:
+        def __init__(self, exchange_id):
+            self.exchange_id = exchange_id
+
+        def download_ohlcv(self, symbol, timeframe, start_datetime, end_dt):
+            calls.append(
+                {
+                    "exchange_id": self.exchange_id,
+                    "symbol": symbol,
+                    "timeframe": timeframe,
+                    "start_datetime": start_datetime,
+                    "end_dt": end_dt,
+                }
+            )
+            idx = pd.DatetimeIndex(
+                [
+                    datetime(2026, 3, 15, 0, 0),
+                    datetime(2026, 3, 15, 4, 0),
+                    datetime(2026, 3, 15, 5, 0),
+                ]
+            )
+            return pd.DataFrame(
+                {
+                    "open": [90.0, 100.0, 101.0],
+                    "high": [91.0, 101.0, 102.0],
+                    "low": [89.0, 99.0, 100.0],
+                    "close": [90.5, 100.5, 101.5],
+                    "volume": [9.0, 10.0, 11.0],
+                },
+                index=idx,
+            )
+
+    monkeypatch.setattr(ccxt_data_store, "CcxtCacheDB", _FakeCcxtCache)
+
+    ds = RoutedBacktestingPandas(
+        datetime_start=ny.localize(datetime(2026, 3, 15, 0, 0)),
+        datetime_end=ny.localize(datetime(2026, 3, 15, 6, 0)),
+        config={"backtesting_data_routing": {"crypto": "coinbase", "default": "thetadata"}},
+        username="dev",
+        password="dev",
+        use_quote_data=False,
+        show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+    )
+    ds._datetime = ny.localize(datetime(2026, 3, 15, 0, 0))
+
+    asset = Asset(symbol="BTC", asset_type=Asset.AssetType.CRYPTO)
+    quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
+    bars = ds.get_historical_prices(asset, length=1, timestep="hour", quote=quote, timeshift=-1)
+
+    assert calls
+    assert bars is not None
+    assert getattr(bars, "df", None) is not None
+    assert len(bars.df) == 1
+    assert bars.df.index[-1].tz_convert("UTC") == pd.Timestamp("2026-03-15 04:00:00+00:00")
+    assert bars.df["close"].iloc[-1] == 100.5

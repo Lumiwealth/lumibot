@@ -1317,6 +1317,7 @@ class Data:
             and self._index_is_unique
             and (
                 (timestep == "minute" and self.timestep == "minute")
+                or (timestep == "hour" and self.timestep == "hour")
                 or (timestep == "day" and self.timestep == "day")
             )
         ):

@@ -3,7 +3,7 @@ import duckdb
 import os
 import uuid
 import ccxt
-from datetime import datetime
+from datetime import datetime, timezone
 from tabulate import tabulate
 import pandas as pd
 from pandas import DataFrame
@@ -69,6 +69,18 @@ class CcxtCacheDB:
         self.api.enableRateLimit = True
         self.max_download_limit = 50000 if max_download_limit is None else max_download_limit
 
+    @staticmethod
+    def _to_utc_naive(value: datetime) -> datetime:
+        """Normalize cache boundaries to UTC-naive datetimes.
+
+        DuckDB stores CCXT candle timestamps as UTC-naive values. A timezone-aware
+        strategy clock must be converted to UTC before dropping tzinfo; otherwise
+        midnight in New York is incorrectly queried as midnight UTC.
+        """
+        if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
+            return value.replace(tzinfo=None)
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
+
 
     def get_cache_file_name(self, symbol:str, timeframe:str)->str:
         """Returns the cache file name. If the cache folder does not exist, it is created.
@@ -121,8 +133,8 @@ class CcxtCacheDB:
         if not os.path.exists(cache_file):
             raise Exception(f"Cache file {cache_file} does not exist")
 
-        start = start.replace(tzinfo=None)
-        end = end.replace(tzinfo=None)
+        start = self._to_utc_naive(start)
+        end = self._to_utc_naive(end)
 
         with duckdb.connect(database = cache_file) as con:
             df = con.execute("""select datetime, open, high, low, close, volume, missing
@@ -169,8 +181,8 @@ class CcxtCacheDB:
         if limit is None:
             limit = self.max_download_limit
 
-        start_dt = start.replace(tzinfo=None)
-        end_dt = end.replace(tzinfo=None)
+        start_dt = self._to_utc_naive(start)
+        end_dt = self._to_utc_naive(end)
 
         # set start_dt to 00:00:00 and end_dt to 23:59:59
         start_dt = start_dt.replace(hour=0, minute=0, second=0, microsecond=0)

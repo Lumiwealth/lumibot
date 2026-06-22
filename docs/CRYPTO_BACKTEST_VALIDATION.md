@@ -2,7 +2,7 @@
 
 One-line description: Controlled validation plan and artifact runner for CCXT/Coinbase crypto backtesting.
 
-Last Updated: 2026-06-20
+Last Updated: 2026-06-22
 
 Status: Active validation workflow
 
@@ -41,7 +41,8 @@ Run the focused deterministic suite:
   tests/test_hour_timestep_support.py \
   tests/test_routed_backtesting_unit.py \
   tests/test_routed_backtesting_routing_validation.py \
-  tests/test_crypto_backtest_validation_runner.py
+  tests/test_crypto_backtest_validation_runner.py \
+  tests/test_crypto_backtesting_order_matrix.py
 ```
 
 These tests cover:
@@ -53,6 +54,8 @@ These tests cover:
 - quote preservation.
 - DAY/GTC/GTD/IOC/FOK behavior.
 - market, limit, and stop orders waiting for real bars.
+- market, limit, stop, stop-limit, trailing stop, bracket, OCO, and OTO
+  crypto execution prices in a deterministic synthetic broker fixture.
 - crypto routed price/quote lookups staying on minute data even when day mode is inferred.
 
 ## Live-Data Acceptance Runner
@@ -82,12 +85,95 @@ Each run includes:
 - full LumiBot logs and trade-event CSVs.
 - `cache_price_checks.csv` verifying the cached provider candle exists at the fill timestamp, the audited bar timestamp matches the fill timestamp, and the fill price matches the correct execution price for that fill model.
 - per-case `summary.json` with fill timestamp gap, cache row presence, execution price match status, stale submit-quote diagnostics, and wall time.
+- cache coverage checks comparing the actual stored candle min/max/count against
+  the requested backtest window, so range metadata cannot hide incomplete cache
+  contents.
 
 The controlled strategies are:
 
 - `buy_hold`: one entry, then mark-to-market through the end of the window.
 - `round_trip`: buy and sell at fixed timestamps.
 - `alternating`: repeated predictable entries/exits.
+- `order_matrix`: market, limit, stop, stop-limit, trailing-stop, bracket,
+  OCO, and OTO behavior over a multi-week window.
+
+### 2026-06-22 Long Coinbase Matrix And Sparse-Page Cache Fix
+
+Root cause found during long BTC/USDT validation:
+
+- Coinbase `fetch_ohlcv(..., since, limit=300)` can return an empty page for a
+  sparse pair/timeframe even when later bars exist inside the requested window.
+- The CCXT cache downloader treated the first empty page as end-of-history and
+  then wrote `cache_dt_ranges` metadata for the whole requested window.
+- That meant cache metadata could claim `2026-03-13` through `2026-06-13`
+  coverage while the actual `candles` table stopped at `2026-05-08`.
+
+Fixes added in this pass:
+
+- `CcxtCacheDB._get_barset_from_api()` now advances through empty provider pages
+  by the page span instead of stopping at the first empty response.
+- Fetched data is trimmed back to the exact requested start/end window before it
+  is cached.
+- Coinbase market loading retries transient `load_markets()` timeouts instead
+  of failing the whole validation run immediately.
+- The validation runner audits actual `candles` coverage in addition to
+  `cache_dt_ranges` metadata.
+- Long-run artifacts now include `INDEX.md` plus per-case `cache_coverage`
+  results.
+
+Focused test command:
+
+```bash
+/Users/robertgrzesik/bin/safe-timeout 1200s python3 -m pytest \
+  tests/test_ccxt_store.py \
+  tests/test_crypto_backtest_validation_runner.py \
+  tests/test_crypto_backtesting_order_matrix.py \
+  tests/test_backtesting_ccxt_execution_semantics.py -q
+```
+
+Result: `51 passed, 2 skipped`.
+
+Long public-Coinbase acceptance reruns:
+
+| Run | Symbol | Timestep | Cases | Fills | Cold buy_hold | Max warm | Coverage OK | Price OK | Time OK | Market Open OK | Order Matrix Fills |
+|---|---|---|---:|---:|---:|---:|---|---|---|---|---:|
+| crypto-validation-long-20260622-btcusdt-2026-1m-rerun | BTC/USDT | minute | 8 | 78 | 118.45s | 3.90s | True | True | True | True | 24 |
+| crypto-validation-long-20260622-btcusdt-2026-1h-rerun | BTC/USDT | hour | 8 | 78 | 117.67s | 3.04s | True | True | True | True | 24 |
+| crypto-validation-long-20260622-btcusdt-2026-1d-rerun | BTC/USDT | day | 8 | 78 | 10.97s | 2.54s | True | True | True | True | 24 |
+| crypto-validation-long-20260622-ethusdt-2026-1h-rerun | ETH/USDT | hour | 8 | 78 | 143.44s | 2.83s | True | True | True | True | 24 |
+| crypto-validation-long-20260622-solusdt-2026-1h-rerun | SOL/USDT | hour | 8 | 78 | 114.89s | 2.81s | True | True | True | True | 24 |
+| crypto-validation-long-20260622-btcusd-2020-1h-rerun2 | BTC/USD | hour | 8 | 78 | 117.77s | 2.81s | True | True | True | True | 24 |
+| crypto-validation-long-20260622-btcusd-2016-1d-rerun | BTC/USD | day | 8 | 76 | 10.01s | 2.57s | True | True | True | True | 23 |
+
+The 2016 BTC/USD day run produced 23 order-matrix fills because one live-data
+test order did not execute in that historical daily window. Every executed fill
+still passed the same-time cache-price and fill-timestamp checks. The 2026
+minute/hour/day matrices each produced 24 order-matrix fills.
+
+Artifact roots:
+
+- `/Users/robertgrzesik/Development/support-artifacts/crypto-validation-long-20260622-btcusdt-2026-1m-rerun`
+- `/Users/robertgrzesik/Development/support-artifacts/crypto-validation-long-20260622-btcusdt-2026-1h-rerun`
+- `/Users/robertgrzesik/Development/support-artifacts/crypto-validation-long-20260622-btcusdt-2026-1d-rerun`
+- `/Users/robertgrzesik/Development/support-artifacts/crypto-validation-long-20260622-ethusdt-2026-1h-rerun`
+- `/Users/robertgrzesik/Development/support-artifacts/crypto-validation-long-20260622-solusdt-2026-1h-rerun`
+- `/Users/robertgrzesik/Development/support-artifacts/crypto-validation-long-20260622-btcusd-2020-1h-rerun2`
+- `/Users/robertgrzesik/Development/support-artifacts/crypto-validation-long-20260622-btcusd-2016-1d-rerun`
+
+Important BTC/USDT 1m proof:
+
+- `BTC_USDT_1m.duckdb` actual candle coverage: `60614` candles from
+  `2026-03-13 00:00` through `2026-06-13 23:57`.
+- The old bad cache stopped at `2026-05-08 01:14` while metadata claimed
+  coverage through `2026-06-13 23:59:59.999999`.
+- The `order_matrix` May 9 market order now filled at
+  `2026-05-09 20:00:00-04:00` with price `80667.35`, and its audited cache bar
+  has the same timestamp.
+- `cache_price_checks.csv` had zero price/timestamp/cache mismatches.
+- Warm repeats completed in `2.54s` to `3.90s` after cold runs of `10s` to
+  `143s`, confirming cache reuse without relying on bad range metadata.
+
+No production deploy was performed for this validation pass.
 
 ### 2026-06-20 Controlled Coinbase Proof
 

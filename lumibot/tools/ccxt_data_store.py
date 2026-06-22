@@ -64,7 +64,18 @@ class CcxtCacheDB:
 
         self.exchange_id = exchange_id
         self.api = exchange_class()
-        self.api.load_markets()
+        last_error = None
+        for attempt in range(3):
+            try:
+                self.api.load_markets()
+                last_error = None
+                break
+            except Exception as exc:
+                last_error = exc
+                if attempt < 2:
+                    time.sleep(1 + attempt)
+        if last_error is not None:
+            raise last_error
         # Recommended two or less api calls per second.
         self.api.enableRateLimit = True
         self.max_download_limit = 50000 if max_download_limit is None else max_download_limit
@@ -395,19 +406,24 @@ class CcxtCacheDB:
         if limit is None:
             limit = self.max_download_limit
 
+        if timeframe not in _TIMEFRAME_SECONDS:
+            raise ValueError(f"Unsupported CCXT timeframe {timeframe!r}; expected one of {sorted(_TIMEFRAME_SECONDS)}")
+
         endunix = self.api.parse8601(end.strftime("%Y-%m-%d %H:%M:%S"))
+        timeframe_ms = _TIMEFRAME_SECONDS[timeframe] * 1000
 
         df_ret = None
         curr_start = self.api.parse8601(start.strftime("%Y-%m-%d %H:%M:%S"))
         curr_start = curr_start if curr_start > 0 else 0
 
         cnt = 0
-        last_curr_end = None
 
         loop_limit = 300
         rate_limit = 10  # Requests per second in burst.
+        page_span_ms = loop_limit * timeframe_ms
+        max_pages = max(1, math.ceil(max(endunix - curr_start, 0) / page_span_ms) + 5)
 
-        while True:
+        while curr_start <= endunix:
             cnt += 1
             candles = self.api.fetch_ohlcv(symbol, timeframe,
                                            since=curr_start, limit=loop_limit, params={})
@@ -416,42 +432,47 @@ class CcxtCacheDB:
                                                 "open", "high", "low", "close", "volume"])
             df["datetime"] = pd.to_datetime(df["datetime"], unit="ms")
             df = df.set_index("datetime")
-            if df_ret is None:
-                df_ret = df
-            else:
-                df_ret = pd.concat([df_ret, df])
 
-            df_ret = df_ret.sort_index()
+            next_start = curr_start + page_span_ms
 
             if len(df) > 0:
                 last_curr_end = self.api.parse8601(df.index[-1].strftime("%Y-%m-%d %H:%M:%S"))
+                next_start = max(last_curr_end + timeframe_ms, curr_start + timeframe_ms)
+                if df_ret is None:
+                    df_ret = df
+                else:
+                    df_ret = pd.concat([df_ret, df])
+
+                df_ret = df_ret.sort_index()
             else:
                 last_curr_end = None
 
-            if len(df_ret) >= limit:
+            if df_ret is not None and len(df_ret) >= limit and last_curr_end is not None and last_curr_end >= endunix:
                 break
-            elif last_curr_end is None:
+            if last_curr_end is not None and last_curr_end >= endunix:
                 break
-            elif last_curr_end > endunix:
+            if next_start <= curr_start:
                 break
-
-            if curr_start == last_curr_end:
-                break
-            else:
-                curr_start = last_curr_end
+            curr_start = next_start
 
             # Sleep for half a second every rate_limit requests to prevent rate limiting issues
             if cnt % rate_limit == 0:
                 time.sleep(1)
 
             # Catch if endless loop.
-            if cnt > 500:
-                break
+            if cnt > max_pages:
+                raise RuntimeError(
+                    f"CCXT OHLCV pagination did not reach requested end for {symbol} {timeframe}: "
+                    f"last_since={pd.to_datetime(curr_start, unit='ms')} end={end}"
+                )
 
 
         if df_ret is None:
             return self._empty_ohlcv_frame()
 
+        start_ts = pd.Timestamp(start)
+        end_ts = pd.Timestamp(end)
+        df_ret = df_ret[(df_ret.index >= start_ts) & (df_ret.index <= end_ts)]
         df_ret.drop_duplicates(inplace=True)
         df_ret.reset_index(inplace=True)
 

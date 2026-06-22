@@ -29,6 +29,23 @@ def _bars(*rows):
     )
 
 
+def test_ccxt_cache_retries_transient_load_markets_failure(monkeypatch):
+    attempts = {"count": 0}
+
+    class FakeExchange:
+        def load_markets(self):
+            attempts["count"] += 1
+            if attempts["count"] < 3:
+                raise RuntimeError("temporary timeout")
+
+    monkeypatch.setattr(ccxt_data_store.ccxt, "retryexchange", FakeExchange, raising=False)
+
+    cache = CcxtCacheDB("retryexchange")
+
+    assert cache.exchange_id == "retryexchange"
+    assert attempts["count"] == 3
+
+
 def test_ccxt_cache_does_not_forward_fill_missing_minute_rows(tmp_path, monkeypatch):
     cache = _cache_without_live_exchange(tmp_path, monkeypatch)
 
@@ -143,15 +160,58 @@ def test_ccxt_cache_empty_response_records_coverage_without_fake_rows(tmp_path, 
     start = datetime(2026, 1, 1, 0, 0)
     end = datetime(2026, 1, 1, 0, 2)
     first = cache.download_ohlcv("BTC/USDT", "1m", start, end)
+    first_call_count = calls["count"]
     second = cache.download_ohlcv("BTC/USDT", "1m", start, end)
 
     assert first.empty
     assert second.empty
-    assert calls["count"] == 1
+    assert calls["count"] == first_call_count
 
     with duckdb.connect(cache.get_cache_file_name("BTC/USDT", "1m")) as con:
         ranges = con.execute("select * from cache_dt_ranges").fetch_df()
     assert len(ranges) == 1
+
+
+def test_ccxt_api_pagination_advances_across_empty_sparse_pages(tmp_path, monkeypatch):
+    cache = _cache_without_live_exchange(tmp_path, monkeypatch)
+    calls = []
+
+    class FakeApi:
+        has = {"fetchOHLCV": True}
+        markets = {"BTC/USDT": {}}
+
+        @staticmethod
+        def parse8601(value):
+            return int(pd.Timestamp(value, tz="UTC").timestamp() * 1000)
+
+        def fetch_ohlcv(self, symbol, timeframe, since=None, limit=None, params=None):
+            calls.append(pd.Timestamp(since, unit="ms"))
+            current = pd.Timestamp(since, unit="ms")
+            if current == pd.Timestamp("2026-01-01 00:00:00"):
+                return [[since, 100.0, 101.0, 99.0, 100.5, 10.0]]
+            if current < pd.Timestamp("2026-01-01 05:01:00"):
+                return []
+            if current <= pd.Timestamp("2026-01-01 06:00:00"):
+                later = int(pd.Timestamp("2026-01-01 06:00:00", tz="UTC").timestamp() * 1000)
+                return [[later, 106.0, 107.0, 105.0, 106.5, 11.0]]
+            return []
+
+    cache.api = FakeApi()
+
+    df = cache._get_barset_from_api(
+        "BTC/USDT",
+        "1m",
+        limit=500,
+        start=datetime(2026, 1, 1, 0, 0),
+        end=datetime(2026, 1, 1, 6, 30),
+    )
+
+    assert calls[0] == pd.Timestamp("2026-01-01 00:00:00")
+    assert any(call >= pd.Timestamp("2026-01-01 05:01:00") for call in calls)
+    assert list(df["datetime"]) == [
+        pd.Timestamp("2026-01-01 00:00:00"),
+        pd.Timestamp("2026-01-01 06:00:00"),
+    ]
 
 
 def test_ccxt_cache_partial_overlap_downloads_only_uncached_window(tmp_path, monkeypatch):

@@ -527,6 +527,109 @@ def is_market_open(
         print(e)
 
 
+@lru_cache(maxsize=128)
+def _market_calendar_timezone_name(market: str) -> str:
+    cal = mcal.get_calendar(market)
+    cal_tz = getattr(cal, "tz", None)
+    return (
+        getattr(cal_tz, "zone", None)
+        or getattr(cal_tz, "key", None)
+        or str(cal_tz)
+        or "UTC"
+    )
+
+
+@lru_cache(maxsize=512)
+def _regular_trading_sessions_by_year(
+        market: str,
+        year: int,
+        tz_name: str,
+) -> dict[str, tuple[pd.Timestamp, pd.Timestamp]]:
+    cal = mcal.get_calendar(market)
+    tzinfo = pytz.timezone(tz_name)
+    schedule = cal.schedule(
+        start_date=f"{year}-01-01",
+        end_date=f"{year}-12-31",
+        tz=tzinfo,
+    )
+
+    sessions: dict[str, tuple[pd.Timestamp, pd.Timestamp]] = {}
+    for session_date, row in schedule.iterrows():
+        market_open = pd.Timestamp(row["market_open"])
+        market_close = pd.Timestamp(row["market_close"])
+        if market_open.tz is None:
+            market_open = market_open.tz_localize(tzinfo)
+        else:
+            market_open = market_open.tz_convert(tzinfo)
+        if market_close.tz is None:
+            market_close = market_close.tz_localize(tzinfo)
+        else:
+            market_close = market_close.tz_convert(tzinfo)
+        sessions[pd.Timestamp(session_date).date().isoformat()] = (market_open, market_close)
+    return sessions
+
+
+def _regular_trading_session_bounds(
+        market: str,
+        session_date_iso: str,
+        tz_name: str,
+) -> tuple[pd.Timestamp, pd.Timestamp] | None:
+    year = int(session_date_iso[:4])
+    sessions = _regular_trading_sessions_by_year(market, year, tz_name)
+    return sessions.get(session_date_iso)
+
+
+def is_regular_trading_session(
+        dtm: dt.datetime,
+        market: str = "NYSE",
+        include_close: bool = False,
+) -> bool:
+    """
+    Check whether a datetime is inside a market's regular trading session.
+
+    This intentionally ignores any strategy-level broker market setting. It is
+    useful for strategies that keep a broad scheduler calendar, such as 24/5,
+    but only want to submit or model stock orders during regular exchange hours.
+
+    Args:
+        dtm: A timezone-aware datetime object. Naive datetimes are localized to
+            the calendar timezone returned by pandas-market-calendars.
+        market: Calendar name, for example "NYSE".
+        include_close: If True, treat the exact market close timestamp as
+            inside the session. Defaults to False because a normal market order
+            submitted exactly at the close is not reliably executable as an
+            intraday regular-hours order.
+
+    Returns:
+        True if `dtm` is within that day's regular session.
+    """
+    try:
+        cal_tz_name = _market_calendar_timezone_name(market)
+    except RuntimeError:
+        print(f"Market calendar '{market}' not found.")
+        return False
+
+    try:
+        ts = pd.Timestamp(dtm)
+        cal_tz = pytz.timezone(cal_tz_name)
+        if ts.tz is None:
+            ts = ts.tz_localize(cal_tz)
+        else:
+            ts = ts.tz_convert(cal_tz)
+
+        bounds = _regular_trading_session_bounds(market, ts.date().isoformat(), cal_tz_name)
+        if bounds is None:
+            return False
+        market_open, market_close = bounds
+
+        if include_close:
+            return bool(market_open <= ts <= market_close)
+        return bool(market_open <= ts < market_close)
+    except Exception as e:
+        print(e)
+        return False
+
+
 class ComparaisonMixin:
     COMPARAISON_PROP = "timestamp"
 

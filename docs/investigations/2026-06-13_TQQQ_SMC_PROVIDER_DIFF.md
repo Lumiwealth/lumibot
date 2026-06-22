@@ -1,8 +1,8 @@
 # TQQQ SMC Provider Difference Investigation
 
 One-line description: Production artifact comparison for TQQQ Smart Money Concepts v15-v19 across BotSpot Auto/IBKR and ThetaData, with local replay limitations.
-Last Updated: 2026-06-19
-Status: Local LumiBot fix implemented and prod-like 2013-2026 matrix validated; remaining v19 70% drawdown is strategy behavior, not the old IBKR pending-fill loop
+Last Updated: 2026-06-22
+Status: Local LumiBot fix implemented and prod-like 2013-2026 matrix validated; v21 RTH-only strategy candidate tested and reconciled across Auto/IBKR and ThetaData
 Audience: LumiBot, BotSpot Node, Bot Manager, and strategy support engineers
 
 ## Overview
@@ -1024,3 +1024,95 @@ strategy's `24/5` execution semantics. Before live/paper migration, decide
 whether TQQQ should really trade through this strategy as `24/5`, or create a
 v21 candidate that keeps the same-day lockout while using execution assumptions
 that match the intended live broker session.
+
+## 2026-06-22 v21 RTH-Only Candidate Validation
+
+Rob pushed back correctly that `self.is_market_open()` is not the right guard for
+this strategy. Because the strategy keeps `set_market("24/5")` as its hourly
+wakeup calendar, `self.is_market_open()` follows that broad market setting. The
+v21 candidate therefore uses a new explicit helper,
+`is_regular_trading_session()`, which checks the exchange calendar directly and
+ignores the strategy/broker market setting.
+
+The helper was added in:
+
+- `/Users/robertgrzesik/Development/lumibot/lumibot/tools/helpers.py`
+- `/Users/robertgrzesik/Development/lumibot/lumibot/tools/__init__.py`
+- `/Users/robertgrzesik/Development/lumibot/tests/test_regular_trading_session_helper.py`
+
+The helper caches regular sessions by market/year/timezone. A first Auto run
+with a per-date cache completed in `312.5s`; after switching to the year cache,
+the same full-window Auto/IBKR run completed in `46.8s`.
+
+Candidate:
+
+- Local strategy file:
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_strategy_candidates_20260622/code/v21_rth_only_main.py`
+- Strategy SHA-256:
+  `7b57d683e321ee7a6f8269525272b82553b1066c32aab7d59e500a783cd1f1ae`
+- Base: v20 daily-lockout candidate
+- Behavior: keep `set_market("24/5")` only as the hourly scheduler, but submit
+  and model strategy-managed TQQQ orders only during explicit NYSE regular
+  trading hours.
+- Exact close handling: `include_regular_close=False`; `16:00 ET` is not treated
+  as a new order/fill time.
+
+Full-window current-code run matrix for `2013-01-01` to `2026-06-05`:
+
+| Scenario | Runtime | Total return | CAGR | Max DD | Buy fills | Sell fills | Stop fills | Stop cancels | Fills outside RTH | Queue submits |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| v21 Auto/IBKR RTH | `46.8s` | `270%` | `10.23%` | `-55.68%` | `252` | `71` | `14` | `1980` | `0` | `0` |
+| v21 ThetaData RTH | `79.6s` | `248%` | `9.73%` | `-57.2%` | `241` | `72` | `11` | `1899` | `0` | `0` |
+
+Artifacts:
+
+- v21 Auto/IBKR run:
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_strategy_candidates_20260622/runs/v21_auto_original_warm_rth_yearcache`
+- v21 ThetaData run:
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_strategy_candidates_20260622/runs/v21_theta_original_warm_rth`
+- v21 audit summary:
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_strategy_candidates_20260622/audit/v21_rth_audit.md`
+- Matrix CSV:
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_strategy_candidates_20260622/audit/v15_v19_v20_v21_matrix_summary.csv`
+- Fill alignment:
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_strategy_candidates_20260622/audit/v21_auto_vs_theta_fill_alignment.csv`
+- Exact time/side/type fill join:
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_strategy_candidates_20260622/audit/v21_auto_vs_theta_time_side_fill_join.csv`
+
+The v21 provider comparison reconciles well enough for the strategy question:
+
+- Auto/IBKR and ThetaData are in the same return/drawdown family.
+- Both have zero fills outside regular NYSE hours.
+- Both have zero downloader queue submits and zero stale-cache matches.
+- Exact time/side/type fill join found `284` matched fills, `53` Auto-only fills,
+  and `40` Theta-only fills.
+- Matched-fill price differences are small: mean absolute difference `0.0944%`,
+  max absolute difference `0.3987%`, and no matched fill above `0.5%`.
+
+The remaining Auto/Theta divergence is still mostly the known warmup-history
+issue from the 2026-06-19 provider audit: Auto/IBKR has enough pre-2013 TQQQ
+daily bars and starts trading on `2013-01-03`; ThetaData first trades on
+`2013-04-11`. After that first provider difference, trade sequences become
+path-dependent.
+
+The v21 drawdown conclusion is different from v20:
+
+| Scenario | Peak | Valley | Stats max DD | Final value |
+| --- | --- | --- | ---: | ---: |
+| v20 Auto/IBKR `24/5` | `2021-11-05 16:00 ET` | `2022-01-09 18:00 ET` | `-28.85%` | `$34,952,445` |
+| v20 ThetaData `24/5` | `2015-03-02 16:00 ET` | `2016-06-24 01:00 ET` | `-28.93%` | `$32,051,958` |
+| v20 Auto/IBKR no `24/5` | `2014-12-01 08:30 ET` | `2018-04-24 16:00 ET` | `-56.39%` | `$336,249` |
+| v21 Auto/IBKR RTH | `2014-11-28 16:00 ET` | `2018-04-24 16:00 ET` | `-55.68%` | `$369,727` |
+| v21 ThetaData RTH | `2015-03-02 16:00 ET` | `2018-04-24 16:00 ET` | `-57.20%` | `$347,862` |
+
+Interpretation: v21 is more live-realistic for a TQQQ regular-session bot than
+v20 `24/5`, but it is not the high-CAGR v20 strategy. The high v20 return
+depends on after-hours / overnight fill timestamps. v21 keeps the v20 same-day
+lockout fix, removes the v19 2020 stop cascade, and avoids after-hours TQQQ
+fills, but the long 2014-2018 drawdown becomes the dominant risk.
+
+Separate caution: an earlier fresh-cache v21 Auto smoke attempted to rebuild
+TQQQ daily bars and received `Chart data unavailable`, which produced
+placeholder/missing bars and zero trades. That run is not used as strategy
+evidence. The accepted v21 runs above are warm prod-cache validations and prove
+strategy/backtester behavior, not cold-cache IBKR downloader recovery.

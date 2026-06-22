@@ -101,6 +101,7 @@ _HELPER_EXPORTS = {
     "hashlib",
     "is_daily_data",
     "is_market_open",
+    "is_regular_trading_session",
     "lru_cache",
     "mcal",
     "os",

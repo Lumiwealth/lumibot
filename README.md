@@ -474,7 +474,7 @@ Multi-provider routing by asset type:
 export BACKTESTING_DATA_SOURCE='{"default":"thetadata","option":"thetadata","crypto":"ibkr","crypto_future":"ibkr","future":"ibkr","cont_future":"ibkr"}'
 ```
 
-Crypto futures/perpetual backtests can route `Asset.AssetType.CRYPTO_FUTURE` through spot crypto history. USDT symbols such as `BTCUSDT`, `ETHUSDT`, and `SOLUSDT` use the matching USD spot proxy for prices.
+Crypto futures/perpetual backtests can route `Asset.AssetType.CRYPTO_FUTURE` through spot crypto history. Quote symbols are preserved: `BTCUSDT` uses `BTC/USDT` spot history when that pair is available from the selected crypto data source. LumiBot must not silently replace a requested USDT, USDC, EUR, or other quote with USD; missing pairs should fail honestly or be changed explicitly in strategy code.
 
 ### Data source comparison
 

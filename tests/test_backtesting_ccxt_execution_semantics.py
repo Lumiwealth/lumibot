@@ -24,7 +24,7 @@ class _StubCcxtDataSource:
         return self._now
 
     def get_historical_prices(self, *args, **kwargs):
-        self.calls.append(kwargs)
+        self.calls.append({"args": args, **kwargs})
         return SimpleNamespace(df=self._bars, empty=self._bars.empty)
 
 
@@ -91,6 +91,19 @@ def _market_order(asset, quote, *, tif="day"):
     return order
 
 
+def _typed_order(asset, quote, *, order_type, tif="day", **prices):
+    return Order(
+        strategy="TestStrategy",
+        asset=asset,
+        quantity=Decimal("0.01"),
+        side=Order.OrderSide.BUY,
+        order_type=order_type,
+        time_in_force=tif,
+        quote=quote,
+        **prices,
+    )
+
+
 def test_ccxt_market_order_waits_when_only_future_bar_is_available():
     now = datetime.datetime(2026, 3, 12, 12, 0, tzinfo=datetime.timezone.utc)
     future_bar = now + datetime.timedelta(minutes=10)
@@ -126,6 +139,28 @@ def test_ccxt_market_order_fills_at_real_next_bar_timestamp_not_original_gap_tim
     assert kwargs["order"] is order
     assert kwargs["price"] == 220.0
     assert broker.datetime == next_bar
+
+
+def test_ccxt_market_order_uses_exact_requested_forex_quote_pair_for_fill():
+    now = datetime.datetime(2026, 3, 12, 12, 0, tzinfo=datetime.timezone.utc)
+    asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    order = _market_order(asset, quote, tif="gtc")
+    broker, data_source = _broker_for_ccxt(now, _bars([now], [111.0]), order)
+
+    broker.process_pending_orders(_DummyStrategy())
+
+    broker._execute_filled_order.assert_called_once()
+    _, kwargs = broker._execute_filled_order.call_args
+    assert kwargs["price"] == 111.0
+
+    call = data_source.calls[0]
+    requested_asset = call["asset"]
+    assert isinstance(requested_asset, tuple)
+    assert requested_asset[0] is asset
+    assert requested_asset[1] is quote
+    assert call["quote"] is quote
+    assert requested_asset[1].symbol == "USD"
 
 
 def test_ccxt_gtc_market_order_waits_across_sparse_gap_and_fills_at_real_bar_timestamp():
@@ -181,6 +216,20 @@ def test_ccxt_ioc_market_order_cancels_when_current_bar_missing():
     broker.cancel_order.assert_called_once_with(order)
 
 
+def test_ccxt_fok_market_order_cancels_when_current_bar_missing():
+    now = datetime.datetime(2026, 3, 12, 12, 0, tzinfo=datetime.timezone.utc)
+    next_bar = now + datetime.timedelta(minutes=10)
+    asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+    quote = Asset("USDT", asset_type=Asset.AssetType.CRYPTO)
+    order = _market_order(asset, quote, tif="fok")
+    broker, _data_source = _broker_for_ccxt(now, _bars([next_bar], [220.0]), order)
+
+    broker.process_pending_orders(_DummyStrategy())
+
+    broker._execute_filled_order.assert_not_called()
+    broker.cancel_order.assert_called_once_with(order)
+
+
 def test_ccxt_ioc_limit_order_cancels_when_current_bar_does_not_cross():
     now = datetime.datetime(2026, 3, 12, 12, 0, tzinfo=datetime.timezone.utc)
     asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
@@ -201,6 +250,79 @@ def test_ccxt_ioc_limit_order_cancels_when_current_bar_does_not_cross():
 
     broker._execute_filled_order.assert_not_called()
     broker.cancel_order.assert_called_once_with(order)
+
+
+def test_ccxt_day_market_order_expires_on_next_utc_day_before_later_bar_can_fill():
+    submitted_at = datetime.datetime(2026, 3, 12, 23, 58, tzinfo=datetime.timezone.utc)
+    later_bar = datetime.datetime(2026, 3, 13, 0, 2, tzinfo=datetime.timezone.utc)
+    asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+    quote = Asset("USDT", asset_type=Asset.AssetType.CRYPTO)
+    order = _market_order(asset, quote, tif="day")
+    order._date_created = submitted_at
+    broker, _data_source = _broker_for_ccxt(later_bar, _bars([later_bar], [220.0]), order)
+
+    broker.process_pending_orders(_DummyStrategy())
+
+    broker._execute_filled_order.assert_not_called()
+    broker.cancel_order.assert_called_once_with(order)
+
+
+def test_ccxt_limit_order_waits_for_real_bar_and_fills_at_that_bar_timestamp():
+    now = datetime.datetime(2026, 3, 12, 12, 0, tzinfo=datetime.timezone.utc)
+    next_bar = now + datetime.timedelta(minutes=10)
+    asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+    quote = Asset("USDT", asset_type=Asset.AssetType.CRYPTO)
+    order = _typed_order(
+        asset,
+        quote,
+        order_type=Order.OrderType.LIMIT,
+        tif="gtc",
+        limit_price=Decimal("230"),
+    )
+    broker, data_source = _broker_for_ccxt(now, _bars([next_bar], [220.0]), order)
+    strategy = _DummyStrategy()
+
+    broker.process_pending_orders(strategy)
+    broker._execute_filled_order.assert_not_called()
+    broker.cancel_order.assert_not_called()
+
+    data_source._now = next_bar
+    broker.process_pending_orders(strategy)
+
+    broker._execute_filled_order.assert_called_once()
+    _, kwargs = broker._execute_filled_order.call_args
+    assert kwargs["order"] is order
+    assert kwargs["price"] == 220.0
+    assert broker.datetime == next_bar
+
+
+def test_ccxt_stop_order_waits_for_real_bar_and_fills_at_that_bar_timestamp():
+    now = datetime.datetime(2026, 3, 12, 12, 0, tzinfo=datetime.timezone.utc)
+    next_bar = now + datetime.timedelta(minutes=10)
+    asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+    quote = Asset("USDT", asset_type=Asset.AssetType.CRYPTO)
+    order = _typed_order(
+        asset,
+        quote,
+        order_type=Order.OrderType.STOP,
+        tif="gtc",
+        stop_price=Decimal("219"),
+    )
+    broker, data_source = _broker_for_ccxt(now, _bars([next_bar], [220.0]), order)
+    strategy = _DummyStrategy()
+
+    broker.process_pending_orders(strategy)
+    broker._execute_filled_order.assert_not_called()
+    broker.cancel_order.assert_not_called()
+
+    data_source._now = next_bar
+    broker.process_pending_orders(strategy)
+
+    broker._execute_filled_order.assert_called_once()
+    _, kwargs = broker._execute_filled_order.call_args
+    assert kwargs["order"] is order
+    assert kwargs["price"] == 220.0
+    assert broker.datetime == next_bar
 
 
 def test_crypto_day_orders_expire_on_utc_date_boundary():

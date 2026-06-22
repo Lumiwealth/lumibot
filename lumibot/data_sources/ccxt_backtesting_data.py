@@ -21,7 +21,7 @@ class CcxtBacktestingData(DataSourceBacktesting):
     # SOURCE must be `CCXT` for the DataSourceBacktesting to work
     # `CCXT` is used in DataSource name
     SOURCE = "CCXT"
-    MIN_TIMESTEP = "day"
+    MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = [
         {"timestep": "minute", "representations": ["1m"]},
         {"timestep": "hour", "representations": ["1h"]},
@@ -223,8 +223,10 @@ class CcxtBacktestingData(DataSourceBacktesting):
         start_dt = self._to_utc_timezone(start_date)
         end_dt = self._to_utc_timezone(end_date)
 
-        # Cache data is stored in UTC time
-        data = self.cache_db.get_data_from_cache(symbol, parsed_timestep, start_dt, end_dt)
+        # Cache data is stored in UTC time. Use the normal download/cache path
+        # here so cold-cache full-window backtests populate CCXT data instead of
+        # behaving like the symbol has no history.
+        data = self.cache_db.download_ohlcv(symbol, parsed_timestep, start_dt, end_dt)
         if data is None or data.empty:
             return None
 

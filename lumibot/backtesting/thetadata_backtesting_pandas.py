@@ -2787,9 +2787,11 @@ class ThetaDataBacktestingPandas(PandasData):
         current_mode = getattr(self, "_timestep", None)
         asset_type_token = _asset_type_token(asset)
         effective_day_mode = bool(getattr(self, "_effective_day_mode", False))
+        is_crypto_asset = asset_type_token in {"crypto", "crypto_future"}
 
         if (
             timestep == "minute"
+            and not is_crypto_asset
             and (
                 current_mode == "day"
                 or (
@@ -3417,10 +3419,12 @@ class ThetaDataBacktestingPandas(PandasData):
         asset_type_token = _asset_type_token(asset)
         effective_day_mode = current_mode == "day" or bool(getattr(self, "_effective_day_mode", False))
         self._effective_day_mode = effective_day_mode
+        is_crypto_asset = asset_type_token in {"crypto", "crypto_future"}
 
         if (
             timestep == "minute"
             and not snapshot_only
+            and not is_crypto_asset
             and (
                 current_mode == "day"
                 or (

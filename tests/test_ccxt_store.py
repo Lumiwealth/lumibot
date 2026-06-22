@@ -214,6 +214,74 @@ def test_ccxt_cache_filters_legacy_missing_nan_and_duplicate_rows(tmp_path, monk
     assert list(df.index) == [pd.Timestamp("2026-01-01 00:00:00"), pd.Timestamp("2026-01-01 00:03:00")]
     assert df["missing"].tolist() == [0, 0]
 
+
+@pytest.mark.parametrize(
+    "timeframe,expected_step",
+    [
+        ("1m", pd.Timedelta(minutes=1)),
+        ("1h", pd.Timedelta(hours=1)),
+        ("1d", pd.Timedelta(days=1)),
+    ],
+)
+def test_ccxt_cache_warm_reads_do_not_refetch_supported_timeframes(
+    tmp_path,
+    monkeypatch,
+    timeframe,
+    expected_step,
+):
+    cache = _cache_without_live_exchange(tmp_path, monkeypatch)
+    calls = []
+
+    def fake_get_barset(symbol, requested_timeframe, limit, start, end):
+        calls.append(
+            {
+                "symbol": symbol,
+                "timeframe": requested_timeframe,
+                "limit": limit,
+                "start": start,
+                "end": end,
+            }
+        )
+        return _bars(
+            (datetime(2026, 1, 1), 100.0, 101.0, 99.0, 100.5, 10.0),
+            (datetime(2026, 1, 1) + expected_step, 101.0, 102.0, 100.0, 101.5, 11.0),
+        )
+
+    monkeypatch.setattr(cache, "_get_barset_from_api", fake_get_barset)
+
+    start = datetime(2026, 1, 1)
+    end = datetime(2026, 1, 1) + expected_step
+    first = cache.download_ohlcv("BTC/USDT", timeframe, start, end)
+    second = cache.download_ohlcv("BTC/USDT", timeframe, start, end)
+
+    assert not first.empty
+    assert first.equals(second)
+    assert len(calls) == 1
+    assert calls[0]["timeframe"] == timeframe
+
+
+def test_ccxt_cache_keeps_quote_pairs_separate_without_usd_fallback(tmp_path, monkeypatch):
+    cache = _cache_without_live_exchange(tmp_path, monkeypatch)
+    calls = []
+
+    def fake_get_barset(symbol, timeframe, limit, start, end):
+        calls.append(symbol)
+        if symbol == "BTC/USDT":
+            return _bars((datetime(2026, 1, 1), 100.0, 101.0, 99.0, 100.5, 10.0))
+        if symbol == "BTC/USD":
+            return _bars((datetime(2026, 1, 1), 200.0, 201.0, 199.0, 200.5, 20.0))
+        raise AssertionError(f"unexpected symbol {symbol}")
+
+    monkeypatch.setattr(cache, "_get_barset_from_api", fake_get_barset)
+
+    usdt = cache.download_ohlcv("BTC/USDT", "1m", datetime(2026, 1, 1), datetime(2026, 1, 1, 0, 1))
+    usd = cache.download_ohlcv("BTC/USD", "1m", datetime(2026, 1, 1), datetime(2026, 1, 1, 0, 1))
+
+    assert calls == ["BTC/USDT", "BTC/USD"]
+    assert usdt["open"].iloc[0] == 100.0
+    assert usd["open"].iloc[0] == 200.0
+    assert cache.get_cache_file_name("BTC/USDT", "1m") != cache.get_cache_file_name("BTC/USD", "1m")
+
 @pytest.mark.skip(reason="CCXT integration test requires stable network connection and external API availability")
 @pytest.mark.parametrize("exchange_id,symbol,timeframe,start,end",
                          [ ("bitmex","ETH/USDT","1d",datetime(2022, 8, 1),datetime(2022, 10, 30))

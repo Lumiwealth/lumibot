@@ -1150,16 +1150,19 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
         if spec.provider != "thetadata" and timestep == "minute":
             asset_obj = asset if not isinstance(asset, tuple) else asset[0]
             asset_type = str(getattr(asset_obj, "asset_type", "") or "").strip().lower()
+            if "." in asset_type:
+                asset_type = asset_type.split(".")[-1]
             prefer_native_day = bool(getattr(self, "PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX", False))
             source_timestep = str(getattr(self, "_timestep", "") or "").strip().lower()
-            if prefer_native_day and asset_type in {"stock", "equity", "index"}:
-                timestep = "day"
-            elif _is_day_like_timestep(source_timestep):
-                timestep = "day"
-            elif not bool(getattr(self, "_observed_intraday_cadence", False)) and bool(
-                getattr(self, "_effective_day_mode", False)
-            ):
-                timestep = "day"
+            if asset_type not in {"crypto", "crypto_future"}:
+                if prefer_native_day and asset_type in {"stock", "equity", "index"}:
+                    timestep = "day"
+                elif _is_day_like_timestep(source_timestep):
+                    timestep = "day"
+                elif not bool(getattr(self, "_observed_intraday_cadence", False)) and bool(
+                    getattr(self, "_effective_day_mode", False)
+                ):
+                    timestep = "day"
 
         return super().get_last_price(asset, timestep=timestep, quote=quote, exchange=exchange, **kwargs)
 
@@ -1184,15 +1187,18 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
         if spec.provider != "thetadata" and timestep == "minute":
             asset_obj = asset if not isinstance(asset, tuple) else asset[0]
             asset_type = str(getattr(asset_obj, "asset_type", "") or "").strip().lower()
+            if "." in asset_type:
+                asset_type = asset_type.split(".")[-1]
             prefer_native_day = bool(getattr(self, "PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX", False))
             source_timestep = str(getattr(self, "_timestep", "") or "").strip().lower()
-            if prefer_native_day and asset_type in {"stock", "equity", "index"}:
-                timestep = "day"
-            elif _is_day_like_timestep(source_timestep):
-                timestep = "day"
-            elif not bool(getattr(self, "_observed_intraday_cadence", False)) and bool(
-                getattr(self, "_effective_day_mode", False)
-            ):
-                timestep = "day"
+            if asset_type not in {"crypto", "crypto_future"}:
+                if prefer_native_day and asset_type in {"stock", "equity", "index"}:
+                    timestep = "day"
+                elif _is_day_like_timestep(source_timestep):
+                    timestep = "day"
+                elif not bool(getattr(self, "_observed_intraday_cadence", False)) and bool(
+                    getattr(self, "_effective_day_mode", False)
+                ):
+                    timestep = "day"
 
         return super().get_quote(asset, quote=quote, exchange=exchange, timestep=timestep, **kwargs)

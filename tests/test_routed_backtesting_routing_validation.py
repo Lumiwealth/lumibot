@@ -36,6 +36,28 @@ def test_routed_backtesting_crypto_future_inherits_crypto_provider():
     assert rb._provider_spec_for_asset(asset).provider == "ibkr"
 
 
+def test_routed_backtesting_keeps_explicit_crypto_future_provider_when_spot_crypto_uses_coinbase():
+    pytest.importorskip("ccxt")
+    routing = RoutedBacktestingPandas._normalize_routing(
+        {
+            "default": "ibkr",
+            "crypto": "coinbase",
+            "crypto_future": "ibkr",
+        }
+    )
+    rb = RoutedBacktestingPandas.__new__(RoutedBacktestingPandas)
+    rb._routing = routing  # type: ignore[attr-defined]
+    rb._registry = _ProviderRegistry(rb)  # type: ignore[attr-defined]
+
+    spot_asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+    spot_spec = rb._provider_spec_for_asset(spot_asset)
+    assert spot_spec.provider == "ccxt"
+    assert spot_spec.ccxt_exchange_id == "coinbase"
+
+    perp_asset = Asset("BTCUSDT", asset_type=Asset.AssetType.CRYPTO_FUTURE)
+    assert rb._provider_spec_for_asset(perp_asset).provider == "ibkr"
+
+
 def test_routed_backtesting_rejects_unknown_provider():
     rb = RoutedBacktestingPandas.__new__(RoutedBacktestingPandas)
     rb._registry = _ProviderRegistry(rb)  # type: ignore[attr-defined]

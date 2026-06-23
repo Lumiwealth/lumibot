@@ -138,7 +138,7 @@ def _build_case_plan(
         raise ValueError(f"Unknown schedule profile: {profile}")
 
     return [
-        ("buy_hold", strategy_classes["buy_hold"], {}),
+        ("buy_hold", strategy_classes["buy_hold"], {"allocation": 1.0}),
         ("round_trip", strategy_classes["round_trip"], {"buy_at": buy_at, "sell_at": sell_at}),
         (
             "alternating",

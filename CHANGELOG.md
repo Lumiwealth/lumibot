@@ -3,6 +3,10 @@
 ## 4.5.52 - Unreleased
 
 ### Fixed
+- **Crypto buy-hold validation now uses full notional exposure.** The controlled
+  `buy_hold` validation case explicitly passes `allocation=1.0` so its strategy
+  line can be compared directly to the same-asset benchmark instead of looking
+  like a half-sized BTC position.
 - **Coinbase/CCXT crypto cache pagination now skips sparse empty pages.** Public
   Coinbase OHLCV downloads no longer treat the first empty page as end-of-history
   when later real candles exist inside the requested range, preventing cache
@@ -16,6 +20,9 @@
 - **Tradier OAuth refresh now has a public durable token-file path.** `TRADIER_TOKEN_PATH` loads provider token JSON, writes refreshed token material back atomically, and fails loudly when refreshed token material cannot be persisted. Schwab refreshed-token writes now also fail loudly instead of hiding a failed token-file write.
 
 ### Docs
+- **Crypto validation docs now call out buy-hold allocation semantics.** The
+  note records the corrected BTC/USDT minute artifact where full-allocation
+  buy-hold matches the BTC/USDT benchmark to rounding tolerance.
 - **Crypto Coinbase validation now records long-run matrix evidence.** The
   validation note lists BTC/USDT minute/hour/day, ETH/USDT, SOL/USDT, and older
   BTC/USD artifact roots with fill-price, fill-time, cache-coverage, and warm
@@ -24,6 +31,9 @@
 - **Tradier docs now describe OAuth token-file durability.** The broker docs and environment-variable reference explain `TRADIER_TOKEN_PATH` separately from manual `TRADIER_ACCESS_TOKEN` usage.
 
 ### Tests
+- **Crypto validation runner tests now lock full-allocation buy-hold behavior.**
+  The case-plan regression test ensures future buy-hold validation runs remain
+  directly comparable with the same-asset benchmark.
 - **Crypto CCXT regression tests now cover sparse empty-page pagination and order
   matrices.** Tests cover transient Coinbase market-load retries, sparse-page
   continuation, cache-coverage failure, and market/limit/stop/stop-limit,

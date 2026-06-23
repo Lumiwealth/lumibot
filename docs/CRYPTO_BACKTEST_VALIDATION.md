@@ -97,6 +97,11 @@ The controlled strategies are:
 - `order_matrix`: market, limit, stop, stop-limit, trailing-stop, bracket,
   OCO, and OTO behavior over a multi-week window.
 
+The `buy_hold` case intentionally uses `allocation=1.0` so the strategy line
+should track the same-asset benchmark line. If those lines materially diverge,
+first check the fill price, position quantity, and remaining cash before
+treating the tear sheet as data-provider proof.
+
 ### 2026-06-22 Long Coinbase Matrix And Sparse-Page Cache Fix
 
 Root cause found during long BTC/USDT validation:
@@ -174,6 +179,32 @@ Important BTC/USDT 1m proof:
   `143s`, confirming cache reuse without relying on bad range metadata.
 
 No production deploy was performed for this validation pass.
+
+### 2026-06-23 Full-Allocation Buy-Hold Correction
+
+The first 2026 BTC/USDT minute `buy_hold` tear sheet used the validation
+strategy default `allocation=0.5`, so the strategy line was roughly half the
+benchmark movement. That was a validation-runner setup issue, not a Coinbase
+price issue.
+
+The case plan now passes `allocation=1.0` only for `buy_hold`; the other cases
+keep the default allocation so round-trip and order-matrix tests have enough
+cash/position room for their order sequences.
+
+Corrected artifact root:
+
+- `/Users/robertgrzesik/Development/support-artifacts/crypto-validation-long-20260623-btcusdt-2026-1m-full-buyhold`
+
+Corrected BTC/USDT 1m `buy_hold` proof:
+
+- Entry: `2026-03-13 20:00:00-04:00`, price `70848.52`, quantity
+  `0.14114621`, notional `10000.0000821092` against a `$10,000` account.
+- Remaining cash after entry: approximately `-$0.000082`, caused by rounding.
+- Strategy return: `-9.008402790%`.
+- Same-entry benchmark BTC return: `-9.008402716%`.
+- Difference: about `0.000000074` percentage points.
+- Cache coverage, fill price, fill timestamp, inside-candle, and requested
+  symbol checks all passed.
 
 ### 2026-06-20 Controlled Coinbase Proof
 

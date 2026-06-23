@@ -191,6 +191,31 @@ def test_crypto_validation_runner_includes_order_matrix_case():
     ]
 
 
+def test_crypto_validation_runner_buy_hold_uses_full_allocation():
+    runner = _load_runner_module()
+    strategies = {
+        "buy_hold": object,
+        "round_trip": object,
+        "alternating": object,
+        "order_matrix": object,
+    }
+    start = datetime(2026, 3, 1, tzinfo=timezone.utc)
+    end = datetime(2026, 6, 1, tzinfo=timezone.utc)
+
+    cases = runner._build_case_plan(
+        start=start,
+        end=end,
+        profile="long",
+        strategy_classes=strategies,
+    )
+
+    params_by_name = {name: params for name, _cls, params in cases}
+    assert params_by_name["buy_hold"]["allocation"] == 1.0
+    assert "allocation" not in params_by_name["round_trip"]
+    assert "allocation" not in params_by_name["alternating"]
+    assert "allocation" not in params_by_name["order_matrix"]
+
+
 def test_crypto_validation_runner_flags_incomplete_actual_cache_coverage(tmp_path, monkeypatch):
     runner = _load_runner_module()
     import lumibot.constants as constants

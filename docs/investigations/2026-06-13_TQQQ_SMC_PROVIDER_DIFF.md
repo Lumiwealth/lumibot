@@ -1192,3 +1192,55 @@ Actionable status:
   downloader can rebuild TQQQ daily EOD data from a fresh cache.
 - This is separate from the earlier LumiBot slow-backtest bug. Auto/IBKR
   backtests are now queue-free and fast enough for full-window iteration.
+
+## 2026-06-22 IBKR-First Strategy Direction
+
+Rob asked why the strategy should still be discussed through ThetaData when the
+intended source for this decision is Interactive Brokers. The answer is that
+ThetaData is no longer the priority for the live-strategy decision. The
+IBKR/BotSpot Auto artifacts are sufficient to make the current call.
+
+Current IBKR-first conclusions:
+
+- The slow-backtest issue and old IBKR pending-stop no-pandas loop are separate
+  from the strategy-quality issue. Current local Auto/IBKR runs are fast enough
+  and queue-free for full-window iteration.
+- The high v20 result is a valid backtest result for the strategy's
+  `set_market("24/5")` execution model, but it is not proven live-realistic for
+  a TQQQ bot. All v20 `24/5` fills are outside the explicit regular-session
+  classification, mostly at `16:00`, `17:00`, `18:00`, `19:00`, and a small
+  number after midnight. Removing `24/5` or enforcing explicit NYSE regular
+  hours drops the same strategy family from roughly `54.68%` CAGR and
+  `-28.85%` max drawdown to roughly `9-10%` CAGR and `-55-56%` max drawdown.
+- v15 was genuinely high-return under the old BotSpot Auto/IBKR backtest
+  artifacts, but it also relied on `24/5`/after-hours timestamp behavior. Its
+  better drawdown came from the older OTO stop semantics and daily gating, not
+  from a proven regular-hours SMC edge.
+- v19 fixed one live-trading concern by using broker-compatible simple stops,
+  but introduced the severe same-daily-bar stop/re-entry failure. After the
+  Lumibot pending-fill fix, v19 Auto/IBKR reconciles with the high-return /
+  high-drawdown family: about `42.77%` CAGR and `-70.78%` max drawdown.
+- v21/v22b are better live-realistic RTH candidates than v20 `24/5`, but neither
+  is good enough to replace the existing TQQQ 200-day moving average strategy.
+  v22b is the best SMC RTH experiment so far at about `14.17%` CAGR and
+  `-48.25%` max drawdown, which is still weak versus the simpler benchmark.
+- The documented TQQQ 200-day moving average acceptance baseline remains the
+  champion benchmark for this family: roughly `41-42%` CAGR with about
+  `-48%` max drawdown on the existing acceptance window. Future SMC variants
+  should be judged against that baseline under the same IBKR/RTH assumptions.
+
+Recommended direction:
+
+1. Do not migrate real-money bots to v20/v21/v22b based only on the current SMC
+   research artifacts.
+2. Treat the simple TQQQ 200-day moving average strategy as the benchmark and
+   likely live candidate until an SMC variant beats it under live-realistic
+   Auto/IBKR execution assumptions.
+3. If SMC remains worth pursuing, rebuild it as an overlay on top of the 200-day
+   regime rather than as a separate all-in TQQQ timing system: use the 200-day
+   trend as the primary gate, let SMC affect entry timing or position size, and
+   add explicit risk controls before allowing full TQQQ exposure.
+4. Only consider extended-hours TQQQ execution after a separate validation using
+   real extended-hours bars, bid/ask spreads, liquidity assumptions, and paper
+   forward evidence. Daily OHLC backtest fills at after-hours timestamps are not
+   enough proof for real-money use.

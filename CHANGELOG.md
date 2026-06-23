@@ -1,9 +1,54 @@
 # Changelog
 
-## 4.5.52 - Unreleased
+## 4.5.52 - 2026-06-23
+
+Deploy marker: `deploy 4.5.52`
 
 ### Fixed
+- **Crypto buy-hold validation now uses full notional exposure.** The controlled
+  `buy_hold` validation case explicitly passes `allocation=1.0` so its strategy
+  line can be compared directly to the same-asset benchmark instead of looking
+  like a half-sized BTC position.
+- **Coinbase/CCXT crypto cache pagination now skips sparse empty pages.** Public
+  Coinbase OHLCV downloads no longer treat the first empty page as end-of-history
+  when later real candles exist inside the requested range, preventing cache
+  metadata from claiming full BTC/USDT coverage while the actual candle table
+  stops early.
+- **Crypto validation now checks actual cache coverage, not just range metadata.**
+  The validation runner fails incomplete candle coverage even if
+  `cache_dt_ranges` says the requested window is covered.
+- **IBKR intraday fills now require the current execution bar.** Direct IBKR and routed-IBKR quote, fast bid/ask, and OHLC fill paths reject minute/hour source rows that do not match the current simulated execution bucket, preventing sparse BTC cache objects from reusing older real rows as current fills.
+- **Sparse market-order fills now respect order lifecycle timing.** Stale market
+  fill candidates are canceled or left open according to time-in-force semantics
+  instead of filling at the current simulation timestamp with a far-away source
+  bar.
 - **BotSpot snapshot runs can force Schwab and Tradier OAuth token refresh.** Schwab rewrites the existing token file on startup when requested, Tradier OAuth writes the existing BotSpot rotation handoff artifact, and Tradier API-token mode remains unchanged.
+- **Tradier OAuth refresh now has a public durable token-file path.** `TRADIER_TOKEN_PATH` loads provider token JSON, writes refreshed token material back atomically, and fails loudly when refreshed token material cannot be persisted. Schwab refreshed-token writes now also fail loudly instead of hiding a failed token-file write.
+
+### Docs
+- **Crypto validation docs now call out buy-hold allocation semantics.** The
+  note records the corrected BTC/USDT minute artifact where full-allocation
+  buy-hold matches the BTC/USDT benchmark to rounding tolerance.
+- **Crypto Coinbase validation now records long-run matrix evidence.** The
+  validation note lists BTC/USDT minute/hour/day, ETH/USDT, SOL/USDT, and older
+  BTC/USD artifact roots with fill-price, fill-time, cache-coverage, and warm
+  cache results.
+- **Greg BTC investigation now records the local execution-path guard.** The note separates the Crypto Plus data-availability issue from the LumiBot no-stale-fill invariant and lists local targeted test evidence.
+- **Tradier docs now describe OAuth token-file durability.** The broker docs and environment-variable reference explain `TRADIER_TOKEN_PATH` separately from manual `TRADIER_ACCESS_TOKEN` usage.
+- **TQQQ provider-diff investigations now document execution sensitivity.** The
+  notes record the IBKR-first strategy direction, v22/v23 experiments, and
+  regular-session helper evidence without changing released strategy behavior.
+
+### Tests
+- **Crypto validation runner tests now lock full-allocation buy-hold behavior.**
+  The case-plan regression test ensures future buy-hold validation runs remain
+  directly comparable with the same-asset benchmark.
+- **Crypto CCXT regression tests now cover sparse empty-page pagination and order
+  matrices.** Tests cover transient Coinbase market-load retries, sparse-page
+  continuation, cache-coverage failure, and market/limit/stop/stop-limit,
+  trailing, bracket, OCO, and OTO crypto execution prices.
+- **Sparse IBKR crypto regressions now cover stale quote and fast-fill rejection.** Tests assert source-bar quote provenance, stale routed-IBKR quote-fill rejection, exact minute-bucket matching, and a corrected IBKR crypto OCO/OTO fixture that no longer relies on stale prior-minute data.
+- **Broker OAuth refresh tests now cover durable write failures.** Tradier tests assert forced refresh updates `TRADIER_TOKEN_PATH` and fails if the file cannot be written; Schwab tests assert forced refresh fails if the refreshed token file cannot be written while preserving the old valid file.
 
 ## 4.5.50 - Unreleased
 

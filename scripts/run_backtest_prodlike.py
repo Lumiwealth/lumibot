@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -31,6 +32,129 @@ def load_dotenv(path: Path) -> dict[str, str]:
 
 def _bool_str(v: bool) -> str:
     return "true" if v else "false"
+
+
+def sha256_file(path: Path) -> str | None:
+    try:
+        h = hashlib.sha256()
+        with path.open("rb") as f:
+            for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except FileNotFoundError:
+        return None
+
+
+def manifest_file(path: Path) -> dict[str, object]:
+    exists = path.exists()
+    payload: dict[str, object] = {
+        "path": str(path),
+        "exists": exists,
+    }
+    if exists:
+        try:
+            payload["size_bytes"] = path.stat().st_size
+        except OSError:
+            pass
+        payload["sha256"] = sha256_file(path)
+    return payload
+
+
+def git_value(args: list[str], cwd: Path) -> str | None:
+    try:
+        proc = subprocess.run(
+            ["git", *args],
+            cwd=str(cwd),
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=10,
+            check=False,
+        )
+    except Exception:
+        return None
+    if proc.returncode != 0:
+        return None
+    return proc.stdout.strip()
+
+
+def collect_git_provenance(repo_root: Path) -> dict[str, object]:
+    status = git_value(["status", "--porcelain=v1"], repo_root)
+    status_lines = [line for line in (status or "").splitlines() if line]
+    return {
+        "repo_root": str(repo_root),
+        "branch": git_value(["rev-parse", "--abbrev-ref", "HEAD"], repo_root),
+        "sha": git_value(["rev-parse", "HEAD"], repo_root),
+        "dirty": bool(status_lines),
+        "status_short": status_lines,
+    }
+
+
+def collect_child_import_provenance(env: dict[str, str], cwd: Path, output_path: Path) -> dict[str, object]:
+    probe = r'''
+import json
+import os
+import sys
+
+payload = {
+    "python": sys.executable,
+    "sys_path_head": sys.path[:5],
+    "cwd": os.getcwd(),
+}
+
+try:
+    import lumibot
+    from lumibot.backtesting import backtesting_broker, routed_backtesting
+
+    payload.update(
+        {
+            "ok": True,
+            "lumibot_file": getattr(lumibot, "__file__", None),
+            "lumibot_version": getattr(lumibot, "__version__", None),
+            "backtesting_broker_file": getattr(backtesting_broker, "__file__", None),
+            "routed_backtesting_file": getattr(routed_backtesting, "__file__", None),
+        }
+    )
+except Exception as exc:
+    payload.update({"ok": False, "error": repr(exc)})
+
+output_path = os.environ.get("LUMIBOT_PROVENANCE_OUTPUT")
+if output_path:
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2, sort_keys=True)
+        f.write("\n")
+else:
+    print(json.dumps(payload, sort_keys=True))
+'''
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    child_env = dict(env)
+    child_env["LUMIBOT_PROVENANCE_OUTPUT"] = str(output_path)
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-c", probe],
+            cwd=str(cwd),
+            env=child_env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=30,
+            check=False,
+        )
+        if output_path.exists():
+            payload = json.loads(output_path.read_text(errors="replace"))
+        else:
+            raw = (proc.stdout or "").strip()
+            payload = json.loads(raw) if raw else {}
+        payload["exit_code"] = proc.returncode
+        if proc.stdout:
+            payload["stdout_tail"] = proc.stdout[-2000:]
+        if proc.stderr:
+            payload["stderr"] = proc.stderr[-2000:]
+    except Exception as exc:
+        payload = {"ok": False, "error": repr(exc), "exit_code": None}
+
+    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    return payload
 
 
 def find_latest_prefix(log_dir: Path, started_at: float) -> str | None:
@@ -177,6 +301,11 @@ def main() -> int:
         help="Override LUMIBOT_CACHE_S3_PREFIX (alternative to cache-version)",
     )
     parser.add_argument(
+        "--cache-bucket",
+        default=None,
+        help="Override LUMIBOT_CACHE_S3_BUCKET without editing the dotenv file.",
+    )
+    parser.add_argument(
         "--cache-mode",
         default=None,
         choices=["disabled", "readonly", "readwrite"],
@@ -291,6 +420,9 @@ def main() -> int:
         "DATADOWNLOADER_API_KEY",
         "DATADOWNLOADER_API_KEY_HEADER",
         "DATADOWNLOADER_SKIP_LOCAL_START",
+        "THETADATA_USERNAME",
+        "THETADATA_PASSWORD",
+        "THETADATA_API_KEY",
     ]:
         if k in dotenv:
             env[k] = dotenv[k]
@@ -328,9 +460,27 @@ def main() -> int:
     if args.cache_prefix:
         env["LUMIBOT_CACHE_S3_PREFIX"] = args.cache_prefix
 
+    if args.cache_bucket:
+        env["LUMIBOT_CACHE_S3_BUCKET"] = args.cache_bucket
+
+    strategy_hash = sha256_file(main_py)
+    git_provenance = collect_git_provenance(Path(lumibot_root))
+    import_provenance_path = workdir / "child_import_provenance.json"
+    import_provenance = collect_child_import_provenance(env, workdir, import_provenance_path)
+
     started_at = time.time()
     print(f"[run] label={label}")
     print(f"[run] main={main_py}")
+    print(f"[run] strategy_sha256={strategy_hash}")
+    print(f"[run] lumibot_root={lumibot_root}")
+    print(f"[run] git_branch={git_provenance.get('branch')}")
+    print(f"[run] git_sha={git_provenance.get('sha')}")
+    print(f"[run] git_dirty={_bool_str(bool(git_provenance.get('dirty')))}")
+    print(f"[run] child_lumibot_file={import_provenance.get('lumibot_file')}")
+    print(f"[run] child_lumibot_version={import_provenance.get('lumibot_version')}")
+    print(f"[run] child_backtesting_broker_file={import_provenance.get('backtesting_broker_file')}")
+    print(f"[run] child_routed_backtesting_file={import_provenance.get('routed_backtesting_file')}")
+    print(f"[run] child_import_provenance={import_provenance_path}")
     print(f"[run] data_source={env.get('BACKTESTING_DATA_SOURCE')}")
     print(f"[run] window={args.start} -> {args.end}")
     print(f"[run] workdir={workdir}")
@@ -367,6 +517,12 @@ def main() -> int:
     subprocess_metrics = parse_subprocess_metrics(subprocess_log)
 
     prefix = find_latest_prefix(log_dir, started_at)
+    artifact_manifest: dict[str, object] = {
+        "prefix": prefix,
+        "log_dir": str(log_dir),
+        "files": {},
+        "copied_files": {},
+    }
     if prefix:
         trades = log_dir / f"{prefix}_trades.csv"
         trade_events = log_dir / f"{prefix}_trade_events.csv"
@@ -374,6 +530,17 @@ def main() -> int:
         settings = log_dir / f"{prefix}_settings.json"
         tearsheet_html = log_dir / f"{prefix}_tearsheet.html"
         tearsheet_csv = log_dir / f"{prefix}_tearsheet.csv"
+        source_artifacts = {
+            "tearsheet_html": tearsheet_html,
+            "tearsheet_csv": tearsheet_csv,
+            "trades": trades,
+            "trade_events": trade_events,
+            "logs": logs,
+            "settings": settings,
+            "subprocess_log": subprocess_log,
+            "child_import_provenance": import_provenance_path,
+        }
+        artifact_manifest["files"] = {name: manifest_file(path) for name, path in source_artifacts.items()}
 
         if tearsheet_html.exists():
             print(f"[artifacts] tearsheet_html={tearsheet_html}")
@@ -402,19 +569,26 @@ def main() -> int:
         if args.copy_artifacts_to:
             dest_root = Path(args.copy_artifacts_to).resolve()
             dest_root.mkdir(parents=True, exist_ok=True)
-            for src in (tearsheet_html, tearsheet_csv, trades, trade_events, logs, settings, subprocess_log):
+            copied: dict[str, dict[str, object]] = {}
+            for name, src in source_artifacts.items():
                 if not src.exists():
                     continue
                 dst = dest_root / src.name
                 try:
                     shutil.copy2(src, dst)
+                    copied[name] = manifest_file(dst)
                 except Exception as exc:
                     print(f"[warn] failed to copy {src} -> {dst}: {exc}")
+            artifact_manifest["copied_files"] = copied
             print(f"[artifacts] copied_to={dest_root}")
     else:
         print(f"[warn] no artifacts found in {log_dir}; see subprocess_log={subprocess_log}")
 
     try:
+        artifact_manifest_path = workdir / "artifact_manifest.json"
+        artifact_manifest_path.write_text(json.dumps(artifact_manifest, indent=2, sort_keys=True) + "\n")
+        print(f"[artifacts] manifest={artifact_manifest_path}")
+
         metrics_path = workdir / "metrics.json"
         payload = {
             "label": label,
@@ -422,6 +596,14 @@ def main() -> int:
             "elapsed_s": elapsed_s,
             "exit_code": proc.returncode,
             "subprocess_log": str(subprocess_log),
+            "main": str(main_py),
+            "strategy_sha256": strategy_hash,
+            "data_source": env.get("BACKTESTING_DATA_SOURCE"),
+            "git": git_provenance,
+            "child_import_provenance": import_provenance,
+            "child_import_provenance_path": str(import_provenance_path),
+            "artifact_manifest_path": str(artifact_manifest_path),
+            "artifacts": artifact_manifest,
             "metrics": subprocess_metrics,
             "cache": {
                 "folder": env.get("LUMIBOT_CACHE_FOLDER"),

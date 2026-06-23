@@ -8,6 +8,7 @@ import threading
 import datetime
 import inspect
 from collections import Counter
+from pathlib import Path
 from typing import Union
 
 import pandas as pd
@@ -35,6 +36,10 @@ def _botspot_force_broker_token_refresh() -> bool:
         "y",
         "on",
     }
+
+
+class TradierTokenPersistenceError(RuntimeError):
+    """Raised when a refreshed Tradier OAuth token cannot be durably written."""
 
 
 class Tradier(Broker):
@@ -83,6 +88,39 @@ class Tradier(Broker):
         """Encode a JSON payload as unpadded base64url."""
         raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
         return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+    @staticmethod
+    def _load_token_json_from_path(token_path: str | os.PathLike[str]) -> dict:
+        """Load a public Tradier OAuth token JSON file."""
+        path = Path(token_path).expanduser().resolve()
+        with path.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        if isinstance(payload, dict) and isinstance(payload.get("token"), dict):
+            payload = payload["token"]
+        if not isinstance(payload, dict):
+            raise ValueError("Tradier token file must contain a JSON object.")
+        return payload
+
+    @staticmethod
+    def _write_json_file_atomic(path: str | os.PathLike[str], payload: dict) -> None:
+        resolved = Path(path).expanduser().resolve()
+        tmp_path = resolved.with_name(f".{resolved.name}.tmp.{os.getpid()}.{threading.get_ident()}")
+        try:
+            resolved.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            with tmp_path.open("w", encoding="utf-8") as handle:
+                json.dump(payload, handle, separators=(",", ":"))
+            os.chmod(tmp_path, 0o600)
+            os.replace(tmp_path, resolved)
+            try:
+                os.chmod(resolved, 0o600)
+            except OSError:
+                pass
+        except Exception:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise
 
     @staticmethod
     def _is_auth_error(err: Exception) -> bool:
@@ -144,16 +182,26 @@ class Tradier(Broker):
             _update_client(getattr(ds, "tradier", None))
 
     def _persist_oauth_rotation(self, token_json: dict, new_access_token: str, new_refresh_token: str | None) -> None:
-        """Write rotated BotSpot Tradier OAuth tokens for Bot Manager persistence."""
+        """Write rotated Tradier OAuth tokens for provider files and BotSpot persistence."""
         rotation_path = os.environ.get("BOTSPOT_TRADIER_TOKEN_ROTATION_PATH")
-        if not rotation_path:
-            return
 
         refresh_token = new_refresh_token or getattr(self, "_oauth_refresh_token", None)
         payload = dict(token_json)
         payload["access_token"] = new_access_token
         if refresh_token:
             payload["refresh_token"] = refresh_token
+
+        token_path = getattr(self, "_oauth_token_path", None)
+        if token_path:
+            try:
+                self._write_json_file_atomic(token_path, payload)
+            except Exception as e:
+                raise TradierTokenPersistenceError(
+                    f"[Tradier] Failed to persist refreshed OAuth token file at {token_path}: {e}"
+                ) from e
+
+        if not rotation_path:
+            return
 
         rotated_values = {
             "TRADIER_ACCESS_TOKEN": new_access_token,
@@ -162,26 +210,12 @@ class Tradier(Broker):
         if refresh_token:
             rotated_values["TRADIER_REFRESH_TOKEN"] = refresh_token
 
-        tmp_path = f"{rotation_path}.tmp.{os.getpid()}.{threading.get_ident()}"
         try:
-            rotation_dir = os.path.dirname(rotation_path)
-            if rotation_dir:
-                os.makedirs(rotation_dir, mode=0o700, exist_ok=True)
-            with open(tmp_path, "w", encoding="utf-8") as handle:
-                json.dump(rotated_values, handle, separators=(",", ":"))
-            os.chmod(tmp_path, 0o600)
-            os.replace(tmp_path, rotation_path)
-            try:
-                os.chmod(rotation_path, 0o600)
-            except OSError:
-                pass
+            self._write_json_file_atomic(rotation_path, rotated_values)
         except Exception as e:
-            try:
-                if os.path.exists(tmp_path):
-                    os.unlink(tmp_path)
-            except OSError:
-                pass
-            logger.warning(f"[Tradier] Failed to persist OAuth token rotation artifact: {e}")
+            raise TradierTokenPersistenceError(
+                f"[Tradier] Failed to persist OAuth token rotation artifact at {rotation_path}: {e}"
+            ) from e
 
     def _refresh_oauth_token(self, *, force: bool = False) -> bool:
         """Refresh Tradier OAuth token if possible. Returns True on successful refresh."""
@@ -349,6 +383,7 @@ class Tradier(Broker):
         self._oauth_client_id = None
         self._oauth_client_secret = None
         self._oauth_token_expires_at = None  # epoch seconds
+        self._oauth_token_path = None
 
         payload_b64 = None
         try:
@@ -357,15 +392,33 @@ class Tradier(Broker):
         except Exception:
             payload_b64 = None
         payload_b64 = payload_b64 or os.environ.get("TRADIER_TOKEN")
+        token_path_value = None
+        try:
+            if isinstance(config, dict):
+                token_path_value = config.get("TRADIER_TOKEN_PATH")
+        except Exception:
+            token_path_value = None
+        token_path_value = token_path_value or os.environ.get("TRADIER_TOKEN_PATH")
 
         token_json = None
-        if payload_b64:
+        if token_path_value:
+            self._oauth_token_path = str(Path(token_path_value).expanduser().resolve())
+            try:
+                token_json = self._load_token_json_from_path(self._oauth_token_path)
+                payload_b64 = self._encode_base64url_json(token_json)
+            except Exception as e:
+                logger.warning(f"[Tradier] Failed to load TRADIER_TOKEN_PATH token file: {e}")
+                token_json = None
+
+        if payload_b64 and token_json is None:
             self._oauth_token_payload_b64 = payload_b64
             try:
                 token_json = self._decode_base64url_json(payload_b64)
             except Exception as e:
                 logger.warning(f"[Tradier] Failed to decode TRADIER_TOKEN payload: {e}")
                 token_json = None
+        elif payload_b64:
+            self._oauth_token_payload_b64 = payload_b64
 
         if token_json:
             # Prefer explicit access_token argument/config; fall back to decoded payload.

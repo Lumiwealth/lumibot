@@ -82,6 +82,15 @@ This repo is frequently edited by **multiple AI sessions**. To avoid lost work:
   - If you truly need isolation and are explicitly instructed to branch, use a scoped suffix (e.g., `4.4.25/<topic>` or `version/X.Y.Z/<topic>`)—but don’t chain off that unless explicitly instructed.
 - **Never run `git checkout`.** Avoid other destructive operations (`git reset --hard`, `git clean -f`, `git stash`).
 - **Dirty-tree safety:** if you need to branch with uncommitted changes, create the new branch from the current working tree so the changes come with you; avoid `git stash`. Verify with `git status --porcelain=v1`.
+- **Dirty files are normal in LumiBot:** this repo is often edited by multiple
+  agents on the same shared version branch. A dirty file is not a reason to avoid
+  the correct fix. Read the diff, understand which lines belong to other work,
+  make the smallest compatible edit, and do not revert another agent's changes
+  unless Rob explicitly asks.
+- **Commit in logical chunks:** prefer small, reviewable commits as soon as a
+  coherent change is understood and locally tested. Do not leave large WIP piles
+  uncommitted for hours because you are unsure about a later step; commits are
+  easier to inspect, bisect, and revert than anonymous dirty-tree state.
 - **Before committing:** `git status` must be clean/understood; read diffs for any changes you didn’t personally create.
 - **Avoid stepping on the CI agent:** if `tests/backtest/`, baselines, or CI workflows are in-flight, coordinate via `docs/handoffs/` and keep edits non-overlapping.
 - **Document + test behavioral changes:** update the relevant docs in `docs/` and add regression tests in the same commit; add comments explaining “why/invariants” for non-obvious logic.

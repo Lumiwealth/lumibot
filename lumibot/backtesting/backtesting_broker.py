@@ -20,6 +20,7 @@ from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Order, Position, SmartLimitConfig, TradingFee
 from lumibot.tools.smart_limit_utils import build_price_ladder, compute_final_price, compute_mid, expected_fill_price, infer_tick_size, round_to_tick
 from lumibot.tools.lumibot_logger import get_logger
+from lumibot.tools.helpers import parse_timestep_qty_and_unit
 from lumibot.trading_builtins import CustomStream
 
 try:
@@ -2137,6 +2138,8 @@ class BacktestingBroker(Broker):
             if order.dependent_order_filled:
                 continue
             # No need to check status since we already filtered for pending orders only
+            if self._cancel_order_if_hard_time_in_force_elapsed(order, strategy=strategy):
+                continue
 
             # OCO parent orders do not get filled.
             # PERF: `OrderClass` is a StrEnum; use identity comparisons in backtesting hot loops.
@@ -2208,7 +2211,9 @@ class BacktestingBroker(Broker):
             open = high = low = close = volume = None
             fast_bid = None
             fast_ask = None
-            force_day_fill_timestep = self._should_force_day_fill_timestep(order)
+            default_fill_timestep = getattr(self.data_source, "_timestep", "minute")
+            order_fill_timestep = self._resolve_order_fill_timestep(order, default_fill_timestep)
+            uses_native_day_fill_timestep = self._uses_native_day_stock_index_fill(order, order_fill_timestep)
 
             # PERF: MARKET orders dominate many warm-cache backtests (minute strategies, speed-burner).
             # When bid/ask are already present in the cached Data series, we can fill immediately
@@ -2257,7 +2262,7 @@ class BacktestingBroker(Broker):
             if (
                 not skip_quote_fills
                 and not audit_enabled
-                and force_day_fill_timestep
+                and uses_native_day_fill_timestep
                 and order.order_type == Order.OrderType.MARKET
                 and (order.is_buy_order() or order.is_sell_order())
             ):
@@ -2267,7 +2272,7 @@ class BacktestingBroker(Broker):
             # fetching trade-only OHLC bars (which can be sparse/missing, especially for
             # options). When bid/ask are unavailable we fall back to the OHLC-based model.
             should_try_quote_first = not (
-                force_day_fill_timestep and order.order_type == Order.OrderType.MARKET
+                uses_native_day_fill_timestep and order.order_type == Order.OrderType.MARKET
             )
             if (
                 should_try_quote_first
@@ -2280,6 +2285,8 @@ class BacktestingBroker(Broker):
                     try:
                         quote = self.get_quote(order.asset, quote=order.quote)
                     except Exception:
+                        quote = None
+                    if quote is not None and not self._quote_matches_current_execution_bar(quote, order):
                         quote = None
 
                 bid = self._coerce_price(getattr(quote, "bid", None)) if quote is not None else None
@@ -2405,6 +2412,12 @@ class BacktestingBroker(Broker):
                     # Quote was available but did not satisfy fill conditions; keep the order open
                     # and retry on the next bar without forcing an OHLC download.
                     if bid is not None and ask is not None:
+                        if self._cancel_unfilled_immediate_time_in_force(
+                            order,
+                            f"quote bid/ask did not satisfy {order.order_type} at {self.datetime}",
+                            strategy=strategy,
+                        ):
+                            continue
                         continue
 
             #############################
@@ -2417,7 +2430,11 @@ class BacktestingBroker(Broker):
                 # passing -1 minute yields an effective +1 minute guard that keeps us on the previously
                 # completed bar. See tests/*_lookahead for regression coverage.
                 timeshift = timedelta(minutes=-1)
-                if data_source_name in {"DATABENTO", "DATABENTO_POLARS"}:
+                if data_source_name == "CCXT":
+                    # Crypto candles can be legitimately sparse. Do not look ahead to the
+                    # next provider candle and record the fill at the older sim timestamp.
+                    timeshift = None
+                elif data_source_name in {"DATABENTO", "DATABENTO_POLARS"}:
                     # DataBento feeds can skip minutes around maintenance windows. Giving it a two-minute
                     # cushion mirrors the legacy Polygon behaviour and avoids falling through gaps.
                     timeshift = timedelta(minutes=-2)
@@ -2474,6 +2491,15 @@ class BacktestingBroker(Broker):
                     close = ohlc.df['close'][-1]
                     volume = ohlc.df['volume'][-1]
 
+                if self._requires_current_execution_bar(order, str(order_fill_timestep), data_source_name):
+                    if not self._execution_bar_matches_datetime(dt, self.datetime, str(order_fill_timestep)):
+                        self._handle_unavailable_execution_data(
+                            order,
+                            f"selected {order_fill_timestep} bar {dt} does not match current sim dt {self.datetime}",
+                            strategy=strategy,
+                        )
+                        continue
+
             # Get the OHLCV data for the asset if we're using a Pandas-backed data source.
             #
             # IMPORTANT: IBKR REST backtesting is implemented as a PandasData subclass but its
@@ -2485,7 +2511,7 @@ class BacktestingBroker(Broker):
                 if (
                     order.order_type == Order.OrderType.MARKET
                     and not skip_quote_fills
-                    and not force_day_fill_timestep
+                    and not uses_native_day_fill_timestep
                 ):
                     quote_fill_price = self._try_fill_with_quote(order, strategy, None, None, None)
                     if quote_fill_price is not None:
@@ -2504,6 +2530,8 @@ class BacktestingBroker(Broker):
                     try:
                         quote = self.get_quote(order.asset, quote=order.quote)
                     except Exception:
+                        quote = None
+                    if quote is not None and not self._quote_matches_current_execution_bar(quote, order):
                         quote = None
 
                     bid = self._coerce_price(getattr(quote, "bid", None)) if quote is not None else None
@@ -2534,6 +2562,13 @@ class BacktestingBroker(Broker):
                                     filled_quantity=filled_quantity,
                                     strategy=strategy,
                                 )
+                                if self._requires_current_execution_bar(order, str(order_fill_timestep), data_source_name):
+                                    if self._defer_market_order_with_unavailable_execution_data(
+                                        order,
+                                        f"no {order_fill_timestep} execution bar near {self.datetime}",
+                                        strategy=strategy,
+                                    ):
+                                        continue
                                 continue
                         elif order.is_sell_order():
                             if bid is not None and not self._is_invalid_price(bid) and limit_price <= bid:
@@ -2572,9 +2607,7 @@ class BacktestingBroker(Broker):
                 ):
                     ohlc = None
                 else:
-                    timestep = getattr(self.data_source, "_timestep", "minute")
-                    if force_day_fill_timestep:
-                        timestep = "day"
+                    timestep = order_fill_timestep
                     # PandasData's bar slicing is already careful about day-vs-minute lookahead
                     # (see Data._get_bars_dict). For daily bars, a negative `timeshift` can
                     # accidentally *advance* the slice into future sessions.
@@ -2777,7 +2810,7 @@ class BacktestingBroker(Broker):
                     # OHLC can be sparse/empty even when quotes exist. Attempt a quote-based fill
                     # before canceling so orders can still execute when bid/ask is actionable.
                     quote_fill_price = None
-                    if not force_day_fill_timestep:
+                    if not uses_native_day_fill_timestep:
                         quote_fill_price = self._try_fill_with_quote(order, strategy, None, None, None)
                     if quote_fill_price is not None:
                         self._execute_filled_order(
@@ -2788,17 +2821,11 @@ class BacktestingBroker(Broker):
                         )
                         continue
 
-                    if strategy is not None:
-                        display_symbol = getattr(order.asset, "symbol", order.asset)
-                        order_identifier = getattr(order, "identifier", None)
-                        if order_identifier is None:
-                            order_identifier = getattr(order, "id", "<unknown>")
-                        strategy.log_message(
-                            f"[DIAG] No pandas bars for {display_symbol} at {self.datetime}; "
-                            f"canceling {order.order_type} id={order_identifier}",
-                            color="yellow",
-                        )
-                    self.cancel_order(order)
+                    self._handle_unavailable_execution_data(
+                        order,
+                        f"no pandas bars for {getattr(order.asset, 'symbol', order.asset)} at {self.datetime}",
+                        strategy=strategy,
+                    )
                     continue
 
                 df_original = ohlc.df
@@ -2924,12 +2951,33 @@ class BacktestingBroker(Broker):
                                 continue
                             df = past_bars.iloc[-1:]
 
-                    # If the dataframe is empty, then we should get the last row of the original dataframe
-                    # because it is the best data we have
                     if len(df) == 0:
-                        df = df_original.iloc[-1:]
+                        self._handle_unavailable_execution_data(
+                            order,
+                            f"selected {timestep} execution frame is empty at {self.datetime}",
+                            strategy=strategy,
+                        )
+                        continue
 
                     dt = df.index[0]
+                    if self._requires_current_execution_bar(order, str(timestep), data_source_name):
+                        if not self._execution_bar_matches_datetime(dt, self.datetime, str(timestep)):
+                            if self._defer_market_order_with_unavailable_execution_data(
+                                order,
+                                f"selected {timestep} bar {dt} does not match current sim dt {self.datetime}",
+                                strategy=strategy,
+                            ):
+                                continue
+                            logger.warning(
+                                "[FILL][REJECT] Selected %s bar %s does not match current sim dt %s for %s; "
+                                "leaving non-market order open instead of using stale/as-of data (order=%s).",
+                                timestep,
+                                dt,
+                                self.datetime,
+                                getattr(order.asset, "symbol", order.asset),
+                                getattr(order, "identifier", getattr(order, "id", "<unknown>")),
+                            )
+                            continue
                     # FABRICATION GUARD (2026-04-15 incident fix): never price a fill
                     # from a bar that is more than `max_fill_distance_days` away from the
                     # simulated clock. This catches the flat-price class of bugs where
@@ -2946,6 +2994,16 @@ class BacktestingBroker(Broker):
                             sim_ts_for_check = sim_ts_for_check.tz_convert(selected_ts.tz)
                         max_fill_distance = timedelta(days=7) if str(timestep) == "day" else timedelta(days=1)
                         if abs(selected_ts - sim_ts_for_check) > max_fill_distance:
+                            reason = (
+                                f"selected bar {selected_ts} is "
+                                f"{abs(selected_ts - sim_ts_for_check)} away from sim dt {sim_ts_for_check}"
+                            )
+                            if self._defer_market_order_with_unavailable_execution_data(
+                                order,
+                                reason,
+                                strategy=strategy,
+                            ):
+                                continue
                             logger.error(
                                 "[FILL][REJECT] Selected bar %s is %s away from sim dt %s for %s; "
                                 "refusing to fabricate fill (order=%s).",
@@ -3124,6 +3182,12 @@ class BacktestingBroker(Broker):
                     strategy=strategy,
                 )
             else:
+                if self._cancel_unfilled_immediate_time_in_force(
+                    order,
+                    f"{order.order_type} did not execute on current bar at {self.datetime}",
+                    strategy=strategy,
+                ):
+                    continue
                 if strategy is not None:
                     display_symbol = getattr(order.asset, "symbol", order.asset)
                     order_identifier = getattr(order, "identifier", None)
@@ -3189,6 +3253,366 @@ class BacktestingBroker(Broker):
 
     def _bar_has_missing_prices(self, *values) -> bool:
         return any(self._is_invalid_price(val) for val in values)
+
+    def _coerce_timestamps_for_execution_check(self, bar_dt, sim_dt) -> tuple[Optional[pd.Timestamp], Optional[pd.Timestamp]]:
+        try:
+            bar_ts = pd.Timestamp(bar_dt)
+            sim_ts = pd.Timestamp(sim_dt)
+        except Exception:
+            return None, None
+
+        if pd.isna(bar_ts) or pd.isna(sim_ts):
+            return None, None
+
+        try:
+            if bar_ts.tzinfo is not None and sim_ts.tzinfo is not None:
+                bar_ts = bar_ts.tz_convert(sim_ts.tzinfo)
+            elif bar_ts.tzinfo is not None and sim_ts.tzinfo is None:
+                bar_ts = bar_ts.tz_localize(None)
+            elif bar_ts.tzinfo is None and sim_ts.tzinfo is not None:
+                bar_ts = bar_ts.tz_localize(sim_ts.tzinfo)
+        except Exception:
+            try:
+                bar_ts = bar_ts.tz_localize(None) if bar_ts.tzinfo is not None else bar_ts
+                sim_ts = sim_ts.tz_localize(None) if sim_ts.tzinfo is not None else sim_ts
+            except Exception:
+                return None, None
+
+        return bar_ts, sim_ts
+
+    def _execution_bar_matches_datetime(self, bar_dt, sim_dt, timestep) -> bool:
+        """Return True only when an execution bar belongs to the current sim bucket."""
+        bar_ts, sim_ts = self._coerce_timestamps_for_execution_check(bar_dt, sim_dt)
+        if bar_ts is None or sim_ts is None:
+            return False
+
+        try:
+            quantity, unit = parse_timestep_qty_and_unit(timestep)
+            quantity = max(1, int(quantity or 1))
+        except Exception:
+            quantity = 1
+            unit = str(timestep or "").strip().lower()
+
+        unit = str(unit or "").strip().lower()
+        if unit == "day":
+            return bar_ts.date() == sim_ts.date()
+        if unit == "hour":
+            freq = f"{quantity}h"
+            return bar_ts.floor(freq) == sim_ts.floor(freq)
+        if unit == "minute":
+            freq = f"{quantity}min"
+            return bar_ts.floor(freq) == sim_ts.floor(freq)
+
+        return bar_ts == sim_ts
+
+    def _execution_timestep_for_data_obj(self, data_obj, fallback: Optional[str] = None) -> str:
+        try:
+            quantity = getattr(data_obj, "_native_timestep_quantity", None)
+            unit = getattr(data_obj, "_native_timestep_unit", None)
+            if quantity and unit:
+                return f"{int(quantity)} {unit}"
+        except Exception:
+            pass
+        return str(getattr(data_obj, "timestep", None) or fallback or "minute")
+
+    def _requires_current_execution_bar(
+        self,
+        order: Optional[Order],
+        timestep: Optional[str],
+        data_source_name: Optional[str] = None,
+    ) -> bool:
+        try:
+            _, unit = parse_timestep_qty_and_unit(timestep or getattr(getattr(self, "data_source", None), "_timestep", None))
+        except Exception:
+            unit = str(timestep or "").strip().lower()
+        if str(unit or "").strip().lower() == "day":
+            return False
+
+        source = getattr(self, "data_source", None)
+        source_name = data_source_name or str(getattr(source, "SOURCE", "") or "").upper()
+        source_class_name = source.__class__.__name__ if source is not None else ""
+        if source_name in {"INTERACTIVEBROKERSREST", "CCXT"} or source_class_name in {
+            "InteractiveBrokersRESTBacktesting",
+            "CcxtBacktestingData",
+        }:
+            return True
+
+        asset = getattr(order, "asset", None) if order is not None else None
+        return self._resolve_provider_key_for_asset(asset) in {"ibkr", "ccxt"}
+
+    def _defer_market_order_with_unavailable_execution_data(
+        self,
+        order: Optional[Order],
+        reason: str,
+        strategy=None,
+    ) -> bool:
+        """Leave market orders working when current execution data is unavailable."""
+        if order is None:
+            return False
+        if order.order_type != Order.OrderType.MARKET:
+            return False
+        return self._handle_unavailable_execution_data(order, reason, strategy=strategy)
+
+    def _normalize_time_in_force(self, order: Optional[Order]) -> str:
+        value = getattr(order, "time_in_force", None) if order is not None else None
+        return str(value or "day").strip().lower().replace("-", "_")
+
+    def _coerce_order_datetime(self, value: Any) -> Optional[pd.Timestamp]:
+        if value is None:
+            return None
+        try:
+            ts = pd.Timestamp(value)
+        except Exception:
+            return None
+        if pd.isna(ts):
+            return None
+        return ts
+
+    def _timestamps_same_date(self, left: pd.Timestamp, right: pd.Timestamp) -> bool:
+        try:
+            if left.tzinfo is not None and right.tzinfo is not None:
+                left = left.tz_convert(right.tzinfo)
+            elif left.tzinfo is not None and right.tzinfo is None:
+                left = left.tz_localize(None)
+            elif left.tzinfo is None and right.tzinfo is not None:
+                left = left.tz_localize(right.tzinfo)
+        except Exception:
+            try:
+                left = left.tz_localize(None) if left.tzinfo is not None else left
+                right = right.tz_localize(None) if right.tzinfo is not None else right
+            except Exception:
+                pass
+        return left.date() == right.date()
+
+    def _order_uses_crypto_utc_day(self, order: Optional[Order]) -> bool:
+        if order is None:
+            return False
+        for candidate in (getattr(order, "asset", None), getattr(order, "quote", None)):
+            asset_type = self._normalize_asset_type(getattr(candidate, "asset_type", ""))
+            if asset_type in {"crypto", "crypto_future"}:
+                return True
+        return False
+
+    def _timestamps_same_order_date(self, left: pd.Timestamp, right: pd.Timestamp, order: Optional[Order]) -> bool:
+        if not self._order_uses_crypto_utc_day(order):
+            return self._timestamps_same_date(left, right)
+        try:
+            if left.tzinfo is None:
+                left = left.tz_localize("UTC")
+            else:
+                left = left.tz_convert("UTC")
+            if right.tzinfo is None:
+                right = right.tz_localize("UTC")
+            else:
+                right = right.tz_convert("UTC")
+        except Exception:
+            pass
+        return left.date() == right.date()
+
+    def _order_time_in_force_elapsed(
+        self,
+        order: Optional[Order],
+        *,
+        include_session_close: bool = True,
+    ) -> bool:
+        """Return True when an active backtest order should no longer remain working."""
+        if order is None:
+            return False
+
+        tif = self._normalize_time_in_force(order)
+        try:
+            now = self._coerce_order_datetime(self.datetime)
+        except AttributeError:
+            return False
+        if now is None:
+            return False
+
+        if tif in {"gtd", "good_till_date", "good_til_date"}:
+            good_till = self._coerce_order_datetime(getattr(order, "good_till_date", None))
+            return bool(good_till is not None and now >= good_till)
+
+        if tif in {"day", "good_for_day", "gfd"}:
+            created_at = self._coerce_order_datetime(getattr(order, "_date_created", None)) or now
+            if not self._timestamps_same_order_date(created_at, now, order):
+                return True
+            if not include_session_close:
+                return False
+            try:
+                time_to_close = self.get_time_to_close()
+            except Exception:
+                time_to_close = None
+            return bool(time_to_close == 0 or (isinstance(time_to_close, (int, float)) and time_to_close <= 0))
+
+        return False
+
+    def _cancel_order_if_time_in_force_elapsed(
+        self,
+        order: Optional[Order],
+        strategy=None,
+        *,
+        include_session_close: bool = True,
+    ) -> bool:
+        if order is None or not self._order_time_in_force_elapsed(
+            order,
+            include_session_close=include_session_close,
+        ):
+            return False
+
+        symbol = getattr(getattr(order, "asset", None), "symbol", getattr(order, "asset", "<unknown>"))
+        identifier = getattr(order, "identifier", getattr(order, "id", "<unknown>"))
+        reason = f"time_in_force={getattr(order, 'time_in_force', None)} elapsed"
+        logger.warning(
+            "[FILL][EXPIRE] Canceling unfilled order %s %s because %s at %s",
+            symbol,
+            identifier,
+            reason,
+            self.datetime,
+        )
+        if strategy is not None:
+            try:
+                strategy.log_message(
+                    f"[FILL][EXPIRE] Order {identifier} for {symbol} expired: {reason}",
+                    color="yellow",
+                )
+            except Exception:
+                pass
+        self.cancel_order(order)
+        return True
+
+    def _cancel_order_if_hard_time_in_force_elapsed(self, order: Optional[Order], strategy=None) -> bool:
+        """Cancel orders that must expire before any price lookup or fill attempt.
+
+        Same-date DAY/GFD orders are allowed to evaluate the current bar, including a
+        final session bar. Missing-data paths still cancel them at session close.
+        """
+        return self._cancel_order_if_time_in_force_elapsed(
+            order,
+            strategy=strategy,
+            include_session_close=False,
+        )
+
+    def _handle_unavailable_execution_data(
+        self,
+        order: Optional[Order],
+        reason: str,
+        strategy=None,
+    ) -> bool:
+        """Handle no-current-price cases without fabricating fills from stale rows."""
+        if order is None:
+            return False
+        try:
+            if not order.is_active():
+                return True
+        except Exception:
+            pass
+
+        tif = self._normalize_time_in_force(order)
+        if tif in {"ioc", "immediate_or_cancel", "fok", "fill_or_kill"}:
+            symbol = getattr(getattr(order, "asset", None), "symbol", getattr(order, "asset", "<unknown>"))
+            identifier = getattr(order, "identifier", getattr(order, "id", "<unknown>"))
+            logger.warning(
+                "[FILL][CANCEL] Current execution data unavailable for %s order %s %s; "
+                "canceling immediate-time-in-force order. reason=%s",
+                tif,
+                symbol,
+                identifier,
+                reason,
+            )
+            if strategy is not None:
+                try:
+                    strategy.log_message(
+                        f"[FILL][CANCEL] Order {identifier} for {symbol} canceled ({tif}): {reason}",
+                        color="yellow",
+                    )
+                except Exception:
+                    pass
+            self.cancel_order(order)
+            return True
+
+        if self._cancel_order_if_time_in_force_elapsed(order, strategy=strategy):
+            return True
+
+        symbol = getattr(getattr(order, "asset", None), "symbol", getattr(order, "asset", "<unknown>"))
+        identifier = getattr(order, "identifier", getattr(order, "id", "<unknown>"))
+        logger.warning(
+            "[FILL][PENDING] Current execution data unavailable for order %s %s; "
+            "leaving order working until actionable data or order expiry. reason=%s",
+            symbol,
+            identifier,
+            reason,
+        )
+        if strategy is not None:
+            try:
+                strategy.log_message(
+                    f"[FILL][PENDING] Order {identifier} for {symbol} pending: {reason}",
+                    color="yellow",
+                )
+            except Exception:
+                pass
+        return True
+
+    def _cancel_unfilled_immediate_time_in_force(
+        self,
+        order: Optional[Order],
+        reason: str,
+        strategy=None,
+    ) -> bool:
+        """Cancel IOC/FOK orders that reached a current quote/bar but did not execute."""
+        if order is None:
+            return False
+        tif = self._normalize_time_in_force(order)
+        if tif not in {"ioc", "immediate_or_cancel", "fok", "fill_or_kill"}:
+            return False
+
+        symbol = getattr(getattr(order, "asset", None), "symbol", getattr(order, "asset", "<unknown>"))
+        identifier = getattr(order, "identifier", getattr(order, "id", "<unknown>"))
+        logger.warning(
+            "[FILL][CANCEL] Canceling unfilled %s order %s %s at %s. reason=%s",
+            tif,
+            symbol,
+            identifier,
+            self.datetime,
+            reason,
+        )
+        if strategy is not None:
+            try:
+                strategy.log_message(
+                    f"[FILL][CANCEL] Order {identifier} for {symbol} canceled ({tif}): {reason}",
+                    color="yellow",
+                )
+            except Exception:
+                pass
+        self.cancel_order(order)
+        return True
+
+    def _quote_source_timestamp(self, quote) -> Optional[Any]:
+        raw = getattr(quote, "raw_data", None)
+        if isinstance(raw, dict):
+            for key in ("bar_timestamp", "datetime", "last_trade_time", "last_bid_time", "last_ask_time"):
+                value = raw.get(key)
+                if value is not None:
+                    return value
+
+        for attr in ("quote_time", "bid_time", "ask_time"):
+            value = getattr(quote, attr, None)
+            if value is not None:
+                return value
+
+        return None
+
+    def _quote_matches_current_execution_bar(self, quote, order: Order, timestep: Optional[str] = None) -> bool:
+        raw = getattr(quote, "raw_data", None)
+        if timestep is None and isinstance(raw, dict):
+            timestep = raw.get("bar_timestep")
+        timestep = timestep or getattr(getattr(self, "data_source", None), "_timestep", None) or "minute"
+        if not self._requires_current_execution_bar(order, timestep):
+            return True
+
+        source_timestamp = self._quote_source_timestamp(quote)
+        if source_timestamp is None:
+            return False
+
+        return self._execution_bar_matches_datetime(source_timestamp, self.datetime, timestep)
 
     def _fast_get_bid_ask_for_fill(
         self,
@@ -3313,6 +3737,13 @@ class BacktestingBroker(Broker):
             i = data_obj.get_iter_count(now)
             if i < 0:
                 return None, None
+            try:
+                bar_ts = data_obj._timestamp_for_iter_count(i)
+            except Exception:
+                bar_ts = None
+            data_timestep = self._execution_timestep_for_data_obj(data_obj, fallback=str(timestep))
+            if bar_ts is None or not self._execution_bar_matches_datetime(bar_ts, now, data_timestep):
+                return None, None
             bid = bid_line.dataline[i]
             ask = ask_line.dataline[i]
         except Exception:
@@ -3355,40 +3786,108 @@ class BacktestingBroker(Broker):
         provider = str(getattr(spec, "provider", "") or "").strip().lower()
         return provider or None
 
-    def _should_force_day_fill_timestep(self, order: Order) -> bool:
-        """Whether market fills should bypass minute quote paths and use daily bars."""
+    def _resolve_order_fill_timestep(self, order: Optional[Order], default_timestep: Optional[str]) -> str:
+        """Resolve the OHLC timestep for pending-order fills.
+
+        The default remains the data source timestep. The narrow exception is the
+        IBKR stock/index daily-data contract: routed/direct IBKR stock and index
+        backtests explicitly prefer native daily bars so a warmed minute frame
+        cannot satisfy daily lookups. If an intraday series is already loaded for
+        the same asset, preserve the data source's intraday timestep.
+        """
+        fallback = str(default_timestep or "minute")
+        if not self._should_use_native_day_stock_index_fill(order):
+            return fallback
+
+        if self._has_loaded_order_fill_series(order, {"minute", "hour"}):
+            return fallback
+
+        try:
+            _, unit = parse_timestep_qty_and_unit(fallback)
+            if str(unit or "").strip().lower() == "day":
+                return "day"
+        except Exception:
+            if fallback.strip().lower() == "day":
+                return "day"
+
+        data_source = getattr(self, "data_source", None)
+        if bool(getattr(data_source, "_effective_day_mode", False)):
+            return "day"
+
+        if self._has_loaded_order_fill_series(order, {"day"}):
+            return "day"
+
+        return fallback
+
+    def _uses_native_day_stock_index_fill(self, order: Optional[Order], timestep: Optional[str]) -> bool:
+        if str(timestep or "").strip().lower() != "day":
+            return False
+        return self._should_use_native_day_stock_index_fill(order)
+
+    def _should_use_native_day_stock_index_fill(self, order: Optional[Order]) -> bool:
         if order is None:
             return False
 
         asset = getattr(order, "asset", None)
-        if asset is None:
-            return False
-
-        if self._is_option_asset(asset):
+        if asset is None or self._is_option_asset(asset):
             return False
 
         asset_type = self._normalize_asset_type(getattr(asset, "asset_type", ""))
-        if asset_type not in {"stock", "index"}:
+        if asset_type not in {"stock", "equity", "index"}:
             return False
 
-        provider = self._resolve_provider_key_for_asset(asset)
-        if provider != "ibkr":
+        if self._resolve_provider_key_for_asset(asset) != "ibkr":
             return False
 
         data_source = getattr(self, "data_source", None)
         if data_source is None:
             return False
 
-        source_timestep = str(getattr(data_source, "_timestep", "") or "").strip().lower()
-        if source_timestep == "day":
-            return True
+        return bool(getattr(data_source, "PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX", False))
 
-        if not bool(getattr(data_source, "_effective_day_mode", False)):
-            return False
-        if bool(getattr(data_source, "_observed_intraday_cadence", False)):
+    def _has_loaded_order_fill_series(self, order: Optional[Order], units: set[str]) -> bool:
+        data_source = getattr(self, "data_source", None)
+        store = getattr(data_source, "_data_store", None)
+        if order is None or not isinstance(store, dict):
             return False
 
-        return True
+        order_asset = getattr(order, "asset", None)
+        if order_asset is None:
+            return False
+
+        order_quote = getattr(order, "quote", None)
+        normalized_units = {str(unit).strip().lower() for unit in units}
+
+        for key, data_obj in store.items():
+            key_asset = None
+            key_quote = None
+            key_timestep = None
+            if isinstance(key, tuple):
+                if len(key) >= 1:
+                    key_asset = key[0]
+                if len(key) >= 2:
+                    key_quote = key[1]
+                if len(key) >= 3 and isinstance(key[2], str):
+                    key_timestep = key[2]
+            else:
+                key_asset = key
+
+            if key_asset is not order_asset and key_asset != order_asset:
+                continue
+            if order_quote is not None and key_quote is not None and key_quote != order_quote:
+                continue
+
+            timestep = key_timestep or getattr(data_obj, "timestep", None)
+            try:
+                _, unit = parse_timestep_qty_and_unit(str(timestep))
+                unit = str(unit or "").strip().lower()
+            except Exception:
+                unit = str(timestep or "").strip().lower()
+
+            if unit in normalized_units:
+                return True
+
+        return False
 
     def _is_option_asset(self, asset) -> bool:
         if asset is None:
@@ -3676,6 +4175,8 @@ class BacktestingBroker(Broker):
             return None
 
         if quote is None:
+            return None
+        if not self._quote_matches_current_execution_bar(quote, order):
             return None
 
         bid = self._coerce_price(getattr(quote, "bid", None))

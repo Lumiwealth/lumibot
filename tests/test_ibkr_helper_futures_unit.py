@@ -190,6 +190,7 @@ def test_ibkr_helper_future_conid_uses_same_month_ibkr_listing_for_holiday_misma
     monkeypatch.setattr(ibkr_helper, "get_backtest_cache", _stub_cache)
     monkeypatch.setattr(ibkr_helper, "_RUNTIME_CONID_CACHE", {})
     monkeypatch.setattr(ibkr_helper, "_NEGATIVE_CONID_CACHE_LOADED", True)
+    monkeypatch.setattr(ibkr_helper, "_is_future_or_current_expiration", lambda value: True)
     negative_key = ibkr_helper.IbkrConidKey("future", "MNQ", "", "CME", "20260619").to_key()
     monkeypatch.setattr(
         ibkr_helper,

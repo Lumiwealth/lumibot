@@ -393,6 +393,16 @@ TRADIER_ACCESS_TOKEN
 - Purpose: Tradier API access token.
 - Values: Obtain from Tradier dashboard (**do not hardcode**).
 
+TRADIER_TOKEN_PATH
+^^^^^^^^^^^^^^^^^^
+
+- Purpose: Path to a Tradier OAuth token JSON file.
+- Values: A local file containing provider token fields such as ``access_token``,
+  ``refresh_token``, ``expires_in``, and ``issued_at``.
+- Note: When LumiBot refreshes an OAuth token, it writes the updated provider
+  token payload back to this file atomically. If the file cannot be written,
+  refresh fails instead of silently continuing with only in-memory token state.
+
 TRADIER_ACCOUNT_NUMBER
 ^^^^^^^^^^^^^^^^^^^^^^
 

@@ -27,11 +27,152 @@ Key behavior:
 - Runs the strategy in a **clean per-run workdir** under `~/Documents/Development/backtest_runs/…`.
 - Writes artifacts to `workdir/logs/` (`*_tearsheet.html`, `*_trades.csv`, `*_logs.csv`, `*_settings.json`).
 - Prints a small “scoreboard” and writes `workdir/metrics.json` (wall time + queue submits + Theta STALE count + top endpoint families) so runs are comparable.
+- Writes `workdir/child_import_provenance.json` before the strategy starts,
+  using the exact child-process environment. This records `lumibot.__file__`,
+  LumiBot version, `backtesting_broker.py`, and `routed_backtesting.py`.
+- Writes `workdir/artifact_manifest.json` with source artifact paths, sizes,
+  hashes, and any copied artifact paths.
 - Loads downloader + S3 config from `botspot_node/.env-local` **without printing secrets**.
+- Forwards `THETADATA_USERNAME`, `THETADATA_PASSWORD`, and
+  `THETADATA_API_KEY` from the dotenv when present, matching BotSpot Node's
+  provider environment injection.
 - Optionally copies artifacts into another folder (e.g., `Strategy Library/logs`) via `--copy-artifacts-to`.
 - For investigations, you can enable:
   - `--audit` → sets `LUMIBOT_BACKTEST_AUDIT=1` (adds `audit.*` columns to trade logs)
   - `--profile yappi` → sets `BACKTESTING_PROFILE=yappi` (writes a yappi CSV artifact)
+
+### Current workspace overrides
+
+In this checkout family, do not rely on the runner defaults. Some examples and
+defaults still point at the older `~/Documents/Development/...` tree. For runs
+from the current repo, pass these explicitly:
+
+- `--lumibot-root /Users/robertgrzesik/Development/lumibot`
+- `--dotenv /Users/robertgrzesik/Development/botspot_node/.env-local` for dev-cache runs
+- a separate approved production-like dotenv for prod-cache runs
+
+`botspot_node/.env-local` on this Mac is not production parity for the TQQQ
+IBKR investigation: it points at the dev cache namespace. Exact production-cache
+replay needs a dotenv/env source whose non-secret cache identifiers match the
+production backtest settings being compared, for example:
+
+- `LUMIBOT_CACHE_S3_BUCKET=lumibot-cache-prod`
+- `LUMIBOT_CACHE_S3_PREFIX=prod/cache`
+- `LUMIBOT_CACHE_S3_VERSION=v1` for historical runs that recorded `v1`
+
+Do not edit repo `.env` files or paste secrets into docs. Use an approved
+local/runtime secret source and verify the runner's printed cache bucket,
+prefix, and version before trusting any result.
+
+### Provider override proof
+
+LumiBot's `BACKTESTING_DATA_SOURCE` env var overrides a strategy's explicit
+`datasource_class` in `Strategy.backtest()`. This is why saved BotSpot strategy
+files that pass `YahooDataBacktesting` can still run on ThetaData, IBKR, or the
+BotSpot Auto router when the managed runtime injects the provider env.
+
+For production-like local runs, `LUMIBOT_DISABLE_DOTENV=1` is mandatory. Without
+it, LumiBot scans for `.env`/`.env.local`; this machine's
+`/Users/robertgrzesik/Development/lumibot/.env.local` currently sets
+`BACKTESTING_DATA_SOURCE=ibkr`, which can silently overwrite a runner-injected
+ThetaData or router setting.
+
+Before a comparison run, verify the import path from outside the repo:
+
+```bash
+/Users/robertgrzesik/bin/safe-timeout 30s \
+  env PYTHONPATH=/Users/robertgrzesik/Development/lumibot \
+  python3 -c "import lumibot, sys; print(lumibot.__file__); print(getattr(lumibot, '__version__', None)); print(sys.path[:3])"
+```
+
+The expected import path starts with:
+
+```text
+/Users/robertgrzesik/Development/lumibot/lumibot/__init__.py
+```
+
+Without the `PYTHONPATH` override, this Mac may import the pip-installed
+package instead.
+
+## TQQQ SMC provider matrix replay
+
+Use this path when comparing saved BotSpot revisions such as TQQQ SMC v15/v19
+across ThetaData and BotSpot Auto while running local LumiBot code.
+
+Source-of-truth env chain in production:
+
+1. BotSpot Node selects a provider slug (`theta_data`, `botspot_auto`, etc.).
+2. `DataAccessService.getProviderEnvironment()` turns that slug into
+   `BACKTESTING_DATA_SOURCE` plus downloader/cache env.
+3. BotSpot Node flattens the env block into `bot_config`.
+4. Bot Manager adds backtest flags and starts the Python strategy container.
+5. LumiBot reads `BACKTESTING_DATA_SOURCE` at runtime and overrides the
+   strategy file's explicit datasource class.
+
+Provider values to pass locally:
+
+```bash
+BOTSPOT_AUTO_ROUTER='{"default":"ibkr","stock":"ibkr","index":"ibkr","option":"thetadata","crypto":"ibkr","crypto_future":"ibkr","future":"ibkr","cont_future":"ibkr"}'
+THETA_DATA_SOURCE='thetadata'
+```
+
+Run command template:
+
+```bash
+cd /Users/robertgrzesik/Development/lumibot
+
+RUNID="$(date +%Y%m%d_%H%M%S)"
+BASE="/Users/robertgrzesik/Development/lumibot/logs/tqqq_provider_matrix_${RUNID}"
+PRODLIKE_DOTENV="/path/to/approved/uncommitted-prodlike-backtest-env.env"
+MAIN="/Users/robertgrzesik/Development/lumibot/logs/tqqq_provider_diff_20260613/code/v15_main.py"
+
+mkdir -p "$BASE/cache/v15_theta" "$BASE/runs/v15_theta"
+
+/Users/robertgrzesik/bin/safe-timeout 7200s \
+  python3 scripts/run_backtest_prodlike.py \
+    --label tqqq_v15_theta_full \
+    --main "$MAIN" \
+    --start 2016-01-21 \
+    --end 2026-04-16 \
+    --data-source "$THETA_DATA_SOURCE" \
+    --dotenv "$PRODLIKE_DOTENV" \
+    --lumibot-root /Users/robertgrzesik/Development/lumibot \
+    --workdir "$BASE/runs/v15_theta" \
+    --cache-folder "$BASE/cache/v15_theta" \
+    --cache-mode readwrite \
+    --cache-bucket lumibot-cache-prod \
+    --cache-prefix prod/cache \
+    --cache-version v1 \
+    --subprocess-log "$BASE/runs/v15_theta/subprocess.log"
+```
+
+For the BotSpot Auto scenario, change only the label, main path if testing a
+different revision, run/cache folders, and data source:
+
+```bash
+--data-source "$BOTSPOT_AUTO_ROUTER"
+```
+
+For non-mutating diagnostic reads against the same S3 namespace, use
+`--cache-mode readonly` and clearly label the run as readonly. For exact
+production mutation semantics, use the production mode recorded in the
+reference settings file, usually `readwrite`.
+
+Minimum proof before trusting a result:
+
+- runner output prints local `--lumibot-root`, intended cache bucket/prefix/version,
+  and intended data source;
+- runner output prints `strategy_sha256`, git branch/SHA/dirty status, and child
+  import paths for LumiBot, `backtesting_broker.py`, and `routed_backtesting.py`;
+- child stdout does not contain `.env file loaded from:` or `.env.local file loaded from:`;
+- `*_settings.json` records the intended `backtesting_data_sources`;
+- `child_import_provenance.json` records the expected local
+  `/Users/robertgrzesik/Development/lumibot/lumibot/__init__.py` import path;
+- `metrics.json` and subprocess log are saved under the durable repo-local run
+  folder, not `/tmp`;
+- `artifact_manifest.json` records the exact artifacts and copied outputs used
+  for comparison;
+- warm/cold comparisons use the same cache mode on both sides.
 
 ## NVDA example (short-window diagnostic)
 

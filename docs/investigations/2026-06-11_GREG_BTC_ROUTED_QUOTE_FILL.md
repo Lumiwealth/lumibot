@@ -1,8 +1,8 @@
 # Greg BTC Routed Quote Fill Investigation
 
 One-line description: Production artifact diagnosis and LumiBot fix for Greg's BTC backtest drop caused by out-of-window IBKR crypto prices.
-Last Updated: 2026-06-12
-Status: Fixed in `v4.5.49` plus Data Downloader commit `0fb287a`; `v4.5.51` fixes a separate progress payload stall found during full-window reruns
+Last Updated: 2026-06-18
+Status: Production stale-fill fix released in `v4.5.49` plus Data Downloader commit `0fb287a`; local `version/4.5.52` is adding broker-like pending-order/TIF semantics before any new release
 Audience: LumiBot, BotSpot Node, and BotSpot support engineers
 
 ## Overview
@@ -426,3 +426,573 @@ Next fix should be root-cause oriented:
    defaulting BotSpot Auto cache version to `v44`.
 4. After code fixes, surgically invalidate only the affected production BTC
    cache objects proven bad. Do not bump the global production cache version.
+
+## 2026-06-13 Local Execution-Path Guard In v4.5.52
+
+The next local fix is intentionally independent of Interactive Brokers Crypto
+Plus approval. Crypto Plus should improve 24/7 data availability, but LumiBot
+must still fail honestly when the downloader/cache returns sparse intraday data.
+
+Local v4.5.52 changes add a current execution-bar invariant for IBKR and
+routed-IBKR intraday fills:
+
+- `Data.get_quote()` now includes `bar_timestamp` and `bar_timestep` in
+  `raw_data` so a quote fill can prove which source row supplied bid/ask.
+- Direct IBKR fast bid/ask fills reject the selected row when the row timestamp
+  is not in the current simulated minute/hour bucket.
+- Quote-based market, marketable-limit, and fallback fills reject IBKR/routed
+  IBKR quotes whose source `bar_timestamp` does not match the current simulated
+  execution bucket.
+- OHLC fill selection now applies the same current-bucket check for
+  IBKR/routed-IBKR intraday data before reading `open/high/low/close`.
+
+This is stricter than the earlier `Data.strict_end_check` tolerance. Generic
+historical data reads may still use as-of semantics where that is expected, but
+an execution fill cannot turn March 24 BTC data into an April 17 fill just
+because both rows live inside the same cache object. If the current minute/hour
+is missing, the order remains unfilled or the quote path returns `None`.
+
+Local test evidence:
+
+- `python3 -m pytest -q tests/test_data_entity.py tests/test_backtesting_broker.py`
+  returned `39 passed`.
+- `python3 -m pytest -q tests/test_ibkr_crypto_backtesting_smoke_stubbed.py tests/test_interactive_brokers_rest_backtesting_unit.py`
+  returned `15 passed`.
+- `python3 -m pytest -q tests/backtest/test_backtesting_broker_processing.py tests/backtest/test_quote_fill_fallback.py`
+  returned `46 passed`.
+- Combined targeted run across those six files returned `100 passed`.
+
+One existing IBKR crypto OCO/OTO smoke fixture had only bars through `00:01`
+while the test clock advanced to `00:02`; it was updated to include the real
+`00:02` bar. The old fixture was implicitly depending on stale `00:01` data.
+
+## 2026-06-13 Full Greg Window Replay And Market-Order Lifecycle Fix
+
+Rob asked for a local rerun of the original Greg window to prove the current
+v4.5.52 execution guard does not grab wrong-date BTC bars. Two local full-window
+replays were run against Greg's executed production code:
+
+- strategy code:
+  `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/prod-artifacts/executed-code/main.py`
+- original window: `2026-03-09` through `2026-06-05`
+- data source: router
+- cache mode: read-only
+- cache bucket/prefix/version: `lumibot-cache-dev`, `dev/cache`, `v1`
+- production Data Downloader credentials were loaded from the approved local
+  env files, but raw credential values were not logged or documented.
+
+First v4.5.52 replay after the current-bar guard:
+
+- artifact root:
+  `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260613/local-v4552-full-mar09-jun05`
+- result: exit code `0`, elapsed `972.2s`
+- proof the wrong-date fill path was blocked:
+  - `strict start check rejected future frame`: `4,058`
+  - `resolved to stale hour data`: `6,204`
+  - `[FILL][REJECT]`: `1,534,550`
+  - every parsed `[FILL][REJECT]` selected the same stale minute bar,
+    `2026-03-27 15:59:00-04:00`, while the simulation clock was between
+    `2026-04-01 04:00:00-04:00` and `2026-05-31 02:55:00-04:00`
+  - old stale price strings `70511.75`, `70510.75`, and `70512.75` did not
+    appear in the new trade output.
+
+That proved the original wrong-date price selection was blocked, but it exposed
+a second bug: market orders rejected for missing current data were left open.
+Seventy market orders submitted between April 1 and May 25 later filled together
+on `2026-05-31 03:00:00-04:00` once a valid current BTC minute bar existed.
+Those fills used a matching May 31 bar, not March data, but the lifecycle was
+still wrong because market orders must not wait days or weeks for future data.
+
+The local follow-up fix changes strict IBKR/routed-IBKR execution paths so a
+market order is canceled when current execution data is unavailable. Non-market
+orders remain open because limit/stop orders can legitimately wait for future
+trigger conditions.
+
+Second v4.5.52 replay after the market-order lifecycle fix:
+
+- artifact root:
+  `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260613/local-v4552-full-mar09-jun05-market-cancel`
+- result: exit code `0`, elapsed `617.7s`
+- trade events: `176` rows total
+  - `new`: `88`
+  - `canceled`: `84`
+  - `fill`: `4`
+- filled rows:
+  - `2026-03-23 12:00:00-04:00`, buy BTC at `70100.75`
+  - `2026-03-23 17:00:00-04:00`, sell BTC at `70888.00`
+  - `2026-03-25 11:00:00-04:00`, buy BTC at `71219.75`
+  - `2026-03-26 07:00:00-04:00`, sell BTC at `69481.00`
+- all filled rows had `fill time == audit.bar.datetime` with max absolute
+  mismatch `0.0` seconds.
+- inferred submit-to-fill delay for filled rows had max `0.0` days.
+- `[FILL][CANCEL]`: `280` log lines, representing `70` unique market orders
+  canceled when the selected execution bar was stale.
+- `[FILL][REJECT]`: `0`
+- stale May 31 mass-fill timestamp `2026-05-31 03:00:00-04:00`: `0`
+- old stale price strings `70511.75`, `70510.75`, and `70512.75`: `0`
+- final stats:
+  - starting portfolio value: `1300.0`
+  - ending portfolio value: `1195.363451301118`
+  - minimum portfolio value: `1126.1195532480024`
+  - tearsheet total return: `-8%`
+
+Additional local test evidence after the lifecycle fix:
+
+```bash
+python3 -m pytest -q tests/test_backtesting_broker.py tests/test_data_entity.py tests/test_ibkr_crypto_backtesting_smoke_stubbed.py tests/test_interactive_brokers_rest_backtesting_unit.py tests/backtest/test_backtesting_broker_processing.py tests/backtest/test_quote_fill_fallback.py
+```
+
+Result: `101 passed, 1 warning`.
+
+Current conclusion: local v4.5.52 now prevents the stale/wrong-date BTC price
+from being used for execution fills, and it also prevents market orders from
+surviving missing-data gaps until a future bar appears. Missing data is still
+present and still needs the separate Data Downloader/cache fix, but the backtest
+no longer turns missing BTC minutes into either March-price April fills or
+weeks-late market fills.
+
+## 2026-06-14 Review: Market-Order Lifecycle Scope And BTC Availability
+
+Rob challenged the local market-order lifecycle change because thinly traded
+assets can legitimately have no fresh last-trade bar for a while. That challenge
+is valid. The current local `version/4.5.52` follow-up cancellation is too broad
+to call release-ready:
+
+- The safe invariant is universal: execution fills must not use a bar from the
+  wrong minute/hour/day bucket. A March BTC row must never fill an April order.
+- The risky part is the follow-up market-order cancellation behavior. As written,
+  `_requires_current_execution_bar()` applies to intraday direct IBKR and routed
+  IBKR paths generally, not only BTC/crypto. That can affect sparse options or
+  thin equities where the correct model is usually quote/NBBO-led execution or a
+  bounded pending order, not immediate cancellation just because a fresh trade
+  print is missing.
+- Before release, the lifecycle fix should be narrowed/redesigned. Keep the
+  current-bar guard, but do not treat "no current trade bar" as an unconditional
+  cancellation rule for all intraday IBKR assets. Add regression coverage for
+  options and thin equities before using this as a generic order lifecycle rule.
+
+Live production Data Downloader probe on 2026-06-14 used the queued `/ibkr/*`
+path, not a local IBKR login. Evidence artifact:
+
+- `/Users/robertgrzesik/Development/support-artifacts/greg-btc-data-check-20260614/downloader_btc_probe_summary.json`
+
+Results:
+
+- `/healthz` returned HTTP 200 with IBKR enabled/authenticated.
+- `/version` reported `0fb287a15e17086edb25a5e5cc2329228484ad11`.
+- Original April closed-weekend request
+  (`BTC`, conid `541686651`, `Trades`, `1min`, period `1w`, end
+  `2026-04-19T00:00:00Z`) returned `classification=complete`,
+  `cache_write_policy=allow`, `rebuild_count=1`, 7,960 rows, first row
+  `2026-04-12T07:00:00Z`, last row `2026-04-17T19:59:00Z`. That matches the
+  Crypto Basic Friday close handling.
+- April after-Sunday-reopen request ending `2026-04-19T08:00:00Z` returned
+  `classification=complete`, `cache_write_policy=allow`, `rebuild_count=1`,
+  7,963 rows, first row `2026-04-12T08:00:00Z`, last row
+  `2026-04-19T07:58:00Z`.
+- Recent Saturday request ending `2026-06-13T16:00:00Z` returned only 240 rows,
+  `2026-06-12T16:00:00Z` through `2026-06-12T19:59:00Z`, with
+  `classification=complete` / `cache_write_policy=allow`. That still looks like
+  Crypto Basic behavior, not Crypto Plus 24/7 Saturday trading.
+- Current one-week request ending `2026-06-14T16:30:41Z` returned
+  `classification=complete`, `cache_write_policy=allow`, `rebuild_count=1`,
+  7,961 rows, first row `2026-06-07T16:31:00Z`, last row
+  `2026-06-14T16:29:00Z`. Current BTC minute data is available through the
+  production downloader, but the account still appears to have Basic weekend
+  behavior.
+
+Read-only S3 object checks for the known BTC cache objects were attempted but
+the current AWS identity received `AccessDenied`/`Forbidden` for list/head/get
+operations on `lumibot-cache-prod/prod/cache/v1/ibkr/crypto/minute/bars/...`.
+The live downloader probe is therefore the current evidence source for BTC data
+availability.
+
+## 2026-06-14 Broker/Backtester Semantics Review
+
+Rob challenged the "cancel every market order when the current execution bar is
+missing" approach. The broker/platform research supports that challenge.
+
+Current Crypto Plus signal from the production-like queued Data Downloader path
+on 2026-06-14 at `17:28Z`:
+
+- `sat_midday_1d` (`BTC`, `ZEROHASH`, `Trades`, `1min`, end
+  `2026-06-13T16:00:00Z`) returned only 240 payload rows from
+  `2026-06-12T16:00:00Z` through `2026-06-12T19:59:00Z`.
+- `sat_late_6h` ending `2026-06-14T03:00:00Z` returned 0 payload rows.
+- `sun_after_reopen_6h` ending `2026-06-14T16:00:00Z` returned 359 rows from
+  `2026-06-14T10:00:00Z` through `2026-06-14T15:58:00Z`.
+
+That still looks like Basic Crypto weekend behavior on the production downloader
+account, not full Crypto Plus 24/7 Saturday access.
+
+Broker/platform references:
+
+- IBKR defines a market order as buying or selling at the bid/offer currently
+  available, without a guaranteed execution price:
+  https://www.ibkrguides.com/traderworkstation/order-types.htm
+- SEC/Investor.gov says market orders generally execute near the current bid
+  for sells or ask for buys, and warns that the last-traded price is not
+  necessarily the execution price:
+  https://www.investor.gov/introduction-investing/investing-basics/how-stock-markets-work/types-orders
+- FINRA says market orders generally execute near the current bid/ask during
+  regular hours, and FINRA Rule 5310 requires firms to make every effort to
+  execute marketable customer orders fully and promptly:
+  https://www.finra.org/investors/investing/investment-products/stocks/order-types
+  and https://www.finra.org/rules-guidance/rulebooks/finra-rules/5310
+- IBKR Time in Force docs say day orders are canceled at the market close if
+  unexecuted, while IOC cancels any portion that does not fill immediately:
+  https://www.ibkrguides.com/traderworkstation/time-in-force-columns.htm
+  and https://www.interactivebrokers.com/campus/glossary-terms/immediate-or-cancel-order-ioc/
+- IBKR historical data supports `TRADES`, `MIDPOINT`, `BID`, `ASK`, and
+  `BID_ASK` by product type, including stocks, options, futures, ETFs, and
+  cryptocurrency. This proves IBKR can provide historical quote-like data, but
+  our Client Portal history payload is still candlestick-shaped, not a true
+  tick-by-tick NBBO feed:
+  https://interactivebrokers.github.io/tws-api/historical_bars.html
+- QuantConnect documents that market orders can take a few minutes to fill for
+  illiquid assets such as out-of-the-money options and penny stocks, and that
+  stale fills are a realism problem:
+  https://www.quantconnect.com/docs/v2/writing-algorithms/trading-and-orders/order-types/market-orders
+  and https://www.quantconnect.com/docs/v2/writing-algorithms/reality-modeling/trade-fills/key-concepts
+- Backtrader models market orders as filling at the next available price; in
+  bar backtests, that is the next bar open:
+  https://www.backtrader.com/docu/order/
+
+Recommended model:
+
+1. Keep the universal invariant: a fill must never use a timestamp that does not
+   belong to the current or next executable market event. A March/May BTC row can
+   never price an April order.
+2. Prefer current quote data over last-trade data for marketable execution. Buy
+   market orders should use ask-side data; sell market orders should use bid-side
+   data. Last trade is fallback evidence, not the primary broker-like market
+   price for thin symbols.
+3. If no executable quote/trade exists at the order time but the order is still
+   valid, keep it open/pending and evaluate it against future data events instead
+   of immediately canceling it.
+4. Enforce time-in-force and session boundaries:
+   - `ioc`: fill immediately in whole/part, then cancel unfilled quantity.
+   - `day`: keep pending only until that asset/session's close, then expire.
+   - `gtc`/`gtd`: may remain pending across sessions, but must still fill only
+     from a future executable event and should emit data-gap warnings for long
+     waits.
+5. For known liquid/continuous assets such as BTC, large missing periods are a
+   data/entitlement/cache failure, not normal illiquidity. The backtest should
+   surface that as data-quality evidence instead of fabricating a fill.
+
+Conclusion: the current v4.5.52 broad market-order cancellation is too blunt.
+The correct fix is a pending-order lifecycle with strict timestamp guards,
+quote-first fills, TIF/session expiration, and data-quality reporting for gaps.
+
+## 2026-06-14 Feasibility Review: Broker-Like Pending Orders Without Lookahead
+
+Status: research-only; no deployment approval. This section records the
+recommended direction after Rob challenged whether the market-order cancellation
+patch would break thinly traded assets.
+
+The proposed broker-like model is feasible in LumiBot, but the local v4.5.52
+implementation is not the right shape yet.
+
+What the current code already supports:
+
+- `Order` has the required lifecycle fields: `time_in_force` defaults to `day`
+  and documents `day`, `gtc`, `gtd`, and `ioc`; `EXPIRED` is a terminal status.
+- `BacktestingBroker.process_pending_orders()` is already the central place
+  where active orders are retried each simulated bar/event.
+- Quote-first fills already exist: market buys can fill from ask, market sells
+  from bid, and marketable limits can fill from bid/ask before falling back to
+  OHLC.
+- Quote and fast bid/ask fill paths now have current-execution-bar checks via
+  `bar_timestamp` / `bar_timestep` and `_execution_bar_matches_datetime(...)`.
+- `docs/BACKTESTING_SESSION_GAPS_AND_DATA_GAPS.md` already states the correct
+  high-level policy: no synthetic intraday bars; fills require actionable OHLC
+  or bid/ask; session gaps mean no fills and pending orders wait for the next
+  available bar/quote event.
+
+What is still wrong or incomplete:
+
+- `_cancel_market_order_with_unavailable_execution_data(...)` is too broad. A
+  missing current trade bar is not the same thing as a canceled market order for
+  options, penny stocks, futures gaps, or other sparse products.
+- The Pandas/IBKR fill path still has a legacy `df_original.iloc[-1:]` fallback
+  after an empty selected frame. Any execution path that reaches this fallback
+  risks reintroducing arbitrary stale/future-row fills.
+- Current quote timestamp validation protects quote fills, but order lifecycle
+  semantics are still implicit. There is no central "not executable yet, but
+  still valid until TIF/session expiry" decision point.
+- Data continuity and execution eligibility are mixed together. Forward-filled
+  series can be useful for indicators or mark-to-market, but execution fills
+  need source-row timestamp proof.
+
+Broker/backtester semantics from external references:
+
+- Investor.gov and FINRA describe market orders as generally executing near the
+  current bid/ask, while warning that last trade is not necessarily the
+  execution price.
+- FINRA Rule 5310 explicitly discusses limited-quotation securities and says
+  firms still need reasonable diligence when pricing information is limited.
+- IBKR historical data can expose `TRADES`, `BID`, `ASK`, `BID_ASK`, and
+  `MIDPOINT` as candlestick-style bars by product type. This supports a
+  quote-first model, but it is not a promise that every current backtest path has
+  true tick-level NBBO.
+- IBKR documents IOC as canceling any portion not filled immediately, while day
+  orders expire at the close of the trading day.
+- QuantConnect documents that market orders can take minutes for illiquid
+  options or penny stocks, and also treats stale fills as a realism problem.
+- Backtrader models market orders in bar backtests as the next available price,
+  usually the next bar open.
+- IBKR documents Crypto Basic as Sunday 3 AM ET through Friday 4 PM ET, while
+  Crypto Plus provides 24/7 crypto trading. The production downloader still
+  looked like Basic Crypto on the 2026-06-14 checks.
+
+Recommended implementation direction:
+
+1. Remove or redesign the broad market-order cancellation helper. Keep strict
+   timestamp validation, but change "no executable data now" into "leave pending
+   if the order is still valid."
+2. Add one central backtesting order-lifecycle helper that decides:
+   - current executable price exists -> fill;
+   - `ioc` and no executable price -> cancel unfilled quantity;
+   - `day` and before asset/session close -> keep pending;
+   - `day` at/after asset/session close -> expire;
+   - `gtc`/`gtd` -> keep pending until canceled or GTD expiry;
+   - option orders/positions cannot survive option expiration.
+3. Preserve broker-like price priority:
+   - market buy -> current actionable ask when valid;
+   - market sell -> current actionable bid when valid;
+   - marketable limit -> bid/ask if current and valid;
+   - OHLC open fallback only when the selected source bar belongs to the current
+     or next executable simulated event.
+4. Delete or quarantine arbitrary "best data we have" execution fallbacks. A
+   source row whose timestamp cannot be mapped to the simulated event is not
+   executable data.
+5. Add data-quality diagnostics for continuous/liquid assets. For BTC, missing
+   Saturday/overnight windows should be surfaced as entitlement/data/cache
+   coverage evidence, not treated as normal thin-market behavior.
+6. Verify with a matrix before release:
+   - stale March/May BTC row cannot fill an April order;
+   - same-minute BTC quote can fill when bid/ask are valid;
+   - Basic Crypto weekend gap does not fabricate a fill;
+   - Crypto Plus, once active, returns Saturday BTC rows through the production
+     downloader and the backtest fills only from matching source timestamps;
+   - thin stock with no current print can fill at the next valid same-session
+     trade/quote event;
+   - thin option with quote but no trade fills from bid/ask;
+   - thin option with neither quote nor trade expires at day/session close;
+   - IOC with no executable data cancels immediately;
+   - GTC/GTD can carry forward but only fills from a future event after the
+     simulation clock reaches that event.
+
+Bottom line: yes, broker-like delayed fills are possible here. The fix must be a
+real pending-order/TIF lifecycle plus timestamp-proven price selection, not an
+asset-specific band-aid and not blanket cancellation.
+
+## 2026-06-15 Read-Only Follow-Up
+
+Rob asked whether the proposed TIF/order-lifecycle pieces already exist and
+whether quote-first execution would create new IBKR performance risk.
+
+Findings:
+
+- Time-in-force is already part of the public order model and live broker
+  adapters. `Order` stores `time_in_force` and `good_till_date`, documents
+  `day`, `gtc`, `gtd`, and `ioc`, and has an `EXPIRED` status. IBKR, Alpaca,
+  Schwab, and Tradier adapters pass TIF/duration through for live orders. Do not
+  add parallel TIF fields.
+- Backtesting still does not appear to centrally enforce TIF expiry. The
+  `BacktestingBroker.process_pending_orders()` loop has a `todo valid date`
+  comment at the validity check, and `time_in_force` is currently visible in
+  audit fields rather than lifecycle enforcement.
+- The target is not a global ban on `iloc[-1]` or forward-fill behavior. Those
+  patterns can be valid for indicators, historical lookbacks, and mark-to-market.
+  The dangerous path is execution pricing when the selected source row timestamp
+  cannot be proven current or otherwise valid for the simulated executable event.
+- Quote-first execution already exists when bid/ask is available and current.
+  It should not be expanded into unconditional extra IBKR quote/history fetches
+  without a benchmark. Current IBKR futures docs intentionally disable
+  `Bid_Ask`/`Midpoint` derivation by default because it multiplies request volume
+  and reintroduces Client Portal history flakiness.
+- Current Crypto Plus proof is blocked by Data Downloader session health. On
+  2026-06-15 around 20:53 UTC, production `/healthz` reported IBKR
+  `connected=true` but `authenticated=false` with `auth_status_http=401`. Three
+  fresh BTC Saturday/Sunday production Data Downloader probes timed out after
+  45 seconds each. Those timeouts are not valid entitlement proof; the latest
+  clean evidence remains the 2026-06-14 probe, which looked like Crypto Basic
+  weekend behavior.
+
+## 2026-06-15 Account-Path Follow-Up
+
+Rob's later IBKR screenshots showed Crypto Plus active on live account
+`U6750594`, with paper account `DU4299039` and paper username `rgrze4067`.
+Production Data Downloader checks then showed:
+
+- Client Portal/IBeam is authenticated as `rgrze4067`.
+- The only Client Portal account exposed to the downloader is `DU4299039`.
+- The account is reported by CPAPI as `type=DEMO`.
+- A BTC/USD ZEROHASH Trades 1-day/1-minute request ending
+  `2026-06-13 16:00:00 UTC` returned only 240 rows from
+  `2026-06-12 16:00:00 UTC` through `2026-06-12 19:59:00 UTC`, with no Saturday
+  rows.
+
+That proves the deployed paper Client Portal session still behaves like Crypto
+Basic for history, even though the live account UI shows Crypto Plus. It does
+not prove Crypto Plus is unavailable on the live account. It means the account
+path and entitlement behavior must be resolved in Data Downloader before using
+weekend BTC data as a LumiBot correctness signal.
+
+Independent LumiBot conclusion: missing current execution data should not
+cancel a market order by itself. The current helper
+`_cancel_market_order_with_unavailable_execution_data()` is too aggressive for
+thin assets, closed sessions, and temporary no-print/no-quote windows. The
+correct model is:
+
+- reject stale/out-of-window rows as executable prices;
+- keep eligible orders pending when no current actionable data exists;
+- expire/cancel only because the order lifecycle says so, e.g. IOC immediately,
+  DAY at the relevant session/day boundary, GTD at `good_till_date`, or explicit
+  strategy/user cancellation;
+- prove every fill with a source timestamp that belongs to the simulated
+  execution event, not merely the surrounding requested history window.
+
+Local `version/4.5.52` update after this review:
+
+- Replaced the local cancellation helper with
+  `_defer_market_order_with_unavailable_execution_data()`.
+- Missing current execution data now logs `[FILL][PENDING]` and leaves active
+  market orders working instead of calling `cancel_order()`.
+- Focused validation:
+  - `python3 -m pytest tests/test_backtesting_broker.py -q` -> `32 passed`
+  - `python3 -m pytest tests/test_interactive_brokers_rest_backtesting_unit.py tests/test_routed_backtesting_ibkr_daily_prefetch.py tests/test_ibkr_crypto_backtesting_smoke_stubbed.py -q` -> `24 passed`
+
+This is still not release-ready as a full order-lifecycle solution until central
+TIF/session expiry is added and tested separately.
+
+## 2026-06-18 Local v4.5.52 Order-Lifecycle Matrix
+
+Rob asked for the fix to be proven with durable LumiBot tests before changing
+more logic. The local `version/4.5.52` implementation now keeps the strict
+execution timestamp invariant while moving missing-data handling into a central
+order-lifecycle helper.
+
+Code-level change:
+
+- Removed the old "best data we have" execution fallback where an empty
+  execution frame could fall back to `df_original.iloc[-1:]`.
+- Replaced the broad market-order cancellation helper with
+  `_handle_unavailable_execution_data(...)`.
+- `IOC` and `FOK` orders cancel immediately when no current executable data is
+  available.
+- `DAY` / `GFD` orders may remain pending while the same trading date/session is
+  still valid, and cancel when the order reaches the next trading date or the
+  session is closed.
+- `GTD` orders cancel once the simulated time reaches `good_till_date`.
+- A hard pre-fill expiry check cancels `GTD` orders whose `good_till_date` has
+  elapsed and `DAY` / `GFD` orders that have crossed into a later trading date
+  before any quote/OHLC price lookup can fill them.
+- `GTC` orders can remain pending when there is no executable data, but still
+  cannot fill from stale or future source rows.
+- Existing quote-first behavior is preserved: if a thin option has a current
+  actionable quote but no current trade bar, the market order can still fill
+  from the quote.
+
+New durable regression file:
+
+- `/Users/robertgrzesik/Development/lumibot/tests/test_backtesting_order_lifecycle.py`
+
+The test matrix currently covers:
+
+- DAY market order waits when the current execution bar is missing but the same
+  trading session/date is still active.
+- IOC/FOK orders cancel when no current executable data exists.
+- DAY orders cancel after session close without fabricating a fill.
+- DAY orders cancel on the next trading date when they never received current
+  executable data.
+- DAY orders that crossed into a later trading date are canceled before any
+  next-date valid bar can fill them.
+- Same-date DAY orders are still allowed to evaluate a final session bar when
+  valid data exists.
+- GTD orders cancel at `good_till_date` and remain pending before that time.
+- GTD orders that reached `good_till_date` are canceled before any later valid
+  bar can fill them.
+- Thin option market orders can fill from current quote data even when no trade
+  bar exists.
+- Stale quote data does not fill an intraday IBKR market order.
+
+Focused validation on 2026-06-18:
+
+```bash
+/Users/robertgrzesik/Development/bin/safe-timeout 300s python3 -m pytest tests/test_backtesting_order_lifecycle.py tests/test_backtesting_broker.py tests/test_ibkr_crypto_backtesting_smoke_stubbed.py -q
+```
+
+Result:
+
+- `50 passed`
+- one third-party `websockets.legacy` deprecation warning
+
+Broader broker/final-bar/quote fallback validation:
+
+```bash
+/Users/robertgrzesik/Development/bin/safe-timeout 300s python3 -m pytest tests/backtest/test_backtesting_broker_processing.py tests/backtest/test_strategy_executor_backtest_end_clamp.py tests/backtest/test_quote_fill_fallback.py -q
+```
+
+Result:
+
+- `47 passed`
+- one third-party `websockets.legacy` deprecation warning
+
+Important scope note: this is still local proof only. No LumiBot release or
+BotManager/BotSpot deployment was performed from this work. The purpose of this
+change is to prove the behavior locally before any release decision.
+
+## 2026-06-18 Greg Full-Window Replay, Production Cache Read-Only
+
+A full original-window replay was run locally against Greg's executed
+production `main.py` using production-like settings:
+
+- strategy code:
+  `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/prod-artifacts/executed-code/main.py`
+- original window: `2026-03-09` through `2026-06-05`
+- data source router:
+  `{"default":"ibkr","stock":"ibkr","index":"ibkr","option":"thetadata","crypto":"ibkr","crypto_future":"ibkr","future":"ibkr","cont_future":"ibkr"}`
+- production Data Downloader env loaded from the approved local prod-like env
+  file, without documenting raw secrets
+- production S3 cache target: `lumibot-cache-prod/prod/cache/v1`
+- cache mode: `readonly`
+- local artifact root:
+  `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/local-runs/greg_full_prodcache_readonly_20260618`
+
+Terminal result:
+
+- The guarded command timed out after 40 minutes with exit code `124`.
+- The process did not enter the simulation/progress loop. `progress.csv`
+  contains only the header and the initial `0.00%` row.
+- No terminal stats, trades CSV, trade-events artifact, or completed backtest
+  result was produced.
+- The local cache folder remained effectively empty (`4.0K`), so the replay did
+  not get a useful warm load from `lumibot-cache-prod/prod/cache/v1`.
+- The run submitted `342` production Data Downloader queue requests and
+  received `340` completed results before timeout.
+- The log includes two `classification=partial cache_write_policy=deny`
+  responses for BTC history, confirming that partial/stale BTC history was not
+  cacheable in this path.
+- The last logged data-hydration request before timeout was still only around
+  `startTime=20260501-11:20:00` for
+  `BTC` / `ZEROHASH` / `Trades` / `1min`, short of the June 5 end of Greg's
+  original window.
+- Search of the timed-out replay log found no `70511`, `70510`, or `70512`
+  fills, but this is not end-to-end proof because the replay never reached
+  order execution.
+
+Evidence:
+
+- `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/local-runs/greg_full_prodcache_readonly_20260618/subprocess.log`
+- `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/local-runs/greg_full_prodcache_readonly_20260618/logs/progress.csv`
+- `/Users/robertgrzesik/Development/support-artifacts/greg-backtest-april17-20260612/cache/greg_full_prodcache_readonly_20260618`
+
+Conclusion: the local `v4.5.52` order-lifecycle tests prove the stale/future
+fill behavior in isolation, but the full original Greg replay with production
+cache read-only is currently blocked by BTC data hydration/cache coverage before
+it can prove the final customer backtest result end-to-end. The next production-
+like proof should either use a verified complete BTC cache prefix for the full
+window or run a narrower Greg window that reaches the previously bad April 15-17
+fill region without spending the entire timeout on cold BTC hydration.

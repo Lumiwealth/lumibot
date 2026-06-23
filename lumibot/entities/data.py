@@ -1044,6 +1044,9 @@ class Data:
                 return value
 
         quote_dict = {name: _get_value(column, digits) for name, (column, digits) in _DATA_QUOTE_FIELDS.items()}
+        bar_timestamp = self._timestamp_for_iter_count(iter_count)
+        quote_dict["bar_timestamp"] = bar_timestamp.to_pydatetime() if bar_timestamp is not None else None
+        quote_dict["bar_timestep"] = getattr(self, "timestep", None)
 
         return quote_dict
 
@@ -1314,6 +1317,7 @@ class Data:
             and self._index_is_unique
             and (
                 (timestep == "minute" and self.timestep == "minute")
+                or (timestep == "hour" and self.timestep == "hour")
                 or (timestep == "day" and self.timestep == "day")
             )
         ):

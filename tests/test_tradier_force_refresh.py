@@ -75,6 +75,108 @@ def test_oauth_force_refresh_when_not_expired_writes_botspot_rotation_artifact(m
     assert decoded_token["refresh_token"] == "forced-refresh"
 
 
+def test_oauth_force_refresh_updates_tradier_token_path(monkeypatch, tmp_path):
+    token_path = tmp_path / "tradier_token.json"
+    token_path.write_text(
+        json.dumps(
+            {
+                "access_token": "old-access",
+                "refresh_token": "old-refresh",
+                "expires_in": 86400,
+                "issued_at": int(time.time() * 1000),
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TRADIER_TOKEN_PATH", str(token_path))
+    monkeypatch.setenv("TRADIER_REFRESH_TOKEN", "old-refresh")
+    monkeypatch.setenv("TRADIER_OAUTH_CLIENT_ID", "cid")
+    monkeypatch.setenv("TRADIER_OAUTH_CLIENT_SECRET", "secret")
+    monkeypatch.setenv("BOTSPOT_FORCE_BROKER_TOKEN_REFRESH", "true")
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://127.0.0.1:1")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "test")
+
+    class _Resp:
+        ok = True
+        status_code = 200
+        text = ""
+
+        def json(self):
+            return {
+                "access_token": "forced-access",
+                "refresh_token": "forced-refresh",
+                "expires_in": 86400,
+                "issued_at": int(time.time() * 1000),
+            }
+
+    from lumibot.brokers import tradier as tradier_module
+
+    monkeypatch.setattr(tradier_module.requests, "post", lambda *args, **kwargs: _Resp())
+
+    broker = Tradier(
+        config={"ACCESS_TOKEN": None, "ACCOUNT_NUMBER": "1234", "PAPER": True},
+        connect_stream=False,
+    )
+
+    assert broker._tradier_access_token == "forced-access"
+    rewritten = json.loads(token_path.read_text(encoding="utf-8"))
+    assert rewritten["access_token"] == "forced-access"
+    assert rewritten["refresh_token"] == "forced-refresh"
+
+
+def test_oauth_force_refresh_fails_if_tradier_token_path_cannot_be_written(monkeypatch, tmp_path):
+    token_path = tmp_path / "tradier_token.json"
+    token_path.write_text(
+        json.dumps(
+            {
+                "access_token": "old-access",
+                "refresh_token": "old-refresh",
+                "expires_in": 86400,
+                "issued_at": int(time.time() * 1000),
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TRADIER_TOKEN_PATH", str(token_path))
+    monkeypatch.setenv("TRADIER_REFRESH_TOKEN", "old-refresh")
+    monkeypatch.setenv("TRADIER_OAUTH_CLIENT_ID", "cid")
+    monkeypatch.setenv("TRADIER_OAUTH_CLIENT_SECRET", "secret")
+    monkeypatch.setenv("BOTSPOT_FORCE_BROKER_TOKEN_REFRESH", "true")
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://127.0.0.1:1")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "test")
+
+    class _Resp:
+        ok = True
+        status_code = 200
+        text = ""
+
+        def json(self):
+            return {
+                "access_token": "forced-access",
+                "refresh_token": "forced-refresh",
+                "expires_in": 86400,
+                "issued_at": int(time.time() * 1000),
+            }
+
+    from lumibot.brokers import tradier as tradier_module
+
+    monkeypatch.setattr(tradier_module.requests, "post", lambda *args, **kwargs: _Resp())
+    monkeypatch.setattr(
+        tradier_module.Tradier,
+        "_write_json_file_atomic",
+        staticmethod(lambda *args, **kwargs: (_ for _ in ()).throw(OSError("disk full"))),
+    )
+
+    with pytest.raises(tradier_module.TradierTokenPersistenceError, match="Failed to persist refreshed OAuth token file"):
+        Tradier(
+            config={"ACCESS_TOKEN": None, "ACCOUNT_NUMBER": "1234", "PAPER": True},
+            connect_stream=False,
+        )
+
+    unchanged = json.loads(token_path.read_text(encoding="utf-8"))
+    assert unchanged["access_token"] == "old-access"
+
+
 def test_oauth_force_refresh_failure_raises(monkeypatch):
     token_json = {
         "access_token": "old-access",

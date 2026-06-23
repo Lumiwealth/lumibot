@@ -13,7 +13,7 @@ import pytz
 try:
     from lumibot.backtesting.backtesting_broker import BacktestingBroker
     from lumibot.data_sources import PandasData
-    from lumibot.entities import Asset, Order, Position, Quote # Import Asset if needed by mocked methods
+    from lumibot.entities import Asset, Data, Order, Position, Quote # Import Asset if needed by mocked methods
 except ImportError:
     # Add path modification if running tests directly and lumibot is not installed
     import sys
@@ -21,7 +21,7 @@ except ImportError:
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
     from lumibot.backtesting.backtesting_broker import BacktestingBroker
     from lumibot.data_sources import PandasData
-    from lumibot.entities import Asset, Order, Position, Quote
+    from lumibot.entities import Asset, Data, Order, Position, Quote
 
 
 class _OptionSettlementStrategyStub:
@@ -177,32 +177,14 @@ class TestBacktestingBroker:
         provider = broker._resolve_provider_key_for_asset(Asset("SPY", asset_type="stock"))
         assert provider == "ibkr"
 
-    def test_should_force_day_fill_timestep_true_for_routed_ibkr_daily_stock(self):
+    def test_resolve_order_fill_timestep_uses_day_for_routed_ibkr_daily_stock_after_hourly_cadence(self):
         broker = BacktestingBroker.__new__(BacktestingBroker)
+        asset = Asset("SPY", asset_type="stock")
+        quote = Asset("USD", asset_type="forex")
 
         class _StubDataSource:
-            _effective_day_mode = True
-            _observed_intraday_cadence = False
-
-            @staticmethod
-            def _provider_spec_for_asset(_asset):
-                return SimpleNamespace(provider="ibkr")
-
-        broker.data_source = _StubDataSource()
-        order = Order(
-            asset=Asset("SPY", asset_type="stock"),
-            quantity=1,
-            side="buy",
-            order_type=Order.OrderType.MARKET,
-            strategy="test",
-        )
-
-        assert broker._should_force_day_fill_timestep(order) is True
-
-    def test_should_force_day_fill_timestep_false_when_intraday_seen(self):
-        broker = BacktestingBroker.__new__(BacktestingBroker)
-
-        class _StubDataSource:
+            PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX = True
+            _timestep = "minute"
             _effective_day_mode = True
             _observed_intraday_cadence = True
 
@@ -210,16 +192,247 @@ class TestBacktestingBroker:
             def _provider_spec_for_asset(_asset):
                 return SimpleNamespace(provider="ibkr")
 
-        broker.data_source = _StubDataSource()
+        data_source = _StubDataSource()
+        data_source._data_store = {(asset, quote, "day"): SimpleNamespace(timestep="day")}
+        broker.data_source = data_source
         order = Order(
-            asset=Asset("SPY", asset_type="stock"),
+            asset=asset,
+            quote=quote,
             quantity=1,
             side="buy",
             order_type=Order.OrderType.MARKET,
             strategy="test",
         )
 
-        assert broker._should_force_day_fill_timestep(order) is False
+        assert broker._resolve_order_fill_timestep(order, "minute") == "day"
+        assert broker._uses_native_day_stock_index_fill(order, "day") is True
+
+    def test_resolve_order_fill_timestep_preserves_intraday_when_intraday_series_loaded(self):
+        broker = BacktestingBroker.__new__(BacktestingBroker)
+        asset = Asset("SPY", asset_type="stock")
+        quote = Asset("USD", asset_type="forex")
+
+        class _StubDataSource:
+            PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX = True
+            _timestep = "minute"
+            _effective_day_mode = True
+            _observed_intraday_cadence = True
+
+            @staticmethod
+            def _provider_spec_for_asset(_asset):
+                return SimpleNamespace(provider="ibkr")
+
+        data_source = _StubDataSource()
+        data_source._data_store = {
+            (asset, quote, "day"): SimpleNamespace(timestep="day"),
+            (asset, quote, "minute"): SimpleNamespace(timestep="minute"),
+        }
+        broker.data_source = data_source
+        order = Order(
+            asset=asset,
+            quote=quote,
+            quantity=1,
+            side="buy",
+            order_type=Order.OrderType.MARKET,
+            strategy="test",
+        )
+
+        assert broker._resolve_order_fill_timestep(order, "minute") == "minute"
+        assert broker._uses_native_day_stock_index_fill(order, "minute") is False
+
+    def test_resolve_order_fill_timestep_preserves_intraday_without_native_day_contract(self):
+        broker = BacktestingBroker.__new__(BacktestingBroker)
+        asset = Asset("SPY", asset_type="stock")
+        quote = Asset("USD", asset_type="forex")
+
+        class _StubDataSource:
+            PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX = False
+            _timestep = "minute"
+            _effective_day_mode = True
+            _observed_intraday_cadence = True
+
+            @staticmethod
+            def _provider_spec_for_asset(_asset):
+                return SimpleNamespace(provider="ibkr")
+
+        data_source = _StubDataSource()
+        data_source._data_store = {(asset, quote, "day"): SimpleNamespace(timestep="day")}
+        broker.data_source = data_source
+        order = Order(
+            asset=asset,
+            quote=quote,
+            quantity=1,
+            side="buy",
+            order_type=Order.OrderType.MARKET,
+            strategy="test",
+        )
+
+        assert broker._resolve_order_fill_timestep(order, "minute") == "minute"
+
+    def test_fast_ibkr_bid_ask_rejects_stale_sparse_intraday_bar(self):
+        broker = BacktestingBroker.__new__(BacktestingBroker)
+        broker.logger = MagicMock()
+        base = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+        quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+        tz = pytz.UTC
+        stale_dt = tz.localize(dt(2026, 3, 24, 12, 30))
+        request_dt = tz.localize(dt(2026, 4, 17, 12, 30))
+        future_dt = tz.localize(dt(2026, 4, 20, 0, 0))
+        df = (
+            pd.DataFrame(
+                {
+                    "datetime": [stale_dt, future_dt],
+                    "open": [70511.75, 73830.25],
+                    "high": [70521.50, 73847.50],
+                    "low": [70505.75, 73771.75],
+                    "close": [70511.75, 73835.75],
+                    "volume": [0.01964, 0.577128],
+                    "bid": [70510.75, 73834.75],
+                    "ask": [70512.75, 73836.75],
+                }
+            )
+            .set_index("datetime")
+        )
+        data = Data(base, df, timestep="minute", quote=quote)
+        data.repair_times_and_fill(data.df.index)
+
+        class InteractiveBrokersRESTBacktesting:
+            SOURCE = "INTERACTIVEBROKERSREST"
+            _timestep = "minute"
+            exchange = None
+
+            def __init__(self):
+                self._now = request_dt
+                self._data_store = {}
+
+            def get_datetime(self):
+                return self._now
+
+            def _normalize_exchange_key(self, exchange):
+                return str(exchange or "AUTO").strip().upper()
+
+            def _build_dataset_keys(self, asset, quote_asset, timestep, exchange):
+                exchange_key = self._normalize_exchange_key(exchange)
+                return (
+                    (asset, quote_asset, str(timestep), exchange_key),
+                    (asset, quote_asset, exchange_key),
+                )
+
+        data_source = InteractiveBrokersRESTBacktesting()
+        data_source._data_store[(base, quote, "minute", "AUTO")] = data
+        broker.data_source = data_source
+
+        assert broker._fast_get_bid_ask_for_fill(base, quote) == (None, None)
+
+        data_source._now = stale_dt
+        assert broker._fast_get_bid_ask_for_fill(base, quote) == (70510.75, 70512.75)
+
+    def test_ibkr_quote_fill_rejects_stale_source_bar(self):
+        broker = BacktestingBroker.__new__(BacktestingBroker)
+        broker.logger = MagicMock()
+        sim_dt = pytz.UTC.localize(dt(2026, 4, 17, 12, 30))
+        stale_dt = pytz.UTC.localize(dt(2026, 3, 24, 0, 0))
+        base = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+        quote_asset = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+        class _RoutedIbkrSource:
+            SOURCE = "PANDAS"
+            _timestep = "minute"
+
+            @staticmethod
+            def _provider_spec_for_asset(_asset):
+                return SimpleNamespace(provider="ibkr")
+
+            @staticmethod
+            def get_datetime():
+                return sim_dt
+
+        broker.data_source = _RoutedIbkrSource()
+        broker.get_quote = MagicMock(
+            return_value=Quote(
+                asset=base,
+                bid=70510.75,
+                ask=70512.75,
+                raw_data={"bar_timestamp": stale_dt, "bar_timestep": "minute"},
+            )
+        )
+        order = Order(
+            "test",
+            asset=base,
+            quantity=1,
+            side="buy",
+            quote=quote_asset,
+            order_type=Order.OrderType.MARKET,
+        )
+
+        assert broker._try_fill_with_quote(order, strategy=None, open_=None, high_=None, low_=None) is None
+
+        broker.get_quote = MagicMock(
+            return_value=Quote(
+                asset=base,
+                bid=70510.75,
+                ask=70512.75,
+                raw_data={"bar_timestamp": sim_dt, "bar_timestep": "minute"},
+            )
+        )
+
+        assert broker._try_fill_with_quote(order, strategy=None, open_=None, high_=None, low_=None) == 70512.75
+
+    def test_ibkr_execution_bar_match_requires_current_intraday_bucket(self):
+        broker = BacktestingBroker.__new__(BacktestingBroker)
+        sim_dt = pytz.UTC.localize(dt(2026, 4, 17, 12, 30, 45))
+        stale_dt = pytz.UTC.localize(dt(2026, 4, 17, 12, 29, 59))
+        same_minute_dt = pytz.UTC.localize(dt(2026, 4, 17, 12, 30, 0))
+        future_dt = pytz.UTC.localize(dt(2026, 4, 17, 12, 31, 0))
+
+        assert broker._execution_bar_matches_datetime(same_minute_dt, sim_dt, "minute") is True
+        assert broker._execution_bar_matches_datetime(stale_dt, sim_dt, "minute") is False
+        assert broker._execution_bar_matches_datetime(future_dt, sim_dt, "minute") is False
+
+    def test_stale_current_bar_defers_market_order_not_limit_order(self):
+        broker = BacktestingBroker.__new__(BacktestingBroker)
+        broker.cancel_order = MagicMock()
+        strategy = MagicMock()
+        asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+        quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+        market_order = Order(
+            "test",
+            asset=asset,
+            quote=quote,
+            quantity=1,
+            side="buy",
+            order_type=Order.OrderType.MARKET,
+        )
+        market_order.status = Order.OrderStatus.NEW
+
+        assert broker._defer_market_order_with_unavailable_execution_data(
+            market_order,
+            "selected minute bar is stale",
+            strategy=strategy,
+        ) is True
+        broker.cancel_order.assert_not_called()
+        assert market_order.is_active()
+        strategy.log_message.assert_called_once()
+
+        broker.cancel_order.reset_mock()
+        limit_order = Order(
+            "test",
+            asset=asset,
+            quote=quote,
+            quantity=1,
+            side="buy",
+            order_type=Order.OrderType.LIMIT,
+            limit_price=100,
+        )
+        limit_order.status = Order.OrderStatus.NEW
+
+        assert broker._defer_market_order_with_unavailable_execution_data(
+            limit_order,
+            "selected minute bar is stale",
+            strategy=strategy,
+        ) is False
+        broker.cancel_order.assert_not_called()
 
     def test_get_active_tracked_orders_fallback_respects_asset_filter(self):
         broker = BacktestingBroker.__new__(BacktestingBroker)
@@ -257,12 +470,14 @@ class TestBacktestingBroker:
         assert result is None
         broker._mark_end_of_trading_days.assert_called_once_with(broker.datetime)
 
-    def test_should_force_day_fill_timestep_false_for_options(self):
+    def test_resolve_order_fill_timestep_excludes_options(self):
         broker = BacktestingBroker.__new__(BacktestingBroker)
 
         class _StubDataSource:
+            PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX = True
             _effective_day_mode = True
-            _observed_intraday_cadence = False
+            _observed_intraday_cadence = True
+            _data_store = {}
 
             @staticmethod
             def _provider_spec_for_asset(_asset):
@@ -283,7 +498,41 @@ class TestBacktestingBroker:
             strategy="test",
         )
 
-        assert broker._should_force_day_fill_timestep(order) is False
+        assert broker._resolve_order_fill_timestep(order, "minute") == "minute"
+
+    def test_resolve_order_fill_timestep_excludes_crypto_and_futures(self):
+        broker = BacktestingBroker.__new__(BacktestingBroker)
+
+        class _StubDataSource:
+            PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX = True
+            _effective_day_mode = True
+            _observed_intraday_cadence = True
+            _data_store = {}
+
+            @staticmethod
+            def _provider_spec_for_asset(_asset):
+                return SimpleNamespace(provider="ibkr")
+
+        broker.data_source = _StubDataSource()
+
+        crypto_order = Order(
+            asset=Asset("BTC", asset_type=Asset.AssetType.CRYPTO),
+            quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
+            quantity=1,
+            side="buy",
+            order_type=Order.OrderType.MARKET,
+            strategy="test",
+        )
+        future_order = Order(
+            asset=Asset("ES", asset_type=Asset.AssetType.FUTURE),
+            quantity=1,
+            side="buy",
+            order_type=Order.OrderType.MARKET,
+            strategy="test",
+        )
+
+        assert broker._resolve_order_fill_timestep(crypto_order, "minute") == "minute"
+        assert broker._resolve_order_fill_timestep(future_order, "minute") == "minute"
 
     def test_trade_event_log_includes_audit_columns_when_enabled(self):
         broker = BacktestingBroker.__new__(BacktestingBroker)

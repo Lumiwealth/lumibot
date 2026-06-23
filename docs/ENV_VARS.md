@@ -64,10 +64,10 @@ This page documents environment variables used by LumiBot, with an emphasis on *
     - `{"default":"thetadata","stock":"thetadata","option":"thetadata","index":"thetadata","future":"ibkr","cont_future":"ibkr","crypto":"ibkr","crypto_future":"ibkr"}`
     - Provider values are case/whitespace/_/- insensitive. Supported values include:
       - `thetadata`, `ibkr`, `polygon`, `alpaca`
-      - `ccxt` (auto-select exchange from existing env/credentials)
-      - supported CCXT backtesting exchange ids such as `kraken`, `binance`, `kucoin`, `bitmex`, `bybit`, and `okx`
+      - `ccxt` (auto-select exchange from existing env/credentials; defaults to Coinbase when no exchange credential/config is available)
+      - supported CCXT backtesting exchange ids such as `coinbase`, `kraken`, `binance`, `kucoin`, `bitmex`, `bybit`, and `okx`
   - `none` to disable env override and rely on code.
-- Crypto futures/perpetuals: `Asset.AssetType.CRYPTO_FUTURE` routes through `crypto_future` when present, otherwise `crypto`, then `default`. USDT contracts such as `BTCUSDT`, `ETHUSDT`, and `SOLUSDT` can use USD spot history as the backtest price proxy.
+- Crypto futures/perpetuals: `Asset.AssetType.CRYPTO_FUTURE` routes through `crypto_future` when present, otherwise `crypto`, then `default`. Spot proxy pricing preserves the requested quote asset exactly: `BTCUSDT`, `ETHUSDT`, and `SOLUSDT` request `BTC/USDT`, `ETH/USDT`, and `SOL/USDT`. If that exact pair has no provider data, the result is missing data; LumiBot must not silently substitute a USD proxy.
 - Where: `lumibot/strategies/_strategy.py` datasource selection logic.
 
 ## Testing / CI guardrails (engineering-only)

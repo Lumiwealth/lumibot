@@ -441,16 +441,16 @@ def test_ibkr_rest_backtesting_crypto_trailing_stop_triggers(monkeypatch):
 def test_ibkr_rest_backtesting_crypto_oco_and_oto_orders_execute(monkeypatch):
     import lumibot.tools.ibkr_helper as ibkr_helper
 
-    idx = pd.date_range("2025-01-01 00:00", periods=2, freq="1min", tz="America/New_York")
+    idx = pd.date_range("2025-01-01 00:00", periods=3, freq="1min", tz="America/New_York")
     df = pd.DataFrame(
         {
-            "open": [100.0, 100.0],
-            "high": [100.0, 100.0],
-            "low": [100.0, 100.0],
-            "close": [100.0, 100.0],
-            "bid": [99.5, 99.5],
-            "ask": [100.5, 100.5],
-            "volume": [1_000, 1_000],
+            "open": [100.0, 100.0, 100.0],
+            "high": [100.0, 100.0, 100.0],
+            "low": [100.0, 100.0, 100.0],
+            "close": [100.0, 100.0, 100.0],
+            "bid": [99.5, 99.5, 99.5],
+            "ask": [100.5, 100.5, 100.5],
+            "volume": [1_000, 1_000, 1_000],
         },
         index=idx,
     )

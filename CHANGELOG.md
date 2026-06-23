@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.5.53 - Unreleased
+
 ## 4.5.52 - 2026-06-23
 
 Deploy marker: `deploy 4.5.52`

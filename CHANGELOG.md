@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.5.52 - Unreleased
+## 4.5.52 - 2026-06-23
+
+Deploy marker: `deploy 4.5.52`
 
 ### Fixed
 - **Crypto buy-hold validation now uses full notional exposure.** The controlled
@@ -16,6 +18,10 @@
   The validation runner fails incomplete candle coverage even if
   `cache_dt_ranges` says the requested window is covered.
 - **IBKR intraday fills now require the current execution bar.** Direct IBKR and routed-IBKR quote, fast bid/ask, and OHLC fill paths reject minute/hour source rows that do not match the current simulated execution bucket, preventing sparse BTC cache objects from reusing older real rows as current fills.
+- **Sparse market-order fills now respect order lifecycle timing.** Stale market
+  fill candidates are canceled or left open according to time-in-force semantics
+  instead of filling at the current simulation timestamp with a far-away source
+  bar.
 - **BotSpot snapshot runs can force Schwab and Tradier OAuth token refresh.** Schwab rewrites the existing token file on startup when requested, Tradier OAuth writes the existing BotSpot rotation handoff artifact, and Tradier API-token mode remains unchanged.
 - **Tradier OAuth refresh now has a public durable token-file path.** `TRADIER_TOKEN_PATH` loads provider token JSON, writes refreshed token material back atomically, and fails loudly when refreshed token material cannot be persisted. Schwab refreshed-token writes now also fail loudly instead of hiding a failed token-file write.
 
@@ -29,6 +35,9 @@
   cache results.
 - **Greg BTC investigation now records the local execution-path guard.** The note separates the Crypto Plus data-availability issue from the LumiBot no-stale-fill invariant and lists local targeted test evidence.
 - **Tradier docs now describe OAuth token-file durability.** The broker docs and environment-variable reference explain `TRADIER_TOKEN_PATH` separately from manual `TRADIER_ACCESS_TOKEN` usage.
+- **TQQQ provider-diff investigations now document execution sensitivity.** The
+  notes record the IBKR-first strategy direction, v22/v23 experiments, and
+  regular-session helper evidence without changing released strategy behavior.
 
 ### Tests
 - **Crypto validation runner tests now lock full-allocation buy-hold behavior.**

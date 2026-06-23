@@ -1116,3 +1116,79 @@ TQQQ daily bars and received `Chart data unavailable`, which produced
 placeholder/missing bars and zero trades. That run is not used as strategy
 evidence. The accepted v21 runs above are warm prod-cache validations and prove
 strategy/backtester behavior, not cold-cache IBKR downloader recovery.
+
+## 2026-06-22 v22/v23 Strategy Experiments
+
+Rob asked whether the poor v21 risk/reward could be improved. The baseline
+problem is real: for the same `2013-01-01` to `2026-06-05` window, a quick QQQ
+reference was about `20.13%` CAGR with `-35.12%` max drawdown, while v21
+Auto/IBKR was only `10.23%` CAGR with `-55.68%` max drawdown.
+
+Local research-only candidates:
+
+- v22a:
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_strategy_candidates_20260622/code/v22a_daily_decision_rth_main.py`
+- v22b:
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_strategy_candidates_20260622/code/v22b_daily_regime_rth_main.py`
+- v23a:
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_strategy_candidates_20260622/code/v23a_regime_only_rth_main.py`
+
+Full-window Auto/IBKR results:
+
+| Scenario | Runtime | Total return | CAGR | Max DD | Sharpe | Time in market | Fills | Queue submits | Notes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| v21 RTH | `46.8s` | `270%` | `10.23%` | `-55.68%` | `0.36` | `35%` | `337` | `0` | Baseline RTH candidate |
+| v22a daily decision lock | `29.6s` | `273%` | `10.31%` | `-56.94%` | n/a | `35%` | `238` | `0` | Not meaningfully better |
+| v22b stronger EMA regime | `161.2s` | `492%` | `14.17%` | `-48.25%` | `0.46` | `38%` | `156` | `0` | Best local candidate so far, still worse risk/reward than QQQ |
+| v23a regime-only | `454.9s` | `-95%` | `-19.46%` | `-97.87%` | `-0.16` | `38%` | `93` | `0` | Rejected; removing SMC/stop layer lets TQQQ losses compound |
+
+v22b loss profile:
+
+- Completed long episodes: `48`; open final position: `6786` shares.
+- Market exits: `30`, total reconstructed P&L about `+$1.46M`, median episode
+  return `+15.53%`.
+- Stop exits: `18`, total reconstructed P&L about `-$983k`, median episode
+  return `-11.73%`.
+- Worst losses were repeated full-cash TQQQ entries stopped or regime-exited at
+  roughly `-8%` to `-21%`, not one single bad fill.
+- Bad years persisted: `2015 -15.58%`, `2018 -1.76%`, `2019 -5.59%`,
+  `2021 -0.79%`, `2022 -16.62%`, `2026 YTD -5.24%`.
+
+Interpretation:
+
+- v22b improves the v21 strategy but does not make it acceptable versus QQQ.
+  It is still a leveraged ETF timing strategy with near-full cash deployment
+  and repeated double-digit TQQQ stop losses.
+- v23a proves the SMC/stop layer is not merely dead weight. A pure strong-EMA
+  TQQQ regime candidate had catastrophic drawdown, so the fix is not simply
+  "remove SMC and hold TQQQ during trend."
+- The next strategy experiments should focus on exposure/risk design rather
+  than tiny SMC signal tweaks: cap account risk per trade, reduce TQQQ
+  allocation after losses, consider a QQQ/cash fallback regime, and validate
+  every candidate against QQQ buy-and-hold.
+
+ThetaData validation caveat discovered during v22b:
+
+- v22b ThetaData with a fresh local cache and the production downloader produced
+  zero trades and zero indicators because every RTH call saw `0` daily bars.
+- Diagnostic run:
+  `/Users/robertgrzesik/Development/lumibot/logs/tqqq_strategy_candidates_20260622/runs/v22b_theta_diag_20130520_20130610`
+- The diagnostic log shows the production downloader returning `status_code=478`
+  with empty payloads for `v3/stock/history/eod` TQQQ requests such as
+  `2012-05-14 -> 2013-05-13` and `2013-05-14 -> 2013-06-07`.
+- LumiBot then wrote placeholder-only daily bars and repeatedly logged
+  `Insufficient data length (0 bars, need 230); skipping`.
+- A direct local probe can return TQQQ daily bars when a populated local cache is
+  available, so the failure is specifically a cold/fresh-cache production
+  downloader rebuild issue for ThetaData TQQQ daily EOD, not proof that v22b
+  has no Theta signals.
+
+Actionable status:
+
+- v22b Auto/IBKR is the current best local strategy candidate, but it is not good
+  enough to recommend for real-money replacement.
+- v23a is rejected.
+- ThetaData provider comparison for v22b remains blocked until the production
+  downloader can rebuild TQQQ daily EOD data from a fresh cache.
+- This is separate from the earlier LumiBot slow-backtest bug. Auto/IBKR
+  backtests are now queue-free and fast enough for full-window iteration.

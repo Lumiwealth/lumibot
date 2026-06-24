@@ -92,6 +92,28 @@ class CcxtCacheDB:
             return value.replace(tzinfo=None)
         return value.astimezone(timezone.utc).replace(tzinfo=None)
 
+    def _current_utc_naive(self) -> datetime:
+        return datetime.utcnow().replace(tzinfo=None)
+
+    def _normalize_download_window(self, start: datetime, end: datetime | None) -> tuple[datetime, datetime]:
+        """Expand cache windows by UTC date without requesting future provider bars."""
+        now_dt = self._current_utc_naive()
+        if end is None:
+            end = now_dt
+
+        start_dt = self._to_utc_naive(start)
+        end_dt = self._to_utc_naive(end)
+
+        # Cache coverage is tracked by UTC date buckets, but same-day requests
+        # must stop at the provider's current time. Coinbase rejects OHLCV calls
+        # whose paginated ``since`` value drifts into the future.
+        start_dt = start_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_dt = end_dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+        if end_dt > now_dt:
+            end_dt = now_dt
+
+        return start_dt, end_dt
+
 
     def get_cache_file_name(self, symbol:str, timeframe:str)->str:
         """Returns the cache file name. If the cache folder does not exist, it is created.
@@ -186,25 +208,27 @@ class CcxtCacheDB:
                        Use datetime as the index.
                        datetime, open, high, low, close, volume, missing columns.
         """
-        if end is None:
-            end = datetime.utcnow()
-
         if limit is None:
             limit = self.max_download_limit
 
-        start_dt = self._to_utc_naive(start)
-        end_dt = self._to_utc_naive(end)
+        if timeframe not in _TIMEFRAME_SECONDS:
+            raise ValueError(f"Unsupported CCXT timeframe {timeframe!r}; expected one of {sorted(_TIMEFRAME_SECONDS)}")
 
-        # set start_dt to 00:00:00 and end_dt to 23:59:59
-        start_dt = start_dt.replace(hour=0, minute=0, second=0, microsecond=0)
-        end_dt = end_dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+        start_dt, end_dt = self._normalize_download_window(start, end)
+        if start_dt > end_dt:
+            self.logger.warning(
+                "Requested CCXT range starts after the provider's current time; "
+                "no historical bars are available yet for %s %s.",
+                symbol,
+                timeframe,
+            )
+            empty = self._empty_ohlcv_frame()
+            empty.set_index("datetime", inplace=True)
+            return empty
 
         download_ranges,overap_range_ids,cache_range = self._calc_download_ranges(symbol, timeframe,start_dt, end_dt)
 
         self.logger.info(f"download ranges :\n{self._table_str(download_ranges,headers=['from','to'])}")
-
-        if timeframe not in _TIMEFRAME_SECONDS:
-            raise ValueError(f"Unsupported CCXT timeframe {timeframe!r}; expected one of {sorted(_TIMEFRAME_SECONDS)}")
 
         for download_start,download_end in download_ranges:
             range_cnt = self._count_timeframe_units(download_start, download_end, timeframe)

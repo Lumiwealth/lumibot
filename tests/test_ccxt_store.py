@@ -122,6 +122,68 @@ def test_ccxt_cache_converts_aware_request_bounds_to_utc_before_query(tmp_path, 
     assert list(df.index) == [pd.Timestamp("2026-03-15 04:00:00")]
 
 
+def test_ccxt_cache_clamps_current_utc_day_download_end_to_now(tmp_path, monkeypatch):
+    cache = _cache_without_live_exchange(tmp_path, monkeypatch)
+    ny = pytz.timezone("America/New_York")
+    now = datetime(2026, 6, 24, 18, 15, 0, 123456)
+    requested_end_utc = datetime(2026, 6, 24, 4, 0)
+    calls = []
+
+    monkeypatch.setattr(cache, "_current_utc_naive", lambda: now)
+
+    def fake_get_barset(symbol, timeframe, limit, start, end):
+        calls.append({"symbol": symbol, "timeframe": timeframe, "start": start, "end": end})
+        return _bars(
+            (requested_end_utc, 100.0, 101.0, 99.0, 100.5, 10.0),
+            (now.replace(microsecond=0), 110.0, 111.0, 109.0, 110.5, 11.0),
+        )
+
+    monkeypatch.setattr(cache, "_get_barset_from_api", fake_get_barset)
+
+    df = cache.download_ohlcv(
+        "BTC/USDT",
+        "1m",
+        ny.localize(datetime(2026, 6, 17, 0, 0)),
+        ny.localize(datetime(2026, 6, 24, 0, 0)),
+    )
+
+    assert calls
+    assert calls[0]["start"] == datetime(2026, 6, 17, 0, 0)
+    assert calls[0]["end"] == now
+    assert pd.Timestamp("2026-06-24 04:00:00") in df.index
+    assert pd.Timestamp(now.replace(microsecond=0)) not in df.index
+
+    with duckdb.connect(cache.get_cache_file_name("BTC/USDT", "1m")) as con:
+        ranges = con.execute("select start_dt, end_dt from cache_dt_ranges").fetch_df()
+    assert ranges.iloc[0].start_dt == datetime(2026, 6, 17, 0, 0)
+    assert ranges.iloc[0].end_dt == now
+
+
+def test_ccxt_cache_future_only_window_returns_empty_without_provider_call(tmp_path, monkeypatch):
+    cache = _cache_without_live_exchange(tmp_path, monkeypatch)
+    now = datetime(2026, 6, 24, 18, 15, 0)
+    calls = {"count": 0}
+
+    monkeypatch.setattr(cache, "_current_utc_naive", lambda: now)
+
+    def fake_get_barset(symbol, timeframe, limit, start, end):
+        calls["count"] += 1
+        raise AssertionError("future-only requests must not reach the provider")
+
+    monkeypatch.setattr(cache, "_get_barset_from_api", fake_get_barset)
+
+    df = cache.download_ohlcv(
+        "BTC/USDT",
+        "1m",
+        datetime(2026, 6, 25, 0, 0),
+        datetime(2026, 6, 25, 1, 0),
+    )
+
+    assert df.empty
+    assert calls["count"] == 0
+    assert not os.path.exists(cache.get_cache_file_name("BTC/USDT", "1m"))
+
+
 def test_ccxt_cache_uses_native_day_timeframe_without_synthesizing_missing_days(tmp_path, monkeypatch):
     cache = _cache_without_live_exchange(tmp_path, monkeypatch)
     calls = []

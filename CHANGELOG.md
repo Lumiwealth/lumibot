@@ -1,6 +1,19 @@
 # Changelog
 
-## 4.5.53 - Unreleased
+## 4.5.53 - 2026-06-24
+
+Deploy marker: `deploy 4.5.53`
+
+### Fixed
+- **Coinbase/CCXT same-day downloads no longer request future candles.** Crypto
+  OHLCV cache downloads clamp current-UTC-day requests to the current time and
+  return an empty frame for fully future windows, preventing Coinbase from
+  rejecting active backtests with `start must not be in the future`.
+
+### Tests
+- **CCXT cache regressions now cover current-day and future-only windows.** Unit
+  tests assert current-day downloads are clamped before calling the provider and
+  fully future requests do not hit Coinbase.
 
 ## 4.5.52 - 2026-06-23
 

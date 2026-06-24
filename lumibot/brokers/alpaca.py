@@ -21,9 +21,25 @@ from lumibot.tools.helpers import has_more_than_n_decimal_places
 from lumibot.tools.lumibot_logger import get_logger
 from lumibot.trading_builtins import PollingStream
 
-from .broker import Broker
+from .broker import Broker, LumibotBrokerAPIError
 
 logger = get_logger(__name__)
+
+
+def _is_alpaca_permission_error(error: Exception) -> bool:
+    message = str(error).lower()
+    return any(
+        marker in message
+        for marker in (
+            "40310000",
+            "403",
+            "forbidden",
+            "insufficient permission",
+            "insufficient-permission",
+            "permission denied",
+            "not authorized",
+        )
+    )
 
 
 # Create our own OrderData class to pass to the API because this is easier to work with
@@ -980,6 +996,10 @@ class Alpaca(Broker):
 
         except Exception as e:
             order.set_error(e)
+            try:
+                self._process_trade_event(order, self.ERROR_ORDER, error=e)
+            except Exception:
+                logger.error("Failed to publish Alpaca order rejection event.", exc_info=True)
             message = str(e)
             if "stop price must not be greater than base price / 1.001" in message:
                 logger.error(
@@ -1009,6 +1029,10 @@ class Alpaca(Broker):
                         color="red",
                     )
                 )
+            if _is_alpaca_permission_error(e):
+                raise LumibotBrokerAPIError(
+                    f"Alpaca broker permission failure while submitting {order}: {message}"
+                ) from e
 
         return order
 

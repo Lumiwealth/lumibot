@@ -11,6 +11,8 @@ from lumibot.components.agents.runtime import (
     RuntimeRequest,
     _aggregate_usage_metadata,
     _resolve_model_for_adk,
+    _model_context_limit_tokens,
+    _model_context_string_limit_chars,
     _strip_thought_parts_from_litellm_request,
     _supports_explicit_temperature_for_adk_model,
     _sync_gemini_api_key_alias,
@@ -49,13 +51,32 @@ def test_gemini_api_key_alias_populates_google_api_key(monkeypatch):
     assert os.environ["GOOGLE_API_KEY"] == "gemini-test-key"
 
 
-def test_google_api_key_wins_over_gemini_alias(monkeypatch):
+def test_gemini_api_key_wins_over_google_alias(monkeypatch):
     monkeypatch.setenv("GOOGLE_API_KEY", "google-test-key")
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-test-key")
 
     _sync_gemini_api_key_alias()
 
+    assert os.environ["GOOGLE_API_KEY"] == "gemini-test-key"
+    assert os.environ["GEMINI_API_KEY"] == "gemini-test-key"
+
+
+def test_google_api_key_populates_gemini_alias(monkeypatch):
+    monkeypatch.setenv("GOOGLE_API_KEY", "google-test-key")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+
+    _sync_gemini_api_key_alias()
+
     assert os.environ["GOOGLE_API_KEY"] == "google-test-key"
+    assert os.environ["GEMINI_API_KEY"] == "google-test-key"
+
+
+def test_gemini_models_have_runtime_context_budget(monkeypatch):
+    monkeypatch.delenv("LUMIBOT_AGENT_CONTEXT_LIMIT_TOKENS", raising=False)
+    monkeypatch.delenv("LUMIBOT_AGENT_CONTEXT_STRING_MAX_CHARS", raising=False)
+
+    assert _model_context_limit_tokens("gemini-3.1-pro") == 1_000_000
+    assert _model_context_string_limit_chars("gemini-3.1-pro") == 50_000
 
 
 def test_together_api_key_alias_populates_litellm_key(monkeypatch):

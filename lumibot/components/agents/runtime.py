@@ -596,13 +596,23 @@ def _sync_xai_api_key_alias() -> None:
 
 
 def _sync_gemini_api_key_alias() -> None:
-    """Allow product-facing GEMINI_API_KEY with Google SDK internals.
+    """Keep product-facing GEMINI_API_KEY and Google SDK internals aligned.
 
     Google examples and some SDK paths use GOOGLE_API_KEY. LumiBot's public
-    docs use GEMINI_API_KEY, so mirror it when the Google name is absent.
+    docs and BotSpot saved-env contract use GEMINI_API_KEY. Treat GEMINI_API_KEY
+    as canonical when both names are present so deployments do not silently use a
+    different Google key than the one selected for the strategy.
     """
-    if not os.environ.get("GOOGLE_API_KEY") and os.environ.get("GEMINI_API_KEY"):
-        os.environ["GOOGLE_API_KEY"] = os.environ["GEMINI_API_KEY"]
+    gemini_key = os.environ.get("GEMINI_API_KEY")
+    google_key = os.environ.get("GOOGLE_API_KEY")
+    if gemini_key:
+        if google_key and google_key != gemini_key:
+            logging.getLogger(__name__).warning(
+                "Both GEMINI_API_KEY and GOOGLE_API_KEY are set; using GEMINI_API_KEY for Gemini runtime requests."
+            )
+        os.environ["GOOGLE_API_KEY"] = gemini_key
+    elif google_key:
+        os.environ["GEMINI_API_KEY"] = google_key
 
 
 def _sync_together_api_key_alias() -> None:
@@ -646,18 +656,34 @@ def _provider_prompt_cache_key(request: RuntimeRequest) -> str:
 def _model_context_limit_tokens(model: Any) -> int | None:
     if not isinstance(model, str):
         return None
+    raw_limit = os.environ.get("LUMIBOT_AGENT_CONTEXT_LIMIT_TOKENS")
+    if raw_limit:
+        try:
+            return max(int(raw_limit), 1_000)
+        except Exception:
+            pass
     lower = model.strip().lower()
     if lower.startswith("deepseek/deepseek-v4-"):
         return 1_048_576
+    if lower.startswith("gemini-") or lower.startswith("google/gemini") or lower.startswith("google_ai/gemini"):
+        return 1_000_000
     return None
 
 
 def _model_context_string_limit_chars(model: Any) -> int | None:
     if not isinstance(model, str):
         return None
+    raw_limit = os.environ.get("LUMIBOT_AGENT_CONTEXT_STRING_MAX_CHARS")
+    if raw_limit:
+        try:
+            return max(int(raw_limit), 1_000)
+        except Exception:
+            pass
     lower = model.strip().lower()
     if lower.startswith("deepseek/deepseek-v4-"):
         return 20_000
+    if lower.startswith("gemini-") or lower.startswith("google/gemini") or lower.startswith("google_ai/gemini"):
+        return 50_000
     return None
 
 
@@ -762,7 +788,7 @@ def _prune_tool_response_for_context_window(tool_response: Any, *, tool_name: st
         "original_chars": response_chars,
         "excerpt": _truncate_preserving_edges(serialized, max_chars, label=f"tool_response.{tool_name or 'unknown'}"),
         "message": (
-            "Tool response was shortened by Lumibot before sending it back to this DeepSeek model "
+            "Tool response was shortened by Lumibot before sending it back to this model "
             "because the provider context window would otherwise be exceeded. Call a targeted tool "
             "again if more detail is required."
         ),

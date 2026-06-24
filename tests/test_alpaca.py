@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 
 from lumibot.entities import Asset, Order
 from lumibot.brokers.alpaca import Alpaca
+from lumibot.brokers.broker import LumibotBrokerAPIError
 from lumibot.data_sources.alpaca_data import AlpacaData
 from lumibot.example_strategies.stock_buy_and_hold import BuyAndHold
 from lumibot.credentials import ALPACA_TEST_CONFIG
@@ -54,6 +55,22 @@ class TestAlpacaBroker:
         order = Order(asset=Asset("SPY"), quantity=10, side=Order.OrderSide.BUY, strategy='abc')
         broker.submit_order(order=order)
         broker._conform_order.assert_called_once()
+
+    def test_alpaca_permission_rejection_publishes_error_event_and_fails_loudly(self):
+        broker = Alpaca(ALPACA_UNIT_CONFIG, connect_stream=False)
+        broker.api.submit_order = MagicMock(side_effect=Exception("40310000 insufficient permission to trade"))
+        broker._process_trade_event = MagicMock()
+        order = Order(asset=Asset("SPY"), quantity=10, side=Order.OrderSide.BUY, strategy='abc')
+
+        with pytest.raises(LumibotBrokerAPIError, match="Alpaca broker permission failure"):
+            broker._submit_order(order)
+
+        assert order.status == "error"
+        assert "insufficient permission" in order.error_message
+        broker._process_trade_event.assert_called_once()
+        args, kwargs = broker._process_trade_event.call_args
+        assert args[:2] == (order, broker.ERROR_ORDER)
+        assert "insufficient permission" in str(kwargs["error"])
 
     def test_limit_order_conforms_when_limit_price_gte_one_dollar(self):
         broker = Alpaca(ALPACA_UNIT_CONFIG, connect_stream=False)

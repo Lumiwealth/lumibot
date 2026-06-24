@@ -2,7 +2,7 @@
 
 One-line description: Controlled validation plan and artifact runner for CCXT/Coinbase crypto backtesting.
 
-Last Updated: 2026-06-22
+Last Updated: 2026-06-24
 
 Status: Active validation workflow
 
@@ -101,6 +101,71 @@ The `buy_hold` case intentionally uses `allocation=1.0` so the strategy line
 should track the same-asset benchmark line. If those lines materially diverge,
 first check the fill price, position quantity, and remaining cash before
 treating the tear sheet as data-provider proof.
+
+### 2026-06-24 Same-Day Coinbase Future-Tail Fix
+
+Greg's production backtest `c6438f71-06a4-473f-871a-1a28f81ceae7`
+failed on `2026-06-24` with:
+
+```text
+ccxt.base.errors.BadRequest: coinbase {"error":"INVALID_ARGUMENT","error_details":"start must not be in the future","message":"start must not be in the future"}
+```
+
+The failed run requested `2026-06-17` through `2026-06-24`. LumiBot correctly
+converted the New York midnight end to `2026-06-24 04:00:00` UTC for the final
+returned rows, but the cache downloader expanded the provider download range to
+the full UTC day: `2026-06-24 23:59:59.999999`. On the current UTC day, that
+lets CCXT pagination advance into a future `since` value, which Coinbase rejects.
+
+Fix:
+
+- Cache windows still expand historical requests to UTC date buckets.
+- If the expanded end is later than the provider's current UTC time, the
+  provider download end is clamped to now.
+- Future-only windows return an empty OHLCV frame without calling the provider.
+- The final dataframe is still filtered to the caller's original requested
+  start/end, so the current-day cache tail does not leak future bars into a
+  shorter backtest window.
+
+Focused proof:
+
+```bash
+/Users/robertgrzesik/bin/safe-timeout 300s python3 -m pytest tests/test_ccxt_store.py -q
+```
+
+Result: `16 passed, 2 skipped`.
+
+Broader crypto regression proof:
+
+```bash
+/Users/robertgrzesik/bin/safe-timeout 1200s python3 -m pytest \
+  tests/test_ccxt_store.py \
+  tests/test_backtesting_ccxt_execution_semantics.py \
+  tests/test_hour_timestep_support.py \
+  tests/test_routed_backtesting_unit.py \
+  tests/test_routed_backtesting_routing_validation.py \
+  tests/test_crypto_backtest_validation_runner.py \
+  tests/test_crypto_backtesting_order_matrix.py -q
+```
+
+Result: `77 passed, 2 skipped`.
+
+Public Coinbase same-day probe:
+
+- Artifact root:
+  `/Users/robertgrzesik/Development/support-artifacts/ccxt-today-edge-20260624`
+- Request shape: `BTC/USDT`, `1m`, `2026-06-17 04:00:00` UTC through
+  `2026-06-24 04:00:00` UTC.
+- Machine now during probe: `2026-06-24 18:16:02` UTC.
+- Provider download range used by LumiBot:
+  `2026-06-17 00:00:00` through `2026-06-24 18:16:02.395109`, not the future
+  end of day.
+- Cache coverage after the probe:
+  `2026-06-17 00:01:00` through `2026-06-24 18:16:00`, `5496` actual candles.
+- No Coinbase `start must not be in the future` error occurred.
+
+No production deploy was performed for this fix during the local validation
+pass.
 
 ### 2026-06-22 Long Coinbase Matrix And Sparse-Page Cache Fix
 

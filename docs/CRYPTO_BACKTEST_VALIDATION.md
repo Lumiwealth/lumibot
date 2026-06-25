@@ -167,6 +167,55 @@ Public Coinbase same-day probe:
 No production deploy was performed for this fix during the local validation
 pass.
 
+### 2026-06-25 Long Coinbase Minute Window Chunking
+
+After LumiBot `4.5.60` was deployed to Bot Manager dev and production, Greg's
+unchanged May 15 BTC/USDT strategy revision
+`c376cdbf-1d59-480f-ba34-513b7b46f1f7` was replayed in production for
+`2026-03-08` through `2026-05-01`.
+
+The original Coinbase `INVALID_ARGUMENT` path was no longer the failure.
+Instead, production backtest `aaaa465a-29a3-48b5-a8ec-7029ca75ec8c` failed
+while building the CCXT cache:
+
+```text
+Exception: Request download range 79200 is greater than download limit 50000
+```
+
+Root cause:
+
+- The CCXT cache correctly expanded the requested replay to the UTC date window
+  `2026-03-08 00:00:00` through `2026-05-01 23:59:59.999999`.
+- At `1m`, that is `79,200` requested units.
+- `_get_barset_from_api()` can page Coinbase in smaller requests, but
+  `_download_and_record_coverage()` rejected any outer cache download range
+  larger than `max_download_limit` before pagination could run.
+
+Fix:
+
+- Oversized CCXT cache download ranges are split into timeframe-aligned chunks
+  no larger than `max_download_limit`.
+- Each chunk is fetched, filtered to executable provider rows, cached, and
+  converted to real-row cache coverage.
+- Adjacent proven coverage ranges are merged back into normal cache metadata.
+- This does not change pair mapping, strategy code, or fallback behavior:
+  `BTC/USDT` still means Coinbase `BTC/USDT`.
+
+Focused proof:
+
+```bash
+/Users/robertgrzesik/bin/safe-timeout 300s .venv/bin/python -m pytest \
+  tests/test_ccxt_store.py -q
+```
+
+Expected regression shape:
+
+- Request: `BTC/USDT`, `1m`, `2026-03-08 00:00:00` through
+  `2026-05-01 23:59:59.999999`.
+- Chunk 1: `50,000` minutes, ending `2026-04-11 17:19:59.999999`.
+- Chunk 2: `29,200` minutes, starting `2026-04-11 17:20:00`.
+- Final cache coverage merges to one range for the full replay window.
+
 ### 2026-06-24 Partial Provider Coverage Must Not Certify The Requested Window
 
 The first production validation after the same-day Coinbase fix no longer hit

@@ -702,21 +702,39 @@ class Data:
         self._iter_count_last_dt_key = dt_key
         return i
 
-    def _strict_intraday_bar_age_tolerance(self) -> Optional[datetime.timedelta]:
+    def _strict_intraday_bar_age_tolerance(self, request_timestep=None) -> Optional[datetime.timedelta]:
         if not getattr(self, "strict_end_check", False):
             return None
+        source_timestep = request_timestep or getattr(self, "timestep", None)
         try:
-            quantity, unit = parse_timestep_qty_and_unit(getattr(self, "timestep", None))
+            quantity, unit = parse_timestep_qty_and_unit(source_timestep)
             quantity = max(1, int(quantity or 1))
         except Exception:
             quantity = 1
-            unit = getattr(self, "timestep", None)
+            unit = source_timestep
+
+        unit_text = str(unit or "").strip().lower()
+        multiplier = 1 if request_timestep is not None else 3
+        if unit_text == "minute":
+            return datetime.timedelta(minutes=quantity * multiplier)
+        if unit_text == "hour":
+            return datetime.timedelta(hours=quantity * multiplier)
+        return None
+
+    def _strict_end_lag_tolerance(self, request_timestep=None) -> Optional[datetime.timedelta]:
+        if request_timestep is None:
+            return None
+        try:
+            quantity, unit = parse_timestep_qty_and_unit(request_timestep)
+            quantity = max(1, int(quantity or 1))
+        except Exception:
+            return None
 
         unit_text = str(unit or "").strip().lower()
         if unit_text == "minute":
-            return datetime.timedelta(minutes=quantity * 3)
+            return datetime.timedelta(minutes=quantity)
         if unit_text == "hour":
-            return datetime.timedelta(hours=quantity * 3)
+            return datetime.timedelta(hours=quantity)
         return None
 
     def _timestamp_for_iter_count(self, iter_count: int) -> Optional[pd.Timestamp]:
@@ -741,8 +759,9 @@ class Data:
         iter_count: int,
         length,
         timeshift,
+        request_timestep=None,
     ) -> Optional[str]:
-        tolerance = self._strict_intraday_bar_age_tolerance()
+        tolerance = self._strict_intraday_bar_age_tolerance(request_timestep=request_timestep)
         if tolerance is None:
             return None
 
@@ -786,6 +805,7 @@ class Data:
         # Validates if the provided date, length, timeshift, and timestep
         # will return data. Runs function if data, returns None if no data.
         def checker(self, *args, **kwargs):
+            strict_request_timestep = kwargs.pop("_strict_request_timestep", None)
             if type(kwargs.get("length", 1)) not in [int, float]:
                 raise TypeError(f"Length must be an integer. {type(kwargs.get('length', 1))} was provided.")
 
@@ -836,9 +856,14 @@ class Data:
             if dt_exceeds_end:
                 strict_end_check = getattr(self, "strict_end_check", False)
                 if strict_end_check:
-                    raise ValueError(
-                        f"The date you are looking for ({dt_key}) for ({self.asset}) is after the available data's end ({self.datetime_end}) with length={length} and timeshift={timeshift}; data refresh required instead of using stale bars."
+                    strict_lag_tolerance = self._strict_end_lag_tolerance(
+                        request_timestep=strict_request_timestep
                     )
+                    gap = dt_key - self.datetime_end
+                    if strict_lag_tolerance is None or gap < datetime.timedelta(0) or gap > strict_lag_tolerance:
+                        raise ValueError(
+                            f"The date you are looking for ({dt_key}) for ({self.asset}) is after the available data's end ({self.datetime_end}) with length={length} and timeshift={timeshift}; data refresh required instead of using stale bars."
+                        )
                 gap = dt_key - self.datetime_end
                 max_gap = datetime.timedelta(days=3)
                 if gap > max_gap:
@@ -866,6 +891,7 @@ class Data:
                 iter_count=i,
                 length=length,
                 timeshift=timeshift,
+                request_timestep=strict_request_timestep,
             )
             if stale_bar_error is not None:
                 raise ValueError(stale_bar_error)
@@ -1443,17 +1469,35 @@ class Data:
             # Convert requested hours to minutes to pull enough base data for resample.
             length = length * 60 * quantity
             unit = "h"
-            data = self._get_bars_dict(dt, length=length, timestep="minute", timeshift=timeshift)
+            data = self._get_bars_dict(
+                dt,
+                length=length,
+                timestep="minute",
+                timeshift=timeshift,
+                _strict_request_timestep=f"{int(quantity)}{timestep}",
+            )
 
         elif timestep == "hour" and self.timestep == "hour":
             unit = "h"
             length = length * quantity
-            data = self._get_bars_dict(dt, length=length, timestep="hour", timeshift=timeshift)
+            data = self._get_bars_dict(
+                dt,
+                length=length,
+                timestep="hour",
+                timeshift=timeshift,
+                _strict_request_timestep=f"{int(quantity)}{timestep}" if int(quantity) > 1 else None,
+            )
 
         else:
             unit = "min"  # Guaranteed to be minute timestep at this point
             length = length * quantity
-            data = self._get_bars_dict(dt, length=length, timestep=timestep, timeshift=timeshift)
+            data = self._get_bars_dict(
+                dt,
+                length=length,
+                timestep=timestep,
+                timeshift=timeshift,
+                _strict_request_timestep=f"{int(quantity)}{timestep}" if int(quantity) > 1 else None,
+            )
 
         if data is None:
             return None
@@ -1465,6 +1509,19 @@ class Data:
 
         # Drop any rows that have NaN values (this can happen if the data is not complete, eg. weekends)
         df_result = df_result.dropna()
+
+        if timestep in {"minute", "hour"} and self.timestep in {"minute", "hour"}:
+            base_delta = datetime.timedelta(minutes=1) if self.timestep == "minute" else datetime.timedelta(hours=1)
+            if timestep == "minute":
+                request_delta = datetime.timedelta(minutes=int(quantity))
+            else:
+                request_delta = datetime.timedelta(hours=int(quantity))
+
+            if request_delta > base_delta and not df.empty:
+                raw_end = df.index.max()
+                if raw_end is not None and not pd.isna(raw_end):
+                    latest_complete_label = raw_end + base_delta - request_delta
+                    df_result = df_result[df_result.index <= latest_complete_label]
 
         # Remove partial day data from the current day, which can happen if the data is in minute timestep.
         if timestep == "day" and self.timestep in {"minute", "hour"}:

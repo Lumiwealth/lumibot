@@ -3,7 +3,7 @@ import duckdb
 import os
 import uuid
 import ccxt
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from tabulate import tabulate
 import pandas as pd
 from pandas import DataFrame
@@ -230,6 +230,8 @@ class CcxtCacheDB:
 
         self.logger.info(f"download ranges :\n{self._table_str(download_ranges,headers=['from','to'])}")
 
+        downloaded_coverage_ranges = []
+
         for download_start,download_end in download_ranges:
             range_cnt = self._count_timeframe_units(download_start, download_end, timeframe)
 
@@ -240,29 +242,33 @@ class CcxtCacheDB:
                                            range_cnt, download_start, download_end)
             df = self._fill_missing_data(df, timeframe)
             self._cache_ohlcv(symbol, df, timeframe)
+            coverage_range = self._coverage_range_from_rows(df, download_start, download_end, timeframe)
+            if coverage_range is not None:
+                downloaded_coverage_ranges.append(coverage_range)
 
         cache_file = self.get_cache_file_name(symbol, timeframe)
 
-        if download_ranges:
-            if len(overap_range_ids) > 0:
-                start_dt = cache_range[0]
-                end_dt = cache_range[1]
-            else:
-                # Cache ranges are coverage metadata, not proof that every bar inside the
-                # range exists. Empty/no-tick responses still satisfy "we asked the
-                # provider for this window" so warm-cache reads do not keep retrying and
-                # never synthesize executable bars.
-                start_dt = cache_range[0]
-                end_dt = cache_range[1]
-
+        if downloaded_coverage_ranges:
             with duckdb.connect(cache_file) as con:
-                # insert new cache data range
-                con.execute("""INSERT INTO cache_dt_ranges VALUES (?, ?, ?)""",
-                            (str(uuid.uuid4().hex),start_dt,end_dt))
-                # delete overlapping ranges
+                coverage_ranges = downloaded_coverage_ranges
                 if len(overap_range_ids) > 0:
+                    old_ranges = []
+                    for range_id in overap_range_ids:
+                        old_ranges.extend(
+                            con.execute(
+                                """SELECT start_dt, end_dt FROM cache_dt_ranges WHERE id = ?""",
+                                (range_id,),
+                            ).fetchall()
+                        )
+                    coverage_ranges = old_ranges + coverage_ranges
                     params = [(id,) for id in overap_range_ids]
-                    con.executemany("""DELETE FROM  cache_dt_ranges WHERE id = ?""", params)
+                    con.executemany("""DELETE FROM cache_dt_ranges WHERE id = ?""", params)
+
+                for start_dt, end_dt in self._merge_coverage_ranges(coverage_ranges):
+                    con.execute(
+                        """INSERT INTO cache_dt_ranges VALUES (?, ?, ?)""",
+                        (str(uuid.uuid4().hex), start_dt, end_dt),
+                    )
 
         with duckdb.connect(cache_file) as con:
             df = con.execute("""select * from cache_dt_ranges""").fetch_df()
@@ -295,6 +301,52 @@ class CcxtCacheDB:
             # insert df to cache db
             if df is not None and not df.empty:
                 con.execute("""INSERT INTO candles SELECT *  from df""")
+
+    def _coverage_range_from_rows(
+        self,
+        df: DataFrame,
+        requested_start: datetime,
+        requested_end: datetime,
+        timeframe: str,
+    ) -> tuple[datetime, datetime] | None:
+        """Return the actual cache coverage represented by provider bars.
+
+        Cache metadata must describe real executable rows, not the requested
+        window. Coinbase can return a partial page without raising; marking the
+        entire requested window as cached would make later reads trust missing
+        bars and fail with stale data.
+        """
+        df = self._filter_executable_rows(df)
+        if df.empty:
+            return None
+
+        first_bar = pd.Timestamp(df["datetime"].min()).to_pydatetime().replace(tzinfo=None)
+        last_bar = pd.Timestamp(df["datetime"].max()).to_pydatetime().replace(tzinfo=None)
+        bar_end = last_bar + timedelta(seconds=_TIMEFRAME_SECONDS[timeframe]) - timedelta(microseconds=1)
+
+        coverage_start = max(first_bar, requested_start)
+        coverage_end = min(bar_end, requested_end)
+        if coverage_end < coverage_start:
+            return None
+
+        return coverage_start, coverage_end
+
+    def _merge_coverage_ranges(
+        self,
+        ranges: list[tuple[datetime, datetime]],
+    ) -> list[tuple[datetime, datetime]]:
+        normalized = sorted((start, end) for start, end in ranges if start <= end)
+        if not normalized:
+            return []
+
+        merged = [normalized[0]]
+        for start, end in normalized[1:]:
+            last_start, last_end = merged[-1]
+            if start <= last_end + timedelta(microseconds=1):
+                merged[-1] = (last_start, max(last_end, end))
+            else:
+                merged.append((start, end))
+        return merged
 
 
     def _calc_download_ranges(self,symbol:str,timeframe:str,

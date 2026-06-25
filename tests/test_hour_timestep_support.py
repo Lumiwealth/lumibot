@@ -396,3 +396,97 @@ def test_routed_ccxt_crypto_quote_stays_minute_even_when_day_mode_is_inferred(mo
     assert calls[0]["exchange_id"] == "coinbase"
     assert calls[0]["symbol"] == "BTC/USDT"
     assert calls[0]["timeframe"] == "1m"
+
+
+def test_routed_ccxt_refresh_replaces_stale_legacy_alias_and_lookup_cache(monkeypatch):
+    import lumibot.tools.ccxt_data_store as ccxt_data_store
+    import lumibot.tools.thetadata_helper as thetadata_helper
+
+    monkeypatch.setattr(ThetaDataBacktestingPandas, "kill_processes_by_name", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(thetadata_helper, "reset_theta_terminal_tracking", lambda *_args, **_kwargs: None)
+
+    calls = []
+
+    class _FakeCcxtCache:
+        def __init__(self, exchange_id):
+            self.exchange_id = exchange_id
+
+        def download_ohlcv(self, symbol, timeframe, start_datetime, end_dt):
+            calls.append(
+                {
+                    "exchange_id": self.exchange_id,
+                    "symbol": symbol,
+                    "timeframe": timeframe,
+                    "start_datetime": start_datetime,
+                    "end_dt": end_dt,
+                }
+            )
+            return pd.DataFrame(
+                {
+                    "open": [200.0, 201.0],
+                    "high": [201.0, 202.0],
+                    "low": [199.0, 200.0],
+                    "close": [200.5, 201.5],
+                    "volume": [20.0, 21.0],
+                },
+                index=pd.DatetimeIndex([datetime(2026, 6, 23, 19, 58), datetime(2026, 6, 23, 19, 59)]),
+            )
+
+    monkeypatch.setattr(ccxt_data_store, "CcxtCacheDB", _FakeCcxtCache)
+
+    ds = RoutedBacktestingPandas(
+        datetime_start=datetime(2026, 6, 17, tzinfo=timezone.utc),
+        datetime_end=datetime(2026, 6, 24, tzinfo=timezone.utc),
+        config={"backtesting_data_routing": {"crypto": "coinbase", "default": "thetadata"}},
+        username="dev",
+        password="dev",
+        use_quote_data=False,
+        show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+    )
+
+    asset = Asset(symbol="BTC", asset_type=Asset.AssetType.CRYPTO)
+    quote = Asset(symbol="USDT", asset_type=Asset.AssetType.CRYPTO)
+    canonical_key, legacy_key = ds._build_dataset_keys(asset, quote, "minute")
+
+    old_index = pd.DatetimeIndex([datetime(2026, 6, 16, 23, 59, tzinfo=timezone.utc)]).tz_convert(
+        "America/New_York"
+    )
+    old_data = Data(
+        asset,
+        pd.DataFrame(
+            {
+                "open": [100.0],
+                "high": [101.0],
+                "low": [99.0],
+                "close": [100.5],
+                "volume": [10.0],
+            },
+            index=old_index,
+        ),
+        timestep="minute",
+        quote=quote,
+    )
+    old_data.strict_end_check = True
+    ds._data_store[canonical_key] = old_data
+    ds._data_store[legacy_key] = old_data
+    ds._find_asset_in_data_store_cache[(asset, quote, "minute")] = legacy_key
+
+    ds._update_pandas_data(
+        asset,
+        quote,
+        length=1300,
+        timestep="minute",
+        start_dt=datetime(2026, 6, 23, 20, 0, tzinfo=timezone.utc),
+    )
+
+    assert calls
+    assert ds._data_store[legacy_key] is ds._data_store[canonical_key]
+    assert ds._find_asset_in_data_store_cache == {}
+
+    ds._datetime = datetime(2026, 6, 23, 20, 0, tzinfo=timezone.utc)
+    bars = ds.get_historical_prices(asset, length=1, timestep="minute", quote=quote)
+
+    assert bars is not None
+    assert bars.df["close"].iloc[-1] == 200.5
+    assert bars.df.index[-1].tz_convert("UTC") == pd.Timestamp("2026-06-23 19:58:00+00:00")

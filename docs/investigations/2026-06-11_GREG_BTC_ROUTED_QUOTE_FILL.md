@@ -996,3 +996,53 @@ it can prove the final customer backtest result end-to-end. The next production-
 like proof should either use a verified complete BTC cache prefix for the full
 window or run a narrower Greg window that reaches the previously bad April 15-17
 fill region without spending the entire timeout on cold BTC hydration.
+
+## 2026-06-25 Production Coinbase Follow-Up
+
+Production validation after the Coinbase switch showed two separate outcomes:
+
+- LumiBot `4.5.56` completed Greg's copied BTC/USDT strategy revision in
+  production BotSpot with `settings.json.lumibot_version == "4.5.56"`.
+- The original hard failure (`ccxt.base.errors.BadRequest`, Coinbase
+  `INVALID_ARGUMENT`, and `start must not be in the future`) did not appear in
+  the production backtest logs.
+- The same run still emitted many current-edge history messages such as
+  `Error getting bars`, `5m data unavailable`, and `after the available data's
+  end`. The backtest completed with fills, so this was no longer the original
+  hard failure, but it meant the routed Coinbase data source was still loading
+  history incrementally instead of giving the in-memory Data object the full
+  requested backtest window.
+
+The `4.5.57` follow-up keeps the strategy code and pair selection unchanged. It
+changes only the routed Coinbase/CCXT history load path:
+
+- For crypto minute/hour/day series, the first routed CCXT load requests the
+  full backtest window (plus the computed lookback/warmup start), not only the
+  current simulated slice.
+- The shared dataframe adapter now honors full-window and empty-window markers
+  before calling the provider again.
+- Exact pair semantics are preserved: a request for `BTC/USDT` asks Coinbase
+  for `BTC/USDT`; there is no hidden `BTC/USD` fallback.
+- Future bars in the in-memory Data object remain inaccessible to strategy
+  logic because `Data.get_bars(dt)` slices by the current simulated timestamp.
+
+Focused local verification before release:
+
+```bash
+/Users/robertgrzesik/Development/bin/safe-timeout 240s \
+  /Users/robertgrzesik/Development/lumibot/.venv/bin/python -m pytest \
+  /Users/robertgrzesik/Development/lumibot/tests/test_routed_backtesting_ibkr_daily_prefetch.py \
+  /Users/robertgrzesik/Development/lumibot/tests/test_ccxt_store.py \
+  /Users/robertgrzesik/Development/lumibot/tests/test_backtesting_ccxt_execution_semantics.py \
+  /Users/robertgrzesik/Development/lumibot/tests/test_data_entity.py -q
+```
+
+Result: `53 passed, 2 skipped`.
+
+Production sign-off for this follow-up still requires a new BotSpot production
+backtest after Bot Manager installs `lumibot==4.5.57`, with checks for:
+
+- `settings.json.lumibot_version == "4.5.57"`
+- no Coinbase `INVALID_ARGUMENT` / future-start error
+- sharply reduced or absent current-edge `5m data unavailable` log loop
+- trade events and chart artifacts available on the production AI Agent page

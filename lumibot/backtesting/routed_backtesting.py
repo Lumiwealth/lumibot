@@ -285,6 +285,11 @@ class _DataFrameRoutingAdapter(_RoutingAdapter):
                 pass
 
         canonical_key, legacy_key = self._router._build_dataset_keys(original_asset, original_quote_asset, ts_unit)
+        if canonical_key in self._fully_loaded_series and canonical_key in self._router._data_store:
+            return None
+        if canonical_key in self._empty_prefetch_series:
+            return None
+
         existing = self._router._data_store.get(canonical_key)
         existing_df = getattr(existing, "df", None) if existing is not None else None
 
@@ -952,7 +957,36 @@ class _CcxtRoutingAdapter(_DataFrameRoutingAdapter):
             raise RoutingProviderError(f"CCXT routing only supports minute/hour/day timesteps, got {ts_unit!r}.")
 
         symbol = f"{asset.symbol.upper()}/{quote_asset.symbol.upper()}"
-        df = cache_db.download_ohlcv(symbol, timeframe, start_datetime, end_dt)
+        if ts_unit in {"minute", "hour"} and canonical_key not in self._fully_loaded_series:
+            try:
+                prefetch_start = min(start_datetime, self._router.datetime_start)
+            except Exception:
+                prefetch_start = start_datetime
+            prefetch_end = self._router.datetime_end or end_dt
+            df = cache_db.download_ohlcv(symbol, timeframe, prefetch_start, prefetch_end)
+            if df is None or df.empty:
+                self._empty_prefetch_series.add(canonical_key)
+                return None
+            # The data store may contain the full run window; Data.get_bars(dt) still slices by
+            # simulation time, so future rows are not visible to strategy logic at earlier steps.
+            self._fully_loaded_series.add(canonical_key)
+        elif ts_unit == "day" and canonical_key not in self._fully_loaded_series:
+            try:
+                lookback_days = max(7, int(length) + 5)
+            except Exception:
+                lookback_days = 7
+            try:
+                prefetch_start = min(start_datetime, self._router.datetime_start - timedelta(days=lookback_days))
+            except Exception:
+                prefetch_start = start_datetime
+            prefetch_end = self._router.datetime_end or end_dt
+            df = cache_db.download_ohlcv(symbol, timeframe, prefetch_start, prefetch_end)
+            if df is None or df.empty:
+                self._empty_prefetch_series.add(canonical_key)
+                return None
+            self._fully_loaded_series.add(canonical_key)
+        else:
+            df = cache_db.download_ohlcv(symbol, timeframe, start_datetime, end_dt)
         if df is None or df.empty:
             return None
 

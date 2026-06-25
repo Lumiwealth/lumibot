@@ -1,5 +1,25 @@
 # Changelog
 
+## 4.5.57 - Unreleased
+
+### Fixed
+- **Routed Coinbase/CCXT crypto history now preloads the full backtest window.**
+  BTC/USDT, BTC/USD, and other exact crypto quote pairs are loaded once for the
+  requested minute, hour, or day backtest window instead of refetching a moving
+  slice at each simulated timestamp. This avoids the repeated current-edge
+  `data unavailable` loop seen in production Greg BTC/USDT validation while
+  keeping strategy access time-bounded through `Data.get_bars(dt)`.
+- **Full-window routed data loads now stop redundant retries.** Shared routed
+  dataframe adapters honor full-window and empty-window markers before fetching
+  again, so known-loaded or known-empty Coinbase windows do not hammer the
+  provider every strategy step.
+
+### Tests
+- **Routed Coinbase/CCXT regressions cover exact-pair full-window loading.**
+  Tests assert BTC/USDT routes to Coinbase as `BTC/USDT` with no USD fallback,
+  preloads minute/hour/day windows through the full backtest end, and does not
+  refetch the same full or empty window on the next simulated step.
+
 ## 4.5.56 - 2026-06-25
 
 Deploy marker: `deploy 4.5.56`

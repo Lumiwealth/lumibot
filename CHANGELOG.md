@@ -2,6 +2,19 @@
 
 ## 4.5.55 - Unreleased
 
+### Fixed
+- **Routed Coinbase/CCXT refreshes no longer keep stale legacy data aliases.**
+  When a crypto dataset is refreshed during a routed backtest, LumiBot now
+  updates the legacy `(asset, quote)` lookup alias and clears the PandasData
+  lookup cache so later strategy history requests use the refreshed bars instead
+  of a pre-refresh `Data` object that ended days earlier.
+
+### Tests
+- **Routed CCXT regression now covers stale in-memory BTC/USDT aliases.** The
+  regression seeds a June 16 BTC/USDT dataset, refreshes June 23 data through
+  the routed Coinbase path, and asserts `get_historical_prices()` returns the
+  refreshed June 23 bar instead of the stale June 16 bar.
+
 ## 4.5.54 - 2026-06-24
 
 Deploy marker: `deploy 4.5.54`

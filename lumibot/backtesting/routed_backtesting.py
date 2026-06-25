@@ -327,8 +327,13 @@ class _DataFrameRoutingAdapter(_RoutingAdapter):
         data = Data(original_asset, merged, timestep=ts_unit, quote=original_quote_asset)
         data.strict_end_check = ts_unit != "day"
         self._router._data_store[canonical_key] = data
-        if legacy_key not in self._router._data_store:
+        legacy_data = self._router._data_store.get(legacy_key)
+        if legacy_data is None or legacy_data is existing or getattr(legacy_data, "timestep", None) == ts_unit:
             self._router._data_store[legacy_key] = data
+        try:
+            self._router._find_asset_in_data_store_cache.clear()
+        except Exception:
+            pass
         return None
 
 

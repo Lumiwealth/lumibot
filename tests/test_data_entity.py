@@ -212,6 +212,62 @@ class TestDataGetLastPriceTradeOnly:
 
         assert data.get_last_price(request_dt) == 70511.75
 
+    def test_strict_intraday_allows_multi_minute_history_at_bucket_boundary(self):
+        asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+        quote = Asset("USDT", asset_type=Asset.AssetType.CRYPTO)
+        tz = pytz.timezone("America/New_York")
+        base_dt = tz.localize(datetime(2026, 6, 23, 23, 0))
+        dates = [base_dt + timedelta(minutes=i) for i in range(14)]
+        df = (
+            pd.DataFrame(
+                {
+                    "datetime": dates,
+                    "open": [100.0 + i for i in range(14)],
+                    "high": [101.0 + i for i in range(14)],
+                    "low": [99.0 + i for i in range(14)],
+                    "close": [100.5 + i for i in range(14)],
+                    "volume": [1.0] * 14,
+                }
+            )
+            .set_index("datetime")
+        )
+
+        data = Data(asset, df, timestep="minute", quote=quote)
+        data.strict_end_check = True
+
+        bars = data.get_bars(base_dt + timedelta(minutes=15), length=3, timestep="5m")
+
+        assert bars is not None
+        assert list(bars.index) == [base_dt, base_dt + timedelta(minutes=5)]
+        assert bars.iloc[-1]["close"] == 109.5
+        assert base_dt + timedelta(minutes=10) not in bars.index
+
+    def test_strict_intraday_rejects_multi_minute_history_past_bucket_tolerance(self):
+        asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+        quote = Asset("USDT", asset_type=Asset.AssetType.CRYPTO)
+        tz = pytz.timezone("America/New_York")
+        base_dt = tz.localize(datetime(2026, 6, 23, 23, 0))
+        dates = [base_dt + timedelta(minutes=i) for i in range(14)]
+        df = (
+            pd.DataFrame(
+                {
+                    "datetime": dates,
+                    "open": [100.0 + i for i in range(14)],
+                    "high": [101.0 + i for i in range(14)],
+                    "low": [99.0 + i for i in range(14)],
+                    "close": [100.5 + i for i in range(14)],
+                    "volume": [1.0] * 14,
+                }
+            )
+            .set_index("datetime")
+        )
+
+        data = Data(asset, df, timestep="minute", quote=quote)
+        data.strict_end_check = True
+
+        with pytest.raises(ValueError, match="after the available data's end"):
+            data.get_bars(base_dt + timedelta(minutes=20), length=3, timestep="5m")
+
     def test_get_quote_includes_source_bar_provenance(self):
         asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
         tz = pytz.timezone("America/New_York")

@@ -2,6 +2,23 @@
 
 ## 4.5.56 - Unreleased
 
+### Fixed
+- **Strict intraday history checks now understand aggregated minute buckets.**
+  A routed Coinbase/CCXT request for `5m` BTC/USDT history can use the last
+  real minute row inside the requested 5-minute bucket instead of treating the
+  normal bucket boundary as stale data, while requests beyond the bucket still
+  fail loudly instead of reusing old prices.
+- **Resampled intraday bars no longer return incomplete current buckets.** When
+  minute/hour data is aggregated into larger intraday bars, LumiBot now drops
+  the partially formed current aggregate bucket so strategies do not trade on
+  incomplete OHLC values.
+
+### Tests
+- **Data entity regressions cover the Greg BTC/USDT 5-minute boundary.** Tests
+  assert strict Coinbase-style minute data can satisfy a `5m` history request at
+  the bucket boundary, does not include the partial current 5-minute candle, and
+  still rejects requests beyond the allowed bucket tolerance.
+
 ## 4.5.55 - 2026-06-25
 
 Deploy marker: `deploy 4.5.55`

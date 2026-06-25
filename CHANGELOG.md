@@ -1,6 +1,27 @@
 # Changelog
 
-## 4.5.54 - Unreleased
+## 4.5.54 - 2026-06-24
+
+Deploy marker: `deploy 4.5.54`
+
+### Fixed
+- **Coinbase/CCXT cache ranges now track actual returned candle coverage.**
+  Partial provider responses no longer mark the full requested window as cached,
+  so a BTC/USDT request that only receives bars through June 16 cannot hide a
+  missing June 17 tail from later backtest reads.
+- **Empty Coinbase/CCXT responses no longer create fake cache coverage.** Empty
+  provider responses leave no executable rows and no coverage metadata, forcing
+  future attempts to ask the provider again instead of trusting a phantom range.
+
+### Docs
+- **Crypto validation docs now record the post-deploy partial-coverage failure.**
+  The runbook explains why cache metadata must be derived from real candles and
+  cites the Greg production validation backtest that exposed the issue.
+
+### Tests
+- **CCXT cache regressions now cover partial underfills.** Tests assert a
+  partial June 16 response for a June 16-17 request does not certify June 17,
+  and that a later June 17 read refetches and stores the missing tail.
 
 ## 4.5.53 - 2026-06-24
 

@@ -2,6 +2,19 @@
 
 ## 4.5.61 - Unreleased
 
+### Fixed
+- **Long Coinbase/CCXT minute backtests now split provider downloads under the
+  cache limit.** BTC/USDT runs such as Greg's March 8 through May 1 replay
+  request 79,200 one-minute bars, which is larger than LumiBot's 50,000-bar
+  per-download guard. The CCXT cache now splits those windows into safe chunks
+  instead of failing before Coinbase can page through the historical data.
+
+### Tests
+- **CCXT cache regression coverage now pins the Greg long-window failure
+  shape.** Tests assert a March 8 through May 1 BTC/USDT one-minute request is
+  downloaded as a 50,000-minute chunk plus a 29,200-minute chunk and merged into
+  one cache coverage range.
+
 ## 4.5.60 - 2026-06-25
 
 Deploy marker: `deploy 4.5.60`

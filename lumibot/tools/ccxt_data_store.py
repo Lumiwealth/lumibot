@@ -40,8 +40,8 @@ class CcxtCacheDB:
     The missing column is 1 for missing data and 0 for non-missing data.
 
     If max_download_limit is not set, both 1m and 1d will be set to 50000.
-    Raise an error if 'end_datetime - start_datetime' is greater than max_download_limit.
-    max_download_limit can be set in __init__.
+    Provider download windows larger than max_download_limit are split into
+    multiple requests. max_download_limit can be set in __init__.
     """
 
     def __init__(self, exchange_id:str,max_download_limit:int=None):
@@ -279,17 +279,15 @@ class CcxtCacheDB:
         downloaded_coverage_ranges = []
 
         for download_start, download_end in download_ranges:
-            range_cnt = self._count_timeframe_units(download_start, download_end, timeframe)
+            for chunk_start, chunk_end in self._split_download_range(download_start, download_end, timeframe, limit):
+                range_cnt = self._count_timeframe_units(chunk_start, chunk_end, timeframe)
 
-            if range_cnt > limit:
-                raise Exception(f"Request download range {range_cnt} is greater than download limit {limit}")
-
-            df = self._get_barset_from_api(symbol, timeframe, range_cnt, download_start, download_end)
-            df = self._fill_missing_data(df, timeframe)
-            self._cache_ohlcv(symbol, df, timeframe)
-            coverage_range = self._coverage_range_from_rows(df, download_start, download_end, timeframe)
-            if coverage_range is not None:
-                downloaded_coverage_ranges.append(coverage_range)
+                df = self._get_barset_from_api(symbol, timeframe, range_cnt, chunk_start, chunk_end)
+                df = self._fill_missing_data(df, timeframe)
+                self._cache_ohlcv(symbol, df, timeframe)
+                coverage_range = self._coverage_range_from_rows(df, chunk_start, chunk_end, timeframe)
+                if coverage_range is not None:
+                    downloaded_coverage_ranges.append(coverage_range)
 
         if not downloaded_coverage_ranges:
             return
@@ -695,6 +693,48 @@ class CcxtCacheDB:
         if seconds is None:
             raise ValueError(f"Unsupported CCXT timeframe {timeframe!r}; expected one of {sorted(_TIMEFRAME_SECONDS)}")
         return max(0, math.ceil((end - start).total_seconds() / seconds))
+
+    def _split_download_range(
+        self,
+        start: datetime,
+        end: datetime,
+        timeframe: str,
+        limit: int,
+    ) -> list[tuple[datetime, datetime]]:
+        if limit <= 0:
+            raise ValueError(f"CCXT download limit must be positive, got {limit!r}")
+
+        seconds = _TIMEFRAME_SECONDS.get(timeframe)
+        if seconds is None:
+            raise ValueError(f"Unsupported CCXT timeframe {timeframe!r}; expected one of {sorted(_TIMEFRAME_SECONDS)}")
+
+        if start > end:
+            return []
+
+        total_units = self._count_timeframe_units(start, end, timeframe)
+        if total_units <= limit:
+            return [(start, end)]
+
+        chunks = []
+        step = timedelta(seconds=seconds * limit)
+        chunk_start = start
+        while chunk_start <= end:
+            next_start = chunk_start + step
+            chunk_end = min(end, next_start - timedelta(microseconds=1))
+            if chunk_end < chunk_start:
+                break
+            chunks.append((chunk_start, chunk_end))
+            chunk_start = next_start
+
+        self.logger.info(
+            "Split CCXT %s download range %s -> %s into %s chunks under limit %s",
+            timeframe,
+            start,
+            end,
+            len(chunks),
+            limit,
+        )
+        return chunks
 
     def _filter_executable_rows(self, df:Union[DataFrame, None])->DataFrame:
         """Return only real provider bars that are safe to expose to strategies."""

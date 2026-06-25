@@ -496,6 +496,50 @@ def test_ccxt_cache_keeps_quote_pairs_separate_without_usd_fallback(tmp_path, mo
     assert usd["open"].iloc[0] == 200.0
     assert cache.get_cache_file_name("BTC/USDT", "1m") != cache.get_cache_file_name("BTC/USD", "1m")
 
+
+def test_ccxt_cache_splits_long_minute_download_ranges_under_provider_limit(tmp_path, monkeypatch):
+    cache = _cache_without_live_exchange(tmp_path, monkeypatch)
+    calls = []
+    start = datetime(2026, 3, 8, 0, 0)
+    end = datetime(2026, 5, 1, 23, 59, 59, 999999)
+
+    def fake_get_barset(symbol, timeframe, limit, chunk_start, chunk_end):
+        calls.append(
+            {
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "limit": limit,
+                "start": chunk_start,
+                "end": chunk_end,
+            }
+        )
+        assert limit <= cache.max_download_limit
+        last_bar = chunk_end.replace(second=0, microsecond=0)
+        rows = [(chunk_start, 100.0, 101.0, 99.0, 100.5, 10.0)]
+        if last_bar != chunk_start:
+            rows.append((last_bar, 110.0, 111.0, 109.0, 110.5, 11.0))
+        return _bars(*rows)
+
+    monkeypatch.setattr(cache, "_get_barset_from_api", fake_get_barset)
+
+    df = cache.download_ohlcv("BTC/USDT", "1m", start, end, limit=cache.max_download_limit)
+
+    assert len(calls) == 2
+    assert calls[0]["limit"] == 50_000
+    assert calls[0]["start"] == start
+    assert calls[0]["end"] == datetime(2026, 4, 11, 17, 19, 59, 999999)
+    assert calls[1]["limit"] == 29_200
+    assert calls[1]["start"] == datetime(2026, 4, 11, 17, 20)
+    assert calls[1]["end"] == end
+    assert not df.empty
+
+    with duckdb.connect(cache.get_cache_file_name("BTC/USDT", "1m")) as con:
+        ranges = con.execute("select start_dt, end_dt from cache_dt_ranges order by start_dt").fetch_df()
+    assert len(ranges) == 1
+    assert ranges.iloc[0].start_dt == start
+    assert ranges.iloc[0].end_dt == end
+
+
 @pytest.mark.skip(reason="CCXT integration test requires stable network connection and external API availability")
 @pytest.mark.parametrize("exchange_id,symbol,timeframe,start,end",
                          [ ("bitmex","ETH/USDT","1d",datetime(2022, 8, 1),datetime(2022, 10, 30))

@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.5.56 - Unreleased
+## 4.5.56 - 2026-06-25
+
+Deploy marker: `deploy 4.5.56`
 
 ### Fixed
 - **Strict intraday history checks now understand aggregated minute buckets.**

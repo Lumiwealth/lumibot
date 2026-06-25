@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.5.62 - Unreleased
+## 4.5.62 - 2026-06-25
+
+Deploy marker: `deploy 4.5.62`
 
 ### Fixed
 - **NumPy 2.5 calendar warning spam is avoided by dependency bounds.** Fresh

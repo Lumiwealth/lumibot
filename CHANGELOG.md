@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.5.60 - Unreleased
+## 4.5.60 - 2026-06-25
+
+Deploy marker: `deploy 4.5.60`
 
 ### Fixed
 - **Coinbase/CCXT crypto aggregate history now tolerates complete 5-minute

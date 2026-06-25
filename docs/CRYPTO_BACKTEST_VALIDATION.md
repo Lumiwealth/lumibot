@@ -209,6 +209,59 @@ Focused proof:
 
 Result: `45 passed, 2 skipped`.
 
+### 2026-06-25 Routed CCXT Warmup And Legacy Metadata Repair
+
+The first production run on LumiBot `4.5.57` fixed Coinbase's same-day
+`INVALID_ARGUMENT` failure, but Greg's unchanged BTC/USDT strategy still failed
+after loading real rows and writing artifacts. The routed data source showed two
+remaining problems:
+
+- A short early request could mark the in-memory BTC/USDT minute series as
+  fully loaded, then a later `length=1300`, `timestep=5m` request did not expand
+  far enough back for the strategy's warmup.
+- Production CCXT DuckDB files created by older code could still contain
+  overstated `cache_dt_ranges` metadata. A warm read could trust that metadata
+  and skip a provider request even though the actual candle rows were materially
+  underfilled.
+
+Fix:
+
+- Routed dataframe adapters now verify existing dataframe coverage before
+  honoring `_fully_loaded_series`. If the stored frame does not cover the new
+  requested start/end, the provider is refreshed.
+- Routed CCXT intraday requests prefetch the full backtest window even when a
+  previous shorter request marked the series loaded.
+- `CcxtCacheDB.download_ohlcv()` now repairs legacy overstated cache metadata
+  when no download was scheduled but actual readback proves the cached rows do
+  not materially cover the requested range. Normal partial provider responses
+  are still left as partial coverage and are not retried in a loop.
+
+Focused proof:
+
+```bash
+/Users/robertgrzesik/bin/safe-timeout 1200s .venv/bin/python -m pytest \
+  tests/test_routed_backtesting_ibkr_daily_prefetch.py \
+  tests/test_ccxt_store.py \
+  tests/test_backtesting_ccxt_execution_semantics.py -q
+```
+
+Result: `45 passed, 2 skipped`.
+
+Broader crypto regression proof:
+
+```bash
+/Users/robertgrzesik/bin/safe-timeout 1200s .venv/bin/python -m pytest \
+  tests/test_ccxt_store.py \
+  tests/test_backtesting_ccxt_execution_semantics.py \
+  tests/test_crypto_backtesting_order_matrix.py \
+  tests/test_crypto_backtest_validation_runner.py \
+  tests/test_routed_backtesting_unit.py \
+  tests/test_routed_backtesting_routing_validation.py \
+  tests/test_hour_timestep_support.py -q
+```
+
+Result: `80 passed, 2 skipped`.
+
 ### 2026-06-22 Long Coinbase Matrix And Sparse-Page Cache Fix
 
 Root cause found during long BTC/USDT validation:

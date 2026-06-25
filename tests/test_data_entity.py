@@ -270,21 +270,21 @@ class TestDataGetLastPriceTradeOnly:
         assert bars.iloc[-1]["close"] == 109.5
         assert base_dt + timedelta(minutes=10) not in bars.index
 
-    def test_strict_intraday_allows_multi_minute_history_with_coinbase_edge_gap(self):
+    def test_strict_intraday_allows_multi_minute_history_with_coinbase_aggregate_edge_gap(self):
         asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
         quote = Asset("USDT", asset_type=Asset.AssetType.CRYPTO)
         tz = pytz.timezone("America/New_York")
         base_dt = tz.localize(datetime(2026, 6, 22, 5, 0))
-        dates = [base_dt + timedelta(minutes=i) for i in range(19)]
+        dates = [base_dt + timedelta(minutes=i) for i in range(11)]
         df = (
             pd.DataFrame(
                 {
                     "datetime": dates,
-                    "open": [100.0 + i for i in range(19)],
-                    "high": [101.0 + i for i in range(19)],
-                    "low": [99.0 + i for i in range(19)],
-                    "close": [100.5 + i for i in range(19)],
-                    "volume": [1.0] * 19,
+                    "open": [100.0 + i for i in range(11)],
+                    "high": [101.0 + i for i in range(11)],
+                    "low": [99.0 + i for i in range(11)],
+                    "close": [100.5 + i for i in range(11)],
+                    "volume": [1.0] * 11,
                 }
             )
             .set_index("datetime")
@@ -297,8 +297,8 @@ class TestDataGetLastPriceTradeOnly:
 
         assert bars is not None
         assert not bars.empty
-        assert bars.index.max() <= base_dt + timedelta(minutes=10)
-        assert base_dt + timedelta(minutes=15) not in bars.index
+        assert bars.index.max() <= base_dt + timedelta(minutes=5)
+        assert base_dt + timedelta(minutes=10) not in bars.index
 
     def test_strict_intraday_rejects_multi_minute_history_past_bucket_tolerance(self):
         asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
@@ -324,7 +324,7 @@ class TestDataGetLastPriceTradeOnly:
         data.strict_end_check = True
 
         with pytest.raises(ValueError, match="after the available data's end"):
-            data.get_bars(base_dt + timedelta(minutes=25), length=3, timestep="5m")
+            data.get_bars(base_dt + timedelta(minutes=35), length=3, timestep="5m")
 
     def test_get_quote_includes_source_bar_provenance(self):
         asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)

@@ -720,10 +720,12 @@ class Data:
             multiplier = 15 if str(asset_type or "").lower() == "crypto" else 3
         elif quantity > 1:
             # Aggregated intraday history (for example, 5m bars built from 1m Coinbase candles)
-            # can remain usable when the latest raw minute is a few minutes behind the request.
-            # get_bars() still drops incomplete aggregate buckets, so this does not make future
-            # or partial bars executable.
-            multiplier = 2
+            # can remain usable when the latest raw minute is a few completed buckets behind the
+            # request. get_bars() still drops incomplete aggregate buckets, so this does not make
+            # future or partial bars executable.
+            asset_type = getattr(getattr(self, "asset", None), "asset_type", None)
+            asset_type = getattr(asset_type, "value", asset_type)
+            multiplier = 3 if str(asset_type or "").lower() == "crypto" else 2
         else:
             multiplier = 1
         if unit_text == "minute":
@@ -742,7 +744,9 @@ class Data:
             return None
 
         unit_text = str(unit or "").strip().lower()
-        multiplier = 2 if quantity > 1 else 1
+        asset_type = getattr(getattr(self, "asset", None), "asset_type", None)
+        asset_type = getattr(asset_type, "value", asset_type)
+        multiplier = 3 if quantity > 1 and str(asset_type or "").lower() == "crypto" else (2 if quantity > 1 else 1)
         if unit_text == "minute":
             return datetime.timedelta(minutes=quantity * multiplier)
         if unit_text == "hour":

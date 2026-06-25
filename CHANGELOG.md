@@ -1,5 +1,21 @@
 # Changelog
 
+## 4.5.60 - 2026-06-25
+
+Deploy marker: `deploy 4.5.60`
+
+### Fixed
+- **Coinbase/CCXT crypto aggregate history now tolerates complete 5-minute
+  bucket lag at the provider edge.** BTC/USDT strategies that request `5m`
+  history can proceed when Coinbase minute candles are up to one additional
+  completed aggregate bucket behind the simulated timestamp, while incomplete
+  buckets are still excluded and larger stale gaps still fail.
+
+### Tests
+- **Greg BTC/USDT regression coverage now pins the 15-minute aggregate edge.**
+  Data entity tests assert crypto `5m` history accepts a 15-minute provider-edge
+  gap but still rejects gaps beyond that threshold.
+
 ## 4.5.59 - Unreleased
 
 ### Fixed

@@ -43,7 +43,7 @@ theta_jar_path = PROJECT_ROOT / "lumibot" / "resources" / "ThetaTerminal.jar"
 
 setuptools.setup(
     name="lumibot",
-    version="4.5.61",
+    version="4.5.62",
     author="Robert Grzesik",
     author_email="rob@botspot.trade",
     description="Python framework for algorithmic trading: backtesting and live deployment for stocks, options, crypto, futures, and forex. Same code for backtest and live trading.",
@@ -61,8 +61,8 @@ setuptools.setup(
         "yfinance>=0.2.61",
         "matplotlib>=3.3.3",
         "quandl",
-        # NumPy 1.20.0+ supports modern features, 2.0+ adds compatibility for latest ecosystem
-        "numpy>=1.20.0",
+        # NumPy 2.5 emits noisy timedelta deprecation warnings through pandas 2.x calendar paths.
+        "numpy>=1.20.0,<2.5.0",
         "pandas>=2.2.0",
         "polars>=1.32.3",
         "pandas_market_calendars>=5.1.0",

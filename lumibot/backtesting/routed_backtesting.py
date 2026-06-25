@@ -285,8 +285,6 @@ class _DataFrameRoutingAdapter(_RoutingAdapter):
                 pass
 
         canonical_key, legacy_key = self._router._build_dataset_keys(original_asset, original_quote_asset, ts_unit)
-        if canonical_key in self._fully_loaded_series and canonical_key in self._router._data_store:
-            return None
         if canonical_key in self._empty_prefetch_series:
             return None
 
@@ -304,6 +302,16 @@ class _DataFrameRoutingAdapter(_RoutingAdapter):
                         return None
             except Exception:
                 pass
+
+        if canonical_key in self._fully_loaded_series and canonical_key in self._router._data_store:
+            logger.debug(
+                "Routed data for %s/%s timestep=%s was marked loaded but does not cover %s -> %s; refreshing.",
+                getattr(original_asset, "symbol", original_asset),
+                getattr(original_quote_asset, "symbol", original_quote_asset),
+                ts,
+                start_datetime,
+                end_dt,
+            )
 
         df = self._fetch_df(
             asset=fetch_asset,
@@ -957,7 +965,7 @@ class _CcxtRoutingAdapter(_DataFrameRoutingAdapter):
             raise RoutingProviderError(f"CCXT routing only supports minute/hour/day timesteps, got {ts_unit!r}.")
 
         symbol = f"{asset.symbol.upper()}/{quote_asset.symbol.upper()}"
-        if ts_unit in {"minute", "hour"} and canonical_key not in self._fully_loaded_series:
+        if ts_unit in {"minute", "hour"}:
             try:
                 prefetch_start = min(start_datetime, self._router.datetime_start)
             except Exception:

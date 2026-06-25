@@ -279,6 +279,48 @@ def test_ccxt_cache_partial_underfill_does_not_mark_missing_tail_cached(tmp_path
     assert ranges.iloc[1].end_dt == datetime(2026, 6, 17, 23, 59, 59, 999999)
 
 
+def test_ccxt_cache_repairs_legacy_overstated_range_metadata(tmp_path, monkeypatch):
+    cache = _cache_without_live_exchange(tmp_path, monkeypatch)
+    cache._cache_ohlcv(
+        "BTC/USDT",
+        cache._fill_missing_data(
+            _bars(
+                (datetime(2026, 6, 16, 0, 0), 100.0, 101.0, 99.0, 100.5, 10.0),
+                (datetime(2026, 6, 16, 23, 59), 110.0, 111.0, 109.0, 110.5, 11.0),
+            ),
+            "1m",
+        ),
+        "1m",
+    )
+    with duckdb.connect(cache.get_cache_file_name("BTC/USDT", "1m")) as con:
+        con.execute(
+            """INSERT INTO cache_dt_ranges VALUES (?, ?, ?)""",
+            ("legacy-full-window", datetime(2026, 6, 16, 0, 0), datetime(2026, 6, 17, 23, 59, 59, 999999)),
+        )
+
+    calls = []
+
+    def fake_get_barset(symbol, timeframe, limit, start, end):
+        calls.append({"start": start, "end": end})
+        return _bars(
+            (datetime(2026, 6, 17, 0, 0), 111.0, 112.0, 110.0, 111.5, 12.0),
+            (datetime(2026, 6, 17, 23, 59), 120.0, 121.0, 119.0, 120.5, 13.0),
+        )
+
+    monkeypatch.setattr(cache, "_get_barset_from_api", fake_get_barset)
+
+    df = cache.download_ohlcv("BTC/USDT", "1m", datetime(2026, 6, 16), datetime(2026, 6, 17))
+
+    assert calls, "Overstated legacy coverage must be refetched instead of trusted"
+    assert pd.Timestamp("2026-06-16 23:59:00") in df.index
+    assert pd.Timestamp("2026-06-17 00:00:00") in df.index
+
+    with duckdb.connect(cache.get_cache_file_name("BTC/USDT", "1m")) as con:
+        ranges = con.execute("select start_dt, end_dt from cache_dt_ranges order by start_dt").fetch_df()
+    assert ranges.start_dt.min() == datetime(2026, 6, 16, 0, 0)
+    assert ranges.end_dt.max() == datetime(2026, 6, 17, 23, 59, 59, 999999)
+
+
 def test_ccxt_api_pagination_advances_across_empty_sparse_pages(tmp_path, monkeypatch):
     cache = _cache_without_live_exchange(tmp_path, monkeypatch)
     calls = []

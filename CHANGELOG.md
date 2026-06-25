@@ -1,6 +1,37 @@
 # Changelog
 
-## 4.5.57 - Unreleased
+## 4.5.58 - 2026-06-25
+
+Deploy marker: `deploy 4.5.58`
+
+### Fixed
+- **Routed Coinbase/CCXT crypto warmups now expand when later strategy requests
+  need deeper history.** A short early BTC/USDT request can no longer mark the
+  minute series as fully loaded and block a later `length=1300`, `timestep=5m`
+  request from fetching the required warmup data.
+- **Legacy Coinbase/CCXT cache metadata is repaired when it overstates real
+  candle coverage.** Warm reads that find no scheduled download but materially
+  underfilled candle rows rebuild `cache_dt_ranges` from executable candles and
+  refetch the missing leading or trailing window once, preventing old production
+  DuckDB metadata from hiding missing BTC/USDT rows.
+
+### Docs
+- **Crypto validation docs now record the 4.5.57 production follow-up.** The
+  runbook explains the fully-loaded routed-cache issue, the legacy metadata
+  repair, and the focused/broader test commands used before release.
+
+### Tests
+- **Routed Coinbase/CCXT regressions now cover deeper warmup expansion.** A test
+  verifies a later `1300 x 5m` BTC/USDT request refetches from an earlier start
+  after a shorter request already warmed the series.
+- **CCXT cache regressions now cover legacy overstated range metadata.** A test
+  seeds a DuckDB file whose `cache_dt_ranges` claims a full two-day window while
+  candles contain only day one, then verifies LumiBot rebuilds metadata and
+  fetches day two.
+
+## 4.5.57 - 2026-06-25
+
+Deploy marker: `4ca4a2d8`
 
 ### Fixed
 - **Routed Coinbase/CCXT crypto history now preloads the full backtest window.**

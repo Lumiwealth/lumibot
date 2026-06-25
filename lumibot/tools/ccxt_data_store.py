@@ -230,52 +230,91 @@ class CcxtCacheDB:
 
         self.logger.info(f"download ranges :\n{self._table_str(download_ranges,headers=['from','to'])}")
 
-        downloaded_coverage_ranges = []
-
-        for download_start,download_end in download_ranges:
-            range_cnt = self._count_timeframe_units(download_start, download_end, timeframe)
-
-            if range_cnt > limit:
-                raise Exception(f"Request download range {range_cnt} is greater than download limit {limit}")
-
-            df = self._get_barset_from_api(symbol, timeframe,
-                                           range_cnt, download_start, download_end)
-            df = self._fill_missing_data(df, timeframe)
-            self._cache_ohlcv(symbol, df, timeframe)
-            coverage_range = self._coverage_range_from_rows(df, download_start, download_end, timeframe)
-            if coverage_range is not None:
-                downloaded_coverage_ranges.append(coverage_range)
+        attempted_download = bool(download_ranges)
+        self._download_and_record_coverage(
+            symbol=symbol,
+            timeframe=timeframe,
+            download_ranges=download_ranges,
+            overlap_range_ids=overap_range_ids,
+            limit=limit,
+        )
 
         cache_file = self.get_cache_file_name(symbol, timeframe)
-
-        if downloaded_coverage_ranges:
-            with duckdb.connect(cache_file) as con:
-                coverage_ranges = downloaded_coverage_ranges
-                if len(overap_range_ids) > 0:
-                    old_ranges = []
-                    for range_id in overap_range_ids:
-                        old_ranges.extend(
-                            con.execute(
-                                """SELECT start_dt, end_dt FROM cache_dt_ranges WHERE id = ?""",
-                                (range_id,),
-                            ).fetchall()
-                        )
-                    coverage_ranges = old_ranges + coverage_ranges
-                    params = [(id,) for id in overap_range_ids]
-                    con.executemany("""DELETE FROM cache_dt_ranges WHERE id = ?""", params)
-
-                for start_dt, end_dt in self._merge_coverage_ranges(coverage_ranges):
-                    con.execute(
-                        """INSERT INTO cache_dt_ranges VALUES (?, ?, ?)""",
-                        (str(uuid.uuid4().hex), start_dt, end_dt),
-                    )
 
         with duckdb.connect(cache_file) as con:
             df = con.execute("""select * from cache_dt_ranges""").fetch_df()
         self.logger.info(f"cache ranges:\n{self._table_str(df[['start_dt', 'end_dt']],headers=['from','to'])}")
 
         df_cache = self.get_data_from_cache(symbol, timeframe, start, end)
+        if not attempted_download and self._is_materially_underfilled(df_cache, start_dt, end_dt, timeframe):
+            self.logger.warning(
+                "CCXT cache metadata for %s %s returned underfilled rows for %s -> %s; "
+                "rebuilding coverage from real candles and refetching missing ranges once.",
+                symbol,
+                timeframe,
+                start_dt,
+                end_dt,
+            )
+            self._rebuild_cache_ranges_from_candles(symbol, timeframe)
+            retry_ranges, retry_overlap_ids, _ = self._calc_download_ranges(symbol, timeframe, start_dt, end_dt)
+            self._download_and_record_coverage(
+                symbol=symbol,
+                timeframe=timeframe,
+                download_ranges=retry_ranges,
+                overlap_range_ids=retry_overlap_ids,
+                limit=limit,
+            )
+            df_cache = self.get_data_from_cache(symbol, timeframe, start, end)
         return df_cache
+
+    def _download_and_record_coverage(
+        self,
+        *,
+        symbol: str,
+        timeframe: str,
+        download_ranges: list[tuple[datetime, datetime]],
+        overlap_range_ids: list[str],
+        limit: int,
+    ) -> None:
+        downloaded_coverage_ranges = []
+
+        for download_start, download_end in download_ranges:
+            range_cnt = self._count_timeframe_units(download_start, download_end, timeframe)
+
+            if range_cnt > limit:
+                raise Exception(f"Request download range {range_cnt} is greater than download limit {limit}")
+
+            df = self._get_barset_from_api(symbol, timeframe, range_cnt, download_start, download_end)
+            df = self._fill_missing_data(df, timeframe)
+            self._cache_ohlcv(symbol, df, timeframe)
+            coverage_range = self._coverage_range_from_rows(df, download_start, download_end, timeframe)
+            if coverage_range is not None:
+                downloaded_coverage_ranges.append(coverage_range)
+
+        if not downloaded_coverage_ranges:
+            return
+
+        cache_file = self.get_cache_file_name(symbol, timeframe)
+        with duckdb.connect(cache_file) as con:
+            coverage_ranges = downloaded_coverage_ranges
+            if len(overlap_range_ids) > 0:
+                old_ranges = []
+                for range_id in overlap_range_ids:
+                    old_ranges.extend(
+                        con.execute(
+                            """SELECT start_dt, end_dt FROM cache_dt_ranges WHERE id = ?""",
+                            (range_id,),
+                        ).fetchall()
+                    )
+                coverage_ranges = old_ranges + coverage_ranges
+                params = [(id,) for id in overlap_range_ids]
+                con.executemany("""DELETE FROM cache_dt_ranges WHERE id = ?""", params)
+
+            for coverage_start, coverage_end in self._merge_coverage_ranges(coverage_ranges):
+                con.execute(
+                    """INSERT INTO cache_dt_ranges VALUES (?, ?, ?)""",
+                    (str(uuid.uuid4().hex), coverage_start, coverage_end),
+                )
 
 
     def _cache_ohlcv(self, symbol:str, df:DataFrame, timeframe:str)->None:
@@ -330,6 +369,77 @@ class CcxtCacheDB:
             return None
 
         return coverage_start, coverage_end
+
+    def _is_materially_underfilled(
+        self,
+        df: DataFrame,
+        requested_start: datetime,
+        requested_end: datetime,
+        timeframe: str,
+    ) -> bool:
+        """Detect stale cache metadata that overstates real candle coverage."""
+        if df is None or df.empty:
+            return requested_start <= requested_end
+
+        actual_range = self._coverage_range_from_rows(df, requested_start, requested_end, timeframe)
+        if actual_range is None:
+            return True
+
+        actual_start, actual_end = actual_range
+        seconds = _TIMEFRAME_SECONDS[timeframe]
+        tolerance = max(timedelta(seconds=seconds * 3), timedelta(hours=1))
+        leading_gap = actual_start - requested_start
+        trailing_gap = requested_end - actual_end
+        return leading_gap > tolerance or trailing_gap > tolerance
+
+    def _rebuild_cache_ranges_from_candles(self, symbol: str, timeframe: str) -> None:
+        """Rebuild cache range metadata from real candle rows.
+
+        Older LumiBot versions could write `cache_dt_ranges` for the requested
+        window even when the provider returned only part of that window. Rebuild
+        the metadata from executable rows so the next range calculation refetches
+        the missing leading or trailing section instead of trusting stale metadata.
+        """
+        cache_file = self.get_cache_file_name(symbol, timeframe)
+        if not os.path.exists(cache_file):
+            return
+
+        with duckdb.connect(cache_file) as con:
+            tables = con.execute("SHOW TABLES").fetch_df()
+            table_names = set(tables.iloc[:, 0].astype(str).tolist()) if not tables.empty else set()
+            if "candles" not in table_names:
+                return
+            con.execute(
+                """CREATE TABLE IF NOT EXISTS cache_dt_ranges (
+                    id STRING,
+                    start_dt DATETIME,
+                    end_dt DATETIME
+                )"""
+            )
+            coverage = con.execute(
+                """
+                SELECT MIN(datetime) AS start_dt, MAX(datetime) AS end_dt
+                FROM candles
+                WHERE (missing IS NULL OR missing = 0)
+                  AND open IS NOT NULL
+                  AND high IS NOT NULL
+                  AND low IS NOT NULL
+                  AND close IS NOT NULL
+                """
+            ).fetchone()
+            con.execute("""DELETE FROM cache_dt_ranges""")
+            if coverage is None or coverage[0] is None or coverage[1] is None:
+                return
+            coverage_start = pd.Timestamp(coverage[0]).to_pydatetime().replace(tzinfo=None)
+            coverage_end = (
+                pd.Timestamp(coverage[1]).to_pydatetime().replace(tzinfo=None)
+                + timedelta(seconds=_TIMEFRAME_SECONDS[timeframe])
+                - timedelta(microseconds=1)
+            )
+            con.execute(
+                """INSERT INTO cache_dt_ranges VALUES (?, ?, ?)""",
+                (str(uuid.uuid4().hex), coverage_start, coverage_end),
+            )
 
     def _merge_coverage_ranges(
         self,

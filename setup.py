@@ -61,8 +61,8 @@ setuptools.setup(
         "yfinance>=0.2.61",
         "matplotlib>=3.3.3",
         "quandl",
-        # NumPy 1.20.0+ supports modern features, 2.0+ adds compatibility for latest ecosystem
-        "numpy>=1.20.0",
+        # NumPy 2.5 emits noisy timedelta deprecation warnings through pandas 2.x calendar paths.
+        "numpy>=1.20.0,<2.5.0",
         "pandas>=2.2.0",
         "polars>=1.32.3",
         "pandas_market_calendars>=5.1.0",

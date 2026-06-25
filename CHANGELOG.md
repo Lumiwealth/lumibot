@@ -2,6 +2,19 @@
 
 ## 4.5.62 - Unreleased
 
+### Fixed
+- **NumPy 2.5 calendar warning spam is avoided by dependency bounds.** Fresh
+  installs could resolve to `numpy==2.5.0`, `pandas==2.3.3`, and
+  `pandas-market-calendars==5.4.0`, causing repeated market-calendar
+  `DeprecationWarning` output whenever schedules were built. LumiBot now caps
+  NumPy below 2.5 until the pandas 2.x calendar path is quiet with NumPy's new
+  generic `timedelta64` deprecation.
+
+### Tests
+- **Dependency-bound regression coverage pins the NumPy 2.5 cap.** A focused
+  test verifies both `setup.py` and `requirements.txt` keep the runtime NumPy
+  upper bound that prevents the market-calendar warning flood.
+
 ## 4.5.61 - 2026-06-25
 
 Deploy marker: `deploy 4.5.61`

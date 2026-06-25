@@ -212,6 +212,34 @@ class TestDataGetLastPriceTradeOnly:
 
         assert data.get_last_price(request_dt) == 70511.75
 
+    def test_strict_crypto_snapshot_allows_short_coinbase_edge_gap(self):
+        asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+        quote = Asset("USDT", asset_type=Asset.AssetType.CRYPTO)
+        tz = pytz.timezone("America/New_York")
+        bar_dt = tz.localize(datetime(2026, 6, 22, 5, 19))
+        request_dt = bar_dt + timedelta(minutes=6)
+        future_dt = request_dt + timedelta(minutes=10)
+        df = (
+            pd.DataFrame(
+                {
+                    "datetime": [bar_dt, future_dt],
+                    "open": [64400.0, 64500.0],
+                    "high": [64450.0, 64550.0],
+                    "low": [64350.0, 64450.0],
+                    "close": [64425.0, 64525.0],
+                    "volume": [1.0, 1.0],
+                }
+            )
+            .set_index("datetime")
+        )
+
+        data = Data(asset, df, timestep="minute", quote=quote)
+        data.strict_end_check = True
+
+        snapshot = data.get_price_snapshot(request_dt)
+
+        assert snapshot["close"] == 64425.0
+
     def test_strict_intraday_allows_multi_minute_history_at_bucket_boundary(self):
         asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
         quote = Asset("USDT", asset_type=Asset.AssetType.CRYPTO)
@@ -242,6 +270,36 @@ class TestDataGetLastPriceTradeOnly:
         assert bars.iloc[-1]["close"] == 109.5
         assert base_dt + timedelta(minutes=10) not in bars.index
 
+    def test_strict_intraday_allows_multi_minute_history_with_coinbase_edge_gap(self):
+        asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+        quote = Asset("USDT", asset_type=Asset.AssetType.CRYPTO)
+        tz = pytz.timezone("America/New_York")
+        base_dt = tz.localize(datetime(2026, 6, 22, 5, 0))
+        dates = [base_dt + timedelta(minutes=i) for i in range(19)]
+        df = (
+            pd.DataFrame(
+                {
+                    "datetime": dates,
+                    "open": [100.0 + i for i in range(19)],
+                    "high": [101.0 + i for i in range(19)],
+                    "low": [99.0 + i for i in range(19)],
+                    "close": [100.5 + i for i in range(19)],
+                    "volume": [1.0] * 19,
+                }
+            )
+            .set_index("datetime")
+        )
+
+        data = Data(asset, df, timestep="minute", quote=quote)
+        data.strict_end_check = True
+
+        bars = data.get_bars(base_dt + timedelta(minutes=25), length=3, timestep="5m")
+
+        assert bars is not None
+        assert not bars.empty
+        assert bars.index.max() <= base_dt + timedelta(minutes=10)
+        assert base_dt + timedelta(minutes=15) not in bars.index
+
     def test_strict_intraday_rejects_multi_minute_history_past_bucket_tolerance(self):
         asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
         quote = Asset("USDT", asset_type=Asset.AssetType.CRYPTO)
@@ -266,7 +324,7 @@ class TestDataGetLastPriceTradeOnly:
         data.strict_end_check = True
 
         with pytest.raises(ValueError, match="after the available data's end"):
-            data.get_bars(base_dt + timedelta(minutes=20), length=3, timestep="5m")
+            data.get_bars(base_dt + timedelta(minutes=25), length=3, timestep="5m")
 
     def test_get_quote_includes_source_bar_provenance(self):
         asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)

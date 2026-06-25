@@ -2,6 +2,23 @@
 
 ## 4.5.59 - Unreleased
 
+### Fixed
+- **Coinbase/CCXT crypto backtests now tolerate small current-edge gaps for
+  aggregated intraday history.** A strategy requesting `5m` BTC/USDT history no
+  longer stops just because Coinbase's latest raw minute is 6-7 minutes behind
+  the simulated timestamp, while incomplete aggregate buckets are still dropped
+  and genuinely stale data still fails loudly.
+- **Short crypto price-snapshot gaps no longer spam strategy errors.** Crypto
+  mark-to-market snapshots can use a recent last traded minute at the current
+  provider edge, but long gaps remain rejected so old prices cannot masquerade as
+  current data.
+
+### Tests
+- **Data entity regressions cover the Greg BTC/USDT production edge case.**
+  Tests assert sparse Coinbase-style minute data can satisfy `5m` history at the
+  current edge, excludes incomplete 5-minute bars, allows short BTC/USDT snapshot
+  gaps, and still rejects multi-minute requests past the tolerance.
+
 ## 4.5.58 - 2026-06-25
 
 Deploy marker: `deploy 4.5.58`

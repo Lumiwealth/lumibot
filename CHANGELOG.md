@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.5.55 - Unreleased
+## 4.5.55 - 2026-06-25
+
+Deploy marker: `deploy 4.5.55`
 
 ### Fixed
 - **Routed Coinbase/CCXT refreshes no longer keep stale legacy data aliases.**

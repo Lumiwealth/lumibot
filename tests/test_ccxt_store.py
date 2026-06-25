@@ -134,6 +134,7 @@ def test_ccxt_cache_clamps_current_utc_day_download_end_to_now(tmp_path, monkeyp
     def fake_get_barset(symbol, timeframe, limit, start, end):
         calls.append({"symbol": symbol, "timeframe": timeframe, "start": start, "end": end})
         return _bars(
+            (datetime(2026, 6, 17, 0, 0), 99.0, 100.0, 98.0, 99.5, 9.0),
             (requested_end_utc, 100.0, 101.0, 99.0, 100.5, 10.0),
             (now.replace(microsecond=0), 110.0, 111.0, 109.0, 110.5, 11.0),
         )
@@ -209,7 +210,7 @@ def test_ccxt_cache_uses_native_day_timeframe_without_synthesizing_missing_days(
     assert pd.Timestamp("2026-01-02 00:00:00") not in df.index
 
 
-def test_ccxt_cache_empty_response_records_coverage_without_fake_rows(tmp_path, monkeypatch):
+def test_ccxt_cache_empty_response_does_not_record_fake_coverage(tmp_path, monkeypatch):
     cache = _cache_without_live_exchange(tmp_path, monkeypatch)
     calls = {"count": 0}
 
@@ -227,11 +228,55 @@ def test_ccxt_cache_empty_response_records_coverage_without_fake_rows(tmp_path, 
 
     assert first.empty
     assert second.empty
-    assert calls["count"] == first_call_count
+    assert calls["count"] > first_call_count
 
     with duckdb.connect(cache.get_cache_file_name("BTC/USDT", "1m")) as con:
         ranges = con.execute("select * from cache_dt_ranges").fetch_df()
+    assert ranges.empty
+
+
+def test_ccxt_cache_partial_underfill_does_not_mark_missing_tail_cached(tmp_path, monkeypatch):
+    cache = _cache_without_live_exchange(tmp_path, monkeypatch)
+    calls = []
+
+    def fake_get_barset(symbol, timeframe, limit, start, end):
+        calls.append({"start": start, "end": end})
+        if len(calls) == 1:
+            return _bars(
+                (datetime(2026, 6, 16, 0, 0), 100.0, 101.0, 99.0, 100.5, 10.0),
+                (datetime(2026, 6, 16, 23, 59), 110.0, 111.0, 109.0, 110.5, 11.0),
+            )
+        return _bars(
+            (datetime(2026, 6, 17, 0, 0), 111.0, 112.0, 110.0, 111.5, 12.0),
+            (datetime(2026, 6, 17, 23, 59), 120.0, 121.0, 119.0, 120.5, 13.0),
+        )
+
+    monkeypatch.setattr(cache, "_get_barset_from_api", fake_get_barset)
+
+    first = cache.download_ohlcv("BTC/USDT", "1m", datetime(2026, 6, 16), datetime(2026, 6, 17))
+
+    assert pd.Timestamp("2026-06-16 23:59:00") in first.index
+    assert pd.Timestamp("2026-06-17 00:00:00") not in first.index
+
+    with duckdb.connect(cache.get_cache_file_name("BTC/USDT", "1m")) as con:
+        ranges = con.execute("select start_dt, end_dt from cache_dt_ranges").fetch_df()
     assert len(ranges) == 1
+    assert ranges.iloc[0].start_dt == datetime(2026, 6, 16, 0, 0)
+    assert ranges.iloc[0].end_dt == datetime(2026, 6, 16, 23, 59, 59, 999999)
+
+    second = cache.download_ohlcv("BTC/USDT", "1m", datetime(2026, 6, 17), datetime(2026, 6, 17))
+
+    assert len(calls) == 2
+    assert calls[1]["start"] > datetime(2026, 6, 16, 23, 59)
+    assert pd.Timestamp("2026-06-17 00:00:00") in second.index
+
+    with duckdb.connect(cache.get_cache_file_name("BTC/USDT", "1m")) as con:
+        ranges = con.execute("select start_dt, end_dt from cache_dt_ranges order by start_dt").fetch_df()
+    assert len(ranges) == 2
+    assert ranges.iloc[0].start_dt == datetime(2026, 6, 16, 0, 0)
+    assert ranges.iloc[0].end_dt == datetime(2026, 6, 16, 23, 59, 59, 999999)
+    assert ranges.iloc[1].start_dt == datetime(2026, 6, 17, 0, 0)
+    assert ranges.iloc[1].end_dt == datetime(2026, 6, 17, 23, 59, 59, 999999)
 
 
 def test_ccxt_api_pagination_advances_across_empty_sparse_pages(tmp_path, monkeypatch):
@@ -364,10 +409,15 @@ def test_ccxt_cache_warm_reads_do_not_refetch_supported_timeframes(
                 "end": end,
             }
         )
-        return _bars(
+        rows = [
             (datetime(2026, 1, 1), 100.0, 101.0, 99.0, 100.5, 10.0),
             (datetime(2026, 1, 1) + expected_step, 101.0, 102.0, 100.0, 101.5, 11.0),
-        )
+        ]
+        if requested_timeframe == "1m":
+            rows.append((datetime(2026, 1, 1, 23, 59), 199.0, 200.0, 198.0, 199.5, 19.0))
+        elif requested_timeframe == "1h":
+            rows.append((datetime(2026, 1, 1, 23, 0), 199.0, 200.0, 198.0, 199.5, 19.0))
+        return _bars(*rows)
 
     monkeypatch.setattr(cache, "_get_barset_from_api", fake_get_barset)
 

@@ -167,6 +167,48 @@ Public Coinbase same-day probe:
 No production deploy was performed for this fix during the local validation
 pass.
 
+### 2026-06-24 Partial Provider Coverage Must Not Certify The Requested Window
+
+The first production validation after the same-day Coinbase fix no longer hit
+Coinbase's future-window `BadRequest`, but Greg's unchanged BTC/USDT strategy
+still could not load `5m` bars. The production log for backtest
+`2eef9de5-6e6b-411c-85de-a1139b7efbfe` repeatedly reported that the strategy
+requested `2026-06-17 00:00:00-04:00`, while available data ended at
+`2026-06-16 23:59:00-04:00`.
+
+Root cause:
+
+- The downloader requested a wider cache window such as `2026-06-16` through
+  `2026-06-17`.
+- Coinbase/CCXT returned real candles only through `2026-06-16 23:59`.
+- `cache_dt_ranges` still marked the entire requested window as cached.
+- Warm reads then trusted the metadata and did not refetch the missing
+  `2026-06-17` tail, exposing stale cache coverage to the backtester.
+
+Fix:
+
+- Cache range metadata is now derived from actual executable rows written to
+  `candles`, not from the requested provider window.
+- The metadata end is the end of the last real candle interval. For example, a
+  final `1m` candle at `23:59:00` certifies coverage through
+  `23:59:59.999999`, not through a later requested day.
+- Empty provider responses create no fake coverage metadata. They may still
+  leave an empty cache file, but they do not hide missing bars from future
+  attempts.
+- Existing overlapping ranges are preserved and merged only with newly proven
+  real-row coverage.
+
+Focused proof:
+
+```bash
+/Users/robertgrzesik/Development/lumibot/.venv/bin/python -m pytest \
+  tests/test_ccxt_store.py \
+  tests/test_backtesting_ccxt_execution_semantics.py \
+  tests/test_crypto_backtesting_order_matrix.py -q
+```
+
+Result: `45 passed, 2 skipped`.
+
 ### 2026-06-22 Long Coinbase Matrix And Sparse-Page Cache Fix
 
 Root cause found during long BTC/USDT validation:

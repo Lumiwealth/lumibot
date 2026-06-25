@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.5.61 - Unreleased
+## 4.5.61 - 2026-06-25
+
+Deploy marker: `deploy 4.5.61`
 
 ### Fixed
 - **Long Coinbase/CCXT minute backtests now split provider downloads under the

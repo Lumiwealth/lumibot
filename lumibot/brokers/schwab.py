@@ -340,6 +340,8 @@ class Schwab(Broker):
                     if not next_token.get("refresh_token") and token_dict_for_session.get("refresh_token"):
                         next_token["refresh_token"] = token_dict_for_session["refresh_token"]
                     now_ms = int(time.time() * 1000)
+                    if updated_token.get("access_token") and not updated_token.get("issued_at"):
+                        next_token["issued_at"] = now_ms
                     next_token.setdefault("issued_at", now_ms)
                     next_token.setdefault("refresh_token_issued_at", token_dict_for_session.get("refresh_token_issued_at", now_ms))
                     next_token.setdefault("expires_in", token_dict_for_session.get("expires_in", 1800))

@@ -82,6 +82,8 @@ def test_schwab_force_refresh_on_startup_rewrites_token(monkeypatch, tmp_path):
     from lumibot.brokers import schwab as schwab_module
     import requests_oauthlib
 
+    old_issued_at = 1_700_000_000_000
+    refreshed_now = 1_782_800_000.123
     token_path = tmp_path / "schwab_token.json"
     token_path.write_text(
         json.dumps(
@@ -90,9 +92,9 @@ def test_schwab_force_refresh_on_startup_rewrites_token(monkeypatch, tmp_path):
                 "token": {
                     "access_token": "old-access",
                     "refresh_token": "old-refresh",
-                    "issued_at": int(time.time() * 1000),
+                    "issued_at": old_issued_at,
                     "expires_in": 1800,
-                    "refresh_token_issued_at": int(time.time() * 1000),
+                    "refresh_token_issued_at": old_issued_at,
                     "refresh_token_expires_in": 7776000,
                     "token_type": "Bearer",
                     "scope": "api",
@@ -138,7 +140,6 @@ def test_schwab_force_refresh_on_startup_rewrites_token(monkeypatch, tmp_path):
                 "access_token": "new-access",
                 "refresh_token": "new-refresh",
                 "expires_in": 1800,
-                "issued_at": int(time.time() * 1000),
             }
 
     class _AccountResponse:
@@ -162,6 +163,7 @@ def test_schwab_force_refresh_on_startup_rewrites_token(monkeypatch, tmp_path):
     monkeypatch.setattr(broker_module.Broker, "_start_orders_thread", lambda self: None)
     monkeypatch.setattr(schwab_module.Schwab, "_finish_initialization", lambda self, *args, **kwargs: None)
     monkeypatch.setattr(schwab_module.Schwab, "_get_stream_object", lambda self: None)
+    monkeypatch.setattr(schwab_module.time, "time", lambda: refreshed_now)
 
     broker = schwab_module.Schwab(
         config={
@@ -183,6 +185,7 @@ def test_schwab_force_refresh_on_startup_rewrites_token(monkeypatch, tmp_path):
     assert rewritten["creation_timestamp"] == 1
     assert rewritten["token"]["access_token"] == "new-access"
     assert rewritten["token"]["refresh_token"] == "new-refresh"
+    assert rewritten["token"]["issued_at"] == int(refreshed_now * 1000)
 
 
 def test_schwab_force_refresh_fails_if_token_file_cannot_be_rewritten(monkeypatch, tmp_path):

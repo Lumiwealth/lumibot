@@ -38,6 +38,15 @@ def _botspot_force_broker_token_refresh() -> bool:
     }
 
 
+def _lumibot_disable_token_refresh(config=None) -> bool:
+    value = None
+    if isinstance(config, dict):
+        value = config.get("LUMIBOT_DISABLE_TOKEN_REFRESH")
+    if value is None:
+        value = os.environ.get("LUMIBOT_DISABLE_TOKEN_REFRESH")
+    return str(value or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
 class TradierTokenPersistenceError(RuntimeError):
     """Raised when a refreshed Tradier OAuth token cannot be durably written."""
 
@@ -145,6 +154,52 @@ class Tradier(Broker):
             return False
         return time.time() >= float(expires_at) - self._OAUTH_REFRESH_SKEW_SECONDS
 
+    def _oauth_token_file_signature(self):
+        token_path = getattr(self, "_oauth_token_path", None)
+        if not token_path:
+            return None
+        stat = Path(token_path).stat()
+        return (stat.st_mtime_ns, stat.st_size)
+
+    def _apply_oauth_token_json(self, token_json: dict) -> bool:
+        if not isinstance(token_json, dict):
+            return False
+        new_access_token = token_json.get("access_token") or token_json.get("AUTH_TOKEN")
+        if not new_access_token:
+            return False
+        self._oauth_token_payload_b64 = self._encode_base64url_json(token_json)
+        if token_json.get("refresh_token"):
+            self._oauth_refresh_token = token_json.get("refresh_token")
+        try:
+            issued_at_ms = int(token_json.get("issued_at") or 0)
+            expires_in_s = int(float(token_json.get("expires_in"))) if token_json.get("expires_in") is not None else None
+            self._oauth_token_expires_at = issued_at_ms / 1000.0 + expires_in_s if issued_at_ms and expires_in_s else None
+        except Exception:
+            self._oauth_token_expires_at = None
+        self._apply_access_token(new_access_token)
+        return True
+
+    def _reload_oauth_token_from_path_if_changed(self) -> bool:
+        token_path = getattr(self, "_oauth_token_path", None)
+        if not token_path:
+            return False
+        try:
+            signature = self._oauth_token_file_signature()
+        except Exception:
+            return False
+        if signature == getattr(self, "_oauth_token_path_signature", None):
+            return False
+        try:
+            token_json = self._load_token_json_from_path(token_path)
+            if not self._apply_oauth_token_json(token_json):
+                return False
+            self._oauth_token_path_signature = signature
+            logger.info(f"[Tradier] Reloaded externally managed OAuth token file from {token_path}")
+            return True
+        except Exception as e:
+            logger.warning(f"[Tradier] Failed to reload TRADIER_TOKEN_PATH token file: {e}")
+            return False
+
     def _apply_access_token(self, new_access_token: str) -> None:
         """Update access token across broker + data source Tradier clients (best-effort)."""
         if not new_access_token or not isinstance(new_access_token, str):
@@ -220,6 +275,8 @@ class Tradier(Broker):
     def _refresh_oauth_token(self, *, force: bool = False) -> bool:
         """Refresh Tradier OAuth token if possible. Returns True on successful refresh."""
         if not self._oauth_enabled():
+            return False
+        if getattr(self, "_disable_token_refresh", False):
             return False
         if not force and not self._oauth_token_needs_refresh():
             return False
@@ -309,13 +366,21 @@ class Tradier(Broker):
                 return
 
             def request_with_refresh(*args, **kwargs):
-                # Proactively refresh if near expiry.
-                self._refresh_oauth_token(force=False)
+                if getattr(self, "_disable_token_refresh", False):
+                    self._reload_oauth_token_from_path_if_changed()
+                else:
+                    # Proactively refresh if near expiry.
+                    self._refresh_oauth_token(force=False)
                 try:
                     return orig_request(*args, **kwargs)
                 except Exception as e:
+                    if not self._is_auth_error(e):
+                        raise
+                    if getattr(self, "_disable_token_refresh", False):
+                        if self._reload_oauth_token_from_path_if_changed():
+                            return orig_request(*args, **kwargs)
                     # Retry once on auth errors after forcing a refresh.
-                    if self._is_auth_error(e) and self._refresh_oauth_token(force=True):
+                    elif self._refresh_oauth_token(force=True):
                         return orig_request(*args, **kwargs)
                     raise
 
@@ -384,6 +449,8 @@ class Tradier(Broker):
         self._oauth_client_secret = None
         self._oauth_token_expires_at = None  # epoch seconds
         self._oauth_token_path = None
+        self._oauth_token_path_signature = None
+        self._disable_token_refresh = _lumibot_disable_token_refresh(config)
 
         payload_b64 = None
         try:
@@ -437,6 +504,11 @@ class Tradier(Broker):
             except Exception:
                 # No reliable expiry metadata; refresh-on-401 hook still applies.
                 pass
+            if self._oauth_token_path:
+                try:
+                    self._oauth_token_path_signature = self._oauth_token_file_signature()
+                except Exception:
+                    self._oauth_token_path_signature = None
 
         # Check if the user has provided the necessary keys (after OAuth extraction)
         if access_token is None or account_number is None or paper is None:
@@ -453,7 +525,7 @@ class Tradier(Broker):
         force_token_refresh = _botspot_force_broker_token_refresh()
         if self._oauth_enabled():
             refreshed = self._refresh_oauth_token(force=force_token_refresh)
-            if force_token_refresh and not refreshed:
+            if force_token_refresh and not self._disable_token_refresh and not refreshed:
                 raise RuntimeError("[Tradier] Forced OAuth token refresh failed for BotSpot snapshot runtime.")
 
         # Create the Tradier object

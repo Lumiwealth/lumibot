@@ -44,6 +44,15 @@ def _botspot_force_broker_token_refresh() -> bool:
     }
 
 
+def _lumibot_disable_token_refresh(config=None) -> bool:
+    value = None
+    if isinstance(config, dict):
+        value = config.get("LUMIBOT_DISABLE_TOKEN_REFRESH")
+    if value is None:
+        value = os.environ.get("LUMIBOT_DISABLE_TOKEN_REFRESH")
+    return str(value or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
 class SchwabTokenPersistenceError(RuntimeError):
     """Raised when a refreshed Schwab OAuth token cannot be durably written."""
 
@@ -294,6 +303,28 @@ class Schwab(Broker):
             token_dict_for_session = wrapped_token_data.get('token')
             if not token_dict_for_session or 'access_token' not in token_dict_for_session:
                 raise ValueError("Token file is missing the 'token' object or 'access_token' within it.")
+            token_file_state = {"signature": None}
+
+            def _token_file_signature():
+                stat = token_path.stat()
+                return (stat.st_mtime_ns, stat.st_size)
+
+            def _load_token_file_for_session():
+                with open(token_path, encoding="utf-8") as fp:
+                    latest_wrapped = json.load(fp)
+                latest_token = latest_wrapped.get("token") if isinstance(latest_wrapped, dict) else latest_wrapped
+                if not isinstance(latest_token, dict) or not latest_token.get("access_token"):
+                    raise ValueError("Token file is missing a usable access_token.")
+                if not latest_token.get("refresh_token") and token_dict_for_session.get("refresh_token"):
+                    latest_token["refresh_token"] = token_dict_for_session["refresh_token"]
+                if latest_token.get("issued_at") and latest_token.get("expires_in"):
+                    latest_token["expires_at"] = int(
+                        int(latest_token["issued_at"]) / 1000 + int(float(latest_token["expires_in"])) - 30
+                    )
+                token_dict_for_session.clear()
+                token_dict_for_session.update(latest_token)
+                token_file_state["signature"] = _token_file_signature()
+                return token_dict_for_session
 
             # Build an OAuth2Session that can automatically refresh the Schwab token.
             from requests_oauthlib import OAuth2Session as _OAS
@@ -356,16 +387,21 @@ class Schwab(Broker):
 
             #add expires_at to token_dict_for_session. This is needed for the auto_refresh to work. Otherwise oauth2session always thinks it expires 30min from startup
             token_dict_for_session['expires_at'] = int(token_dict_for_session['issued_at']/1000 + (token_dict_for_session['expires_in']) - 30) #30 second buffer
-            
-            oauth_session = _OAS(
-                client_id=api_key,
-                token=token_dict_for_session,
-                auto_refresh_url="https://api.schwabapi.com/v1/oauth/token",
-                auto_refresh_kwargs=refresh_kwargs,
-                token_updater=_update_token,
-            )
+            disable_token_refresh = _lumibot_disable_token_refresh(config)
 
-            if api_key and client_secret_env:
+            if disable_token_refresh:
+                oauth_session = _OAS(client_id=api_key, token=token_dict_for_session)
+            else:
+                oauth_session = _OAS(
+                    client_id=api_key,
+                    token=token_dict_for_session,
+                    auto_refresh_url="https://api.schwabapi.com/v1/oauth/token",
+                    auto_refresh_kwargs=refresh_kwargs,
+                    token_updater=_update_token,
+                )
+            token_file_state["signature"] = _token_file_signature()
+
+            if api_key and client_secret_env and not disable_token_refresh:
                 def _refresh_token_hook(token_url, headers, body):
                     headers['Authorization'] = f"Basic {base64.b64encode(f'{api_key}:{client_secret_env}'.encode()).decode()}"
                     logger.info(f"[Schwab] Refreshing token with auth headers")
@@ -374,7 +410,42 @@ class Schwab(Broker):
                 #create refresh hook. This is beacuse oa2session does not perform refreshes with auth headers, only with json bodies. 
                 oauth_session.register_compliance_hook("refresh_token_request", _refresh_token_hook)
 
-            if _botspot_force_broker_token_refresh():
+            if disable_token_refresh:
+                original_request = oauth_session.request
+
+                def _reload_if_token_file_changed():
+                    try:
+                        current_signature = _token_file_signature()
+                    except Exception:
+                        return False
+                    if current_signature == token_file_state.get("signature"):
+                        return False
+                    try:
+                        _load_token_file_for_session()
+                        oauth_session.token = token_dict_for_session
+                        logger.info(f"[Schwab] Reloaded externally managed token file from {token_path}")
+                        return True
+                    except Exception as reload_error:
+                        logger.warning(f"[Schwab] Failed to reload externally managed token file: {reload_error}")
+                        return False
+
+                def _request_with_external_token_reload(*args, **kwargs):
+                    _reload_if_token_file_changed()
+                    try:
+                        response = original_request(*args, **kwargs)
+                    except Exception as request_error:
+                        if request_error.__class__.__name__ == "TokenExpiredError" and _reload_if_token_file_changed():
+                            return original_request(*args, **kwargs)
+                        raise
+                    status_code = getattr(response, "status_code", None)
+                    if status_code in {401, 403} and _reload_if_token_file_changed():
+                        return original_request(*args, **kwargs)
+                    return response
+
+                oauth_session.request = _request_with_external_token_reload
+                logger.info("[Schwab] Token auto-refresh disabled; using externally managed SCHWAB_TOKEN_PATH reloads.")
+
+            if _botspot_force_broker_token_refresh() and not disable_token_refresh:
                 refresh_token_value = token_dict_for_session.get("refresh_token")
                 if not refresh_token_value:
                     raise ConnectionError("[Schwab] Forced token refresh requires a refresh_token.")

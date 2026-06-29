@@ -259,3 +259,83 @@ def test_schwab_force_refresh_fails_if_token_file_cannot_be_rewritten(monkeypatc
     preserved = json.loads(token_path.read_text(encoding="utf-8"))
     assert preserved["token"]["access_token"] == "old-access"
     assert preserved["token"]["refresh_token"] == "old-refresh"
+
+
+def test_schwab_disable_token_refresh_skips_forced_refresh_and_uses_external_file(monkeypatch, tmp_path):
+    from lumibot.brokers import broker as broker_module
+    from lumibot.brokers import schwab as schwab_module
+    import requests_oauthlib
+
+    token_path = tmp_path / "schwab_token.json"
+    token_path.write_text(
+        json.dumps(
+            {
+                "creation_timestamp": 1,
+                "token": {
+                    "access_token": "old-access",
+                    "refresh_token": "old-refresh",
+                    "issued_at": int(time.time() * 1000),
+                    "expires_in": 1800,
+                    "refresh_token_issued_at": int(time.time() * 1000),
+                    "refresh_token_expires_in": 7776000,
+                    "token_type": "Bearer",
+                    "scope": "api",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _OAuth2Session:
+        def __init__(self, *, client_id, token, **kwargs):
+            self.client_id = client_id
+            self.token = token
+            self.kwargs = kwargs
+            self.request_calls = 0
+
+        def register_compliance_hook(self, hook_type, hook):
+            pytest.fail("Disabled token refresh must not install provider refresh hooks")
+
+        def refresh_token(self, *args, **kwargs):
+            pytest.fail("Disabled token refresh must not call Schwab refresh_token")
+
+        def request(self, *args, **kwargs):
+            self.request_calls += 1
+            return type("Response", (), {"status_code": 200})()
+
+    class _AccountResponse:
+        status_code = 200
+
+        def json(self):
+            return [{"accountNumber": "12345678", "hashValue": "hash-123"}]
+
+    class _Client:
+        def __init__(self, *, api_key, session):
+            self.api_key = api_key
+            self.session = session
+
+        def get_account_numbers(self):
+            return _AccountResponse()
+
+    monkeypatch.setenv("BOTSPOT_FORCE_BROKER_TOKEN_REFRESH", "true")
+    monkeypatch.setenv("LUMIBOT_DISABLE_TOKEN_REFRESH", "true")
+    monkeypatch.setenv("SCHWAB_APP_SECRET", "secret")
+    monkeypatch.setattr(requests_oauthlib, "OAuth2Session", _OAuth2Session)
+    monkeypatch.setattr(schwab_module, "Client", _Client)
+    monkeypatch.setattr(broker_module.Broker, "_start_orders_thread", lambda self: None)
+    monkeypatch.setattr(schwab_module.Schwab, "_finish_initialization", lambda self, *args, **kwargs: None)
+    monkeypatch.setattr(schwab_module.Schwab, "_get_stream_object", lambda self: None)
+
+    broker = schwab_module.Schwab(
+        config={
+            "SCHWAB_ACCOUNT_NUMBER": "5678",
+            "SCHWAB_APP_KEY": "app-key",
+            "SCHWAB_APP_SECRET": "secret",
+            "SCHWAB_TOKEN_PATH": str(token_path),
+        }
+    )
+
+    assert broker.client.session.kwargs == {}
+    rewritten = json.loads(token_path.read_text(encoding="utf-8"))
+    assert rewritten["token"]["access_token"] == "old-access"
+    assert rewritten["token"]["refresh_token"] == "old-refresh"

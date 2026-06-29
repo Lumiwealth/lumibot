@@ -207,6 +207,47 @@ def test_oauth_force_refresh_failure_raises(monkeypatch):
         )
 
 
+def test_oauth_force_refresh_is_skipped_when_lumibot_token_refresh_disabled(monkeypatch, tmp_path):
+    token_path = tmp_path / "tradier_token.json"
+    token_path.write_text(
+        json.dumps(
+            {
+                "access_token": "old-access",
+                "refresh_token": "old-refresh",
+                "expires_in": 86400,
+                "issued_at": int(time.time() * 1000),
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TRADIER_TOKEN_PATH", str(token_path))
+    monkeypatch.setenv("TRADIER_REFRESH_TOKEN", "old-refresh")
+    monkeypatch.setenv("TRADIER_OAUTH_CLIENT_ID", "cid")
+    monkeypatch.setenv("TRADIER_OAUTH_CLIENT_SECRET", "secret")
+    monkeypatch.setenv("BOTSPOT_FORCE_BROKER_TOKEN_REFRESH", "true")
+    monkeypatch.setenv("LUMIBOT_DISABLE_TOKEN_REFRESH", "true")
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://127.0.0.1:1")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "test")
+
+    from lumibot.brokers import tradier as tradier_module
+
+    monkeypatch.setattr(
+        tradier_module.requests,
+        "post",
+        lambda *args, **kwargs: pytest.fail("Disabled token refresh must not call Tradier refresh endpoint"),
+    )
+
+    broker = Tradier(
+        config={"ACCESS_TOKEN": None, "ACCOUNT_NUMBER": "1234", "PAPER": True},
+        connect_stream=False,
+    )
+
+    assert broker._tradier_access_token == "old-access"
+    rewritten = json.loads(token_path.read_text(encoding="utf-8"))
+    assert rewritten["access_token"] == "old-access"
+    assert rewritten["refresh_token"] == "old-refresh"
+
+
 def test_force_refresh_is_noop_for_api_token_mode(monkeypatch):
     from lumibot.brokers import tradier as tradier_module
 

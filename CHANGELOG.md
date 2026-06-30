@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.5.63 - Unreleased
+## 4.5.63 - 2026-06-30
+
+Deploy marker: `deploy 4.5.63`
 
 ### Added
 - **Schwab and Tradier OAuth token files now support explicit external refresh mode.** Set
@@ -9,10 +11,18 @@
   `auto` mode keeps self-hosted LumiBot behavior where LumiBot may call the broker
   OAuth refresh endpoint and write the refreshed provider token file itself.
 
+### Fixed
+- **Schwab stock order submissions and replacements now use the seamless
+  session.** Stock order specs use Schwab's `SEAMLESS` session while non-stock
+  orders continue to use the normal session defaults.
+
 ### Tests
 - **OAuth refresh-mode tests now pin the managed-runtime contract.** Schwab and
   Tradier tests assert external mode skips forced provider refresh calls and
   reloads externally replaced token files, while invalid mode values fail loudly.
+- **Schwab OAuth tests no longer initialize a real local broker during pytest
+  collection.** Broker initialization imports are lazy in the test file and the
+  Schwab forced-refresh persistence fixture is noninteractive.
 
 ## 4.5.62 - 2026-06-25
 

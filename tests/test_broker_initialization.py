@@ -7,9 +7,6 @@ import time
 import pytest
 from unittest.mock import patch, MagicMock
 
-from lumibot.strategies import Strategy
-from lumibot.entities import Asset
-
 
 class TestBrokerInitializationSimple:
     """Test cases for broker initialization and error handling."""
@@ -20,6 +17,8 @@ class TestBrokerInitializationSimple:
         that explains how to set up environment variables.
         """
         # Mock both the credentials imports in the strategy module
+        from lumibot.strategies import Strategy
+
         with patch('lumibot.strategies._strategy.BROKER', None):
             with patch('lumibot.credentials.IS_BACKTESTING', False):
                 # Create a minimal strategy class for testing
@@ -55,6 +54,8 @@ class TestBrokerInitializationSimple:
         mock_broker.data_source = MagicMock()
         mock_broker.data_source.datetime_start = None
         mock_broker.data_source.datetime_end = None
+
+        from lumibot.strategies import Strategy
         
         # Create a minimal strategy class for testing
         class TestStrategy(Strategy):

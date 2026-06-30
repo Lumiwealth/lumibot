@@ -1593,6 +1593,7 @@ class Schwab(Broker):
                 order_builder,
                 order.time_in_force,
                 apply_defaults=order.order_class is not Order.OrderClass.OCO,
+                session=self._schwab_session_for_order(order),
             )
             if not order_spec:
                 return None
@@ -2055,7 +2056,20 @@ class Schwab(Broker):
             logger.error(traceback.format_exc())
             return None
 
-    def _build_order_spec_from_builder(self, order_builder, time_in_force=None, apply_defaults=True):
+    def _schwab_session_for_order(self, order):
+        """Return the Schwab session to use for an order."""
+        try:
+            from schwab.orders.common import Session
+        except ImportError:
+            logger.error(colored("Failed to import Schwab order enums. Make sure the schwab-py library is installed.", "red"))
+            return None
+
+        if order and getattr(order, "asset", None) and order.asset.asset_type == Asset.AssetType.STOCK:
+            return Session.SEAMLESS
+
+        return Session.NORMAL
+
+    def _build_order_spec_from_builder(self, order_builder, time_in_force=None, apply_defaults=True, session=None):
         """Apply Schwab defaults and return the final API order spec."""
         if not order_builder:
             return None
@@ -2078,7 +2092,7 @@ class Schwab(Broker):
                 elif tif == "cls":
                     order_builder = order_builder.set_duration(Duration.ON_THE_CLOSE)
 
-                order_builder = order_builder.set_session(Session.NORMAL)
+                order_builder = order_builder.set_session(session or Session.NORMAL)
             order_spec = order_builder.build()
 
             if "order_spec" in order_spec:
@@ -2136,7 +2150,11 @@ class Schwab(Broker):
                 equity_buy_to_cover_market,
                 equity_buy_to_cover_limit,
             )
-            return self._build_order_spec_from_builder(order_builder, order.time_in_force)
+            return self._build_order_spec_from_builder(
+                order_builder,
+                order.time_in_force,
+                session=self._schwab_session_for_order(order),
+            )
         finally:
             order.limit_price = original_limit_price
             order.stop_price = original_stop_price
@@ -2190,7 +2208,11 @@ class Schwab(Broker):
                 option_sell_to_close_limit,
                 OptionSymbol,
             )
-            return self._build_order_spec_from_builder(order_builder, order.time_in_force)
+            return self._build_order_spec_from_builder(
+                order_builder,
+                order.time_in_force,
+                session=self._schwab_session_for_order(order),
+            )
         finally:
             order.limit_price = original_limit_price
             order.stop_price = original_stop_price

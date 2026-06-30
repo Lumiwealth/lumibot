@@ -45,6 +45,21 @@ def _botspot_force_broker_token_refresh() -> bool:
     }
 
 
+def _is_external_schwab_token_file_valid(token_path: Path) -> bool:
+    if not token_path.exists():
+        return False
+    try:
+        with token_path.open("r", encoding="utf-8") as fp:
+            payload = json.load(fp)
+        token = payload.get("token") if isinstance(payload.get("token"), dict) else payload
+        if not isinstance(token, dict):
+            return False
+        return bool(token.get("access_token"))
+    except Exception as exc:
+        logger.warning(f"[Schwab] Failed to validate externally managed token file {token_path}: {exc}")
+        return False
+
+
 class SchwabTokenPersistenceError(RuntimeError):
     """Raised when a refreshed Schwab OAuth token cannot be durably written."""
 
@@ -207,6 +222,7 @@ class Schwab(Broker):
         logger.debug(f"SCHWAB_BACKEND_CALLBACK_URL (final): {schwab_backend_redirect_uri}")
         logger.debug(f"SCHWAB_TOKEN (env/config): {'<set>' if token_payload_env else '<not set>'}")
         logger.debug("==== [END Schwab Broker Initialization] ====")
+        external_token_refresh = is_external_oauth_refresh_mode(config)
 
         # Determine where to store the Schwab token file.
         # Priority:
@@ -253,7 +269,12 @@ class Schwab(Broker):
             logger.info(f"[Schwab] Existing token file found at {token_path}. Validating...")
             try:
                 SchwabHelper._ensure_token_metadata(token_path)
-                if SchwabHelper._is_token_valid_for_schwab_py(token_path):
+                token_file_valid = (
+                    _is_external_schwab_token_file_valid(token_path)
+                    if external_token_refresh
+                    else SchwabHelper._is_token_valid_for_schwab_py(token_path)
+                )
+                if token_file_valid:
                     token_available_and_valid = True
                     logger.info(f"[Schwab] Existing token file {token_path} is valid after metadata check.")
                 else:
@@ -381,7 +402,6 @@ class Schwab(Broker):
 
             #add expires_at to token_dict_for_session. This is needed for the auto_refresh to work. Otherwise oauth2session always thinks it expires 30min from startup
             token_dict_for_session['expires_at'] = int(token_dict_for_session['issued_at']/1000 + (token_dict_for_session['expires_in']) - 30) #30 second buffer
-            external_token_refresh = is_external_oauth_refresh_mode(config)
 
             if external_token_refresh:
                 oauth_session = _OAS(client_id=api_key, token=token_dict_for_session)

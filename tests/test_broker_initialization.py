@@ -200,11 +200,8 @@ def test_schwab_force_refresh_fails_if_token_file_cannot_be_rewritten(monkeypatc
                 "creation_timestamp": 1,
                 "token": {
                     "access_token": "old-access",
-                    "refresh_token": "old-refresh",
                     "issued_at": int(time.time() * 1000),
                     "expires_in": 1800,
-                    "refresh_token_issued_at": int(time.time() * 1000),
-                    "refresh_token_expires_in": 7776000,
                     "token_type": "Bearer",
                     "scope": "api",
                 },
@@ -276,11 +273,8 @@ def test_schwab_external_oauth_refresh_mode_skips_forced_refresh_and_uses_extern
                 "creation_timestamp": 1,
                 "token": {
                     "access_token": "old-access",
-                    "refresh_token": "old-refresh",
                     "issued_at": int(time.time() * 1000),
                     "expires_in": 1800,
-                    "refresh_token_issued_at": int(time.time() * 1000),
-                    "refresh_token_expires_in": 7776000,
                     "token_type": "Bearer",
                     "scope": "api",
                 },
@@ -339,9 +333,11 @@ def test_schwab_external_oauth_refresh_mode_skips_forced_refresh_and_uses_extern
     )
 
     assert broker.client.session.kwargs == {}
+    assert broker.client.session.token["access_token"] == "old-access"
+    assert "refresh_token" not in broker.client.session.token
     rewritten = json.loads(token_path.read_text(encoding="utf-8"))
     assert rewritten["token"]["access_token"] == "old-access"
-    assert rewritten["token"]["refresh_token"] == "old-refresh"
+    assert "refresh_token" not in rewritten["token"]
 
 
 def test_schwab_rejects_invalid_oauth_refresh_mode(monkeypatch, tmp_path):
@@ -373,7 +369,7 @@ def test_schwab_rejects_invalid_oauth_refresh_mode(monkeypatch, tmp_path):
     monkeypatch.setattr(requests_oauthlib, "OAuth2Session", lambda *args, **kwargs: None)
     monkeypatch.setattr(broker_module.Broker, "_start_orders_thread", lambda self: None)
 
-    with pytest.raises(ConnectionError, match="Failed to initialize Schwab client"):
+    with pytest.raises(ValueError, match="LUMIBOT_OAUTH_REFRESH_MODE"):
         schwab_module.Schwab(
             config={
                 "SCHWAB_ACCOUNT_NUMBER": "5678",

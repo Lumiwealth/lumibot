@@ -225,6 +225,10 @@ Token Life-cycle & Auto-refresh
 * The refreshed token is written back to `token.json`; it rolls the 7-day window
   forward.  As long as the bot is running (or restarted at least once a week)
   you never need to log in again.
+* In managed environments where a trusted parent process owns broker OAuth
+  refresh, set ``LUMIBOT_OAUTH_REFRESH_MODE=external``. In that mode LumiBot does
+  not call the Schwab OAuth refresh endpoint; it reloads the configured token file
+  when the parent atomically replaces it.
 * Only if the service is **offline for >7 days** will the refresh-token expire.
   In that case repeat the browser login once and redeploy the new payload or
   token file.

@@ -71,6 +71,11 @@ point LumiBot at the provider token file:
    TRADIER_OAUTH_CLIENT_ID=your_oauth_client_id
    TRADIER_OAUTH_CLIENT_SECRET=your_oauth_client_secret
 
+Use ``LUMIBOT_OAUTH_REFRESH_MODE=external`` only when a trusted parent process
+owns OAuth refresh and atomically replaces ``TRADIER_TOKEN_PATH``. In the default
+``auto`` mode, LumiBot may call Tradier's OAuth refresh endpoint and write the
+rotated provider token payload back to the token file.
+
 ``TRADIER_ACCESS_TOKEN`` remains supported for manual API-token users. The token
 file path is for OAuth flows that need refresh-token durability.
 

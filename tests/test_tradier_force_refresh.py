@@ -207,7 +207,7 @@ def test_oauth_force_refresh_failure_raises(monkeypatch):
         )
 
 
-def test_oauth_force_refresh_is_skipped_when_lumibot_token_refresh_disabled(monkeypatch, tmp_path):
+def test_oauth_force_refresh_is_skipped_when_oauth_refresh_mode_external(monkeypatch, tmp_path):
     token_path = tmp_path / "tradier_token.json"
     token_path.write_text(
         json.dumps(
@@ -225,7 +225,7 @@ def test_oauth_force_refresh_is_skipped_when_lumibot_token_refresh_disabled(monk
     monkeypatch.setenv("TRADIER_OAUTH_CLIENT_ID", "cid")
     monkeypatch.setenv("TRADIER_OAUTH_CLIENT_SECRET", "secret")
     monkeypatch.setenv("BOTSPOT_FORCE_BROKER_TOKEN_REFRESH", "true")
-    monkeypatch.setenv("LUMIBOT_DISABLE_TOKEN_REFRESH", "true")
+    monkeypatch.setenv("LUMIBOT_OAUTH_REFRESH_MODE", "external")
     monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://127.0.0.1:1")
     monkeypatch.setenv("DATADOWNLOADER_API_KEY", "test")
 
@@ -234,7 +234,7 @@ def test_oauth_force_refresh_is_skipped_when_lumibot_token_refresh_disabled(monk
     monkeypatch.setattr(
         tradier_module.requests,
         "post",
-        lambda *args, **kwargs: pytest.fail("Disabled token refresh must not call Tradier refresh endpoint"),
+        lambda *args, **kwargs: pytest.fail("External OAuth refresh mode must not call Tradier refresh endpoint"),
     )
 
     broker = Tradier(
@@ -246,6 +246,18 @@ def test_oauth_force_refresh_is_skipped_when_lumibot_token_refresh_disabled(monk
     rewritten = json.loads(token_path.read_text(encoding="utf-8"))
     assert rewritten["access_token"] == "old-access"
     assert rewritten["refresh_token"] == "old-refresh"
+
+
+def test_rejects_invalid_oauth_refresh_mode(monkeypatch):
+    monkeypatch.setenv("LUMIBOT_OAUTH_REFRESH_MODE", "disabled")
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://127.0.0.1:1")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "test")
+
+    with pytest.raises(ValueError, match="LUMIBOT_OAUTH_REFRESH_MODE"):
+        Tradier(
+            config={"ACCESS_TOKEN": "access", "ACCOUNT_NUMBER": "1234", "PAPER": True},
+            connect_stream=False,
+        )
 
 
 def test_force_refresh_is_noop_for_api_token_mode(monkeypatch):

@@ -2,6 +2,18 @@
 
 ## 4.5.63 - Unreleased
 
+### Added
+- **Schwab and Tradier OAuth token files now support explicit external refresh mode.** Set
+  `LUMIBOT_OAUTH_REFRESH_MODE=external` when a trusted parent process refreshes
+  broker OAuth tokens and atomically replaces the provider token file. The default
+  `auto` mode keeps self-hosted LumiBot behavior where LumiBot may call the broker
+  OAuth refresh endpoint and write the refreshed provider token file itself.
+
+### Tests
+- **OAuth refresh-mode tests now pin the managed-runtime contract.** Schwab and
+  Tradier tests assert external mode skips forced provider refresh calls and
+  reloads externally replaced token files, while invalid mode values fail loudly.
+
 ## 4.5.62 - 2026-06-25
 
 Deploy marker: `deploy 4.5.62`

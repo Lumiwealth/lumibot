@@ -68,7 +68,7 @@ def test_oauth_refresh_hook_does_not_retry_non_auth_error():
     assert refresh_calls == [False]
 
 
-def test_disabled_oauth_refresh_reloads_token_file_and_retries_auth_error(tmp_path):
+def test_external_oauth_refresh_mode_reloads_token_file_and_retries_auth_error(tmp_path):
     token_path = tmp_path / "tradier_token.json"
     token_path.write_text(
         json.dumps(
@@ -110,7 +110,7 @@ def test_disabled_oauth_refresh_reloads_token_file_and_retries_auth_error(tmp_pa
 
     broker = Tradier.__new__(Tradier)
     broker._oauth_token_payload_b64 = "present"
-    broker._disable_token_refresh = True
+    broker._oauth_refresh_mode = "external"
     broker._oauth_token_path = str(token_path)
     broker._oauth_token_path_signature = broker._oauth_token_file_signature()
     broker._oauth_refresh_token = "old-refresh"
@@ -120,7 +120,7 @@ def test_disabled_oauth_refresh_reloads_token_file_and_retries_auth_error(tmp_pa
     broker.data_source = None
 
     def fail_refresh(*, force=False):
-        raise AssertionError("Disabled token refresh must not call provider refresh")
+        raise AssertionError("External OAuth refresh mode must not call provider refresh")
 
     broker._refresh_oauth_token = fail_refresh
 

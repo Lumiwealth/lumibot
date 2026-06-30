@@ -24,6 +24,7 @@ from lumibot.entities import Asset, CashEvent, Order, Position
 from lumibot.tools.helpers import create_options_symbol
 from lumibot.tools.lumibot_logger import get_logger
 from lumibot.trading_builtins import PollingStream
+from .oauth_refresh_mode import OAUTH_REFRESH_MODE_EXTERNAL, get_oauth_refresh_mode
 
 logger = get_logger(__name__)
 
@@ -36,15 +37,6 @@ def _botspot_force_broker_token_refresh() -> bool:
         "y",
         "on",
     }
-
-
-def _lumibot_disable_token_refresh(config=None) -> bool:
-    value = None
-    if isinstance(config, dict):
-        value = config.get("LUMIBOT_DISABLE_TOKEN_REFRESH")
-    if value is None:
-        value = os.environ.get("LUMIBOT_DISABLE_TOKEN_REFRESH")
-    return str(value or "").strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
 class TradierTokenPersistenceError(RuntimeError):
@@ -276,7 +268,7 @@ class Tradier(Broker):
         """Refresh Tradier OAuth token if possible. Returns True on successful refresh."""
         if not self._oauth_enabled():
             return False
-        if getattr(self, "_disable_token_refresh", False):
+        if getattr(self, "_oauth_refresh_mode", None) == OAUTH_REFRESH_MODE_EXTERNAL:
             return False
         if not force and not self._oauth_token_needs_refresh():
             return False
@@ -366,7 +358,7 @@ class Tradier(Broker):
                 return
 
             def request_with_refresh(*args, **kwargs):
-                if getattr(self, "_disable_token_refresh", False):
+                if getattr(self, "_oauth_refresh_mode", None) == OAUTH_REFRESH_MODE_EXTERNAL:
                     self._reload_oauth_token_from_path_if_changed()
                 else:
                     # Proactively refresh if near expiry.
@@ -376,7 +368,7 @@ class Tradier(Broker):
                 except Exception as e:
                     if not self._is_auth_error(e):
                         raise
-                    if getattr(self, "_disable_token_refresh", False):
+                    if getattr(self, "_oauth_refresh_mode", None) == OAUTH_REFRESH_MODE_EXTERNAL:
                         if self._reload_oauth_token_from_path_if_changed():
                             return orig_request(*args, **kwargs)
                     # Retry once on auth errors after forcing a refresh.
@@ -450,7 +442,7 @@ class Tradier(Broker):
         self._oauth_token_expires_at = None  # epoch seconds
         self._oauth_token_path = None
         self._oauth_token_path_signature = None
-        self._disable_token_refresh = _lumibot_disable_token_refresh(config)
+        self._oauth_refresh_mode = get_oauth_refresh_mode(config)
 
         payload_b64 = None
         try:
@@ -525,7 +517,7 @@ class Tradier(Broker):
         force_token_refresh = _botspot_force_broker_token_refresh()
         if self._oauth_enabled():
             refreshed = self._refresh_oauth_token(force=force_token_refresh)
-            if force_token_refresh and not self._disable_token_refresh and not refreshed:
+            if force_token_refresh and self._oauth_refresh_mode != OAUTH_REFRESH_MODE_EXTERNAL and not refreshed:
                 raise RuntimeError("[Tradier] Forced OAuth token refresh failed for BotSpot snapshot runtime.")
 
         # Create the Tradier object

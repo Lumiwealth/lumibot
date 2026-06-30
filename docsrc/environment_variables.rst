@@ -403,6 +403,20 @@ TRADIER_TOKEN_PATH
   token payload back to this file atomically. If the file cannot be written,
   refresh fails instead of silently continuing with only in-memory token state.
 
+LUMIBOT_OAUTH_REFRESH_MODE
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Controls who calls the broker OAuth refresh endpoint for Schwab and
+  Tradier token-file integrations.
+- Values:
+  - ``auto`` (default): LumiBot may refresh the provider OAuth token and write the
+    updated token payload back to the configured token file.
+  - ``external``: LumiBot does not call the provider OAuth refresh endpoint. A
+    trusted parent process must atomically replace the configured token file, and
+    LumiBot reloads it before broker requests and after auth failures.
+- Note: Use ``external`` only when another trusted process owns refresh-token
+  handling. The token file still needs a valid access token for broker API calls.
+
 TRADIER_ACCOUNT_NUMBER
 ^^^^^^^^^^^^^^^^^^^^^^
 

@@ -109,6 +109,21 @@ class _ReplaceClient:
         return self.response
 
 
+class _PlaceClient:
+    def __init__(self):
+        self.place_calls = []
+
+    def place_order(self, account_hash, order_spec):
+        self.place_calls.append((account_hash, order_spec))
+        return SimpleNamespace(
+            status_code=201,
+            headers={
+                "Location": "https://api.schwabapi.com/trader/v1/accounts/hash/orders/submitted-123",
+            },
+            text="",
+        )
+
+
 class _Stream:
     def __init__(self):
         self.dispatched = []
@@ -391,6 +406,41 @@ def test_schwab_option_replacement_uses_option_builder_and_updates_identifier():
     assert order.previous_identifiers == ["order-123"]
     assert order.identifier == "replacement-456"
     assert order.limit_price == 4.75
+
+
+def test_schwab_stock_submit_uses_seamless_session():
+    client = _PlaceClient()
+    stream = _Stream()
+    broker = Schwab.__new__(Schwab)
+    broker.name = "Schwab"
+    broker.schwab_authorization_error = False
+    broker.client = client
+    broker.hash_value = "account-hash"
+    broker.stream = stream
+    broker._unprocessed_orders = SafeList(RLock())
+    order = _stock_limit_order(side=Order.OrderSide.BUY, limit_price=10.0)
+
+    submitted = broker._submit_order(order)
+
+    assert submitted is order
+    assert client.place_calls[0][0] == "account-hash"
+    order_spec = client.place_calls[0][1]
+    assert order_spec["session"] == "SEAMLESS"
+    assert order_spec["duration"] == "DAY"
+    assert order.identifier == "submitted-123"
+    assert stream.dispatched[-1][0] == broker.NEW_ORDER
+
+
+def test_schwab_stock_replacement_spec_uses_seamless_session():
+    broker = Schwab.__new__(Schwab)
+    broker.name = "Schwab"
+    order = _stock_limit_order(side=Order.OrderSide.SELL, limit_price=20.0)
+
+    order_spec = broker._prepare_stock_order_spec(order, limit_price=19.5)
+
+    assert order_spec["session"] == "SEAMLESS"
+    assert order_spec["duration"] == "DAY"
+    assert order_spec["price"] in {"19.50", "19.5000"}
 
 
 def test_schwab_prepare_oto_order_builder_builds_trigger_with_cross_asset_child():

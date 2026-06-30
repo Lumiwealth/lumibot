@@ -7,9 +7,6 @@ import time
 import pytest
 from unittest.mock import patch, MagicMock
 
-from lumibot.strategies import Strategy
-from lumibot.entities import Asset
-
 
 class TestBrokerInitializationSimple:
     """Test cases for broker initialization and error handling."""
@@ -20,6 +17,8 @@ class TestBrokerInitializationSimple:
         that explains how to set up environment variables.
         """
         # Mock both the credentials imports in the strategy module
+        from lumibot.strategies import Strategy
+
         with patch('lumibot.strategies._strategy.BROKER', None):
             with patch('lumibot.credentials.IS_BACKTESTING', False):
                 # Create a minimal strategy class for testing
@@ -55,6 +54,8 @@ class TestBrokerInitializationSimple:
         mock_broker.data_source = MagicMock()
         mock_broker.data_source.datetime_start = None
         mock_broker.data_source.datetime_end = None
+
+        from lumibot.strategies import Strategy
         
         # Create a minimal strategy class for testing
         class TestStrategy(Strategy):
@@ -82,6 +83,8 @@ def test_schwab_force_refresh_on_startup_rewrites_token(monkeypatch, tmp_path):
     from lumibot.brokers import schwab as schwab_module
     import requests_oauthlib
 
+    old_issued_at = 1_700_000_000_000
+    refreshed_now = 1_782_800_000.123
     token_path = tmp_path / "schwab_token.json"
     token_path.write_text(
         json.dumps(
@@ -90,9 +93,9 @@ def test_schwab_force_refresh_on_startup_rewrites_token(monkeypatch, tmp_path):
                 "token": {
                     "access_token": "old-access",
                     "refresh_token": "old-refresh",
-                    "issued_at": int(time.time() * 1000),
+                    "issued_at": old_issued_at,
                     "expires_in": 1800,
-                    "refresh_token_issued_at": int(time.time() * 1000),
+                    "refresh_token_issued_at": old_issued_at,
                     "refresh_token_expires_in": 7776000,
                     "token_type": "Bearer",
                     "scope": "api",
@@ -138,7 +141,6 @@ def test_schwab_force_refresh_on_startup_rewrites_token(monkeypatch, tmp_path):
                 "access_token": "new-access",
                 "refresh_token": "new-refresh",
                 "expires_in": 1800,
-                "issued_at": int(time.time() * 1000),
             }
 
     class _AccountResponse:
@@ -162,6 +164,7 @@ def test_schwab_force_refresh_on_startup_rewrites_token(monkeypatch, tmp_path):
     monkeypatch.setattr(broker_module.Broker, "_start_orders_thread", lambda self: None)
     monkeypatch.setattr(schwab_module.Schwab, "_finish_initialization", lambda self, *args, **kwargs: None)
     monkeypatch.setattr(schwab_module.Schwab, "_get_stream_object", lambda self: None)
+    monkeypatch.setattr(schwab_module.time, "time", lambda: refreshed_now)
 
     broker = schwab_module.Schwab(
         config={
@@ -183,6 +186,7 @@ def test_schwab_force_refresh_on_startup_rewrites_token(monkeypatch, tmp_path):
     assert rewritten["creation_timestamp"] == 1
     assert rewritten["token"]["access_token"] == "new-access"
     assert rewritten["token"]["refresh_token"] == "new-refresh"
+    assert rewritten["token"]["issued_at"] == int(refreshed_now * 1000)
 
 
 def test_schwab_force_refresh_fails_if_token_file_cannot_be_rewritten(monkeypatch, tmp_path):
@@ -259,3 +263,121 @@ def test_schwab_force_refresh_fails_if_token_file_cannot_be_rewritten(monkeypatc
     preserved = json.loads(token_path.read_text(encoding="utf-8"))
     assert preserved["token"]["access_token"] == "old-access"
     assert preserved["token"]["refresh_token"] == "old-refresh"
+
+
+def test_schwab_external_oauth_refresh_mode_skips_forced_refresh_and_uses_external_file(monkeypatch, tmp_path):
+    from lumibot.brokers import broker as broker_module
+    from lumibot.brokers import schwab as schwab_module
+    import requests_oauthlib
+
+    token_path = tmp_path / "schwab_token.json"
+    token_path.write_text(
+        json.dumps(
+            {
+                "creation_timestamp": 1,
+                "token": {
+                    "access_token": "old-access",
+                    "issued_at": int(time.time() * 1000),
+                    "expires_in": 1800,
+                    "token_type": "Bearer",
+                    "scope": "api",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _OAuth2Session:
+        def __init__(self, *, client_id, token, **kwargs):
+            self.client_id = client_id
+            self.token = token
+            self.kwargs = kwargs
+            self.request_calls = 0
+
+        def register_compliance_hook(self, hook_type, hook):
+            pytest.fail("External OAuth refresh mode must not install provider refresh hooks")
+
+        def refresh_token(self, *args, **kwargs):
+            pytest.fail("External OAuth refresh mode must not call Schwab refresh_token")
+
+        def request(self, *args, **kwargs):
+            self.request_calls += 1
+            return type("Response", (), {"status_code": 200})()
+
+    class _AccountResponse:
+        status_code = 200
+
+        def json(self):
+            return [{"accountNumber": "12345678", "hashValue": "hash-123"}]
+
+    class _Client:
+        def __init__(self, *, api_key, session):
+            self.api_key = api_key
+            self.session = session
+
+        def get_account_numbers(self):
+            return _AccountResponse()
+
+    monkeypatch.setenv("BOTSPOT_FORCE_BROKER_TOKEN_REFRESH", "true")
+    monkeypatch.setenv("LUMIBOT_OAUTH_REFRESH_MODE", "external")
+    monkeypatch.setenv("SCHWAB_APP_SECRET", "secret")
+    monkeypatch.setattr(requests_oauthlib, "OAuth2Session", _OAuth2Session)
+    monkeypatch.setattr(schwab_module, "Client", _Client)
+    monkeypatch.setattr(broker_module.Broker, "_start_orders_thread", lambda self: None)
+    monkeypatch.setattr(schwab_module.Schwab, "_finish_initialization", lambda self, *args, **kwargs: None)
+    monkeypatch.setattr(schwab_module.Schwab, "_get_stream_object", lambda self: None)
+
+    broker = schwab_module.Schwab(
+        config={
+            "SCHWAB_ACCOUNT_NUMBER": "5678",
+            "SCHWAB_APP_KEY": "app-key",
+            "SCHWAB_APP_SECRET": "secret",
+            "SCHWAB_TOKEN_PATH": str(token_path),
+        }
+    )
+
+    assert broker.client.session.kwargs == {}
+    assert broker.client.session.token["access_token"] == "old-access"
+    assert "refresh_token" not in broker.client.session.token
+    rewritten = json.loads(token_path.read_text(encoding="utf-8"))
+    assert rewritten["token"]["access_token"] == "old-access"
+    assert "refresh_token" not in rewritten["token"]
+
+
+def test_schwab_rejects_invalid_oauth_refresh_mode(monkeypatch, tmp_path):
+    from lumibot.brokers import broker as broker_module
+    from lumibot.brokers import schwab as schwab_module
+    import requests_oauthlib
+
+    token_path = tmp_path / "schwab_token.json"
+    token_path.write_text(
+        json.dumps(
+            {
+                "creation_timestamp": 1,
+                "token": {
+                    "access_token": "old-access",
+                    "refresh_token": "old-refresh",
+                    "issued_at": int(time.time() * 1000),
+                    "expires_in": 1800,
+                    "refresh_token_issued_at": int(time.time() * 1000),
+                    "refresh_token_expires_in": 7776000,
+                    "token_type": "Bearer",
+                    "scope": "api",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("LUMIBOT_OAUTH_REFRESH_MODE", "disabled")
+    monkeypatch.setattr(requests_oauthlib, "OAuth2Session", lambda *args, **kwargs: None)
+    monkeypatch.setattr(broker_module.Broker, "_start_orders_thread", lambda self: None)
+
+    with pytest.raises(ValueError, match="LUMIBOT_OAUTH_REFRESH_MODE"):
+        schwab_module.Schwab(
+            config={
+                "SCHWAB_ACCOUNT_NUMBER": "5678",
+                "SCHWAB_APP_KEY": "app-key",
+                "SCHWAB_TOKEN_PATH": str(token_path),
+            }
+        )

@@ -28,6 +28,7 @@ from pathlib import Path
 
 from lumibot.tools import SchwabHelper
 from lumibot.trading_builtins import PollingStream
+from .oauth_refresh_mode import is_external_oauth_refresh_mode
 
 # ---- Lumiwealth default Schwab app configuration ----
 LUMI_DEFAULT_APP_KEY = "RfUVxotUc8p6CbeCwFmophgNZSat0TLv"
@@ -42,6 +43,21 @@ def _botspot_force_broker_token_refresh() -> bool:
         "y",
         "on",
     }
+
+
+def _is_external_schwab_token_file_valid(token_path: Path) -> bool:
+    if not token_path.exists():
+        return False
+    try:
+        with token_path.open("r", encoding="utf-8") as fp:
+            payload = json.load(fp)
+        token = payload.get("token") if isinstance(payload.get("token"), dict) else payload
+        if not isinstance(token, dict):
+            return False
+        return bool(token.get("access_token"))
+    except Exception as exc:
+        logger.warning(f"[Schwab] Failed to validate externally managed token file {token_path}: {exc}")
+        return False
 
 
 class SchwabTokenPersistenceError(RuntimeError):
@@ -206,6 +222,7 @@ class Schwab(Broker):
         logger.debug(f"SCHWAB_BACKEND_CALLBACK_URL (final): {schwab_backend_redirect_uri}")
         logger.debug(f"SCHWAB_TOKEN (env/config): {'<set>' if token_payload_env else '<not set>'}")
         logger.debug("==== [END Schwab Broker Initialization] ====")
+        external_token_refresh = is_external_oauth_refresh_mode(config)
 
         # Determine where to store the Schwab token file.
         # Priority:
@@ -252,7 +269,12 @@ class Schwab(Broker):
             logger.info(f"[Schwab] Existing token file found at {token_path}. Validating...")
             try:
                 SchwabHelper._ensure_token_metadata(token_path)
-                if SchwabHelper._is_token_valid_for_schwab_py(token_path):
+                token_file_valid = (
+                    _is_external_schwab_token_file_valid(token_path)
+                    if external_token_refresh
+                    else SchwabHelper._is_token_valid_for_schwab_py(token_path)
+                )
+                if token_file_valid:
                     token_available_and_valid = True
                     logger.info(f"[Schwab] Existing token file {token_path} is valid after metadata check.")
                 else:
@@ -294,6 +316,28 @@ class Schwab(Broker):
             token_dict_for_session = wrapped_token_data.get('token')
             if not token_dict_for_session or 'access_token' not in token_dict_for_session:
                 raise ValueError("Token file is missing the 'token' object or 'access_token' within it.")
+            token_file_state = {"signature": None}
+
+            def _token_file_signature():
+                stat = token_path.stat()
+                return (stat.st_mtime_ns, stat.st_size)
+
+            def _load_token_file_for_session():
+                with open(token_path, encoding="utf-8") as fp:
+                    latest_wrapped = json.load(fp)
+                latest_token = latest_wrapped.get("token") if isinstance(latest_wrapped, dict) else latest_wrapped
+                if not isinstance(latest_token, dict) or not latest_token.get("access_token"):
+                    raise ValueError("Token file is missing a usable access_token.")
+                if not latest_token.get("refresh_token") and token_dict_for_session.get("refresh_token"):
+                    latest_token["refresh_token"] = token_dict_for_session["refresh_token"]
+                if latest_token.get("issued_at") and latest_token.get("expires_in"):
+                    latest_token["expires_at"] = int(
+                        int(latest_token["issued_at"]) / 1000 + int(float(latest_token["expires_in"])) - 30
+                    )
+                token_dict_for_session.clear()
+                token_dict_for_session.update(latest_token)
+                token_file_state["signature"] = _token_file_signature()
+                return token_dict_for_session
 
             # Build an OAuth2Session that can automatically refresh the Schwab token.
             from requests_oauthlib import OAuth2Session as _OAS
@@ -309,6 +353,8 @@ class Schwab(Broker):
                     if not next_token.get("refresh_token") and token_dict_for_session.get("refresh_token"):
                         next_token["refresh_token"] = token_dict_for_session["refresh_token"]
                     now_ms = int(time.time() * 1000)
+                    if updated_token.get("access_token") and not updated_token.get("issued_at"):
+                        next_token["issued_at"] = now_ms
                     next_token.setdefault("issued_at", now_ms)
                     next_token.setdefault("refresh_token_issued_at", token_dict_for_session.get("refresh_token_issued_at", now_ms))
                     next_token.setdefault("expires_in", token_dict_for_session.get("expires_in", 1800))
@@ -356,16 +402,20 @@ class Schwab(Broker):
 
             #add expires_at to token_dict_for_session. This is needed for the auto_refresh to work. Otherwise oauth2session always thinks it expires 30min from startup
             token_dict_for_session['expires_at'] = int(token_dict_for_session['issued_at']/1000 + (token_dict_for_session['expires_in']) - 30) #30 second buffer
-            
-            oauth_session = _OAS(
-                client_id=api_key,
-                token=token_dict_for_session,
-                auto_refresh_url="https://api.schwabapi.com/v1/oauth/token",
-                auto_refresh_kwargs=refresh_kwargs,
-                token_updater=_update_token,
-            )
 
-            if api_key and client_secret_env:
+            if external_token_refresh:
+                oauth_session = _OAS(client_id=api_key, token=token_dict_for_session)
+            else:
+                oauth_session = _OAS(
+                    client_id=api_key,
+                    token=token_dict_for_session,
+                    auto_refresh_url="https://api.schwabapi.com/v1/oauth/token",
+                    auto_refresh_kwargs=refresh_kwargs,
+                    token_updater=_update_token,
+                )
+            token_file_state["signature"] = _token_file_signature()
+
+            if api_key and client_secret_env and not external_token_refresh:
                 def _refresh_token_hook(token_url, headers, body):
                     headers['Authorization'] = f"Basic {base64.b64encode(f'{api_key}:{client_secret_env}'.encode()).decode()}"
                     logger.info(f"[Schwab] Refreshing token with auth headers")
@@ -374,7 +424,42 @@ class Schwab(Broker):
                 #create refresh hook. This is beacuse oa2session does not perform refreshes with auth headers, only with json bodies. 
                 oauth_session.register_compliance_hook("refresh_token_request", _refresh_token_hook)
 
-            if _botspot_force_broker_token_refresh():
+            if external_token_refresh:
+                original_request = oauth_session.request
+
+                def _reload_if_token_file_changed():
+                    try:
+                        current_signature = _token_file_signature()
+                    except Exception:
+                        return False
+                    if current_signature == token_file_state.get("signature"):
+                        return False
+                    try:
+                        _load_token_file_for_session()
+                        oauth_session.token = token_dict_for_session
+                        logger.info(f"[Schwab] Reloaded externally managed token file from {token_path}")
+                        return True
+                    except Exception as reload_error:
+                        logger.warning(f"[Schwab] Failed to reload externally managed token file: {reload_error}")
+                        return False
+
+                def _request_with_external_token_reload(*args, **kwargs):
+                    _reload_if_token_file_changed()
+                    try:
+                        response = original_request(*args, **kwargs)
+                    except Exception as request_error:
+                        if request_error.__class__.__name__ == "TokenExpiredError" and _reload_if_token_file_changed():
+                            return original_request(*args, **kwargs)
+                        raise
+                    status_code = getattr(response, "status_code", None)
+                    if status_code in {401, 403} and _reload_if_token_file_changed():
+                        return original_request(*args, **kwargs)
+                    return response
+
+                oauth_session.request = _request_with_external_token_reload
+                logger.info("[Schwab] OAuth refresh mode is external; using externally managed SCHWAB_TOKEN_PATH reloads.")
+
+            if _botspot_force_broker_token_refresh() and not external_token_refresh:
                 refresh_token_value = token_dict_for_session.get("refresh_token")
                 if not refresh_token_value:
                     raise ConnectionError("[Schwab] Forced token refresh requires a refresh_token.")
@@ -1508,6 +1593,7 @@ class Schwab(Broker):
                 order_builder,
                 order.time_in_force,
                 apply_defaults=order.order_class is not Order.OrderClass.OCO,
+                session=self._schwab_session_for_order(order),
             )
             if not order_spec:
                 return None
@@ -1970,7 +2056,20 @@ class Schwab(Broker):
             logger.error(traceback.format_exc())
             return None
 
-    def _build_order_spec_from_builder(self, order_builder, time_in_force=None, apply_defaults=True):
+    def _schwab_session_for_order(self, order):
+        """Return the Schwab session to use for an order."""
+        try:
+            from schwab.orders.common import Session
+        except ImportError:
+            logger.error(colored("Failed to import Schwab order enums. Make sure the schwab-py library is installed.", "red"))
+            return None
+
+        if order and getattr(order, "asset", None) and order.asset.asset_type == Asset.AssetType.STOCK:
+            return Session.SEAMLESS
+
+        return Session.NORMAL
+
+    def _build_order_spec_from_builder(self, order_builder, time_in_force=None, apply_defaults=True, session=None):
         """Apply Schwab defaults and return the final API order spec."""
         if not order_builder:
             return None
@@ -1993,7 +2092,7 @@ class Schwab(Broker):
                 elif tif == "cls":
                     order_builder = order_builder.set_duration(Duration.ON_THE_CLOSE)
 
-                order_builder = order_builder.set_session(Session.NORMAL)
+                order_builder = order_builder.set_session(session or Session.NORMAL)
             order_spec = order_builder.build()
 
             if "order_spec" in order_spec:
@@ -2051,7 +2150,11 @@ class Schwab(Broker):
                 equity_buy_to_cover_market,
                 equity_buy_to_cover_limit,
             )
-            return self._build_order_spec_from_builder(order_builder, order.time_in_force)
+            return self._build_order_spec_from_builder(
+                order_builder,
+                order.time_in_force,
+                session=self._schwab_session_for_order(order),
+            )
         finally:
             order.limit_price = original_limit_price
             order.stop_price = original_stop_price
@@ -2105,7 +2208,11 @@ class Schwab(Broker):
                 option_sell_to_close_limit,
                 OptionSymbol,
             )
-            return self._build_order_spec_from_builder(order_builder, order.time_in_force)
+            return self._build_order_spec_from_builder(
+                order_builder,
+                order.time_in_force,
+                session=self._schwab_session_for_order(order),
+            )
         finally:
             order.limit_price = original_limit_price
             order.stop_price = original_stop_price

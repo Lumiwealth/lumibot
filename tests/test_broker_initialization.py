@@ -201,8 +201,11 @@ def test_schwab_force_refresh_fails_if_token_file_cannot_be_rewritten(monkeypatc
                 "creation_timestamp": 1,
                 "token": {
                     "access_token": "old-access",
+                    "refresh_token": "old-refresh",
                     "issued_at": int(time.time() * 1000),
                     "expires_in": 1800,
+                    "refresh_token_issued_at": int(time.time() * 1000),
+                    "refresh_token_expires_in": 7776000,
                     "token_type": "Bearer",
                     "scope": "api",
                 },

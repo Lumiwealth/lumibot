@@ -90,6 +90,140 @@ For Polymarket, the first production-quality design should include:
 
 The CLOB SDK currently exposes async realtime stream subscriptions, so `PolymarketCLOBStream` should own an asyncio loop in a background thread and dispatch normalized events into LumiBot's existing `CustomStream` action queue. US WebSockets are also documented as async-only and provide separate private and market streams, so `PolymarketUSStream` should use the same LumiBot stream pattern but remain a separate provider implementation.
 
+## 2026-07-01 Chosen Blueprint: International CLOB First
+
+Scope decision after follow-up discussion: build only the international `polymarket.com` CLOB adapter first. Polymarket US should be a later, separate broker adapter after US access is available. Starting with CLOB should still make US easier later because it establishes LumiBot's prediction-contract asset semantics, test fixtures, stream event normalization pattern, and order/position/account-value expectations, but the US API should not be treated as the same implementation.
+
+### Build Order
+
+1. Credential/login proof.
+2. Minimal `prediction_contract` asset plumbing.
+3. CLOB data source skeleton and required method implementations.
+4. CLOB broker skeleton and required method implementations.
+5. Account-value, positions, and orders read path.
+6. Market-order submit path with explicit Polymarket `custom_params` for BUY notional and slippage protection.
+7. Limit-order and cancel path.
+8. WebSocket market/user streams wired into LumiBot order events.
+9. Broader tests, examples, and documentation.
+
+### Credential/Login Proof
+
+The first proof should not be a trade. It should prove that the local LumiBot process can authenticate and read account state.
+
+Expected local secret fields:
+
+- `POLYMARKET_PRIVATE_KEY`: wallet or session signer key used to create/derive CLOB API credentials and sign orders.
+- `POLYMARKET_WALLET_ADDRESS`: deposit wallet/proxy/safe/funder address. For new API users, this is likely the deposit wallet.
+- `POLYMARKET_CLOB_API_KEY`, `POLYMARKET_CLOB_API_SECRET`, `POLYMARKET_CLOB_API_PASSPHRASE`: derived or generated CLOB L2 credentials.
+- `POLYMARKET_RELAYER_API_KEY`, `POLYMARKET_RELAYER_API_KEY_ADDRESS`: only if wallet deployment or approval setup requires relayer auth.
+- Optional `POLYMARKET_BUILDER_CODE`: attribution only, not authentication.
+
+Credential proof sequence:
+
+1. Load secrets from a local `.env`/`.env.local` path, never from committed docs.
+2. Initialize a secure client with private key and wallet address.
+3. Create or derive CLOB API credentials if they are not already stored.
+4. Initialize the authenticated CLOB client with `chain_id=137`, signature type `POLY_1271` for deposit wallets, and funder wallet address.
+5. Read CLOB collateral balance/allowance.
+6. Read portfolio value and positions through the secure unified SDK or Data API.
+7. Read open orders and recent trades.
+8. Stop if any credential, geoblock, approval, or funder mismatch error occurs.
+
+### `PolymarketData`
+
+File: `lumibot/data_sources/polymarket_data.py`
+
+Purpose: public market data and market/contract resolution for international CLOB.
+
+Required methods:
+
+- `get_chains(asset, quote=None)`: return `{}` for now because prediction markets are not option chains. Add a documented prediction-market helper instead of pretending they are chains.
+- `get_historical_prices(asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True, **kwargs)`: call CLOB price history only when a token id is known and the requested interval can map to provider history. Return real `Bars`; raise a clear unsupported error for unavailable bars.
+- `get_last_price(asset, quote=None, exchange=None)`: for a token-id asset, call last-trade price first; fall back to midpoint if explicitly configured.
+- `get_quote(asset, quote=None, exchange=None)`: call order book or best bid/ask, return `Quote(asset, price, bid, ask, bid_size, ask_size, timestamp, raw_data)`.
+
+Provider helper methods:
+
+- `resolve_market(url=None, slug=None, condition_id=None, market_id=None)`: find a market/event and cache condition id, market id, question, slug, end date, outcomes.
+- `resolve_contract(market, outcome=None, token_id=None)`: return the tradable outcome token id and normalized `Asset(asset_type="prediction_contract")`.
+- `get_order_book(token_id)`: CLOB order book snapshot.
+- `get_clob_market_info(condition_id)`: tick size, neg-risk, min order size, fee fields.
+- `get_tick_size(token_id)` and `get_neg_risk(token_id)`: direct cacheable reads.
+- `calculate_market_price(token_id, side, amount, order_type="FOK")`: pre-trade estimate for market-order slippage controls.
+- `subscribe_market(token_ids)`: used by the stream, not by strategy code directly.
+
+### `Polymarket` Broker
+
+File: `lumibot/brokers/polymarket.py`
+
+Purpose: international CLOB live broker. It should inherit from `Broker` and be structured like Alpaca/Tradier: constructor creates/receives a data source, broker methods normalize provider payloads, stream actions dispatch into existing LumiBot order lifecycle methods.
+
+Required methods and implementation intent:
+
+- `__init__(config=None, data_source=None, polling_interval=1.0, connect_stream=True, use_websocket=True)`: build `PolymarketData` if missing, load config, set `market="24/7"`, initialize clients lazily enough that read-only imports do not accidentally place approvals.
+- `_initialize_clients()`: create public, secure, and CLOB clients. Derive/load API credentials. Do not print secrets.
+- `_ensure_trading_ready()`: run idempotent approvals only when trading is about to happen or when explicitly requested, not during every read-only balance call.
+- `_get_balances_at_broker(quote_asset, strategy)`: return `(cash, positions_value, portfolio_value)` using CLOB collateral balance/allowance plus Data API/unified SDK portfolio value.
+- `_pull_positions(strategy)`: call secure `list_positions` or Data API `/positions`, parse each row into `Position(strategy, Asset(token_id, prediction_contract), size, avg_fill_price=avgPrice)` with current price, market value, PnL, outcome, condition id, slug, and raw payload.
+- `_pull_position(strategy, asset)`: filter `_pull_positions` by token id.
+- `_pull_broker_all_orders()`: call open orders endpoint, return raw open orders. Add recent trades in a separate helper for fill reconciliation.
+- `_pull_broker_order(identifier)`: call single order endpoint; if not open, fall back to recent trades by order id when needed.
+- `_parse_broker_order(response, strategy_name, strategy_object=None)`: map CLOB raw order/trade response into `Order`, including token-id asset, side, quantity, order type, time in force, price, matched size, status, create/update timestamps, and raw payload.
+- `_submit_order(order)`: validate `prediction_contract`, side, order type, token id, min order size, tick size, neg risk, and custom market-order params. Dispatch submit through `_submit_market_order` or `_submit_limit_order`.
+- `_submit_market_order(order)`: first trading path. Use Polymarket market order semantics: BUY requires dollar `amount` and optional `max_spend`/max price; SELL requires shares. Values should come from `order.custom_params` so LumiBot's normal `quantity` meaning is not silently changed.
+- `_submit_limit_order(order)`: use limit price and size, map GTC/GTD.
+- `cancel_order(order)`: call provider cancel by order id; do not no-op only because local status says cancelling.
+- `_modify_order(order, limit_price=None, stop_price=None)`: raise unsupported or implement explicit cancel-replace later. Do not fake native modification.
+- `get_historical_account_value()`: return provider history if available later; initially return empty/unsupported like Tradier.
+- `_get_stream_object()`: return `PolymarketCLOBStream` when websockets are enabled, otherwise `PollingStream` only as a fallback.
+- `_register_stream_events()`: register `NEW_ORDER`, `PARTIALLY_FILLED_ORDER`, `FILLED_ORDER`, `CANCELED_ORDER`, `ERROR_ORDER`, plus poll/reconcile event if needed.
+- `_run_stream()`: run stream object.
+- `do_polling()`: fallback/reconcile path: sync positions, pull open orders, compare to tracked orders, query missing tracked orders individually before treating as final.
+
+Status mapping:
+
+- CLOB placement/open -> `SUBMITTED` or `OPEN`.
+- User order update with partial matched size -> `PARTIALLY_FILLED`.
+- Trade `CONFIRMED` or fully matched order -> `FILLED`.
+- Cancellation -> `CANCELED`.
+- Rejected/failed provider response -> `ERROR`.
+- Expired GTD -> `EXPIRED`.
+- Unknown provider status -> `UNKNOWN` on read, explicit exception on submit when the response is not accepted.
+
+### WebSocket Design
+
+File/class: `PolymarketCLOBStream(CustomStream)`
+
+Implementation:
+
+- Own an asyncio event loop in a background thread.
+- Maintain market subscriptions by token id using market channel or SDK `MarketSpec`.
+- Maintain private user subscription using API credentials or SDK `UserSpec`.
+- Dispatch public book/price events into a quote/order-book cache owned by `PolymarketData`.
+- Dispatch private order/trade events into broker stream actions.
+- On reconnect, reread balances, positions, open orders, and order book before trusting local state.
+- Use polling only as startup/reconnect fallback, not the primary source for fills.
+
+Event handling:
+
+- `book`: replace book snapshot for token id.
+- `price_change`: update changed levels; size `0` removes a level.
+- `best_bid_ask`: update quote cache.
+- `tick_size_change`: invalidate tick-size cache.
+- `last_trade_price`: update last price and volume/trade cache.
+- `order` placement/update/cancellation: parse broker order and dispatch new/partial/cancel as appropriate.
+- `trade` matched/mined/confirmed/failed: update fills; dispatch fill only when enough price/quantity detail exists.
+
+### Why Market Orders Can Be First
+
+Polymarket market orders are still signed CLOB orders that execute against resting liquidity using `FOK` or `FAK`. It is reasonable to make market orders the first live trade proof if the implementation makes Polymarket's quantity semantics explicit:
+
+- BUY market order: use `custom_params["amount"]` for dollars to spend and `custom_params["max_spend"]` or max price/slippage protection.
+- SELL market order: use shares, either from `order.quantity` or `custom_params["shares"]`.
+- Default first smoke should be tiny notional, liquid market, FOK or FAK chosen explicitly, with a hard max notional.
+
+Do not silently redefine LumiBot's generic `Order.quantity` as dollars for BUY market orders.
+
 ## Account Surface Finding
 
 ### What Was Verified In Chrome

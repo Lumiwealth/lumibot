@@ -149,6 +149,115 @@ def test_strategy_executor_run_once_runs_one_live_iteration(monkeypatch):
     assert executor.result == {"iterations": 1}
 
 
+def test_strategy_executor_run_once_skips_calendar_for_24_7_market(monkeypatch):
+    def fail_get_trading_days(*args, **kwargs):
+        raise AssertionError("24/7 run_once should not build exchange calendars")
+
+    monkeypatch.setattr("lumibot.strategies.strategy_executor.get_trading_days", fail_get_trading_days)
+    strategy = _DummyStrategy()
+    strategy.broker.market = "24/7"
+    executor = StrategyExecutor(strategy)
+    executor.sync_broker = lambda: None
+
+    assert executor.run_once() is True
+    assert strategy.iterations == 1
+
+
+def test_run_once_empty_parameters_skips_initialize_signature_inspection(monkeypatch):
+    def fail_getfullargspec(*args, **kwargs):
+        raise AssertionError("empty strategy parameters should not inspect initialize signature")
+
+    strategy = _DummyStrategy()
+    strategy.broker.market = "24/7"
+    executor = StrategyExecutor(strategy)
+    executor.sync_broker = lambda: None
+
+    monkeypatch.setattr(strategy_executor_module, "_getfullargspec", fail_getfullargspec)
+
+    assert executor.run_once() is True
+    assert strategy.initialized == 1
+    assert strategy.iterations == 1
+
+
+def test_run_once_no_arg_initialize_with_parameters_skips_signature_inspection(monkeypatch):
+    def fail_getfullargspec(*args, **kwargs):
+        raise AssertionError("plain no-arg initialize should use cheap code arg scan")
+
+    strategy = _DummyStrategy()
+    strategy.parameters = {"portfolio": [], "rebalance_period": 4}
+    strategy.broker.market = "24/7"
+    executor = StrategyExecutor(strategy)
+    executor.sync_broker = lambda: None
+
+    monkeypatch.setattr(strategy_executor_module, "_getfullargspec", fail_getfullargspec)
+
+    assert executor.run_once() is True
+    assert strategy.initialized == 1
+    assert strategy.iterations == 1
+
+
+def test_run_once_closed_market_calendar_uses_wall_clock_not_strategy_datetime(monkeypatch):
+    calls = {}
+
+    def fake_get_trading_days(*args, **kwargs):
+        calls["args"] = args
+        calls["kwargs"] = kwargs
+        return [{"date": datetime.date(2026, 5, 11)}]
+
+    strategy = _DummyStrategy()
+    strategy.broker.market_open = False
+    strategy.get_datetime = lambda: (_ for _ in ()).throw(
+        AssertionError("closed-market run_once should not touch strategy data-source time")
+    )
+    executor = StrategyExecutor(strategy)
+    executor.sync_broker = lambda: None
+
+    monkeypatch.setattr("lumibot.strategies.strategy_executor.get_trading_days", fake_get_trading_days)
+    monkeypatch.setattr(
+        StrategyExecutor,
+        "_scheduled_now_utc",
+        lambda self: datetime.datetime(2026, 5, 11, 13, 30, tzinfo=datetime.timezone.utc),
+    )
+
+    assert executor.run_once() is True
+
+    assert strategy.initialized == 1
+    assert strategy.iterations == 0
+    assert calls["kwargs"]["start_date"] == datetime.datetime(2026, 4, 27, 13, 30, tzinfo=datetime.timezone.utc)
+    assert calls["kwargs"]["end_date"] == datetime.datetime(2026, 5, 26, 13, 30, tzinfo=datetime.timezone.utc)
+
+
+def test_run_once_regular_equity_preopen_skips_calendar_and_market_check(monkeypatch):
+    def fail_get_trading_days(*args, **kwargs):
+        raise AssertionError("pre-open run_once should not build exchange calendars")
+
+    def fail_market_open():
+        raise AssertionError("pre-open run_once should use the scheduled wall-clock precheck")
+
+    strategy = _DummyStrategy()
+    strategy.broker.name = "alpaca"
+    strategy.broker.market = "NASDAQ"
+    strategy.broker.is_market_open = fail_market_open
+    strategy.get_datetime = lambda: (_ for _ in ()).throw(
+        AssertionError("pre-open run_once should not touch strategy data-source time")
+    )
+    executor = StrategyExecutor(strategy)
+    executor.sync_broker = lambda: None
+
+    monkeypatch.setattr("lumibot.strategies.strategy_executor.get_trading_days", fail_get_trading_days)
+    monkeypatch.setattr(
+        StrategyExecutor,
+        "_scheduled_now_utc",
+        lambda self: datetime.datetime(2026, 5, 11, 12, 0, tzinfo=datetime.timezone.utc),
+    )
+
+    assert executor.run_once() is True
+
+    assert strategy.initialized == 1
+    assert strategy.iterations == 0
+    assert strategy.broker.trading_days is None
+
+
 def test_scheduled_exact_run_waits_after_initialization_and_writes_timing(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "lumibot.strategies.strategy_executor.get_trading_days",
@@ -384,6 +493,7 @@ def test_run_once_restores_state_before_closed_market_exit(tmp_path, monkeypatch
     persisted = json.loads(state_file.read_text(encoding="utf-8"))
     assert persisted == {"count": 2}
     assert strategy.iterations == 0
+    assert strategy.ended == 0
 
 
 def test_run_once_restores_state_before_lifecycle_hooks(tmp_path, monkeypatch):

@@ -1,31 +1,74 @@
+from __future__ import annotations
+
 import os
-import subprocess
 import time
-from datetime import datetime, timezone
-from decimal import Decimal
-from typing import Union
 
-import requests
-import urllib3
-from termcolor import colored
-
-from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
-from lumibot.tools.lumibot_logger import get_logger
+from lumibot._lazy_imports import LazyLogger, LazyModule, LazyPytzTimezoneRef, lazy_class
 from lumibot.tools.ibkr_secdef import (
     IbkrFuturesExchangeAmbiguousError,
     select_futures_exchange_from_secdef_search_payload,
 )
 
-from ..entities import Asset, Bars
 from .data_source import DataSource
 
-logger = get_logger(__name__)
-import importlib.resources  # Added
-import tempfile  # Added
+logger = LazyLogger(__name__)
+TYPE_CHECKING = False
 
-import pandas as pd
+datetime = lazy_class("datetime", "datetime")
+timezone = lazy_class("datetime", "timezone")
+Asset = lazy_class("lumibot.entities", "Asset")
+pd = LazyModule("pandas")
+requests = LazyModule("requests")
+_DEFAULT_PYTZ = LazyPytzTimezoneRef("America/New_York")
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+if TYPE_CHECKING:
+    from ..entities import Bars
+
+
+def _default_pytz():
+    return _DEFAULT_PYTZ._load()
+
+
+def __getattr__(name):
+    if name == "LUMIBOT_DEFAULT_PYTZ":
+        return _default_pytz()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def _disable_urllib3_warnings():
+    import urllib3
+
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+
+def colored(*args, **kwargs):
+    from termcolor import colored as _colored
+
+    return _colored(*args, **kwargs)
+
+
+def _subprocess_module():
+    import subprocess
+
+    return subprocess
+
+
+def _named_temporary_file(*args, **kwargs):
+    import tempfile
+
+    return tempfile.NamedTemporaryFile(*args, **kwargs)
+
+
+def _conf_yaml_text():
+    import importlib.resources
+
+    return importlib.resources.files('lumibot.resources').joinpath('conf.yaml').read_text(encoding='utf-8')
+
+
+def _get_bars_class():
+    from ..entities import Bars
+
+    return Bars
 
 TYPE_MAP = dict(
     stock="STK",
@@ -48,6 +91,7 @@ class InteractiveBrokersRESTData(DataSource):
     def __init__(self, config, **kwargs):
         # Call superclass constructor
         super().__init__(**kwargs)
+        _disable_urllib3_warnings()
 
         if config["API_URL"] is None:
             self.port = "4234"
@@ -77,6 +121,8 @@ class InteractiveBrokersRESTData(DataSource):
 
     def start(self, ib_username, ib_password):
         if not self.running_on_server:
+            subprocess = _subprocess_module()
+
             # --- ensure we have the patched IBeam (>=0.5.7) ---
             # For stability, we use a fixed version by default.
             # To use the latest, set IBEAM_DOCKER_TAG in your config/env.
@@ -139,10 +185,10 @@ class InteractiveBrokersRESTData(DataSource):
                 # Create a temporary file to hold the conf.yaml content
                 # delete=False is important because Docker needs to access it by path
                 # and we'll clean it up manually in stop()
-                with tempfile.NamedTemporaryFile(delete=False, mode='w', suffix='.yaml', encoding='utf-8') as tmp_conf_file:
+                with _named_temporary_file(delete=False, mode='w', suffix='.yaml', encoding='utf-8') as tmp_conf_file:
                     self.temp_conf_path = tmp_conf_file.name
                     # Use importlib.resources to access package data reliably
-                    conf_content = importlib.resources.files('lumibot.resources').joinpath('conf.yaml').read_text(encoding='utf-8')
+                    conf_content = _conf_yaml_text()
                     tmp_conf_file.write(conf_content)
 
                 volume_mount = f"{self.temp_conf_path}:{inputs_dir}"
@@ -634,6 +680,7 @@ class InteractiveBrokersRESTData(DataSource):
         if self.running_on_server:
             return
 
+        subprocess = _subprocess_module()
         subprocess.run(
             ["docker", "rm", "-f", "lumibot-client-portal"],
             stdout=subprocess.DEVNULL,
@@ -933,7 +980,7 @@ class InteractiveBrokersRESTData(DataSource):
             timestep = f"{timestep_value}y"
         else:
             logger.error(colored(f"Unsupported timestep: {timestep}", "red"))
-            return Bars(
+            return _get_bars_class()(
                 pd.DataFrame(
                     columns=["timestamp", "open", "high", "low", "close", "volume"]
                 ),
@@ -957,7 +1004,7 @@ class InteractiveBrokersRESTData(DataSource):
             logger.error(
                 colored(f"Error getting historical prices: {result['error']}", "red")
             )
-            return Bars(
+            return _get_bars_class()(
                 pd.DataFrame(
                     columns=["timestamp", "open", "high", "low", "close", "volume"]
                 ),
@@ -976,7 +1023,7 @@ class InteractiveBrokersRESTData(DataSource):
                     "red",
                 )
             )
-            return Bars(
+            return _get_bars_class()(
                 pd.DataFrame(
                     columns=["timestamp", "open", "high", "low", "close", "volume"]
                 ),
@@ -1007,7 +1054,7 @@ class InteractiveBrokersRESTData(DataSource):
         # Convert timestamp to datetime and set as index
         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
         df["timestamp"] = (
-            df["timestamp"].dt.tz_localize("UTC").dt.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+            df["timestamp"].dt.tz_localize("UTC").dt.tz_convert(_default_pytz())
         )
         df.set_index("timestamp", inplace=True)
 
@@ -1017,7 +1064,7 @@ class InteractiveBrokersRESTData(DataSource):
         df['stock_splits'] = 0.0
         """
 
-        bars = Bars(df, self.SOURCE, asset, raw=df, quote=quote)
+        bars = _get_bars_class()(df, self.SOURCE, asset, raw=df, quote=quote)
 
         return bars
 

@@ -1,32 +1,93 @@
+from __future__ import annotations
+
 import os
 import re
-import traceback
 import base64
-import json
 import time
 import threading
-import datetime
-import inspect
 from collections import Counter
 from pathlib import Path
-from typing import Union
 
-import pandas as pd
-import requests
-from lumiwealth_tradier import Tradier as _Tradier
-from lumiwealth_tradier.base import TradierApiError
-from lumiwealth_tradier.orders import OrderLeg
-from termcolor import colored
-
+from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 from .broker import Broker, LumibotBrokerAPIError
-from lumibot.data_sources.tradier_data import TradierData
-from lumibot.entities import Asset, CashEvent, Order, Position
-from lumibot.tools.helpers import create_options_symbol
-from lumibot.tools.lumibot_logger import get_logger
-from lumibot.trading_builtins import PollingStream
 from .oauth_refresh_mode import OAUTH_REFRESH_MODE_EXTERNAL, get_oauth_refresh_mode
 
-logger = get_logger(__name__)
+logger = LazyLogger(__name__)
+TYPE_CHECKING = False
+datetime = LazyModule("datetime")
+pd = LazyModule("pandas")
+requests = LazyModule("requests")
+Asset = lazy_class("lumibot.entities", "Asset")
+Order = lazy_class("lumibot.entities", "Order")
+_Tradier = None
+TradierApiError = None
+OrderLeg = None
+
+if TYPE_CHECKING:
+    from lumibot.entities import CashEvent, Position
+
+
+def colored(*args, **kwargs):
+    from termcolor import colored as _colored
+
+    return _colored(*args, **kwargs)
+
+
+def _cash_event_class():
+    from lumibot.entities import CashEvent
+
+    return CashEvent
+
+
+def _position_class():
+    from lumibot.entities import Position
+
+    return Position
+
+
+def _format_exc():
+    import traceback
+
+    return traceback.format_exc()
+
+
+def _inspect_module():
+    import inspect
+
+    return inspect
+
+
+def _json_module():
+    import json
+
+    return json
+
+
+def _get_tradier_class():
+    global _Tradier
+    if _Tradier is None:
+        from lumiwealth_tradier import Tradier as _Tradier
+    return _Tradier
+
+
+def _get_tradier_api_error_class():
+    global TradierApiError
+    if TradierApiError is None:
+        from lumiwealth_tradier.base import TradierApiError
+    return TradierApiError
+
+
+def _order_leg(*args, **kwargs):
+    global OrderLeg
+    if OrderLeg is None:
+        from lumiwealth_tradier.orders import OrderLeg
+    return OrderLeg(*args, **kwargs)
+
+
+def _create_options_symbol(*args, **kwargs):
+    from lumibot.tools.helpers import create_options_symbol
+
+    return create_options_symbol(*args, **kwargs)
 
 
 def _botspot_force_broker_token_refresh() -> bool:
@@ -55,7 +116,7 @@ class Tradier(Broker):
     ***Note: Tradier does not support Trailing StopLoss orders.
     """
 
-    POLL_EVENT = PollingStream.POLL_EVENT
+    POLL_EVENT = "poll"
     CASH_ACTIVITY_TYPES = (
         "ach",
         "wire",
@@ -82,12 +143,12 @@ class Tradier(Broker):
         if missing_padding:
             payload_str += "=" * (4 - missing_padding)
         decoded_bytes = base64.urlsafe_b64decode(payload_str)
-        return json.loads(decoded_bytes.decode("utf-8"))
+        return _json_module().loads(decoded_bytes.decode("utf-8"))
 
     @staticmethod
     def _encode_base64url_json(payload: dict) -> str:
         """Encode a JSON payload as unpadded base64url."""
-        raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        raw = _json_module().dumps(payload, separators=(",", ":")).encode("utf-8")
         return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
 
     @staticmethod
@@ -95,7 +156,7 @@ class Tradier(Broker):
         """Load a public Tradier OAuth token JSON file."""
         path = Path(token_path).expanduser().resolve()
         with path.open("r", encoding="utf-8") as handle:
-            payload = json.load(handle)
+            payload = _json_module().load(handle)
         if isinstance(payload, dict) and isinstance(payload.get("token"), dict):
             payload = payload["token"]
         if not isinstance(payload, dict):
@@ -109,7 +170,7 @@ class Tradier(Broker):
         try:
             resolved.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
             with tmp_path.open("w", encoding="utf-8") as handle:
-                json.dump(payload, handle, separators=(",", ":"))
+                _json_module().dump(payload, handle, separators=(",", ":"))
             os.chmod(tmp_path, 0o600)
             os.replace(tmp_path, resolved)
             try:
@@ -521,10 +582,12 @@ class Tradier(Broker):
                 raise RuntimeError("[Tradier] Forced OAuth token refresh failed for BotSpot snapshot runtime.")
 
         # Create the Tradier object
-        self.tradier = _Tradier(account_number, self._tradier_access_token, paper)
+        self.tradier = _get_tradier_class()(account_number, self._tradier_access_token, paper)
 
         # Check if the user has provided a data source, if not, create one
         if data_source is None:
+            from lumibot.data_sources.tradier_data import TradierData
+
             data_source = TradierData(
                 account_number=account_number,
                 access_token=self._tradier_access_token,
@@ -582,7 +645,7 @@ class Tradier(Broker):
 
         try:
             self.tradier.orders.cancel(order.identifier)
-        except TradierApiError as e:
+        except _get_tradier_api_error_class() as e:
             raise LumibotBrokerAPIError(f"Unable to cancel order at broker. {e}") from e
 
     def _modify_order(self, order: Order,
@@ -603,7 +666,7 @@ class Tradier(Broker):
                 limit_price=limit_price,
                 stop_price=stop_price,
             )
-        except TradierApiError as e:
+        except _get_tradier_api_error_class() as e:
             raise LumibotBrokerAPIError(f"Unable to modify order at broker. {e}") from e
 
     def _submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None):
@@ -706,12 +769,12 @@ class Tradier(Broker):
         legs = []
         for order in orders:
             # Create the options symbol
-            option_symbol = create_options_symbol(
+            option_symbol = _create_options_symbol(
                 order.asset.symbol, order.asset.expiration, order.asset.right, order.asset.strike
             )
 
-            # Example leg: leg1 = OrderLeg(option_symbol=option_symbol_1, quantity=1, side='buy_to_open')
-            leg = OrderLeg(
+            # Example leg: leg1 = _order_leg(option_symbol=option_symbol_1, quantity=1, side='buy_to_open')
+            leg = _order_leg(
                 option_symbol=option_symbol,
                 quantity=int(order.quantity), # Quantity for Tradier must be a positive integer
                 side=self._lumi_side2tradier(order),
@@ -783,14 +846,14 @@ class Tradier(Broker):
                 legs = []
                 if order.order_class != Order.OrderClass.OCO:
                     # Create the stock/options symbol
-                    parent_option_symbol = create_options_symbol(
+                    parent_option_symbol = _create_options_symbol(
                         order.asset.symbol, order.asset.expiration, order.asset.right, order.asset.strike
                     ) if order.asset.asset_type == Asset.AssetType.OPTION else None
                     parent_stock_symbol = self._normalize_symbol_for_broker(order.asset.symbol, asset_type=order.asset.asset_type) \
                         if order.asset.asset_type != Asset.AssetType.OPTION else None
 
                     # Add the parent order to the legs list
-                    legs.append(OrderLeg(
+                    legs.append(_order_leg(
                         stock_symbol=parent_stock_symbol,  # None if option order
                         option_symbol=parent_option_symbol,  # None if stock order
                         quantity=int(order.quantity),
@@ -811,14 +874,14 @@ class Tradier(Broker):
                         if child_order.order_type != Order.OrderType.STOP_LIMIT else child_order.stop_limit_price
 
                     # Create the stock/options symbol
-                    child_option_symbol = create_options_symbol(
+                    child_option_symbol = _create_options_symbol(
                         order.asset.symbol, order.asset.expiration, order.asset.right, order.asset.strike
                     ) if child_order.asset.asset_type == Asset.AssetType.OPTION else None
                     child_stock_symbol = self._normalize_symbol_for_broker(order.asset.symbol, asset_type=order.asset.asset_type) \
                         if child_order.asset.asset_type != Asset.AssetType.OPTION else None
 
                     # Create the leg
-                    leg = OrderLeg(
+                    leg = _order_leg(
                         stock_symbol=child_stock_symbol,  # None if option order
                         option_symbol=child_option_symbol,  # None if stock order
                         quantity=int(child_order.quantity),
@@ -839,7 +902,7 @@ class Tradier(Broker):
                         legs=legs,
                         tag=tag,
                     )
-                except TradierApiError as e:
+                except _get_tradier_api_error_class() as e:
                     msg = colored(f"Error submitting order {order}: {e}", color="red")
                     self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
                     return None
@@ -862,7 +925,7 @@ class Tradier(Broker):
             elif order.asset is not None and order.asset.asset_type == Asset.AssetType.OPTION:
                 tradier_side = self._lumi_side2tradier(order)
                 stock_symbol = self._normalize_symbol_for_broker(order.asset.symbol, asset_type=order.asset.asset_type)
-                option_symbol = create_options_symbol(
+                option_symbol = _create_options_symbol(
                     order.asset.symbol, order.asset.expiration, order.asset.right, order.asset.strike
                 )
 
@@ -892,7 +955,7 @@ class Tradier(Broker):
             self._unprocessed_orders.append(order)
             self._safe_stream_dispatch(self.NEW_ORDER, order=order)
 
-        except TradierApiError as e:
+        except _get_tradier_api_error_class() as e:
             msg = colored(f"Error submitting order {order}: {e}", color="red")
             self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
 
@@ -901,7 +964,7 @@ class Tradier(Broker):
     def _get_balances_at_broker(self, quote_asset: Asset, strategy):
         try:
             df = self.tradier.account.get_account_balance()
-        except TradierApiError as e:
+        except _get_tradier_api_error_class() as e:
             # Check if the error is a 401 or 403, if so, the access token is invalid
             error = str(e)
             if "401" in error or "403" in error:
@@ -922,7 +985,7 @@ class Tradier(Broker):
         except Exception as e:
             logger.error(f"Error pulling balances from Tradier: {e}")
             # Add traceback to the error message
-            logger.error(traceback.format_exc())
+            logger.error(_format_exc())
             return None
 
         # Get the portfolio value (total_equity) column
@@ -942,6 +1005,7 @@ class Tradier(Broker):
 
     @staticmethod
     def _extract_history_amount(row: dict) -> float:
+        CashEvent = _cash_event_class()
         for key in ("amount", "net_amount", "total", "cash", "value"):
             if key in row and row.get(key) not in (None, ""):
                 return CashEvent.coerce_amount(row.get(key))
@@ -1055,6 +1119,7 @@ class Tradier(Broker):
     def _normalize_history_row_to_cash_event(cls, row: dict) -> CashEvent | None:
         if not isinstance(row, dict):
             return None
+        CashEvent = _cash_event_class()
 
         raw_type = str(row.get("type") or "").strip().lower()
         if not raw_type or raw_type in {"trade", "option"}:
@@ -1197,6 +1262,7 @@ class Tradier(Broker):
         since: datetime.datetime | None = None,
         limit: int | None = 100,
     ) -> list[CashEvent]:
+        CashEvent = _cash_event_class()
         start_date = CashEvent.coerce_datetime(since).date() if since is not None else None
         end_date = datetime.datetime.now(datetime.timezone.utc).date()
         per_type_limit = max(int(limit or 100), 1)
@@ -1206,6 +1272,7 @@ class Tradier(Broker):
         supports_page = callable(getattr(account, "request", None))
         if not supports_page:
             try:
+                inspect = _inspect_module()
                 signature = inspect.signature(account.get_history)
                 supports_page = "page" in signature.parameters or any(
                     parameter.kind is inspect.Parameter.VAR_KEYWORD
@@ -1264,7 +1331,7 @@ class Tradier(Broker):
     def _pull_positions(self, strategy):
         try:
             positions_df = self.tradier.account.get_positions()
-        except TradierApiError as e:
+        except _get_tradier_api_error_class() as e:
             # Check if the error is a 401 or 403, if so, the access token is invalid
             error = str(e)
             if "401" in error or "403" in error:
@@ -1283,6 +1350,7 @@ class Tradier(Broker):
             return []
 
         positions_ret = []
+        Position = _position_class()
 
         if strategy is None:
             strategy_name = "Unknown"
@@ -1800,6 +1868,8 @@ class Tradier(Broker):
 
     def _get_stream_object(self):
         """get the broker stream connection"""
+        from lumibot.trading_builtins import PollingStream
+
         stream = PollingStream(self.polling_interval)
         return stream
 
@@ -1824,7 +1894,7 @@ class Tradier(Broker):
                 )
                 return True
             except:
-                logger.error(traceback.format_exc())
+                logger.error(_format_exc())
 
         @broker.stream.add_action(broker.FILLED_ORDER)
         def on_trade_event_fill(order, price, filled_quantity):
@@ -1841,7 +1911,7 @@ class Tradier(Broker):
                 )
                 return True
             except:
-                logger.error(traceback.format_exc())
+                logger.error(_format_exc())
 
         @broker.stream.add_action(broker.CANCELED_ORDER)
         def on_trade_event_cancel(order):
@@ -1854,7 +1924,7 @@ class Tradier(Broker):
                     broker.CANCELED_ORDER,
                 )
             except:
-                logger.error(traceback.format_exc())
+                logger.error(_format_exc())
 
         @broker.stream.add_action(broker.CASH_SETTLED)
         def on_trade_event_cash(order, price, filled_quantity):
@@ -1870,7 +1940,7 @@ class Tradier(Broker):
                     multiplier=order.asset.multiplier,
                 )
             except:
-                logger.error(traceback.format_exc())
+                logger.error(_format_exc())
 
         @broker.stream.add_action(broker.ERROR_ORDER)
         def on_trade_event_error(order, error_msg):
@@ -1895,14 +1965,14 @@ class Tradier(Broker):
                 logger.error(error_msg)
                 order.set_error(error_msg)
             except:
-                logger.error(traceback.format_exc())
+                logger.error(_format_exc())
 
     def _run_stream(self):
         self._stream_established()
         # Try to run the stream
         try:
             self.stream._run()
-        except TradierApiError as e:
+        except _get_tradier_api_error_class() as e:
             # Check if the error is a 401 or 403, if so, the access token is invalid
             error = str(e)
             if "401" in error or "403" in error:

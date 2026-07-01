@@ -48,6 +48,16 @@ def test_initialize_ccxt_broker_legacy(mocker):
     assert isinstance(strategy.broker.data_source, CcxtData)
 
 
+def test_ccxt_data_constructor_defers_load_markets(mocker):
+    import ccxt
+
+    mocker.patch.object(ccxt.kraken, "load_markets", side_effect=AssertionError("load_markets should be lazy"))
+
+    data_source = CcxtData(KRAKEN_CONFIG)
+
+    assert data_source.api.exchangeId == "kraken"
+
+
 # Fake WEEX credentials, they do not need to be real — CCXT requires apiKey + secret + passphrase.
 WEEX_CONFIG = {
     "exchange_id": "weex",

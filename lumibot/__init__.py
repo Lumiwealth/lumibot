@@ -1,10 +1,8 @@
 import importlib.util
-import logging
 import os
 import re
 import sys
 import types
-import warnings
 from importlib.machinery import ModuleSpec
 
 _SETUP_VERSION_RE = re.compile(r"^\s*version\s*=\s*(['\"])(?P<version>.+?)\1\s*,?\s*$")
@@ -54,8 +52,25 @@ except:
     __version__ = "unknown"
 
 
+_LOG_LEVELS = {
+    "CRITICAL": 50,
+    "FATAL": 50,
+    "ERROR": 40,
+    "WARNING": 30,
+    "WARN": 30,
+    "INFO": 20,
+    "DEBUG": 10,
+    "NOTSET": 0,
+}
+
+
 def _log_startup_version() -> None:
     level_name = os.environ.get("LUMIBOT_LOG_LEVEL", "INFO").upper()
+    if _LOG_LEVELS.get(level_name, 20) > 20:
+        return
+
+    import logging
+
     level = getattr(logging, level_name, logging.INFO)
     logger = logging.getLogger("lumibot")
     logger.setLevel(level)
@@ -86,6 +101,8 @@ major, minor = sys.version_info[:2]
 
 # Check if Python version is less than 3.10
 if (major, minor) < (3, 10):
+    import warnings
+
     warnings.warn("Lumibot requires Python 3.10 or higher.", RuntimeWarning)
 
 # SOURCE PATH
@@ -115,6 +132,8 @@ if not os.path.exists(LUMIBOT_CACHE_FOLDER):
     try:
         os.makedirs(LUMIBOT_CACHE_FOLDER)
     except Exception as e:
+        import warnings
+
         warnings.warn(
             f"""Could not create cache folder because of the following error:
             {e}. Please fix the issue to use data caching."""

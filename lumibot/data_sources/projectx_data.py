@@ -5,20 +5,76 @@ Provides market data functionality through ProjectX data feed.
 Supports historical data retrieval for futures contracts.
 """
 
-from datetime import datetime, timedelta
-import pandas as pd
-from typing import Dict, List
+from __future__ import annotations
 
-from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
+from lumibot._lazy_imports import LazyLogger, LazyModule, LazyPytzTimezoneRef, lazy_class
 from lumibot.data_sources.data_source import DataSource
-from lumibot.entities import Asset, Bars, Quote
-from lumibot.tools.lumibot_logger import get_logger
-from lumibot.tools.projectx_helpers import ProjectXClient
 
 # Import moved to avoid circular dependency
 # from lumibot.credentials import PROJECTX_CONFIG
 
-logger = get_logger(__name__)
+logger = LazyLogger(__name__)
+TYPE_CHECKING = False
+datetime = lazy_class("datetime", "datetime")
+timedelta = lazy_class("datetime", "timedelta")
+pd = LazyModule("pandas")
+Asset = lazy_class("lumibot.entities", "Asset")
+_DEFAULT_PYTZ = LazyPytzTimezoneRef("America/New_York")
+ProjectXClient = None
+
+if TYPE_CHECKING:
+    from lumibot.entities import Bars, Quote
+
+
+def _default_pytz():
+    return _DEFAULT_PYTZ._load()
+
+
+def __getattr__(name):
+    if name == "LUMIBOT_DEFAULT_PYTZ":
+        return _default_pytz()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def _get_projectx_client_class():
+    global ProjectXClient
+    if ProjectXClient is None:
+        from lumibot.tools.projectx_helpers import ProjectXClient
+    return ProjectXClient
+
+
+class _LazyProjectXClient:
+    def __init__(self, config, factory=None):
+        self._config = config
+        self._factory = factory
+        self._client = None
+
+    def _load(self):
+        if self._client is None:
+            factory = self._factory or _get_projectx_client_class()
+            self._client = factory(self._config)
+        return self._client
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+    def __setattr__(self, name, value):
+        if name in {"_config", "_factory", "_client"}:
+            object.__setattr__(self, name, value)
+            return
+        setattr(self._load(), name, value)
+
+
+def _get_bars_class():
+    from lumibot.entities import Bars
+
+    return Bars
+
+
+def _get_quote_class():
+    from lumibot.entities import Quote
+
+    return Quote
 
 
 class ProjectXData(DataSource):
@@ -79,10 +135,10 @@ class ProjectXData(DataSource):
             )
 
         # Initialize ProjectX client
-        self.client = ProjectXClient(config)
+        self.client = _LazyProjectXClient(config, ProjectXClient)
 
         # Setup logging
-        self.logger = get_logger(f"ProjectXData_{self.firm}")
+        self.logger = LazyLogger(f"ProjectXData_{self.firm}")
 
         # Contract cache for symbol-to-contract mapping
         self._contract_cache = {}
@@ -114,7 +170,7 @@ class ProjectXData(DataSource):
             if not contract_id:
                 return None
 
-            end_dt = datetime.now().replace(second=59, microsecond=999999).astimezone(LUMIBOT_DEFAULT_PYTZ)
+            end_dt = datetime.now().replace(second=59, microsecond=999999).astimezone(_default_pytz())
             start_dt = (end_dt - timedelta(minutes=1)).replace(second=0, microsecond=0)
             df = self.client.history_retrieve_bars(
                 contract_id=contract_id,
@@ -155,10 +211,10 @@ class ProjectXData(DataSource):
             Quote object with quote information
         """
         price = self.get_last_price(asset, quote=quote, exchange=exchange)
-        timestamp = datetime.now().astimezone(LUMIBOT_DEFAULT_PYTZ)
+        timestamp = datetime.now().astimezone(_default_pytz())
 
         if price is None:
-            return Quote(asset=asset, price=None, raw_data={"source": "projectx_rest", "live": False})
+            return _get_quote_class()(asset=asset, price=None, raw_data={"source": "projectx_rest", "live": False})
 
         # ProjectX does not currently expose top-of-book via REST for this integration.
         # Approximate bid/ask around last trade with a minimal spread (one tick).
@@ -166,7 +222,7 @@ class ProjectXData(DataSource):
         bid = price - tick / 2
         ask = price + tick / 2
 
-        return Quote(
+        return _get_quote_class()(
             asset=asset,
             price=price,
             bid=bid,
@@ -214,7 +270,7 @@ class ProjectXData(DataSource):
                 self.logger.error(f"Unsupported timespan: {timestep}")
                 return None
 
-            end_datetime = datetime.now().astimezone(LUMIBOT_DEFAULT_PYTZ)
+            end_datetime = datetime.now().astimezone(_default_pytz())
             if timeshift:
                 if timestep == "minute":
                     end_datetime -= timedelta(minutes=timeshift)
@@ -312,7 +368,7 @@ class ProjectXData(DataSource):
                 logger.debug(debug_msg)
             except Exception as log_exc:
                 self.logger.debug(f"Datetime normalization debug failed for {asset.symbol}: {log_exc}")
-            return Bars(df=df, source=self.SOURCE, asset=asset, raw=df.to_dict())
+            return _get_bars_class()(df=df, source=self.SOURCE, asset=asset, raw=df.to_dict())
         except Exception as e:
             self.logger.error(f"Error fetching bars for {getattr(asset, 'symbol', asset)}: {e}")
             return None
@@ -576,7 +632,7 @@ class ProjectXData(DataSource):
                 return None
 
             # Create Bars object
-            bars = Bars(
+            bars = _get_bars_class()(
                 df=df,
                 source=self.SOURCE,
                 asset=asset,

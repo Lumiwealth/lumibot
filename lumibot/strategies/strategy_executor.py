@@ -1,37 +1,120 @@
-import inspect
-import logging
 import math
 import os
 import time
-import traceback
-from datetime import datetime, timedelta
-from decimal import Decimal
 from functools import wraps
 from queue import Empty, Queue
 from threading import Event, Lock, Thread
 
-import pandas as pd
+from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 
-logger = logging.getLogger(__name__)
-import pandas_market_calendars as mcal
-from apscheduler.jobstores.memory import MemoryJobStore
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
-from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
-from lumibot.entities import Asset, Order
-from lumibot.entities import Asset
-from lumibot.strategies.scheduled_timing import ScheduledRunTiming
-from lumibot.tools import append_locals, get_trading_days, staticdecorator
-from lumibot.tools.smart_limit_utils import (
-    build_price_ladder,
-    compute_final_price,
-    compute_final_price_from_mid,
-    compute_mid,
-    infer_tick_size,
-    round_to_tick,
-)
+logger = LazyLogger(__name__)
+
+pd = LazyModule("pandas")
+mcal = LazyModule("pandas_market_calendars")
+Asset = lazy_class("lumibot.entities", "Asset")
+datetime = lazy_class("datetime", "datetime")
+timedelta = lazy_class("datetime", "timedelta")
+timezone = lazy_class("datetime", "timezone")
+Order = lazy_class("lumibot.entities", "Order")
+Decimal = lazy_class("decimal", "Decimal")
 
 SNAPSHOT_CAPTURE_THROTTLE_SECONDS = 1.9
+
+
+def _default_pytz():
+    from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
+
+    return LUMIBOT_DEFAULT_PYTZ
+
+
+def get_trading_days(*args, **kwargs):
+    from lumibot.tools import get_trading_days as _get_trading_days
+
+    return _get_trading_days(*args, **kwargs)
+
+
+def _scheduled_run_timing_class():
+    from lumibot.strategies.scheduled_timing import ScheduledRunTiming
+
+    return ScheduledRunTiming
+
+
+def _truthy(value):
+    return str(value or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def _int_env(name, default):
+    try:
+        return int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def staticdecorator(func):
+    return func.__get__("")
+
+
+def _append_locals(func):
+    from lumibot.tools.decorators import append_locals
+
+    return append_locals(func)
+
+
+def _getfullargspec(*args, **kwargs):
+    import inspect
+
+    return inspect.getfullargspec(*args, **kwargs)
+
+
+def _callable_positional_arg_names(func):
+    if hasattr(func, "__wrapped__"):
+        return None
+    code = getattr(func, "__code__", None)
+    if code is None:
+        return None
+    return code.co_varnames[:code.co_argcount]
+
+
+def _format_exc():
+    import traceback
+
+    return traceback.format_exc()
+
+
+def build_price_ladder(*args, **kwargs):
+    from lumibot.tools.smart_limit_utils import build_price_ladder as _impl
+
+    return _impl(*args, **kwargs)
+
+
+def compute_final_price(*args, **kwargs):
+    from lumibot.tools.smart_limit_utils import compute_final_price as _impl
+
+    return _impl(*args, **kwargs)
+
+
+def compute_final_price_from_mid(*args, **kwargs):
+    from lumibot.tools.smart_limit_utils import compute_final_price_from_mid as _impl
+
+    return _impl(*args, **kwargs)
+
+
+def compute_mid(*args, **kwargs):
+    from lumibot.tools.smart_limit_utils import compute_mid as _impl
+
+    return _impl(*args, **kwargs)
+
+
+def infer_tick_size(*args, **kwargs):
+    from lumibot.tools.smart_limit_utils import infer_tick_size as _impl
+
+    return _impl(*args, **kwargs)
+
+
+def round_to_tick(*args, **kwargs):
+    from lumibot.tools.smart_limit_utils import round_to_tick as _impl
+
+    return _impl(*args, **kwargs)
 
 
 class StrategyExecutor(Thread):
@@ -58,17 +141,15 @@ class StrategyExecutor(Thread):
         # Store any exception that occurs during execution
         self.exception = None
         self._run_once_requested = False
+        self._run_once_user_iteration_ran = False
+        self._run_once_market_open_override = None
         strategy_logger = getattr(self.strategy, "logger", logger)
-        self._scheduled_timing = ScheduledRunTiming(logger=strategy_logger)
+        self._scheduled_timing = None
+        self._scheduled_timing_logger = strategy_logger
 
-        # Create a dictionary of job stores. A job store is where the scheduler persists its jobs. In this case,
-        # we create an in-memory job store for "default" and "On_Trading_Iteration" which is the job store we will
-        # use to store jobs for the main on_trading_iteration method.
-        job_stores = {"default": MemoryJobStore(), "On_Trading_Iteration": MemoryJobStore()}
-
-        # Instantiate a BackgroundScheduler with the job stores we just defined. This scheduler will be used to store
-        # the jobs that we create later and execute them at the correct time.
-        self.scheduler = BackgroundScheduler(jobstores=job_stores)
+        # APScheduler is only needed for continuous live loops and explicit cron callbacks.
+        # Scheduled run_once deployments skip it, so create it lazily.
+        self.scheduler = None
 
         # Initialize a target count and a current count for cron jobs to 0.
         # These are used to determine when to execute the on_trading_iteration method.
@@ -108,26 +189,59 @@ class StrategyExecutor(Thread):
             self._capture_locals = os.environ.get("BACKTESTING_CAPTURE_LOCALS", "").lower() == "true"
 
         self._on_trading_iteration_callable = (
-            append_locals(self.strategy.on_trading_iteration)
+            _append_locals(self.strategy.on_trading_iteration)
             if self._capture_locals
             else self.strategy.on_trading_iteration
         )
 
+    @staticmethod
+    def _create_scheduler():
+        from apscheduler.jobstores.memory import MemoryJobStore
+        from apscheduler.schedulers.background import BackgroundScheduler
+
+        job_stores = {"default": MemoryJobStore(), "On_Trading_Iteration": MemoryJobStore()}
+        return BackgroundScheduler(jobstores=job_stores)
+
+    def ensure_scheduler(self):
+        if self.scheduler is None:
+            self.scheduler = self._create_scheduler()
+        return self.scheduler
+
+    def _get_scheduled_timing(self):
+        if self._scheduled_timing is None:
+            self._scheduled_timing = _scheduled_run_timing_class()(logger=self._scheduled_timing_logger)
+        return self._scheduled_timing
+
+    @staticmethod
+    def _scheduled_exact_enabled():
+        return _truthy(os.environ.get("LUMIBOT_SCHEDULED_EXECUTION")) and bool(
+            os.environ.get("LUMIBOT_SCHEDULED_TARGET_RUN_AT")
+        )
+
     def _scheduled_now_utc(self):
-        return self._scheduled_timing.now_utc()
+        return datetime.now(timezone.utc)
 
     @staticmethod
     def _scheduled_iso(value):
-        return ScheduledRunTiming.iso(value)
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
     def _scheduled_record_timing(self, **fields):
-        self._scheduled_timing.record(**fields)
+        if not self._scheduled_exact_enabled():
+            return
+        self._get_scheduled_timing().record(**fields)
 
     def _scheduled_write_timing(self):
-        self._scheduled_timing.write()
+        if self._scheduled_timing is not None:
+            self._scheduled_timing.write()
 
     def _scheduled_wait_until_target(self):
-        return self._scheduled_timing.wait_until_target(
+        if not self._scheduled_exact_enabled():
+            return True
+        return self._get_scheduled_timing().wait_until_target(
             now_utc=self._scheduled_now_utc,
             monotonic=time.monotonic,
             sleep=time.sleep,
@@ -135,13 +249,58 @@ class StrategyExecutor(Thread):
         )
 
     def _scheduled_drain_after_iteration(self):
-        self._scheduled_timing.drain_after_iteration(
+        if not _truthy(os.environ.get("LUMIBOT_SCHEDULED_EXECUTION")):
+            return
+        if _int_env("LUMIBOT_SCHEDULED_POST_ITERATION_SECONDS", 0) <= 0:
+            return
+        self._get_scheduled_timing().drain_after_iteration(
             stop_event=self.stop_event,
             process_queue=self.process_queue,
             now_utc=self._scheduled_now_utc,
             monotonic=time.monotonic,
             sleep=time.sleep,
         )
+
+    def _scheduled_regular_equity_market_open_precheck(self, market):
+        if getattr(self.broker, "name", None) != "alpaca":
+            return None
+        if str(market or "").upper() not in {"NASDAQ", "NYSE", "STOCK"}:
+            return None
+        try:
+            now = self._scheduled_now_utc()
+            if now.weekday() >= 5:
+                return False
+            seconds = now.hour * 3600 + now.minute * 60 + now.second
+            # Safe UTC bounds for US equities across DST/standard time:
+            # market can never be open before 13:30 UTC or at/after 21:00 UTC.
+            if seconds < 13 * 3600 + 30 * 60 or seconds >= 21 * 3600:
+                return False
+        except Exception:
+            return None
+        return None
+
+    def _initialize_live_market_calendars_for_run_once(self):
+        market = self.broker.market
+        self._run_once_market_open_override = None
+        if market == "24/7":
+            return
+        market_open_precheck = self._scheduled_regular_equity_market_open_precheck(market)
+        if market_open_precheck is False:
+            self._run_once_market_open_override = False
+            return
+        try:
+            now = self._scheduled_now_utc()
+            buffer = timedelta(days=14)
+            self.broker.initialize_market_calendars(
+                get_trading_days(
+                    market=market,
+                    start_date=now - buffer,
+                    end_date=now + buffer + timedelta(days=1),
+                    tzinfo=_default_pytz(),
+                )
+            )
+        except Exception:
+            self.broker.initialize_market_calendars(get_trading_days(market))
 
     def _is_continuous_market(self, market_name):
         """
@@ -595,14 +754,14 @@ class StrategyExecutor(Thread):
 
     def process_event(self, event, payload):
         # Log that we are processing an event.
-        if self.strategy.logger.isEnabledFor(logging.DEBUG):
+        if self.strategy.logger.isEnabledFor(10):
             self.strategy.logger.debug(f"Processing event: {event}, payload: {payload}")
 
         # If it's the first iteration, we don't want to process any events.
         # This is because in this case we are most likely processing events that occurred before the strategy started.
         if self.strategy._first_iteration or self.broker._first_iteration:
             # Reduce noise on startup: log at debug instead of info
-            if self.strategy.logger.isEnabledFor(logging.DEBUG):
+            if self.strategy.logger.isEnabledFor(10):
                 self.strategy.logger.debug(
                     f"Skipping event {event} because it is the first iteration. Payload: {payload}"
                 )
@@ -611,14 +770,14 @@ class StrategyExecutor(Thread):
 
         if event == self.NEW_ORDER:
             # Log that we are processing a new order.
-            if self.strategy.logger.isEnabledFor(logging.INFO):
+            if self.strategy.logger.isEnabledFor(20):
                 self.strategy.logger.info(f"Processing a new order, payload: {payload}")
 
             self._on_new_order(**payload)
 
         elif event == self.CANCELED_ORDER:
             # Log that we are processing a canceled order.
-            if self.strategy.logger.isEnabledFor(logging.INFO):
+            if self.strategy.logger.isEnabledFor(20):
                 self.strategy.logger.info(f"Processing a canceled order, payload: {payload}")
 
             self._on_canceled_order(**payload)
@@ -1021,13 +1180,16 @@ class StrategyExecutor(Thread):
         self.strategy.log_message(f"Strategy {self.strategy._name} is initializing", color="green")
         self.strategy.logger.debug("Executing the initialize lifecycle method")
 
-        # Do this for backwards compatibility.
-        initialize_argspecs = inspect.getfullargspec(self.strategy.initialize)
-        args = initialize_argspecs.args
         safe_params_to_pass = {}
-        for arg in args:
-            if arg in self.strategy.parameters and arg != "self":
-                safe_params_to_pass[arg] = self.strategy.parameters[arg]
+        if self.strategy.parameters:
+            args = _callable_positional_arg_names(self.strategy.initialize)
+            if args is None:
+                # Do this for backwards compatibility with non-Python callables and wrappers.
+                initialize_argspecs = _getfullargspec(self.strategy.initialize)
+                args = initialize_argspecs.args
+            for arg in args:
+                if arg in self.strategy.parameters and arg != "self":
+                    safe_params_to_pass[arg] = self.strategy.parameters[arg]
         self.strategy.initialize(**safe_params_to_pass)
 
         # Backtesting perf guard:
@@ -1106,9 +1268,9 @@ class StrategyExecutor(Thread):
         if log_iteration_heartbeat:
             # Optimization: avoid tz conversions/strftime unless we are actually logging.
             if start_dt.tzinfo is None:
-                start_dt_tz = start_dt.replace(tzinfo=LUMIBOT_DEFAULT_PYTZ)
+                start_dt_tz = start_dt.replace(tzinfo=_default_pytz())
             else:
-                start_dt_tz = start_dt.astimezone(LUMIBOT_DEFAULT_PYTZ)
+                start_dt_tz = start_dt.astimezone(_default_pytz())
             start_str = start_dt_tz.strftime("%Y-%m-%d %I:%M:%S %p %Z")
             self.strategy.log_message(
                 f"Bot is running. Executing the on_trading_iteration lifecycle method at {start_str}",
@@ -1146,9 +1308,9 @@ class StrategyExecutor(Thread):
             if next_run_time is not None and log_iteration_heartbeat:
                 # Format the date to be used in the log message.
                 if end_dt.tzinfo is None:
-                    end_dt_tz = end_dt.replace(tzinfo=LUMIBOT_DEFAULT_PYTZ)
+                    end_dt_tz = end_dt.replace(tzinfo=_default_pytz())
                 else:
-                    end_dt_tz = end_dt.astimezone(LUMIBOT_DEFAULT_PYTZ)
+                    end_dt_tz = end_dt.astimezone(_default_pytz())
                 end_str = end_dt_tz.strftime("%Y-%m-%d %I:%M:%S %p %Z")
                 dt_str = next_run_time.strftime("%Y-%m-%d %I:%M:%S %p %Z")
                 self.strategy.log_message(
@@ -1157,9 +1319,9 @@ class StrategyExecutor(Thread):
 
             elif log_iteration_heartbeat:
                 if end_dt.tzinfo is None:
-                    end_dt_tz = end_dt.replace(tzinfo=LUMIBOT_DEFAULT_PYTZ)
+                    end_dt_tz = end_dt.replace(tzinfo=_default_pytz())
                 else:
-                    end_dt_tz = end_dt.astimezone(LUMIBOT_DEFAULT_PYTZ)
+                    end_dt_tz = end_dt.astimezone(_default_pytz())
                 end_str = end_dt_tz.strftime("%Y-%m-%d %I:%M:%S %p %Z")
                 self.strategy.log_message(f"Trading iteration ended at {end_str}", color="blue")
         except Exception as e:
@@ -1173,7 +1335,7 @@ class StrategyExecutor(Thread):
             )
 
             # Log the traceback
-            self.strategy.log_message(traceback.format_exc(), color="red")
+            self.strategy.log_message(_format_exc(), color="red")
 
             if self._run_once_requested:
                 self.exception = e
@@ -1531,6 +1693,8 @@ class StrategyExecutor(Thread):
                 )
 
         # Return a CronTrigger object with the calculated settings.
+        from apscheduler.triggers.cron import CronTrigger
+
         return CronTrigger(**kwargs)
 
     # TODO: speed up this function, it's a major bottleneck for backtesting
@@ -1743,10 +1907,7 @@ class StrategyExecutor(Thread):
 
     def _setup_live_trading_scheduler(self):
         """Set up the APScheduler for live trading sessions"""
-        # Ensure a scheduler exists (it may have been set to None during a previous graceful_exit)
-        if not hasattr(self, 'scheduler') or self.scheduler is None:
-            job_stores = {"default": MemoryJobStore(), "On_Trading_Iteration": MemoryJobStore()}
-            self.scheduler = BackgroundScheduler(jobstores=job_stores)
+        self.ensure_scheduler()
 
         # Start scheduler and ensure the OTIM job is present
         if not self.scheduler.running:
@@ -1856,7 +2017,7 @@ class StrategyExecutor(Thread):
             sent = self.strategy.send_update_to_cloud()
         except Exception as e:
             self.strategy.logger.warning(f"Could not send startup cloud update: {e}")
-            self.strategy.logger.debug(traceback.format_exc())
+            self.strategy.logger.debug(_format_exc())
             return
 
         if sent:
@@ -2045,6 +2206,8 @@ class StrategyExecutor(Thread):
 
     def get_next_ap_scheduler_run_time(self):
         # Check if scheduler object exists.
+        from apscheduler.schedulers.background import BackgroundScheduler
+
         if self.scheduler is None or not isinstance(self.scheduler, BackgroundScheduler):
             return None
 
@@ -2067,7 +2230,19 @@ class StrategyExecutor(Thread):
         # Scheduled one-shot runs must restore state before any lifecycle hook can read or mutate self.vars.
         self.strategy.load_variables_from_db()
         self.strategy.log_message("Running one live trading iteration", color="blue")
-        market_open = self.broker.is_market_open()
+        market_open = (
+            self._run_once_market_open_override
+            if self._run_once_market_open_override is not None
+            else self.broker.is_market_open()
+        )
+        self._run_once_user_iteration_ran = False
+        if not market_open:
+            self._scheduled_record_timing(
+                status="market_closed",
+                exact_timing_verified=True,
+            )
+            return True
+
         if market_open:
             # Each scheduled run is a fresh live session, so the per-session hook runs every tick.
             self._before_starting_trading()
@@ -2083,6 +2258,7 @@ class StrategyExecutor(Thread):
                 status="iteration_started",
             )
             self._on_trading_iteration()
+            self._run_once_user_iteration_ran = True
             self._scheduled_record_timing(
                 iteration_finished_at=self._scheduled_iso(self._scheduled_now_utc()),
                 status="iteration_finished",
@@ -2104,13 +2280,13 @@ class StrategyExecutor(Thread):
             self.broker.set_strategy_name(self.strategy._name)
 
             self._initialize()
-            self.broker.initialize_market_calendars(get_trading_days(self.broker.market))
+            self._initialize_live_market_calendars_for_run_once()
             self._scheduled_record_timing(
                 strategy_initialized_at=self._scheduled_iso(self._scheduled_now_utc()),
                 status="strategy_initialized",
             )
             iteration_ran = self._run_live_once()
-            if iteration_ran:
+            if iteration_ran and self._run_once_user_iteration_ran:
                 self._on_strategy_end()
 
             self.result = self.strategy._analysis
@@ -2119,18 +2295,20 @@ class StrategyExecutor(Thread):
         except Exception as e:
             try:
                 self.strategy.logger.error(e)
-                self.strategy.logger.error(traceback.format_exc())
+                self.strategy.logger.error(_format_exc())
                 try:
                     self._on_bot_crash(e)
                 except Exception as e1:
                     self.strategy.logger.error(e1)
-                    self.strategy.logger.error(traceback.format_exc())
+                    self.strategy.logger.error(_format_exc())
             finally:
                 self.exception = e
                 self.result = self.strategy._analysis if hasattr(self.strategy, '_analysis') else {}
             return False
         finally:
+            self._run_once_user_iteration_ran = False
             self._run_once_requested = False
+            self._run_once_market_open_override = None
 
     def run(self):
         try:
@@ -2184,7 +2362,7 @@ class StrategyExecutor(Thread):
                             or getattr(self.strategy, "_backtesting_end", None)
                             or getattr(self.strategy, "backtesting_end", None)
                         )
-                        tzinfo = getattr(data_source, "tzinfo", None) or LUMIBOT_DEFAULT_PYTZ
+                        tzinfo = getattr(data_source, "tzinfo", None) or _default_pytz()
 
                         if datetime_start is not None and datetime_end is not None:
                             buffer = timedelta(days=14)
@@ -2219,12 +2397,12 @@ class StrategyExecutor(Thread):
                 except Exception as e:
                     # The bot crashed so log the error, call the on_bot_crash method, and continue
                     self.strategy.logger.error(e)
-                    self.strategy.logger.error(traceback.format_exc())
+                    self.strategy.logger.error(_format_exc())
                     try:
                         self._on_bot_crash(e)
                     except Exception as e1:
                         self.strategy.logger.error(e1)
-                        self.strategy.logger.error(traceback.format_exc())
+                        self.strategy.logger.error(_format_exc())
 
                     # In BackTesting, we want to stop the bot if it crashes so there isn't an infinite loop
                     if self.strategy.is_backtesting:
@@ -2264,7 +2442,7 @@ class StrategyExecutor(Thread):
                     self._on_strategy_end()
             except Exception as e:
                 self.strategy.logger.error(e)
-                self.strategy.logger.error(traceback.format_exc())
+                self.strategy.logger.error(_format_exc())
                 self._on_bot_crash(e)
                 self.result = self.strategy._analysis
                 return False
@@ -2276,13 +2454,13 @@ class StrategyExecutor(Thread):
             # Log and surface any exceptions that occur before/around initialize so they are never silent
             try:
                 self.strategy.logger.error(e)
-                self.strategy.logger.error(traceback.format_exc())
+                self.strategy.logger.error(_format_exc())
                 # Attempt to notify the strategy via on_bot_crash hook
                 try:
                     self._on_bot_crash(e)
                 except Exception as e1:
                     self.strategy.logger.error(e1)
-                    self.strategy.logger.error(traceback.format_exc())
+                    self.strategy.logger.error(_format_exc())
             finally:
                 # Store the exception so the main thread can check it
                 self.exception = e

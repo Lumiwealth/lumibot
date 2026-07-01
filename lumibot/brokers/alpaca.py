@@ -1,29 +1,205 @@
-import asyncio
-import datetime
+from __future__ import annotations
+
+import os
 import time
-import traceback
-from asyncio import CancelledError
 from collections import Counter
-from datetime import timezone
-from decimal import Decimal
 
-import pandas_market_calendars as mcal
-from alpaca.trading.client import TradingClient
-from alpaca.trading.enums import ActivityType, QueryOrderStatus, PositionSide
-from alpaca.trading.requests import GetOrdersRequest, ReplaceOrderRequest
-from alpaca.trading.stream import TradingStream
-from dateutil import tz
-from termcolor import colored
-
-from lumibot.data_sources import AlpacaData
-from lumibot.entities import Asset, CashEvent, Order, Position, Quote
-from lumibot.tools.helpers import has_more_than_n_decimal_places
-from lumibot.tools.lumibot_logger import get_logger
-from lumibot.trading_builtins import PollingStream
+from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 
 from .broker import Broker
 
-logger = get_logger(__name__)
+logger = LazyLogger(__name__)
+datetime = LazyModule("datetime")
+timezone = lazy_class("datetime", "timezone")
+mcal = LazyModule("pandas_market_calendars")
+Asset = lazy_class("lumibot.entities", "Asset")
+Order = lazy_class("lumibot.entities", "Order")
+Decimal = lazy_class("decimal", "Decimal")
+TradingClient = None
+TradingStream = None
+_DEFERRED_ALPACA_DATA_CLASS = type("AlpacaData", (), {})
+
+
+def _env_flag_enabled(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "y", "on")
+
+
+def _scheduled_execution_requested() -> bool:
+    return _env_flag_enabled("LUMIBOT_SCHEDULED_EXECUTION")
+
+
+def _connect_stream_on_init_default() -> bool:
+    value = os.environ.get("LUMIBOT_CONNECT_STREAM")
+    if value is not None:
+        return value.strip().lower() in ("1", "true", "yes", "y", "on")
+    return not _scheduled_execution_requested()
+
+
+def _start_orders_thread_on_init_default() -> bool:
+    value = os.environ.get("LUMIBOT_START_ORDERS_THREAD")
+    if value is not None:
+        return value.strip().lower() in ("1", "true", "yes", "y", "on")
+    return not _scheduled_execution_requested()
+
+
+def _config_value(config, name):
+    if isinstance(config, dict):
+        return config.get(name)
+    return getattr(config, name, None)
+
+
+def _validate_alpaca_data_credentials_config(config):
+    if _config_value(config, "API_KEY") and not _config_value(config, "API_SECRET"):
+        raise ValueError("API_SECRET not found in config when API_KEY is provided")
+
+
+class _LazyAlpacaDataSource:
+    """Scheduled-startup proxy for the default AlpacaData source."""
+
+    SOURCE = "ALPACA"
+    IS_BACKTESTING_DATA_SOURCE = False
+    MIN_TIMESTEP = "minute"
+    TIMESTEP_MAPPING = []
+    DEFAULT_TIMEZONE = "America/New_York"
+    name = "alpaca"
+    option_quote_fallback_allowed = False
+
+    def __init__(self, config, max_workers=20, chunk_size=100):
+        object.__setattr__(self, "_config", config)
+        object.__setattr__(self, "_max_workers", max_workers)
+        object.__setattr__(self, "_chunk_size", chunk_size)
+        object.__setattr__(self, "_data_source", None)
+        object.__setattr__(self, "_pending_attributes", {})
+        object.__setattr__(self, "_data_store", {})
+        self._timestep = None
+        self.datetime_start = None
+        self.datetime_end = None
+
+    @property
+    def __class__(self):
+        import sys
+
+        data_source = object.__getattribute__(self, "_data_source")
+        if data_source is not None:
+            return data_source.__class__
+        if "lumibot.data_sources.alpaca_data" in sys.modules:
+            from lumibot.data_sources.alpaca_data import AlpacaData
+
+            return AlpacaData
+        return _DEFERRED_ALPACA_DATA_CLASS
+
+    def _load(self):
+        data_source = object.__getattribute__(self, "_data_source")
+        if data_source is None:
+            from lumibot.data_sources import AlpacaData
+
+            data_source = AlpacaData(
+                object.__getattribute__(self, "_config"),
+                max_workers=object.__getattribute__(self, "_max_workers"),
+                chunk_size=object.__getattribute__(self, "_chunk_size"),
+            )
+            for name, value in object.__getattribute__(self, "_pending_attributes").items():
+                setattr(data_source, name, value)
+            object.__setattr__(self, "_data_source", data_source)
+        return data_source
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+    def __setattr__(self, name, value):
+        if name.startswith("_") and name not in {"_timestep"}:
+            object.__setattr__(self, name, value)
+            return
+        data_source = object.__getattribute__(self, "_data_source")
+        if data_source is None:
+            object.__getattribute__(self, "_pending_attributes")[name] = value
+            object.__setattr__(self, name, value)
+        else:
+            setattr(data_source, name, value)
+
+    def __delattr__(self, name):
+        data_source = object.__getattribute__(self, "_data_source")
+        if data_source is None:
+            object.__getattribute__(self, "_pending_attributes").pop(name, None)
+            object.__delattr__(self, name)
+        else:
+            delattr(data_source, name)
+
+    def __dir__(self):
+        data_source = object.__getattribute__(self, "_data_source")
+        if data_source is None:
+            return sorted(set(object.__dir__(self)) | set(object.__getattribute__(self, "_pending_attributes")))
+        return dir(data_source)
+
+    def __repr__(self):
+        data_source = object.__getattribute__(self, "_data_source")
+        if data_source is None:
+            return "<lazy AlpacaData>"
+        return repr(data_source)
+
+    def shutdown(self):
+        data_source = object.__getattribute__(self, "_data_source")
+        if data_source is not None:
+            return data_source.shutdown()
+        return None
+
+
+def _has_more_than_n_decimal_places(*args, **kwargs):
+    from lumibot.tools.helpers import has_more_than_n_decimal_places
+
+    return has_more_than_n_decimal_places(*args, **kwargs)
+
+
+def _local_tz():
+    from dateutil import tz
+
+    return tz.tzlocal()
+
+
+def _format_exc():
+    import traceback
+
+    return traceback.format_exc()
+
+
+def colored(*args, **kwargs):
+    from termcolor import colored as _colored
+
+    return _colored(*args, **kwargs)
+
+
+def _cash_event_class():
+    from lumibot.entities import CashEvent
+
+    return CashEvent
+
+
+def _position_class():
+    from lumibot.entities import Position
+
+    return Position
+
+
+def _quote_class():
+    from lumibot.entities import Quote
+
+    return Quote
+
+
+_LAZY_ENTITY_EXPORTS = {
+    "CashEvent": _cash_event_class,
+    "Position": _position_class,
+    "Quote": _quote_class,
+}
+
+
+def __getattr__(name):
+    factory = _LAZY_ENTITY_EXPORTS.get(name)
+    if factory is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = factory()
+    globals()[name] = value
+    return value
 
 
 # Create our own OrderData class to pass to the API because this is easier to work with
@@ -114,7 +290,44 @@ class Alpaca(Broker):
         forex=[],
         crypto=["crypto", "CRYPTO"],  # Added support for crypto asset class names
     )
-    CASH_ACTIVITY_TYPES = tuple(activity.value for activity in ActivityType if activity != ActivityType.FILL)
+    CASH_ACTIVITY_TYPES = (
+        "ACATC",
+        "ACATS",
+        "CFEE",
+        "CIL",
+        "CSD",
+        "CSW",
+        "DIV",
+        "DIVCGL",
+        "DIVCGS",
+        "DIVNRA",
+        "DIVROC",
+        "DIVTXEX",
+        "DIVWH",
+        "EXTRD",
+        "FEE",
+        "FXTRD",
+        "INT",
+        "INTPNL",
+        "JNLC",
+        "JNLS",
+        "MA",
+        "MEM",
+        "NC",
+        "OCT",
+        "OPASN",
+        "OPCSH",
+        "OPEXC",
+        "OPEXP",
+        "OPTRD",
+        "PTC",
+        "REORG",
+        "SPIN",
+        "SPLIT",
+        "SWP",
+        "VOF",
+        "WH",
+    )
     DIVIDEND_ACTIVITY_TYPES = {
         "DIV",
         "DIVCGL",
@@ -148,13 +361,25 @@ class Alpaca(Broker):
         "VOF",
     }
 
-    def __init__(self, config, max_workers=20, chunk_size=100, connect_stream=True, data_source=None, polling_interval=5.0):
+    def __init__(
+        self,
+        config,
+        max_workers=20,
+        chunk_size=100,
+        connect_stream=None,
+        data_source=None,
+        polling_interval=5.0,
+        start_orders_thread=None,
+    ):
         # Calling init methods
         self.api_key = ""
         self.api_secret = ""
         self.oauth_token = ""
         self.is_paper = False
         self.polling_interval = polling_interval
+        self._api = None
+
+        _validate_alpaca_data_credentials_config(config)
 
         # Set the config values
         self._update_attributes_from_config(config)
@@ -166,8 +391,18 @@ class Alpaca(Broker):
         logger.debug(f"Alpaca Broker Init: oauth_token={'present' if self.oauth_token else 'missing'}, api_key={'present' if self.api_key else 'missing'}, api_secret={'present' if self.api_secret else 'missing'}")
         logger.debug(f"Alpaca Broker Init: is_oauth_only={self.is_oauth_only}")
 
-        if not data_source:
-            data_source = AlpacaData(config, max_workers=max_workers, chunk_size=chunk_size)
+        if connect_stream is None:
+            connect_stream = _connect_stream_on_init_default()
+        if start_orders_thread is None:
+            start_orders_thread = _start_orders_thread_on_init_default()
+
+        if data_source is None:
+            if _scheduled_execution_requested() and not connect_stream and not start_orders_thread:
+                data_source = _LazyAlpacaDataSource(config, max_workers=max_workers, chunk_size=chunk_size)
+            else:
+                from lumibot.data_sources import AlpacaData
+
+                data_source = AlpacaData(config, max_workers=max_workers, chunk_size=chunk_size)
 
         super().__init__(
             name="alpaca",
@@ -175,16 +410,41 @@ class Alpaca(Broker):
             data_source=data_source,
             config=config,
             max_workers=max_workers,
+            start_orders_thread=start_orders_thread,
         )
 
+        # Validate authentication early, but defer TradingClient creation until the first
+        # broker API call. Importing the Alpaca SDK dominates cold startup for scheduled runs.
+        if not ((self.api_key and self.api_secret) or self.oauth_token):
+            raise ValueError("Either OAuth token or API key/secret must be provided for Alpaca authentication")
+        if TradingClient is not None:
+            self._api = self._create_trading_client()
+
+    @property
+    def api(self):
+        if self._api is None:
+            self._api = self._create_trading_client()
+        return self._api
+
+    @api.setter
+    def api(self, value):
+        self._api = value
+
+    @api.deleter
+    def api(self):
+        self._api = None
+
+    def _create_trading_client(self):
         # Initialize TradingClient based on available authentication method (API keys have precedence)
         try:
+            client_cls = TradingClient
+            if client_cls is None:
+                from alpaca.trading.client import TradingClient as client_cls
+
             if self.api_key and self.api_secret:
-                self.api = TradingClient(self.api_key, self.api_secret, paper=self.is_paper)
-            elif self.oauth_token:
-                self.api = TradingClient(oauth_token=self.oauth_token, paper=self.is_paper)
-            else:
-                raise ValueError("Either OAuth token or API key/secret must be provided for Alpaca authentication")
+                return client_cls(self.api_key, self.api_secret, paper=self.is_paper)
+
+            return client_cls(oauth_token=self.oauth_token, paper=self.is_paper)
         except Exception as e:
             # Better error handling for unauthorized access
             error_message = str(e).lower()
@@ -297,9 +557,13 @@ class Alpaca(Broker):
             if self.market == "24/7":
                 return True
 
+            initialized_calendar_result = self._is_market_open_from_initialized_calendar()
+            if initialized_calendar_result is not None:
+                return initialized_calendar_result
+
             open_time = self.utc_to_local(self.market_hours(close=False))
             close_time = self.utc_to_local(self.market_hours(close=True))
-            current_time = datetime.datetime.now().astimezone(tz=tz.tzlocal())
+            current_time = datetime.datetime.now().astimezone(tz=_local_tz())
 
             # Check if it is a holiday or weekend using pandas_market_calendars
             market_cal = mcal.get_calendar(self.market)
@@ -437,11 +701,17 @@ class Alpaca(Broker):
         except (ValueError, TypeError):
             avg_fill_price = None
 
-        position = Position(strategy, asset, quantity, orders=orders, avg_fill_price=avg_fill_price)
+        position_cls = _position_class()
+        position = position_cls(strategy, asset, quantity, orders=orders, avg_fill_price=avg_fill_price)
 
         position.pnl = float(broker_position.unrealized_pl) if broker_position.unrealized_pl else None
         position.current_price = float(broker_position.current_price) if broker_position.current_price else None
-        position.side = Position.PositionSide.LONG if broker_position.side == PositionSide.LONG else Position.PositionSide.SHORT
+        broker_side = getattr(broker_position.side, "value", broker_position.side)
+        position.side = (
+            position_cls.PositionSide.LONG
+            if str(broker_side).lower() == "long"
+            else position_cls.PositionSide.SHORT
+        )
         position.market_value = float(broker_position.market_value) if broker_position.market_value else None
         
 
@@ -656,6 +926,9 @@ class Alpaca(Broker):
         """Get the broker orders"""
         # Use GetOrdersRequest with status="all" to get both open and filled orders
         # This is crucial for OAuth polling since orders can be filled quickly
+        from alpaca.trading.enums import QueryOrderStatus
+        from alpaca.trading.requests import GetOrdersRequest
+
         request = GetOrdersRequest(status=QueryOrderStatus.ALL, limit=100)
         return self.api.get_orders(filter=request)
 
@@ -943,7 +1216,7 @@ class Alpaca(Broker):
                 if order.is_stop_order() and order.stop_price is not None:
                     orig_stop = order.stop_price
                     conformed = False
-                    if has_more_than_n_decimal_places(order.stop_price, 2):
+                    if _has_more_than_n_decimal_places(order.stop_price, 2):
                         order.stop_price = round(order.stop_price, 2)
                         conformed = True
                     if conformed:
@@ -958,7 +1231,7 @@ class Alpaca(Broker):
                 if order.order_type == Order.OrderType.STOP_LIMIT and order.stop_limit_price is not None:
                     orig_stop_limit = order.stop_limit_price
                     conformed = False
-                    if has_more_than_n_decimal_places(order.stop_limit_price, 2):
+                    if _has_more_than_n_decimal_places(order.stop_limit_price, 2):
                         order.stop_limit_price = round(order.stop_limit_price, 2)
                         conformed = True
                     if conformed:
@@ -1025,10 +1298,10 @@ class Alpaca(Broker):
             """
             orig_price = order.limit_price
             conformed = False
-            if order.limit_price >= 1.0 and has_more_than_n_decimal_places(order.limit_price, 2):
+            if order.limit_price >= 1.0 and _has_more_than_n_decimal_places(order.limit_price, 2):
                     order.limit_price = round(order.limit_price, 2)
                     conformed = True
-            elif order.limit_price < 1.0 and has_more_than_n_decimal_places(order.limit_price, 4):
+            elif order.limit_price < 1.0 and _has_more_than_n_decimal_places(order.limit_price, 4):
                 order.limit_price = round(order.limit_price, 4)
                 conformed = True
 
@@ -1095,6 +1368,8 @@ class Alpaca(Broker):
                 return
 
             # Build the replace request
+            from alpaca.trading.requests import ReplaceOrderRequest
+
             replace_req = ReplaceOrderRequest(**update_kwargs)
 
             # Try to replace the order on Alpaca, handle APIError for accepted status
@@ -1218,10 +1493,11 @@ class Alpaca(Broker):
             return None
 
         raw_type = str(activity.get("activity_type") or "").upper().strip()
-        if not raw_type or raw_type == ActivityType.FILL.value or raw_type in cls.TRADE_LIKE_ACTIVITY_TYPES:
+        if not raw_type or raw_type == "FILL" or raw_type in cls.TRADE_LIKE_ACTIVITY_TYPES:
             return None
 
-        amount = CashEvent.coerce_amount(activity.get("net_amount"))
+        cash_event_cls = _cash_event_class()
+        amount = cash_event_cls.coerce_amount(activity.get("net_amount"))
         event_type, is_external_cash_flow = cls._map_cash_event_type(raw_type, amount)
         occurred_at = (
             activity.get("date")
@@ -1229,8 +1505,8 @@ class Alpaca(Broker):
             or activity.get("created_at")
         )
 
-        return CashEvent(
-            event_id=CashEvent.build_event_id(
+        return cash_event_cls(
+            event_id=cash_event_cls.build_event_id(
                 broker_name="alpaca",
                 broker_event_id=activity.get("id"),
                 raw_type=raw_type,
@@ -1248,7 +1524,7 @@ class Alpaca(Broker):
             currency=activity.get("currency") or "USD",
             occurred_at=occurred_at,
             description=activity.get("description"),
-            direction=CashEvent._infer_direction(amount),
+            direction=cash_event_cls._infer_direction(amount),
             is_external_cash_flow=is_external_cash_flow,
         )
 
@@ -1279,7 +1555,7 @@ class Alpaca(Broker):
                 "page_size": page_size,
             }
             if since is not None:
-                request_fields["after"] = CashEvent.coerce_datetime(since).isoformat()
+                request_fields["after"] = _cash_event_class().coerce_datetime(since).isoformat()
 
             for _ in range(max_pages):
                 if page_token:
@@ -1350,11 +1626,17 @@ class Alpaca(Broker):
         if self.is_oauth_only:
             # OAuth-only configurations use polling since TradingStream doesn't support OAuth tokens
             logger.debug("Alpaca Stream: Using PollingStream for OAuth-only configuration")
+            from lumibot.trading_builtins import PollingStream
+
             return PollingStream(self.polling_interval)
         elif self.api_key and self.api_secret:
             # Traditional API key/secret authentication
             logger.debug("Alpaca Stream: Using TradingStream for API key/secret authentication")
-            return TradingStream(self.api_key, self.api_secret, paper=self.is_paper)
+            stream_cls = TradingStream
+            if stream_cls is None:
+                from alpaca.trading.stream import TradingStream as stream_cls
+
+            return stream_cls(self.api_key, self.api_secret, paper=self.is_paper)
         else:
             raise ValueError("Either OAuth token or API key/secret must be provided for Alpaca authentication")
 
@@ -1365,6 +1647,7 @@ class Alpaca(Broker):
             # For OAuth-only, use polling events
             logger.debug("Alpaca Stream: Registering OAuth polling events")
             broker = self
+            from lumibot.trading_builtins import PollingStream
 
             @broker.stream.add_action(PollingStream.POLL_EVENT)
             def on_trade_event_poll():
@@ -1379,7 +1662,7 @@ class Alpaca(Broker):
                     broker._process_trade_event(order, broker.NEW_ORDER)
                     return True
                 except:
-                    logger.error(traceback.format_exc())
+                    logger.error(_format_exc())
 
             @broker.stream.add_action(broker.FILLED_ORDER)
             def on_trade_event_fill(order, price, filled_quantity):
@@ -1395,7 +1678,7 @@ class Alpaca(Broker):
                     )
                     return True
                 except:
-                    logger.error(traceback.format_exc())
+                    logger.error(_format_exc())
 
             @broker.stream.add_action(broker.CANCELED_ORDER)
             def on_trade_event_cancel(order):
@@ -1404,7 +1687,7 @@ class Alpaca(Broker):
                 try:
                     broker._process_trade_event(order, broker.CANCELED_ORDER)
                 except:
-                    logger.error(traceback.format_exc())
+                    logger.error(_format_exc())
 
             @broker.stream.add_action(broker.ERROR_ORDER)
             def on_trade_event_error(order, error_msg):
@@ -1423,7 +1706,7 @@ class Alpaca(Broker):
                     logger.error(error_msg)
                     order.set_error(error_msg)
                 except:
-                    logger.error(traceback.format_exc())
+                    logger.error(_format_exc())
         else:
             # For API key/secret, use traditional streaming (existing code)
             pass
@@ -1612,9 +1895,12 @@ class Alpaca(Broker):
                 self.stream._run()
             except Exception as e:
                 logger.error(f"Error while running polling stream: {e}")
-                logger.error(traceback.format_exc())
+                logger.error(_format_exc())
         else:
             # For API key/secret, use traditional WebSocket streaming
+            import asyncio
+            from asyncio import CancelledError
+
             async def _trade_update(trade_update):
                 try:
                     logged_order = trade_update.order
@@ -1652,7 +1938,7 @@ class Alpaca(Broker):
 
                     return True
                 except ValueError:
-                    logger.error(traceback.format_exc())
+                    logger.error(_format_exc())
 
             self.stream.loop = asyncio.new_event_loop()
             loop = self.stream.loop
@@ -1671,7 +1957,7 @@ class Alpaca(Broker):
                 except Exception as e:
                     m = "consume cancelled" if isinstance(e, CancelledError) else e
                     logger.error(f"error while consuming ws messages: {m}")
-                    logger.error(traceback.format_exc())
+                    logger.error(_format_exc())
                     loop.run_until_complete(self.stream.close(should_renew))
                     if loop.is_running():
                         loop.close()

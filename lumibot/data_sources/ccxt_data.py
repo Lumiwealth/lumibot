@@ -1,17 +1,15 @@
-import datetime
+from __future__ import annotations
+
 import time
-from decimal import Decimal
-from typing import Union
 
-import ccxt
-import pandas as pd
-
-from lumibot.entities import Asset, Bars
-from lumibot.tools.lumibot_logger import get_logger
+from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 
 from .data_source import DataSource
 
-logger = get_logger(__name__)
+logger = LazyLogger(__name__)
+datetime = LazyModule("datetime")
+pd = LazyModule("pandas")
+Asset = lazy_class("lumibot.entities", "Asset")
 
 
 class CcxtData(DataSource):
@@ -33,6 +31,7 @@ class CcxtData(DataSource):
         super().__init__(**kwargs)
         self.name = "ccxt"
         self.max_workers = min(max_workers, 200)
+        self._markets_loaded = False
 
         # When requesting data for assets for example,
         # if there is too many assets, the best thing to do would
@@ -40,6 +39,8 @@ class CcxtData(DataSource):
         self.chunk_size = min(chunk_size, 100)
 
         try:
+            import ccxt
+
             exchange_class = getattr(ccxt, config["exchange_id"])
         except:
             raise Exception(
@@ -52,24 +53,23 @@ class CcxtData(DataSource):
         self.api = exchange_class(config)
         is_sandbox = True if "sandbox" not in config else config["sandbox"]
         self.api.set_sandbox_mode(is_sandbox)
-        # NOTE (unit-test + offline safety):
-        # `load_markets()` performs a public network call (e.g., Kraken AssetPairs). Some environments
-        # (CI sandboxes, offline dev machines, firewalled networks) block outbound traffic, which
-        # would make broker initialization fail even when no market data is needed immediately.
-        #
-        # Keep initialization robust by logging-and-continuing on transient network failures. Any
-        # subsequent call that actually needs markets can retry or raise as appropriate.
-        try:
-            self.api.load_markets()
-        except Exception as exc:
-            logger.warning(
-                "[CCXT] load_markets() failed during init for exchange_id=%s sandbox=%s: %s",
-                config.get("exchange_id"),
-                is_sandbox,
-                exc,
-            )
         # Recommended two or less api calls per second.
         self.api.enableRateLimit = True
+
+    def _ensure_markets_loaded(self):
+        if self._markets_loaded:
+            return
+        try:
+            self.api.load_markets()
+            self._markets_loaded = True
+        except Exception as exc:
+            logger.warning(
+                "[CCXT] load_markets() failed for exchange_id=%s sandbox=%s: %s",
+                self.config.get("exchange_id"),
+                self.config.get("sandbox", True),
+                exc,
+            )
+            raise
 
     def _pull_source_symbol_bars(
         self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, exchange=None, include_after_hours=True
@@ -150,6 +150,7 @@ class CcxtData(DataSource):
         if not api.has["fetchOHLCV"]:
             logger.error("Exchange does not support fetching OHLCV data")
 
+        self._ensure_markets_loaded()
         market = self.api.markets.get(symbol, None)
         if market is None:
             logger.error(
@@ -224,6 +225,8 @@ class CcxtData(DataSource):
         return df_ret
 
     def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
+        from lumibot.entities import Bars
+
         # Parse the dataframe returned from CCXT.
         bars = Bars(response, self.SOURCE, asset, quote=quote, raw=response)
         return bars

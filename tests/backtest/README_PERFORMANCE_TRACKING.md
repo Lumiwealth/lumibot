@@ -1,10 +1,10 @@
 # Backtest Performance Tracking
 
-This directory includes an automatic performance tracking system that records the execution time of all backtest tests over time.
+This directory includes an opt-in performance tracking system that records the execution time of backtest tests over time.
 
 ## How It Works
 
-1. **Automatic Tracking**: The `conftest.py` file contains a pytest fixture that automatically tracks execution time for all tests in the `tests/backtest/` directory.
+1. **Opt-in Tracking**: The `conftest.py` file contains a pytest fixture that tracks execution time for tests in the `tests/backtest/` directory when `LUMIBOT_RECORD_BACKTEST_PERFORMANCE=1` is set.
 
 2. **CSV History**: Performance data is saved to `backtest_performance_history.csv` which is checked into git to track performance over time.
 
@@ -29,12 +29,12 @@ For each backtest test run, the following data is recorded:
 
 ## Usage
 
-### Automatic Tracking
+### Opt-in Tracking
 
-Just run your tests normally. Performance will be automatically tracked:
+Set `LUMIBOT_RECORD_BACKTEST_PERFORMANCE=1` when you want to append performance data:
 
 ```bash
-pytest tests/backtest/test_yahoo.py
+LUMIBOT_RECORD_BACKTEST_PERFORMANCE=1 pytest tests/backtest/test_yahoo.py
 ```
 
 ### Manual Tracking with Detailed Info

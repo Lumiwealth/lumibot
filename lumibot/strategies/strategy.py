@@ -1,42 +1,174 @@
-import datetime
-import inspect
-import logging
+from __future__ import annotations
+
 import math
 import os
 import re
 import time
-import uuid
 import warnings
-from decimal import Decimal
-from typing import Callable, List, Type, Union, Optional
 
-import jsonpickle
-import matplotlib
-from matplotlib.colors import is_color_like
-import numpy as np
-import pandas as pd
-import pandas_market_calendars as mcal
-from apscheduler.triggers.cron import CronTrigger
-from termcolor import colored, COLORS
+from lumibot._lazy_imports import LazyModule, lazy_class, lazy_typing
 
-from ..data_sources import DataSource
-from ..entities import Asset, Data, Order, Position, Quote, TradingFee, TradingSlippage, SmartLimitConfig
-from ..tools import get_risk_free_rate
-from ..tools.smart_limit_utils import (
-    build_price_ladder,
-    compute_final_price,
-    compute_final_price_from_mid,
-    compute_mid,
-    infer_tick_size,
-    round_to_tick,
-)
-from ..tools.polars_utils import PolarsResampleError, resample_polars_ohlc
-from ..traders import Trader
-from ..credentials import IS_BACKTESTING
-from ._strategy import _Strategy
-from ..constants import LUMIBOT_DEFAULT_TIMEZONE, LUMIBOT_DEFAULT_PYTZ
+from ._strategy import IS_BACKTESTING, _Strategy
 
-matplotlib.use("Agg")
+LUMIBOT_DEFAULT_TIMEZONE = "America/New_York"
+_INFO_LEVEL = 20
+_DEFAULT_QUOTE_ASSET = object()
+TYPE_CHECKING = False
+
+if TYPE_CHECKING:
+    from ..data_sources import DataSource
+    from ..entities import Data, Position, Quote
+    from ..traders import Trader
+
+np = LazyModule("numpy")
+pd = LazyModule("pandas")
+datetime = LazyModule("datetime")
+mcal = LazyModule("pandas_market_calendars")
+Asset = lazy_class("lumibot.entities", "Asset")
+Data = lazy_class("lumibot.entities", "Data")
+DataSource = lazy_class("lumibot.data_sources", "DataSource")
+Order = lazy_class("lumibot.entities", "Order")
+Position = lazy_class("lumibot.entities", "Position")
+Quote = lazy_class("lumibot.entities", "Quote")
+SmartLimitConfig = lazy_class("lumibot.entities", "SmartLimitConfig")
+Trader = lazy_class("lumibot.traders", "Trader")
+TradingFee = lazy_class("lumibot.entities", "TradingFee")
+TradingSlippage = lazy_class("lumibot.entities", "TradingSlippage")
+Decimal = lazy_class("decimal", "Decimal")
+Callable = lazy_typing("Callable")
+List = lazy_typing("List")
+Optional = lazy_typing("Optional")
+Type = lazy_typing("Type")
+Union = lazy_typing("Union")
+
+
+def _default_pytz():
+    from ..constants import LUMIBOT_DEFAULT_PYTZ
+
+    return LUMIBOT_DEFAULT_PYTZ
+
+
+def get_risk_free_rate(*args, **kwargs):
+    from ..tools import get_risk_free_rate as _get_risk_free_rate
+
+    return _get_risk_free_rate(*args, **kwargs)
+
+
+def is_color_like(*args, **kwargs):
+    from matplotlib.colors import is_color_like as _is_color_like
+
+    return _is_color_like(*args, **kwargs)
+
+
+def _smart_limit_config():
+    from ..entities import SmartLimitConfig
+
+    return SmartLimitConfig
+
+
+def build_price_ladder(*args, **kwargs):
+    from ..tools.smart_limit_utils import build_price_ladder as _impl
+
+    return _impl(*args, **kwargs)
+
+
+def compute_final_price(*args, **kwargs):
+    from ..tools.smart_limit_utils import compute_final_price as _impl
+
+    return _impl(*args, **kwargs)
+
+
+def compute_final_price_from_mid(*args, **kwargs):
+    from ..tools.smart_limit_utils import compute_final_price_from_mid as _impl
+
+    return _impl(*args, **kwargs)
+
+
+def compute_mid(*args, **kwargs):
+    from ..tools.smart_limit_utils import compute_mid as _impl
+
+    return _impl(*args, **kwargs)
+
+
+def infer_tick_size(*args, **kwargs):
+    from ..tools.smart_limit_utils import infer_tick_size as _impl
+
+    return _impl(*args, **kwargs)
+
+
+def round_to_tick(*args, **kwargs):
+    from ..tools.smart_limit_utils import round_to_tick as _impl
+
+    return _impl(*args, **kwargs)
+
+
+def _logging_warning(*args, **kwargs):
+    import logging
+
+    return logging.warning(*args, **kwargs)
+
+
+def _colored(*args, **kwargs):
+    from termcolor import colored
+
+    return colored(*args, **kwargs)
+
+
+def _termcolor_colors():
+    from termcolor import COLORS
+
+    return COLORS
+
+
+def _inspect_module():
+    import inspect
+
+    return inspect
+
+
+def _uuid4_hex():
+    import uuid
+
+    return uuid.uuid4().hex
+
+
+def _position_class():
+    from ..entities import Position
+
+    return Position
+
+
+def _quote_class():
+    from ..entities import Quote
+
+    return Quote
+
+
+def _trader_class():
+    trader_cls = globals().get("Trader")
+    if trader_cls is not None:
+        return trader_cls
+
+    from ..traders import Trader
+
+    return Trader
+
+
+_LAZY_ENTITY_EXPORTS = {
+    "Position": _position_class,
+    "Quote": _quote_class,
+    "Trader": _trader_class,
+}
+
+
+def __getattr__(name):
+    factory = _LAZY_ENTITY_EXPORTS.get(name)
+    if factory is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = factory()
+    globals()[name] = value
+    return value
+
 
 class Strategy(_Strategy):
     @property
@@ -309,7 +441,7 @@ class Strategy(_Strategy):
         #     self._set_cash_position(0)
         #     quantity = 0
 
-        if type(quantity) is Decimal:
+        if isinstance(quantity, Decimal):
             quantity = float(quantity)
         elif quantity is None:
             quantity = 0.0
@@ -390,12 +522,12 @@ class Strategy(_Strategy):
 
         # Performance optimization: skip work if INFO is not enabled.
         # This respects BACKTESTING_QUIET_LOGS via StrategyLoggerAdapter.isEnabledFor().
-        if not self.logger.isEnabledFor(logging.INFO):
+        if not self.logger.isEnabledFor(_INFO_LEVEL):
             return message
 
         if color:
-            if color in COLORS:
-                colored_message = colored(message, color)
+            if color in _termcolor_colors():
+                colored_message = _colored(message, color)
                 self.logger.info(colored_message)
             else:
                 self.logger.warning(f"Unsupported log color '{color}' for message: {message}")
@@ -1019,7 +1151,7 @@ class Strategy(_Strategy):
         # Check if broker is None before setting market
         if self.broker is None:
             from termcolor import colored
-            error_msg = colored(
+            error_msg = _colored(
                 "No broker is set. Cannot set market. Please set a broker using environment variables, "
                 "secrets or by passing it as an argument to the strategy constructor.",
                 "red"
@@ -1825,7 +1957,7 @@ class Strategy(_Strategy):
             if wants_smart_limit:
                 cfg = next((getattr(o, "smart_limit", None) for o in order if getattr(o, "smart_limit", None) is not None), None)
                 if cfg is None:
-                    cfg = SmartLimitConfig()
+                    cfg = _smart_limit_config()()
 
                 if any(getattr(o, "smart_limit", None) not in (None, cfg) for o in order):
                     self.log_message(
@@ -1912,7 +2044,7 @@ class Strategy(_Strategy):
                     return self.broker.submit_order(order)
 
                 if order.smart_limit is None:
-                    order.smart_limit = SmartLimitConfig()
+                    order.smart_limit = _smart_limit_config()()
 
                 if order.order_class == Order.OrderClass.MULTILEG and order.child_orders:
                     return self._submit_multileg_smart_limit(order)
@@ -2022,7 +2154,7 @@ class Strategy(_Strategy):
             return self.broker.submit_orders(child_orders, **kwargs)
 
         if smart_limit is None:
-            smart_limit = SmartLimitConfig()
+            smart_limit = _smart_limit_config()()
 
         computed = self._compute_multileg_net_best_fastest(child_orders)
         if computed is None:
@@ -2799,7 +2931,7 @@ class Strategy(_Strategy):
                 return self.broker.data_source.get_quote(asset, quote=quote, exchange=exchange)
         except Exception as e:
             self.log_message(f"Error getting quote from data source: {e}", color="red")
-            return Quote(asset=asset)
+            return _quote_class()(asset=asset)
 
     def get_tick(self, asset: Union[Asset, str]):
         """Takes an Asset and returns the last known price"""
@@ -3402,7 +3534,7 @@ class Strategy(_Strategy):
         >>> self.log_message(f"pytz: {pytz}")
         """
         tz = getattr(self.broker.data_source, "tzinfo", None)
-        return tz or LUMIBOT_DEFAULT_PYTZ
+        return tz or _default_pytz()
 
     def get_datetime(self, adjust_for_delay: bool = False):
         """Returns the current datetime according to the data source. In a backtest this will be the current bar's datetime. In live trading this will be the current datetime on the exchange.
@@ -3465,7 +3597,7 @@ class Strategy(_Strategy):
         This method does nothing in backtesting mode.
         """
         # Generate a unique job ID
-        job_id = f"cron_callback_{uuid.uuid4().hex}"
+        job_id = f"cron_callback_{_uuid4_hex()}"
 
         # Do nothing in backtesting mode
         if self.is_backtesting:
@@ -3473,10 +3605,13 @@ class Strategy(_Strategy):
             return job_id
 
         # Create a CronTrigger from the schedule string using the broker's timezone
+        from apscheduler.triggers.cron import CronTrigger
+
         trigger = CronTrigger.from_crontab(cron_schedule, timezone=self.pytz)
 
         # Add the job to the scheduler
-        self._executor.scheduler.add_job(
+        scheduler = self._executor.ensure_scheduler()
+        scheduler.add_job(
             callback_function,
             trigger,
             id=job_id,
@@ -4299,6 +4434,8 @@ class Strategy(_Strategy):
             pass
         os.makedirs(os.path.dirname(settings_file), exist_ok=True)
         with open(settings_file, "w") as outfile:
+            import jsonpickle
+
             json = jsonpickle.encode(settings)
             outfile.write(json)
 
@@ -4598,10 +4735,11 @@ class Strategy(_Strategy):
         supports_return_polars = supports_cache.get(ds_type)
         if supports_return_polars is None:
             try:
-                params = inspect.signature(ds_type.get_historical_prices).parameters
+                inspect_module = _inspect_module()
+                params = inspect_module.signature(ds_type.get_historical_prices).parameters
                 supports_return_polars = (
                     "return_polars" in params
-                    or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
+                    or any(p.kind == inspect_module.Parameter.VAR_KEYWORD for p in params.values())
                 )
             except Exception:
                 # Conservative default: if we can't inspect, assume it does NOT support return_polars
@@ -4636,6 +4774,8 @@ class Strategy(_Strategy):
         if needs_resampling and bars and len(bars) > 0:
             resampled_with_polars = False
             if return_polars:
+                from ..tools.polars_utils import PolarsResampleError, resample_polars_ohlc
+
                 try:
                     polars_frame = bars.polars_df
                     resampled_frame = resample_polars_ohlc(polars_frame, multiplier, base_unit, length)
@@ -5542,7 +5682,7 @@ class Strategy(_Strategy):
                 "on",
             }
 
-        trader = Trader()
+        trader = _trader_class()()
 
         trader.add_strategy(self)
         trader.run_all(run_once=run_once)
@@ -5568,7 +5708,7 @@ class Strategy(_Strategy):
         trades_file: str = None,
         settings_file: str = None,
         pandas_data: List[Data] = None,
-        quote_asset: Asset = Asset(symbol="USD", asset_type="forex"),
+        quote_asset: Asset = _DEFAULT_QUOTE_ASSET,
         starting_positions: dict = None,
         show_plot: bool | None = None,
         tearsheet_file: str = None,
@@ -5589,7 +5729,7 @@ class Strategy(_Strategy):
         use_quote_data: bool = True,  # Changed to True for ThetaData options support
         show_progress_bar: bool = True,
         quiet_logs: bool = True,
-        trader_class: Type[Trader] = Trader,
+        trader_class: Type[Trader] | None = None,
         save_stats_file: bool = True,
         **kwargs,
     ):
@@ -5723,6 +5863,9 @@ class Strategy(_Strategy):
         >>>     benchmark_asset=benchmark_asset,
         >>> )
         """
+        if quote_asset is _DEFAULT_QUOTE_ASSET:
+            quote_asset = Asset(symbol="USD", asset_type="forex")
+
         # Environment-variable override for start/end dates.
         #
         # Why: strategies frequently hardcode `backtesting_start` / `backtesting_end`
@@ -5751,24 +5894,24 @@ class Strategy(_Strategy):
                     # hardcoded backtest window from a stale .env value is
                     # easy to miss and produces "mystery" result drift. Flag
                     # it loudly so the override is visible in every run.
-                    logging.warning(
+                    _logging_warning(
                         f"BACKTESTING_START env var override: {backtesting_start} -> {parsed_start}"
                     )
                 backtesting_start = parsed_start
             except (TypeError, ValueError) as exc:
-                logging.warning(
+                _logging_warning(
                     f"Ignoring unparseable BACKTESTING_START={env_start!r}: {exc}"
                 )
         if env_end:
             try:
                 parsed_end = datetime.datetime.fromisoformat(env_end)
                 if parsed_end != backtesting_end:
-                    logging.warning(
+                    _logging_warning(
                         f"BACKTESTING_END env var override: {backtesting_end} -> {parsed_end}"
                     )
                 backtesting_end = parsed_end
             except (TypeError, ValueError) as exc:
-                logging.warning(
+                _logging_warning(
                     f"Ignoring unparseable BACKTESTING_END={env_end!r}: {exc}"
                 )
 

@@ -1,23 +1,44 @@
+from __future__ import annotations
+
 import os
 import time
-import traceback
 from abc import ABC, abstractmethod
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date, datetime, timedelta
-from decimal import Decimal
-from typing import Union
 
-import pandas as pd
-import pytz
-
-from lumibot.constants import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
-from lumibot.entities import Asset, AssetsMapping, Bars, Quote
-from lumibot.tools import black_scholes, create_options_symbol
-from lumibot.tools.lumibot_logger import get_logger
+from lumibot._lazy_imports import LazyLogger, LazyModule, LazyPytzTimezoneRef, lazy_class
 
 from .exceptions import UnavailabeTimestep
 
-logger = get_logger(__name__)
+logger = LazyLogger(__name__)
+TYPE_CHECKING = False
+
+date = lazy_class("datetime", "date")
+datetime = lazy_class("datetime", "datetime")
+timedelta = lazy_class("datetime", "timedelta")
+Asset = lazy_class("lumibot.entities", "Asset")
+AssetsMapping = lazy_class("lumibot.entities", "AssetsMapping")
+pd = LazyModule("pandas")
+LUMIBOT_DEFAULT_TIMEZONE = "America/New_York"
+
+if TYPE_CHECKING:
+    from lumibot.entities import Bars, Quote
+
+
+def _format_exc():
+    import traceback
+
+    return traceback.format_exc()
+
+
+def _create_options_symbol(*args, **kwargs):
+    from lumibot.tools import create_options_symbol
+
+    return create_options_symbol(*args, **kwargs)
+
+
+def _black_scholes():
+    from lumibot.tools import black_scholes
+
+    return black_scholes
 
 
 class DataSource(ABC):
@@ -26,7 +47,7 @@ class DataSource(ABC):
     MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = []
     DEFAULT_TIMEZONE = LUMIBOT_DEFAULT_TIMEZONE
-    DEFAULT_PYTZ = LUMIBOT_DEFAULT_PYTZ
+    DEFAULT_PYTZ = LazyPytzTimezoneRef(LUMIBOT_DEFAULT_TIMEZONE)
     option_quote_fallback_allowed = False
 
     def __init__(
@@ -63,11 +84,9 @@ class DataSource(ABC):
                 # Default to 0 if no environment variable is set
                 delay = 0
 
-        self._delay = timedelta(minutes=delay) if delay is not None else None
-
-        if tzinfo is None:
-            tzinfo = pytz.timezone(self.DEFAULT_TIMEZONE)
-        self.tzinfo = tzinfo
+        self._delay_minutes = delay
+        self._delay_value = None
+        self._tzinfo = tzinfo
 
         # Initialize caches centrally (avoid ad-hoc hasattr checks in methods)
         self._greeks_cache = {}
@@ -83,6 +102,30 @@ class DataSource(ABC):
         # Ensure the instance has an explicit attribute for fallback behaviour
         if not hasattr(self, "option_quote_fallback_allowed"):
             self.option_quote_fallback_allowed = False
+
+    @property
+    def _delay(self):
+        if self._delay_minutes is None:
+            return self._delay_value
+        if self._delay_value is None:
+            self._delay_value = timedelta(minutes=self._delay_minutes)
+        return self._delay_value
+
+    @_delay.setter
+    def _delay(self, value):
+        self._delay_minutes = None
+        self._delay_value = value
+
+    @property
+    def tzinfo(self):
+        if self._tzinfo is None:
+            default_tz = type(self).DEFAULT_PYTZ
+            self._tzinfo = default_tz._load() if hasattr(default_tz, "_load") else default_tz
+        return self._tzinfo
+
+    @tzinfo.setter
+    def tzinfo(self, value):
+        self._tzinfo = value
 
     def _get_or_create_thread_pool(self):
         """Get or create the thread pool for parallel operations"""
@@ -422,7 +465,7 @@ class DataSource(ABC):
                 except Exception as e:
                     # Log once per asset to avoid spamming with a huge traceback
                     logger.warning(f"Error retrieving data for {base_asset.symbol}: {e}")
-                    tb = traceback.format_exc()
+                    tb = _format_exc()
                     logger.warning(tb)  # This prints the traceback
                     chunk_result[asset] = None
             return chunk_result
@@ -435,6 +478,8 @@ class DataSource(ABC):
 
         results = {}
         # Reuse thread pool to avoid creation/destruction overhead
+        from concurrent.futures import as_completed
+
         executor = self._get_or_create_thread_pool()
         futures = [executor.submit(process_chunk, chunk) for chunk in chunks]
         for future in as_completed(futures):
@@ -629,7 +674,7 @@ class DataSource(ABC):
                     right=right,
                 )
                 query_t = time.perf_counter()
-                option_symbol = create_options_symbol(opt_asset.symbol, expiry_dt, right, strike)
+                option_symbol = _create_options_symbol(opt_asset.symbol, expiry_dt, right, strike)
                 opt_price = self.get_last_price(opt_asset)
                 greeks = self.calculate_greeks(opt_asset, opt_price, underlying_price, risk_free_rate)
                 query_total += time.perf_counter() - query_t
@@ -702,6 +747,7 @@ class DataSource(ABC):
         opt_price = asset_price
         und_price = underlying_price
         interest = risk_free_rate * 100
+        black_scholes = _black_scholes()
 
         # If asset expiration is a datetime object, convert it to date
         expiration = asset.expiration

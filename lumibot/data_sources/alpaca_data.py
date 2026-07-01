@@ -1,34 +1,69 @@
-import datetime as dt
-import os
-from decimal import Decimal
-from typing import Optional, Union, List, Dict
-import os
-import datetime as dt
-import pandas as pd
-import pytz
+from __future__ import annotations
 
-import pandas as pd
-import pytz
-from alpaca.data.enums import Adjustment
-from alpaca.data.historical import CryptoHistoricalDataClient, OptionHistoricalDataClient, StockHistoricalDataClient
-from alpaca.data.requests import (
-    CryptoBarsRequest,
-    OptionBarsRequest,
-    OptionChainRequest,
-    OptionSnapshotRequest,
-    StockBarsRequest,
-)
-from alpaca.data.timeframe import TimeFrame
+import os
 
-from lumibot.constants import LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL, LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE
-from lumibot.entities import Asset, Bars, Quote
-from lumibot.tools.alpaca_helpers import sanitize_base_and_quote_asset
-from lumibot.tools.helpers import date_n_trading_days_from_date
-from lumibot.tools.lumibot_logger import get_logger
+from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 
 from .data_source import DataSource
 
-logger = get_logger(__name__)
+logger = LazyLogger(__name__)
+TYPE_CHECKING = False
+dt = LazyModule("datetime")
+pd = LazyModule("pandas")
+Asset = lazy_class("lumibot.entities", "Asset")
+CryptoHistoricalDataClient = None
+OptionHistoricalDataClient = None
+StockHistoricalDataClient = None
+LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL = "USD"
+LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE = "forex"
+
+if TYPE_CHECKING:
+    from lumibot.entities import Bars, Quote
+
+
+def _is_new_york_timezone(tzinfo) -> bool:
+    return (getattr(tzinfo, "zone", None) or getattr(tzinfo, "key", None) or str(tzinfo)) == "America/New_York"
+
+
+def _date_n_trading_days_from_date(*args, **kwargs):
+    from lumibot.tools.helpers import date_n_trading_days_from_date
+
+    return date_n_trading_days_from_date(*args, **kwargs)
+
+
+def _parse_alpaca_timestep_value(timestep):
+    amount = getattr(timestep, "amount", None)
+    unit = getattr(getattr(timestep, "unit", None), "value", None)
+
+    if amount is not None and unit is not None:
+        unit = str(unit).lower()
+        if unit == "min":
+            return "minute" if amount == 1 else f"{amount} minutes"
+        if unit == "hour":
+            return "hour" if amount == 1 else f"{amount} hours"
+        if unit == "day":
+            return "day"
+
+    if isinstance(timestep, str):
+        normalized = timestep.strip().lower().replace(" ", "")
+        if normalized in {"minute", "1minute", "min", "1min", "1m"}:
+            return "minute"
+        if normalized in {"hour", "1hour", "1h"}:
+            return "hour"
+        if normalized in {"day", "1day", "1d"}:
+            return "day"
+        for suffix in ("minutes", "minute", "mins", "min", "m"):
+            if normalized.endswith(suffix):
+                value = normalized.removesuffix(suffix)
+                if value.isdigit() and int(value) > 1:
+                    return f"{int(value)} minutes"
+        for suffix in ("hours", "hour", "h"):
+            if normalized.endswith(suffix):
+                value = normalized.removesuffix(suffix)
+                if value.isdigit() and int(value) > 1:
+                    return f"{int(value)} hours"
+
+    return None
 
 
 class AlpacaData(DataSource):
@@ -37,68 +72,87 @@ class AlpacaData(DataSource):
     TIMESTEP_MAPPING = [
         {
             "timestep": "minute",
-            "representations": [TimeFrame.Minute, "minute"],
+            "representations": ["minute"],
         },
         {
             "timestep": "5 minutes",
-            "representations": [
-                [f"5{TimeFrame.Minute}", "minute"],
-            ],
+            "representations": ["5 minutes", "5min", "5m"],
         },
         {
             "timestep": "10 minutes",
-            "representations": [
-                [f"10{TimeFrame.Minute}", "minute"],
-            ],
+            "representations": ["10 minutes", "10min", "10m"],
         },
         {
             "timestep": "15 minutes",
-            "representations": [
-                [f"15{TimeFrame.Minute}", "minute"],
-            ],
+            "representations": ["15 minutes", "15min", "15m"],
         },
         {
             "timestep": "30 minutes",
-            "representations": [
-                [f"30{TimeFrame.Minute}", "minute"],
-            ],
+            "representations": ["30 minutes", "30min", "30m"],
         },
         {
             "timestep": "hour",
-            "representations": [
-                [f"{TimeFrame.Hour}", "hour"],
-            ],
+            "representations": ["hour", "1 hour"],
         },
         {
             "timestep": "1 hour",
-            "representations": [
-                [f"{TimeFrame.Hour}", "hour"],
-            ],
+            "representations": ["1 hour", "hour", "1h"],
         },
         {
             "timestep": "2 hours",
-            "representations": [
-                [f"2{TimeFrame.Hour}", "hour"],
-            ],
+            "representations": ["2 hours", "2h"],
         },
         {
             "timestep": "4 hours",
-            "representations": [
-                [f"4{TimeFrame.Hour}", "hour"],
-            ],
+            "representations": ["4 hours", "4h"],
         },
         {
             "timestep": "day",
-            "representations": [TimeFrame.Day, "day"],
+            "representations": ["day"],
         },
     ]
-    LUMIBOT_DEFAULT_QUOTE_ASSET = Asset(LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL, LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE)
+    LUMIBOT_DEFAULT_QUOTE_ASSET = None
+
+    @classmethod
+    def _default_quote_asset(cls):
+        if cls.LUMIBOT_DEFAULT_QUOTE_ASSET is None:
+            cls.LUMIBOT_DEFAULT_QUOTE_ASSET = Asset(
+                LUMIBOT_DEFAULT_QUOTE_ASSET_SYMBOL,
+                LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE,
+            )
+        return cls.LUMIBOT_DEFAULT_QUOTE_ASSET
 
     """Common base class for data_sources/alpaca and brokers/alpaca"""
 
     @staticmethod
     def _format_datetime(dt):
         return pd.Timestamp(dt).isoformat()
+
+    def _parse_source_timestep(self, timestep, reverse=False):
+        if not reverse:
+            parsed = _parse_alpaca_timestep_value(timestep)
+            if parsed is not None:
+                return parsed
+            return super()._parse_source_timestep(timestep, reverse=False)
+
+        from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
+
+        mapping = {
+            "minute": TimeFrame.Minute,
+            "5 minutes": TimeFrame(5, TimeFrameUnit.Minute),
+            "10 minutes": TimeFrame(10, TimeFrameUnit.Minute),
+            "15 minutes": TimeFrame(15, TimeFrameUnit.Minute),
+            "30 minutes": TimeFrame(30, TimeFrameUnit.Minute),
+            "hour": TimeFrame.Hour,
+            "1 hour": TimeFrame.Hour,
+            "2 hours": TimeFrame(2, TimeFrameUnit.Hour),
+            "4 hours": TimeFrame(4, TimeFrameUnit.Hour),
+            "day": TimeFrame.Day,
+        }
+        try:
+            return mapping[timestep]
+        except KeyError:
+            return super()._parse_source_timestep(timestep, reverse=True)
 
     def _handle_auth_error(self, e, operation="data request"):
         """
@@ -160,10 +214,14 @@ class AlpacaData(DataSource):
         """Lazily initialize and return the stock client."""
         if self._stock_client is None:
             try:
+                client_cls = StockHistoricalDataClient
+                if client_cls is None:
+                    from alpaca.data.historical import StockHistoricalDataClient as client_cls
+
                 if self.oauth_token:
-                    self._stock_client = StockHistoricalDataClient(oauth_token=self.oauth_token)
+                    self._stock_client = client_cls(oauth_token=self.oauth_token)
                 else:
-                    self._stock_client = StockHistoricalDataClient(self.api_key, self.api_secret)
+                    self._stock_client = client_cls(self.api_key, self.api_secret)
             except Exception as e:
                 # Check if this is specifically an authentication error
                 error_message = str(e).lower()
@@ -182,10 +240,14 @@ class AlpacaData(DataSource):
         """Lazily initialize and return the crypto client."""
         if self._crypto_client is None:
             try:
+                client_cls = CryptoHistoricalDataClient
+                if client_cls is None:
+                    from alpaca.data.historical import CryptoHistoricalDataClient as client_cls
+
                 if self.oauth_token:
-                    self._crypto_client = CryptoHistoricalDataClient(oauth_token=self.oauth_token)
+                    self._crypto_client = client_cls(oauth_token=self.oauth_token)
                 else:
-                    self._crypto_client = CryptoHistoricalDataClient(self.api_key, self.api_secret)
+                    self._crypto_client = client_cls(self.api_key, self.api_secret)
             except Exception as e:
                 # Check if this is specifically an authentication error
                 error_message = str(e).lower()
@@ -204,10 +266,14 @@ class AlpacaData(DataSource):
         """Lazily initialize and return the option client."""
         if self._option_client is None:
             try:
+                client_cls = OptionHistoricalDataClient
+                if client_cls is None:
+                    from alpaca.data.historical import OptionHistoricalDataClient as client_cls
+
                 if self.oauth_token:
-                    self._option_client = OptionHistoricalDataClient(oauth_token=self.oauth_token)
+                    self._option_client = client_cls(oauth_token=self.oauth_token)
                 else:
-                    self._option_client = OptionHistoricalDataClient(self.api_key, self.api_secret)
+                    self._option_client = client_cls(self.api_key, self.api_secret)
             except Exception as e:
                 # Log the actual error without going through auth error handler immediately
                 logger.error(f"Error initializing option client: {e}")
@@ -344,6 +410,8 @@ class AlpacaData(DataSource):
         logger.info("Authentication failure state has been reset - will retry API calls")
 
     def _sanitize_base_and_quote_asset(self, base_asset, quote_asset) -> tuple[Asset, Asset]:
+        from lumibot.tools.alpaca_helpers import sanitize_base_and_quote_asset
+
         asset, quote = sanitize_base_and_quote_asset(base_asset, quote_asset)
         return asset, quote
 
@@ -388,6 +456,8 @@ class AlpacaData(DataSource):
             client = self._get_option_client()
 
             # Use OptionChainRequest with underlying_symbol for stock assets
+            from alpaca.data.requests import OptionChainRequest
+
             req = OptionChainRequest(
                 underlying_symbol=asset.symbol,
             )
@@ -563,6 +633,10 @@ class AlpacaData(DataSource):
         if not assets:
             return {}
 
+        from alpaca.data.enums import Adjustment
+        from alpaca.data.requests import CryptoBarsRequest, OptionBarsRequest, StockBarsRequest
+        from lumibot.entities import Bars
+
         # Normalize assets list to Asset objects
         norm_assets: List[Asset] = []
         for a in assets:
@@ -596,7 +670,7 @@ class AlpacaData(DataSource):
         else:
             minutes_per_day = 390
             days_needed = (length // minutes_per_day) + 2  # + buffer
-        start_date = date_n_trading_days_from_date(
+        start_date = _date_n_trading_days_from_date(
             n_days=days_needed,
             start_datetime=end_dt,
             market="NYSE",
@@ -629,7 +703,7 @@ class AlpacaData(DataSource):
             df = df[~df.index.duplicated(keep="first")].sort_index()
             if "close" in df.columns:
                 df = df[df.close > 0]
-            if not include_after_hours and timestep == "minute" and self.tzinfo == pytz.timezone("America/New_York"):
+            if not include_after_hours and timestep == "minute" and _is_new_york_timezone(self.tzinfo):
                 df = df[(df.index.hour > 9) | ((df.index.hour == 9) and (df.index.minute >= 30))]
                 df = df[df.index.hour < 16]
             if self._remove_incomplete_current_bar:
@@ -761,7 +835,7 @@ class AlpacaData(DataSource):
                 asset_map = {}
                 for a in chunk:
                     # Attempt to sanitize base/quote using helper (falls back to provided quote parameter)
-                    base_asset, quote_asset = a, quote if quote else self.LUMIBOT_DEFAULT_QUOTE_ASSET
+                    base_asset, quote_asset = a, quote if quote else self._default_quote_asset()
                     symbol_fmt = f"{base_asset.symbol}/{quote_asset.symbol}"
                     syms.append(symbol_fmt)
                     asset_map[symbol_fmt] = a
@@ -861,6 +935,8 @@ class AlpacaData(DataSource):
     ) -> Optional[pd.DataFrame]:
 
         timeframe = self._parse_source_timestep(timestep, reverse=True)
+        from alpaca.data.enums import Adjustment
+        from alpaca.data.requests import CryptoBarsRequest, OptionBarsRequest, StockBarsRequest
 
         now = dt.datetime.now(self.tzinfo)
 
@@ -884,7 +960,7 @@ class AlpacaData(DataSource):
             minutes_per_day = 390  # ~6.5 hours of trading per day
             days_needed = (length // minutes_per_day) + 1
 
-        start_date = date_n_trading_days_from_date(
+        start_date = _date_n_trading_days_from_date(
             n_days=days_needed,
             start_datetime=end_dt,
             # TODO: pass market into DataSource
@@ -963,7 +1039,7 @@ class AlpacaData(DataSource):
         df = df.sort_index()
         df = df[df.close > 0]
 
-        if not include_after_hours and timestep == 'minute' and self.tzinfo == pytz.timezone("America/New_York"):
+        if not include_after_hours and timestep == 'minute' and _is_new_york_timezone(self.tzinfo):
             # Filter data to include only regular market hours
             df = df[(df.index.hour >= 9) & (df.index.minute >= 30) & (df.index.hour < 16)]
 
@@ -985,6 +1061,8 @@ class AlpacaData(DataSource):
         return df
 
     def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
+        from lumibot.entities import Bars
+
         bars = Bars(
             response,
             self.SOURCE,
@@ -1000,6 +1078,7 @@ class AlpacaData(DataSource):
         Get the latest quote for an asset (stock, option, or crypto).
         Returns a Quote object with bid, ask, last, and other fields if available.
         """
+        from lumibot.entities import Quote
 
         # Check if authentication has previously failed
         if getattr(self, '_auth_failed', False):
@@ -1125,10 +1204,16 @@ class AlpacaData(DataSource):
         option_symbol = f"{asset.symbol}{date}{asset.right[0]}{strike_formatted}"
 
         # Initialize the historical data client
+        from alpaca.data.requests import OptionSnapshotRequest
+
+        client_cls = OptionHistoricalDataClient
+        if client_cls is None:
+            from alpaca.data.historical import OptionHistoricalDataClient as client_cls
+
         if self.oauth_token:
-            client = OptionHistoricalDataClient(oauth_token=self.oauth_token)
+            client = client_cls(oauth_token=self.oauth_token)
         else:
-            client = OptionHistoricalDataClient(self.api_key, self.api_secret)
+            client = client_cls(self.api_key, self.api_secret)
         request = OptionSnapshotRequest(symbol_or_symbols=option_symbol)
         try:
             snapshots = client.get_option_snapshot(request)

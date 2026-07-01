@@ -1,25 +1,24 @@
-import logging  # Needed for logging infrastructure setup
-import os
-import signal
-import threading
-import warnings
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Optional
+from __future__ import annotations
 
-from lumibot.tools.lumibot_logger import get_logger, set_console_log_level
+import os
+from pathlib import Path
+
+from lumibot._lazy_imports import LazyLogger, lazy_typing
 
 # Overloading time.sleep to warn users against using it
 
-logger = get_logger(__name__)
+logger = LazyLogger(__name__)
+Optional = lazy_typing("Optional")
 
-@dataclass
 class _BacktestProfilingConfig:
-    enabled: bool
-    tool: str
-    format: str
-    clock: str
-    output_path: Path
+    __slots__ = ("enabled", "tool", "format", "clock", "output_path")
+
+    def __init__(self, enabled: bool, tool: str, format: str, clock: str, output_path: Path):
+        self.enabled = enabled
+        self.tool = tool
+        self.format = format
+        self.clock = clock
+        self.output_path = output_path
 
 
 class Trader:
@@ -192,6 +191,9 @@ class Trader:
         # if they don't run in the main thread. Since real strategies only run in the main thread
         # its safe to check for that before calling.
         try:
+            import signal
+            import threading
+
             if threading.current_thread() is threading.main_thread():
                 signal.signal(signal.SIGINT, self._stop_pool)
         except ValueError:
@@ -359,6 +361,8 @@ class Trader:
 
     def _set_logger(self):
         """Setting Logging to both console and a file if logfile is specified"""
+        import logging
+
         # Import here to avoid circular imports
         from lumibot.tools.lumibot_logger import add_file_handler, set_log_level
         
@@ -387,6 +391,8 @@ class Trader:
         # PERFORMANCE: avoid spamming identical FutureWarnings thousands of times during backtests
         # (e.g., pandas chained-assignment warnings inside strategy indicator code).
         if self.is_backtest_broker:
+            import warnings
+
             warnings.simplefilter("once", FutureWarning)
             warnings.filterwarnings(
                 "ignore",

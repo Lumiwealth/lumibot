@@ -1,19 +1,67 @@
-import datetime
+from __future__ import annotations
+
 import os
-from datetime import timedelta
-from decimal import Decimal
-from typing import Union
 
-import pandas as pd
-from termcolor import colored
-
-from lumibot.constants import LUMIBOT_DEFAULT_PYTZ, LUMIBOT_DEFAULT_TIMEZONE
+from lumibot._lazy_imports import LazyLogger, LazyModule, LazyPytzTimezoneRef, lazy_class
 from lumibot.data_sources import DataSource
-from lumibot.entities import Asset, Bars, Chains, Quote
-from lumibot.tools import get_trading_days, parse_timestep_qty_and_unit
-from lumibot.tools.lumibot_logger import get_logger
 
-logger = get_logger(__name__)
+logger = LazyLogger(__name__)
+TYPE_CHECKING = False
+datetime = LazyModule("datetime")
+timedelta = lazy_class("datetime", "timedelta")
+pd = LazyModule("pandas")
+Asset = lazy_class("lumibot.entities", "Asset")
+_DEFAULT_PYTZ = LazyPytzTimezoneRef("America/New_York")
+LUMIBOT_DEFAULT_TIMEZONE = "America/New_York"
+
+if TYPE_CHECKING:
+    from lumibot.entities import Bars, Quote
+
+
+def _default_pytz():
+    return _DEFAULT_PYTZ._load()
+
+
+def __getattr__(name):
+    if name == "LUMIBOT_DEFAULT_PYTZ":
+        return _default_pytz()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def colored(*args, **kwargs):
+    from termcolor import colored as _colored
+
+    return _colored(*args, **kwargs)
+
+
+def _get_chains_class():
+    from lumibot.entities import Chains
+
+    return Chains
+
+
+def _get_bars_class():
+    from lumibot.entities import Bars
+
+    return Bars
+
+
+def _get_quote_class():
+    from lumibot.entities import Quote
+
+    return Quote
+
+
+def _get_trading_days(*args, **kwargs):
+    from lumibot.tools.helpers import get_trading_days
+
+    return get_trading_days(*args, **kwargs)
+
+
+def _parse_timestep_qty_and_unit(*args, **kwargs):
+    from lumibot.tools.helpers import parse_timestep_qty_and_unit
+
+    return parse_timestep_qty_and_unit(*args, **kwargs)
 
 class SchwabData(DataSource):
     """
@@ -29,7 +77,7 @@ class SchwabData(DataSource):
     MIN_TIMESTEP = "minute"
     SOURCE = "Schwab"
 
-    def __init__(self, client=None, api_key=None, secret=None, account_number=None, **kwargs):
+    def __init__(self, client=None, api_key=None, secret=None, account_number=None, auto_create_client=True, **kwargs):
         """
         Initialize the Schwab data source with a client connection.
         
@@ -44,9 +92,11 @@ class SchwabData(DataSource):
         # If client is provided, use it
         if client is not None:
             self.client = client
-        else:
+        elif auto_create_client:
             # Otherwise try to create a client with provided credentials
             self.client = self.create_schwab_client(api_key, secret, account_number)
+        else:
+            self.client = None
 
         if self.client is None:
             logger.warning(colored("SchwabData initialized without client. Methods will not work until a client is provided.", "yellow"))
@@ -262,7 +312,7 @@ class SchwabData(DataSource):
 
             # Wrap into Chains entity for richer interface (backwards-compatible: Chains inherits dict)
             try:
-                return Chains(chains)
+                return _get_chains_class()(chains)
             except Exception:
                 return chains
 
@@ -280,7 +330,7 @@ class SchwabData(DataSource):
         Returns:
             tuple: (timedelta object, timestep_unit string)
         """
-        qty, unit = parse_timestep_qty_and_unit(timestep_str)
+        qty, unit = _parse_timestep_qty_and_unit(timestep_str)
 
         if unit == "minute":
             return timedelta(minutes=qty), unit
@@ -339,11 +389,11 @@ class SchwabData(DataSource):
         timestep = timestep if timestep else self.MIN_TIMESTEP
 
         # Parse the timestep
-        timestep_qty, timestep_unit = parse_timestep_qty_and_unit(timestep)
+        timestep_qty, timestep_unit = _parse_timestep_qty_and_unit(timestep)
 
         # Calculate end date in Eastern time
         end_date = datetime.datetime.now()
-        eastern = LUMIBOT_DEFAULT_PYTZ
+        eastern = _default_pytz()
         end_date = end_date.astimezone(eastern)
 
         # Apply timeshift if provided
@@ -361,7 +411,7 @@ class SchwabData(DataSource):
             tcal_start_date = end_date - (td * length * 2 + timedelta(days=3))
 
             try:
-                trading_days = get_trading_days(market='NYSE', start_date=tcal_start_date, end_date=end_date)
+                trading_days = _get_trading_days(market='NYSE', start_date=tcal_start_date, end_date=end_date)
                 # Filter out trading days when the market_open is after the end_date
                 trading_days = trading_days[trading_days['market_open'] < end_date]
                 # Now, start_date is the length bars before the last trading day
@@ -488,7 +538,7 @@ class SchwabData(DataSource):
                 df.index = df.index.tz_convert(LUMIBOT_DEFAULT_TIMEZONE)
 
             # Create and return the Bars object
-            bars = Bars(df, self.SOURCE, asset, raw=df, quote=quote)
+            bars = _get_bars_class()(df, self.SOURCE, asset, raw=df, quote=quote)
             return bars
 
         except Exception as e:
@@ -655,7 +705,7 @@ class SchwabData(DataSource):
             percent_change = quote_info.get('netPercentChangeInDouble')
 
             # Create and return Quote object
-            return Quote(
+            return _get_quote_class()(
                 asset=asset,
                 price=last_price,
                 bid=bid_price,

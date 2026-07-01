@@ -1,37 +1,102 @@
-import logging
-import json
+from __future__ import annotations
+
 import os
 import time
 import threading
 from collections import deque
 from abc import ABC, abstractmethod
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta, timezone
-from decimal import Decimal
 from queue import Queue
 from threading import RLock, Thread
-from typing import Union
 
-import pandas as pd
-import pandas_market_calendars as mcal
-from dateutil import tz
-from termcolor import colored
+from lumibot._lazy_imports import LazyLogger, LazyModule, LazyStrategyLogger, lazy_class
 
-from lumibot.tools.lumibot_logger import get_logger
+logger = LazyLogger(__name__)
+TYPE_CHECKING = False
 
-logger = get_logger(__name__)
-
-from lumibot.tools.lumibot_logger import get_logger, get_strategy_logger
-from lumibot.tools.parquet_utils import (
-    coerce_object_columns_to_json_strings,
-    is_parquet_required,
-    write_parquet_with_logging,
-)
-from lumibot.tools.symbol_normalization import normalize_symbol_for_broker, normalize_symbol_for_internal
-from ..data_sources import DataSource
-from ..entities import Asset, CashEvent, Order, Position, Quote
-from ..entities.chains import normalize_option_chains
 from ..trading_builtins import SafeList, SafeOrderDict
+
+if TYPE_CHECKING:
+    from ..data_sources import DataSource
+    from ..entities import CashEvent, Position, Quote
+
+pd = LazyModule("pandas")
+mcal = LazyModule("pandas_market_calendars")
+datetime = lazy_class("datetime", "datetime")
+timedelta = lazy_class("datetime", "timedelta")
+timezone = lazy_class("datetime", "timezone")
+Asset = lazy_class("lumibot.entities", "Asset")
+Order = lazy_class("lumibot.entities", "Order")
+Decimal = lazy_class("decimal", "Decimal")
+
+
+def colored(*args, **kwargs):
+    from termcolor import colored as _colored
+
+    return _colored(*args, **kwargs)
+
+
+def _json_dumps(*args, **kwargs):
+    import json
+
+    return json.dumps(*args, **kwargs)
+
+
+def _local_tz():
+    from dateutil import tz
+
+    return tz.tzlocal()
+
+
+def _cash_event_class():
+    from ..entities import CashEvent
+
+    return CashEvent
+
+
+def _position_class():
+    from ..entities import Position
+
+    return Position
+
+
+def _quote_class():
+    from ..entities import Quote
+
+    return Quote
+
+
+_LAZY_ENTITY_EXPORTS = {
+    "CashEvent": _cash_event_class,
+    "Position": _position_class,
+    "Quote": _quote_class,
+}
+
+
+def __getattr__(name):
+    factory = _LAZY_ENTITY_EXPORTS.get(name)
+    if factory is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = factory()
+    globals()[name] = value
+    return value
+
+
+def coerce_object_columns_to_json_strings(*args, **kwargs):
+    from lumibot.tools.parquet_utils import coerce_object_columns_to_json_strings as _impl
+
+    return _impl(*args, **kwargs)
+
+
+def is_parquet_required(*args, **kwargs):
+    from lumibot.tools.parquet_utils import is_parquet_required as _impl
+
+    return _impl(*args, **kwargs)
+
+
+def write_parquet_with_logging(*args, **kwargs):
+    from lumibot.tools.parquet_utils import write_parquet_with_logging as _impl
+
+    return _impl(*args, **kwargs)
 
 DEFAULT_CLEANUP_CONFIG = {
     "enabled": True,
@@ -126,17 +191,21 @@ class Broker(ABC):
     def _truthy_env(value: str | None) -> bool:
         return (value or "").strip().lower() in {"1", "true", "yes", "y", "on"}
 
-    def _normalize_symbol_for_internal(self, symbol: object, asset_type: object = Asset.AssetType.STOCK):
+    def _normalize_symbol_for_internal(self, symbol: object, asset_type: object = "stock"):
         """Normalize a broker/native symbol into LumiBot's canonical internal format."""
+        from lumibot.tools.symbol_normalization import normalize_symbol_for_internal
+
         return normalize_symbol_for_internal(symbol, asset_type=asset_type)
 
     def _normalize_symbol_for_broker(
         self,
         symbol: object,
-        asset_type: object = Asset.AssetType.STOCK,
+        asset_type: object = "stock",
         broker_name: str | None = None,
     ):
         """Normalize an internal symbol into this broker's preferred native format."""
+        from lumibot.tools.symbol_normalization import normalize_symbol_for_broker
+
         effective_broker_name = broker_name or getattr(self, "name", "")
         return normalize_symbol_for_broker(symbol, broker_name=effective_broker_name, asset_type=asset_type)
 
@@ -171,7 +240,7 @@ class Broker(ABC):
         """
         if not getattr(self, "_trade_event_log_enabled", True):
             return
-        if not isinstance(cash_event, CashEvent):
+        if not isinstance(cash_event, _cash_event_class()):
             raise ValueError("cash_event must be a CashEvent")
 
         event_time = occurred_at or cash_event.occurred_at
@@ -256,7 +325,8 @@ class Broker(ABC):
         self._trade_event_log_df_cache = None
 
     def __init__(self, name="", connect_stream=True, data_source: DataSource = None, option_source: DataSource = None,
-                 config=None, max_workers=20, extended_trading_minutes=0, cleanup_config=None):
+                 config=None, max_workers=20, extended_trading_minutes=0, cleanup_config=None,
+                 start_orders_thread=True):
         """Broker constructor"""
         # Shared Variables between threads
         self.name = name
@@ -302,7 +372,7 @@ class Broker(ABC):
         self._trade_event_log_rows = (
             deque(maxlen=self._trade_event_log_max_rows) if self._trade_event_log_max_rows else []
         )
-        self._trade_event_log_df_cache = pd.DataFrame()
+        self._trade_event_log_df_cache = None
         self._trade_event_log_columns = TRADE_EVENT_LOG_COLUMNS
         self._hold_trade_events = False
         self._held_trades = []
@@ -326,7 +396,7 @@ class Broker(ABC):
         self._last_cleanup_time = None
 
         # Create an adapter with 'strategy_name' set to the instance's name
-        self.logger = get_strategy_logger(__name__, "unknown")
+        self.logger = LazyStrategyLogger(__name__, "unknown")
 
         # --- Market calendar setting ---
         # StrategyExecutor relies on broker.market to decide whether trading is
@@ -353,7 +423,8 @@ class Broker(ABC):
         if not self.IS_BACKTESTING_BROKER:
             self._orders_queue = Queue()
             self._orders_thread = None
-            self._start_orders_thread()
+            if start_orders_thread:
+                self._start_orders_thread()
 
         # setting the stream object
         if connect_stream:
@@ -406,6 +477,12 @@ class Broker(ABC):
     def _start_runtime_telemetry(self) -> None:
         """Start always-on runtime memory telemetry (best-effort)."""
         try:
+            raw_telemetry = os.environ.get("LUMIBOT_TELEMETRY")
+            if raw_telemetry is None and self._truthy_env(os.environ.get("LUMIBOT_SCHEDULED_EXECUTION")):
+                return
+            if raw_telemetry is not None and not self._truthy_env(raw_telemetry):
+                return
+
             from lumibot.tools.runtime_telemetry import RuntimeTelemetryConfig, RuntimeTelemetryEmitter
 
             cfg = RuntimeTelemetryConfig.from_env(is_backtesting=bool(self.IS_BACKTESTING_BROKER))
@@ -1323,7 +1400,7 @@ class Broker(ABC):
 
             constraints = getattr(self.data_source, "_chain_constraints", None) or {}
             try:
-                constraints_key = json.dumps(constraints, sort_keys=True, default=str)
+                constraints_key = _json_dumps(constraints, sort_keys=True, default=str)
             except Exception:
                 constraints_key = str(constraints)
 
@@ -1343,6 +1420,8 @@ class Broker(ABC):
                 return cached
 
         raw_chains = self.data_source.get_chains(asset)
+        from ..entities.chains import normalize_option_chains
+
         normalized_chains = normalize_option_chains(raw_chains)
 
         # PERF: ThetaData historical chains can contain hundreds of expirations. Eagerly fetching
@@ -1654,7 +1733,7 @@ class Broker(ABC):
                     if order.was_transmitted():
                         flat_orders = self._flatten_order(order)
                         for flat_order in flat_orders:
-                            if self.logger.isEnabledFor(logging.INFO):
+                            if self.logger.isEnabledFor(20):
                                 self.logger.info(
                                     colored(
                                         f"Order {flat_order} was sent to broker {self.name}",
@@ -1892,7 +1971,7 @@ class Broker(ABC):
             quote_quantity = -quote_quantity
         position = self.get_tracked_position(order.strategy, order.quote)
         if position is None:
-            position = Position(
+            position = _position_class()(
                 order.strategy,
                 order.quote,
                 quote_quantity,
@@ -1904,7 +1983,7 @@ class Broker(ABC):
     # =========Clock functions=====================
 
     def utc_to_local(self, utc_dt):
-        return utc_dt.replace(tzinfo=timezone.utc).astimezone(tz=tz.tzlocal())
+        return utc_dt.replace(tzinfo=timezone.utc).astimezone(tz=_local_tz())
 
     def market_hours(self, market="NASDAQ", close=True, next=False, date=None):
         """[summary]
@@ -1944,6 +2023,51 @@ class Broker(ABC):
             return market_close + timedelta(minutes=self.extended_trading_minutes)
         else:
             return market_open
+
+    def _is_market_open_from_initialized_calendar(self, now_utc=None):
+        """Fast market-open check using the calendar already initialized by StrategyExecutor."""
+        trading_days = getattr(self, "_trading_days", None)
+        if trading_days is None or getattr(trading_days, "empty", False):
+            return None
+
+        try:
+            now_utc = now_utc or datetime.now(timezone.utc)
+            if now_utc.tzinfo is None:
+                now_utc = now_utc.replace(tzinfo=timezone.utc)
+            else:
+                now_utc = now_utc.astimezone(timezone.utc)
+
+            rows = trading_days
+            if "market_close" not in getattr(rows, "columns", ()):
+                rows = rows.reset_index()
+
+            for row in rows.itertuples(index=False):
+                market_open = getattr(row, "market_open", None)
+                market_close = getattr(row, "market_close", None)
+                if market_open is None or market_close is None:
+                    continue
+
+                if hasattr(market_open, "to_pydatetime"):
+                    market_open = market_open.to_pydatetime()
+                if hasattr(market_close, "to_pydatetime"):
+                    market_close = market_close.to_pydatetime()
+
+                if market_open.tzinfo is None:
+                    market_open = market_open.replace(tzinfo=timezone.utc)
+                else:
+                    market_open = market_open.astimezone(timezone.utc)
+                if market_close.tzinfo is None:
+                    market_close = market_close.replace(tzinfo=timezone.utc)
+                else:
+                    market_close = market_close.astimezone(timezone.utc)
+
+                market_close = market_close + timedelta(minutes=self.extended_trading_minutes)
+                if market_open <= now_utc <= market_close:
+                    return True
+
+            return False
+        except Exception:
+            return None
 
     def should_continue(self):
         """In production mode always returns True.
@@ -2045,13 +2169,17 @@ class Broker(ABC):
         if self.market == '24/7':
             
             return True
+
+        initialized_calendar_result = self._is_market_open_from_initialized_calendar()
+        if initialized_calendar_result is not None:
+            return initialized_calendar_result
             
         # Check if this is a continuous market (futures, forex, crypto)
         if self._is_continuous_market(self.market):
             
             return True
             
-        current_time = datetime.now().astimezone(tz=tz.tzlocal())
+        current_time = datetime.now().astimezone(tz=_local_tz())
 
         # For ANY market, check both today's and tomorrow's sessions since trading sessions 
         # can span multiple calendar days (futures: 6pm Thu -> 6pm Fri, forex: Sun 5pm -> Fri 5pm, 
@@ -2085,7 +2213,7 @@ class Broker(ABC):
         open_time_next_day = self.utc_to_local(self.market_hours(close=False, next=True))
         now = self.utc_to_local(datetime.now())
         open_time = open_time_this_day if open_time_this_day > now else open_time_next_day
-        current_time = datetime.now().astimezone(tz=tz.tzlocal())
+        current_time = datetime.now().astimezone(tz=_local_tz())
         if self.is_market_open():
             return 0
         else:
@@ -2096,7 +2224,7 @@ class Broker(ABC):
         """Return the remaining time for the market to close in seconds"""
         market_hours = self.market_hours(close=True)
         close_time = self.utc_to_local(market_hours)
-        current_time = datetime.now().astimezone(tz=tz.tzlocal())
+        current_time = datetime.now().astimezone(tz=_local_tz())
         if self.is_market_open():
             result = close_time.timestamp() - current_time.timestamp()
             return result
@@ -2362,6 +2490,8 @@ class Broker(ABC):
             if kwargs.get('is_multileg') and kwargs.get('order_type') == Order.OrderType.LIMIT:
                 raise NotImplementedError("Multileg limit orders are not supported by this broker")
 
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+
             with ThreadPoolExecutor(
                 max_workers=self.max_workers,
                 thread_name_prefix=f"{self.name}_submitting_orders",
@@ -2395,6 +2525,8 @@ class Broker(ABC):
 
     def cancel_orders(self, orders):
         """cancel orders"""
+        from concurrent.futures import ThreadPoolExecutor
+
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             tasks = []
             for order in orders:
@@ -2553,7 +2685,7 @@ class Broker(ABC):
         """notify relevant subscriber/strategy about
         new order event"""
 
-        if self.logger.isEnabledFor(logging.INFO):
+        if self.logger.isEnabledFor(20):
             self.logger.info(colored(f"New order was created: {order}", color="green"))
 
         payload = dict(order=order)
@@ -2575,7 +2707,7 @@ class Broker(ABC):
         """notify relevant subscriber/strategy about
         canceled order event"""
 
-        if self.logger.isEnabledFor(logging.INFO):
+        if self.logger.isEnabledFor(20):
             self.logger.info(colored(f"Order was canceled: {order}", color="green"))
 
         payload = dict(order=order)
@@ -2597,7 +2729,7 @@ class Broker(ABC):
         """notify relevant subscriber/strategy about
         partially filled order event"""
 
-        if self.logger.isEnabledFor(logging.INFO):
+        if self.logger.isEnabledFor(20):
             self.logger.info(colored(f"Order was partially filled: {order}", color="green"))
 
         payload = dict(
@@ -2617,7 +2749,7 @@ class Broker(ABC):
         """notify relevant subscriber/strategy about
         filled order event"""
 
-        if self.logger.isEnabledFor(logging.INFO):
+        if self.logger.isEnabledFor(20):
             self.logger.info(colored(f"Order was filled: {order}", color="green"))
 
         payload = dict(
@@ -2687,7 +2819,7 @@ class Broker(ABC):
             filled_quantity = th[3]
             multiplier = th[4]
 
-            if self.logger.isEnabledFor(logging.INFO):
+            if self.logger.isEnabledFor(20):
                 self.logger.info(
                     f"Processing held trade event. Trade event received for stored_order: {stored_order}, "
                     f"type_event: {type_event}, ID: {stored_order.identifier}, price: {price}, "
@@ -2710,14 +2842,14 @@ class Broker(ABC):
         # can emit hundreds of thousands of events, so minimize per-call overhead in the common
         # backtesting path.
         is_backtesting = getattr(self, "IS_BACKTESTING_BROKER", False)
-        if self.logger.isEnabledFor(logging.INFO):
+        if self.logger.isEnabledFor(20):
             self.logger.info(
                 f"Processing trade event. Trade event received for {stored_order.strategy} strategy: {type_event} "
                 f"{stored_order.symbol} ID={stored_order.identifier}, processed by broker {self.name}"
             )
 
         if self._hold_trade_events and not is_backtesting:
-            if self.logger.isEnabledFor(logging.INFO):
+            if self.logger.isEnabledFor(20):
                 self.logger.info(
                     f"Trade event held for {stored_order.strategy} strategy: {type_event} {stored_order.symbol} "
                     f"ID={stored_order.identifier}, processed by broker {self.name}. "
@@ -2782,7 +2914,7 @@ class Broker(ABC):
                         payload = dict(order=order, error=error)
                         subscriber.add_event(subscriber.ERROR_ORDER, payload)
             elif type_event == self.MODIFIED_ORDER:
-                if self.logger.isEnabledFor(logging.INFO):
+                if self.logger.isEnabledFor(20):
                     self.logger.info(colored(f"Order was modified: {stored_order}", color="yellow"))
             elif type_event == self.PARTIALLY_FILLED_ORDER:
                 stored_order, position = self._process_partially_filled_order(stored_order, price, filled_quantity)
@@ -2828,7 +2960,7 @@ class Broker(ABC):
                         subscriber.add_event(subscriber.ERROR_ORDER, payload)
             elif Order.is_equivalent_status(type_event, self.MODIFIED_ORDER):
                 # TODO: Implement modification logic and notification if needed
-                if self.logger.isEnabledFor(logging.INFO):
+                if self.logger.isEnabledFor(20):
                     self.logger.info(colored(f"Order was modified: {stored_order}", color="yellow"))
                 pass
             elif Order.is_equivalent_status(type_event, self.PARTIALLY_FILLED_ORDER):

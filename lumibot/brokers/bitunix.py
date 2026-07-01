@@ -1,19 +1,48 @@
+from __future__ import annotations
+
 import os
 import time
-import traceback
-from decimal import Decimal
-from typing import Any, Dict, List, Optional, Tuple
 
-import pandas as pd
-
+from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 from .broker import Broker, LumibotBrokerAPIError
-from lumibot.data_sources.bitunix_data import BitunixData
-from lumibot.entities import Asset, Order, Position
-from lumibot.tools.bitunix_helpers import BitUnixClient
-from lumibot.tools.lumibot_logger import get_logger
-from lumibot.trading_builtins import PollingStream
 
-logger = get_logger(__name__)
+logger = LazyLogger(__name__)
+TYPE_CHECKING = False
+pd = LazyModule("pandas")
+Asset = lazy_class("lumibot.entities", "Asset")
+Order = lazy_class("lumibot.entities", "Order")
+Decimal = lazy_class("decimal", "Decimal")
+BitUnixClient = None
+BitunixData = None
+
+if TYPE_CHECKING:
+    from lumibot.entities import Position
+
+
+def _position_class():
+    from lumibot.entities import Position
+
+    return Position
+
+
+def _format_exc():
+    import traceback
+
+    return traceback.format_exc()
+
+
+def _get_bitunix_client_class():
+    global BitUnixClient
+    if BitUnixClient is None:
+        from lumibot.tools.bitunix_helpers import BitUnixClient
+    return BitUnixClient
+
+
+def _get_bitunix_data_class():
+    global BitunixData
+    if BitunixData is None:
+        from lumibot.data_sources.bitunix_data import BitunixData
+    return BitunixData
 
 class Bitunix(Broker):
     """
@@ -43,8 +72,15 @@ class Bitunix(Broker):
     )
 
     # Default quote asset for crypto transactions
-    LUMIBOT_DEFAULT_QUOTE_ASSET = Asset("USDT", Asset.AssetType.CRYPTO)
+    LUMIBOT_DEFAULT_QUOTE_ASSET = None
 
+    @classmethod
+    def _default_quote_asset(cls):
+        if cls.LUMIBOT_DEFAULT_QUOTE_ASSET is None:
+            cls.LUMIBOT_DEFAULT_QUOTE_ASSET = Asset("USDT", Asset.AssetType.CRYPTO)
+        return cls.LUMIBOT_DEFAULT_QUOTE_ASSET
+
+    POLL_EVENT = "poll"
     DEFAULT_POLL_INTERVAL = 5  # seconds between polling cycles
 
     def __init__(self, config, max_workers: int = 1, chunk_size: int = 100, connect_stream: bool = True, poll_interval: Optional[float] = None, data_source=None):
@@ -75,30 +111,15 @@ class Bitunix(Broker):
             raise ValueError("API_KEY and API_SECRET must be provided in config")
 
         # Initialize API client and WS attributes BEFORE calling super().__init__
-        self.api = BitUnixClient(api_key=api_key, secret_key=api_secret)
+        self.api = _get_bitunix_client_class()(api_key=api_key, secret_key=api_secret)
         self.api_secret = api_secret  # needed for signing
         # Private-channel URL per BitUnix docs (used for authenticated account streams)
         self.ws_url = "wss://fapi.bitunix.com/private/"
         """Private websocket endpoint for authenticated Bitunix futures streams."""
-
-        # Set default futures position mode to hedge
-        try:
-            response = self.api.change_position_mode("HEDGE")
-            if response and response.get("code") == 0:
-                mode = response.get('data', [{}])[0].get('positionMode')
-                logger.info("Default position mode set to %s", mode)
-            else:
-                logger.warning(
-                    "Failed to set default position mode to HEDGE. API response: %s", response
-                )
-        except Exception as exc:
-            logger.warning(
-                "Failed to set default position mode to HEDGE due to an exception: %s", exc
-            )
-            logger.debug(traceback.format_exc())
+        self._position_mode_initialized = False
 
         if not data_source:
-            data_source = BitunixData(config, max_workers=max_workers, chunk_size=chunk_size)
+            data_source = _get_bitunix_data_class()(config, max_workers=max_workers, chunk_size=chunk_size)
             # Share the client instance with the data source if it was just created
             data_source.client = self.api
             # Share the client_symbols set with the broker for WebSocket subscriptions
@@ -115,11 +136,12 @@ class Bitunix(Broker):
 
     def get_quote_asset(self):
         # Only clear and set quote_assets if USDT is not the only asset
-        if not (len(self.quote_assets) == 1 and Asset("USDT", Asset.AssetType.CRYPTO) in self.quote_assets):
+        default_quote_asset = self._default_quote_asset()
+        if not (len(self.quote_assets) == 1 and default_quote_asset in self.quote_assets):
             self.quote_assets.clear()
-            self.quote_assets.add(Asset("USDT", Asset.AssetType.CRYPTO))
+            self.quote_assets.add(default_quote_asset)
 
-        return Asset("USDT", Asset.AssetType.CRYPTO)
+        return default_quote_asset
 
     def get_timestamp(self):
         return time.time()
@@ -176,6 +198,7 @@ class Bitunix(Broker):
         Futures positions are fetched from the open positions endpoint.
         """
         positions = []
+        Position = _position_class()
         strategy_name = strategy.name if strategy else ""
 
         try:
@@ -201,7 +224,7 @@ class Bitunix(Broker):
                         positions.append(pos)
         except Exception as e:
             logger.warning("Error fetching futures positions: %s", e)
-            logger.debug(traceback.format_exc())
+            logger.debug(_format_exc())
         return positions
 
     def _map_side_to_bitunix(self, side: Order.OrderSide) -> str:
@@ -220,6 +243,27 @@ class Bitunix(Broker):
             return "STOP_LIMIT"
         else:
             return "MARKET"  # Default to MARKET for unknown types
+
+    def _ensure_position_mode_initialized(self):
+        if self._position_mode_initialized:
+            return
+
+        try:
+            response = self.api.change_position_mode("HEDGE")
+            if response and response.get("code") == 0:
+                mode = response.get("data", [{}])[0].get("positionMode")
+                logger.info("Default position mode set to %s", mode)
+            else:
+                logger.warning(
+                    "Failed to set default position mode to HEDGE. API response: %s", response
+                )
+        except Exception as exc:
+            logger.warning(
+                "Failed to set default position mode to HEDGE due to an exception: %s", exc
+            )
+            logger.debug(_format_exc())
+        finally:
+            self._position_mode_initialized = True
 
     # --- Multi-leg, OCO, OTO, Bracket, Trailing Stop ---
     def _submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None):
@@ -258,6 +302,7 @@ class Bitunix(Broker):
         client_order_id = f"lmbot_{int(time.time() * 1000)}_{hash(str(order)) % 10000}"
 
         try:
+            self._ensure_position_mode_initialized()
             # Ensure desired leverage is set
             leverage = order.asset.leverage
             try:
@@ -405,7 +450,7 @@ class Bitunix(Broker):
             self._process_trade_event(order, self.ERROR_ORDER, error=LumibotBrokerAPIError(f"Error canceling order: {str(e)}"))
             pass
 
-    def _pull_broker_order(self, identifier: str, asset_type: Asset.AssetType=Asset.AssetType.CRYPTO) -> Optional[Dict]:
+    def _pull_broker_order(self, identifier: str, asset_type="crypto") -> Optional[Dict]:
         """
         Fetches a single order by ID from BitUnix.
         """
@@ -536,7 +581,7 @@ class Bitunix(Broker):
 
         except Exception as e:
             logger.error(f"Error parsing order: {str(e)}")
-            logger.error(traceback.format_exc())
+            logger.error(_format_exc())
             return None
 
     # --- Polling-based stream implementation ---
@@ -606,13 +651,15 @@ class Bitunix(Broker):
 
     def _get_stream_object(self):
         """Returns the polling stream object."""
+        from lumibot.trading_builtins import PollingStream
+
         return PollingStream(self.poll_interval)
 
     def _register_stream_events(self):
         """Register polling event for Bitunix."""
         broker = self
 
-        @broker.stream.add_action(PollingStream.POLL_EVENT)
+        @broker.stream.add_action(broker.POLL_EVENT)
         def on_trade_event_poll():
             self.do_polling()
 
@@ -623,7 +670,7 @@ class Bitunix(Broker):
                 broker._process_trade_event(order, broker.NEW_ORDER)
                 return True
             except Exception:
-                logger.error(traceback.format_exc())
+                logger.error(_format_exc())
 
         @broker.stream.add_action(broker.FILLED_ORDER)
         def on_trade_event_fill(order, price, filled_quantity):
@@ -632,7 +679,7 @@ class Bitunix(Broker):
                 broker._process_trade_event(order, broker.FILLED_ORDER, price=price, filled_quantity=filled_quantity)
                 return True
             except Exception:
-                logger.error(traceback.format_exc())
+                logger.error(_format_exc())
 
         @broker.stream.add_action(broker.CANCELED_ORDER)
         def on_trade_event_cancel(order):
@@ -640,7 +687,7 @@ class Bitunix(Broker):
             try:
                 broker._process_trade_event(order, broker.CANCELED_ORDER)
             except Exception:
-                logger.error(traceback.format_exc())
+                logger.error(_format_exc())
 
         @broker.stream.add_action(broker.ERROR_ORDER)
         def on_trade_event_error(order, error_msg):
@@ -651,7 +698,7 @@ class Bitunix(Broker):
                 logger.error(error_msg)
                 order.set_error(error_msg)
             except Exception:
-                logger.error(traceback.format_exc())
+                logger.error(_format_exc())
 
     def _run_stream(self):
         self._stream_established()

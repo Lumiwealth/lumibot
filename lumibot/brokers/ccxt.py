@@ -1,17 +1,39 @@
-import datetime
+from __future__ import annotations
+
 import os
-from decimal import ROUND_DOWN, Decimal, getcontext
-from typing import Union
 
-from termcolor import colored
-
-from lumibot.data_sources import CcxtData
-from lumibot.entities import Asset, Order, Position
-from lumibot.tools.lumibot_logger import get_logger
+from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 
 from .broker import Broker
 
-logger = get_logger(__name__)
+logger = LazyLogger(__name__)
+TYPE_CHECKING = False
+datetime = LazyModule("datetime")
+Asset = lazy_class("lumibot.entities", "Asset")
+Order = lazy_class("lumibot.entities", "Order")
+Decimal = lazy_class("decimal", "Decimal")
+ROUND_DOWN = "ROUND_DOWN"
+
+if TYPE_CHECKING:
+    from lumibot.entities import Position
+
+
+def colored(*args, **kwargs):
+    from termcolor import colored as _colored
+
+    return _colored(*args, **kwargs)
+
+
+def _position_class():
+    from lumibot.entities import Position
+
+    return Position
+
+
+def getcontext():
+    from decimal import getcontext as _getcontext
+
+    return _getcontext()
 
 
 class Ccxt(Broker):
@@ -20,6 +42,8 @@ class Ccxt(Broker):
     """
 
     def __init__(self, config, data_source: CcxtData = None, max_workers=20, chunk_size=100, **kwargs):
+        from lumibot.data_sources import CcxtData
+
         if data_source is None:
             data_source = CcxtData(config, max_workers=max_workers, chunk_size=chunk_size)
         super().__init__(name="ccxt", config=config, data_source=data_source, max_workers=max_workers, **kwargs)
@@ -31,6 +55,11 @@ class Ccxt(Broker):
         if not isinstance(self.data_source, CcxtData):
             raise ValueError(f"Ccxt Broker's Data Source must be of type {CcxtData}")
         self.api = self.data_source.api
+
+    def _ensure_markets_loaded(self):
+        ensure = getattr(self.data_source, "_ensure_markets_loaded", None)
+        if callable(ensure):
+            ensure()
 
     # =========Clock functions=====================
 
@@ -114,6 +143,7 @@ class Ccxt(Broker):
             raise NotImplementedError(f"{self.api.exchangeId} not implemented yet.")
 
         no_valuation = []
+        self._ensure_markets_loaded()
         for currency_info in balances_info:
             currency = currency_info[currency_key]
 
@@ -175,12 +205,14 @@ class Ccxt(Broker):
     def _parse_broker_position(self, position, strategy, orders=None):
         """parse a broker position representation
         into a position object"""
+        Position = _position_class()
 
         symbol = position["currency"]
         hold = position["used"]
         available = position["free"]
         quantity = Decimal(position["total"])
 
+        self._ensure_markets_loaded()
         # Check if symbol is in the currencies list
         if symbol not in self.api.currencies:
             logger.error(
@@ -414,6 +446,7 @@ class Ccxt(Broker):
             return
 
         # Check order within limits.
+        self._ensure_markets_loaded()
         market = self.api.markets.get(order.pair, None)
         if market is None:
             logger.error(f"An order for {order.pair} was submitted. The market for that pair does not exist")

@@ -29,6 +29,17 @@ ALPACA_UNIT_CONFIG = {
 }
 
 
+def test_alpaca_data_parses_sdk_timeframes():
+    from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
+
+    data_source = AlpacaData(ALPACA_UNIT_CONFIG)
+
+    assert data_source._parse_source_timestep(TimeFrame.Minute) == "minute"
+    assert data_source._parse_source_timestep(TimeFrame(5, TimeFrameUnit.Minute)) == "5 minutes"
+    assert data_source._parse_source_timestep("15Min") == "15 minutes"
+    assert str(data_source._parse_source_timestep("5 minutes", reverse=True)) == "5Min"
+
+
 class TestAlpacaBroker:
 
     def test_initialize_broker_legacy(self):

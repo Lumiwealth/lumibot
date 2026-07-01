@@ -30,14 +30,15 @@ I did not create or read any API keys. Key creation changes account security sta
 
 **CLOB means Central Limit Order Book.** Polymarket's international trading docs describe it as the order-book system that matches orders offchain and settles matched trades onchain.
 
-**Yes, LumiBot can support both Polymarket US and the international CLOB, but they should not be one internally tangled adapter.** The right structure is a shared prediction-market domain model plus separate provider drivers:
+**Yes, LumiBot can support both Polymarket US and the international CLOB, but they should be separate broker adapters.** The right structure is separate public broker/data-source classes with only small shared helpers where the model is truly common:
 
-- `PolymarketUSDriver`: wraps the `polymarket-us` SDK, US market slugs, US order intents, US account/portfolio API, and US WebSockets.
-- `PolymarketCLOBDriver`: wraps the international SDK/CLOB/deposit-wallet path, token ids, CLOB order signing, relayer wallet operations, and market/user streams.
-- `PolymarketData`: shared public LumiBot data-source facade that can delegate to either driver by mode.
-- `Polymarket` broker: shared LumiBot broker facade that exposes the normal broker contract but owns exactly one configured provider mode per broker instance.
+- `Polymarket` or `PolymarketCLOB`: international `polymarket.com` CLOB/deposit-wallet broker.
+- `PolymarketData` or `PolymarketCLOBData`: international CLOB market-data source.
+- `PolymarketUS`: US `polymarket.us` broker.
+- `PolymarketUSData`: US market-data source.
+- Shared helpers only for prediction-contract parsing, decimal/tick validation, error redaction, and fake stream fixtures.
 
-This lets a strategy use `TRADING_BROKER=polymarket` with `POLYMARKET_MODE=us` or `POLYMARKET_MODE=clob`, while the implementation keeps different authentication and order semantics isolated. For BotSpot's saved broker credentials, I would split the product ids into `polymarket_us` and `polymarket_clob` so eligibility, compliance text, and credential fields cannot be mixed accidentally.
+This means a strategy chooses one broker explicitly: `TRADING_BROKER=polymarket` for international CLOB or `TRADING_BROKER=polymarket_us` for the US platform. Do not route both through a single mode-switched broker in the first implementation. For BotSpot's saved broker credentials, split the product ids into `polymarket_us` and `polymarket_clob` so eligibility, compliance text, and credential fields cannot be mixed accidentally.
 
 **Polymarket US is not app-only from an API standpoint.** The Polymarket US docs say users must create an account and complete identity verification in the iOS app before generating API keys, but they also document a developer portal, official Python/TypeScript SDKs, public endpoints, authenticated account/portfolio/orders endpoints, and WebSocket support for market and private updates. The US Python SDK uses `POLYMARKET_KEY_ID` and `POLYMARKET_SECRET_KEY` style credentials. We still need to verify whether Rob personally has access to a Polymarket US account and developer portal.
 
@@ -71,7 +72,7 @@ Support both should mean:
 - A strategy that needs cross-venue trading later should use multiple broker instances/accounts, not a single broker instance that silently routes some orders to US and some to CLOB.
 - Tests should share prediction-market contract behavior, but fixture payloads should remain mode-specific.
 
-Do not make one large `Polymarket` class full of `if mode == "us"` branches for every API call. Use a small facade plus two internal drivers. That matches the useful part of the Alpaca/Tradier pattern: a broker class presents LumiBot's normalized contract, while provider-specific parsing, auth, and streaming are isolated.
+Do not make one large `Polymarket` class full of `if mode == "us"` branches for every API call. Use two brokers and two data sources. That matches the useful part of the Alpaca/Tradier pattern: each broker presents LumiBot's normalized contract, while provider-specific parsing, auth, and streaming remain isolated.
 
 ### WebSockets Must Be In The Early Design
 
@@ -87,7 +88,7 @@ For Polymarket, the first production-quality design should include:
 4. Reconnect reconciliation: after reconnect, reread open orders, positions, balances, and the current book before trusting local state.
 5. Polling fallback: only for reconciliation and degraded operation, not as the primary fast-trading mechanism.
 
-The CLOB SDK currently exposes async realtime stream subscriptions, so `PolymarketStream` should own an asyncio loop in a background thread and dispatch normalized events into LumiBot's existing `CustomStream` action queue. US WebSockets are also documented as async-only and provide separate private and market streams, so the same `PolymarketStream` facade can work with mode-specific drivers.
+The CLOB SDK currently exposes async realtime stream subscriptions, so `PolymarketCLOBStream` should own an asyncio loop in a background thread and dispatch normalized events into LumiBot's existing `CustomStream` action queue. US WebSockets are also documented as async-only and provide separate private and market streams, so `PolymarketUSStream` should use the same LumiBot stream pattern but remain a separate provider implementation.
 
 ## Account Surface Finding
 
@@ -382,12 +383,18 @@ Recommended milestone 1 rule: only allow limit orders until the market order sem
 
 ### New Files And Exports
 
-Add:
+Add for international CLOB:
 
 - `lumibot/data_sources/polymarket_data.py`
 - `lumibot/brokers/polymarket.py`
 - Tests under the existing LumiBot test layout.
 - Public docs under `docsrc/` and `docs/ENV_VARS.md`.
+
+Add later or in parallel for US mode:
+
+- `lumibot/data_sources/polymarket_us_data.py`
+- `lumibot/brokers/polymarket_us.py`
+- Separate tests and docs for the US SDK/auth/order model.
 
 Update:
 
@@ -400,25 +407,21 @@ Update:
 
 ### Internal Class Structure
 
-Use a facade/driver split:
+Use separate public classes, with shared helpers only where the models are truly common:
 
-- `Polymarket`: the LumiBot broker class that implements the broker abstract methods and owns one configured driver.
-- `PolymarketData`: the LumiBot data source that owns one configured public-data driver.
-- `_PolymarketCLOBDriver`: international SDK/CLOB/deposit-wallet implementation.
-- `_PolymarketUSDriver`: US SDK implementation.
-- `PolymarketStream`: shared stream wrapper that normalizes driver-specific async WebSocket events into LumiBot stream actions.
+- `Polymarket`: international CLOB broker class.
+- `PolymarketData`: international CLOB data source.
+- `PolymarketUS`: US broker class.
+- `PolymarketUSData`: US data source.
+- `polymarket_common.py` or a private helper module only for shared decimal, redaction, and asset metadata utilities.
 
-This keeps the public import simple while avoiding provider-specific branches throughout every broker method.
+This keeps the public broker imports explicit and avoids provider-specific branches throughout every broker method.
 
 ### Config Shape
 
-Recommended public LumiBot selector:
+Recommended international CLOB selector:
 
 - `TRADING_BROKER=polymarket`
-- `POLYMARKET_MODE=clob`
-
-Recommended environment names for international CLOB mode:
-
 - `POLYMARKET_PRIVATE_KEY`
 - `POLYMARKET_WALLET_ADDRESS`
 - `POLYMARKET_RELAYER_API_KEY`
@@ -439,12 +442,11 @@ Credential policy:
 
 Potential future US mode:
 
-- `TRADING_BROKER=polymarket`
-- `POLYMARKET_MODE=us`
+- `TRADING_BROKER=polymarket_us`
 - `POLYMARKET_US_KEY_ID`
 - `POLYMARKET_US_SECRET_KEY`
 
-Keep US and international env names separate. For BotSpot saved credentials, prefer separate provider ids (`polymarket_us` and `polymarket_clob`) even if LumiBot has one facade class.
+Keep US and international env names separate. For BotSpot saved credentials, use separate provider ids (`polymarket_us` and `polymarket_clob`).
 
 ### `PolymarketData`
 
@@ -581,7 +583,7 @@ Files likely touched later:
 
 Needed product decisions:
 
-- Split `polymarket_clob` and `polymarket_us` in BotSpot saved credentials, even if LumiBot exposes one `Polymarket` facade with `POLYMARKET_MODE`.
+- Split `polymarket_clob` and `polymarket_us` in BotSpot saved credentials and in the LumiBot public broker classes.
 - Show a strong eligibility/compliance warning for international CLOB.
 - Manual credential fields are enough for first version; OAuth-style browser redirect is not the right model unless Polymarket US provides it.
 - Do not collect raw private keys in a customer-facing UI until security signs off on the runtime signer model.

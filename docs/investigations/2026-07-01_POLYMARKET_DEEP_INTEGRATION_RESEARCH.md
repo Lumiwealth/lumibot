@@ -96,15 +96,22 @@ Scope decision after follow-up discussion: build only the international `polymar
 
 ### Build Order
 
-1. Credential/login proof.
+Every step below should include a focused unit-test layer and, when credentials are required, a separate
+`pytest.mark.apitest` live smoke that is skipped unless explicit Polymarket env vars are present. Tests are not a final
+cleanup phase; they are the acceptance gate for each slice.
+
+1. Credential/login proof, using Rob's approved local `.env.local` storage and no implementation code changes beyond a
+   small read-only harness/test when implementation starts.
 2. Minimal `prediction_contract` asset plumbing.
-3. CLOB data source skeleton and required method implementations.
-4. CLOB broker skeleton and required method implementations.
-5. Account-value, positions, and orders read path.
-6. Market-order submit path with explicit Polymarket `custom_params` for BUY notional and slippage protection.
-7. Limit-order and cancel path.
-8. WebSocket market/user streams wired into LumiBot order events.
-9. Broader tests, examples, and documentation.
+3. CLOB data source skeleton and required public data methods.
+4. CLOB broker skeleton with all required inherited methods present, even where a method initially raises a clear
+   unsupported exception.
+5. Authenticated account-value, positions, and orders read path.
+6. Market-order submit path with explicit Polymarket `custom_params` for BUY notional and slippage protection, capped at
+   the approved $1-$5 notional for the first live proof.
+7. WebSocket market/user streams wired into LumiBot order and quote events.
+8. Limit-order and cancel path, including far-from-market limit submit/cancel live smoke.
+9. Examples, docs, BotSpot follow-on notes, and broader regression coverage.
 
 ### Credential/Login Proof
 
@@ -224,6 +231,64 @@ Polymarket market orders are still signed CLOB orders that execute against resti
 
 Do not silently redefine LumiBot's generic `Order.quantity` as dollars for BUY market orders.
 
+### Final Method Contract Matrix
+
+This is the implementation checklist for the international CLOB adapter. The goal is to make the new broker look boring
+to LumiBot strategies: strategies see normal assets, quotes, balances, positions, orders, and streams; only the adapter
+knows about token ids, wallet signing, CLOB credentials, relayer approvals, tick sizes, and `negRisk`.
+
+| Area | Class / method | Required behavior | Alpaca / Tradier comparison | Polymarket implementation detail |
+| --- | --- | --- | --- | --- |
+| Asset identity | `Asset.AssetType.PREDICTION_CONTRACT` | Add a stable core asset type for prediction contracts. | Alpaca/Tradier rely on existing stock/option/crypto types. | Use CLOB outcome token id as `Asset.symbol`; keep slug/question/outcome/condition id in raw metadata/cache. |
+| Credentials | `credentials.py` broker config branch | Instantiate broker only when `TRADING_BROKER=polymarket`. | Alpaca and Tradier have explicit config objects and env vars. | Do not auto-detect from `POLYMARKET_PRIVATE_KEY`; avoid accidental wallet initialization. |
+| Public data | `PolymarketData.get_last_price` | Return last price or a documented fallback. | Alpaca/Tradier normalize provider data into LumiBot price primitives. | Use CLOB last-trade endpoint first; optionally midpoint only when configured. |
+| Quotes | `PolymarketData.get_quote` | Return bid/ask/sizes/timestamp/raw payload. | Tradier and Alpaca expose provider quote normalization. | Use `GET /book` or cached WebSocket best bid/ask; include `min_order_size`, `tick_size`, and `neg_risk` in raw data. |
+| History | `PolymarketData.get_historical_prices` | Return real `Bars` only when provider history supports the request. | Alpaca has mature bar support; Tradier has narrower live data behavior. | Map supported intervals (`1m`, `1h`, `6h`, `1d`, `1w`, `all`, `max`); raise unsupported for unavailable bar semantics. |
+| Chains | `PolymarketData.get_chains` | Satisfy abstract method without pretending prediction contracts are options. | Both stock brokers implement real option-chain logic. | Return `{}` and add explicit prediction-market resolver helpers. |
+| Market resolver | `PolymarketData.resolve_market` | Convert URL/slug/condition id/market id into market metadata. | No direct Alpaca/Tradier equivalent; closest is option-chain lookup. | Use Gamma/public SDK market discovery; cache condition id, token ids, outcomes, close/resolution fields. |
+| Contract resolver | `PolymarketData.resolve_contract` | Convert market + outcome into tradable `prediction_contract` asset. | Similar to selecting an option contract from a chain. | Validate token id exists and market is tradable before returning an `Asset`. |
+| Client ownership | `Polymarket._initialize_clients` | Build public, secure, CLOB, and optional relayer clients. | Alpaca/Tradier constructors own provider clients. | Keep SDK clients behind internal wrapper protocols so unit tests use fakes and SDK churn is isolated. |
+| Account value | `Polymarket._get_balances_at_broker` | Return `(cash, positions_value, portfolio_value)`. | Alpaca and Tradier both implement this exact tuple. | Cash from collateral balance; positions value from secure/Data API portfolio values; total = provider portfolio/equity when available. |
+| Positions | `Polymarket._pull_positions` | Return `Position` objects for held contracts. | Same normalized broker duty as Alpaca/Tradier. | Parse wallet positions into `Position(strategy, Asset(token_id, prediction_contract), shares)` plus raw avg price/current value/PnL. |
+| Single position | `Polymarket._pull_position` | Return the matching position or `None`. | Alpaca/Tradier filter provider positions. | Filter by token id; do not match by human outcome label. |
+| Open orders | `Polymarket._pull_broker_all_orders` | Return open broker order payloads. | Alpaca pulls all statuses; Tradier normalizes list/dict shapes carefully. | Use secure `list_open_orders`; add market/token filters later. |
+| One order | `Polymarket._pull_broker_order` | Return one provider order or recent trade/fill evidence. | Alpaca has provider order lookup; Tradier fetches by id and handles empty shapes. | Use `get_order`; if closed/missing, consult recent account trades by order id before declaring final. |
+| Parsing | `Polymarket._parse_broker_order` | Normalize raw CLOB order/trade payload into LumiBot `Order`. | Alpaca is the fuller mapping model; Tradier is useful for defensive shape handling. | Map `LIVE`, `PLACEMENT`, `UPDATE`, `MATCHED`, `MINED`, `CONFIRMED`, `CANCELLATION`, `FAILED` conservatively. |
+| Submit router | `Polymarket._submit_order` | Validate and route supported order types. | Alpaca has broad type routing; Tradier rejects unsupported combinations. | Support only `prediction_contract`, buy/sell, market first, limit second; reject stop/trailing/multileg/brackets clearly. |
+| Market buy | `Polymarket._submit_market_order` | Spend dollars with hard cap and slippage guard. | This is unlike equities; avoid overloading `quantity`. | Require `order.custom_params["amount"]`; require `price` or `max_price`; use `FOK`/`FAK`; enforce live-test cap. |
+| Market sell | `Polymarket._submit_market_order` | Sell shares/contracts with worst-price guard. | Similar to selling shares, but CLOB uses market helper. | Use `order.quantity` or `custom_params["shares"]`; require worst acceptable price. |
+| Limit | `Polymarket._submit_limit_order` | Place resting order with price/size/TIF. | Alpaca/Tradier limit submit/cancel is the model. | Validate Decimal price against current tick size and `min_order_size`; support GTC/GTD. |
+| Cancel | `Polymarket.cancel_order` | Always send provider cancel when possible. | Existing broker docs require mutation failures to surface, not silently skip. | Do not no-op because local state is stale; call provider cancel and then read back/reconcile. |
+| Modify | `Polymarket._modify_order` | Explicitly unsupported or cancel-replace later. | Alpaca supports replace; Tradier has its own endpoint. | Start with clear unsupported exception; add cancel-replace only when semantics are explicit. |
+| Account history | `Polymarket.get_historical_account_value` | Return provider history or clear unsupported value. | Alpaca supports it; Tradier returns limited/unsupported behavior. | Initially unsupported unless Data API account history is reliable. |
+| Stream object | `Polymarket._get_stream_object` | Return WebSocket stream when enabled, polling only fallback. | Copy Alpaca's real-stream-first shape, not Tradier polling-only limitations. | Return `PolymarketCLOBStream(CustomStream)` with public and private subscriptions. |
+| Stream actions | `Polymarket._register_stream_events` | Register LumiBot order lifecycle events. | Alpaca dispatches order events; Tradier polling misses partial fills. | Dispatch placement/update/fill/cancel/error from user channel plus reconciliation. |
+| Polling | `Polymarket.do_polling` | Reconcile positions/orders and recover from missed streams. | Copy Alpaca's cautious tracked-order reconciliation. | Never treat a missing open order as canceled without single-order/trade lookup. |
+
+### Alpaca And Tradier Patterns To Copy Or Avoid
+
+Use Alpaca as the primary structural model:
+
+- The broker owns provider-client setup, account balances, positions, order parsing, order submission, cancellation,
+  account history, and stream lifecycle.
+- The data source owns market data and converts provider payloads into LumiBot price/quote/bar primitives.
+- Real streaming is first-class when credentials support it, and polling exists as fallback/reconciliation.
+- Order refresh does not assume local state is truth; it reads broker state and reconciles tracked orders.
+
+Use Tradier for defensive lessons:
+
+- Its account and order parsing handles provider payloads that change shape or return empty results.
+- Its polling-stream limitation around partial fills is a warning. A Polymarket adapter cannot rely on polling only,
+  especially for short-duration crypto markets.
+- Broker auth failures and unsupported order mutations should surface as real broker errors, not hidden waiting states.
+
+Do not copy the wrong parts:
+
+- Do not build a polling-only first version and call it production-ready.
+- Do not make one combined `Polymarket` class with `if us else clob` branches. US and CLOB should be separate public
+  brokers later.
+- Do not fake account value, fills, or bars to make tests pass.
+
 ## Account Surface Finding
 
 ### What Was Verified In Chrome
@@ -288,13 +353,15 @@ Do not blur these together in code or docs. The same public class can eventually
 
 - Polymarket API introduction: `https://docs.polymarket.com/api-reference/introduction`
 - Polymarket Python SDK: `https://docs.polymarket.com/dev-tooling/python`
-- Polymarket trading quickstart: `https://docs.polymarket.com/trading/quickstart`
+- Polymarket quickstart: `https://docs.polymarket.com/quickstart`
 - Polymarket trading overview/CLOB definition: `https://docs.polymarket.com/trading/overview`
 - Polymarket order overview: `https://docs.polymarket.com/trading/orders/overview`
 - Polymarket order creation: `https://docs.polymarket.com/trading/orders/create`
-- Polymarket orderbook/WebSocket docs: `https://docs.polymarket.com/trading/orderbook`
-- Polymarket market channel: `https://docs.polymarket.com/market-data/websocket/market-channel`
-- Polymarket user channel: `https://docs.polymarket.com/market-data/websocket/user-channel`
+- Polymarket CLOB order endpoint: `https://docs.polymarket.com/api-reference/trade/post-a-new-order`
+- Polymarket order book endpoint: `https://docs.polymarket.com/api-reference/market-data/get-order-book`
+- Polymarket price history endpoint: `https://docs.polymarket.com/api-reference/markets/get-prices-history`
+- Polymarket market WebSocket channel: `https://docs.polymarket.com/api-reference/wss/market`
+- Polymarket user WebSocket channel: `https://docs.polymarket.com/api-reference/wss/user`
 - Polymarket authentication: `https://docs.polymarket.com/api-reference/authentication`
 - Polymarket public client methods: `https://docs.polymarket.com/trading/clients/public`
 - Polymarket secure client methods: `https://docs.polymarket.com/trading/clients/l2`
@@ -304,6 +371,7 @@ Do not blur these together in code or docs. The same public class can eventually
 - Polymarket rate limits/geographic restrictions entry point: `https://docs.polymarket.com/api-reference/rate-limits`
 - Polymarket relayer API keys reference: `https://docs.polymarket.com/api-reference/relayer-api-keys/get-all-relayer-api-keys`
 - Polymarket US SDK introduction: `https://docs.polymarket.us/api-reference/sdks/introduction`
+- Polymarket US quickstart: `https://docs.polymarket.us/getting-started/quickstart`
 - Polymarket US Python quickstart: `https://docs.polymarket.us/api-reference/sdks/python/quickstart`
 - Polymarket US Python account docs: `https://docs.polymarket.us/api-reference/sdks/python/account`
 - Polymarket US Python WebSocket docs: `https://docs.polymarket.us/api-reference/sdks/python/websocket`
@@ -383,11 +451,13 @@ Polymarket maps well to simple LumiBot orders, with important constraints:
 - Marketable orders may have short placement delays in selected fast categories.
 - Sports markets have special behaviors around game start.
 
-For LumiBot milestone 1:
+For the first trading milestone, after login/account reads work:
 
 - Support simple `BUY` and `SELL`.
-- Support `LIMIT` first.
-- Add `MARKET` only after the provider helper and quantity/amount semantics are tested.
+- Support tiny `MARKET` orders first because Rob wants the fastest usable proof, but require explicit BUY notional and
+  worst-price/slippage controls in `Order.custom_params`.
+- Add `LIMIT` plus cancel immediately after the market-order smoke works, because far-from-market limit/cancel is the
+  safest order-lifecycle proof.
 - Reject stop, stop-limit, trailing stop, smart-limit, bracket, OCO, OTO, multileg, short, and cross-market packages.
 - Use `Decimal` internally for prices and quantities.
 - Cache and refresh tick size and `negRisk` by token id.
@@ -511,7 +581,9 @@ Important quantity distinction:
 - For SELL market orders, SDK examples use shares.
 - LumiBot `Order.quantity` is normally units/shares. The broker must not accidentally treat `quantity` as dollars for buy market orders.
 
-Recommended milestone 1 rule: only allow limit orders until the market order semantics are tested with tiny live orders and explicit expected behavior.
+Recommended rule: do not overload `Order.quantity` for BUY market notional. Require explicit `custom_params` such as
+`{"amount": "1.00", "max_price": "0.52", "order_type": "FAK"}` for BUY market orders, and cap first live smoke tests at
+the approved $1-$5 notional.
 
 ## LumiBot Implementation Plan
 
@@ -900,194 +972,347 @@ Mitigations:
 
 ## Testing Strategy
 
-### Unit Tests
+### Test Marker And Credential Gating
 
-Add tests for:
+Current test infrastructure has a broad `apitest` marker and provider-specific markers for some data providers. A
+Polymarket implementation should add a provider marker instead of reusing the legacy Polygon/Theta default path.
 
-- `Asset.AssetType.PREDICTION_CONTRACT` serialization and round trip.
-- Polymarket order type/side/time-in-force mapping.
-- Price validation by tick size.
-- `negRisk` propagation.
-- Position parsing.
-- Balance parsing.
-- Order parsing for live, matched, partially filled, canceled, expired, rejected, unknown.
-- Error redaction.
-- Credential config without logging secret values.
+Required test-runner changes when implementation starts:
 
-### Stream Tests
+- Add `polymarket: Polymarket CLOB live/API tests` to `setup.cfg`.
+- Extend `tests/conftest.py` so tests marked `@pytest.mark.apitest` and `@pytest.mark.polymarket` require only
+  Polymarket-specific env vars, not Polygon and ThetaData credentials.
+- Keep the default coverage command excluding `apitest`, so live CLOB tests never run in ordinary unit-test/CI paths.
+- Add a `POLYMARKET_LIVE_TRADING_ENABLED=true` gate for submit/cancel/market-order apitests.
+- Add `POLYMARKET_TEST_MAX_NOTIONAL=5` or lower; default to `1` when absent.
+- Add `POLYMARKET_TEST_TOKEN_ID` and optionally `POLYMARKET_TEST_MARKET_ID` for smoke tests, so tests never auto-pick a
+  random live market to trade.
 
-Use fake WebSocket event payloads:
+### Unit Test Files
 
-- `book`
-- `price_change`
-- `last_trade_price`
-- `tick_size_change`
-- `best_bid_ask`
-- user order event
-- user trade event
-- reconnect and reconciliation path
+Recommended new tests, created incrementally with the implementation phase they validate:
 
-### SDK Boundary Tests
+| Test file | Purpose | Should use live network? |
+| --- | --- | --- |
+| `tests/test_polymarket_asset.py` | `prediction_contract` asset validation, equality, serialization, invalid type rejection. | No |
+| `tests/test_polymarket_credentials.py` | Config loading, missing-secret errors, redaction, explicit broker selection. | No |
+| `tests/test_polymarket_data.py` | Market resolver, quote parsing, order-book parsing, history interval mapping, unsupported history failures. | No by default |
+| `tests/test_polymarket_broker.py` | Balance/position/order parsing, submit validation, market BUY/SELL payload construction, unsupported order types. | No |
+| `tests/test_polymarket_stream.py` | Fake `book`, `price_change`, `best_bid_ask`, `last_trade_price`, `tick_size_change`, order, trade, reconnect events. | No |
+| `tests/test_polymarket_credentials_apitest.py` | Create/derive or reuse CLOB API credentials and perform read-only authenticated account proof. | Yes, skipped by env |
+| `tests/test_polymarket_data_apitest.py` | Public market/order-book/quote/history smoke on an explicit token id. | Yes, skipped by env |
+| `tests/test_polymarket_broker_apitest.py` | Account value, positions, open orders, tiny market order, limit/cancel lifecycle. | Yes, skipped by env and live-trading flag |
+| `tests/test_polymarket_stream_apitest.py` | Short market/user WebSocket smoke with clean close and HTTP reconciliation. | Yes, skipped by env |
 
-Wrap the SDK behind small interfaces so fake clients can test LumiBot behavior without live Polymarket credentials:
+### Fake Client Boundary
 
-- `PolymarketPublicClientProtocol`
-- `PolymarketSecureClientProtocol`
-- `PolymarketStreamProtocol`
+Wrap Polymarket SDK and REST/WebSocket access behind small internal protocols so most tests never need real credentials:
 
-### Live Smoke Tests
+- `PolymarketPublicClientProtocol`: market discovery, market info, order book, prices, price history.
+- `PolymarketSecureClientProtocol`: account value, positions, open orders, trades, order placement, cancel, approvals.
+- `PolymarketStreamClientProtocol`: public market stream, private user stream, close/reconnect.
+- `PolymarketCredentialStore`: env loading, credential derivation result, redaction.
 
-Only after explicit approval:
+This is important because the official Python SDK is beta and CLOB libraries have already had multiple naming/version
+surfaces (`polymarket-client`, `py-clob-client-v2`, relayer clients). The LumiBot adapter should not make every test
+depend on the third-party SDK's exact class names.
 
-1. Public quote smoke for one token id.
-2. Authenticated account/balance read.
-3. Open orders read.
-4. Positions read.
-5. Tiny limit order far from market, then cancel.
-6. Tiny marketable order only after limit/cancel works.
+### Live Smoke Safety Rules
 
-Smoke tests must use an explicit market allowlist, maximum notional, and no hidden "fake filled" behavior.
+Live smoke tests should be small and explicit:
+
+- No live submit/cancel test runs without `POLYMARKET_LIVE_TRADING_ENABLED=true`.
+- No live submit/cancel test runs without an explicit `POLYMARKET_TEST_TOKEN_ID`.
+- No live market order exceeds `min(POLYMARKET_TEST_MAX_NOTIONAL, 5)`.
+- First market BUY must use explicit `amount`, `max_price`, and `FOK` or `FAK`.
+- First market SELL must be skipped unless the account already holds enough of the selected token or the test first
+  bought a tiny amount and then sells that exact amount.
+- No test should claim a fill happened unless provider HTTP or user WebSocket evidence confirms it.
+- Geoblock, approval, insufficient balance, or restricted-market errors should fail or skip clearly; tests must not try
+  to route around them.
 
 ## Implementation Phases
 
-### Phase 0: Credential And Access Spike
+### Phase 0: Credential And Login Proof
 
 Goals:
 
-- Confirm whether the first implementation target is Rob's current `polymarket.com` CLOB account, a separate `polymarket.us` account, or both in parallel.
-- Confirm what the `polymarket.com` website `APIs` page can generate: relayer key, CLOB L2 key/secret/passphrase, builder credential, or beta SDK key material.
-- Confirm whether Rob can access `polymarket.us/developer` after US app account setup and identity verification.
-- Determine whether Relayer API Key plus private key/session signer is enough for Rob's current account setup and approvals.
-- Create credentials only after explicit approval.
+- Target only Rob's current `polymarket.com` international CLOB account.
+- Create or derive CLOB API credentials from that account if needed. Rob approved this in the 2026-07-01 planning
+  thread.
+- Store local prototype credentials in `.env.local`. Rob approved this for the prototype.
+- Determine whether the visible website API page exposes relayer keys, CLOB L2 credentials, builder credentials, or SDK
+  session material.
+- Determine exactly when relayer approval setup is needed versus ordinary CLOB order/account authentication.
 - Store secrets only in approved local env/secret-store paths. Do not put them in docs, chat, screenshots, git, or logs.
+
+Methods/classes touched:
+
+- None for the first manual credential proof if using a disposable local harness.
+- When implementation starts: `PolymarketCredentialStore`, `Polymarket._initialize_clients()`, and redaction helpers.
+
+Tests:
+
+- Unit: missing env vars produce clear errors; secret values are redacted; config refuses to initialize live trading
+  without explicit broker selection.
+- Live apitest: authenticated read-only account snapshot: collateral balance/allowance, portfolio value, positions, open
+  orders, recent trades.
 
 Exit criteria:
 
 - We know the exact env vars and credential object required for one authenticated account read.
 - We can call a read-only authenticated endpoint or SDK account method without placing orders.
-- We know whether CLOB trading requires raw private-key custody for Rob's account, and whether US trading can avoid private-key custody.
+- We know whether CLOB trading for Rob's account requires raw private-key custody or can reuse safer derived/session
+  credentials for reads and order posting around locally signed orders.
 
-### Phase 1: LumiBot Asset And Data Source
+### Phase 1: Asset Type And Broker Plumbing
 
 Goals:
 
 - Add `prediction_contract`.
-- Add `PolymarketData` with public market discovery, quote, last price, and real history where available.
-- Add tests for data parsing and asset serialization.
+- Add Polymarket imports/exports and explicit `TRADING_BROKER=polymarket` config path.
+- Add stub `PolymarketData` and `Polymarket` classes with all abstract/required methods present.
+- Unsupported methods should fail clearly rather than silently returning fake data.
+
+Methods/classes touched:
+
+- `Asset.AssetType.PREDICTION_CONTRACT`
+- `lumibot/data_sources/polymarket_data.py`
+- `lumibot/brokers/polymarket.py`
+- `lumibot/data_sources/__init__.py`
+- `lumibot/brokers/__init__.py`
+- `lumibot/credentials.py`
+
+Tests:
+
+- Unit: asset type accepts `prediction_contract`; invalid unrelated types still fail.
+- Unit: credentials only instantiate Polymarket on explicit `TRADING_BROKER=polymarket`.
+- Unit: broker and data source instantiate with fake clients and no accidental network calls.
 
 Exit criteria:
 
-- A strategy can ask for a quote/last price for a known token id.
-- No live orders are possible yet.
+- A Polymarket broker object can be constructed with fake clients.
+- Abstract method requirements are satisfied.
+- No live order path is enabled.
 
-### Phase 2: Read-Only Broker
+### Phase 2: Public Data Source
 
 Goals:
 
-- Add `Polymarket` broker with authenticated balances, positions, and open-order reads.
-- No submit/cancel yet, or submit disabled behind explicit config.
+- Resolve market/event/outcome into token id.
+- Fetch order book, best bid/ask, last price, and supported price history.
+- Expose `get_quote`, `get_last_price`, `get_historical_prices`, and `get_chains`.
+
+Methods/classes touched:
+
+- `PolymarketData.resolve_market(...)`
+- `PolymarketData.resolve_contract(...)`
+- `PolymarketData.get_order_book(...)`
+- `PolymarketData.get_quote(...)`
+- `PolymarketData.get_last_price(...)`
+- `PolymarketData.get_historical_prices(...)`
+- `PolymarketData.get_chains(...)`
+
+Tests:
+
+- Unit: parse CLOB order-book payload into bid/ask sizes and quote raw data.
+- Unit: history interval mapping accepts only provider-supported intervals.
+- Unit: `get_chains` returns documented empty/unsupported behavior.
+- Live apitest: public quote/order-book/last-price call for `POLYMARKET_TEST_TOKEN_ID`, no credentials required.
 
 Exit criteria:
 
-- `_get_balances_at_broker()` works.
-- `_pull_positions()` works.
-- `_pull_broker_all_orders()` works.
-- Raw values are redacted in logs.
+- A strategy can get a real quote/last price for a known token id.
+- No account credentials are needed for public data.
+- No fabricated bars are returned.
 
-### Phase 3: WebSocket Stream Scaffold
+### Phase 3: Read-Only Broker
+
+Goals:
+
+- Read account value, cash/collateral, positions, open orders, and recent trades.
+- Normalize provider positions and orders into LumiBot entities.
+- Keep submit/cancel disabled except for validation stubs.
+
+Methods/classes touched:
+
+- `Polymarket._initialize_clients()`
+- `Polymarket._get_balances_at_broker(...)`
+- `Polymarket._pull_positions(...)`
+- `Polymarket._pull_position(...)`
+- `Polymarket._pull_broker_all_orders()`
+- `Polymarket._pull_broker_order(identifier)`
+- `Polymarket._parse_broker_order(...)`
+
+Tests:
+
+- Unit: parse positions with shares, avg price, current price/value, PnL, outcome, slug, and raw payload.
+- Unit: parse order statuses into LumiBot statuses.
+- Unit: missing/unknown provider fields do not crash refresh.
+- Live apitest: account snapshot reads balances, portfolio values, positions, and open orders.
+
+Exit criteria:
+
+- `_get_balances_at_broker()` returns numeric cash, positions value, and portfolio value.
+- `_pull_positions()` works for current account.
+- `_pull_broker_all_orders()` works for current account.
+- Secrets are redacted in all exceptions/logs.
+
+### Phase 4: Market Orders First Live Trading Proof
+
+Goals:
+
+- Support simple market BUY and SELL using Polymarket FAK/FOK semantics.
+- Require explicit market BUY dollar amount and worst-price limit in `custom_params`.
+- Enforce tiny notional cap for first live proof.
+- Surface geoblock, approval, balance, or restricted-market provider errors clearly.
+
+Methods/classes touched:
+
+- `Polymarket._submit_order(order)`
+- `Polymarket._submit_market_order(order)`
+- `Polymarket._ensure_trading_ready()`
+- `PolymarketData.calculate_market_price(...)` or equivalent pre-trade estimate helper.
+
+Tests:
+
+- Unit: BUY market rejects missing `custom_params["amount"]`.
+- Unit: BUY market does not treat `Order.quantity` as dollars.
+- Unit: SELL market uses shares and validates sufficient quantity when available.
+- Unit: all submit payloads include tick size, `negRisk`, worst price, FAK/FOK, and token id.
+- Live apitest: one tiny market BUY with max notional $1-$5 on explicit token id, then read account/order/trade evidence.
+
+Exit criteria:
+
+- Tiny live market-order proof either fills or returns a clear provider error with no hidden fake success.
+- Account value, positions, orders, and recent trades can be read immediately after the attempt.
+- No submit test exceeds the configured cap.
+
+### Phase 5: WebSocket Market And User Streams
 
 Goals:
 
 - Add public market WebSocket for subscribed token ids.
-- Add private user WebSocket for authenticated order/trade events where the selected provider mode supports them.
+- Add private user WebSocket for authenticated order/trade events.
+- Maintain quote/order-book cache inside `PolymarketData`.
+- Dispatch private order/trade events into LumiBot order lifecycle events.
 - Add HTTP reconciliation after reconnect.
-- Add fake-event tests before placing live orders.
+
+Methods/classes touched:
+
+- `PolymarketCLOBStream(CustomStream)`
+- `Polymarket._get_stream_object()`
+- `Polymarket._register_stream_events()`
+- `Polymarket._run_stream()`
+- `Polymarket.do_polling()` as fallback/reconciliation.
+- `PolymarketData` quote/order-book cache mutation helpers.
+
+Tests:
+
+- Unit: fake market events update book, best bid/ask, last trade, and tick-size cache.
+- Unit: fake user order/trade events dispatch `NEW_ORDER`, `PARTIALLY_FILLED_ORDER`, `FILLED_ORDER`, `CANCELED_ORDER`,
+  and `ERROR_ORDER` as appropriate.
+- Unit: reconnect calls HTTP reconciliation and does not double-count fills.
+- Live apitest: subscribe briefly to `POLYMARKET_TEST_TOKEN_ID`, receive or time out cleanly, close without thread leaks.
 
 Exit criteria:
 
-- Live quote state updates without polling.
-- Private order status updates dispatch into LumiBot's stream events in fake-client tests.
-- Reconnect path does not duplicate fills.
+- Live public stream can update quote state without polling.
+- Private stream event handling is proven with fake events and can connect with live credentials.
+- Polling remains available as fallback, not the primary fast-market source.
 
-### Phase 4: Limit Orders And Cancel
+### Phase 6: Limit Orders And Cancel
 
 Goals:
 
-- Support simple limit orders.
+- Support simple limit GTC/GTD orders.
 - Support cancel.
-- Support `_parse_broker_order`.
-- Add safe provider error mapping.
-- Wire live submit/cancel events into the stream/reconciliation path from Phase 3.
+- Add safe provider error mapping and order readback after submit/cancel.
+
+Methods/classes touched:
+
+- `Polymarket._submit_limit_order(order)`
+- `Polymarket.cancel_order(order)`
+- `Polymarket._pull_broker_order(identifier)`
+- `Polymarket._parse_broker_order(...)`
+
+Tests:
+
+- Unit: limit price quantizes to current tick size.
+- Unit: post-only only works for GTC/GTD, not FAK/FOK.
+- Unit: cancel calls provider even when local status is stale.
+- Live apitest: place far-from-market tiny limit order, confirm identifier, cancel, poll/read back canceled status.
 
 Exit criteria:
 
-- Tiny live limit order and cancel smoke passes after explicit approval.
+- Limit submit/cancel lifecycle works or fails loudly with provider error.
 - Unknown order rows do not crash refresh.
-- Submit/cancel errors fail loudly.
+- Submit/cancel behavior is covered by fake-client unit tests and one gated live smoke.
 
-### Phase 5: Market Orders And Fast Trading Controls
+### Phase 7: Examples, Docs, And Release Hardening
 
 Goals:
 
-- Add FAK/FOK market-style order support.
-- Add slippage/max-spend controls.
-- Add per-order notional caps in examples/smoke tests.
+- Add user-facing LumiBot examples for quote/account read and tiny controlled order.
+- Add env-var docs.
+- Add broker order semantics docs for prediction contracts.
+- Run focused unit suites and skipped-live apitest discovery.
+- Keep BotSpot implementation as follow-on, not part of this first LumiBot adapter.
 
 Exit criteria:
 
-- Market order semantics are proven with tiny live trades.
-- BUY amount/max_spend and SELL shares behavior is documented and tested.
+- New unit tests pass locally.
+- Live apitests are provider-gated and skipped unless env vars are present.
+- Docs explain market BUY notional semantics and private-key/session-credential risks.
+- Release notes clearly state this is international CLOB only, not Polymarket US.
 
-### Phase 6: BotSpot Internal Support
+### Phase 8: BotSpot And Bot Manager Follow-On
+
+Do this only after the LumiBot adapter is proven locally.
 
 Goals:
 
-- Add broker credential metadata and validation in Node.
-- Add catalog/UI behind internal flag.
-- Add Bot Manager runtime support.
-- Add read-only broker-data/portfolio snapshot before trading.
+- Add BotSpot saved credential metadata and validation behind an internal flag.
+- Add Bot Manager runtime-secret allowlist and dependency packaging.
+- Add broker-data read-only quotes and portfolio snapshots before trading.
+- Add single-trade support only after high-risk approval, private-key/signing design, and compliance review.
 
 Exit criteria:
 
 - Internal saved credential can run a read-only broker snapshot.
 - No raw secrets are returned through MCP/frontend APIs.
-
-### Phase 7: BotSpot Trading Support
-
-Goals:
-
-- Add single-trade support with high-risk approval.
-- Add deployment support.
-- Add product/legal gates.
-
-Exit criteria:
-
-- Single trade uses saved broker credential and high-risk approval.
-- Deployment uses runtime-secret refs only.
-- Security docs cover private-key/signing model.
-- Public launch decision is made separately for `polymarket.com` versus `polymarket.us`.
+- Single-trade and deployment support use runtime-secret refs only.
+- Public launch decision is made separately for `polymarket.com` CLOB versus `polymarket.us`.
 
 ## Questions For Rob
 
-1. Should the first live LumiBot spike target your current `polymarket.com` account, even though it is not Polymarket US and may have geography/compliance constraints?
-2. Do you want me to inspect the `polymarket.com` `APIs` page labels in a later turn without creating or copying secrets?
-3. Do you want to verify whether you can access `polymarket.us/developer`, or should we treat US support as a parallel code path until your US account status is clear?
-4. If credentials are created later, where should the generated values be stored locally: an approved `.env` path, macOS Keychain, 1Password/Bitwarden, or a BotSpot secret-store path?
-5. Are you comfortable with a local LumiBot prototype requiring a Polymarket private key or session signer, or do we need to find a no-private-key credential path first?
-6. Is the first strategy target the fast 5-minute crypto up/down markets, or should we start with slower/liquid markets to reduce execution risk?
-7. Should BotSpot support be internal-only until `polymarket.us` support is verified, or are we planning to support international CLOB accounts for specific non-US users?
-8. What hard risk limits should we enforce in early live tests: max order size, max daily spend, market allowlist, and limit-only trading?
+Answered in the 2026-07-01 planning thread:
+
+- Target the international `polymarket.com` CLOB account first. Do not block on Polymarket US.
+- Create or derive CLOB credentials if needed.
+- Store prototype credentials in `.env.local`.
+- First live trading proof can use $1-$5 maximum notional.
+- More liquid markets are acceptable for the first proof; slower markets are not required if sizing and max-price controls
+  are tight.
+
+Remaining non-blocking decisions:
+
+1. Which explicit `POLYMARKET_TEST_TOKEN_ID` should be used for first live smoke, or should the implementation include a
+   read-only discovery command that suggests a liquid token id before any order is placed?
+2. Should early live tests sell/reduce the tiny position after a successful market BUY, or leave the small position open
+   for subsequent position/order stream testing?
+3. Should the first implementation depend on the beta unified `polymarket-client`, the lower-level
+   `py-clob-client-v2`, or both behind a wrapper? My recommendation is wrapper-first with the unified SDK preferred for
+   account/stream ergonomics and lower-level CLOB client available for any missing order helper.
 
 ## Recommended Immediate Next Step
 
-Do not start implementation yet. The next useful action is a credential/access spike:
+The next implementation action is a credential/login proof for international CLOB:
 
-1. Inspect the `polymarket.com` account `APIs` page with explicit approval, without creating or copying secrets.
-2. Identify whether it exposes Relayer API Keys, CLOB API session credentials, builder keys, beta SDK key material, or some combination.
-3. Separately check whether Rob can reach `polymarket.us/developer` and whether it offers US API key creation for his account.
-4. Do not expose values in chat or logs.
-5. Save only the credential names, required env var mapping, and source page labels in this doc.
-6. Create credentials only after a second explicit approval and an agreed storage path.
-7. Run a read-only authenticated SDK call if credentials can be loaded safely.
+1. Inspect the `polymarket.com` account `APIs` page and identify which fields it exposes, without exposing values.
+2. Create or derive CLOB credentials if the SDK/login proof requires them.
+3. Store only local prototype secrets in `.env.local`.
+4. Run a read-only authenticated account snapshot.
+5. Commit the smallest implementation slice only after the read-only proof and unit tests are in place.
 
-After that, implement Phase 1 in LumiBot with fake-client tests and public data only.
+After that, implement Phase 1 and Phase 2 in small slices with tests after each slice.

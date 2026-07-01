@@ -8,6 +8,16 @@ Status: Planning, no implementation code changed
 
 Audience: LumiBot maintainers, broker-adapter implementers, BotSpot integration engineers
 
+## 2026-07-01 Update: Current Account Evidence Changes The First Target
+
+Follow-up Chrome inspection of Rob's logged-in Polymarket session showed `https://polymarket.com/`, a wallet-address account surface, crypto-style deposit/cash balances, and an `APIs` menu item. That looks like the international `polymarket.com` CLOB/deposit-wallet flow, not the separate `polymarket.us` account/API-key flow.
+
+This document is still useful as the first-pass architecture plan, but its recommendation to start with the US SDK is stale for Rob's currently visible account. For current-account testing, use the deeper follow-up plan:
+
+- `docs/investigations/2026-07-01_POLYMARKET_DEEP_INTEGRATION_RESEARCH.md`
+
+The product-facing BotSpot decision may still favor `polymarket.us` later, especially for US users, but the immediate LumiBot spike should verify the `polymarket.com` CLOB/relayer/private-key requirements first.
+
 ## Overview
 
 Polymarket can fit LumiBot's broker/data-source model, but it should not be treated as a stock broker clone. A Polymarket trade is still an order against a tradable asset, a position is still a quantity of outcome shares, and account value is still cash plus marked positions. The structural difference is that the tradable asset is an outcome contract inside a prediction market, priced between roughly 0 and 1 in USD collateral, with settlement at 0 or 1 after market resolution.

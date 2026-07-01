@@ -2,6 +2,30 @@
 
 ## 4.5.64 - Unreleased
 
+### Fixed
+- **IBKR daily stock backtests now normalize mixed split-adjustment cache
+  segments before accounting.** A local/dev TQQQ 200-day backtest hit a mixed
+  IBKR S3 cache where 2021/2022 TQQQ split rows were already continuous but the
+  2024-01-31 through 2025-11-19 tail was raw before the real 2025-11-20 2:1
+  split. LumiBot now detects raw split-level jumps per split boundary,
+  normalizes only the raw pre-split segment into split-adjusted price space, and
+  marks the frame `_split_adjusted` so the generic broker-ledger split path does
+  not double-count already-adjusted providers such as Yahoo or normalized IBKR.
+
+### Docs
+- **The TQQQ split RCA documents the false dev crash, the false 60% intermediate
+  fix, and the corrected IBKR/Yahoo replay results.** The investigation records
+  the mixed dev-cache shape, production DB evidence that prior TQQQ 200-day
+  backtests were in the expected range, and the remaining separate dev-cache
+  completeness follow-up.
+
+### Tests
+- **IBKR split-normalization regressions now cover raw forward splits, reverse
+  splits, already-adjusted rows, and the exact mixed TQQQ cache shape.** The
+  broader split suite also verifies regular and reverse position-ledger splits,
+  idempotence, invalid ratios, non-stock positions, split-adjusted provider
+  skips, Yahoo action handling, and daily backtest hold-through behavior.
+
 ## 4.5.63 - 2026-06-30
 
 Deploy marker: `deploy 4.5.63`

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import time
 from dataclasses import dataclass
@@ -1000,9 +1001,10 @@ def get_price_data(
     # consistent with other providers. This is intentionally best-effort.
     if asset_type == "stock" and str(timestep_component).endswith("day"):
         enriched_cache, changed = _append_equity_corporate_actions_daily(df_cache, asset)
-        if changed:
-            _write_cache_frame(cache_file, enriched_cache)
-        df_cache = enriched_cache
+        normalized_cache, normalized_changed = _normalize_equity_daily_prices_for_splits(enriched_cache)
+        if changed or normalized_changed:
+            _write_cache_frame(cache_file, normalized_cache)
+        df_cache = normalized_cache
 
     # Remove placeholder rows from the returned frame (but keep them in cache).
     frame = df_cache.loc[(df_cache.index >= start_local) & (df_cache.index <= end_local)].copy()
@@ -1075,6 +1077,144 @@ def _align_stock_index_daily_to_session_close(df: pd.DataFrame) -> pd.DataFrame:
     frame.index = aligned_idx
     frame = frame[~frame.index.duplicated(keep="last")].sort_index()
     return frame
+
+
+def _normalize_split_ratio(value: Any) -> Optional[float]:
+    try:
+        ratio = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(ratio) or ratio <= 0 or math.isclose(ratio, 1.0):
+        return None
+    return ratio
+
+
+def _split_row_needs_price_adjustment(close: pd.Series, split_pos: int, ratio: float) -> bool:
+    """Return True when the local split window still has a raw split-level jump.
+
+    IBKR daily cache rows can be mixed: older rows may already be split-adjusted while
+    a newly appended tail around a fresh split is still raw. A per-split continuity test
+    prevents double-adjusting the already-normalized part of the cache.
+    """
+    if split_pos <= 0 or split_pos >= len(close):
+        return False
+
+    prev_close = close.iat[split_pos - 1]
+    split_close = close.iat[split_pos]
+    if (
+        pd.isna(prev_close)
+        or pd.isna(split_close)
+        or prev_close <= 0
+        or split_close <= 0
+    ):
+        return False
+
+    observed = float(prev_close) / float(split_close)
+    if observed <= 0:
+        return False
+
+    # In adjusted space, adjacent closes should be closer to 1x. In raw space,
+    # the adjacent ratio should be closer to the split ratio.
+    raw_score = abs(math.log(observed / ratio))
+    adjusted_score = abs(math.log(observed))
+    return raw_score < adjusted_score
+
+
+def _find_split_raw_segment_start(close: pd.Series, split_pos: int, ratio: float) -> int:
+    """Find where a mixed raw pre-split cache segment begins.
+
+    If a cache was partially refreshed after a split, the rows immediately before the split
+    can be raw while older rows are already adjusted. In that case there is usually a
+    persistent split-factor level jump at the cache splice point. Return that splice row;
+    if none is found, the whole history before the split is treated as raw.
+    """
+    for pos in range(split_pos - 1, 0, -1):
+        prev_close = close.iat[pos - 1]
+        cur_close = close.iat[pos]
+        if (
+            pd.isna(prev_close)
+            or pd.isna(cur_close)
+            or prev_close <= 0
+            or cur_close <= 0
+        ):
+            continue
+        observed = float(cur_close) / float(prev_close)
+        if observed <= 0:
+            continue
+        raw_boundary_score = abs(math.log(observed / ratio))
+        continuity_score = abs(math.log(observed))
+        if raw_boundary_score < continuity_score:
+            return pos
+    return 0
+
+
+def _normalize_equity_daily_prices_for_splits(frame: pd.DataFrame) -> tuple[pd.DataFrame, bool]:
+    """Normalize IBKR stock daily bars into split-adjusted price space.
+
+    LumiBot's stock backtesting providers generally expose Yahoo-style split-adjusted
+    OHLC to strategies. IBKR daily cache data can arrive raw for newly appended split
+    tails while older cached rows are already continuous. This function repairs only
+    the split dates whose local price jump still looks raw, marks the frame as
+    `_split_adjusted`, and lets the broker ledger skip share multiplication for the
+    adjusted frame.
+    """
+    if frame is None or frame.empty or "stock_splits" not in frame.columns or "close" not in frame.columns:
+        return frame, False
+
+    out = frame.sort_index().copy()
+    marker_all_adjusted = False
+    if "_split_adjusted" in out.columns:
+        marker = out["_split_adjusted"]
+        try:
+            marker_all_adjusted = bool(marker.fillna(False).astype(bool).all())
+        except Exception:
+            marker_all_adjusted = False
+
+    close = pd.to_numeric(out["close"], errors="coerce")
+    splits = pd.to_numeric(out["stock_splits"], errors="coerce").fillna(0.0)
+    split_positions = [i for i, value in enumerate(splits.to_numpy()) if _normalize_split_ratio(value) is not None]
+    if not split_positions:
+        if marker_all_adjusted:
+            return out, False
+        out["_split_adjusted"] = True
+        return out, True
+
+    price_cols = [
+        col
+        for col in ("open", "high", "low", "close", "bid", "ask", "last", "vwap")
+        if col in out.columns
+    ]
+    volume_cols = [col for col in ("volume",) if col in out.columns]
+    dividend_cols = [col for col in ("dividend",) if col in out.columns]
+
+    changed = False
+    adjusted_splits = 0
+    for split_pos in split_positions:
+        ratio = _normalize_split_ratio(splits.iat[split_pos])
+        if ratio is None:
+            continue
+        if not _split_row_needs_price_adjustment(close, split_pos, ratio):
+            continue
+
+        segment_start = _find_split_raw_segment_start(close, split_pos, ratio)
+        before_mask = pd.Series(False, index=out.index)
+        before_mask.iloc[segment_start:split_pos] = True
+        for col in price_cols + dividend_cols:
+            out.loc[before_mask, col] = pd.to_numeric(out.loc[before_mask, col], errors="coerce") / ratio
+        for col in volume_cols:
+            out.loc[before_mask, col] = pd.to_numeric(out.loc[before_mask, col], errors="coerce") * ratio
+
+        close = pd.to_numeric(out["close"], errors="coerce")
+        changed = True
+        adjusted_splits += 1
+
+    if not marker_all_adjusted or not out["_split_adjusted"].fillna(False).astype(bool).all():
+        out["_split_adjusted"] = True
+        changed = True
+
+    if adjusted_splits:
+        logger.warning("IBKR daily split normalization adjusted %s split boundary/boundaries.", adjusted_splits)
+    return out, changed
 
 
 def _repair_isolated_split_spikes_daily(df: pd.DataFrame) -> pd.DataFrame:

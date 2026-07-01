@@ -19,6 +19,7 @@ _NAME_TO_MODULE = {
     "NoDataFound": "exceptions",
     "PandasData": "pandas_data",
     "PolarsData": "polars_data",
+    "PolymarketData": "polymarket_data",
     "PolygonDataBacktesting": "polygon_backtesting",
     "ProjectXData": "projectx_data",
     "SchwabData": "schwab_data",

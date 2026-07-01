@@ -85,6 +85,7 @@ setuptools.setup(
         "pyarrow>=15.0.0",
         "tqdm",
         "lumiwealth-tradier>=0.1.18",
+        "py-clob-client-v2>=1.0.1",
         "pytz",
         "psycopg2-binary",
         # Exchange calendars 4.6.0+ supports NumPy 2.x
@@ -135,6 +136,7 @@ setuptools.setup(
         "alpaca",
         "interactive-brokers",
         "tradier",
+        "polymarket",
         "schwab",
         "trading-strategies",
         "paper-trading",

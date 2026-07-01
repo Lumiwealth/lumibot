@@ -164,6 +164,7 @@ class Asset:
         CONT_FUTURE = "cont_future" # Continuous future
         FOREX = "forex" # Forex or cash
         CRYPTO = "crypto" # Crypto
+        PREDICTION_CONTRACT = "prediction_contract" # Prediction market outcome contract
         INDEX = "index" # Index
         MULTILEG = "multileg" # Multileg option
         UNKNOWN = "unknown" # Broker object Lumibot cannot classify yet

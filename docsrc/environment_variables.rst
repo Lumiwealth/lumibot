@@ -341,7 +341,7 @@ TRADING_BROKER
 - Values (case-insensitive):
   - ``alpaca``, ``tradier``, ``ccxt``, ``coinbase``, ``kraken``, ``weex``
   - ``ib``, ``interactivebrokers``, ``ibrest``, ``interactivebrokersrest``
-  - ``tradovate``, ``schwab``, ``bitunix``
+  - ``tradovate``, ``schwab``, ``bitunix``, ``polymarket``, ``polymarket_clob``
   - ``projectx`` / ``projectx-topstepx`` for TopstepX futures (via ProjectX)
 - Note: If not set, broker is auto-detected based on available credentials.
 
@@ -351,7 +351,7 @@ DATA_SOURCE
 - Purpose: Explicitly specify which data source to use.
 - Values (case-insensitive):
   - ``alpaca``, ``tradier``, ``polygon``, ``yahoo``, ``thetadata``, ``databento``
-  - ``ccxt``, ``coinbase``, ``kraken``, ``weex``, ``schwab``, ``bitunix``, ``projectx``
+  - ``ccxt``, ``coinbase``, ``kraken``, ``weex``, ``schwab``, ``bitunix``, ``projectx``, ``polymarket``, ``polymarket_clob``
 - Note: If not set, uses broker's default data source.
 
 Alpaca broker
@@ -383,6 +383,70 @@ ALPACA_NEWS_API_KEY / ALPACA_NEWS_API_SECRET
 - Purpose: Optional bring-your-own-key credentials for ``BuiltinTools.news.alpaca_news()`` when the active broker is not Alpaca.
 - Values: Alpaca API credentials with news/data access (**do not hardcode**).
 - Note: When the active broker is Alpaca, the built-in news tool reuses that broker's OAuth token or API key/secret instead. If the active broker is not Alpaca and these news-specific variables are absent, the built-in news tool is not exposed to agents.
+
+Polymarket CLOB broker
+----------------------
+
+POLYMARKET_PRIVATE_KEY
+^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Wallet private key or session signer used to sign Polymarket CLOB orders and derive API credentials.
+- Values: Provider/wallet secret (**do not hardcode**).
+- Note: Required for authenticated CLOB reads and trading. Treat this as a high-risk wallet credential.
+
+POLYMARKET_WALLET_ADDRESS
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Polymarket wallet/deposit wallet/funder address used for positions, balances, and signed CLOB orders.
+- Values: Wallet address.
+
+POLYMARKET_CLOB_API_KEY / POLYMARKET_CLOB_API_SECRET / POLYMARKET_CLOB_API_PASSPHRASE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Optional derived/generated CLOB API credentials for authenticated order, trade, cancel, and balance requests.
+- Values: CLOB API credentials (**do not hardcode**).
+- Note: If omitted, LumiBot attempts to derive/create credentials in memory through ``py-clob-client-v2`` when a private key is available.
+
+POLYMARKET_API_CREDENTIALS_JSON
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Optional JSON wrapper for CLOB API credentials.
+- Values: JSON object containing key/secret/passphrase fields (**do not hardcode**).
+- Note: Prefer separate env vars for readability unless a secret store provides one JSON payload.
+
+POLYMARKET_RELAYER_API_KEY / POLYMARKET_RELAYER_API_KEY_ADDRESS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Relayer credentials for wallet deployment/approval flows when required by the Polymarket account setup.
+- Values: Relayer credential fields (**do not hardcode**).
+- Note: Relayer credentials are not the same as CLOB trading credentials.
+
+POLYMARKET_BUILDER_CODE
+^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Optional Polymarket builder attribution code.
+- Values: Builder code.
+
+POLYMARKET_AUTO_APPROVE
+^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: When truthy, attempt CLOB collateral approval setup before live trading.
+- Values: truthy enables (``1``, ``true``, ``yes``, ``on``); unset disables.
+- Default: disabled.
+
+POLYMARKET_MAX_MARKET_ORDER_NOTIONAL
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Hard cap for Polymarket market BUY order dollar amount.
+- Values: Positive decimal.
+- Default: ``5``.
+
+POLYMARKET_TEST_TOKEN_ID / POLYMARKET_LIVE_TRADING_ENABLED / POLYMARKET_TEST_MAX_NOTIONAL
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Test-only gates for Polymarket live smoke tests.
+- Values: Explicit CLOB token id; ``POLYMARKET_LIVE_TRADING_ENABLED=true`` to allow live submit/cancel tests; decimal max notional.
+- Note: Live tests are skipped unless the required env vars are present. Default live-test max notional is capped at ``5``.
 
 Tradier broker
 --------------

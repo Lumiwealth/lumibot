@@ -53,6 +53,7 @@ _BROKER_CLASS_NAMES = {
     "Schwab",
     "Bitunix",
     "ProjectX",
+    "Polymarket",
 }
 
 
@@ -337,6 +338,25 @@ ALPACA_TEST_CONFIG = {  # Paper trading!
     "PAPER": True
 }
 
+# Polymarket International CLOB Configuration
+POLYMARKET_CONFIG = {
+    "PRIVATE_KEY": os.environ.get("POLYMARKET_PRIVATE_KEY"),
+    "WALLET_ADDRESS": os.environ.get("POLYMARKET_WALLET_ADDRESS"),
+    "CLOB_API_KEY": os.environ.get("POLYMARKET_CLOB_API_KEY"),
+    "CLOB_API_SECRET": os.environ.get("POLYMARKET_CLOB_API_SECRET"),
+    "CLOB_API_PASSPHRASE": os.environ.get("POLYMARKET_CLOB_API_PASSPHRASE"),
+    "RELAYER_API_KEY": os.environ.get("POLYMARKET_RELAYER_API_KEY"),
+    "RELAYER_API_KEY_ADDRESS": os.environ.get("POLYMARKET_RELAYER_API_KEY_ADDRESS"),
+    "API_CREDENTIALS_JSON": os.environ.get("POLYMARKET_API_CREDENTIALS_JSON"),
+    "BUILDER_CODE": os.environ.get("POLYMARKET_BUILDER_CODE"),
+    "CLOB_URL": os.environ.get("POLYMARKET_CLOB_URL", "https://clob.polymarket.com"),
+    "GAMMA_URL": os.environ.get("POLYMARKET_GAMMA_URL", "https://gamma-api.polymarket.com"),
+    "CHAIN_ID": os.environ.get("POLYMARKET_CHAIN_ID", "137"),
+    "SIGNATURE_TYPE": os.environ.get("POLYMARKET_SIGNATURE_TYPE"),
+    "AUTO_APPROVE": os.environ.get("POLYMARKET_AUTO_APPROVE"),
+    "MAX_MARKET_ORDER_NOTIONAL": os.environ.get("POLYMARKET_MAX_MARKET_ORDER_NOTIONAL"),
+}
+
 # Tradier Configuration
 TRADIER_CONFIG = {
     # Add TRADIER_ACCESS_TOKEN (or TRADIER_API_KEY), TRADIER_ACCOUNT_NUMBER, and TRADIER_IS_PAPER to your
@@ -571,6 +591,11 @@ if not is_backtesting or is_backtesting.lower() == "false":
             broker = _broker_class("Schwab")(SCHWAB_CONFIG)
         elif trading_broker_name.lower() == "bitunix":
             broker = _broker_class("Bitunix")(BITUNIX_CONFIG)
+        elif trading_broker_name.lower() in ("polymarket", "polymarket_clob"):
+            from .data_sources import PolymarketData
+
+            data_source = PolymarketData(POLYMARKET_CONFIG)
+            broker = _broker_class("Polymarket")(POLYMARKET_CONFIG, data_source=data_source)
         elif trading_broker_name.lower() == "projectx":
             try:
                 # Get specified firm or use auto-detection
@@ -743,6 +768,10 @@ if not is_backtesting or is_backtesting.lower() == "false":
                 # If broker is also Schwab, share the client
                 if broker and broker.name.lower() == "schwab" and hasattr(broker, "client"):
                     data_source.set_client(broker.client)
+            elif data_source_name.lower() in ("polymarket", "polymarket_clob"):
+                from .data_sources import PolymarketData
+
+                data_source = PolymarketData(POLYMARKET_CONFIG)
             elif data_source_name.lower() == "thetadata":
                 # Check if we have ThetaData configuration
                 if THETADATA_CONFIG["THETADATA_USERNAME"] and THETADATA_CONFIG["THETADATA_PASSWORD"]:

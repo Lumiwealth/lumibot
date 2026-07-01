@@ -4,9 +4,47 @@ One-line description: Deep research and implementation game plan for adding Poly
 
 Last Updated: 2026-07-01
 
-Status: Planning only. No implementation code changed.
+Status: Initial LumiBot implementation in progress. Credential/login/live-trading proof still blocked by missing local
+Polymarket credentials.
 
 Audience: LumiBot maintainers, BotSpot broker-connection engineers, Bot Manager runtime engineers
+
+## 2026-07-01 Implementation Status
+
+Initial LumiBot implementation has started and covers the international `polymarket.com` CLOB lane only.
+
+Implemented in LumiBot:
+
+- `Asset.AssetType.PREDICTION_CONTRACT`.
+- `PolymarketData` public CLOB data source with market resolution, token resolution, order book, quote, last price, and
+  supported price-history requests.
+- `Polymarket` broker with required broker methods, authenticated read paths, market order routing, limit order routing,
+  cancel, and polling reconciliation.
+- `PolymarketCLOBStream` bridge with testable market/user event handlers and polling reconciliation.
+- Explicit `TRADING_BROKER=polymarket` / `DATA_SOURCE=polymarket` plumbing.
+- `py-clob-client-v2>=1.0.1` dependency. The documented beta `polymarket-client` package was not available from PyPI in
+  the local verification environment.
+- Unit tests for asset/data/broker behavior and provider-gated live smoke tests.
+
+Verified locally:
+
+- `python3 -m py_compile lumibot/data_sources/polymarket_data.py lumibot/brokers/polymarket.py lumibot/credentials.py`
+- `python3 -m pytest tests/test_polymarket_asset.py tests/test_polymarket_data.py tests/test_polymarket_broker.py -q`
+  passed with 15 tests.
+- `python3 -m pytest tests/test_polymarket_apitest.py -q` skipped all 3 live/API tests because local Polymarket env vars
+  are not present.
+- Public `https://clob.polymarket.com/markets` returned HTTP 200 during a no-credential sanity check.
+
+Not yet verified:
+
+- Actual credential/login proof.
+- Reading Rob's real Polymarket account value, positions, open orders, and recent trades.
+- Deriving/storing real CLOB API credentials in `.env.local`.
+- Any live order, including the approved $1-$5 market-order smoke.
+
+Current blocker: no Polymarket private key, wallet address, or CLOB credentials were present in local LumiBot `.env` or
+`.env.local` during implementation. The live smoke tests are ready but intentionally skip until those env vars are
+provided.
 
 ## Executive Summary
 

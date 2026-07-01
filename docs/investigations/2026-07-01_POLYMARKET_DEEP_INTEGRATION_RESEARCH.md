@@ -24,6 +24,71 @@ The biggest structural issues are:
 
 I did not create or read any API keys. Key creation changes account security state and should be done only after an explicit go-ahead for that action.
 
+## 2026-07-01 Follow-Up: US And International CLOB Support
+
+### Direct Answers
+
+**CLOB means Central Limit Order Book.** Polymarket's international trading docs describe it as the order-book system that matches orders offchain and settles matched trades onchain.
+
+**Yes, LumiBot can support both Polymarket US and the international CLOB, but they should not be one internally tangled adapter.** The right structure is a shared prediction-market domain model plus separate provider drivers:
+
+- `PolymarketUSDriver`: wraps the `polymarket-us` SDK, US market slugs, US order intents, US account/portfolio API, and US WebSockets.
+- `PolymarketCLOBDriver`: wraps the international SDK/CLOB/deposit-wallet path, token ids, CLOB order signing, relayer wallet operations, and market/user streams.
+- `PolymarketData`: shared public LumiBot data-source facade that can delegate to either driver by mode.
+- `Polymarket` broker: shared LumiBot broker facade that exposes the normal broker contract but owns exactly one configured provider mode per broker instance.
+
+This lets a strategy use `TRADING_BROKER=polymarket` with `POLYMARKET_MODE=us` or `POLYMARKET_MODE=clob`, while the implementation keeps different authentication and order semantics isolated. For BotSpot's saved broker credentials, I would split the product ids into `polymarket_us` and `polymarket_clob` so eligibility, compliance text, and credential fields cannot be mixed accidentally.
+
+**Polymarket US is not app-only from an API standpoint.** The Polymarket US docs say users must create an account and complete identity verification in the iOS app before generating API keys, but they also document a developer portal, official Python/TypeScript SDKs, public endpoints, authenticated account/portfolio/orders endpoints, and WebSocket support for market and private updates. The US Python SDK uses `POLYMARKET_KEY_ID` and `POLYMARKET_SECRET_KEY` style credentials. We still need to verify whether Rob personally has access to a Polymarket US account and developer portal.
+
+**Rob's current visible browser session still appears to be international `polymarket.com`, not Polymarket US.** The URL, crypto deposit surface, wallet-style identity, and `APIs` menu match the international account surface. That does not mean US cannot be supported; it means the first usable credentials from the current browser session are probably CLOB/deposit-wallet credentials unless Rob separately logs into `polymarket.us`.
+
+### Credential Model: Relayer Key vs CLOB API Key
+
+The international stack has at least three separate credential concepts. We should name them separately in LumiBot and BotSpot:
+
+| Credential layer | What it is for | Typical fields | Notes |
+| --- | --- | --- | --- |
+| Signer / L1 | Proves wallet control, creates or derives CLOB API credentials, signs order payloads | `POLYMARKET_PRIVATE_KEY`, optional session signer, wallet/deposit-wallet address | Highest-risk secret. For BotSpot, this is a private-key custody problem, not a normal broker API token. |
+| CLOB / L2 API credentials | Authenticates CLOB private REST requests, user-order reads, cancels, balances, and posting signed orders | `POLYMARKET_CLOB_API_KEY`, `POLYMARKET_CLOB_API_SECRET`, `POLYMARKET_CLOB_API_PASSPHRASE`, `POLY_ADDRESS`/wallet address | L2 auth does not remove the need to sign newly created orders. It authenticates the request around a signed order. |
+| Relayer / builder credential | Deploys deposit wallets and submits wallet-operation batches such as approvals | `POLYMARKET_RELAYER_API_KEY`, `POLYMARKET_RELAYER_API_KEY_ADDRESS`, or builder key/secret/passphrase for older relayer client paths | This is not the same thing as a CLOB trading API key. It is needed for wallet setup and approvals, not a standalone LumiBot trading credential. |
+
+The website label `Relayer API Key` is therefore not enough for trading by itself. If the API page also shows a normal API key underneath it, we need to identify whether that key is:
+
+- a CLOB L2 key/secret/passphrase for authenticated order, cancel, balance, and stream operations;
+- a relayer key/address pair for wallet deployment and approvals;
+- a builder API credential used by older relayer clients;
+- or a UI-level key that the beta unified SDK can consume directly.
+
+No implementation should infer this from the page labels alone. The next access spike should inspect the labels and required fields without exposing values in chat, then run only a read-only authenticated account or balance call.
+
+### What "Support Both At The Same Time" Should Mean
+
+Support both should mean:
+
+- The LumiBot entity model, broker contract, data-source contract, and strategy API can represent prediction contracts independent of venue.
+- One broker instance is configured for one account/provider mode at a time.
+- A strategy that needs cross-venue trading later should use multiple broker instances/accounts, not a single broker instance that silently routes some orders to US and some to CLOB.
+- Tests should share prediction-market contract behavior, but fixture payloads should remain mode-specific.
+
+Do not make one large `Polymarket` class full of `if mode == "us"` branches for every API call. Use a small facade plus two internal drivers. That matches the useful part of the Alpaca/Tradier pattern: a broker class presents LumiBot's normalized contract, while provider-specific parsing, auth, and streaming are isolated.
+
+### WebSockets Must Be In The Early Design
+
+Alpaca is the better broker model here because it uses a real trading stream when credentials support it and falls back to polling only when necessary. Its polling path also reconciles positions and tracked orders carefully instead of assuming a missing order is canceled immediately.
+
+Tradier is useful as a cautionary pattern: its polling stream explicitly cannot reliably track partial fills. That limitation is not acceptable for fast Polymarket markets where order-book levels, partial fills, tick-size changes, and private order events can move quickly.
+
+For Polymarket, the first production-quality design should include:
+
+1. HTTP snapshot at startup: market metadata, order book, balances, open orders, and positions.
+2. Public market WebSocket: book, price change, last trade, best bid/ask, tick-size change, new-market, and resolved-market events where available.
+3. Private user WebSocket: order, trade, position, and balance events where available by mode.
+4. Reconnect reconciliation: after reconnect, reread open orders, positions, balances, and the current book before trusting local state.
+5. Polling fallback: only for reconciliation and degraded operation, not as the primary fast-trading mechanism.
+
+The CLOB SDK currently exposes async realtime stream subscriptions, so `PolymarketStream` should own an asyncio loop in a background thread and dispatch normalized events into LumiBot's existing `CustomStream` action queue. US WebSockets are also documented as async-only and provide separate private and market streams, so the same `PolymarketStream` facade can work with mode-specific drivers.
+
 ## Account Surface Finding
 
 ### What Was Verified In Chrome
@@ -89,12 +154,13 @@ Do not blur these together in code or docs. The same public class can eventually
 - Polymarket API introduction: `https://docs.polymarket.com/api-reference/introduction`
 - Polymarket Python SDK: `https://docs.polymarket.com/dev-tooling/python`
 - Polymarket trading quickstart: `https://docs.polymarket.com/trading/quickstart`
+- Polymarket trading overview/CLOB definition: `https://docs.polymarket.com/trading/overview`
 - Polymarket order overview: `https://docs.polymarket.com/trading/orders/overview`
 - Polymarket order creation: `https://docs.polymarket.com/trading/orders/create`
 - Polymarket orderbook/WebSocket docs: `https://docs.polymarket.com/trading/orderbook`
 - Polymarket market channel: `https://docs.polymarket.com/market-data/websocket/market-channel`
 - Polymarket user channel: `https://docs.polymarket.com/market-data/websocket/user-channel`
-- Polymarket authentication: `https://docs.polymarket.com/developers/CLOB/authentication`
+- Polymarket authentication: `https://docs.polymarket.com/api-reference/authentication`
 - Polymarket public client methods: `https://docs.polymarket.com/trading/clients/public`
 - Polymarket secure client methods: `https://docs.polymarket.com/trading/clients/l2`
 - Polymarket deposit wallets: `https://docs.polymarket.com/trading/deposit-wallets`
@@ -102,6 +168,7 @@ Do not blur these together in code or docs. The same public class can eventually
 - Polymarket error codes: `https://docs.polymarket.com/resources/error-codes`
 - Polymarket rate limits/geographic restrictions entry point: `https://docs.polymarket.com/api-reference/rate-limits`
 - Polymarket relayer API keys reference: `https://docs.polymarket.com/api-reference/relayer-api-keys/get-all-relayer-api-keys`
+- Polymarket US SDK introduction: `https://docs.polymarket.us/api-reference/sdks/introduction`
 - Polymarket US Python quickstart: `https://docs.polymarket.us/api-reference/sdks/python/quickstart`
 - Polymarket US Python account docs: `https://docs.polymarket.us/api-reference/sdks/python/account`
 - Polymarket US Python WebSocket docs: `https://docs.polymarket.us/api-reference/sdks/python/websocket`
@@ -331,12 +398,27 @@ Update:
 - `docs/BROKER_ORDER_SEMANTICS.md` if prediction contracts need a new order caveat.
 - `docs/BACKTESTING_ARCHITECTURE.md` if we add prediction backtesting semantics.
 
+### Internal Class Structure
+
+Use a facade/driver split:
+
+- `Polymarket`: the LumiBot broker class that implements the broker abstract methods and owns one configured driver.
+- `PolymarketData`: the LumiBot data source that owns one configured public-data driver.
+- `_PolymarketCLOBDriver`: international SDK/CLOB/deposit-wallet implementation.
+- `_PolymarketUSDriver`: US SDK implementation.
+- `PolymarketStream`: shared stream wrapper that normalizes driver-specific async WebSocket events into LumiBot stream actions.
+
+This keeps the public import simple while avoiding provider-specific branches throughout every broker method.
+
 ### Config Shape
 
-Recommended environment names for international CLOB mode:
+Recommended public LumiBot selector:
 
 - `TRADING_BROKER=polymarket`
 - `POLYMARKET_MODE=clob`
+
+Recommended environment names for international CLOB mode:
+
 - `POLYMARKET_PRIVATE_KEY`
 - `POLYMARKET_WALLET_ADDRESS`
 - `POLYMARKET_RELAYER_API_KEY`
@@ -357,12 +439,12 @@ Credential policy:
 
 Potential future US mode:
 
-- `TRADING_BROKER=polymarket_us`
-- `POLYMARKET_US_API_KEY`
-- `POLYMARKET_US_API_SECRET`
-- `POLYMARKET_US_USER_ID`
+- `TRADING_BROKER=polymarket`
+- `POLYMARKET_MODE=us`
+- `POLYMARKET_US_KEY_ID`
+- `POLYMARKET_US_SECRET_KEY`
 
-Keep US and international env names separate.
+Keep US and international env names separate. For BotSpot saved credentials, prefer separate provider ids (`polymarket_us` and `polymarket_clob`) even if LumiBot has one facade class.
 
 ### `PolymarketData`
 
@@ -499,7 +581,7 @@ Files likely touched later:
 
 Needed product decisions:
 
-- Add `polymarket` or split `polymarket_clob` and `polymarket_us`.
+- Split `polymarket_clob` and `polymarket_us` in BotSpot saved credentials, even if LumiBot exposes one `Polymarket` facade with `POLYMARKET_MODE`.
 - Show a strong eligibility/compliance warning for international CLOB.
 - Manual credential fields are enough for first version; OAuth-style browser redirect is not the right model unless Polymarket US provides it.
 - Do not collect raw private keys in a customer-facing UI until security signs off on the runtime signer model.
@@ -517,7 +599,17 @@ Possible internal-only catalog entry for first BotSpot experiments:
   - `POLYMARKET_RELAYER_API_KEY_ADDRESS`
   - optional CLOB session credential fields
 
-For public BotSpot, prefer `polymarket_us` if the US API supports the required trading and websocket workflows.
+Possible US catalog entry:
+
+- id: `polymarket_us`
+- asset class: `Prediction Markets`
+- modes: `live` only
+- auth method: `api_key`
+- credential fields:
+  - `POLYMARKET_US_KEY_ID` secret
+  - `POLYMARKET_US_SECRET_KEY` secret
+
+For public BotSpot, prefer `polymarket_us` if Rob can verify US account/API eligibility and if the US API supports the required trading and WebSocket workflows.
 
 ### BotSpot Node
 
@@ -726,9 +818,10 @@ Smoke tests must use an explicit market allowlist, maximum notional, and no hidd
 
 Goals:
 
-- Confirm whether Rob wants `polymarket.com` CLOB mode or a real `polymarket.us` account.
-- Confirm what the website `APIs` page can generate.
-- Determine if Relayer API Key plus private key/session signer is enough for Rob's current account.
+- Confirm whether the first implementation target is Rob's current `polymarket.com` CLOB account, a separate `polymarket.us` account, or both in parallel.
+- Confirm what the `polymarket.com` website `APIs` page can generate: relayer key, CLOB L2 key/secret/passphrase, builder credential, or beta SDK key material.
+- Confirm whether Rob can access `polymarket.us/developer` after US app account setup and identity verification.
+- Determine whether Relayer API Key plus private key/session signer is enough for Rob's current account setup and approvals.
 - Create credentials only after explicit approval.
 - Store secrets only in approved local env/secret-store paths. Do not put them in docs, chat, screenshots, git, or logs.
 
@@ -736,7 +829,7 @@ Exit criteria:
 
 - We know the exact env vars and credential object required for one authenticated account read.
 - We can call a read-only authenticated endpoint or SDK account method without placing orders.
-- We know whether trading requires raw private-key custody.
+- We know whether CLOB trading requires raw private-key custody for Rob's account, and whether US trading can avoid private-key custody.
 
 ### Phase 1: LumiBot Asset And Data Source
 
@@ -765,7 +858,22 @@ Exit criteria:
 - `_pull_broker_all_orders()` works.
 - Raw values are redacted in logs.
 
-### Phase 3: Limit Orders And Cancel
+### Phase 3: WebSocket Stream Scaffold
+
+Goals:
+
+- Add public market WebSocket for subscribed token ids.
+- Add private user WebSocket for authenticated order/trade events where the selected provider mode supports them.
+- Add HTTP reconciliation after reconnect.
+- Add fake-event tests before placing live orders.
+
+Exit criteria:
+
+- Live quote state updates without polling.
+- Private order status updates dispatch into LumiBot's stream events in fake-client tests.
+- Reconnect path does not duplicate fills.
+
+### Phase 4: Limit Orders And Cancel
 
 Goals:
 
@@ -773,26 +881,13 @@ Goals:
 - Support cancel.
 - Support `_parse_broker_order`.
 - Add safe provider error mapping.
+- Wire live submit/cancel events into the stream/reconciliation path from Phase 3.
 
 Exit criteria:
 
 - Tiny live limit order and cancel smoke passes after explicit approval.
 - Unknown order rows do not crash refresh.
 - Submit/cancel errors fail loudly.
-
-### Phase 4: WebSockets
-
-Goals:
-
-- Add public market WebSocket for subscribed token ids.
-- Add private user WebSocket for order/trade events.
-- Add HTTP reconciliation after reconnect.
-
-Exit criteria:
-
-- Live quote state updates without polling.
-- Private order status updates dispatch into LumiBot's stream events.
-- Reconnect path does not duplicate fills.
 
 ### Phase 5: Market Orders And Fast Trading Controls
 
@@ -839,20 +934,24 @@ Exit criteria:
 ## Questions For Rob
 
 1. Should the first live LumiBot spike target your current `polymarket.com` account, even though it is not Polymarket US and may have geography/compliance constraints?
-2. Do you want me to open the Polymarket `APIs` page and create/read API credentials in a later turn? If yes, where should the generated values be stored locally?
-3. Are you comfortable with a local LumiBot prototype requiring a Polymarket private key or session signer, or do we need to find a no-private-key credential path first?
-4. Is the first strategy target the fast 5-minute crypto up/down markets, or should we start with slower/liquid markets to reduce execution risk?
-5. Should BotSpot support be internal-only until `polymarket.us` support is verified, or are we planning to support international CLOB accounts for specific non-US users?
-6. What hard risk limits should we enforce in early live tests: max order size, max daily spend, market allowlist, and limit-only trading?
+2. Do you want me to inspect the `polymarket.com` `APIs` page labels in a later turn without creating or copying secrets?
+3. Do you want to verify whether you can access `polymarket.us/developer`, or should we treat US support as a parallel code path until your US account status is clear?
+4. If credentials are created later, where should the generated values be stored locally: an approved `.env` path, macOS Keychain, 1Password/Bitwarden, or a BotSpot secret-store path?
+5. Are you comfortable with a local LumiBot prototype requiring a Polymarket private key or session signer, or do we need to find a no-private-key credential path first?
+6. Is the first strategy target the fast 5-minute crypto up/down markets, or should we start with slower/liquid markets to reduce execution risk?
+7. Should BotSpot support be internal-only until `polymarket.us` support is verified, or are we planning to support international CLOB accounts for specific non-US users?
+8. What hard risk limits should we enforce in early live tests: max order size, max daily spend, market allowlist, and limit-only trading?
 
 ## Recommended Immediate Next Step
 
 Do not start implementation yet. The next useful action is a credential/access spike:
 
-1. Open the `polymarket.com` account `APIs` page with explicit approval.
-2. Identify whether it creates Relayer API Keys, CLOB API session credentials, builder keys, or something else.
-3. Do not expose values in chat or logs.
-4. Save only the credential names and required env var mapping in this doc.
-5. Run a read-only authenticated SDK call if credentials can be loaded safely.
+1. Inspect the `polymarket.com` account `APIs` page with explicit approval, without creating or copying secrets.
+2. Identify whether it exposes Relayer API Keys, CLOB API session credentials, builder keys, beta SDK key material, or some combination.
+3. Separately check whether Rob can reach `polymarket.us/developer` and whether it offers US API key creation for his account.
+4. Do not expose values in chat or logs.
+5. Save only the credential names, required env var mapping, and source page labels in this doc.
+6. Create credentials only after a second explicit approval and an agreed storage path.
+7. Run a read-only authenticated SDK call if credentials can be loaded safely.
 
 After that, implement Phase 1 in LumiBot with fake-client tests and public data only.

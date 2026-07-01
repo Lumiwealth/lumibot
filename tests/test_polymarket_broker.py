@@ -29,14 +29,21 @@ class FakeMarketDataClient:
         if url.endswith("/tick-size"):
             return {"minimum_tick_size": "0.01"}
         if url.endswith("/book"):
-            return {"bids": [{"price": "0.40", "size": "10"}], "asks": [{"price": "0.45", "size": "10"}]}
+            return {
+                "bids": [{"price": "0.40", "size": "10"}],
+                "asks": [{"price": "0.45", "size": "10"}],
+                "tick_size": "0.01",
+                "neg_risk": True,
+            }
         raise AssertionError(f"Unexpected market-data URL: {url}")
 
 
 class FakeSecureClient:
     def __init__(self):
         self.market_orders = []
+        self.market_order_kwargs = []
         self.limit_orders = []
+        self.limit_order_kwargs = []
         self.canceled = []
 
     def get_balance_allowance(self, *args, **kwargs):
@@ -64,6 +71,7 @@ class FakeSecureClient:
 
     def create_and_post_market_order(self, payload, **kwargs):
         self.market_orders.append(payload)
+        self.market_order_kwargs.append(kwargs)
         if isinstance(payload, dict):
             return {
                 "id": "market-order",
@@ -86,6 +94,7 @@ class FakeSecureClient:
 
     def create_and_post_order(self, payload, **kwargs):
         self.limit_orders.append(payload)
+        self.limit_order_kwargs.append(kwargs)
         if isinstance(payload, dict):
             return {
                 "id": "limit-order",
@@ -154,6 +163,18 @@ def test_polymarket_balances_positions_orders(monkeypatch):
         broker.cleanup_streams()
 
 
+def test_polymarket_raw_collateral_balance_scales_from_usdc_units(monkeypatch):
+    broker = _broker(monkeypatch)
+    try:
+        broker._secure_client.get_balance_allowance = lambda *_, **__: {"balance": "29185517"}
+
+        cash = broker._get_collateral_cash()
+
+        assert cash == 29.185517
+    finally:
+        broker.cleanup_streams()
+
+
 def test_polymarket_parse_broker_order(monkeypatch):
     broker = _broker(monkeypatch)
     try:
@@ -200,7 +221,10 @@ def test_polymarket_market_buy_uses_custom_amount_not_quantity(monkeypatch):
         submitted = broker._submit_order(order)
 
         assert submitted.identifier == "market-order"
-        assert broker._secure_client.market_orders[0]["amount"] == "1.00"
+        assert broker._secure_client.market_orders[0].amount == 1.0
+        assert broker._secure_client.market_orders[0].token_id == "111"
+        assert broker._secure_client.market_order_kwargs[0]["options"].tick_size == "0.01"
+        assert broker._secure_client.market_order_kwargs[0]["options"].neg_risk is True
     finally:
         broker.cleanup_streams()
 
@@ -245,8 +269,36 @@ def test_polymarket_limit_order_and_cancel(monkeypatch):
 
         assert submitted.identifier == "limit-order"
         assert broker._secure_client.limit_orders
+        assert broker._secure_client.limit_order_kwargs[0]["options"].tick_size == "0.01"
+        assert broker._secure_client.limit_order_kwargs[0]["options"].neg_risk is True
         assert broker._secure_client.canceled
         assert submitted.status == Order.OrderStatus.CANCELED
+    finally:
+        broker.cleanup_streams()
+
+
+def test_polymarket_wraps_known_deposit_wallet_order_blocker(monkeypatch):
+    broker = _broker(monkeypatch)
+    asset = Asset("111", asset_type=Asset.AssetType.PREDICTION_CONTRACT)
+    order = Order(
+        "unit",
+        asset,
+        quantity=1,
+        side=Order.OrderSide.BUY,
+        order_type=Order.OrderType.MARKET,
+        custom_params={"amount": "1.00", "price": "0.45", "order_type": "FAK"},
+    )
+    broker._secure_client.create_and_post_market_order = lambda *_, **__: (_ for _ in ()).throw(
+        RuntimeError("maker address not allowed, please use the deposit wallet flow")
+    )
+    try:
+        try:
+            broker._submit_order(order)
+        except Exception as exc:
+            assert "deposit-wallet flow" in str(exc) or "deposit wallet" in str(exc)
+            assert "Raw Polymarket error" in str(exc)
+        else:
+            raise AssertionError("Expected platform order blocker to be surfaced")
     finally:
         broker.cleanup_streams()
 
@@ -261,3 +313,14 @@ def test_polymarket_stream_user_event_dispatch(monkeypatch):
 
     stream._process_queue_event(broker.FILLED_ORDER, {"order": broker._parse_broker_order({"id": "filled-1"}, "unit")})
     assert seen == ["filled-1"]
+
+
+def test_polymarket_stream_subscription_payloads():
+    market_payload = PolymarketCLOBStream._market_subscription_payload(["111", "222"])
+    user_payload = PolymarketCLOBStream._user_subscription_payload(
+        {"apiKey": "key", "secret": "secret", "passphrase": "passphrase"}
+    )
+
+    assert market_payload == {"assets_ids": ["111", "222"], "type": "market", "custom_feature_enabled": True}
+    assert user_payload["type"] == "user"
+    assert user_payload["auth"]["apiKey"] == "key"

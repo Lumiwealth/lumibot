@@ -27,7 +27,9 @@ This page documents environment variables used by LumiBot, with an emphasis on *
 - Local prototype secret storage: `.env.local` is loaded after `.env` unless `LUMIBOT_DISABLE_DOTENV_LOCAL=1`.
 - Credential fields:
   - `POLYMARKET_PRIVATE_KEY`: wallet private key/session signer for CLOB signing (**secret**).
-  - `POLYMARKET_WALLET_ADDRESS`: deposit wallet/funder address.
+  - `POLYMARKET_OWNER_ADDRESS`: optional owner/signer address for Magic/proxy accounts. Used as a fallback for Data API position/value reads.
+  - `POLYMARKET_WALLET_ADDRESS`: proxy wallet, deposit wallet, Safe, or other funder address passed to the CLOB client.
+  - `POLYMARKET_SIGNATURE_TYPE`: CLOB signature type. `0` = EOA, `1` = existing Polymarket proxy/Magic wallet, `2` = Gnosis Safe, `3` = deposit wallet / `POLY_1271`. The broker defaults to `1` when owner and wallet differ, otherwise `3`; set it explicitly for live tests.
   - `POLYMARKET_CLOB_API_KEY`, `POLYMARKET_CLOB_API_SECRET`, `POLYMARKET_CLOB_API_PASSPHRASE`: optional CLOB L2 credentials (**secret**).
   - `POLYMARKET_API_CREDENTIALS_JSON`: optional JSON wrapper for CLOB credentials (**secret**).
   - `POLYMARKET_RELAYER_API_KEY`, `POLYMARKET_RELAYER_API_KEY_ADDRESS`: relayer credentials for wallet deployment/approval flows when required (**secret**).
@@ -41,6 +43,9 @@ This page documents environment variables used by LumiBot, with an emphasis on *
 - Notes:
   - Do not auto-detect Polymarket from a private key. Use explicit `TRADING_BROKER=polymarket`.
   - Relayer keys are not the same as CLOB trading credentials.
+  - CLOB collateral balances are returned in 6-decimal raw units by `get_balance_allowance`; LumiBot scales those into dollars.
+  - Current local proof on 2026-07-01 can read balances, positions, open orders, trades, public data, and public/private WebSockets. Live submit is blocked for Rob's current Magic/proxy account by Polymarket's deposit-wallet/API-key binding error: `maker address not allowed, please use the deposit wallet flow`.
+  - Direct smoke helper: `scripts/polymarket_smoke.py`. It loads `.env.local`, redacts output, writes artifacts under gitignored `logs/`, and only submits live orders when `POLYMARKET_LIVE_TRADING_ENABLED=true` plus notional caps are present.
   - Never commit or log raw Polymarket private keys or CLOB credentials.
 
 ### `LUMIBOT_DISABLE_DOTENV`

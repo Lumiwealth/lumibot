@@ -79,3 +79,48 @@ def test_polymarket_resolve_market_and_contract():
     assert market["outcomes"] == ["Yes", "No"]
     assert asset.symbol == "222"
     assert asset.asset_type == Asset.AssetType.PREDICTION_CONTRACT
+
+
+def test_polymarket_market_stream_list_event_updates_quote_cache():
+    data = PolymarketData(client=FakeHttpClient())
+
+    data.apply_market_event(
+        [
+            {
+                "event_type": "best_bid_ask",
+                "asset_id": "111",
+                "best_bid": "0.41",
+                "best_ask": "0.44",
+                "price": "0.425",
+            }
+        ]
+    )
+
+    cached = data._quote_cache["111"]
+    assert cached.bid == 0.41
+    assert cached.ask == 0.44
+    assert cached.price == 0.425
+
+
+def test_polymarket_market_stream_nested_price_changes_update_quote_cache():
+    data = PolymarketData(client=FakeHttpClient())
+
+    data.apply_market_event(
+        {
+            "event_type": "price_change",
+            "market": "0xmarket",
+            "price_changes": [
+                {
+                    "asset_id": "111",
+                    "price": "0.42",
+                    "best_bid": "0.42",
+                    "best_ask": "0.45",
+                }
+            ],
+        }
+    )
+
+    cached = data._quote_cache["111"]
+    assert cached.bid == 0.42
+    assert cached.ask == 0.45
+    assert cached.price == 0.42

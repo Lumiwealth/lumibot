@@ -20,6 +20,8 @@ class PolymarketData(DataSource):
     MIN_TIMESTEP = "minute"
     CLOB_URL = "https://clob.polymarket.com"
     GAMMA_URL = "https://gamma-api.polymarket.com"
+    MARKET_WS_URL = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
+    USER_WS_URL = "wss://ws-subscriptions-clob.polymarket.com/ws/user"
 
     _HISTORY_INTERVALS = {
         "minute": "1m",
@@ -297,6 +299,18 @@ class PolymarketData(DataSource):
 
     def apply_market_event(self, event: Any) -> None:
         payload = self._model_to_dict(event)
+        if isinstance(payload, list):
+            for item in payload:
+                self.apply_market_event(item)
+            return
+        if isinstance(payload, dict) and isinstance(payload.get("price_changes"), list):
+            for item in payload["price_changes"]:
+                change = dict(item)
+                change.setdefault("event_type", "price_change")
+                change.setdefault("market", payload.get("market"))
+                change.setdefault("timestamp", payload.get("timestamp"))
+                self.apply_market_event(change)
+            return
         token_id = str(self._first_present(payload, "asset_id", "assetId", "token_id", "tokenId") or "")
         if not token_id:
             return

@@ -397,8 +397,24 @@ POLYMARKET_PRIVATE_KEY
 POLYMARKET_WALLET_ADDRESS
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- Purpose: Polymarket wallet/deposit wallet/funder address used for positions, balances, and signed CLOB orders.
+- Purpose: Polymarket proxy wallet, deposit wallet, Safe, or other funder address passed to the CLOB client.
 - Values: Wallet address.
+
+POLYMARKET_OWNER_ADDRESS
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Optional owner/signer address for Magic/proxy accounts. LumiBot uses it as a fallback for Data API position
+  and value reads when it differs from ``POLYMARKET_WALLET_ADDRESS``.
+- Values: Wallet address.
+
+POLYMARKET_SIGNATURE_TYPE
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Polymarket CLOB signature type used by the authenticated client.
+- Values: ``0`` for EOA, ``1`` for existing Polymarket proxy/Magic wallets, ``2`` for Gnosis Safe, ``3`` for deposit
+  wallet / ``POLY_1271``.
+- Default: ``1`` when ``POLYMARKET_OWNER_ADDRESS`` and ``POLYMARKET_WALLET_ADDRESS`` differ, otherwise ``3``. Set this
+  explicitly for live testing and Bot Manager deployments.
 
 POLYMARKET_CLOB_API_KEY / POLYMARKET_CLOB_API_SECRET / POLYMARKET_CLOB_API_PASSPHRASE
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -419,7 +435,8 @@ POLYMARKET_RELAYER_API_KEY / POLYMARKET_RELAYER_API_KEY_ADDRESS
 
 - Purpose: Relayer credentials for wallet deployment/approval flows when required by the Polymarket account setup.
 - Values: Relayer credential fields (**do not hardcode**).
-- Note: Relayer credentials are not the same as CLOB trading credentials.
+- Note: Relayer credentials are not the same as CLOB trading credentials. The CLOB client still needs L2 API key,
+  secret, and passphrase fields for private order/balance/trade endpoints and WebSocket user streams.
 
 POLYMARKET_BUILDER_CODE
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -447,6 +464,20 @@ POLYMARKET_TEST_TOKEN_ID / POLYMARKET_LIVE_TRADING_ENABLED / POLYMARKET_TEST_MAX
 - Purpose: Test-only gates for Polymarket live smoke tests.
 - Values: Explicit CLOB token id; ``POLYMARKET_LIVE_TRADING_ENABLED=true`` to allow live submit/cancel tests; decimal max notional.
 - Note: Live tests are skipped unless the required env vars are present. Default live-test max notional is capped at ``5``.
+- Smoke helper: ``scripts/polymarket_smoke.py`` loads local ``.env.local`` values, redacts output, writes proof artifacts
+  under gitignored ``logs/``, and only submits live orders when the live gate and caps are present.
+
+Polymarket CLOB implementation notes
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Set ``TRADING_BROKER=polymarket`` for the normal live broker path. ``DATA_SOURCE=polymarket`` is only the optional
+  separate public-market-data override.
+- CLOB collateral balances are returned in 6-decimal raw units by balance/allowance reads. LumiBot scales those values
+  into dollars before returning account cash.
+- The current international CLOB adapter supports read-only account state, market discovery, token resolution, order
+  books, quotes, last price, supported price history, public market WebSockets, and authenticated user WebSocket
+  subscription. Live submit/cancel is implemented, but existing Magic/proxy accounts may be rejected by Polymarket with
+  a deposit-wallet/API-key binding error until the account is migrated through the supported deposit-wallet flow.
 
 Tradier broker
 --------------

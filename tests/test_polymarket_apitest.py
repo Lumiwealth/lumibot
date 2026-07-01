@@ -1,7 +1,10 @@
+import asyncio
+import json
 import os
 
 import pytest
 
+from lumibot.brokers.broker import LumibotBrokerAPIError
 from lumibot.brokers.polymarket import Polymarket
 from lumibot.data_sources.polymarket_data import PolymarketData
 from lumibot.entities import Asset, Order
@@ -28,6 +31,28 @@ def test_polymarket_public_quote_smoke():
     assert quote.bid is not None or quote.ask is not None or quote.price is not None
 
 
+def test_polymarket_public_websocket_smoke():
+    token_id = _token_or_skip()
+
+    async def _run():
+        import websockets
+
+        events = []
+        async with websockets.connect(PolymarketData.MARKET_WS_URL, ping_interval=20, close_timeout=5) as ws:
+            await ws.send(json.dumps({"assets_ids": [token_id], "type": "market", "custom_feature_enabled": True}))
+            deadline = asyncio.get_running_loop().time() + 8
+            while asyncio.get_running_loop().time() < deadline and not events:
+                try:
+                    events.append(json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0)))
+                except asyncio.TimeoutError:
+                    continue
+        return events
+
+    events = asyncio.run(_run())
+
+    assert events
+
+
 @pytest.mark.polymarket_credentials
 def test_polymarket_account_snapshot_smoke(monkeypatch):
     monkeypatch.setattr("lumibot.brokers.broker.Broker._start_orders_thread", lambda self: None)
@@ -41,6 +66,7 @@ def test_polymarket_account_snapshot_smoke(monkeypatch):
         orders = broker._pull_broker_all_orders()
 
         assert isinstance(cash, float)
+        assert cash < 1_000_000
         assert isinstance(positions_value, float)
         assert isinstance(portfolio_value, float)
         assert isinstance(positions, list)
@@ -67,7 +93,17 @@ def test_polymarket_tiny_market_buy_smoke(monkeypatch):
         custom_params={"amount": amount, "price": max_price, "order_type": "FAK"},
     )
     try:
-        submitted = broker._submit_order(order)
+        try:
+            submitted = broker._submit_order(order)
+        except LumibotBrokerAPIError as exc:
+            message = str(exc).lower()
+            if (
+                "deposit wallet" in message
+                or "maker address not allowed" in message
+                or "order signer address" in message
+            ):
+                pytest.xfail(f"Current Polymarket account is blocked by deposit-wallet/API-key binding: {exc}")
+            raise
 
         assert submitted.identifier
         broker._get_balances_at_broker(Asset("USD", asset_type=Asset.AssetType.FOREX), None)

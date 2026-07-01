@@ -27,6 +27,7 @@ pyarrow>=15.0.0
 tqdm
 lumiwealth-tradier>=0.1.18
 py-clob-client-v2>=1.0.1
+websockets>=15.0.1
 pytz
 psycopg2-binary
 exchange_calendars>=4.6.0

@@ -4,14 +4,18 @@ One-line description: Deep research and implementation game plan for adding Poly
 
 Last Updated: 2026-07-01
 
-Status: Initial LumiBot implementation in progress. Credential/login/live-trading proof still blocked by missing local
-Polymarket credentials.
+Status: Initial LumiBot implementation in progress. Credential/login/read-only/WebSocket proof completed on
+2026-07-01; live order submission is currently blocked by Polymarket's deposit-wallet/API-key binding for the tested
+Magic/proxy account.
 
 Audience: LumiBot maintainers, BotSpot broker-connection engineers, Bot Manager runtime engineers
 
 ## 2026-07-01 Implementation Status
 
-Initial LumiBot implementation has started and covers the international `polymarket.com` CLOB lane only.
+Initial LumiBot implementation has started and covers the international `polymarket.com` CLOB lane only. The current
+live proof and runbook are now documented in:
+
+- `docs/investigations/2026-07-01_POLYMARKET_INTERNATIONAL_CLOB_LIVE_PROOF.md`
 
 Implemented in LumiBot:
 
@@ -20,31 +24,31 @@ Implemented in LumiBot:
   supported price-history requests.
 - `Polymarket` broker with required broker methods, authenticated read paths, market order routing, limit order routing,
   cancel, and polling reconciliation.
-- `PolymarketCLOBStream` bridge with testable market/user event handlers and polling reconciliation.
+- `PolymarketCLOBStream` bridge with real public market and private user WebSocket workers plus polling reconciliation.
 - Explicit `TRADING_BROKER=polymarket` / `DATA_SOURCE=polymarket` plumbing.
 - `py-clob-client-v2>=1.0.1` dependency. The documented beta `polymarket-client` package was not available from PyPI in
   the local verification environment.
+- `websockets>=15.0.1` dependency for market/user streams.
 - Unit tests for asset/data/broker behavior and provider-gated live smoke tests.
 
 Verified locally:
 
-- `python3 -m py_compile lumibot/data_sources/polymarket_data.py lumibot/brokers/polymarket.py lumibot/credentials.py`
+- `python3 -m py_compile lumibot/data_sources/polymarket_data.py lumibot/brokers/polymarket.py scripts/polymarket_smoke.py`
 - `python3 -m pytest tests/test_polymarket_asset.py tests/test_polymarket_data.py tests/test_polymarket_broker.py -q`
-  passed with 15 tests.
-- `python3 -m pytest tests/test_polymarket_apitest.py -q` skipped all 3 live/API tests because local Polymarket env vars
-  are not present.
-- Public `https://clob.polymarket.com/markets` returned HTTP 200 during a no-credential sanity check.
+  passed with 19 tests.
+- `python3 -m dotenv -f .env.local run -- python3 -m pytest -q tests/test_polymarket_apitest.py` passed 3 tests and
+  xfailed the one live market-order submit for the exact current Polymarket platform-side blocker.
+- Direct read-only smoke proved account balance, positions, open orders, recent trades, order book, quote, last price,
+  supported history, public market WebSocket, and authenticated private user WebSocket.
+- Direct live market-order and limit/cancel smokes were attempted and both were blocked by
+  `maker address not allowed, please use the deposit wallet flow`.
 
-Not yet verified:
+Still blocked:
 
-- Actual credential/login proof.
-- Reading Rob's real Polymarket account value, positions, open orders, and recent trades.
-- Deriving/storing real CLOB API credentials in `.env.local`.
-- Any live order, including the approved $1-$5 market-order smoke.
-
-Current blocker: no Polymarket private key, wallet address, or CLOB credentials were present in local LumiBot `.env` or
-`.env.local` during implementation. The live smoke tests are ready but intentionally skip until those env vars are
-provided.
+- Successful live submit/fill/cancel, because the current account's CLOB credentials and funder/signature type are not
+  accepted by Polymarket for order submission.
+- Real private user stream fill reconciliation, because no order can currently be placed from this account.
+- BotSpot/Bot Manager support, intentionally deferred until LumiBot has a working live submit path.
 
 ## Executive Summary
 

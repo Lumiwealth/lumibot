@@ -341,6 +341,7 @@ ALPACA_TEST_CONFIG = {  # Paper trading!
 # Polymarket International CLOB Configuration
 POLYMARKET_CONFIG = {
     "PRIVATE_KEY": os.environ.get("POLYMARKET_PRIVATE_KEY"),
+    "OWNER_ADDRESS": os.environ.get("POLYMARKET_OWNER_ADDRESS"),
     "WALLET_ADDRESS": os.environ.get("POLYMARKET_WALLET_ADDRESS"),
     "CLOB_API_KEY": os.environ.get("POLYMARKET_CLOB_API_KEY"),
     "CLOB_API_SECRET": os.environ.get("POLYMARKET_CLOB_API_SECRET"),

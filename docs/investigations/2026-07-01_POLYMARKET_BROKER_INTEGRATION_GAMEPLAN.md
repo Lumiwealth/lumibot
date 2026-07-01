@@ -4,7 +4,7 @@ One-line description: Research and implementation plan for adding Polymarket pre
 
 Last Updated: 2026-07-01
 
-Status: Planning, no implementation code changed
+Status: Superseded by the international CLOB implementation/proof documents. Implementation code has now changed.
 
 Audience: LumiBot maintainers, broker-adapter implementers, BotSpot integration engineers
 
@@ -15,6 +15,7 @@ Follow-up Chrome inspection of Rob's logged-in Polymarket session showed `https:
 This document is still useful as the first-pass architecture plan, but its recommendation to start with the US SDK is stale for Rob's currently visible account. For current-account testing, use the deeper follow-up plan:
 
 - `docs/investigations/2026-07-01_POLYMARKET_DEEP_INTEGRATION_RESEARCH.md`
+- `docs/investigations/2026-07-01_POLYMARKET_INTERNATIONAL_CLOB_LIVE_PROOF.md`
 
 The product-facing BotSpot decision may still favor `polymarket.us` later, especially for US users, but the immediate LumiBot spike should verify the `polymarket.com` CLOB/relayer/private-key requirements first.
 

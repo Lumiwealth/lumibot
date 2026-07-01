@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import queue
+import threading
 import time
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
@@ -30,6 +32,7 @@ POLYMARKET_SECRET_KEYS = {
 @dataclass(frozen=True)
 class PolymarketCredentials:
     private_key: str | None = None
+    owner_address: str | None = None
     wallet_address: str | None = None
     clob_api_key: str | None = None
     clob_api_secret: str | None = None
@@ -51,6 +54,7 @@ class PolymarketCredentialStore:
     def load(self) -> PolymarketCredentials:
         return PolymarketCredentials(
             private_key=self._get("PRIVATE_KEY"),
+            owner_address=self._get("OWNER_ADDRESS"),
             wallet_address=self._get("WALLET_ADDRESS"),
             clob_api_key=self._get("CLOB_API_KEY"),
             clob_api_secret=self._get("CLOB_API_SECRET"),
@@ -84,9 +88,8 @@ class PolymarketCredentialStore:
 class PolymarketCLOBStream(CustomStream):
     """LumiBot stream bridge for Polymarket market/user events.
 
-    The class exposes event handlers that are fully unit-testable with fake payloads. Live WebSocket connection support
-    is intentionally conservative and optional because authenticated stream connection details depend on the beta SDK
-    and generated CLOB credentials.
+    Public market events update the attached PolymarketData quote cache. Private user events are reconciled into the
+    normal LumiBot order lifecycle events. HTTP polling remains active as the reconciliation source of truth.
     """
 
     def __init__(
@@ -95,11 +98,21 @@ class PolymarketCLOBStream(CustomStream):
         *,
         polling_interval: float = 5.0,
         use_websocket: bool = True,
+        market_token_ids: list[str] | None = None,
+        websocket_factory: Any | None = None,
     ):
         super().__init__()
         self.broker = broker
         self.polling_interval = polling_interval
         self.use_websocket = use_websocket
+        self.market_token_ids = {str(token_id) for token_id in (market_token_ids or []) if token_id}
+        self.websocket_factory = websocket_factory
+        self._websocket_threads: list[threading.Thread] = []
+
+    def subscribe_market_assets(self, token_ids: list[str] | tuple[str, ...] | set[str]) -> None:
+        for token_id in token_ids or []:
+            if token_id:
+                self.market_token_ids.add(str(token_id))
 
     def handle_market_event(self, event: Any) -> None:
         self.broker.data_source.apply_market_event(event)
@@ -120,28 +133,128 @@ class PolymarketCLOBStream(CustomStream):
             self.dispatch(self.broker.NEW_ORDER, order=parsed)
 
     def _run(self):
-        # The SDK stream implementation is async-only. Until live credentials and SDK availability are verified, keep
-        # the stream thread useful as a reconciliation loop and route event handling through tested handler methods.
+        if self.use_websocket:
+            self._start_websocket_threads()
+        self.broker._stream_established()
         last_poll = 0.0
-        while not self._stop_event.is_set():
-            timeout = min(max(self.polling_interval, 0.1), 0.5)
-            try:
-                event, payload = self._queue.get(timeout=timeout)
-                self._process_queue_event(event, payload)
-                self._queue.task_done()
-                continue
-            except queue.Empty:
-                pass
-            except Exception:
-                self.broker.logger.exception("Polymarket stream event processing failed")
+        try:
+            while not self._stop_event.is_set():
+                timeout = min(max(self.polling_interval, 0.1), 0.5)
+                try:
+                    event, payload = self._queue.get(timeout=timeout)
+                    self._process_queue_event(event, payload)
+                    self._queue.task_done()
+                    continue
+                except queue.Empty:
+                    pass
+                except Exception:
+                    self.broker.logger.exception("Polymarket stream event processing failed")
 
-            if time.monotonic() - last_poll < self.polling_interval:
+                if time.monotonic() - last_poll < self.polling_interval:
+                    continue
+                try:
+                    self.broker.do_polling()
+                    last_poll = time.monotonic()
+                    self._refresh_market_subscriptions_from_broker_state()
+                except Exception:
+                    self.broker.logger.exception("Polymarket stream reconciliation failed")
+        finally:
+            for thread in self._websocket_threads:
+                thread.join(timeout=1.0)
+
+    def _start_websocket_threads(self) -> None:
+        if self._websocket_threads:
+            return
+        workers = [("market", self._run_market_websocket), ("user", self._run_user_websocket)]
+        for label, target in workers:
+            thread = threading.Thread(target=target, name=f"PolymarketCLOBStream-{label}", daemon=True)
+            self._websocket_threads.append(thread)
+            thread.start()
+
+    def _run_market_websocket(self) -> None:
+        try:
+            asyncio.run(self._market_websocket_loop())
+        except Exception:
+            if not self._stop_event.is_set():
+                self.broker.logger.exception("Polymarket market WebSocket stopped unexpectedly")
+
+    def _run_user_websocket(self) -> None:
+        try:
+            asyncio.run(self._user_websocket_loop())
+        except Exception:
+            if not self._stop_event.is_set():
+                self.broker.logger.exception("Polymarket user WebSocket stopped unexpectedly")
+
+    async def _market_websocket_loop(self) -> None:
+        factory = await self._websocket_connect_factory()
+        while not self._stop_event.is_set():
+            token_ids = sorted(self.market_token_ids)
+            if not token_ids:
+                await asyncio.sleep(min(max(self.polling_interval, 0.25), 1.0))
                 continue
             try:
-                self.broker.do_polling()
-                last_poll = time.monotonic()
+                async with factory(PolymarketData.MARKET_WS_URL, ping_interval=20, close_timeout=5) as websocket:
+                    await websocket.send(json.dumps(self._market_subscription_payload(token_ids)))
+                    while not self._stop_event.is_set():
+                        message = await asyncio.wait_for(websocket.recv(), timeout=1.0)
+                        self.handle_market_event(json.loads(message))
+            except asyncio.TimeoutError:
+                continue
             except Exception:
-                self.broker.logger.exception("Polymarket stream reconciliation failed")
+                if not self._stop_event.is_set():
+                    self.broker.logger.debug("Polymarket market WebSocket reconnecting", exc_info=True)
+                    await asyncio.sleep(min(max(self.polling_interval, 0.5), 5.0))
+
+    async def _user_websocket_loop(self) -> None:
+        auth = self.broker._websocket_auth_payload()
+        if not auth:
+            return
+        factory = await self._websocket_connect_factory()
+        while not self._stop_event.is_set():
+            try:
+                async with factory(PolymarketData.USER_WS_URL, ping_interval=20, close_timeout=5) as websocket:
+                    await websocket.send(json.dumps(self._user_subscription_payload(auth)))
+                    while not self._stop_event.is_set():
+                        message = await asyncio.wait_for(websocket.recv(), timeout=1.0)
+                        payload = json.loads(message)
+                        for event in payload if isinstance(payload, list) else [payload]:
+                            self.handle_user_event(event)
+            except asyncio.TimeoutError:
+                continue
+            except Exception:
+                if not self._stop_event.is_set():
+                    self.broker.logger.debug("Polymarket user WebSocket reconnecting", exc_info=True)
+                    await asyncio.sleep(min(max(self.polling_interval, 0.5), 5.0))
+
+    async def _websocket_connect_factory(self):
+        if self.websocket_factory is not None:
+            return self.websocket_factory
+        try:
+            import websockets
+        except Exception as exc:
+            raise LumibotBrokerAPIError("websockets is required for Polymarket CLOB streaming") from exc
+        return websockets.connect
+
+    def _refresh_market_subscriptions_from_broker_state(self) -> None:
+        token_ids = set()
+        for raw in self.broker._recent_order_cache.values():
+            token_id = self.broker._first_present(raw, "asset_id", "assetId", "token_id", "tokenId", "asset")
+            if token_id:
+                token_ids.add(str(token_id))
+        try:
+            for position in self.broker._pull_positions(self.broker._strategy_name or self.broker.name):
+                token_ids.add(str(position.asset.symbol))
+        except Exception:
+            return
+        self.subscribe_market_assets(token_ids)
+
+    @staticmethod
+    def _market_subscription_payload(token_ids: list[str]) -> dict:
+        return {"assets_ids": token_ids, "type": "market", "custom_feature_enabled": True}
+
+    @staticmethod
+    def _user_subscription_payload(auth: dict) -> dict:
+        return {"auth": auth, "type": "user"}
 
 
 class Polymarket(Broker):
@@ -169,6 +282,7 @@ class Polymarket(Broker):
         self._owns_data_api_client = data_api_client is None
         self._clients_initialized = secure_client is not None
         self._trading_ready = False
+        self._derived_api_creds = None
         self._recent_order_cache: dict[str, Any] = {}
         self._recent_trade_cache: dict[str, Any] = {}
 
@@ -218,7 +332,7 @@ class Polymarket(Broker):
         if self.credentials.builder_code:
             builder_config = BuilderConfig(builder_code=self.credentials.builder_code)
 
-        signature_type = int(self.config.get("SIGNATURE_TYPE", SignatureTypeV2.POLY_1271))
+        signature_type = int(self.config.get("SIGNATURE_TYPE") or self._default_signature_type(SignatureTypeV2))
         self._secure_client = ClobClient(
             self.config.get("CLOB_URL", PolymarketData.CLOB_URL),
             chain_id=int(self.config.get("CHAIN_ID", POLYGON)),
@@ -259,6 +373,12 @@ class Polymarket(Broker):
             )
         return None
 
+    def _default_signature_type(self, signature_type_cls) -> int:
+        if self.credentials.owner_address and self.credentials.wallet_address:
+            if self.credentials.owner_address.lower() != self.credentials.wallet_address.lower():
+                return int(signature_type_cls.POLY_PROXY)
+        return int(signature_type_cls.POLY_1271)
+
     def _ensure_trading_ready(self) -> None:
         if self._trading_ready:
             return
@@ -294,7 +414,13 @@ class Polymarket(Broker):
 
     def _get_stream_object(self):
         if self.use_websocket:
-            return PolymarketCLOBStream(self, polling_interval=self.polling_interval, use_websocket=True)
+            token_ids = self._configured_stream_token_ids()
+            return PolymarketCLOBStream(
+                self,
+                polling_interval=self.polling_interval,
+                use_websocket=True,
+                market_token_ids=token_ids,
+            )
         return PollingStream(self.polling_interval)
 
     def _register_stream_events(self):
@@ -478,11 +604,17 @@ class Polymarket(Broker):
             if rows is not None:
                 return self._listify(rows)
 
-        wallet = self.credentials.wallet_address
-        if not wallet:
+        addresses = self._position_query_addresses()
+        if not addresses:
             raise LumibotBrokerAPIError("Missing POLYMARKET_WALLET_ADDRESS for Polymarket position reads")
-        payload = self._data_api_get("/positions", params={"user": wallet})
-        return self._listify(payload)
+        last_rows = []
+        for address in addresses:
+            payload = self._data_api_get("/positions", params={"user": address})
+            rows = self._listify(payload)
+            if rows:
+                return rows
+            last_rows = rows
+        return last_rows
 
     def _get_positions_value(self) -> float:
         secure_client = self._maybe_secure_client()
@@ -492,17 +624,18 @@ class Polymarket(Broker):
             if value is not None:
                 return self._to_float(value)
 
-        wallet = self.credentials.wallet_address
-        if not wallet:
+        addresses = self._position_query_addresses()
+        if not addresses:
             return 0.0
-        try:
-            payload = self._data_api_get("/value", params={"user": wallet})
-        except Exception:
-            return 0.0
-        rows = self._listify(payload)
-        if not rows:
-            return 0.0
-        return self._to_float(self._first_present(rows[0], "value") or 0.0)
+        for address in addresses:
+            try:
+                payload = self._data_api_get("/value", params={"user": address})
+            except Exception:
+                continue
+            rows = self._listify(payload)
+            if rows:
+                return self._to_float(self._first_present(rows[0], "value") or 0.0)
+        return 0.0
 
     def _get_collateral_cash(self) -> float:
         secure_client = self._maybe_secure_client()
@@ -521,7 +654,7 @@ class Polymarket(Broker):
                     value = self._call_if_exists(secure_client, method_name)
                 balance = self._first_present(value, "balance", "available", "cash", "collateral", "collateral_balance")
                 if balance is not None:
-                    return self._to_float(balance)
+                    return self._collateral_balance_to_float(balance, raw_units=(method_name == "get_balance_allowance"))
         override = self.config.get("CASH_BALANCE") or self.config.get("POLYMARKET_CASH_BALANCE")
         return self._to_float(override or 0.0)
 
@@ -562,7 +695,11 @@ class Polymarket(Broker):
         if self.credentials.builder_code:
             order_kwargs["builder_code"] = self.credentials.builder_code
         order_args = MarketOrderArgs(**order_kwargs)
-        return secure_client.create_and_post_market_order(order_args, order_type=order_type)
+        options = self._create_order_options(kwargs["token_id"])
+        try:
+            return secure_client.create_and_post_market_order(order_args, options=options, order_type=order_type)
+        except Exception as exc:
+            self._raise_order_error(exc)
 
     def _create_and_post_limit_order(self, **kwargs):
         secure_client = self._initialize_clients()
@@ -587,7 +724,37 @@ class Polymarket(Broker):
         if self.credentials.builder_code:
             order_kwargs["builder_code"] = self.credentials.builder_code
         order_args = OrderArgs(**order_kwargs)
-        return secure_client.create_and_post_order(order_args, order_type=getattr(OrderType, tif))
+        options = self._create_order_options(kwargs["token_id"])
+        try:
+            return secure_client.create_and_post_order(order_args, options=options, order_type=getattr(OrderType, tif))
+        except Exception as exc:
+            self._raise_order_error(exc)
+
+    def _create_order_options(self, token_id: str):
+        try:
+            from py_clob_client_v2.clob_types import PartialCreateOrderOptions
+        except Exception:
+            return None
+
+        tick_size = None
+        neg_risk = None
+        try:
+            book = self.data_source.get_order_book(token_id)
+            tick_size = self._first_present(book, "tick_size", "tickSize", "minimum_tick_size", "minimumTickSize")
+            neg_risk = self._first_present(book, "neg_risk", "negRisk")
+        except Exception:
+            book = {}
+
+        if tick_size is None:
+            try:
+                tick_size = self.data_source.get_tick_size(token_id)
+            except Exception:
+                tick_size = None
+
+        return PartialCreateOrderOptions(
+            tick_size=self._normalize_tick_size(tick_size) if tick_size is not None else None,
+            neg_risk=self._optional_bool(neg_risk),
+        )
 
     @staticmethod
     def _call_if_exists(obj: Any, method_name: str, *args, **kwargs):
@@ -641,6 +808,98 @@ class Polymarket(Broker):
         price = self._decimal(price)
         if price % tick_size != 0:
             raise ValueError(f"Polymarket limit price {price} is not aligned to tick size {tick_size}")
+
+    def _configured_stream_token_ids(self) -> list[str]:
+        values = []
+        for key in ("STREAM_TOKEN_IDS", "POLYMARKET_STREAM_TOKEN_IDS", "TEST_TOKEN_ID", "POLYMARKET_TEST_TOKEN_ID"):
+            raw = self.config.get(key) or os.environ.get(key)
+            if not raw:
+                continue
+            values.extend(str(raw).replace(";", ",").split(","))
+        return [value.strip() for value in values if value.strip()]
+
+    def _position_query_addresses(self) -> list[str]:
+        seen = set()
+        addresses = []
+        for address in (self.credentials.wallet_address, self.credentials.owner_address):
+            if not address:
+                continue
+            normalized = address.lower()
+            if normalized not in seen:
+                seen.add(normalized)
+                addresses.append(address)
+        return addresses
+
+    def _websocket_auth_payload(self) -> dict | None:
+        self._initialize_clients()
+        creds = self._derived_api_creds or self._build_api_creds_from_loaded_values()
+        if not creds:
+            return None
+        api_key = self._first_present(creds, "api_key", "apiKey", "key")
+        api_secret = self._first_present(creds, "api_secret", "apiSecret", "secret")
+        api_passphrase = self._first_present(creds, "api_passphrase", "apiPassphrase", "passphrase")
+        if not (api_key and api_secret and api_passphrase):
+            return None
+        return {"apiKey": api_key, "secret": api_secret, "passphrase": api_passphrase}
+
+    def _build_api_creds_from_loaded_values(self) -> dict | None:
+        if self.credentials.api_credentials_json:
+            try:
+                return json.loads(self.credentials.api_credentials_json)
+            except json.JSONDecodeError:
+                return None
+        if (
+            self.credentials.clob_api_key
+            and self.credentials.clob_api_secret
+            and self.credentials.clob_api_passphrase
+        ):
+            return {
+                "api_key": self.credentials.clob_api_key,
+                "api_secret": self.credentials.clob_api_secret,
+                "api_passphrase": self.credentials.clob_api_passphrase,
+            }
+        return None
+
+    @classmethod
+    def _collateral_balance_to_float(cls, value: Any, *, raw_units: bool) -> float:
+        decimal_value = cls._decimal(value)
+        if raw_units and decimal_value == decimal_value.to_integral_value():
+            decimal_value = decimal_value / Decimal("1000000")
+        return float(decimal_value)
+
+    @classmethod
+    def _normalize_tick_size(cls, value: Any) -> str:
+        tick_size = cls._decimal(value)
+        text = format(tick_size.normalize(), "f")
+        if text in {"0.1", "0.01", "0.001", "0.0001"}:
+            return text
+        return str(value)
+
+    @classmethod
+    def _optional_bool(cls, value: Any) -> bool | None:
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return value
+        return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
+
+    @staticmethod
+    def _raise_order_error(exc: Exception):
+        message = str(exc)
+        lowered = message.lower()
+        if (
+            "maker address not allowed" in lowered
+            or "deposit wallet flow" in lowered
+            or "order signer address has to be the address of the api key" in lowered
+            or "no deposit wallet found" in lowered
+        ):
+            raise LumibotBrokerAPIError(
+                "Polymarket rejected the order because the account's CLOB API credentials, signer, and funder/deposit "
+                "wallet are not aligned. Existing Magic/proxy accounts can read balances/orders with CLOB credentials "
+                "but may need Polymarket's deposit-wallet flow, relayer/builder credentials, and regenerated CLOB L2 "
+                f"credentials before live order submission works. Raw Polymarket error: {message}"
+            ) from exc
+        raise exc
 
     @staticmethod
     def _token_id(asset: Asset) -> str:

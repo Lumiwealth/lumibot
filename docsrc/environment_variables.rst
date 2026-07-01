@@ -34,6 +34,14 @@ LUMIBOT_DISABLE_DOTENV_LOCAL
   - Use ``.env.local`` only for local developer overrides. Do not commit it.
   - Set ``LUMIBOT_DISABLE_DOTENV_LOCAL=1`` in repeatable test or deployment contexts where the base ``.env`` should be loaded but local overrides must be ignored.
 
+LUMIBOT_LOG_LEVEL
+^^^^^^^^^^^^^^^^^
+
+- Purpose: Control LumiBot startup logging before full logger setup.
+- Values: ``DEBUG``, ``INFO``, ``WARNING``, ``ERROR``, ``CRITICAL``.
+- Default: ``INFO``.
+- Example: set ``LUMIBOT_LOG_LEVEL=ERROR`` to suppress the import-time ``LumiBot v... starting`` message and skip import-time console logger setup.
+
 IS_BACKTESTING
 ^^^^^^^^^^^^^^
 

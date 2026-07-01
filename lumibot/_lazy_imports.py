@@ -287,6 +287,22 @@ class LazyPytzTimezoneRef:
     def __getattr__(self, name):
         return getattr(self._load(), name)
 
+    @property
+    def __class__(self):
+        return self._load().__class__
+
+    def __str__(self):
+        return str(self._load())
+
+    def __eq__(self, other):
+        load = getattr(other, "_load", None)
+        if callable(load):
+            other = load()
+        return self._load() == other
+
+    def __hash__(self):
+        return hash(self._load())
+
     def __repr__(self):
         return f"<lazy timezone {self._timezone_name}>"
 

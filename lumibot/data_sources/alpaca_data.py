@@ -25,6 +25,10 @@ def _is_new_york_timezone(tzinfo) -> bool:
     return (getattr(tzinfo, "zone", None) or getattr(tzinfo, "key", None) or str(tzinfo)) == "America/New_York"
 
 
+def _regular_market_hours_mask(index):
+    return ((index.hour > 9) | ((index.hour == 9) & (index.minute >= 30))) & (index.hour < 16)
+
+
 def _date_n_trading_days_from_date(*args, **kwargs):
     from lumibot.tools.helpers import date_n_trading_days_from_date
 
@@ -704,8 +708,7 @@ class AlpacaData(DataSource):
             if "close" in df.columns:
                 df = df[df.close > 0]
             if not include_after_hours and timestep == "minute" and _is_new_york_timezone(self.tzinfo):
-                df = df[(df.index.hour > 9) | ((df.index.hour == 9) and (df.index.minute >= 30))]
-                df = df[df.index.hour < 16]
+                df = df[_regular_market_hours_mask(df.index)]
             if self._remove_incomplete_current_bar:
                 if timestep == "minute":
                     current_minute = now.replace(second=0, microsecond=0)
@@ -1041,7 +1044,7 @@ class AlpacaData(DataSource):
 
         if not include_after_hours and timestep == 'minute' and _is_new_york_timezone(self.tzinfo):
             # Filter data to include only regular market hours
-            df = df[(df.index.hour >= 9) & (df.index.minute >= 30) & (df.index.hour < 16)]
+            df = df[_regular_market_hours_mask(df.index)]
 
         # Check for incomplete bars
         if self._remove_incomplete_current_bar:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from threading import Lock
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 
@@ -32,6 +33,7 @@ class CcxtData(DataSource):
         self.name = "ccxt"
         self.max_workers = min(max_workers, 200)
         self._markets_loaded = False
+        self._markets_lock = Lock()
 
         # When requesting data for assets for example,
         # if there is too many assets, the best thing to do would
@@ -59,17 +61,20 @@ class CcxtData(DataSource):
     def _ensure_markets_loaded(self):
         if self._markets_loaded:
             return
-        try:
-            self.api.load_markets()
-            self._markets_loaded = True
-        except Exception as exc:
-            logger.warning(
-                "[CCXT] load_markets() failed for exchange_id=%s sandbox=%s: %s",
-                self.config.get("exchange_id"),
-                self.config.get("sandbox", True),
-                exc,
-            )
-            raise
+        with self._markets_lock:
+            if self._markets_loaded:
+                return
+            try:
+                self.api.load_markets()
+                self._markets_loaded = True
+            except Exception as exc:
+                logger.warning(
+                    "[CCXT] load_markets() failed for exchange_id=%s sandbox=%s: %s",
+                    self.config.get("exchange_id"),
+                    self.config.get("sandbox", True),
+                    exc,
+                )
+                raise
 
     def _pull_source_symbol_bars(
         self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, exchange=None, include_after_hours=True

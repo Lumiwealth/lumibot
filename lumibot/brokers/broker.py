@@ -1983,7 +1983,11 @@ class Broker(ABC):
     # =========Clock functions=====================
 
     def utc_to_local(self, utc_dt):
-        return utc_dt.replace(tzinfo=timezone.utc).astimezone(tz=_local_tz())
+        if utc_dt.tzinfo is None:
+            utc_dt = utc_dt.replace(tzinfo=timezone.utc)
+        else:
+            utc_dt = utc_dt.astimezone(timezone.utc)
+        return utc_dt.astimezone(tz=_local_tz())
 
     def market_hours(self, market="NASDAQ", close=True, next=False, date=None):
         """[summary]

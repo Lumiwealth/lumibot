@@ -253,6 +253,7 @@ class Bitunix(Broker):
             if response and response.get("code") == 0:
                 mode = response.get("data", [{}])[0].get("positionMode")
                 logger.info("Default position mode set to %s", mode)
+                self._position_mode_initialized = True
             else:
                 logger.warning(
                     "Failed to set default position mode to HEDGE. API response: %s", response
@@ -262,8 +263,6 @@ class Bitunix(Broker):
                 "Failed to set default position mode to HEDGE due to an exception: %s", exc
             )
             logger.debug(_format_exc())
-        finally:
-            self._position_mode_initialized = True
 
     # --- Multi-leg, OCO, OTO, Bracket, Trailing Stop ---
     def _submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None):

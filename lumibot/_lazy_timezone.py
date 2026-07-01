@@ -57,5 +57,23 @@ class LazyPytzTimezone(tzinfo):
     def normalize(self, *args, **kwargs):
         return self._load().normalize(*args, **kwargs)
 
+    @property
+    def __class__(self):
+        return self._load().__class__
+
+    def __str__(self):
+        return str(self._load())
+
+    def __repr__(self):
+        return repr(self._load())
+
+    def __eq__(self, other):
+        if isinstance(other, LazyPytzTimezone):
+            other = other._load()
+        return self._load() == other
+
+    def __hash__(self):
+        return hash(self._load())
+
     def __getattr__(self, name):
         return getattr(self._load(), name)

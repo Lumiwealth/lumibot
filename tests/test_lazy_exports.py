@@ -321,7 +321,13 @@ def test_datasource_default_timezone_loads_on_access_only():
                 "from lumibot.data_sources import DataSource; "
                 "import sys; "
                 "print('datetime_before=' + str('datetime' in sys.modules)); "
-                "print('zone=' + DataSource.DEFAULT_PYTZ.zone); "
+                "import pytz; "
+                "tz = DataSource.DEFAULT_PYTZ; "
+                "real = pytz.timezone('America/New_York'); "
+                "print('zone=' + tz.zone); "
+                "print('str=' + str(tz)); "
+                "print('eq=' + str(tz == real)); "
+                "print('hash_eq=' + str(hash(tz) == hash(real))); "
                 "print('datetime_after=' + str('datetime' in sys.modules))"
             ),
         ],
@@ -333,6 +339,9 @@ def test_datasource_default_timezone_loads_on_access_only():
 
     assert "datetime_before=False" in result.stdout
     assert "zone=America/New_York" in result.stdout
+    assert "str=America/New_York" in result.stdout
+    assert "eq=True" in result.stdout
+    assert "hash_eq=True" in result.stdout
     assert "datetime_after=True" in result.stdout
 
 

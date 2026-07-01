@@ -417,6 +417,5 @@ Result: `76 passed, 1 skipped, 5 deselected`.
 
 ## Remaining Work
 
-- `Order` import deferral remains the largest visible project-level startup opportunity on the scheduled `Strategy`/Alpaca broker path. It touches about 195 runtime references across strategy, broker, and Alpaca order handling, so it should be done as a dedicated refactor with broad order lifecycle coverage rather than mixed into provider cleanup.
 - Consider optional deferred gateway start for IBKR REST behind an explicit constructor parameter; current patch only defers import cost because constructor currently pulls/runs Docker and authenticates.
 - Consider a narrow scheduled-prestart benchmark with real paper credentials in a safe environment, if available.

@@ -19,6 +19,8 @@ datetime = lazy_class("datetime", "datetime")
 timedelta = lazy_class("datetime", "timedelta")
 pd = LazyModule("pandas")
 Asset = lazy_class("lumibot.entities", "Asset")
+Bars = lazy_class("lumibot.entities", "Bars")
+Quote = lazy_class("lumibot.entities", "Quote")
 _DEFAULT_PYTZ = LazyPytzTimezoneRef("America/New_York")
 ProjectXClient = None
 

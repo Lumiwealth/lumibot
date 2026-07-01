@@ -875,9 +875,15 @@ class Tradier(Broker):
 
                     # Create the stock/options symbol
                     child_option_symbol = _create_options_symbol(
-                        order.asset.symbol, order.asset.expiration, order.asset.right, order.asset.strike
+                        child_order.asset.symbol,
+                        child_order.asset.expiration,
+                        child_order.asset.right,
+                        child_order.asset.strike,
                     ) if child_order.asset.asset_type == Asset.AssetType.OPTION else None
-                    child_stock_symbol = self._normalize_symbol_for_broker(order.asset.symbol, asset_type=order.asset.asset_type) \
+                    child_stock_symbol = self._normalize_symbol_for_broker(
+                        child_order.asset.symbol,
+                        asset_type=child_order.asset.asset_type,
+                    ) \
                         if child_order.asset.asset_type != Asset.AssetType.OPTION else None
 
                     # Create the leg

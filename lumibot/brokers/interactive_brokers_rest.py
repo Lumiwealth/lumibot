@@ -115,6 +115,11 @@ class InteractiveBrokersREST(Broker):
         # The default market is NYSE.
         self.market = (config.get("MARKET") if config else None) or os.environ.get("MARKET") or "NYSE"
 
+    def _safe_stream_dispatch(self, event, **kwargs):
+        stream = getattr(self, "stream", None)
+        if stream is not None and hasattr(stream, "dispatch"):
+            stream.dispatch(event, **kwargs)
+
     # --------------------------------------------------------------
     # Broker methods
     # --------------------------------------------------------------
@@ -740,7 +745,7 @@ class InteractiveBrokersREST(Broker):
             if response is None:
                 self._log_order_status(order, "failed", success=False)
                 msg = "Broker returned no response"
-                self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
+                self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
                 return order
 
             self._log_order_status(order, "executed", success=True)
@@ -749,14 +754,14 @@ class InteractiveBrokersREST(Broker):
             self._unprocessed_orders.append(order)
             order.status=Order.OrderStatus.SUBMITTED
 
-            self.stream.dispatch(self.NEW_ORDER, order=order)
+            self._safe_stream_dispatch(self.NEW_ORDER, order=order)
 
             return order
 
         except Exception as e:
             msg = colored(f"Error submitting order {order}: {e}", color="red")
             logger.error(colored("Error details:", "red"), exc_info=True)
-            self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
+            self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
             return order
 
     def _submit_orders(
@@ -796,7 +801,7 @@ class InteractiveBrokersREST(Broker):
                     for order in orders:
                         self._log_order_status(order, "failed", success=False)
                         msg = "Broker returned no response"
-                        self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
+                        self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
                     return None
 
                 order = Order(orders[0].strategy)
@@ -812,7 +817,7 @@ class InteractiveBrokersREST(Broker):
                     order.status=Order.OrderStatus.SUBMITTED
 
                 self._unprocessed_orders.append(order)
-                self.stream.dispatch(self.NEW_ORDER, order=order)
+                self._safe_stream_dispatch(self.NEW_ORDER, order=order)
                 self._log_order_status(order, "executed", success=True)
                 return [order]
 
@@ -823,7 +828,7 @@ class InteractiveBrokersREST(Broker):
                     for order in orders:
                         self._log_order_status(order, "failed", success=False)
                         msg = 'Broker returned no response'
-                        self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
+                        self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
 
                     return None
 
@@ -832,7 +837,7 @@ class InteractiveBrokersREST(Broker):
                 for order in orders:
                     order.identifier = response[order_id]["order_id"]
                     self._unprocessed_orders.append(order)
-                    self.stream.dispatch(self.NEW_ORDER, order=order)
+                    self._safe_stream_dispatch(self.NEW_ORDER, order=order)
                     self._log_order_status(order, "executed", success=True)
                     order.status=Order.OrderStatus.SUBMITTED
 
@@ -848,7 +853,7 @@ class InteractiveBrokersREST(Broker):
             )
 
             for order in orders:
-                self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=e)
+                self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=e)
 
             logger.error(colored("Error details:", "red"), exc_info=True)
 
@@ -1243,19 +1248,19 @@ class InteractiveBrokersREST(Broker):
                     if not order.equivalent_status(stored_order):
                         match order.status.lower():
                             case "submitted" | "open":
-                                self.stream.dispatch(self.NEW_ORDER, order=stored_order)
+                                self._safe_stream_dispatch(self.NEW_ORDER, order=stored_order)
                             case "fill":
-                                self.stream.dispatch(
+                                self._safe_stream_dispatch(
                                     self.FILLED_ORDER,
                                     order=stored_order,
                                     price=order.avg_fill_price,
                                     filled_quantity=order.quantity
                                 )
                             case "canceled":
-                                self.stream.dispatch(self.CANCELED_ORDER, order=stored_order)
+                                self._safe_stream_dispatch(self.CANCELED_ORDER, order=stored_order)
                             case "error":
                                 msg = f"IB encountered an error with order {order.identifier}"
-                                self.stream.dispatch(self.ERROR_ORDER, order=stored_order, error_msg=msg)
+                                self._safe_stream_dispatch(self.ERROR_ORDER, order=stored_order, error_msg=msg)
                     else:
                         stored_order.status = order.status
 

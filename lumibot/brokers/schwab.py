@@ -1610,6 +1610,11 @@ class Schwab(Broker):
         # First time initialization - sync positions
         self.sync_positions(None)
 
+    def _safe_stream_dispatch(self, event, **kwargs):
+        stream = getattr(self, "stream", None)
+        if stream is not None and hasattr(stream, "dispatch"):
+            stream.dispatch(event, **kwargs)
+
     def _submit_order(self, order: Order) -> Order:
         """
         Submit an order to the broker after necessary checks and input sanitization.
@@ -1627,16 +1632,13 @@ class Schwab(Broker):
         # Add check for authorization error first
         if self.schwab_authorization_error:
             logger.error(colored(f"Schwab authorization failed previously. Cannot submit order {order}.", "red"))
-            if hasattr(self, 'stream') and hasattr(self.stream, 'dispatch'):
-                self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg="Schwab authorization failed previously")
+            self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg="Schwab authorization failed previously")
             return None
 
         # Add check for valid client and hash_value
         if not self.client or not self.hash_value:
             logger.error(colored(f"Schwab client or account hash not initialized. Cannot submit order {order}.", "red"))
-            # Dispatch error event if possible
-            if hasattr(self, 'stream') and hasattr(self.stream, 'dispatch'):
-                self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg="Schwab client/hash not initialized")
+            self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg="Schwab client/hash not initialized")
             return None
 
         try:
@@ -1694,7 +1696,7 @@ class Schwab(Broker):
                 logger.error(colored(error_msg, "red"))
 
                 # Dispatch error event
-                self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)
+                self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)
                 return None
 
             # Extract order ID from response
@@ -1739,7 +1741,7 @@ class Schwab(Broker):
 
             # Add to unprocessed orders and dispatch to stream
             self._unprocessed_orders.append(order)
-            self.stream.dispatch(self.NEW_ORDER, order=order)
+            self._safe_stream_dispatch(self.NEW_ORDER, order=order)
 
             return order
 
@@ -1749,8 +1751,7 @@ class Schwab(Broker):
             logger.error(_format_exc())
 
             # Dispatch error event
-            if hasattr(self, 'stream') and hasattr(self.stream, 'dispatch'):
-                self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)
+            self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)
 
             return None
 

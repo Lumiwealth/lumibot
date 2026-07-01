@@ -60,6 +60,26 @@ class TestBitunixBroker(unittest.TestCase):
 
     @patch("lumibot.brokers.bitunix.BitUnixClient")
     @patch("lumibot.brokers.bitunix.BitunixData")
+    def test_position_mode_initialization_retries_after_failure(self, MockBitunixData, MockBitUnixClientInstance):
+        MockBitUnixClientInstance.return_value = self.mock_bitunix_client
+        self.mock_bitunix_client.change_position_mode.side_effect = [
+            RuntimeError("temporary"),
+            {"code": 0, "data": [{"positionMode": "HEDGE"}]},
+        ]
+        mock_data_source = MockBitunixData.return_value
+        mock_data_source.client_symbols = set()
+
+        broker = Bitunix(self.config, connect_stream=False)
+
+        broker._ensure_position_mode_initialized()
+        self.assertFalse(broker._position_mode_initialized)
+
+        broker._ensure_position_mode_initialized()
+        self.assertTrue(broker._position_mode_initialized)
+        self.assertEqual(self.mock_bitunix_client.change_position_mode.call_count, 2)
+
+    @patch("lumibot.brokers.bitunix.BitUnixClient")
+    @patch("lumibot.brokers.bitunix.BitunixData")
     def test_initialization_missing_keys(self, MockBitunixData, MockBitUnixClientInstance):
         with self.assertRaises(ValueError):
             Bitunix({"TRADING_MODE": "FUTURES"})

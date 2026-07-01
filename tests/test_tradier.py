@@ -82,6 +82,38 @@ class TestTradierBroker:
         assert broker.name == "Tradier"
         assert broker._tradier_account_number == "1234"
 
+    def test_advanced_order_child_leg_uses_child_asset_symbol(self, monkeypatch):
+        from lumibot.brokers import tradier as tradier_module
+
+        broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True, connect_stream=False)
+        captured = {}
+
+        monkeypatch.setattr(tradier_module, "_order_leg", lambda *args, **kwargs: kwargs)
+        broker.tradier.orders.advanced_order = lambda **kwargs: captured.update(kwargs) or {"id": "advanced-1"}
+
+        parent = Order(
+            strategy="unit-test",
+            asset=Asset("AAPL"),
+            quantity=1,
+            side=Order.OrderSide.BUY,
+            order_type=Order.OrderType.MARKET,
+        )
+        child = Order(
+            strategy="unit-test",
+            asset=Asset("MSFT"),
+            quantity=1,
+            side=Order.OrderSide.SELL,
+            order_type=Order.OrderType.LIMIT,
+            limit_price=400,
+        )
+        parent.order_class = Order.OrderClass.OTO
+        parent.child_orders = [child]
+
+        broker._submit_order(parent)
+
+        assert captured["legs"][0]["stock_symbol"] == "AAPL"
+        assert captured["legs"][1]["stock_symbol"] == "MSFT"
+
     def test_oauth_payload_sets_access_token(self, monkeypatch):
         token_json = {
             "access_token": "oauth-access",

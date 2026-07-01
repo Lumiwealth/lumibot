@@ -22,7 +22,9 @@ datetime = lazy_class("datetime", "datetime")
 timedelta = lazy_class("datetime", "timedelta")
 _DEFAULT_PYTZ = LazyPytzTimezoneRef("America/New_York")
 Asset = lazy_class("lumibot.entities", "Asset")
+DataSource = lazy_class("lumibot.data_sources", "DataSource")
 Order = lazy_class("lumibot.entities", "Order")
+Position = lazy_class("lumibot.entities", "Position")
 ProjectXClient = None
 
 if TYPE_CHECKING:

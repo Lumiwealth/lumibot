@@ -85,6 +85,7 @@ class Tradovate(Broker):
         self._connect_on_init = bool(config.get("CONNECT_ON_INIT", False))
         self._tradovate_connected = False
         self._tradovate_connecting = False
+        self._tradovate_connection_lock = threading.RLock()
         self.trading_token = None
         self.market_token = None
         self.has_market_data = False
@@ -154,39 +155,40 @@ class Tradovate(Broker):
             )
         if not hasattr(self, "_tradovate_connecting"):
             self._tradovate_connecting = False
+        if not hasattr(self, "_tradovate_connection_lock"):
+            self._tradovate_connection_lock = threading.RLock()
 
-        if self._tradovate_connected:
-            return
-        if self._tradovate_connecting:
-            return
+        with self._tradovate_connection_lock:
+            if self._tradovate_connected:
+                return
 
-        self._tradovate_connecting = True
-        try:
-            tokens = self._get_tokens()
-            self.trading_token = tokens["accessToken"]
-            self.market_token = tokens["marketToken"]
-            self.has_market_data = tokens["hasMarketData"]
-            self.token_acquired_time = time.time()
-            logger.info(colored("Successfully acquired tokens from Tradovate.", "green"))
+            self._tradovate_connecting = True
+            try:
+                tokens = self._get_tokens()
+                self.trading_token = tokens["accessToken"]
+                self.market_token = tokens["marketToken"]
+                self.has_market_data = tokens["hasMarketData"]
+                self.token_acquired_time = time.time()
+                logger.info(colored("Successfully acquired tokens from Tradovate.", "green"))
 
-            if hasattr(self, "data_source") and self.data_source:
-                self.data_source.trading_token = self.trading_token
-                self.data_source.market_token = self.market_token
+                if hasattr(self, "data_source") and self.data_source:
+                    self.data_source.trading_token = self.trading_token
+                    self.data_source.market_token = self.market_token
 
-            account_info = self._get_account_info(self.trading_token)
-            self.account_spec = account_info["accountSpec"]
-            self.account_id = account_info["accountId"]
-            logger.info(colored(f"Account Info: {account_info}", "green"))
+                account_info = self._get_account_info(self.trading_token)
+                self.account_spec = account_info["accountSpec"]
+                self.account_id = account_info["accountId"]
+                logger.info(colored(f"Account Info: {account_info}", "green"))
 
-            self.user_id = self._get_user_info(self.trading_token)
-            logger.info(colored(f"User ID: {self.user_id}", "green"))
-            self._tradovate_connected = True
-        except TradovateAPIError as e:
-            logger.warning(colored(f"Failed initial connection to Tradovate: {e}", "yellow"))
-            logger.warning(colored("Broker connection failed due to rate limiting or authentication.", "yellow"))
-            raise e
-        finally:
-            self._tradovate_connecting = False
+                self.user_id = self._get_user_info(self.trading_token)
+                logger.info(colored(f"User ID: {self.user_id}", "green"))
+                self._tradovate_connected = True
+            except TradovateAPIError as e:
+                logger.warning(colored(f"Failed initial connection to Tradovate: {e}", "yellow"))
+                logger.warning(colored("Broker connection failed due to rate limiting or authentication.", "yellow"))
+                raise e
+            finally:
+                self._tradovate_connecting = False
 
     def _throttle_rest(self):
         """Ensure REST calls respect a soft per-minute cap."""

@@ -58,6 +58,24 @@ def test_ccxt_data_constructor_defers_load_markets(mocker):
     assert data_source.api.exchangeId == "kraken"
 
 
+def test_ccxt_data_market_load_is_serialized(mocker):
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    data_source = CcxtData(KRAKEN_CONFIG)
+
+    def slow_load_markets():
+        time.sleep(0.02)
+        return {}
+
+    load_markets = mocker.patch.object(data_source.api, "load_markets", side_effect=slow_load_markets)
+
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        list(pool.map(lambda _: data_source._ensure_markets_loaded(), range(5)))
+
+    load_markets.assert_called_once()
+
+
 # Fake WEEX credentials, they do not need to be real — CCXT requires apiKey + secret + passphrase.
 WEEX_CONFIG = {
     "exchange_id": "weex",

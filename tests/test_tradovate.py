@@ -18,6 +18,7 @@ making them suitable for CI/CD environments like GitHub Actions.
 
 import pytest
 import os
+import threading
 from unittest.mock import patch, MagicMock, Mock
 import logging
 import time
@@ -351,6 +352,58 @@ class TestTradovateBroker:
             assert broker.account_spec == "TEST"
             assert broker.account_id == 123
 
+    def test_concurrent_ensure_connected_waits_for_in_flight_login(self):
+        """A second lazy connection caller should wait for the first login to finish."""
+        from lumibot.brokers import Tradovate
+
+        config = {
+            "USERNAME": "test_user",
+            "DEDICATED_PASSWORD": "test_pass",
+            "CID": "test_cid",
+            "SECRET": "test_secret",
+            "IS_PAPER": True,
+        }
+        tokens = {
+            "accessToken": "token",
+            "marketToken": "market",
+            "hasMarketData": True,
+        }
+        account_info = {"accountSpec": "TEST", "accountId": 123}
+        user_info = "user"
+        login_entered = threading.Event()
+        release_login = threading.Event()
+        second_results = []
+
+        def slow_get_tokens():
+            login_entered.set()
+            assert release_login.wait(timeout=2)
+            return tokens
+
+        with patch.object(Tradovate, "_get_tokens", side_effect=slow_get_tokens) as mock_get_tokens, \
+             patch.object(Tradovate, "_get_account_info", return_value=account_info), \
+             patch.object(Tradovate, "_get_user_info", return_value=user_info):
+            broker = Tradovate(config=config)
+
+            first = threading.Thread(target=broker._ensure_connected)
+            first.start()
+            assert login_entered.wait(timeout=2)
+
+            second = threading.Thread(
+                target=lambda: second_results.append((broker._ensure_connected(), broker.trading_token))
+            )
+            second.start()
+            time.sleep(0.05)
+            assert second.is_alive()
+
+            release_login.set()
+            first.join(timeout=2)
+            second.join(timeout=2)
+
+            assert not first.is_alive()
+            assert not second.is_alive()
+            assert second_results == [(None, "token")]
+            mock_get_tokens.assert_called_once()
+
     def test_broker_handles_missing_credentials(self):
         """Test that the broker handles missing credentials gracefully."""
         from lumibot.brokers import Tradovate
@@ -358,7 +411,9 @@ class TestTradovateBroker:
         # Test with empty/minimal config
         empty_config = {}
 
-        with pytest.raises(Exception) as exc_info:
+        import lumibot.brokers.tradovate as tradovate_module
+
+        with pytest.raises(tradovate_module.TradovateAPIError) as exc_info:
             Tradovate(config=empty_config)
 
         error_msg = str(exc_info.value).lower()

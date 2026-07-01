@@ -3,7 +3,8 @@ Simple test cases for broker initialization error handling.
 """
 import json
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest
 from unittest.mock import patch, MagicMock
@@ -115,6 +116,52 @@ class TestBrokerInitializationSimple:
         assert broker._is_market_open_from_initialized_calendar(
             datetime(2026, 5, 11, 21, 0, tzinfo=timezone.utc)
         ) is False
+
+    def test_utc_to_local_converts_aware_datetime_before_localizing(self):
+        from dateutil import tz
+        from lumibot.brokers.broker import Broker
+
+        class TestBroker(Broker):
+            def cancel_order(self, order): pass
+            def _modify_order(self, order, limit_price=None, stop_price=None): pass
+            def _submit_order(self, order): return order
+            def _get_balances_at_broker(self, quote_asset, strategy): return (0, 0, 0)
+            def get_historical_account_value(self): return {}
+            def _get_stream_object(self): return None
+            def _register_stream_events(self): pass
+            def _run_stream(self): pass
+            def _pull_positions(self, strategy): return []
+            def _pull_position(self, strategy, asset): return None
+            def _parse_broker_order(self, response, strategy_name, strategy_object=None): return response
+            def _pull_broker_order(self, identifier): return None
+            def _pull_broker_all_orders(self): return []
+
+        broker = TestBroker.__new__(TestBroker)
+        source = datetime(2026, 5, 11, 16, 30, tzinfo=timezone(timedelta(hours=3)))
+
+        converted = broker.utc_to_local(source)
+
+        expected = datetime(2026, 5, 11, 13, 30, tzinfo=timezone.utc).astimezone(tz.tzlocal())
+        assert converted == expected
+
+
+def test_ibkr_rest_submit_order_without_stream_does_not_crash(monkeypatch):
+    from lumibot.brokers import broker as broker_module
+    from lumibot.brokers.interactive_brokers_rest import InteractiveBrokersREST
+    from lumibot.entities import Asset, Order
+
+    monkeypatch.setattr(broker_module.Broker, "_start_orders_thread", lambda self: None)
+    data_source = SimpleNamespace(execute_order=lambda order_data: [{"order_id": "ib-1"}])
+    broker = InteractiveBrokersREST(config={"MARKET": "NYSE"}, data_source=data_source, connect_stream=False)
+    broker.get_order_data_from_orders = lambda orders: {"orders": []}
+    broker._log_order_status = lambda *args, **kwargs: None
+    order = Order("unit-test", Asset("AAPL"), 1, Order.OrderSide.BUY)
+
+    submitted = broker._submit_order(order)
+
+    assert submitted is order
+    assert order.identifier == "ib-1"
+    assert order.status == Order.OrderStatus.SUBMITTED
 
 
 def test_schwab_data_can_skip_constructor_client_creation(monkeypatch):

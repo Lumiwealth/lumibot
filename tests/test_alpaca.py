@@ -1,4 +1,5 @@
 import pytest
+import pandas as pd
 from unittest.mock import MagicMock
 
 from lumibot.entities import Asset, Order
@@ -37,7 +38,28 @@ def test_alpaca_data_parses_sdk_timeframes():
     assert data_source._parse_source_timestep(TimeFrame.Minute) == "minute"
     assert data_source._parse_source_timestep(TimeFrame(5, TimeFrameUnit.Minute)) == "5 minutes"
     assert data_source._parse_source_timestep("15Min") == "15 minutes"
-    assert str(data_source._parse_source_timestep("5 minutes", reverse=True)) == "5Min"
+    parsed = data_source._parse_source_timestep("5 minutes", reverse=True)
+    assert parsed.amount == 5
+    assert parsed.unit == TimeFrameUnit.Minute
+
+
+def test_alpaca_regular_market_hours_mask_keeps_full_session():
+    from lumibot.data_sources.alpaca_data import _regular_market_hours_mask
+
+    index = pd.DatetimeIndex(
+        [
+            "2026-05-11 09:29",
+            "2026-05-11 09:30",
+            "2026-05-11 10:00",
+            "2026-05-11 15:59",
+            "2026-05-11 16:00",
+        ],
+        tz="America/New_York",
+    )
+
+    kept = index[_regular_market_hours_mask(index)]
+
+    assert kept.strftime("%H:%M").tolist() == ["09:30", "10:00", "15:59"]
 
 
 class TestAlpacaBroker:

@@ -68,7 +68,7 @@ class Tradovate(Broker):
     NAME = "Tradovate"
     POLL_EVENT = "poll"
 
-    def __init__(self, config=None, data_source=None, connect_stream=True):
+    def __init__(self, config=None, data_source=None, connect_stream=None):
         if config is None:
             config = {}
 
@@ -114,6 +114,8 @@ class Tradovate(Broker):
         self._balance_backoff_until: Optional[float] = None
 
         self._validate_config()
+        if connect_stream is None:
+            connect_stream = self._connect_on_init
 
         if data_source is None:
             config["TRADING_API_URL"] = self.trading_api_url
@@ -1034,6 +1036,10 @@ class Tradovate(Broker):
 
     def do_polling(self):
         """Poll Tradovate REST endpoints to keep order state synchronized."""
+        if not self.trading_token or self.account_id is None:
+            logger.debug("Skipping Tradovate polling until broker connection is established")
+            return
+
         # Sync positions so position lookups remain accurate.
         try:
             self.sync_positions(None)

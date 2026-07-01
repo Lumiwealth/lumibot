@@ -284,10 +284,11 @@ class StrategyExecutor(Thread):
         self._run_once_market_open_override = None
         if market == "24/7":
             return
-        market_open_precheck = self._scheduled_regular_equity_market_open_precheck(market)
-        if market_open_precheck is False:
-            self._run_once_market_open_override = False
-            return
+        if not self._scheduled_exact_enabled():
+            market_open_precheck = self._scheduled_regular_equity_market_open_precheck(market)
+            if market_open_precheck is False:
+                self._run_once_market_open_override = False
+                return
         try:
             now = self._scheduled_now_utc()
             buffer = timedelta(days=14)
@@ -2230,6 +2231,16 @@ class StrategyExecutor(Thread):
         # Scheduled one-shot runs must restore state before any lifecycle hook can read or mutate self.vars.
         self.strategy.load_variables_from_db()
         self.strategy.log_message("Running one live trading iteration", color="blue")
+
+        self.cron_count_target = 1
+        self.cron_count = 0
+        waited_for_target = False
+        if self._scheduled_exact_enabled():
+            if not self._scheduled_wait_until_target():
+                return False
+            waited_for_target = True
+            self._run_once_market_open_override = None
+
         market_open = (
             self._run_once_market_open_override
             if self._run_once_market_open_override is not None
@@ -2248,9 +2259,7 @@ class StrategyExecutor(Thread):
             self._before_starting_trading()
             self.lifecycle_last_date["before_starting_trading"] = self.strategy.get_datetime().date()
 
-        self.cron_count_target = 1
-        self.cron_count = 0
-        if not self._scheduled_wait_until_target():
+        if not waited_for_target and not self._scheduled_wait_until_target():
             return False
         try:
             self._scheduled_record_timing(

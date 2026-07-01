@@ -237,9 +237,19 @@ Trader = lazy_class("lumibot.traders", "Trader")
 def _get_backtesting_class(name):
     patched = globals().get(name)
     if patched is not None:
-        return patched
+        return _resolve_lazy_class(patched)
     module = import_module(_BACKTESTING_CLASS_MODULES[name])
     return getattr(module, name)
+
+
+def _resolve_lazy_class(value):
+    if (
+        isinstance(getattr(value, "_module_name", None), str)
+        and isinstance(getattr(value, "_class_name", None), str)
+        and callable(getattr(value, "_load", None))
+    ):
+        return value._load()
+    return value
 
 
 def _get_tool_function(name):

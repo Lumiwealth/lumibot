@@ -293,6 +293,49 @@ def test_scheduled_exact_run_waits_after_initialization_and_writes_timing(tmp_pa
     assert timing["exact_timing_verified"] is True
 
 
+def test_scheduled_exact_run_waits_before_preopen_market_closed_exit(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "lumibot.strategies.strategy_executor.get_trading_days",
+        lambda *args, **kwargs: [{"date": datetime.date(2026, 5, 11)}],
+    )
+    fake_mono = {"value": 0.0}
+    base = datetime.datetime(2026, 5, 11, 13, 29, 50, tzinfo=datetime.timezone.utc)
+    target = base + datetime.timedelta(seconds=10)
+    timing_file = tmp_path / "scheduled_timing.json"
+    strategy = _DummyStrategy()
+    strategy.broker.name = "alpaca"
+    strategy.broker.market = "NASDAQ"
+    strategy.broker.is_market_open = lambda: fake_mono["value"] >= 10.0
+    executor = StrategyExecutor(strategy)
+    executor.sync_broker = lambda: None
+
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_EXECUTION", "true")
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_TARGET_RUN_AT", target.isoformat().replace("+00:00", "Z"))
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_MAX_TARGET_DRIFT_MS", "1000")
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_POST_ITERATION_SECONDS", "0")
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_TIMING_FILE", str(timing_file))
+    monkeypatch.setattr(
+        StrategyExecutor,
+        "_scheduled_now_utc",
+        lambda self: base + datetime.timedelta(seconds=fake_mono["value"]),
+    )
+    monkeypatch.setattr(strategy_executor_module.time, "monotonic", lambda: fake_mono["value"])
+    monkeypatch.setattr(
+        strategy_executor_module.time,
+        "sleep",
+        lambda seconds: fake_mono.__setitem__("value", fake_mono["value"] + seconds),
+    )
+
+    assert executor.run_once() is True
+
+    assert strategy.iterations == 1
+    assert strategy.broker.trading_days is not None
+    timing = json.loads(timing_file.read_text(encoding="utf-8"))
+    assert timing["wait_started_at"] == "2026-05-11T13:29:50Z"
+    assert timing["iteration_started_at"] == "2026-05-11T13:30:00Z"
+    assert timing["status"] == "completed"
+
+
 def test_scheduled_exact_run_skips_when_target_drift_exceeds_budget(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "lumibot.strategies.strategy_executor.get_trading_days",

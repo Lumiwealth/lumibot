@@ -142,6 +142,53 @@ def test_polymarket_credential_store_redacts_secrets():
     assert store.redacted_config()["WALLET_ADDRESS"] == "0xwallet"
 
 
+def test_polymarket_signature_type_honors_explicit_deposit_wallet_config(monkeypatch):
+    monkeypatch.setattr(Broker, "_start_orders_thread", lambda self: None)
+
+    class SignatureTypes:
+        POLY_PROXY = 1
+        POLY_1271 = 3
+
+    broker = Polymarket(
+        {
+            "OWNER_ADDRESS": "0xowner",
+            "WALLET_ADDRESS": "0xdepositwallet",
+            "SIGNATURE_TYPE": "3",
+        },
+        data_source=PolymarketData(client=FakeMarketDataClient()),
+        secure_client=FakeSecureClient(),
+        data_api_client=FakeDataClient(),
+        connect_stream=False,
+    )
+    try:
+        assert broker._configured_signature_type(SignatureTypes) == 3
+    finally:
+        broker.cleanup_streams()
+
+
+def test_polymarket_signature_type_infers_proxy_when_no_explicit_value(monkeypatch):
+    monkeypatch.setattr(Broker, "_start_orders_thread", lambda self: None)
+
+    class SignatureTypes:
+        POLY_PROXY = 1
+        POLY_1271 = 3
+
+    broker = Polymarket(
+        {
+            "OWNER_ADDRESS": "0xowner",
+            "WALLET_ADDRESS": "0xproxywallet",
+        },
+        data_source=PolymarketData(client=FakeMarketDataClient()),
+        secure_client=FakeSecureClient(),
+        data_api_client=FakeDataClient(),
+        connect_stream=False,
+    )
+    try:
+        assert broker._configured_signature_type(SignatureTypes) == 1
+    finally:
+        broker.cleanup_streams()
+
+
 def test_polymarket_balances_positions_orders(monkeypatch):
     broker = _broker(monkeypatch)
     try:
@@ -187,6 +234,68 @@ def test_polymarket_parse_broker_order(monkeypatch):
         assert order.side == Order.OrderSide.SELL
         assert order.status == Order.OrderStatus.FILLED
         assert order.asset.asset_type == Asset.AssetType.PREDICTION_CONTRACT
+    finally:
+        broker.cleanup_streams()
+
+
+def test_polymarket_parse_matched_market_order_response(monkeypatch):
+    broker = _broker(monkeypatch)
+    try:
+        order = broker._parse_broker_order(
+            {
+                "orderID": "0xabc",
+                "status": "matched",
+                "makingAmount": "0.999999",
+                "takingAmount": "35.714284",
+            },
+            "unit",
+        )
+
+        assert order.identifier == "0xabc"
+        assert order.status == Order.OrderStatus.FILLED
+        assert order.quantity == 35.714284
+        assert round(order.avg_fill_price, 6) == 0.028
+    finally:
+        broker.cleanup_streams()
+
+
+def test_polymarket_parse_live_limit_order_response_with_empty_amounts(monkeypatch):
+    broker = _broker(monkeypatch)
+    try:
+        order = broker._parse_broker_order(
+            {
+                "orderID": "0xlimit",
+                "status": "live",
+                "makingAmount": "",
+                "takingAmount": "",
+            },
+            "unit",
+        )
+
+        assert order.identifier == "0xlimit"
+        assert order.status == Order.OrderStatus.OPEN
+        assert order.quantity == 0
+        assert order.avg_fill_price is None
+    finally:
+        broker.cleanup_streams()
+
+
+def test_polymarket_submit_response_preserves_original_limit_price(monkeypatch):
+    broker = _broker(monkeypatch)
+    asset = Asset("111", asset_type=Asset.AssetType.PREDICTION_CONTRACT)
+    original = Order(
+        "unit",
+        asset,
+        quantity=5,
+        side=Order.OrderSide.BUY,
+        limit_price=0.01,
+        order_type=Order.OrderType.LIMIT,
+    )
+    try:
+        parsed = broker._order_from_submit_response({"orderID": "0xlimit", "status": "live"}, original)
+
+        assert parsed.limit_price == 0.01
+        assert parsed.order_type == Order.OrderType.LIMIT
     finally:
         broker.cleanup_streams()
 

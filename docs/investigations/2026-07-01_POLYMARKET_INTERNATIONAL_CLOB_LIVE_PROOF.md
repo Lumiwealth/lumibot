@@ -4,7 +4,7 @@ One-line description: Verified credential, data, WebSocket, and live-submit stat
 
 Last Updated: 2026-07-01
 
-Status: Read-only account/data/WebSocket proof complete; live order submission blocked by Polymarket account/API-key binding.
+Status: Deposit-wallet flow complete; direct SDK and LumiBot live market order plus limit/cancel proofs succeeded.
 
 Audience: LumiBot maintainers, broker-adapter implementers, BotSpot/Bot Manager follow-on engineers
 
@@ -71,8 +71,37 @@ Important distinction:
 
 - `POLYMARKET_OWNER_ADDRESS` is the signer/owner identity.
 - `POLYMARKET_WALLET_ADDRESS` is the funder/proxy/deposit wallet passed to CLOB.
-- For the current Magic/proxy account, read paths work with signature type `1`. Order submission is still blocked by the
-  platform-side deposit-wallet/API-key mismatch described below.
+- `POLYMARKET_PROXY_WALLET_ADDRESS` preserves the old proxy wallet used to fund the deposit wallet.
+- `POLYMARKET_DEPOSIT_WALLET_ADDRESS` is the deterministic deposit wallet.
+- The current active trading configuration uses `POLYMARKET_WALLET_ADDRESS=<deposit wallet>` and
+  `POLYMARKET_SIGNATURE_TYPE=3`.
+
+## Deposit Wallet Setup Proof
+
+Helper script:
+
+- `/Users/robertgrzesik/Development/lumibot/scripts/polymarket_deposit_wallet_setup.py`
+
+Verified setup actions on 2026-07-01:
+
+- Created builder HMAC credentials through the CLOB SDK and stored them only in `.env.local`.
+- Derived deterministic deposit wallet for the current signer.
+- Deployed the deposit wallet through the Polymarket relayer.
+- Funded the deposit wallet with `5` pUSD from the existing proxy wallet via a gasless relayer proxy transfer.
+- Approved all three CLOB-reported pUSD spender contracts from the deposit wallet via a relayer `WALLET` batch.
+- Activated the deposit wallet in `.env.local` with `POLYMARKET_SIGNATURE_TYPE=3`.
+
+Read-only verification command:
+
+```bash
+/Users/robertgrzesik/Development/bin/safe-timeout 90s python3 scripts/polymarket_deposit_wallet_setup.py
+```
+
+Latest result:
+
+- Deposit wallet balance was present.
+- Allowance count: `3`.
+- Zero allowance count: `0`.
 
 ## Direct API Proof
 
@@ -107,7 +136,7 @@ Verified read-only results:
 - Authenticated user WebSocket connected with CLOB L2 credentials; it returned no events because there were no account
   order/trade events during the proof window.
 
-## Live Submit Proof
+## Earlier Proxy-Mode Live Submit Proof
 
 Market-order smoke command:
 
@@ -140,10 +169,100 @@ Result:
 - The tiny far-from-market limit order did not submit.
 - Polymarket returned the same deposit-wallet-flow blocker before an order id existed, so cancel could not be exercised.
 
-## Interpretation Of The Blocker
+## Deposit-Wallet Live Submit Proof
 
-This is not currently a LumiBot mapping bug. The same rejection occurs through direct `py-clob-client-v2` calls before
-LumiBot broker normalization is involved.
+Direct SDK read-only proof after activation:
+
+```bash
+/Users/robertgrzesik/Development/bin/safe-timeout 90s python3 scripts/polymarket_smoke.py
+```
+
+Latest redacted artifact:
+
+- `/Users/robertgrzesik/Development/lumibot/logs/polymarket_smoke_20260701_200400.json`
+
+Verified:
+
+- Deposit-wallet CLOB cash read succeeded.
+- Positions count by deposit wallet: `1`.
+- Recent trades count: `4`.
+- Open orders count: `0`.
+- Public market WebSocket returned events.
+- Private user WebSocket authenticated.
+- Order book, quote, last price, and history worked.
+
+Direct SDK live market order proof:
+
+```bash
+/Users/robertgrzesik/Development/bin/safe-timeout 90s python3 scripts/polymarket_smoke.py --live-order --amount 1.00
+```
+
+Result:
+
+- `status=submitted`.
+- Polymarket response had `success=true`, `status=matched`, a real `orderID`, and a transaction hash.
+
+Direct SDK limit/cancel proof:
+
+```bash
+/Users/robertgrzesik/Development/bin/safe-timeout 90s python3 scripts/polymarket_smoke.py --limit-cancel --limit-price 0.01 --limit-size 5
+```
+
+Latest redacted artifact:
+
+- `/Users/robertgrzesik/Development/lumibot/logs/polymarket_smoke_20260701_200430.json`
+
+Result:
+
+- Limit order submitted as `status=live`.
+- Cancel response returned the order id under `canceled`.
+
+LumiBot-level smoke helper:
+
+- `/Users/robertgrzesik/Development/lumibot/scripts/polymarket_lumibot_smoke.py`
+
+Read-only:
+
+```bash
+/Users/robertgrzesik/Development/bin/safe-timeout 90s python3 scripts/polymarket_lumibot_smoke.py
+```
+
+Verified:
+
+- `strategy.get_cash()` returned the real deposit-wallet CLOB cash.
+- `strategy.get_portfolio_value()` returned cash plus position value.
+- Positions and open orders loaded through the broker.
+
+Live market order through LumiBot:
+
+```bash
+/Users/robertgrzesik/Development/bin/safe-timeout 90s python3 scripts/polymarket_lumibot_smoke.py --market-order --amount 1.00
+```
+
+Equivalent inline proof also verified:
+
+- `Strategy.create_order(...)` built a Polymarket prediction-contract market BUY.
+- `Strategy.submit_order(order)` submitted through the LumiBot broker and returned `status=fill`.
+- The returned normalized order included the real CLOB order id, filled quantity, and average fill price.
+- Fresh reconciliation showed recent trades increased and open orders stayed `0`.
+
+Live limit/cancel through LumiBot:
+
+```bash
+/Users/robertgrzesik/Development/bin/safe-timeout 90s python3 scripts/polymarket_lumibot_smoke.py --limit-cancel
+```
+
+Equivalent inline proof verified:
+
+- `Strategy.create_order(...)` built a tiny limit BUY.
+- `Strategy.submit_order(order)` returned an open CLOB order id.
+- `broker.cancel_order(submitted)` canceled it.
+- Open orders were `0` afterward.
+
+## Interpretation Of The Original Blocker
+
+The original proxy-mode blocker was not a LumiBot mapping bug. The same rejection occurred through direct
+`py-clob-client-v2` calls before LumiBot broker normalization was involved.
 
 The public GitHub issue tracker has multiple recent open reports around the same credential/address family:
 
@@ -159,12 +278,9 @@ For this account, the observed local matrix was:
 - Signature type `3` with the current funder/proxy returns the order-signer/API-key mismatch.
 - Signature types `0` and `2` did not produce a usable order path.
 
-Next practical fix is not another LumiBot order mapping change. We need one of:
-
-- A supported Polymarket deposit-wallet setup that yields CLOB credentials bound to the order signer/funder address.
-- Polymarket-side SDK/API fix for Magic/proxy or deposit-wallet API-key binding.
-- A documented and supported workaround from Polymarket for registering API credentials under the exact address CLOB
-  validates during `POST /order`.
+The working fix was Polymarket's documented deposit-wallet flow: deploy deterministic deposit wallet, fund it with pUSD,
+approve CLOB spenders from the deposit wallet, switch `POLYMARKET_WALLET_ADDRESS` to the deposit wallet, and use
+`POLYMARKET_SIGNATURE_TYPE=3`.
 
 ## LumiBot Changes Made From This Proof
 
@@ -176,8 +292,10 @@ Implementation updates:
   reconciliation.
 - `Polymarket` scales collateral balance/allowance raw units from 6-decimal USDC-like integer units into dollars.
 - `Polymarket` stores optional `OWNER_ADDRESS` separately from `WALLET_ADDRESS`.
-- `Polymarket` chooses a safer default signature type: proxy when owner and funder differ, deposit-wallet otherwise.
+- `Polymarket` honors explicit `POLYMARKET_SIGNATURE_TYPE` from env/config before falling back to inference.
 - Market and limit submits now pass SDK `PartialCreateOrderOptions(tick_size=..., neg_risk=...)` from the live book.
+- Market submit responses now parse `orderID`, `makingAmount`, `takingAmount`, and `status=matched`.
+- Limit submit responses with empty amount fields parse cleanly and preserve the original LumiBot limit price.
 - Known platform-side signer/funder/deposit-wallet rejections are wrapped in a clear `LumibotBrokerAPIError`.
 - `requirements.txt` now includes `websockets>=15.0.1`.
 
@@ -189,7 +307,8 @@ Tests added or expanded:
 - WebSocket subscription payload shape.
 - Data source handling for market-stream list payloads.
 - Public WebSocket API smoke.
-- Live tiny order API smoke xfails only for the exact current platform-side blocker.
+- Explicit deposit-wallet signature type selection.
+- Live CLOB response parsing for matched market orders and live limit orders.
 
 ## Test Commands And Results
 
@@ -209,21 +328,39 @@ Live/API with `.env.local` loaded:
 /Users/robertgrzesik/Development/bin/safe-timeout 120s python3 -m dotenv -f .env.local run -- python3 -m pytest -q tests/test_polymarket_apitest.py
 ```
 
-Result:
+Earlier result before deposit-wallet activation:
 
-- `3 passed, 1 xfailed`
-- The xfail is the tiny live market order, and only for the current deposit-wallet/API-key binding blocker.
+- `3 passed, 1 xfailed`.
+- The xfail was the tiny live market order under proxy-mode configuration.
 
-Direct smoke:
+Current result for focused Polymarket broker unit tests:
 
-- Read-only direct smoke: passed.
-- Live market-order direct smoke: blocked by Polymarket deposit-wallet flow.
-- Limit/cancel direct smoke: blocked by Polymarket deposit-wallet flow before cancelable order creation.
+```bash
+/Users/robertgrzesik/Development/bin/safe-timeout 120s python3 -m pytest tests/test_polymarket_broker.py -q
+```
+
+- `16 passed`
+
+Direct and LumiBot live smoke:
+
+- Direct read-only smoke: passed.
+- Direct live market order: passed.
+- Direct live limit/cancel: passed.
+- LumiBot read-only smoke: passed.
+- LumiBot live market order: passed.
+- LumiBot live limit/cancel: passed.
+
+Residual note:
+
+- Immediate post-submit cash reads can lag inside the same SDK client. A fresh CLOB/account read reconciles the correct
+  balance.
 
 ## What Works Now
 
 - Credential loading from `.env.local`.
 - CLOB L2 credential use for authenticated read paths.
+- Builder HMAC credential creation through the CLOB SDK.
+- Deposit-wallet derivation, relayer deployment, proxy funding transfer, and deposit-wallet pUSD approvals.
 - Account cash read and scaling.
 - Position and account-value reads through Data API fallback.
 - Open order reads.
@@ -233,26 +370,28 @@ Direct smoke:
 - Public market WebSocket connection and event ingestion.
 - Private user WebSocket authenticated subscription.
 - LumiBot broker/data-source selection with `TRADING_BROKER=polymarket`.
+- Direct SDK market order.
+- Direct SDK limit order and cancel.
+- LumiBot `Strategy.create_order(...)` / `Strategy.submit_order(...)` market order.
+- LumiBot limit order and cancel.
 - Unit and API tests around the implemented mapping.
 
-## What Is Still Blocked
+## What Is Still Open
 
-- Live order submit on Rob's current account.
-- Limit-order cancel proof, because limit order creation is blocked before an order id exists.
-- Real fill/private-event reconciliation, because no live order can currently be placed.
-- BotSpot/Bot Manager credential UI/runtime support. That should wait until the LumiBot adapter has a working live
-  submit path or a clear product decision around private-key/deposit-wallet custody.
+- The deposit wallet now has less than `$1` idle pUSD after the live proofs. Fund it again before additional market-order
+  smoke tests.
+- Immediate post-submit cash reads can be stale inside the same SDK client; use a fresh read/reconciliation for final
+  account values.
+- Private user WebSocket authenticated successfully, but a fill-event callback was not captured live during a running
+  LumiBot strategy loop. HTTP reconciliation worked.
+- BotSpot/Bot Manager credential UI/runtime support remains deferred until product decisions are made around private-key,
+  builder-key, and deposit-wallet custody.
 
 ## Next Steps
 
-1. Decide whether to pursue a true deposit-wallet setup for this account or wait for Polymarket's SDK/API fix.
-2. If pursuing deposit wallet, identify the exact builder/relayer credential shape required by the current UI/API. The
-   visible one-value `RELAYER_API_KEY` is not the same as CLOB L2 credentials, and the Python relayer client examples use
-   builder key/secret/passphrase.
-3. Once a supported order path exists, rerun:
-   - direct `scripts/polymarket_smoke.py --live-order`
-   - direct `scripts/polymarket_smoke.py --limit-cancel`
-   - `pytest -q tests/test_polymarket_apitest.py` with `.env.local` loaded
-4. After live submit/cancel proof works, add one end-to-end LumiBot strategy smoke that places a tiny order, reconciles
-   private user WebSocket events, refreshes positions/orders, and exits.
-5. Only then start BotSpot/Bot Manager credential schema and UI work.
+1. Add a safer balance-reconciliation hook after successful submit so same-client cash reads are less stale.
+2. Add an integration test path for `scripts/polymarket_lumibot_smoke.py` with live trading disabled by default.
+3. Fund the deposit wallet again before more live market-order testing.
+4. Run a real strategy loop with WebSockets enabled and capture a private user fill event during the loop.
+5. Start BotSpot/Bot Manager credential schema and UI work only after deciding how hosted runtime should custody or
+   receive the private key, builder key, CLOB L2 creds, and deposit-wallet address.

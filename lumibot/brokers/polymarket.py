@@ -25,6 +25,10 @@ POLYMARKET_SECRET_KEYS = {
     "CLOB_API_PASSPHRASE",
     "RELAYER_API_KEY",
     "RELAYER_API_KEY_ADDRESS",
+    "BUILDER_API_KEY",
+    "BUILDER_SECRET",
+    "BUILDER_PASSPHRASE",
+    "BUILDER_PASS_PHRASE",
     "API_CREDENTIALS_JSON",
 }
 
@@ -34,6 +38,7 @@ class PolymarketCredentials:
     private_key: str | None = None
     owner_address: str | None = None
     wallet_address: str | None = None
+    signature_type: str | None = None
     clob_api_key: str | None = None
     clob_api_secret: str | None = None
     clob_api_passphrase: str | None = None
@@ -56,6 +61,7 @@ class PolymarketCredentialStore:
             private_key=self._get("PRIVATE_KEY"),
             owner_address=self._get("OWNER_ADDRESS"),
             wallet_address=self._get("WALLET_ADDRESS"),
+            signature_type=self._get("SIGNATURE_TYPE"),
             clob_api_key=self._get("CLOB_API_KEY"),
             clob_api_secret=self._get("CLOB_API_SECRET"),
             clob_api_passphrase=self._get("CLOB_API_PASSPHRASE"),
@@ -332,7 +338,7 @@ class Polymarket(Broker):
         if self.credentials.builder_code:
             builder_config = BuilderConfig(builder_code=self.credentials.builder_code)
 
-        signature_type = int(self.config.get("SIGNATURE_TYPE") or self._default_signature_type(SignatureTypeV2))
+        signature_type = self._configured_signature_type(SignatureTypeV2)
         self._secure_client = ClobClient(
             self.config.get("CLOB_URL", PolymarketData.CLOB_URL),
             chain_id=int(self.config.get("CHAIN_ID", POLYGON)),
@@ -378,6 +384,13 @@ class Polymarket(Broker):
             if self.credentials.owner_address.lower() != self.credentials.wallet_address.lower():
                 return int(signature_type_cls.POLY_PROXY)
         return int(signature_type_cls.POLY_1271)
+
+    def _configured_signature_type(self, signature_type_cls) -> int:
+        value = self.config.get("SIGNATURE_TYPE") or self.config.get("POLYMARKET_SIGNATURE_TYPE")
+        value = value or self.credentials.signature_type
+        if value is None:
+            return self._default_signature_type(signature_type_cls)
+        return int(value)
 
     def _ensure_trading_ready(self) -> None:
         if self._trading_ready:
@@ -481,8 +494,18 @@ class Polymarket(Broker):
         asset = Asset(str(token_id or "UNKNOWN"), asset_type=Asset.AssetType.PREDICTION_CONTRACT, precision="0.000001")
         side = self._map_side(self._first_present(payload, "side", "direction"))
         price = self._optional_float(self._first_present(payload, "price", "limitPrice", "average_price", "avgPrice"))
+        avg_fill_price = self._average_fill_price(payload, fallback=price)
         quantity = self._optional_float(
-            self._first_present(payload, "size", "original_size", "originalSize", "shares", "quantity")
+            self._first_present(
+                payload,
+                "size",
+                "original_size",
+                "originalSize",
+                "shares",
+                "quantity",
+                "taking_amount",
+                "takingAmount",
+            )
         )
         if quantity is None:
             quantity = self._optional_float(self._first_present(payload, "matched_size", "matchedSize")) or 0.0
@@ -495,9 +518,9 @@ class Polymarket(Broker):
             side=side,
             limit_price=price if order_type == Order.OrderType.LIMIT else None,
             order_type=order_type,
-            identifier=str(self._first_present(payload, "id", "order_id", "orderId") or ""),
+            identifier=str(self._first_present(payload, "id", "order_id", "orderId", "orderID") or ""),
             status=self._map_status(self._first_present(payload, "status", "state", "event_type", "eventType", "type")),
-            avg_fill_price=self._optional_float(self._first_present(payload, "average_price", "avgPrice", "price")),
+            avg_fill_price=avg_fill_price,
             time_in_force=str(self._first_present(payload, "time_in_force", "timeInForce", "tif") or "gtc").lower(),
         )
         order._raw = payload
@@ -779,6 +802,8 @@ class Polymarket(Broker):
             parsed.side = original_order.side
         if parsed.order_type == Order.OrderType.UNKNOWN:
             parsed.order_type = original_order.order_type
+        if parsed.limit_price is None:
+            parsed.limit_price = original_order.limit_price
         return parsed
 
     def _validate_order(self, order: Order):
@@ -928,11 +953,11 @@ class Polymarket(Broker):
     @staticmethod
     def _map_status(value: Any):
         status = str(value or "").lower()
-        if status in {"placement", "placed", "submitted", "live", "open", "matched"}:
+        if status in {"placement", "placed", "submitted", "live", "open"}:
             return Order.OrderStatus.OPEN
         if status in {"partially_filled", "partial_fill", "partially matched", "partial"}:
             return Order.OrderStatus.PARTIALLY_FILLED
-        if status in {"filled", "fill", "mined", "confirmed"}:
+        if status in {"filled", "fill", "mined", "confirmed", "matched"}:
             return Order.OrderStatus.FILLED
         if status in {"canceled", "cancelled", "cancellation"}:
             return Order.OrderStatus.CANCELED
@@ -951,6 +976,24 @@ class Polymarket(Broker):
             if key in mapping and mapping[key] is not None:
                 return mapping[key]
         return None
+
+    @classmethod
+    def _average_fill_price(cls, payload: dict, *, fallback: float | None = None) -> float | None:
+        explicit = cls._optional_float(cls._first_present(payload, "average_price", "avgPrice", "price"))
+        if explicit is not None:
+            return explicit
+        making_amount = cls._first_present(payload, "making_amount", "makingAmount")
+        taking_amount = cls._first_present(payload, "taking_amount", "takingAmount")
+        if making_amount is None or taking_amount is None:
+            return fallback
+        if isinstance(making_amount, str) and not making_amount.strip():
+            return fallback
+        if isinstance(taking_amount, str) and not taking_amount.strip():
+            return fallback
+        taking_decimal = cls._decimal(taking_amount)
+        if taking_decimal == 0:
+            return fallback
+        return float(cls._decimal(making_amount) / taking_decimal)
 
     @staticmethod
     def _listify(value: Any) -> list:
@@ -984,6 +1027,8 @@ class Polymarket(Broker):
     @classmethod
     def _optional_float(cls, value: Any) -> float | None:
         if value is None:
+            return None
+        if isinstance(value, str) and not value.strip():
             return None
         return cls._to_float(value)
 

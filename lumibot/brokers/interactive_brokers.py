@@ -56,6 +56,8 @@ class InteractiveBrokers(Broker):
     """Inherit InteractiveBrokerData first and all the price market
     methods than inherits broker"""
 
+    REQUIRES_ORDERS_THREAD = True
+
     def __init__(self, config, max_workers=20, chunk_size=100, data_source=None, **kwargs):
         if data_source is None:
             data_source = InteractiveBrokersData(config, max_workers=max_workers, chunk_size=chunk_size)

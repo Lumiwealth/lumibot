@@ -173,6 +173,7 @@ class LumibotBrokerAPIError(Exception):
 class Broker(ABC):
     # Metainfo
     IS_BACKTESTING_BROKER = False
+    REQUIRES_ORDERS_THREAD = False
 
     # Trading events flags
     NEW_ORDER = "new"
@@ -423,6 +424,8 @@ class Broker(ABC):
         if not self.IS_BACKTESTING_BROKER:
             self._orders_queue = Queue()
             self._orders_thread = None
+            if self.REQUIRES_ORDERS_THREAD:
+                start_orders_thread = True
             if start_orders_thread:
                 self._start_orders_thread()
 

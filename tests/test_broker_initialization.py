@@ -164,6 +164,24 @@ def test_ibkr_rest_submit_order_without_stream_does_not_crash(monkeypatch):
     assert order.status == Order.OrderStatus.SUBMITTED
 
 
+def test_interactive_brokers_keeps_required_orders_thread_enabled(monkeypatch):
+    from lumibot.brokers import broker as broker_module
+    from lumibot.brokers.interactive_brokers import InteractiveBrokers
+
+    started = []
+    monkeypatch.setattr(broker_module.Broker, "_start_orders_thread", lambda self: started.append(self.name))
+    monkeypatch.setattr(InteractiveBrokers, "start_ib", lambda self: None)
+
+    InteractiveBrokers(
+        config={"IP": "127.0.0.1", "SOCKET_PORT": 4002, "CLIENT_ID": 1},
+        data_source=object(),
+        connect_stream=False,
+        start_orders_thread=False,
+    )
+
+    assert started == ["interactive_brokers"]
+
+
 def test_schwab_data_can_skip_constructor_client_creation(monkeypatch):
     from lumibot.data_sources.schwab_data import SchwabData
 

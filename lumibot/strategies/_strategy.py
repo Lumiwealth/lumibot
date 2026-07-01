@@ -1772,6 +1772,145 @@ class _Strategy:
 
             return cash
 
+    def _update_positions_with_splits(self):
+        if not self.is_backtesting:
+            return 0
+
+        with self._executor.lock:
+            if not hasattr(self, '_stock_splits_applied_tracker'):
+                self._stock_splits_applied_tracker = set()
+
+            current_dt = self.get_datetime()
+            current_date = current_dt.date() if hasattr(current_dt, 'date') else current_dt
+            positions = self.broker.get_tracked_positions(self._name)
+
+            stock_positions = []
+            assets = []
+            for position in positions:
+                asset = position.asset
+                if asset == self._quote_asset:
+                    continue
+                asset_type = getattr(asset, "asset_type", "")
+                asset_type = getattr(asset_type, "value", asset_type)
+                if str(asset_type).lower() != "stock":
+                    continue
+                if not position.quantity:
+                    continue
+                stock_positions.append(position)
+                assets.append(asset)
+
+            if not assets:
+                return 0
+
+            data_source = getattr(getattr(self, "broker", None), "data_source", None)
+            get_splits = getattr(data_source, "get_yesterday_stock_splits", None)
+            if not callable(get_splits):
+                return 0
+
+            try:
+                split_ratios = get_splits(assets, quote=self._quote_asset)
+            except Exception:
+                self.logger.debug("Unable to read stock split ratios for %s", current_date, exc_info=True)
+                return 0
+
+            applied = 0
+            should_apply_splits = getattr(data_source, "should_apply_stock_splits_to_positions", None)
+            for position in stock_positions:
+                asset = position.asset
+                if callable(should_apply_splits):
+                    try:
+                        if not should_apply_splits(asset, quote=self._quote_asset):
+                            continue
+                    except Exception:
+                        self.logger.debug(
+                            "Unable to determine stock split accounting mode for %s on %s",
+                            getattr(asset, "symbol", asset),
+                            current_date,
+                            exc_info=True,
+                        )
+                        continue
+
+                raw_ratio = 0 if split_ratios is None else split_ratios.get(asset, 0)
+                try:
+                    split_ratio = float(raw_ratio)
+                except (TypeError, ValueError):
+                    continue
+                if not math.isfinite(split_ratio) or split_ratio <= 0 or abs(split_ratio - 1.0) < 1e-12:
+                    continue
+
+                symbol = getattr(asset, 'symbol', str(asset))
+                tracker_key = (current_date, symbol, f"{split_ratio:.12g}")
+                if tracker_key in self._stock_splits_applied_tracker:
+                    continue
+
+                try:
+                    old_quantity = getattr(position, "_quantity", Decimal(str(position.quantity)))
+                    split_ratio_decimal = Decimal(str(split_ratio))
+                    new_quantity = old_quantity * split_ratio_decimal
+                except Exception:
+                    self.logger.warning(
+                        "Skipping %s stock split ratio %.12g on %s because quantity %r could not be adjusted.",
+                        symbol,
+                        split_ratio,
+                        current_date,
+                        getattr(position, "quantity", None),
+                    )
+                    continue
+
+                old_quantity_float = float(old_quantity)
+                new_quantity_float = float(new_quantity)
+                position.quantity = new_quantity
+
+                avg_fill_price = getattr(position, "avg_fill_price", None)
+                if avg_fill_price is not None:
+                    try:
+                        position.avg_fill_price = float(Decimal(str(avg_fill_price)) / split_ratio_decimal)
+                    except Exception:
+                        pass
+
+                filled_positions = getattr(self.broker, "_filled_positions", None)
+                if hasattr(filled_positions, "revision"):
+                    filled_positions.revision += 1
+                for cache_name in (
+                    "_tracked_position_cache",
+                    "_tracked_positions_cache",
+                    "_asset_potential_total_cache",
+                ):
+                    cache = getattr(self.broker, cache_name, None)
+                    if hasattr(cache, "clear"):
+                        cache.clear()
+                self._portfolio_value_cache_key = None
+                self._portfolio_value_cache_value = None
+
+                record_event = getattr(self.broker, "record_corporate_action_event", None)
+                if callable(record_event):
+                    record_event(
+                        action_type="stock_split",
+                        asset=asset,
+                        strategy=getattr(self, "_name", None),
+                        ratio=split_ratio,
+                        quantity_before=old_quantity_float,
+                        quantity_after=new_quantity_float,
+                        occurred_at=current_dt,
+                        description=(
+                            f"{symbol} stock split ratio {split_ratio:.12g}: "
+                            f"quantity {old_quantity_float:.12g} -> {new_quantity_float:.12g}"
+                        ),
+                    )
+
+                self._stock_splits_applied_tracker.add(tracker_key)
+                applied += 1
+                self.logger.info(
+                    "Applied %s stock split ratio %.12g on %s: quantity %.12g -> %.12g",
+                    symbol,
+                    split_ratio,
+                    current_date,
+                    old_quantity_float,
+                    new_quantity_float,
+                )
+
+            return applied
+
     # =============Stats functions=====================
 
     def _append_row(self, row):

@@ -2910,7 +2910,7 @@ class ThetaDataBacktestingPandas(PandasData):
                 frame_last_dt = frame_last_dt.isoformat()
             except AttributeError:
                 frame_last_dt = str(frame_last_dt)
-            return float(frame_last_close)
+            return float(self._adjust_stale_daily_price_for_stock_split(data_obj, frame_last_close, dt))
         if tuple_key is not None:
             if isinstance(tuple_key, tuple) and len(tuple_key) != 3:
                 legacy_hit = True
@@ -3108,6 +3108,15 @@ class ThetaDataBacktestingPandas(PandasData):
 
         try:
             snapshot = data.get_price_snapshot(dt)
+            if isinstance(snapshot, dict):
+                snapshot = dict(snapshot)
+                for price_key in ("open", "high", "low", "close", "bid", "ask"):
+                    if price_key in snapshot:
+                        snapshot[price_key] = self._adjust_stale_daily_price_for_stock_split(
+                            data,
+                            snapshot.get(price_key),
+                            dt,
+                        )
             logger.debug(
                 "[THETA][DEBUG][THETADATA-PANDAS] get_price_snapshot succeeded for %s/%s: %s",
                 asset,

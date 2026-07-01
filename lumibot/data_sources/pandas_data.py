@@ -268,6 +268,7 @@ class PandasData(DataSourceBacktesting):
             try:
                 dt = self.get_datetime()
                 price = data.get_last_price(dt)
+                price = self._adjust_stale_daily_price_for_stock_split(data, price, dt)
 
                 # Check if price is NaN
                 if pd.isna(price):
@@ -343,6 +344,14 @@ class PandasData(DataSourceBacktesting):
             data = self._data_store[tuple_to_find]
             dt = self.get_datetime()
             ohlcv_bid_ask_dict = data.get_quote(dt)
+            if isinstance(ohlcv_bid_ask_dict, dict):
+                for price_key in ("open", "high", "low", "close", "bid", "ask"):
+                    if price_key in ohlcv_bid_ask_dict:
+                        ohlcv_bid_ask_dict[price_key] = self._adjust_stale_daily_price_for_stock_split(
+                            data,
+                            ohlcv_bid_ask_dict.get(price_key),
+                            dt,
+                        )
 
             # Check if ohlcv_bid_ask_dict is NaN
             if pd.isna(ohlcv_bid_ask_dict):

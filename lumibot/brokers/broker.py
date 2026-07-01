@@ -255,6 +255,135 @@ class Broker(ABC):
         self._trade_event_log_rows.append(new_row)
         self._trade_event_log_df_cache = None
 
+    def record_corporate_action_event(
+        self,
+        *,
+        action_type: str,
+        asset: Asset,
+        strategy: str | None = None,
+        ratio: float | None = None,
+        quantity_before: float | None = None,
+        quantity_after: float | None = None,
+        occurred_at: datetime | None = None,
+        description: str | None = None,
+    ) -> None:
+        """Append a non-cash corporate-action row to the trade-event stream."""
+        if not getattr(self, "_trade_event_log_enabled", True):
+            return
+
+        event_time = occurred_at
+        if event_time is None:
+            data_source = getattr(self, "data_source", None)
+            event_time = getattr(data_source, "_datetime", None)
+            if event_time is None and data_source is not None:
+                get_datetime = getattr(data_source, "get_datetime", None)
+                if callable(get_datetime):
+                    event_time = get_datetime()
+        if event_time is None:
+            event_time = datetime.now(timezone.utc)
+
+        symbol = getattr(asset, "symbol", str(asset))
+        normalized_action_type = str(action_type or "corporate_action").strip().lower() or "corporate_action"
+        ratio_text = "" if ratio is None else f":{float(ratio):.12g}"
+        event_id = f"corporate_action:{normalized_action_type}:{strategy or ''}:{symbol}:{event_time.date()}{ratio_text}"
+        event_description = description or (
+            f"{symbol} {normalized_action_type}"
+            + (f" ratio={float(ratio):.6f}" if ratio is not None else "")
+            + (
+                f" quantity {float(quantity_before):.6f}->{float(quantity_after):.6f}"
+                if quantity_before is not None and quantity_after is not None
+                else ""
+            )
+        )
+        raw_subtype_parts = []
+        if ratio is not None:
+            raw_subtype_parts.append(f"ratio={float(ratio):.12g}")
+        if quantity_before is not None:
+            raw_subtype_parts.append(f"quantity_before={float(quantity_before):.12g}")
+        if quantity_after is not None:
+            raw_subtype_parts.append(f"quantity_after={float(quantity_after):.12g}")
+        raw_subtype = ";".join(raw_subtype_parts) or None
+
+        audit_enabled = getattr(self, "_backtest_audit_enabled", None)
+        if audit_enabled is None:
+            audit_enabled = self._truthy_env(os.environ.get("LUMIBOT_BACKTEST_AUDIT"))
+
+        if audit_enabled:
+            new_row = {
+                "time": event_time,
+                "strategy": strategy,
+                "exchange": None,
+                "identifier": event_id,
+                "symbol": symbol,
+                "side": "neutral",
+                "type": "corporate_action",
+                "status": normalized_action_type,
+                "price": ratio,
+                "filled_quantity": quantity_after,
+                "multiplier": None,
+                "trade_cost": None,
+                "trade_slippage": None,
+                "time_in_force": None,
+                "asset.right": asset.right if asset is not None else None,
+                "asset.strike": asset.strike if asset is not None else None,
+                "asset.multiplier": asset.multiplier if asset is not None else None,
+                "asset.expiration": asset.expiration if asset is not None else None,
+                "asset.asset_type": asset.asset_type if asset is not None else None,
+                "price_source": None,
+                "event_kind": "corporate_action",
+                "event_id": event_id,
+                "cash_event_type": None,
+                "cash_event_amount": None,
+                "cash_event_currency": None,
+                "cash_event_description": event_description,
+                "cash_event_direction": "neutral",
+                "cash_event_reason": normalized_action_type,
+                "is_external_cash_flow": False,
+                "cash_event_raw_type": normalized_action_type,
+                "cash_event_raw_subtype": raw_subtype,
+                "cash_event_broker_name": self.name,
+                "cash_event_broker_event_id": event_id,
+            }
+        else:
+            new_row = (
+                event_time,
+                strategy,
+                None,
+                event_id,
+                symbol,
+                "neutral",
+                "corporate_action",
+                normalized_action_type,
+                ratio,
+                quantity_after,
+                None,
+                None,
+                None,
+                None,
+                asset.right if asset is not None else None,
+                asset.strike if asset is not None else None,
+                asset.multiplier if asset is not None else None,
+                asset.expiration if asset is not None else None,
+                asset.asset_type if asset is not None else None,
+                None,
+                "corporate_action",
+                event_id,
+                None,
+                None,
+                None,
+                event_description,
+                "neutral",
+                normalized_action_type,
+                False,
+                normalized_action_type,
+                raw_subtype,
+                self.name,
+                event_id,
+            )
+
+        self._trade_event_log_rows.append(new_row)
+        self._trade_event_log_df_cache = None
+
     def __init__(self, name="", connect_stream=True, data_source: DataSource = None, option_source: DataSource = None,
                  config=None, max_workers=20, extended_trading_minutes=0, cleanup_config=None):
         """Broker constructor"""

@@ -4994,6 +4994,28 @@ class Strategy(_Strategy):
             self.log_message("Broker or data source is not available.")
             return None
 
+    def get_yesterday_stock_split(self, asset: Asset):
+        """Get the stock split ratio for the current backtest day."""
+        asset = self._sanitize_user_asset(asset)
+        if self.broker and self.broker.data_source:
+            return self.broker.data_source.get_yesterday_stock_split(asset, quote=self.quote_asset)
+        else:
+            self.log_message("Broker or data source is not available.")
+            return None
+
+    def get_yesterday_stock_splits(self, assets: List[Asset]):
+        """Get stock split ratios for the current backtest day.
+
+        A value of 2.0 means a 2-for-1 split, 0.1 means a 1-for-10 reverse split,
+        and 0 means no split event for that asset/date.
+        """
+        assets = [self._sanitize_user_asset(asset) for asset in assets]
+        if self.broker and self.broker.data_source:
+            return self.broker.data_source.get_yesterday_stock_splits(assets, quote=self.quote_asset)
+        else:
+            self.log_message("Broker or data source is not available.")
+            return None
+
     def update_parameters(self, parameters: dict):
         """Update the parameters of the strategy.
 

@@ -272,7 +272,8 @@ class InteractiveBrokersRESTBacktesting(PandasData):
             day_data = self._data_store.get(day_key)
             if day_data is not None:
                 try:
-                    return day_data.get_last_price(now)
+                    price = day_data.get_last_price(now)
+                    return self._adjust_stale_daily_price_for_stock_split(day_data, price, now)
                 except Exception:
                     pass
 
@@ -297,7 +298,8 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                     return None
             if day_data is not None:
                 try:
-                    return day_data.get_last_price(now)
+                    price = day_data.get_last_price(now)
+                    return self._adjust_stale_daily_price_for_stock_split(day_data, price, now)
                 except Exception:
                     try:
                         self._refresh_window_around_datetime(
@@ -310,7 +312,8 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                         )
                         day_data = self._data_store.get(day_key)
                         if day_data is not None:
-                            return day_data.get_last_price(now)
+                            price = day_data.get_last_price(now)
+                            return self._adjust_stale_daily_price_for_stock_split(day_data, price, now)
                     except Exception:
                         return None
             return None

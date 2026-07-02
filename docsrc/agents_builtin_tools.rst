@@ -139,9 +139,13 @@ clearly.
 News
 ----
 
-If Alpaca credentials are configured, LumiBot can expose Alpaca/Benzinga news
-tools to agents. In backtests, news tools should use the strategy datetime as
-the cutoff so the agent cannot read future headlines.
+If the active broker is Alpaca, LumiBot can use that broker connection for
+Alpaca/Benzinga news. If the active broker is not Alpaca, configure the
+news-only ``ALPACA_NEWS_API_KEY`` / ``ALPACA_NEWS_API_SECRET`` env vars instead.
+Generic Alpaca broker env vars are intentionally not used for news-only access,
+so news credentials do not confuse broker selection for Tradier, IBKR, or other
+brokers. In backtests, news tools should use the strategy datetime as the cutoff
+so the agent cannot read future headlines.
 
 DuckDB And Documentation Search
 -------------------------------

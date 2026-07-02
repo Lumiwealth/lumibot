@@ -36,6 +36,7 @@ from ..backtesting import (
     CcxtBacktesting,
     DataBentoDataBacktesting,
     InteractiveBrokersRESTBacktesting,
+    PolymarketBacktesting,
     PolygonDataBacktesting,
     RoutedBacktestingPandas,
     ThetaDataBacktesting,
@@ -370,7 +371,13 @@ class _Strategy:
         # Handle data source initialization
         self._data_source = data_source
         if self._data_source is None:
-            self._data_source = DATA_SOURCE
+            # Live DATA_SOURCE overrides should not replace a backtesting broker's
+            # concrete data source. Backtests are selected through
+            # BACKTESTING_DATA_SOURCE or the explicit datasource_class argument.
+            if self.broker is not None and getattr(self.broker, "IS_BACKTESTING_BROKER", False):
+                self._data_source = None
+            else:
+                self._data_source = DATA_SOURCE
 
         # If we have a custom data source, attach it to the broker
         if self._data_source is not None and self.broker is not None:
@@ -2807,6 +2814,8 @@ class _Strategy:
                 "ibkr": InteractiveBrokersRESTBacktesting,
                 "interactivebrokersrest": InteractiveBrokersRESTBacktesting,
                 "interactive_brokers_rest": InteractiveBrokersRESTBacktesting,
+                "polymarket": PolymarketBacktesting,
+                "polymarket_clob": PolymarketBacktesting,
                 "router": RoutedBacktestingPandas,
                 "thetadata_ibkr": RoutedBacktestingPandas,
                 "theta_ibkr": RoutedBacktestingPandas,

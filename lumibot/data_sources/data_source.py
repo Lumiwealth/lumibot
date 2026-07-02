@@ -458,6 +458,92 @@ class DataSource(ABC):
         else:
             return AssetsMapping(result)
 
+    # ========Prediction-market metadata defaults======================
+    #
+    # These methods are intentionally safe no-ops on the base class. Prediction
+    # market data sources such as Polymarket can override them with provider
+    # implementations, while existing stock/options/crypto brokers continue to
+    # behave normally if strategy code probes for prediction-market metadata.
+
+    def search_markets(self, query: str | None = None, limit: int = 20, **kwargs) -> list:
+        """Search provider markets/events.
+
+        The default implementation returns an empty list because most data
+        sources do not expose prediction-market discovery.
+        """
+        return []
+
+    def get_event(self, event_id: str | int | None = None, slug: str | None = None, **kwargs) -> dict:
+        """Return event metadata if the provider supports event-level data."""
+        return {}
+
+    def get_market_metadata(self, market=None, **kwargs) -> dict:
+        """Return normalized market metadata if the provider supports it."""
+        return {}
+
+    def get_market_rules(self, market=None, **kwargs) -> dict:
+        """Return trading/resolution rules if the provider supports them."""
+        return {}
+
+    def get_resolution_status(self, market=None, **kwargs) -> dict:
+        """Return resolution state for a prediction contract.
+
+        Providers that do not support this surface return a stable unsupported
+        shape instead of raising.
+        """
+        return {"status": "unsupported", "resolved": None, "winner": None, "raw": None}
+
+    def get_spread(self, asset, quote=None, exchange=None) -> Union[float, Decimal, None]:
+        """Return bid/ask spread when available.
+
+        Generic fallback uses ``get_quote`` if the concrete data source has one.
+        """
+        get_quote = getattr(self, "get_quote", None)
+        if get_quote is None:
+            return None
+        try:
+            quote_obj = get_quote(asset, quote=quote, exchange=exchange)
+        except Exception:
+            return None
+        bid = getattr(quote_obj, "bid", None)
+        ask = getattr(quote_obj, "ask", None)
+        if bid is None or ask is None:
+            return None
+        return ask - bid
+
+    def get_midpoint(self, asset, quote=None, exchange=None) -> Union[float, Decimal, None]:
+        """Return midpoint/mark when available.
+
+        Generic fallback uses ``Quote.mid_price`` or bid/ask from ``get_quote``.
+        """
+        get_quote = getattr(self, "get_quote", None)
+        if get_quote is None:
+            return None
+        try:
+            quote_obj = get_quote(asset, quote=quote, exchange=exchange)
+        except Exception:
+            return None
+        mid_price = getattr(quote_obj, "mid_price", None)
+        if mid_price is not None:
+            return mid_price
+        bid = getattr(quote_obj, "bid", None)
+        ask = getattr(quote_obj, "ask", None)
+        if bid is not None and ask is not None:
+            return (bid + ask) / 2
+        return getattr(quote_obj, "price", None)
+
+    def get_recent_trades(self, market=None, limit: int = 100, **kwargs) -> list:
+        """Return recent trades/fills if the provider supports them."""
+        return []
+
+    def get_open_interest(self, market=None, **kwargs) -> Union[float, Decimal, None]:
+        """Return open interest if the provider supports it."""
+        return None
+
+    def get_holders(self, market=None, limit: int = 20, **kwargs) -> list:
+        """Return holder rows if the provider supports it."""
+        return []
+
     def get_strikes(self, asset) -> list:
         """Return a set of strikes for a given asset"""
         chains = self.get_chains(asset)

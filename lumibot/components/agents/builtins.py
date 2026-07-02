@@ -481,6 +481,17 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
             warning(message)
 
     def _resolve_alpaca_news_headers() -> tuple[dict[str, str] | None, str | None]:
+        # Prefer news-only credentials when supplied. They are intentionally
+        # separate from generic Alpaca broker env vars so a Tradier/IBKR/etc.
+        # strategy can use Alpaca/Benzinga news without changing broker routing.
+        api_key = str(os.environ.get("ALPACA_NEWS_API_KEY") or "").strip()
+        api_secret = str(os.environ.get("ALPACA_NEWS_API_SECRET") or "").strip()
+        if api_key and api_secret:
+            return {
+                "APCA-API-KEY-ID": api_key,
+                "APCA-API-SECRET-KEY": api_secret,
+            }, "byok_alpaca_news_env"
+
         broker = getattr(strategy, "broker", None)
         if str(getattr(broker, "name", "") or "").lower() == "alpaca":
             oauth_token = str(getattr(broker, "oauth_token", "") or "").strip()
@@ -494,14 +505,6 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
                     "APCA-API-KEY-ID": api_key,
                     "APCA-API-SECRET-KEY": api_secret,
                 }, "alpaca_broker_api_key"
-
-        api_key = str(os.environ.get("ALPACA_NEWS_API_KEY") or "").strip()
-        api_secret = str(os.environ.get("ALPACA_NEWS_API_SECRET") or "").strip()
-        if api_key and api_secret:
-            return {
-                "APCA-API-KEY-ID": api_key,
-                "APCA-API-SECRET-KEY": api_secret,
-            }, "byok_alpaca_news_env"
 
         return None, None
 

@@ -36,6 +36,9 @@ class TestBacktestingDataSourceEnv:
     class _YahooSelected(_SelectedDataSource):
         pass
 
+    class _PolymarketSelected(_SelectedDataSource):
+        pass
+
     def test_auto_select_polygon_case_insensitive(self, monkeypatch, caplog):
         import logging
 
@@ -135,6 +138,39 @@ class TestBacktestingDataSourceEnv:
 
         assert any(
             "Using BACKTESTING_DATA_SOURCE setting for backtest data: Yahoo" in record.message
+            for record in caplog.records
+        )
+
+    def test_auto_select_polymarket_case_insensitive(self, monkeypatch, caplog):
+        import logging
+
+        caplog.set_level(logging.INFO, logger="lumibot.strategies._strategy")
+
+        class PolymarketBacktesting:
+            def __init__(self, *args, **kwargs):
+                raise TestBacktestingDataSourceEnv._PolymarketSelected()
+
+        import lumibot.strategies._strategy as strategy_module
+
+        monkeypatch.setattr(strategy_module, "PolymarketBacktesting", PolymarketBacktesting)
+        monkeypatch.setenv("BACKTESTING_DATA_SOURCE", "Polymarket")
+
+        with pytest.raises(self._PolymarketSelected):
+            SimpleTestStrategy.run_backtest(
+                None,
+                backtesting_start=datetime(2023, 1, 1),
+                backtesting_end=datetime(2023, 1, 10),
+                show_plot=False,
+                show_tearsheet=False,
+                show_indicators=False,
+                show_progress_bar=False,
+                save_tearsheet=False,
+                save_stats_file=False,
+                save_logfile=False,
+            )
+
+        assert any(
+            "Using BACKTESTING_DATA_SOURCE setting for backtest data: Polymarket" in record.message
             for record in caplog.records
         )
 

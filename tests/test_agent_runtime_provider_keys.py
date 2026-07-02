@@ -17,6 +17,8 @@ from lumibot.components.agents.runtime import (
     _sync_together_api_key_alias,
     _sync_xai_api_key_alias,
     _classify_agent_error,
+    _model_context_limit_tokens,
+    _model_context_string_limit_chars,
     _wrap_tool_callable,
 )
 from lumibot.components.agents.schemas import BoundTool
@@ -84,6 +86,32 @@ def test_together_litellm_key_wins_over_sdk_alias(monkeypatch):
 
     assert os.environ["TOGETHERAI_API_KEY"] == "togetherai-test-key"
     assert os.environ["TOGETHER_API_KEY"] == "together-test-key"
+
+
+def test_model_context_registry_has_conservative_default(monkeypatch):
+    monkeypatch.delenv("LUMIBOT_AGENT_DEFAULT_CONTEXT_LIMIT_TOKENS", raising=False)
+    monkeypatch.delenv("LUMIBOT_AGENT_DEFAULT_CONTEXT_STRING_LIMIT_CHARS", raising=False)
+
+    assert _model_context_limit_tokens("unknown-provider/future-model") == 1_000_000
+    assert _model_context_string_limit_chars("unknown-provider/future-model") == 20_000
+
+
+def test_model_context_registry_uses_known_provider_overrides(monkeypatch):
+    monkeypatch.delenv("LUMIBOT_AGENT_DEFAULT_CONTEXT_LIMIT_TOKENS", raising=False)
+
+    assert _model_context_limit_tokens("gemini-3.1-flash-lite") == 1_048_576
+    assert _model_context_limit_tokens("openai/gpt-4.1-mini") == 1_047_576
+    assert _model_context_limit_tokens("anthropic/claude-sonnet-4-6") == 200_000
+    assert _model_context_limit_tokens("xai/grok-4.20-0309-reasoning") == 2_000_000
+
+
+def test_model_context_registry_default_can_be_overridden(monkeypatch):
+    monkeypatch.setenv("LUMIBOT_AGENT_DEFAULT_CONTEXT_LIMIT_TOKENS", "750000")
+    monkeypatch.setenv("LUMIBOT_AGENT_DEFAULT_CONTEXT_STRING_LIMIT_CHARS", "12000")
+
+    assert _model_context_limit_tokens("unknown-provider/future-model") == 750_000
+    assert _model_context_string_limit_chars("unknown-provider/future-model") == 12_000
+    assert _model_context_limit_tokens("gemini-3.1-flash-lite") == 1_048_576
 
 
 def test_wrapped_tool_does_not_block_repeated_calls():

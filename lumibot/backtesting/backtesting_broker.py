@@ -1130,6 +1130,8 @@ class BacktestingBroker(Broker):
     def _submit_order(self, order):
         """Submit an order for an asset"""
 
+        self._validate_data_source_order(order)
+
         # Optional audit trail (submission-time context).
         #
         # Invariant: audit collection must never break backtests; any errors must be swallowed.
@@ -1257,6 +1259,11 @@ class BacktestingBroker(Broker):
             return [parent_order]
 
         return results
+
+    def _validate_data_source_order(self, order):
+        validator = getattr(getattr(self, "data_source", None), "validate_order", None)
+        if callable(validator):
+            validator(order)
 
     def cancel_order(self, order):
         """Cancel an order"""
@@ -1825,13 +1832,19 @@ class BacktestingBroker(Broker):
         ):
             self._process_futures_fill(strategy, order, float(price), float(filled_quantity))
 
-        # For crypto base with forex quote (like BTC/USD where USD is forex), use cash
-        # For crypto base with crypto quote (like BTC/USDT where both are crypto), use positions
+        # For crypto base with forex quote (like BTC/USD where USD is forex), use cash.
+        # Prediction contracts are also cash-collateral instruments: price is
+        # between 0 and 1 and quantity is contract shares.
+        # For crypto base with crypto quote (like BTC/USDT where both are crypto), use positions.
         elif (
             not is_multileg_parent
-            and asset_type == Asset.AssetType.CRYPTO
-            and quote_asset_type == Asset.AssetType.FOREX
+            and (
+                (asset_type == Asset.AssetType.CRYPTO and quote_asset_type == Asset.AssetType.FOREX)
+                or asset_type == Asset.AssetType.PREDICTION_CONTRACT
+            )
         ):
+            if asset_type == Asset.AssetType.PREDICTION_CONTRACT and not 0 <= float(price) <= 1:
+                raise ValueError(f"Prediction-contract fill price must be between 0 and 1, got {price}")
             trade_amount = float(filled_quantity) * price
             if hasattr(order.asset, 'multiplier') and order.asset.multiplier:
                 trade_amount *= order.asset.multiplier
@@ -1870,7 +1883,10 @@ class BacktestingBroker(Broker):
         # Only apply trade cost if it's not crypto with forex quote (already handled above)
         if (
             not is_multileg_parent
-            and not (asset_type == Asset.AssetType.CRYPTO and quote_asset_type == Asset.AssetType.FOREX)
+            and not (
+                (asset_type == Asset.AssetType.CRYPTO and quote_asset_type == Asset.AssetType.FOREX)
+                or asset_type == Asset.AssetType.PREDICTION_CONTRACT
+            )
         ):
             self._apply_trade_cost(strategy, trade_cost)
 
@@ -1896,8 +1912,12 @@ class BacktestingBroker(Broker):
 
         # Skip position-based quote processing for:
         # 1. Crypto+forex trades (handled with direct cash updates)
-        # 2. Futures contracts (use margin, only realize P&L on close, not full notional)
+        # 2. Prediction contracts (cash-collateral instruments)
+        # 3. Futures contracts (use margin, only realize P&L on close, not full notional)
         if asset_type == Asset.AssetType.CRYPTO and quote_asset_type == Asset.AssetType.FOREX:
+            return
+
+        if asset_type == Asset.AssetType.PREDICTION_CONTRACT:
             return
 
         if asset_type in (Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE):

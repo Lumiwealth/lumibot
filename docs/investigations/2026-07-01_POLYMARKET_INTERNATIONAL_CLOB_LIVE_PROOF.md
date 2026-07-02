@@ -395,3 +395,89 @@ Residual note:
 4. Run a real strategy loop with WebSockets enabled and capture a private user fill event during the loop.
 5. Start BotSpot/Bot Manager credential schema and UI work only after deciding how hosted runtime should custody or
    receive the private key, builder key, CLOB L2 creds, and deposit-wallet address.
+
+## July 2 Follow-Up: Full LumiBot Matrix, WebSockets, Backtesting
+
+Scope: same international `polymarket.com` CLOB account and deposit wallet. Raw secret values remain only in
+`.env.local`; console output and docs use redacted identifiers.
+
+Additional implementation updates:
+
+- Added safe generic prediction-market data methods on base `DataSource` so non-Polymarket brokers return empty or
+  unsupported values instead of failing when strategy code calls `search_markets`, `get_event`, `get_market_metadata`,
+  `get_market_rules`, `get_resolution_status`, `get_spread`, `get_midpoint`, `get_recent_trades`, `get_open_interest`,
+  or `get_holders`.
+- Expanded `PolymarketData` for market/event metadata, rules, resolution status, spread, midpoint, recent trades,
+  open interest, holders, close time, resolution source, minimum order size, settlement price, and token/outcome
+  resolution.
+- Added GTD expiration, post-only, cancel-all, cancel-multiple, cancel-by-market, batch limit order support, recent
+  trade retrieval, and conditional-token sell allowance sync to the `Polymarket` broker.
+- Added conditional-token `setApprovalForAll` support to `scripts/polymarket_deposit_wallet_setup.py`.
+- Added `PolymarketBacktesting`, exported it from `lumibot.backtesting`, and wired prediction-contract cash accounting
+  in `BacktestingBroker`.
+- Added `lumibot/example_strategies/polymarket_prediction_contract.py`.
+- Updated README, public RST docs, and env docs for Polymarket live and backtesting support.
+
+Additional live proof through normal LumiBot code:
+
+- Read-only LumiBot state after refilling deposit wallet: cash about `$5.88`, portfolio about `$9.95`, one position, no
+  open orders.
+- FAK BUY filled: about `$1` notional, quantity about `34.482757`, average fill about `0.029`.
+- FOK BUY filled: about `$1` notional, quantity about `34.482757`, average fill about `0.029`.
+- Conditional-token sell approval was required before live SELL. After `--approve-conditional`, FAK SELL and FOK SELL
+  filled and parsed correctly as quantity `1.0` at average fill `0.028`.
+- GTC BUY, GTD BUY, post-only BUY, GTC SELL, GTD SELL, and post-only SELL all submitted as resting open orders and were
+  canceled with `cancel_all_orders`.
+- Marketable post-only BUY rejected with the expected CLOB error: `invalid post-only order: order crosses book`, now
+  wrapped as a readable `LumibotBrokerAPIError`.
+- Single cancel, multiple cancel, cancel-all, and cancel-by-market helpers executed through LumiBot. Resting orders were
+  cleaned up; final read-only state showed zero open orders.
+- Final WebSocket smoke with `scripts/polymarket_lumibot_smoke.py --websocket --order-kind fak-sell --limit-size 1`
+  received public market events, one private user trade event, one broker trade-event row, quote-cache updates, and
+  HTTP recent-trade reconciliation without subscriber errors.
+
+Additional tests:
+
+```bash
+/Users/robertgrzesik/Development/bin/safe-timeout 120s python3 -m pytest -q tests/test_prediction_market_data_source_defaults.py tests/test_polymarket_asset.py tests/test_polymarket_data.py tests/test_polymarket_broker.py tests/test_polymarket_backtesting.py
+```
+
+Result:
+
+- `41 passed, 1 warning`
+
+Current open items after the July 2 live-follow-up:
+
+- The deposit wallet has less idle pUSD after repeated live smoke trades. Re-fund before running more BUY market-order
+  tests.
+- BotSpot/Bot Manager support is still a separate product/runtime-secret project.
+
+## July 2 Backtesting Hardening Follow-Up
+
+Backtesting fixes added after the live matrix:
+
+- `PolymarketBacktesting.get_quote()` and `get_last_price()` now read from loaded Polymarket/Pandas bars only for
+  `prediction_contract` assets.
+- Prediction-contract backtests no longer fall through to IBKR, Yahoo, or other default stock/crypto data sources when
+  `DATA_SOURCE=polymarket` is set in the live environment.
+- The example strategy runs end-to-end as a real backtest with `.env.local` loaded.
+- Backtesting validates 0-to-1 prices, Polymarket tick-size rules, minimum order sizes, market close, and settlement to
+  `$1` or `$0` when resolved metadata is available.
+- Public README/RST wording now describes Polymarket trading and backtesting directly. Detailed docs still explain
+  test-safety limits such as real-money live smoke tests being off by default.
+
+Additional focused test result:
+
+```bash
+/Users/robertgrzesik/Development/bin/safe-timeout 180s python3 -m pytest -q tests/test_polymarket_backtesting.py tests/test_backtesting_data_source_env.py tests/test_prediction_market_data_source_defaults.py tests/test_polymarket_asset.py tests/test_polymarket_data.py tests/test_polymarket_broker.py
+```
+
+- `55 passed, 1 warning`
+
+Example backtest proof:
+
+```bash
+/Users/robertgrzesik/Development/bin/safe-timeout 180s python3 -m dotenv -f .env.local run -- env IS_BACKTESTING=true BACKTESTING_START=2026-06-30 BACKTESTING_END=2026-07-01 BACKTESTING_SHOW_PROGRESS_BAR=false python3 -m lumibot.example_strategies.polymarket_prediction_contract
+```
+
+- Completed successfully with `PolymarketBacktesting`.

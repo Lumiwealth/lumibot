@@ -6,7 +6,7 @@
 
 # Lumibot: Backtestable AI Agents and Python Algorithmic Trading
 
-**Build deterministic trading strategies, AI trading agents, and AI trading teams for stocks, options, crypto, futures, forex, SEC filings, FRED macro data, technical indicators, and real brokers.** Backtest, paper trade, or run live with the same Python code.
+**Build deterministic trading strategies, AI trading agents, and AI trading teams for stocks, options, crypto, futures, forex, prediction markets, SEC filings, FRED macro data, technical indicators, and real brokers.** Backtest, paper trade, or run live with the same Python code.
 
 **Full docs:** [lumibot.lumiwealth.com](https://lumibot.lumiwealth.com/) · **Managed cloud:** [BotSpot.trade](https://botspot.trade/sales?showLogin=1&utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=top_text_link&sample=lumibot_readme_deploy) · **MCP:** [BotSpot for AI coding agents](https://botspot.trade/agents?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=top_mcp_link)
 
@@ -287,7 +287,7 @@ That matters because an AI trading demo is not the same thing as a trading syste
 
 | Project | Main angle | AI agents / teams | Backtest agent decisions | Paper/live broker path | Deterministic Python strategies | Hosted data/deploy/monitoring |
 |---------|------------|-------------------|--------------------------|------------------------|---------------------------------|-------------------------------|
-| **Lumibot + BotSpot** | Python strategies, flexible AI trading teams, hybrid guardrails, backtests, brokers, hosted deployment | **Flexible teams, debates, specialist desks, and deterministic gates** | **Replayable decisions, orders, traces, artifacts, charts, logs** | **Yes: Alpaca, IBKR, Tradier, Schwab, Tradovate, ProjectX, Bitunix, selected CCXT** | **Yes** | **Hosted data, parallel backtests, deployment, monitoring, MCP, alerts, kill switches** |
+| **Lumibot + BotSpot** | Python strategies, flexible AI trading teams, hybrid guardrails, backtests, brokers, hosted deployment | **Flexible teams, debates, specialist desks, and deterministic gates** | **Replayable decisions, orders, traces, artifacts, charts, logs** | **Yes: Alpaca, IBKR, Tradier, Schwab, Tradovate, ProjectX, Bitunix, Polymarket, selected CCXT** | **Yes** | **Hosted data, parallel backtests, deployment, monitoring, MCP, alerts, kill switches** |
 | TradingAgents | Multi-agent LLM trading research framework | Yes, with a specific research/debate structure | Research/demo oriented | Not the main focus | Limited | No |
 | ai-hedge-fund | Educational AI hedge fund with named investor-style agents | Yes, with investor-style personas | Demo/backtest oriented | Not the main focus | Limited | No |
 | OpenAlice | One-person Wall Street agent concept | Yes, end-to-end agent concept | Emerging/experimental | Local/self-run focus | Limited | No |
@@ -307,10 +307,11 @@ See the docs comparison pages for more detail: [Lumibot vs TradingAgents](https:
 | **Stocks** | Yes | Yes | No | Yes | Yes | No | Yes | Yes | No |
 | **Options** | **Yes** | No | No | No | No | No | No | Limited | No |
 | **Crypto** | Yes | Limited | Yes | No | Yes | Yes | Yes | Yes | Yes |
+| **Prediction markets** | Polymarket trading and backtesting | No | No | No | No | No | No | No | Limited/no |
 | **Futures** | Yes | Limited | Crypto only | Partial | Yes | Crypto only | Yes | Yes | Perpetuals/crypto venues |
 | **Forex** | Yes | Outdated | No | No | Yes | No | Yes | Yes | No |
 | **AI agent runtime** | Built-in | No | FreqAI (ML) | No | No | ML pipeline | No | No | Scripts/controllers |
-| **Broker execution** | Alpaca, IBKR, Tradier, Schwab, Tradovate, TopstepX (via ProjectX), Bitunix, selected CCXT | IB only (outdated) | Crypto exchanges | None | None | Crypto exchanges | No | Exchange adapters | Crypto exchanges |
+| **Broker execution** | Alpaca, IBKR, Tradier, Schwab, Tradovate, TopstepX (via ProjectX), Bitunix, Polymarket, selected CCXT | IB only (outdated) | Crypto exchanges | None | None | Crypto exchanges | No | Exchange adapters | Crypto exchanges |
 | **Hosted deployment path** | BotSpot | No | No | No | No | Paid cloud | No | No | Hummingbot Foundation/enterprise ecosystem |
 | **License** | MIT | GPL-3.0 | GPL-3.0 | Apache-2.0 | AGPL-3.0 | MIT | Apache-2.0 | LGPL-3.0 | Apache-2.0 |
 
@@ -358,7 +359,7 @@ trader.run_all()
 
 ## Supported Brokers
 
-Lumibot supports stocks, options, crypto, futures, forex, and indexes across several broker integrations:
+Lumibot supports stocks, options, crypto, futures, forex, indexes, and prediction contracts across several broker integrations:
 
 <p align="center">
   <img src="docs/assets/readme/lumibot_brokers_data_sources.png" alt="Lumibot broker and data source integrations" width="100%">
@@ -371,6 +372,7 @@ Lumibot supports stocks, options, crypto, futures, forex, and indexes across sev
 - Tradovate
 - TopstepX futures (via ProjectX)
 - Bitunix
+- Polymarket prediction-contract trading and backtesting
 - Selected CCXT crypto paths. Coinbase, Kraken, and WEEX have auto-detected credential paths; KuCoin, Binance, and BitMEX have documented manual CCXT setup paths; Kraken, Binance, KuCoin, BitMEX, Bybit, and OKX have documented backtesting examples. Lumibot does not claim blanket support for every CCXT exchange.
 
 ## Select Backtesting Data Sources
@@ -385,6 +387,7 @@ Lumibot can backtest from free daily data, broker data, premium market data, and
 - DataBento
 - Tradier
 - Schwab
+- Polymarket prediction-contract price history
 - CCXT backtesting examples: Kraken, Binance, KuCoin, BitMEX, Bybit, and OKX
 - Pandas/CSV dataframes
 
@@ -446,7 +449,7 @@ Browse and contribute open-source strategies: **[lumibot-strategies](https://git
 
 ## Example Strategies
 
-Lumibot includes 25+ example strategies covering stocks, options, crypto, futures, and forex:
+Lumibot includes 25+ example strategies covering stocks, options, crypto, futures, forex, and Polymarket prediction contracts:
 
 ```bash
 # Run a simple buy-and-hold backtest
@@ -458,6 +461,8 @@ ls lumibot/example_strategies/
 
 Browse all examples: [example_strategies/](lumibot/example_strategies/)
 
+Polymarket example: [polymarket_prediction_contract.py](lumibot/example_strategies/polymarket_prediction_contract.py)
+
 **External example repo:** [stock_example_algo](https://github.com/Lumiwealth-Strategies/stock_example_algo) shows a minimal strategy repository you can run yourself or adapt inside BotSpot.
 
 ## Backtesting Data Sources
@@ -465,7 +470,7 @@ Browse all examples: [example_strategies/](lumibot/example_strategies/)
 Select a data source via environment variable (overrides code):
 
 ```bash
-export BACKTESTING_DATA_SOURCE=thetadata   # or yahoo, ibkr, polygon
+export BACKTESTING_DATA_SOURCE=thetadata   # or yahoo, ibkr, polygon, polymarket
 ```
 
 Multi-provider routing by asset type:
@@ -484,6 +489,7 @@ Crypto futures/perpetual backtests can route `Asset.AssetType.CRYPTO_FUTURE` thr
 | Alpaca      | Yes   | Yes            | No        | No                        |
 | Polygon     | Yes   | Yes            | No        | No                        |
 | Tradier     | Yes   | Yes            | No        | No                        |
+| Polymarket  | Yes   | N/A            | N/A       | N/A                       |
 | Pandas*     | Yes   | Yes            | Yes       | Yes                       |
 
 *Pandas loads CSV files in Yahoo dataframe format, which can contain dividends.

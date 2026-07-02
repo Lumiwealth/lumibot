@@ -653,7 +653,12 @@ class StrategyExecutor(Thread):
 
             if (
                 update_cash
-                and asset_type not in (Asset.AssetType.CRYPTO, Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE)
+                and asset_type not in (
+                    Asset.AssetType.CRYPTO,
+                    Asset.AssetType.FUTURE,
+                    Asset.AssetType.CONT_FUTURE,
+                    Asset.AssetType.PREDICTION_CONTRACT,
+                )
                 and quantity is not None
                 and price is not None
             ):
@@ -688,7 +693,12 @@ class StrategyExecutor(Thread):
 
             if (
                 update_cash
-                and asset_type not in (Asset.AssetType.CRYPTO, Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE)
+                and asset_type not in (
+                    Asset.AssetType.CRYPTO,
+                    Asset.AssetType.FUTURE,
+                    Asset.AssetType.CONT_FUTURE,
+                    Asset.AssetType.PREDICTION_CONTRACT,
+                )
                 and quantity is not None
                 and price is not None
             ):

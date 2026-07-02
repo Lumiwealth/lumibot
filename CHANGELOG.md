@@ -2,7 +2,23 @@
 
 ## 4.5.64 - Unreleased
 
+### Added
+- **Polymarket International CLOB support now includes prediction-contract
+  assets, broker dispatch, live smoke tooling, and public docs.** LumiBot can
+  select the Polymarket broker through `TRADING_BROKER=polymarket`, represent
+  prediction contracts as a first-class asset type, normalize live CLOB response
+  shapes, and use deposit-wallet credentials with explicit signature-type
+  configuration.
+- **Polymarket prediction-contract backtesting can use real Polymarket
+  price-history bars.** `PolymarketBacktesting` loads CLOB price-history data,
+  keeps prices in the `0..1` prediction-market range, validates market tick size
+  and minimum order size, and supports deterministic examples/tests for market
+  and limit order fills.
+
 ### Fixed
+- **ThetaData option valuation is more robust for option backtests.** The
+  ThetaData backtesting path now avoids stale or missing option marks in the
+  relevant valuation path covered by the 4.5.64 release tests.
 - **Schwab and Tradier external OAuth mode now keeps managed child runtimes
   access-token-only.** When ``LUMIBOT_OAUTH_REFRESH_MODE=external`` is set,
   broker clients strip refresh-token material from in-memory token payloads,
@@ -18,6 +34,10 @@
   not double-count already-adjusted providers such as Yahoo or normalized IBKR.
 
 ### Docs
+- **Polymarket setup is documented in both published RST docs and repo
+  Markdown.** The release includes the CLOB integration research, live-proof
+  notes, environment-variable reference, broker docs, README updates, and
+  generated `llms.txt`/sitemap updates.
 - **The TQQQ split RCA documents the false dev crash, the false 60% intermediate
   fix, and the corrected IBKR/Yahoo replay results.** The investigation records
   the mixed dev-cache shape, production DB evidence that prior TQQQ 200-day
@@ -25,6 +45,10 @@
   differences, and the remaining separate dev-cache completeness follow-up.
 
 ### Tests
+- **Polymarket unit and backtesting coverage now exercises broker parsing,
+  quote/last-price behavior, prediction-contract cash accounting, limit/market
+  fills, tick-size validation, data-source defaults, and example strategy
+  imports.**
 - **External OAuth regressions now cover repeated parent-token-file
   replacement across multiple child brokers.** Schwab and Tradier tests prove
   external mode strips stale refresh tokens, skips provider refresh calls,

@@ -7,6 +7,7 @@ import queue
 import threading
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -114,6 +115,7 @@ class PolymarketCLOBStream(CustomStream):
         self.market_token_ids = {str(token_id) for token_id in (market_token_ids or []) if token_id}
         self.websocket_factory = websocket_factory
         self._websocket_threads: list[threading.Thread] = []
+        self._seen_user_event_keys: set[tuple[str, str, str]] = set()
 
     def subscribe_market_assets(self, token_ids: list[str] | tuple[str, ...] | set[str]) -> None:
         for token_id in token_ids or []:
@@ -125,7 +127,11 @@ class PolymarketCLOBStream(CustomStream):
 
     def handle_user_event(self, event: Any) -> None:
         payload = PolymarketData._model_to_dict(event)
-        parsed = self.broker._parse_broker_order(payload, self.broker._strategy_name or self.broker.name)
+        event_key = self._user_event_key(payload)
+        if event_key in self._seen_user_event_keys:
+            return
+        self._seen_user_event_keys.add(event_key)
+        parsed = self.broker._parse_broker_order(payload, self.broker._strategy_name or "")
         status = parsed.status
         if status == Order.OrderStatus.FILLED:
             self.dispatch(self.broker.FILLED_ORDER, order=parsed, price=parsed.avg_fill_price, quantity=parsed.quantity)
@@ -212,6 +218,8 @@ class PolymarketCLOBStream(CustomStream):
                     await asyncio.sleep(min(max(self.polling_interval, 0.5), 5.0))
 
     async def _user_websocket_loop(self) -> None:
+        while not self._stop_event.is_set() and not self._can_route_user_events():
+            await asyncio.sleep(0.1)
         auth = self.broker._websocket_auth_payload()
         if not auth:
             return
@@ -261,6 +269,34 @@ class PolymarketCLOBStream(CustomStream):
     @staticmethod
     def _user_subscription_payload(auth: dict) -> dict:
         return {"auth": auth, "type": "user"}
+
+    def _can_route_user_events(self) -> bool:
+        if self.broker._strategy_name:
+            return True
+        try:
+            return len(self.broker._subscribers) == 1
+        except Exception:
+            return False
+
+    @staticmethod
+    def _user_event_key(payload: dict) -> tuple[str, str, str]:
+        payload = PolymarketData._model_to_dict(payload) or {}
+        identifier = Polymarket._first_present(
+            payload,
+            "id",
+            "order_id",
+            "orderId",
+            "orderID",
+            "trade_id",
+            "tradeId",
+            "transactionHash",
+            "transaction_hash",
+        )
+        status = Polymarket._first_present(payload, "status", "state", "event_type", "eventType", "type")
+        if identifier is not None:
+            return str(identifier), str(status or ""), ""
+        updated = Polymarket._first_present(payload, "updated_at", "updatedAt", "timestamp", "created_at", "createdAt")
+        return str(identifier or ""), str(status or ""), str(updated or "")
 
 
 class Polymarket(Broker):
@@ -405,6 +441,20 @@ class Polymarket(Broker):
                 raise LumibotBrokerAPIError(f"Polymarket trading approval setup failed: {exc}") from exc
         self._trading_ready = True
 
+    def _ensure_sell_token_allowance(self, token_id: str) -> None:
+        """Sync conditional-token allowance before SELL orders."""
+        secure_client = self._initialize_clients()
+        try:
+            from py_clob_client_v2.clob_types import AssetType, BalanceAllowanceParams
+        except Exception as exc:
+            raise LumibotBrokerAPIError("py-clob-client-v2 is required to approve Polymarket sell tokens") from exc
+        try:
+            secure_client.update_balance_allowance(
+                BalanceAllowanceParams(asset_type=AssetType.CONDITIONAL, token_id=str(token_id))
+            )
+        except Exception as exc:
+            raise LumibotBrokerAPIError(f"Polymarket conditional-token sell approval failed: {exc}") from exc
+
     def _get_balances_at_broker(self, quote_asset: Asset, strategy):
         positions_value = self._get_positions_value()
         cash = self._get_collateral_cash()
@@ -437,10 +487,62 @@ class Polymarket(Broker):
         return PollingStream(self.polling_interval)
 
     def _register_stream_events(self):
-        if isinstance(self.stream, PollingStream):
-            @self.stream.add_action(self.stream.POLL_EVENT)
+        broker = self
+        stream = self.stream
+
+        if isinstance(stream, PollingStream):
+            @stream.add_action(stream.POLL_EVENT)
             def _poll_action():
                 self.do_polling()
+
+        @stream.add_action(broker.NEW_ORDER)
+        def _new_order_action(order):
+            try:
+                broker._process_trade_event(order, broker.NEW_ORDER)
+            except Exception:
+                broker.logger.exception("Polymarket NEW order stream event processing failed")
+
+        @stream.add_action(broker.FILLED_ORDER)
+        def _filled_order_action(order, price=None, quantity=None, filled_quantity=None):
+            try:
+                filled_quantity = filled_quantity if filled_quantity is not None else quantity
+                broker._process_trade_event(
+                    order,
+                    broker.FILLED_ORDER,
+                    price=price,
+                    filled_quantity=filled_quantity,
+                    multiplier=order.asset.multiplier if order.asset else 1,
+                )
+            except Exception:
+                broker.logger.exception("Polymarket FILLED order stream event processing failed")
+
+        @stream.add_action(broker.PARTIALLY_FILLED_ORDER)
+        def _partial_fill_action(order, price=None, quantity=None, filled_quantity=None):
+            try:
+                filled_quantity = filled_quantity if filled_quantity is not None else quantity
+                broker._process_trade_event(
+                    order,
+                    broker.PARTIALLY_FILLED_ORDER,
+                    price=price,
+                    filled_quantity=filled_quantity,
+                    multiplier=order.asset.multiplier if order.asset else 1,
+                )
+            except Exception:
+                broker.logger.exception("Polymarket PARTIAL order stream event processing failed")
+
+        @stream.add_action(broker.CANCELED_ORDER)
+        def _canceled_order_action(order):
+            try:
+                broker._process_trade_event(order, broker.CANCELED_ORDER)
+            except Exception:
+                broker.logger.exception("Polymarket CANCELED order stream event processing failed")
+
+        @stream.add_action(broker.ERROR_ORDER)
+        def _error_order_action(order, error=None):
+            try:
+                broker._process_trade_event(order, broker.ERROR_ORDER, error=error)
+            except Exception:
+                broker.logger.exception("Polymarket ERROR order stream event processing failed")
 
     def _run_stream(self):
         self.stream.run(self.name)
@@ -494,19 +596,8 @@ class Polymarket(Broker):
         asset = Asset(str(token_id or "UNKNOWN"), asset_type=Asset.AssetType.PREDICTION_CONTRACT, precision="0.000001")
         side = self._map_side(self._first_present(payload, "side", "direction"))
         price = self._optional_float(self._first_present(payload, "price", "limitPrice", "average_price", "avgPrice"))
-        avg_fill_price = self._average_fill_price(payload, fallback=price)
-        quantity = self._optional_float(
-            self._first_present(
-                payload,
-                "size",
-                "original_size",
-                "originalSize",
-                "shares",
-                "quantity",
-                "taking_amount",
-                "takingAmount",
-            )
-        )
+        avg_fill_price = self._average_fill_price(payload, side=side, fallback=price)
+        quantity = self._order_quantity(payload, side)
         if quantity is None:
             quantity = self._optional_float(self._first_present(payload, "matched_size", "matchedSize")) or 0.0
 
@@ -564,6 +655,7 @@ class Polymarket(Broker):
             shares = params.get("shares") or order.quantity
             if shares is None:
                 raise ValueError("Polymarket SELL market orders require shares or order.quantity")
+            self._ensure_sell_token_allowance(token_id)
             kwargs["shares"] = str(shares)
             min_price = params.get("min_price") or params.get("price")
             if min_price is not None:
@@ -578,12 +670,26 @@ class Polymarket(Broker):
         if order.limit_price is None:
             raise ValueError("Polymarket limit orders require limit_price")
         self._validate_tick_size(token_id, order.limit_price)
+        params = order.custom_params or {}
+        time_in_force = str(order.time_in_force or params.get("time_in_force") or "GTC").upper()
+        if time_in_force == "DAY":
+            time_in_force = "GTC"
+        if time_in_force not in {"GTC", "GTD"}:
+            raise ValueError("Polymarket limit orders support GTC or GTD")
+        expiration = self._resolve_gtd_expiration(order, params, time_in_force)
+        post_only = self._truthy(params.get("post_only"))
+        if post_only and time_in_force not in {"GTC", "GTD"}:
+            raise ValueError("Polymarket post-only orders only support GTC or GTD")
+        if str(order.side).upper() == "SELL":
+            self._ensure_sell_token_allowance(token_id)
         response = self._create_and_post_limit_order(
             token_id=token_id,
             side=str(order.side).upper(),
             price=str(order.limit_price),
             size=str(order.quantity),
-            time_in_force=str(order.time_in_force or "GTC").upper(),
+            time_in_force=time_in_force,
+            expiration=expiration,
+            post_only=post_only,
         )
         return self._order_from_submit_response(response, order)
 
@@ -604,6 +710,64 @@ class Polymarket(Broker):
         order.status = Order.OrderStatus.CANCELED
         return response
 
+    def cancel_orders(self, orders):
+        orders = orders or []
+        if len(orders) == 0:
+            return {"canceled": [], "not_canceled": {}}
+        secure_client = self._initialize_clients()
+        identifiers = [str(getattr(order, "identifier", order)) for order in orders if getattr(order, "identifier", order)]
+        if not identifiers:
+            raise ValueError("Cannot cancel Polymarket orders without identifiers")
+        cancel_orders = getattr(secure_client, "cancel_orders", None)
+        if cancel_orders is not None:
+            response = cancel_orders(identifiers)
+            for order in orders:
+                if hasattr(order, "status"):
+                    order.status = Order.OrderStatus.CANCELED
+            return response
+        results = []
+        for order in orders:
+            results.append(self.cancel_order(order))
+        return results
+
+    def cancel_all_orders(self):
+        secure_client = self._initialize_clients()
+        cancel_all = getattr(secure_client, "cancel_all", None)
+        if cancel_all is not None:
+            return cancel_all()
+        return self.cancel_orders([self._parse_broker_order(raw, self._strategy_name or self.name) for raw in self._pull_broker_all_orders()])
+
+    def cancel_market_orders(self, market: str | None = None, asset_id: str | Asset | None = None):
+        secure_client = self._initialize_clients()
+        asset_id = self._token_id(asset_id) if isinstance(asset_id, Asset) else asset_id
+        cancel_market_orders = getattr(secure_client, "cancel_market_orders", None)
+        if cancel_market_orders is not None:
+            try:
+                from py_clob_client_v2.clob_types import OrderMarketCancelParams
+            except Exception:
+                payload = {"market": market, "asset_id": asset_id}
+            else:
+                payload = OrderMarketCancelParams(market=market, asset_id=asset_id)
+            return cancel_market_orders(payload)
+
+        filtered = []
+        for raw in self._pull_broker_all_orders():
+            raw_market = self._first_present(raw, "market", "conditionId", "condition_id")
+            raw_asset = self._first_present(raw, "asset_id", "assetId", "token_id", "tokenId", "asset")
+            if market is not None and str(raw_market) != str(market):
+                continue
+            if asset_id is not None and str(raw_asset) != str(asset_id):
+                continue
+            filtered.append(self._parse_broker_order(raw, self._strategy_name or self.name))
+        return self.cancel_orders(filtered)
+
+    def submit_orders(self, orders, *args, **kwargs):
+        if not orders:
+            return []
+        if not self._truthy(kwargs.get("batch") or (orders[0].custom_params or {}).get("batch")):
+            return [self.submit_order(order) for order in orders]
+        return self._submit_batch_orders(orders)
+
     def _modify_order(self, order, limit_price=None, stop_price=None):
         raise NotImplementedError("Polymarket does not support native order modification yet; use cancel-replace.")
 
@@ -619,6 +783,34 @@ class Polymarket(Broker):
                     self._recent_order_cache[parsed.identifier] = raw
         except Exception:
             self.logger.debug("Polymarket order polling failed", exc_info=True)
+        try:
+            for raw in self.get_recent_trades(limit=50):
+                identifier = self._first_present(raw, "id", "trade_id", "tradeId", "transactionHash", "transaction_hash")
+                if identifier:
+                    self._recent_trade_cache[str(identifier)] = raw
+        except Exception:
+            self.logger.debug("Polymarket trade polling failed", exc_info=True)
+
+    def get_recent_trades(self, *, market: str | None = None, user: str | None = None, limit: int = 100, **params) -> list[dict]:
+        secure_client = self._maybe_secure_client()
+        if secure_client is not None:
+            try:
+                rows = self._call_if_exists(secure_client, "get_trades")
+            except TypeError:
+                rows = None
+            if rows is not None:
+                return self._listify(rows)
+
+        if user is None:
+            addresses = self._position_query_addresses()
+            user = addresses[0] if addresses else None
+        params = dict(params)
+        params.setdefault("limit", limit)
+        if user is not None:
+            params.setdefault("user", user)
+        if market is not None:
+            params.setdefault("market", market)
+        return self._listify(self._data_api_get("/trades", params=params))
 
     def _get_positions_payload(self) -> list[dict]:
         secure_client = self._maybe_secure_client()
@@ -744,14 +936,59 @@ class Polymarket(Broker):
             size=float(kwargs["size"]),
             side=kwargs["side"],
         )
+        if kwargs.get("expiration"):
+            order_kwargs["expiration"] = int(kwargs["expiration"])
         if self.credentials.builder_code:
             order_kwargs["builder_code"] = self.credentials.builder_code
         order_args = OrderArgs(**order_kwargs)
         options = self._create_order_options(kwargs["token_id"])
         try:
-            return secure_client.create_and_post_order(order_args, options=options, order_type=getattr(OrderType, tif))
+            return secure_client.create_and_post_order(
+                order_args,
+                options=options,
+                order_type=getattr(OrderType, tif),
+                post_only=bool(kwargs.get("post_only")),
+            )
         except Exception as exc:
             self._raise_order_error(exc)
+
+    def _submit_batch_orders(self, orders):
+        self._ensure_trading_ready()
+        secure_client = self._initialize_clients()
+        if len(orders) > 15:
+            raise ValueError("Polymarket batch order submission supports at most 15 orders")
+        try:
+            from py_clob_client_v2.clob_types import OrderArgs, OrderType, PostOrdersArgs
+        except Exception as exc:
+            raise LumibotBrokerAPIError("py-clob-client-v2 is required for Polymarket batch orders") from exc
+
+        post_args = []
+        for order in orders:
+            self._validate_order(order)
+            if order.order_type != Order.OrderType.LIMIT:
+                raise ValueError("Polymarket batch submission currently supports limit orders only")
+            token_id = self._token_id(order.asset)
+            self._validate_tick_size(token_id, order.limit_price)
+            params = order.custom_params or {}
+            tif = str(order.time_in_force or params.get("time_in_force") or "GTC").upper()
+            if tif == "DAY":
+                tif = "GTC"
+            expiration = self._resolve_gtd_expiration(order, params, tif)
+            order_kwargs = {
+                "token_id": token_id,
+                "price": float(order.limit_price),
+                "size": float(order.quantity),
+                "side": str(order.side).upper(),
+            }
+            if expiration:
+                order_kwargs["expiration"] = expiration
+            signed_order = secure_client.create_order(OrderArgs(**order_kwargs), options=self._create_order_options(token_id))
+            post_args.append(PostOrdersArgs(order=signed_order, order_type=getattr(OrderType, tif)))
+        response = secure_client.post_orders(
+            post_args,
+            post_only=any(self._truthy((order.custom_params or {}).get("post_only")) for order in orders),
+        )
+        return [self._order_from_submit_response(item, original) for item, original in zip(self._listify(response), orders)]
 
     def _create_order_options(self, token_id: str):
         try:
@@ -789,6 +1026,7 @@ class Polymarket(Broker):
         return method(*args, **kwargs)
 
     def _order_from_submit_response(self, response: Any, original_order: Order) -> Order:
+        payload = PolymarketData._model_to_dict(response) or {}
         parsed = self._parse_broker_order(response, original_order.strategy)
         if not parsed.identifier:
             parsed.identifier = original_order.identifier
@@ -804,6 +1042,17 @@ class Polymarket(Broker):
             parsed.order_type = original_order.order_type
         if parsed.limit_price is None:
             parsed.limit_price = original_order.limit_price
+        if parsed.side == Order.OrderSide.SELL:
+            corrected_quantity = self._order_quantity(payload, Order.OrderSide.SELL)
+            corrected_avg_fill_price = self._average_fill_price(
+                payload,
+                side=Order.OrderSide.SELL,
+                fallback=parsed.avg_fill_price,
+            )
+            if corrected_quantity is not None:
+                parsed.quantity = corrected_quantity
+            if corrected_avg_fill_price is not None:
+                parsed._avg_fill_price = corrected_avg_fill_price
         return parsed
 
     def _validate_order(self, order: Order):
@@ -833,6 +1082,36 @@ class Polymarket(Broker):
         price = self._decimal(price)
         if price % tick_size != 0:
             raise ValueError(f"Polymarket limit price {price} is not aligned to tick size {tick_size}")
+
+    def _resolve_gtd_expiration(self, order: Order, params: dict, time_in_force: str) -> int | None:
+        if time_in_force != "GTD":
+            return None
+        raw = (
+            params.get("expiration")
+            or params.get("expires_at")
+            or params.get("good_till_date")
+            or getattr(order, "good_till_date", None)
+        )
+        if raw is None:
+            raise ValueError("Polymarket GTD limit orders require good_till_date or custom_params['expiration']")
+        return self._to_epoch_seconds(raw)
+
+    @classmethod
+    def _to_epoch_seconds(cls, value: Any) -> int:
+        if isinstance(value, (int, float, Decimal)):
+            return int(value)
+        if isinstance(value, str):
+            stripped = value.strip()
+            if stripped.isdigit():
+                return int(stripped)
+            dt = datetime.fromisoformat(stripped.replace("Z", "+00:00"))
+        elif isinstance(value, datetime):
+            dt = value
+        else:
+            raise ValueError(f"Unsupported Polymarket expiration value: {value!r}")
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return int(dt.timestamp())
 
     def _configured_stream_token_ids(self) -> list[str]:
         values = []
@@ -924,6 +1203,17 @@ class Polymarket(Broker):
                 "but may need Polymarket's deposit-wallet flow, relayer/builder credentials, and regenerated CLOB L2 "
                 f"credentials before live order submission works. Raw Polymarket error: {message}"
             ) from exc
+        if "allowance is not enough" in lowered or "not enough balance / allowance" in lowered:
+            raise LumibotBrokerAPIError(
+                "Polymarket rejected the order because available balance or allowance was insufficient. BUY orders "
+                "need pUSD collateral approval; SELL orders need conditional-token approval for the exact outcome "
+                f"token. Raw Polymarket error: {message}"
+            ) from exc
+        if "invalid post-only order" in lowered or "order crosses book" in lowered:
+            raise LumibotBrokerAPIError(
+                "Polymarket rejected the post-only order because it would immediately cross the order book. Use a "
+                f"less marketable limit price or remove custom_params['post_only']. Raw Polymarket error: {message}"
+            ) from exc
         raise exc
 
     @staticmethod
@@ -978,7 +1268,7 @@ class Polymarket(Broker):
         return None
 
     @classmethod
-    def _average_fill_price(cls, payload: dict, *, fallback: float | None = None) -> float | None:
+    def _average_fill_price(cls, payload: dict, *, side: Any = None, fallback: float | None = None) -> float | None:
         explicit = cls._optional_float(cls._first_present(payload, "average_price", "avgPrice", "price"))
         if explicit is not None:
             return explicit
@@ -990,10 +1280,24 @@ class Polymarket(Broker):
             return fallback
         if isinstance(taking_amount, str) and not taking_amount.strip():
             return fallback
+        making_decimal = cls._decimal(making_amount)
         taking_decimal = cls._decimal(taking_amount)
-        if taking_decimal == 0:
+        if taking_decimal == 0 or making_decimal == 0:
             return fallback
-        return float(cls._decimal(making_amount) / taking_decimal)
+        if side == Order.OrderSide.SELL:
+            return float(taking_decimal / making_decimal)
+        return float(making_decimal / taking_decimal)
+
+    @classmethod
+    def _order_quantity(cls, payload: dict, side: Any) -> float | None:
+        quantity = cls._optional_float(
+            cls._first_present(payload, "size", "original_size", "originalSize", "shares", "quantity")
+        )
+        if quantity is not None:
+            return quantity
+        if side == Order.OrderSide.SELL:
+            return cls._optional_float(cls._first_present(payload, "making_amount", "makingAmount"))
+        return cls._optional_float(cls._first_present(payload, "taking_amount", "takingAmount"))
 
     @staticmethod
     def _listify(value: Any) -> list:

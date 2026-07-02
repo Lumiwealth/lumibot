@@ -71,13 +71,13 @@ BACKTESTING_DATA_SOURCE
 
 - Purpose: Select the backtesting datasource **even if your code passes a `datasource_class`**.
 - Values (case-insensitive):
-  - ``thetadata``, ``yahoo``, ``polygon``, ``alpaca``, ``ccxt``, ``databento``
+  - ``thetadata``, ``yahoo``, ``polygon``, ``alpaca``, ``ccxt``, ``databento``, ``polymarket``, ``polymarket_clob``
   - ``ibkr`` / ``interactivebrokersrest`` / ``interactive_brokers_rest`` (IBKR Client Portal REST)
   - ``router`` (multi-provider routing; defaults to Theta for stock/option/index and IBKR for futures/crypto)
   - JSON mapping (multi-provider routing by asset type), e.g. ``{"default":"thetadata","stock":"thetadata","option":"thetadata","index":"thetadata","future":"ibkr","crypto":"ibkr"}``
 
     - Provider values are case/whitespace/_/- insensitive.
-    - Supported values include ``thetadata``, ``ibkr``, ``polygon``, ``alpaca``, and ``ccxt``.
+    - Supported values include ``thetadata``, ``ibkr``, ``polygon``, ``alpaca``, ``ccxt``, and ``polymarket``.
     - For CCXT backtesting, you may use ``ccxt`` (auto-select exchange from existing env/credentials) **or** specify a supported CCXT backtesting exchange id directly. Documented backtesting examples are ``kraken``, ``binance``, ``kucoin``, ``bitmex``, ``bybit``, and ``okx``.
     - Routing keys are the canonical asset types (``future``, ``cont_future``, ``crypto``, etc.). Common plural aliases like ``futures``/``cont_futures`` are accepted.
 
@@ -464,8 +464,11 @@ POLYMARKET_TEST_TOKEN_ID / POLYMARKET_LIVE_TRADING_ENABLED / POLYMARKET_TEST_MAX
 - Purpose: Test-only gates for Polymarket live smoke tests.
 - Values: Explicit CLOB token id; ``POLYMARKET_LIVE_TRADING_ENABLED=true`` to allow live submit/cancel tests; decimal max notional.
 - Note: Live tests are skipped unless the required env vars are present. Default live-test max notional is capped at ``5``.
-- Smoke helper: ``scripts/polymarket_smoke.py`` loads local ``.env.local`` values, redacts output, writes proof artifacts
-  under gitignored ``logs/``, and only submits live orders when the live gate and caps are present.
+- Smoke helpers: ``scripts/polymarket_smoke.py`` and ``scripts/polymarket_lumibot_smoke.py`` load local ``.env.local``
+  values, redact output, and only submit live orders when the live gate and caps are present. The LumiBot smoke helper
+  supports explicit order-matrix cases such as ``fak-buy``, ``fok-buy``, ``fak-sell``, ``fok-sell``, ``gtc-buy``,
+  ``gtd-buy``, ``post-only-buy``, ``cancel-single``, ``cancel-multiple``, ``cancel-all``, ``cancel-market``, and
+  ``--websocket``.
 
 Polymarket CLOB implementation notes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -476,8 +479,11 @@ Polymarket CLOB implementation notes
   into dollars before returning account cash.
 - The current international CLOB adapter supports read-only account state, market discovery, token resolution, order
   books, quotes, last price, supported price history, public market WebSockets, and authenticated user WebSocket
-  subscription. Live submit/cancel is implemented, but existing Magic/proxy accounts may be rejected by Polymarket with
-  a deposit-wallet/API-key binding error until the account is migrated through the supported deposit-wallet flow.
+  subscription. Live submit/cancel is implemented and has been proven through the LumiBot broker with a funded deposit
+  wallet, pUSD approvals, and conditional-token sell approvals. Existing Magic/proxy accounts may still be rejected by
+  Polymarket with a deposit-wallet/API-key binding error until migrated through the supported deposit-wallet flow.
+- SELL orders need conditional-token approvals from the deposit wallet. The local setup helper can submit these approvals
+  with ``scripts/polymarket_deposit_wallet_setup.py --approve-conditional``.
 
 Tradier broker
 --------------
@@ -503,12 +509,10 @@ LUMIBOT_OAUTH_REFRESH_MODE
 
 - Purpose: Controls who calls the broker OAuth refresh endpoint for Schwab and
   Tradier token-file integrations.
-- Values:
-  - ``auto`` (default): LumiBot may refresh the provider OAuth token and write the
-    updated token payload back to the configured token file.
-  - ``external``: LumiBot does not call the provider OAuth refresh endpoint. A
-    trusted parent process must atomically replace the configured token file, and
-    LumiBot reloads it before broker requests and after auth failures.
+- Values: ``auto`` (default) lets LumiBot refresh the provider OAuth token and write the updated token payload back to
+  the configured token file. ``external`` means LumiBot does not call the provider OAuth refresh endpoint; a trusted
+  parent process must atomically replace the configured token file, and LumiBot reloads it before broker requests and
+  after auth failures.
 - Note: Use ``external`` only when another trusted process owns refresh-token
   handling. The token file still needs a valid access token for broker API calls.
 

@@ -21,6 +21,8 @@ class FakeDataClient:
             ]
         if url.endswith("/value"):
             return [{"value": "1.26"}]
+        if url.endswith("/trades"):
+            return [{"id": "trade-1", "asset": "111", "price": "0.42", "size": "2"}]
         raise AssertionError(f"Unexpected data API URL: {url}")
 
 
@@ -45,9 +47,17 @@ class FakeSecureClient:
         self.limit_orders = []
         self.limit_order_kwargs = []
         self.canceled = []
+        self.cancel_many_payloads = []
+        self.cancel_all_called = False
+        self.cancel_market_payloads = []
+        self.balance_allowance_updates = []
 
     def get_balance_allowance(self, *args, **kwargs):
         return {"balance": "12.34"}
+
+    def update_balance_allowance(self, payload):
+        self.balance_allowance_updates.append(payload)
+        return {"updated": True}
 
     def get_portfolio_values(self):
         return {"portfolio_value": "13.60", "positions_value": "1.26"}
@@ -119,6 +129,18 @@ class FakeSecureClient:
         self.canceled.append(payload)
         return {"canceled": True}
 
+    def cancel_orders(self, payload):
+        self.cancel_many_payloads.append(payload)
+        return {"canceled": payload, "not_canceled": {}}
+
+    def cancel_all(self):
+        self.cancel_all_called = True
+        return {"canceled": ["all"], "not_canceled": {}}
+
+    def cancel_market_orders(self, payload):
+        self.cancel_market_payloads.append(payload)
+        return {"canceled": ["market"], "not_canceled": {}}
+
 
 def _broker(monkeypatch):
     monkeypatch.setattr(Broker, "_start_orders_thread", lambda self: None)
@@ -168,6 +190,7 @@ def test_polymarket_signature_type_honors_explicit_deposit_wallet_config(monkeyp
 
 def test_polymarket_signature_type_infers_proxy_when_no_explicit_value(monkeypatch):
     monkeypatch.setattr(Broker, "_start_orders_thread", lambda self: None)
+    monkeypatch.delenv("POLYMARKET_SIGNATURE_TYPE", raising=False)
 
     class SignatureTypes:
         POLY_PROXY = 1
@@ -259,6 +282,59 @@ def test_polymarket_parse_matched_market_order_response(monkeypatch):
         broker.cleanup_streams()
 
 
+def test_polymarket_parse_matched_sell_order_response(monkeypatch):
+    broker = _broker(monkeypatch)
+    try:
+        order = broker._parse_broker_order(
+            {
+                "orderID": "0xsell",
+                "side": "SELL",
+                "status": "matched",
+                "makingAmount": "5",
+                "takingAmount": "0.14",
+            },
+            "unit",
+        )
+
+        assert order.identifier == "0xsell"
+        assert order.status == Order.OrderStatus.FILLED
+        assert order.quantity == 5.0
+        assert round(order.avg_fill_price, 6) == 0.028
+    finally:
+        broker.cleanup_streams()
+
+
+def test_polymarket_submit_response_uses_original_sell_side_for_matched_amounts(monkeypatch):
+    broker = _broker(monkeypatch)
+    asset = Asset("111", asset_type=Asset.AssetType.PREDICTION_CONTRACT)
+    original = Order(
+        "unit",
+        asset,
+        quantity=5,
+        side=Order.OrderSide.SELL,
+        order_type=Order.OrderType.MARKET,
+        custom_params={"order_type": "FOK", "price": "0.01"},
+    )
+    try:
+        parsed = broker._order_from_submit_response(
+            {
+                "orderID": "0xsell",
+                "status": "matched",
+                "makingAmount": "5",
+                "takingAmount": "0.14",
+            },
+            original,
+        )
+
+        assert parsed.identifier == "0xsell"
+        assert parsed.side == Order.OrderSide.SELL
+        assert parsed.status == Order.OrderStatus.FILLED
+        assert parsed.quantity == 5.0
+        assert round(parsed.avg_fill_price, 6) == 0.028
+    finally:
+        broker.cleanup_streams()
+
+
 def test_polymarket_parse_live_limit_order_response_with_empty_amounts(monkeypatch):
     broker = _broker(monkeypatch)
     try:
@@ -338,6 +414,40 @@ def test_polymarket_market_buy_uses_custom_amount_not_quantity(monkeypatch):
         broker.cleanup_streams()
 
 
+def test_polymarket_market_fok_buy_and_sell_semantics(monkeypatch):
+    broker = _broker(monkeypatch)
+    asset = Asset("111", asset_type=Asset.AssetType.PREDICTION_CONTRACT)
+    buy = Order(
+        "unit",
+        asset,
+        quantity=999,
+        side=Order.OrderSide.BUY,
+        order_type=Order.OrderType.MARKET,
+        custom_params={"amount": "1.00", "price": "0.45", "order_type": "FOK"},
+    )
+    sell = Order(
+        "unit",
+        asset,
+        quantity=3,
+        side=Order.OrderSide.SELL,
+        order_type=Order.OrderType.MARKET,
+        custom_params={"price": "0.40", "order_type": "FOK"},
+    )
+    try:
+        broker._submit_order(buy)
+        broker._submit_order(sell)
+
+        assert broker._secure_client.market_orders[0].amount == 1.0
+        assert broker._secure_client.market_orders[0].side == "BUY"
+        assert broker._secure_client.market_orders[1].amount == 3.0
+        assert broker._secure_client.market_orders[1].side == "SELL"
+        assert str(broker._secure_client.market_order_kwargs[0]["order_type"]).upper().endswith("FOK")
+        assert broker._secure_client.balance_allowance_updates[-1].asset_type == "CONDITIONAL"
+        assert broker._secure_client.balance_allowance_updates[-1].token_id == "111"
+    finally:
+        broker.cleanup_streams()
+
+
 def test_polymarket_market_buy_notional_cap(monkeypatch):
     broker = _broker(monkeypatch)
     asset = Asset("111", asset_type=Asset.AssetType.PREDICTION_CONTRACT)
@@ -386,6 +496,104 @@ def test_polymarket_limit_order_and_cancel(monkeypatch):
         broker.cleanup_streams()
 
 
+def test_polymarket_gtd_limit_order_passes_expiration(monkeypatch):
+    broker = _broker(monkeypatch)
+    asset = Asset("111", asset_type=Asset.AssetType.PREDICTION_CONTRACT)
+    order = Order(
+        "unit",
+        asset,
+        quantity=2,
+        side=Order.OrderSide.BUY,
+        limit_price=0.42,
+        order_type=Order.OrderType.LIMIT,
+        time_in_force="gtd",
+        custom_params={"expiration": 1_800_000_000},
+    )
+    try:
+        broker._submit_order(order)
+
+        assert broker._secure_client.limit_orders[0].expiration == 1_800_000_000
+        assert str(broker._secure_client.limit_order_kwargs[0]["order_type"]).upper().endswith("GTD")
+    finally:
+        broker.cleanup_streams()
+
+
+def test_polymarket_gtd_limit_order_requires_expiration(monkeypatch):
+    broker = _broker(monkeypatch)
+    asset = Asset("111", asset_type=Asset.AssetType.PREDICTION_CONTRACT)
+    order = Order(
+        "unit",
+        asset,
+        quantity=2,
+        side=Order.OrderSide.BUY,
+        limit_price=0.42,
+        order_type=Order.OrderType.LIMIT,
+        time_in_force="gtd",
+    )
+    try:
+        try:
+            broker._submit_order(order)
+        except ValueError as exc:
+            assert "GTD" in str(exc)
+        else:
+            raise AssertionError("Expected GTD without expiration to fail")
+    finally:
+        broker.cleanup_streams()
+
+
+def test_polymarket_limit_order_supports_post_only(monkeypatch):
+    broker = _broker(monkeypatch)
+    asset = Asset("111", asset_type=Asset.AssetType.PREDICTION_CONTRACT)
+    order = Order(
+        "unit",
+        asset,
+        quantity=2,
+        side=Order.OrderSide.BUY,
+        limit_price=0.42,
+        order_type=Order.OrderType.LIMIT,
+        time_in_force="gtc",
+        custom_params={"post_only": True},
+    )
+    try:
+        broker._submit_order(order)
+
+        assert broker._secure_client.limit_order_kwargs[0]["post_only"] is True
+    finally:
+        broker.cleanup_streams()
+
+
+def test_polymarket_cancel_helpers_use_native_clob_methods(monkeypatch):
+    broker = _broker(monkeypatch)
+    order1 = Order("unit", Asset("111", asset_type=Asset.AssetType.PREDICTION_CONTRACT), 1, Order.OrderSide.BUY)
+    order1.identifier = "order-1"
+    order2 = Order("unit", Asset("222", asset_type=Asset.AssetType.PREDICTION_CONTRACT), 1, Order.OrderSide.SELL)
+    order2.identifier = "order-2"
+    try:
+        broker.cancel_orders([order1, order2])
+        broker.cancel_all_orders()
+        broker.cancel_market_orders(market="0x" + "1" * 64, asset_id="111")
+
+        assert broker._secure_client.cancel_many_payloads == [["order-1", "order-2"]]
+        assert broker._secure_client.cancel_all_called is True
+        assert broker._secure_client.cancel_market_payloads
+        assert order1.status == Order.OrderStatus.CANCELED
+        assert order2.status == Order.OrderStatus.CANCELED
+    finally:
+        broker.cleanup_streams()
+
+
+def test_polymarket_recent_trades_from_data_api(monkeypatch):
+    broker = _broker(monkeypatch)
+    try:
+        broker._secure_client.get_trades = lambda: None
+
+        trades = broker.get_recent_trades(limit=5)
+
+        assert trades[0]["id"] == "trade-1"
+    finally:
+        broker.cleanup_streams()
+
+
 def test_polymarket_wraps_known_deposit_wallet_order_blocker(monkeypatch):
     broker = _broker(monkeypatch)
     asset = Asset("111", asset_type=Asset.AssetType.PREDICTION_CONTRACT)
@@ -412,6 +620,35 @@ def test_polymarket_wraps_known_deposit_wallet_order_blocker(monkeypatch):
         broker.cleanup_streams()
 
 
+def test_polymarket_wraps_post_only_rejection(monkeypatch):
+    broker = _broker(monkeypatch)
+    asset = Asset("111", asset_type=Asset.AssetType.PREDICTION_CONTRACT)
+    order = Order(
+        "unit",
+        asset,
+        quantity=5,
+        side=Order.OrderSide.BUY,
+        limit_price=0.80,
+        order_type=Order.OrderType.LIMIT,
+        time_in_force="gtc",
+        custom_params={"post_only": True},
+    )
+    broker._secure_client.create_and_post_order = lambda *_, **__: (_ for _ in ()).throw(
+        RuntimeError("invalid post-only order: order crosses book")
+    )
+    try:
+        try:
+            broker._submit_order(order)
+        except Exception as exc:
+            assert "post-only" in str(exc)
+            assert "cross" in str(exc)
+            assert "Raw Polymarket error" in str(exc)
+        else:
+            raise AssertionError("Expected post-only rejection to be wrapped")
+    finally:
+        broker.cleanup_streams()
+
+
 def test_polymarket_stream_user_event_dispatch(monkeypatch):
     broker = _broker(monkeypatch)
     stream = PolymarketCLOBStream(broker, use_websocket=False)
@@ -422,6 +659,54 @@ def test_polymarket_stream_user_event_dispatch(monkeypatch):
 
     stream._process_queue_event(broker.FILLED_ORDER, {"order": broker._parse_broker_order({"id": "filled-1"}, "unit")})
     assert seen == ["filled-1"]
+
+
+def test_polymarket_stream_events_process_through_broker_lifecycle(monkeypatch):
+    broker = _broker(monkeypatch)
+    stream = PolymarketCLOBStream(broker, use_websocket=False)
+    broker.stream = stream
+    seen = []
+
+    def fake_process_trade_event(order, event, **kwargs):
+        seen.append((order.identifier, event, kwargs.get("price"), kwargs.get("filled_quantity")))
+
+    broker._process_trade_event = fake_process_trade_event
+    broker._register_stream_events()
+
+    event = {
+        "id": "filled-1",
+        "asset_id": "111",
+        "side": "BUY",
+        "status": "matched",
+        "price": "0.42",
+        "size": "2",
+        "updated_at": "2026-07-01T00:00:00Z",
+    }
+    stream.handle_user_event(event)
+    duplicate = dict(event)
+    duplicate["updated_at"] = "2026-07-01T00:00:01Z"
+    stream.handle_user_event(duplicate)
+
+    while not stream._queue.empty():
+        queued_event, payload = stream._queue.get_nowait()
+        stream._process_queue_event(queued_event, payload)
+        stream._queue.task_done()
+
+    assert seen == [("filled-1", broker.FILLED_ORDER, 0.42, 2.0)]
+
+
+def test_polymarket_user_stream_waits_until_events_can_route(monkeypatch):
+    broker = _broker(monkeypatch)
+    stream = PolymarketCLOBStream(broker, use_websocket=False)
+    try:
+        broker._subscribers = []
+        broker._strategy_name = ""
+        assert stream._can_route_user_events() is False
+
+        broker.set_strategy_name("unit")
+        assert stream._can_route_user_events() is True
+    finally:
+        broker.cleanup_streams()
 
 
 def test_polymarket_stream_subscription_payloads():

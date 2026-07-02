@@ -24,6 +24,10 @@ ROOT = Path(__file__).resolve().parents[1]
 ENV_LOCAL = ROOT / ".env.local"
 RELAYER_URL = "https://relayer-v2.polymarket.com"
 PUSD_ADDRESS = "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB"
+CTF_ADDRESS = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
+CTF_EXCHANGE_ADDRESS = "0xE111180000d2663C0091e4f400237545B87B996B"
+NEG_RISK_CTF_EXCHANGE_ADDRESS = "0xe2222d279d744050d28e00520010520000310F59"
+NEG_RISK_ADAPTER_ADDRESS = "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296"
 
 
 def main() -> int:
@@ -49,6 +53,9 @@ def main() -> int:
     if args.approve:
         result["actions"].append(approve_deposit_wallet(relayer, deposit_wallet))
 
+    if args.approve_conditional:
+        result["actions"].append(approve_conditional_tokens(relayer, deposit_wallet))
+
     if args.activate:
         write_env(
             {
@@ -71,12 +78,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--deploy", action="store_true", help="Deploy the deterministic deposit wallet if needed.")
     parser.add_argument("--fund-amount", help="Transfer this many pUSD from the existing proxy wallet to deposit wallet.")
     parser.add_argument("--approve", action="store_true", help="Approve CLOB pUSD spenders from the deposit wallet.")
+    parser.add_argument("--approve-conditional", action="store_true", help="Approve CTF outcome-token spenders for sells.")
     parser.add_argument("--activate", action="store_true", help="Switch .env.local trading funder to the deposit wallet.")
     parser.add_argument("--all", action="store_true", help="Run deploy, fund, approve, and activate.")
     args = parser.parse_args()
     if args.all:
         args.deploy = True
         args.approve = True
+        args.approve_conditional = True
         args.activate = True
         args.fund_amount = args.fund_amount or os.environ.get("POLYMARKET_DEPOSIT_WALLET_FUND_AMOUNT", "5")
     return args
@@ -208,6 +217,41 @@ def approve_deposit_wallet(relayer, deposit_wallet: str) -> dict[str, Any]:
     return result
 
 
+def approve_conditional_tokens(relayer, deposit_wallet: str) -> dict[str, Any]:
+    from py_builder_relayer_client.models import DepositWalletCall, TransactionType
+
+    spenders = [
+        os.environ.get("POLYMARKET_CTF_EXCHANGE_ADDRESS", CTF_EXCHANGE_ADDRESS),
+        os.environ.get("POLYMARKET_NEG_RISK_CTF_EXCHANGE_ADDRESS", NEG_RISK_CTF_EXCHANGE_ADDRESS),
+        os.environ.get("POLYMARKET_NEG_RISK_ADAPTER_ADDRESS", NEG_RISK_ADAPTER_ADDRESS),
+    ]
+    nonce_payload = relayer.get_nonce(required_env("POLYMARKET_OWNER_ADDRESS"), TransactionType.WALLET.value)
+    calls = [
+        DepositWalletCall(
+            target=os.environ.get("POLYMARKET_CTF_ADDRESS", CTF_ADDRESS),
+            value="0",
+            data=erc1155_set_approval_for_all_calldata(spender, True),
+        )
+        for spender in spenders
+        if spender
+    ]
+    response = relayer.execute_deposit_wallet_batch(
+        calls=calls,
+        wallet_address=deposit_wallet,
+        nonce=str(nonce_payload["nonce"]),
+        deadline=str(int(time.time()) + 900),
+    )
+    return poll_transaction(
+        relayer,
+        response.transaction_id,
+        {
+            "approve_conditional": "submitted",
+            "ctf_contract": redact_address(os.environ.get("POLYMARKET_CTF_ADDRESS", CTF_ADDRESS)),
+            "approval_count": len(calls),
+        },
+    )
+
+
 def verify_deposit_wallet(deposit_wallet: str) -> dict[str, Any]:
     from py_clob_client_v2.clob_types import AssetType, BalanceAllowanceParams
     from py_clob_client_v2.order_utils.model.signature_type_v2 import SignatureTypeV2
@@ -274,6 +318,14 @@ def erc20_transfer_calldata(to_address: str, amount_units: int) -> str:
 
 def erc20_approve_calldata(spender: str, amount: int = 2**256 - 1) -> str:
     return "0x095ea7b3" + spender.lower().removeprefix("0x").rjust(64, "0") + hex(amount)[2:].rjust(64, "0")
+
+
+def erc1155_set_approval_for_all_calldata(operator: str, approved: bool = True) -> str:
+    return (
+        "0xa22cb465"
+        + operator.lower().removeprefix("0x").rjust(64, "0")
+        + ("1" if approved else "0").rjust(64, "0")
+    )
 
 
 def write_env(updates: dict[str, str]) -> None:

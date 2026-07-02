@@ -20,6 +20,7 @@ class PolymarketData(DataSource):
     MIN_TIMESTEP = "minute"
     CLOB_URL = "https://clob.polymarket.com"
     GAMMA_URL = "https://gamma-api.polymarket.com"
+    DATA_API_URL = "https://data-api.polymarket.com"
     MARKET_WS_URL = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
     USER_WS_URL = "wss://ws-subscriptions-clob.polymarket.com/ws/user"
 
@@ -43,6 +44,7 @@ class PolymarketData(DataSource):
         client: Any | None = None,
         clob_url: str | None = None,
         gamma_url: str | None = None,
+        data_api_url: str | None = None,
         timeout: float = 10.0,
         **kwargs,
     ):
@@ -51,6 +53,7 @@ class PolymarketData(DataSource):
         self.config = config or {}
         self.clob_url = (clob_url or self.config.get("CLOB_URL") or self.CLOB_URL).rstrip("/")
         self.gamma_url = (gamma_url or self.config.get("GAMMA_URL") or self.GAMMA_URL).rstrip("/")
+        self.data_api_url = (data_api_url or self.config.get("DATA_API_URL") or self.DATA_API_URL).rstrip("/")
         self.timeout = timeout
         self._client = client or httpx.Client(timeout=timeout)
         self._owns_client = client is None
@@ -83,11 +86,18 @@ class PolymarketData(DataSource):
         if interval is None:
             raise ValueError(f"Unsupported Polymarket history timestep: {timestep!r}")
 
+        start_arg = self._first_present(kwargs, "start", "start_dt", "start_date", "datetime_start")
+        end_arg = self._first_present(kwargs, "end", "end_dt", "end_date", "datetime_end")
+
         if interval == "1m":
-            end_dt = datetime.now(timezone.utc)
+            end_dt = self._parse_timestamp(end_arg) if end_arg is not None else datetime.now(timezone.utc)
             if timeshift is not None:
                 end_dt = end_dt - timeshift
-            start_dt = end_dt - timedelta(minutes=max(int(length or 1), 1))
+            start_dt = (
+                self._parse_timestamp(start_arg)
+                if start_arg is not None
+                else end_dt - timedelta(minutes=max(int(length or 1), 1))
+            )
             params = {
                 "market": token_id,
                 "fidelity": 1,
@@ -96,6 +106,10 @@ class PolymarketData(DataSource):
             }
         else:
             params = {"market": token_id, "interval": interval}
+            if start_arg is not None:
+                params["startTs"] = int(self._parse_timestamp(start_arg).timestamp())
+            if end_arg is not None:
+                params["endTs"] = int(self._parse_timestamp(end_arg).timestamp())
         payload = self._request_json(self.clob_url, "/prices-history", params=params)
         rows = payload.get("history") if isinstance(payload, dict) else payload
         rows = rows or []
@@ -175,6 +189,210 @@ class PolymarketData(DataSource):
         self._quote_cache[token_id] = quote_obj
         return quote_obj
 
+    def search_markets(self, query: str | None = None, limit: int = 20, **kwargs) -> list[dict]:
+        """Search Polymarket Gamma markets/events.
+
+        With ``query`` this uses Gamma public-search. Without ``query`` it falls
+        back to the markets list endpoint using any supplied filters.
+        """
+        if query:
+            params = dict(kwargs)
+            params.setdefault("q", query)
+            params.setdefault("limit_per_type", limit)
+            payload = self._request_json(self.gamma_url, "/public-search", params=self._clean_params(params))
+            markets = []
+            if isinstance(payload, dict):
+                markets.extend(self._listify(payload.get("markets")))
+                for event in self._listify(payload.get("events")):
+                    for market in self._listify(event.get("markets")):
+                        normalized = self._normalize_market(market)
+                        normalized.setdefault("eventSlug", event.get("slug"))
+                        normalized.setdefault("eventTitle", event.get("title"))
+                        markets.append(normalized)
+            return [self._normalize_market(item) for item in markets[:limit]]
+
+        params = dict(kwargs)
+        params.setdefault("limit", limit)
+        payload = self._request_json(self.gamma_url, "/markets", params=self._clean_params(params))
+        return [self._normalize_market(item) for item in self._listify(payload)[:limit]]
+
+    def get_event(self, event_id: str | int | None = None, slug: str | None = None, **kwargs) -> dict:
+        if slug is None:
+            slug = kwargs.get("event_slug")
+        if slug:
+            return self._model_to_dict(self._request_json(self.gamma_url, f"/events/slug/{slug}")) or {}
+        if event_id is None:
+            event_id = kwargs.get("id")
+        if event_id is None:
+            raise ValueError("event_id or slug is required")
+        return self._model_to_dict(self._request_json(self.gamma_url, f"/events/{event_id}")) or {}
+
+    def get_market_metadata(self, market=None, **kwargs) -> dict:
+        if isinstance(market, dict):
+            return self._normalize_market(market)
+        if isinstance(market, Asset):
+            attached = getattr(market, "polymarket_market", None)
+            if attached:
+                return self._normalize_market(attached)
+            kwargs.setdefault("token_id", market.symbol)
+        if isinstance(market, str) and not kwargs:
+            kwargs["slug"] = market
+
+        slug = kwargs.get("slug")
+        url = kwargs.get("url")
+        market_id = kwargs.get("market_id") or kwargs.get("id")
+        condition_id = kwargs.get("condition_id") or kwargs.get("conditionId")
+        token_id = kwargs.get("token_id") or kwargs.get("asset_id") or kwargs.get("assetId")
+
+        if token_id and not any([slug, url, market_id, condition_id]):
+            payload = self._request_json(self.gamma_url, f"/markets/token/{token_id}")
+            return self._normalize_market(payload)
+        return self.resolve_market(url=url, slug=slug, market_id=market_id, condition_id=condition_id)
+
+    def get_market_rules(self, market=None, **kwargs) -> dict:
+        metadata = self.get_market_metadata(market, **kwargs)
+        tick_size = self._first_present(
+            metadata,
+            "orderPriceMinTickSize",
+            "minimum_tick_size",
+            "minimumTickSize",
+            "tick_size",
+            "tickSize",
+        )
+        min_order_size = self._first_present(metadata, "orderMinSize", "min_order_size", "minOrderSize")
+        return {
+            "question": metadata.get("question"),
+            "description": metadata.get("description"),
+            "resolution_source": metadata.get("resolutionSource") or metadata.get("resolution_source"),
+            "end_date": self._first_present(metadata, "endDateIso", "endDate", "end_date"),
+            "uma_end_date": self._first_present(metadata, "umaEndDateIso", "umaEndDate", "uma_end_date"),
+            "outcomes": metadata.get("outcomes") or [],
+            "clob_token_ids": metadata.get("clobTokenIds") or metadata.get("clob_token_ids") or [],
+            "tick_size": tick_size,
+            "min_order_size": min_order_size,
+            "neg_risk": self._first_present(metadata, "negRisk", "neg_risk"),
+            "enable_order_book": self._first_present(metadata, "enableOrderBook", "enable_order_book"),
+            "accepting_orders": self._first_present(metadata, "acceptingOrders", "accepting_orders"),
+            "active": metadata.get("active"),
+            "closed": metadata.get("closed"),
+            "archived": metadata.get("archived"),
+            "category": metadata.get("category"),
+            "tags": metadata.get("tags") or [],
+            "raw": metadata,
+        }
+
+    def get_resolution_status(self, market=None, **kwargs) -> dict:
+        metadata = self.get_market_metadata(market, **kwargs)
+        status = self._first_present(metadata, "umaResolutionStatus", "resolutionStatus", "resolvedStatus")
+        closed = self._optional_bool(metadata.get("closed"))
+        resolved = bool(closed or (status and str(status).lower() not in {"", "pending", "unresolved", "not_started"}))
+        outcomes = metadata.get("outcomes") or []
+        tokens = metadata.get("tokens") or []
+        winner = self._first_present(metadata, "winner", "winningOutcome", "winning_outcome")
+        if winner is None:
+            winner = self._winning_outcome_from_tokens(tokens, outcomes)
+        return {
+            "status": status or ("resolved" if resolved else "open"),
+            "resolved": resolved,
+            "winner": winner,
+            "closed": closed,
+            "condition_id": self._first_present(metadata, "conditionId", "condition_id"),
+            "raw": metadata,
+        }
+
+    def get_spread(self, asset, quote=None, exchange=None):
+        token_id = self._token_id(asset)
+        try:
+            payload = self._request_json(self.clob_url, "/spread", params={"token_id": token_id})
+            value = self._first_present(payload, "spread")
+            if value is not None:
+                return float(self._decimal(value))
+        except Exception:
+            pass
+        return super().get_spread(asset, quote=quote, exchange=exchange)
+
+    def get_midpoint(self, asset, quote=None, exchange=None):
+        token_id = self._token_id(asset)
+        try:
+            payload = self._request_json(self.clob_url, "/midpoint", params={"token_id": token_id})
+            value = self._first_present(payload, "mid", "midpoint", "midpoint_price", "midpointPrice")
+            if value is not None:
+                return float(self._decimal(value))
+        except Exception:
+            pass
+        return super().get_midpoint(asset, quote=quote, exchange=exchange)
+
+    def get_recent_trades(self, market=None, limit: int = 100, **kwargs) -> list[dict]:
+        params = dict(kwargs)
+        params.setdefault("limit", limit)
+        if market is not None:
+            condition_id = self._condition_id(market)
+            if condition_id:
+                params.setdefault("market", condition_id)
+        payload = self._request_json(self.data_api_url, "/trades", params=self._clean_params(params))
+        return self._listify(payload)
+
+    def get_open_interest(self, market=None, **kwargs):
+        params = dict(kwargs)
+        if market is not None:
+            condition_id = self._condition_id(market)
+            if condition_id:
+                params.setdefault("market", condition_id)
+        payload = self._request_json(self.data_api_url, "/oi", params=self._clean_params(params))
+        if market is not None:
+            rows = self._listify(payload)
+            if not rows:
+                return None
+            value = self._first_present(rows[0], "value", "open_interest", "openInterest")
+            return float(self._decimal(value)) if value is not None else None
+        return payload
+
+    def get_holders(self, market=None, limit: int = 20, **kwargs) -> list[dict]:
+        params = dict(kwargs)
+        params.setdefault("limit", limit)
+        if market is not None:
+            condition_id = self._condition_id(market)
+            token_id = None if condition_id else self._safe_token_id(market)
+            if condition_id:
+                params.setdefault("market", condition_id)
+            elif token_id:
+                params.setdefault("token", token_id)
+        payload = self._request_json(self.data_api_url, "/holders", params=self._clean_params(params))
+        return self._listify(payload)
+
+    def get_market_close(self, market=None, **kwargs) -> datetime | None:
+        rules = self.get_market_rules(market, **kwargs)
+        value = rules.get("end_date") or rules.get("uma_end_date")
+        return self._parse_timestamp(value) if value else None
+
+    def get_resolution_source(self, market=None, **kwargs) -> str | None:
+        rules = self.get_market_rules(market, **kwargs)
+        return rules.get("resolution_source")
+
+    def get_min_order_size(self, market=None, **kwargs) -> Decimal | None:
+        rules = self.get_market_rules(market, **kwargs)
+        value = rules.get("min_order_size")
+        return self._decimal(value) if value is not None else None
+
+    def get_settlement_price(self, asset: Asset, market=None, **kwargs) -> float | None:
+        status = self.get_resolution_status(market or asset, **kwargs)
+        if not status.get("resolved"):
+            return None
+        winner = status.get("winner")
+        outcome = getattr(asset, "polymarket_outcome", None)
+        if outcome is not None and winner is not None:
+            return 1.0 if str(outcome).lower() == str(winner).lower() else 0.0
+        metadata = status.get("raw") or {}
+        token_ids = metadata.get("clobTokenIds") or metadata.get("clob_token_ids") or []
+        outcomes = metadata.get("outcomes") or []
+        try:
+            index = [str(token) for token in token_ids].index(str(asset.symbol))
+        except ValueError:
+            return None
+        if winner is None:
+            return None
+        return 1.0 if index < len(outcomes) and str(outcomes[index]).lower() == str(winner).lower() else 0.0
+
     def resolve_market(
         self,
         *,
@@ -194,11 +412,15 @@ class PolymarketData(DataSource):
                 )
             return self._market_cache[cache_key]
 
-        params = {}
         if slug:
-            params["slug"] = slug
             cache_key = f"slug:{slug}"
+            if cache_key not in self._market_cache:
+                self._market_cache[cache_key] = self._normalize_market(
+                    self._request_json(self.gamma_url, f"/markets/slug/{slug}")
+                )
+            return self._market_cache[cache_key]
         elif condition_id:
+            params = {}
             params["condition_ids"] = condition_id
             cache_key = f"condition:{condition_id}"
         else:
@@ -340,7 +562,7 @@ class PolymarketData(DataSource):
 
     def _request_json(self, base_url: str, path: str, params: dict | None = None) -> Any:
         url = f"{base_url.rstrip('/')}/{path.lstrip('/')}"
-        response = self._client.get(url, params=params or {})
+        response = self._client.get(url, params=self._clean_params(params or {}))
         if isinstance(response, (dict, list)):
             return response
         if hasattr(response, "raise_for_status"):
@@ -358,13 +580,29 @@ class PolymarketData(DataSource):
     @classmethod
     def _normalize_market(cls, payload: Any) -> dict:
         market = cls._model_to_dict(payload)
-        for key in ("outcomes", "clobTokenIds", "clob_token_ids"):
+        for key in ("outcomes", "outcomePrices", "clobTokenIds", "clob_token_ids", "shortOutcomes"):
             if isinstance(market.get(key), str):
                 try:
                     market[key] = json.loads(market[key])
                 except json.JSONDecodeError:
                     pass
         return market
+
+    @classmethod
+    def _listify(cls, value: Any) -> list:
+        value = cls._model_to_dict(value)
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return value
+        if isinstance(value, tuple):
+            return list(value)
+        if isinstance(value, dict):
+            for key in ("items", "data", "results", "markets", "events", "holders", "trades"):
+                if key in value and isinstance(value[key], (list, tuple)):
+                    return list(value[key])
+            return [value]
+        return [value]
 
     @staticmethod
     def _model_to_dict(value: Any) -> Any:
@@ -388,6 +626,65 @@ class PolymarketData(DataSource):
             if key in mapping and mapping[key] is not None:
                 return mapping[key]
         return None
+
+    @classmethod
+    def _condition_id(cls, market: Any) -> str | None:
+        if isinstance(market, Asset):
+            attached = getattr(market, "polymarket_market", None)
+            return cls._condition_id(attached) if attached else None
+        if isinstance(market, dict):
+            value = cls._first_present(market, "conditionId", "condition_id", "market")
+            return str(value) if value else None
+        text = str(market) if market is not None else ""
+        if text.startswith("0x") and len(text) >= 10:
+            return text
+        return None
+
+    @classmethod
+    def _safe_token_id(cls, value: Any) -> str | None:
+        try:
+            return cls._token_id(value)
+        except Exception:
+            return None
+
+    @staticmethod
+    def _clean_params(params: dict | None) -> dict:
+        clean = {}
+        for key, value in (params or {}).items():
+            if value is None:
+                continue
+            if isinstance(value, (list, tuple, set)):
+                clean[key] = ",".join(str(item) for item in value)
+            else:
+                clean[key] = value
+        return clean
+
+    @classmethod
+    def _winning_outcome_from_tokens(cls, tokens: list, outcomes: list) -> str | None:
+        for token in tokens or []:
+            item = cls._model_to_dict(token)
+            if not isinstance(item, dict):
+                continue
+            winner = cls._first_present(item, "winner", "winning", "isWinner")
+            if cls._optional_bool(winner):
+                outcome = cls._first_present(item, "outcome", "name")
+                if outcome is not None:
+                    return str(outcome)
+                outcome_index = cls._first_present(item, "outcomeIndex", "outcome_index")
+                try:
+                    index = int(outcome_index)
+                    return str(outcomes[index]) if 0 <= index < len(outcomes) else None
+                except Exception:
+                    return None
+        return None
+
+    @staticmethod
+    def _optional_bool(value: Any) -> bool | None:
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return value
+        return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
 
     @staticmethod
     def _decimal(value: Any) -> Decimal:

@@ -7,8 +7,8 @@ from pathlib import Path
 
 LLMS_TXT_CONTENT = '''# Lumibot
 
-> Python trading and backtesting framework for stocks, options, crypto, and futures.
-> Supports Alpaca, Interactive Brokers, Tradier, Schwab, ThetaData, Yahoo Finance, and Polygon.
+> Python trading and backtesting framework for stocks, options, crypto, futures, forex, and prediction markets.
+> Supports Alpaca, Interactive Brokers, Tradier, Schwab, ThetaData, Yahoo Finance, Polygon, and Polymarket.
 > Includes built-in AI trading agents, agentic backtesting, DuckDB query tools, replay caching, and external MCP tool support.
 
 ## Critical Rules for Code Generation
@@ -112,6 +112,9 @@ asset = Asset(symbol="BTC", asset_type=Asset.AssetType.CRYPTO)
 
 # Future
 asset = Asset(symbol="ES", asset_type=Asset.AssetType.FUTURE, expiration=datetime.date(2024, 3, 15))
+
+# Polymarket prediction contract
+asset = Asset(symbol="1234567890", asset_type=Asset.AssetType.PREDICTION_CONTRACT)
 ```
 
 ### Basic Strategy Template
@@ -147,8 +150,9 @@ class MyStrategy(Strategy):
 - `YahooDataBacktesting` - Free, good for stocks
 - `PolygonDataBacktesting` - Crypto and stocks (requires API key)
 - `ThetaDataBacktesting` - Options and stocks (requires subscription)
+- `PolymarketBacktesting` - Prediction-contract history from Polymarket price-history data
 
-Set via environment variable: `BACKTESTING_DATA_SOURCE=yahoo|polygon|thetadata`
+Set via environment variable: `BACKTESTING_DATA_SOURCE=yahoo|polygon|thetadata|polymarket`
 '''
 
 

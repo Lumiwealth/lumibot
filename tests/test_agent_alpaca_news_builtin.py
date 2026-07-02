@@ -54,15 +54,19 @@ class _Response:
         }
 
 
-def _install_fake_alpaca(monkeypatch):
+def _install_fake_alpaca(monkeypatch, *, set_news_env=True):
     calls = []
 
     def fake_get(url, *, headers, params, timeout):
         calls.append({"url": url, "headers": headers, "params": params, "timeout": timeout})
         return _Response()
 
-    monkeypatch.setenv("ALPACA_NEWS_API_KEY", "key")
-    monkeypatch.setenv("ALPACA_NEWS_API_SECRET", "secret")
+    if set_news_env:
+        monkeypatch.setenv("ALPACA_NEWS_API_KEY", "key")
+        monkeypatch.setenv("ALPACA_NEWS_API_SECRET", "secret")
+    else:
+        monkeypatch.delenv("ALPACA_NEWS_API_KEY", raising=False)
+        monkeypatch.delenv("ALPACA_NEWS_API_SECRET", raising=False)
     monkeypatch.setattr("lumibot.components.agents.builtins.requests.get", fake_get)
     return calls
 
@@ -105,8 +109,22 @@ def test_builtin_alpaca_news_does_not_use_standard_alpaca_env(monkeypatch):
     assert "alpaca_news is not configured" in strategy.log_messages[0][0]
 
 
-def test_builtin_alpaca_news_prefers_active_alpaca_broker_oauth(monkeypatch):
+def test_builtin_alpaca_news_prefers_news_env_over_active_alpaca_broker_oauth(monkeypatch):
     calls = _install_fake_alpaca(monkeypatch)
+
+    tool = BuiltinTools.news.alpaca_news().binder(
+        _StrategyWithBroker(_Broker(oauth_token="oauth-token", api_key="broker-key", api_secret="broker-secret")),
+        None,
+    )
+    result = tool.function(symbols="AAPL")
+
+    assert calls[0]["headers"]["APCA-API-KEY-ID"] == "key"
+    assert calls[0]["headers"]["APCA-API-SECRET-KEY"] == "secret"
+    assert result["credential_source"] == "byok_alpaca_news_env"
+
+
+def test_builtin_alpaca_news_falls_back_to_active_alpaca_broker_oauth(monkeypatch):
+    calls = _install_fake_alpaca(monkeypatch, set_news_env=False)
 
     tool = BuiltinTools.news.alpaca_news().binder(
         _StrategyWithBroker(_Broker(oauth_token="oauth-token", api_key="broker-key", api_secret="broker-secret")),
@@ -119,7 +137,7 @@ def test_builtin_alpaca_news_prefers_active_alpaca_broker_oauth(monkeypatch):
 
 
 def test_builtin_alpaca_news_uses_active_alpaca_broker_api_keys(monkeypatch):
-    calls = _install_fake_alpaca(monkeypatch)
+    calls = _install_fake_alpaca(monkeypatch, set_news_env=False)
 
     tool = BuiltinTools.news.alpaca_news().binder(
         _StrategyWithBroker(_Broker(api_key="broker-key", api_secret="broker-secret")),

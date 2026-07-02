@@ -86,6 +86,9 @@ if os.getcwd() != str(project_root):
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "ibkr: downloader-only IBKR tests that do not require Polygon or ThetaData credentials")
+    config.addinivalue_line("markers", "polymarket: Polymarket CLOB tests that do not require Polygon or ThetaData credentials")
+    config.addinivalue_line("markers", "polymarket_credentials: Polymarket CLOB tests that require authenticated credentials")
+    config.addinivalue_line("markers", "polymarket_live_trading: Polymarket CLOB tests that can submit/cancel live orders")
 
 
 class _PatchProxy:
@@ -321,6 +324,9 @@ def pytest_runtest_setup(item: pytest.Item):
       - polygon: requires Polygon credentials
       - thetadata: requires ThetaData credentials
       - ibkr: downloader-only IBKR tests; does not require Polygon/ThetaData creds
+      - polymarket: Polymarket CLOB tests; does not require Polygon/ThetaData creds
+      - polymarket_credentials: requires Polymarket wallet/CLOB credentials
+      - polymarket_live_trading: requires explicit live-trading enablement
 
     Behavior:
       - If a test is marked with ibkr, require neither Polygon nor ThetaData.
@@ -338,9 +344,12 @@ def pytest_runtest_setup(item: pytest.Item):
     requires_polygon = item.get_closest_marker("polygon") is not None
     requires_theta = item.get_closest_marker("thetadata") is not None
     requires_ibkr = item.get_closest_marker("ibkr") is not None
+    requires_polymarket = item.get_closest_marker("polymarket") is not None
+    requires_polymarket_credentials = item.get_closest_marker("polymarket_credentials") is not None
+    requires_polymarket_live_trading = item.get_closest_marker("polymarket_live_trading") is not None
 
     # Determine which providers are required
-    if requires_ibkr:
+    if requires_ibkr or requires_polymarket:
         need_polygon = False
         need_theta = False
     elif requires_polygon or requires_theta:
@@ -366,6 +375,18 @@ def pytest_runtest_setup(item: pytest.Item):
             missing.append("THETADATA_USERNAME")
         if _is_placeholder(theta_pass):
             missing.append("THETADATA_PASSWORD")
+
+    if requires_polymarket_credentials:
+        if _is_placeholder(os.environ.get("POLYMARKET_PRIVATE_KEY")):
+            missing.append("POLYMARKET_PRIVATE_KEY")
+        if _is_placeholder(os.environ.get("POLYMARKET_WALLET_ADDRESS")):
+            missing.append("POLYMARKET_WALLET_ADDRESS")
+
+    if requires_polymarket_live_trading:
+        if os.environ.get("POLYMARKET_LIVE_TRADING_ENABLED", "").strip().lower() not in {"1", "true", "yes", "on"}:
+            missing.append("POLYMARKET_LIVE_TRADING_ENABLED=true")
+        if _is_placeholder(os.environ.get("POLYMARKET_TEST_TOKEN_ID")):
+            missing.append("POLYMARKET_TEST_TOKEN_ID")
 
     # Downloader-specific requirement: shared downloader API key
     # Only enforce when tests are explicitly marked with `downloader`.

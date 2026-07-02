@@ -250,6 +250,7 @@ class Data:
         self._ohlc_has_nan = False
         self._volume_has_nan = False
         self._dividend_has_nan = False
+        self._stock_splits_has_nan = False
         try:
             required = [c for c in ("open", "high", "low", "close") if c in self.df.columns]
             if required:
@@ -262,10 +263,13 @@ class Data:
                 self._volume_has_nan = bool(pd.isna(self.df["volume"].to_numpy(copy=False)).any())
             if "dividend" in self.df.columns:
                 self._dividend_has_nan = bool(pd.isna(self.df["dividend"].to_numpy(copy=False)).any())
+            if "stock_splits" in self.df.columns:
+                self._stock_splits_has_nan = bool(pd.isna(self.df["stock_splits"].to_numpy(copy=False)).any())
         except Exception:
             self._ohlc_has_nan = True
             self._volume_has_nan = True
             self._dividend_has_nan = True
+            self._stock_splits_has_nan = True
 
         # PERF: `get_bars()` slices and then selects OHLCV columns on every call. Cache a stable
         # OHLCV view once (initialized lazily after `repair_times_and_fill()` so it reflects any
@@ -273,12 +277,15 @@ class Data:
         bars_cols = ["open", "high", "low", "close", "volume"]
         if "dividend" in self.df.columns:
             bars_cols.append("dividend")
+        if "stock_splits" in self.df.columns:
+            bars_cols.append("stock_splits")
         self._bars_cols = [c for c in bars_cols if c in self.df.columns]
         self._bars_df = None
         # PERF: `get_bars()` performs repeated `col in df.columns` membership checks which go
         # through `Index.__contains__` (hot in minute backtests). Cache the schema facts once.
         self._bars_has_volume = "volume" in self._bars_cols
         self._bars_has_dividend = "dividend" in self._bars_cols
+        self._bars_has_stock_splits = "stock_splits" in self._bars_cols
         self._bars_required_cols = [c for c in ("open", "high", "low", "close") if c in self._bars_cols]
 
     def set_times(self, trading_hours_start, trading_hours_end):
@@ -429,9 +436,22 @@ class Data:
         ohlc_cols = ["open", "high", "low"]
         # MODIFIED: Exclude bid/ask from standard ffill - handle them separately
         quote_cols_set = set(quote_cols)
-        non_ohlc_cols = [col for col in df.columns if col not in ohlc_cols and col not in quote_cols_set]
+        corporate_action_cols = {"dividend", "stock_splits"}
+        non_ohlc_cols = [
+            col
+            for col in df.columns
+            if col not in ohlc_cols
+            and col not in quote_cols_set
+            and col not in corporate_action_cols
+        ]
         if non_ohlc_cols:
             df[non_ohlc_cols] = df[non_ohlc_cols].ffill()
+
+        # Corporate actions are point-in-time events. Forward-filling a split ratio would make
+        # every later bar look like another split and can compound positions incorrectly.
+        for col in corporate_action_cols:
+            if col in df.columns:
+                df[col] = df[col].fillna(0)
 
         # For quote columns, do segment-wise ffill (don't fill across session boundaries)
         if apply_quote_session_boundaries and quote_cols_present and isinstance(df.index, pd.DatetimeIndex):
@@ -588,6 +608,8 @@ class Data:
             else:
                 if "return" in self.df.columns:
                     bars_cols.append("return")
+            if "stock_splits" in self.df.columns:
+                bars_cols.append("stock_splits")
 
             self._bars_cols = [c for c in bars_cols if c in self.df.columns]
             if self._bars_cols:
@@ -1316,6 +1338,10 @@ class Data:
             if has_dividend is _MISSING:
                 has_dividend = "dividend" in df.columns
                 self._bars_has_dividend = has_dividend
+            has_stock_splits = getattr(self, "_bars_has_stock_splits", _MISSING)
+            if has_stock_splits is _MISSING:
+                has_stock_splits = "stock_splits" in df.columns
+                self._bars_has_stock_splits = has_stock_splits
 
             # PERF: avoid fillna on every slice unless the dataset actually contains NaNs.
             needs_copy = False
@@ -1323,12 +1349,16 @@ class Data:
                 needs_copy = True
             if has_dividend and getattr(self, "_dividend_has_nan", False):
                 needs_copy = True
+            if has_stock_splits and getattr(self, "_stock_splits_has_nan", False):
+                needs_copy = True
             if needs_copy:
                 df = df.copy()
                 if has_volume and getattr(self, "_volume_has_nan", False):
                     df["volume"] = df["volume"].fillna(0)
                 if has_dividend and getattr(self, "_dividend_has_nan", False):
                     df["dividend"] = df["dividend"].fillna(0)
+                if has_stock_splits and getattr(self, "_stock_splits_has_nan", False):
+                    df["stock_splits"] = df["stock_splits"].fillna(0)
 
             required = getattr(self, "_bars_required_cols", None)
             if required is None:
@@ -1440,6 +1470,10 @@ class Data:
             if has_dividend is _MISSING:
                 has_dividend = "dividend" in df.columns
                 self._bars_has_dividend = has_dividend
+            has_stock_splits = getattr(self, "_bars_has_stock_splits", _MISSING)
+            if has_stock_splits is _MISSING:
+                has_stock_splits = "stock_splits" in df.columns
+                self._bars_has_stock_splits = has_stock_splits
 
             # PERF: avoid fillna on every slice unless the dataset actually contains NaNs.
             needs_copy = False
@@ -1447,12 +1481,16 @@ class Data:
                 needs_copy = True
             if has_dividend and getattr(self, "_dividend_has_nan", False):
                 needs_copy = True
+            if has_stock_splits and getattr(self, "_stock_splits_has_nan", False):
+                needs_copy = True
             if needs_copy:
                 df = df.copy()
                 if has_volume and getattr(self, "_volume_has_nan", False):
                     df["volume"] = df["volume"].fillna(0)
                 if has_dividend and getattr(self, "_dividend_has_nan", False):
                     df["dividend"] = df["dividend"].fillna(0)
+                if has_stock_splits and getattr(self, "_stock_splits_has_nan", False):
+                    df["stock_splits"] = df["stock_splits"].fillna(0)
 
             required = getattr(self, "_bars_required_cols", None)
             if required is None:
@@ -1521,6 +1559,8 @@ class Data:
         df = pd.DataFrame(data).assign(datetime=lambda df: pd.to_datetime(df['datetime'])).set_index('datetime')
         if "dividend" in df.columns:
             agg_column_map["dividend"] = "sum"
+        if "stock_splits" in df.columns:
+            agg_column_map["stock_splits"] = "max"
         df_result = df.resample(f"{quantity}{unit}").agg(agg_column_map)
 
         # Drop any rows that have NaN values (this can happen if the data is not complete, eg. weekends)
@@ -1601,6 +1641,8 @@ class Data:
         }
         if "dividend" in df.columns:
             agg["dividend"] = "sum"
+        if "stock_splits" in df.columns:
+            agg["stock_splits"] = "max"
 
         unit_code = "min" if timestep == "minute" else "h" if timestep == "hour" else "D"
         df_result = df.resample(f"{int(quantity)}{unit_code}").agg(agg).dropna()

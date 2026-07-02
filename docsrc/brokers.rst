@@ -30,6 +30,7 @@ Broker setup is easier on `BotSpot <https://botspot.trade/sales?showLogin=1&utm_
    brokers.ccxt
    brokers.interactive_brokers
    brokers.interactive_brokers_legacy
+   brokers.polymarket
    brokers.projectx
    brokers.schwab
    brokers.tradier

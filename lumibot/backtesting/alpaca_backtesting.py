@@ -29,6 +29,7 @@ from lumibot.tools.alpaca_helpers import sanitize_base_and_quote_asset
 
 class AlpacaBacktesting(DataSourceBacktesting):
     SOURCE = "ALPACA"
+    APPLY_BACKTEST_POSITION_SPLITS = False
     MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = [
         {"timestep": "day", "representations": [TimeFrame.Day]},

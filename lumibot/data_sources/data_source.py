@@ -1,4 +1,5 @@
 import os
+import math
 import time
 import traceback
 from abc import ABC, abstractmethod
@@ -23,6 +24,8 @@ logger = get_logger(__name__)
 class DataSource(ABC):
     SOURCE = ""
     IS_BACKTESTING_DATA_SOURCE = False
+    APPLY_BACKTEST_POSITION_SPLITS = True
+    AUTO_ADJUST_IMPLIES_SPLIT_ADJUSTED_PRICES = False
     MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = []
     DEFAULT_TIMEZONE = LUMIBOT_DEFAULT_TIMEZONE
@@ -79,6 +82,7 @@ class DataSource(ABC):
         # Dividend cache for backtest performance
         self._dividend_cache = {}  # {asset: {date: dividend_value}}
         self._dividend_cache_enabled = kwargs.get('cache_dividends', True)
+        self._stock_split_cache = {}  # {asset: {date: split_ratio}}
 
         # Ensure the instance has an explicit attribute for fallback behaviour
         if not hasattr(self, "option_quote_fallback_allowed"):
@@ -454,6 +458,92 @@ class DataSource(ABC):
         else:
             return AssetsMapping(result)
 
+    # ========Prediction-market metadata defaults======================
+    #
+    # These methods are intentionally safe no-ops on the base class. Prediction
+    # market data sources such as Polymarket can override them with provider
+    # implementations, while existing stock/options/crypto brokers continue to
+    # behave normally if strategy code probes for prediction-market metadata.
+
+    def search_markets(self, query: str | None = None, limit: int = 20, **kwargs) -> list:
+        """Search provider markets/events.
+
+        The default implementation returns an empty list because most data
+        sources do not expose prediction-market discovery.
+        """
+        return []
+
+    def get_event(self, event_id: str | int | None = None, slug: str | None = None, **kwargs) -> dict:
+        """Return event metadata if the provider supports event-level data."""
+        return {}
+
+    def get_market_metadata(self, market=None, **kwargs) -> dict:
+        """Return normalized market metadata if the provider supports it."""
+        return {}
+
+    def get_market_rules(self, market=None, **kwargs) -> dict:
+        """Return trading/resolution rules if the provider supports them."""
+        return {}
+
+    def get_resolution_status(self, market=None, **kwargs) -> dict:
+        """Return resolution state for a prediction contract.
+
+        Providers that do not support this surface return a stable unsupported
+        shape instead of raising.
+        """
+        return {"status": "unsupported", "resolved": None, "winner": None, "raw": None}
+
+    def get_spread(self, asset, quote=None, exchange=None) -> Union[float, Decimal, None]:
+        """Return bid/ask spread when available.
+
+        Generic fallback uses ``get_quote`` if the concrete data source has one.
+        """
+        get_quote = getattr(self, "get_quote", None)
+        if get_quote is None:
+            return None
+        try:
+            quote_obj = get_quote(asset, quote=quote, exchange=exchange)
+        except Exception:
+            return None
+        bid = getattr(quote_obj, "bid", None)
+        ask = getattr(quote_obj, "ask", None)
+        if bid is None or ask is None:
+            return None
+        return ask - bid
+
+    def get_midpoint(self, asset, quote=None, exchange=None) -> Union[float, Decimal, None]:
+        """Return midpoint/mark when available.
+
+        Generic fallback uses ``Quote.mid_price`` or bid/ask from ``get_quote``.
+        """
+        get_quote = getattr(self, "get_quote", None)
+        if get_quote is None:
+            return None
+        try:
+            quote_obj = get_quote(asset, quote=quote, exchange=exchange)
+        except Exception:
+            return None
+        mid_price = getattr(quote_obj, "mid_price", None)
+        if mid_price is not None:
+            return mid_price
+        bid = getattr(quote_obj, "bid", None)
+        ask = getattr(quote_obj, "ask", None)
+        if bid is not None and ask is not None:
+            return (bid + ask) / 2
+        return getattr(quote_obj, "price", None)
+
+    def get_recent_trades(self, market=None, limit: int = 100, **kwargs) -> list:
+        """Return recent trades/fills if the provider supports them."""
+        return []
+
+    def get_open_interest(self, market=None, **kwargs) -> Union[float, Decimal, None]:
+        """Return open interest if the provider supports it."""
+        return None
+
+    def get_holders(self, market=None, limit: int = 20, **kwargs) -> list:
+        """Return holder rows if the provider supports it."""
+        return []
+
     def get_strikes(self, asset) -> list:
         """Return a set of strikes for a given asset"""
         chains = self.get_chains(asset)
@@ -469,6 +559,224 @@ class DataSource(ABC):
         asset for the day before"""
         bars = self.get_historical_prices(asset, 1, timestep="day")
         return bars.get_last_dividend()
+
+    def get_yesterday_stock_split(self, asset, quote=None):
+        """Return the stock split ratio for a given asset on the current backtest day."""
+        return self.get_yesterday_stock_splits([asset], quote=quote).get(asset, 0)
+
+    def _backtest_daily_corporate_action_length(self):
+        length = 2000
+        if (
+            hasattr(self, "datetime_start")
+            and hasattr(self, "datetime_end")
+            and getattr(self, "datetime_start", None) is not None
+            and getattr(self, "datetime_end", None) is not None
+        ):
+            try:
+                span_days = (self.datetime_end.date() - self.datetime_start.date()).days + 1
+                length = max(span_days + 10, 30)
+            except Exception:
+                length = 2000
+        return length
+
+    @staticmethod
+    def _normalize_stock_split_ratio(value):
+        try:
+            ratio = float(value)
+        except (TypeError, ValueError):
+            return 0.0
+        if not math.isfinite(ratio) or ratio <= 0:
+            return 0.0
+        if abs(ratio - 1.0) < 1e-12:
+            return 0.0
+        return ratio
+
+    @staticmethod
+    def _asset_values_match(left, right):
+        if left == right:
+            return True
+        try:
+            return (
+                str(getattr(left, "symbol", "")).upper() == str(getattr(right, "symbol", "")).upper()
+                and str(getattr(left, "asset_type", "")).lower() == str(getattr(right, "asset_type", "")).lower()
+            )
+        except Exception:
+            return False
+
+    @staticmethod
+    def _quote_values_match(data_quote, requested_quote):
+        if requested_quote is None:
+            if data_quote is None:
+                return True
+            try:
+                return (
+                    str(getattr(data_quote, "symbol", "")).upper() == "USD"
+                    and "forex" in str(getattr(data_quote, "asset_type", "")).lower()
+                )
+            except Exception:
+                return False
+        return DataSource._asset_values_match(data_quote, requested_quote)
+
+    def _get_backtest_daily_corporate_action_frame(self, asset, quote=None):
+        """Return the full preloaded daily frame for backtest corporate actions, when available.
+
+        Backtest data sources such as routed IBKR prefetch the complete native daily series. Split
+        events need that full daily frame because a split is effective before the market opens even
+        when the provider timestamps the daily row at the close.
+        """
+        store = getattr(self, "_data_store", None)
+        if not store:
+            return None
+
+        candidates = []
+        finder = getattr(self, "find_asset_in_data_store", None)
+        if callable(finder):
+            try:
+                key = finder(asset, quote, "day")
+            except TypeError:
+                try:
+                    key = finder(asset, quote)
+                except Exception:
+                    key = None
+            except Exception:
+                key = None
+            if key is not None:
+                candidates.append(key)
+
+        for key in candidates:
+            data = store.get(key) if hasattr(store, "get") else None
+            frame = self._daily_stock_split_frame_from_data(data, asset, quote)
+            if frame is not None:
+                return frame
+
+        try:
+            values = store.values()
+        except Exception:
+            values = []
+        for data in values:
+            frame = self._daily_stock_split_frame_from_data(data, asset, quote)
+            if frame is not None:
+                return frame
+        return None
+
+    def _daily_stock_split_frame_from_data(self, data, asset, quote=None):
+        if data is None:
+            return None
+        if str(getattr(data, "timestep", "") or "").strip().lower() != "day":
+            return None
+        data_asset = getattr(data, "asset", None)
+        data_quote = getattr(data, "quote", None)
+        if isinstance(data_asset, tuple):
+            if len(data_asset) >= 1:
+                data_quote = data_quote if data_quote is not None else (data_asset[1] if len(data_asset) > 1 else None)
+                data_asset = data_asset[0]
+        if not self._asset_values_match(data_asset, asset):
+            return None
+        if not self._quote_values_match(data_quote, quote):
+            return None
+        frame = getattr(data, "df", None)
+        if frame is None or not hasattr(frame, "columns") or "stock_splits" not in frame.columns:
+            return None
+        return frame
+
+    @staticmethod
+    def _frame_prices_are_split_adjusted(frame):
+        if frame is None or not hasattr(frame, "columns") or "_split_adjusted" not in frame.columns:
+            return False
+        try:
+            marker = frame["_split_adjusted"]
+            if hasattr(marker, "fillna"):
+                return bool(marker.fillna(False).astype(bool).any())
+            return bool(marker)
+        except Exception:
+            return False
+
+    def should_apply_stock_splits_to_positions(self, asset, quote=None):
+        """Return whether split events should update held share quantities.
+
+        Raw/unadjusted daily bars need position ledger adjustments on split dates. Split-adjusted
+        providers already express historical fills in current share units, so applying the ledger
+        split again would double-count the corporate action.
+        """
+        if not bool(getattr(self, "APPLY_BACKTEST_POSITION_SPLITS", True)):
+            return False
+
+        if bool(getattr(self, "AUTO_ADJUST_IMPLIES_SPLIT_ADJUSTED_PRICES", False)) and (
+            bool(getattr(self, "auto_adjust", False)) or bool(getattr(self, "_auto_adjust", False))
+        ):
+            return False
+
+        frame = self._get_backtest_daily_corporate_action_frame(asset, quote=quote)
+        if self._frame_prices_are_split_adjusted(frame):
+            return False
+
+        return True
+
+    def _stock_split_cache_from_frame(self, frame):
+        asset_splits = {}
+        if frame is None or not hasattr(frame, "iterrows") or "stock_splits" not in frame.columns:
+            return asset_splits
+        for idx, row in frame.iterrows():
+            date_key = idx.date() if hasattr(idx, 'date') else idx
+            ratio = self._normalize_stock_split_ratio(row.get('stock_splits', 0))
+            if ratio:
+                asset_splits[date_key] = ratio
+        return asset_splits
+
+    def _adjust_stale_daily_price_for_stock_split(self, data, price, dt):
+        """Adjust a previous daily price when the current date has a split before the daily row.
+
+        Native daily stock bars are commonly timestamped at the market close. On split effective
+        dates, the position quantity changes before the market opens, but a pre-close mark may
+        still resolve to the prior day's pre-split close. Dividing that stale price by the split
+        ratio keeps portfolio value continuous until the split-date daily bar is available.
+        """
+        if price is None:
+            return price
+        if data is None or str(getattr(data, "timestep", "") or "").strip().lower() != "day":
+            return price
+        frame = getattr(data, "df", None)
+        if frame is None or not hasattr(frame, "columns") or "stock_splits" not in frame.columns:
+            return price
+        if self._frame_prices_are_split_adjusted(frame):
+            return price
+        if bool(getattr(self, "AUTO_ADJUST_IMPLIES_SPLIT_ADJUSTED_PRICES", False)) and (
+            bool(getattr(self, "auto_adjust", False)) or bool(getattr(self, "_auto_adjust", False))
+        ):
+            return price
+        try:
+            dt_ts = pd.Timestamp(dt)
+            current_date = dt_ts.date()
+        except Exception:
+            return price
+
+        try:
+            matching_rows = frame.loc[[idx.date() == current_date for idx in frame.index]]
+        except Exception:
+            return price
+        if matching_rows.empty:
+            return price
+
+        for idx, row in matching_rows.iterrows():
+            ratio = self._normalize_stock_split_ratio(row.get("stock_splits", 0))
+            if not ratio:
+                continue
+            try:
+                event_ts = pd.Timestamp(idx)
+                compare_dt = dt_ts
+                if event_ts.tzinfo is not None:
+                    if compare_dt.tzinfo is None:
+                        compare_dt = compare_dt.tz_localize(event_ts.tzinfo)
+                    else:
+                        compare_dt = compare_dt.tz_convert(event_ts.tzinfo)
+                elif compare_dt.tzinfo is not None:
+                    compare_dt = compare_dt.tz_localize(None)
+                if compare_dt >= event_ts:
+                    continue
+                return float(price) / ratio
+            except Exception:
+                continue
+        return price
 
     def get_yesterday_dividends(self, assets, quote=None):
         """Return dividend per share for a list of assets for the day before.
@@ -562,6 +870,73 @@ class DataSource(ABC):
 
         return AssetsMapping(result)
 
+    def get_yesterday_stock_splits(self, assets, quote=None):
+        """Return stock split ratios for a list of assets on the current backtest day.
+
+        Ratios use the data-source convention: 2.0 for a 2-for-1 split, 7.0 for
+        a 7-for-1 split, and 0.1 for a 1-for-10 reverse split. Missing, zero,
+        one, negative, and non-finite values are treated as no split.
+        """
+        result = {}
+
+        if hasattr(self, '_datetime') and self._datetime:
+            current_date = self._datetime.date() if hasattr(self._datetime, 'date') else self._datetime
+
+            for asset in assets:
+                if asset not in self._stock_split_cache:
+                    try:
+                        frame = self._get_backtest_daily_corporate_action_frame(asset, quote=quote)
+                        asset_splits = self._stock_split_cache_from_frame(frame)
+
+                        if not asset_splits:
+                            length = self._backtest_daily_corporate_action_length()
+                            bars = self.get_bars([asset], length, timestep="day", quote=quote).get(asset)
+                            if bars is not None and hasattr(bars, 'df'):
+                                asset_splits = self._stock_split_cache_from_frame(bars.df)
+
+                        self._stock_split_cache[asset] = asset_splits
+                        if asset_splits:
+                            logger.debug(
+                                "[SPLIT][CACHE] Cached %d entries for %s (%s -> %s)",
+                                len(asset_splits),
+                                getattr(asset, "symbol", asset),
+                                min(asset_splits.keys()),
+                                max(asset_splits.keys()),
+                            )
+                        else:
+                            logger.debug(
+                                "[SPLIT][CACHE] No split entries available for %s",
+                                getattr(asset, "symbol", asset),
+                            )
+                    except Exception:
+                        self._stock_split_cache[asset] = {}
+
+                asset_splits = self._stock_split_cache.get(asset, {})
+                split_ratio = asset_splits.get(current_date, 0)
+                if split_ratio:
+                    logger.debug(
+                        "[SPLIT][APPLY] %s -> %s split ratio %.6f on %s",
+                        getattr(asset, "symbol", asset),
+                        getattr(self, "_name", "strategy"),
+                        split_ratio,
+                        current_date,
+                    )
+                result[asset] = split_ratio
+
+            return AssetsMapping(result)
+
+        assets_bars = self.get_bars(assets, 1, timestep="day", quote=quote)
+        for asset, bars in assets_bars.items():
+            if bars is None:
+                continue
+            get_last_stock_split = getattr(bars, "get_last_stock_split", None)
+            if callable(get_last_stock_split):
+                result[asset] = self._normalize_stock_split_ratio(get_last_stock_split())
+            elif hasattr(bars, "df") and "stock_splits" in bars.df.columns:
+                result[asset] = self._normalize_stock_split_ratio(bars.df["stock_splits"].iloc[-1])
+
+        return AssetsMapping(result)
+
     def get_chain_full_info(self, asset: Asset, expiry: date | datetime, chains=None, underlying_price=float, risk_free_rate=float,
                             strike_min=None, strike_max=None) -> pd.DataFrame:
         """
@@ -630,14 +1005,25 @@ class DataSource(ABC):
                 )
                 query_t = time.perf_counter()
                 option_symbol = create_options_symbol(opt_asset.symbol, expiry_dt, right, strike)
-                opt_price = self.get_last_price(opt_asset)
+                try:
+                    opt_price = self.get_last_price(opt_asset, allow_stale_option_last=False)
+                except TypeError:
+                    opt_price = self.get_last_price(opt_asset)
+                try:
+                    opt_price_float = float(opt_price)
+                except (TypeError, ValueError):
+                    continue
+                if not math.isfinite(opt_price_float) or opt_price_float <= 0:
+                    continue
                 greeks = self.calculate_greeks(opt_asset, opt_price, underlying_price, risk_free_rate)
+                if not isinstance(greeks, dict):
+                    continue
                 query_total += time.perf_counter() - query_t
 
                 # Build the row. Match the Tradier column naming conventions.
                 row = {
                     "symbol": option_symbol,
-                    "last": opt_price,
+                    "last": opt_price_float,
                     "expiration_date": expiry_dt,
                     "strike": strike,
                     "option_type": right,

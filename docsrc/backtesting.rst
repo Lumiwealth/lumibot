@@ -9,8 +9,9 @@ Lumibot has multiple modes for backtesting:
 4. **DataBento Backtesting:** Backtesting with high-quality data from DataBento for stocks, futures, and options.
 5. **ThetaData Backtesting:** Backtesting with ThetaData (via the LumiBot Data Downloader).
 6. **Interactive Brokers (REST) Backtesting:** Backtesting with IBKR Client Portal Gateway (via the LumiBot Data Downloader).
+7. **Polymarket Backtesting:** Prediction-contract backtesting from real Polymarket price history.
 
-It is recommended to use Yahoo Backtesting for daily stock backtesting, ThetaData Backtesting for stocks/options/index data, and Interactive Brokers (REST) Backtesting for futures and crypto data. Pandas Backtesting is an advanced feature that allows you to test any type of data you have in CSV format but requires more work to setup and is not recommended for most users.
+It is recommended to use Yahoo Backtesting for daily stock backtesting, ThetaData Backtesting for stocks/options/index data, Interactive Brokers (REST) Backtesting for futures and crypto data, and Polymarket Backtesting for Polymarket prediction-contract strategies. Pandas Backtesting is an advanced feature that allows you to test any type of data you have in CSV format but requires more work to setup and is not recommended for most users.
 
 Managed Backtesting on BotSpot
 ==============================

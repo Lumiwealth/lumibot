@@ -570,6 +570,19 @@ class Bars:
             logger.debug("Unable to find 'dividend' column in bars")
             return 0
 
+    def get_last_stock_split(self):
+        """Return the stock split ratio of the last bar.
+
+        Split ratios follow the market-data convention used by Yahoo/IBKR enrichment:
+        2.0 means a 2-for-1 split, 0.1 means a 1-for-10 reverse split, and 0 means
+        no split event on that bar.
+        """
+        if "stock_splits" in self.df.columns:
+            return self.df["stock_splits"][-1]
+        else:
+            logger.debug("Unable to find 'stock_splits' column in bars")
+            return 0
+
     def filter(self, start=None, end=None):
         """Return a Bars object with only the bars between start and end
 

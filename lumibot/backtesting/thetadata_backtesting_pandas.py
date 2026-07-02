@@ -2778,6 +2778,7 @@ class ThetaDataBacktestingPandas(PandasData):
         return AssetsMapping(result)
 
     def get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
+        allow_stale_option_last = bool(kwargs.pop("allow_stale_option_last", True))
         dt = self.get_datetime()
         self._update_cadence_from_dt(dt)
         # In day mode, use day data for price lookups instead of defaulting to minute.
@@ -2910,7 +2911,7 @@ class ThetaDataBacktestingPandas(PandasData):
                 frame_last_dt = frame_last_dt.isoformat()
             except AttributeError:
                 frame_last_dt = str(frame_last_dt)
-            return float(frame_last_close)
+            return float(self._adjust_stale_daily_price_for_stock_split(data_obj, frame_last_close, dt))
         if tuple_key is not None:
             if isinstance(tuple_key, tuple) and len(tuple_key) != 3:
                 legacy_hit = True
@@ -2927,6 +2928,7 @@ class ThetaDataBacktestingPandas(PandasData):
         # causes strategies to incorrectly treat contracts as untradeable (even when a stale last trade exists).
         if (
             value is None
+            and allow_stale_option_last
             and getattr(asset, "asset_type", None) == Asset.AssetType.OPTION
             and timestep == "day"
             and tuple_key is not None
@@ -3108,6 +3110,15 @@ class ThetaDataBacktestingPandas(PandasData):
 
         try:
             snapshot = data.get_price_snapshot(dt)
+            if isinstance(snapshot, dict):
+                snapshot = dict(snapshot)
+                for price_key in ("open", "high", "low", "close", "bid", "ask"):
+                    if price_key in snapshot:
+                        snapshot[price_key] = self._adjust_stale_daily_price_for_stock_split(
+                            data,
+                            snapshot.get(price_key),
+                            dt,
+                        )
             logger.debug(
                 "[THETA][DEBUG][THETADATA-PANDAS] get_price_snapshot succeeded for %s/%s: %s",
                 asset,
@@ -3919,6 +3930,42 @@ class ThetaDataBacktestingPandas(PandasData):
                 if existing is None or (not math.isfinite(existing)) or existing <= 0:
                     existing = None
                 quote_obj.price = existing
+
+            # Mark-to-market fallback only. Sparse historical option quote snapshots can be empty
+            # even when ThetaData has daily trade/OHLC data for the contract. Fill logic must still
+            # require quote-side evidence; this fallback only gives portfolio valuation a finite
+            # option price after quote lookup has failed.
+            if getattr(quote_obj, "price", None) is None:
+                fallback_enabled = str(
+                    os.environ.get("THETADATA_OPTION_MTM_OHLC_FALLBACK", "true")
+                ).strip().lower() not in {"0", "false", "no", "off"}
+                if fallback_enabled:
+                    fallback_price = None
+                    try:
+                        fallback_price = self.get_last_price(
+                            asset,
+                            timestep="day",
+                            quote=quote,
+                            exchange=exchange,
+                            allow_stale_option_last=True,
+                        )
+                    except Exception:
+                        logger.debug(
+                            "[THETA][QUOTE][MTM_FALLBACK] daily option OHLC fallback failed for %s",
+                            asset,
+                            exc_info=True,
+                        )
+                    try:
+                        fallback_price = float(fallback_price) if fallback_price is not None else None
+                    except (TypeError, ValueError):
+                        fallback_price = None
+                    if fallback_price is not None and math.isfinite(fallback_price) and fallback_price > 0:
+                        quote_obj.price = fallback_price
+                        quote_obj.raw_data = {
+                            "source": "thetadata_daily_ohlc_mtm_fallback",
+                            "price": fallback_price,
+                            "timestamp": dt.isoformat() if hasattr(dt, "isoformat") else str(dt),
+                        }
 
         # [INSTRUMENTATION] Final quote result with all details
         if logger.isEnabledFor(logging.DEBUG):

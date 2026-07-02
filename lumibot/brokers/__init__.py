@@ -12,6 +12,7 @@ _NAME_TO_MODULE = {
     "InteractiveBrokers": "interactive_brokers",
     "InteractiveBrokersREST": "interactive_brokers_rest",
     "ProjectX": "projectx",
+    "Polymarket": "polymarket",
     "Schwab": "schwab",
     "Tradier": "tradier",
     "Tradovate": "tradovate",

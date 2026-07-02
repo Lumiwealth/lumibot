@@ -71,13 +71,13 @@ BACKTESTING_DATA_SOURCE
 
 - Purpose: Select the backtesting datasource **even if your code passes a `datasource_class`**.
 - Values (case-insensitive):
-  - ``thetadata``, ``yahoo``, ``polygon``, ``alpaca``, ``ccxt``, ``databento``
+  - ``thetadata``, ``yahoo``, ``polygon``, ``alpaca``, ``ccxt``, ``databento``, ``polymarket``, ``polymarket_clob``
   - ``ibkr`` / ``interactivebrokersrest`` / ``interactive_brokers_rest`` (IBKR Client Portal REST)
   - ``router`` (multi-provider routing; defaults to Theta for stock/option/index and IBKR for futures/crypto)
   - JSON mapping (multi-provider routing by asset type), e.g. ``{"default":"thetadata","stock":"thetadata","option":"thetadata","index":"thetadata","future":"ibkr","crypto":"ibkr"}``
 
     - Provider values are case/whitespace/_/- insensitive.
-    - Supported values include ``thetadata``, ``ibkr``, ``polygon``, ``alpaca``, and ``ccxt``.
+    - Supported values include ``thetadata``, ``ibkr``, ``polygon``, ``alpaca``, ``ccxt``, and ``polymarket``.
     - For CCXT backtesting, you may use ``ccxt`` (auto-select exchange from existing env/credentials) **or** specify a supported CCXT backtesting exchange id directly. Documented backtesting examples are ``kraken``, ``binance``, ``kucoin``, ``bitmex``, ``bybit``, and ``okx``.
     - Routing keys are the canonical asset types (``future``, ``cont_future``, ``crypto``, etc.). Common plural aliases like ``futures``/``cont_futures`` are accepted.
 
@@ -341,7 +341,7 @@ TRADING_BROKER
 - Values (case-insensitive):
   - ``alpaca``, ``tradier``, ``ccxt``, ``coinbase``, ``kraken``, ``weex``
   - ``ib``, ``interactivebrokers``, ``ibrest``, ``interactivebrokersrest``
-  - ``tradovate``, ``schwab``, ``bitunix``
+  - ``tradovate``, ``schwab``, ``bitunix``, ``polymarket``, ``polymarket_clob``
   - ``projectx`` / ``projectx-topstepx`` for TopstepX futures (via ProjectX)
 - Note: If not set, broker is auto-detected based on available credentials.
 
@@ -351,7 +351,7 @@ DATA_SOURCE
 - Purpose: Explicitly specify which data source to use.
 - Values (case-insensitive):
   - ``alpaca``, ``tradier``, ``polygon``, ``yahoo``, ``thetadata``, ``databento``
-  - ``ccxt``, ``coinbase``, ``kraken``, ``weex``, ``schwab``, ``bitunix``, ``projectx``
+  - ``ccxt``, ``coinbase``, ``kraken``, ``weex``, ``schwab``, ``bitunix``, ``projectx``, ``polymarket``, ``polymarket_clob``
 - Note: If not set, uses broker's default data source.
 
 Alpaca broker
@@ -384,6 +384,107 @@ ALPACA_NEWS_API_KEY / ALPACA_NEWS_API_SECRET
 - Values: Alpaca API credentials with news/data access (**do not hardcode**).
 - Note: When the active broker is Alpaca, the built-in news tool reuses that broker's OAuth token or API key/secret instead. If the active broker is not Alpaca and these news-specific variables are absent, the built-in news tool is not exposed to agents.
 
+Polymarket CLOB broker
+----------------------
+
+POLYMARKET_PRIVATE_KEY
+^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Wallet private key or session signer used to sign Polymarket CLOB orders and derive API credentials.
+- Values: Provider/wallet secret (**do not hardcode**).
+- Note: Required for authenticated CLOB reads and trading. Treat this as a high-risk wallet credential.
+
+POLYMARKET_WALLET_ADDRESS
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Polymarket proxy wallet, deposit wallet, Safe, or other funder address passed to the CLOB client.
+- Values: Wallet address.
+
+POLYMARKET_OWNER_ADDRESS
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Optional owner/signer address for Magic/proxy accounts. LumiBot uses it as a fallback for Data API position
+  and value reads when it differs from ``POLYMARKET_WALLET_ADDRESS``.
+- Values: Wallet address.
+
+POLYMARKET_SIGNATURE_TYPE
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Polymarket CLOB signature type used by the authenticated client.
+- Values: ``0`` for EOA, ``1`` for existing Polymarket proxy/Magic wallets, ``2`` for Gnosis Safe, ``3`` for deposit
+  wallet / ``POLY_1271``.
+- Default: ``1`` when ``POLYMARKET_OWNER_ADDRESS`` and ``POLYMARKET_WALLET_ADDRESS`` differ, otherwise ``3``. Set this
+  explicitly for live testing and Bot Manager deployments.
+
+POLYMARKET_CLOB_API_KEY / POLYMARKET_CLOB_API_SECRET / POLYMARKET_CLOB_API_PASSPHRASE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Optional derived/generated CLOB API credentials for authenticated order, trade, cancel, and balance requests.
+- Values: CLOB API credentials (**do not hardcode**).
+- Note: If omitted, LumiBot attempts to derive/create credentials in memory through ``py-clob-client-v2`` when a private key is available.
+
+POLYMARKET_API_CREDENTIALS_JSON
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Optional JSON wrapper for CLOB API credentials.
+- Values: JSON object containing key/secret/passphrase fields (**do not hardcode**).
+- Note: Prefer separate env vars for readability unless a secret store provides one JSON payload.
+
+POLYMARKET_RELAYER_API_KEY / POLYMARKET_RELAYER_API_KEY_ADDRESS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Relayer credentials for wallet deployment/approval flows when required by the Polymarket account setup.
+- Values: Relayer credential fields (**do not hardcode**).
+- Note: Relayer credentials are not the same as CLOB trading credentials. The CLOB client still needs L2 API key,
+  secret, and passphrase fields for private order/balance/trade endpoints and WebSocket user streams.
+
+POLYMARKET_BUILDER_CODE
+^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Optional Polymarket builder attribution code.
+- Values: Builder code.
+
+POLYMARKET_AUTO_APPROVE
+^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: When truthy, attempt CLOB collateral approval setup before live trading.
+- Values: truthy enables (``1``, ``true``, ``yes``, ``on``); unset disables.
+- Default: disabled.
+
+POLYMARKET_MAX_MARKET_ORDER_NOTIONAL
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Hard cap for Polymarket market BUY order dollar amount.
+- Values: Positive decimal.
+- Default: ``5``.
+
+POLYMARKET_TEST_TOKEN_ID / POLYMARKET_LIVE_TRADING_ENABLED / POLYMARKET_TEST_MAX_NOTIONAL
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Test-only gates for Polymarket live smoke tests.
+- Values: Explicit CLOB token id; ``POLYMARKET_LIVE_TRADING_ENABLED=true`` to allow live submit/cancel tests; decimal max notional.
+- Note: Live tests are skipped unless the required env vars are present. Default live-test max notional is capped at ``5``.
+- Smoke helpers: ``scripts/polymarket_smoke.py`` and ``scripts/polymarket_lumibot_smoke.py`` load local ``.env.local``
+  values, redact output, and only submit live orders when the live gate and caps are present. The LumiBot smoke helper
+  supports explicit order-matrix cases such as ``fak-buy``, ``fok-buy``, ``fak-sell``, ``fok-sell``, ``gtc-buy``,
+  ``gtd-buy``, ``post-only-buy``, ``cancel-single``, ``cancel-multiple``, ``cancel-all``, ``cancel-market``, and
+  ``--websocket``.
+
+Polymarket CLOB implementation notes
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Set ``TRADING_BROKER=polymarket`` for the normal live broker path. ``DATA_SOURCE=polymarket`` is only the optional
+  separate public-market-data override.
+- CLOB collateral balances are returned in 6-decimal raw units by balance/allowance reads. LumiBot scales those values
+  into dollars before returning account cash.
+- The current international CLOB adapter supports read-only account state, market discovery, token resolution, order
+  books, quotes, last price, supported price history, public market WebSockets, and authenticated user WebSocket
+  subscription. Live submit/cancel is implemented and has been proven through the LumiBot broker with a funded deposit
+  wallet, pUSD approvals, and conditional-token sell approvals. Existing Magic/proxy accounts may still be rejected by
+  Polymarket with a deposit-wallet/API-key binding error until migrated through the supported deposit-wallet flow.
+- SELL orders need conditional-token approvals from the deposit wallet. The local setup helper can submit these approvals
+  with ``scripts/polymarket_deposit_wallet_setup.py --approve-conditional``.
+
 Tradier broker
 --------------
 
@@ -408,12 +509,10 @@ LUMIBOT_OAUTH_REFRESH_MODE
 
 - Purpose: Controls who calls the broker OAuth refresh endpoint for Schwab and
   Tradier token-file integrations.
-- Values:
-  - ``auto`` (default): LumiBot may refresh the provider OAuth token and write the
-    updated token payload back to the configured token file.
-  - ``external``: LumiBot does not call the provider OAuth refresh endpoint. A
-    trusted parent process must atomically replace the configured token file, and
-    LumiBot reloads it before broker requests and after auth failures.
+- Values: ``auto`` (default) lets LumiBot refresh the provider OAuth token and write the updated token payload back to
+  the configured token file. ``external`` means LumiBot does not call the provider OAuth refresh endpoint; a trusted
+  parent process must atomically replace the configured token file, and LumiBot reloads it before broker requests and
+  after auth failures.
 - Note: Use ``external`` only when another trusted process owns refresh-token
   handling. The token file still needs a valid access token for broker API calls.
 

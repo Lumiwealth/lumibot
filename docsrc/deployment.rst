@@ -405,7 +405,7 @@ Coinbase is a cryptocurrency broker that is easy to set up and operates across a
      - organizations/a7df3e75-5gg5-4b0d-805c-e91c02fd63b8/apiKeys/1abb999e-8442-4607-lkc7-423eb8d478e3
    * - COINBASE_PRIVATE_KEY
      - Your private key for Coinbase. **Required** if you are using Coinbase as your broker.  
-     - -----BEGIN EC PRIVATE KEY-----\nPLjCAQEEIFOxfolkj7JmTkEUyctOqAq0hQt02SRBy7GnJHGQyb56jToAoGCCqGSM49\nAwEHoUQDQgAEg1VBKEVkqhy+9eHxeao7b7cMsbXXeB/Ggm2sYKEm2Ebrhq67Nobj\n5ze8ddf78UFICjOcooHovd+1oFcZZ+RLQ==\n-----END EC PRIVATE KEY-----\n"
+     - <your Coinbase EC private key PEM, stored only in your secret manager>
    * - COINBASE_API_PASSPHRASE
      - Your API passphrase for Coinbase. **Optional** if you are using Coinbase as your broker.
      - 123456

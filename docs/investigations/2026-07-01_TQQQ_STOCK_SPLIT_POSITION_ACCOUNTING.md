@@ -2,7 +2,7 @@
 
 One-line description: Root cause, fix, and validation for the TQQQ 2025-11-20 split causing a false local/dev backtest equity drop.
 Created: 2026-07-01
-Last Updated: 2026-07-01
+Last Updated: 2026-07-02
 Status: Fixed locally on branch `version/4.5.64`; production release still required
 Audience: Engineering (Backtesting, BotSpot Auto, Data Routing)
 
@@ -17,6 +17,8 @@ The final root cause was not a React/chart problem. It was also not simply "Lumi
 - The 2025-11-20 split row and later rows were back in the post-split price level.
 
 That mixed cache made the 2025 split look like a raw price halving while the held position was not doubled. A first ledger-only fix removed that 2025 crash but wrongly doubled positions on the already-adjusted 2021 and 2022 split rows, creating a false 60% CAGR result. The durable fix normalizes IBKR stock/day bars into split-adjusted price space before backtesting, marks those frames as `_split_adjusted`, and keeps the generic position-ledger split path only for genuinely raw/unadjusted frames.
+
+The remaining dev/prod result gap is a separate cache-quality issue. The prod IBKR TQQQ object is continuous and matches Yahoo closely. The dev/local TQQQ object was not a mirror of prod: it had fewer rows, missing split events, a 2016-03-31 to 2019-02-04 hole, and non-split level spikes. That explains why the fixed dev replay landed around 29.5% CAGR while prod IBKR and Yahoo landed around 38% CAGR.
 
 ## What Failed
 
@@ -80,6 +82,33 @@ Both dev and prod were already continuous through older splits:
 
 This proves the regression was a mixed-adjustment cache shape, not a simple "all IBKR bars are raw" rule.
 
+The full dev/prod S3 stock/day cache scan is stored here:
+
+- JSON scan: `/Users/robertgrzesik/Development/support-artifacts/tqqq-split-backtest-2026-07-01/cache-scan/ibkr_stock_day_cache_scan.json`
+- Interesting subset: `/Users/robertgrzesik/Development/support-artifacts/tqqq-split-backtest-2026-07-01/cache-scan/ibkr_stock_day_cache_scan_interesting.json`
+- Summary CSV: `/Users/robertgrzesik/Development/support-artifacts/tqqq-split-backtest-2026-07-01/cache-scan/ibkr_stock_day_cache_scan_summary.csv`
+- Dev/prod comparison CSV: `/Users/robertgrzesik/Development/support-artifacts/tqqq-split-backtest-2026-07-01/cache-scan/ibkr_stock_day_cache_dev_prod_comparison.csv`
+
+Cache namespace inventory at scan time:
+
+| Namespace | Stock/day objects | Stock/day bytes | Index/day objects | Index/day bytes |
+| --- | ---: | ---: | ---: | ---: |
+| Dev S3 prefix `dev/cache/v1/ibkr/...` | `126` | `8,772,815` | `2` | `116,177` |
+| Prod S3 prefix `prod/cache/v1/ibkr/...` | `340` | `23,894,640` | `4` | `335,058` |
+
+The TQQQ cache comparison was especially clear:
+
+| Field | Dev | Prod |
+| --- | ---: | ---: |
+| Rows | `3114` | `4115` |
+| First row | `2011-04-04` | `2010-02-22` |
+| Last row | `2026-06-29` | `2026-06-29` |
+| Split events | `5` | `8` |
+| Gaps > 7 days | `1` | `0` |
+| Large non-split jumps | `3` | `0` |
+
+The largest dev TQQQ gap was `2016-03-31` to `2019-02-04` (`1040` days). Dev also missed TQQQ split events that existed in prod (`2011-02-25`, `2017-01-12`, and `2018-05-24`) and had a non-split `2022-11-01` close of `20.30` where prod had `10.15`. Those are not cash-accounting bugs. They are cache data quality and completeness differences.
+
 Direct historical artifact inspection from production S3 was attempted but blocked by permissions: the Bot Manager profile could list the target object names but could not decrypt/copy those backtest artifacts due missing KMS decrypt permission, and the BotSpot artifact read path returned `Forbidden`. Production DB metrics and local cache/replay artifacts were used instead.
 
 ## Historical BotSpot Evidence
@@ -112,6 +141,8 @@ The missing permanent invariant was provider/data-shape aware:
 3. If an IBKR cache is mixed, LumiBot must first normalize the affected raw pre-split segment into split-adjusted price space, then mark the frame `_split_adjusted`.
 
 The current fix adds that third invariant for IBKR stock/day cache data.
+
+There was also an operational reason this surfaced in local/dev first. `BacktestCacheManager.on_local_update()` only uploads to S3 in `S3_READWRITE` mode, and several local reproduction runs used dev readwrite cache settings. The original local replay log shows `remote_cache.mode=readwrite`, bucket `lumibot-cache-dev`, prefix `dev/cache`, version `v1`, and `uploads=2`. A later normalization replay also wrote a normalized TQQQ object back into the dev namespace. For incident diagnosis, use S3 readonly first; dev readwrite can mutate the evidence while debugging.
 
 ## Fix
 
@@ -151,12 +182,17 @@ New IBKR normalization coverage in `tests/backtest/test_ibkr_equity_actions.py` 
 - Raw reverse split normalization.
 - Already-adjusted split rows are marked `_split_adjusted` without double-adjusting prices.
 - The exact mixed TQQQ cache shape: 2021/2022 already continuous, 2025 raw tail. The test asserts 2021 and 2022 are not halved again, while 2025-11-19 is normalized from `100.05` to `50.025`.
+- The old-dev-cache class where a non-split spike remains visible for cache-quality audits while only the persistent raw pre-split tail is adjusted.
+- The actual IBKR `get_price_data()` cached daily stock path: cached parquet in, normalized frame out, and persisted `_split_adjusted` marker.
+- A deterministic daily TQQQ backtest that buys before the 2025-11-20 split, holds through it, sells after it, emits no split double-count event on adjusted data, and asserts the split-day portfolio move is a normal price move rather than a false 50% cliff.
+
+These are ordinary pytest tests, not live downloader/S3 acceptance tests, so they should run in the normal LumiBot deployment gate. A live S3/read-only cache audit can be added on top, but the core split regression does not need network access to catch this class of bug.
 
 Focused command run:
 
 ```bash
 LUMIBOT_DISABLE_DOTENV=1 /Users/robertgrzesik/bin/safe-timeout 300s python3 -m pytest tests/test_stock_split_accounting.py tests/test_ibkr_daily_split_spike_repair.py tests/backtest/test_ibkr_equity_actions.py tests/test_strategy_dividend_cash_batch.py tests/test_split_adjustment.py tests/test_backtesting_broker.py tests/backtest/test_pandas_backtest.py tests/backtest/test_yahoo.py tests/backtest/test_yahoo_helper_actions.py -q
-# 108 passed, 1 warning
+# 111 passed, 1 warning
 ```
 
 ## Replay Validation
@@ -188,11 +224,33 @@ Important split-window checks after the final fix:
 
 The final IBKR and Yahoo runs emitted zero stock-split/corporate-action ledger events because their data frames were treated as split-adjusted. That is expected for these adjusted-price backtests and prevents double counting.
 
-## Remaining Non-Split Follow-Up
+## Other Symbols And Cache Quality
 
-The dev cache result (`29.53%`) is below prod IBKR (`38.90%`) and Yahoo (`38.17%`) because the inspected dev S3 TQQQ cache also had completeness/coverage differences around early 2016. That is separate from the 2025 split crash:
+The dev cache result (`29.53%`) is below prod IBKR (`38.90%`) and Yahoo (`38.17%`) because the inspected dev S3 TQQQ cache had broader completeness and quality differences. That is separate from the 2025 split crash:
 
 - The split crash is fixed by normalization and verified by the 2021/2022/2025 split windows.
-- The dev/prod result gap should be tracked as a dev-cache completeness issue, not as a split accounting issue.
+- The dev/prod result gap should be tracked as a dev-cache completeness issue, not as a split accounting or cash-ledger issue.
+
+The scan also found that dev and prod are not mirrors for other common stock/day objects:
+
+| Symbol | Dev rows | Prod rows | Row delta | Notable scan finding |
+| --- | ---: | ---: | ---: | --- |
+| `QQQ` | `1554` | `3990` | `-2436` | Dev starts in 2020; prod starts in 1982 |
+| `SPY` | `4135` | `6009` | `-1874` | Dev starts in 2009; prod starts in 1981 |
+| `AMZN` | `1263` | `2594` | `-1331` | Dev starts in 2021; prod starts in 2016 |
+| `GOOG` | `1255` | `2509` | `-1254` | Dev starts in 2021; prod starts in 2016 |
+| `SGOV` | `3` | `1298` | `-1295` | Dev object is effectively unusable for long windows |
+| `TNA` | `1252` | `2929` | `-1677` | Dev is missing a split event that prod has |
+| `TECL` | `1561` | `2929` | `-1368` | Prod scan flags one raw split-like boundary for follow-up |
+| `UPRO` | `1734` | `2928` | `-1194` | Prod scan flags one large non-split jump for follow-up |
+| `SQQQ` | `2540` | `1795` | `745` | Dev scan flags one large non-split jump |
+| `O` | `1257` | `1257` | `0` | The split ratio is `1.032`; likely a special corporate-action style row, not a TQQQ-style 2:1 cliff |
+
+Do not over-interpret every scan flag as a trading bug. Leveraged ETFs can have very large legitimate moves, small split ratios can represent spinoff/special-action data, and dev/prod row-count differences can be expected when dev cache is warmed by ad hoc tests. But dev cache should not be used as the canonical truth for long-horizon parity. For future incidents:
+
+1. Reproduce with prod S3 readonly before mutating any cache.
+2. Keep dev/local readwrite cache off until the evidence object has been copied or versioned.
+3. Add a small S3 read-only cache audit gate for high-usage daily-stock symbols if the deployment pipeline can tolerate networked checks.
+4. Prefer rebuilding or replacing bad dev IBKR stock/day objects from a known-good source over broad cache deletion.
 
 If a future provider/cache omits `stock_splits` entirely, LumiBot still cannot safely infer true corporate actions from price moves alone without risking false positives. Provider enrichment and cache quality remain required.

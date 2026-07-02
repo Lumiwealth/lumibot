@@ -16,15 +16,19 @@
 - **The TQQQ split RCA documents the false dev crash, the false 60% intermediate
   fix, and the corrected IBKR/Yahoo replay results.** The investigation records
   the mixed dev-cache shape, production DB evidence that prior TQQQ 200-day
-  backtests were in the expected range, and the remaining separate dev-cache
-  completeness follow-up.
+  backtests were in the expected range, the dev/prod S3 cache inventory
+  differences, and the remaining separate dev-cache completeness follow-up.
 
 ### Tests
 - **IBKR split-normalization regressions now cover raw forward splits, reverse
   splits, already-adjusted rows, and the exact mixed TQQQ cache shape.** The
-  broader split suite also verifies regular and reverse position-ledger splits,
-  idempotence, invalid ratios, non-stock positions, split-adjusted provider
-  skips, Yahoo action handling, and daily backtest hold-through behavior.
+  suite also covers the `get_price_data()` cached daily stock path and a
+  deterministic TQQQ daily backtest that buys before the 2025 split, holds
+  through it without a false equity cliff, and sells the non-doubled adjusted
+  quantity. The broader split suite also verifies regular and reverse
+  position-ledger splits, idempotence, invalid ratios, non-stock positions,
+  split-adjusted provider skips, Yahoo action handling, and daily backtest
+  hold-through behavior.
 
 ## 4.5.63 - 2026-06-30
 

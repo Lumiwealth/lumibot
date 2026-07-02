@@ -257,7 +257,7 @@ If a future provider/cache omits `stock_splits` entirely, LumiBot still cannot s
 
 ## Cache Audit Results And Revised Game Plan
 
-Additional read-only cache audit on 2026-07-02 changed the recommended next step. Do not add a per-request internal-gap scan to LumiBot's hot `get_price_data()` path unless a separate performance design proves it is safe. The next step is offline cache audit plus targeted object repair.
+Additional read-only cache audit on 2026-07-02 changed the recommended next step. Do not add a per-request internal-gap scan to LumiBot's hot `get_price_data()` path unless a separate performance design proves it is safe. The next step is offline cache audit plus targeted cache deletion/refill for confirmed bad IBKR objects. Do not do row-level surgical repair unless delete/refill fails and a separate RCA proves the provider still returns bad data.
 
 Audit artifacts:
 
@@ -280,12 +280,12 @@ Production findings:
 - Production TQQQ RTH (`prod/cache/v1/ibkr/stock/day/bars/stock_TQQQ_USD_day_AUTO_TRADES_RTH.parquet`) was clean and matched Yahoo closely. It is not the bad local/dev TQQQ object.
 - Production daily stock/index audit found `45` placeholder-only objects. These are persisted no-data markers, not corrupt price rows. They should not be treated as repair targets unless a strategy actually needs those symbols/windows.
 - Production daily stock/index audit produced `42` split-like or large-jump event rows for Yahoo comparison. `30` matched Yahoo close levels and are likely real market moves, not cache problems.
-- Confirmed production repair candidates:
+- Confirmed production delete/refill candidates:
   - `TECL`: `244` real rows from `2020-03-12` through `2021-03-01` are exactly `10x` Yahoo close, followed by the real `2021-03-02` 10:1 split row. This is a mixed split-adjustment cache segment.
   - `UPRO`: `270` real rows from `2020-03-12` through `2021-04-07` are exactly `2x` Yahoo close, then return to Yahoo level on `2021-04-08`. This is a mixed adjustment splice without a same-day split marker.
   - `SPXU`: one bad reverse-split date, `2021-01-21`; IBKR close `116.20`, Yahoo close `541.80`, Yahoo split `0.2`.
   - `OUST`: one bad reverse-split date, `2023-04-21`; IBKR close `0.40`, Yahoo close `3.72`, Yahoo split `0.1`.
-- Needs manual review before any repair:
+- Needs manual review before any delete/refill:
   - `AMC`: `330` real rows from `2021-04-30` through `2022-08-19` sit at a constant `0.6198x` Yahoo close. This may be an AMC/APE special-action adjustment difference rather than a simple split bug.
   - `VIX9D`: differs from Yahoo on two jump dates; this may be index-close/vendor methodology rather than a cache splice.
   - `AMR` and one `APLD` action event could not be verified cleanly through Yahoo in the audit window.
@@ -302,33 +302,36 @@ Revised plan:
 
 1. Do not change the hot cache-read path for internal gap scanning right now.
    - The backtest cache is performance-sensitive.
-   - Treat this as an offline audit/repair problem unless a future design proves near-zero overhead.
+   - Treat this as an offline audit and targeted invalidation problem unless a future design proves near-zero overhead.
 
 2. Keep the LumiBot split-normalization fix.
    - The TQQQ local/dev chart cliff is still a real split-normalization bug.
    - The existing unit/backtest coverage should stay because it prevents double-counting adjusted providers like Yahoo and mixed IBKR split rows like TQQQ/TECL.
 
-3. Build a reusable offline audit/repair script.
+3. Build a reusable offline audit script.
    - Default mode: read-only audit, exactly like this pass.
    - Scope first: `ibkr/stock/day/bars` and `ibkr/index/day/bars`.
-   - Output JSON/CSV with symbol, source variant, real-row spans, split markers, Yahoo comparison for flagged events, and repair recommendation.
+   - Output JSON/CSV with symbol, source variant, real-row spans, split markers, Yahoo comparison for flagged events, and delete/refill recommendation.
    - This can run before deployments or as an operations task without slowing every backtest.
+   - Do not build a row-level repair script as the primary path. It is more complex than needed and risks preserving stale provider mistakes.
 
-4. Repair production surgically.
-   - Back up each target object before writing.
+4. Delete/refill production confirmed targets.
+   - Back up each target object first by copying it to a dated S3 backup prefix or local durable artifact path.
    - Start with `TECL`, `UPRO`, `SPXU`, and `OUST`.
-   - Do not repair `AMC`, `VIX9D`, `AMR`, or `APLD` until manually reviewed.
+   - Delete only those exact S3 objects, not broad `prod/cache/v1`.
+   - Refill them by running a fixed LumiBot `4.5.64+` backtest or data-hydration job that requests those symbols through the normal IBKR/Data Downloader/S3 path.
+   - Do not delete/refill `AMC`, `VIX9D`, `AMR`, or `APLD` until manually reviewed.
    - Do not delete or reset broad `prod/cache/v1`.
 
-5. Repair or retire bad dev objects.
-   - Dev can be fixed more aggressively because it is lower-stakes, but still back up objects first.
-   - Repair/rebuild `TQQQ`, `SQQQ`, and `SPY` in `dev/cache/v1`.
-   - Repair or remove dirty non-RTH TQQQ variants in `dev/cache/v44`.
+5. Delete/refill or retire bad dev objects.
+   - Dev can be fixed more aggressively because it is lower-stakes, but still back up objects first if they are useful evidence.
+   - Delete/refill `TQQQ`, `SQQQ`, and `SPY` in `dev/cache/v1`.
+   - Delete/refill or remove dirty non-RTH TQQQ variants in `dev/cache/v44`.
 
-6. Validate after repair.
+6. Validate after refill.
    - Rerun the offline audit and require zero confirmed repair candidates for active production symbols.
    - Rerun the TQQQ 2016-03-04 to 2026-03-04 matrix: prod IBKR should remain close to Yahoo (`38.90%` CAGR / `-48.20%` max DD versus Yahoo `38.17%` / `-48.57%` in the local replay).
-   - Add symbol-level validation for repaired objects: TECL, UPRO, SPXU, and OUST should match Yahoo close levels around the repaired spans.
+   - Add symbol-level validation for refilled objects: TECL, UPRO, SPXU, and OUST should match Yahoo close levels around the bad spans.
 
 7. Release and deploy after cache plan is clear.
    - Follow `docs/DEPLOYMENT.md`: release LumiBot `4.5.64`, verify installability, then update Bot Manager.

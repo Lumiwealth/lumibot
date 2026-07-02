@@ -919,14 +919,25 @@ class DataSource(ABC):
                 )
                 query_t = time.perf_counter()
                 option_symbol = create_options_symbol(opt_asset.symbol, expiry_dt, right, strike)
-                opt_price = self.get_last_price(opt_asset)
+                try:
+                    opt_price = self.get_last_price(opt_asset, allow_stale_option_last=False)
+                except TypeError:
+                    opt_price = self.get_last_price(opt_asset)
+                try:
+                    opt_price_float = float(opt_price)
+                except (TypeError, ValueError):
+                    continue
+                if not math.isfinite(opt_price_float) or opt_price_float <= 0:
+                    continue
                 greeks = self.calculate_greeks(opt_asset, opt_price, underlying_price, risk_free_rate)
+                if not isinstance(greeks, dict):
+                    continue
                 query_total += time.perf_counter() - query_t
 
                 # Build the row. Match the Tradier column naming conventions.
                 row = {
                     "symbol": option_symbol,
-                    "last": opt_price,
+                    "last": opt_price_float,
                     "expiration_date": expiry_dt,
                     "strike": strike,
                     "option_type": right,

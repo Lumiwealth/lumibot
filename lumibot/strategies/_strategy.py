@@ -1149,6 +1149,16 @@ class _Strategy:
             if option_mark_time_local is not None:
                 t_local = option_mark_time_local.time()
                 option_marking_allowed = (t_local >= datetime.time(9, 30)) and (t_local <= datetime.time(16, 0))
+                if not option_marking_allowed and self.is_backtesting:
+                    try:
+                        cadence_seconds = self._get_sleeptime_seconds()
+                    except Exception:
+                        cadence_seconds = None
+                    if cadence_seconds is not None and cadence_seconds >= 20 * 3600:
+                        # Daily-cadence backtests commonly evaluate at midnight while using
+                        # daily/EOD bars. Treat those marks as valid for portfolio valuation;
+                        # intraday backtests still reject off-session option marks.
+                        option_marking_allowed = True
 
             def _asset_type_key(asset_obj):
                 cached_asset_type_key = getattr(asset_obj, "_cached_asset_type_key", None)
@@ -1426,9 +1436,37 @@ class _Strategy:
                             has_last_known_price = False
 
                         if day_quote_mark is not None:
-                            if has_last_known_price:
-                                return None
                             return day_quote_mark
+
+                        fallback_enabled = str(
+                            os.environ.get("THETADATA_OPTION_MTM_OHLC_FALLBACK", "true")
+                        ).strip().lower() not in {"0", "false", "no", "off"}
+                        if fallback_enabled:
+                            try:
+                                last_trade_mark = source.get_last_price(
+                                    base_asset,
+                                    timestep="day",
+                                    quote=quote_asset,
+                                    allow_stale_option_last=True,
+                                )
+                            except TypeError:
+                                try:
+                                    last_trade_mark = source.get_last_price(base_asset, quote=quote_asset)
+                                except Exception:
+                                    last_trade_mark = None
+                            except Exception:
+                                self.logger.debug(
+                                    "ThetaData daily option MTM fallback failed for %s",
+                                    base_asset,
+                                    exc_info=True,
+                                )
+                                last_trade_mark = None
+                            try:
+                                numeric_mark = float(last_trade_mark) if last_trade_mark is not None else None
+                            except (TypeError, ValueError):
+                                numeric_mark = None
+                            if numeric_mark is not None and math.isfinite(numeric_mark) and numeric_mark > 0:
+                                return numeric_mark
             except Exception as e:
                 self.logger.debug("ThetaData quote-mark lookup failed for %s: %s", base_asset, e)
             return None

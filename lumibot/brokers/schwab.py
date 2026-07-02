@@ -60,6 +60,19 @@ def _is_external_schwab_token_file_valid(token_path: Path) -> bool:
         return False
 
 
+def _strip_external_schwab_token(token: dict) -> dict:
+    """Return an access-token-only Schwab token payload for parent-managed refresh mode."""
+    sanitized = dict(token)
+    for secret_key in (
+        "refresh_token",
+        "refresh_token_issued_at",
+        "refresh_token_expires_in",
+        "id_token",
+    ):
+        sanitized.pop(secret_key, None)
+    return sanitized
+
+
 class SchwabTokenPersistenceError(RuntimeError):
     """Raised when a refreshed Schwab OAuth token cannot be durably written."""
 
@@ -316,6 +329,8 @@ class Schwab(Broker):
             token_dict_for_session = wrapped_token_data.get('token')
             if not token_dict_for_session or 'access_token' not in token_dict_for_session:
                 raise ValueError("Token file is missing the 'token' object or 'access_token' within it.")
+            if external_token_refresh:
+                token_dict_for_session = _strip_external_schwab_token(token_dict_for_session)
             token_file_state = {"signature": None}
 
             def _token_file_signature():
@@ -328,7 +343,9 @@ class Schwab(Broker):
                 latest_token = latest_wrapped.get("token") if isinstance(latest_wrapped, dict) else latest_wrapped
                 if not isinstance(latest_token, dict) or not latest_token.get("access_token"):
                     raise ValueError("Token file is missing a usable access_token.")
-                if not latest_token.get("refresh_token") and token_dict_for_session.get("refresh_token"):
+                if external_token_refresh:
+                    latest_token = _strip_external_schwab_token(latest_token)
+                elif not latest_token.get("refresh_token") and token_dict_for_session.get("refresh_token"):
                     latest_token["refresh_token"] = token_dict_for_session["refresh_token"]
                 if latest_token.get("issued_at") and latest_token.get("expires_in"):
                     latest_token["expires_at"] = int(
@@ -485,7 +502,7 @@ class Schwab(Broker):
             logger.info(f"[Schwab] Successfully initialized Schwab client from {token_path} (app_secret not used).")
             # Check if SCHWAB_APP_SECRET is available for auto-refresh warning
             app_secret_for_refresh = config.get("SCHWAB_APP_SECRET") or os.environ.get("SCHWAB_APP_SECRET")
-            if not app_secret_for_refresh:
+            if not external_token_refresh and not app_secret_for_refresh:
                 logger.warning(
                     "[Schwab] Token auto-refresh by this client may not work as SCHWAB_APP_SECRET is not configured. "
                     "You may need to re-authenticate by providing a new SCHWAB_TOKEN or deleting token.json when the current token expires."
@@ -493,7 +510,7 @@ class Schwab(Broker):
         except Exception as e:
             logger.error(colored(f"[Schwab] Error initializing Schwab client from token file {token_path}: {e}", "red"))
             logger.error(traceback.format_exc())
-            if token_path.exists() and not isinstance(e, SchwabTokenPersistenceError):
+            if token_path.exists() and not external_token_refresh and not isinstance(e, SchwabTokenPersistenceError):
                 logger.warning(f"[Schwab] Deleting potentially corrupt token file: {token_path}")
                 token_path.unlink(missing_ok=True)
             self.schwab_authorization_error = True

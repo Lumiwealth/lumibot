@@ -3,6 +3,11 @@
 ## 4.5.64 - Unreleased
 
 ### Fixed
+- **Schwab and Tradier external OAuth mode now keeps managed child runtimes
+  access-token-only.** When ``LUMIBOT_OAUTH_REFRESH_MODE=external`` is set,
+  broker clients strip refresh-token material from in-memory token payloads,
+  reload atomically replaced access-token files, and never attempt provider
+  OAuth refresh from the strategy process.
 - **IBKR daily stock backtests now normalize mixed split-adjustment cache
   segments before accounting.** A local/dev TQQQ 200-day backtest hit a mixed
   IBKR S3 cache where 2021/2022 TQQQ split rows were already continuous but the
@@ -20,6 +25,11 @@
   differences, and the remaining separate dev-cache completeness follow-up.
 
 ### Tests
+- **External OAuth regressions now cover repeated parent-token-file
+  replacement across multiple child brokers.** Schwab and Tradier tests prove
+  external mode strips stale refresh tokens, skips provider refresh calls,
+  reloads access-only token files, and handles repeated atomic replacements
+  shared by several broker instances.
 - **IBKR split-normalization regressions now cover raw forward splits, reverse
   splits, already-adjusted rows, and the exact mixed TQQQ cache shape.** The
   suite also covers the `get_price_data()` cached daily stock path and a

@@ -1,7 +1,7 @@
 Lumibot: Backtestable AI Agents and Python Algorithmic Trading
 ==============================================================
 
-**Build deterministic trading strategies, AI trading agents, and AI trading teams for stocks, options, crypto, futures, forex, SEC filings, FRED macro data, technical indicators, and real brokers. Backtest, paper trade, or run live with the same Python code.**
+**Build deterministic trading strategies, AI trading agents, and AI trading teams for stocks, options, crypto, futures, forex, prediction markets, SEC filings, FRED macro data, technical indicators, and real brokers. Backtest, paper trade, or run live with the same Python code.**
 
 .. raw:: html
    :file: _html/main.html
@@ -404,6 +404,16 @@ Compared With AI Trading Agent Projects
 
 Read the detailed comparison page: :doc:`ai_trading_project_comparison`.
 
+Polymarket Trading And Backtesting
+----------------------------------
+
+LumiBot supports Polymarket prediction-contract trading and backtesting through the normal broker, data-source, and
+backtesting abstractions. Strategies can search markets, resolve outcomes to CLOB token ids, read order books and
+quotes, inspect market rules and resolution status, backtest historical Polymarket prices, and submit live orders using
+``create_order`` and ``submit_order``.
+
+Start with the full setup and reference guide: :doc:`brokers.polymarket`.
+
 Compared With Backtesting Libraries
 -----------------------------------
 
@@ -419,9 +429,9 @@ Compared With Backtesting Libraries
      - Hosted deployment
    * - Lumibot
      - Yes
-     - Stocks, options, crypto, futures, forex
+     - Stocks, options, crypto, futures, forex, prediction markets
      - Built-in
-     - Alpaca, IBKR, Tradier, Schwab, Tradovate, ProjectX, Bitunix, selected CCXT
+     - Alpaca, IBKR, Tradier, Schwab, Tradovate, ProjectX, Bitunix, Polymarket, selected CCXT
      - BotSpot
    * - Backtrader
      - Yes

@@ -643,22 +643,61 @@ def _provider_prompt_cache_key(request: RuntimeRequest) -> str:
     return f"lumibot:{request.agent_name}:{digest[:32]}"
 
 
-def _model_context_limit_tokens(model: Any) -> int | None:
+DEFAULT_MODEL_CONTEXT_LIMIT_TOKENS = 1_000_000
+DEFAULT_MODEL_CONTEXT_STRING_LIMIT_CHARS = 20_000
+
+MODEL_CONTEXT_LIMIT_PREFIXES: tuple[tuple[str, int, int], ...] = (
+    ("anthropic/claude-", 200_000, DEFAULT_MODEL_CONTEXT_STRING_LIMIT_CHARS),
+    ("claude-", 200_000, DEFAULT_MODEL_CONTEXT_STRING_LIMIT_CHARS),
+    ("deepseek/deepseek-v4-", 1_048_576, DEFAULT_MODEL_CONTEXT_STRING_LIMIT_CHARS),
+    ("gemini-3.1", 1_048_576, DEFAULT_MODEL_CONTEXT_STRING_LIMIT_CHARS),
+    ("gemini-2.5", 1_048_576, DEFAULT_MODEL_CONTEXT_STRING_LIMIT_CHARS),
+    ("gemini-1.5", 1_048_576, DEFAULT_MODEL_CONTEXT_STRING_LIMIT_CHARS),
+    ("openai/gpt-4.1", 1_047_576, DEFAULT_MODEL_CONTEXT_STRING_LIMIT_CHARS),
+    ("gpt-4.1", 1_047_576, DEFAULT_MODEL_CONTEXT_STRING_LIMIT_CHARS),
+    ("xai/grok-4.20", 2_000_000, DEFAULT_MODEL_CONTEXT_STRING_LIMIT_CHARS),
+    ("grok-4.20", 2_000_000, DEFAULT_MODEL_CONTEXT_STRING_LIMIT_CHARS),
+)
+
+
+def _positive_int_env(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        parsed = int(str(raw).strip())
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
+
+
+def _model_context_limit_entry(model: Any) -> tuple[int, int] | None:
     if not isinstance(model, str):
         return None
     lower = model.strip().lower()
-    if lower.startswith("deepseek/deepseek-v4-"):
-        return 1_048_576
-    return None
+    if not lower:
+        return None
+    for prefix, token_limit, string_limit in MODEL_CONTEXT_LIMIT_PREFIXES:
+        if lower.startswith(prefix):
+            return token_limit, string_limit
+    return (
+        _positive_int_env("LUMIBOT_AGENT_DEFAULT_CONTEXT_LIMIT_TOKENS", DEFAULT_MODEL_CONTEXT_LIMIT_TOKENS),
+        _positive_int_env("LUMIBOT_AGENT_DEFAULT_CONTEXT_STRING_LIMIT_CHARS", DEFAULT_MODEL_CONTEXT_STRING_LIMIT_CHARS),
+    )
+
+
+def _model_context_limit_tokens(model: Any) -> int | None:
+    entry = _model_context_limit_entry(model)
+    if entry is None:
+        return None
+    return entry[0]
 
 
 def _model_context_string_limit_chars(model: Any) -> int | None:
-    if not isinstance(model, str):
+    entry = _model_context_limit_entry(model)
+    if entry is None:
         return None
-    lower = model.strip().lower()
-    if lower.startswith("deepseek/deepseek-v4-"):
-        return 20_000
-    return None
+    return entry[1]
 
 
 def _truncate_preserving_edges(text: str, max_chars: int, *, label: str) -> str:
@@ -762,7 +801,7 @@ def _prune_tool_response_for_context_window(tool_response: Any, *, tool_name: st
         "original_chars": response_chars,
         "excerpt": _truncate_preserving_edges(serialized, max_chars, label=f"tool_response.{tool_name or 'unknown'}"),
         "message": (
-            "Tool response was shortened by Lumibot before sending it back to this DeepSeek model "
+            "Tool response was shortened by Lumibot before sending it back to this model "
             "because the provider context window would otherwise be exceeded. Call a targeted tool "
             "again if more detail is required."
         ),

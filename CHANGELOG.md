@@ -1,5 +1,77 @@
 # Changelog
 
+## 4.5.64 - Unreleased
+
+### Added
+- **Polymarket International CLOB support now includes prediction-contract
+  assets, broker dispatch, live smoke tooling, and public docs.** LumiBot can
+  select the Polymarket broker through `TRADING_BROKER=polymarket`, represent
+  prediction contracts as a first-class asset type, normalize live CLOB response
+  shapes, and use deposit-wallet credentials with explicit signature-type
+  configuration.
+- **Polymarket prediction-contract backtesting can use real Polymarket
+  price-history bars.** `PolymarketBacktesting` loads CLOB price-history data,
+  keeps prices in the `0..1` prediction-market range, validates market tick size
+  and minimum order size, and supports deterministic examples/tests for market
+  and limit order fills.
+
+### Fixed
+- **ThetaData option valuation is more robust for option backtests.** The
+  ThetaData backtesting path now avoids stale or missing option marks in the
+  relevant valuation path covered by the 4.5.64 release tests. Daily option MTM
+  now forward-fills established positions when the intraday quote snapshot is
+  missing instead of forcing a stale day quote, and the strategy-level valuation
+  layer no longer reaches for stale option last trades after quote evidence is
+  unavailable.
+- **Polymarket example backtests now read strategy parameters correctly.** The
+  prediction-contract example strategy reads the normal `self.parameters` store
+  used by `Strategy.backtest()`, so local and release-gate backtests do not
+  require `POLYMARKET_TEST_TOKEN_ID` when a test supplies an explicit token id.
+- **Schwab and Tradier external OAuth mode now keeps managed child runtimes
+  access-token-only.** When ``LUMIBOT_OAUTH_REFRESH_MODE=external`` is set,
+  broker clients strip refresh-token material from in-memory token payloads,
+  reload atomically replaced access-token files, and never attempt provider
+  OAuth refresh from the strategy process.
+- **IBKR daily stock backtests now normalize mixed split-adjustment cache
+  segments before accounting.** A local/dev TQQQ 200-day backtest hit a mixed
+  IBKR S3 cache where 2021/2022 TQQQ split rows were already continuous but the
+  2024-01-31 through 2025-11-19 tail was raw before the real 2025-11-20 2:1
+  split. LumiBot now detects raw split-level jumps per split boundary,
+  normalizes only the raw pre-split segment into split-adjusted price space, and
+  marks the frame `_split_adjusted` so the generic broker-ledger split path does
+  not double-count already-adjusted providers such as Yahoo or normalized IBKR.
+
+### Docs
+- **Polymarket setup is documented in both published RST docs and repo
+  Markdown.** The release includes the CLOB integration research, live-proof
+  notes, environment-variable reference, broker docs, README updates, and
+  generated `llms.txt`/sitemap updates.
+- **The TQQQ split RCA documents the false dev crash, the false 60% intermediate
+  fix, and the corrected IBKR/Yahoo replay results.** The investigation records
+  the mixed dev-cache shape, production DB evidence that prior TQQQ 200-day
+  backtests were in the expected range, the dev/prod S3 cache inventory
+  differences, and the remaining separate dev-cache completeness follow-up.
+
+### Tests
+- **Polymarket unit and backtesting coverage now exercises broker parsing,
+  quote/last-price behavior, prediction-contract cash accounting, limit/market
+  fills, tick-size validation, data-source defaults, and example strategy
+  imports.**
+- **External OAuth regressions now cover repeated parent-token-file
+  replacement across multiple child brokers.** Schwab and Tradier tests prove
+  external mode strips stale refresh tokens, skips provider refresh calls,
+  reloads access-only token files, and handles repeated atomic replacements
+  shared by several broker instances.
+- **IBKR split-normalization regressions now cover raw forward splits, reverse
+  splits, already-adjusted rows, and the exact mixed TQQQ cache shape.** The
+  suite also covers the `get_price_data()` cached daily stock path and a
+  deterministic TQQQ daily backtest that buys before the 2025 split, holds
+  through it without a false equity cliff, and sells the non-doubled adjusted
+  quantity. The broader split suite also verifies regular and reverse
+  position-ledger splits, idempotence, invalid ratios, non-stock positions,
+  split-adjusted provider skips, Yahoo action handling, and daily backtest
+  hold-through behavior.
+
 ## 4.5.63 - 2026-06-30
 
 Deploy marker: `deploy 4.5.63`

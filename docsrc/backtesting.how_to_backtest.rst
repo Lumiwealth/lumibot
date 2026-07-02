@@ -1,7 +1,7 @@
 How To Backtest
 ===================================
 
-Backtesting is a vital step in validating your trading strategies using historical data. With LumiBot, you can backtest strategies across various data sources such as **ThetaData** (our recommended vendor), **Polygon.io**, **Yahoo Finance**, or even your own custom **CSV** files. This guide will walk you through each step of backtesting, explain the data sources, and introduce the files that LumiBot generates during backtesting.
+Backtesting is a vital step in validating your trading strategies using historical data. With LumiBot, you can backtest strategies across various data sources such as **ThetaData** (our recommended vendor), **Polygon.io**, **Yahoo Finance**, **Polymarket CLOB prediction-contract history**, or even your own custom **CSV** files. This guide will walk you through each step of backtesting, explain the data sources, and introduce the files that LumiBot generates during backtesting.
 
 .. note::
 
@@ -81,6 +81,15 @@ For more details, see the :ref:`Polygon.io Backtesting <backtesting.polygon>` se
 - Ideal for advanced users but requires more manual configuration.
 
 For more details, see the :ref:`Pandas Backtesting <backtesting.pandas>` section.
+
+**5. Polymarket CLOB**
+
+- Uses real Polymarket CLOB price-history data for prediction-contract close-price bars.
+- Trades CLOB outcome tokens as ``prediction_contract`` assets priced between ``0`` and ``1``.
+- Uses LumiBot's normal market and limit backtesting fills from loaded Polymarket bars while enforcing prediction-contract price bounds, tick-size rules, minimum order size rules, market-close behavior, and resolved-market settlement when metadata is available.
+- Keeps prediction-contract backtests on Polymarket/Pandas bars so they do not fall through to stock, Yahoo, or IBKR data paths.
+
+For more details, see the :doc:`Polymarket broker guide <brokers.polymarket>`.
 
 Running a Backtest with Polygon.io
 -----------------------------------
@@ -162,7 +171,7 @@ If they are set, LumiBot will automatically pick them up. For example:
      - End date in the format "YYYY-MM-DD".
      - 2025-05-01
    * - BACKTESTING_DATA_SOURCE
-     - Backtesting data source. This value is case-insensitive and takes precedence even when your code passes a ``datasource_class`` argument. Set it to ``none`` (or leave it unset) if you prefer to control the data source from code. Valid options: **Polygon**, **ThetaData**, **Yahoo**, **Alpaca**, **CCXT**, **DataBento** (defaults to ThetaData).
+     - Backtesting data source. This value is case-insensitive and takes precedence even when your code passes a ``datasource_class`` argument. Set it to ``none`` (or leave it unset) if you prefer to control the data source from code. Valid options: **Polygon**, **ThetaData**, **Yahoo**, **Alpaca**, **CCXT**, **DataBento**, **Polymarket** (defaults to ThetaData).
      - Polygon
 
 Below is a short example showing how you might rely *entirely* on environment variables and **omit** any explicit date or data source definitions in code. Set ``BACKTESTING_DATA_SOURCE=Polygon`` in your environment to use Polygon.io (API key still required):

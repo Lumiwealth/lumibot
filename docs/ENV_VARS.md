@@ -20,6 +20,35 @@ This page documents environment variables used by LumiBot, with an emphasis on *
   - The tool date-gates requests to the strategy datetime during backtests.
   - Do not commit real key values.
 
+### Polymarket CLOB broker variables
+- Selectors:
+  - `TRADING_BROKER=polymarket` or `TRADING_BROKER=polymarket_clob`
+  - `DATA_SOURCE=polymarket` or `DATA_SOURCE=polymarket_clob` for public market data only.
+- Local prototype secret storage: `.env.local` is loaded after `.env` unless `LUMIBOT_DISABLE_DOTENV_LOCAL=1`.
+- Credential fields:
+  - `POLYMARKET_PRIVATE_KEY`: wallet private key/session signer for CLOB signing (**secret**).
+  - `POLYMARKET_OWNER_ADDRESS`: optional owner/signer address for Magic/proxy accounts. Used as a fallback for Data API position/value reads.
+  - `POLYMARKET_WALLET_ADDRESS`: proxy wallet, deposit wallet, Safe, or other funder address passed to the CLOB client.
+  - `POLYMARKET_SIGNATURE_TYPE`: CLOB signature type. `0` = EOA, `1` = existing Polymarket proxy/Magic wallet, `2` = Gnosis Safe, `3` = deposit wallet / `POLY_1271`. The broker defaults to `1` when owner and wallet differ, otherwise `3`; set it explicitly for live tests.
+  - `POLYMARKET_CLOB_API_KEY`, `POLYMARKET_CLOB_API_SECRET`, `POLYMARKET_CLOB_API_PASSPHRASE`: optional CLOB L2 credentials (**secret**).
+  - `POLYMARKET_API_CREDENTIALS_JSON`: optional JSON wrapper for CLOB credentials (**secret**).
+  - `POLYMARKET_RELAYER_API_KEY`, `POLYMARKET_RELAYER_API_KEY_ADDRESS`: relayer credentials for wallet deployment/approval flows when required (**secret**).
+  - `POLYMARKET_BUILDER_CODE`: optional attribution code.
+  - `POLYMARKET_AUTO_APPROVE`: truthy to attempt CLOB collateral approval setup before live trading.
+  - `POLYMARKET_MAX_MARKET_ORDER_NOTIONAL`: hard cap for market BUY dollar amount; defaults to `5`.
+- Test gates:
+  - `POLYMARKET_TEST_TOKEN_ID`: explicit token id for public/live smoke tests.
+  - `POLYMARKET_LIVE_TRADING_ENABLED=true`: required before any live submit/cancel smoke test can run.
+  - `POLYMARKET_TEST_MAX_NOTIONAL`: additional live-test cap; default path never exceeds `5`.
+- Notes:
+  - Do not auto-detect Polymarket from a private key. Use explicit `TRADING_BROKER=polymarket`.
+  - Relayer keys are not the same as CLOB trading credentials.
+  - CLOB collateral balances are returned in 6-decimal raw units by `get_balance_allowance`; LumiBot scales those into dollars.
+  - Current local proof on 2026-07-02 can read balances, positions, open orders, trades, public data, public/private WebSockets, and live submit/cancel through LumiBot with the funded deposit wallet.
+  - BUY orders need pUSD collateral approval. SELL orders need conditional-token approvals from the deposit wallet; use `scripts/polymarket_deposit_wallet_setup.py --approve-conditional`.
+  - Direct smoke helper: `scripts/polymarket_smoke.py`. LumiBot smoke helper: `scripts/polymarket_lumibot_smoke.py`. They load `.env.local`, redact output, and only submit live orders when `POLYMARKET_LIVE_TRADING_ENABLED=true` plus notional caps are present.
+  - Never commit or log raw Polymarket private keys or CLOB credentials.
+
 ### `LUMIBOT_DISABLE_DOTENV`
 - Purpose: Disable automatic `.env` discovery and loading at startup.
 - Values: truthy enables (`1`, `true`, `yes`); unset/`0` disables.
@@ -65,12 +94,14 @@ This page documents environment variables used by LumiBot, with an emphasis on *
 - Purpose: Selects the backtesting datasource **even if code passes an explicit `datasource_class`**.
 - Values (case-insensitive):
   - `thetadata`, `yahoo`, `polygon`, `alpaca`, `ccxt`, `databento`
+  - `polymarket` / `polymarket_clob` for Polymarket prediction-contract history
   - `ibkr` / `interactivebrokersrest` / `interactive_brokers_rest` (IBKR Client Portal REST via Data Downloader)
   - `router` (multi-provider routing; defaults to Theta for stock/option/index and IBKR for futures/crypto)
   - JSON mapping (multi-provider routing by asset type), e.g.:
     - `{"default":"thetadata","stock":"thetadata","option":"thetadata","index":"thetadata","future":"ibkr","cont_future":"ibkr","crypto":"ibkr","crypto_future":"ibkr"}`
     - Provider values are case/whitespace/_/- insensitive. Supported values include:
       - `thetadata`, `ibkr`, `polygon`, `alpaca`
+      - `polymarket` / `polymarket_clob` for prediction-contract assets
       - `ccxt` (auto-select exchange from existing env/credentials; defaults to Coinbase when no exchange credential/config is available)
       - supported CCXT backtesting exchange ids such as `coinbase`, `kraken`, `binance`, `kucoin`, `bitmex`, `bybit`, and `okx`
   - `none` to disable env override and rely on code.

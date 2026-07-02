@@ -164,6 +164,19 @@ class Tradier(Broker):
         return payload
 
     @staticmethod
+    def _strip_external_oauth_token(token_json: dict) -> dict:
+        """Return an access-token-only OAuth payload for parent-managed refresh mode."""
+        sanitized = dict(token_json)
+        for secret_key in (
+            "refresh_token",
+            "refresh_token_issued_at",
+            "refresh_token_expires_in",
+            "id_token",
+        ):
+            sanitized.pop(secret_key, None)
+        return sanitized
+
+    @staticmethod
     def _write_json_file_atomic(path: str | os.PathLike[str], payload: dict) -> None:
         resolved = Path(path).expanduser().resolve()
         tmp_path = resolved.with_name(f".{resolved.name}.tmp.{os.getpid()}.{threading.get_ident()}")
@@ -217,11 +230,14 @@ class Tradier(Broker):
     def _apply_oauth_token_json(self, token_json: dict) -> bool:
         if not isinstance(token_json, dict):
             return False
+        if getattr(self, "_oauth_refresh_mode", None) == OAUTH_REFRESH_MODE_EXTERNAL:
+            token_json = self._strip_external_oauth_token(token_json)
+            self._oauth_refresh_token = None
         new_access_token = token_json.get("access_token") or token_json.get("AUTH_TOKEN")
         if not new_access_token:
             return False
         self._oauth_token_payload_b64 = self._encode_base64url_json(token_json)
-        if token_json.get("refresh_token"):
+        if getattr(self, "_oauth_refresh_mode", None) != OAUTH_REFRESH_MODE_EXTERNAL and token_json.get("refresh_token"):
             self._oauth_refresh_token = token_json.get("refresh_token")
         try:
             issued_at_ms = int(token_json.get("issued_at") or 0)
@@ -541,11 +557,18 @@ class Tradier(Broker):
             self._oauth_token_payload_b64 = payload_b64
 
         if token_json:
+            if self._oauth_refresh_mode == OAUTH_REFRESH_MODE_EXTERNAL:
+                token_json = self._strip_external_oauth_token(token_json)
+                self._oauth_token_payload_b64 = self._encode_base64url_json(token_json)
             # Prefer explicit access_token argument/config; fall back to decoded payload.
             if not access_token:
                 access_token = token_json.get("access_token") or token_json.get("AUTH_TOKEN")
 
-            self._oauth_refresh_token = os.environ.get("TRADIER_REFRESH_TOKEN") or token_json.get("refresh_token")
+            self._oauth_refresh_token = (
+                None
+                if self._oauth_refresh_mode == OAUTH_REFRESH_MODE_EXTERNAL
+                else os.environ.get("TRADIER_REFRESH_TOKEN") or token_json.get("refresh_token")
+            )
             self._oauth_client_id = os.environ.get("TRADIER_OAUTH_CLIENT_ID")
             self._oauth_client_secret = os.environ.get("TRADIER_OAUTH_CLIENT_SECRET")
 

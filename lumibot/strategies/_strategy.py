@@ -9,7 +9,6 @@ from importlib import import_module
 
 from lumibot._lazy_imports import LazyModule, LazyStrategyLogger, lazy_class, lazy_typing
 
-
 def _env_flag_enabled(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "y", "on")
 
@@ -208,6 +207,7 @@ _BACKTESTING_CLASS_MODULES = {
     "CcxtBacktesting": "lumibot.backtesting.ccxt_backtesting",
     "DataBentoDataBacktesting": "lumibot.backtesting.databento_backtesting",
     "InteractiveBrokersRESTBacktesting": "lumibot.backtesting.interactive_brokers_rest_backtesting",
+    "PolymarketBacktesting": "lumibot.backtesting.polymarket_backtesting",
     "PolygonDataBacktesting": "lumibot.backtesting.polygon_backtesting",
     "RoutedBacktestingPandas": "lumibot.backtesting.routed_backtesting",
     "ThetaDataBacktesting": "lumibot.backtesting.thetadata_backtesting",
@@ -223,6 +223,7 @@ InteractiveBrokersRESTBacktesting = lazy_class(
     "lumibot.backtesting.interactive_brokers_rest_backtesting",
     "InteractiveBrokersRESTBacktesting",
 )
+PolymarketBacktesting = lazy_class("lumibot.backtesting.polymarket_backtesting", "PolymarketBacktesting")
 PolygonDataBacktesting = lazy_class("lumibot.backtesting.polygon_backtesting", "PolygonDataBacktesting")
 RoutedBacktestingPandas = lazy_class("lumibot.backtesting.routed_backtesting", "RoutedBacktestingPandas")
 ThetaDataBacktesting = lazy_class("lumibot.backtesting.thetadata_backtesting", "ThetaDataBacktesting")
@@ -726,7 +727,12 @@ class _Strategy:
         # Handle data source initialization
         self._data_source = data_source
         if self._data_source is None:
-            if DATA_SOURCE is not None:
+            # Live DATA_SOURCE overrides should not replace a backtesting broker's
+            # concrete data source. Backtests are selected through
+            # BACKTESTING_DATA_SOURCE or the explicit datasource_class argument.
+            if self.broker is not None and getattr(self.broker, "IS_BACKTESTING_BROKER", False):
+                self._data_source = None
+            elif DATA_SOURCE is not None:
                 self._data_source = DATA_SOURCE
             elif not (_DEFER_CREDENTIALS_ON_IMPORT and broker_was_provided and not os.environ.get("DATA_SOURCE")):
                 self._data_source = get_default_data_source()
@@ -1543,6 +1549,16 @@ class _Strategy:
             if option_mark_time_local is not None:
                 t_local = option_mark_time_local.time()
                 option_marking_allowed = (t_local >= datetime.time(9, 30)) and (t_local <= datetime.time(16, 0))
+                if not option_marking_allowed and self.is_backtesting:
+                    try:
+                        cadence_seconds = self._get_sleeptime_seconds()
+                    except Exception:
+                        cadence_seconds = None
+                    if cadence_seconds is not None and cadence_seconds >= 20 * 3600:
+                        # Daily-cadence backtests commonly evaluate at midnight while using
+                        # daily/EOD bars. Treat those marks as valid for portfolio valuation;
+                        # intraday backtests still reject off-session option marks.
+                        option_marking_allowed = True
 
             def _asset_type_key(asset_obj):
                 cached_asset_type_key = getattr(asset_obj, "_cached_asset_type_key", None)
@@ -1820,9 +1836,9 @@ class _Strategy:
                         except Exception:
                             has_last_known_price = False
 
+                        if has_last_known_price:
+                            return None
                         if day_quote_mark is not None:
-                            if has_last_known_price:
-                                return None
                             return day_quote_mark
             except Exception as e:
                 self.logger.debug("ThetaData quote-mark lookup failed for %s: %s", base_asset, e)
@@ -2166,6 +2182,145 @@ class _Strategy:
                 return updated_cash
 
             return cash
+
+    def _update_positions_with_splits(self):
+        if not self.is_backtesting:
+            return 0
+
+        with self._executor.lock:
+            if not hasattr(self, '_stock_splits_applied_tracker'):
+                self._stock_splits_applied_tracker = set()
+
+            current_dt = self.get_datetime()
+            current_date = current_dt.date() if hasattr(current_dt, 'date') else current_dt
+            positions = self.broker.get_tracked_positions(self._name)
+
+            stock_positions = []
+            assets = []
+            for position in positions:
+                asset = position.asset
+                if asset == self._quote_asset:
+                    continue
+                asset_type = getattr(asset, "asset_type", "")
+                asset_type = getattr(asset_type, "value", asset_type)
+                if str(asset_type).lower() != "stock":
+                    continue
+                if not position.quantity:
+                    continue
+                stock_positions.append(position)
+                assets.append(asset)
+
+            if not assets:
+                return 0
+
+            data_source = getattr(getattr(self, "broker", None), "data_source", None)
+            get_splits = getattr(data_source, "get_yesterday_stock_splits", None)
+            if not callable(get_splits):
+                return 0
+
+            try:
+                split_ratios = get_splits(assets, quote=self._quote_asset)
+            except Exception:
+                self.logger.debug("Unable to read stock split ratios for %s", current_date, exc_info=True)
+                return 0
+
+            applied = 0
+            should_apply_splits = getattr(data_source, "should_apply_stock_splits_to_positions", None)
+            for position in stock_positions:
+                asset = position.asset
+                if callable(should_apply_splits):
+                    try:
+                        if not should_apply_splits(asset, quote=self._quote_asset):
+                            continue
+                    except Exception:
+                        self.logger.debug(
+                            "Unable to determine stock split accounting mode for %s on %s",
+                            getattr(asset, "symbol", asset),
+                            current_date,
+                            exc_info=True,
+                        )
+                        continue
+
+                raw_ratio = 0 if split_ratios is None else split_ratios.get(asset, 0)
+                try:
+                    split_ratio = float(raw_ratio)
+                except (TypeError, ValueError):
+                    continue
+                if not math.isfinite(split_ratio) or split_ratio <= 0 or abs(split_ratio - 1.0) < 1e-12:
+                    continue
+
+                symbol = getattr(asset, 'symbol', str(asset))
+                tracker_key = (current_date, symbol, f"{split_ratio:.12g}")
+                if tracker_key in self._stock_splits_applied_tracker:
+                    continue
+
+                try:
+                    old_quantity = getattr(position, "_quantity", Decimal(str(position.quantity)))
+                    split_ratio_decimal = Decimal(str(split_ratio))
+                    new_quantity = old_quantity * split_ratio_decimal
+                except Exception:
+                    self.logger.warning(
+                        "Skipping %s stock split ratio %.12g on %s because quantity %r could not be adjusted.",
+                        symbol,
+                        split_ratio,
+                        current_date,
+                        getattr(position, "quantity", None),
+                    )
+                    continue
+
+                old_quantity_float = float(old_quantity)
+                new_quantity_float = float(new_quantity)
+                position.quantity = new_quantity
+
+                avg_fill_price = getattr(position, "avg_fill_price", None)
+                if avg_fill_price is not None:
+                    try:
+                        position.avg_fill_price = float(Decimal(str(avg_fill_price)) / split_ratio_decimal)
+                    except Exception:
+                        pass
+
+                filled_positions = getattr(self.broker, "_filled_positions", None)
+                if hasattr(filled_positions, "revision"):
+                    filled_positions.revision += 1
+                for cache_name in (
+                    "_tracked_position_cache",
+                    "_tracked_positions_cache",
+                    "_asset_potential_total_cache",
+                ):
+                    cache = getattr(self.broker, cache_name, None)
+                    if hasattr(cache, "clear"):
+                        cache.clear()
+                self._portfolio_value_cache_key = None
+                self._portfolio_value_cache_value = None
+
+                record_event = getattr(self.broker, "record_corporate_action_event", None)
+                if callable(record_event):
+                    record_event(
+                        action_type="stock_split",
+                        asset=asset,
+                        strategy=getattr(self, "_name", None),
+                        ratio=split_ratio,
+                        quantity_before=old_quantity_float,
+                        quantity_after=new_quantity_float,
+                        occurred_at=current_dt,
+                        description=(
+                            f"{symbol} stock split ratio {split_ratio:.12g}: "
+                            f"quantity {old_quantity_float:.12g} -> {new_quantity_float:.12g}"
+                        ),
+                    )
+
+                self._stock_splits_applied_tracker.add(tracker_key)
+                applied += 1
+                self.logger.info(
+                    "Applied %s stock split ratio %.12g on %s: quantity %.12g -> %.12g",
+                    symbol,
+                    split_ratio,
+                    current_date,
+                    old_quantity_float,
+                    new_quantity_float,
+                )
+
+            return applied
 
     # =============Stats functions=====================
 
@@ -3056,6 +3211,8 @@ class _Strategy:
                 "ibkr": "InteractiveBrokersRESTBacktesting",
                 "interactivebrokersrest": "InteractiveBrokersRESTBacktesting",
                 "interactive_brokers_rest": "InteractiveBrokersRESTBacktesting",
+                "polymarket": "PolymarketBacktesting",
+                "polymarket_clob": "PolymarketBacktesting",
                 "router": "RoutedBacktestingPandas",
                 "thetadata_ibkr": "RoutedBacktestingPandas",
                 "theta_ibkr": "RoutedBacktestingPandas",

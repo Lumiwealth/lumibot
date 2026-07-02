@@ -15,6 +15,7 @@ logger = get_logger(__name__)
 
 class YahooData(DataSourceBacktesting):
     SOURCE = "YAHOO"
+    AUTO_ADJUST_IMPLIES_SPLIT_ADJUSTED_PRICES = True
     MIN_TIMESTEP = "day"
     TIMESTEP_MAPPING = [
         {"timestep": "day", "representations": ["1d", "day"]},

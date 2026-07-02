@@ -813,7 +813,12 @@ class StrategyExecutor(Thread):
 
             if (
                 update_cash
-                and asset_type not in (Asset.AssetType.CRYPTO, Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE)
+                and asset_type not in (
+                    Asset.AssetType.CRYPTO,
+                    Asset.AssetType.FUTURE,
+                    Asset.AssetType.CONT_FUTURE,
+                    Asset.AssetType.PREDICTION_CONTRACT,
+                )
                 and quantity is not None
                 and price is not None
             ):
@@ -848,7 +853,12 @@ class StrategyExecutor(Thread):
 
             if (
                 update_cash
-                and asset_type not in (Asset.AssetType.CRYPTO, Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE)
+                and asset_type not in (
+                    Asset.AssetType.CRYPTO,
+                    Asset.AssetType.FUTURE,
+                    Asset.AssetType.CONT_FUTURE,
+                    Asset.AssetType.PREDICTION_CONTRACT,
+                )
                 and quantity is not None
                 and price is not None
             ):
@@ -1882,6 +1892,9 @@ class StrategyExecutor(Thread):
         dt = self.broker.data_source._date_index[self.broker.data_source._iter_count]
         update_payload = self._build_backtest_progress_payload()
         self.broker._update_datetime(dt, **update_payload)
+        update_splits = getattr(self.strategy, "_update_positions_with_splits", None)
+        if callable(update_splits):
+            update_splits()
         self.strategy._update_cash_with_dividends()
 
         self._on_trading_iteration()
@@ -1993,9 +2006,13 @@ class StrategyExecutor(Thread):
         if not broker_continue:
             return False
 
-        # TODO: I think we should remove the OR. Pandas data can have dividends.
-        # Especially if it was saved from yahoo.
-        if not has_data_source or (has_data_source and self.broker.data_source.SOURCE != "PANDAS"):
+        # Pure pandas daily backtests process corporate actions on each dataframe row in
+        # `_process_pandas_daily_data`. Provider-routed pandas backtests still need this open-session
+        # path so split-adjusted positions are visible to pre-market lifecycle hooks.
+        if not has_data_source or not self._is_pandas_daily_data_source():
+            update_splits = getattr(self.strategy, "_update_positions_with_splits", None)
+            if callable(update_splits):
+                update_splits()
             self.strategy._update_cash_with_dividends()
 
         if not self.broker.is_market_open():
@@ -2047,6 +2064,9 @@ class StrategyExecutor(Thread):
                 break
 
             if not self._is_pandas_daily_data_source():
+                update_splits = getattr(self.strategy, "_update_positions_with_splits", None)
+                if callable(update_splits):
+                    update_splits()
                 self.strategy._update_cash_with_dividends()
 
             self._on_trading_iteration()

@@ -337,3 +337,103 @@ Revised plan:
    - Follow `docs/DEPLOYMENT.md`: release LumiBot `4.5.64`, verify installability, then update Bot Manager.
    - Bot Manager currently pins `LUMIBOT_VERSION=4.5.63`; update after the LumiBot release is published.
    - Deploy Bot Manager dev first, run version/backtest canaries, then production.
+
+## 2026-07-02 Release, Deploy, And Cache-Refill Execution
+
+LumiBot `4.5.64` was released and verified.
+
+- Release PR: `https://github.com/Lumiwealth/lumibot/pull/1102`
+- Fix commit: `32ff0e14 Fix release-gate backtest regressions`
+- Dev merge/tag commit: `b6367dad2a69b5bdf940003bf984d0d66cce1367`
+- Tag: `v4.5.64`
+- GitHub release: `https://github.com/Lumiwealth/lumibot/releases/tag/v4.5.64`
+- PyPI install verification:
+  - `python3 -m pip install --no-deps --target /tmp/lumibot-pip-verify-4.5.64 lumibot==4.5.64`
+  - `PYTHONPATH=/tmp/lumibot-pip-verify-4.5.64 python3 -c "import lumibot; print(lumibot.__version__)"`
+  - Output: `4.5.64`
+- Local checkout was moved to `version/4.5.65` and `python3 scripts/verify_release_checkout_state.py --post-release-of 4.5.64` passed.
+
+Bot Manager dev and production were both deployed with a forced image rebuild.
+
+- Dev workflow run: `https://github.com/Lumiwealth/bot_manager/actions/runs/28577122393`
+  - Logs showed `LUMIBOT_VERSION: 4.5.64`.
+  - Build logs showed `uv pip install "lumibot==4.5.64"`.
+  - Runtime logs showed `LumiBot v4.5.64 starting`.
+- Production workflow run: `https://github.com/Lumiwealth/bot_manager/actions/runs/28580027661`
+  - Logs showed `FORCE_REBUILD_IMAGES: true`.
+  - Tests were enabled: `SKIP_UNIT_TESTS: false`, `SKIP_INTEGRATION_TESTS: false`, `RUN_INTEGRATION_TESTS: 1`.
+  - Backtest image build logs showed `uv pip install ... "lumibot==4.5.64"` and `+ lumibot==4.5.64`.
+  - Runtime logs showed `LumiBot v4.5.64 starting`.
+
+The production TQQQ canary on fixed `4.5.64` was sane and matched the prod/Yahoo range.
+
+- Bot ID: `direct-prod-tqqq-10k-4-5-64-s3-3e128f7c-ca20-425a-9a2a-2122cb9d9880`
+- Artifacts: `/Users/robertgrzesik/Development/bot_manager/logs/tqqq-split-release-2026-07-02/prod-canary-10k/`
+- `settings_json.lumibot_version`: `4.5.64`
+- Budget: `$10,000`
+- Remote cache: `s3://lumibot-cache-prod/prod/cache/v1`
+- Data route: `{"default":"ibkr","stock":"ibkr","index":"ibkr","option":"thetadata","crypto":"coinbase","crypto_future":"coinbase","future":"ibkr","cont_future":"ibkr"}`
+- Final PV: `$285,205.63`
+- Independent CAGR: `39.82%`
+- Independent max drawdown: `-48.22%`
+- Worst one-step EOD move: `-20.42%` on 2020-03-09
+- 2025 split window was sane. Quantity stayed `5622` through 2025-11-19/20/21; there was no false 50% portfolio cliff.
+
+Cache backup/delete/refill status is mixed and should not be represented as complete.
+
+Backups were made before deletion:
+
+- Local backup manifest: `/Users/robertgrzesik/Development/support-artifacts/tqqq-split-backtest-2026-07-01/cache-remediation-2026-07-02/local-backups/manifest.tsv`
+- S3 backup manifest: `/Users/robertgrzesik/Development/bot_manager/logs/tqqq-split-release-2026-07-02/cache-backup/s3-backup-allowed-prefix.tsv`
+- Live-delete manifest: `/Users/robertgrzesik/Development/bot_manager/logs/tqqq-split-release-2026-07-02/cache-delete/deleted-live-objects.tsv`
+
+Exact deleted targets were:
+
+- Production `prod/cache/v1`: `TECL`, `UPRO`, `SPXU`, `OUST` RTH daily stock bars.
+- Dev `dev/cache/v1`: `TQQQ`, `SQQQ`, `SPY` RTH daily stock bars.
+- Dev `dev/cache/v44`: non-RTH `TQQQ` daily `AUTO_BID_ASK`, `AUTO_MIDPOINT`, and `AUTO_TRADES`.
+
+Refill attempts did not successfully recreate the canonical cache objects:
+
+- Exact-window prod refill:
+  - Bot ID: `cache-refill-prod-v1-redo-4-5-64-0c9aec89-3f83-44e5-bb8a-93274fef055d`
+  - Result: failed on `TECL`.
+  - Relevant error: `IBKR history rebuild failed ... Chart data unavailable`, then `No daily bars returned for TECL`.
+  - Evidence showed 2026/2021/2016 TECL chunks completed, then the older `2011-03-09` chunk failed. This indicates a brittle exact-window rebuild path around older/inception-era IBKR data, not inability to fetch TECL generally.
+- Bounded prod refill:
+  - Bot ID: `cache-refill-prod-v1-bounded-4-5-64-787a712e-0aa2-4268-a8a0-be8a7a0226df`
+  - Window: `2026-03-03` to `2026-03-04`
+  - Lookback: `2700` daily bars.
+  - Result: failed on `OUST` with `No daily bars returned for OUST`.
+  - Logs showed `TECL`, `UPRO`, and `SPXU` chunks completed. SPXU also exercised the `IBKR daily split-spike repair adjusted 1 row(s)` path under `4.5.64`.
+  - Despite completed chunks, the four canonical production S3 objects were still missing after the failed run. That means this refill strategy path is not a reliable way to recreate the canonical S3 cache objects.
+
+Because refill failed, the live objects were restored from S3 backups. Verification after restore:
+
+- `prod/cache/v1/ibkr/stock/day/bars/stock_TECL_USD_day_AUTO_TRADES_RTH.parquet`: present, `142031` bytes.
+- `prod/cache/v1/ibkr/stock/day/bars/stock_UPRO_USD_day_AUTO_TRADES_RTH.parquet`: present, `144068` bytes.
+- `prod/cache/v1/ibkr/stock/day/bars/stock_SPXU_USD_day_AUTO_TRADES_RTH.parquet`: present, `85834` bytes.
+- `prod/cache/v1/ibkr/stock/day/bars/stock_OUST_USD_day_AUTO_TRADES_RTH.parquet`: present, `60597` bytes.
+- `dev/cache/v1/ibkr/stock/day/bars/stock_TQQQ_USD_day_AUTO_TRADES_RTH.parquet`: present, `130802` bytes.
+- `dev/cache/v1/ibkr/stock/day/bars/stock_SQQQ_USD_day_AUTO_TRADES_RTH.parquet`: present, `139224` bytes.
+- `dev/cache/v1/ibkr/stock/day/bars/stock_SPY_USD_day_AUTO_TRADES_RTH.parquet`: present, `151994` bytes.
+- `dev/cache/v44/ibkr/stock/day/bars/stock_TQQQ_USD_day_AUTO_BID_ASK.parquet`: present, `34755` bytes.
+- `dev/cache/v44/ibkr/stock/day/bars/stock_TQQQ_USD_day_AUTO_MIDPOINT.parquet`: present, `35008` bytes.
+- `dev/cache/v44/ibkr/stock/day/bars/stock_TQQQ_USD_day_AUTO_TRADES.parquet`: present, `203090` bytes.
+
+After cleanup:
+
+- No production refill ECS tasks remained running.
+- Data Downloader queue was clear: `pending_count=0`, `processing_count=0`, `failed_count=0`, `active_workers=0`.
+
+Updated cache conclusion:
+
+1. The LumiBot split normalization release and Bot Manager deployment are complete.
+2. The prod TQQQ canary proves the original chart cliff is fixed on the deployed `4.5.64` runtime.
+3. Cache deletion/refill is not complete. The deleted objects were restored because the refill path failed and did not recreate canonical S3 cache objects.
+4. The next cache fix should be a dedicated Data Downloader/LumiBot cache-hydration fix, not manual row repair and not broad cache deletion.
+5. The refill/hydration path needs tests proving:
+   - a symbol with limited/inception-era history does not collapse a partially valid multi-window rebuild into an empty frame;
+   - `Chart data unavailable` on an older no-data chunk is handled as an end-of-history condition when newer chunks succeeded;
+   - successful chunk fetches write or merge into the exact canonical S3 cache key expected by managed backtests;
+   - OUST-style short-history symbols produce usable recent-window daily bars instead of `No daily bars returned`.

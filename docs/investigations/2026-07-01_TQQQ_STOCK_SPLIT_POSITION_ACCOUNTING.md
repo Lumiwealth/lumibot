@@ -254,3 +254,58 @@ Do not over-interpret every scan flag as a trading bug. Leveraged ETFs can have 
 4. Prefer rebuilding or replacing bad dev IBKR stock/day objects from a known-good source over broad cache deletion.
 
 If a future provider/cache omits `stock_splits` entirely, LumiBot still cannot safely infer true corporate actions from price moves alone without risking false positives. Provider enrichment and cache quality remain required.
+
+## Cache And Deployment Game Plan
+
+Additional read-only checks on 2026-07-02 found that cache namespace selection matters:
+
+- Production BotSpot Node task definition `botspot-prod:130` explicitly injects `LUMIBOT_CACHE_S3_VERSION=v1`, `bucket=lumibot-cache-prod`, `prefix=prod/cache`, `mode=readwrite`, and Data Downloader URL `http://data-downloader.lumiwealth.com:8080`.
+- BotSpot Node code defaults provider environments to `LUMIBOT_CACHE_S3_VERSION=v44` when the env var is absent, but production overrides that default to `v1`.
+- `prod/cache/v44` was empty at scan time, so it is not the production market-data cache namespace for this incident.
+- `dev/cache/v44` exists and contains IBKR stock/day objects. The exact RTH TQQQ object there was clean around the 2025 split, but other TQQQ source variants (`AUTO_TRADES`, `AUTO_BID_ASK`, `AUTO_MIDPOINT`) had raw split-like jumps and lacked split markers.
+- `dev/cache/v1` contains the original bad TQQQ RTH object class: incomplete history, a 2016-2019 internal hole, and non-split level spikes. One local readwrite replay later normalized its 2025 raw tail, so historical copies under `support-artifacts/` are the better forensic source than the current object alone.
+- `prod/cache/v1` TQQQ RTH was clean and matched Yahoo closely, but the broader prod stock/day scan still flagged follow-up candidates such as `TECL` (raw split-like boundary) and `UPRO` (large non-split jump).
+
+Recommended order:
+
+1. Freeze evidence before repair.
+   - Copy or version every object targeted for repair into an audit prefix or durable local artifact.
+   - Do this before any `readwrite` reproduction that could rewrite S3 objects.
+
+2. Add a reusable S3 cache audit tool.
+   - Scope first to `ibkr/stock/day/bars` and `ibkr/index/day/bars`.
+   - Inputs: bucket, prefix, version, provider namespace, symbols or all symbols, readonly/repair mode.
+   - Output: JSON + CSV with row counts, first/last dates, split rows, raw split jumps, large non-split jumps, internal gaps, duplicate timestamps, source variants, and dev/prod comparisons.
+   - The default mode must be read-only and must not require secrets in logs.
+
+3. Add cache self-healing for internal holes.
+   - `get_price_data()` already detects empty windows and missing coverage at request boundaries.
+   - It does not detect a large internal hole when a broad requested window has rows at both ends.
+   - Add daily stock/index internal-gap detection so a cache like old dev TQQQ cannot satisfy a 2016-2026 request while silently missing 2016-2019.
+   - Unit-test this with a cached frame that has rows near the requested start and end but a multi-year interior hole; assert the downloader is called for the missing segment and the merged frame is returned.
+
+4. Make split normalization and gap repair deploy before cache writes.
+   - Release LumiBot first so future cache reads normalize mixed split-adjustment data and do not double-count already-adjusted frames.
+   - Keep Yahoo/auto-adjusted providers covered by existing tests so Yahoo is not double-adjusted.
+
+5. Repair caches surgically.
+   - Do not wipe broad `prod/cache/v1`.
+   - For dev, either repair/rebuild known-bad IBKR stock/day objects or move dev to a new cache version after warming high-usage symbols from IBKR/Data Downloader.
+   - For prod, start with audit-only, then repair only confirmed bad objects such as `TECL` after comparing against Yahoo/another reference and preserving the old object.
+   - Include all TQQQ source variants, not only `AUTO_TRADES_RTH`.
+
+6. Validate with a fixed matrix.
+   - Local unit suite: stock split accounting, IBKR equity action normalization, Yahoo split behavior, broker/backtesting smoke.
+   - Local replay matrix: dev `v1`, dev `v44`, prod `v1`, Yahoo, all using the saved revision and fresh `LUMIBOT_CACHE_FOLDER`.
+   - Expected sanity range for the 2016-03-04 to 2026-03-04 TQQQ strategy: prod IBKR should remain close to Yahoo (`38.90%` CAGR / `-48.20%` max DD versus Yahoo `38.17%` / `-48.57%` in the local replay). Dev should not be trusted until its cache object is repaired or rebuilt.
+   - Artifact checks: no `-50%` one-day portfolio cliff on 2025-11-20, 2025 split-window price around `50.03 -> 46.45`, no 2021/2022 double-counted split ledger events, and `settings.json.lumibot_version` equals the released version.
+
+7. Release and deploy.
+   - Follow `docs/DEPLOYMENT.md`: preflight, PR to `dev`, merge latest `dev`, tag the `dev` merge commit, verify `pip install lumibot==4.5.64`, move local checkout to the next version branch, then trigger Bot Manager.
+   - Bot Manager currently pins `LUMIBOT_VERSION=4.5.63`; update it to the released version only after the LumiBot release is published and installable.
+   - Deploy Bot Manager dev first, run the backtest/version canary, then deploy production.
+   - Use `force_rebuild_images=true` if the post-deploy artifact still shows an older LumiBot version.
+
+8. Add deployment-gating regression.
+   - Add a Bot Manager/BotSpot backtest canary that runs a short stock/day split-sensitive strategy and asserts the runtime LumiBot version plus split-window equity behavior.
+   - This canary should be a deployment gate, not a manual-only or advisory check.

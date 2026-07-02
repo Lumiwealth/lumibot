@@ -23,7 +23,7 @@ def test_ibkr_futures_daily_bars_are_session_aligned_not_midnight(monkeypatch):
     close_local = pd.Timestamp(sess["market_close"]).tz_convert("America/New_York")
     assert open_local < close_local
 
-    idx = pd.date_range(open_local, close_local, freq="1H", tz="America/New_York")
+    idx = pd.date_range(open_local, close_local, freq="1h", tz="America/New_York")
     intraday = pd.DataFrame(
         {
             "open": [100.0 for _ in idx],
@@ -61,4 +61,3 @@ def test_ibkr_futures_daily_bars_are_session_aligned_not_midnight(monkeypatch):
     # Futures "day" bar should be timestamped at the session close, not midnight.
     assert out.index[0].tz is not None
     assert out.index[0].hour != 0
-

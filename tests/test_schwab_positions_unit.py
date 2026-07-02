@@ -1095,6 +1095,7 @@ def test_schwab_cancel_order_raises_on_http_error_without_marking_canceled():
 
 
 def test_schwab_run_stream_without_stream_returns_without_traceback(caplog):
+    caplog.set_level(logging.WARNING, logger="lumibot.brokers.schwab")
     broker = Schwab.__new__(Schwab)
     broker.stream = None
 

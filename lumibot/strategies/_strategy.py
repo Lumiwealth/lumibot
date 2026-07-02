@@ -1034,7 +1034,11 @@ class _Strategy:
 
         executor = StrategyExecutor(self)
         subscribers = getattr(self.broker, "_subscribers", None)
-        if subscribers is None or executor not in subscribers:
+        try:
+            already_subscribed = subscribers is not None and executor in subscribers
+        except TypeError:
+            already_subscribed = False
+        if not already_subscribed:
             self.broker._add_subscriber(executor)
         return executor
 

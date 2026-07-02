@@ -12,17 +12,19 @@ class PolymarketPredictionContractStrategy(Strategy):
     """Polymarket prediction-contract strategy for live smoke tests and backtesting."""
 
     def initialize(self, parameters=None):
-        parameters = parameters or {}
-        self.sleeptime = parameters.get("sleeptime", "1M")
-        token_id = parameters.get("token_id") or os.environ.get("POLYMARKET_TEST_TOKEN_ID")
+        strategy_parameters = dict(getattr(self, "parameters", {}) or {})
+        if isinstance(parameters, dict):
+            strategy_parameters.update(parameters)
+        self.sleeptime = strategy_parameters.get("sleeptime", "1M")
+        token_id = strategy_parameters.get("token_id") or os.environ.get("POLYMARKET_TEST_TOKEN_ID")
         if not token_id:
             raise ValueError("Set POLYMARKET_TEST_TOKEN_ID or pass parameters={'token_id': ...}")
         self.asset = Asset(token_id, asset_type=Asset.AssetType.PREDICTION_CONTRACT, precision="0.000001")
-        self.live_trade = str(parameters.get("live_trade", "false")).lower() in {"1", "true", "yes", "on"}
-        self.backtest_trade = str(parameters.get("backtest_trade", "false")).lower() in {"1", "true", "yes", "on"}
-        self.backtest_quantity = parameters.get("backtest_quantity", 10)
-        self.amount = str(parameters.get("amount", os.environ.get("POLYMARKET_TEST_ORDER_AMOUNT", "1.00")))
-        self.max_price = str(parameters.get("max_price", os.environ.get("POLYMARKET_TEST_MAX_PRICE", "0.99")))
+        self.live_trade = str(strategy_parameters.get("live_trade", "false")).lower() in {"1", "true", "yes", "on"}
+        self.backtest_trade = str(strategy_parameters.get("backtest_trade", "false")).lower() in {"1", "true", "yes", "on"}
+        self.backtest_quantity = strategy_parameters.get("backtest_quantity", 10)
+        self.amount = str(strategy_parameters.get("amount", os.environ.get("POLYMARKET_TEST_ORDER_AMOUNT", "1.00")))
+        self.max_price = str(strategy_parameters.get("max_price", os.environ.get("POLYMARKET_TEST_MAX_PRICE", "0.99")))
 
     def on_trading_iteration(self):
         quote = self.get_quote(self.asset)

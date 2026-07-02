@@ -18,7 +18,15 @@
 ### Fixed
 - **ThetaData option valuation is more robust for option backtests.** The
   ThetaData backtesting path now avoids stale or missing option marks in the
-  relevant valuation path covered by the 4.5.64 release tests.
+  relevant valuation path covered by the 4.5.64 release tests. Daily option MTM
+  now forward-fills established positions when the intraday quote snapshot is
+  missing instead of forcing a stale day quote, and the strategy-level valuation
+  layer no longer reaches for stale option last trades after quote evidence is
+  unavailable.
+- **Polymarket example backtests now read strategy parameters correctly.** The
+  prediction-contract example strategy reads the normal `self.parameters` store
+  used by `Strategy.backtest()`, so local and release-gate backtests do not
+  require `POLYMARKET_TEST_TOKEN_ID` when a test supplies an explicit token id.
 - **Schwab and Tradier external OAuth mode now keeps managed child runtimes
   access-token-only.** When ``LUMIBOT_OAUTH_REFRESH_MODE=external`` is set,
   broker clients strip refresh-token material from in-memory token payloads,

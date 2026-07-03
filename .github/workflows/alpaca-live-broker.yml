@@ -1,0 +1,83 @@
+name: Alpaca Live Broker
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - dev
+      - "ci/**"
+    paths:
+      - "lumibot/**"
+      - "tests/test_alpaca_live_broker_apitest.py"
+      - "tests/test_agent_runtime_remote_mcp.py"
+      - "tests/test_agent_runtime_mcp_transports.py"
+      - "requirements*.txt"
+      - "pyproject.toml"
+      - "setup.py"
+      - ".github/workflows/alpaca-live-broker.yml"
+  pull_request:
+    branches: [dev, main]
+    paths:
+      - "lumibot/**"
+      - "tests/test_alpaca_live_broker_apitest.py"
+      - "tests/test_agent_runtime_remote_mcp.py"
+      - "tests/test_agent_runtime_mcp_transports.py"
+      - "requirements*.txt"
+      - "pyproject.toml"
+      - "setup.py"
+      - ".github/workflows/alpaca-live-broker.yml"
+
+permissions:
+  contents: read
+
+env:
+  AIOHTTP_NO_EXTENSIONS: 1
+  BACKTESTING_DATA_SOURCE: none
+  BACKTESTING_SHOW_PROGRESS_BAR: "false"
+  ALPACA_TEST_API_KEY: ${{ secrets.ALPACA_TEST_API_KEY }}
+  ALPACA_TEST_API_SECRET: ${{ secrets.ALPACA_TEST_API_SECRET }}
+
+jobs:
+  alpaca-live-broker:
+    name: Alpaca live broker strategy
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 30
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          echo "Set AIOHTTP_NO_EXTENSIONS=$AIOHTTP_NO_EXTENSIONS so that aiohttp doesn't try to install C extensions"
+          python -m pip install --upgrade pip
+          pip install requests
+          pip install -r requirements_dev.txt
+
+      - name: Verify Alpaca paper credentials are available
+        run: |
+          set -euo pipefail
+          if [ -z "${ALPACA_TEST_API_KEY}" ] || [ -z "${ALPACA_TEST_API_SECRET}" ]; then
+            echo "::error::ALPACA_TEST_API_KEY and ALPACA_TEST_API_SECRET repository secrets are required for Alpaca live broker CI."
+            exit 1
+          fi
+
+      - name: Run MCP action coverage
+        run: |
+          set -euo pipefail
+          timeout 600 python -m pytest -q \
+            tests/test_agent_runtime_remote_mcp.py \
+            tests/test_agent_runtime_mcp_transports.py
+
+      - name: Run real Alpaca broker strategy apitests
+        run: |
+          set -euo pipefail
+          timeout 1200 python -m pytest -q -m apitest --tb=short \
+            tests/test_alpaca_live_broker_apitest.py

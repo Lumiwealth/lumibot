@@ -50,8 +50,8 @@ env:
   BACKTESTING_SHOW_PROGRESS_BAR: "false"
   ALPACA_TEST_API_KEY: ${{ secrets.ALPACA_TEST_API_KEY }}
   ALPACA_TEST_API_SECRET: ${{ secrets.ALPACA_TEST_API_SECRET }}
-  ALPACA_API_KEY: ${{ secrets.ALPACA_TEST_API_KEY }}
-  ALPACA_API_SECRET: ${{ secrets.ALPACA_TEST_API_SECRET }}
+  ALPACA_NEWS_API_KEY: ${{ secrets.ALPACA_NEWS_API_KEY }}
+  ALPACA_NEWS_API_SECRET: ${{ secrets.ALPACA_NEWS_API_SECRET }}
 
 jobs:
   alpaca-live-broker:
@@ -59,9 +59,14 @@ jobs:
     runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 30
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    concurrency:
+      group: alpaca-live-broker-${{ github.repository }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Python 3.10
         uses: actions/setup-python@v5

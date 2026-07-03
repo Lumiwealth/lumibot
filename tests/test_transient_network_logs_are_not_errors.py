@@ -1,8 +1,19 @@
 import logging
 from types import SimpleNamespace
 
-from lumibot.brokers.tradier import Tradier
+import pytest
+
+from lumibot.brokers.tradier import Tradier, TradierTransientBrokerReadError
 from lumibot.strategies._strategy import _Strategy
+
+
+def _tradier_read_stub(**kwargs):
+    values = {
+        "_is_transient_broker_read_error": Tradier._is_transient_broker_read_error,
+        "_current_lumibot_positions_snapshot": lambda: [],
+    }
+    values.update(kwargs)
+    return SimpleNamespace(**values)
 
 
 def test_update_broker_balances_exception_logs_info(monkeypatch, caplog):
@@ -38,7 +49,7 @@ def test_tradier_pull_orders_exception_logs_info(monkeypatch):
     def raise_orders_error():
         raise ConnectionError("Max retries exceeded")
 
-    dummy = SimpleNamespace(
+    dummy = _tradier_read_stub(
         tradier=SimpleNamespace(
             orders=SimpleNamespace(get_orders=raise_orders_error),
         )
@@ -67,3 +78,35 @@ def test_tradier_pull_orders_exception_logs_info(monkeypatch):
     assert any(
         "Error pulling orders from Tradier" in msg and kwargs.get("exc_info") for msg, kwargs in info_calls
     )
+
+
+def test_tradier_transient_positions_failure_preserves_local_positions(monkeypatch):
+    local_position = object()
+
+    def raise_positions_error():
+        raise ConnectionError("HTTPSConnectionPool: too many 500 error responses")
+
+    dummy = _tradier_read_stub(
+        tradier=SimpleNamespace(
+            account=SimpleNamespace(get_positions=raise_positions_error),
+        ),
+        _current_lumibot_positions_snapshot=lambda: [local_position],
+    )
+
+    result = Tradier._pull_positions(dummy, "unit-test")
+
+    assert result == [local_position]
+
+
+def test_tradier_transient_orders_failure_skips_reconciliation(monkeypatch):
+    def raise_orders_error():
+        raise ConnectionError("HTTPSConnectionPool: too many 500 error responses")
+
+    dummy = _tradier_read_stub(
+        tradier=SimpleNamespace(
+            orders=SimpleNamespace(get_orders=raise_orders_error),
+        )
+    )
+
+    with pytest.raises(TradierTransientBrokerReadError):
+        Tradier._pull_broker_all_orders(dummy)

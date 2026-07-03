@@ -43,6 +43,10 @@ class TradierTokenPersistenceError(RuntimeError):
     """Raised when a refreshed Tradier OAuth token cannot be durably written."""
 
 
+class TradierTransientBrokerReadError(RuntimeError):
+    """Raised when a Tradier read endpoint returns a transient provider failure."""
+
+
 class Tradier(Broker):
     """
     Broker that connects to Tradier API to place orders and retrieve data. Tradier API only supports Order streaming
@@ -72,6 +76,23 @@ class Tradier(Broker):
     # OAuth refresh endpoint (only available for approved Tradier partner apps).
     _OAUTH_REFRESH_URL = "https://api.tradier.com/v1/oauth/refreshtoken"
     _OAUTH_REFRESH_SKEW_SECONDS = 60  # Refresh a bit early to avoid edge-of-expiry failures.
+    _TRANSIENT_READ_ERROR_RE = re.compile(
+        r"(?:too many 5\d\d error responses|status(?: code)?[=: ]+5\d\d|\b5\d\d\b|internal server error)",
+        re.IGNORECASE,
+    )
+
+    @classmethod
+    def _is_transient_broker_read_error(cls, error: Exception) -> bool:
+        return bool(cls._TRANSIENT_READ_ERROR_RE.search(str(error)))
+
+    def _current_lumibot_positions_snapshot(self) -> list[Position]:
+        filled_positions = getattr(self, "_filled_positions", None)
+        if filled_positions is None:
+            return []
+        try:
+            return list(filled_positions.get_list())
+        except Exception:
+            return []
 
     @staticmethod
     def _decode_base64url_json(payload_str: str) -> dict:
@@ -1302,6 +1323,13 @@ class Tradier(Broker):
                 raise ValueError(colored_message) from e
             raise e
         except Exception as e:
+            if self._is_transient_broker_read_error(e):
+                logger.warning(
+                    "Transient Tradier positions read failure; preserving existing Lumibot positions for this poll: %s",
+                    e,
+                    exc_info=True,
+                )
+                return self._current_lumibot_positions_snapshot()
             logger.error(f"Error pulling positions from Tradier: {e}")
             return []
 
@@ -1507,6 +1535,13 @@ class Tradier(Broker):
         try:
             df = self.tradier.orders.get_orders()
         except Exception as e:
+            if self._is_transient_broker_read_error(e):
+                logger.warning(
+                    "Transient Tradier orders read failure; skipping order reconciliation for this poll: %s",
+                    e,
+                    exc_info=True,
+                )
+                raise TradierTransientBrokerReadError(str(e)) from e
             logger.info(f"Error pulling orders from Tradier: {e}", exc_info=True)
             return []
 
@@ -1667,7 +1702,11 @@ class Tradier(Broker):
         # lumi orders (not just active "tracked" ones) to catch any orders that might have changed final
         # status in Tradier.
         # df_orders = self.tradier.orders.get_orders()
-        raw_orders = self._pull_broker_all_orders()
+        try:
+            raw_orders = self._pull_broker_all_orders()
+        except TradierTransientBrokerReadError:
+            logger.info("Skipping Tradier polling reconciliation after transient broker read failure")
+            return
         try:
             self._telemetry_polls_total += 1
             self._telemetry_orders_seen_max = max(int(self._telemetry_orders_seen_max), len(raw_orders or []))

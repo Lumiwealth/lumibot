@@ -22,21 +22,23 @@ class _LivePaginationStrategy:
         return datetime(2025, 4, 22, 16, 0, tzinfo=timezone.utc)
 
 
-def _require_alpaca_news_creds() -> None:
-    has_key = bool(os.environ.get("ALPACA_NEWS_API_KEY") or os.environ.get("ALPACA_API_KEY"))
-    has_secret = bool(os.environ.get("ALPACA_NEWS_API_SECRET") or os.environ.get("ALPACA_API_SECRET"))
-    if not (has_key and has_secret):
+def _require_alpaca_news_creds(monkeypatch: pytest.MonkeyPatch) -> None:
+    api_key = os.environ.get("ALPACA_NEWS_API_KEY") or os.environ.get("ALPACA_TEST_API_KEY")
+    api_secret = os.environ.get("ALPACA_NEWS_API_SECRET") or os.environ.get("ALPACA_TEST_API_SECRET")
+    if not (api_key and api_secret):
         pytest.skip("Missing Alpaca news credentials")
+    monkeypatch.setenv("ALPACA_NEWS_API_KEY", api_key)
+    monkeypatch.setenv("ALPACA_NEWS_API_SECRET", api_secret)
 
 
-def test_live_alpaca_news_known_market_event_scan_and_full_content():
+def test_live_alpaca_news_known_market_event_scan_and_full_content(monkeypatch):
     """Smoke-test real Alpaca/Benzinga historical news quality.
 
     The 2024-08-05 market selloff is a known broad-market news day. This verifies
     the tool retrieves relevant historical articles by symbol/date window, keeps
     scan mode light, and can fetch full article bodies when explicitly requested.
     """
-    _require_alpaca_news_creds()
+    _require_alpaca_news_creds(monkeypatch)
 
     tool = BuiltinTools.news.alpaca_news().binder(_LiveNewsStrategy(), None)
     scan = tool.function(
@@ -90,9 +92,9 @@ def test_live_alpaca_news_known_market_event_scan_and_full_content():
     )
 
 
-def test_live_alpaca_news_pagination_fetches_distinct_second_page():
+def test_live_alpaca_news_pagination_fetches_distinct_second_page(monkeypatch):
     """Verify real Alpaca pagination, not just unit-level page_token forwarding."""
-    _require_alpaca_news_creds()
+    _require_alpaca_news_creds(monkeypatch)
 
     tool = BuiltinTools.news.alpaca_news().binder(_LivePaginationStrategy(), None)
     first_page = tool.function(

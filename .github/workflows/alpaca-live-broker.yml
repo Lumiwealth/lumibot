@@ -11,6 +11,13 @@ on:
       - "tests/test_alpaca_live_broker_apitest.py"
       - "tests/test_agent_runtime_remote_mcp.py"
       - "tests/test_agent_runtime_mcp_transports.py"
+      - "tests/test_agent_runtime_provider_keys.py"
+      - "tests/test_agent_runtime_errors.py"
+      - "tests/test_agent_tool_permissions.py"
+      - "tests/test_agent_alpaca_news_builtin.py"
+      - "tests/test_agent_alpaca_news_live_apitest.py"
+      - "tests/backtest/test_agent_runtime_backtest.py"
+      - "tests/backtest/test_ai_committee_builtin_tools_backtest.py"
       - "requirements*.txt"
       - "pyproject.toml"
       - "setup.py"
@@ -22,6 +29,13 @@ on:
       - "tests/test_alpaca_live_broker_apitest.py"
       - "tests/test_agent_runtime_remote_mcp.py"
       - "tests/test_agent_runtime_mcp_transports.py"
+      - "tests/test_agent_runtime_provider_keys.py"
+      - "tests/test_agent_runtime_errors.py"
+      - "tests/test_agent_tool_permissions.py"
+      - "tests/test_agent_alpaca_news_builtin.py"
+      - "tests/test_agent_alpaca_news_live_apitest.py"
+      - "tests/backtest/test_agent_runtime_backtest.py"
+      - "tests/backtest/test_ai_committee_builtin_tools_backtest.py"
       - "requirements*.txt"
       - "pyproject.toml"
       - "setup.py"
@@ -36,6 +50,8 @@ env:
   BACKTESTING_SHOW_PROGRESS_BAR: "false"
   ALPACA_TEST_API_KEY: ${{ secrets.ALPACA_TEST_API_KEY }}
   ALPACA_TEST_API_SECRET: ${{ secrets.ALPACA_TEST_API_SECRET }}
+  ALPACA_API_KEY: ${{ secrets.ALPACA_TEST_API_KEY }}
+  ALPACA_API_SECRET: ${{ secrets.ALPACA_TEST_API_SECRET }}
 
 jobs:
   alpaca-live-broker:
@@ -69,12 +85,19 @@ jobs:
             exit 1
           fi
 
-      - name: Run MCP action coverage
+      - name: Run agent MCP and built-in action coverage
         run: |
           set -euo pipefail
-          timeout 600 python -m pytest -q \
+          timeout 1500 python -m pytest -q \
             tests/test_agent_runtime_remote_mcp.py \
-            tests/test_agent_runtime_mcp_transports.py
+            tests/test_agent_runtime_mcp_transports.py \
+            tests/test_agent_runtime_provider_keys.py \
+            tests/test_agent_runtime_errors.py \
+            tests/test_agent_tool_permissions.py \
+            tests/test_agent_alpaca_news_builtin.py \
+            tests/test_agent_alpaca_news_live_apitest.py \
+            tests/backtest/test_agent_runtime_backtest.py \
+            tests/backtest/test_ai_committee_builtin_tools_backtest.py
 
       - name: Run real Alpaca broker strategy apitests
         run: |

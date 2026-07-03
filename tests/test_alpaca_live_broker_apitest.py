@@ -9,7 +9,7 @@ from lumibot.credentials import ALPACA_TEST_CONFIG
 from lumibot.entities import Asset, Order
 from lumibot.strategies.strategy import Strategy
 
-pytestmark = pytest.mark.apitest
+pytestmark = [pytest.mark.apitest, pytest.mark.alpaca]
 
 
 def _require_alpaca() -> Alpaca:
@@ -18,7 +18,10 @@ def _require_alpaca() -> Alpaca:
     if not api_key or not api_secret or api_key == "<your key here>" or api_secret == "<your key here>":
         pytest.skip("Missing ALPACA_TEST_API_KEY / ALPACA_TEST_API_SECRET")
 
-    broker = Alpaca(ALPACA_TEST_CONFIG, max_workers=1, connect_stream=False)
+    config = dict(ALPACA_TEST_CONFIG)
+    # CI runs outside market hours, but this test must still exercise run_live(run_once=True).
+    config["MARKET"] = "24/7"
+    broker = Alpaca(config, max_workers=1, connect_stream=False)
     try:
         account = broker.api.get_account()
     except Exception as exc:
@@ -27,7 +30,7 @@ def _require_alpaca() -> Alpaca:
 
     if getattr(account, "trading_blocked", False):
         broker.cleanup_streams()
-        pytest.skip("Alpaca paper account is trading-blocked")
+        pytest.fail("Alpaca paper account is trading-blocked")
 
     return broker
 

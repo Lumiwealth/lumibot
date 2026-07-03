@@ -5,8 +5,7 @@ import pytest
 
 from lumibot.components.agents import BuiltinTools
 
-
-pytestmark = pytest.mark.apitest
+pytestmark = [pytest.mark.apitest, pytest.mark.alpaca]
 
 
 class _LiveNewsStrategy:
@@ -62,7 +61,10 @@ def test_live_alpaca_news_known_market_event_scan_and_full_content():
         f"{article.get('headline') or ''} {article.get('summary') or ''}".lower()
         for article in scan["articles"]
     )
-    assert any(keyword in combined_scan_text for keyword in ("vix", "selloff", "recession", "global", "plunge", "volatility"))
+    assert any(
+        keyword in combined_scan_text
+        for keyword in ("vix", "selloff", "recession", "global", "plunge", "volatility")
+    )
 
     full = tool.function(
         symbols="SPY,QQQ,DIA,IWM",
@@ -82,7 +84,10 @@ def test_live_alpaca_news_known_market_event_scan_and_full_content():
     assert full_content_articles
     assert max(len(str(article["content"])) for article in full_content_articles) > 1000
     assert all(article.get("content_truncated") is False for article in full_content_articles)
-    assert all(article.get("content_original_length") == len(str(article.get("content") or "")) for article in full_content_articles)
+    assert all(
+        article.get("content_original_length") == len(str(article.get("content") or ""))
+        for article in full_content_articles
+    )
 
 
 def test_live_alpaca_news_pagination_fetches_distinct_second_page():

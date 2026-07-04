@@ -1,5 +1,36 @@
 # Changelog
 
+## 4.5.66 - Unreleased
+
+### Fixed
+- **Tradier live polling now throttles repeated broker reads and backs off after
+  transient provider 5xx failures.** Account balances, positions, and orders
+  reuse recent good reads during short polling windows or transient-backoff
+  windows, reducing provider retry storms in managed live bots while preserving
+  auth failures as hard errors.
+
+### Tests
+- **Tradier transient-read regression coverage now proves cached balance,
+  position, and order behavior.** The focused tests cover cache reuse after
+  retry-exhausted 5xx responses and ensure OAuth/external-mode polling
+  regressions still pass.
+
+## 4.5.65 - Unreleased
+
+### Fixed
+- **Tradier live polling now treats transient provider 5xx reads as retryable
+  broker noise instead of fake empty broker state.** Position polling preserves
+  the current local LumiBot position snapshot for that poll, and order polling
+  skips reconciliation when Tradier returns retry-exhausted 5xx responses, so
+  managed live bots do not clear positions or orders just because Tradier had a
+  transient provider failure.
+
+### Docs
+- **Startup-optimization release risk review is documented for release
+  captains.** The note records the PR 1100 scope, clean-env local verification,
+  and why scheduled/live startup smoke remains required before treating that
+  optimization as low risk.
+
 ## 4.5.64 - Unreleased
 
 ### Added

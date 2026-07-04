@@ -49,7 +49,11 @@ def _config_value(config, name):
 
 
 def _validate_alpaca_data_credentials_config(config):
-    if _config_value(config, "API_KEY") and not _config_value(config, "API_SECRET"):
+    if (
+        _config_value(config, "API_KEY")
+        and not _config_value(config, "API_SECRET")
+        and not _config_value(config, "OAUTH_TOKEN")
+    ):
         raise ValueError("API_SECRET not found in config when API_KEY is provided")
 
 
@@ -383,6 +387,7 @@ class Alpaca(Broker):
 
         # Set the config values
         self._update_attributes_from_config(config)
+        data_source_config = self._config_for_selected_credentials(config)
 
         # Check if we have OAuth-only (no API key/secret)
         self.is_oauth_only = bool(self.oauth_token and not (self.api_key and self.api_secret))
@@ -398,11 +403,11 @@ class Alpaca(Broker):
 
         if data_source is None:
             if _scheduled_execution_requested() and not connect_stream and not start_orders_thread:
-                data_source = _LazyAlpacaDataSource(config, max_workers=max_workers, chunk_size=chunk_size)
+                data_source = _LazyAlpacaDataSource(data_source_config, max_workers=max_workers, chunk_size=chunk_size)
             else:
                 from lumibot.data_sources import AlpacaData
 
-                data_source = AlpacaData(config, max_workers=max_workers, chunk_size=chunk_size)
+                data_source = AlpacaData(data_source_config, max_workers=max_workers, chunk_size=chunk_size)
 
         super().__init__(
             name="alpaca",
@@ -516,6 +521,17 @@ class Alpaca(Broker):
             self.api_key = ""
             self.api_secret = ""
             self.oauth_token = ""
+
+    def _config_for_selected_credentials(self, config):
+        if not self.oauth_token:
+            return config
+
+        value_dict = config if isinstance(config, dict) else config.__dict__
+        data_source_config = dict(value_dict)
+        data_source_config["OAUTH_TOKEN"] = self.oauth_token
+        data_source_config.pop("API_KEY", None)
+        data_source_config.pop("API_SECRET", None)
+        return data_source_config
 
     # =========Clock functions=====================
 

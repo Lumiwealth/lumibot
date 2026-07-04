@@ -134,6 +134,11 @@ class Bitunix(Broker):
             max_workers=max_workers,
         )
 
+    def _safe_stream_dispatch(self, event, **kwargs):
+        stream = getattr(self, "stream", None)
+        if stream is not None and hasattr(stream, "dispatch"):
+            stream.dispatch(event, **kwargs)
+
     def get_quote_asset(self):
         # Only clear and set quote_assets if USDT is not the only asset
         default_quote_asset = self._default_quote_asset()
@@ -351,7 +356,7 @@ class Bitunix(Broker):
                 order.status = Order.OrderStatus.ERROR  # ensure status is enum
                 # Attach full response for debugging
                 order.update_raw(response)
-                self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=err_msg)
+                self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=err_msg)
                 return order
             # Success handling only
             data = response.get("data", {})
@@ -366,12 +371,12 @@ class Bitunix(Broker):
                 error_msg = f"No order ID in response: {response}"
                 order.set_error(LumibotBrokerAPIError(error_msg))
                 order.status = Order.OrderStatus.ERROR  # ensure status is enum
-                self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)
+                self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)
         except Exception as e:
             error_msg = f"Exception placing order: {str(e)}"
             order.set_error(LumibotBrokerAPIError(error_msg))
             order.status = Order.OrderStatus.ERROR  # ensure status is enum
-            self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)
+            self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=error_msg)
         return order
 
     # ------------------------------------------------------------------
@@ -624,16 +629,16 @@ class Bitunix(Broker):
                 # Status has changed since last time we saw it, dispatch the new status.
                 if not order.equivalent_status(stored_order):
                     if order.status == Order.OrderStatus.SUBMITTED:
-                        self.stream.dispatch(self.NEW_ORDER, order=stored_order)
+                        self._safe_stream_dispatch(self.NEW_ORDER, order=stored_order)
                     elif order.status == Order.OrderStatus.PARTIALLY_FILLED:
-                        self.stream.dispatch(self.PARTIALLY_FILLED_ORDER, order=stored_order, price=order.avg_fill_price, filled_quantity=order.quantity)
+                        self._safe_stream_dispatch(self.PARTIALLY_FILLED_ORDER, order=stored_order, price=order.avg_fill_price, filled_quantity=order.quantity)
                     elif order.status == Order.OrderStatus.FILLED:
-                        self.stream.dispatch(self.FILLED_ORDER, order=stored_order, price=order.avg_fill_price, filled_quantity=order.quantity)
+                        self._safe_stream_dispatch(self.FILLED_ORDER, order=stored_order, price=order.avg_fill_price, filled_quantity=order.quantity)
                     elif order.status == Order.OrderStatus.CANCELED:
-                        self.stream.dispatch(self.CANCELED_ORDER, order=stored_order)
+                        self._safe_stream_dispatch(self.CANCELED_ORDER, order=stored_order)
                     elif order.status == Order.OrderStatus.ERROR:
                         msg = order_row.get("msg", f"{self.name} encountered an error with order {order.identifier} | {order}")
-                        self.stream.dispatch(self.ERROR_ORDER, order=stored_order, error_msg=msg)
+                        self._safe_stream_dispatch(self.ERROR_ORDER, order=stored_order, error_msg=msg)
                 else:
                     stored_order.status = order.status
 
@@ -646,7 +651,7 @@ class Bitunix(Broker):
                     f"Poll Update: {self.name} no longer has order {order}, but Lumibot does. Dispatching as cancelled."
                 )
                 if order.is_active():
-                    self.stream.dispatch(self.CANCELED_ORDER, order=order)
+                    self._safe_stream_dispatch(self.CANCELED_ORDER, order=order)
 
     def _get_stream_object(self):
         """Returns the polling stream object."""

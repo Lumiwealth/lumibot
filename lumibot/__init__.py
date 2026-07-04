@@ -1,9 +1,8 @@
-import importlib.util
 import os
 import re
 import sys
 import types
-from importlib.machinery import ModuleSpec
+from importlib.machinery import ModuleSpec, PathFinder
 
 _SETUP_VERSION_RE = re.compile(r"^\s*version\s*=\s*(['\"])(?P<version>.+?)\1\s*,?\s*$")
 
@@ -266,7 +265,7 @@ def _entities_package_exists() -> bool:
     if _has_entities_alias_finder():
         return False
     try:
-        return importlib.util.find_spec("entities") is not None
+        return PathFinder.find_spec("entities") is not None
     except (ImportError, AttributeError, ValueError):
         return False
 

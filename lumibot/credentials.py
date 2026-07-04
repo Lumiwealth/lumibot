@@ -633,6 +633,15 @@ def _build_default_live_credentials():
             broker = _broker_class("Schwab")(SCHWAB_CONFIG, connect_stream=connect_stream)
         elif broker_name == "bitunix":
             broker = _broker_class("Bitunix")(BITUNIX_CONFIG, connect_stream=connect_stream)
+        elif broker_name in ("polymarket", "polymarket_clob"):
+            from .data_sources import PolymarketData
+
+            data_source = PolymarketData(POLYMARKET_CONFIG)
+            broker = _broker_class("Polymarket")(
+                POLYMARKET_CONFIG,
+                data_source=data_source,
+                connect_stream=connect_stream,
+            )
         elif broker_name == "projectx":
             try:
                 firm = os.environ.get("PROJECTX_FIRM")
@@ -790,6 +799,10 @@ def _build_default_live_credentials():
                 data_source = SchwabData(account_number=SCHWAB_CONFIG["SCHWAB_ACCOUNT_NUMBER"])
                 if broker and broker.name.lower() == "schwab" and hasattr(broker, "client"):
                     data_source.set_client(broker.client)
+            elif data_name in ("polymarket", "polymarket_clob"):
+                from .data_sources import PolymarketData
+
+                data_source = PolymarketData(POLYMARKET_CONFIG)
             elif data_name == "thetadata":
                 if THETADATA_CONFIG["THETADATA_USERNAME"] and THETADATA_CONFIG["THETADATA_PASSWORD"]:
                     from .data_sources import ThetaData
@@ -909,7 +922,11 @@ elif not is_backtesting or is_backtesting.lower() == "false":
             from .data_sources import PolymarketData
 
             data_source = PolymarketData(POLYMARKET_CONFIG)
-            broker = _broker_class("Polymarket")(POLYMARKET_CONFIG, data_source=data_source)
+            broker = _broker_class("Polymarket")(
+                POLYMARKET_CONFIG,
+                data_source=data_source,
+                connect_stream=connect_stream,
+            )
         elif trading_broker_name.lower() == "projectx":
             try:
                 # Get specified firm or use auto-detection

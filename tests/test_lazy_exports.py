@@ -247,12 +247,14 @@ def test_trader_import_defers_logging_and_typing():
             sys.executable,
             "-c",
             (
-                "from lumibot.traders import Trader; "
                 "import sys; "
-                "heavy = ('dataclasses', 'inspect', 'logging', 'lumibot.tools.lumibot_logger', "
+                "baseline = set(sys.modules); "
+                "from lumibot.traders import Trader; "
+                "heavy = ('dataclasses', 'importlib.util', 'inspect', 'logging', 'lumibot.tools.lumibot_logger', "
                 "'signal', 'threading', 'typing'); "
                 "loaded = sorted(name for name in heavy "
-                "if name in sys.modules or any(module.startswith(name + '.') for module in sys.modules)); "
+                "if name not in baseline and (name in sys.modules "
+                "or any(module.startswith(name + '.') for module in sys.modules))); "
                 "print('trader=' + Trader.__name__); "
                 "print('loaded=' + ','.join(loaded))"
             ),

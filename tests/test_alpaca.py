@@ -212,6 +212,34 @@ class TestAlpacaBroker:
         assert broker.api_secret == "test_api_secret"
         assert broker.is_oauth_only == False
 
+    def test_oauth_token_ignores_stale_partial_api_key(self):
+        """Test that OAuth works when a stale API key remains without a secret."""
+        oauth_config = {
+            "API_KEY": "leftover",
+            "OAUTH_TOKEN": "test_oauth_token",
+            "PAPER": True,
+        }
+
+        broker = Alpaca(oauth_config, connect_stream=False, start_orders_thread=False)
+
+        assert broker.oauth_token == "test_oauth_token"
+        assert broker.api_key == ""
+        assert broker.api_secret == ""
+        assert broker.is_oauth_only == True
+        assert broker.data_source.oauth_token == "test_oauth_token"
+        assert broker.data_source.api_key is None
+        assert broker.data_source.api_secret is None
+
+    def test_partial_api_key_without_oauth_still_requires_secret(self):
+        """Test that API key auth still requires API secret when OAuth is absent."""
+        api_config = {
+            "API_KEY": "leftover",
+            "PAPER": True,
+        }
+
+        with pytest.raises(ValueError, match="API_SECRET not found in config when API_KEY is provided"):
+            Alpaca(api_config, connect_stream=False, start_orders_thread=False)
+
     def test_oauth_error_on_missing_credentials(self):
         """Test that proper error is raised when no credentials are provided."""
         empty_config = {"PAPER": True}

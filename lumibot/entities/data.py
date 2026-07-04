@@ -1317,7 +1317,7 @@ class Data:
         """Slice the cached bars frame without building an intermediate dataline DataFrame."""
         start_row, end_row, normalized_timeshift = self._get_bars_row_bounds(dt, length=length, timeshift=timeshift)
         df_source = self._get_bars_source_frame()
-        df = df_source._slice(slice(start_row, end_row))
+        df = df_source.iloc[start_row:end_row]
         if df is None or df.shape[0] == 0:
             return None, start_row, end_row, normalized_timeshift
         return df, start_row, end_row, normalized_timeshift

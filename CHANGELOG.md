@@ -2,6 +2,19 @@
 
 ## 4.5.66 - Unreleased
 
+### Performance
+- **Backtesting data access avoids retained large timestamp lookup structures and
+  unnecessary bar-frame duplication.** Large `Data.repair_times_and_fill()`
+  frames now rely on the existing nanosecond index search instead of retaining
+  both a pandas `iter_index` Series and a Python datetime lookup dict, and
+  multi-minute `get_bars()` resampling slices the cached OHLCV/corporate-action
+  frame instead of rebuilding a full dataline DataFrame with unused quote
+  columns.
+- **Order reconciliation now reduces avoidable duplicate work for all brokers.**
+  Strategy order sync indexes LumiBot orders by broker identifier once per
+  reconciliation pass instead of scanning the full order list for each broker
+  order.
+
 ### Fixed
 - **Tradier live polling now throttles repeated broker reads and backs off after
   transient provider 5xx failures.** Account balances, positions, and orders
@@ -14,6 +27,9 @@
   position, and order behavior.** The focused tests cover cache reuse after
   retry-exhausted 5xx responses and ensure OAuth/external-mode polling
   regressions still pass.
+- **Performance regressions now cover large `Data` repair memory, order
+  identifier indexing, and `get_bars()` resampling with non-OHLCV quote
+  columns.**
 
 ## 4.5.65 - Unreleased
 

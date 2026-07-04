@@ -2,20 +2,6 @@
 
 ## 4.5.66 - Unreleased
 
-### Performance
-- **Backtesting data access avoids retained large timestamp lookup structures and
-  unnecessary bar-frame duplication.** Large `Data.repair_times_and_fill()`
-  frames now rely on the existing nanosecond index search instead of retaining
-  both a pandas `iter_index` Series and a Python datetime lookup dict, and
-  multi-minute `get_bars()` resampling slices the cached OHLCV/corporate-action
-  frame instead of rebuilding a full dataline DataFrame with unused quote
-  columns.
-- **Order reconciliation and historical-data normalization reduce avoidable
-  duplicate work.** Strategy order sync now indexes LumiBot orders by broker
-  identifier once per reconciliation pass, Alpaca daily backtest gap rows are
-  batched into one concat, and Databento cache/raw normalization drops duplicate
-  datetime rows while keeping the latest bar.
-
 ### Fixed
 - **Tradier live polling now throttles repeated broker reads and backs off after
   transient provider 5xx failures.** Account balances, positions, and orders
@@ -28,9 +14,6 @@
   position, and order behavior.** The focused tests cover cache reuse after
   retry-exhausted 5xx responses and ensure OAuth/external-mode polling
   regressions still pass.
-- **Performance regressions now cover large `Data` repair memory, Alpaca daily
-  gap fill batching, Databento duplicate-row normalization, order identifier
-  indexing, and `get_bars()` resampling with non-OHLCV quote columns.**
 
 ## 4.5.65 - Unreleased
 

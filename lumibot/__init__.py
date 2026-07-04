@@ -129,6 +129,7 @@ _SUBMODULE_EXPORTS = {
     "traders",
     "tools",
     "components",
+    "sentiment",
     "constants",
     "credentials",
     "trading_builtins",

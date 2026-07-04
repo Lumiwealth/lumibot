@@ -538,6 +538,7 @@ Deploy marker: 4.5.32 release commit (`deploy 4.5.32`)
 
 ### Changed
 - **Lumibot README and docs now frame the agent examples as AI trading teams.** The public docs refresh the BotSpot CTAs, favicon/logo assets, and agent-flow visuals while keeping the existing examples and links intact.
+- **AI agents can optionally use Adanos Market Sentiment API data.** Strategies now get a `strategy.sentiment` helper and, when `ADANOS_API_KEY` is configured, agents can call `adanos_market_sentiment` for US-equity sentiment from Reddit, X / FinTwit, news, and Polymarket.
 
 ### Fixed
 - **Schwab position sync now skips unsupported mutual-fund and bond positions instead of crashing.** Accounts that contain asset classes LumiBot does not model can still sync supported stocks, ETFs, options, futures, and cash-like positions.

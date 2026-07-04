@@ -1193,6 +1193,7 @@ class AgentHandle:
                 "get_fred_series",
                 "get_fred_latest",
                 "get_fred_snapshot",
+                "adanos_market_sentiment",
             }
             for name in tool_names
         )

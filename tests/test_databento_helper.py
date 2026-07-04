@@ -1,10 +1,13 @@
 import unittest
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import pandas as pd
 import pytest
 
 from lumibot.tools import databento_helper
+from lumibot.tools import databento_helper_polars
 from lumibot.tools.databento_helper import DataBentoClient
 from lumibot.entities import Asset
 
@@ -123,6 +126,73 @@ class TestDataBentoHelper(unittest.TestCase):
         # Check data types
         for col in ['open', 'high', 'low', 'close', 'volume']:
             self.assertTrue(pd.api.types.is_numeric_dtype(result[col]))
+
+    def test_normalize_databento_dataframe_deduplicates_ts_event(self):
+        """Duplicate historical bars should collapse to one row per timestamp."""
+        test_data = {
+            'ts_event': pd.to_datetime([
+                '2025-01-01 09:30:00',
+                '2025-01-01 09:30:00',
+                '2025-01-01 09:31:00',
+            ]),
+            'open': [100.0, 101.0, 102.0],
+            'high': [101.0, 102.0, 103.0],
+            'low': [99.0, 100.0, 101.0],
+            'close': [100.5, 101.5, 102.5],
+            'volume': [1000, 1100, 1200],
+        }
+        df = pd.DataFrame(test_data)
+
+        result = databento_helper._normalize_databento_dataframe(df)
+
+        self.assertEqual(len(result), 2)
+        self.assertEqual(int(result.index.duplicated().sum()), 0)
+        self.assertEqual(result.loc[pd.Timestamp('2025-01-01 09:30:00', tz='UTC'), 'close'], 101.5)
+
+    def test_load_cache_deduplicates_legacy_rows(self):
+        """Older cache files may contain duplicate datetimes; load should normalize them."""
+        with TemporaryDirectory() as temp_dir:
+            cache_file = Path(temp_dir) / "ES_minute.parquet"
+            pd.DataFrame({
+                'datetime': pd.to_datetime([
+                    '2025-01-01 09:30:00',
+                    '2025-01-01 09:30:00',
+                    '2025-01-01 09:31:00',
+                ]),
+                'open': [100.0, 101.0, 102.0],
+                'high': [101.0, 102.0, 103.0],
+                'low': [99.0, 100.0, 101.0],
+                'close': [100.5, 101.5, 102.5],
+                'volume': [1000, 1100, 1200],
+            }).to_parquet(cache_file, engine='pyarrow', compression='snappy')
+
+            result = databento_helper._load_cache(cache_file)
+
+        self.assertEqual(len(result), 2)
+        self.assertEqual(int(result.index.duplicated().sum()), 0)
+        self.assertEqual(result.loc[pd.Timestamp('2025-01-01 09:30:00', tz='UTC'), 'close'], 101.5)
+
+    def test_polars_helper_normalize_databento_dataframe_deduplicates_ts_event(self):
+        """Polars-optimized helper shares pandas normalization before optional conversion."""
+        test_data = {
+            'ts_event': pd.to_datetime([
+                '2025-01-01 09:30:00',
+                '2025-01-01 09:30:00',
+                '2025-01-01 09:31:00',
+            ]),
+            'open': [100.0, 101.0, 102.0],
+            'high': [101.0, 102.0, 103.0],
+            'low': [99.0, 100.0, 101.0],
+            'close': [100.5, 101.5, 102.5],
+            'volume': [1000, 1100, 1200],
+        }
+        df = pd.DataFrame(test_data)
+
+        result = databento_helper_polars._normalize_databento_dataframe(df)
+
+        self.assertEqual(len(result), 2)
+        self.assertEqual(int(result.index.duplicated().sum()), 0)
+        self.assertEqual(result.loc[pd.Timestamp('2025-01-01 09:30:00', tz='UTC'), 'close'], 101.5)
 
     @patch('lumibot.tools.databento_helper.DATABENTO_AVAILABLE', True)
     def test_databento_client_initialization(self):

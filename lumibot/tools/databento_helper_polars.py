@@ -580,6 +580,8 @@ def _ensure_datetime_index_utc(df: pd.DataFrame) -> pd.DataFrame:
         # CRITICAL: Always set index name to 'datetime' for consistency
         # This ensures reset_index() creates a column named 'datetime', not 'ts_event'
         df.index.name = "datetime"
+        if df.index.has_duplicates:
+            df = df[~df.index.duplicated(keep="last")]
     return df
 
 

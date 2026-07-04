@@ -326,6 +326,38 @@ class TestDataGetLastPriceTradeOnly:
         with pytest.raises(ValueError, match="after the available data's end"):
             data.get_bars(base_dt + timedelta(minutes=35), length=3, timestep="5m")
 
+    def test_get_bars_resample_ignores_non_ohlcv_columns(self):
+        asset = Asset("SPY")
+        tz = pytz.timezone("America/New_York")
+        base_dt = tz.localize(datetime(2026, 6, 23, 9, 30))
+        dates = [base_dt + timedelta(minutes=i) for i in range(12)]
+        df = (
+            pd.DataFrame(
+                {
+                    "datetime": dates,
+                    "open": [100.0 + i for i in range(12)],
+                    "high": [101.0 + i for i in range(12)],
+                    "low": [99.0 + i for i in range(12)],
+                    "close": [100.5 + i for i in range(12)],
+                    "volume": [10.0] * 12,
+                    "bid": [100.25 + i for i in range(12)],
+                    "ask": [100.75 + i for i in range(12)],
+                    "last_trade_time": dates,
+                }
+            )
+            .set_index("datetime")
+        )
+        data = Data(asset, df, timestep="minute")
+        expected_data = Data(asset, df[["open", "high", "low", "close", "volume"]].copy(), timestep="minute")
+
+        bars = data.get_bars(base_dt + timedelta(minutes=11), length=2, timestep="5m")
+        expected = expected_data.get_bars(base_dt + timedelta(minutes=11), length=2, timestep="5m")
+
+        assert bars is not None
+        assert expected is not None
+        assert list(bars.columns) == ["open", "high", "low", "close", "volume"]
+        pd.testing.assert_frame_equal(bars, expected)
+
     def test_get_quote_includes_source_bar_provenance(self):
         asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
         tz = pytz.timezone("America/New_York")

@@ -586,6 +586,8 @@ def _ensure_datetime_index_utc(df: pd.DataFrame) -> pd.DataFrame:
             df.index = df.index.tz_convert("UTC")
         if df.index.name is None:
             df.index.name = "datetime"
+        if df.index.has_duplicates:
+            df = df[~df.index.duplicated(keep="last")]
     return df
 
 

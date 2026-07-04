@@ -821,25 +821,29 @@ class AlpacaBacktesting(DataSourceBacktesting):
             # Find truly missing dates
             missing_dates = trading_dates_set - df_dates_set
 
-            # Add rows for missing dates (at midnight)
+            # Add rows for missing dates (at midnight). Build once; repeated concat in this loop
+            # creates a new DataFrame for every missing day.
+            missing_rows = []
             for date in missing_dates:
                 # Get timezone from the first timestamp in df
                 tz = df['timestamp'].iloc[0].tz
 
-                missing_row = pd.DataFrame({
-                    'timestamp': [pd.Timestamp(date).tz_localize(tz)],
-                    'open': [None],
-                    'high': [None],
-                    'low': [None],
-                    'close': [None],
-                    'volume': [0.0]
+                missing_rows.append({
+                    'timestamp': pd.Timestamp(date).tz_localize(tz),
+                    'open': None,
+                    'high': None,
+                    'low': None,
+                    'close': None,
+                    'volume': 0.0
                 })
 
-                # Remove any all-NA columns from `missing_row`
-                missing_row = missing_row.dropna(axis=1, how='all')
+            if missing_rows:
+                missing_df = pd.DataFrame(missing_rows)
 
-                # Proceed with the concatenation
-                df = pd.concat([df, missing_row], ignore_index=True)
+                # Match the previous per-row behavior: all-NA placeholder OHLC columns are dropped
+                # before concat, then reappear as NaN from the original frame's schema.
+                missing_df = missing_df.dropna(axis=1, how='all')
+                df = pd.concat([df, missing_df], ignore_index=True)
 
             # Sort by timestamp
             df.sort_values('timestamp', inplace=True)

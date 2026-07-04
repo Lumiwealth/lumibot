@@ -637,17 +637,18 @@ class Data:
             self._bars_df = None
 
     def to_datalines(self):
+        datetime_values = self.df.index.array
         self.datalines.update(
             {
                 "datetime": Dataline(
                     self.asset,
                     "datetime",
-                    self.df.index.to_numpy(),
+                    datetime_values,
                     self.df.index.dtype,
                 )
             }
         )
-        self.datetime = self.datalines["datetime"].dataline
+        self.datetime = datetime_values
 
         for column in self.df.columns:
             self.datalines.update(
@@ -1012,7 +1013,17 @@ class Data:
         if self.timestep == "day":
             price = close_price
         else:
-            price = close_price if dt > self.datalines["datetime"].dataline[iter_count] else open_price
+            index_ns = getattr(self, "_index_values_ns", None)
+            dt_ns = getattr(self, "_iter_count_cursor_ns", None)
+            if index_ns is not None and dt_ns is not None:
+                try:
+                    # `get_iter_count()` already normalized both values to ns; avoid Timestamp scalar allocation here.
+                    use_close = int(dt_ns) > int(index_ns[int(iter_count)])
+                except Exception:
+                    use_close = dt > self.datalines["datetime"].dataline[iter_count]
+            else:
+                use_close = dt > self.datalines["datetime"].dataline[iter_count]
+            price = close_price if use_close else open_price
 
         if price is None:
             return None

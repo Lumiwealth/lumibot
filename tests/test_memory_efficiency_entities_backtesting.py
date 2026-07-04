@@ -32,3 +32,15 @@ def test_large_data_repair_avoids_retained_iter_index_dict_and_preserves_lookup(
 
     lazy_iter_index = data.iter_index
     assert lazy_iter_index.loc[index[123]] == 123
+
+
+def test_data_datetime_dataline_reuses_index_array():
+    index = pd.date_range("2024-01-01", periods=10, freq="min", tz="America/New_York")
+    data = Data(Asset("MEM"), _ohlcv_frame(index), timestep="minute")
+    data.repair_times_and_fill(index)
+
+    datetime_line = data.datalines["datetime"].dataline
+
+    assert datetime_line is data.df.index.array
+    assert data.datetime is datetime_line
+    assert datetime_line[3] == data.df.index[3]

@@ -69,7 +69,7 @@ class PandasData(DataSourceBacktesting):
                 if data.quote is None:
                     # Warn that USD is being used as the quote
                     logger.warning(f"No quote specified for {data.asset}. Using USD as the quote.")
-                    return data.asset, Asset(symbol="USD", asset_type="forex")
+                    return data.asset, _USD_FOREX
                 return data.asset, data.quote
             else:
                 raise ValueError("Asset must be an Asset or a tuple of Asset and quote")

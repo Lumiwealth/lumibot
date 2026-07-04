@@ -9,7 +9,9 @@
   both a pandas `iter_index` Series and a Python datetime lookup dict, and
   multi-minute `get_bars()` resampling slices the cached OHLCV/corporate-action
   frame instead of rebuilding a full dataline DataFrame with unused quote
-  columns.
+  columns. Datetime datalines also reuse the existing `DatetimeIndex` backing
+  array instead of allocating a duplicate object array, and PandasData reuses
+  the shared default USD quote asset when normalizing data-store keys.
 - **Order reconciliation now reduces avoidable duplicate work for all brokers.**
   Strategy order sync indexes LumiBot orders by broker identifier once per
   reconciliation pass instead of scanning the full order list for each broker

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from lumibot.data_sources.pandas_data import PandasData
+from lumibot.data_sources.pandas_data import _USD_FOREX, PandasData
 from lumibot.entities import Asset, Data
 
 
@@ -14,6 +14,17 @@ def _minute_df(tz: str = "America/New_York") -> pd.DataFrame:
 def _day_df(tz: str = "America/New_York") -> pd.DataFrame:
     idx = pd.date_range("2025-01-01", periods=3, freq="D", tz=tz)
     return pd.DataFrame({"open": [1, 2, 3], "high": [1, 2, 3], "low": [1, 2, 3], "close": [1, 2, 3], "volume": [0, 0, 0]}, index=idx)
+
+
+def test_set_pandas_data_keys_reuses_default_usd_quote_singleton():
+    base = Asset("AAPL", asset_type=Asset.AssetType.STOCK)
+    data = Data(base, _day_df(), timestep="day")
+
+    keyed = PandasData._set_pandas_data_keys([data])
+    key = next(iter(keyed))
+
+    assert key == (base, Asset("USD", asset_type=Asset.AssetType.FOREX))
+    assert key[1] is _USD_FOREX
 
 
 def test_find_asset_in_data_store_does_not_return_daily_for_minute_requests():

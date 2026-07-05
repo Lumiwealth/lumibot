@@ -569,12 +569,13 @@ class StrategyExecutor(Thread):
         orders_broker = [order for order in orders_broker if order is not None]
         if len(orders_broker) > 0 or self.broker.get_all_orders():
             orders_lumi = self.broker.get_all_orders()
+            orders_lumi_by_identifier = self._index_orders_by_identifier(orders_lumi)
 
             # Check orders at the broker against those in lumibot.
             for order in orders_broker:
                 # Check against existing orders.
-                order_lumi = [ord_lumi for ord_lumi in orders_lumi if ord_lumi.identifier == order.identifier]
-                if len(order_lumi) > 1:
+                order_lumi = orders_lumi_by_identifier.get(order.identifier)
+                if isinstance(order_lumi, list):
                     self.strategy.logger.warning(
                         f"Multiple orders found in lumibot with the same identifier {order.identifier}. "
                         f"This should not happen and indicates a bug in the order tracking. This is manifesting as "
@@ -583,8 +584,6 @@ class StrategyExecutor(Thread):
                         f"Orders: {order_lumi}"
                     )
                     order_lumi = self.broker._clean_order_trackers(order)
-                else:
-                    order_lumi = order_lumi[0] if len(order_lumi) > 0 else None
 
                 if order_lumi:
                     # Compare the orders.
@@ -722,6 +721,20 @@ class StrategyExecutor(Thread):
         self.broker._invalidate_order_caches()
         self.broker._hold_trade_events = False
         self.broker.process_held_trades()
+
+    @staticmethod
+    def _index_orders_by_identifier(orders: list[Order]) -> dict:
+        orders_by_identifier = {}
+        for order in orders:
+            identifier = order.identifier
+            existing = orders_by_identifier.get(identifier)
+            if existing is None:
+                orders_by_identifier[identifier] = order
+            elif isinstance(existing, list):
+                existing.append(order)
+            else:
+                orders_by_identifier[identifier] = [existing, order]
+        return orders_by_identifier
 
     @staticmethod
     def _get_all_order_identifiers(orders_broker: list[Order]) -> set:

@@ -7,7 +7,7 @@ import time
 from collections import deque
 from importlib import import_module
 
-from lumibot._lazy_imports import LazyModule, LazyStrategyLogger, lazy_class, lazy_typing
+from lumibot._lazy_imports import LazyClassMeta, LazyModule, LazyStrategyLogger, lazy_class, lazy_typing
 
 def _env_flag_enabled(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "y", "on")
@@ -244,11 +244,7 @@ def _get_backtesting_class(name):
 
 
 def _resolve_lazy_class(value):
-    if (
-        isinstance(getattr(value, "_module_name", None), str)
-        and isinstance(getattr(value, "_class_name", None), str)
-        and callable(getattr(value, "_load", None))
-    ):
+    if isinstance(value, LazyClassMeta):
         return value._load()
     return value
 

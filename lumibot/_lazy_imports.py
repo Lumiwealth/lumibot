@@ -58,11 +58,11 @@ class LazyClassMeta(type):
         return super().__new__(mcls, name, bases, namespace, **kwargs)
 
     def _load(cls):
-        target_class = getattr(cls, "_target_class", None)
+        target_class = type.__getattribute__(cls, "_target_class")
         if target_class is None:
-            module = import_module(cls._module_name)
-            target_class = getattr(module, cls._class_name)
-            setattr(cls, "_target_class", target_class)
+            module = import_module(type.__getattribute__(cls, "_module_name"))
+            target_class = getattr(module, type.__getattribute__(cls, "_class_name"))
+            type.__setattr__(cls, "_target_class", target_class)
         return target_class
 
     def __call__(cls, *args, **kwargs):
@@ -78,19 +78,25 @@ class LazyClassMeta(type):
         return getattr(cls._load(), name)
 
     def __instancecheck__(cls, instance):
-        return isinstance(instance, cls._load())
+        target_class = type.__getattribute__(cls, "_target_class")
+        if target_class is None:
+            target_class = cls._load()
+        return isinstance(instance, target_class)
 
     def __subclasscheck__(cls, subclass):
-        return issubclass(subclass, cls._load())
+        target_class = type.__getattribute__(cls, "_target_class")
+        if target_class is None:
+            target_class = cls._load()
+        return issubclass(subclass, target_class)
 
     def __dir__(cls):
         return dir(cls._load())
 
     def __repr__(cls):
-        target_class = getattr(cls, "_target_class", None)
+        target_class = type.__getattribute__(cls, "_target_class")
         if target_class is not None:
             return repr(target_class)
-        return f"<lazy class {cls._module_name}.{cls._class_name}>"
+        return f"<lazy class {type.__getattribute__(cls, '_module_name')}.{type.__getattribute__(cls, '_class_name')}>"
 
 
 def lazy_class(module_name: str, class_name: str):

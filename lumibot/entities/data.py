@@ -1325,6 +1325,25 @@ class Data:
             return None, start_row, end_row, normalized_timeshift
         return df, start_row, end_row, normalized_timeshift
 
+    def _get_frame_between_dates(self, start_date=None, end_date=None, bars_only=False):
+        end_row = self.get_iter_count(end_date)
+        start_row = self.get_iter_count(start_date)
+
+        if start_row < 0:
+            start_row = 0
+
+        start_row = int(start_row)
+        end_row = int(end_row)
+
+        df_source = self._get_bars_source_frame() if bars_only else self.df
+        df = df_source._slice(slice(start_row, end_row))
+        if df is None or df.empty:
+            return df
+        if df.index.name != "datetime":
+            df = df.copy(deep=False)
+            df.index = df.index.rename("datetime")
+        return df
+
     def get_bars(self, dt, length=1, timestep=MIN_TIMESTEP, timeshift=0):
         """Returns a dataframe of the data.
 
@@ -1640,11 +1659,8 @@ class Data:
         if timestep not in {"minute", "hour", "day"}:
             raise ValueError(f"Only minute, hour, and day are supported for timestep. You provided: {timestep}")
 
-        data = self._get_bars_between_dates_dict(timestep=timestep, start_date=start_date, end_date=end_date)
-        if data is None:
-            return None
-
-        df = pd.DataFrame(data).set_index("datetime")
+        bars_only = not (timestep == "minute" and int(quantity) == 1)
+        df = self._get_frame_between_dates(start_date=start_date, end_date=end_date, bars_only=bars_only)
         if df is None or df.empty:
             return df
 

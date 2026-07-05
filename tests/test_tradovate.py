@@ -18,6 +18,7 @@ making them suitable for CI/CD environments like GitHub Actions.
 
 import pytest
 import os
+import threading
 from unittest.mock import patch, MagicMock, Mock
 import logging
 import time
@@ -220,7 +221,37 @@ class TestTradovateBroker:
             "MD_URL": "https://md.tradovateapi.com/v1"
         }
         
-        # Mock all API methods that are called during initialization
+        # Startup optimization: constructor validates config but defers REST
+        # authentication/account lookup until first broker operation.
+        with patch.object(Tradovate, '_get_tokens') as mock_get_tokens, \
+             patch.object(Tradovate, '_get_account_info') as mock_get_account_info, \
+             patch.object(Tradovate, '_get_user_info') as mock_get_user_info:
+            broker = Tradovate(config=config)
+            assert broker.NAME == "Tradovate"
+            assert broker.account_spec is None
+            assert broker.account_id is None
+            assert broker.user_id is None
+            assert not hasattr(broker, "stream")
+            mock_get_tokens.assert_not_called()
+            mock_get_account_info.assert_not_called()
+            mock_get_user_info.assert_not_called()
+
+    def test_broker_connect_on_init_preserves_eager_connection(self):
+        """Test explicit eager connection path for callers that require fail-fast auth."""
+        from lumibot.brokers import Tradovate
+
+        config = {
+            "USERNAME": "test_user",
+            "DEDICATED_PASSWORD": "test_pass",
+            "CID": "test_cid",
+            "SECRET": "test_secret",
+            "IS_PAPER": True,
+            "APP_ID": "TestApp",
+            "APP_VERSION": "1.0",
+            "MD_URL": "https://md.tradovateapi.com/v1",
+            "CONNECT_ON_INIT": True,
+        }
+
         with patch.object(Tradovate, '_get_tokens') as mock_get_tokens, \
              patch.object(Tradovate, '_get_account_info') as mock_get_account_info, \
              patch.object(Tradovate, '_get_user_info') as mock_get_user_info:
@@ -240,43 +271,153 @@ class TestTradovateBroker:
             
             # Mock user info response
             mock_get_user_info.return_value = 'fake_user_id'
-            
-            try:
-                broker = Tradovate(config=config)
-                # If we get here, the config was accepted
-                assert broker.NAME == "Tradovate"
-                assert broker.account_spec == 'fake_account_spec'
-                assert broker.account_id == 123456
-                assert broker.user_id == 'fake_user_id'
-            except Exception as e:
-                # Should not fail on config validation with mocked API calls
-                assert False, f"Broker initialization failed with mocked API: {e}"
+            broker = Tradovate(config=config)
+            assert broker.NAME == "Tradovate"
+            assert broker.account_spec == 'fake_account_spec'
+            assert broker.account_id == 123456
+            assert broker.user_id == 'fake_user_id'
+
+    def test_lazy_polling_waits_for_explicit_connection(self):
+        """Polling stream must not authenticate a lazy Tradovate broker in the background."""
+        from lumibot.brokers import Tradovate
+
+        config = {
+            "USERNAME": "test_user",
+            "DEDICATED_PASSWORD": "test_pass",
+            "CID": "test_cid",
+            "SECRET": "test_secret",
+            "IS_PAPER": True,
+        }
+
+        with patch.object(Tradovate, '_get_tokens') as mock_get_tokens, \
+             patch.object(Tradovate, '_get_account_info') as mock_get_account_info, \
+             patch.object(Tradovate, '_get_user_info') as mock_get_user_info:
+            broker = Tradovate(config=config, connect_stream=True)
+            assert hasattr(broker, "stream")
+
+            broker.do_polling()
+
+            mock_get_tokens.assert_not_called()
+            mock_get_account_info.assert_not_called()
+            mock_get_user_info.assert_not_called()
+
+    def test_first_submit_order_connects_once(self):
+        """Default lazy startup connects to Tradovate only when an authenticated operation runs."""
+        from lumibot.brokers import Tradovate
+        from lumibot.entities import Asset, Order
+
+        config = {
+            "USERNAME": "test_user",
+            "DEDICATED_PASSWORD": "test_pass",
+            "CID": "test_cid",
+            "SECRET": "test_secret",
+            "IS_PAPER": True,
+        }
+        tokens = {
+            "accessToken": "token",
+            "marketToken": "market",
+            "hasMarketData": True,
+        }
+        account_info = {"accountSpec": "TEST", "accountId": 123}
+        user_info = "user"
+
+        with patch.object(Tradovate, "_get_tokens", return_value=tokens) as mock_get_tokens, \
+             patch.object(Tradovate, "_get_account_info", return_value=account_info) as mock_get_account_info, \
+             patch.object(Tradovate, "_get_user_info", return_value=user_info) as mock_get_user_info:
+            broker = Tradovate(config=config)
+            assert broker.trading_token is None
+            assert broker.data_source.trading_token is None
+
+            response = MagicMock()
+            response.status_code = 200
+            response.json.return_value = {"orderId": 123457}
+            response.raise_for_status.return_value = None
+            order = Order(
+                strategy="Strategy",
+                asset=Asset("MESZ5", asset_type=Asset.AssetType.FUTURE),
+                quantity=1,
+                side="buy",
+                order_type=Order.OrderType.MARKET,
+            )
+
+            with patch.object(broker, "_request", return_value=response), \
+                 patch.object(broker, "_process_trade_event"):
+                broker._submit_order(order)
+
+            mock_get_tokens.assert_called_once()
+            mock_get_account_info.assert_called_once_with("token")
+            mock_get_user_info.assert_called_once_with("token")
+            assert broker.trading_token == "token"
+            assert broker.data_source.trading_token == "token"
+            assert broker.account_spec == "TEST"
+            assert broker.account_id == 123
+
+    def test_concurrent_ensure_connected_waits_for_in_flight_login(self):
+        """A second lazy connection caller should wait for the first login to finish."""
+        from lumibot.brokers import Tradovate
+
+        config = {
+            "USERNAME": "test_user",
+            "DEDICATED_PASSWORD": "test_pass",
+            "CID": "test_cid",
+            "SECRET": "test_secret",
+            "IS_PAPER": True,
+        }
+        tokens = {
+            "accessToken": "token",
+            "marketToken": "market",
+            "hasMarketData": True,
+        }
+        account_info = {"accountSpec": "TEST", "accountId": 123}
+        user_info = "user"
+        login_entered = threading.Event()
+        release_login = threading.Event()
+        second_results = []
+
+        def slow_get_tokens():
+            login_entered.set()
+            assert release_login.wait(timeout=2)
+            return tokens
+
+        with patch.object(Tradovate, "_get_tokens", side_effect=slow_get_tokens) as mock_get_tokens, \
+             patch.object(Tradovate, "_get_account_info", return_value=account_info), \
+             patch.object(Tradovate, "_get_user_info", return_value=user_info):
+            broker = Tradovate(config=config)
+
+            first = threading.Thread(target=broker._ensure_connected)
+            first.start()
+            assert login_entered.wait(timeout=2)
+
+            second = threading.Thread(
+                target=lambda: second_results.append((broker._ensure_connected(), broker.trading_token))
+            )
+            second.start()
+            time.sleep(0.05)
+            assert second.is_alive()
+
+            release_login.set()
+            first.join(timeout=2)
+            second.join(timeout=2)
+
+            assert not first.is_alive()
+            assert not second.is_alive()
+            assert second_results == [(None, "token")]
+            mock_get_tokens.assert_called_once()
 
     def test_broker_handles_missing_credentials(self):
         """Test that the broker handles missing credentials gracefully."""
         from lumibot.brokers import Tradovate
-        from unittest.mock import patch
         
         # Test with empty/minimal config
         empty_config = {}
-        
-        # Mock the requests to avoid actual API calls
-        with patch('requests.request') as mock_request:
-            # Mock a failure response that would happen with missing credentials
-            mock_response = mock_request.return_value
-            mock_response.status_code = 400
-            mock_response.json.return_value = {"errorText": "Missing credentials"}
-            mock_response.raise_for_status.side_effect = Exception("Bad Request")
-            
-            try:
-                broker = Tradovate(config=empty_config)
-                # Should not reach here with empty config
-                assert False, "Broker should have failed with empty config"
-            except Exception as e:
-                # Should fail due to authentication/credentials issue
-                error_msg = str(e).lower()
-                # The error should be about authentication or bad request
-                assert any(keyword in error_msg for keyword in ['authentication', 'failed', 'bad request', 'credentials'])
+
+        import lumibot.brokers.tradovate as tradovate_module
+
+        with pytest.raises(tradovate_module.TradovateAPIError) as exc_info:
+            Tradovate(config=empty_config)
+
+        error_msg = str(exc_info.value).lower()
+        assert "missing required tradovate credentials" in error_msg
 
 
 class TestTradovateDataSource:
@@ -596,6 +737,7 @@ class TestTradovateLifecycle:
             "CID": "test_cid",
             "SECRET": "test_secret",
             "IS_PAPER": True,
+            "CONNECT_ON_INIT": True,
         }
         tokens = {
             "accessToken": "token",
@@ -902,7 +1044,8 @@ class TestTradovateTokenRenewal:
                 "DEDICATED_PASSWORD": "test_pass",
                 "CID": "test_cid",
                 "SECRET": "test_secret",
-                "IS_PAPER": True
+                "IS_PAPER": True,
+                "CONNECT_ON_INIT": True,
             }
             
             broker = Tradovate(config=config)
@@ -961,7 +1104,8 @@ class TestTradovateTokenRenewal:
                 "DEDICATED_PASSWORD": "test_pass",
                 "CID": "test_cid",
                 "SECRET": "test_secret",
-                "IS_PAPER": True
+                "IS_PAPER": True,
+                "CONNECT_ON_INIT": True,
             }
             
             broker = Tradovate(config=config)
@@ -1035,7 +1179,8 @@ class TestTradovateTokenRenewal:
                 "DEDICATED_PASSWORD": "test_pass",
                 "CID": "test_cid",
                 "SECRET": "test_secret",
-                "IS_PAPER": True
+                "IS_PAPER": True,
+                "CONNECT_ON_INIT": True,
             }
             
             broker = Tradovate(config=config)
@@ -1113,7 +1258,8 @@ class TestTradovateTokenRenewal:
                 "DEDICATED_PASSWORD": "test_pass",
                 "CID": "test_cid",
                 "SECRET": "test_secret",
-                "IS_PAPER": True
+                "IS_PAPER": True,
+                "CONNECT_ON_INIT": True,
             }
             
             broker = Tradovate(config=config)
@@ -1171,7 +1317,8 @@ class TestTradovateTokenRenewal:
                 "DEDICATED_PASSWORD": "test_pass",
                 "CID": "test_cid",
                 "SECRET": "test_secret",
-                "IS_PAPER": True
+                "IS_PAPER": True,
+                "CONNECT_ON_INIT": True,
             }
             
             broker = Tradovate(config=config)

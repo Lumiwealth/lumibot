@@ -1,8 +1,3 @@
-from datetime import datetime
-
-from lumibot.backtesting import YahooDataBacktesting
-from lumibot.brokers import Alpaca
-from lumibot.entities import TradingFee
 from lumibot.strategies.strategy import Strategy
 
 """
@@ -128,6 +123,7 @@ if __name__ == "__main__":
         # Run the strategy live
         ####
         from credentials import ALPACA_CONFIG
+        from lumibot.brokers import Alpaca
 
         broker = Alpaca(ALPACA_CONFIG)
         strategy = DiversifiedLeverage(broker=broker)
@@ -139,10 +135,15 @@ if __name__ == "__main__":
         ####
 
         # Choose the time from and to which you want to backtest
+        from datetime import datetime
+
         backtesting_start = datetime(2010, 6, 1)
         backtesting_end = datetime(2023, 7, 31)
 
         # 0.01% trading/slippage fee
+        from lumibot.backtesting import YahooDataBacktesting
+        from lumibot.entities import TradingFee
+
         trading_fee = TradingFee(percent_fee=0.005)
 
         # Initialize the backtesting object

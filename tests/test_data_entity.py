@@ -326,6 +326,130 @@ class TestDataGetLastPriceTradeOnly:
         with pytest.raises(ValueError, match="after the available data's end"):
             data.get_bars(base_dt + timedelta(minutes=35), length=3, timestep="5m")
 
+    def test_large_tz_aware_repair_avoids_retained_iter_index_dict_and_preserves_lookup(self):
+        asset = Asset("MEM")
+        index = pd.date_range("2024-01-01", periods=50_001, freq="min", tz="America/New_York")
+        df = pd.DataFrame(
+            {
+                "open": range(len(index)),
+                "high": range(len(index)),
+                "low": range(len(index)),
+                "close": range(len(index)),
+                "volume": 1,
+            },
+            index=index,
+        )
+        data = Data(asset, df, timestep="minute")
+
+        data.repair_times_and_fill(index)
+
+        assert data.iter_index_dict == {}
+        assert "_iter_index_override" not in data.__dict__
+        assert data.get_iter_count(index[-1].to_pydatetime()) == len(index) - 1
+        assert data.get_iter_count(index[123].to_pydatetime() + timedelta(seconds=30)) == 123
+        assert data.iter_index.loc[index[123]] == 123
+
+    def test_get_bars_resample_ignores_non_ohlcv_columns(self):
+        asset = Asset("SPY")
+        tz = pytz.timezone("America/New_York")
+        base_dt = tz.localize(datetime(2026, 6, 23, 9, 30))
+        dates = [base_dt + timedelta(minutes=i) for i in range(12)]
+        df = (
+            pd.DataFrame(
+                {
+                    "datetime": dates,
+                    "open": [100.0 + i for i in range(12)],
+                    "high": [101.0 + i for i in range(12)],
+                    "low": [99.0 + i for i in range(12)],
+                    "close": [100.5 + i for i in range(12)],
+                    "volume": [10.0] * 12,
+                    "bid": [100.25 + i for i in range(12)],
+                    "ask": [100.75 + i for i in range(12)],
+                    "last_trade_time": dates,
+                }
+            )
+            .set_index("datetime")
+        )
+        data = Data(asset, df, timestep="minute")
+        expected_data = Data(asset, df[["open", "high", "low", "close", "volume"]].copy(), timestep="minute")
+
+        bars = data.get_bars(base_dt + timedelta(minutes=11), length=2, timestep="5m")
+        expected = expected_data.get_bars(base_dt + timedelta(minutes=11), length=2, timestep="5m")
+
+        assert bars is not None
+        assert expected is not None
+        assert list(bars.columns) == ["open", "high", "low", "close", "volume"]
+        pd.testing.assert_frame_equal(bars, expected)
+
+    def test_get_bars_between_dates_minute_matches_legacy_dataline_frame(self):
+        asset = Asset("SPY")
+        tz = pytz.timezone("America/New_York")
+        base_dt = tz.localize(datetime(2026, 6, 23, 9, 30))
+        dates = [base_dt + timedelta(minutes=i) for i in range(20)]
+        df = (
+            pd.DataFrame(
+                {
+                    "datetime": dates,
+                    "open": [100.0 + i for i in range(20)],
+                    "high": [101.0 + i for i in range(20)],
+                    "low": [99.0 + i for i in range(20)],
+                    "close": [100.5 + i for i in range(20)],
+                    "volume": [10.0] * 20,
+                    "bid": [100.25 + i for i in range(20)],
+                    "ask": [100.75 + i for i in range(20)],
+                    "last_trade_time": dates,
+                }
+            )
+            .set_index("datetime")
+        )
+        data = Data(asset, df, timestep="minute")
+        start_date = base_dt + timedelta(minutes=3)
+        end_date = base_dt + timedelta(minutes=15)
+
+        legacy = pd.DataFrame(
+            data._get_bars_between_dates_dict(start_date=start_date, end_date=end_date, timestep="minute")
+        ).set_index("datetime")
+        result = data.get_bars_between_dates(timestep="minute", start_date=start_date, end_date=end_date)
+
+        pd.testing.assert_frame_equal(result, legacy)
+
+    def test_get_bars_between_dates_resample_matches_legacy_dataline_frame(self):
+        asset = Asset("SPY")
+        tz = pytz.timezone("America/New_York")
+        base_dt = tz.localize(datetime(2026, 6, 23, 9, 30))
+        dates = [base_dt + timedelta(minutes=i) for i in range(30)]
+        df = (
+            pd.DataFrame(
+                {
+                    "datetime": dates,
+                    "open": [100.0 + i for i in range(30)],
+                    "high": [101.0 + i for i in range(30)],
+                    "low": [99.0 + i for i in range(30)],
+                    "close": [100.5 + i for i in range(30)],
+                    "volume": [10.0] * 30,
+                    "bid": [100.25 + i for i in range(30)],
+                    "ask": [100.75 + i for i in range(30)],
+                    "last_trade_time": dates,
+                }
+            )
+            .set_index("datetime")
+        )
+        data = Data(asset, df, timestep="minute")
+        start_date = base_dt + timedelta(minutes=3)
+        end_date = base_dt + timedelta(minutes=24)
+
+        legacy = pd.DataFrame(
+            data._get_bars_between_dates_dict(start_date=start_date, end_date=end_date, timestep="minute")
+        ).set_index("datetime")
+        expected = (
+            legacy.resample("5min")
+            .agg({"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"})
+            .dropna()
+        )
+        result = data.get_bars_between_dates(timestep="5m", start_date=start_date, end_date=end_date)
+
+        pd.testing.assert_frame_equal(result, expected)
+
     def test_get_quote_includes_source_bar_provenance(self):
         asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
         tz = pytz.timezone("America/New_York")

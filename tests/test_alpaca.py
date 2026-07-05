@@ -1,4 +1,5 @@
 import pytest
+import pandas as pd
 from unittest.mock import MagicMock
 
 from lumibot.entities import Asset, Order
@@ -27,6 +28,38 @@ ALPACA_UNIT_CONFIG = {
     "API_SECRET": "test_api_secret",
     "PAPER": True,
 }
+
+
+def test_alpaca_data_parses_sdk_timeframes():
+    from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
+
+    data_source = AlpacaData(ALPACA_UNIT_CONFIG)
+
+    assert data_source._parse_source_timestep(TimeFrame.Minute) == "minute"
+    assert data_source._parse_source_timestep(TimeFrame(5, TimeFrameUnit.Minute)) == "5 minutes"
+    assert data_source._parse_source_timestep("15Min") == "15 minutes"
+    parsed = data_source._parse_source_timestep("5 minutes", reverse=True)
+    assert parsed.amount == 5
+    assert parsed.unit == TimeFrameUnit.Minute
+
+
+def test_alpaca_regular_market_hours_mask_keeps_full_session():
+    from lumibot.data_sources.alpaca_data import _regular_market_hours_mask
+
+    index = pd.DatetimeIndex(
+        [
+            "2026-05-11 09:29",
+            "2026-05-11 09:30",
+            "2026-05-11 10:00",
+            "2026-05-11 15:59",
+            "2026-05-11 16:00",
+        ],
+        tz="America/New_York",
+    )
+
+    kept = index[_regular_market_hours_mask(index)]
+
+    assert kept.strftime("%H:%M").tolist() == ["09:30", "10:00", "15:59"]
 
 
 class TestAlpacaBroker:
@@ -178,6 +211,34 @@ class TestAlpacaBroker:
         assert broker.api_key == "test_api_key"
         assert broker.api_secret == "test_api_secret"
         assert broker.is_oauth_only == False
+
+    def test_oauth_token_ignores_stale_partial_api_key(self):
+        """Test that OAuth works when a stale API key remains without a secret."""
+        oauth_config = {
+            "API_KEY": "leftover",
+            "OAUTH_TOKEN": "test_oauth_token",
+            "PAPER": True,
+        }
+
+        broker = Alpaca(oauth_config, connect_stream=False, start_orders_thread=False)
+
+        assert broker.oauth_token == "test_oauth_token"
+        assert broker.api_key == ""
+        assert broker.api_secret == ""
+        assert broker.is_oauth_only == True
+        assert broker.data_source.oauth_token == "test_oauth_token"
+        assert broker.data_source.api_key is None
+        assert broker.data_source.api_secret is None
+
+    def test_partial_api_key_without_oauth_still_requires_secret(self):
+        """Test that API key auth still requires API secret when OAuth is absent."""
+        api_config = {
+            "API_KEY": "leftover",
+            "PAPER": True,
+        }
+
+        with pytest.raises(ValueError, match="API_SECRET not found in config when API_KEY is provided"):
+            Alpaca(api_config, connect_stream=False, start_orders_thread=False)
 
     def test_oauth_error_on_missing_credentials(self):
         """Test that proper error is raised when no credentials are provided."""

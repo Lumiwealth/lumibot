@@ -1,13 +1,20 @@
-from decimal import Decimal
-from typing import Union
+from __future__ import annotations
 
-from termcolor import colored
-
+from lumibot._lazy_imports import LazyLogger, lazy_class
 from lumibot.data_sources import DataSource
-from lumibot.entities import Asset, Bars
-from lumibot.tools.lumibot_logger import get_logger
 
-logger = get_logger(__name__)
+logger = LazyLogger(__name__)
+TYPE_CHECKING = False
+Asset = lazy_class("lumibot.entities", "Asset")
+
+
+def colored(*args, **kwargs):
+    from termcolor import colored as _colored
+
+    return _colored(*args, **kwargs)
+
+if TYPE_CHECKING:
+    from lumibot.entities import Bars
 
 class TradovateData(DataSource):
     """

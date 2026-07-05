@@ -1,5 +1,4 @@
 import datetime
-import uuid
 from collections import namedtuple
 from decimal import Decimal
 from enum import Enum
@@ -8,17 +7,30 @@ from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from lumibot.entities.asset import Asset
+    from lumibot.entities.smart_limit import SmartLimitConfig
 
 import lumibot.entities as entities
-from lumibot.entities.smart_limit import SmartLimitConfig
 
-# Set up module-specific logger
-from lumibot.tools.lumibot_logger import get_logger
+from lumibot._lazy_imports import LazyLogger, lazy_class
 from lumibot.tools.types import check_positive, check_price
 
-logger = get_logger(__name__)
+logger = LazyLogger(__name__)
+Asset = lazy_class("lumibot.entities.asset", "Asset")
+SmartLimitConfig = lazy_class("lumibot.entities.smart_limit", "SmartLimitConfig")
 
 _LAZY_EVENT_LOCK = Lock()
+
+
+def _uuid4_hex():
+    import uuid
+
+    return uuid.uuid4().hex
+
+
+def _smart_limit_config_class():
+    from lumibot.entities.smart_limit import SmartLimitConfig
+
+    return SmartLimitConfig
 
 
 class _LazyEvent:
@@ -249,7 +261,7 @@ class Order:
         child_orders: Union[list, None] = None,
         tag: str = "",
         status: OrderStatus = "unprocessed",
-        smart_limit: SmartLimitConfig = None,
+        smart_limit: "SmartLimitConfig" = None,
     ):
         """Order class for managing individual orders.
 
@@ -463,7 +475,7 @@ class Order:
             self.quote = quote
 
         self.symbol = self.asset.symbol if self.asset else None
-        self.identifier = identifier if identifier else uuid.uuid4().hex
+        self.identifier = identifier if identifier else _uuid4_hex()
         self.parent_identifier = None
         self._status = "unprocessed"
         self._date_created = date_created
@@ -621,7 +633,7 @@ class Order:
         # Check - Order Class values passed in the 'type' parameter is depricated. OTO/Bracket/etc should
         # This is done here so that the older depricated parameters are still accepted for backwards compatibility
         if order_type in (self.OrderType.SMART_LIMIT, "smart_limit") and self.smart_limit is None:
-            self.smart_limit = SmartLimitConfig()
+            self.smart_limit = _smart_limit_config_class()()
 
         try:
             self.order_type = order_type \
@@ -1547,7 +1559,7 @@ class Order:
                         setattr(obj, key, value)
 
                 elif key == "smart_limit":
-                    setattr(obj, key, SmartLimitConfig.from_dict(value))
+                    setattr(obj, key, _smart_limit_config_class().from_dict(value))
 
                 # Recursively convert nested objects using from_dict (for objects like quote)
                 elif isinstance(value, dict) and hasattr(cls, key) and hasattr(getattr(cls, key), 'from_dict'):

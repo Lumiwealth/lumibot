@@ -1,21 +1,47 @@
-import datetime as dt
+from __future__ import annotations
+
 from collections import defaultdict
-from decimal import Decimal
-from typing import Union
 
-import pandas as pd
-import pytz
-from lumiwealth_tradier import Tradier
-
-from lumibot.constants import LUMIBOT_DEFAULT_TIMEZONE
-from lumibot.entities import Asset, Bars, Quote
-from lumibot.tools import black_scholes
-from lumibot.tools.helpers import create_options_symbol, date_n_trading_days_from_date, parse_timestep_qty_and_unit
-from lumibot.tools.lumibot_logger import get_logger
+from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class, lazy_typing
 
 from .data_source import DataSource
 
-logger = get_logger(__name__)
+logger = LazyLogger(__name__)
+TYPE_CHECKING = False
+dt = LazyModule("datetime")
+pd = LazyModule("pandas")
+Asset = lazy_class("lumibot.entities", "Asset")
+Decimal = lazy_class("decimal", "Decimal")
+Quote = lazy_class("lumibot.entities", "Quote")
+Union = lazy_typing("Union")
+LUMIBOT_DEFAULT_TIMEZONE = "America/New_York"
+
+if TYPE_CHECKING:
+    from lumibot.entities import Quote
+
+
+def _create_options_symbol(*args, **kwargs):
+    from lumibot.tools.helpers import create_options_symbol
+
+    return create_options_symbol(*args, **kwargs)
+
+
+def _date_n_trading_days_from_date(*args, **kwargs):
+    from lumibot.tools.helpers import date_n_trading_days_from_date
+
+    return date_n_trading_days_from_date(*args, **kwargs)
+
+
+def _parse_timestep_qty_and_unit(*args, **kwargs):
+    from lumibot.tools.helpers import parse_timestep_qty_and_unit
+
+    return parse_timestep_qty_and_unit(*args, **kwargs)
+
+
+def _black_scholes():
+    from lumibot.tools import black_scholes
+
+    return black_scholes
 
 
 class TradierAPIError(Exception):
@@ -66,7 +92,7 @@ class TradierData(DataSource):
             paper: bool = True,
             max_workers: int = 20,
             delay: int = None,
-            tzinfo: pytz.timezone = pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE),
+            tzinfo=None,
             remove_incomplete_current_bar: bool = False,
             **kwargs
     ) -> None:
@@ -94,10 +120,17 @@ class TradierData(DataSource):
         - None
         """
 
+        if tzinfo is None:
+            import pytz
+
+            tzinfo = pytz.timezone(LUMIBOT_DEFAULT_TIMEZONE)
+
         super().__init__(api_key=access_token, delay=delay, tzinfo=tzinfo)
         self._account_number = account_number
         self._paper = paper
         self.max_workers = min(max_workers, 50)
+        from lumiwealth_tradier import Tradier
+
         self.tradier = Tradier(account_number, access_token, paper)
         self._remove_incomplete_current_bar = remove_incomplete_current_bar
 
@@ -234,12 +267,12 @@ class TradierData(DataSource):
         timestep = timestep if timestep else self.MIN_TIMESTEP
 
         # Parse the timestep
-        timestep_qty, timestep_unit = parse_timestep_qty_and_unit(timestep)
+        timestep_qty, timestep_unit = _parse_timestep_qty_and_unit(timestep)
 
         parsed_timestep_unit = self._parse_source_timestep(timestep_unit, reverse=True)
 
         if asset.asset_type == "option":
-            symbol = create_options_symbol(
+            symbol = _create_options_symbol(
                 asset.symbol,
                 asset.expiration,
                 asset.right,
@@ -268,7 +301,7 @@ class TradierData(DataSource):
             minutes_per_day = 24 * 60 / timestep_qty  # Need to include premarket and after hours
             days_needed = int(length // minutes_per_day) + 1
 
-        start_date = date_n_trading_days_from_date(
+        start_date = _date_n_trading_days_from_date(
             n_days=days_needed,
             start_datetime=end_dt,
             # TODO: pass market into DataSource
@@ -331,6 +364,8 @@ class TradierData(DataSource):
             df = df.iloc[-length:]
 
         # Convert the dataframe to a Bars object
+        from lumibot.entities import Bars
+
         bars = Bars(df, self.SOURCE, asset, raw=df, quote=quote)
 
         return bars
@@ -357,7 +392,7 @@ class TradierData(DataSource):
         symbol = None
         try:
             if asset.asset_type == "option":
-                symbol = create_options_symbol(
+                symbol = _create_options_symbol(
                     asset.symbol,
                     asset.expiration,
                     asset.right,
@@ -396,7 +431,7 @@ class TradierData(DataSource):
         asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
 
         if asset.asset_type == "option":
-            symbol = create_options_symbol(
+            symbol = _create_options_symbol(
                 asset.symbol,
                 asset.expiration,
                 asset.right,
@@ -409,19 +444,23 @@ class TradierData(DataSource):
 
         # If the dataframe is empty, return an empty Quote
         if quotes_df is None or quotes_df.empty:
+            from lumibot.entities import Quote
+
             return Quote(asset=asset)
 
         # Get the quote from the dataframe
         quote_dict = quotes_df.iloc[0].to_dict()
 
         # Extract relevant fields for the Quote object
+        from lumibot.entities import Quote
+
         return Quote(
             asset=asset,
             price=quote_dict.get('last'),
             bid=quote_dict.get('bid'),
             ask=quote_dict.get('ask'),
             volume=quote_dict.get('volume'),
-            timestamp=dt.datetime.now(pytz.UTC),
+            timestamp=dt.datetime.now(dt.timezone.utc),
             bid_size=quote_dict.get('bidsize'),
             ask_size=quote_dict.get('asksize'),
             change=quote_dict.get('change'),
@@ -446,7 +485,7 @@ class TradierData(DataSource):
         greeks = {}
         stock_symbol = asset.symbol
         expiration = asset.expiration
-        option_symbol = create_options_symbol(stock_symbol, expiration, asset.right, asset.strike)
+        option_symbol = _create_options_symbol(stock_symbol, expiration, asset.right, asset.strike)
         df_chains = self.tradier.market.get_option_chains(stock_symbol, expiration, greeks=True)
         df = df_chains[df_chains["symbol"] == option_symbol]
         if df.empty:
@@ -494,7 +533,7 @@ class TradierData(DataSource):
                         days_to_expiration = max(days_to_expiration, 1.0 / 24.0)
 
                         interest = 0.0
-                        c = black_scholes.BS(
+                        c = _black_scholes().BS(
                             [underlying_price, float(asset.strike), interest, days_to_expiration],
                             volatility=iv * 100,
                         )

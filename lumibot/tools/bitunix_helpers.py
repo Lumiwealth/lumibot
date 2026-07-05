@@ -2,9 +2,12 @@ import os
 import time
 from typing import Dict, Any, Optional
 import hashlib
-import requests
 import json
-from lumibot.tools.lumibot_logger import get_logger
+
+from lumibot._lazy_imports import LazyLogger
+
+
+logger = LazyLogger(__name__)
 
 class BitUnixClient:
     """
@@ -35,9 +38,6 @@ class BitUnixClient:
         digest = SHA256(nonce + timestamp + apiKey + queryParams + bodyJson)
         sign = SHA256(digest + secretKey)
         """
-        # Prepare logger
-        from lumibot.tools.lumibot_logger import get_logger
-        logger = get_logger(__name__)
         # Prepare sorted query string: concatenated key and value, sorted by key
         qp = ''.join(f"{k}{params[k]}" for k in sorted(params)) if params else ""
         # Prepare compact JSON body string without spaces
@@ -88,6 +88,8 @@ class BitUnixClient:
         params = params or {}
         headers = self._headers(params, json_body)
         url = self.BASE_URL + endpoint
+        import requests
+
         # Use custom serialization for POST bodies so that the sent JSON matches the signature body exactly
         if method.upper() == "GET":
             resp = requests.request(
@@ -112,7 +114,7 @@ class BitUnixClient:
         try:
             payload = resp.json()
             if isinstance(payload, dict) and payload.get("code") not in (0, None):
-                get_logger(__name__).debug(
+                logger.debug(
                     "BitUnix business error %s on %s %s: %s",
                     payload.get("code"), method.upper(), endpoint, payload
                 )

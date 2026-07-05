@@ -1,14 +1,22 @@
 from collections import UserDict
-from datetime import date, datetime
 from enum import Enum
 
-from lumibot.tools import parse_symbol
+from lumibot._lazy_imports import lazy_class
+
+date = lazy_class("datetime", "date")
+datetime = lazy_class("datetime", "datetime")
 
 
 FUTURES_MONTH_CODES = {
     1: "F", 2: "G", 3: "H", 4: "J", 5: "K", 6: "M",
     7: "N", 8: "Q", 9: "U", 10: "V", 11: "X", 12: "Z"
 }
+
+
+def parse_symbol(*args, **kwargs):
+    from lumibot.tools import parse_symbol as _parse_symbol
+
+    return _parse_symbol(*args, **kwargs)
 
 
 # Custom string enum implementation for Python 3.9 compatibility
@@ -250,7 +258,7 @@ class Asset:
             self.symbol = self.underlying_asset.symbol
 
         # If the expiration is a datetime object, convert it to date
-        if isinstance(expiration, datetime):
+        if expiration is not None and isinstance(expiration, datetime):
             self.expiration = expiration.date()
         else:
             self.expiration = expiration
@@ -328,6 +336,8 @@ class Asset:
         """
         if not symbol:
             raise ValueError("Cannot convert an empty symbol to an Asset object.")
+
+        from lumibot.tools import parse_symbol
 
         symbol_info = parse_symbol(symbol)
         if symbol_info["type"] == "option":

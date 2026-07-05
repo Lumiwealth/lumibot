@@ -304,8 +304,8 @@ class TestStrategyMethods:
         # Set is_backtesting to False for this test
         strategy.is_backtesting = False
 
-        # Mock the scheduler's add_job method
-        strategy._executor.scheduler.add_job = MagicMock(return_value=None)
+        scheduler = MagicMock()
+        strategy._executor.ensure_scheduler = MagicMock(return_value=scheduler)
 
         # Define a callback function
         def test_callback():
@@ -316,6 +316,7 @@ class TestStrategyMethods:
 
         # Check that the job ID is correct
         assert job_id == "cron_callback_test-uuid"
+        strategy._executor.ensure_scheduler.assert_called_once()
 
     def test_update_portfolio_value_with_missing_price(self):
         """_update_portfolio_value should skip assets whose prices are missing instead of raising."""
@@ -464,8 +465,8 @@ class TestStrategyMethods:
         # Set is_backtesting to False for this test
         strategy.is_backtesting = False
 
-        # Mock the scheduler's add_job method
-        strategy._executor.scheduler.add_job = MagicMock(return_value=None)
+        scheduler = MagicMock()
+        strategy._executor.ensure_scheduler = MagicMock(return_value=scheduler)
 
         # Define a callback function
         def test_callback():
@@ -475,14 +476,39 @@ class TestStrategyMethods:
         strategy.register_cron_callback("0 9 * * 1-5", test_callback)
 
         # Check that add_job was called with the correct parameters
-        strategy._executor.scheduler.add_job.assert_called_once()
-        args, kwargs = strategy._executor.scheduler.add_job.call_args
+        scheduler.add_job.assert_called_once()
+        args, kwargs = scheduler.add_job.call_args
 
         assert args[0] == test_callback
         assert isinstance(args[1], CronTrigger)
         assert kwargs['id'] == "cron_callback_test-uuid"
         assert kwargs['name'] == "Cron Callback: test_callback"
         assert kwargs['jobstore'] == "default"
+
+    def test_register_cron_callback_lazily_creates_scheduler(self):
+        """
+        Test that live cron callbacks create the APScheduler only when needed.
+        """
+        date_start = datetime(2021, 7, 10)
+        date_end = datetime(2021, 7, 13)
+        data_source = YahooDataBacktesting(date_start, date_end)
+        backtesting_broker = BacktestingBroker(data_source)
+        strategy = BuyAndHold(
+            backtesting_broker,
+            backtesting_start=date_start,
+            backtesting_end=date_end,
+        )
+        strategy.is_backtesting = False
+        assert strategy._executor.scheduler is None
+
+        def test_callback():
+            pass
+
+        job_id = strategy.register_cron_callback("0 9 * * 1-5", test_callback)
+
+        assert job_id.startswith("cron_callback_")
+        assert strategy._executor.scheduler is not None
+        assert strategy._executor.scheduler.get_job(job_id, jobstore="default") is not None
 
     @patch('uuid.uuid4')
     def test_register_cron_callback_uses_broker_timezone(self, mock_uuid4):
@@ -512,8 +538,8 @@ class TestStrategyMethods:
             mock_trigger = MagicMock()
             mock_from_crontab.return_value = mock_trigger
 
-            # Mock the scheduler's add_job method
-            strategy._executor.scheduler.add_job = MagicMock(return_value=None)
+            scheduler = MagicMock()
+            strategy._executor.ensure_scheduler = MagicMock(return_value=scheduler)
 
             # Define a callback function
             def test_callback():
@@ -524,6 +550,7 @@ class TestStrategyMethods:
 
             # Check that from_crontab was called with the broker's timezone
             mock_from_crontab.assert_called_once_with("0 9 * * 1-5", timezone=strategy.pytz)
+            scheduler.add_job.assert_called_once()
 
     @patch('uuid.uuid4')
     def test_register_cron_callback_does_nothing_in_backtesting(self, mock_uuid4):
@@ -548,8 +575,7 @@ class TestStrategyMethods:
         # Ensure is_backtesting is True
         assert strategy.is_backtesting == True
 
-        # Mock the scheduler's add_job method
-        strategy._executor.scheduler.add_job = MagicMock(return_value=None)
+        strategy._executor.ensure_scheduler = MagicMock()
 
         # Mock the log_message method to verify it's called
         strategy.log_message = MagicMock()
@@ -564,8 +590,8 @@ class TestStrategyMethods:
         # Check that the job ID is correct
         assert job_id == "cron_callback_test-uuid"
 
-        # Check that add_job was not called
-        strategy._executor.scheduler.add_job.assert_not_called()
+        # Check that no live scheduler was created
+        strategy._executor.ensure_scheduler.assert_not_called()
 
         # Check that log_message was called with the expected message
         strategy.log_message.assert_called_once_with(

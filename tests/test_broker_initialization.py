@@ -4,6 +4,8 @@ Simple test cases for broker initialization error handling.
 import json
 import os
 import time
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest
 from unittest.mock import patch, MagicMock
@@ -77,6 +79,190 @@ class TestBrokerInitializationSimple:
         except Exception as e:
             # Other exceptions are acceptable for this test since we're only testing the broker None case
             pass
+
+    def test_is_market_open_uses_initialized_calendar(self):
+        import pandas as pd
+        from lumibot.brokers.broker import Broker
+
+        class TestBroker(Broker):
+            IS_BACKTESTING_BROKER = True
+
+            def cancel_order(self, order): pass
+            def _modify_order(self, order, limit_price=None, stop_price=None): pass
+            def _submit_order(self, order): return order
+            def _get_balances_at_broker(self, quote_asset, strategy): return (0, 0, 0)
+            def get_historical_account_value(self): return {}
+            def _get_stream_object(self): return None
+            def _register_stream_events(self): pass
+            def _run_stream(self): pass
+            def _pull_positions(self, strategy): return []
+            def _pull_position(self, strategy, asset): return None
+            def _parse_broker_order(self, response, strategy_name, strategy_object=None): return response
+            def _pull_broker_order(self, identifier): return None
+            def _pull_broker_all_orders(self): return []
+
+        broker = TestBroker(name="test", connect_stream=False, data_source=object())
+        broker.initialize_market_calendars(
+            pd.DataFrame(
+                {
+                    "market_open": [datetime(2026, 5, 11, 13, 30, tzinfo=timezone.utc)],
+                    "market_close": [datetime(2026, 5, 11, 20, 0, tzinfo=timezone.utc)],
+                }
+            )
+        )
+
+        assert broker._is_market_open_from_initialized_calendar(
+            datetime(2026, 5, 11, 14, 0, tzinfo=timezone.utc)
+        ) is True
+        assert broker._is_market_open_from_initialized_calendar(
+            datetime(2026, 5, 11, 21, 0, tzinfo=timezone.utc)
+        ) is False
+
+    def test_utc_to_local_converts_aware_datetime_before_localizing(self):
+        from dateutil import tz
+        from lumibot.brokers.broker import Broker
+
+        class TestBroker(Broker):
+            def cancel_order(self, order): pass
+            def _modify_order(self, order, limit_price=None, stop_price=None): pass
+            def _submit_order(self, order): return order
+            def _get_balances_at_broker(self, quote_asset, strategy): return (0, 0, 0)
+            def get_historical_account_value(self): return {}
+            def _get_stream_object(self): return None
+            def _register_stream_events(self): pass
+            def _run_stream(self): pass
+            def _pull_positions(self, strategy): return []
+            def _pull_position(self, strategy, asset): return None
+            def _parse_broker_order(self, response, strategy_name, strategy_object=None): return response
+            def _pull_broker_order(self, identifier): return None
+            def _pull_broker_all_orders(self): return []
+
+        broker = TestBroker.__new__(TestBroker)
+        source = datetime(2026, 5, 11, 16, 30, tzinfo=timezone(timedelta(hours=3)))
+
+        converted = broker.utc_to_local(source)
+
+        expected = datetime(2026, 5, 11, 13, 30, tzinfo=timezone.utc).astimezone(tz.tzlocal())
+        assert converted == expected
+
+
+def test_ibkr_rest_submit_order_without_stream_does_not_crash(monkeypatch):
+    from lumibot.brokers import broker as broker_module
+    from lumibot.brokers.interactive_brokers_rest import InteractiveBrokersREST
+    from lumibot.entities import Asset, Order
+
+    monkeypatch.setattr(broker_module.Broker, "_start_orders_thread", lambda self: None)
+    data_source = SimpleNamespace(execute_order=lambda order_data: [{"order_id": "ib-1"}])
+    broker = InteractiveBrokersREST(config={"MARKET": "NYSE"}, data_source=data_source, connect_stream=False)
+    broker.get_order_data_from_orders = lambda orders: {"orders": []}
+    broker._log_order_status = lambda *args, **kwargs: None
+    order = Order("unit-test", Asset("AAPL"), 1, Order.OrderSide.BUY)
+
+    submitted = broker._submit_order(order)
+
+    assert submitted is order
+    assert order.identifier == "ib-1"
+    assert order.status == Order.OrderStatus.SUBMITTED
+
+
+def test_interactive_brokers_keeps_required_orders_thread_enabled(monkeypatch):
+    from lumibot.brokers import broker as broker_module
+    from lumibot.brokers.interactive_brokers import InteractiveBrokers
+
+    started = []
+    monkeypatch.setattr(broker_module.Broker, "_start_orders_thread", lambda self: started.append(self.name))
+    monkeypatch.setattr(InteractiveBrokers, "start_ib", lambda self: None)
+
+    InteractiveBrokers(
+        config={"IP": "127.0.0.1", "SOCKET_PORT": 4002, "CLIENT_ID": 1},
+        data_source=object(),
+        connect_stream=False,
+        start_orders_thread=False,
+    )
+
+    assert started == ["interactive_brokers"]
+
+
+def test_schwab_data_can_skip_constructor_client_creation(monkeypatch):
+    from lumibot.data_sources.schwab_data import SchwabData
+
+    def _create_client(*args, **kwargs):
+        pytest.fail("Broker-owned SchwabData must not create its own Schwab client")
+
+    monkeypatch.setattr(SchwabData, "create_schwab_client", staticmethod(_create_client))
+
+    data_source = SchwabData(auto_create_client=False)
+
+    assert data_source.client is None
+
+
+def test_schwab_base_init_does_not_launch_stream_before_client_setup(monkeypatch, tmp_path):
+    from lumibot.brokers import broker as broker_module
+    from lumibot.brokers import schwab as schwab_module
+    import requests_oauthlib
+
+    token_path = tmp_path / "schwab_token.json"
+    token_path.write_text(
+        json.dumps(
+            {
+                "creation_timestamp": 1,
+                "token": {
+                    "access_token": "access",
+                    "refresh_token": "refresh",
+                    "issued_at": int(time.time() * 1000),
+                    "expires_in": 1800,
+                    "refresh_token_issued_at": int(time.time() * 1000),
+                    "refresh_token_expires_in": 7776000,
+                    "token_type": "Bearer",
+                    "scope": "api",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _OAuth2Session:
+        def __init__(self, *, client_id, token, **kwargs):
+            self.client_id = client_id
+            self.token = token
+
+        def register_compliance_hook(self, hook_type, hook):
+            return None
+
+    class _AccountResponse:
+        status_code = 200
+
+        def json(self):
+            return [{"accountNumber": "12345678", "hashValue": "hash-123"}]
+
+    class _Client:
+        def __init__(self, *, api_key, session):
+            self.api_key = api_key
+            self.session = session
+
+        def get_account_numbers(self):
+            return _AccountResponse()
+
+    def _fail_stream(*args, **kwargs):
+        pytest.fail("Schwab base Broker init must not launch stream before client setup")
+
+    monkeypatch.setenv("LUMIBOT_DISABLE_DOTENV", "1")
+    monkeypatch.setenv("SCHWAB_APP_SECRET", "secret")
+    monkeypatch.setattr(requests_oauthlib, "OAuth2Session", _OAuth2Session)
+    monkeypatch.setattr(schwab_module, "Client", _Client)
+    monkeypatch.setattr(broker_module.Broker, "_start_orders_thread", lambda self: None)
+    monkeypatch.setattr(broker_module.Broker, "_launch_stream", _fail_stream)
+    monkeypatch.setattr(schwab_module.Schwab, "_get_stream_object", _fail_stream)
+    monkeypatch.setattr(schwab_module.Schwab, "_finish_initialization", lambda self, *args, **kwargs: None)
+
+    schwab_module.Schwab(
+        config={
+            "SCHWAB_ACCOUNT_NUMBER": "5678",
+            "SCHWAB_APP_KEY": "app-key",
+            "SCHWAB_APP_SECRET": "secret",
+            "SCHWAB_TOKEN_PATH": str(token_path),
+        }
+    )
 
 
 def test_schwab_force_refresh_on_startup_rewrites_token(monkeypatch, tmp_path):

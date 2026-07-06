@@ -56,11 +56,9 @@ setuptools.setup(
     install_requires=[
         "polygon-api-client>=1.13.3",
         "alpaca-py>=0.42.0",
-        "alpha_vantage",
         "ibapi==9.81.1.post1",
         "yfinance>=0.2.61",
         "matplotlib>=3.3.3",
-        "quandl",
         # NumPy 2.5 emits noisy timedelta deprecation warnings through pandas 2.x calendar paths.
         "numpy>=1.20.0,<2.5.0",
         "pandas>=2.2.0",
@@ -69,8 +67,6 @@ setuptools.setup(
         "pandas-ta-classic>=0.3.14b0",
         "plotly>=5.18.0",
         "sqlalchemy",
-        "bcrypt",
-        "pytest",
         "yappi>=1.6.0",
         # SciPy 1.14.0+ supports NumPy 2.x
         "scipy>=1.14.0",
@@ -87,14 +83,9 @@ setuptools.setup(
         "lumiwealth-tradier>=0.1.18",
         "py-clob-client-v2>=1.0.1",
         "pytz",
-        "psycopg2-binary",
-        # Exchange calendars 4.6.0+ supports NumPy 2.x
-        "exchange_calendars>=4.6.0",
         "duckdb",
         "tabulate",
         "databento>=0.42.0",
-        "holidays",
-        "psutil",
         "openai",
         "setuptools<81",
         "google-adk[extensions]>=2.0.0,<3.0.0",
@@ -103,7 +94,6 @@ setuptools.setup(
         "anyio>=4.10.0",
         "mcp>=1.26.0",
         "schwab-py>=1.5.0",
-        "Flask>=2.3",
         "free-proxy",
         "requests-oauthlib",
         "boto3>=1.40.64",

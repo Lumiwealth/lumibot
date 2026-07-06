@@ -314,6 +314,19 @@ class TestAlpacaMultiLegOrders:
             assert order_data.type == "limit"
             assert order_data.limit_price == -1.25
 
+    def test_multileg_stop_loss_rejects_trailing_fields(self):
+        """Alpaca mleg bracket stop_loss supports stop_price and optional limit_price only."""
+        with pytest.raises(ValueError, match="does not support trail_percent"):
+            Alpaca._format_multileg_stop_loss({"trail_percent": 0.10})
+
+        with pytest.raises(ValueError, match="requires stop_price"):
+            Alpaca._format_multileg_stop_loss({"limit_price": 0.55})
+
+        assert Alpaca._format_multileg_stop_loss({"stop_price": 0.60, "limit_price": 0.55}) == {
+            "stop_price": 0.60,
+            "limit_price": 0.55,
+        }
+
     @patch('lumibot.brokers.alpaca.TradingClient')
     def test_smart_limit_submits_as_limit(self, mock_trading_client):
         """Smart limit should downgrade to limit before broker submission."""

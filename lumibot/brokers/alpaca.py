@@ -1163,17 +1163,17 @@ class Alpaca(Broker):
     def _format_multileg_stop_loss(stop_loss):
         if not isinstance(stop_loss, dict):
             raise ValueError("multi-leg stop_loss must be a dict")
+        unsupported = {"trail_price", "trail_percent"} & set(stop_loss)
+        if unsupported:
+            names = ", ".join(sorted(unsupported))
+            raise ValueError(f"multi-leg stop_loss does not support {names}")
         payload = {}
         if stop_loss.get("stop_price") is not None:
             payload["stop_price"] = round(float(stop_loss["stop_price"]), 2)
         if stop_loss.get("limit_price") is not None:
             payload["limit_price"] = round(float(stop_loss["limit_price"]), 2)
-        if stop_loss.get("trail_price") is not None:
-            payload["trail_price"] = round(float(stop_loss["trail_price"]), 2)
-        if stop_loss.get("trail_percent") is not None:
-            payload["trail_percent"] = round(float(stop_loss["trail_percent"]), 2)
-        if not payload:
-            raise ValueError("multi-leg stop_loss requires stop_price, limit_price, trail_price, or trail_percent")
+        if "stop_price" not in payload:
+            raise ValueError("multi-leg stop_loss requires stop_price")
         return payload
 
 

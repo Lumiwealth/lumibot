@@ -102,6 +102,56 @@ class TestAlpacaMultiLegOrders:
                 # Alpaca expects the short code "mleg" for multi-leg orders
                 assert hasattr(order_data, 'order_class'), "OrderData should have order_class attribute"
                 assert order_data.order_class == "mleg", f"Expected order_class 'mleg', got '{order_data.order_class}'"
+
+    @patch('lumibot.brokers.alpaca.TradingClient')
+    def test_multileg_order_includes_bracket_exits(self, mock_trading_client):
+        """Test that multi-leg bracket exits are sent on the Alpaca mleg request."""
+        mock_trading_client.return_value = Mock()
+        broker = Alpaca(self.test_config, connect_stream=False)
+        orders = [
+            Order(
+                strategy="test_strategy",
+                asset=self.call_asset,
+                quantity=1,
+                side="buy_to_open",
+                order_type=Order.OrderType.MARKET,
+            ),
+            Order(
+                strategy="test_strategy",
+                asset=Asset(
+                    symbol="SPY",
+                    asset_type=Asset.AssetType.OPTION,
+                    expiration=self.expiration,
+                    strike=455.0,
+                    right="call",
+                ),
+                quantity=1,
+                side="sell_to_open",
+                order_type=Order.OrderType.MARKET,
+            ),
+        ]
+
+        with patch.object(broker, 'api') as mock_api:
+            mock_response = Mock()
+            mock_response.id = "test_order_id"
+            mock_response.status = "submitted"
+            mock_api.submit_order.return_value = mock_response
+
+            broker._submit_multileg_order(
+                orders,
+                order_type="debit",
+                duration="day",
+                price=1.25,
+                tag="spread-bracket-1",
+                take_profit={"limit_price": 2.0},
+                stop_loss={"stop_price": 0.6, "limit_price": 0.55},
+            )
+
+            order_data = mock_api.submit_order.call_args.kwargs["order_data"]
+            assert order_data.order_class == "mleg"
+            assert order_data.limit_price == 1.25
+            assert order_data.take_profit == {"limit_price": 2.0}
+            assert order_data.stop_loss == {"stop_price": 0.6, "limit_price": 0.55}
     
     @patch('lumibot.brokers.alpaca.TradingClient')
     def test_multileg_order_has_required_fields(self, mock_trading_client):
@@ -222,6 +272,47 @@ class TestAlpacaMultiLegOrders:
         with pytest.raises(ValueError, match="limit price is required"):
             # This should raise an error because price is None for a limit order
             broker._submit_multileg_order(orders, order_type="limit", price=None)
+
+    @patch('lumibot.brokers.alpaca.TradingClient')
+    def test_credit_multileg_order_uses_negative_limit_price(self, mock_trading_client):
+        """Alpaca uses signed mleg limit prices: positive debit, negative credit."""
+        mock_trading_client.return_value = Mock()
+        broker = Alpaca(self.test_config, connect_stream=False)
+        orders = [
+            Order(
+                strategy="test_strategy",
+                asset=self.call_asset,
+                quantity=1,
+                side="sell_to_open",
+                order_type=Order.OrderType.MARKET,
+            ),
+            Order(
+                strategy="test_strategy",
+                asset=Asset(
+                    symbol="SPY",
+                    asset_type=Asset.AssetType.OPTION,
+                    expiration=self.expiration,
+                    strike=455.0,
+                    right="call",
+                ),
+                quantity=1,
+                side="buy_to_open",
+                order_type=Order.OrderType.MARKET,
+            ),
+        ]
+
+        with patch.object(broker, 'api') as mock_api:
+            mock_response = Mock()
+            mock_response.id = "test_order_id"
+            mock_response.status = "submitted"
+            mock_api.submit_order.return_value = mock_response
+
+            broker._submit_multileg_order(orders, order_type="credit", price=1.25)
+
+            order_data = mock_api.submit_order.call_args.kwargs["order_data"]
+            assert order_data.side == "sell"
+            assert order_data.type == "limit"
+            assert order_data.limit_price == -1.25
 
     @patch('lumibot.brokers.alpaca.TradingClient')
     def test_smart_limit_submits_as_limit(self, mock_trading_client):

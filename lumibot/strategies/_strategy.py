@@ -2346,19 +2346,27 @@ class _Strategy:
             if total_col in self._stats.columns:
                 self._stats[period_col] = cumulative_to_period_flows(self._stats[total_col])
 
-        external_flow_totals = (
-            self._stats["cash_adjustments_net_total"]
-            if "cash_adjustments_net_total" in self._stats.columns
-            else None
-        )
-        self._stats["return"] = cash_flow_adjusted_returns(
-            self._stats["portfolio_value"],
-            external_flow_totals,
-        )
         if "portfolio_value" in self._stats.columns:
-            adjusted_base = float(self._stats["portfolio_value"].iloc[0])
+            portfolio_values = pd.to_numeric(self._stats["portfolio_value"], errors="coerce")
+            external_flow_totals = (
+                pd.to_numeric(self._stats["cash_adjustments_net_total"], errors="coerce").reindex(self._stats.index)
+                if "cash_adjustments_net_total" in self._stats.columns
+                else None
+            )
+            self._stats["return"] = cash_flow_adjusted_returns(
+                portfolio_values,
+                external_flow_totals,
+            )
+            valid_portfolio_values = portfolio_values.dropna()
+            if valid_portfolio_values.empty:
+                self._stats["cash_adjusted_portfolio_value"] = pd.NA
+                self._stats_dirty = False
+                return self._stats
+            adjusted_base = float(valid_portfolio_values.iloc[0])
             if external_flow_totals is not None:
-                adjusted_base -= float(external_flow_totals.iloc[0])
+                base_external_flow = external_flow_totals.reindex(valid_portfolio_values.index).iloc[0]
+                if pd.notna(base_external_flow):
+                    adjusted_base -= float(base_external_flow)
             self._stats["cash_adjusted_portfolio_value"] = (
                 (1.0 + self._stats["return"].fillna(0.0)).cumprod() * adjusted_base
             )

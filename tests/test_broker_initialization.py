@@ -632,6 +632,93 @@ def test_schwab_external_oauth_refresh_mode_reloads_access_only_file_without_ref
     assert "refresh_token" not in broker.client.session.token
 
 
+def test_schwab_external_oauth_refresh_mode_force_reapplies_fresh_file_to_stale_client(monkeypatch, tmp_path):
+    from lumibot.brokers import broker as broker_module
+    from lumibot.brokers import schwab as schwab_module
+    import requests_oauthlib
+
+    token_path = tmp_path / "schwab_token.json"
+    issued_at = int(time.time() * 1000)
+    token_path.write_text(
+        json.dumps(
+            {
+                "creation_timestamp": 1,
+                "token": {
+                    "access_token": "fresh-access",
+                    "issued_at": issued_at,
+                    "expires_in": 1800,
+                    "token_type": "Bearer",
+                    "scope": "api",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class TokenExpiredError(Exception):
+        pass
+
+    class _OAuth2Session:
+        def __init__(self, *, client_id, token, **kwargs):
+            self.client_id = client_id
+            self.token = token
+            self.kwargs = kwargs
+            self.request_calls = 0
+            self._client = SimpleNamespace(access_token=token.get("access_token"), expires_at=0)
+
+        def register_compliance_hook(self, hook_type, hook):
+            pytest.fail("External OAuth refresh mode must not install provider refresh hooks")
+
+        def refresh_token(self, *args, **kwargs):
+            pytest.fail("External OAuth refresh mode must not call Schwab refresh_token")
+
+        def request(self, *args, **kwargs):
+            self.request_calls += 1
+            if self.request_calls == 1:
+                self._client.expires_at = 0
+                raise TokenExpiredError("oauthlib stale client state")
+            assert self.token["access_token"] == "fresh-access"
+            assert "refresh_token" not in self.token
+            assert self._client.access_token == "fresh-access"
+            assert self._client.expires_at > time.time()
+            return type("Response", (), {"status_code": 200})()
+
+    class _AccountResponse:
+        status_code = 200
+
+        def json(self):
+            return [{"accountNumber": "12345678", "hashValue": "hash-123"}]
+
+    class _Client:
+        def __init__(self, *, api_key, session):
+            self.api_key = api_key
+            self.session = session
+
+        def get_account_numbers(self):
+            return _AccountResponse()
+
+    monkeypatch.setenv("LUMIBOT_OAUTH_REFRESH_MODE", "external")
+    monkeypatch.setattr(requests_oauthlib, "OAuth2Session", _OAuth2Session)
+    monkeypatch.setattr(schwab_module, "Client", _Client)
+    monkeypatch.setattr(broker_module.Broker, "_start_orders_thread", lambda self: None)
+    monkeypatch.setattr(schwab_module.Schwab, "_finish_initialization", lambda self, *args, **kwargs: None)
+    monkeypatch.setattr(schwab_module.Schwab, "_get_stream_object", lambda self: None)
+
+    broker = schwab_module.Schwab(
+        config={
+            "SCHWAB_ACCOUNT_NUMBER": "5678",
+            "SCHWAB_APP_KEY": "app-key",
+            "SCHWAB_TOKEN_PATH": str(token_path),
+        }
+    )
+
+    assert broker.client.session.request("https://api.schwab.test/accounts").status_code == 200
+    assert broker.client.session.request_calls == 2
+    rewritten = json.loads(token_path.read_text(encoding="utf-8"))
+    assert rewritten["token"]["access_token"] == "fresh-access"
+    assert "refresh_token" not in rewritten["token"]
+
+
 def test_schwab_external_oauth_refresh_mode_multiple_brokers_reload_atomic_replacements(monkeypatch, tmp_path):
     from lumibot.brokers import broker as broker_module
     from lumibot.brokers import schwab as schwab_module

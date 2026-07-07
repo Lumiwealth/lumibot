@@ -6,6 +6,7 @@ import pandas as pd
 
 from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting
 from lumibot.entities import Asset
+from lumibot.strategies import _strategy as strategy_module
 from lumibot.strategies.strategy import Strategy
 
 
@@ -18,6 +19,24 @@ class _StatsOnlyStrategy(Strategy):
 
     def on_trading_iteration(self):
         raise AssertionError("This regression test should not run the trading loop.")
+
+
+def _stub_stats_flow_math(monkeypatch) -> None:
+    def cumulative_to_period_flows(values):
+        return pd.to_numeric(values, errors="coerce").diff().fillna(0.0)
+
+    def cash_flow_adjusted_returns(values, cumulative_external_flows=None):
+        numeric_values = pd.to_numeric(values, errors="coerce")
+        previous_values = numeric_values.shift(1)
+        if cumulative_external_flows is None:
+            external_period = pd.Series(0.0, index=numeric_values.index, dtype=float)
+        else:
+            external_period = cumulative_to_period_flows(cumulative_external_flows).reindex(numeric_values.index).fillna(0.0)
+        returns = (numeric_values - previous_values - external_period) / previous_values
+        return returns.where(previous_values.notna()).astype(float)
+
+    monkeypatch.setattr(strategy_module, "cumulative_to_period_flows", cumulative_to_period_flows)
+    monkeypatch.setattr(strategy_module, "cash_flow_adjusted_returns", cash_flow_adjusted_returns)
 
 
 def test_dump_stats_end_to_end_regression_for_datetime_indexes():
@@ -141,3 +160,57 @@ def test_dump_stats_parquet_is_resilient_to_object_positions(tmp_path) -> None:
     parquet_df = pd.read_parquet(stats_parquet)
     assert "positions" in parquet_df.columns
     assert isinstance(parquet_df["positions"].iloc[0], str)
+
+
+def test_format_stats_tolerates_missing_initial_portfolio_and_external_flows(monkeypatch) -> None:
+    _stub_stats_flow_math(monkeypatch)
+    broker = PandasDataBacktesting(
+        datetime_start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        datetime_end=datetime(2026, 1, 3, tzinfo=timezone.utc),
+    )
+    strat = _StatsOnlyStrategy(broker=BacktestingBroker(data_source=broker))
+    strat._benchmark_asset = None
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    strat._append_row({
+        "datetime": start,
+        "portfolio_value": None,
+        "cash_adjustments_net_total": None,
+    })
+    strat._append_row({
+        "datetime": start + timedelta(days=1),
+        "portfolio_value": 100_000.0,
+        "cash_adjustments_net_total": None,
+    })
+    strat._append_row({
+        "datetime": start + timedelta(days=2),
+        "portfolio_value": 101_000.0,
+        "cash_adjustments_net_total": 0.0,
+    })
+
+    stats = strat._format_stats()
+
+    assert "return" in stats.columns
+    assert "cash_adjusted_portfolio_value" in stats.columns
+    assert pd.isna(stats["return"].iloc[0])
+    assert float(stats["cash_adjusted_portfolio_value"].iloc[0]) == 100_000.0
+    assert float(stats["cash_adjusted_portfolio_value"].iloc[-1]) == 101_000.0
+
+
+def test_format_stats_tolerates_no_valid_portfolio_values(monkeypatch) -> None:
+    _stub_stats_flow_math(monkeypatch)
+    broker = PandasDataBacktesting(
+        datetime_start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        datetime_end=datetime(2026, 1, 2, tzinfo=timezone.utc),
+    )
+    strat = _StatsOnlyStrategy(broker=BacktestingBroker(data_source=broker))
+    strat._benchmark_asset = None
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    strat._append_row({"datetime": start, "portfolio_value": None})
+    strat._append_row({"datetime": start + timedelta(days=1), "portfolio_value": None})
+
+    stats = strat._format_stats()
+
+    assert "return" in stats.columns
+    assert "cash_adjusted_portfolio_value" in stats.columns
+    assert stats["return"].isna().all()
+    assert stats["cash_adjusted_portfolio_value"].isna().all()

@@ -408,7 +408,31 @@ def test_schwab_option_replacement_uses_option_builder_and_updates_identifier():
     assert order.limit_price == 4.75
 
 
-def test_schwab_stock_submit_uses_seamless_session():
+def test_schwab_stock_market_submit_uses_normal_session():
+    client = _PlaceClient()
+    stream = _Stream()
+    broker = Schwab.__new__(Schwab)
+    broker.name = "Schwab"
+    broker.schwab_authorization_error = False
+    broker.client = client
+    broker.hash_value = "account-hash"
+    broker.stream = stream
+    broker._unprocessed_orders = SafeList(RLock())
+    order = _stock_market_order(side=Order.OrderSide.BUY, quantity=12)
+
+    submitted = broker._submit_order(order)
+
+    assert submitted is order
+    assert client.place_calls[0][0] == "account-hash"
+    order_spec = client.place_calls[0][1]
+    assert order_spec["session"] == "NORMAL"
+    assert order_spec["duration"] == "DAY"
+    assert order_spec["orderType"] == "MARKET"
+    assert order.identifier == "submitted-123"
+    assert stream.dispatched[-1][0] == broker.NEW_ORDER
+
+
+def test_schwab_stock_limit_submit_uses_seamless_session():
     client = _PlaceClient()
     stream = _Stream()
     broker = Schwab.__new__(Schwab)
@@ -431,6 +455,18 @@ def test_schwab_stock_submit_uses_seamless_session():
     assert stream.dispatched[-1][0] == broker.NEW_ORDER
 
 
+def test_schwab_stock_market_replacement_spec_uses_normal_session():
+    broker = Schwab.__new__(Schwab)
+    broker.name = "Schwab"
+    order = _stock_market_order(side=Order.OrderSide.SELL, quantity=1)
+
+    order_spec = broker._prepare_stock_order_spec(order)
+
+    assert order_spec["session"] == "NORMAL"
+    assert order_spec["duration"] == "DAY"
+    assert order_spec["orderType"] == "MARKET"
+
+
 def test_schwab_stock_submit_succeeds_without_stream():
     client = _PlaceClient()
     broker = Schwab.__new__(Schwab)
@@ -449,7 +485,7 @@ def test_schwab_stock_submit_succeeds_without_stream():
     assert order.status == Order.OrderStatus.SUBMITTED
 
 
-def test_schwab_stock_replacement_spec_uses_seamless_session():
+def test_schwab_stock_limit_replacement_spec_uses_seamless_session():
     broker = Schwab.__new__(Schwab)
     broker.name = "Schwab"
     order = _stock_limit_order(side=Order.OrderSide.SELL, limit_price=20.0)

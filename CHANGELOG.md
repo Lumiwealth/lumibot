@@ -1,19 +1,32 @@
 # Changelog
 
-## 4.5.66 - Unreleased
+## 4.5.69 - Unreleased
+
+## 4.5.68 - 2026-07-07
 
 ### Fixed
-- **Tradier live polling now throttles repeated broker reads and backs off after
-  transient provider 5xx failures.** Account balances, positions, and orders
-  reuse recent good reads during short polling windows or transient-backoff
-  windows, reducing provider retry storms in managed live bots while preserving
-  auth failures as hard errors.
+- **Schwab stock market orders now use the normal session instead of seamless.**
+  Schwab's seamless/Day+Extended session is valid for eligible equity limit
+  orders, but live Schwab rejects seamless market orders with HTTP 400 invalid
+  request data. Stock limit orders continue to use `SEAMLESS`; stock market
+  orders, stop orders, options, and futures use `NORMAL`.
 
 ### Tests
-- **Tradier transient-read regression coverage now proves cached balance,
-  position, and order behavior.** The focused tests cover cache reuse after
-  retry-exhausted 5xx responses and ensure OAuth/external-mode polling
-  regressions still pass.
+- **Alpaca-backed DriftRebalancer crypto tests are marked as API tests.** These
+  tests require authenticated access to Alpaca's live crypto data endpoint and
+  should not run in the normal release unit suite selected by
+  `-m "not apitest and not downloader"`.
+
+## 4.5.67 - 2026-07-07
+
+### Fixed
+- **Schwab stock market orders now use the normal session instead of seamless.**
+  Schwab's seamless/Day+Extended session is valid for eligible equity limit
+  orders, but live Schwab rejects seamless market orders with HTTP 400 invalid
+  request data. Stock limit orders continue to use `SEAMLESS`; stock market
+  orders, stop orders, options, and futures use `NORMAL`.
+
+## 4.5.66 - Unreleased
 
 ## 4.5.65 - Unreleased
 

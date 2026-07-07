@@ -61,7 +61,7 @@ data/SRNE_Minute.csv
 *.tmp
 .env
 token.json
-schwab_token.json
+schwab_token*.json
 
 # AI assistant instruction files (contain local paths)
 CLAUDE.md

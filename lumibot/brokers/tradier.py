@@ -141,75 +141,10 @@ class Tradier(Broker):
         r"(?:too many 5\d\d error responses|status(?: code)?[=: ]+5\d\d|\b5\d\d\b|internal server error)",
         re.IGNORECASE,
     )
-    _DEFAULT_READ_MIN_INTERVAL_SECONDS = 15.0
-    _DEFAULT_TRANSIENT_READ_BACKOFF_SECONDS = 30.0
 
     @classmethod
     def _is_transient_broker_read_error(cls, error: Exception) -> bool:
         return bool(cls._TRANSIENT_READ_ERROR_RE.search(str(error)))
-
-    @staticmethod
-    def _coerce_non_negative_seconds(value, default: float) -> float:
-        if value in (None, ""):
-            return float(default)
-        try:
-            coerced = float(value)
-        except (TypeError, ValueError):
-            return float(default)
-        return max(0.0, coerced)
-
-    @staticmethod
-    def _copy_tradier_read_value(value):
-        if isinstance(value, list):
-            copied = []
-            for item in value:
-                copied.append(dict(item) if isinstance(item, dict) else item)
-            return copied
-        if isinstance(value, dict):
-            return dict(value)
-        return value
-
-    def _ensure_tradier_read_control_state(self) -> None:
-        if not hasattr(self, "_tradier_read_cache"):
-            self._tradier_read_cache = {}
-        if not hasattr(self, "_tradier_read_backoff_until"):
-            self._tradier_read_backoff_until = {}
-        if not hasattr(self, "_tradier_read_min_interval_seconds"):
-            self._tradier_read_min_interval_seconds = self._DEFAULT_READ_MIN_INTERVAL_SECONDS
-        if not hasattr(self, "_tradier_transient_read_backoff_seconds"):
-            self._tradier_transient_read_backoff_seconds = self._DEFAULT_TRANSIENT_READ_BACKOFF_SECONDS
-
-    def _get_cached_tradier_read(self, endpoint: str):
-        self._ensure_tradier_read_control_state()
-        cached = self._tradier_read_cache.get(endpoint)
-        if not cached:
-            return None
-
-        now = time.monotonic()
-        cached_at = cached.get("monotonic_at", 0.0)
-        backoff_until = self._tradier_read_backoff_until.get(endpoint, 0.0)
-        min_interval = float(getattr(self, "_tradier_read_min_interval_seconds", 0.0) or 0.0)
-
-        if now < backoff_until or (min_interval and now - cached_at < min_interval):
-            return self._copy_tradier_read_value(cached.get("value"))
-        return None
-
-    def _tradier_read_is_in_backoff(self, endpoint: str) -> bool:
-        self._ensure_tradier_read_control_state()
-        return time.monotonic() < self._tradier_read_backoff_until.get(endpoint, 0.0)
-
-    def _cache_tradier_read(self, endpoint: str, value) -> None:
-        self._ensure_tradier_read_control_state()
-        self._tradier_read_cache[endpoint] = {
-            "monotonic_at": time.monotonic(),
-            "value": self._copy_tradier_read_value(value),
-        }
-
-    def _start_tradier_read_backoff(self, endpoint: str) -> None:
-        self._ensure_tradier_read_control_state()
-        backoff_seconds = float(getattr(self, "_tradier_transient_read_backoff_seconds", 0.0) or 0.0)
-        if backoff_seconds > 0:
-            self._tradier_read_backoff_until[endpoint] = time.monotonic() + backoff_seconds
 
     def _current_lumibot_positions_snapshot(self) -> list[Position]:
         filled_positions = getattr(self, "_filled_positions", None)
@@ -681,25 +616,6 @@ class Tradier(Broker):
         self._tradier_account_number = account_number
         self._tradier_paper = paper
         self.polling_interval = polling_interval
-        self._tradier_read_cache = {}
-        self._tradier_read_backoff_until = {}
-        read_min_interval = None
-        transient_read_backoff = None
-        if isinstance(config, dict):
-            read_min_interval = config.get("TRADIER_READ_MIN_INTERVAL_SECONDS")
-            transient_read_backoff = config.get("TRADIER_TRANSIENT_READ_BACKOFF_SECONDS")
-        self._tradier_read_min_interval_seconds = self._coerce_non_negative_seconds(
-            os.environ.get("LUMIBOT_TRADIER_READ_MIN_INTERVAL_SECONDS")
-            or os.environ.get("TRADIER_READ_MIN_INTERVAL_SECONDS")
-            or read_min_interval,
-            self._DEFAULT_READ_MIN_INTERVAL_SECONDS,
-        )
-        self._tradier_transient_read_backoff_seconds = self._coerce_non_negative_seconds(
-            os.environ.get("LUMIBOT_TRADIER_TRANSIENT_READ_BACKOFF_SECONDS")
-            or os.environ.get("TRADIER_TRANSIENT_READ_BACKOFF_SECONDS")
-            or transient_read_backoff,
-            self._DEFAULT_TRANSIENT_READ_BACKOFF_SECONDS,
-        )
 
         # If this is an OAuth token, refresh before building API clients. Snapshot
         # runtimes can force this so BotSpot receives fresh token material to persist.
@@ -1096,13 +1012,6 @@ class Tradier(Broker):
         return order
 
     def _get_balances_at_broker(self, quote_asset: Asset, strategy):
-        cached_balances = self._get_cached_tradier_read("balances")
-        if cached_balances is not None:
-            return cached_balances
-        if self._tradier_read_is_in_backoff("balances"):
-            logger.warning("Skipping Tradier balances read during transient broker backoff; no cached balances available")
-            return None
-
         try:
             df = self.tradier.account.get_account_balance()
         except _get_tradier_api_error_class() as e:
@@ -1122,34 +1031,8 @@ class Tradier(Broker):
                                           f"Your account number is: {self._tradier_account_number} and your "
                                           f"access token is: {access_token}", color="red")
                 raise ValueError(colored_message) from e
-            if self._is_transient_broker_read_error(e):
-                self._start_tradier_read_backoff("balances")
-                cached_balances = self._get_cached_tradier_read("balances")
-                if cached_balances is not None:
-                    logger.warning(
-                        "Transient Tradier balances read failure; reusing cached balances for this poll: %s",
-                        e,
-                        exc_info=True,
-                    )
-                    return cached_balances
             raise e
         except Exception as e:
-            if self._is_transient_broker_read_error(e):
-                self._start_tradier_read_backoff("balances")
-                cached_balances = self._get_cached_tradier_read("balances")
-                if cached_balances is not None:
-                    logger.warning(
-                        "Transient Tradier balances read failure; reusing cached balances for this poll: %s",
-                        e,
-                        exc_info=True,
-                    )
-                    return cached_balances
-                logger.warning(
-                    "Transient Tradier balances read failure without cached balances; skipping balance update: %s",
-                    e,
-                    exc_info=True,
-                )
-                return None
             logger.error(f"Error pulling balances from Tradier: {e}")
             # Add traceback to the error message
             logger.error(_format_exc())
@@ -1164,9 +1047,7 @@ class Tradier(Broker):
         # Calculate the gross positions value
         positions_value = portfolio_value - cash
 
-        balances = (cash, positions_value, portfolio_value)
-        self._cache_tradier_read("balances", balances)
-        return balances
+        return cash, positions_value, portfolio_value
 
     def get_historical_account_value(self):
         logger.error("The function get_historical_account_value is not implemented yet for Tradier.")
@@ -1498,12 +1379,6 @@ class Tradier(Broker):
         return normalized_events
 
     def _pull_positions(self, strategy):
-        cached_positions = self._get_cached_tradier_read("positions")
-        if cached_positions is not None:
-            return cached_positions
-        if self._tradier_read_is_in_backoff("positions"):
-            return self._current_lumibot_positions_snapshot()
-
         try:
             positions_df = self.tradier.account.get_positions()
         except _get_tradier_api_error_class() as e:
@@ -1519,34 +1394,9 @@ class Tradier(Broker):
                 access_token = self._tradier_access_token[:7] + "*" * 7
                 colored_message = colored(f"Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are invalid. Your account number is: {self._tradier_account_number} and your access token is: {access_token}", color="red")
                 raise ValueError(colored_message) from e
-            if self._is_transient_broker_read_error(e):
-                self._start_tradier_read_backoff("positions")
-                cached_positions = self._get_cached_tradier_read("positions")
-                if cached_positions is not None:
-                    logger.warning(
-                        "Transient Tradier positions read failure; reusing cached positions for this poll: %s",
-                        e,
-                        exc_info=True,
-                    )
-                    return cached_positions
-                logger.warning(
-                    "Transient Tradier positions read failure; preserving existing Lumibot positions for this poll: %s",
-                    e,
-                    exc_info=True,
-                )
-                return self._current_lumibot_positions_snapshot()
             raise e
         except Exception as e:
             if self._is_transient_broker_read_error(e):
-                self._start_tradier_read_backoff("positions")
-                cached_positions = self._get_cached_tradier_read("positions")
-                if cached_positions is not None:
-                    logger.warning(
-                        "Transient Tradier positions read failure; reusing cached positions for this poll: %s",
-                        e,
-                        exc_info=True,
-                    )
-                    return cached_positions
                 logger.warning(
                     "Transient Tradier positions read failure; preserving existing Lumibot positions for this poll: %s",
                     e,
@@ -1581,7 +1431,6 @@ class Tradier(Broker):
             )
             positions_ret.append(position)  # Add the position to the list
 
-        self._cache_tradier_read("positions", positions_ret)
         return positions_ret
 
     def _pull_position(self, strategy, asset):
@@ -1757,25 +1606,10 @@ class Tradier(Broker):
         and then returned. It is expected that the caller will convert each dictionary to an Order object by
         calling parse_broker_order() on the dictionary.
         """
-        cached_orders = self._get_cached_tradier_read("orders")
-        if cached_orders is not None:
-            return cached_orders
-        if self._tradier_read_is_in_backoff("orders"):
-            raise TradierTransientBrokerReadError("Tradier orders read is in transient backoff")
-
         try:
             df = self.tradier.orders.get_orders()
         except Exception as e:
             if self._is_transient_broker_read_error(e):
-                self._start_tradier_read_backoff("orders")
-                cached_orders = self._get_cached_tradier_read("orders")
-                if cached_orders is not None:
-                    logger.warning(
-                        "Transient Tradier orders read failure; reusing cached orders for this poll: %s",
-                        e,
-                        exc_info=True,
-                    )
-                    return cached_orders
                 logger.warning(
                     "Transient Tradier orders read failure; skipping order reconciliation for this poll: %s",
                     e,
@@ -1787,12 +1621,9 @@ class Tradier(Broker):
 
         # Check if the dataframe is empty or None
         if df is None or df.empty:
-            self._cache_tradier_read("orders", [])
             return []
 
-        orders = self._clean_order_records(df)
-        self._cache_tradier_read("orders", orders)
-        return orders
+        return self._clean_order_records(df)
 
     @staticmethod
     def _clean_order_records(df):

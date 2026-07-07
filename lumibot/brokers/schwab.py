@@ -130,6 +130,58 @@ def _strip_external_schwab_token(token: dict) -> dict:
     return sanitized
 
 
+def _schwab_token_issued_at_seconds(value):
+    if value is None:
+        return None
+    try:
+        raw = float(value)
+    except (TypeError, ValueError):
+        return None
+    return raw / 1000.0 if raw > 1_000_000_000_000 else raw
+
+
+def _normalize_schwab_token_expiry_metadata(token: dict) -> None:
+    if not isinstance(token, dict):
+        return
+    issued_at = _schwab_token_issued_at_seconds(token.get("issued_at") or token.get("creation_timestamp"))
+    try:
+        expires_in = float(token.get("expires_in"))
+    except (TypeError, ValueError):
+        expires_in = None
+    if issued_at is not None and expires_in is not None:
+        token["expires_at"] = int(issued_at + expires_in - 30)
+
+
+def _apply_external_schwab_token_to_session(oauth_session, token: dict) -> None:
+    """Synchronize requests-oauthlib's public token and oauthlib client cache."""
+    if not isinstance(token, dict):
+        return
+    oauth_session.token = dict(token)
+    client = getattr(oauth_session, "_client", None)
+    if client is None:
+        return
+    if token.get("access_token"):
+        try:
+            client.access_token = token.get("access_token")
+        except Exception:
+            pass
+    if token.get("token_type"):
+        try:
+            client.token_type = token.get("token_type")
+        except Exception:
+            pass
+    if token.get("scope"):
+        try:
+            client.scope = token.get("scope")
+        except Exception:
+            pass
+    if token.get("expires_at") is not None:
+        try:
+            client.expires_at = float(token.get("expires_at"))
+        except (TypeError, ValueError):
+            pass
+
+
 class SchwabTokenPersistenceError(RuntimeError):
     """Raised when a refreshed Schwab OAuth token cannot be durably written."""
 
@@ -411,10 +463,7 @@ class Schwab(Broker):
                     latest_token = _strip_external_schwab_token(latest_token)
                 elif not latest_token.get("refresh_token") and token_dict_for_session.get("refresh_token"):
                     latest_token["refresh_token"] = token_dict_for_session["refresh_token"]
-                if latest_token.get("issued_at") and latest_token.get("expires_in"):
-                    latest_token["expires_at"] = int(
-                        int(latest_token["issued_at"]) / 1000 + int(float(latest_token["expires_in"])) - 30
-                    )
+                _normalize_schwab_token_expiry_metadata(latest_token)
                 token_dict_for_session.clear()
                 token_dict_for_session.update(latest_token)
                 token_file_state["signature"] = _token_file_signature()
@@ -481,11 +530,12 @@ class Schwab(Broker):
             if client_secret_env:
                 refresh_kwargs["client_secret"] = client_secret_env
 
-            #add expires_at to token_dict_for_session. This is needed for the auto_refresh to work. Otherwise oauth2session always thinks it expires 30min from startup
-            token_dict_for_session['expires_at'] = int(token_dict_for_session['issued_at']/1000 + (token_dict_for_session['expires_in']) - 30) #30 second buffer
+            # Add expires_at so OAuth2Session sees externally issued tokens as current.
+            _normalize_schwab_token_expiry_metadata(token_dict_for_session)
 
             if external_token_refresh:
                 oauth_session = _OAS(client_id=api_key, token=token_dict_for_session)
+                _apply_external_schwab_token_to_session(oauth_session, token_dict_for_session)
             else:
                 oauth_session = _OAS(
                     client_id=api_key,
@@ -508,28 +558,31 @@ class Schwab(Broker):
             if external_token_refresh:
                 original_request = oauth_session.request
 
-                def _reload_if_token_file_changed():
+                def _reload_external_token_file(force=False):
                     try:
                         current_signature = _token_file_signature()
                     except Exception:
                         return False
-                    if current_signature == token_file_state.get("signature"):
+                    if not force and current_signature == token_file_state.get("signature"):
                         return False
                     try:
                         _load_token_file_for_session()
-                        oauth_session.token = token_dict_for_session
+                        _apply_external_schwab_token_to_session(oauth_session, token_dict_for_session)
                         logger.info(f"[Schwab] Reloaded externally managed token file from {token_path}")
                         return True
                     except Exception as reload_error:
                         logger.warning(f"[Schwab] Failed to reload externally managed token file: {reload_error}")
                         return False
 
+                def _reload_if_token_file_changed():
+                    return _reload_external_token_file(force=False)
+
                 def _request_with_external_token_reload(*args, **kwargs):
                     _reload_if_token_file_changed()
                     try:
                         response = original_request(*args, **kwargs)
                     except Exception as request_error:
-                        if request_error.__class__.__name__ == "TokenExpiredError" and _reload_if_token_file_changed():
+                        if request_error.__class__.__name__ == "TokenExpiredError" and _reload_external_token_file(force=True):
                             return original_request(*args, **kwargs)
                         raise
                     status_code = getattr(response, "status_code", None)
@@ -2155,7 +2208,20 @@ class Schwab(Broker):
             logger.error(colored("Failed to import Schwab order enums. Make sure the schwab-py library is installed.", "red"))
             return None
 
-        if order and getattr(order, "asset", None) and order.asset.asset_type == Asset.AssetType.STOCK:
+        order_type = getattr(order, "order_type", None)
+        order_type_value = getattr(order_type, "value", order_type)
+        if isinstance(order_type_value, str):
+            order_type_value = order_type_value.lower()
+
+        if (
+            order
+            and getattr(order, "asset", None)
+            and order.asset.asset_type == Asset.AssetType.STOCK
+            and (
+                order_type == Order.OrderType.LIMIT
+                or order_type_value == "limit"
+            )
+        ):
             return Session.SEAMLESS
 
         return Session.NORMAL

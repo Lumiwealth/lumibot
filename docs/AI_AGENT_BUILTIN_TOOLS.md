@@ -58,6 +58,15 @@ FRED macro tools:
 
 Built-in FRED tools require `FRED_API_KEY` so Lumibot can request official FRED/ALFRED observations with `realtime_start` and `realtime_end`. Lumibot does not use public CSV fallbacks for macro data, because those endpoints can contain revised values and are not a safe default for historical simulations.
 
+FXMacroData tools:
+
+- `list_fxmacrodata_indicators`
+- `get_fxmacrodata_series`
+- `get_fxmacrodata_latest`
+- `get_fxmacrodata_snapshot`
+
+FXMacroData tools fetch FX-focused macro announcement rows from FXMacroData. USD announcement data is public. Set `FXMD_API_KEY` or `FXMACRODATA_API_KEY` for non-USD and paid endpoint access. Lumibot sends the key as an `X-API-Key` header rather than adding it to request URLs.
+
 Memory tools:
 
 - `remember`

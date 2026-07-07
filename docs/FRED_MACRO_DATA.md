@@ -53,3 +53,37 @@ export LUMIBOT_FRED_CACHE_DIR=/path/to/cache
 ```
 
 Backtests should fetch each series once and reuse the local cache instead of hitting FRED on every trading iteration.
+
+## FXMacroData Macro Releases
+
+Lumibot also includes an FXMacroData provider for FX-focused macro announcement rows:
+
+```python
+self.macro.fxmacrodata.list_indicators()
+self.macro.fxmacrodata.get_series("eur", "inflation")
+self.macro.fxmacrodata.get_latest("jpy", "policy_rate")
+self.macro.fxmacrodata.get_snapshot("gbp", ["inflation", "policy_rate", "unemployment"])
+```
+
+Agents receive these read-only built-ins automatically:
+
+- `list_fxmacrodata_indicators`
+- `get_fxmacrodata_series`
+- `get_fxmacrodata_latest`
+- `get_fxmacrodata_snapshot`
+
+USD announcement data is public. Set `FXMD_API_KEY` or `FXMACRODATA_API_KEY` for non-USD and paid endpoint access. Lumibot sends the key as an `X-API-Key` header, not as an `api_key` query parameter.
+
+In a backtest, `as_of` defaults to `self.get_datetime()`. Lumibot filters release rows by `announcement_datetime` so the strategy does not see macro releases after the simulated datetime.
+
+FXMacroData responses are cached under:
+
+```text
+~/.lumibot/cache/fxmacrodata
+```
+
+Override with:
+
+```bash
+export LUMIBOT_FXMACRODATA_CACHE_DIR=/path/to/cache
+```

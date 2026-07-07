@@ -19,6 +19,10 @@ class _Strategy:
         return datetime(2025, 1, 15, 12, 0, tzinfo=timezone.utc)
 
 
+class _BacktestingStrategy(_Strategy):
+    is_backtesting = True
+
+
 def _payload():
     return {
         "data": [
@@ -64,6 +68,68 @@ def test_fxmacrodata_uses_x_api_key_header_and_filters_future_rows(monkeypatch, 
     assert "api_key" not in kwargs["params"]
     assert kwargs["params"]["start_date"] == "2024-01-01"
     assert kwargs["params"]["end_date"] == "2025-01-15"
+
+
+def test_fxmacrodata_drops_rows_without_parseable_dates(monkeypatch, tmp_path):
+    def fake_get(url, **kwargs):
+        return _Response(payload={"data": [{"val": "9.9"}, {"date": "2025-01-01", "val": "3.0"}]})
+
+    monkeypatch.delenv("FXMD_API_KEY", raising=False)
+    monkeypatch.delenv("FXMACRODATA_API_KEY", raising=False)
+    monkeypatch.setattr("lumibot.macro.fxmacrodata.requests.get", fake_get)
+    fxmd = FXMacroData(_Strategy(), cache_dir=tmp_path, min_request_interval_seconds=0)
+
+    result = fxmd.get_series("usd", "inflation")
+
+    assert [row["date"] for row in result["observations"]] == ["2025-01-01"]
+    assert result["observations"][0]["value"] == 3.0
+
+
+def test_fxmacrodata_live_requests_bypass_disk_cache(monkeypatch, tmp_path):
+    calls = []
+    payloads = [
+        {"data": [{"date": "2025-01-01", "val": "3.0"}]},
+        {"data": [{"date": "2025-01-01", "val": "4.0"}]},
+    ]
+
+    def fake_get(url, **kwargs):
+        calls.append((url, kwargs))
+        return _Response(payload=payloads[len(calls) - 1])
+
+    monkeypatch.delenv("FXMD_API_KEY", raising=False)
+    monkeypatch.delenv("FXMACRODATA_API_KEY", raising=False)
+    monkeypatch.setattr("lumibot.macro.fxmacrodata.requests.get", fake_get)
+    fxmd = FXMacroData(_Strategy(), cache_dir=tmp_path, min_request_interval_seconds=0)
+
+    first = fxmd.get_latest("usd", "inflation")
+    second = fxmd.get_latest("usd", "inflation")
+
+    assert first["latest"]["value"] == 3.0
+    assert second["latest"]["value"] == 4.0
+    assert len(calls) == 2
+    assert not list(tmp_path.rglob("*.json"))
+
+
+def test_fxmacrodata_backtests_use_disk_cache(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_get(url, **kwargs):
+        calls.append((url, kwargs))
+        return _Response(payload={"data": [{"date": "2025-01-01", "val": str(len(calls))}]})
+
+    monkeypatch.delenv("FXMD_API_KEY", raising=False)
+    monkeypatch.delenv("FXMACRODATA_API_KEY", raising=False)
+    monkeypatch.setattr("lumibot.macro.fxmacrodata.requests.get", fake_get)
+    fxmd = FXMacroData(_BacktestingStrategy(), cache_dir=tmp_path, min_request_interval_seconds=0)
+
+    first = fxmd.get_latest("usd", "inflation")
+    second = fxmd.get_latest("usd", "inflation")
+
+    assert first["latest"]["value"] == 1.0
+    assert second["latest"]["value"] == 1.0
+    assert len(calls) == 1
+    assert len(list(tmp_path.rglob("*.json"))) == 1
+    assert not list(tmp_path.rglob("*.tmp"))
 
 
 def test_fxmacrodata_usd_requests_do_not_require_api_key(monkeypatch, tmp_path):

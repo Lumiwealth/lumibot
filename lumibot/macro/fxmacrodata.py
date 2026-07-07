@@ -145,6 +145,22 @@ class FXMacroData:
             return {"X-API-Key": self.api_key}
         return {}
 
+    def _use_cache(self) -> bool:
+        is_backtesting = getattr(self.strategy, "is_backtesting", False)
+        if callable(is_backtesting):
+            is_backtesting = is_backtesting()
+        return bool(is_backtesting)
+
+    def _write_cache(self, cache_path: Path, payload: dict[str, Any]) -> None:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        temp_path = cache_path.with_name(f"{cache_path.name}.{os.getpid()}.{time.time_ns()}.tmp")
+        try:
+            temp_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+            os.replace(temp_path, cache_path)
+        finally:
+            if temp_path.exists():
+                temp_path.unlink()
+
     def _require_key_for_currency(self, currency: str) -> None:
         if currency.lower() != "usd" and not self.api_key:
             raise ValueError(
@@ -153,7 +169,8 @@ class FXMacroData:
             )
 
     def _get_json(self, path: str, params: dict[str, Any], cache_path: Path) -> dict[str, Any]:
-        if cache_path.exists():
+        use_cache = self._use_cache()
+        if use_cache and cache_path.exists():
             return json.loads(cache_path.read_text(encoding="utf-8"))
         self._rate_limit()
         response = requests.get(
@@ -164,8 +181,8 @@ class FXMacroData:
         )
         response.raise_for_status()
         payload = response.json()
-        cache_path.parent.mkdir(parents=True, exist_ok=True)
-        cache_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        if use_cache:
+            self._write_cache(cache_path, payload)
         return payload
 
     def list_indicators(self, category: str | None = None) -> dict[str, Any]:
@@ -304,7 +321,9 @@ class FXMacroData:
             )
             row_date = _date_text(_first_present(row, ("date", "release_date", "observation_date", "period")))
             comparison_dt = announcement_dt or _parse_dt(row_date)
-            if comparison_dt is not None and comparison_dt > as_of_dt:
+            if comparison_dt is None:
+                continue
+            if comparison_dt > as_of_dt:
                 continue
             value = _safe_float(_first_present(row, ("value", "val", "actual", "latest_value")))
             normalized = {

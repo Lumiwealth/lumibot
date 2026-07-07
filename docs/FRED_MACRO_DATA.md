@@ -4,7 +4,7 @@ Lumibot includes native Federal Reserve Economic Data (FRED) macro tools for str
 
 Use macro data for interest rates, inflation, employment, growth, liquidity, credit spreads, and market-risk context.
 
-## Strategy API
+## FRED Strategy API
 
 ```python
 self.macro.list_series()
@@ -13,9 +13,9 @@ self.macro.get_latest("UNRATE")
 self.macro.get_snapshot(["FEDFUNDS", "DGS10", "CPIAUCSL", "UNRATE"])
 ```
 
-## Agent Tools
+## FRED Agent Tools
 
-Agents receive these built-ins automatically:
+Agents receive these FRED built-ins automatically:
 
 - `list_fred_series`
 - `get_fred_series`
@@ -24,9 +24,9 @@ Agents receive these built-ins automatically:
 
 You do not need to manually attach these tools. They are included with the rest of the built-in agent tool surface.
 
-## API Key Behavior
+## FRED API Key Behavior
 
-`FRED_API_KEY` is required for the official FRED/ALFRED API path and for strict point-in-time macro backtests.
+`FRED_API_KEY` is required for the official FRED/ALFRED API path and for FRED macro data fetches that need strict point-in-time backtests.
 
 Lumibot uses the official FRED/ALFRED API and passes `realtime_start` and `realtime_end` based on the strategy datetime. This is the strict point-in-time path for macro backtests.
 
@@ -65,7 +65,7 @@ self.macro.fxmacrodata.get_latest("jpy", "policy_rate")
 self.macro.fxmacrodata.get_snapshot("gbp", ["inflation", "policy_rate", "unemployment"])
 ```
 
-Agents receive these read-only built-ins automatically:
+FXMacroData agents receive these read-only built-ins automatically:
 
 - `list_fxmacrodata_indicators`
 - `get_fxmacrodata_series`
@@ -76,7 +76,7 @@ USD announcement data is public. Set `FXMD_API_KEY` or `FXMACRODATA_API_KEY` for
 
 In a backtest, `as_of` defaults to `self.get_datetime()`. Lumibot filters release rows by `announcement_datetime` so the strategy does not see macro releases after the simulated datetime.
 
-FXMacroData responses are cached under:
+In backtests, FXMacroData responses are cached under:
 
 ```text
 ~/.lumibot/cache/fxmacrodata

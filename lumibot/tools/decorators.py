@@ -7,11 +7,6 @@ def staticdecorator(func):
     return func.__get__("")
 
 
-import sys
-import inspect
-from functools import wraps
-
-
 def call_function_get_frame(func, *args, **kwargs):
     """
     Calls func and returns its local frame and result,
@@ -23,6 +18,8 @@ def call_function_get_frame(func, *args, **kwargs):
 
     if trace is None:
         # No debugger attached → use inspect for speed
+        import inspect
+
         @wraps(func)
         def wrapper(*args, **kwargs):
             nonlocal frame

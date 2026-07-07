@@ -1,21 +1,48 @@
-import datetime
+from __future__ import annotations
+
 import os
 import re
-import traceback
-from decimal import Decimal
 from math import gcd
-from typing import Union
 
-from termcolor import colored
-
-from lumibot.tools.lumibot_logger import get_logger
+from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 
 from ..brokers import Broker
-from ..data_sources import InteractiveBrokersRESTData
-from ..entities import Asset, Order, Position
-from ..trading_builtins import PollingStream
 
-logger = get_logger(__name__)
+logger = LazyLogger(__name__)
+TYPE_CHECKING = False
+datetime = LazyModule("datetime")
+Asset = lazy_class("lumibot.entities", "Asset")
+Order = lazy_class("lumibot.entities", "Order")
+Decimal = lazy_class("decimal", "Decimal")
+InteractiveBrokersRESTData = None
+
+if TYPE_CHECKING:
+    from ..entities import Position
+
+
+def colored(*args, **kwargs):
+    from termcolor import colored as _colored
+
+    return _colored(*args, **kwargs)
+
+
+def _position_class():
+    from ..entities import Position
+
+    return Position
+
+
+def _format_exc():
+    import traceback
+
+    return traceback.format_exc()
+
+
+def _get_ibkr_rest_data_class():
+    global InteractiveBrokersRESTData
+    if InteractiveBrokersRESTData is None:
+        from ..data_sources import InteractiveBrokersRESTData
+    return InteractiveBrokersRESTData
 
 TYPE_MAP = dict(
     stock="STK",
@@ -56,10 +83,10 @@ SPREAD_CONID_MAP = {
 }
 
 ASSET_CLASS_MAPPING = {
-    "STK": Asset.AssetType.STOCK,
-    "OPT": Asset.AssetType.OPTION,
-    "FUT": Asset.AssetType.FUTURE,
-    "CASH": Asset.AssetType.FOREX,
+    "STK": "stock",
+    "OPT": "option",
+    "FUT": "future",
+    "CASH": "forex",
 }
 
 
@@ -68,24 +95,30 @@ class InteractiveBrokersREST(Broker):
     Broker that connects to the Interactive Brokers REST API.
     """
 
-    POLL_EVENT = PollingStream.POLL_EVENT
+    POLL_EVENT = "poll"
     NAME = "InteractiveBrokersREST"
 
-    def __init__(self, config, data_source=None, poll_interval=5.0):
+    def __init__(self, config, data_source=None, poll_interval=5.0, connect_stream=True):
         # Set polling_interval before super().__init__() since it's needed in _get_stream_object
         self.polling_interval = poll_interval
 
         if data_source is None:
-            data_source = InteractiveBrokersRESTData(config)
+            data_source = _get_ibkr_rest_data_class()(config)
 
         super().__init__(
             name=self.NAME,
             data_source=data_source,
-            config=config
+            config=config,
+            connect_stream=connect_stream,
         )
 
         # The default market is NYSE.
         self.market = (config.get("MARKET") if config else None) or os.environ.get("MARKET") or "NYSE"
+
+    def _safe_stream_dispatch(self, event, **kwargs):
+        stream = getattr(self, "stream", None)
+        if stream is not None and hasattr(stream, "dispatch"):
+            stream.dispatch(event, **kwargs)
 
     # --------------------------------------------------------------
     # Broker methods
@@ -126,6 +159,7 @@ class InteractiveBrokersREST(Broker):
         # Loop through the account balances and find the quote asset. If not the quote asset, create a position object for the currency/forex asset.
         cash = 0
         balances_for_quote_asset = None
+        Position = _position_class()
         for currency, balances in account_balances.items():
             if currency == quote_symbol:
                 # Get the account balances for the quote asset
@@ -380,6 +414,7 @@ class InteractiveBrokersREST(Broker):
                 )
             )
 
+        Position = _position_class()
         quantity = broker_position["position"]
         position = Position(strategy, asset, quantity, orders=orders)
         return position
@@ -399,6 +434,7 @@ class InteractiveBrokersREST(Broker):
         for pos in result:
             if pos.asset == asset:
                 return pos
+        Position = _position_class()
         return Position(strategy, asset, 0)
 
     def _pull_broker_positions(self, strategy=None):
@@ -442,6 +478,7 @@ class InteractiveBrokersREST(Broker):
 
         # Initialize a list to store the Position objects
         positions_list = []
+        Position = _position_class()
 
         # Loop through the positions and create Position objects
         for position in positions:
@@ -708,7 +745,7 @@ class InteractiveBrokersREST(Broker):
             if response is None:
                 self._log_order_status(order, "failed", success=False)
                 msg = "Broker returned no response"
-                self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
+                self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
                 return order
 
             self._log_order_status(order, "executed", success=True)
@@ -717,14 +754,14 @@ class InteractiveBrokersREST(Broker):
             self._unprocessed_orders.append(order)
             order.status=Order.OrderStatus.SUBMITTED
 
-            self.stream.dispatch(self.NEW_ORDER, order=order)
+            self._safe_stream_dispatch(self.NEW_ORDER, order=order)
 
             return order
 
         except Exception as e:
             msg = colored(f"Error submitting order {order}: {e}", color="red")
             logger.error(colored("Error details:", "red"), exc_info=True)
-            self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
+            self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
             return order
 
     def _submit_orders(
@@ -764,7 +801,7 @@ class InteractiveBrokersREST(Broker):
                     for order in orders:
                         self._log_order_status(order, "failed", success=False)
                         msg = "Broker returned no response"
-                        self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
+                        self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
                     return None
 
                 order = Order(orders[0].strategy)
@@ -780,7 +817,7 @@ class InteractiveBrokersREST(Broker):
                     order.status=Order.OrderStatus.SUBMITTED
 
                 self._unprocessed_orders.append(order)
-                self.stream.dispatch(self.NEW_ORDER, order=order)
+                self._safe_stream_dispatch(self.NEW_ORDER, order=order)
                 self._log_order_status(order, "executed", success=True)
                 return [order]
 
@@ -791,7 +828,7 @@ class InteractiveBrokersREST(Broker):
                     for order in orders:
                         self._log_order_status(order, "failed", success=False)
                         msg = 'Broker returned no response'
-                        self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
+                        self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
 
                     return None
 
@@ -800,7 +837,7 @@ class InteractiveBrokersREST(Broker):
                 for order in orders:
                     order.identifier = response[order_id]["order_id"]
                     self._unprocessed_orders.append(order)
-                    self.stream.dispatch(self.NEW_ORDER, order=order)
+                    self._safe_stream_dispatch(self.NEW_ORDER, order=order)
                     self._log_order_status(order, "executed", success=True)
                     order.status=Order.OrderStatus.SUBMITTED
 
@@ -816,7 +853,7 @@ class InteractiveBrokersREST(Broker):
             )
 
             for order in orders:
-                self.stream.dispatch(self.ERROR_ORDER, order=order, error_msg=e)
+                self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=e)
 
             logger.error(colored("Error details:", "red"), exc_info=True)
 
@@ -1076,7 +1113,7 @@ class InteractiveBrokersREST(Broker):
                 )
                 return True
             except:
-                logger.error(traceback.format_exc())
+                logger.error(_format_exc())
 
         @broker.stream.add_action(broker.FILLED_ORDER)
         def on_trade_event_fill(order, price, filled_quantity):
@@ -1093,7 +1130,7 @@ class InteractiveBrokersREST(Broker):
                 )
                 return True
             except:
-                logger.error(traceback.format_exc())
+                logger.error(_format_exc())
 
         @broker.stream.add_action(broker.CANCELED_ORDER)
         def on_trade_event_cancel(order):
@@ -1106,7 +1143,7 @@ class InteractiveBrokersREST(Broker):
                     broker.CANCELED_ORDER,
                 )
             except:
-                logger.error(traceback.format_exc())
+                logger.error(_format_exc())
 
         @broker.stream.add_action(broker.CASH_SETTLED)
         def on_trade_event_cash(order, price, filled_quantity):
@@ -1122,7 +1159,7 @@ class InteractiveBrokersREST(Broker):
                     multiplier=order.asset.multiplier,
                 )
             except:
-                logger.error(traceback.format_exc())
+                logger.error(_format_exc())
 
         @broker.stream.add_action(broker.ERROR_ORDER)
         def on_trade_event_error(order, error_msg):
@@ -1138,7 +1175,7 @@ class InteractiveBrokersREST(Broker):
                 logger.error(error_msg)
                 order.set_error(error_msg)
             except:
-                logger.error(traceback.format_exc())
+                logger.error(_format_exc())
 
 
     def _run_stream(self):
@@ -1149,6 +1186,8 @@ class InteractiveBrokersREST(Broker):
 
     def _get_stream_object(self):
         """Create polling stream"""
+        from ..trading_builtins import PollingStream
+
         return PollingStream(self.polling_interval)
 
     def _close_connection(self):
@@ -1209,19 +1248,19 @@ class InteractiveBrokersREST(Broker):
                     if not order.equivalent_status(stored_order):
                         match order.status.lower():
                             case "submitted" | "open":
-                                self.stream.dispatch(self.NEW_ORDER, order=stored_order)
+                                self._safe_stream_dispatch(self.NEW_ORDER, order=stored_order)
                             case "fill":
-                                self.stream.dispatch(
+                                self._safe_stream_dispatch(
                                     self.FILLED_ORDER,
                                     order=stored_order,
                                     price=order.avg_fill_price,
                                     filled_quantity=order.quantity
                                 )
                             case "canceled":
-                                self.stream.dispatch(self.CANCELED_ORDER, order=stored_order)
+                                self._safe_stream_dispatch(self.CANCELED_ORDER, order=stored_order)
                             case "error":
                                 msg = f"IB encountered an error with order {order.identifier}"
-                                self.stream.dispatch(self.ERROR_ORDER, order=stored_order, error_msg=msg)
+                                self._safe_stream_dispatch(self.ERROR_ORDER, order=stored_order, error_msg=msg)
                     else:
                         stored_order.status = order.status
 

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any, Optional
-
 
 IBKR_US_FUTURES_EXCHANGES = {"CME", "CBOT", "COMEX", "NYMEX"}
 
@@ -76,4 +74,3 @@ def select_futures_exchange_from_secdef_search_payload(
             "Pass exchange=... explicitly."
         )
     return next(iter(best))
-

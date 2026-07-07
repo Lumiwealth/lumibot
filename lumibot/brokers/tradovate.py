@@ -1,24 +1,57 @@
-import random
+from __future__ import annotations
+
 import re
 import threading
 import time
-import traceback
 from collections import deque
-from datetime import datetime, timezone
-from typing import Optional, Union
 
-import requests
-from termcolor import colored
-
+from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 from .broker import Broker
-from lumibot.data_sources import TradovateData
-from lumibot.entities import Asset, Order, Position
-from lumibot.trading_builtins import PollingStream
 
 # Set up module-specific logger for enhanced logging
-from lumibot.tools.lumibot_logger import get_logger
 
-logger = get_logger(__name__)
+logger = LazyLogger(__name__)
+TYPE_CHECKING = False
+datetime = lazy_class("datetime", "datetime")
+timezone = lazy_class("datetime", "timezone")
+requests = LazyModule("requests")
+Asset = lazy_class("lumibot.entities", "Asset")
+Order = lazy_class("lumibot.entities", "Order")
+TradovateData = None
+
+if TYPE_CHECKING:
+    from lumibot.entities import Position
+
+
+def colored(*args, **kwargs):
+    from termcolor import colored as _colored
+
+    return _colored(*args, **kwargs)
+
+
+def _position_class():
+    from lumibot.entities import Position
+
+    return Position
+
+
+def _format_exc():
+    import traceback
+
+    return traceback.format_exc()
+
+
+def _random_uniform(*args, **kwargs):
+    import random
+
+    return random.uniform(*args, **kwargs)
+
+
+def _get_tradovate_data_class():
+    global TradovateData
+    if TradovateData is None:
+        from lumibot.data_sources import TradovateData
+    return TradovateData
 
 class TradovateAPIError(Exception):
     """Exception raised for errors in the Tradovate API."""
@@ -33,9 +66,9 @@ class Tradovate(Broker):
     Tradovate broker that implements connection to the Tradovate API.
     """
     NAME = "Tradovate"
-    POLL_EVENT = PollingStream.POLL_EVENT
+    POLL_EVENT = "poll"
 
-    def __init__(self, config=None, data_source=None):
+    def __init__(self, config=None, data_source=None, connect_stream=None):
         if config is None:
             config = {}
 
@@ -49,6 +82,18 @@ class Tradovate(Broker):
         self.cid = config.get("CID")
         self.sec = config.get("SECRET")
         self.polling_interval = float(config.get("POLLING_INTERVAL", 5.0))
+        self._connect_on_init = bool(config.get("CONNECT_ON_INIT", False))
+        self._tradovate_connected = False
+        self._tradovate_connecting = False
+        self._tradovate_connection_lock = threading.RLock()
+        self.trading_token = None
+        self.market_token = None
+        self.has_market_data = False
+        self.token_acquired_time = 0
+        self.token_lifetime = 4800  # Tradovate tokens expire after 80 minutes
+        self.account_spec = None
+        self.account_id = None
+        self.user_id = None
         self._seen_fill_ids: set[int] = set()
         self._fill_bootstrap_cutoff = datetime.now(timezone.utc)
         self._active_broker_identifiers: Optional[set[str]] = None
@@ -69,45 +114,82 @@ class Tradovate(Broker):
         self._balance_retry_cooldown = max(int(config.get("BALANCE_RETRY_COOLDOWN", 300)), 30)
         self._balance_backoff_until: Optional[float] = None
 
-        # Authenticate and get tokens before creating data_source
-        try:
-            tokens = self._get_tokens()
-            self.trading_token = tokens["accessToken"]
-            self.market_token = tokens["marketToken"]
-            self.has_market_data = tokens["hasMarketData"]
-            self.token_acquired_time = time.time()
-            self.token_lifetime = 4800  # Tradovate tokens expire after 80 minutes
-            logger.info(colored("Successfully acquired tokens from Tradovate.", "green"))
+        self._validate_config()
+        if connect_stream is None:
+            connect_stream = self._connect_on_init
 
-            # Now create the data source with the tokens if it wasn't provided
-            if data_source is None:
-                # Update config with API URLs for consistency
-                config["TRADING_API_URL"] = self.trading_api_url
-                config["MD_URL"] = self.market_data_url
-                data_source = TradovateData(
-                    config=config,
-                    trading_token=self.trading_token,
-                    market_token=self.market_token
-                )
+        if data_source is None:
+            config["TRADING_API_URL"] = self.trading_api_url
+            config["MD_URL"] = self.market_data_url
+            data_source = _get_tradovate_data_class()(
+                config=config,
+                trading_token=self.trading_token,
+                market_token=self.market_token
+            )
 
-            super().__init__(name=self.NAME, data_source=data_source, config=config)
+        super().__init__(name=self.NAME, data_source=data_source, config=config, connect_stream=connect_stream)
 
-            account_info = self._get_account_info(self.trading_token)
-            self.account_spec = account_info["accountSpec"]
-            self.account_id = account_info["accountId"]
-            logger.info(colored(f"Account Info: {account_info}", "green"))
-
-            self.user_id = self._get_user_info(self.trading_token)
-            logger.info(colored(f"User ID: {self.user_id}", "green"))
-
-        except TradovateAPIError as e:
-            logger.warning(colored(f"Failed initial connection to Tradovate: {e}", "yellow"))
-            logger.warning(colored("Broker initialization failed due to rate limiting. The script will exit cleanly.", "yellow"))
-            raise e
+        if self._connect_on_init:
+            self._ensure_connected()
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+    def _validate_config(self):
+        required_fields = {
+            "USERNAME": self.username,
+            "DEDICATED_PASSWORD": self.password,
+            "CID": self.cid,
+            "SECRET": self.sec,
+        }
+        missing = [name for name, value in required_fields.items() if not value]
+        if missing:
+            raise TradovateAPIError(
+                f"Missing required Tradovate credentials: {', '.join(missing)}"
+            )
+
+    def _ensure_connected(self):
+        if not hasattr(self, "_tradovate_connected"):
+            self._tradovate_connected = bool(
+                getattr(self, "trading_token", None) and getattr(self, "account_id", None)
+            )
+        if not hasattr(self, "_tradovate_connecting"):
+            self._tradovate_connecting = False
+        if not hasattr(self, "_tradovate_connection_lock"):
+            self._tradovate_connection_lock = threading.RLock()
+
+        with self._tradovate_connection_lock:
+            if self._tradovate_connected:
+                return
+
+            self._tradovate_connecting = True
+            try:
+                tokens = self._get_tokens()
+                self.trading_token = tokens["accessToken"]
+                self.market_token = tokens["marketToken"]
+                self.has_market_data = tokens["hasMarketData"]
+                self.token_acquired_time = time.time()
+                logger.info(colored("Successfully acquired tokens from Tradovate.", "green"))
+
+                if hasattr(self, "data_source") and self.data_source:
+                    self.data_source.trading_token = self.trading_token
+                    self.data_source.market_token = self.market_token
+
+                account_info = self._get_account_info(self.trading_token)
+                self.account_spec = account_info["accountSpec"]
+                self.account_id = account_info["accountId"]
+                logger.info(colored(f"Account Info: {account_info}", "green"))
+
+                self.user_id = self._get_user_info(self.trading_token)
+                logger.info(colored(f"User ID: {self.user_id}", "green"))
+                self._tradovate_connected = True
+            except TradovateAPIError as e:
+                logger.warning(colored(f"Failed initial connection to Tradovate: {e}", "yellow"))
+                logger.warning(colored("Broker connection failed due to rate limiting or authentication.", "yellow"))
+                raise e
+            finally:
+                self._tradovate_connecting = False
+
     def _throttle_rest(self):
         """Ensure REST calls respect a soft per-minute cap."""
         if self._rate_limit_per_minute <= 0:
@@ -123,7 +205,7 @@ class Tradovate(Broker):
 
             if len(self._request_times) >= self._rate_limit_per_minute:
                 wait_for = self._rate_limit_window - (now - self._request_times[0])
-                wait_for = max(wait_for, 0) + random.uniform(0.05, 0.25)
+                wait_for = max(wait_for, 0) + _random_uniform(0.05, 0.25)
                 logger.debug(
                     "Tradovate REST throttle triggered; sleeping %.2fs to stay under limit",
                     wait_for,
@@ -159,6 +241,9 @@ class Tradovate(Broker):
         dict
             Dictionary of headers for API requests
         """
+        if with_auth and not self._tradovate_connecting and not self.trading_token:
+            self._ensure_connected()
+
         headers = {"Accept": "application/json"}
         if with_auth:
             headers["Authorization"] = f"Bearer {self.trading_token}"
@@ -311,6 +396,10 @@ class Tradovate(Broker):
         """
         Check if the token is expired or about to expire and renew it if necessary.
         """
+        if not self.trading_token:
+            self._ensure_connected()
+            return
+
         current_time = time.time()
         token_age = current_time - self.token_acquired_time
 
@@ -530,6 +619,8 @@ class Tradovate(Broker):
 
     def _get_stream_object(self):
         """Return a polling stream to monitor Tradovate orders."""
+        from lumibot.trading_builtins import PollingStream
+
         return PollingStream(self.polling_interval)
 
     def check_token_expiry(self):
@@ -675,6 +766,7 @@ class Tradovate(Broker):
             response.raise_for_status()
             positions_data = response.json()
             positions = []
+            Position = _position_class()
             for pos in positions_data:
                 contract_id = pos.get("contractId")
                 if not contract_id:
@@ -733,7 +825,7 @@ class Tradovate(Broker):
             try:
                 broker._process_trade_event(order, broker.NEW_ORDER)
             except Exception:  # pragma: no cover
-                logger.error(traceback.format_exc())
+                logger.error(_format_exc())
 
         @stream.add_action(self.FILLED_ORDER)
         def on_trade_event_fill(order, price, filled_quantity):
@@ -749,7 +841,7 @@ class Tradovate(Broker):
                     multiplier=order.asset.multiplier if order.asset else 1,
                 )
             except Exception:  # pragma: no cover
-                logger.error(traceback.format_exc())
+                logger.error(_format_exc())
 
         @stream.add_action(self.PARTIALLY_FILLED_ORDER)
         def on_trade_event_partial(order, price, filled_quantity):
@@ -765,7 +857,7 @@ class Tradovate(Broker):
                     multiplier=order.asset.multiplier if order.asset else 1,
                 )
             except Exception:  # pragma: no cover
-                logger.error(traceback.format_exc())
+                logger.error(_format_exc())
 
         @stream.add_action(self.CANCELED_ORDER)
         def on_trade_event_cancel(order):
@@ -773,7 +865,7 @@ class Tradovate(Broker):
             try:
                 broker._process_trade_event(order, broker.CANCELED_ORDER)
             except Exception:  # pragma: no cover
-                logger.error(traceback.format_exc())
+                logger.error(_format_exc())
 
         @stream.add_action(self.ERROR_ORDER)
         def on_trade_event_error(order, error_msg=None):
@@ -781,7 +873,7 @@ class Tradovate(Broker):
             try:
                 broker._process_trade_event(order, broker.ERROR_ORDER, error=error_msg)
             except Exception:  # pragma: no cover
-                logger.error(traceback.format_exc())
+                logger.error(_format_exc())
 
     def _run_stream(self):
         """Start the polling loop and mark the connection as established."""
@@ -946,6 +1038,10 @@ class Tradovate(Broker):
 
     def do_polling(self):
         """Poll Tradovate REST endpoints to keep order state synchronized."""
+        if not self.trading_token or self.account_id is None:
+            logger.debug("Skipping Tradovate polling until broker connection is established")
+            return
+
         # Sync positions so position lookups remain accurate.
         try:
             self.sync_positions(None)
@@ -1200,6 +1296,8 @@ class Tradovate(Broker):
         is updated to 'submitted' and the raw response is attached to the order. Otherwise, 
         the order is marked with an error.
         """
+        self._ensure_connected()
+
         # Pre-submission validation
         if not self.account_spec or not self.account_id:
             error_msg = "Account information not properly initialized"
@@ -1299,7 +1397,7 @@ class Tradovate(Broker):
                     try:
                         self._process_trade_event(order, self.NEW_ORDER)
                     except Exception:  # pragma: no cover - defensive
-                        logger.error(traceback.format_exc())
+                        logger.error(_format_exc())
                 return order
 
         except requests.exceptions.RequestException as e:
@@ -1310,6 +1408,8 @@ class Tradovate(Broker):
 
     def cancel_order(self, order) -> None:
         """Cancel an order at Tradovate and propagate lifecycle events."""
+        self._ensure_connected()
+
         target_order = None
         identifier = None
 

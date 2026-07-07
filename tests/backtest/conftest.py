@@ -14,12 +14,19 @@ _CI_TIMING_ENABLED = os.environ.get("CI", "").lower() in {"1", "true", "yes"}
 _CI_TIMING_START: dict[str, float] = {}
 
 
+def _record_backtest_performance_enabled() -> bool:
+    return os.environ.get("LUMIBOT_RECORD_BACKTEST_PERFORMANCE", "").lower() in {"1", "true", "yes", "on"}
+
+
 @pytest.fixture(autouse=True)
 def track_backtest_performance(request):
     """Automatically track execution time for all backtest tests"""
     # Only track tests in the backtest directory
     test_file = Path(request.node.fspath)
     if test_file.parent.name != "backtest":
+        yield
+        return
+    if not _record_backtest_performance_enabled():
         yield
         return
 

@@ -68,6 +68,13 @@ This page documents environment variables used by LumiBot, with an emphasis on *
   - Local overrides are convenient for developer machines but should usually be disabled in production/runtime-secret contexts.
 - Where: `lumibot/credentials.py`
 
+### `LUMIBOT_LOG_LEVEL`
+- Purpose: Control LumiBot startup logging before full logger setup.
+- Values: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`.
+- Default: `INFO`.
+- Example: `LUMIBOT_LOG_LEVEL=ERROR python your_strategy.py` suppresses the import-time `LumiBot v... starting` message and skips import-time console logger setup.
+- Where: `lumibot/__init__.py`, `lumibot/_lazy_imports.py`
+
 ### `IS_BACKTESTING`
 - Purpose: Signals backtesting mode for certain code paths.
 - Values: `True` / `False` (string).
@@ -116,6 +123,9 @@ This page documents environment variables used by LumiBot, with an emphasis on *
 ## Live scheduled execution (BotSpot/BotManager)
 
 - `LUMIBOT_SCHEDULED_EXECUTION`: internal BotManager flag. Truthy values (`1`, `true`, `yes`, `y`, `on`) make `Strategy.run_live()` run one live iteration and exit.
+- `LUMIBOT_LAZY_CREDENTIALS`: defers default broker/data-source credential materialization during live startup when truthy. Defaults to enabled when `LUMIBOT_SCHEDULED_EXECUTION` is truthy.
+- `LUMIBOT_CONNECT_STREAM`: overrides whether live brokers start their stream during broker construction. Truthy values enable stream startup; any other set value disables it. Defaults to disabled for scheduled execution and enabled otherwise.
+- `LUMIBOT_START_ORDERS_THREAD`: overrides whether live brokers start their orders thread during broker construction. Truthy values enable the orders thread; any other set value disables it. Defaults to disabled for scheduled execution and enabled otherwise. Queue-based brokers that require the worker to submit orders, such as legacy Interactive Brokers, keep the worker enabled even when this flag is false.
 - `LUMIBOT_SCHEDULED_TARGET_RUN_AT`: UTC ISO-8601 target time for exact scheduled runs. When present, LumiBot initializes the strategy/broker first, waits locally until this timestamp immediately before `on_trading_iteration()`, and skips the iteration if the drift budget is exceeded.
 - `LUMIBOT_SCHEDULED_PRE_START_AT`: UTC ISO-8601 pre-start time used by BotManager telemetry to compare scheduler launch timing with the requested target.
 - `LUMIBOT_SCHEDULED_MAX_TARGET_DRIFT_MS`: maximum allowed late drift in milliseconds for exact scheduled runs. Defaults to `1000`.

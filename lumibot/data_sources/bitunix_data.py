@@ -1,15 +1,33 @@
-from typing import Optional
+from __future__ import annotations
 
-import pandas as pd
-import pytz
-
+from lumibot._lazy_imports import LazyModule, LazyPytzTimezoneRef, lazy_class
 from lumibot.data_sources.data_source import DataSource
-from lumibot.entities import Asset, Bars
-from lumibot.tools.bitunix_helpers import BitUnixClient
+
+TYPE_CHECKING = False
+pd = LazyModule("pandas")
+pytz = LazyModule("pytz")
+Asset = lazy_class("lumibot.entities", "Asset")
+
+if TYPE_CHECKING:
+    from lumibot.entities import Bars
+
+
+def _get_bars_class():
+    from lumibot.entities import Bars
+
+    return Bars
+
+
+def _get_bitunix_client_class():
+    from lumibot.tools.bitunix_helpers import BitUnixClient
+
+    return BitUnixClient
 
 
 class BitunixData(DataSource):
     SOURCE = "BITUNIX"
+    DEFAULT_TIMEZONE = "UTC"
+    DEFAULT_PYTZ = LazyPytzTimezoneRef(DEFAULT_TIMEZONE)
     MIN_TIMESTEP = "minute"
     TIMESTEP_MAPPING = [
         {"timestep": "minute", "representations": ["1", "1m", "minute"]},
@@ -25,9 +43,6 @@ class BitunixData(DataSource):
 
     def __init__(self, config: dict, max_workers: int = 1, chunk_size: int = 100, tzinfo: Optional[pytz.timezone] = None):
         super().__init__(delay=0, tzinfo=tzinfo)
-        # Ensure we have a timezone
-        if self.tzinfo is None:
-            self.tzinfo = pytz.utc
         self.name = "bitunix"
         self.chunk_size = chunk_size
         # Parse API keys
@@ -42,7 +57,7 @@ class BitunixData(DataSource):
             self.api_secret = getattr(config, "API_SECRET", None)
             if not self.api_key or not self.api_secret:
                 raise ValueError("API_KEY and API_SECRET must be provided in config")
-        self.client = BitUnixClient(self.api_key, self.api_secret)
+        self.client = _get_bitunix_client_class()(self.api_key, self.api_secret)
         # Track symbols we're interested in for WebSocket subscriptions
         self.client_symbols = set()
 
@@ -66,7 +81,7 @@ class BitunixData(DataSource):
             quote = Asset(symbol="USDT", asset_type=Asset.AssetType.CRYPTO)
         return asset, quote
 
-    def get_last_price(self, asset: Asset, quote: Asset = Asset("USDT", Asset.AssetType.CRYPTO), **kwargs) -> Optional[float]:
+    def get_last_price(self, asset: Asset, quote: Asset = None, **kwargs) -> Optional[float]:
         asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
         if asset.asset_type == Asset.AssetType.FUTURE:
             symbol = asset.symbol
@@ -206,7 +221,7 @@ class BitunixData(DataSource):
         """
         Wraps the raw DataFrame into a Bars entity with source metadata.
         """
-        return Bars(df, self.SOURCE, asset, raw=df, quote=quote)
+        return _get_bars_class()(df, self.SOURCE, asset, raw=df, quote=quote)
 
     def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None, strike_count: int = 100) -> dict:
         """Option chains not supported by BitUnix."""

@@ -42,6 +42,29 @@ class TestProjectXDataSource:
             assert data_source.name == "data_source"  # Inherited from parent DataSource class
             assert data_source.firm == "TEST"
 
+    def test_data_source_initialization_defers_projectx_client_auth(self, mock_projectx_config):
+        """ProjectX data source should not authenticate until a data method needs the client."""
+        with patch('lumibot.data_sources.projectx_data.ProjectXClient') as mock_client:
+            data_source = ProjectXData(mock_projectx_config)
+
+            mock_client.assert_not_called()
+            assert data_source.client._client is None
+
+    def test_data_source_lazy_client_captures_constructor_patch(self, mock_projectx_config):
+        """A constructor-scoped ProjectXClient patch should still be used on first client access."""
+        class DummyClient:
+            def __init__(self, config):
+                self.config = config
+
+            def find_contract_by_symbol(self, symbol):
+                return f"CON.F.US.{symbol}.Z25"
+
+        with patch('lumibot.data_sources.projectx_data.ProjectXClient', DummyClient):
+            data_source = ProjectXData(mock_projectx_config)
+
+        assert data_source.client.find_contract_by_symbol("MES") == "CON.F.US.MES.Z25"
+        assert isinstance(data_source.client._client, DummyClient)
+
     def test_timespan_parsing(self, projectx_data_source):
         """Test timespan parsing for ProjectX unit conversion"""
 

@@ -467,6 +467,24 @@ def test_schwab_stock_market_replacement_spec_uses_normal_session():
     assert order_spec["orderType"] == "MARKET"
 
 
+def test_schwab_stock_submit_succeeds_without_stream():
+    client = _PlaceClient()
+    broker = Schwab.__new__(Schwab)
+    broker.name = "Schwab"
+    broker.schwab_authorization_error = False
+    broker.client = client
+    broker.hash_value = "account-hash"
+    broker.stream = None
+    broker._unprocessed_orders = SafeList(RLock())
+    order = _stock_limit_order(side=Order.OrderSide.BUY, limit_price=10.0)
+
+    submitted = broker._submit_order(order)
+
+    assert submitted is order
+    assert order.identifier == "submitted-123"
+    assert order.status == Order.OrderStatus.SUBMITTED
+
+
 def test_schwab_stock_limit_replacement_spec_uses_seamless_session():
     broker = Schwab.__new__(Schwab)
     broker.name = "Schwab"
@@ -1113,6 +1131,7 @@ def test_schwab_cancel_order_raises_on_http_error_without_marking_canceled():
 
 
 def test_schwab_run_stream_without_stream_returns_without_traceback(caplog):
+    caplog.set_level(logging.WARNING, logger="lumibot.brokers.schwab")
     broker = Schwab.__new__(Schwab)
     broker.stream = None
 

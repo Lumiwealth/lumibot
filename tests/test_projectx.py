@@ -58,6 +58,29 @@ class TestProjectXBroker:
             assert broker.name == "ProjectX_TEST"
             assert broker.firm == "TEST"
 
+    def test_broker_initialization_defers_projectx_client_auth(self, mock_projectx_config, mock_data_source):
+        """ProjectX auth should wait until the broker actually uses the API client."""
+        with patch('lumibot.brokers.projectx.ProjectXClient') as mock_client:
+            broker = ProjectX(mock_projectx_config, data_source=mock_data_source, connect_stream=False)
+
+            mock_client.assert_not_called()
+            assert broker.client._client is None
+
+    def test_broker_lazy_client_captures_constructor_patch(self, mock_projectx_config, mock_data_source):
+        """A constructor-scoped ProjectXClient patch should still be used on first client access."""
+        class DummyClient:
+            def __init__(self, config):
+                self.config = config
+
+            def get_preferred_account_id(self):
+                return 123
+
+        with patch('lumibot.brokers.projectx.ProjectXClient', DummyClient):
+            broker = ProjectX(mock_projectx_config, data_source=mock_data_source, connect_stream=False)
+
+        assert broker.client.get_preferred_account_id() == 123
+        assert isinstance(broker.client._client, DummyClient)
+
     def test_order_status_mapping_corrected(self, projectx_broker):
         """
         Test that order status mapping is corrected based on actual ProjectX API.

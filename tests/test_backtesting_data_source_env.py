@@ -5,9 +5,12 @@ without running real backtests (which would be slow and flaky in CI).
 """
 
 from datetime import datetime
+import sys
+import types
 
 import pytest
 
+from lumibot._lazy_imports import lazy_class
 from lumibot.strategies import Strategy
 
 
@@ -107,6 +110,63 @@ class TestBacktestingDataSourceEnv:
             "Using BACKTESTING_DATA_SOURCE setting for backtest data: THETADATA" in record.message
             for record in caplog.records
         )
+
+    def test_auto_select_thetadata_resolves_lazy_class_before_subclass_check(self, monkeypatch):
+        module_name = "tests.fake_lazy_thetadata_backtesting"
+        fake_module = types.ModuleType(module_name)
+        captured = {}
+
+        class BacktestingBroker:
+            pass
+
+        class InteractiveBrokersRESTBacktesting:
+            pass
+
+        class ThetaDataBacktestingPandas:
+            def __init__(self, *args, **kwargs):
+                captured["args"] = args
+                captured["kwargs"] = kwargs
+                raise TestBacktestingDataSourceEnv._ThetaDataSelected()
+
+        class ThetaDataBacktesting(ThetaDataBacktestingPandas):
+            pass
+
+        fake_module.ThetaDataBacktesting = ThetaDataBacktesting
+        fake_module.ThetaDataBacktestingPandas = ThetaDataBacktestingPandas
+        monkeypatch.setitem(sys.modules, module_name, fake_module)
+
+        import lumibot.strategies._strategy as strategy_module
+
+        monkeypatch.setattr(strategy_module, "BacktestingBroker", BacktestingBroker)
+        monkeypatch.setattr(strategy_module, "InteractiveBrokersRESTBacktesting", InteractiveBrokersRESTBacktesting)
+        monkeypatch.setattr(strategy_module, "ThetaDataBacktesting", lazy_class(module_name, "ThetaDataBacktesting"))
+        monkeypatch.setattr(
+            strategy_module,
+            "ThetaDataBacktestingPandas",
+            lazy_class(module_name, "ThetaDataBacktestingPandas"),
+        )
+        monkeypatch.setenv("BACKTESTING_DATA_SOURCE", "THETADATA")
+
+        with pytest.raises(self._ThetaDataSelected):
+            SimpleTestStrategy.run_backtest(
+                None,
+                backtesting_start=datetime(2023, 1, 1),
+                backtesting_end=datetime(2023, 1, 10),
+                thetadata_username="test_user",
+                thetadata_password="test_pass",
+                use_quote_data=True,
+                show_plot=False,
+                show_tearsheet=False,
+                show_indicators=False,
+                show_progress_bar=False,
+                save_tearsheet=False,
+                save_stats_file=False,
+                save_logfile=False,
+            )
+
+        assert captured["kwargs"]["username"] == "test_user"
+        assert captured["kwargs"]["password"] == "test_pass"
+        assert captured["kwargs"]["use_quote_data"] is True
 
     def test_auto_select_yahoo_case_insensitive(self, monkeypatch, caplog):
         import logging

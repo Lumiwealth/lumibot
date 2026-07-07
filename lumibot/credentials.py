@@ -9,14 +9,19 @@
 import os
 import sys
 
-import termcolor
+from lumibot._lazy_imports import LazyLogger
 
-from lumibot.tools.lumibot_logger import get_logger
-
-# Configure logging
-logger = get_logger(__name__)
 _LOAD_DOTENV = None
 _DATEUTIL_PARSER = None
+
+
+logger = LazyLogger(__name__)
+
+
+def _colored(*args, **kwargs):
+    from termcolor import colored
+
+    return colored(*args, **kwargs)
 
 
 def _load_dotenv(dotenv_path, *, override=False):
@@ -58,6 +63,14 @@ _BROKER_CLASS_NAMES = {
 
 
 def __getattr__(name: str):
+    if name == "BROKER":
+        value = get_default_broker()
+        globals()[name] = value
+        return value
+    if name == "DATA_SOURCE":
+        value = get_default_data_source()
+        globals()[name] = value
+        return value
     if name in _BROKER_CLASS_NAMES:
         cls = _broker_class(name)
         globals()[name] = cls
@@ -77,6 +90,31 @@ def _disable_dotenv_local_requested() -> bool:
     return _env_flag_enabled("LUMIBOT_DISABLE_DOTENV_LOCAL")
 
 
+def _scheduled_execution_requested() -> bool:
+    return _env_flag_enabled("LUMIBOT_SCHEDULED_EXECUTION")
+
+
+def _connect_stream_on_init() -> bool:
+    value = os.environ.get("LUMIBOT_CONNECT_STREAM")
+    if value is not None:
+        return value.strip().lower() in ("1", "true", "yes", "y", "on")
+    return not _scheduled_execution_requested()
+
+
+def _start_orders_thread_on_init() -> bool:
+    value = os.environ.get("LUMIBOT_START_ORDERS_THREAD")
+    if value is not None:
+        return value.strip().lower() in ("1", "true", "yes", "y", "on")
+    return not _scheduled_execution_requested()
+
+
+def _defer_default_credentials() -> bool:
+    value = os.environ.get("LUMIBOT_LAZY_CREDENTIALS")
+    if value is not None:
+        return value.strip().lower() in ("1", "true", "yes", "y", "on")
+    return _scheduled_execution_requested()
+
+
 def find_and_load_dotenv(base_dir) -> bool:
     current = os.path.abspath(base_dir)
     if os.path.isfile(current):
@@ -88,7 +126,7 @@ def find_and_load_dotenv(base_dir) -> bool:
         if os.path.isfile(dotenv_path):
             _load_dotenv(dotenv_path)
 
-            colored_message = termcolor.colored(f".env file loaded from: {dotenv_path}", "green")
+            colored_message = _colored(f".env file loaded from: {dotenv_path}", "green")
             if _quiet_backtest_logs_requested():
                 logger.debug(colored_message)
             else:
@@ -100,7 +138,7 @@ def find_and_load_dotenv(base_dir) -> bool:
             dotenv_local_path = os.path.join(current, ".env.local")
             if not _disable_dotenv_local_requested() and os.path.isfile(dotenv_local_path):
                 _load_dotenv(dotenv_local_path, override=True)
-                colored_message = termcolor.colored(f".env.local file loaded from: {dotenv_local_path}", "green")
+                colored_message = _colored(f".env.local file loaded from: {dotenv_local_path}", "green")
                 if _quiet_backtest_logs_requested():
                     logger.debug(colored_message)
                 else:
@@ -136,25 +174,24 @@ if not found_dotenv and not _disable_dotenv:
 
 # If no .env file was found, print a warning message
 if not found_dotenv:
-    # Create a colored message for the log using termcolor
-    colored_message = termcolor.colored(
-        "No .env file found. This is expected when relying on environment variables or external secrets.",
-        "blue",
+    logger.debug(
+        "No .env file found. This is expected when relying on environment variables or external secrets."
     )
-    logger.debug(colored_message)
 
 # dotenv.load_dotenv()
 broker=None
 
 # Check if we are backtesting or not
 is_backtesting = os.environ.get("IS_BACKTESTING")
-if not is_backtesting or is_backtesting.lower() == "false":
+if _defer_default_credentials() and (not is_backtesting or is_backtesting.lower() == "false"):
+    IS_BACKTESTING = False
+elif not is_backtesting or is_backtesting.lower() == "false":
     IS_BACKTESTING = False
 elif is_backtesting.lower() == "true":
     IS_BACKTESTING = True
 else:
     # Log a warning if the value is not a boolean
-    colored_message = termcolor.colored(f"IS_BACKTESTING must be set to 'true' or 'false'. Got '{is_backtesting}'. Defaulting to False.", "yellow")
+    colored_message = _colored(f"IS_BACKTESTING must be set to 'true' or 'false'. Got '{is_backtesting}'. Defaulting to False.", "yellow")
     logger.warning(colored_message)
     IS_BACKTESTING = False
 
@@ -187,13 +224,13 @@ if _bt_params_raw is not None:
             if isinstance(_parsed_params, dict):
                 BACKTESTING_PARAMETERS = _parsed_params
             else:
-                colored_message = termcolor.colored(
+                colored_message = _colored(
                     f"BACKTESTING_PARAMETERS must be a JSON object/dict, got {type(_parsed_params).__name__}. Ignoring.",
                     "yellow",
                 )
                 logger.warning(colored_message)
         except Exception as _e:
-            colored_message = termcolor.colored(
+            colored_message = _colored(
                 f"Failed to parse BACKTESTING_PARAMETERS: {_e}. Expected valid JSON dict. Ignoring.",
                 "yellow",
             )
@@ -207,7 +244,7 @@ elif hide_trades.lower() == "true":
     HIDE_TRADES = True
 else:
     # Log a warning if the value is not a boolean
-    colored_message = termcolor.colored(f"HIDE_TRADES must be set to 'true' or 'false'. Got '{hide_trades}'. Defaulting to False.", "yellow")
+    colored_message = _colored(f"HIDE_TRADES must be set to 'true' or 'false'. Got '{hide_trades}'. Defaulting to False.", "yellow")
     logger.warning(colored_message)
     HIDE_TRADES = False
 
@@ -219,7 +256,7 @@ elif hide_positions.lower() == "true":
     HIDE_POSITIONS = True
 else:
     # Log a warning if the value is not a boolean
-    colored_message = termcolor.colored(f"HIDE_POSITIONS must be set to 'true' or 'false'. Got '{hide_positions}'. Defaulting to False.", "yellow")
+    colored_message = _colored(f"HIDE_POSITIONS must be set to 'true' or 'false'. Got '{hide_positions}'. Defaulting to False.", "yellow")
     logger.warning(colored_message)
     HIDE_POSITIONS = False
 
@@ -268,7 +305,7 @@ if _btl is not None:
     elif _btl.lower() == "false":
         BACKTESTING_QUIET_LOGS = False
     else:
-        colored_message = termcolor.colored(f"BACKTESTING_QUIET_LOGS must be set to 'true' or 'false'. Got '{_btl}'. Defaulting to None.", "yellow")
+        colored_message = _colored(f"BACKTESTING_QUIET_LOGS must be set to 'true' or 'false'. Got '{_btl}'. Defaulting to None.", "yellow")
         logger.warning(colored_message)
         BACKTESTING_QUIET_LOGS = None
 else:
@@ -561,42 +598,335 @@ data_source_name = os.environ.get("DATA_SOURCE")
 
 broker = None
 data_source = None
+_DEFAULT_CREDENTIALS_CACHE = None
+
+
+def _build_default_live_credentials():
+    broker = None
+    data_source = None
+    connect_stream = _connect_stream_on_init()
+    start_orders_thread = _start_orders_thread_on_init()
+
+    if trading_broker_name:
+        broker_name = trading_broker_name.lower()
+        if broker_name == "alpaca":
+            broker = _broker_class("Alpaca")(
+                ALPACA_CONFIG,
+                connect_stream=connect_stream,
+                start_orders_thread=start_orders_thread,
+            )
+        elif broker_name == "tradier":
+            broker = _broker_class("Tradier")(TRADIER_CONFIG, connect_stream=connect_stream)
+        elif broker_name in ("ccxt", "coinbase"):
+            broker = _broker_class("Ccxt")(COINBASE_CONFIG, connect_stream=connect_stream)
+        elif broker_name == "kraken":
+            broker = _broker_class("Ccxt")(KRAKEN_CONFIG, connect_stream=connect_stream)
+        elif broker_name == "weex":
+            broker = _broker_class("Ccxt")(WEEX_CONFIG, connect_stream=connect_stream)
+        elif broker_name in ("ib", "interactivebrokers"):
+            broker = _broker_class("InteractiveBrokers")(INTERACTIVE_BROKERS_CONFIG, connect_stream=connect_stream)
+        elif broker_name in ("ibrest", "interactivebrokersrest"):
+            broker = _broker_class("InteractiveBrokersREST")(INTERACTIVE_BROKERS_REST_CONFIG, connect_stream=connect_stream)
+        elif broker_name == "tradovate":
+            broker = _broker_class("Tradovate")(TRADOVATE_CONFIG, connect_stream=connect_stream)
+        elif broker_name == "schwab":
+            broker = _broker_class("Schwab")(SCHWAB_CONFIG, connect_stream=connect_stream)
+        elif broker_name == "bitunix":
+            broker = _broker_class("Bitunix")(BITUNIX_CONFIG, connect_stream=connect_stream)
+        elif broker_name in ("polymarket", "polymarket_clob"):
+            from .data_sources import PolymarketData
+
+            data_source = PolymarketData(POLYMARKET_CONFIG)
+            broker = _broker_class("Polymarket")(
+                POLYMARKET_CONFIG,
+                data_source=data_source,
+                connect_stream=connect_stream,
+            )
+        elif broker_name == "projectx":
+            try:
+                firm = os.environ.get("PROJECTX_FIRM")
+                config = get_projectx_config(firm)
+
+                if not config or not config.get("api_key"):
+                    raise ValueError("No valid ProjectX configuration found. Please set environment variables for at least one firm.")
+
+                from .data_sources import ProjectXData
+
+                data_source = ProjectXData(config)
+                broker = _broker_class("ProjectX")(config, data_source=data_source, connect_stream=connect_stream)
+            except Exception as e:
+                colored_message = _colored(f"Failed to initialize ProjectX broker: {e}", "red")
+                logger.error(colored_message)
+        elif broker_name.startswith("projectx-"):
+            try:
+                firm_suffix = broker_name[9:]
+                suffix_to_firm_mapping = {
+                    'topstepx': 'TOPSTEPX',
+                    'topone': 'TOPONE',
+                    'tickticktrader': 'TICKTICKTRADER',
+                    'alphaticks': 'ALPHATICKS',
+                    'aquafutures': 'AQUAFUTURES',
+                    'blueguardianfutures': 'BLUEGUARDIANFUTURES',
+                    'blusky': 'BLUSKY',
+                    'bulenox': 'BULENOX',
+                    'e8x': 'E8X',
+                    'fundingfutures': 'FUNDINGFUTURES',
+                    'thefuturesdesk': 'THEFUTURESDESK',
+                    'futureselite': 'FUTURESELITE',
+                    'fxifyfutures': 'FXIFYFUTURES',
+                    'goatfundedfutures': 'GOATFUNDEDFUTURES',
+                    'holaprime': 'HOLAPRIME',
+                    'nexgen': 'NEXGEN',
+                    'tx3funding': 'TX3FUNDING',
+                    'daytraders': 'DAYTRADERS',
+                    'demo': 'DEMO',
+                    'earn2trade': 'EARN2TRADE',
+                    'uprofit': 'UPROFIT'
+                }
+
+                if firm_suffix not in suffix_to_firm_mapping:
+                    raise ValueError(f"Unknown ProjectX firm: {firm_suffix}. Supported firms: {list(suffix_to_firm_mapping.keys())}")
+
+                firm = suffix_to_firm_mapping[firm_suffix]
+                config = get_projectx_config(firm)
+
+                if not config or not config.get("api_key"):
+                    raise ValueError(f"No valid ProjectX configuration found for firm {firm}. Please set environment variables.")
+
+                from .data_sources import ProjectXData
+
+                data_source = ProjectXData(config)
+                broker = _broker_class("ProjectX")(config, data_source=data_source, connect_stream=connect_stream)
+            except Exception as e:
+                colored_message = _colored(f"Failed to initialize ProjectX broker {trading_broker_name}: {e}", "red")
+                logger.error(colored_message)
+        else:
+            colored_message = _colored(f"Unknown trading broker name: {trading_broker_name}. Please check your environment variables.", "red")
+            logger.error(colored_message)
+    else:
+        if ALPACA_CONFIG["API_KEY"] or ALPACA_CONFIG["OAUTH_TOKEN"]:
+            try:
+                broker = _broker_class("Alpaca")(
+                    ALPACA_CONFIG,
+                    connect_stream=connect_stream,
+                    start_orders_thread=start_orders_thread,
+                )
+            except ValueError as e:
+                if "Either OAuth token or API key/secret must be provided" in str(e):
+                    pass
+                else:
+                    raise e
+        elif TRADIER_CONFIG["ACCESS_TOKEN"]:
+            broker = _broker_class("Tradier")(TRADIER_CONFIG, connect_stream=connect_stream)
+        elif INTERACTIVE_BROKERS_CONFIG["CLIENT_ID"]:
+            broker = _broker_class("InteractiveBrokers")(INTERACTIVE_BROKERS_CONFIG, connect_stream=connect_stream)
+        elif INTERACTIVE_BROKERS_REST_CONFIG["IB_USERNAME"]:
+            broker = _broker_class("InteractiveBrokersREST")(INTERACTIVE_BROKERS_REST_CONFIG, connect_stream=connect_stream)
+        elif TRADOVATE_CONFIG["USERNAME"]:
+            try:
+                broker = _broker_class("Tradovate")(TRADOVATE_CONFIG, connect_stream=connect_stream)
+            except Exception as e:
+                error_str = str(e)
+                if "rate limited" in error_str.lower() or "429" in error_str:
+                    message = (
+                        "Tradovate connection blocked due to rate limiting. "
+                        "Too many requests were made. Wait 5-10 minutes and try again."
+                    )
+                    logger.error(_colored(message, "red"))
+                    raise RuntimeError(message) from e
+                logger.error(_colored(f"Could not initialize Tradovate broker: {e}", "red"))
+                raise
+        elif SCHWAB_CONFIG.get("SCHWAB_ACCOUNT_NUMBER"):
+            broker = _broker_class("Schwab")(SCHWAB_CONFIG, connect_stream=connect_stream)
+        elif COINBASE_CONFIG["apiKey"]:
+            broker = _broker_class("Ccxt")(COINBASE_CONFIG, connect_stream=connect_stream)
+        elif KRAKEN_CONFIG["apiKey"]:
+            broker = _broker_class("Ccxt")(KRAKEN_CONFIG, connect_stream=connect_stream)
+        elif WEEX_CONFIG["apiKey"] and WEEX_CONFIG["secret"] and WEEX_CONFIG["password"]:
+            broker = _broker_class("Ccxt")(WEEX_CONFIG, connect_stream=connect_stream)
+        elif BITUNIX_CONFIG["API_KEY"] and BITUNIX_CONFIG["API_SECRET"]:
+            broker = _broker_class("Bitunix")(BITUNIX_CONFIG, connect_stream=connect_stream)
+        elif get_available_projectx_firms():
+            try:
+                available_firms = get_available_projectx_firms()
+                config = get_projectx_config(available_firms[0])
+
+                if config.get("api_key") and config.get("username"):
+                    from .data_sources import ProjectXData
+
+                    data_source = ProjectXData(config)
+                    broker = _broker_class("ProjectX")(config, data_source=data_source, connect_stream=connect_stream)
+            except Exception as e:
+                colored_message = _colored(f"Failed to initialize ProjectX broker: {e}", "red")
+                logger.error(colored_message)
+
+    if data_source_name:
+        try:
+            data_name = data_source_name.lower()
+            if data_name == "alpaca":
+                from .data_sources import AlpacaData
+                data_source = AlpacaData(ALPACA_CONFIG)
+            elif data_name == "tradier":
+                from .data_sources import TradierData
+                data_source = TradierData(TRADIER_CONFIG)
+            elif data_name in ("ccxt", "coinbase"):
+                from .data_sources import CcxtData
+                data_source = CcxtData(COINBASE_CONFIG)
+            elif data_name == "kraken":
+                from .data_sources import CcxtData
+                data_source = CcxtData(KRAKEN_CONFIG)
+            elif data_name == "weex":
+                from .data_sources import CcxtData
+                data_source = CcxtData(WEEX_CONFIG)
+            elif data_name in ("ib", "interactivebrokers"):
+                from .data_sources import InteractiveBrokersData
+                data_source = InteractiveBrokersData(INTERACTIVE_BROKERS_CONFIG)
+            elif data_name in ("ibrest", "interactivebrokersrest"):
+                from .data_sources import InteractiveBrokersRESTData
+                data_source = InteractiveBrokersRESTData(INTERACTIVE_BROKERS_REST_CONFIG)
+            elif data_name == "polygon":
+                from .data_sources import PolygonData
+                data_source = PolygonData(api_key=POLYGON_API_KEY)
+            elif data_name == "yahoo":
+                from .data_sources import YahooData
+
+                data_source = YahooData()
+                if BACKTESTING_START and BACKTESTING_END:
+                    data_source._update_datetime_limits(BACKTESTING_START, BACKTESTING_END)
+            elif data_name == "schwab":
+                from .data_sources import SchwabData
+
+                data_source = SchwabData(account_number=SCHWAB_CONFIG["SCHWAB_ACCOUNT_NUMBER"])
+                if broker and broker.name.lower() == "schwab" and hasattr(broker, "client"):
+                    data_source.set_client(broker.client)
+            elif data_name in ("polymarket", "polymarket_clob"):
+                from .data_sources import PolymarketData
+
+                data_source = PolymarketData(POLYMARKET_CONFIG)
+            elif data_name == "thetadata":
+                if THETADATA_CONFIG["THETADATA_USERNAME"] and THETADATA_CONFIG["THETADATA_PASSWORD"]:
+                    from .data_sources import ThetaData
+
+                    data_source = ThetaData(
+                        username=THETADATA_CONFIG["THETADATA_USERNAME"],
+                        password=THETADATA_CONFIG["THETADATA_PASSWORD"]
+                    )
+                else:
+                    colored_message = _colored("Missing ThetaData credentials. Please set THETADATA_USERNAME and THETADATA_PASSWORD environment variables.", "red")
+                    logger.error(colored_message)
+            elif data_name == "databento":
+                if DATABENTO_CONFIG["API_KEY"]:
+                    from .data_sources import DataBentoData
+
+                    data_source = DataBentoData(
+                        api_key=DATABENTO_CONFIG["API_KEY"],
+                        timeout=DATABENTO_CONFIG["TIMEOUT"],
+                        max_retries=DATABENTO_CONFIG["MAX_RETRIES"]
+                    )
+                else:
+                    colored_message = _colored("Missing DataBento credentials. Please set DATABENTO_API_KEY environment variable.", "red")
+                    logger.error(colored_message)
+            elif data_name == "bitunix":
+                from .data_sources import BitunixData
+
+                data_source = BitunixData(BITUNIX_CONFIG)
+                if broker and broker.name.lower() == "bitunix" and hasattr(broker, "api"):
+                    data_source.client = broker.api
+            elif data_name == "projectx":
+                from .data_sources import ProjectXData
+
+                firm = os.environ.get("PROJECTX_FIRM")
+                config = get_projectx_config(firm)
+
+                if not config or not config.get("api_key"):
+                    colored_message = _colored("No valid ProjectX configuration found for data source. Please set environment variables for at least one firm.", "red")
+                    logger.error(colored_message)
+                else:
+                    data_source = ProjectXData(config)
+                    if broker and broker.name.lower().startswith("projectx") and hasattr(broker, "client"):
+                        data_source.client = broker.client
+            else:
+                colored_message = _colored(f"Unknown data source name: {data_source_name}. Please check your environment variables.", "red")
+                logger.error(colored_message)
+        except ImportError as e:
+            colored_message = _colored(f"Could not import data source {data_source_name}: {str(e)}", "red")
+            logger.error(colored_message)
+
+    if broker and data_source:
+        logger.info(_colored(f"Using {data_source_name} as data source for {broker.name} broker", "green"))
+        broker.data_source = data_source
+
+    return broker, data_source
+
+
+def get_default_broker_and_data_source():
+    global broker, data_source, _DEFAULT_CREDENTIALS_CACHE
+    if _DEFAULT_CREDENTIALS_CACHE is None:
+        if "BROKER" in globals() or "DATA_SOURCE" in globals():
+            broker = globals().get("BROKER")
+            data_source = globals().get("DATA_SOURCE")
+        elif not IS_BACKTESTING:
+            broker, data_source = _build_default_live_credentials()
+            globals()["BROKER"] = broker
+            globals()["DATA_SOURCE"] = data_source
+        _DEFAULT_CREDENTIALS_CACHE = (broker, data_source)
+    return _DEFAULT_CREDENTIALS_CACHE
+
+
+def get_default_broker():
+    return get_default_broker_and_data_source()[0]
+
+
+def get_default_data_source():
+    return get_default_broker_and_data_source()[1]
 
 # Check if we are backtesting or not
 is_backtesting = os.environ.get("IS_BACKTESTING")
-if not is_backtesting or is_backtesting.lower() == "false":
+if _defer_default_credentials() and (not is_backtesting or is_backtesting.lower() == "false"):
+    IS_BACKTESTING = False
+elif not is_backtesting or is_backtesting.lower() == "false":
     IS_BACKTESTING = False
     
     # Determine which trading broker to use based on TRADING_BROKER environment variable or available configs
     if trading_broker_name:
+        connect_stream = _connect_stream_on_init()
+        start_orders_thread = _start_orders_thread_on_init()
         # Create broker instance based on explicitly specified name
         if trading_broker_name.lower() == "alpaca":
-            broker = _broker_class("Alpaca")(ALPACA_CONFIG)
+            broker = _broker_class("Alpaca")(
+                ALPACA_CONFIG,
+                connect_stream=connect_stream,
+                start_orders_thread=start_orders_thread,
+            )
         elif trading_broker_name.lower() == "tradier":
-            broker = _broker_class("Tradier")(TRADIER_CONFIG)
+            broker = _broker_class("Tradier")(TRADIER_CONFIG, connect_stream=connect_stream)
         elif trading_broker_name.lower() == "ccxt":
-            broker = _broker_class("Ccxt")(COINBASE_CONFIG)
+            broker = _broker_class("Ccxt")(COINBASE_CONFIG, connect_stream=connect_stream)
         elif trading_broker_name.lower() == "coinbase":
-            broker = _broker_class("Ccxt")(COINBASE_CONFIG)
+            broker = _broker_class("Ccxt")(COINBASE_CONFIG, connect_stream=connect_stream)
         elif trading_broker_name.lower() == "kraken":
-            broker = _broker_class("Ccxt")(KRAKEN_CONFIG)
+            broker = _broker_class("Ccxt")(KRAKEN_CONFIG, connect_stream=connect_stream)
         elif trading_broker_name.lower() == "weex":
-            broker = _broker_class("Ccxt")(WEEX_CONFIG)
+            broker = _broker_class("Ccxt")(WEEX_CONFIG, connect_stream=connect_stream)
         elif trading_broker_name.lower() == "ib" or trading_broker_name.lower() == "interactivebrokers":
-            broker = _broker_class("InteractiveBrokers")(INTERACTIVE_BROKERS_CONFIG)
+            broker = _broker_class("InteractiveBrokers")(INTERACTIVE_BROKERS_CONFIG, connect_stream=connect_stream)
         elif trading_broker_name.lower() == "ibrest" or trading_broker_name.lower() == "interactivebrokersrest":
-            broker = _broker_class("InteractiveBrokersREST")(INTERACTIVE_BROKERS_REST_CONFIG)
+            broker = _broker_class("InteractiveBrokersREST")(INTERACTIVE_BROKERS_REST_CONFIG, connect_stream=connect_stream)
         elif trading_broker_name.lower() == "tradovate":
-            broker = _broker_class("Tradovate")(TRADOVATE_CONFIG)
+            broker = _broker_class("Tradovate")(TRADOVATE_CONFIG, connect_stream=connect_stream)
         elif trading_broker_name.lower() == "schwab":
-            broker = _broker_class("Schwab")(SCHWAB_CONFIG)
+            broker = _broker_class("Schwab")(SCHWAB_CONFIG, connect_stream=connect_stream)
         elif trading_broker_name.lower() == "bitunix":
-            broker = _broker_class("Bitunix")(BITUNIX_CONFIG)
+            broker = _broker_class("Bitunix")(BITUNIX_CONFIG, connect_stream=connect_stream)
         elif trading_broker_name.lower() in ("polymarket", "polymarket_clob"):
             from .data_sources import PolymarketData
 
             data_source = PolymarketData(POLYMARKET_CONFIG)
-            broker = _broker_class("Polymarket")(POLYMARKET_CONFIG, data_source=data_source)
+            broker = _broker_class("Polymarket")(
+                POLYMARKET_CONFIG,
+                data_source=data_source,
+                connect_stream=connect_stream,
+            )
         elif trading_broker_name.lower() == "projectx":
             try:
                 # Get specified firm or use auto-detection
@@ -608,9 +938,9 @@ if not is_backtesting or is_backtesting.lower() == "false":
                 
                 from .data_sources import ProjectXData
                 data_source = ProjectXData(config)
-                broker = _broker_class("ProjectX")(config, data_source=data_source)
+                broker = _broker_class("ProjectX")(config, data_source=data_source, connect_stream=connect_stream)
             except Exception as e:
-                colored_message = termcolor.colored(f"Failed to initialize ProjectX broker: {e}", "red")
+                colored_message = _colored(f"Failed to initialize ProjectX broker: {e}", "red")
                 logger.error(colored_message)
         elif trading_broker_name.lower().startswith("projectx-"):
             try:
@@ -654,18 +984,24 @@ if not is_backtesting or is_backtesting.lower() == "false":
                 
                 from .data_sources import ProjectXData
                 data_source = ProjectXData(config)
-                broker = _broker_class("ProjectX")(config, data_source=data_source)
+                broker = _broker_class("ProjectX")(config, data_source=data_source, connect_stream=connect_stream)
             except Exception as e:
-                colored_message = termcolor.colored(f"Failed to initialize ProjectX broker {trading_broker_name}: {e}", "red")
+                colored_message = _colored(f"Failed to initialize ProjectX broker {trading_broker_name}: {e}", "red")
                 logger.error(colored_message)
         else:
-            colored_message = termcolor.colored(f"Unknown trading broker name: {trading_broker_name}. Please check your environment variables.", "red")
+            colored_message = _colored(f"Unknown trading broker name: {trading_broker_name}. Please check your environment variables.", "red")
             logger.error(colored_message)
     else:
+        connect_stream = _connect_stream_on_init()
+        start_orders_thread = _start_orders_thread_on_init()
         # Auto-detect broker based on available credentials if not explicitly specified
         if ALPACA_CONFIG["API_KEY"] or ALPACA_CONFIG["OAUTH_TOKEN"]:
             try:
-                broker = _broker_class("Alpaca")(ALPACA_CONFIG)
+                broker = _broker_class("Alpaca")(
+                    ALPACA_CONFIG,
+                    connect_stream=connect_stream,
+                    start_orders_thread=start_orders_thread,
+                )
             except ValueError as e:
                 # If Alpaca initialization fails due to missing credentials, skip it
                 if "Either OAuth token or API key/secret must be provided" in str(e):
@@ -673,14 +1009,14 @@ if not is_backtesting or is_backtesting.lower() == "false":
                 else:
                     raise e
         elif TRADIER_CONFIG["ACCESS_TOKEN"]:
-            broker = _broker_class("Tradier")(TRADIER_CONFIG)
+            broker = _broker_class("Tradier")(TRADIER_CONFIG, connect_stream=connect_stream)
         elif INTERACTIVE_BROKERS_CONFIG["CLIENT_ID"]:
-            broker = _broker_class("InteractiveBrokers")(INTERACTIVE_BROKERS_CONFIG)
+            broker = _broker_class("InteractiveBrokers")(INTERACTIVE_BROKERS_CONFIG, connect_stream=connect_stream)
         elif INTERACTIVE_BROKERS_REST_CONFIG["IB_USERNAME"]:
-            broker = _broker_class("InteractiveBrokersREST")(INTERACTIVE_BROKERS_REST_CONFIG)
+            broker = _broker_class("InteractiveBrokersREST")(INTERACTIVE_BROKERS_REST_CONFIG, connect_stream=connect_stream)
         elif TRADOVATE_CONFIG["USERNAME"]:
             try:
-                broker = _broker_class("Tradovate")(TRADOVATE_CONFIG)
+                broker = _broker_class("Tradovate")(TRADOVATE_CONFIG, connect_stream=connect_stream)
             except Exception as e:
                 # Handle rate limiting and other connection errors gracefully
                 error_str = str(e)
@@ -689,22 +1025,22 @@ if not is_backtesting or is_backtesting.lower() == "false":
                         "Tradovate connection blocked due to rate limiting. "
                         "Too many requests were made. Wait 5-10 minutes and try again."
                     )
-                    logger.error(termcolor.colored(message, "red"))
+                    logger.error(_colored(message, "red"))
                     raise RuntimeError(message) from e
                 else:
-                    logger.error(termcolor.colored(f"Could not initialize Tradovate broker: {e}", "red"))
+                    logger.error(_colored(f"Could not initialize Tradovate broker: {e}", "red"))
                     raise
         # Only check for SCHWAB_ACCOUNT_NUMBER to select Schwab
         elif SCHWAB_CONFIG.get("SCHWAB_ACCOUNT_NUMBER"):
-            broker = _broker_class("Schwab")(SCHWAB_CONFIG)
+            broker = _broker_class("Schwab")(SCHWAB_CONFIG, connect_stream=connect_stream)
         elif COINBASE_CONFIG["apiKey"]:
-            broker = _broker_class("Ccxt")(COINBASE_CONFIG)
+            broker = _broker_class("Ccxt")(COINBASE_CONFIG, connect_stream=connect_stream)
         elif KRAKEN_CONFIG["apiKey"]:
-            broker = _broker_class("Ccxt")(KRAKEN_CONFIG)
+            broker = _broker_class("Ccxt")(KRAKEN_CONFIG, connect_stream=connect_stream)
         elif WEEX_CONFIG["apiKey"] and WEEX_CONFIG["secret"] and WEEX_CONFIG["password"]:
-            broker = _broker_class("Ccxt")(WEEX_CONFIG)
+            broker = _broker_class("Ccxt")(WEEX_CONFIG, connect_stream=connect_stream)
         elif BITUNIX_CONFIG["API_KEY"] and BITUNIX_CONFIG["API_SECRET"]:
-            broker = _broker_class("Bitunix")(BITUNIX_CONFIG)
+            broker = _broker_class("Bitunix")(BITUNIX_CONFIG, connect_stream=connect_stream)
         elif get_available_projectx_firms():
             try:
                 # Use first available ProjectX firm
@@ -714,9 +1050,9 @@ if not is_backtesting or is_backtesting.lower() == "false":
                 if config.get("api_key") and config.get("username"):
                     from .data_sources import ProjectXData
                     data_source = ProjectXData(config)
-                    broker = _broker_class("ProjectX")(config, data_source=data_source)
+                    broker = _broker_class("ProjectX")(config, data_source=data_source, connect_stream=connect_stream)
             except Exception as e:
-                colored_message = termcolor.colored(f"Failed to initialize ProjectX broker: {e}", "red")
+                colored_message = _colored(f"Failed to initialize ProjectX broker: {e}", "red")
                 logger.error(colored_message)
     
     # Determine if we should use a custom data source based on DATA_SOURCE environment variable
@@ -782,7 +1118,7 @@ if not is_backtesting or is_backtesting.lower() == "false":
                         password=THETADATA_CONFIG["THETADATA_PASSWORD"]
                     )
                 else:
-                    colored_message = termcolor.colored("Missing ThetaData credentials. Please set THETADATA_USERNAME and THETADATA_PASSWORD environment variables.", "red")
+                    colored_message = _colored("Missing ThetaData credentials. Please set THETADATA_USERNAME and THETADATA_PASSWORD environment variables.", "red")
                     logger.error(colored_message)
             elif data_source_name.lower() == "databento":
                 # Check if we have DataBento configuration
@@ -794,7 +1130,7 @@ if not is_backtesting or is_backtesting.lower() == "false":
                         max_retries=DATABENTO_CONFIG["MAX_RETRIES"]
                     )
                 else:
-                    colored_message = termcolor.colored("Missing DataBento credentials. Please set DATABENTO_API_KEY environment variable.", "red")
+                    colored_message = _colored("Missing DataBento credentials. Please set DATABENTO_API_KEY environment variable.", "red")
                     logger.error(colored_message)
             elif data_source_name.lower() == "bitunix":
                 from .data_sources import BitunixData
@@ -809,7 +1145,7 @@ if not is_backtesting or is_backtesting.lower() == "false":
                 config = get_projectx_config(firm)
                 
                 if not config or not config.get("api_key"):
-                    colored_message = termcolor.colored("No valid ProjectX configuration found for data source. Please set environment variables for at least one firm.", "red")
+                    colored_message = _colored("No valid ProjectX configuration found for data source. Please set environment variables for at least one firm.", "red")
                     logger.error(colored_message)
                 else:
                     data_source = ProjectXData(config)
@@ -817,15 +1153,15 @@ if not is_backtesting or is_backtesting.lower() == "false":
                     if broker and broker.name.lower().startswith("projectx") and hasattr(broker, "client"):
                         data_source.client = broker.client
             else:
-                colored_message = termcolor.colored(f"Unknown data source name: {data_source_name}. Please check your environment variables.", "red")
+                colored_message = _colored(f"Unknown data source name: {data_source_name}. Please check your environment variables.", "red")
                 logger.error(colored_message)
         except ImportError as e:
-            colored_message = termcolor.colored(f"Could not import data source {data_source_name}: {str(e)}", "red")
+            colored_message = _colored(f"Could not import data source {data_source_name}: {str(e)}", "red")
             logger.error(colored_message)
     
     # If we have both a broker and a custom data source, set the broker's data source
     if broker and data_source:
-        logger.info(termcolor.colored(f"Using {data_source_name} as data source for {broker.name} broker", "green"))
+        logger.info(_colored(f"Using {data_source_name} as data source for {broker.name} broker", "green"))
         # Store the original data source for reference
         original_broker_data_source = broker.data_source
         
@@ -836,10 +1172,17 @@ elif is_backtesting.lower() == "true":
     IS_BACKTESTING = True
 else:
     # Log a warning if the value is not a boolean
-    colored_message = termcolor.colored(f"IS_BACKTESTING must be set to 'true' or 'false'. Got '{is_backtesting}'. Defaulting to False.", "yellow")
+    colored_message = _colored(f"IS_BACKTESTING must be set to 'true' or 'false'. Got '{is_backtesting}'. Defaulting to False.", "yellow")
     logger.warning(colored_message)
     IS_BACKTESTING = False
 
-# Export variables for use in strategies
-BROKER = broker
-DATA_SOURCE = data_source
+# Export variables for use in strategies. Scheduled deployments resolve these
+# lazily so importing strategy modules remains config-only until a live broker
+# is actually needed.
+if _defer_default_credentials() and not IS_BACKTESTING:
+    globals().pop("BROKER", None)
+    globals().pop("DATA_SOURCE", None)
+else:
+    BROKER = broker
+    DATA_SOURCE = data_source
+    _DEFAULT_CREDENTIALS_CACHE = (BROKER, DATA_SOURCE)

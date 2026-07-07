@@ -1,8 +1,10 @@
-import json
 import os
 import time
-from datetime import datetime, timezone
-from pathlib import Path
+
+from lumibot._lazy_imports import lazy_class
+
+datetime = lazy_class("datetime", "datetime")
+timezone = lazy_class("datetime", "timezone")
 
 
 class ScheduledRunTiming:
@@ -11,6 +13,12 @@ class ScheduledRunTiming:
     def __init__(self, logger=None):
         self.logger = logger
         self._timing = {}
+
+    @staticmethod
+    def json_dumps(*args, **kwargs):
+        import json
+
+        return json.dumps(*args, **kwargs)
 
     @staticmethod
     def truthy(value):
@@ -55,7 +63,11 @@ class ScheduledRunTiming:
     @staticmethod
     def timing_path():
         raw_path = os.environ.get("LUMIBOT_SCHEDULED_TIMING_FILE")
-        return Path(raw_path) if raw_path else None
+        if not raw_path:
+            return None
+        from pathlib import Path
+
+        return Path(raw_path)
 
     def record(self, **fields):
         if not self.exact_enabled():
@@ -78,7 +90,7 @@ class ScheduledRunTiming:
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             tmp_path = path.with_suffix(path.suffix + ".tmp")
-            tmp_path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+            tmp_path.write_text(self.json_dumps(payload, sort_keys=True), encoding="utf-8")
             tmp_path.replace(path)
         except Exception as exc:
             if self.logger:

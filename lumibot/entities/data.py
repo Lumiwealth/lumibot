@@ -45,6 +45,7 @@ _DATA_QUOTE_FIELDS = {
 
 # PERF: module-level sentinel used to avoid eager-evaluating fallbacks in `getattr()` hot paths.
 _MISSING = object()
+_ITER_INDEX_DICT_MAX_ROWS = 50_000
 
 # Set the option to raise an error if downcasting is not possible (if available in this pandas version)
 try:
@@ -150,6 +151,18 @@ class Data:
         {"timestep": "hour", "representations": ["1H", "hour"]},
         {"timestep": "minute", "representations": ["1M", "minute"]},
     ]
+
+    @property
+    def iter_index(self):
+        override = self.__dict__.get("_iter_index_override")
+        if override is not None:
+            return override
+        iter_index = pd.Series(self.df.index)
+        return pd.Series(iter_index.index, index=iter_index)
+
+    @iter_index.setter
+    def iter_index(self, value):
+        self.__dict__["_iter_index_override"] = value
 
     def __init__(
         self,
@@ -544,16 +557,6 @@ class Data:
         except Exception:
             self._data_len = None
 
-        # Set up iter_index and iter_index_dict for later use.
-        iter_index = pd.Series(df.index)
-        self.iter_index = pd.Series(iter_index.index, index=iter_index)
-        # PERF: `to_dict()` produces keys as `pd.Timestamp`, which do not hash-equal to
-        # `datetime.datetime` objects. Many hot paths pass python datetimes, causing dictionary
-        # misses and forcing an expensive `Series.asof()` fallback.
-        #
-        # Store a second mapping keyed by python datetimes so `dt in iter_index_dict` is fast.
-        self.iter_index_dict = {ts.to_pydatetime(): int(pos) for ts, pos in self.iter_index.items()}
-
         # PERF: Precompute an integer nanoseconds view of the datetime index so `get_iter_count()`
         # can use NumPy search/forward cursors without triggering pandas datetime scalar validation.
         #
@@ -584,6 +587,35 @@ class Data:
             self._index_values_ns = idx.asi8
         except Exception:
             self._index_values_ns = None
+
+        self.__dict__.pop("_iter_index_override", None)
+        try:
+            data_len = int(self._data_len) if self._data_len is not None else int(len(self.df.index))
+        except Exception:
+            data_len = None
+
+        # PERF: `to_dict()` produces keys as `pd.Timestamp`, which do not hash-equal to
+        # `datetime.datetime` objects. Many hot paths pass python datetimes, causing dictionary
+        # misses and forcing an expensive `asof()` fallback. Keep that exact timestamp dict for
+        # small frames and tz-naive frames. Large tz-aware frames already have `_index_values_ns`,
+        # so retaining another pandas Series plus Python datetime dict is avoidable memory.
+        try:
+            index_tz = getattr(self.df.index, "tz", None)
+        except Exception:
+            index_tz = None
+        build_iter_dict = (
+            self._index_values_ns is None
+            or data_len is None
+            or data_len <= _ITER_INDEX_DICT_MAX_ROWS
+            or index_tz is None
+        )
+        if build_iter_dict:
+            self.iter_index_dict = {
+                (ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts): int(pos)
+                for pos, ts in enumerate(self.df.index)
+            }
+        else:
+            self.iter_index_dict = {}
 
         # Reset the per-series cursor used by `get_iter_count()` (safe; backtests are single-threaded).
         self._iter_count_cursor_ns = None
@@ -1220,6 +1252,98 @@ class Data:
 
         return dict
 
+    @check_data
+    def _validate_bars_request(self, dt, length=1, timestep=None, timeshift=0):
+        return True
+
+    def _normalize_timeshift_to_rows(self, timeshift):
+        if timeshift is None:
+            return 0
+
+        if isinstance(timeshift, datetime.timedelta):
+            if self.timestep == "day":
+                return int(timeshift.total_seconds() / (24 * 3600))
+            if self.timestep == "hour":
+                return int(timeshift.total_seconds() / 3600)
+            return int(timeshift.total_seconds() / 60)
+
+        return int(timeshift or 0)
+
+    def _get_bars_row_bounds(self, dt, length=1, timeshift=0):
+        timeshift = self._normalize_timeshift_to_rows(timeshift)
+
+        iter_count = self.get_iter_count(dt)
+        try:
+            if pd.isna(iter_count):
+                iter_count = 0
+        except Exception:
+            pass
+
+        if self.timestep == "day":
+            end_row = int(iter_count) + 1 - timeshift
+        else:
+            end_row = int(iter_count) - timeshift
+
+        data_len = getattr(self, "_data_len", None)
+        if data_len is None:
+            data_len = len(next(iter(self.datalines.values())).dataline) if self.datalines else len(self.df.index)
+            self._data_len = int(data_len)
+
+        end_row = max(0, min(end_row, int(data_len)))
+        start_row = max(0, end_row - int(length))
+        if start_row > end_row:
+            start_row = end_row
+        if start_row == end_row and end_row > 0:
+            start_row = max(0, end_row - 1)
+
+        return int(start_row), int(end_row), int(timeshift)
+
+    def _get_bars_source_frame(self):
+        df_source = getattr(self, "_bars_df", None)
+        if df_source is not None:
+            return df_source
+
+        try:
+            bars_cols = getattr(self, "_bars_cols", None)
+            df_source = self.df[bars_cols].copy(deep=False) if bars_cols else self.df
+            if bars_cols:
+                self._bars_df = df_source
+        except Exception:
+            df_source = self.df
+
+        return df_source
+
+    def _get_bars_frame_window(self, dt, length=1, timeshift=0):
+        start_row, end_row, normalized_timeshift = self._get_bars_row_bounds(
+            dt,
+            length=length,
+            timeshift=timeshift,
+        )
+        df_source = self._get_bars_source_frame()
+        df = df_source._slice(slice(start_row, end_row))
+        if df is None or df.shape[0] == 0:
+            return None, start_row, end_row, normalized_timeshift
+        return df, start_row, end_row, normalized_timeshift
+
+    def _get_frame_between_dates(self, start_date=None, end_date=None, bars_only=False):
+        end_row = self.get_iter_count(end_date)
+        start_row = self.get_iter_count(start_date)
+
+        if start_row < 0:
+            start_row = 0
+
+        start_row = int(start_row)
+        end_row = int(end_row)
+
+        df_source = self._get_bars_source_frame() if bars_only else self.df
+        df = df_source._slice(slice(start_row, end_row))
+        if df is None or df.empty:
+            return df
+        if df.index.name != "datetime":
+            df = df.copy(deep=False)
+            df.index = df.index.rename("datetime")
+        return df
+
     def get_bars(self, dt, length=1, timestep=MIN_TIMESTEP, timeshift=0):
         """Returns a dataframe of the data.
 
@@ -1272,37 +1396,13 @@ class Data:
             and int(native_qty) == int(quantity)
             and native_unit == "minute"
         ):
-            try:
-                iter_count = self.get_iter_count(dt)
-                if pd.isna(iter_count):
-                    iter_count = 0
-            except Exception:
-                iter_count = self.get_iter_count(dt)
-
-            df_source = getattr(self, "_bars_df", None)
-            if df_source is None:
-                try:
-                    bars_cols = getattr(self, "_bars_cols", None)
-                    df_source = self.df[bars_cols].copy(deep=False) if bars_cols else self.df
-                    if bars_cols:
-                        self._bars_df = df_source
-                except Exception:
-                    df_source = self.df
-
-            if isinstance(timeshift, datetime.timedelta):
-                timeshift = int(timeshift.total_seconds() / 60)
-
-            end_row = int(iter_count) - int(timeshift or 0)
-            data_len = getattr(self, "_data_len", None)
-            if data_len is None:
-                data_len = int(len(df_source.index))
-                self._data_len = data_len
-            end_row = max(0, min(end_row, data_len))
-            start_row = max(0, end_row - int(num_periods))
-            if start_row > end_row:
-                start_row = end_row
-            if start_row == end_row and end_row > 0:
-                start_row = max(0, end_row - 1)
+            df, start_row, end_row, timeshift = self._get_bars_frame_window(
+                dt,
+                length=num_periods,
+                timeshift=timeshift,
+            )
+            if df is None:
+                return None
 
             # PERF: Many strategies request multi-minute history every minute (e.g., 15m SMA while
             # running on a 1m cadence). When the "current" native bar has not advanced, the
@@ -1321,13 +1421,6 @@ class Data:
                 cached_df = getattr(self, "_get_bars_slice_cache_df", None)
                 if cached_df is not None and cached_df.shape[0] != 0:
                     return cached_df
-
-            # PERF: `.iloc[start:end]` goes through the indexer stack (`_iLocIndexer`) which
-            # performs validation on every call. In backtesting we already operate on integer
-            # row bounds; `_slice()` is the internal fast-path that avoids the indexer overhead.
-            df = df_source._slice(slice(start_row, end_row))
-            if df is None or df.shape[0] == 0:
-                return None
 
             # PERF: avoid `col in df.columns` membership checks (`Index.__contains__`) on every call.
             has_volume = getattr(self, "_bars_has_volume", _MISSING)
@@ -1396,46 +1489,9 @@ class Data:
             # PERF: avoid reconstructing a DataFrame from datalines on every call.
             # The underlying `self.df` is already indexed by datetime, so we can slice by
             # row bounds in O(1) and return a stable OHLCV schema.
-            try:
-                iter_count = self.get_iter_count(dt)
-                if pd.isna(iter_count):
-                    iter_count = 0
-            except Exception:
-                iter_count = self.get_iter_count(dt)
-
-            df_source = getattr(self, "_bars_df", None)
-            if df_source is None:
-                try:
-                    bars_cols = getattr(self, "_bars_cols", None)
-                    df_source = self.df[bars_cols].copy(deep=False) if bars_cols else self.df
-                    if bars_cols:
-                        self._bars_df = df_source
-                except Exception:
-                    df_source = self.df
-
-            if isinstance(timeshift, datetime.timedelta):
-                if self.timestep == "day":
-                    timeshift = int(timeshift.total_seconds() / (24 * 3600))
-                elif self.timestep == "hour":
-                    timeshift = int(timeshift.total_seconds() / 3600)
-                else:
-                    timeshift = int(timeshift.total_seconds() / 60)
-
-            if self.timestep == "day":
-                end_row = int(iter_count) + 1 - int(timeshift or 0)
-            else:
-                end_row = int(iter_count) - int(timeshift or 0)
-
-            data_len = getattr(self, "_data_len", None)
-            if data_len is None:
-                data_len = int(len(df_source.index))
-                self._data_len = data_len
-            end_row = max(0, min(end_row, data_len))
-            start_row = max(0, end_row - int(length))
-            if start_row > end_row:
-                start_row = end_row
-            if start_row == end_row and end_row > 0:
-                start_row = max(0, end_row - 1)
+            df, start_row, end_row, timeshift = self._get_bars_frame_window(dt, length=length, timeshift=timeshift)
+            if df is None:
+                return None
 
             # PERF: Cache the last native slice. This is particularly effective for `timestep="day"`
             # requests when strategies run on an intraday cadence: the daily window only changes
@@ -1453,13 +1509,6 @@ class Data:
                 cached_df = getattr(self, "_get_bars_slice_cache_df", None)
                 if cached_df is not None and cached_df.shape[0] != 0:
                     return cached_df
-
-            # PERF: `.iloc[start:end]` goes through the indexer stack (`_iLocIndexer`) which
-            # performs validation on every call. In backtesting we already operate on integer
-            # row bounds; `_slice()` is the internal fast-path that avoids the indexer overhead.
-            df = df_source._slice(slice(start_row, end_row))
-            if df is None or df.shape[0] == 0:
-                return None
 
             # PERF: avoid `col in df.columns` membership checks (`Index.__contains__`) on every call.
             has_volume = getattr(self, "_bars_has_volume", _MISSING)
@@ -1507,56 +1556,45 @@ class Data:
             # If the data is minute data and we are requesting daily data then multiply the length by 1440
             length = length * 1440
             unit = "D"
-            data = self._get_bars_dict(dt, length=length, timestep="minute", timeshift=timeshift)
+            strict_request_timestep = None
 
         elif timestep == "day" and self.timestep == "hour":
             # If the data is hourly data and we are requesting daily data then multiply the length by 24
             length = length * 24
             unit = "D"
-            data = self._get_bars_dict(dt, length=length, timestep="hour", timeshift=timeshift)
+            strict_request_timestep = None
 
         elif timestep == 'day' and self.timestep == 'day':
             unit = "D"
-            data = self._get_bars_dict(dt, length=length, timestep=timestep, timeshift=timeshift)
+            strict_request_timestep = None
 
         elif timestep == "hour" and self.timestep == "minute":
             # Convert requested hours to minutes to pull enough base data for resample.
             length = length * 60 * quantity
             unit = "h"
-            data = self._get_bars_dict(
-                dt,
-                length=length,
-                timestep="minute",
-                timeshift=timeshift,
-                _strict_request_timestep=f"{int(quantity)}{timestep}",
-            )
+            strict_request_timestep = f"{int(quantity)}{timestep}"
 
         elif timestep == "hour" and self.timestep == "hour":
             unit = "h"
             length = length * quantity
-            data = self._get_bars_dict(
-                dt,
-                length=length,
-                timestep="hour",
-                timeshift=timeshift,
-                _strict_request_timestep=f"{int(quantity)}{timestep}" if int(quantity) > 1 else None,
-            )
+            strict_request_timestep = f"{int(quantity)}{timestep}" if int(quantity) > 1 else None
 
         else:
             unit = "min"  # Guaranteed to be minute timestep at this point
             length = length * quantity
-            data = self._get_bars_dict(
-                dt,
-                length=length,
-                timestep=timestep,
-                timeshift=timeshift,
-                _strict_request_timestep=f"{int(quantity)}{timestep}" if int(quantity) > 1 else None,
-            )
+            strict_request_timestep = f"{int(quantity)}{timestep}" if int(quantity) > 1 else None
 
-        if data is None:
+        self._validate_bars_request(
+            dt,
+            length=length,
+            timestep=timestep,
+            timeshift=timeshift,
+            _strict_request_timestep=strict_request_timestep,
+        )
+        df, _, _, _ = self._get_bars_frame_window(dt, length=length, timeshift=timeshift)
+        if df is None:
             return None
 
-        df = pd.DataFrame(data).assign(datetime=lambda df: pd.to_datetime(df['datetime'])).set_index('datetime')
         if "dividend" in df.columns:
             agg_column_map["dividend"] = "sum"
         if "stock_splits" in df.columns:
@@ -1621,11 +1659,8 @@ class Data:
         if timestep not in {"minute", "hour", "day"}:
             raise ValueError(f"Only minute, hour, and day are supported for timestep. You provided: {timestep}")
 
-        data = self._get_bars_between_dates_dict(timestep=timestep, start_date=start_date, end_date=end_date)
-        if data is None:
-            return None
-
-        df = pd.DataFrame(data).set_index("datetime")
+        bars_only = not (timestep == "minute" and int(quantity) == 1)
+        df = self._get_frame_between_dates(start_date=start_date, end_date=end_date, bars_only=bars_only)
         if df is None or df.empty:
             return df
 

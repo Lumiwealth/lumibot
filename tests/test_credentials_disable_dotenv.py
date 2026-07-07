@@ -1,5 +1,6 @@
 import inspect
 import os
+import subprocess
 import sys
 
 
@@ -84,3 +85,100 @@ def test_credentials_broker_exports_are_real_classes(monkeypatch):
 
         assert inspect.isclass(credential_class)
         assert credential_class is broker_class
+
+
+def test_lazy_credentials_polymarket_trading_broker_builds_broker(monkeypatch):
+    monkeypatch.setenv("LUMIBOT_DISABLE_DOTENV", "1")
+    monkeypatch.setenv("LUMIBOT_DISABLE_DOTENV_LOCAL", "1")
+    monkeypatch.setenv("LUMIBOT_LAZY_CREDENTIALS", "1")
+    monkeypatch.setenv("LUMIBOT_CONNECT_STREAM", "0")
+    monkeypatch.setenv("IS_BACKTESTING", "false")
+    monkeypatch.setenv("TRADING_BROKER", "polymarket")
+    sys.modules.pop("lumibot.credentials", None)
+
+    import lumibot.credentials as credentials
+    import lumibot.data_sources as data_sources
+
+    class FakePolymarketData:
+        def __init__(self, config):
+            self.config = config
+
+    class Polymarket:
+        def __init__(self, config, data_source=None, connect_stream=True):
+            self.config = config
+            self.data_source = data_source
+            self.connect_stream = connect_stream
+            self.name = "Polymarket"
+
+    monkeypatch.setitem(data_sources.__dict__, "PolymarketData", FakePolymarketData)
+    monkeypatch.setattr(credentials, "_broker_class", lambda name: Polymarket)
+
+    broker = credentials.BROKER
+
+    assert broker is not None
+    assert isinstance(broker, Polymarket)
+    assert broker.name == "Polymarket"
+    assert isinstance(broker.data_source, FakePolymarketData)
+    assert broker.data_source.config is credentials.POLYMARKET_CONFIG
+    assert broker.connect_stream is False
+
+
+def test_lazy_credentials_polymarket_data_source_builds_data_source(monkeypatch):
+    monkeypatch.setenv("LUMIBOT_DISABLE_DOTENV", "1")
+    monkeypatch.setenv("LUMIBOT_DISABLE_DOTENV_LOCAL", "1")
+    monkeypatch.setenv("LUMIBOT_LAZY_CREDENTIALS", "1")
+    monkeypatch.setenv("IS_BACKTESTING", "false")
+    monkeypatch.setenv("DATA_SOURCE", "polymarket")
+    monkeypatch.delenv("TRADING_BROKER", raising=False)
+    sys.modules.pop("lumibot.credentials", None)
+
+    import lumibot.credentials as credentials
+    import lumibot.data_sources as data_sources
+
+    class FakePolymarketData:
+        def __init__(self, config):
+            self.config = config
+
+    monkeypatch.setitem(data_sources.__dict__, "PolymarketData", FakePolymarketData)
+
+    data_source = credentials.DATA_SOURCE
+
+    assert isinstance(data_source, FakePolymarketData)
+    assert data_source.config is credentials.POLYMARKET_CONFIG
+
+
+def test_eager_credentials_polymarket_respects_connect_stream_env():
+    env = os.environ.copy()
+    env["LUMIBOT_DISABLE_DOTENV"] = "1"
+    env["LUMIBOT_DISABLE_DOTENV_LOCAL"] = "1"
+    env["LUMIBOT_CONNECT_STREAM"] = "0"
+    env["LUMIBOT_LOG_LEVEL"] = "ERROR"
+    env["IS_BACKTESTING"] = "false"
+    env["TRADING_BROKER"] = "polymarket"
+    env.pop("LUMIBOT_LAZY_CREDENTIALS", None)
+    env.pop("LUMIBOT_SCHEDULED_EXECUTION", None)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import lumibot.credentials as credentials; "
+                "print('broker_global=' + str('BROKER' in credentials.__dict__)); "
+                "broker = credentials.BROKER; "
+                "print('broker_class=' + broker.__class__.__name__); "
+                "print('broker_name=' + broker.name); "
+                "print('stream_exists=' + str(hasattr(broker, 'stream'))); "
+                "broker.cleanup_streams()"
+            ),
+        ],
+        check=True,
+        capture_output=True,
+        env=env,
+        text=True,
+    )
+
+    assert "broker_global=True" in result.stdout
+    assert "broker_class=Polymarket" in result.stdout
+    assert "broker_name=Polymarket" in result.stdout
+    assert "stream_exists=False" in result.stdout

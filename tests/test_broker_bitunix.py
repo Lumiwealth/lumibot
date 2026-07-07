@@ -31,6 +31,74 @@ class TestBitunixBroker(unittest.TestCase):
         self.assertIsNotNone(broker.api)
         self.assertEqual(broker.api, self.mock_bitunix_client)
         MockBitUnixClientInstance.assert_called_once_with(api_key="test_api_key", secret_key="test_api_secret")
+        self.mock_bitunix_client.change_position_mode.assert_not_called()
+
+    @patch("lumibot.brokers.bitunix.BitUnixClient")
+    @patch("lumibot.brokers.bitunix.BitunixData")
+    def test_submit_order_initializes_position_mode_once(self, MockBitunixData, MockBitUnixClientInstance):
+        MockBitUnixClientInstance.return_value = self.mock_bitunix_client
+        self.mock_bitunix_client.change_position_mode.return_value = {
+            "code": 0,
+            "data": [{"positionMode": "HEDGE"}],
+        }
+        self.mock_bitunix_client.change_leverage.return_value = {"code": 0}
+        self.mock_bitunix_client.place_order.return_value = {"code": 0, "data": {"orderId": "order-1"}}
+        mock_data_source = MockBitunixData.return_value
+        mock_data_source.client_symbols = set()
+
+        broker = Bitunix(self.config, connect_stream=False)
+        broker.stream = MagicMock()
+        broker._unprocessed_orders = []
+        broker._process_trade_event = MagicMock()
+        order = Order("test_strategy", Asset("BTCUSDT", Asset.AssetType.CRYPTO_FUTURE), Decimal("0.1"))
+
+        broker._submit_order(order)
+        second_order = Order("test_strategy", Asset("BTCUSDT", Asset.AssetType.CRYPTO_FUTURE), Decimal("0.2"))
+        broker._submit_order(second_order)
+
+        self.mock_bitunix_client.change_position_mode.assert_called_once_with("HEDGE")
+
+    @patch("lumibot.brokers.bitunix.BitUnixClient")
+    @patch("lumibot.brokers.bitunix.BitunixData")
+    def test_submit_rejected_order_without_stream_marks_error(self, MockBitunixData, MockBitUnixClientInstance):
+        MockBitUnixClientInstance.return_value = self.mock_bitunix_client
+        self.mock_bitunix_client.change_position_mode.return_value = {
+            "code": 0,
+            "data": [{"positionMode": "HEDGE"}],
+        }
+        self.mock_bitunix_client.change_leverage.return_value = {"code": 0}
+        self.mock_bitunix_client.place_order.return_value = {"code": 10001, "msg": "rejected", "data": None}
+        mock_data_source = MockBitunixData.return_value
+        mock_data_source.client_symbols = set()
+
+        broker = Bitunix(self.config, connect_stream=False)
+        order = Order("test_strategy", Asset("BTCUSDT", Asset.AssetType.CRYPTO_FUTURE), Decimal("0.1"))
+
+        result = broker._submit_order(order)
+
+        self.assertIs(result, order)
+        self.assertEqual(order.status, Order.OrderStatus.ERROR)
+        self.assertIsInstance(order._error, LumibotBrokerAPIError)
+
+    @patch("lumibot.brokers.bitunix.BitUnixClient")
+    @patch("lumibot.brokers.bitunix.BitunixData")
+    def test_position_mode_initialization_retries_after_failure(self, MockBitunixData, MockBitUnixClientInstance):
+        MockBitUnixClientInstance.return_value = self.mock_bitunix_client
+        self.mock_bitunix_client.change_position_mode.side_effect = [
+            RuntimeError("temporary"),
+            {"code": 0, "data": [{"positionMode": "HEDGE"}]},
+        ]
+        mock_data_source = MockBitunixData.return_value
+        mock_data_source.client_symbols = set()
+
+        broker = Bitunix(self.config, connect_stream=False)
+
+        broker._ensure_position_mode_initialized()
+        self.assertFalse(broker._position_mode_initialized)
+
+        broker._ensure_position_mode_initialized()
+        self.assertTrue(broker._position_mode_initialized)
+        self.assertEqual(self.mock_bitunix_client.change_position_mode.call_count, 2)
 
     @patch("lumibot.brokers.bitunix.BitUnixClient")
     @patch("lumibot.brokers.bitunix.BitunixData")

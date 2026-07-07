@@ -1,6 +1,13 @@
 # Changelog
 
-## 4.5.69 - Unreleased
+## 4.5.70 - 2026-07-07
+
+### Fixed
+- **Release lint cleanup for Schwab token reload and stats crash fixes.**
+  Keeps the externally managed Schwab token reload and missing portfolio-value
+  guards from 4.5.69 while satisfying the production CI Ruff gate.
+
+## 4.5.69 - 2026-07-07
 
 ## 4.5.68 - 2026-07-07
 

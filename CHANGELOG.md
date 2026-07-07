@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.5.69 - Unreleased
+
 ## 4.5.68 - 2026-07-07
 
 ### Fixed

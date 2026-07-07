@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.5.67 - Unreleased
+## 4.5.67 - 2026-07-07
 
 ### Fixed
 - **Schwab stock market orders now use the normal session instead of seamless.**

@@ -60,3 +60,34 @@ Cache
 
 FRED data is cached under ``~/.lumibot/cache/fred`` by default. Override this
 with ``LUMIBOT_FRED_CACHE_DIR``.
+
+FXMacroData Macro Releases
+==========================
+
+LumiBot also includes an FXMacroData provider for FX-focused macro announcement
+rows:
+
+.. code-block:: python
+
+   self.macro.fxmacrodata.list_indicators()
+   self.macro.fxmacrodata.get_series("eur", "inflation")
+   self.macro.fxmacrodata.get_latest("jpy", "policy_rate")
+   self.macro.fxmacrodata.get_snapshot("gbp", ["inflation", "policy_rate", "unemployment"])
+
+Agents receive these read-only built-ins automatically:
+
+- ``list_fxmacrodata_indicators``
+- ``get_fxmacrodata_series``
+- ``get_fxmacrodata_latest``
+- ``get_fxmacrodata_snapshot``
+
+USD announcement data is public. Set ``FXMD_API_KEY`` or
+``FXMACRODATA_API_KEY`` for non-USD and paid endpoint access. LumiBot sends the
+key as an ``X-API-Key`` header, not as an ``api_key`` query parameter.
+
+In a backtest, ``as_of`` defaults to ``self.get_datetime()``. LumiBot filters
+release rows by ``announcement_datetime`` so the strategy does not see macro
+releases after the simulated datetime.
+
+FXMacroData responses are cached under ``~/.lumibot/cache/fxmacrodata`` by
+default. Override this with ``LUMIBOT_FXMACRODATA_CACHE_DIR``.

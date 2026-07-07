@@ -88,7 +88,7 @@ Here is a complete AI trading agent strategy that uses Lumibot's built-in FRED m
                 benchmark_asset="SPY",
             )
 
-That is the entire strategy file. No local MCP server scripts, no npm installs, and no explicit built-in tool lists. LumiBot includes built-in tools by default, including ``get_fred_series`` when ``FRED_API_KEY`` is configured.
+That is the entire strategy file. No local MCP server scripts, no npm installs, and no explicit built-in tool lists. LumiBot includes built-in tools by default, including ``get_fred_series`` when ``FRED_API_KEY`` is configured and FXMacroData tools such as ``get_fxmacrodata_series`` for FX-focused macro announcement rows.
 
 How ``@agent_tool`` Works
 -------------------------

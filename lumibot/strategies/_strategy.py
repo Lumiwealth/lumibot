@@ -9,6 +9,7 @@ from importlib import import_module
 
 from lumibot._lazy_imports import LazyClassMeta, LazyModule, LazyStrategyLogger, lazy_class, lazy_typing
 
+
 def _env_flag_enabled(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "y", "on")
 
@@ -81,7 +82,6 @@ else:
         DISCORD_WEBHOOK_URL,
         HIDE_POSITIONS,
         HIDE_TRADES,
-        IS_BACKTESTING,
         LIVE_CONFIG,
         LOG_BACKTEST_PROGRESS_TO_FILE,
         LUMIWEALTH_API_KEY,
@@ -95,6 +95,9 @@ else:
         THETADATA_CONFIG,
         get_default_broker,
         get_default_data_source,
+    )
+    from ..credentials import (
+        IS_BACKTESTING as IS_BACKTESTING,
     )
 
 mdates = LazyModule("matplotlib.dates")
@@ -121,7 +124,7 @@ BROKER = None
 DATA_SOURCE = None
 
 if TYPE_CHECKING:
-    from ..entities import CashEvent, Data, Position
+    from ..entities import CashEvent, Data
 
 
 def colored(*args, **kwargs):

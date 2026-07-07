@@ -35,9 +35,14 @@ FRED API Key Behavior
 ---------------------
 
 ``FRED_API_KEY`` is required for the official FRED/ALFRED API path and for
-FRED macro data fetches that need strict point-in-time backtests. LumiBot uses
-the official API path instead of public CSV fallbacks so tool output has a
-clear provenance and backtests can request point-in-time vintage observations.
+FRED macro data fetches.
+
+This FRED credential is not used by FXMacroData. FXMacroData access is
+described separately below.
+
+LumiBot uses the official API path instead of public CSV fallbacks so tool
+output has a clear provenance and backtests can request point-in-time vintage
+observations.
 
 With a key, LumiBot passes ``realtime_start`` and ``realtime_end`` based on the
 strategy datetime so the backtest sees the vintage observations that were

@@ -2081,7 +2081,20 @@ class Schwab(Broker):
             logger.error(colored("Failed to import Schwab order enums. Make sure the schwab-py library is installed.", "red"))
             return None
 
-        if order and getattr(order, "asset", None) and order.asset.asset_type == Asset.AssetType.STOCK:
+        order_type = getattr(order, "order_type", None)
+        order_type_value = getattr(order_type, "value", order_type)
+        if isinstance(order_type_value, str):
+            order_type_value = order_type_value.lower()
+
+        if (
+            order
+            and getattr(order, "asset", None)
+            and order.asset.asset_type == Asset.AssetType.STOCK
+            and (
+                order_type == Order.OrderType.LIMIT
+                or order_type_value == "limit"
+            )
+        ):
             return Session.SEAMLESS
 
         return Session.NORMAL

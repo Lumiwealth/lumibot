@@ -2,6 +2,13 @@
 
 ## 4.5.67 - Unreleased
 
+### Fixed
+- **Schwab stock market orders now use the normal session instead of seamless.**
+  Schwab's seamless/Day+Extended session is valid for eligible equity limit
+  orders, but live Schwab rejects seamless market orders with HTTP 400 invalid
+  request data. Stock limit orders continue to use `SEAMLESS`; stock market
+  orders, stop orders, options, and futures use `NORMAL`.
+
 ## 4.5.66 - Unreleased
 
 ## 4.5.65 - Unreleased

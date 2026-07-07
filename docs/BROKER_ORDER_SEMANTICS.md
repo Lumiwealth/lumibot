@@ -2,7 +2,7 @@
 
 > Notes on live broker behavior that affect backtesting semantics (extended hours, order types, and “market closed / no data” handling).
 
-**Last Updated:** 2026-05-28
+**Last Updated:** 2026-07-07
 **Status:** Active
 **Audience:** Developers, AI Agents
 
@@ -99,15 +99,32 @@ Backtesting implications:
 ### Schwab (equities)
 
 Schwab supports extended hours trading; public docs emphasize:
-- extended-hours trades are typically **limit orders**
-- certain order types (e.g., stop orders) may not be eligible in extended sessions
+- regular-session stock orders can use market, limit, stop-limit, and other
+  order types depending on product/platform eligibility
+- extended-hours/pre-market/after-hours stock trading accepts **only limit
+  orders**
+- Day + Extended and GTC + Extended orders are known as seamless orders and are
+  available only for limit orders
+- certain order types (e.g., market and stop orders) are not eligible in
+  extended sessions
 
 Links (public):
 - https://www.schwab.com/content/how-to-place-trade-during-extended-hours
-- https://www.schwab.com/stocks/extended-hours-trading
+- https://international.schwab.com/content/stock-order-types-and-conditions-overview
+- https://www.schwab.com/learn/story/mastering-order-types-limit-orders
 
 Backtesting implications:
 - if we model Schwab extended sessions, order-type restrictions must be documented and tested.
+
+Live trading implications:
+- Schwab stock `LIMIT` orders may use `SEAMLESS` when extended-hours
+  participation is intended.
+- Schwab stock `MARKET` orders must use `NORMAL`; a live July 2026 production
+  customer run rejected `session=SEAMLESS`, `orderType=MARKET` with HTTP 400
+  `Invalid request data`.
+- Do not generalize "seamless spans all sessions" into "seamless works with all
+  order types." The session span and order type eligibility are separate broker
+  constraints.
 
 ### Tradier (equities/options)
 

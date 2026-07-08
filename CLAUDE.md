@@ -1,5 +1,22 @@
 # CLAUDE.md - AI Assistant Instructions for LumiBot
 
+## Public Repo Secret Hygiene (CRITICAL)
+
+LumiBot is open source. Never put private, account-specific, or
+machine-specific information in this file or any other tracked repo file.
+
+- Do not include usernames, passwords, API keys, tokens, account emails,
+  customer identifiers, broker credentials, paid vendor credentials, private
+  hostnames, private URLs, cookies, local profile paths, or absolute personal
+  filesystem paths.
+- Do not document real `.env` locations, credential-file paths, secret store
+  values, or commands that write real credentials to disk.
+- Use placeholders such as `<your-vendor-username>`,
+  `<your-downloader-host>`, `<repo>`, and `$TMPDIR`, and point contributors to
+  public environment variable names or their own secret manager.
+- If sensitive data is needed for private BotSpot/Lumiwealth operations, keep it
+  in private repos/docs/secret stores, not in this public LumiBot checkout.
+
 ## 🚨🚨🚨 RULE #1 — NEVER FABRICATE BACKTEST DATA 🚨🚨🚨
 
 **Fake / synthesized / default-filled market data is STRICTLY FORBIDDEN.**
@@ -34,9 +51,9 @@ Backtesting “accuracy” is measured against live broker behavior when possibl
 ## Multi-Agent Collaboration (CRITICAL)
 This repo is often worked on by **multiple AI sessions** at the same time.
 
-- Canonical checkout: normal LumiBot work must happen in
-  `/Users/robertgrzesik/Development/lumibot`. Keep that checkout on the active
-  `version/X.Y.Z` branch, clean, and ready for release. Do not create sibling
+- Canonical checkout: normal LumiBot work must happen in this repository
+  checkout. Keep that checkout on the active `version/X.Y.Z` branch, clean, and
+  ready for release. Do not create sibling
   worktrees like `lumibot-version-X.Y.Z` for normal development. Temporary
   worktrees outside this folder are acceptable only for isolated review of
   unusually large or risky external PRs, and must not become the active release
@@ -316,11 +333,11 @@ LumiBot is a trading and backtesting framework supporting multiple data sources 
 
 | What | Where |
 |------|-------|
-| LumiBot library | `/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot/` |
-| Strategy Library | `/Users/robertgrzesik/Documents/Development/Strategy Library/` |
-| Demo strategies | `/Users/robertgrzesik/Documents/Development/Strategy Library/Demos/` |
-| Environment config | `Demos/.env` for strategies, `lumibot/.env` for library |
-| Backtest logs | `/Users/robertgrzesik/Documents/Development/Strategy Library/logs/` |
+| LumiBot library | This repository checkout |
+| Strategy examples | `example_strategies/` and `tests/backtest/acceptance_strategies/` |
+| Demo strategies | Use your own untracked local strategy folder |
+| Environment config | Use untracked local `.env` files or your secret manager |
+| Backtest logs | Use `logs/` or another untracked local artifact folder |
 
 ## Critical Rules
 
@@ -329,11 +346,10 @@ LumiBot is a trading and backtesting framework supporting multiple data sources 
 1. **NEVER run ThetaTerminal locally WITH PRODUCTION CREDENTIALS** - It will kill production connections
 2. **Only use the Data Downloader** configured via `DATADOWNLOADER_BASE_URL` for backtests (avoid hard-coded IPs/hostnames—they can change on redeploy)
 3. **Always compare ThetaData vs Yahoo** - Yahoo is the gold standard for split-adjusted prices
-4. **Dev credentials available for local testing** - See `AGENTS.md` for details:
-   - Username: `rob-dev@lumiwealth.com` / Password: `TestTestTest`
-   - Safe to use locally without affecting production
-   - Verified working Dec 7, 2025 with STOCK.PRO, OPTION.PRO, INDEX.PRO bundle
-5. **Wrap long commands with safe-timeout (20m default max).** Use `/Users/robertgrzesik/bin/safe-timeout 1200s …` and split work into smaller chunks if it would run longer.
+4. **Do not publish local ThetaTerminal credentials** - See `AGENTS.md` for the
+   public-safe policy. Use your own secret manager or untracked local
+   environment for rare local ThetaTerminal debugging.
+5. **Wrap long commands with safe-timeout (20m default max).** Use `bin/safe-timeout 1200s ...` when available, or another timeout wrapper, and split work into smaller chunks if it would run longer.
 6. See `AGENTS.md` for complete rules
 
 ### Private endpoint hygiene (MUST FOLLOW)
@@ -368,8 +384,8 @@ BACKTESTING_DATA_SOURCE=none       # Uses whatever class the code specifies
 ### Run a Backtest
 
 ```bash
-cd "/Users/robertgrzesik/Documents/Development/Strategy Library/Demos"
-python3 "TQQQ 200-Day MA.py"
+cd <your-untracked-strategy-folder>
+python3 "<your-strategy>.py"
 ```
 
 ### Compare Yahoo vs ThetaData
@@ -385,7 +401,7 @@ python3 "TQQQ 200-Day MA.py"
 ### Check Backtest Results
 
 ```bash
-ls -la "/Users/robertgrzesik/Documents/Development/Strategy Library/logs/" | grep TQQQ | tail -10
+ls -la logs/ | grep TQQQ | tail -10
 ```
 
 Look at `*_tearsheet.csv` for CAGR and metrics.
@@ -483,7 +499,7 @@ Two new test files provide comprehensive split adjustment coverage:
 ### Running Split Tests
 
 ```bash
-cd /Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot
+cd <repo>
 
 # Run unit tests only (no API calls, fast)
 pytest tests/test_split_adjustment.py tests/test_thetadata_yahoo_parity.py -v -m "not apitest"
@@ -667,4 +683,5 @@ Without MCP tools, debugging these issues is slow and error-prone. With them, yo
 
 - Track leading indicators weekly. Create dashboards and graphs to visualize progress.
 - When starting any task, check: does this move a North Star metric? If not, question its priority.
-- See `/Users/robertgrzesik/Documents/Development/CLAUDE.md` for the full framework.
+- See the private workspace operating instructions for the full framework when
+  working inside Rob's local BotSpot/Lumiwealth environment.

@@ -74,7 +74,7 @@ class AlpacaNewsBuiltinStrategy(Strategy):
 def _has_model_key(model_id: str) -> bool:
     lower = model_id.lower()
     if lower.startswith("gemini-") or lower.startswith("models/gemini"):
-        return bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"))
+        return bool(os.environ.get("GEMINI_API_KEY"))
     if lower.startswith("openai/"):
         return bool(os.environ.get("OPENAI_API_KEY"))
     if lower.startswith("xai/"):

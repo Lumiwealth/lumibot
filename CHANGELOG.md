@@ -1,5 +1,34 @@
 # Changelog
 
+## 4.5.73 - 2026-07-08
+
+Deploy marker: `deploy 4.5.73`
+
+### Fixed
+- **Tradier order refresh now parses returned OTOCO bracket rows and preserves
+  unsupported asset rows during broker-state reads.** Tradier bracket submits are
+  sent as `otoco`; returned rows now map back to LumiBot bracket orders with
+  attached exit children, `combo` maps to multileg, and future-like or unknown
+  account rows are preserved instead of being forced through stock parsing.
+  Parser failures now log only sanitized row shapes.
+- **AI agent Gemini examples and runtime checks now use `GEMINI_API_KEY` as the
+  explicit public contract.** Native Gemini model resolution no longer mutates
+  `GOOGLE_API_KEY` behind the scenes, and the bundled Alpaca news agent example
+  only treats `GEMINI_API_KEY` as satisfying Gemini credential readiness.
+- **AI-agent context pruning no longer expands small tool results or prunes far
+  below the model's real context window.** Gemini 3.1 data-on BotSpot strategy
+  smokes exposed a pruning loop where compact tool payloads were replaced by
+  longer pruning notices and the serialized request grew past its own budget.
+  LumiBot now skips non-shrinking replacements, avoids repeatedly pruning
+  already-pruned function responses, and uses a realistic character budget from
+  the model context registry before pruning.
+
+### Security
+- **Public-repo hygiene guardrails now block private local details and credential
+  leakage in tracked files.** Repo instructions, SECURITY guidance, CODEOWNERS,
+  and regression coverage now keep machine-specific/private operational details
+  out of public docs, tests, and examples.
+
 ## 4.5.72 - 2026-07-07
 
 ### Fixed

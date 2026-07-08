@@ -7,3 +7,13 @@
 # review when someone opens a pull request
 
 * @grzesir
+
+# Public instruction and CI guardrails. These are high-risk because they can
+# accidentally publish local paths, credentials, or weaken repository gates.
+AGENTS.md @grzesir
+CLAUDE.md @grzesir
+SECURITY.md @grzesir
+.github/CODEOWNERS @grzesir
+.github/workflows/ @grzesir
+.github/copilot-instructions.md @grzesir
+tests/test_public_instruction_secret_hygiene.py @grzesir

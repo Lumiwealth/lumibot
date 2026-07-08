@@ -1,3 +1,22 @@
+# Public Repo Secret Hygiene (CRITICAL)
+
+LumiBot is open source. Never put private, incriminating, account-specific, or
+machine-specific information in this file or any other tracked repo file.
+
+- Do not include usernames, passwords, API keys, tokens, account emails,
+  customer identifiers, broker credentials, paid vendor credentials, private
+  hostnames, private URLs, cookies, local profile paths, or absolute personal
+  filesystem paths.
+- Do not document real local `.env` locations, credential-file paths, secret
+  store values, or commands that write real credentials to disk.
+- Use placeholders such as `<your-vendor-username>`,
+  `<your-downloader-host>`, `<repo>`, and `$TMPDIR`, and point contributors to
+  the public environment variable names or their own secret manager.
+- If sensitive data is needed for private BotSpot/Lumiwealth operations, keep it
+  in the private repo/docs/secret store, not in this public LumiBot checkout.
+- If sensitive data is found in tracked files, remove it immediately, scan for
+  nearby leaks, and treat exposed credentials as needing rotation.
+
 # LumiBot Agent Instructions (Theta / Downloader Focus)
 
 These rules are mandatory whenever you work on ThetaData integrations.
@@ -53,9 +72,9 @@ call.
 ## Multi-Agent Collaboration (CRITICAL)
 This repo is frequently edited by **multiple AI sessions**. To avoid lost work:
 
-- **Canonical checkout (STRICT):** normal LumiBot work happens in
-  `/Users/robertgrzesik/Development/lumibot`. Keep that checkout on the active
-  `version/X.Y.Z` branch, clean, and deploy-ready. Do not create sibling
+- **Canonical checkout (STRICT):** normal LumiBot work happens in this repository
+  checkout. Keep it on the active `version/X.Y.Z` branch, clean, and
+  deploy-ready. Do not create sibling
   worktrees like `lumibot-version-X.Y.Z` for normal feature/doc/test work.
   Temporary worktrees outside this folder are allowed only for isolated review
   of unusually large or risky external PRs, and must not become the active
@@ -65,9 +84,9 @@ This repo is frequently edited by **multiple AI sessions**. To avoid lost work:
   - **Never push directly to `dev`.** All work must land via a PR (usually from `version/X.Y.Z` → `dev`).
   - **Stay on the current branch.** If you start on a `version/*` branch, keep all commits on that branch and push that branch.
   - **Never switch branches without explicit user instruction.** If you suspect you are on the wrong branch, stop and ask.
-  - **Post-release branch switch is a mandatory exception.** After a Lumibot release is tagged/published and the release workflow creates `version/X.Y.(Z+1)`, immediately move the canonical checkout to that next version branch with `git switch` and verify `git branch --show-current`, `setup.py`, and `git status`. Do this before reporting the release complete or triggering BotManager work. Never leave `/Users/robertgrzesik/Development/lumibot` on the just-released branch.
+  - **Post-release branch switch is a mandatory exception.** After a Lumibot release is tagged/published and the release workflow creates `version/X.Y.(Z+1)`, immediately move the canonical checkout to that next version branch with `git switch` and verify `git branch --show-current`, `setup.py`, and `git status`. Do this before reporting the release complete or triggering BotManager work. Never leave the canonical checkout on the just-released branch.
   - **Never update an old version branch to make a stale GitHub URL look current.** If Rob or a browser is viewing an older `version/X.Y.Z` branch, do not push current work to that old branch and do not switch to it. Give Rob the correct latest version branch URL instead. Historical version branches are release records, not redirect targets.
-  - **Always keep the canonical checkout on the latest active `version/X.Y.Z` branch.** If you discover `/Users/robertgrzesik/Development/lumibot` is on an older version branch, stop and report it unless Rob explicitly tells you to move it with `git switch` after verifying the tree is clean.
+  - **Always keep the canonical checkout on the latest active `version/X.Y.Z` branch.** If you discover this checkout is on an older version branch, stop and report it unless Rob explicitly tells you to move it with `git switch` after verifying the tree is clean.
   - **PRs must be version-scoped.** If a PR is needed for review/release, the PR head must be the existing `version/X.Y.Z` branch.
   - **PR title must be release-scoped.** Use `vX.Y.Z - <summary>` and include all notable changes shipped in that version (not just one feature).
 
@@ -98,41 +117,30 @@ This repo is frequently edited by **multiple AI sessions**. To avoid lost work:
 - **Test gating (STRICT):** do not introduce new environment variables just to skip/disable tests or to paper over CI failures.
   - Prefer existing pytest markers (`apitest`, `acceptance_backtest`, etc.) and normal test skips with clear reasons.
   - If a new env var is truly required for a user-facing feature, document it in `docsrc/environment_variables.rst` in the same PR.
+  - Hidden provider credential loading is an anti-pattern for user-facing
+    components. If LumiBot needs a provider key because a model, broker, data
+    tool, or component is selected, make the required env var explicit in docs,
+    examples, errors, and component metadata. Do not silently depend on an SDK
+    alias or behind-the-scenes env-var mutation that makes downstream products
+    unable to infer the required key.
 - **Full suite verification:** prefer pushing commits to GitHub on the shared `version/X.Y.Z` branch so sharded CI validates the full suite. Local runs should focus on targeted tests or marker-filtered subsets.
 
 1. **Never launch ThetaTerminal locally WITH PRODUCTION CREDENTIALS.** Production has the only licensed session for that account. Starting the jar with prod credentials (even briefly or via Docker) instantly terminates the prod connection and halts all customers.
 2. **Use the downloader for backtests.** All tests/backtests must set `DATADOWNLOADER_BASE_URL` and `DATADOWNLOADER_API_KEY` via the runtime environment. Do not short-cut by hitting Theta directly.
 3. **Never hardcode or share private downloader URLs.** Do not paste real downloader hostnames/URLs into code, docs, tests, logs, AGENTS, or CLAUDE; use placeholders (e.g., `http://localhost:8080` or `https://<your-downloader-host>:8080`) and refer to `DATADOWNLOADER_BASE_URL`.
 
-### Dev Credentials for Local ThetaTerminal Testing (SAFE)
+### Local ThetaTerminal Testing Credentials
 
-There is a **separate dev account** that CAN be used for local debugging without affecting production:
+Do not put ThetaData usernames, passwords, account emails, bundles, or local
+credential-file locations in this public repo. For rare local ThetaTerminal
+debugging, load credentials from your own secret manager or untracked local
+environment, use a disposable `$TMPDIR` file, and delete that file when the
+process exits. Do not use local ThetaTerminal credentials for backtests; use the
+configured Data Downloader path for consistent results.
 
-| Field | Value |
-|-------|-------|
-| Username | `rob-dev@lumiwealth.com` |
-| Password | `TestTestTest` |
-| Bundle | STOCK.PRO, OPTION.PRO, INDEX.PRO |
-| Location | `Strategy Library/Demos/.env` (commented out) |
-
-**Verified working:** Dec 7, 2025
-
-```bash
-# Quick test with dev credentials
-mkdir -p "/Users/robertgrzesik/Documents/Development/tmp/theta-dev-test"
-echo -e "rob-dev@lumiwealth.com\nTestTestTest" > "/Users/robertgrzesik/Documents/Development/tmp/theta-dev-test/creds.txt"
-java -jar $(python -c "import lumibot; import os; print(os.path.join(os.path.dirname(lumibot.__file__), 'tools', 'ThetaTerminal.jar'))") "/Users/robertgrzesik/Documents/Development/tmp/theta-dev-test/creds.txt" &
-sleep 10
-curl "http://127.0.0.1:25510/v2/status"  # Should show CONNECTED
-pkill -f "ThetaTerminal.jar"  # Clean up
-rm -rf "/Users/robertgrzesik/Documents/Development/tmp/theta-dev-test"
-```
-
-**Use dev credentials ONLY for:** Debugging ThetaTerminal itself, testing API endpoints, investigating data issues.
-**Do NOT use for:** Running backtests (always use prod Data Downloader for consistent results).
 3. **Respect the queue/backoff contract.** LumiBot no longer enforces a 30 s client timeout; instead it listens for the downloader’s `{"error":"queue_full"}` responses and retries with exponential backoff. If you add new downloader
    integrations, reuse that helper so we never DDoS the server.
-4. **Long commands = safe-timeout (20m default max).** Wrap backtests/pytest/stress jobs with `/Users/robertgrzesik/bin/safe-timeout 1200s …` and break work into smaller chunks if it would run longer. Only use longer timeouts when absolutely necessary (e.g., explicit full-window acceptance backtests).
+4. **Long commands = safe-timeout (20m default max).** Wrap backtests/pytest/stress jobs with `bin/safe-timeout 1200s ...` when available, or another timeout wrapper, and break work into smaller chunks if it would run longer. Only use longer timeouts when absolutely necessary (e.g., explicit full-window acceptance backtests).
 5. **Artifacts.** When demonstrating fixes, capture `Strategy\ Library/logs/*.log`, tear sheets, and downloader stress JSONs so the accuracy/dividend/resilience story stays reproducible.
 6. **Write Location Policy (no “code files” outside Development).** Do not create helper scripts (e.g., `*.py`) under `/tmp` or other non-Development locations. Put LumiBot helpers under `scripts/` in this repo.
 
@@ -428,4 +436,5 @@ This philosophy applies to ALL projects, not just LumiBot.
 
 - Track leading indicators weekly. Create dashboards and graphs to visualize progress.
 - When starting any task, check: does this move a North Star metric? If not, question its priority.
-- See `/Users/robertgrzesik/Documents/Development/CLAUDE.md` for the full framework.
+- See the private workspace operating instructions for the full framework when
+  working inside Rob's local BotSpot/Lumiwealth environment.

@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.5.73 - Unreleased
+## 4.5.73 - 2026-07-08
+
+Deploy marker: `deploy 4.5.73`
 
 ### Fixed
 - **Tradier order refresh now parses returned OTOCO bracket rows and preserves

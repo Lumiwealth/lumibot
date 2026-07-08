@@ -290,18 +290,28 @@ class StrategyExecutor(Thread):
                 self._run_once_market_open_override = False
                 return
         try:
-            now = self._scheduled_now_utc()
-            buffer = timedelta(days=14)
-            self.broker.initialize_market_calendars(
-                get_trading_days(
-                    market=market,
-                    start_date=now - buffer,
-                    end_date=now + buffer + timedelta(days=1),
-                    tzinfo=_default_pytz(),
-                )
+            self._initialize_live_market_calendars(market, now_utc=self._scheduled_now_utc())
+        except Exception as e:
+            if hasattr(self.strategy, "logger"):
+                self.strategy.logger.warning(f"Could not initialize live market calendar: {e}")
+
+    def _initialize_live_market_calendars(self, market, now_utc=None):
+        """Initialize a bounded live calendar that covers the current session."""
+        now = now_utc or datetime.now(timezone.utc)
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=timezone.utc)
+        else:
+            now = now.astimezone(timezone.utc)
+
+        buffer = timedelta(days=14)
+        self.broker.initialize_market_calendars(
+            get_trading_days(
+                market=market,
+                start_date=now - buffer,
+                end_date=now + buffer + timedelta(days=1),
+                tzinfo=_default_pytz(),
             )
-        except Exception:
-            self.broker.initialize_market_calendars(get_trading_days(market))
+        )
 
     def _is_continuous_market(self, market_name):
         """
@@ -2422,7 +2432,7 @@ class StrategyExecutor(Thread):
                     except Exception:
                         self.broker.initialize_market_calendars(get_trading_days(market))
                 else:
-                    self.broker.initialize_market_calendars(get_trading_days(market))
+                    self._initialize_live_market_calendars(market)
 
             #####
             # Main strategy execution loop

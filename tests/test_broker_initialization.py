@@ -11,6 +11,31 @@ import pytest
 from unittest.mock import patch, MagicMock
 
 
+class _CalendarTestBroker:
+    @staticmethod
+    def create():
+        from lumibot.brokers.broker import Broker
+
+        class TestBroker(Broker):
+            IS_BACKTESTING_BROKER = True
+
+            def cancel_order(self, order): pass
+            def _modify_order(self, order, limit_price=None, stop_price=None): pass
+            def _submit_order(self, order): return order
+            def _get_balances_at_broker(self, quote_asset, strategy): return (0, 0, 0)
+            def get_historical_account_value(self): return {}
+            def _get_stream_object(self): return None
+            def _register_stream_events(self): pass
+            def _run_stream(self): pass
+            def _pull_positions(self, strategy): return []
+            def _pull_position(self, strategy, asset): return None
+            def _parse_broker_order(self, response, strategy_name, strategy_object=None): return response
+            def _pull_broker_order(self, identifier): return None
+            def _pull_broker_all_orders(self): return []
+
+        return TestBroker(name="test", connect_stream=False, data_source=object())
+
+
 class TestBrokerInitializationSimple:
     """Test cases for broker initialization and error handling."""
     
@@ -117,6 +142,57 @@ class TestBrokerInitializationSimple:
         assert broker._is_market_open_from_initialized_calendar(
             datetime(2026, 5, 11, 21, 0, tzinfo=timezone.utc)
         ) is False
+
+    def test_initialized_calendar_returns_none_when_current_date_not_covered(self):
+        import pandas as pd
+
+        broker = _CalendarTestBroker.create()
+        broker.initialize_market_calendars(
+            pd.DataFrame(
+                {
+                    "market_open": [datetime(2026, 7, 7, 13, 30, tzinfo=timezone.utc)],
+                    "market_close": [datetime(2026, 7, 7, 20, 0, tzinfo=timezone.utc)],
+                }
+            )
+        )
+
+        assert broker._is_market_open_from_initialized_calendar(
+            datetime(2026, 7, 8, 14, 7, tzinfo=timezone.utc)
+        ) is None
+
+    def test_initialized_calendar_returns_false_for_covered_closed_session(self):
+        import pandas as pd
+
+        broker = _CalendarTestBroker.create()
+        broker.initialize_market_calendars(
+            pd.DataFrame(
+                {
+                    "market_open": [datetime(2026, 7, 8, 13, 30, tzinfo=timezone.utc)],
+                    "market_close": [datetime(2026, 7, 8, 20, 0, tzinfo=timezone.utc)],
+                }
+            )
+        )
+
+        assert broker._is_market_open_from_initialized_calendar(
+            datetime(2026, 7, 8, 12, 0, tzinfo=timezone.utc)
+        ) is False
+
+    def test_is_market_open_falls_back_when_initialized_calendar_is_stale(self, mocker):
+        import pandas as pd
+
+        broker = _CalendarTestBroker.create()
+        broker.market = "24/5"
+        broker.initialize_market_calendars(
+            pd.DataFrame(
+                {
+                    "market_open": [datetime(2026, 7, 7, 13, 30, tzinfo=timezone.utc)],
+                    "market_close": [datetime(2026, 7, 7, 20, 0, tzinfo=timezone.utc)],
+                }
+            )
+        )
+        mocker.patch.object(broker, "_is_continuous_market", return_value=True)
+
+        assert broker.is_market_open() is True
 
     def test_utc_to_local_converts_aware_datetime_before_localizing(self):
         from dateutil import tz

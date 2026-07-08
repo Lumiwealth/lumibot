@@ -2,6 +2,13 @@
 
 ## 4.5.74 - Unreleased
 
+### Fixed
+- **Live strategies no longer sleep through an already-open market because of
+  stale startup calendars.** Live startup now initializes a bounded market
+  calendar around the current session instead of defaulting to a calendar that
+  ends before today, and broker market-open checks fall back to direct calendar
+  logic when a preloaded calendar does not cover the current date.
+
 ## 4.5.73 - 2026-07-08
 
 Deploy marker: `deploy 4.5.73`

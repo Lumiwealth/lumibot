@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -54,6 +54,35 @@ def test_us_futures_treated_as_non_continuous(strategy_executor):
 def test_true_continuous_markets_remain_continuous(strategy_executor):
     """24/7 markets should still be recognised as continuous."""
     assert strategy_executor._is_continuous_market("24/7") is True
+
+
+def test_24_5_market_is_not_treated_as_continuous(strategy_executor):
+    """24/5 has a weekend gap, so live startup still needs a current calendar."""
+    assert strategy_executor._is_continuous_market("24/5") is False
+
+
+def test_live_calendar_initialization_bounds_include_current_session(strategy_executor, mocker):
+    captured_kwargs = {}
+
+    def fake_get_trading_days(*args, **kwargs):
+        captured_kwargs.update(kwargs)
+        return object()
+
+    initialize_spy = mocker.patch.object(strategy_executor.broker, "initialize_market_calendars")
+    mocker.patch(
+        "lumibot.strategies.strategy_executor.get_trading_days",
+        side_effect=fake_get_trading_days,
+    )
+
+    now = datetime(2026, 7, 8, 14, 7, 54, tzinfo=timezone.utc)
+    strategy_executor._initialize_live_market_calendars("NASDAQ", now_utc=now)
+
+    initialize_spy.assert_called_once()
+    assert captured_kwargs["market"] == "NASDAQ"
+    assert captured_kwargs["start_date"] <= now - timedelta(days=14)
+    # get_trading_days treats end_date as exclusive, so live startup must push beyond today.
+    assert captured_kwargs["end_date"] >= now + timedelta(days=15)
+    assert captured_kwargs["tzinfo"] is not None
 
 
 def test_ensure_progress_inside_open_session(strategy_executor, mocker):

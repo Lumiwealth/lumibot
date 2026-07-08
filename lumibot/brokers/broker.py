@@ -2177,6 +2177,7 @@ class Broker(ABC):
             if "market_close" not in getattr(rows, "columns", ()):
                 rows = rows.reset_index()
 
+            covers_current_date = False
             for row in rows.itertuples(index=False):
                 market_open = getattr(row, "market_open", None)
                 market_close = getattr(row, "market_close", None)
@@ -2198,10 +2199,14 @@ class Broker(ABC):
                     market_close = market_close.astimezone(timezone.utc)
 
                 market_close = market_close + timedelta(minutes=self.extended_trading_minutes)
+                if market_open.date() <= now_utc.date() <= market_close.date():
+                    covers_current_date = True
                 if market_open <= now_utc <= market_close:
                     return True
 
-            return False
+            if covers_current_date:
+                return False
+            return None
         except Exception:
             return None
 

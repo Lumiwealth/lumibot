@@ -1,13 +1,18 @@
 # Changelog
 
-## 4.5.74 - Unreleased
+## 4.5.74 - 2026-07-08
+
+Deploy marker: `deploy 4.5.74`
 
 ### Fixed
 - **Live strategies no longer sleep through an already-open market because of
   stale startup calendars.** Live startup now initializes a bounded market
   calendar around the current session instead of defaulting to a calendar that
   ends before today, and broker market-open checks fall back to direct calendar
-  logic when a preloaded calendar does not cover the current date.
+  logic when a preloaded calendar does not cover the current date. Regression
+  coverage now includes `NASDAQ`, `NYSE`, `24/5`, `24/7`, `us_futures`,
+  weekends, premarket/after-hours, overnight sessions, extended trading minutes,
+  and an Alpaca-shaped no-order broker path.
 
 ## 4.5.73 - 2026-07-08
 

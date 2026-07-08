@@ -345,6 +345,99 @@ class TestBrokerInitializationSimple:
         assert broker._is_market_open_from_initialized_calendar(open_dt) is True
         assert broker._is_market_open_from_initialized_calendar(other_dt) is expected_other_open
 
+    def test_us_futures_real_calendar_weekend_closed_and_monday_night_open(self):
+        from lumibot.tools import get_trading_days
+
+        broker = _CalendarTestBroker.create()
+        broker.initialize_market_calendars(
+            get_trading_days(
+                market="us_futures",
+                start_date=datetime(2026, 7, 1, tzinfo=timezone.utc),
+                end_date=datetime(2026, 7, 22, tzinfo=timezone.utc),
+            )
+        )
+
+        # Saturday night in New York is still the CME weekend gap.
+        assert broker._is_market_open_from_initialized_calendar(
+            datetime(2026, 7, 12, 2, 0, tzinfo=timezone.utc)
+        ) is False
+        # Monday night in New York is inside the regular Globex session.
+        assert broker._is_market_open_from_initialized_calendar(
+            datetime(2026, 7, 14, 2, 0, tzinfo=timezone.utc)
+        ) is True
+
+    def test_24_5_real_calendar_weekend_closed_and_weeknight_open(self):
+        from lumibot.tools import get_trading_days
+
+        broker = _CalendarTestBroker.create()
+        broker.initialize_market_calendars(
+            get_trading_days(
+                market="24/5",
+                start_date=datetime(2026, 7, 1, tzinfo=timezone.utc),
+                end_date=datetime(2026, 7, 22, tzinfo=timezone.utc),
+            )
+        )
+
+        assert broker._is_market_open_from_initialized_calendar(
+            datetime(2026, 7, 12, 2, 0, tzinfo=timezone.utc)
+        ) is False
+        assert broker._is_market_open_from_initialized_calendar(
+            datetime(2026, 7, 14, 2, 0, tzinfo=timezone.utc)
+        ) is True
+
+    @pytest.mark.parametrize("market", ["NASDAQ", "NYSE"])
+    def test_equity_real_calendar_market_hours_weekend_and_holiday(self, market):
+        from lumibot.tools import get_trading_days
+
+        broker = _CalendarTestBroker.create()
+        broker.initialize_market_calendars(
+            get_trading_days(
+                market=market,
+                start_date=datetime(2026, 7, 1, tzinfo=timezone.utc),
+                end_date=datetime(2026, 7, 22, tzinfo=timezone.utc),
+            )
+        )
+
+        assert broker._is_market_open_from_initialized_calendar(
+            datetime(2026, 7, 8, 14, 7, 54, tzinfo=timezone.utc)
+        ) is True
+        assert broker._is_market_open_from_initialized_calendar(
+            datetime(2026, 7, 8, 12, 0, tzinfo=timezone.utc)
+        ) is False
+        assert broker._is_market_open_from_initialized_calendar(
+            datetime(2026, 7, 8, 21, 0, tzinfo=timezone.utc)
+        ) is False
+        assert broker._is_market_open_from_initialized_calendar(
+            datetime(2026, 7, 11, 14, 0, tzinfo=timezone.utc)
+        ) is False
+        # Independence Day is observed on Friday July 3 in 2026.
+        assert broker._is_market_open_from_initialized_calendar(
+            datetime(2026, 7, 3, 14, 0, tzinfo=timezone.utc)
+        ) is False
+
+    @pytest.mark.parametrize(
+        "timestamp",
+        [
+            datetime(2026, 1, 1, 14, 0, tzinfo=timezone.utc),
+            datetime(2026, 7, 4, 14, 0, tzinfo=timezone.utc),
+            datetime(2026, 7, 11, 14, 0, tzinfo=timezone.utc),
+            datetime(2026, 12, 25, 14, 0, tzinfo=timezone.utc),
+        ],
+    )
+    def test_24_7_real_calendar_ignores_weekends_and_holidays(self, timestamp):
+        from lumibot.tools import get_trading_days
+
+        broker = _CalendarTestBroker.create()
+        broker.initialize_market_calendars(
+            get_trading_days(
+                market="24/7",
+                start_date=timestamp - timedelta(days=14),
+                end_date=timestamp + timedelta(days=15),
+            )
+        )
+
+        assert broker._is_market_open_from_initialized_calendar(timestamp) is True
+
     def test_utc_to_local_converts_aware_datetime_before_localizing(self):
         from dateutil import tz
         from lumibot.brokers.broker import Broker

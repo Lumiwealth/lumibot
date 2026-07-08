@@ -43,8 +43,15 @@ The 4.5.74 regression coverage includes:
 - weekend gaps inside a loaded calendar window,
 - generated calendar rows for `NASDAQ`, `NYSE`, `24/5`, `us_futures`, and
   `24/7`,
+- U.S. futures Saturday-night closed behavior versus Monday-night open behavior,
+- equity market holidays such as observed Independence Day,
+- `24/7` behavior on weekends and holidays,
 - an Alpaca-shaped no-order broker path where a stale initialized calendar falls
   through to normal market-hours logic.
+
+A read-only Alpaca paper broker smoke also verified that a real broker can
+authenticate, read balances, read positions, read orders, and use the fixed
+initialized-calendar path without submitting orders.
 
 The focused local verification command used for this fix was:
 
@@ -61,6 +68,10 @@ The focused local verification command used for this fix was:
   tests/test_broker_initialization.py::TestBrokerInitializationSimple::test_is_market_open_does_not_fall_back_for_weekend_inside_calendar_window \
   tests/test_broker_initialization.py::TestBrokerInitializationSimple::test_base_broker_continuous_market_detection_respects_weekend_gaps \
   tests/test_broker_initialization.py::TestBrokerInitializationSimple::test_real_market_calendars_cover_open_and_other_times \
+  tests/test_broker_initialization.py::TestBrokerInitializationSimple::test_us_futures_real_calendar_weekend_closed_and_monday_night_open \
+  tests/test_broker_initialization.py::TestBrokerInitializationSimple::test_24_5_real_calendar_weekend_closed_and_weeknight_open \
+  tests/test_broker_initialization.py::TestBrokerInitializationSimple::test_equity_real_calendar_market_hours_weekend_and_holiday \
+  tests/test_broker_initialization.py::TestBrokerInitializationSimple::test_24_7_real_calendar_ignores_weekends_and_holidays \
   tests/test_alpaca.py::TestAlpacaBroker::test_market_open_falls_back_when_initialized_calendar_is_stale \
   tests/test_market_type_detection.py \
   tests/test_scheduled_run_once.py \

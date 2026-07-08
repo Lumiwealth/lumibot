@@ -11,8 +11,11 @@ Deploy marker: `deploy 4.5.74`
   ends before today, and broker market-open checks fall back to direct calendar
   logic when a preloaded calendar does not cover the current date. Regression
   coverage now includes `NASDAQ`, `NYSE`, `24/5`, `24/7`, `us_futures`,
-  weekends, premarket/after-hours, overnight sessions, extended trading minutes,
-  and an Alpaca-shaped no-order broker path.
+  futures Saturday-night versus Monday-night sessions, equity holidays,
+  weekend behavior, premarket/after-hours, overnight sessions, extended trading
+  minutes, and an Alpaca-shaped no-order broker path. A read-only Alpaca paper
+  broker smoke verified authentication, balance reads, position reads, order
+  reads, and the fixed initialized-calendar path without submitting orders.
 
 ## 4.5.73 - 2026-07-08
 

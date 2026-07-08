@@ -227,6 +227,31 @@ def test_format_stats_preserves_valid_initial_portfolio_base(monkeypatch) -> Non
     assert float(stats["cash_adjusted_portfolio_value"].iloc[-1]) == 100_000.0
 
 
+def test_format_stats_handles_duplicate_datetime_external_flow_base(monkeypatch) -> None:
+    _stub_stats_flow_math(monkeypatch)
+    broker = PandasDataBacktesting(
+        datetime_start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        datetime_end=datetime(2026, 1, 2, tzinfo=timezone.utc),
+    )
+    strat = _StatsOnlyStrategy(broker=BacktestingBroker(data_source=broker))
+    strat._benchmark_asset = None
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    strat._append_row({
+        "datetime": start,
+        "portfolio_value": 100_000.0,
+        "cash_adjustments_net_total": 0.0,
+    })
+    strat._append_row({
+        "datetime": start,
+        "portfolio_value": 100_000.0,
+        "cash_adjustments_net_total": 0.0,
+    })
+
+    stats = strat._format_stats()
+
+    assert float(stats["cash_adjusted_portfolio_value"].iloc[0]) == 100_000.0
+
+
 def test_format_stats_tolerates_no_valid_portfolio_values(monkeypatch) -> None:
     _stub_stats_flow_math(monkeypatch)
     broker = PandasDataBacktesting(

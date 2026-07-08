@@ -632,6 +632,136 @@ class TestTradierBroker:
         assert stop_order.side == "sell_to_close"
         assert stop_order.order_type == Order.OrderType.STOP
 
+    def test_otoco_bracket_parse_broker_order_dict(self):
+        broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True, connect_stream=False)
+        strategy = "strat_unittest"
+        response = {
+            "avg_fill_price": None,
+            "class": "otoco",
+            "create_date": "2026-07-08T13:30:00.000Z",
+            "duration": None,
+            "id": 20000001,
+            "quantity": None,
+            "side": None,
+            "status": "submitted",
+            "symbol": None,
+            "tag": "BracketStrat",
+            "type": None,
+            "leg": [
+                {
+                    "avg_fill_price": None,
+                    "class": "equity",
+                    "create_date": "2026-07-08T13:30:00.000Z",
+                    "duration": "day",
+                    "id": 20000002,
+                    "price": 500.0,
+                    "quantity": 1,
+                    "side": "buy",
+                    "status": "submitted",
+                    "symbol": "SPY",
+                    "type": "limit",
+                },
+                {
+                    "avg_fill_price": None,
+                    "class": "equity",
+                    "create_date": "2026-07-08T13:30:00.000Z",
+                    "duration": "gtc",
+                    "id": 20000003,
+                    "price": 510.0,
+                    "quantity": 1,
+                    "side": "sell",
+                    "status": "pending",
+                    "symbol": "SPY",
+                    "type": "limit",
+                },
+                {
+                    "avg_fill_price": None,
+                    "class": "equity",
+                    "create_date": "2026-07-08T13:30:00.000Z",
+                    "duration": "gtc",
+                    "id": 20000004,
+                    "quantity": 1,
+                    "side": "sell",
+                    "status": "pending",
+                    "stop_price": 490.0,
+                    "symbol": "SPY",
+                    "type": "stop",
+                },
+            ],
+        }
+
+        order = broker._parse_broker_order_dict(response, strategy)
+
+        assert order.identifier == 20000001
+        assert order.strategy == strategy
+        assert order.asset.symbol == "SPY"
+        assert order.order_class == Order.OrderClass.BRACKET
+        assert order.order_type == Order.OrderType.LIMIT
+        assert order.limit_price == 500.0
+        assert order.quantity == 1
+        assert len(order.child_orders) == 2
+
+        take_profit, stop_loss = order.child_orders
+        assert take_profit.identifier == 20000003
+        assert take_profit.parent_identifier == order.identifier
+        assert take_profit.order_type == Order.OrderType.LIMIT
+        assert take_profit.limit_price == 510.0
+        assert stop_loss.identifier == 20000004
+        assert stop_loss.parent_identifier == order.identifier
+        assert stop_loss.order_type == Order.OrderType.STOP
+        assert stop_loss.stop_price == 490.0
+
+    def test_tradier_class2lumi_maps_otoco_and_combo(self):
+        assert Tradier._tradier_class2lumi("otoco") == Order.OrderClass.BRACKET
+        assert Tradier._tradier_class2lumi("OTOCO") == Order.OrderClass.BRACKET
+        assert Tradier._tradier_class2lumi("combo") == Order.OrderClass.MULTILEG
+        assert Tradier._tradier_class2lumi("multileg") == Order.OrderClass.MULTILEG
+        assert Tradier._tradier_class2lumi("oco") == Order.OrderClass.OCO
+
+    def test_extract_order_value_handles_missing_class_defensively(self):
+        assert Tradier._extract_order_value({"symbol": "SPY"}, {}, "symbol") == "SPY"
+        assert Tradier._extract_order_value({"symbol": None}, {"symbol": "QQQ"}, "symbol") == "QQQ"
+
+    def test_pull_positions_preserves_future_and_unknown_asset_rows(self):
+        broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True, connect_stream=False)
+        broker.tradier.account.get_positions = lambda: pd.DataFrame(
+            [
+                {"symbol": "AAPL", "quantity": 3},
+                {"symbol": "/ES", "quantity": 1, "asset_type": "future"},
+                {"symbol": "MYSTERY", "quantity": 2, "asset_type": "new_asset_class"},
+            ]
+        )
+
+        positions = broker._pull_positions(SimpleNamespace(name="unit-test"))
+
+        by_symbol_and_type = {(position.asset.symbol, position.asset.asset_type): position for position in positions}
+        assert ("AAPL", Asset.AssetType.STOCK) in by_symbol_and_type
+        assert ("ES", Asset.AssetType.CONT_FUTURE) in by_symbol_and_type
+        assert ("MYSTERY", Asset.AssetType.UNKNOWN) in by_symbol_and_type
+        assert by_symbol_and_type[("ES", Asset.AssetType.CONT_FUTURE)].raw_asset_type == "future"
+        assert by_symbol_and_type[("ES", Asset.AssetType.CONT_FUTURE)].raw_symbol == "/ES"
+        assert by_symbol_and_type[("MYSTERY", Asset.AssetType.UNKNOWN)].raw_asset_type == "new_asset_class"
+        assert by_symbol_and_type[("MYSTERY", Asset.AssetType.UNKNOWN)].broker_parse_degraded is True
+
+    def test_tradier_parse_failure_logs_sanitized_shape_without_raw_symbols(self, caplog):
+        broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True, connect_stream=False)
+        response = {
+            "class": "equity",
+            "type": "market",
+            "status": "submitted",
+            "symbol": "PRIVATE_SYMBOL",
+            "side": "buy",
+            "duration": "day",
+        }
+
+        with caplog.at_level("WARNING"):
+            with pytest.raises(KeyError):
+                broker._parse_broker_order_dict(response, "strat_unittest")
+
+        assert "Failed to parse Tradier order row" in caplog.text
+        assert "symbol_present" in caplog.text
+        assert "PRIVATE_SYMBOL" not in caplog.text
+
     @pytest.mark.skip(reason="Complex test that requires proper stream setup - skipping to fix CI timeout")
     def test_do_polling(self, mocker):
         broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True, polling_interval=None, connect_stream=False)

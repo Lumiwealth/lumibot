@@ -2,7 +2,7 @@
 
 > Notes on live broker behavior that affect backtesting semantics (extended hours, order types, and “market closed / no data” handling).
 
-**Last Updated:** 2026-07-07
+**Last Updated:** 2026-07-08
 **Status:** Active
 **Audience:** Developers, AI Agents
 
@@ -137,6 +137,19 @@ Link (public):
 
 Backtesting implications:
 - for Tradier-style behavior, “order submitted outside session” likely means “accepted and held until open”.
+
+Live read-path implications:
+- Tradier's Brokerage REST advanced-order submit path uses `otoco` for bracket orders. Returned `otoco` rows must be
+  parsed back into LumiBot `OrderClass.BRACKET`, with the entry leg as the parent order and the take-profit/stop-loss
+  legs attached as children.
+- Tradier `combo` rows map to LumiBot `OrderClass.MULTILEG`.
+- Tradier account/order refresh may encounter future-like or unsupported broker asset rows. The read path should
+  preserve these as `future`, `cont_future`, or `unknown` assets instead of forcing every non-option row into stock
+  parsing. This is read-model preservation only; it does not mean Tradier Brokerage REST futures order execution is
+  supported.
+- If a Tradier order row cannot be parsed, logs must include only a sanitized row shape: class/type/status, field
+  presence, leg count, and per-leg field presence. Do not log raw symbols, account identifiers, tags, credentials, or
+  the full broker payload.
 
 ### IBKR (equities/options)
 

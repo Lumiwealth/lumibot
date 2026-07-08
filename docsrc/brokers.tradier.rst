@@ -175,5 +175,8 @@ Tradier-specific limitations
 * Tradier sandbox/paper accounts do not provide account history, so the cash-event read path cannot be fully smoke
   tested against paper credentials.
 * Tradier history is updated on a delayed/nightly basis, so new cash events are not expected to appear intraday.
+* LumiBot's Tradier broker path is for Tradier Brokerage REST stocks/options order routing. LumiBot may preserve
+  future-like or unsupported account rows during broker-state refreshes so a read does not crash, but that preservation
+  is not futures execution support through Tradier Brokerage REST.
 
 See also: :doc:`cash_accounting`

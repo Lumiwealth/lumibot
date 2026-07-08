@@ -2,6 +2,14 @@
 
 ## 4.5.73 - Unreleased
 
+### Fixed
+- **Tradier order refresh now parses returned OTOCO bracket rows and preserves
+  unsupported asset rows during broker-state reads.** Tradier bracket submits are
+  sent as `otoco`; returned rows now map back to LumiBot bracket orders with
+  attached exit children, `combo` maps to multileg, and future-like or unknown
+  account rows are preserved instead of being forced through stock parsing.
+  Parser failures now log only sanitized row shapes.
+
 ## 4.5.72 - 2026-07-07
 
 ### Fixed

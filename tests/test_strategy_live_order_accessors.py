@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from threading import RLock
 
 import pytest
@@ -128,6 +128,11 @@ def _order(strategy_name, identifier, status, symbol="SPY", order_type=Order.Ord
     )
 
 
+def _age_past_market_order_grace(order):
+    order.created_at = datetime(2000, 1, 1)
+    return order
+
+
 def test_get_orders_filters_by_order_status_enum_and_identifiers():
     strategy, broker = _strategy()
     broker._new_orders.append(_order(strategy.name, "open-1", Order.OrderStatus.OPEN))
@@ -234,13 +239,14 @@ def test_live_order_list_miss_without_direct_match_does_not_fake_cancel():
 
 def test_live_market_order_list_miss_uses_direct_lookup_before_terminal_update():
     strategy, broker = _strategy()
-    tracked = _order(
-        strategy.name,
-        "market-1",
-        Order.OrderStatus.OPEN,
-        order_type=Order.OrderType.MARKET,
+    tracked = _age_past_market_order_grace(
+        _order(
+            strategy.name,
+            "market-1",
+            Order.OrderStatus.OPEN,
+            order_type=Order.OrderType.MARKET,
+        )
     )
-    tracked.created_at = datetime.now() - timedelta(seconds=30)
     broker._new_orders.append(tracked)
     broker.broker_orders = [_order(strategy.name, "other-order", Order.OrderStatus.OPEN)]
     broker.direct_orders["market-1"] = _order(strategy.name, "market-1", Order.OrderStatus.FILLED)
@@ -253,13 +259,14 @@ def test_live_market_order_list_miss_uses_direct_lookup_before_terminal_update()
 
 def test_live_market_order_list_miss_without_direct_match_becomes_non_active_unknown():
     strategy, broker = _strategy()
-    tracked = _order(
-        strategy.name,
-        "market-1",
-        Order.OrderStatus.OPEN,
-        order_type=Order.OrderType.MARKET,
+    tracked = _age_past_market_order_grace(
+        _order(
+            strategy.name,
+            "market-1",
+            Order.OrderStatus.OPEN,
+            order_type=Order.OrderType.MARKET,
+        )
     )
-    tracked.created_at = datetime.now() - timedelta(seconds=30)
     broker._new_orders.append(tracked)
     broker.broker_orders = [_order(strategy.name, "other-order", Order.OrderStatus.OPEN)]
 
@@ -271,13 +278,14 @@ def test_live_market_order_list_miss_without_direct_match_becomes_non_active_unk
 
 def test_live_market_order_list_miss_with_empty_broad_list_is_reconciled():
     strategy, broker = _strategy()
-    tracked = _order(
-        strategy.name,
-        "market-1",
-        Order.OrderStatus.OPEN,
-        order_type=Order.OrderType.MARKET,
+    tracked = _age_past_market_order_grace(
+        _order(
+            strategy.name,
+            "market-1",
+            Order.OrderStatus.OPEN,
+            order_type=Order.OrderType.MARKET,
+        )
     )
-    tracked.created_at = datetime.now() - timedelta(seconds=30)
     broker._new_orders.append(tracked)
     broker.broker_orders = []
 

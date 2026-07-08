@@ -2350,9 +2350,10 @@ class _Strategy:
                 self._stats[period_col] = cumulative_to_period_flows(self._stats[total_col])
 
         if "portfolio_value" in self._stats.columns:
-            portfolio_values = pd.to_numeric(self._stats["portfolio_value"], errors="coerce")
+            portfolio_values = self._stats["portfolio_value"]
+            portfolio_values_numeric = pd.to_numeric(portfolio_values, errors="coerce")
             external_flow_totals = (
-                pd.to_numeric(self._stats["cash_adjustments_net_total"], errors="coerce").reindex(self._stats.index)
+                self._stats["cash_adjustments_net_total"]
                 if "cash_adjustments_net_total" in self._stats.columns
                 else None
             )
@@ -2360,14 +2361,22 @@ class _Strategy:
                 portfolio_values,
                 external_flow_totals,
             )
-            valid_portfolio_values = portfolio_values.dropna()
+            valid_portfolio_values = portfolio_values_numeric.dropna()
             if valid_portfolio_values.empty:
                 self._stats["cash_adjusted_portfolio_value"] = pd.NA
                 self._stats_dirty = False
                 return self._stats
-            adjusted_base = float(valid_portfolio_values.iloc[0])
+            base_index = portfolio_values_numeric.index[0]
+            base_value = portfolio_values_numeric.iloc[0]
+            if pd.isna(base_value):
+                base_index = valid_portfolio_values.index[0]
+                base_value = valid_portfolio_values.iloc[0]
+            adjusted_base = float(base_value)
             if external_flow_totals is not None:
-                base_external_flow = external_flow_totals.reindex(valid_portfolio_values.index).iloc[0]
+                try:
+                    base_external_flow = external_flow_totals.loc[base_index]
+                except Exception:
+                    base_external_flow = external_flow_totals.iloc[0]
                 if pd.notna(base_external_flow):
                     adjusted_base -= float(base_external_flow)
             self._stats["cash_adjusted_portfolio_value"] = (

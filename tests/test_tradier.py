@@ -743,8 +743,9 @@ class TestTradierBroker:
         assert by_symbol_and_type[("MYSTERY", Asset.AssetType.UNKNOWN)].raw_asset_type == "new_asset_class"
         assert by_symbol_and_type[("MYSTERY", Asset.AssetType.UNKNOWN)].broker_parse_degraded is True
 
-    def test_tradier_parse_failure_logs_sanitized_shape_without_raw_symbols(self, caplog):
+    def test_tradier_parse_failure_logs_sanitized_shape_without_raw_symbols(self, mocker):
         broker = Tradier(account_number="1234", access_token="a1b2c3", paper=True, connect_stream=False)
+        warning = mocker.patch("lumibot.brokers.tradier.logger.warning")
         response = {
             "class": "equity",
             "type": "market",
@@ -754,13 +755,14 @@ class TestTradierBroker:
             "duration": "day",
         }
 
-        with caplog.at_level("WARNING"):
-            with pytest.raises(KeyError):
-                broker._parse_broker_order_dict(response, "strat_unittest")
+        with pytest.raises(KeyError):
+            broker._parse_broker_order_dict(response, "strat_unittest")
 
-        assert "Failed to parse Tradier order row" in caplog.text
-        assert "symbol_present" in caplog.text
-        assert "PRIVATE_SYMBOL" not in caplog.text
+        warning.assert_called_once()
+        message, shape = warning.call_args.args
+        assert "Failed to parse Tradier order row" in message
+        assert shape["symbol_present"] is True
+        assert "PRIVATE_SYMBOL" not in repr(warning.call_args)
 
     @pytest.mark.skip(reason="Complex test that requires proper stream setup - skipping to fix CI timeout")
     def test_do_polling(self, mocker):

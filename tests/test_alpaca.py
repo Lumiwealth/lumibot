@@ -8,7 +8,7 @@ from lumibot.data_sources.alpaca_data import AlpacaData
 from lumibot.example_strategies.stock_buy_and_hold import BuyAndHold
 from lumibot.credentials import ALPACA_TEST_CONFIG
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import math
 
@@ -99,6 +99,37 @@ class TestAlpacaBroker:
         order = Order(asset=Asset("SPY"), quantity=10, side=Order.OrderSide.BUY, limit_price=0.12345, strategy='abc')
         broker._conform_order(order)
         assert order.limit_price == 0.1235
+
+    def test_market_open_falls_back_when_initialized_calendar_is_stale(self, mocker):
+        broker = Alpaca(ALPACA_UNIT_CONFIG, connect_stream=False)
+        broker.market = "NASDAQ"
+        broker.initialize_market_calendars(
+            pd.DataFrame(
+                {
+                    "market_open": [datetime(2026, 7, 7, 13, 30, tzinfo=timezone.utc)],
+                    "market_close": [datetime(2026, 7, 7, 20, 0, tzinfo=timezone.utc)],
+                }
+            )
+        )
+
+        class FixedDatetime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                value = datetime(2026, 7, 8, 14, 7, 54, tzinfo=timezone.utc)
+                return value.astimezone(tz) if tz else value.replace(tzinfo=None)
+
+        def fake_market_hours(close=False, next=False):
+            if close:
+                return datetime(2026, 7, 8, 20, 0, tzinfo=timezone.utc)
+            return datetime(2026, 7, 8, 13, 30, tzinfo=timezone.utc)
+
+        mocker.patch("lumibot.brokers.alpaca.datetime.datetime", FixedDatetime)
+        mocker.patch.object(broker, "market_hours", side_effect=fake_market_hours)
+
+        assert broker._is_market_open_from_initialized_calendar(
+            datetime(2026, 7, 8, 14, 7, 54, tzinfo=timezone.utc)
+        ) is None
+        assert broker.is_market_open() is True
 
     # The tests below exist to make sure the BROKER calls pass through the data source correctly.
     # Testing that the DATA is CORRECT (vs just existing) happens in test_alpaca_data.

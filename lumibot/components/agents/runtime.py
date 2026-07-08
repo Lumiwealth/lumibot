@@ -775,14 +775,28 @@ def _function_response_payload_length(part: Any) -> int:
     return _serialized_content_length(getattr(function_response, "response", None))
 
 
+def _function_response_payload_is_pruned(part: Any) -> bool:
+    function_response = getattr(part, "function_response", None)
+    if function_response is None:
+        return False
+    response = getattr(function_response, "response", None)
+    if isinstance(response, dict):
+        return response.get("lumibot_context_pruned") is True
+    return False
+
+
 def _replace_function_response_payload(part: Any, message: str) -> bool:
     function_response = getattr(part, "function_response", None)
     if function_response is None:
         return False
+    original_response = getattr(function_response, "response", None)
+    original_chars = _serialized_content_length(original_response)
     replacement = {
         "lumibot_context_pruned": True,
         "message": message,
     }
+    if _serialized_content_length(replacement) >= original_chars:
+        return False
     try:
         function_response.response = replacement
         return True
@@ -812,7 +826,7 @@ def _prune_request_contents_for_context_window(
     contents: list[Any],
     *,
     context_limit_tokens: int,
-    reserve_ratio: float = 0.05,
+    reserve_ratio: float = 3.0,
     preserve_recent_tool_results: int = 4,
     always_prune_older_tool_results: bool = False,
 ) -> dict[str, Any] | None:
@@ -827,6 +841,9 @@ def _prune_request_contents_for_context_window(
     if not contents:
         return None
 
+    # The registry stores provider limits in tokens while this guard only has a
+    # cheap serialized-character estimate. Use a conservative character budget
+    # instead of pruning at a tiny percentage of the true token window.
     max_chars = int(context_limit_tokens * reserve_ratio)
     before_chars = _request_contents_length(contents)
 
@@ -851,7 +868,11 @@ def _prune_request_contents_for_context_window(
         "recent visible tool results or call a targeted tool again if this older "
         "detail is still required."
     )
-    candidates = tool_response_parts[: -preserve_recent_tool_results]
+    candidates = [
+        part
+        for part in tool_response_parts[: -preserve_recent_tool_results]
+        if not _function_response_payload_is_pruned(part)
+    ]
     candidates.sort(key=_function_response_payload_length, reverse=True)
     for part in candidates:
         if should_prune_for_size and _request_contents_length(contents) <= max_chars:

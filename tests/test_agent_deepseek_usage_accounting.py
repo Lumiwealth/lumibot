@@ -4,6 +4,7 @@ from lumibot.components.agents.runtime import (
     _prune_large_context_strings,
     _prune_request_contents_for_context_window,
     _prune_tool_response_for_context_window,
+    _request_contents_length,
 )
 
 from scripts.run_ai_committee_provider_benchmark import _estimate_cost as estimate_benchmark_cost
@@ -115,6 +116,126 @@ def test_deepseek_context_pruning_replaces_only_older_tool_results():
     recent_response = contents[-1].parts[0].function_response.response
     assert older_response["lumibot_context_pruned"] is True
     assert recent_response["payload"] == "x" * 2_000
+
+
+def test_context_pruning_does_not_expand_small_tool_results():
+    from google.genai import types
+
+    contents = [
+        types.Content(
+            role="user",
+            parts=[types.Part(text="Use compact tool results without expanding them.")],
+        )
+    ]
+    for idx in range(12):
+        contents.append(
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part(
+                        functionResponse=types.FunctionResponse(
+                            name=f"tool_{idx}",
+                            response={"value": idx},
+                        )
+                    )
+                ],
+            )
+        )
+
+    before = _request_contents_length(contents)
+    result = _prune_request_contents_for_context_window(
+        contents,
+        context_limit_tokens=1_000,
+        reserve_ratio=0.01,
+        preserve_recent_tool_results=4,
+        always_prune_older_tool_results=True,
+    )
+    after = _request_contents_length(contents)
+
+    assert result is None
+    assert after == before
+    assert contents[1].parts[0].function_response.response == {"value": 0}
+
+
+def test_context_pruning_does_not_repeat_prune_already_pruned_results():
+    from google.genai import types
+
+    contents = [
+        types.Content(
+            role="user",
+            parts=[types.Part(text="Keep task text.")],
+        )
+    ]
+    for idx in range(8):
+        contents.append(
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part(
+                        functionResponse=types.FunctionResponse(
+                            name=f"tool_{idx}",
+                            response={"payload": "x" * 2_000, "idx": idx},
+                        )
+                    )
+                ],
+            )
+        )
+
+    first = _prune_request_contents_for_context_window(
+        contents,
+        context_limit_tokens=10_000,
+        reserve_ratio=0.30,
+        preserve_recent_tool_results=4,
+    )
+    assert first is not None
+
+    before_second = _request_contents_length(contents)
+    second = _prune_request_contents_for_context_window(
+        contents,
+        context_limit_tokens=10_000,
+        reserve_ratio=0.30,
+        preserve_recent_tool_results=4,
+        always_prune_older_tool_results=True,
+    )
+    after_second = _request_contents_length(contents)
+
+    assert second is None
+    assert after_second == before_second
+
+
+def test_gemini_context_pruning_uses_realistic_default_char_budget():
+    from google.genai import types
+
+    contents = [
+        types.Content(
+            role="user",
+            parts=[types.Part(text="Gemini 3.1 has a large context window.")],
+        )
+    ]
+    for idx in range(5):
+        contents.append(
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part(
+                        functionResponse=types.FunctionResponse(
+                            name=f"tool_{idx}",
+                            response={"payload": "x" * 15_000, "idx": idx},
+                        )
+                    )
+                ],
+            )
+        )
+
+    before = _request_contents_length(contents)
+    result = _prune_request_contents_for_context_window(
+        contents,
+        context_limit_tokens=1_048_576,
+        preserve_recent_tool_results=4,
+    )
+
+    assert result is None
+    assert _request_contents_length(contents) == before
 
 
 def test_deepseek_context_string_pruning_preserves_edges():

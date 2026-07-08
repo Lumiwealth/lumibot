@@ -16,4 +16,5 @@ SECURITY.md @grzesir
 .github/CODEOWNERS @grzesir
 .github/workflows/ @grzesir
 .github/copilot-instructions.md @grzesir
+scripts/check_public_repo_hygiene.py @grzesir
 tests/test_public_instruction_secret_hygiene.py @grzesir

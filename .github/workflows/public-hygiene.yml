@@ -1,4 +1,4 @@
-name: Public Hygiene
+name: Public Leak Check
 
 on:
   pull_request:
@@ -14,17 +14,31 @@ permissions:
 
 jobs:
   public-hygiene:
-    name: Public repo hygiene
+    name: Changed-file leak check
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Check public instruction files
-        run: python tests/test_public_instruction_secret_hygiene.py
+      - name: Check changed lines for public leaks
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            RANGE="${{ github.event.pull_request.base.sha }}...HEAD"
+          elif [[ "${{ github.event.before }}" =~ ^0+$ ]]; then
+            RANGE="HEAD~1..HEAD"
+          else
+            RANGE="${{ github.event.before }}..HEAD"
+          fi
+
+          python scripts/check_public_repo_hygiene.py --diff-range "$RANGE"

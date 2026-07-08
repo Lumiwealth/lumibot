@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.5.71 - 2026-07-07
+
+### Fixed
+- **Narrowed the missing portfolio-value stats guard to avoid changing normal
+  backtest return math.** LumiBot still avoids crashing when live broker auth
+  failures leave portfolio value or cash-flow totals missing, but valid
+  first-row portfolio values now keep the existing cash-flow-adjusted return
+  behavior used by acceptance backtests.
+
 ## 4.5.70 - 2026-07-07
 
 ### Fixed

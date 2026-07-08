@@ -1,0 +1,30 @@
+name: Public Hygiene
+
+on:
+  pull_request:
+  push:
+    branches:
+      - dev
+      - main
+      - "version/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-hygiene:
+    name: Public repo hygiene
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Check public instruction files
+        run: python tests/test_public_instruction_secret_hygiene.py

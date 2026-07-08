@@ -182,9 +182,11 @@ This is NOT a data availability issue from ThetaData. The option contract `GOOG 
 
 **Local ThetaTerminal process (PID 41989) on your Mac was blocking production!**
 
-This process was running since Sunday 5AM:
+This process was running since Sunday 5AM. The original process command included
+a local username, absolute filesystem path, and credential-file path; those
+private details are intentionally redacted here because LumiBot is public:
 ```
-robertgrzesik    41989   0.1  2.0 449880816 1005520   ??  SN   Sun05AM  17:44.67 /usr/bin/java -XX:+IgnoreUnrecognizedVMOptions --sun-misc-unsafe-memory-access=allow --enable-native-access=ALL-UNNAMED -jar /Users/robertgrzesik/Documents/Development/botspot_data_downloader/resources/lib/202511141.jar --creds-file /tmp/theta-dev-test/creds.txt --config config.toml
+<local-user> 41989 ... /usr/bin/java ... -jar <theta-terminal-jar> --creds-file <redacted-local-creds-file> --config config.toml
 ```
 
 **Actions taken:**
@@ -241,7 +243,7 @@ BACKTESTING_DATA_SOURCE=thetadata
 
 ## Files Referenced
 
-- `/Users/robertgrzesik/Documents/Development/Strategy Library/Demos/.env` - Configuration
+- `<untracked-local-strategy-folder>/.env` - Local configuration
 - `botspot_data_downloader/src/botspot_data_downloader/supervisor.py` - ThetaTerminal process manager
 - CloudWatch Log Group: `/ecs/botspot-data-downloader`
 

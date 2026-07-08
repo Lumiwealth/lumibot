@@ -4,12 +4,8 @@
 import unittest
 from unittest.mock import Mock, MagicMock
 from datetime import date, timedelta, datetime
-import sys
 import os
 import pytest
-
-# Add the lumibot path
-sys.path.insert(0, '/Users/robertgrzesik/Documents/Development/lumivest_bot_server/strategies/lumibot')
 
 from lumibot.components.options_helper import OptionsHelper, OptionMarketEvaluation
 from lumibot.entities import Asset
@@ -443,7 +439,7 @@ class TestOptionsHelper(unittest.TestCase):
 
     @pytest.mark.skipif(
         os.environ.get("RUN_THETADATA_TERMINAL_TESTS") != "true",
-        reason="Disabled by default: requires local ThetaTerminal; set RUN_THETADATA_TERMINAL_TESTS=true to enable.",
+        reason="Disabled by default: requires local ThetaTerminal and non-production credentials.",
     )
     def test_find_next_valid_option_checks_quote_first(self):
         """Test that find_next_valid_option checks quote before last_price using REAL ThetaData"""
@@ -463,8 +459,8 @@ class TestOptionsHelper(unittest.TestCase):
             self.skipTest("ThetaData username not configured")
         if not password or password.lower() in {"", "pwd"}:
             self.skipTest("ThetaData password not configured")
-        if username != "rob-dev@lumiwealth.com":
-            self.skipTest("Safety: integration test only runs with dev ThetaData credentials (rob-dev@lumiwealth.com)")
+        if os.environ.get("THETADATA_NON_PRODUCTION_ACCOUNT") != "true":
+            self.skipTest("Safety: confirm these are non-production ThetaData credentials before running")
 
         # Create a simple strategy that uses OptionsHelper with REAL data
         class TestStrategy(Strategy):
@@ -525,7 +521,7 @@ class TestOptionsHelper(unittest.TestCase):
 
     @pytest.mark.skipif(
         os.environ.get("RUN_THETADATA_TERMINAL_TESTS") != "true",
-        reason="Disabled by default: requires local ThetaTerminal; set RUN_THETADATA_TERMINAL_TESTS=true to enable.",
+        reason="Disabled by default: requires local ThetaTerminal and non-production credentials.",
     )
     def test_find_next_valid_option_falls_back_to_last_price(self):
         """Test fallback to last_price when quote has no bid/ask using REAL ThetaData"""
@@ -545,8 +541,8 @@ class TestOptionsHelper(unittest.TestCase):
             self.skipTest("ThetaData username not configured")
         if not password or password.lower() in {"", "pwd"}:
             self.skipTest("ThetaData password not configured")
-        if username != "rob-dev@lumiwealth.com":
-            self.skipTest("Safety: integration test only runs with dev ThetaData credentials (rob-dev@lumiwealth.com)")
+        if os.environ.get("THETADATA_NON_PRODUCTION_ACCOUNT") != "true":
+            self.skipTest("Safety: confirm these are non-production ThetaData credentials before running")
 
         # Create a simple strategy that uses OptionsHelper with REAL data
         class TestStrategy(Strategy):

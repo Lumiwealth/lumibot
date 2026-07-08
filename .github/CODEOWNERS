@@ -13,6 +13,7 @@
 AGENTS.md @grzesir
 CLAUDE.md @grzesir
 SECURITY.md @grzesir
+.coderabbit.yaml @grzesir
 .github/CODEOWNERS @grzesir
 .github/workflows/ @grzesir
 .github/copilot-instructions.md @grzesir

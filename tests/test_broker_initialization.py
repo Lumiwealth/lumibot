@@ -7,6 +7,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
+import pandas as pd
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -144,8 +145,6 @@ class TestBrokerInitializationSimple:
         ) is False
 
     def test_initialized_calendar_returns_none_when_current_date_not_covered(self):
-        import pandas as pd
-
         broker = _CalendarTestBroker.create()
         broker.initialize_market_calendars(
             pd.DataFrame(
@@ -160,9 +159,22 @@ class TestBrokerInitializationSimple:
             datetime(2026, 7, 8, 14, 7, tzinfo=timezone.utc)
         ) is None
 
-    def test_initialized_calendar_returns_false_for_covered_closed_session(self):
-        import pandas as pd
+    def test_initialized_calendar_returns_none_when_current_date_before_calendar_window(self):
+        broker = _CalendarTestBroker.create()
+        broker.initialize_market_calendars(
+            pd.DataFrame(
+                {
+                    "market_open": [datetime(2026, 7, 9, 13, 30, tzinfo=timezone.utc)],
+                    "market_close": [datetime(2026, 7, 9, 20, 0, tzinfo=timezone.utc)],
+                }
+            )
+        )
 
+        assert broker._is_market_open_from_initialized_calendar(
+            datetime(2026, 7, 8, 14, 7, tzinfo=timezone.utc)
+        ) is None
+
+    def test_initialized_calendar_returns_false_for_covered_closed_session(self):
         broker = _CalendarTestBroker.create()
         broker.initialize_market_calendars(
             pd.DataFrame(
@@ -177,9 +189,62 @@ class TestBrokerInitializationSimple:
             datetime(2026, 7, 8, 12, 0, tzinfo=timezone.utc)
         ) is False
 
-    def test_is_market_open_falls_back_when_initialized_calendar_is_stale(self, mocker):
-        import pandas as pd
+    def test_initialized_calendar_returns_false_for_weekend_inside_calendar_window(self):
+        broker = _CalendarTestBroker.create()
+        broker.initialize_market_calendars(
+            pd.DataFrame(
+                {
+                    "market_open": [
+                        datetime(2026, 7, 10, 13, 30, tzinfo=timezone.utc),
+                        datetime(2026, 7, 13, 13, 30, tzinfo=timezone.utc),
+                    ],
+                    "market_close": [
+                        datetime(2026, 7, 10, 20, 0, tzinfo=timezone.utc),
+                        datetime(2026, 7, 13, 20, 0, tzinfo=timezone.utc),
+                    ],
+                }
+            )
+        )
 
+        assert broker._is_market_open_from_initialized_calendar(
+            datetime(2026, 7, 11, 14, 0, tzinfo=timezone.utc)
+        ) is False
+
+    def test_initialized_calendar_handles_overnight_sessions(self):
+        broker = _CalendarTestBroker.create()
+        broker.initialize_market_calendars(
+            pd.DataFrame(
+                {
+                    "market_open": [datetime(2026, 7, 8, 22, 0, tzinfo=timezone.utc)],
+                    "market_close": [datetime(2026, 7, 9, 21, 0, tzinfo=timezone.utc)],
+                }
+            )
+        )
+
+        assert broker._is_market_open_from_initialized_calendar(
+            datetime(2026, 7, 9, 2, 0, tzinfo=timezone.utc)
+        ) is True
+        assert broker._is_market_open_from_initialized_calendar(
+            datetime(2026, 7, 9, 21, 30, tzinfo=timezone.utc)
+        ) is False
+
+    def test_initialized_calendar_applies_extended_trading_minutes(self):
+        broker = _CalendarTestBroker.create()
+        broker.extended_trading_minutes = 15
+        broker.initialize_market_calendars(
+            pd.DataFrame(
+                {
+                    "market_open": [datetime(2026, 7, 8, 13, 30, tzinfo=timezone.utc)],
+                    "market_close": [datetime(2026, 7, 8, 20, 0, tzinfo=timezone.utc)],
+                }
+            )
+        )
+
+        assert broker._is_market_open_from_initialized_calendar(
+            datetime(2026, 7, 8, 20, 10, tzinfo=timezone.utc)
+        ) is True
+
+    def test_is_market_open_falls_back_when_initialized_calendar_is_stale(self, mocker):
         broker = _CalendarTestBroker.create()
         broker.market = "24/5"
         broker.initialize_market_calendars(
@@ -193,6 +258,92 @@ class TestBrokerInitializationSimple:
         mocker.patch.object(broker, "_is_continuous_market", return_value=True)
 
         assert broker.is_market_open() is True
+
+    def test_is_market_open_does_not_fall_back_for_weekend_inside_calendar_window(self, mocker):
+        broker = _CalendarTestBroker.create()
+        broker.market = "24/5"
+        broker.initialize_market_calendars(
+            pd.DataFrame(
+                {
+                    "market_open": [
+                        datetime(2026, 7, 10, 0, 0, tzinfo=timezone.utc),
+                        datetime(2026, 7, 13, 0, 0, tzinfo=timezone.utc),
+                    ],
+                    "market_close": [
+                        datetime(2026, 7, 10, 21, 0, tzinfo=timezone.utc),
+                        datetime(2026, 7, 13, 21, 0, tzinfo=timezone.utc),
+                    ],
+                }
+            )
+        )
+        mocker.patch.object(broker, "_is_continuous_market", side_effect=AssertionError("should not fall back"))
+
+        assert broker._is_market_open_from_initialized_calendar(
+            datetime(2026, 7, 11, 14, 0, tzinfo=timezone.utc)
+        ) is False
+
+    def test_base_broker_continuous_market_detection_respects_weekend_gaps(self):
+        broker = _CalendarTestBroker.create()
+
+        assert broker._is_continuous_market("24/7") is True
+        assert broker._is_continuous_market("24/5") is False
+        assert broker._is_continuous_market("us_futures") is False
+
+    @pytest.mark.parametrize(
+        ("market", "open_dt", "other_dt", "expected_other_open"),
+        [
+            (
+                "NASDAQ",
+                datetime(2026, 7, 8, 14, 7, 54, tzinfo=timezone.utc),
+                datetime(2026, 7, 11, 14, 0, tzinfo=timezone.utc),
+                False,
+            ),
+            (
+                "NYSE",
+                datetime(2026, 7, 8, 14, 7, 54, tzinfo=timezone.utc),
+                datetime(2026, 7, 11, 14, 0, tzinfo=timezone.utc),
+                False,
+            ),
+            (
+                "24/5",
+                datetime(2026, 7, 8, 14, 7, 54, tzinfo=timezone.utc),
+                datetime(2026, 7, 11, 14, 0, tzinfo=timezone.utc),
+                False,
+            ),
+            (
+                "us_futures",
+                datetime(2026, 7, 8, 14, 7, 54, tzinfo=timezone.utc),
+                datetime(2026, 7, 11, 14, 0, tzinfo=timezone.utc),
+                False,
+            ),
+            (
+                "24/7",
+                datetime(2026, 7, 8, 14, 7, 54, tzinfo=timezone.utc),
+                datetime(2026, 7, 11, 14, 0, tzinfo=timezone.utc),
+                True,
+            ),
+        ],
+    )
+    def test_real_market_calendars_cover_open_and_other_times(
+        self,
+        market,
+        open_dt,
+        other_dt,
+        expected_other_open,
+    ):
+        from lumibot.tools import get_trading_days
+
+        broker = _CalendarTestBroker.create()
+        broker.initialize_market_calendars(
+            get_trading_days(
+                market=market,
+                start_date=open_dt - timedelta(days=14),
+                end_date=open_dt + timedelta(days=15),
+            )
+        )
+
+        assert broker._is_market_open_from_initialized_calendar(open_dt) is True
+        assert broker._is_market_open_from_initialized_calendar(other_dt) is expected_other_open
 
     def test_utc_to_local_converts_aware_datetime_before_localizing(self):
         from dateutil import tz

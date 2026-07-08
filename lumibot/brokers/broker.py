@@ -2177,7 +2177,8 @@ class Broker(ABC):
             if "market_close" not in getattr(rows, "columns", ()):
                 rows = rows.reset_index()
 
-            covers_current_date = False
+            earliest_calendar_date = None
+            latest_calendar_date = None
             for row in rows.itertuples(index=False):
                 market_open = getattr(row, "market_open", None)
                 market_close = getattr(row, "market_close", None)
@@ -2199,12 +2200,25 @@ class Broker(ABC):
                     market_close = market_close.astimezone(timezone.utc)
 
                 market_close = market_close + timedelta(minutes=self.extended_trading_minutes)
-                if market_open.date() <= now_utc.date() <= market_close.date():
-                    covers_current_date = True
+                open_date = market_open.date()
+                close_date = market_close.date()
+                earliest_calendar_date = (
+                    open_date
+                    if earliest_calendar_date is None
+                    else min(earliest_calendar_date, open_date)
+                )
+                latest_calendar_date = (
+                    close_date
+                    if latest_calendar_date is None
+                    else max(latest_calendar_date, close_date)
+                )
                 if market_open <= now_utc <= market_close:
                     return True
 
-            if covers_current_date:
+            if (
+                earliest_calendar_date is not None
+                and earliest_calendar_date <= now_utc.date() <= latest_calendar_date
+            ):
                 return False
             return None
         except Exception:
@@ -2251,14 +2265,14 @@ class Broker(ABC):
                 
                 return True
                 
-            # Get market calendar
-            import pandas as pd
-            import pandas_market_calendars as mcal
             cal = mcal.get_calendar(market_name)
-            
-            # Test with a recent Monday (typical trading day)
-            test_date = pd.Timestamp('2025-01-13', tz='UTC')  # Monday
-            schedule = cal.schedule(start_date=test_date, end_date=test_date)
+
+            # Sample ~1.5 weeks so weekend/maintenance gaps are not misclassified as always-open.
+            reference_day = pd.Timestamp('2025-01-13', tz='UTC')  # Monday
+            schedule = cal.schedule(
+                start_date=(reference_day - timedelta(days=3)),
+                end_date=(reference_day + timedelta(days=7)),
+            )
             
             if schedule.empty:
                 # No trading on this date, assume it's not continuous
@@ -2266,14 +2280,20 @@ class Broker(ABC):
                 
                 return False
                 
-            # Calculate trading hours duration
-            market_open = schedule.iloc[0, 0]
-            market_close = schedule.iloc[0, 1]
-            duration_hours = (market_close - market_open).total_seconds() / 3600
+            durations = schedule["market_close"] - schedule["market_open"]
+            avg_duration = durations.mean()
+            duration_hours = avg_duration.total_seconds() / 3600 if avg_duration is not pd.NaT else 0
+
+            if len(schedule) >= 2:
+                next_opens = schedule["market_open"].iloc[1:].reset_index(drop=True)
+                prev_closes = schedule["market_close"].iloc[:-1].reset_index(drop=True)
+                gaps = next_opens - prev_closes
+                max_gap = gaps.max()
+                gap_hours = max_gap.total_seconds() / 3600 if isinstance(max_gap, pd.Timedelta) else 0
+            else:
+                gap_hours = 0
             
-            # Consider markets with 20+ hours per day as continuous
-            # This catches futures markets that trade ~22-24 hours
-            is_continuous = duration_hours >= 20.0
+            is_continuous = (duration_hours >= 20.0) and (gap_hours < 6.0)
             
             self._market_type_cache[market_name] = is_continuous
             

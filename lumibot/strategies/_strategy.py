@@ -2377,6 +2377,8 @@ class _Strategy:
                     base_external_flow = external_flow_totals.loc[base_index]
                 except Exception:
                     base_external_flow = external_flow_totals.iloc[0]
+                if isinstance(base_external_flow, pd.Series):
+                    base_external_flow = base_external_flow.iloc[0] if not base_external_flow.empty else pd.NA
                 if pd.notna(base_external_flow):
                     adjusted_base -= float(base_external_flow)
             self._stats["cash_adjusted_portfolio_value"] = (

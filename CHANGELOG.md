@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.5.72 - 2026-07-07
+
+### Fixed
+- **Handle duplicate stats timestamps while avoiding missing portfolio-value
+  crashes.** Duplicate timestamp rows can make external-flow lookup return a
+  Series; LumiBot now normalizes that base flow to a scalar before building
+  cash-adjusted portfolio values.
+
 ## 4.5.71 - 2026-07-07
 
 ### Fixed

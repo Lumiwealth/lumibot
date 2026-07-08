@@ -13,7 +13,6 @@ from lumibot.components.agents.runtime import (
     _resolve_model_for_adk,
     _strip_thought_parts_from_litellm_request,
     _supports_explicit_temperature_for_adk_model,
-    _sync_gemini_api_key_alias,
     _sync_together_api_key_alias,
     _sync_xai_api_key_alias,
     _classify_agent_error,
@@ -42,22 +41,14 @@ def test_xai_api_key_wins_over_grok_alias(monkeypatch):
     assert os.environ["XAI_API_KEY"] == "xai-test-key"
 
 
-def test_gemini_api_key_alias_populates_google_api_key(monkeypatch):
+def test_native_gemini_model_does_not_mutate_google_api_key(monkeypatch):
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-test-key")
 
-    _sync_gemini_api_key_alias()
+    resolved = _resolve_model_for_adk("gemini-3.1-flash-lite-preview")
 
-    assert os.environ["GOOGLE_API_KEY"] == "gemini-test-key"
-
-
-def test_google_api_key_wins_over_gemini_alias(monkeypatch):
-    monkeypatch.setenv("GOOGLE_API_KEY", "google-test-key")
-    monkeypatch.setenv("GEMINI_API_KEY", "gemini-test-key")
-
-    _sync_gemini_api_key_alias()
-
-    assert os.environ["GOOGLE_API_KEY"] == "google-test-key"
+    assert resolved == "gemini-3.1-flash-lite-preview"
+    assert "GOOGLE_API_KEY" not in os.environ
 
 
 def test_together_api_key_alias_populates_litellm_key(monkeypatch):

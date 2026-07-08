@@ -595,16 +595,6 @@ def _sync_xai_api_key_alias() -> None:
         os.environ["XAI_API_KEY"] = os.environ["GROK_API_KEY"]
 
 
-def _sync_gemini_api_key_alias() -> None:
-    """Allow product-facing GEMINI_API_KEY with Google SDK internals.
-
-    Google examples and some SDK paths use GOOGLE_API_KEY. LumiBot's public
-    docs use GEMINI_API_KEY, so mirror it when the Google name is absent.
-    """
-    if not os.environ.get("GOOGLE_API_KEY") and os.environ.get("GEMINI_API_KEY"):
-        os.environ["GOOGLE_API_KEY"] = os.environ["GEMINI_API_KEY"]
-
-
 def _sync_together_api_key_alias() -> None:
     """Allow either Together's SDK key name or LiteLLM's provider key name.
 
@@ -943,7 +933,6 @@ def _resolve_model_for_adk(
         return model
     lower = model.strip().lower()
     if _is_native_gemini_model(model):
-        _sync_gemini_api_key_alias()
         return model
     if lower.startswith("xai/"):
         _sync_xai_api_key_alias()

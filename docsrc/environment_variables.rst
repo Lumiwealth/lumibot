@@ -852,6 +852,9 @@ GEMINI_API_KEY
 - Purpose: Auth for Gemini models (the default provider).
 - Values: Obtain from https://aistudio.google.com/apikey.
 - Required when ``default_model`` starts with ``gemini-`` (e.g. ``gemini-3.1-flash-lite-preview``).
+- LumiBot's public contract is ``GEMINI_API_KEY``. Do not rely on Google SDK
+  alias names in strategy examples or downstream products that infer required
+  runtime secrets.
 
 OPENAI_API_KEY
 ^^^^^^^^^^^^^^

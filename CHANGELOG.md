@@ -9,6 +9,16 @@
   attached exit children, `combo` maps to multileg, and future-like or unknown
   account rows are preserved instead of being forced through stock parsing.
   Parser failures now log only sanitized row shapes.
+- **AI agent Gemini examples and runtime checks now use `GEMINI_API_KEY` as the
+  explicit public contract.** Native Gemini model resolution no longer mutates
+  `GOOGLE_API_KEY` behind the scenes, and the bundled Alpaca news agent example
+  only treats `GEMINI_API_KEY` as satisfying Gemini credential readiness.
+
+### Security
+- **Public-repo hygiene guardrails now block private local details and credential
+  leakage in tracked files.** Repo instructions, SECURITY guidance, CODEOWNERS,
+  and regression coverage now keep machine-specific/private operational details
+  out of public docs, tests, and examples.
 
 ## 4.5.72 - 2026-07-07
 

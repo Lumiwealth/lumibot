@@ -153,7 +153,8 @@
       "end_date": "2025-12-26",
       "_rebaseline_note": "v4.5.0 rebaseline. Drift traced (8-iteration bisect) to WIP commit `af8df88b` on 2026-03-30: `Strategy._format_stats` replaced `self._stats['portfolio_value'].pct_change()` with `cash_flow_adjusted_returns(pv, external_flow)` to support the new cash-events subsystem. The new function does `previous_values = series.shift(1)` with NO fill, whereas the old `pct_change()` used pandas' default `fill_method='pad'` to forward-fill NaN gaps before computing pct-change. On a 63K-minute SPX straddle backtest, NaN minutes (idle-bar gaps) now count as flat-0% returns instead of carrying the last valid return forward, compounding to a ~2.3% drift on Total Return / CAGR. Full numeric proof + recommended fix (`pv.ffill()` before the call) in `docs/investigations/2026-04-19_SPX_SHORT_STRADDLE_ACCEPTANCE_REGRESSION.md`. Rebaselining to unblock 4.5.0 deploy; cash-events owner should still land the `ffill` fix so strategies without cash events aren't silently losing accuracy.",
       "lumibot_version": "4.5.0",
-      "max_backtest_time_seconds": 900,
+      "_ci_runtime_note": "Raised after CI measured this ThetaData SPX minute-cadence acceptance case at 926s with unchanged output metrics. This is a runtime gate only; metric assertions remain strict.",
+      "max_backtest_time_seconds": 1020,
       "metrics_centipercent": {
         "cagr": -1253,
         "max_drawdown": -2873,

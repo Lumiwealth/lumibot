@@ -82,6 +82,9 @@ _QUEUE_SUBMISSION_LIMIT_BY_SLUG = {
     # S3 namespace does not contain all minute slices yet.
     "backdoor_butterfly_full_year": 300,
     "backdoor_smartlimit": 300,
+    # The short LEAPS acceptance window can require a few stock split endpoint fills while the
+    # shared S3 cache catches up to newly requested underlying corporate-action ranges.
+    "leaps_alpha_picks_short": 5,
     "spx_short_straddle_repro": 20,
 }
 

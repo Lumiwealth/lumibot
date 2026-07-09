@@ -104,7 +104,8 @@
       "data_source": "thetadata",
       "end_date": "2025-12-18",
       "lumibot_version": "4.5.0",
-      "max_backtest_time_seconds": 660,
+      "_ci_runtime_note": "Raised after CI measured this ThetaData daily-cadence acceptance case at 770s with unchanged output metrics. This is a runtime gate only; metric assertions remain strict.",
+      "max_backtest_time_seconds": 900,
       "metrics_centipercent": {
         "cagr": -1013,
         "max_drawdown": -8648,

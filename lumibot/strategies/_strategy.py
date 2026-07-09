@@ -96,6 +96,9 @@ else:
         get_default_broker,
         get_default_data_source,
     )
+    from ..credentials import (
+        IS_BACKTESTING as IS_BACKTESTING,
+    )
 
 mdates = LazyModule("matplotlib.dates")
 pd = LazyModule("pandas")

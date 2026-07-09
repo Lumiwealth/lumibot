@@ -1,4 +1,10 @@
+"""Tests for FXMacroData macro data support."""
+
+# pylint: disable=missing-class-docstring,missing-function-docstring
+
 from datetime import datetime, timezone
+
+import pytest
 
 from lumibot.macro import FXMacroData, MacroData
 
@@ -45,16 +51,29 @@ def _payload():
     }
 
 
-def test_fxmacrodata_uses_x_api_key_header_and_filters_future_rows(monkeypatch, tmp_path):
+@pytest.fixture
+def fxmacrodata_factory(monkeypatch, tmp_path):
+    """Create FXMacroData instances with isolated environment and network state."""
+
+    def _build(strategy, fake_get, *, api_key=None):
+        monkeypatch.delenv("FXMD_API_KEY", raising=False)
+        monkeypatch.delenv("FXMACRODATA_API_KEY", raising=False)
+        if api_key is not None:
+            monkeypatch.setenv("FXMD_API_KEY", api_key)
+        monkeypatch.setattr("lumibot.macro.fxmacrodata.requests.get", fake_get)
+        return FXMacroData(strategy, cache_dir=tmp_path, min_request_interval_seconds=0)
+
+    return _build
+
+
+def test_fxmacrodata_uses_x_api_key_header_and_filters_future_rows(fxmacrodata_factory):
     calls = []
 
     def fake_get(url, **kwargs):
         calls.append((url, kwargs))
         return _Response(payload=_payload())
 
-    monkeypatch.setenv("FXMD_API_KEY", "test-fxmd-key")
-    monkeypatch.setattr("lumibot.macro.fxmacrodata.requests.get", fake_get)
-    fxmd = FXMacroData(_Strategy(), cache_dir=tmp_path, min_request_interval_seconds=0)
+    fxmd = fxmacrodata_factory(_Strategy(), fake_get, api_key="test-fxmd-key")
 
     result = fxmd.get_series("eur", "inflation", start="2024-01-01")
 
@@ -70,14 +89,11 @@ def test_fxmacrodata_uses_x_api_key_header_and_filters_future_rows(monkeypatch, 
     assert kwargs["params"]["end_date"] == "2025-01-15"
 
 
-def test_fxmacrodata_drops_rows_without_parseable_dates(monkeypatch, tmp_path):
+def test_fxmacrodata_drops_rows_without_parseable_dates(fxmacrodata_factory):
     def fake_get(url, **kwargs):
         return _Response(payload={"data": [{"val": "9.9"}, {"date": "2025-01-01", "val": "3.0"}]})
 
-    monkeypatch.delenv("FXMD_API_KEY", raising=False)
-    monkeypatch.delenv("FXMACRODATA_API_KEY", raising=False)
-    monkeypatch.setattr("lumibot.macro.fxmacrodata.requests.get", fake_get)
-    fxmd = FXMacroData(_Strategy(), cache_dir=tmp_path, min_request_interval_seconds=0)
+    fxmd = fxmacrodata_factory(_Strategy(), fake_get)
 
     result = fxmd.get_series("usd", "inflation")
 
@@ -85,7 +101,7 @@ def test_fxmacrodata_drops_rows_without_parseable_dates(monkeypatch, tmp_path):
     assert result["observations"][0]["value"] == 3.0
 
 
-def test_fxmacrodata_live_requests_bypass_disk_cache(monkeypatch, tmp_path):
+def test_fxmacrodata_live_requests_bypass_disk_cache(fxmacrodata_factory, tmp_path):
     calls = []
     payloads = [
         {"data": [{"date": "2025-01-01", "val": "3.0"}]},
@@ -96,10 +112,7 @@ def test_fxmacrodata_live_requests_bypass_disk_cache(monkeypatch, tmp_path):
         calls.append((url, kwargs))
         return _Response(payload=payloads[len(calls) - 1])
 
-    monkeypatch.delenv("FXMD_API_KEY", raising=False)
-    monkeypatch.delenv("FXMACRODATA_API_KEY", raising=False)
-    monkeypatch.setattr("lumibot.macro.fxmacrodata.requests.get", fake_get)
-    fxmd = FXMacroData(_Strategy(), cache_dir=tmp_path, min_request_interval_seconds=0)
+    fxmd = fxmacrodata_factory(_Strategy(), fake_get)
 
     first = fxmd.get_latest("usd", "inflation")
     second = fxmd.get_latest("usd", "inflation")
@@ -110,17 +123,14 @@ def test_fxmacrodata_live_requests_bypass_disk_cache(monkeypatch, tmp_path):
     assert not list(tmp_path.rglob("*.json"))
 
 
-def test_fxmacrodata_backtests_use_disk_cache(monkeypatch, tmp_path):
+def test_fxmacrodata_backtests_use_disk_cache(fxmacrodata_factory, tmp_path):
     calls = []
 
     def fake_get(url, **kwargs):
         calls.append((url, kwargs))
         return _Response(payload={"data": [{"date": "2025-01-01", "val": str(len(calls))}]})
 
-    monkeypatch.delenv("FXMD_API_KEY", raising=False)
-    monkeypatch.delenv("FXMACRODATA_API_KEY", raising=False)
-    monkeypatch.setattr("lumibot.macro.fxmacrodata.requests.get", fake_get)
-    fxmd = FXMacroData(_BacktestingStrategy(), cache_dir=tmp_path, min_request_interval_seconds=0)
+    fxmd = fxmacrodata_factory(_BacktestingStrategy(), fake_get)
 
     first = fxmd.get_latest("usd", "inflation")
     second = fxmd.get_latest("usd", "inflation")
@@ -132,17 +142,14 @@ def test_fxmacrodata_backtests_use_disk_cache(monkeypatch, tmp_path):
     assert not list(tmp_path.rglob("*.tmp"))
 
 
-def test_fxmacrodata_usd_requests_do_not_require_api_key(monkeypatch, tmp_path):
+def test_fxmacrodata_usd_requests_do_not_require_api_key(fxmacrodata_factory):
     calls = []
 
     def fake_get(url, **kwargs):
         calls.append((url, kwargs))
         return _Response(payload={"data": [{"date": "2025-01-01", "val": "3.0"}]})
 
-    monkeypatch.delenv("FXMD_API_KEY", raising=False)
-    monkeypatch.delenv("FXMACRODATA_API_KEY", raising=False)
-    monkeypatch.setattr("lumibot.macro.fxmacrodata.requests.get", fake_get)
-    fxmd = FXMacroData(_Strategy(), cache_dir=tmp_path, min_request_interval_seconds=0)
+    fxmd = fxmacrodata_factory(_Strategy(), fake_get)
 
     result = fxmd.get_latest("usd", "inflation")
 
@@ -166,15 +173,13 @@ def test_fxmacrodata_non_usd_requires_api_key(monkeypatch, tmp_path):
     assert any(row["indicator"] == "policy_rate" for row in catalog["indicators"])
 
 
-def test_fxmacrodata_snapshot_reports_per_indicator_errors(monkeypatch, tmp_path):
-    def fake_get(url, **kwargs):
+def test_fxmacrodata_snapshot_reports_per_indicator_errors(fxmacrodata_factory):
+    def fake_get(url, **_kwargs):
         if url.endswith("/policy_rate"):
             raise RuntimeError("upstream unavailable")
         return _Response(payload={"data": [{"date": "2025-01-01", "val": "3.0"}]})
 
-    monkeypatch.setenv("FXMD_API_KEY", "test-fxmd-key")
-    monkeypatch.setattr("lumibot.macro.fxmacrodata.requests.get", fake_get)
-    fxmd = FXMacroData(_Strategy(), cache_dir=tmp_path, min_request_interval_seconds=0)
+    fxmd = fxmacrodata_factory(_Strategy(), fake_get, api_key="test-fxmd-key")
 
     result = fxmd.get_snapshot("eur", ["inflation", "policy_rate"])
 

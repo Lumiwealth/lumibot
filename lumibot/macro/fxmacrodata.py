@@ -186,18 +186,23 @@ class FXMacroData:
         return payload
 
     def list_indicators(self, category: str | None = None) -> dict[str, Any]:
+        """Return curated FXMacroData indicators, optionally filtered by category."""
         rows = []
         wanted_category = str(category).strip().lower() if category else None
         for indicator, metadata in CURATED_FXMACRODATA_INDICATORS.items():
             if wanted_category and metadata["category"] != wanted_category:
                 continue
             rows.append({"indicator": indicator, **metadata})
+        categories = sorted(
+            {metadata["category"] for metadata in CURATED_FXMACRODATA_INDICATORS.values()}
+        )
         return {
             "source": "fxmacrodata",
             "indicators": rows,
-            "categories": sorted({metadata["category"] for metadata in CURATED_FXMACRODATA_INDICATORS.values()}),
+            "categories": categories,
             "notes": (
-                "These are common FXMacroData announcement indicators. USD announcement data is public; "
+                "These are common FXMacroData announcement indicators. "
+                "USD announcement data is public; "
                 "set FXMD_API_KEY or FXMACRODATA_API_KEY for non-USD and paid endpoint access."
             ),
         }
@@ -212,6 +217,7 @@ class FXMacroData:
         as_of: Any | None = None,
         limit: int | None = None,
     ) -> dict[str, Any]:
+        """Fetch a point-in-time-safe FXMacroData announcement series."""
         currency_code = str(currency or "").strip().lower()
         indicator_slug = str(indicator or "").strip().lower()
         if not currency_code:
@@ -248,7 +254,12 @@ class FXMacroData:
                 f"{hashlib.sha256(cache_key.encode()).hexdigest()}.json",
             ),
         )
-        observations = self._normalize_observations(payload, currency_code, indicator_slug, as_of_dt)
+        observations = self._normalize_observations(
+            payload,
+            currency_code,
+            indicator_slug,
+            as_of_dt,
+        )
         if limit is not None:
             observations = observations[-max(int(limit), 1):]
         return {
@@ -260,7 +271,14 @@ class FXMacroData:
             "observations": observations,
         }
 
-    def get_latest(self, currency: str, indicator: str, *, as_of: Any | None = None) -> dict[str, Any]:
+    def get_latest(
+        self,
+        currency: str,
+        indicator: str,
+        *,
+        as_of: Any | None = None,
+    ) -> dict[str, Any]:
+        """Return the latest FXMacroData observation for an indicator."""
         payload = self.get_series(currency, indicator, as_of=as_of, limit=20)
         observations = payload.get("observations", [])
         latest = observations[-1] if observations else None
@@ -273,6 +291,7 @@ class FXMacroData:
         *,
         as_of: Any | None = None,
     ) -> dict[str, Any]:
+        """Return latest values for several FXMacroData indicators."""
         if isinstance(indicators, str):
             requested = [part.strip() for part in indicators.split(",") if part.strip()]
         else:
@@ -284,7 +303,7 @@ class FXMacroData:
             key = indicator.lower()
             try:
                 values[key] = self.get_latest(currency, key, as_of=as_of_dt)["latest"]
-            except Exception as exc:
+            except (RuntimeError, ValueError, requests.RequestException, OSError) as exc:
                 errors[key] = str(exc)
         return {
             "source": "fxmacrodata",
@@ -316,10 +335,17 @@ class FXMacroData:
             announcement_dt = _parse_dt(
                 _first_present(
                     row,
-                    ("announcement_datetime", "announcement_datetime_utc", "release_datetime", "published_at"),
+                    (
+                        "announcement_datetime",
+                        "announcement_datetime_utc",
+                        "release_datetime",
+                        "published_at",
+                    ),
                 )
             )
-            row_date = _date_text(_first_present(row, ("date", "release_date", "observation_date", "period")))
+            row_date = _date_text(
+                _first_present(row, ("date", "release_date", "observation_date", "period"))
+            )
             comparison_dt = announcement_dt or _parse_dt(row_date)
             if comparison_dt is None:
                 continue
@@ -329,7 +355,9 @@ class FXMacroData:
             normalized = {
                 "date": row_date,
                 "value": value,
-                "announcement_datetime": announcement_dt.isoformat() if announcement_dt is not None else None,
+                "announcement_datetime": (
+                    announcement_dt.isoformat() if announcement_dt is not None else None
+                ),
                 "currency": str(row.get("currency") or currency).lower(),
                 "indicator": str(row.get("indicator") or indicator).lower(),
             }
@@ -338,5 +366,7 @@ class FXMacroData:
                     normalized[key] = row.get(key)
             observations.append(normalized)
 
-        observations.sort(key=lambda row: (row.get("announcement_datetime") or row.get("date") or ""))
+        observations.sort(
+            key=lambda row: (row.get("announcement_datetime") or row.get("date") or "")
+        )
         return observations

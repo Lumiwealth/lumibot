@@ -45,7 +45,29 @@ Notes:
 - Tradier smoke includes a paper connectivity check; the submit/cancel lifecycle test requires explicit live config
   (`TRADIER_IS_PAPER=false`) and should be run only when you intend to touch the live API.
 
-### 4) Run live matrix (market hours)
+### 4) Strict CI strategy-run smoke
+
+CI runs a strict paper-broker strategy path for Alpaca and Tradier:
+
+- instantiates the real broker from `ALPACA_TEST_*` / `TRADIER_TEST_*` secrets;
+- submits, polls, and cancels a direct broker GTC limit order as a broker contract preflight;
+- runs `Trader.run_all(run_once=True)`;
+- executes `before_starting_trading`, `on_trading_iteration`, and `on_strategy_end`;
+- submits a deep non-marketable AAPL GTC limit order through `Strategy.submit_order(...)`;
+- polls the real paper broker for the order id/status;
+- cancels through `Strategy.cancel_order(...)`;
+- fails if required secrets are missing or the broker order does not reach canceled state.
+
+The strategy-run test overrides only the executor's market-open gate so pull-request CI is not tied to US equity
+session timing. Broker config and submitted assets stay unchanged; the paper broker still accepts or rejects the real
+GTC order.
+
+```bash
+/Users/robertgrzesik/bin/safe-timeout 1200s python3 -m pytest -q -m "broker_strategy_live" \
+  tests/test_broker_live_strategy_run_apitest.py
+```
+
+### 5) Run live matrix (market hours)
 
 These are heavier tests that add:
 
@@ -60,7 +82,7 @@ These are heavier tests that add:
   tests/test_smart_limit_live_matrix_tradier.py
 ```
 
-### 5) Benchmarks (market hours; not a pytest)
+### 6) Benchmarks (market hours; not a pytest)
 
 Benchmarks are in `scripts/` and write CSVs to `logs/`. These are used for price-improvement statistics and are not
 treated as strict pass/fail (paper fills can be unrealistic).

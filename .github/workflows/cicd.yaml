@@ -123,7 +123,7 @@ jobs:
 
           # CI target: keep PR checks fast and deterministic.
           # Downloader + apitests are run separately / opt-in.
-          PYTEST_MARKERS='not apitest and not downloader'
+          PYTEST_MARKERS='not apitest and not downloader and not broker_strategy_live'
           export PYTEST_MARKERS
 
           echo "Shard ${SHARD_INDEX}/${SHARD_TOTAL} markers=${PYTEST_MARKERS}"
@@ -223,7 +223,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          PYTEST_MARKERS='not apitest and not downloader'
+          PYTEST_MARKERS='not apitest and not downloader and not broker_strategy_live'
           export PYTEST_MARKERS
 
           echo "Shard ${SHARD_INDEX}/${SHARD_TOTAL} markers=${PYTEST_MARKERS}"
@@ -267,17 +267,67 @@ jobs:
           echo "Running $(wc -l shard_nodeids.txt | awk '{print $1}') nodeids"
           timeout 1500 python -m pytest -m "${PYTEST_MARKERS}" --tb=short -q --durations=30 -x $(cat shard_nodeids.txt)
 
+  broker-live-strategy-tests:
+    name: Broker Live Strategy Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: unit-tests
+    needs: lint
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          echo "Set AIOHTTP_NO_EXTENSIONS=$AIOHTTP_NO_EXTENSIONS so that aiohttp doesn't try to install C extensions"
+          python -m pip install --upgrade pip
+          pip install requests
+          pip install -r requirements_dev.txt
+
+      - name: Validate broker paper secrets
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+
+          required = [
+              "ALPACA_TEST_API_KEY",
+              "ALPACA_TEST_API_SECRET",
+              "TRADIER_TEST_ACCESS_TOKEN",
+              "TRADIER_TEST_ACCOUNT_NUMBER",
+          ]
+          missing = [name for name in required if not os.environ.get(name)]
+          if missing:
+              raise SystemExit("Missing broker live strategy test secrets: " + ", ".join(missing))
+
+          print("Broker live strategy test secrets present.")
+          PY
+
+      - name: Run broker live strategy tests
+        run: |
+          set -euo pipefail
+          timeout 900 python -m pytest -q --tb=short -x \
+            -m "broker_strategy_live" \
+            tests/test_broker_live_strategy_run_apitest.py
+
   LintAndTest:
     name: LintAndTest
     runs-on: ubuntu-latest
     if: always()
-    needs: [lint, unit-tests, backtest-tests]
+    needs: [lint, unit-tests, backtest-tests, broker-live-strategy-tests]
     steps:
       - name: Check results
         run: |
           echo "lint: ${{ needs.lint.result }}"
           echo "unit-tests: ${{ needs.unit-tests.result }}"
           echo "backtest-tests: ${{ needs.backtest-tests.result }}"
+          echo "broker-live-strategy-tests: ${{ needs.broker-live-strategy-tests.result }}"
 
           if [ "${{ needs.lint.result }}" != "success" ]; then
             exit 1
@@ -286,5 +336,8 @@ jobs:
             exit 1
           fi
           if [ "${{ needs.backtest-tests.result }}" != "success" ]; then
+            exit 1
+          fi
+          if [ "${{ needs.broker-live-strategy-tests.result }}" != "success" ]; then
             exit 1
           fi

@@ -344,6 +344,9 @@ class TestDataGetLastPriceTradeOnly:
         data = Data(asset, df, timestep="minute", quote=Asset("USD", asset_type=Asset.AssetType.FOREX))
         data.strict_end_check = True
 
+        bars = data.get_bars(base_dt + timedelta(minutes=3), length=2, timestep="minute")
+        assert bars is not None
+
         with pytest.raises(ValueError, match="after the available data's end"):
             data.get_bars(base_dt + timedelta(minutes=10), length=2, timestep="minute")
 

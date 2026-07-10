@@ -1498,6 +1498,7 @@ class Data:
                 length=length,
                 timestep=timestep,
                 timeshift=timeshift,
+                _strict_request_timestep=f"{int(quantity)}{timestep}",
             )
             # PERF: avoid reconstructing a DataFrame from datalines on every call.
             # The underlying `self.df` is already indexed by datetime, so we can slice by

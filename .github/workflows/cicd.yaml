@@ -3,13 +3,14 @@ name: LumiBot CI/CD
 
 on:
   # Full LumiBot CI is intentionally expensive: lint + 6 unit shards + 4 backtest
-  # shards. Run it when explicitly requested, for release/CI tags, or for main PRs.
+  # shards. Run it when explicitly requested, for release/CI tags, or for PRs to
+  # either long-lived branch.
   push:
     tags:
       - "v*.*.*"
       - "ci-*"
   pull_request:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - "lumibot/**"
       - "tests/**"
@@ -54,10 +55,10 @@ jobs:
     timeout-minutes: 15
     environment: unit-tests
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Python 3.10
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
           cache: pip
@@ -99,10 +100,10 @@ jobs:
         shard: [0, 1, 2, 3, 4, 5]
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Python 3.10
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
           cache: pip
@@ -174,8 +175,10 @@ jobs:
           )
           PY
 
-          echo "Running $(wc -l shard_files.txt | awk '{print $1}') files"
-          timeout 1500 python -m pytest -m "${PYTEST_MARKERS}" --tb=short -q --durations=30 -x $(cat shard_files.txt)
+          mapfile -t shard_files < shard_files.txt
+          ((${#shard_files[@]} > 0)) || { echo "No unit-test files selected"; exit 1; }
+          echo "Running ${#shard_files[@]} files"
+          timeout 1500 python -m pytest -m "${PYTEST_MARKERS}" --tb=short -q --durations=30 -x "${shard_files[@]}"
 
   backtest-tests:
     name: Backtest Tests (shard ${{ matrix.shard }}/4)
@@ -189,10 +192,10 @@ jobs:
         shard: [0, 1, 2, 3]
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Python 3.10
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
           cache: pip
@@ -264,8 +267,10 @@ jobs:
           print(f"selected_nodeids={len(selected)} total_nodeids={len(nodeids)}")
           PY
 
-          echo "Running $(wc -l shard_nodeids.txt | awk '{print $1}') nodeids"
-          timeout 1500 python -m pytest -m "${PYTEST_MARKERS}" --tb=short -q --durations=30 -x $(cat shard_nodeids.txt)
+          mapfile -t shard_nodeids < shard_nodeids.txt
+          ((${#shard_nodeids[@]} > 0)) || { echo "No backtest nodeids selected"; exit 1; }
+          echo "Running ${#shard_nodeids[@]} nodeids"
+          timeout 1500 python -m pytest -m "${PYTEST_MARKERS}" --tb=short -q --durations=30 -x "${shard_nodeids[@]}"
 
   broker-live-strategy-tests:
     name: Broker Live Strategy Tests
@@ -273,12 +278,18 @@ jobs:
     timeout-minutes: 20
     environment: unit-tests
     needs: lint
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')
+    concurrency:
+      group: broker-live-strategy-tests-${{ github.repository }}-unit-tests
+      cancel-in-progress: false
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Python 3.10
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
           cache: pip
@@ -338,6 +349,11 @@ jobs:
           if [ "${{ needs.backtest-tests.result }}" != "success" ]; then
             exit 1
           fi
-          if [ "${{ needs.broker-live-strategy-tests.result }}" != "success" ]; then
+          if [ "${{ needs.broker-live-strategy-tests.result }}" = "skipped" ] && \
+             [ "${{ github.event_name }}" = "pull_request" ] && \
+             { [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ] || \
+               [ "${{ github.actor }}" = "dependabot[bot]" ]; }; then
+            echo "broker-live-strategy-tests: intentionally skipped for untrusted pull request"
+          elif [ "${{ needs.broker-live-strategy-tests.result }}" != "success" ]; then
             exit 1
           fi

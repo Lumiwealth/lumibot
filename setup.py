@@ -83,6 +83,7 @@ setuptools.setup(
         "lumiwealth-tradier>=0.1.18",
         "py-clob-client-v2>=1.0.1",
         "pytz",
+        "psycopg2-binary",
         "duckdb",
         "tabulate",
         "databento>=0.42.0",

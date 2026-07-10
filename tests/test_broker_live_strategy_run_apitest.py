@@ -9,11 +9,11 @@ from lumibot.entities import Asset, Order
 from lumibot.strategies.strategy import Strategy
 from lumibot.traders.trader import Trader
 
-
-pytestmark = pytest.mark.broker_strategy_live
+pytestmark = [pytest.mark.apitest, pytest.mark.broker_strategy_live]
 
 
 _CANCELLED_STATUSES = {"canceled", "cancelled"}
+_TERMINAL_STATUSES = _CANCELLED_STATUSES | {"error", "expired", "fill", "filled", "rejected"}
 _LIVE_ACTIVE_STATUSES = {
     "accepted",
     "accepted_for_bidding",
@@ -61,6 +61,48 @@ def _wait_for_broker_status(broker, identifier, *, timeout=30, expected_statuses
     return last_status
 
 
+def _cancel_order_until_terminal(broker, order, *, timeout=30, retry_interval=2):
+    identifier = getattr(order, "identifier", None)
+    if not identifier:
+        raise AssertionError("Cannot clean up a broker order without an identifier")
+
+    deadline = time.time() + timeout
+    last_status = None
+    last_error = None
+    while time.time() < deadline:
+        try:
+            last_status = _pull_order_status(broker, identifier)
+            last_error = None
+        except Exception as exc:
+            last_error = exc
+
+        if last_status in _TERMINAL_STATUSES:
+            return last_status
+
+        try:
+            broker.cancel_order(order)
+        except Exception as exc:
+            last_error = exc
+
+        time.sleep(min(retry_interval, max(0, deadline - time.time())))
+
+    try:
+        last_status = _pull_order_status(broker, identifier)
+        last_error = None
+    except Exception as exc:
+        last_error = exc
+    if last_status in _TERMINAL_STATUSES:
+        return last_status
+
+    message = (
+        f"Broker order {identifier} did not reach a terminal status within {timeout} seconds; "
+        f"last status: {last_status!r}"
+    )
+    if last_error is not None:
+        raise AssertionError(message) from last_error
+    raise AssertionError(message)
+
+
 def _alpaca() -> Alpaca:
     if not ALPACA_TEST_CONFIG.get("API_KEY") or not ALPACA_TEST_CONFIG.get("API_SECRET"):
         pytest.skip("Missing ALPACA_TEST_API_KEY / ALPACA_TEST_API_SECRET in .env")
@@ -98,7 +140,6 @@ def _stock_limit_order(strategy_name):
 
 def _assert_direct_broker_order_lifecycle(broker, *, strategy_name):
     submitted = None
-    cancelled = False
     try:
         submitted = broker._submit_order(_stock_limit_order(strategy_name))
         assert submitted is not None
@@ -109,23 +150,13 @@ def _assert_direct_broker_order_lifecycle(broker, *, strategy_name):
             f"Unexpected broker status before cancel: {status_before_cancel!r}"
         )
 
-        broker.cancel_order(submitted)
-        cancelled = True
-        status_after_cancel = _wait_for_broker_status(
-            broker,
-            submitted.identifier,
-            timeout=30,
-            expected_statuses=_CANCELLED_STATUSES,
-        )
+        status_after_cancel = _cancel_order_until_terminal(broker, submitted)
         assert status_after_cancel in _CANCELLED_STATUSES, (
             f"Broker order was not canceled: {status_after_cancel!r}"
         )
     finally:
-        if submitted is not None and submitted.identifier and not cancelled:
-            try:
-                broker.cancel_order(submitted)
-            except Exception:
-                pass
+        if submitted is not None and submitted.identifier:
+            _cancel_order_until_terminal(broker, submitted)
 
 
 class _GtcLimitSubmitCancelStrategy(Strategy):
@@ -175,17 +206,16 @@ class _GtcLimitSubmitCancelStrategy(Strategy):
         self._cancel_submitted_order()
 
     def _cancel_submitted_order(self):
-        if self.cancel_requested or self.submitted_order is None or not self.submitted_identifier:
+        if self.submitted_order is None or not self.submitted_identifier:
             return
+        self.cancel_requested = True
         try:
-            self.cancel_order(self.submitted_order)
-            self.cancel_requested = True
-            self.status_after_cancel = _wait_for_broker_status(
+            self.status_after_cancel = _cancel_order_until_terminal(
                 self.broker,
-                self.submitted_identifier,
+                self.submitted_order,
                 timeout=30,
-                expected_statuses=_CANCELLED_STATUSES,
             )
+            self.cancel_error = None
         except Exception as exc:
             self.cancel_error = repr(exc)
 
@@ -213,7 +243,16 @@ def _run_live_strategy(broker, *, name):
     )
     trader = Trader(logfile="", backtest=False)
     trader.add_strategy(strategy)
-    result = trader.run_all(run_once=True)
+    try:
+        result = trader.run_all(run_once=True)
+    finally:
+        if strategy.submitted_order is not None and strategy.submitted_identifier:
+            strategy.cancel_requested = True
+            strategy.status_after_cancel = _cancel_order_until_terminal(
+                broker,
+                strategy.submitted_order,
+            )
+            strategy.cancel_error = None
     return strategy, result
 
 

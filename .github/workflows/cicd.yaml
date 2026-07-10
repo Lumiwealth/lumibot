@@ -56,6 +56,8 @@ jobs:
     environment: unit-tests
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
@@ -101,6 +103,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
@@ -193,6 +197,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
@@ -282,11 +288,13 @@ jobs:
       github.event_name != 'pull_request' ||
       (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')
     concurrency:
-      group: broker-live-strategy-tests-${{ github.repository }}-unit-tests
+      group: paper-broker-live-tests-${{ github.repository }}
       cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
@@ -334,26 +342,35 @@ jobs:
     needs: [lint, unit-tests, backtest-tests, broker-live-strategy-tests]
     steps:
       - name: Check results
+        env:
+          ACTOR: ${{ github.actor }}
+          BACKTEST_TESTS_RESULT: ${{ needs.backtest-tests.result }}
+          BROKER_LIVE_RESULT: ${{ needs.broker-live-strategy-tests.result }}
+          EVENT_NAME: ${{ github.event_name }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          REPOSITORY: ${{ github.repository }}
+          UNIT_TESTS_RESULT: ${{ needs.unit-tests.result }}
         run: |
-          echo "lint: ${{ needs.lint.result }}"
-          echo "unit-tests: ${{ needs.unit-tests.result }}"
-          echo "backtest-tests: ${{ needs.backtest-tests.result }}"
-          echo "broker-live-strategy-tests: ${{ needs.broker-live-strategy-tests.result }}"
+          echo "lint: $LINT_RESULT"
+          echo "unit-tests: $UNIT_TESTS_RESULT"
+          echo "backtest-tests: $BACKTEST_TESTS_RESULT"
+          echo "broker-live-strategy-tests: $BROKER_LIVE_RESULT"
 
-          if [ "${{ needs.lint.result }}" != "success" ]; then
+          if [ "$LINT_RESULT" != "success" ]; then
             exit 1
           fi
-          if [ "${{ needs.unit-tests.result }}" != "success" ]; then
+          if [ "$UNIT_TESTS_RESULT" != "success" ]; then
             exit 1
           fi
-          if [ "${{ needs.backtest-tests.result }}" != "success" ]; then
+          if [ "$BACKTEST_TESTS_RESULT" != "success" ]; then
             exit 1
           fi
-          if [ "${{ needs.broker-live-strategy-tests.result }}" = "skipped" ] && \
-             [ "${{ github.event_name }}" = "pull_request" ] && \
-             { [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ] || \
-               [ "${{ github.actor }}" = "dependabot[bot]" ]; }; then
+          if [ "$BROKER_LIVE_RESULT" = "skipped" ] && \
+             [ "$EVENT_NAME" = "pull_request" ] && \
+             { [ "$PR_HEAD_REPOSITORY" != "$REPOSITORY" ] || \
+               [ "$ACTOR" = "dependabot[bot]" ]; }; then
             echo "broker-live-strategy-tests: intentionally skipped for untrusted pull request"
-          elif [ "${{ needs.broker-live-strategy-tests.result }}" != "success" ]; then
+          elif [ "$BROKER_LIVE_RESULT" != "success" ]; then
             exit 1
           fi

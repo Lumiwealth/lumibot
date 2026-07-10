@@ -61,7 +61,7 @@ jobs:
       github.actor != 'dependabot[bot]' &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     concurrency:
-      group: alpaca-live-broker-${{ github.repository }}
+      group: paper-broker-live-tests-${{ github.repository }}
       cancel-in-progress: false
 
     steps:

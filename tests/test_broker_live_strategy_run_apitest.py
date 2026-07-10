@@ -32,7 +32,9 @@ _LIVE_ACTIVE_STATUSES = {
 def _normalized_order_status(record):
     if record is None:
         return None
-    if isinstance(record, dict):
+    if isinstance(record, str):
+        raw_status = record
+    elif isinstance(record, dict):
         raw_status = record.get("status")
     else:
         raw_status = getattr(record, "status", None)
@@ -246,14 +248,25 @@ def _run_live_strategy(broker, *, name):
     try:
         result = trader.run_all(run_once=True)
     finally:
-        if strategy.submitted_order is not None and strategy.submitted_identifier:
-            strategy.cancel_requested = True
-            strategy.status_after_cancel = _cancel_order_until_terminal(
-                broker,
-                strategy.submitted_order,
-            )
-            strategy.cancel_error = None
+        _ensure_strategy_order_terminal(strategy, broker)
     return strategy, result
+
+
+def _ensure_strategy_order_terminal(strategy, broker):
+    if strategy.submitted_order is None or not strategy.submitted_identifier:
+        return
+    if _normalized_order_status(strategy.status_after_cancel) in _TERMINAL_STATUSES:
+        return
+
+    strategy.cancel_requested = True
+    try:
+        strategy.status_after_cancel = _cancel_order_until_terminal(
+            broker,
+            strategy.submitted_order,
+        )
+    except Exception as exc:
+        if strategy.cancel_error is None:
+            strategy.cancel_error = repr(exc)
 
 
 def _assert_strategy_order_lifecycle(strategy, result):

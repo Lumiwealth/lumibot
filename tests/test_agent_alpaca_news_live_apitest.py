@@ -5,8 +5,7 @@ import pytest
 
 from lumibot.components.agents import BuiltinTools
 
-
-pytestmark = pytest.mark.apitest
+pytestmark = [pytest.mark.apitest, pytest.mark.alpaca]
 
 
 class _LiveNewsStrategy:
@@ -23,21 +22,23 @@ class _LivePaginationStrategy:
         return datetime(2025, 4, 22, 16, 0, tzinfo=timezone.utc)
 
 
-def _require_alpaca_news_creds() -> None:
-    has_key = bool(os.environ.get("ALPACA_NEWS_API_KEY") or os.environ.get("ALPACA_API_KEY"))
-    has_secret = bool(os.environ.get("ALPACA_NEWS_API_SECRET") or os.environ.get("ALPACA_API_SECRET"))
-    if not (has_key and has_secret):
+def _require_alpaca_news_creds(monkeypatch: pytest.MonkeyPatch) -> None:
+    api_key = os.environ.get("ALPACA_NEWS_API_KEY") or os.environ.get("ALPACA_TEST_API_KEY")
+    api_secret = os.environ.get("ALPACA_NEWS_API_SECRET") or os.environ.get("ALPACA_TEST_API_SECRET")
+    if not (api_key and api_secret):
         pytest.skip("Missing Alpaca news credentials")
+    monkeypatch.setenv("ALPACA_NEWS_API_KEY", api_key)
+    monkeypatch.setenv("ALPACA_NEWS_API_SECRET", api_secret)
 
 
-def test_live_alpaca_news_known_market_event_scan_and_full_content():
+def test_live_alpaca_news_known_market_event_scan_and_full_content(monkeypatch):
     """Smoke-test real Alpaca/Benzinga historical news quality.
 
     The 2024-08-05 market selloff is a known broad-market news day. This verifies
     the tool retrieves relevant historical articles by symbol/date window, keeps
     scan mode light, and can fetch full article bodies when explicitly requested.
     """
-    _require_alpaca_news_creds()
+    _require_alpaca_news_creds(monkeypatch)
 
     tool = BuiltinTools.news.alpaca_news().binder(_LiveNewsStrategy(), None)
     scan = tool.function(
@@ -62,7 +63,10 @@ def test_live_alpaca_news_known_market_event_scan_and_full_content():
         f"{article.get('headline') or ''} {article.get('summary') or ''}".lower()
         for article in scan["articles"]
     )
-    assert any(keyword in combined_scan_text for keyword in ("vix", "selloff", "recession", "global", "plunge", "volatility"))
+    assert any(
+        keyword in combined_scan_text
+        for keyword in ("vix", "selloff", "recession", "global", "plunge", "volatility")
+    )
 
     full = tool.function(
         symbols="SPY,QQQ,DIA,IWM",
@@ -82,12 +86,15 @@ def test_live_alpaca_news_known_market_event_scan_and_full_content():
     assert full_content_articles
     assert max(len(str(article["content"])) for article in full_content_articles) > 1000
     assert all(article.get("content_truncated") is False for article in full_content_articles)
-    assert all(article.get("content_original_length") == len(str(article.get("content") or "")) for article in full_content_articles)
+    assert all(
+        article.get("content_original_length") == len(str(article.get("content") or ""))
+        for article in full_content_articles
+    )
 
 
-def test_live_alpaca_news_pagination_fetches_distinct_second_page():
+def test_live_alpaca_news_pagination_fetches_distinct_second_page(monkeypatch):
     """Verify real Alpaca pagination, not just unit-level page_token forwarding."""
-    _require_alpaca_news_creds()
+    _require_alpaca_news_creds(monkeypatch)
 
     tool = BuiltinTools.news.alpaca_news().binder(_LivePaginationStrategy(), None)
     first_page = tool.function(

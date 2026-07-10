@@ -3,13 +3,13 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 
 import pandas as pd
-import pytest
 
 from lumibot.entities import Asset
 
 
 def test_ibkr_futures_daily_bars_are_session_aligned_not_midnight(monkeypatch):
     import pandas_market_calendars as mcal
+
     import lumibot.tools.ibkr_helper as ibkr_helper
 
     fut = Asset("MES", asset_type=Asset.AssetType.FUTURE, expiration=date(2025, 12, 19))
@@ -37,7 +37,17 @@ def test_ibkr_futures_daily_bars_are_session_aligned_not_midnight(monkeypatch):
 
     calls: list[str] = []
 
-    def fake_get_cached_bars_for_source(*, asset, quote, timestep, start_dt, end_dt, exchange, include_after_hours, source):
+    def fake_get_cached_bars_for_source(
+        *,
+        asset,
+        quote,
+        timestep,
+        start_dt,
+        end_dt,
+        exchange,
+        include_after_hours,
+        source,
+    ):
         calls.append(str(timestep))
         if str(timestep) == "hour":
             return intraday

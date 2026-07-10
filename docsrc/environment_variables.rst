@@ -388,6 +388,16 @@ ALPACA_IS_PAPER
 - Values: ``true`` (paper) / ``false`` (live).
 - Default: ``true`` (paper trading).
 
+ALPACA_TEST_API_KEY / ALPACA_TEST_API_SECRET
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Alpaca paper credentials used by ``pytest.mark.alpaca`` API tests and the Alpaca live-broker CI workflow.
+- Values: Alpaca paper API credentials (**do not hardcode**).
+- Notes:
+  - These tests may submit and cancel non-marketable paper orders.
+  - Live news API tests use ``ALPACA_NEWS_API_KEY`` / ``ALPACA_NEWS_API_SECRET`` when present and fall back to these paper test credentials for CI/local smoke runs.
+  - Missing values skip ``alpaca``-marked API tests; invalid or trading-blocked paper accounts fail the live-broker checks.
+
 ALPACA_NEWS_API_KEY / ALPACA_NEWS_API_SECRET
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

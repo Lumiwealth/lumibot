@@ -373,6 +373,218 @@ class TestDataGetLastPriceTradeOnly:
         with pytest.raises(ValueError, match="after the available data's end"):
             data.get_bars(base_dt + timedelta(minutes=30), length=2, timestep="5m")
 
+    def test_strict_native_minute_rejects_sparse_gap_inside_frame(self):
+        asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+        base_dt = pytz.timezone("America/New_York").localize(datetime(2026, 6, 23, 23, 0))
+        dates = [base_dt, base_dt + timedelta(minutes=30)]
+        df = pd.DataFrame(
+            {
+                "open": [100.0, 110.0],
+                "high": [101.0, 111.0],
+                "low": [99.0, 109.0],
+                "close": [100.5, 110.5],
+                "volume": [1.0, 1.0],
+            },
+            index=dates,
+        )
+        data = Data(asset, df, timestep="minute", quote=Asset("USD", asset_type=Asset.AssetType.FOREX))
+        data.strict_end_check = True
+
+        with pytest.raises(ValueError, match="resolved to stale .*data refresh required"):
+            data.get_bars(base_dt + timedelta(minutes=10), length=1, timestep="minute")
+
+    def test_strict_native_multi_minute_allows_then_rejects_sparse_gap(self):
+        asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+        tz = pytz.timezone("America/New_York")
+        base_dt = tz.localize(datetime(2026, 6, 23, 23, 0))
+        dates = [
+            base_dt,
+            base_dt + timedelta(minutes=5),
+            base_dt + timedelta(minutes=10),
+            base_dt + timedelta(minutes=30),
+        ]
+        df = pd.DataFrame(
+            {
+                "open": [100.0, 101.0, 102.0, 103.0],
+                "high": [101.0, 102.0, 103.0, 104.0],
+                "low": [99.0, 100.0, 101.0, 102.0],
+                "close": [100.5, 101.5, 102.5, 103.5],
+                "volume": [1.0, 1.0, 1.0, 1.0],
+            },
+            index=dates,
+        )
+        data = Data(asset, df, timestep="minute", quote=Asset("USD", asset_type=Asset.AssetType.FOREX))
+        data._native_timestep_quantity = 5
+        data._native_timestep_unit = "minute"
+        data.strict_end_check = True
+
+        bars = data.get_bars(base_dt + timedelta(minutes=25), length=2, timestep="5m")
+        assert bars is not None
+
+        with pytest.raises(ValueError, match="resolved to stale .*data refresh required"):
+            data.get_bars(base_dt + timedelta(minutes=26), length=2, timestep="5m")
+
+    def test_native_minute_rejects_request_before_start_without_row_lookup(self, monkeypatch):
+        asset = Asset("SPY")
+        tz = pytz.timezone("America/New_York")
+        base_dt = tz.localize(datetime(2026, 6, 23, 9, 30))
+        dates = [base_dt + timedelta(minutes=i) for i in range(3)]
+        df = pd.DataFrame(
+            {
+                "open": [100.0, 101.0, 102.0],
+                "high": [101.0, 102.0, 103.0],
+                "low": [99.0, 100.0, 101.0],
+                "close": [100.5, 101.5, 102.5],
+                "volume": [1.0, 1.0, 1.0],
+            },
+            index=dates,
+        )
+        data = Data(asset, df, timestep="minute")
+
+        def forbidden_lookup(*args, **kwargs):
+            pytest.fail("invalid native request mutated the row cursor")
+
+        monkeypatch.setattr(data, "get_iter_count", forbidden_lookup)
+
+        with pytest.raises(ValueError, match="outside of the data's date range"):
+            data.get_bars(base_dt - timedelta(minutes=1), length=1, timestep="minute")
+
+    def test_native_minute_rejects_invalid_length_and_timeshift_before_row_lookup(self, monkeypatch):
+        asset = Asset("SPY")
+        tz = pytz.timezone("America/New_York")
+        base_dt = tz.localize(datetime(2026, 6, 23, 9, 30))
+        dates = [base_dt + timedelta(minutes=i) for i in range(2)]
+        df = pd.DataFrame(
+            {
+                "open": [100.0, 101.0],
+                "high": [101.0, 102.0],
+                "low": [99.0, 100.0],
+                "close": [100.5, 101.5],
+                "volume": [1.0, 1.0],
+            },
+            index=dates,
+        )
+        data = Data(asset, df, timestep="minute")
+
+        def forbidden_lookup(*args, **kwargs):
+            pytest.fail("invalid native request performed a row lookup")
+
+        monkeypatch.setattr(data, "get_iter_count", forbidden_lookup)
+
+        with pytest.raises(TypeError, match="Length must be an integer"):
+            data.get_bars(base_dt, length="1", timestep="minute")
+        with pytest.raises(TypeError, match="Timeshift must be a number"):
+            data.get_bars(base_dt, length=1, timestep="minute", timeshift="1")
+
+    def test_native_minute_naive_request_matches_timezone_validation_error(self, monkeypatch):
+        asset = Asset("SPY")
+        tz = pytz.timezone("America/New_York")
+        base_dt = tz.localize(datetime(2026, 6, 23, 9, 30))
+        dates = [base_dt + timedelta(minutes=i) for i in range(2)]
+        df = pd.DataFrame(
+            {
+                "open": [100.0, 101.0],
+                "high": [101.0, 102.0],
+                "low": [99.0, 100.0],
+                "close": [100.5, 101.5],
+                "volume": [1.0, 1.0],
+            },
+            index=dates,
+        )
+        data = Data(asset, df, timestep="minute")
+
+        def forbidden_lookup(*args, **kwargs):
+            pytest.fail("timezone-invalid request performed a row lookup")
+
+        monkeypatch.setattr(data, "get_iter_count", forbidden_lookup)
+
+        with pytest.raises(TypeError, match="offset-naive and offset-aware"):
+            data.get_bars(datetime(2026, 6, 23, 9, 31), length=1, timestep="minute")
+
+    def test_native_daily_bar_covers_utc_calendar_date(self):
+        dates = pd.to_datetime(["2026-11-02 00:00:00", "2026-11-03 00:00:00"], utc=True)
+        df = pd.DataFrame(
+            {
+                "open": [100.0, 101.0],
+                "high": [101.0, 102.0],
+                "low": [99.0, 100.0],
+                "close": [100.5, 101.5],
+                "volume": [1.0, 1.0],
+            },
+            index=dates,
+        )
+        data = Data(Asset("SPY"), df, timestep="day")
+        request_dt = pytz.timezone("America/New_York").localize(datetime(2026, 11, 3, 8, 30))
+
+        bars = data.get_bars(request_dt, length=1, timestep="day")
+
+        assert bars is not None
+        assert bars.iloc[-1]["close"] == 101.5
+
+    def test_native_minute_normalizes_timedelta_timeshift(self):
+        asset = Asset("SPY")
+        tz = pytz.timezone("America/New_York")
+        base_dt = tz.localize(datetime(2026, 6, 23, 9, 30))
+        dates = [base_dt + timedelta(minutes=i) for i in range(4)]
+        df = pd.DataFrame(
+            {
+                "open": [100.0, 101.0, 102.0, 103.0],
+                "high": [101.0, 102.0, 103.0, 104.0],
+                "low": [99.0, 100.0, 101.0, 102.0],
+                "close": [100.5, 101.5, 102.5, 103.5],
+                "volume": [1.0, 1.0, 1.0, 1.0],
+            },
+            index=dates,
+        )
+        data = Data(asset, df, timestep="minute")
+
+        bars = data.get_bars(
+            base_dt + timedelta(minutes=3),
+            length=2,
+            timestep="minute",
+            timeshift=timedelta(minutes=1),
+        )
+
+        assert bars is not None
+        assert list(bars["close"]) == [100.5, 101.5]
+
+    def test_native_minute_hot_path_reuses_iter_count_and_integer_gap(self, monkeypatch):
+        asset = Asset("SPY")
+        tz = pytz.timezone("America/New_York")
+        base_dt = tz.localize(datetime(2026, 6, 23, 9, 30))
+        dates = [base_dt + timedelta(minutes=i) for i in range(3)]
+        df = pd.DataFrame(
+            {
+                "open": [100.0, 101.0, 102.0],
+                "high": [101.0, 102.0, 103.0],
+                "low": [99.0, 100.0, 101.0],
+                "close": [100.5, 101.5, 102.5],
+                "volume": [1.0, 1.0, 1.0],
+            },
+            index=dates,
+        )
+        data = Data(asset, df, timestep="minute")
+        data.strict_end_check = True
+        original_get_iter_count = data.get_iter_count
+        iter_count_calls = 0
+
+        def tracked_get_iter_count(dt):
+            nonlocal iter_count_calls
+            iter_count_calls += 1
+            return original_get_iter_count(dt)
+
+        def forbidden_fallback(*args, **kwargs):
+            pytest.fail("native hot path used generic or pandas-based validation")
+
+        monkeypatch.setattr(data, "get_iter_count", tracked_get_iter_count)
+        monkeypatch.setattr(data, "_validate_bars_request", forbidden_fallback)
+        monkeypatch.setattr(data, "_strict_intraday_stale_bar_error", forbidden_fallback)
+
+        bars = data.get_bars(base_dt + timedelta(minutes=2), length=2, timestep="minute")
+
+        assert bars is not None
+        assert iter_count_calls == 1
+
     def test_large_tz_aware_repair_avoids_retained_iter_index_dict_and_preserves_lookup(self):
         asset = Asset("MEM")
         index = pd.date_range("2024-01-01", periods=50_001, freq="min", tz="America/New_York")

@@ -1256,6 +1256,191 @@ class Data:
     def _validate_bars_request(self, dt, length=1, timestep=None, timeshift=0):
         return True
 
+    def _validate_native_bars_request(
+        self,
+        dt,
+        *,
+        length=1,
+        timeshift=0,
+        request_timestep=None,
+    ) -> tuple[int, int]:
+        """Validate a native-bar request without the generic decorator hot-path cost.
+
+        This preserves ``check_data``'s boundaries, sparse-frame protection, and
+        diagnostics while reusing the row lookup that the native slice already needs.
+        """
+        if type(length) not in [int, float]:
+            raise TypeError(f"Length must be an integer. {type(length)} was provided.")
+        if timeshift is not None and not isinstance(timeshift, (int, float, datetime.timedelta)):
+            raise TypeError(
+                f"Timeshift must be a number or datetime.timedelta. {type(timeshift)} was provided."
+            )
+
+        dt_key = dt.to_pydatetime() if isinstance(dt, pd.Timestamp) else dt
+        normalized_timeshift = self._normalize_timeshift_to_rows(timeshift)
+
+        if dt_key < self.datetime_start:
+            raise ValueError(
+                f"The date you are looking for ({dt_key}) for ({self.asset}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end}). This could be because the data for this asset does not exist for the date you are looking for, or something else."
+            )
+
+        if self.timestep == "day" or dt_key > self.datetime_end:
+            self._validate_native_bars_request_end(
+                dt_key=dt_key,
+                length=length,
+                normalized_timeshift=normalized_timeshift,
+                request_timestep=request_timestep,
+            )
+
+        iter_count = self.get_iter_count(dt_key)
+
+        stale_bar_error = None
+        strict_end_check = getattr(self, "strict_end_check", False)
+        if strict_end_check:
+            tolerance_cache = self.__dict__.get("_strict_intraday_tolerance_ns_cache")
+            tolerance_ns = _MISSING if tolerance_cache is None else tolerance_cache.get(request_timestep, _MISSING)
+            if tolerance_ns is _MISSING:
+                tolerance = self._strict_intraday_bar_age_tolerance(request_timestep=request_timestep)
+                tolerance_ns = None if tolerance is None else int(tolerance.total_seconds() * 1_000_000_000)
+                if tolerance_cache is None:
+                    tolerance_cache = {}
+                    self._strict_intraday_tolerance_ns_cache = tolerance_cache
+                tolerance_cache[request_timestep] = tolerance_ns
+
+        if strict_end_check and tolerance_ns is not None:
+            index_values_ns = getattr(self, "_index_values_ns", None)
+            if index_values_ns is None:
+                stale_bar_error = self._strict_intraday_stale_bar_error(
+                    dt_key=dt_key,
+                    iter_count=int(iter_count),
+                    length=length,
+                    timeshift=normalized_timeshift,
+                    request_timestep=request_timestep,
+                )
+            else:
+                try:
+                    if self.datetime_start.tzinfo is None:
+                        epoch = datetime.datetime(1970, 1, 1)
+                        delta = dt_key - epoch
+                        dt_ns = (
+                            (delta.days * 86_400 + delta.seconds) * 1_000_000_000
+                            + delta.microseconds * 1_000
+                        )
+                    else:
+                        dt_ns = int(dt_key.timestamp() * 1_000_000_000)
+                    gap_ns = dt_ns - int(index_values_ns[int(iter_count)])
+                except (AttributeError, IndexError, OverflowError, TypeError, ValueError):
+                    stale_bar_error = self._strict_intraday_stale_bar_error(
+                        dt_key=dt_key,
+                        iter_count=int(iter_count),
+                        length=length,
+                        timeshift=normalized_timeshift,
+                        request_timestep=request_timestep,
+                    )
+                else:
+                    if gap_ns > tolerance_ns:
+                        stale_bar_error = self._strict_intraday_stale_bar_error(
+                            dt_key=dt_key,
+                            iter_count=int(iter_count),
+                            length=length,
+                            timeshift=normalized_timeshift,
+                            request_timestep=request_timestep,
+                        )
+
+        if stale_bar_error is not None:
+            raise ValueError(stale_bar_error)
+
+        data_index = int(iter_count) + 1 - length - normalized_timeshift
+        if data_index < 0:
+            self._log_native_insufficient_history(
+                dt_key=dt_key,
+                length=length,
+                normalized_timeshift=normalized_timeshift,
+                iter_count=iter_count,
+            )
+
+        return normalized_timeshift, int(iter_count)
+
+    def _validate_native_bars_request_end(
+        self,
+        *,
+        dt_key,
+        length,
+        normalized_timeshift: int,
+        request_timestep,
+    ) -> None:
+        """Handle uncommon native-bar end-boundary checks."""
+        if self.timestep == "day":
+            import pytz
+
+            utc = pytz.UTC
+            if hasattr(self.datetime_end, "astimezone"):
+                datetime_end_utc = self.datetime_end.astimezone(utc)
+            else:
+                datetime_end_utc = self.datetime_end
+            dt_exceeds_end = dt_key.date() > datetime_end_utc.date()
+        else:
+            dt_exceeds_end = dt_key > self.datetime_end
+
+        if dt_exceeds_end:
+            if getattr(self, "strict_end_check", False):
+                strict_lag_tolerance = self._strict_end_lag_tolerance(request_timestep=request_timestep)
+                gap = dt_key - self.datetime_end
+                if (
+                    strict_lag_tolerance is None
+                    or gap < datetime.timedelta(0)
+                    or gap > strict_lag_tolerance
+                ):
+                    raise ValueError(
+                        f"The date you are looking for ({dt_key}) for ({self.asset}) is after the available data's end ({self.datetime_end}) with length={length} and timeshift={normalized_timeshift}; data refresh required instead of using stale bars."
+                    )
+
+            gap = dt_key - self.datetime_end
+            max_gap = datetime.timedelta(days=3)
+            if gap > max_gap:
+                raise ValueError(
+                    f"The date you are looking for ({dt_key}) for ({self.asset}) is after the available data's end ({self.datetime_end}) with length={length} and timeshift={normalized_timeshift}; data refresh required instead of using stale bars."
+                )
+            message = (
+                f"The date you are looking for ({dt_key}) is after the available data's end "
+                f"({self.datetime_end}) by {gap}. Using the last available bar (within tolerance "
+                f"of {max_gap})."
+            )
+            if self.timestep == "day":
+                logger.debug(message)
+            else:
+                logger.warning(message)
+
+    def _log_native_insufficient_history(
+        self,
+        *,
+        dt_key,
+        length,
+        normalized_timeshift: int,
+        iter_count: int,
+    ) -> None:
+        """Match ``check_data`` diagnostics for a native request before available history."""
+        data_index = int(iter_count) + 1 - length - normalized_timeshift
+        logger.warning(
+            f"The date you are looking for ({dt_key}) is outside of the data's date range ({self.datetime_start} to {self.datetime_end}) after accounting for a length of {length} and a timeshift of {normalized_timeshift}. Keep in mind that the length you are requesting must also be available in your data, in this case we are {data_index} rows away from the data you need."
+        )
+        try:
+            idx_vals = self.df.index
+            logger.info(
+                "[DATA][CHECK] asset=%s timestep=%s dt=%s length=%s timeshift=%s iter_index=%s idx_min=%s idx_max=%s rows=%s",
+                getattr(self.asset, "symbol", self.asset),
+                getattr(self, "timestep", None),
+                dt_key,
+                length,
+                normalized_timeshift,
+                iter_count,
+                idx_vals.min(),
+                idx_vals.max(),
+                len(idx_vals),
+            )
+        except Exception:
+            logger.debug("[DATA][CHECK] failed to log index diagnostics", exc_info=True)
+
     def _normalize_timeshift_to_rows(self, timeshift):
         if timeshift is None:
             return 0
@@ -1269,10 +1454,11 @@ class Data:
 
         return int(timeshift or 0)
 
-    def _get_bars_row_bounds(self, dt, length=1, timeshift=0):
+    def _get_bars_row_bounds(self, dt, length=1, timeshift=0, iter_count=None):
         timeshift = self._normalize_timeshift_to_rows(timeshift)
 
-        iter_count = self.get_iter_count(dt)
+        if iter_count is None:
+            iter_count = self.get_iter_count(dt)
         try:
             if pd.isna(iter_count):
                 iter_count = 0
@@ -1313,11 +1499,12 @@ class Data:
 
         return df_source
 
-    def _get_bars_frame_window(self, dt, length=1, timeshift=0):
+    def _get_bars_frame_window(self, dt, length=1, timeshift=0, iter_count=None):
         start_row, end_row, normalized_timeshift = self._get_bars_row_bounds(
             dt,
             length=length,
             timeshift=timeshift,
+            iter_count=iter_count,
         )
         df_source = self._get_bars_source_frame()
         df = df_source._slice(slice(start_row, end_row))
@@ -1396,17 +1583,17 @@ class Data:
             and int(native_qty) == int(quantity)
             and native_unit == "minute"
         ):
-            self._validate_bars_request(
+            timeshift, iter_count = self._validate_native_bars_request(
                 dt,
                 length=num_periods,
-                timestep=timestep,
                 timeshift=timeshift,
-                _strict_request_timestep=f"{int(quantity)}{timestep}",
+                request_timestep=f"{int(quantity)}{timestep}",
             )
             df, start_row, end_row, timeshift = self._get_bars_frame_window(
                 dt,
                 length=num_periods,
                 timeshift=timeshift,
+                iter_count=iter_count,
             )
             if df is None:
                 return None
@@ -1493,17 +1680,21 @@ class Data:
                 or (timestep == "day" and self.timestep == "day")
             )
         ):
-            self._validate_bars_request(
+            timeshift, iter_count = self._validate_native_bars_request(
                 dt,
                 length=length,
-                timestep=timestep,
                 timeshift=timeshift,
-                _strict_request_timestep=f"{int(quantity)}{timestep}",
+                request_timestep=f"{int(quantity)}{timestep}",
             )
             # PERF: avoid reconstructing a DataFrame from datalines on every call.
             # The underlying `self.df` is already indexed by datetime, so we can slice by
             # row bounds in O(1) and return a stable OHLCV schema.
-            df, start_row, end_row, timeshift = self._get_bars_frame_window(dt, length=length, timeshift=timeshift)
+            df, start_row, end_row, timeshift = self._get_bars_frame_window(
+                dt,
+                length=length,
+                timeshift=timeshift,
+                iter_count=iter_count,
+            )
             if df is None:
                 return None
 

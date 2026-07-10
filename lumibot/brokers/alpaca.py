@@ -964,7 +964,16 @@ class Alpaca(Broker):
 
 
 
-    def _submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None):
+    def _submit_orders(
+        self,
+        orders,
+        is_multileg=False,
+        order_type=None,
+        duration="day",
+        price=None,
+        take_profit=None,
+        stop_loss=None,
+    ):
         """
         Submit multiple orders to the broker. Supports multi-leg (MLeg) orders for options.
         """
@@ -973,7 +982,15 @@ class Alpaca(Broker):
 
         if is_multileg:
             tag = orders[0].tag if hasattr(orders[0], "tag") and orders[0].tag else orders[0].strategy
-            parent_order = self._submit_multileg_order(orders, order_type, duration, price, tag)
+            parent_order = self._submit_multileg_order(
+                orders,
+                order_type,
+                duration,
+                price,
+                tag,
+                take_profit=take_profit,
+                stop_loss=stop_loss,
+            )
             return [parent_order]
         else:
             sub_orders = []
@@ -981,7 +998,16 @@ class Alpaca(Broker):
                 sub_orders.append(self._submit_order(order))
             return sub_orders
 
-    def _submit_multileg_order(self, orders, order_type="limit", duration="day", price=None, tag=None):
+    def _submit_multileg_order(
+        self,
+        orders,
+        order_type="limit",
+        duration="day",
+        price=None,
+        tag=None,
+        take_profit=None,
+        stop_loss=None,
+    ):
         """
         Submit a multi-leg (MLeg) options order to Alpaca.
 
@@ -989,7 +1015,7 @@ class Alpaca(Broker):
         - Tradier uses "credit" for net credit (receive premium) and "debit" for net debit (pay premium).
         - Alpaca only supports "market" and "limit" for multi-leg orders.
         - We convert "credit", "debit", and "even" to "limit" for Alpaca, as both are limit orders in Alpaca's API.
-        - The sign of the limit price (positive/negative) is not used by Alpaca to distinguish credit/debit.
+        - Bracket exits use Alpaca's take_profit and stop_loss fields on the same mleg request.
         - Alpaca requires that the leg ratio quantities are relatively prime (GCD == 1).
         """
         requested_multileg_type = order_type if order_type in ("credit", "debit", "even") else None
@@ -1087,7 +1113,15 @@ class Alpaca(Broker):
         if price is not None:
             # Ensure limit price is at most 2 decimal places (Alpaca requirement)
             limit_price = round(float(price), 2)
+            if requested_multileg_type == "credit":
+                limit_price = -abs(limit_price)
+            elif requested_multileg_type == "debit":
+                limit_price = abs(limit_price)
             kwargs["limit_price"] = limit_price
+        if take_profit is not None:
+            kwargs["take_profit"] = self._format_multileg_take_profit(take_profit)
+        if stop_loss is not None:
+            kwargs["stop_loss"] = self._format_multileg_stop_loss(stop_loss)
         # Submit order
         try:
             response = self.api.submit_order(order_data=OrderData(**kwargs))
@@ -1115,6 +1149,32 @@ class Alpaca(Broker):
             for o in orders:
                 o.set_error(e)
             raise
+
+    @staticmethod
+    def _format_multileg_take_profit(take_profit):
+        if not isinstance(take_profit, dict):
+            raise ValueError("multi-leg take_profit must be a dict")
+        limit_price = take_profit.get("limit_price")
+        if limit_price is None:
+            raise ValueError("multi-leg take_profit requires limit_price")
+        return {"limit_price": round(float(limit_price), 2)}
+
+    @staticmethod
+    def _format_multileg_stop_loss(stop_loss):
+        if not isinstance(stop_loss, dict):
+            raise ValueError("multi-leg stop_loss must be a dict")
+        unsupported = {"trail_price", "trail_percent"} & set(stop_loss)
+        if unsupported:
+            names = ", ".join(sorted(unsupported))
+            raise ValueError(f"multi-leg stop_loss does not support {names}")
+        payload = {}
+        if stop_loss.get("stop_price") is not None:
+            payload["stop_price"] = round(float(stop_loss["stop_price"]), 2)
+        if stop_loss.get("limit_price") is not None:
+            payload["limit_price"] = round(float(stop_loss["limit_price"]), 2)
+        if "stop_price" not in payload:
+            raise ValueError("multi-leg stop_loss requires stop_price")
+        return payload
 
 
     def _submit_order(self, order):

@@ -373,7 +373,38 @@ class TestDataGetLastPriceTradeOnly:
         with pytest.raises(ValueError, match="after the available data's end"):
             data.get_bars(base_dt + timedelta(minutes=30), length=2, timestep="5m")
 
-    def test_strict_native_minute_rejects_sparse_gap_inside_frame(self):
+    def test_strict_native_option_preserves_sparse_history_but_rejects_after_end(self):
+        asset = Asset("SPX", asset_type=Asset.AssetType.OPTION)
+        tz = pytz.timezone("America/New_York")
+        base_dt = tz.localize(datetime(2026, 6, 23, 9, 30))
+        dates = [base_dt, base_dt + timedelta(minutes=5), base_dt + timedelta(minutes=30)]
+        df = pd.DataFrame(
+            {
+                "open": [10.0, 10.5, 11.0],
+                "high": [10.5, 11.0, 11.5],
+                "low": [9.5, 10.0, 10.5],
+                "close": [10.25, 10.75, 11.25],
+                "volume": [1.0, 1.0, 1.0],
+            },
+            index=dates,
+        )
+        data = Data(asset, df, timestep="minute")
+        data.strict_end_check = True
+
+        request_dt = base_dt + timedelta(minutes=10)
+        bars = data.get_bars(request_dt, length=1, timestep="minute")
+
+        assert bars is not None
+        assert bars.iloc[-1]["close"] == 10.25
+        assert bars.index.max() < request_dt
+
+        with pytest.raises(ValueError, match="resolved to stale .*data refresh required"):
+            data.get_last_price(request_dt)
+
+        with pytest.raises(ValueError, match="after the available data's end"):
+            data.get_bars(base_dt + timedelta(minutes=40), length=1, timestep="minute")
+
+    def test_strict_native_crypto_rejects_sparse_gap_inside_frame(self):
         asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
         base_dt = pytz.timezone("America/New_York").localize(datetime(2026, 6, 23, 23, 0))
         dates = [base_dt, base_dt + timedelta(minutes=30)]
@@ -393,7 +424,7 @@ class TestDataGetLastPriceTradeOnly:
         with pytest.raises(ValueError, match="resolved to stale .*data refresh required"):
             data.get_bars(base_dt + timedelta(minutes=10), length=1, timestep="minute")
 
-    def test_strict_native_multi_minute_allows_then_rejects_sparse_gap(self):
+    def test_strict_native_crypto_multi_minute_applies_sparse_gap_tolerance(self):
         asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
         tz = pytz.timezone("America/New_York")
         base_dt = tz.localize(datetime(2026, 6, 23, 23, 0))

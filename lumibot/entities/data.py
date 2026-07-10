@@ -1266,8 +1266,11 @@ class Data:
     ) -> tuple[int, int]:
         """Validate a native-bar request without the generic decorator hot-path cost.
 
-        This preserves ``check_data``'s boundaries, sparse-frame protection, and
-        diagnostics while reusing the row lookup that the native slice already needs.
+        This preserves ``check_data``'s boundaries and diagnostics while reusing the row
+        lookup that the native slice already needs. Native option histories may be sparse
+        inside those boundaries, so their source-level refresh logic owns internal coverage
+        decisions; treating every quiet option minute as stale causes repeated downloads and
+        changes established backtest results.
         """
         if type(length) not in [int, float]:
             raise TypeError(f"Length must be an integer. {type(length)} was provided.")
@@ -1295,8 +1298,10 @@ class Data:
         iter_count = self.get_iter_count(dt_key)
 
         stale_bar_error = None
+        allow_sparse_history = getattr(self.asset, "asset_type", None) == Asset.AssetType.OPTION
         strict_end_check = getattr(self, "strict_end_check", False)
-        if strict_end_check:
+        tolerance_ns = None
+        if strict_end_check and not allow_sparse_history:
             tolerance_cache = self.__dict__.get("_strict_intraday_tolerance_ns_cache")
             tolerance_ns = _MISSING if tolerance_cache is None else tolerance_cache.get(request_timestep, _MISSING)
             if tolerance_ns is _MISSING:
@@ -1307,7 +1312,7 @@ class Data:
                     self._strict_intraday_tolerance_ns_cache = tolerance_cache
                 tolerance_cache[request_timestep] = tolerance_ns
 
-        if strict_end_check and tolerance_ns is not None:
+        if strict_end_check and not allow_sparse_history and tolerance_ns is not None:
             index_values_ns = getattr(self, "_index_values_ns", None)
             if index_values_ns is None:
                 stale_bar_error = self._strict_intraday_stale_bar_error(

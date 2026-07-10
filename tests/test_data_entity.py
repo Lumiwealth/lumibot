@@ -348,7 +348,7 @@ class TestDataGetLastPriceTradeOnly:
         assert bars is not None
 
         with pytest.raises(ValueError, match="after the available data's end"):
-            data.get_bars(base_dt + timedelta(minutes=10), length=2, timestep="minute")
+            data.get_bars(base_dt + timedelta(minutes=4), length=2, timestep="minute")
 
     def test_strict_intraday_rejects_stale_native_multi_minute_fast_path(self):
         asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
@@ -404,25 +404,51 @@ class TestDataGetLastPriceTradeOnly:
         with pytest.raises(ValueError, match="after the available data's end"):
             data.get_bars(base_dt + timedelta(minutes=40), length=1, timestep="minute")
 
-    def test_strict_native_crypto_rejects_sparse_gap_inside_frame(self):
-        asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
-        base_dt = pytz.timezone("America/New_York").localize(datetime(2026, 6, 23, 23, 0))
-        dates = [base_dt, base_dt + timedelta(minutes=30)]
+    def test_strict_native_index_uses_default_inside_frame_tolerance(self):
+        asset = Asset("SPX", asset_type=Asset.AssetType.INDEX)
+        base_dt = pytz.timezone("America/New_York").localize(datetime(2026, 6, 23, 9, 30))
+        dates = [base_dt, base_dt + timedelta(minutes=1), base_dt + timedelta(minutes=10)]
         df = pd.DataFrame(
             {
-                "open": [100.0, 110.0],
-                "high": [101.0, 111.0],
-                "low": [99.0, 109.0],
-                "close": [100.5, 110.5],
-                "volume": [1.0, 1.0],
+                "open": [100.0, 101.0, 110.0],
+                "high": [101.0, 102.0, 111.0],
+                "low": [99.0, 100.0, 109.0],
+                "close": [100.5, 101.5, 110.5],
+                "volume": [1.0, 1.0, 1.0],
+            },
+            index=dates,
+        )
+        data = Data(asset, df, timestep="minute")
+        data.strict_end_check = True
+
+        bars = data.get_bars(base_dt + timedelta(minutes=4), length=1, timestep="minute")
+        assert bars is not None
+
+        with pytest.raises(ValueError, match="resolved to stale .*data refresh required"):
+            data.get_bars(base_dt + timedelta(minutes=5), length=1, timestep="minute")
+
+    def test_strict_native_crypto_uses_default_inside_frame_tolerance(self):
+        asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+        base_dt = pytz.timezone("America/New_York").localize(datetime(2026, 6, 23, 23, 0))
+        dates = [base_dt, base_dt + timedelta(minutes=1), base_dt + timedelta(minutes=30)]
+        df = pd.DataFrame(
+            {
+                "open": [100.0, 101.0, 110.0],
+                "high": [101.0, 102.0, 111.0],
+                "low": [99.0, 100.0, 109.0],
+                "close": [100.5, 101.5, 110.5],
+                "volume": [1.0, 1.0, 1.0],
             },
             index=dates,
         )
         data = Data(asset, df, timestep="minute", quote=Asset("USD", asset_type=Asset.AssetType.FOREX))
         data.strict_end_check = True
 
+        bars = data.get_bars(base_dt + timedelta(minutes=16), length=1, timestep="minute")
+        assert bars is not None
+
         with pytest.raises(ValueError, match="resolved to stale .*data refresh required"):
-            data.get_bars(base_dt + timedelta(minutes=10), length=1, timestep="minute")
+            data.get_bars(base_dt + timedelta(minutes=17), length=1, timestep="minute")
 
     def test_strict_native_crypto_multi_minute_applies_sparse_gap_tolerance(self):
         asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)

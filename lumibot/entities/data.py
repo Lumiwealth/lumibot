@@ -1263,6 +1263,7 @@ class Data:
         length=1,
         timeshift=0,
         request_timestep=None,
+        stale_request_timestep=_MISSING,
     ) -> tuple[int, int]:
         """Validate a native-bar request without the generic decorator hot-path cost.
 
@@ -1270,7 +1271,10 @@ class Data:
         lookup that the native slice already needs. Native option histories may be sparse
         inside those boundaries, so their source-level refresh logic owns internal coverage
         decisions; treating every quiet option minute as stale causes repeated downloads and
-        changes established backtest results.
+        changes established backtest results. ``request_timestep`` governs end-boundary lag;
+        ``stale_request_timestep`` separately governs bar age inside the frame. Quantity-one
+        callers pass ``None`` for the latter to retain the default 3-minute non-crypto and
+        15-minute crypto tolerances.
         """
         if type(length) not in [int, float]:
             raise TypeError(f"Length must be an integer. {type(length)} was provided.")
@@ -1281,6 +1285,8 @@ class Data:
 
         dt_key = dt.to_pydatetime() if isinstance(dt, pd.Timestamp) else dt
         normalized_timeshift = self._normalize_timeshift_to_rows(timeshift)
+        if stale_request_timestep is _MISSING:
+            stale_request_timestep = request_timestep
 
         if dt_key < self.datetime_start:
             raise ValueError(
@@ -1303,14 +1309,16 @@ class Data:
         tolerance_ns = None
         if strict_end_check and not allow_sparse_history:
             tolerance_cache = self.__dict__.get("_strict_intraday_tolerance_ns_cache")
-            tolerance_ns = _MISSING if tolerance_cache is None else tolerance_cache.get(request_timestep, _MISSING)
+            tolerance_ns = (
+                _MISSING if tolerance_cache is None else tolerance_cache.get(stale_request_timestep, _MISSING)
+            )
             if tolerance_ns is _MISSING:
-                tolerance = self._strict_intraday_bar_age_tolerance(request_timestep=request_timestep)
+                tolerance = self._strict_intraday_bar_age_tolerance(request_timestep=stale_request_timestep)
                 tolerance_ns = None if tolerance is None else int(tolerance.total_seconds() * 1_000_000_000)
                 if tolerance_cache is None:
                     tolerance_cache = {}
                     self._strict_intraday_tolerance_ns_cache = tolerance_cache
-                tolerance_cache[request_timestep] = tolerance_ns
+                tolerance_cache[stale_request_timestep] = tolerance_ns
 
         if strict_end_check and not allow_sparse_history and tolerance_ns is not None:
             index_values_ns = getattr(self, "_index_values_ns", None)
@@ -1320,7 +1328,7 @@ class Data:
                     iter_count=int(iter_count),
                     length=length,
                     timeshift=normalized_timeshift,
-                    request_timestep=request_timestep,
+                    request_timestep=stale_request_timestep,
                 )
             else:
                 try:
@@ -1340,7 +1348,7 @@ class Data:
                         iter_count=int(iter_count),
                         length=length,
                         timeshift=normalized_timeshift,
-                        request_timestep=request_timestep,
+                        request_timestep=stale_request_timestep,
                     )
                 else:
                     if gap_ns > tolerance_ns:
@@ -1349,7 +1357,7 @@ class Data:
                             iter_count=int(iter_count),
                             length=length,
                             timeshift=normalized_timeshift,
-                            request_timestep=request_timestep,
+                            request_timestep=stale_request_timestep,
                         )
 
         if stale_bar_error is not None:
@@ -1690,6 +1698,7 @@ class Data:
                 length=length,
                 timeshift=timeshift,
                 request_timestep=f"{int(quantity)}{timestep}",
+                stale_request_timestep=None,
             )
             # PERF: avoid reconstructing a DataFrame from datalines on every call.
             # The underlying `self.df` is already indexed by datetime, so we can slice by

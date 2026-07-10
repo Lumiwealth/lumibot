@@ -1396,6 +1396,13 @@ class Data:
             and int(native_qty) == int(quantity)
             and native_unit == "minute"
         ):
+            self._validate_bars_request(
+                dt,
+                length=num_periods,
+                timestep=timestep,
+                timeshift=timeshift,
+                _strict_request_timestep=f"{int(quantity)}{timestep}",
+            )
             df, start_row, end_row, timeshift = self._get_bars_frame_window(
                 dt,
                 length=num_periods,
@@ -1486,6 +1493,12 @@ class Data:
                 or (timestep == "day" and self.timestep == "day")
             )
         ):
+            self._validate_bars_request(
+                dt,
+                length=length,
+                timestep=timestep,
+                timeshift=timeshift,
+            )
             # PERF: avoid reconstructing a DataFrame from datalines on every call.
             # The underlying `self.df` is already indexed by datetime, so we can slice by
             # row bounds in O(1) and return a stable OHLCV schema.

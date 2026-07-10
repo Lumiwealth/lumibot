@@ -116,7 +116,8 @@ class Tradovate(Broker):
 
         self._validate_config()
         if connect_stream is None:
-            connect_stream = self._connect_on_init
+            connect_stream = True
+        self._connect_stream_requested = bool(connect_stream)
 
         if data_source is None:
             config["TRADING_API_URL"] = self.trading_api_url
@@ -127,7 +128,9 @@ class Tradovate(Broker):
                 market_token=self.market_token
             )
 
-        super().__init__(name=self.NAME, data_source=data_source, config=config, connect_stream=connect_stream)
+        # Authenticate before launching the polling stream. This keeps construction lazy while
+        # preserving polling for normal live brokers after their first authenticated operation.
+        super().__init__(name=self.NAME, data_source=data_source, config=config, connect_stream=False)
 
         if self._connect_on_init:
             self._ensure_connected()
@@ -160,6 +163,7 @@ class Tradovate(Broker):
 
         with self._tradovate_connection_lock:
             if self._tradovate_connected:
+                self._ensure_polling_stream()
                 return
 
             self._tradovate_connecting = True
@@ -183,12 +187,20 @@ class Tradovate(Broker):
                 self.user_id = self._get_user_info(self.trading_token)
                 logger.info(colored(f"User ID: {self.user_id}", "green"))
                 self._tradovate_connected = True
+                self._ensure_polling_stream()
             except TradovateAPIError as e:
                 logger.warning(colored(f"Failed initial connection to Tradovate: {e}", "yellow"))
                 logger.warning(colored("Broker connection failed due to rate limiting or authentication.", "yellow"))
                 raise e
             finally:
                 self._tradovate_connecting = False
+
+    def _ensure_polling_stream(self):
+        if not getattr(self, "_connect_stream_requested", False) or getattr(self, "stream", None) is not None:
+            return
+        self.stream = self._get_stream_object()
+        if self.stream is not None:
+            self._launch_stream()
 
     def _throttle_rest(self):
         """Ensure REST calls respect a soft per-minute cap."""

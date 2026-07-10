@@ -277,8 +277,8 @@ class TestTradovateBroker:
             assert broker.account_id == 123456
             assert broker.user_id == 'fake_user_id'
 
-    def test_lazy_polling_waits_for_explicit_connection(self):
-        """Polling stream must not authenticate a lazy Tradovate broker in the background."""
+    def test_lazy_connection_starts_requested_polling_stream_once(self):
+        """The default live path starts polling after authentication, not during construction."""
         from lumibot.brokers import Tradovate
 
         config = {
@@ -289,17 +289,54 @@ class TestTradovateBroker:
             "IS_PAPER": True,
         }
 
-        with patch.object(Tradovate, '_get_tokens') as mock_get_tokens, \
-             patch.object(Tradovate, '_get_account_info') as mock_get_account_info, \
-             patch.object(Tradovate, '_get_user_info') as mock_get_user_info:
-            broker = Tradovate(config=config, connect_stream=True)
-            assert hasattr(broker, "stream")
+        tokens = {
+            "accessToken": "token",
+            "marketToken": "market",
+            "hasMarketData": True,
+        }
+        stream = MagicMock()
+        with patch.object(Tradovate, '_get_tokens', return_value=tokens), \
+             patch.object(Tradovate, '_get_account_info', return_value={"accountSpec": "TEST", "accountId": 123}), \
+             patch.object(Tradovate, '_get_user_info', return_value="user"), \
+             patch.object(Tradovate, '_get_stream_object', return_value=stream) as mock_get_stream, \
+             patch.object(Tradovate, '_launch_stream') as mock_launch_stream:
+            broker = Tradovate(config=config)
+            assert not hasattr(broker, "stream")
 
-            broker.do_polling()
+            broker._ensure_connected()
+            broker._ensure_connected()
 
-            mock_get_tokens.assert_not_called()
-            mock_get_account_info.assert_not_called()
-            mock_get_user_info.assert_not_called()
+            assert broker.stream is stream
+            mock_get_stream.assert_called_once_with()
+            mock_launch_stream.assert_called_once_with()
+
+    def test_connect_stream_false_keeps_polling_disabled_after_connection(self):
+        """Scheduled/run-once callers can explicitly keep polling disabled."""
+        from lumibot.brokers import Tradovate
+
+        config = {
+            "USERNAME": "test_user",
+            "DEDICATED_PASSWORD": "test_pass",
+            "CID": "test_cid",
+            "SECRET": "test_secret",
+            "IS_PAPER": True,
+        }
+        tokens = {
+            "accessToken": "token",
+            "marketToken": "market",
+            "hasMarketData": True,
+        }
+        with patch.object(Tradovate, '_get_tokens', return_value=tokens), \
+             patch.object(Tradovate, '_get_account_info', return_value={"accountSpec": "TEST", "accountId": 123}), \
+             patch.object(Tradovate, '_get_user_info', return_value="user"), \
+             patch.object(Tradovate, '_get_stream_object') as mock_get_stream, \
+             patch.object(Tradovate, '_launch_stream') as mock_launch_stream:
+            broker = Tradovate(config=config, connect_stream=False)
+            broker._ensure_connected()
+
+            assert not hasattr(broker, "stream")
+            mock_get_stream.assert_not_called()
+            mock_launch_stream.assert_not_called()
 
     def test_first_submit_order_connects_once(self):
         """Default lazy startup connects to Tradovate only when an authenticated operation runs."""

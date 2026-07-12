@@ -273,6 +273,9 @@ jobs:
     timeout-minutes: 15
     environment: unit-tests
     needs: lint
+    concurrency:
+      group: lumibot-paper-broker-gate-${{ github.repository }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v3
 

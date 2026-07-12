@@ -63,11 +63,11 @@ _BROKER_CLASS_NAMES = {
 
 
 def __getattr__(name: str):
-    if name == "BROKER":
+    if name in {"BROKER", "broker"}:
         value = get_default_broker()
         globals()[name] = value
         return value
-    if name == "DATA_SOURCE":
+    if name in {"DATA_SOURCE", "data_source"}:
         value = get_default_data_source()
         globals()[name] = value
         return value
@@ -1180,6 +1180,11 @@ else:
 # lazily so importing strategy modules remains config-only until a live broker
 # is actually needed.
 if _defer_default_credentials() and not IS_BACKTESTING:
+    # PEP 562 only calls module __getattr__ for missing names. Remove both
+    # legacy lowercase exports and canonical uppercase exports so explicit
+    # imports resolve the lazy broker instead of capturing the None sentinel.
+    globals().pop("broker", None)
+    globals().pop("data_source", None)
     globals().pop("BROKER", None)
     globals().pop("DATA_SOURCE", None)
 else:

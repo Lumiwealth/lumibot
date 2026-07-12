@@ -1,5 +1,8 @@
 import json
+import logging
 from types import SimpleNamespace
+
+import pytest
 
 from lumibot.strategies._strategy import _Strategy
 
@@ -123,3 +126,38 @@ def test_cloud_update_skips_when_broker_balances_are_not_verified(monkeypatch):
 
     assert result is False
     assert payloads == []
+
+
+@pytest.mark.parametrize("broker_name", ["Alpaca", "Tradier"])
+def test_cloud_update_warns_then_recovers_after_temporary_balance_failure(
+    monkeypatch, caplog, broker_name
+):
+    strategy = _fake_strategy()
+    strategy.broker = SimpleNamespace(name=broker_name)
+    strategy.logger = logging.getLogger(f"tests.cloud_snapshot.{broker_name.lower()}")
+    balance_results = iter([False, True])
+    strategy.update_broker_balances = lambda force_update=True: next(balance_results)
+    payloads = []
+
+    def fake_post(url, headers=None, data=None, **kwargs):
+        payloads.append(json.loads(data))
+        return _Response()
+
+    monkeypatch.setattr("lumibot.strategies._strategy.requests.post", fake_post)
+    caplog.set_level(logging.DEBUG)
+
+    first_result = _Strategy.send_update_to_cloud(strategy)
+    second_result = _Strategy.send_update_to_cloud(strategy)
+
+    assert first_result is False
+    assert second_result is not False
+    assert len(payloads) == 1
+    assert payloads[0]["account_snapshot_status"] == "verified"
+    assert any(
+        record.levelno == logging.WARNING
+        and "broker did not return verified balances" in record.getMessage()
+        and "No stale or default balances were published" in record.getMessage()
+        and "next cloud update will retry automatically" in record.getMessage()
+        for record in caplog.records
+    )
+    assert all(record.levelno < logging.ERROR for record in caplog.records)

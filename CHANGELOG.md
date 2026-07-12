@@ -2,6 +2,13 @@
 
 ## 4.5.75 - Unreleased
 
+### Fixed
+- **Temporary broker balance-read failures no longer look like strategy failures.**
+  A skipped cloud account snapshot is now logged as a warning that explains no
+  stale/default balances were published and the next cloud update retries
+  automatically. Cross-broker regression coverage verifies the safe skip and
+  subsequent recovery behavior for Alpaca- and Tradier-shaped runtimes.
+
 ## 4.5.74 - 2026-07-08
 
 Deploy marker: `deploy 4.5.74`

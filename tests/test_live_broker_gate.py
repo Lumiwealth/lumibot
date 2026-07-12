@@ -10,6 +10,8 @@ from lumibot.brokers.alpaca import Alpaca
 from lumibot.brokers.tradier import Tradier
 from lumibot.credentials import ALPACA_TEST_CONFIG, TRADIER_TEST_CONFIG
 from lumibot.entities import Asset, Order
+from lumibot.strategies.strategy import Strategy
+from lumibot.traders.trader import Trader
 
 pytestmark = pytest.mark.apitest
 
@@ -70,6 +72,79 @@ def _assert_submit_read_cancel(broker, strategy) -> None:
         pytest.fail(f"broker did not confirm cancellation; final status={status!r}")
 
 
+class _PaperSubmitCancelStrategy(Strategy):
+    """Run one real strategy iteration while keeping the paper order nonmarketable."""
+
+    def initialize(self, parameters=None):
+        self.sleeptime = "1S"
+        self.account_reads_completed = False
+        self.iteration_ran = False
+        self.submitted_order = None
+        self.cancelled = False
+
+    def before_starting_trading(self):
+        self.account_reads_completed = self.get_cash() is not None and self.get_positions() is not None
+
+    def on_trading_iteration(self):
+        order = self.create_order(
+            Asset("AAPL"),
+            1,
+            Order.OrderSide.BUY,
+            order_type=Order.OrderType.LIMIT,
+            limit_price=0.01,
+            time_in_force="gtc",
+        )
+        self.submitted_order = self.submit_order(order)
+        self.iteration_ran = True
+
+    def on_strategy_end(self):
+        if self.submitted_order is not None:
+            self.broker.cancel_order(self.submitted_order)
+
+
+def _assert_strategy_run_submit_and_cancel(broker, name: str) -> None:
+    # The paper APIs still provide the real market clock, which is exercised before
+    # the override. The override only makes this order lifecycle test deterministic
+    # overnight and on weekends.
+    assert isinstance(broker.is_market_open(), bool)
+    broker.is_market_open = lambda: True
+
+    strategy = _PaperSubmitCancelStrategy(
+        broker=broker,
+        name=name,
+        benchmark_asset=None,
+        analyze_backtest=False,
+        should_backup_variables_to_database=False,
+        should_send_summary_to_discord=False,
+    )
+    strategy._executor._initialize_live_market_calendars_for_run_once = (
+        lambda: setattr(strategy._executor, "_run_once_market_open_override", True)
+    )
+    trader = Trader(logfile="", backtest=False)
+    trader.add_strategy(strategy)
+
+    try:
+        result = trader.run_all(run_once=True)
+        assert result is not None
+        assert strategy.account_reads_completed
+        assert strategy.iteration_ran
+        assert strategy.submitted_order is not None
+        assert strategy.submitted_order.identifier
+
+        for _ in range(30):
+            current = broker._pull_broker_order(strategy.submitted_order.identifier)
+            raw_status = current.get("status") if isinstance(current, dict) else getattr(current, "status", None)
+            status = str(getattr(raw_status, "value", raw_status)).lower()
+            if status in {"cancelled", "canceled"}:
+                strategy.cancelled = True
+                break
+            time.sleep(1)
+        assert strategy.cancelled, f"strategy order was not cancelled; final status={status!r}"
+    finally:
+        if strategy.submitted_order is not None and not strategy.cancelled:
+            broker.cancel_order(strategy.submitted_order)
+
+
 def test_alpaca_paper_account_positions_orders_and_cancel() -> None:
     config = dict(ALPACA_TEST_CONFIG)
     _required(config.get("API_KEY"), "ALPACA_TEST_API_KEY")
@@ -81,9 +156,12 @@ def test_alpaca_paper_account_positions_orders_and_cancel() -> None:
         connect_stream=False,
         start_orders_thread=False,
     )
-    strategy = SimpleNamespace(name="ci-alpaca-paper-gate")
-    _assert_account_reads(broker, strategy)
-    _assert_submit_read_cancel(broker, strategy)
+    try:
+        strategy = SimpleNamespace(name="ci-alpaca-paper-gate")
+        _assert_account_reads(broker, strategy)
+        _assert_submit_read_cancel(broker, strategy)
+    finally:
+        broker.cleanup_streams()
 
 
 def test_tradier_paper_account_positions_orders_and_cancel() -> None:
@@ -102,6 +180,38 @@ def test_tradier_paper_account_positions_orders_and_cancel() -> None:
         paper=True,
         connect_stream=False,
     )
-    strategy = SimpleNamespace(name="ci-tradier-paper-gate")
-    _assert_account_reads(broker, strategy)
-    _assert_submit_read_cancel(broker, strategy)
+    try:
+        strategy = SimpleNamespace(name="ci-tradier-paper-gate")
+        _assert_account_reads(broker, strategy)
+        _assert_submit_read_cancel(broker, strategy)
+    finally:
+        broker.cleanup_streams()
+
+
+def test_alpaca_paper_strategy_run_submits_and_cancels() -> None:
+    config = dict(ALPACA_TEST_CONFIG)
+    _required(config.get("API_KEY"), "ALPACA_TEST_API_KEY")
+    _required(config.get("API_SECRET"), "ALPACA_TEST_API_SECRET")
+    assert config.get("PAPER") is True, "Alpaca live-broker gate must use paper trading"
+
+    broker = Alpaca(config, connect_stream=False, start_orders_thread=False)
+    try:
+        _assert_strategy_run_submit_and_cancel(broker, "ci-alpaca-paper-strategy-gate")
+    finally:
+        broker.cleanup_streams()
+
+
+def test_tradier_paper_strategy_run_submits_and_cancels() -> None:
+    account_number = _required(TRADIER_TEST_CONFIG.get("ACCOUNT_NUMBER"), "TRADIER_TEST_ACCOUNT_NUMBER")
+    access_token = _required(TRADIER_TEST_CONFIG.get("ACCESS_TOKEN"), "TRADIER_TEST_ACCESS_TOKEN")
+
+    broker = Tradier(
+        account_number=account_number,
+        access_token=access_token,
+        paper=True,
+        connect_stream=False,
+    )
+    try:
+        _assert_strategy_run_submit_and_cancel(broker, "ci-tradier-paper-strategy-gate")
+    finally:
+        broker.cleanup_streams()

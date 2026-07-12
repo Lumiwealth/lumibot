@@ -9,7 +9,7 @@ on:
       - "v*.*.*"
       - "ci-*"
   pull_request:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - "lumibot/**"
       - "tests/**"
@@ -267,17 +267,44 @@ jobs:
           echo "Running $(wc -l shard_nodeids.txt | awk '{print $1}') nodeids"
           timeout 1500 python -m pytest -m "${PYTEST_MARKERS}" --tb=short -q --durations=30 -x $(cat shard_nodeids.txt)
 
+  live-broker-gate:
+    name: Live Broker Gate (Alpaca + Tradier paper)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: unit-tests
+    needs: lint
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+          pip install -r requirements_dev.txt
+
+      - name: Exercise real paper broker boundaries
+        run: |
+          set -euo pipefail
+          timeout 600 python -m pytest tests/test_live_broker_gate.py -m apitest --tb=short -q
+
   LintAndTest:
     name: LintAndTest
     runs-on: ubuntu-latest
     if: always()
-    needs: [lint, unit-tests, backtest-tests]
+    needs: [lint, unit-tests, backtest-tests, live-broker-gate]
     steps:
       - name: Check results
         run: |
           echo "lint: ${{ needs.lint.result }}"
           echo "unit-tests: ${{ needs.unit-tests.result }}"
           echo "backtest-tests: ${{ needs.backtest-tests.result }}"
+          echo "live-broker-gate: ${{ needs.live-broker-gate.result }}"
 
           if [ "${{ needs.lint.result }}" != "success" ]; then
             exit 1
@@ -286,5 +313,8 @@ jobs:
             exit 1
           fi
           if [ "${{ needs.backtest-tests.result }}" != "success" ]; then
+            exit 1
+          fi
+          if [ "${{ needs.live-broker-gate.result }}" != "success" ]; then
             exit 1
           fi

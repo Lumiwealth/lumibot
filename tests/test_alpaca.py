@@ -9,6 +9,7 @@ from lumibot.example_strategies.stock_buy_and_hold import BuyAndHold
 from lumibot.credentials import ALPACA_TEST_CONFIG
 
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import math
 
@@ -124,7 +125,13 @@ class TestAlpacaBroker:
                 return datetime(2026, 7, 8, 20, 0, tzinfo=timezone.utc)
             return datetime(2026, 7, 8, 13, 30, tzinfo=timezone.utc)
 
-        mocker.patch("lumibot.brokers.alpaca.datetime.datetime", FixedDatetime)
+        # Patch Alpaca's lazy module reference, not ``datetime.datetime`` through
+        # the LazyModule proxy. The latter mutates the shared stdlib module and
+        # leaks FixedDatetime into tests collected later in the same process.
+        mocker.patch(
+            "lumibot.brokers.alpaca.datetime",
+            SimpleNamespace(datetime=FixedDatetime),
+        )
         mocker.patch.object(broker, "market_hours", side_effect=fake_market_hours)
 
         assert broker._is_market_open_from_initialized_calendar(

@@ -116,6 +116,9 @@ class TestAlpacaBroker:
         class FixedDatetime(datetime):
             @classmethod
             def now(cls, tz=None):
+                # The old path created an intermediate naive wall time whose
+                # meaning depended on the runner timezone. Requesting the local
+                # timezone directly keeps market-hour comparisons deterministic.
                 assert tz is not None, "market-open fallback must request an aware clock"
                 value = datetime(2026, 7, 8, 14, 7, 54, tzinfo=timezone.utc)
                 return value.astimezone(tz)

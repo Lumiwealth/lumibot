@@ -3,6 +3,10 @@
 ## 4.5.75 - Unreleased
 
 ### Fixed
+- **Scheduled lazy credentials preserve legacy lowercase exports.** Explicit
+  imports of `broker` and `data_source` now resolve through the same cached lazy
+  getters as `BROKER` and `DATA_SOURCE`, so existing scheduled Bot Manager
+  workloads no longer capture `None` while import-only startup remains lazy.
 - **Temporary broker balance-read failures no longer look like strategy failures.**
   A skipped cloud account snapshot is now logged as a warning that explains no
   stale/default balances were published and the next cloud update retries

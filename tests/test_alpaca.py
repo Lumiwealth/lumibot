@@ -115,8 +115,9 @@ class TestAlpacaBroker:
         class FixedDatetime(datetime):
             @classmethod
             def now(cls, tz=None):
+                assert tz is not None, "market-open fallback must request an aware clock"
                 value = datetime(2026, 7, 8, 14, 7, 54, tzinfo=timezone.utc)
-                return value.astimezone(tz) if tz else value.replace(tzinfo=None)
+                return value.astimezone(tz)
 
         def fake_market_hours(close=False, next=False):
             if close:

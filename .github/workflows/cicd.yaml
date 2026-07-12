@@ -291,7 +291,7 @@ jobs:
       - name: Exercise real paper broker boundaries
         run: |
           set -euo pipefail
-          timeout 600 python -m pytest tests/test_live_broker_gate.py -m apitest --tb=short -q
+          timeout 600 python -m tests.test_live_broker_gate
 
   LintAndTest:
     name: LintAndTest

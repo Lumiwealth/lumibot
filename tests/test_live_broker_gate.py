@@ -215,3 +215,15 @@ def test_tradier_paper_strategy_run_submits_and_cancels() -> None:
         _assert_strategy_run_submit_and_cancel(broker, "ci-tradier-paper-strategy-gate")
     finally:
         broker.cleanup_streams()
+
+
+def run_live_broker_gate() -> None:
+    """Run without pytest's unrelated legacy Polygon/Theta credential gate."""
+    test_alpaca_paper_account_positions_orders_and_cancel()
+    test_tradier_paper_account_positions_orders_and_cancel()
+    test_alpaca_paper_strategy_run_submits_and_cancels()
+    test_tradier_paper_strategy_run_submits_and_cancels()
+
+
+if __name__ == "__main__":
+    run_live_broker_gate()

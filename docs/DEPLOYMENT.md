@@ -453,13 +453,18 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
      gh variable list -R Lumiwealth/bot_manager | rg ‘^LUMIBOT_VERSION’
 
      gh workflow run -R Lumiwealth/bot_manager "CI/CD - Development Environment" --ref main \
-       -f force_rebuild_images=false -f skip_tests=false
+       -f force_rebuild_images=true -f skip_tests=false
 
      gh workflow run -R Lumiwealth/bot_manager "CI/CD - Production Environment" --ref prod \
-       -f force_rebuild_images=false -f skip_tests=false
+       -f force_rebuild_images=true
 
      gh run list -R Lumiwealth/bot_manager -L 10
      ```
+   - Use `force_rebuild_images=true` for every LumiBot version bump. BotManager only bakes
+     `LUMIBOT_VERSION` into the base/backtest Docker dependency images when those images rebuild;
+     a non-forced deploy can go green while production backtests still report the previous
+     `settings.json.lumibot_version`. Use `false` only for BotManager-only deploys where the
+     pinned LumiBot version is intentionally unchanged.
 
 8) **Post-deployment verification (REQUIRED)**
    - After BotManager deploys finish, verify the new version is actually running in production.

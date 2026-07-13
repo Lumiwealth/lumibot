@@ -574,8 +574,8 @@ Interactive Brokers REST
 IB_USERNAME / IB_PASSWORD
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- Purpose: Credentials for IB REST API authentication.
-- Values: IB credentials (**do not hardcode**).
+- Purpose: Individual Client Portal credentials used only by the local IBeam transport.
+- Values: Secrets; **never log, commit, or hardcode them**.
 
 IB_ACCOUNT_ID
 ^^^^^^^^^^^^^
@@ -588,6 +588,55 @@ IB_API_URL
 
 - Purpose: Base URL for IB REST API endpoint.
 - Values: URL string.
+
+IB_GATEWAY_PORT
+^^^^^^^^^^^^^^^
+
+- Purpose: Host port for local IBeam or externally managed Client Portal Gateway.
+- Values: Integer from ``1`` through ``65535``.
+- Default: ``4234``.
+
+IB_GATEWAY_INSTANCE_ID
+^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Non-secret identifier used to isolate local IBeam container names.
+- Values: Letters, numbers, ``_``, ``-``, and ``.``.
+- Default: Random value generated for each gateway instance.
+
+IB_USE_PAPER_ACCOUNT
+^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Select paper login when LumiBot starts local IBeam.
+- Values: Boolean string.
+- Default: ``true``.
+
+IBEAM_DOCKER_TAG
+^^^^^^^^^^^^^^^^
+
+- Purpose: Select a versioned local IBeam Docker release.
+- Values: Docker tag only, not an image/repository reference.
+- Default: ``0.5.12``.
+
+IB_AUTH_TIMEOUT / IB_AUTH_POLL_INTERVAL
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Bound gateway authentication and control status polling.
+- Values: Positive seconds.
+- Defaults: ``300`` / ``5``.
+
+IB_REQUEST_TIMEOUT
+^^^^^^^^^^^^^^^^^^
+
+- Purpose: Timeout for one IBKR REST request.
+- Values: Positive seconds.
+- Default: ``30``.
+
+IB_VERIFY_SSL
+^^^^^^^^^^^^^
+
+- Purpose: Override TLS certificate verification for IBKR REST requests.
+- Values: Boolean string.
+- Default: disabled for localhost gateways; enabled for non-local hosts.
 
 IBKR_HISTORY_SOURCE
 ^^^^^^^^^^^^^^^^^^^

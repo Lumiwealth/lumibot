@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-import os
+import json as _json
 import time
+from decimal import Decimal
+from urllib.parse import urlparse
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, LazyPytzTimezoneRef, lazy_class
 from lumibot.tools.ibkr_secdef import (
@@ -10,6 +12,13 @@ from lumibot.tools.ibkr_secdef import (
 )
 
 from .data_source import DataSource
+from .ibkr_gateway import (
+    DEFAULT_IBEAM_HOST_PORT,
+    DEFAULT_IBEAM_TAG,
+    ExternalIbkrGateway,
+    IBeamGateway,
+    IbkrGateway,
+)
 
 logger = LazyLogger(__name__)
 TYPE_CHECKING = False
@@ -47,22 +56,44 @@ def colored(*args, **kwargs):
     return _colored(*args, **kwargs)
 
 
-def _subprocess_module():
-    import subprocess
-
-    return subprocess
-
-
-def _named_temporary_file(*args, **kwargs):
-    import tempfile
-
-    return tempfile.NamedTemporaryFile(*args, **kwargs)
-
-
 def _conf_yaml_text():
     import importlib.resources
 
     return importlib.resources.files('lumibot.resources').joinpath('conf.yaml').read_text(encoding='utf-8')
+
+
+def _as_bool(value, *, default=False):
+    if value is None or value == "":
+        return default
+    if isinstance(value, bool):
+        return value
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"Expected a boolean value, received {value!r}")
+
+
+def _positive_float(value, *, name, default):
+    if value is None or value == "":
+        return float(default)
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be a number") from exc
+    if parsed <= 0:
+        raise ValueError(f"{name} must be greater than zero")
+    return parsed
+
+
+def _rest_api_base_url(value):
+    base_url = str(value or "").strip().rstrip("/")
+    if not base_url:
+        raise ValueError("IBKR API URL cannot be empty")
+    if base_url.endswith("/v1/api"):
+        return base_url
+    return f"{base_url}/v1/api"
 
 
 def _get_bars_class():
@@ -88,179 +119,113 @@ class InteractiveBrokersRESTData(DataSource):
     MIN_TIMESTEP = "minute"
     SOURCE = "InteractiveBrokersREST"
 
-    def __init__(self, config, **kwargs):
-        # Call superclass constructor
+    def __init__(
+        self,
+        config,
+        *,
+        gateway: IbkrGateway | None = None,
+        http_client=None,
+        sleep_fn=None,
+        monotonic_fn=None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         _disable_urllib3_warnings()
 
-        if config["API_URL"] is None:
-            self.port = "4234"
-            self.base_url = f"https://localhost:{self.port}/v1/api"
-        else:
-            self.api_url = config["API_URL"]
-            self.base_url = f"{self.api_url}/v1/api"
-
-        self.account_id = config["IB_ACCOUNT_ID"] if "IB_ACCOUNT_ID" in config else None
-        self.temp_conf_path = None # Added for temporary conf.yaml path
-        # Cache of futures root -> exchange (best-effort).
-        self._futures_exchange_cache: dict[str, str] = {}
-
-        # Check if we are running on a server
-        running_on_server = (
-            config["RUNNING_ON_SERVER"]
-            if config["RUNNING_ON_SERVER"] is not None
-            else ""
+        config = dict(config or {})
+        self._sleep = sleep_fn or time.sleep
+        self._monotonic = monotonic_fn or time.monotonic
+        self.http_client = http_client or requests
+        self.request_timeout = _positive_float(
+            config.get("REQUEST_TIMEOUT"), name="IB_REQUEST_TIMEOUT", default=30
         )
-        if running_on_server.lower() == "true" or hasattr(self, "api_url"):
-            self.running_on_server = True
+        self.auth_timeout = _positive_float(
+            config.get("AUTH_TIMEOUT"), name="IB_AUTH_TIMEOUT", default=300
+        )
+        self.auth_poll_interval = _positive_float(
+            config.get("AUTH_POLL_INTERVAL"),
+            name="IB_AUTH_POLL_INTERVAL",
+            default=5,
+        )
+
+        try:
+            gateway_port = int(config.get("GATEWAY_PORT") or DEFAULT_IBEAM_HOST_PORT)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("IB_GATEWAY_PORT must be an integer") from exc
+        self.port = str(gateway_port)
+
+        api_url = config.get("API_URL")
+        running_on_server = _as_bool(config.get("RUNNING_ON_SERVER"), default=False)
+        if gateway is None:
+            if api_url:
+                self.api_url = str(api_url).strip().rstrip("/")
+                gateway = ExternalIbkrGateway(_rest_api_base_url(self.api_url))
+            elif running_on_server:
+                gateway = ExternalIbkrGateway(
+                    f"https://localhost:{gateway_port}/v1/api"
+                )
+            else:
+                gateway = IBeamGateway(
+                    username=config.get("IB_USERNAME"),
+                    password=config.get("IB_PASSWORD"),
+                    conf_text=_conf_yaml_text(),
+                    host_port=gateway_port,
+                    paper=_as_bool(config.get("USE_PAPER_ACCOUNT"), default=True),
+                    image_tag=config.get("IBEAM_DOCKER_TAG") or DEFAULT_IBEAM_TAG,
+                    instance_id=config.get("GATEWAY_INSTANCE_ID"),
+                )
+
+        self.gateway = gateway
+        self.base_url = gateway.base_url.rstrip("/")
+        self.running_on_server = not isinstance(gateway, IBeamGateway)
+        verify_ssl = config.get("VERIFY_SSL")
+        if verify_ssl is None or verify_ssl == "":
+            hostname = (urlparse(self.base_url).hostname or "").lower()
+            self.verify_ssl = hostname not in {"localhost", "127.0.0.1", "::1"}
         else:
-            self.running_on_server = False
+            self.verify_ssl = _as_bool(verify_ssl)
 
-        self.start(config["IB_USERNAME"], config["IB_PASSWORD"])
+        self.account_id = config.get("IB_ACCOUNT_ID")
+        self._futures_exchange_cache: dict[str, str] = {}
+        self.start()
 
-
-    def start(self, ib_username, ib_password):
-        if not self.running_on_server:
-            subprocess = _subprocess_module()
-
-            # --- ensure we have the patched IBeam (>=0.5.7) ---
-            # For stability, we use a fixed version by default.
-            # To use the latest, set IBEAM_DOCKER_TAG in your config/env.
-            ibeam_tag = os.environ.get("IBEAM_DOCKER_TAG", "0.5.7")
-            # ibeam_tag = "latest"  # Uncomment to always use latest (not recommended for production)
-            try:
-                subprocess.run(
-                    ["docker", "pull", f"voyz/ibeam:{ibeam_tag}"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    check=False,
+    def start(self):
+        try:
+            self.gateway.start()
+            deadline = self._monotonic() + self.auth_timeout
+            while not self.is_authenticated():
+                remaining = deadline - self._monotonic()
+                if remaining <= 0:
+                    raise TimeoutError(
+                        "IBKR gateway did not authenticate before IB_AUTH_TIMEOUT. "
+                        "Complete required browser/2FA authentication and retry."
+                    )
+                logger.info(
+                    colored(
+                        "Waiting for Interactive Brokers REST authentication...",
+                        "yellow",
+                    )
                 )
-            except Exception as e:
-                logger.warning(colored(f"Could not pull IBeam image: {e}", "yellow"))
+                self._sleep(min(self.auth_poll_interval, remaining))
 
-            # Check if Docker is installed
-            docker_version_check = subprocess.run(
-                ["docker", "--version"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            if docker_version_check.returncode != 0:
-                logger.error(colored("Error: Docker is not installed on this system. Please install Docker and try again.", "red"))
-                exit(1)
-
-            # Check if Docker daemon is running by attempting a `docker ps`
-            docker_ps_check = subprocess.run(
-                ["docker", "ps"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-            if docker_ps_check.returncode != 0:
-                error_output = docker_ps_check.stderr.strip()
-                logger.error(colored("Error: Unable to connect to the Docker daemon.", "red"))
-                logger.error(colored(f"Details: {error_output}", "yellow"))
-                logger.error(colored("Please ensure Docker is installed and running.", "red"))
-                exit(1)
-
-            # If we reach this point, Docker is installed and running
-            logger.info(colored("Connecting to Interactive Brokers REST API...", "green"))
-
-            inputs_dir = "/srv/clientportal.gw/root/conf.yaml"
-            env_variables = {
-                "IBEAM_ACCOUNT": ib_username,
-                "IBEAM_PASSWORD": ib_password,
-                "IBEAM_GATEWAY_BASE_URL": f"https://localhost:{self.port}",
-                "IBEAM_LOG_TO_FILE": "False",
-                "IBEAM_REQUEST_RETRIES": "1",
-                "IBEAM_PAGE_LOAD_TIMEOUT": "30",
-                "IBEAM_INPUTS_DIR": inputs_dir,
-                # NEW – always flip the web-portal to paper accounts
-                "IBEAM_USE_PAPER_ACCOUNT": "true",
-            }
-
-            env_args = [f"--env={key}={value}" for key, value in env_variables.items()]
-
-            # Prepare conf.yaml for Docker mount
-            try:
-                # Create a temporary file to hold the conf.yaml content
-                # delete=False is important because Docker needs to access it by path
-                # and we'll clean it up manually in stop()
-                with _named_temporary_file(delete=False, mode='w', suffix='.yaml', encoding='utf-8') as tmp_conf_file:
-                    self.temp_conf_path = tmp_conf_file.name
-                    # Use importlib.resources to access package data reliably
-                    conf_content = _conf_yaml_text()
-                    tmp_conf_file.write(conf_content)
-
-                volume_mount = f"{self.temp_conf_path}:{inputs_dir}"
-                logger.info(f"Using temporary conf.yaml for Docker mount: {self.temp_conf_path} -> {inputs_dir}")
-
-            except Exception as e:
-                logger.error(colored(f"Failed to prepare conf.yaml for Docker: {e}", "red"))
-                # Exit or raise, as this is critical for IBeam operation
-                exit(1)
-
-
-            # Remove any existing container with the same name
-            subprocess.run(
-                ["docker", "rm", "-f", "lumibot-client-portal"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-
-            # Start the container
-            subprocess.run(
-                [
-                    "docker",
-                    "run",
-                    "-d",
-                    "--name",
-                    "lumibot-client-portal",
-                    "--restart",
-                    "always",
-                    *env_args,
-                    "-p",
-                    f"{self.port}:{self.port}",
-                    "-v",
-                    volume_mount,
-                    # Use the selected tag (default: 0.5.7, can override with env)
-                    f"voyz/ibeam:{ibeam_tag}",
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                text=True,
-            )
-
-            # Wait for the gateway to initialize
-            time.sleep(15)
-
-        # Wait until authenticated
-        while not self.is_authenticated():
-            logger.info(
-                colored(
-                    "Not connected to API server yet. Waiting for Interactive Brokers API Portal to start...",
-                    "yellow",
-                )
-            )
-            logger.info(
-                colored(
-                    "Waiting for another 10 seconds before checking again...",
-                    "yellow",
-                )
-            )
-            time.sleep(10)
-
-        # Set self.account_id once authenticated
-        self.fetch_account_id()
-
-        logger.info(colored("Connected to the Interactive Brokers API", "green"))
-        self.suppress_warnings()
+            self.fetch_account_id()
+            logger.info(colored("Connected to the Interactive Brokers API", "green"))
+            self.suppress_warnings()
+        except Exception:
+            self.gateway.stop()
+            raise
 
     def suppress_warnings(self):
         # Suppress weird server warnings
         url = f"{self.base_url}/iserver/questions/suppress"
         json = {"messageIds": ["o451", "o383", "o354", "o163"]}
 
-        self.post_to_endpoint(url, json=json, description="Suppressing server warnings", allow_fail=False)
+        self.post_to_endpoint(
+            url,
+            json=json,
+            description="Suppressing server warnings",
+            max_retries=3,
+        )
 
     def fetch_account_id(self):
         if self.account_id is not None:
@@ -268,16 +233,16 @@ class InteractiveBrokersRESTData(DataSource):
 
         url = f"{self.base_url}/portfolio/accounts"
 
-        response = self.get_from_endpoint(
-            url, "Fetching Account ID", allow_fail=False
-        )
+        response = self.get_from_endpoint(url, "Fetching Account ID", max_retries=3)
+        if not isinstance(response, list) or not response or not response[0].get("id"):
+            raise RuntimeError("IBKR did not return an account identifier")
         self.last_portfolio_ping = datetime.now()
         self.account_id = response[0]["id"]
 
     def is_authenticated(self):
         url = f"{self.base_url}/iserver/accounts"
         response = self.get_from_endpoint(
-            url, "Auth Check", silent=True, allow_fail=False
+            url, "Auth Check", silent=True, max_retries=0
         )
         if response is None or 'error' in response:
             return False
@@ -475,80 +440,116 @@ class InteractiveBrokersRESTData(DataSource):
             else:
                 logger.debug(colored(f"Task {description} failed: {to_return}", "red"))
 
-        if re_msg is not None:
-            time.sleep(1)
-
-
         return (retrying, re_msg, is_error, to_return)
 
-    def get_from_endpoint(self, url, description="", silent=False, allow_fail=True):
+    def get_from_endpoint(self, url, description="", silent=False, allow_fail=True, max_retries=None):
         to_return = None
         retries = 0
         retrying = True
 
         while retrying or not allow_fail:
             try:
-                response = requests.get(url, verify=False)
+                response = self.http_client.get(
+                    url,
+                    verify=self.verify_ssl,
+                    timeout=self.request_timeout,
+                )
             except requests.exceptions.RequestException as e:
                 response = requests.Response()
                 response.status_code = 503
-                response._content = str.encode(f'{{"error": "{e}"}}')
+                response._content = _json.dumps({"error": str(e)}).encode("utf-8")
 
             # Check if the status code is 401
             if response.status_code == 401:
-                logger.error(colored("401 Unauthorized. Please check your Interactive Brokers credentials and/or make sure that you have authorized through the app first (for two factor authentication).", "red"))
+                logger.error(
+                    colored(
+                        "401 Unauthorized. Check Interactive Brokers credentials "
+                        "and complete required two-factor authentication.",
+                        "red",
+                    )
+                )
                 return None
 
-            retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
+            retrying, re_msg, is_error, to_return = self.handle_http_errors(
+                response, silent, retries, description, allow_fail
+            )
 
             if re_msg is None and not is_error:
                 break
 
+            if max_retries is not None and retries >= max_retries:
+                break
+
             retries+=1
+            if retrying or not allow_fail:
+                self._sleep(1)
 
         return to_return
 
-    def post_to_endpoint(self, url, json: dict, description="", silent=False, allow_fail=True):
+    def post_to_endpoint(self, url, json: dict, description="", silent=False, allow_fail=True, max_retries=None):
         to_return = None
         retries = 0
         retrying = True
 
         while retrying or not allow_fail:
             try:
-                response = requests.post(url, json=json, verify=False)
+                response = self.http_client.post(
+                    url,
+                    json=json,
+                    verify=self.verify_ssl,
+                    timeout=self.request_timeout,
+                )
             except requests.exceptions.RequestException as e:
                 response = requests.Response()
                 response.status_code = 503
-                response._content = str.encode(f'{{"error": "{e}"}}')
+                response._content = _json.dumps({"error": str(e)}).encode("utf-8")
 
-            retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
+            retrying, re_msg, is_error, to_return = self.handle_http_errors(
+                response, silent, retries, description, allow_fail
+            )
 
             if re_msg is None and not is_error:
                 break
 
+            if max_retries is not None and retries >= max_retries:
+                break
+
             retries+=1
+            if retrying or not allow_fail:
+                self._sleep(1)
 
         return to_return
 
-    def delete_to_endpoint(self, url, description="", silent=False, allow_fail=True):
+    def delete_to_endpoint(self, url, description="", silent=False, allow_fail=True, max_retries=None):
         to_return = None
         retries = 0
         retrying = True
 
         while retrying or not allow_fail:
             try:
-                response = requests.delete(url, verify=False)
+                response = self.http_client.delete(
+                    url,
+                    verify=self.verify_ssl,
+                    timeout=self.request_timeout,
+                )
             except requests.exceptions.RequestException as e:
                 response = requests.Response()
                 response.status_code = 503
-                response._content = str.encode(f'{{"error": "{e}"}}')
+                response._content = _json.dumps({"error": str(e)}).encode("utf-8")
 
-            retrying, re_msg, is_error, to_return = self.handle_http_errors(response, silent, retries, description, allow_fail)
+            retrying, re_msg, is_error, to_return = self.handle_http_errors(
+                response, silent, retries, description, allow_fail
+            )
 
             if re_msg is None and not is_error:
                 break
 
+            if max_retries is not None and retries >= max_retries:
+                break
+
             retries+=1
+            if retrying or not allow_fail:
+                self._sleep(1)
 
         return to_return
 
@@ -676,25 +677,7 @@ class InteractiveBrokersRESTData(DataSource):
         return response
 
     def stop(self):
-        # Check if the Docker image is already running
-        if self.running_on_server:
-            return
-
-        subprocess = _subprocess_module()
-        subprocess.run(
-            ["docker", "rm", "-f", "lumibot-client-portal"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-
-        # Clean up the temporary conf.yaml file
-        if self.temp_conf_path:
-            try:
-                os.remove(self.temp_conf_path)
-                logger.info(f"Removed temporary conf.yaml: {self.temp_conf_path}")
-                self.temp_conf_path = None
-            except OSError as e:
-                logger.warning(colored(f"Error removing temporary conf file {self.temp_conf_path}: {e}", "yellow"))
+        self.gateway.stop()
 
     def get_chains(self, asset: Asset, quote=None) -> dict:
         """
@@ -749,7 +732,10 @@ class InteractiveBrokersRESTData(DataSource):
 
             if strikes and "call" in strikes:
                 for strike in strikes["call"]:
-                    url_for_expiry = f"{self.base_url}/iserver/secdef/info?conid={conid}&sectype=OPT&month={month}&right=C&strike={strike}"
+                    url_for_expiry = (
+                        f"{self.base_url}/iserver/secdef/info?conid={conid}"
+                        f"&sectype=OPT&month={month}&right=C&strike={strike}"
+                    )
                     contract_info = self.get_from_endpoint(
                         url_for_expiry, "Getting expiration Date"
                     )
@@ -772,7 +758,10 @@ class InteractiveBrokersRESTData(DataSource):
 
             if strikes and "put" in strikes:
                 for strike in strikes["put"]:
-                    url_for_expiry = f"{self.base_url}/iserver/secdef/info?conid={conid}&sectype=OPT&month={month}&right=P&strike={strike}"
+                    url_for_expiry = (
+                        f"{self.base_url}/iserver/secdef/info?conid={conid}"
+                        f"&sectype=OPT&month={month}&right=P&strike={strike}"
+                    )
                     contract_info = self.get_from_endpoint(
                         url_for_expiry, "Getting expiration Date"
                     )
@@ -823,7 +812,12 @@ class InteractiveBrokersRESTData(DataSource):
         exchange_val = str(exchange or "").strip().upper() or self._resolve_futures_exchange(symbol)
         params = {"symbols": symbol, "secType": "CONTFUT", "exchange": exchange_val}
         try:
-            response = requests.get(url, params=params, verify=False)
+            response = self.http_client.get(
+                url,
+                params=params,
+                verify=self.verify_ssl,
+                timeout=self.request_timeout,
+            )
             if response.status_code != 200:
                 logger.error(colored(f"Failed to retrieve security definition for {symbol}: {response.text}", "red"))
                 return None
@@ -992,7 +986,11 @@ class InteractiveBrokersRESTData(DataSource):
                 quote=quote,
             )
 
-        url = f"{self.base_url}/iserver/marketdata/history?conid={conid}&period={period}&bar={timestep}&outsideRth={include_after_hours}&startTime={start_time}"
+        url = (
+            f"{self.base_url}/iserver/marketdata/history?conid={conid}"
+            f"&period={period}&bar={timestep}&outsideRth={include_after_hours}"
+            f"&startTime={start_time}"
+        )
         if getattr(asset, "asset_type", None) == Asset.AssetType.FUTURE and getattr(asset, "expiration", None) is None:
             url += "&continuous=true"
         if exchange:
@@ -1068,7 +1066,7 @@ class InteractiveBrokersRESTData(DataSource):
 
         return bars
 
-    def get_last_price(self, asset, quote=None, exchange=None) -> Union[float, Decimal, None]:
+    def get_last_price(self, asset, quote=None, exchange=None) -> float | Decimal | None:
         """
         Get the last price for an asset.
         For futures, always use get_market_snapshot (the official IBKR endpoint for all asset types).
@@ -1079,11 +1077,14 @@ class InteractiveBrokersRESTData(DataSource):
         if response is None or field not in response:
             if getattr(asset, "asset_type", None) in ["option", "future"]:
                 logger.debug(
-                    f"Failed to get {field} for asset {getattr(asset, 'symbol', None)} with strike {getattr(asset, 'strike', None)} and expiration date {getattr(asset, 'expiration', None)}"
+                    f"Failed to get {field} for asset {getattr(asset, 'symbol', None)} "
+                    f"with strike {getattr(asset, 'strike', None)} and expiration "
+                    f"date {getattr(asset, 'expiration', None)}"
                 )
             else:
                 logger.debug(
-                    f"Failed to get {field} for asset {getattr(asset, 'symbol', None)} of type {getattr(asset, 'asset_type', None)}"
+                    f"Failed to get {field} for asset {getattr(asset, 'symbol', None)} "
+                    f"of type {getattr(asset, 'asset_type', None)}"
                 )
             return None
 
@@ -1311,7 +1312,9 @@ class InteractiveBrokersRESTData(DataSource):
         if isinstance(result["price"], str) and result["price"].startswith("C "):
             logger.warning(
                 colored(
-                    f"Ticker {asset.symbol} of type {asset.asset_type} with strike price {asset.strike} and expiry date {asset.expiration} is not trading currently. Got the last close price instead.",
+                    f"Ticker {asset.symbol} of type {asset.asset_type} with strike "
+                    f"price {asset.strike} and expiry date {asset.expiration} is not "
+                    "trading currently. Got the last close price instead.",
                     "yellow",
                 )
             )

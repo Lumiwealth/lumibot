@@ -163,6 +163,58 @@ def test_scheduled_alpaca_credentials_defer_stream_dependencies():
     assert "alpaca_orders_thread" not in result.stdout
 
 
+def test_scheduled_legacy_broker_alias_resolves_cached_default_without_workers():
+    env = os.environ.copy()
+    env["LUMIBOT_DISABLE_DOTENV"] = "1"
+    env["LUMIBOT_DISABLE_DOTENV_LOCAL"] = "1"
+    env["LUMIBOT_LOG_LEVEL"] = "ERROR"
+    env["LUMIBOT_SCHEDULED_EXECUTION"] = "true"
+    env["IS_BACKTESTING"] = "false"
+    env["TRADING_BROKER"] = "alpaca"
+    env["ALPACA_API_KEY"] = "fake"
+    env["ALPACA_API_SECRET"] = "fake"
+    env["ALPACA_IS_PAPER"] = "true"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from lumibot.credentials import broker; "
+                "import lumibot.credentials as credentials; "
+                "import threading; "
+                "print('broker=' + broker.name); "
+                "print('lower_is_upper=' + str(broker is credentials.BROKER)); "
+                "print('lower_is_getter=' + str(broker is credentials.get_default_broker())); "
+                "print('stream_exists=' + str(hasattr(broker, 'stream'))); "
+                "print('threads=' + ','.join(sorted(thread.name for thread in threading.enumerate())))"
+            ),
+        ],
+        check=True,
+        capture_output=True,
+        env=env,
+        text=True,
+    )
+
+    assert "broker=alpaca" in result.stdout
+    assert "lower_is_upper=True" in result.stdout
+    assert "lower_is_getter=True" in result.stdout
+    assert "stream_exists=False" in result.stdout
+    assert "alpaca_orders_thread" not in result.stdout
+
+
+def test_scheduled_legacy_data_source_alias_uses_same_lazy_getter(monkeypatch):
+    import lumibot.credentials as credentials
+
+    expected = object()
+    monkeypatch.setattr(credentials, "get_default_data_source", lambda: expected)
+    for name in ("data_source", "DATA_SOURCE"):
+        monkeypatch.delitem(credentials.__dict__, name, raising=False)
+
+    assert credentials.data_source is expected
+    assert credentials.DATA_SOURCE is expected
+
+
 def test_scheduled_strategy_import_defers_default_broker_resolution():
     env = os.environ.copy()
     env["LUMIBOT_DISABLE_DOTENV"] = "1"

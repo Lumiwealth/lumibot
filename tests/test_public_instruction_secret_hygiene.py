@@ -1,53 +1,48 @@
-"""Regression checks for public AI instruction files.
+"""Regression checks for the public repo leak scanner."""
 
-These files are tracked in the open-source LumiBot repo, so they must not carry
-private local paths or real credential/account material.
-"""
-
+import importlib.util
 from pathlib import Path
-import re
+import sys
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PUBLIC_INSTRUCTION_FILES = [
-    REPO_ROOT / "AGENTS.md",
-    REPO_ROOT / "CLAUDE.md",
-    REPO_ROOT / "SECURITY.md",
-]
-
-FORBIDDEN_PATTERNS = [
-    re.compile(r"/Users/[^`\s)]+"),
-    re.compile(r"Documents/Development"),
-    re.compile(r"\bDev Credentials\b", re.IGNORECASE),
-    re.compile(r"\bUsername\s*\|", re.IGNORECASE),
-    re.compile(r"\bPassword\s*\|", re.IGNORECASE),
-    re.compile(r"\b[A-Z0-9._%+-]+@(lumiwealth|botspot)\.", re.IGNORECASE),
-]
+SCRIPT_PATH = REPO_ROOT / "scripts" / "check_public_repo_hygiene.py"
+SPEC = importlib.util.spec_from_file_location("check_public_repo_hygiene", SCRIPT_PATH)
+assert SPEC and SPEC.loader
+scanner = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = scanner
+SPEC.loader.exec_module(scanner)
 
 
-def collect_public_instruction_hygiene_violations():
-    violations = []
-
-    for path in PUBLIC_INSTRUCTION_FILES:
-        text = path.read_text(encoding="utf-8")
-        for pattern in FORBIDDEN_PATTERNS:
-            for match in pattern.finditer(text):
-                line_number = text.count("\n", 0, match.start()) + 1
-                violations.append(f"{path.relative_to(REPO_ROOT)}:{line_number}: {pattern.pattern}")
-
-    return violations
-
-
-def test_public_instruction_files_do_not_publish_private_paths_or_credentials():
-    violations = collect_public_instruction_hygiene_violations()
+def test_public_policy_files_do_not_publish_private_paths_or_credentials():
+    violations = scanner.scan_lines(
+        scanner.iter_file_lines(["AGENTS.md", "CLAUDE.md", "SECURITY.md"])
+    )
 
     assert violations == []
 
 
-if __name__ == "__main__":
-    violations = collect_public_instruction_hygiene_violations()
-    if violations:
-        print("Public instruction hygiene violations found:")
-        for violation in violations:
-            print(f"  {violation}")
-        raise SystemExit(1)
+def test_scanner_blocks_personal_paths_in_any_changed_text_file():
+    private_path = "/".join(["", "Users", "alice", "Development", "secret-project"])
+
+    violations = scanner.scan_lines([("lumibot/example.py", 10, f'PATH = "{private_path}"')])
+
+    assert violations
+    assert violations[0][0] == "lumibot/example.py"
+    assert violations[0][2] == "personal-absolute-path"
+
+
+def test_scanner_blocks_internal_company_email_in_any_changed_text_file():
+    internal_email = "rob-dev@" + "lumiwealth.com"
+
+    violations = scanner.scan_lines([("docs/example.md", 5, f"Username: {internal_email}")])
+
+    assert violations
+    assert violations[0][2] == "internal-email"
+
+
+def test_scanner_blocks_credential_tables_in_public_docs():
+    violations = scanner.scan_lines([("AGENTS.md", 20, "| Password | example-value |")])
+
+    assert violations
+    assert violations[0][2] == "credential-table"

@@ -654,6 +654,40 @@ class TestBacktestingBroker:
         assert stock_position.quantity == 100.0
         assert broker.get_tracked_position(strategy.name, option) is None
 
+    def test_option_expiry_uses_real_daily_close_when_last_price_is_missing(self):
+        start = dt(2023, 8, 1)
+        end = dt(2023, 8, 2)
+        data_source = PandasData(datetime_start=start, datetime_end=end, pandas_data={})
+        broker = BacktestingBroker(data_source=data_source)
+        strategy = _OptionSettlementStrategyStub(broker=broker, cash=50_000.0)
+        strategy.get_historical_prices = MagicMock(
+            return_value=SimpleNamespace(df=pd.DataFrame({"close": [95.0]}))
+        )
+
+        underlying = Asset(symbol="MRX", asset_type="stock")
+        option = Asset(
+            symbol="MRX",
+            asset_type="option",
+            expiration=datetime.date(2023, 8, 1),
+            strike=100,
+            right=Asset.OptionRight.PUT,
+            multiplier=100,
+            underlying_asset=underlying,
+        )
+        broker._filled_positions.append(Position(strategy.name, option, quantity=-1))
+        broker.get_last_price = MagicMock(return_value=None)
+
+        broker.settle_expired_option_contract(
+            broker.get_tracked_position(strategy.name, option),
+            strategy,
+        )
+
+        strategy.get_historical_prices.assert_called_once_with(underlying, length=1, timestep="day")
+        stock_position = broker.get_tracked_position(strategy.name, underlying)
+        assert stock_position is not None
+        assert stock_position.quantity == 100.0
+        assert broker.get_tracked_position(strategy.name, option) is None
+
     def test_option_expiry_long_call_exercise_delivers_stock_when_supported(self):
         start = dt(2023, 8, 1)
         end = dt(2023, 8, 2)

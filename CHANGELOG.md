@@ -3,6 +3,11 @@
 ## 4.5.75 - Unreleased
 
 ### Fixed
+- **Option expiration settlement retries a real daily close when the current
+  underlying mark is unavailable.** Backtests no longer abort an otherwise
+  valid option lifecycle merely because `get_last_price()` returns no value at
+  expiration. Settlement now uses the latest provider-backed daily close and
+  still fails explicitly when neither source has a valid positive price.
 - **Scheduled lazy credentials preserve legacy lowercase exports.** Explicit
   imports of `broker` and `data_source` now resolve through the same cached lazy
   getters as `BROKER` and `DATA_SOURCE`, so existing scheduled Bot Manager

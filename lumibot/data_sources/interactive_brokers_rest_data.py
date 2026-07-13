@@ -16,6 +16,7 @@ TYPE_CHECKING = False
 datetime = lazy_class("datetime", "datetime")
 timezone = lazy_class("datetime", "timezone")
 Decimal = lazy_class("decimal", "Decimal")
+IbkrGateway = lazy_class("lumibot.data_sources.ibkr_gateway", "IbkrGateway")
 Asset = lazy_class("lumibot.entities", "Asset")
 _json = LazyModule("json")
 pd = LazyModule("pandas")
@@ -24,7 +25,6 @@ _DEFAULT_PYTZ = LazyPytzTimezoneRef("America/New_York")
 
 if TYPE_CHECKING:
     from ..entities import Bars
-    from .ibkr_gateway import IbkrGateway
 
 
 def _default_pytz():

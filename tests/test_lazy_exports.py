@@ -163,6 +163,34 @@ def test_scheduled_alpaca_credentials_defer_stream_dependencies():
     assert "alpaca_orders_thread" not in result.stdout
 
 
+def test_scheduled_legacy_lowercase_broker_import_resolves_lazy_default():
+    """Legacy ``from lumibot.credentials import broker`` must stay usable."""
+    env = os.environ.copy()
+    env["LUMIBOT_DISABLE_DOTENV"] = "1"
+    env["LUMIBOT_DISABLE_DOTENV_LOCAL"] = "1"
+    env["LUMIBOT_LOG_LEVEL"] = "ERROR"
+    env["LUMIBOT_SCHEDULED_EXECUTION"] = "true"
+    env["IS_BACKTESTING"] = "false"
+    env["TRADING_BROKER"] = "alpaca"
+    env["ALPACA_API_KEY"] = "fake"
+    env["ALPACA_API_SECRET"] = "fake"
+    env["ALPACA_IS_PAPER"] = "true"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from lumibot.credentials import broker; print(broker.name)",
+        ],
+        check=True,
+        capture_output=True,
+        env=env,
+        text=True,
+    )
+
+    assert result.stdout.strip() == "alpaca"
+
+
 def test_scheduled_strategy_import_defers_default_broker_resolution():
     env = os.environ.copy()
     env["LUMIBOT_DISABLE_DOTENV"] = "1"

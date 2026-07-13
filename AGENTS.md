@@ -81,18 +81,45 @@ This repo is frequently edited by **multiple AI sessions**. To avoid lost work:
   release workspace.
 
 - **Release workflow (STRICT):**
-  - **Never push directly to `dev`.** All work must land via a PR (usually from `version/X.Y.Z` → `dev`).
+  - **Implementation authority is not release authority.** Normal coding agents
+    work and commit directly on the existing active `version/X.Y.Z` branch. Do
+    not create, open, update, merge, close, or take over a pull request unless
+    the user explicitly requests that exact PR action. An existing
+    version-branch release PR may be managed by a separately authorized release
+    captain; pushing normal commits to the shared branch does not make the
+    coding agent the PR or release owner.
+  - **Publishing and downstream deployment always require explicit approval.**
+    Do not create a deploy marker, change the package version for release, tag,
+    publish to PyPI, create a GitHub Release, invoke a release workflow, update a
+    downstream LumiBot pin, rebuild downstream dependency images, or trigger dev
+    or production deployment unless the user explicitly authorizes that exact
+    release/deployment in the current turn. Read `docs/DEPLOYMENT.md` first when
+    that approval is given.
+  - **Never push directly to `dev`.** An explicitly authorized release captain
+    later moves version-branch work to `dev` through the approved release flow.
+    Ordinary coding agents stop after their version-branch commits and tests.
   - **Stay on the current branch.** If you start on a `version/*` branch, keep all commits on that branch and push that branch.
   - **Never switch branches without explicit user instruction.** If you suspect you are on the wrong branch, stop and ask.
-  - **Post-release branch switch is a mandatory exception.** After a Lumibot release is tagged/published and the release workflow creates `version/X.Y.(Z+1)`, immediately move the canonical checkout to that next version branch with `git switch` and verify `git branch --show-current`, `setup.py`, and `git status`. Do this before reporting the release complete or triggering BotManager work. Never leave the canonical checkout on the just-released branch.
+  - **Post-release branch switch is a mandatory exception for the authorized
+    release captain.** After a Lumibot release is tagged/published and the
+    release workflow creates `version/X.Y.(Z+1)`, immediately move the canonical
+    checkout to that next version branch with `git switch` and verify
+    `git branch --show-current`, `setup.py`, and `git status`. Do this before
+    reporting the release complete or triggering BotManager work. Never leave
+    the canonical checkout on the just-released branch.
   - **Never update an old version branch to make a stale GitHub URL look current.** If Rob or a browser is viewing an older `version/X.Y.Z` branch, do not push current work to that old branch and do not switch to it. Give Rob the correct latest version branch URL instead. Historical version branches are release records, not redirect targets.
   - **Always keep the canonical checkout on the latest active `version/X.Y.Z` branch.** If you discover this checkout is on an older version branch, stop and report it unless Rob explicitly tells you to move it with `git switch` after verifying the tree is clean.
-  - **PRs must be version-scoped.** If a PR is needed for review/release, the PR head must be the existing `version/X.Y.Z` branch.
-  - **PR title must be release-scoped.** Use `vX.Y.Z - <summary>` and include all notable changes shipped in that version (not just one feature).
+  - **Only explicitly authorized release PRs may be created or managed.** If the
+    user appoints the agent release captain and requests a PR, its head must be
+    the existing `version/X.Y.Z` branch.
+  - **An authorized release PR title must be release-scoped.** Use
+    `vX.Y.Z - <summary>` and include all notable changes shipped in that version
+    (not just one feature).
 
 - **Branch etiquette (STRICT):** if you are on a version branch (e.g., `version/4.4.31`), treat it as the shared collaboration branch.
   - **Do not create additional branches** (no `git switch -c`, no `git branch`, no `version/4.4.31-foo`, no `version/4.4.31/<topic>`), unless the user explicitly asks.
-  - If a PR is needed for review, **the PR head must be the existing version branch** (e.g., `version/4.4.31`), not a new feature branch.
+  - If the user explicitly requests a release PR, **the PR head must be the
+    existing version branch** (e.g., `version/4.4.31`), not a new feature branch.
   - Do not switch branches unless explicitly instructed; if you suspect you're on the wrong branch, stop and ask.
 - **No “feature branch chaining”:** if you’re already on a feature/WIP or version branch (e.g., `feature/*`, `fix/*`, `wip/*`, `version/*`, `release/*`, or a version-named branch like `X.Y.Z`), keep working there; don’t create another feature branch from it unless explicitly instructed.
 - **Branch naming (LumiBot convention):** prefer version-scoped branches so multiple agents can collaborate without “feature branch naming drift”. Use the repo’s existing convention (e.g., `4.4.25` or `version/X.Y.Z`).

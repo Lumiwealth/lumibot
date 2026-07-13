@@ -3845,7 +3845,11 @@ class _Strategy:
             self.logger.error(_format_exc())
             return False
         if not balances_updated:
-            self.logger.error("Skipping cloud update because broker balances could not be verified.")
+            self.logger.warning(
+                "Cloud account snapshot skipped because the broker did not return verified balances. "
+                "No stale or default balances were published. This can be temporary, and the next "
+                "cloud update will retry automatically. If it continues, inspect the preceding broker error."
+            )
             return False
 
         def _verified_number(value, field_name):

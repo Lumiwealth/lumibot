@@ -1356,6 +1356,12 @@ class BacktestingBroker(Broker):
         last_price_error = None
         resolved_asset = underlying_asset
 
+        def _valid_price(value) -> bool:
+            try:
+                return math.isfinite(float(value)) and float(value) > 0
+            except (TypeError, ValueError):
+                return False
+
         def _try_last_price(asset: Asset) -> None:
             nonlocal underlying_price, last_price_error, resolved_asset
             try:
@@ -1368,30 +1374,32 @@ class BacktestingBroker(Broker):
 
         _try_last_price(underlying_asset)
 
-        if underlying_price is None and getattr(resolved_asset, "asset_type", None) == Asset.AssetType.STOCK:
+        if not _valid_price(underlying_price) and getattr(resolved_asset, "asset_type", None) == Asset.AssetType.STOCK:
             symbol_upper = str(getattr(resolved_asset, "symbol", "") or "").upper()
             index_root = INDEX_ROOT_ALIASES.get(symbol_upper, symbol_upper)
             if symbol_upper in INDEX_LIKE_SYMBOLS:
                 _try_last_price(Asset(symbol=index_root, asset_type="index"))
 
-        if underlying_price is None and last_price_error is not None:
-            message = str(last_price_error)
-            if "[THETA][COVERAGE]" in message:
-                try:
-                    bars = strategy.get_historical_prices(resolved_asset, length=1, timestep="day")
-                    df = getattr(bars, "df", None)
-                    if df is not None and not df.empty and "close" in df.columns:
-                        underlying_price = float(df["close"].iloc[-1])
+        if not _valid_price(underlying_price):
+            try:
+                bars = strategy.get_historical_prices(resolved_asset, length=1, timestep="day")
+                df = getattr(bars, "df", None)
+                if df is not None and not df.empty and "close" in df.columns:
+                    historical_close = df["close"].iloc[-1]
+                    if _valid_price(historical_close):
+                        underlying_price = float(historical_close)
+                        reason = str(last_price_error).splitlines()[0] if last_price_error else "no current price"
                         logger.warning(
-                            "[OPTION_SETTLEMENT][FALLBACK] get_last_price(%s) failed (%s); settling using daily close=%s",
+                            "[OPTION_SETTLEMENT][FALLBACK] get_last_price(%s) failed (%s); "
+                            "settling using daily close=%s",
                             resolved_asset,
-                            message.splitlines()[0],
+                            reason,
                             underlying_price,
                         )
-                except Exception:
-                    pass
+            except Exception:
+                pass
 
-        if underlying_price is None:
+        if not _valid_price(underlying_price):
             if last_price_error is not None:
                 raise last_price_error
             raise ValueError(f"Unable to price underlying {resolved_asset} for settlement")

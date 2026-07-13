@@ -1,6 +1,7 @@
 """Small real-broker gate for changes that can affect live trading startup."""
 
 import time
+from datetime import datetime, timedelta
 from math import isfinite
 from types import SimpleNamespace
 
@@ -8,6 +9,7 @@ import pytest
 
 from lumibot.brokers.alpaca import Alpaca
 from lumibot.brokers.tradier import Tradier
+from lumibot.components.options_helper import OptionsHelper
 from lumibot.credentials import ALPACA_TEST_CONFIG, TRADIER_TEST_CONFIG
 from lumibot.entities import Asset, Order
 from lumibot.strategies.strategy import Strategy
@@ -55,9 +57,11 @@ def _assert_submit_read_cancel(broker, strategy) -> None:
     try:
         assert broker._pull_broker_order(submitted.identifier) is not None
         all_orders = broker._pull_broker_all_orders()
-        assert any(str(row.get("id")) == str(submitted.identifier) for row in all_orders) if (
-            all_orders and isinstance(all_orders[0], dict)
-        ) else any(str(getattr(row, "id", "")) == str(submitted.identifier) for row in all_orders)
+        assert (
+            any(str(row.get("id")) == str(submitted.identifier) for row in all_orders)
+            if (all_orders and isinstance(all_orders[0], dict))
+            else any(str(getattr(row, "id", "")) == str(submitted.identifier) for row in all_orders)
+        )
     finally:
         broker.cancel_order(submitted)
 
@@ -102,14 +106,80 @@ class _PaperSubmitCancelStrategy(Strategy):
             self.broker.cancel_order(self.submitted_order)
 
 
-def _assert_strategy_run_submit_and_cancel(broker, name: str) -> None:
+class _AlpacaPaperSubmitCancelStrategy(_PaperSubmitCancelStrategy):
+    """Keep the consolidated gate's Alpaca data and option-chain regression coverage."""
+
+    def initialize(self, parameters=None):
+        super().initialize(parameters)
+        self.options_helper = OptionsHelper(self)
+        self.stock_price = None
+        self.bar_count = 0
+        self.call_expirations = 0
+        self.put_expirations = 0
+        self.option_symbol = None
+
+    def on_trading_iteration(self):
+        stock = Asset("AAPL", asset_type=Asset.AssetType.STOCK)
+        stock_price = self.get_last_price(stock)
+        assert stock_price is not None and float(stock_price) > 0
+        self.stock_price = float(stock_price)
+
+        bars = self.get_historical_prices(stock, 3, "day")
+        assert bars is not None and bars.df is not None and not bars.df.empty
+        self.bar_count = len(bars.df)
+
+        underlying = Asset("SPY", asset_type=Asset.AssetType.STOCK)
+        underlying_price = self.get_last_price(underlying)
+        assert underlying_price is not None and float(underlying_price) > 0
+
+        chains = self.get_chains(underlying)
+        chain_root = chains.get("Chains", {}) if isinstance(chains, dict) else {}
+        call_chains = chain_root.get("CALL", {})
+        put_chains = chain_root.get("PUT", {})
+        assert call_chains, "Alpaca returned no SPY call chains"
+        assert put_chains, "Alpaca returned no SPY put chains"
+        self.call_expirations = len(call_chains)
+        self.put_expirations = len(put_chains)
+
+        target_date = datetime.now().astimezone().date() + timedelta(days=7)
+        expiry = self.options_helper.get_expiration_on_or_after_date(
+            target_date,
+            chains,
+            "call",
+            underlying_asset=underlying,
+        )
+        assert expiry is not None
+
+        expiry_key = expiry.strftime("%Y-%m-%d")
+        strikes = call_chains.get(expiry_key)
+        assert strikes, f"Alpaca returned no SPY call strikes for {expiry_key}"
+        strike = min(strikes, key=lambda value: abs(float(value) - float(underlying_price)))
+
+        option = self.options_helper.find_next_valid_option(
+            underlying,
+            strike,
+            expiry,
+            put_or_call="call",
+            chains=chains,
+        )
+        assert option is not None
+        self.option_symbol = str(option)
+
+        super().on_trading_iteration()
+
+
+def _assert_strategy_run_submit_and_cancel(
+    broker,
+    name: str,
+    strategy_class: type[Strategy] = _PaperSubmitCancelStrategy,
+) -> Strategy:
     # The paper APIs still provide the real market clock, which is exercised before
     # the override. The override only makes this order lifecycle test deterministic
     # overnight and on weekends.
     assert isinstance(broker.is_market_open(), bool)
     broker.is_market_open = lambda: True
 
-    strategy = _PaperSubmitCancelStrategy(
+    strategy = strategy_class(
         broker=broker,
         name=name,
         benchmark_asset=None,
@@ -117,8 +187,8 @@ def _assert_strategy_run_submit_and_cancel(broker, name: str) -> None:
         should_backup_variables_to_database=False,
         should_send_summary_to_discord=False,
     )
-    strategy._executor._initialize_live_market_calendars_for_run_once = (
-        lambda: setattr(strategy._executor, "_run_once_market_open_override", True)
+    strategy._executor._initialize_live_market_calendars_for_run_once = lambda: setattr(
+        strategy._executor, "_run_once_market_open_override", True
     )
     trader = Trader(logfile="", backtest=False)
     trader.add_strategy(strategy)
@@ -143,6 +213,8 @@ def _assert_strategy_run_submit_and_cancel(broker, name: str) -> None:
     finally:
         if strategy.submitted_order is not None and not strategy.cancelled:
             broker.cancel_order(strategy.submitted_order)
+
+    return strategy
 
 
 def test_alpaca_paper_account_positions_orders_and_cancel() -> None:
@@ -196,7 +268,16 @@ def test_alpaca_paper_strategy_run_submits_and_cancels() -> None:
 
     broker = Alpaca(config, connect_stream=False, start_orders_thread=False)
     try:
-        _assert_strategy_run_submit_and_cancel(broker, "ci-alpaca-paper-strategy-gate")
+        strategy = _assert_strategy_run_submit_and_cancel(
+            broker,
+            "ci-alpaca-paper-strategy-gate",
+            strategy_class=_AlpacaPaperSubmitCancelStrategy,
+        )
+        assert strategy.stock_price > 0
+        assert strategy.bar_count >= 1
+        assert strategy.call_expirations > 0
+        assert strategy.put_expirations > 0
+        assert strategy.option_symbol
     finally:
         broker.cleanup_streams()
 

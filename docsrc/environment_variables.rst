@@ -94,6 +94,14 @@ BACKTESTING_DATA_SOURCE
 Testing / CI guardrails
 -----------------------
 
+Paper broker CI credentials
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- ``ALPACA_TEST_API_KEY`` / ``ALPACA_TEST_API_SECRET``: dedicated Alpaca paper-account credentials used by the required live broker CI gate.
+- ``TRADIER_TEST_ACCOUNT_NUMBER`` / ``TRADIER_TEST_ACCESS_TOKEN``: dedicated Tradier sandbox-account credentials used by the same gate.
+- These variables must contain paper or sandbox credentials only. Missing values fail the gate; never commit their values.
+- See ``docs/PAPER_BROKER_CI.md`` for the tested boundaries and local command.
+
 LUMIBOT_ACCEPTANCE_TRIPWIRE
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

@@ -11,6 +11,8 @@ IBEAM_CONTAINER_PORT = 4234
 IBEAM_INPUTS_DIR = "/srv/inputs"
 DEFAULT_IBEAM_TAG = "0.5.12"
 DEFAULT_IBEAM_HOST_PORT = 4234
+DEFAULT_DOCKER_PROBE_TIMEOUT = 15.0
+DEFAULT_DOCKER_PULL_TIMEOUT = 180.0
 
 _SAFE_DOCKER_TAG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _SAFE_INSTANCE_ID = re.compile(r"[^A-Za-z0-9_.-]+")
@@ -82,6 +84,8 @@ class IBeamGateway:
         paper: bool = True,
         image_tag: str = DEFAULT_IBEAM_TAG,
         instance_id: str | None = None,
+        docker_probe_timeout: float = DEFAULT_DOCKER_PROBE_TIMEOUT,
+        docker_pull_timeout: float = DEFAULT_DOCKER_PULL_TIMEOUT,
         runner: Callable[..., object] | None = None,
     ):
         if not str(username or "").strip() or not str(password or ""):
@@ -103,6 +107,9 @@ class IBeamGateway:
         if not safe_instance_id:
             raise ValueError("IBKR gateway instance id must contain letters or numbers")
 
+        if docker_probe_timeout <= 0 or docker_pull_timeout <= 0:
+            raise ValueError("IBKR Docker timeouts must be positive")
+
         self.username = str(username)
         self.password = str(password)
         self.conf_text = str(conf_text)
@@ -110,6 +117,8 @@ class IBeamGateway:
         self.paper = bool(paper)
         self.image_tag = tag
         self.instance_id = safe_instance_id[:48]
+        self.docker_probe_timeout = float(docker_probe_timeout)
+        self.docker_pull_timeout = float(docker_pull_timeout)
         self.container_name = f"lumibot-client-portal-{self.instance_id}"
         self.image = f"voyz/ibeam:{self.image_tag}"
         self._runner = runner or _run_command
@@ -122,6 +131,16 @@ class IBeamGateway:
 
     def _run(self, command: list[str], **kwargs):
         return self._runner(command, **kwargs)
+
+    def _run_bounded(self, command: list[str], *, timeout: float, operation: str, **kwargs):
+        import subprocess
+
+        try:
+            return self._run(command, timeout=timeout, **kwargs)
+        except subprocess.TimeoutExpired as exc:
+            raise IbkrGatewayError(
+                f"Timed out while {operation} after {timeout:g} seconds"
+            ) from exc
 
     @staticmethod
     def _returncode(result: object) -> int:
@@ -164,8 +183,10 @@ class IBeamGateway:
         if self._container_started:
             return
 
-        docker_version = self._run(
+        docker_version = self._run_bounded(
             ["docker", "--version"],
+            timeout=self.docker_probe_timeout,
+            operation="checking for Docker",
             stdout=_devnull(),
             stderr=_devnull(),
             check=False,
@@ -173,8 +194,10 @@ class IBeamGateway:
         if self._returncode(docker_version) != 0:
             raise IbkrGatewayError("Docker is required to start IBeam")
 
-        docker_status = self._run(
+        docker_status = self._run_bounded(
             ["docker", "ps"],
+            timeout=self.docker_probe_timeout,
+            operation="checking the Docker daemon",
             stdout=_devnull(),
             stderr=_devnull(),
             check=False,
@@ -183,8 +206,10 @@ class IBeamGateway:
             raise IbkrGatewayError("Docker daemon is not available")
 
         # A failed pull may still leave the requested versioned image in the local cache.
-        self._run(
+        self._run_bounded(
             ["docker", "pull", self.image],
+            timeout=self.docker_pull_timeout,
+            operation=f"pulling {self.image}",
             stdout=_devnull(),
             stderr=_devnull(),
             check=False,
@@ -226,8 +251,10 @@ class IBeamGateway:
             self.image,
         ]
         try:
-            result = self._run(
+            result = self._run_bounded(
                 command,
+                timeout=self.docker_probe_timeout,
+                operation="starting the IBeam container",
                 env=self._child_environment(),
                 stdout=_devnull(),
                 stderr=_devnull(),
@@ -255,8 +282,10 @@ class IBeamGateway:
     def stop(self) -> None:
         try:
             if self._container_started:
-                self._run(
+                self._run_bounded(
                     ["docker", "rm", "-f", self.container_name],
+                    timeout=self.docker_probe_timeout,
+                    operation="stopping the IBeam container",
                     stdout=_devnull(),
                     stderr=_devnull(),
                     check=False,

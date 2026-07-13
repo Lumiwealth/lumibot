@@ -1,4 +1,5 @@
 import stat
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -139,6 +140,49 @@ def test_ibeam_gateway_fails_closed_when_docker_is_missing():
 
     with pytest.raises(IbkrGatewayError, match="Docker is required"):
         gateway.start()
+
+
+def test_ibeam_gateway_fails_closed_when_docker_probe_times_out():
+    class _TimeoutRunner(_Runner):
+        def __call__(self, command, **kwargs):
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+    gateway = IBeamGateway(
+        username="paper-user",
+        password="paper-password",
+        conf_text="listenPort: 4234\n",
+        docker_probe_timeout=2,
+        runner=_TimeoutRunner(),
+    )
+
+    with pytest.raises(IbkrGatewayError, match="checking for Docker after 2 seconds"):
+        gateway.start()
+
+
+def test_ibeam_gateway_bounds_probe_pull_run_and_stop_calls():
+    runner = _Runner()
+    gateway = IBeamGateway(
+        username="paper-user",
+        password="paper-password",
+        conf_text="listenPort: 4234\n",
+        docker_probe_timeout=3,
+        docker_pull_timeout=45,
+        runner=runner,
+    )
+
+    gateway.start()
+    gateway.stop()
+
+    timeouts = {tuple(command): kwargs["timeout"] for command, kwargs in runner.calls}
+    assert timeouts[("docker", "--version")] == 3
+    assert timeouts[("docker", "ps")] == 3
+    assert timeouts[("docker", "pull", gateway.image)] == 45
+    assert next(
+        kwargs["timeout"]
+        for command, kwargs in runner.calls
+        if command[:3] == ["docker", "run", "-d"]
+    ) == 3
+    assert timeouts[("docker", "rm", "-f", gateway.container_name)] == 3
 
 
 def test_ibeam_gateway_rejects_untrusted_image_reference_in_tag():

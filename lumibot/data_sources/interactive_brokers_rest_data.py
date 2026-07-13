@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json as _json
 import time
 from decimal import Decimal
 from urllib.parse import urlparse
@@ -456,7 +457,7 @@ class InteractiveBrokersRESTData(DataSource):
             except requests.exceptions.RequestException as e:
                 response = requests.Response()
                 response.status_code = 503
-                response._content = str.encode(f'{{"error": "{e}"}}')
+                response._content = _json.dumps({"error": str(e)}).encode("utf-8")
 
             # Check if the status code is 401
             if response.status_code == 401:
@@ -501,7 +502,7 @@ class InteractiveBrokersRESTData(DataSource):
             except requests.exceptions.RequestException as e:
                 response = requests.Response()
                 response.status_code = 503
-                response._content = str.encode(f'{{"error": "{e}"}}')
+                response._content = _json.dumps({"error": str(e)}).encode("utf-8")
 
             retrying, re_msg, is_error, to_return = self.handle_http_errors(
                 response, silent, retries, description, allow_fail
@@ -534,7 +535,7 @@ class InteractiveBrokersRESTData(DataSource):
             except requests.exceptions.RequestException as e:
                 response = requests.Response()
                 response.status_code = 503
-                response._content = str.encode(f'{{"error": "{e}"}}')
+                response._content = _json.dumps({"error": str(e)}).encode("utf-8")
 
             retrying, re_msg, is_error, to_return = self.handle_http_errors(
                 response, silent, retries, description, allow_fail

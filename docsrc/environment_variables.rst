@@ -574,8 +574,8 @@ Interactive Brokers REST
 IB_USERNAME / IB_PASSWORD
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- Purpose: Credentials for IB REST API authentication.
-- Values: IB credentials (**do not hardcode**).
+- Purpose: Individual Client Portal credentials used only by the local IBeam transport.
+- Values: Secrets; **never log, commit, or hardcode them**.
 
 IB_ACCOUNT_ID
 ^^^^^^^^^^^^^

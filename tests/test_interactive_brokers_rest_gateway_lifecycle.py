@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 import pytest
+from requests.exceptions import ConnectionError as RequestConnectionError
 
 from lumibot.data_sources.interactive_brokers_rest_data import InteractiveBrokersRESTData
 
@@ -56,6 +57,17 @@ class _HttpClient:
         return _Response({})
 
 
+class _FailingHttpClient:
+    def get(self, url, **kwargs):
+        raise RequestConnectionError('gateway said "not ready"')
+
+    def post(self, url, **kwargs):
+        raise RequestConnectionError('gateway said "not ready"')
+
+    def delete(self, url, **kwargs):
+        raise RequestConnectionError('gateway said "not ready"')
+
+
 def test_rest_data_uses_injected_gateway_and_http_transport():
     gateway = _Gateway()
     client = _HttpClient()
@@ -107,3 +119,30 @@ def test_rest_data_authentication_timeout_stops_owned_gateway():
     assert gateway.started is True
     assert gateway.stopped is True
     assert clock["now"] == 2
+
+
+@pytest.mark.parametrize(
+    ("method", "args"),
+    [
+        ("get_from_endpoint", ("https://gateway.example/get",)),
+        ("post_to_endpoint", ("https://gateway.example/post", {})),
+        ("delete_to_endpoint", ("https://gateway.example/delete",)),
+    ],
+)
+def test_rest_transport_synthesizes_valid_json_for_quoted_request_errors(method, args):
+    data = InteractiveBrokersRESTData(
+        {"IB_ACCOUNT_ID": None},
+        gateway=_Gateway(),
+        http_client=_HttpClient(),
+    )
+    data.http_client = _FailingHttpClient()
+    data.handle_http_errors = lambda response, *_args: (
+        False,
+        None,
+        False,
+        response.json(),
+    )
+
+    result = getattr(data, method)(*args, max_retries=0)
+
+    assert result == {"error": 'gateway said "not ready"'}

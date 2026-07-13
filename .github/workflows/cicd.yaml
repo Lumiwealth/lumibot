@@ -55,6 +55,8 @@ jobs:
     environment: unit-tests
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up Python 3.10
         uses: actions/setup-python@v6
@@ -100,6 +102,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up Python 3.10
         uses: actions/setup-python@v6
@@ -190,6 +194,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up Python 3.10
         uses: actions/setup-python@v6

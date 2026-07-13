@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.5.75 - Unreleased
+## 4.5.75 - 2026-07-13
+
+Deploy marker: `deploy 4.5.75`
 
 ### Added
 - **IBKR Client Portal REST now has a replaceable gateway and HTTP transport
@@ -33,6 +35,17 @@
   IBeam receives named environment values through the Docker client process,
   temporary gateway configuration is mode `0600`, and documentation explicitly
   limits this third-party wrapper to controlled individual/internal proof-of-concept use.
+- **Public repository changes have stronger leak and review gates.** Changed-file
+  hygiene checks, CODEOWNERS coverage, and AI review policy now catch private
+  paths, credentials, account details, and other non-public operational content
+  before merge.
+
+### Documentation
+- **Release operations now require explicit publishing authority and verifiable
+  downstream rebuilds.** The deployment runbook records the release approval
+  boundary, mandatory next-version checkout verification, and forced Bot Manager
+  image rebuild requirement for every LumiBot version bump.
+- **The README Star History chart renders correctly in light and dark themes.**
 
 ## 4.5.74 - 2026-07-08
 

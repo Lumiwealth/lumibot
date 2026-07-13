@@ -102,6 +102,7 @@ class TestAlpacaBroker:
         assert order.limit_price == 0.1235
 
     def test_market_open_falls_back_when_initialized_calendar_is_stale(self, mocker):
+        """Use an aware local clock when the initialized calendar is stale."""
         broker = Alpaca(ALPACA_UNIT_CONFIG, connect_stream=False)
         broker.market = "NASDAQ"
         broker.initialize_market_calendars(
@@ -116,6 +117,7 @@ class TestAlpacaBroker:
         class FixedDatetime(datetime):
             @classmethod
             def now(cls, tz=None):
+                """Return a fixed instant expressed in the requested timezone."""
                 # The old path created an intermediate naive wall time whose
                 # meaning depended on the runner timezone. Requesting the local
                 # timezone directly keeps market-hour comparisons deterministic.
@@ -124,6 +126,7 @@ class TestAlpacaBroker:
                 return value.astimezone(tz)
 
         def fake_market_hours(close=False, next=False):
+            """Return deterministic UTC market boundaries for the fallback."""
             if close:
                 return datetime(2026, 7, 8, 20, 0, tzinfo=timezone.utc)
             return datetime(2026, 7, 8, 13, 30, tzinfo=timezone.utc)

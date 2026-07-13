@@ -110,6 +110,7 @@ class _AlpacaPaperSubmitCancelStrategy(_PaperSubmitCancelStrategy):
     """Keep the consolidated gate's Alpaca data and option-chain regression coverage."""
 
     def initialize(self, parameters=None):
+        """Prepare result fields used to prove the real Alpaca reads completed."""
         super().initialize(parameters)
         self.options_helper = OptionsHelper(self)
         self.stock_price = None
@@ -119,6 +120,7 @@ class _AlpacaPaperSubmitCancelStrategy(_PaperSubmitCancelStrategy):
         self.option_symbol = None
 
     def on_trading_iteration(self):
+        """Exercise Alpaca market-data and option-chain paths before the paper order."""
         stock = Asset("AAPL", asset_type=Asset.AssetType.STOCK)
         stock_price = self.get_last_price(stock)
         assert stock_price is not None and float(stock_price) > 0
@@ -173,6 +175,7 @@ def _assert_strategy_run_submit_and_cancel(
     name: str,
     strategy_class: type[Strategy] = _PaperSubmitCancelStrategy,
 ) -> Strategy:
+    """Run one real strategy iteration and require its paper order to be cancelled."""
     # The paper APIs still provide the real market clock, which is exercised before
     # the override. The override only makes this order lifecycle test deterministic
     # overnight and on weekends.

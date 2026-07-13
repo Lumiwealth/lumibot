@@ -463,7 +463,15 @@ INTERACTIVE_BROKERS_REST_CONFIG = {
     "IB_PASSWORD": os.environ.get("IB_PASSWORD"),
     "IB_ACCOUNT_ID": os.environ.get("IB_ACCOUNT_ID"),
     "API_URL": os.environ.get("IB_API_URL"),
-    "RUNNING_ON_SERVER": os.environ.get("RUNNING_ON_SERVER")
+    "RUNNING_ON_SERVER": os.environ.get("RUNNING_ON_SERVER"),
+    "GATEWAY_PORT": os.environ.get("IB_GATEWAY_PORT"),
+    "GATEWAY_INSTANCE_ID": os.environ.get("IB_GATEWAY_INSTANCE_ID"),
+    "USE_PAPER_ACCOUNT": os.environ.get("IB_USE_PAPER_ACCOUNT", "true"),
+    "IBEAM_DOCKER_TAG": os.environ.get("IBEAM_DOCKER_TAG"),
+    "AUTH_TIMEOUT": os.environ.get("IB_AUTH_TIMEOUT"),
+    "AUTH_POLL_INTERVAL": os.environ.get("IB_AUTH_POLL_INTERVAL"),
+    "REQUEST_TIMEOUT": os.environ.get("IB_REQUEST_TIMEOUT"),
+    "VERIFY_SSL": os.environ.get("IB_VERIFY_SSL"),
 }
 
 # Tradovate Configuration

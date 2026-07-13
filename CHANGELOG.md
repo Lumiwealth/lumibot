@@ -2,7 +2,17 @@
 
 ## 4.5.75 - Unreleased
 
+### Added
+- **IBKR Client Portal REST now has a replaceable gateway and HTTP transport
+  boundary.** Local IBeam, externally managed Client Portal Gateway, and future
+  OAuth-signed sessions can share the same broker, order, position, contract,
+  and market-data implementation.
+
 ### Fixed
+- **Local IBKR REST startup is isolated and bounded.** IBeam now defaults to
+  versioned release `0.5.12`, uses instance-scoped container names, binds only to
+  localhost, fails closed when Docker is unavailable, stops waiting after the
+  configured authentication deadline, and cleans up only its owned container.
 - **Option expiration settlement retries a real daily close when the current
   underlying mark is unavailable.** Backtests no longer abort an otherwise
   valid option lifecycle merely because `get_last_price()` returns no value at
@@ -17,6 +27,12 @@
   stale/default balances were published and the next cloud update retries
   automatically. Cross-broker regression coverage verifies the safe skip and
   subsequent recovery behavior for Alpaca- and Tradier-shaped runtimes.
+
+### Security
+- **IBKR credentials no longer appear in Docker command arguments.** Local
+  IBeam receives named environment values through the Docker client process,
+  temporary gateway configuration is mode `0600`, and documentation explicitly
+  limits this third-party wrapper to controlled individual/internal proof-of-concept use.
 
 ## 4.5.74 - 2026-07-08
 

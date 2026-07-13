@@ -134,6 +134,23 @@ This page documents environment variables used by LumiBot, with an emphasis on *
 - `LUMIBOT_SCHEDULED_STATE_BACKEND`: external state backend prepared by BotManager: `s3`, `dynamodb`, or `none`. `none` disables scheduled `self.vars` file load/save.
 - `LUMIBOT_SCHEDULED_STATE_FILE`: local JSON file managed by BotManager/bootstrap code to restore and persist `self.vars` for one scheduled live run. State is restored before scheduled lifecycle hooks.
 
+## Interactive Brokers REST gateway
+
+- `IB_USERNAME` / `IB_PASSWORD`: individual Client Portal credentials used only by the local IBeam transport. Secrets; never log or commit them.
+- `IB_ACCOUNT_ID`: optional account selection override.
+- `IB_API_URL`: externally managed Client Portal or approved REST transport URL. May include `/v1/api`.
+- `RUNNING_ON_SERVER=true`: use an externally managed localhost sidecar instead of starting Docker inside LumiBot.
+- `IB_GATEWAY_PORT`: local/sidecar host port. Defaults to `4234`.
+- `IB_GATEWAY_INSTANCE_ID`: non-secret local container identity. LumiBot generates a random value when unset.
+- `IB_USE_PAPER_ACCOUNT`: IBeam paper-login toggle. Defaults to `true`.
+- `IBEAM_DOCKER_TAG`: versioned IBeam release tag. Defaults to `0.5.12`; avoid `latest`.
+- `IB_AUTH_TIMEOUT`: bounded gateway-authentication wait in seconds. Defaults to `300`.
+- `IB_AUTH_POLL_INTERVAL`: authentication polling interval in seconds. Defaults to `5`.
+- `IB_REQUEST_TIMEOUT`: REST request timeout in seconds. Defaults to `30`.
+- `IB_VERIFY_SSL`: optional TLS verification override. Defaults off for localhost and on for non-local hosts.
+
+IBeam is an unsupported third-party authentication wrapper and is suitable only for controlled individual/internal proof-of-concept use. Third-party products should use an IBKR-approved OAuth integration. See `docs/IBKR_REST_GATEWAY.md`.
+
 ## Backtest output + UX flags
 
 ### `SHOW_PLOT`, `SHOW_INDICATORS`, `SHOW_TEARSHEET`

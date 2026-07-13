@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import json as _json
 import time
-from decimal import Decimal
 from urllib.parse import urlparse
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, LazyPytzTimezoneRef, lazy_class
@@ -12,19 +10,14 @@ from lumibot.tools.ibkr_secdef import (
 )
 
 from .data_source import DataSource
-from .ibkr_gateway import (
-    DEFAULT_IBEAM_HOST_PORT,
-    DEFAULT_IBEAM_TAG,
-    ExternalIbkrGateway,
-    IBeamGateway,
-    IbkrGateway,
-)
 
 logger = LazyLogger(__name__)
 TYPE_CHECKING = False
 
+_json = LazyModule("json")
 datetime = lazy_class("datetime", "datetime")
 timezone = lazy_class("datetime", "timezone")
+Decimal = lazy_class("decimal", "Decimal")
 Asset = lazy_class("lumibot.entities", "Asset")
 pd = LazyModule("pandas")
 requests = LazyModule("requests")
@@ -129,6 +122,13 @@ class InteractiveBrokersRESTData(DataSource):
         monotonic_fn=None,
         **kwargs,
     ):
+        from .ibkr_gateway import (
+            DEFAULT_IBEAM_HOST_PORT,
+            DEFAULT_IBEAM_TAG,
+            ExternalIbkrGateway,
+            IBeamGateway,
+        )
+
         super().__init__(**kwargs)
         _disable_urllib3_warnings()
 

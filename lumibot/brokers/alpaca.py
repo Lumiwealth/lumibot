@@ -579,7 +579,7 @@ class Alpaca(Broker):
 
             open_time = self.utc_to_local(self.market_hours(close=False))
             close_time = self.utc_to_local(self.market_hours(close=True))
-            current_time = datetime.datetime.now().astimezone(tz=_local_tz())
+            current_time = datetime.datetime.now(tz=_local_tz())
 
             # Check if it is a holiday or weekend using pandas_market_calendars
             market_cal = mcal.get_calendar(self.market)

@@ -1188,8 +1188,9 @@ else:
 # lazily so importing strategy modules remains config-only until a live broker
 # is actually needed.
 if _defer_default_credentials() and not IS_BACKTESTING:
-    # PEP 562 only invokes module __getattr__ for missing names. Remove the
-    # legacy lowercase aliases too so explicit imports resolve lazily.
+    # PEP 562 only calls module __getattr__ for missing names. Remove both
+    # legacy lowercase exports and canonical uppercase exports so explicit
+    # imports resolve the lazy broker instead of capturing the None sentinel.
     globals().pop("broker", None)
     globals().pop("data_source", None)
     globals().pop("BROKER", None)

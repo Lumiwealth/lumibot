@@ -1,8 +1,8 @@
 # Changelog
 
-## 4.5.75 - 2026-07-13
+## 4.5.76 - 2026-07-13
 
-Deploy marker: `deploy 4.5.75`
+Deploy marker: `deploy 4.5.76`
 
 ### Added
 - **IBKR Client Portal REST now has a replaceable gateway and HTTP transport
@@ -46,6 +46,8 @@ Deploy marker: `deploy 4.5.75`
   boundary, mandatory next-version checkout verification, and forced Bot Manager
   image rebuild requirement for every LumiBot version bump.
 - **The README Star History chart renders correctly in light and dark themes.**
+
+## 4.5.75 - Unreleased
 
 ## 4.5.74 - 2026-07-08
 

@@ -9,6 +9,7 @@ from lumibot.example_strategies.stock_buy_and_hold import BuyAndHold
 from lumibot.credentials import ALPACA_TEST_CONFIG
 
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import math
 
@@ -101,6 +102,7 @@ class TestAlpacaBroker:
         assert order.limit_price == 0.1235
 
     def test_market_open_falls_back_when_initialized_calendar_is_stale(self, mocker):
+        """Use an aware local clock when the initialized calendar is stale."""
         broker = Alpaca(ALPACA_UNIT_CONFIG, connect_stream=False)
         broker.market = "NASDAQ"
         broker.initialize_market_calendars(
@@ -115,15 +117,27 @@ class TestAlpacaBroker:
         class FixedDatetime(datetime):
             @classmethod
             def now(cls, tz=None):
+                """Return a fixed instant expressed in the requested timezone."""
+                # The old path created an intermediate naive wall time whose
+                # meaning depended on the runner timezone. Requesting the local
+                # timezone directly keeps market-hour comparisons deterministic.
+                assert tz is not None, "market-open fallback must request an aware clock"
                 value = datetime(2026, 7, 8, 14, 7, 54, tzinfo=timezone.utc)
-                return value.astimezone(tz) if tz else value.replace(tzinfo=None)
+                return value.astimezone(tz)
 
         def fake_market_hours(close=False, next=False):
+            """Return deterministic UTC market boundaries for the fallback."""
             if close:
                 return datetime(2026, 7, 8, 20, 0, tzinfo=timezone.utc)
             return datetime(2026, 7, 8, 13, 30, tzinfo=timezone.utc)
 
-        mocker.patch("lumibot.brokers.alpaca.datetime.datetime", FixedDatetime)
+        # Patch Alpaca's lazy module reference, not ``datetime.datetime`` through
+        # the LazyModule proxy. The latter mutates the shared stdlib module and
+        # leaks FixedDatetime into tests collected later in the same process.
+        mocker.patch(
+            "lumibot.brokers.alpaca.datetime",
+            SimpleNamespace(datetime=FixedDatetime),
+        )
         mocker.patch.object(broker, "market_hours", side_effect=fake_market_hours)
 
         assert broker._is_market_open_from_initialized_calendar(

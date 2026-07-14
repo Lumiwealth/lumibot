@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import json as _json
 import time
-from decimal import Decimal
-from urllib.parse import urlparse
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, LazyPytzTimezoneRef, lazy_class
 from lumibot.tools.ibkr_secdef import (
@@ -12,20 +9,16 @@ from lumibot.tools.ibkr_secdef import (
 )
 
 from .data_source import DataSource
-from .ibkr_gateway import (
-    DEFAULT_IBEAM_HOST_PORT,
-    DEFAULT_IBEAM_TAG,
-    ExternalIbkrGateway,
-    IBeamGateway,
-    IbkrGateway,
-)
 
 logger = LazyLogger(__name__)
 TYPE_CHECKING = False
 
 datetime = lazy_class("datetime", "datetime")
 timezone = lazy_class("datetime", "timezone")
+Decimal = lazy_class("decimal", "Decimal")
+IbkrGateway = lazy_class("lumibot.data_sources.ibkr_gateway", "IbkrGateway")
 Asset = lazy_class("lumibot.entities", "Asset")
+_json = LazyModule("json")
 pd = LazyModule("pandas")
 requests = LazyModule("requests")
 _DEFAULT_PYTZ = LazyPytzTimezoneRef("America/New_York")
@@ -54,6 +47,18 @@ def colored(*args, **kwargs):
     from termcolor import colored as _colored
 
     return _colored(*args, **kwargs)
+
+
+def _ibkr_gateway_module():
+    from . import ibkr_gateway
+
+    return ibkr_gateway
+
+
+def _url_hostname(value):
+    from urllib.parse import urlparse
+
+    return (urlparse(value).hostname or "").lower()
 
 
 def _conf_yaml_text():
@@ -131,6 +136,7 @@ class InteractiveBrokersRESTData(DataSource):
     ):
         super().__init__(**kwargs)
         _disable_urllib3_warnings()
+        ibkr_gateway = _ibkr_gateway_module()
 
         config = dict(config or {})
         self._sleep = sleep_fn or time.sleep
@@ -149,7 +155,9 @@ class InteractiveBrokersRESTData(DataSource):
         )
 
         try:
-            gateway_port = int(config.get("GATEWAY_PORT") or DEFAULT_IBEAM_HOST_PORT)
+            gateway_port = int(
+                config.get("GATEWAY_PORT") or ibkr_gateway.DEFAULT_IBEAM_HOST_PORT
+            )
         except (TypeError, ValueError) as exc:
             raise ValueError("IB_GATEWAY_PORT must be an integer") from exc
         self.port = str(gateway_port)
@@ -159,28 +167,33 @@ class InteractiveBrokersRESTData(DataSource):
         if gateway is None:
             if api_url:
                 self.api_url = str(api_url).strip().rstrip("/")
-                gateway = ExternalIbkrGateway(_rest_api_base_url(self.api_url))
+                gateway = ibkr_gateway.ExternalIbkrGateway(
+                    _rest_api_base_url(self.api_url)
+                )
             elif running_on_server:
-                gateway = ExternalIbkrGateway(
+                gateway = ibkr_gateway.ExternalIbkrGateway(
                     f"https://localhost:{gateway_port}/v1/api"
                 )
             else:
-                gateway = IBeamGateway(
+                gateway = ibkr_gateway.IBeamGateway(
                     username=config.get("IB_USERNAME"),
                     password=config.get("IB_PASSWORD"),
                     conf_text=_conf_yaml_text(),
                     host_port=gateway_port,
                     paper=_as_bool(config.get("USE_PAPER_ACCOUNT"), default=True),
-                    image_tag=config.get("IBEAM_DOCKER_TAG") or DEFAULT_IBEAM_TAG,
+                    image_tag=(
+                        config.get("IBEAM_DOCKER_TAG")
+                        or ibkr_gateway.DEFAULT_IBEAM_TAG
+                    ),
                     instance_id=config.get("GATEWAY_INSTANCE_ID"),
                 )
 
         self.gateway = gateway
         self.base_url = gateway.base_url.rstrip("/")
-        self.running_on_server = not isinstance(gateway, IBeamGateway)
+        self.running_on_server = not isinstance(gateway, ibkr_gateway.IBeamGateway)
         verify_ssl = config.get("VERIFY_SSL")
         if verify_ssl is None or verify_ssl == "":
-            hostname = (urlparse(self.base_url).hostname or "").lower()
+            hostname = _url_hostname(self.base_url)
             self.verify_ssl = hostname not in {"localhost", "127.0.0.1", "::1"}
         else:
             self.verify_ssl = _as_bool(verify_ssl)

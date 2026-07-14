@@ -7,6 +7,11 @@
   Direct lookup normalizes numeric and string order IDs instead of treating
   response dictionaries like TWS objects or fabricating a placeholder order
   when no broker row exists.
+- **Alpaca live option chains preserve executable quote data.**
+  `get_chain_full_info()` now consumes Alpaca's native option snapshots so
+  strategies receive current bid, ask, quote size, latest trade, implied
+  volatility, and greeks instead of synthetic zero bid/ask fields. This keeps
+  option-credit guards and worked-order logic tied to broker-visible quotes.
 
 ## 4.5.76 - 2026-07-13
 

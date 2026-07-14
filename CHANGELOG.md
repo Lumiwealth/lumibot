@@ -2,6 +2,12 @@
 
 ## 4.5.77 - Unreleased
 
+### Fixed
+- **IBKR Client Portal order refresh now reads returned JSON order rows.**
+  Direct lookup normalizes numeric and string order IDs instead of treating
+  response dictionaries like TWS objects or fabricating a placeholder order
+  when no broker row exists.
+
 ## 4.5.76 - 2026-07-13
 
 Deploy marker: `deploy 4.5.76`

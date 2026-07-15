@@ -1,9 +1,16 @@
 from dataclasses import dataclass
+from typing import get_type_hints
 
 import pytest
 from requests.exceptions import ConnectionError as RequestConnectionError
 
 from lumibot.data_sources.interactive_brokers_rest_data import InteractiveBrokersRESTData
+
+
+def test_rest_data_gateway_type_hint_remains_runtime_resolvable():
+    hints = get_type_hints(InteractiveBrokersRESTData.__init__)
+
+    assert "gateway" in hints
 
 
 @dataclass

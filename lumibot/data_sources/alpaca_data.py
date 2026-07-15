@@ -419,6 +419,48 @@ class AlpacaData(DataSource):
         asset, quote = sanitize_base_and_quote_asset(base_asset, quote_asset)
         return asset, quote
 
+    @staticmethod
+    def _option_chain_snapshots(raw_chain_data) -> dict:
+        """Normalize Alpaca SDK and raw option-chain response shapes."""
+        if not isinstance(raw_chain_data, dict):
+            return {}
+        for key in ("option_chains", "snapshots"):
+            nested = raw_chain_data.get(key)
+            if isinstance(nested, dict):
+                return nested
+        return raw_chain_data
+
+    @staticmethod
+    def _parse_option_symbol(symbol: str, underlying_symbol: str):
+        """Return (expiration, right, strike) for an OCC-style Alpaca symbol."""
+        if not isinstance(symbol, str) or not symbol.startswith(underlying_symbol):
+            return None
+        contract = symbol[len(underlying_symbol):]
+        if len(contract) < 15:
+            return None
+        try:
+            expiration = dt.date(
+                int("20" + contract[:2]),
+                int(contract[2:4]),
+                int(contract[4:6]),
+            )
+            right_code = contract[6].upper()
+            right = "CALL" if right_code == "C" else "PUT" if right_code == "P" else None
+            if right is None:
+                return None
+            strike = float(contract[7:]) / 1000.0
+        except (TypeError, ValueError, IndexError):
+            return None
+        return expiration, right, strike
+
+    @staticmethod
+    def _snapshot_value(value, *names, default=0.0):
+        for name in names:
+            candidate = value.get(name) if isinstance(value, dict) else getattr(value, name, None)
+            if candidate is not None:
+                return candidate
+        return default
+
     def get_chains(self, asset: Asset) -> dict:
         """
         Get the options chain for the given asset.
@@ -477,22 +519,12 @@ class AlpacaData(DataSource):
                 }
             }
 
-            # The Alpaca API may return option symbols in different structures
-            # Let's check what we actually got and parse accordingly
-            option_symbols = []
-
-            if isinstance(raw_chain_data, dict):
-                # Check for different possible structures
-                if "next_page_token" in raw_chain_data and "option_chains" in raw_chain_data:
-                    # New structure: {"option_chains": {"SPY250731C00501000": {...}, ...}, "next_page_token": ...}
-                    option_symbols = list(raw_chain_data["option_chains"].keys())
-                elif "snapshots" in raw_chain_data:
-                    # Old structure: {"snapshots": {"SPY250731C00501000": {...}, ...}}
-                    option_symbols = list(raw_chain_data["snapshots"].keys())
-                else:
-                    # Direct structure: {"SPY250731C00501000": {...}, ...}
-                    # Filter to only option symbols (they should start with the underlying symbol)
-                    option_symbols = [key for key in raw_chain_data.keys() if key.startswith(asset.symbol) and len(key) > len(asset.symbol)]
+            snapshots = self._option_chain_snapshots(raw_chain_data)
+            option_symbols = [
+                key
+                for key in snapshots
+                if isinstance(key, str) and key.startswith(asset.symbol) and len(key) > len(asset.symbol)
+            ]
 
             if not option_symbols:
                 logger.warning(f"No option symbols found for {asset.symbol}")
@@ -595,6 +627,94 @@ class AlpacaData(DataSource):
                 # This ensures the user sees the actual error, not a generic auth message
                 logger.error("This does not appear to be an authentication error - re-raising original error")
                 raise e
+
+    def get_chain_full_info(
+        self,
+        asset: Asset,
+        expiry,
+        chains=None,
+        underlying_price=None,
+        risk_free_rate=None,
+        strike_min=None,
+        strike_max=None,
+    ):
+        """Return Alpaca option snapshots without discarding live bid/ask.
+
+        Alpaca's option-chain endpoint already returns latest quotes, trades,
+        implied volatility, and greeks. The base implementation reconstructs
+        the chain from last prices and fills bid/ask with zero, which prevents
+        live strategies from making executable-credit decisions.
+        """
+        if isinstance(expiry, dt.datetime):
+            expiry_date = expiry.date()
+        elif isinstance(expiry, dt.date):
+            expiry_date = expiry
+        elif isinstance(expiry, str):
+            expiry_date = dt.date.fromisoformat(expiry[:10])
+        else:
+            raise TypeError("expiry must be a string, datetime.date, or datetime.datetime")
+
+        from alpaca.data.requests import OptionChainRequest
+
+        request = OptionChainRequest(
+            underlying_symbol=asset.symbol,
+            expiration_date=expiry_date,
+            strike_price_gte=strike_min,
+            strike_price_lte=strike_max,
+        )
+        snapshots = self._option_chain_snapshots(self._get_option_client().get_option_chain(request))
+        rows = []
+        for symbol, snapshot in snapshots.items():
+            parsed = self._parse_option_symbol(symbol, asset.symbol)
+            if parsed is None:
+                continue
+            expiration, right, strike = parsed
+            if expiration != expiry_date:
+                continue
+            if strike_min is not None and strike < strike_min:
+                continue
+            if strike_max is not None and strike > strike_max:
+                continue
+
+            quote = self._snapshot_value(snapshot, "latest_quote", "latestQuote", default=None)
+            trade = self._snapshot_value(snapshot, "latest_trade", "latestTrade", default=None)
+            greeks = self._snapshot_value(snapshot, "greeks", default=None)
+            bid = float(self._snapshot_value(quote, "bid_price", "bp", default=0.0) or 0.0)
+            ask = float(self._snapshot_value(quote, "ask_price", "ap", default=0.0) or 0.0)
+            bid_size = float(self._snapshot_value(quote, "bid_size", "bs", default=0.0) or 0.0)
+            ask_size = float(self._snapshot_value(quote, "ask_size", "as", default=0.0) or 0.0)
+            last = float(self._snapshot_value(trade, "price", "p", default=0.0) or 0.0)
+            last_size = float(self._snapshot_value(trade, "size", "s", default=0.0) or 0.0)
+            if last <= 0:
+                last = (bid + ask) / 2.0 if bid > 0 and ask > 0 else bid or ask
+
+            row = {
+                "symbol": symbol,
+                "last": last,
+                "expiration_date": expiration,
+                "strike": strike,
+                "option_type": right,
+                "underlying": asset.symbol,
+                "open_interest": 0,
+                "bid": bid,
+                "ask": ask,
+                "bidsize": bid_size,
+                "asksize": ask_size,
+                "volume": 0,
+                "last_volume": last_size,
+                "average_volume": 0,
+                "implied_volatility": float(
+                    self._snapshot_value(snapshot, "implied_volatility", "impliedVolatility", default=0.0) or 0.0
+                ),
+                "type": "option",
+            }
+            for greek in ("delta", "gamma", "rho", "theta", "vega"):
+                value = self._snapshot_value(greeks, greek, default=None)
+                if value is not None:
+                    row[f"greeks.{greek}"] = float(value)
+            rows.append(row)
+
+        return pd.DataFrame(rows)
 
     def get_last_price(self, asset, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
         """

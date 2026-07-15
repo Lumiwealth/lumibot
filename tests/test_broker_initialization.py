@@ -485,6 +485,29 @@ def test_ibkr_rest_submit_order_without_stream_does_not_crash(monkeypatch):
     assert order.status == Order.OrderStatus.SUBMITTED
 
 
+def test_ibkr_rest_pull_broker_order_reads_client_portal_mapping():
+    from lumibot.brokers.interactive_brokers_rest import InteractiveBrokersREST
+
+    raw_order = {"orderId": 1234567890, "status": "Submitted"}
+    broker = InteractiveBrokersREST.__new__(InteractiveBrokersREST)
+    broker.data_source = SimpleNamespace(get_broker_all_orders=lambda: [raw_order])
+
+    # Client Portal JSON uses a numeric orderId while strategy state can hold a string.
+    assert broker._pull_broker_order("1234567890") is raw_order
+
+
+def test_ibkr_rest_pull_broker_order_returns_none_when_missing():
+    from lumibot.brokers.interactive_brokers_rest import InteractiveBrokersREST
+
+    broker = InteractiveBrokersREST.__new__(InteractiveBrokersREST)
+    broker.data_source = SimpleNamespace(
+        get_broker_all_orders=lambda: [{"orderId": 111, "status": "Submitted"}]
+    )
+
+    # Missing broker data must not fabricate a truthy placeholder order.
+    assert broker._pull_broker_order("222") is None
+
+
 def test_interactive_brokers_keeps_required_orders_thread_enabled(monkeypatch):
     from lumibot.brokers import broker as broker_module
     from lumibot.brokers.interactive_brokers import InteractiveBrokers

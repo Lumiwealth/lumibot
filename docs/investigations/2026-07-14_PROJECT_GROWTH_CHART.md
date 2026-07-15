@@ -25,17 +25,17 @@ The README now embeds a live chart at:
 https://lumibot.lumiwealth.com/_static/star_history.svg
 ```
 
-The documentation workflow generates that endpoint from authenticated GitHub
-stargazer timestamps during every documentation deployment and on a daily
-schedule. It uses the repository-scoped, short-lived GitHub Actions token rather
-than a personal token. The generator is:
+The documentation workflow generates that endpoint from privacy-safe aggregate
+history plus the repository's public current star count during every
+documentation deployment and on a daily schedule. It uses the repository-scoped,
+short-lived GitHub Actions token rather than a personal token. The generator is:
 
 ```text
 python3 scripts/update_star_history_chart.py
 ```
 
-The generated SVG contains only monthly aggregate counts. It contains no GitHub
-usernames, access tokens, or individual stargazer records.
+The history contains monthly baseline points plus daily aggregate refreshes. It
+contains no GitHub usernames, access tokens, or individual stargazer records.
 
 ## Verification
 

@@ -363,18 +363,21 @@ class InteractiveBrokersREST(Broker):
 
     def _pull_broker_order(self, identifier: str) -> Order:
         """Get a broker order representation by its id"""
-        pull_order = [
-            order
-            for order in self.data_source.get_broker_all_orders()
-            if order.orderId == identifier
-        ]
-        response = pull_order[0] if len(pull_order) > 0 else None
-        if response is None:
-            logger.error(
-                colored(f"Order with identifier {identifier} not found.", "red")
+        for order in self.data_source.get_broker_all_orders():
+            # Client Portal returns JSON dictionaries and can change the order id
+            # between integer and string representations across endpoints.
+            order_id = (
+                order.get("orderId")
+                if isinstance(order, dict)
+                else getattr(order, "orderId", None)
             )
-            return Order(self._strategy_name)
-        return response
+            if order_id is not None and str(order_id) == str(identifier):
+                return order
+
+        logger.warning(
+            colored(f"Order with identifier {identifier} not found.", "yellow")
+        )
+        return None
 
     def _parse_broker_position(self, broker_position, strategy, orders=None):
         """Parse a broker position representation

@@ -69,6 +69,30 @@ def test_get_chain_full_info_accepts_raw_nested_snapshots_and_uses_quote_midpoin
     assert row["greeks.delta"] == -0.25
 
 
+def test_get_chain_full_info_returns_empty_when_alpaca_has_no_native_snapshots():
+    data_source = _data_source()
+    captured = {}
+
+    def get_option_chain(request):
+        captured["request"] = request
+        return {}
+
+    data_source._option_client = SimpleNamespace(get_option_chain=get_option_chain)
+
+    result = data_source.get_chain_full_info(
+        Asset("SPY", asset_type="stock"),
+        "2026-08-21",
+        strike_min=490,
+        strike_max=510,
+    )
+
+    assert result.empty
+    assert captured["request"].underlying_symbol == "SPY"
+    assert captured["request"].expiration_date.isoformat() == "2026-08-21"
+    assert captured["request"].strike_price_gte == 490
+    assert captured["request"].strike_price_lte == 510
+
+
 def test_get_chains_still_parses_nested_snapshot_symbols():
     data_source = _data_source()
     data_source._option_client = SimpleNamespace(

@@ -714,16 +714,6 @@ class AlpacaData(DataSource):
                     row[f"greeks.{greek}"] = float(value)
             rows.append(row)
 
-        if not rows:
-            return super().get_chain_full_info(
-                asset,
-                expiry_date,
-                chains=chains,
-                underlying_price=underlying_price,
-                risk_free_rate=risk_free_rate,
-                strike_min=strike_min,
-                strike_max=strike_max,
-            )
         return pd.DataFrame(rows)
 
     def get_last_price(self, asset, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:

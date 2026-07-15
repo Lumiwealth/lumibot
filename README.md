@@ -512,7 +512,11 @@ Crypto futures/perpetual backtests can route `Asset.AssetType.CRYPTO_FUTURE` thr
 ## Project Growth
 
 <a href="https://www.star-history.com/?repos=Lumiwealth%2Flumibot&type=date&legend=top-left">
-  <img src="https://lumibot.lumiwealth.com/_static/star_history.svg" alt="Live LumiBot GitHub Star History chart" width="100%">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Lumiwealth/lumibot&type=date&theme=dark&legend=top-left&sealed_token=rUrSenZjV6x3NV_1Z4XkTABQRBoE2agjatIpn1enNwfqsE5zygAV1jfFzK-sE268zkwaEEekumV8QuBVm-UQ4pIT3T_tlG_Rc43dCIastQndF9HeButPT3lm2YAvyx0CCah10jQ8RZHNjCmmK5SHagOcRwMT4SHm7Ar0daXTUZ1yeNSwwL0BnHnimioK" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Lumiwealth/lumibot&type=date&legend=top-left&sealed_token=rUrSenZjV6x3NV_1Z4XkTABQRBoE2agjatIpn1enNwfqsE5zygAV1jfFzK-sE268zkwaEEekumV8QuBVm-UQ4pIT3T_tlG_Rc43dCIastQndF9HeButPT3lm2YAvyx0CCah10jQ8RZHNjCmmK5SHagOcRwMT4SHm7Ar0daXTUZ1yeNSwwL0BnHnimioK" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Lumiwealth/lumibot&type=date&legend=top-left&sealed_token=rUrSenZjV6x3NV_1Z4XkTABQRBoE2agjatIpn1enNwfqsE5zygAV1jfFzK-sE268zkwaEEekumV8QuBVm-UQ4pIT3T_tlG_Rc43dCIastQndF9HeButPT3lm2YAvyx0CCah10jQ8RZHNjCmmK5SHagOcRwMT4SHm7Ar0daXTUZ1yeNSwwL0BnHnimioK" />
+ </picture>
 </a>
 
 ## AI Bootcamp

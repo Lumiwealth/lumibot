@@ -19,7 +19,6 @@ lumibot/cache
 !scripts/bench_ibkr_speed_burner_warm_cache.py
 generated-docs/
 docsrc/_build/
-docsrc/_html/star_history.svg
 **/*.pkl
 .pytest*
 

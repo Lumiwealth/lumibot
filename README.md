@@ -511,9 +511,9 @@ Crypto futures/perpetual backtests can route `Asset.AssetType.CRYPTO_FUTURE` thr
 
 ## Project Growth
 
-<p align="center">
-  <img src="docs/assets/readme/star_history.svg" alt="LumiBot GitHub star history chart" width="100%">
-</p>
+<a href="https://www.star-history.com/?repos=Lumiwealth%2Flumibot&type=date&legend=top-left">
+  <img src="https://lumibot.lumiwealth.com/_static/star_history.svg" alt="Live LumiBot GitHub Star History chart" width="100%">
+</a>
 
 ## AI Bootcamp
 

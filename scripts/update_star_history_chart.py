@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the README star-history SVG from authenticated GitHub data."""
+"""Generate the live README star-history SVG from authenticated GitHub data."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_REPOSITORY = "Lumiwealth/lumibot"
-DEFAULT_OUTPUT = REPO_ROOT / "docs/assets/readme/star_history.svg"
+DEFAULT_OUTPUT = REPO_ROOT / "docsrc/_html/star_history.svg"
 
 
 def parse_args() -> argparse.Namespace:

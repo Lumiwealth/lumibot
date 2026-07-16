@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.5.79 - Unreleased
+
 ## 4.5.78 - 2026-07-16
 
 Deploy marker: this release's `deploy 4.5.78` commit.

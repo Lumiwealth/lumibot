@@ -1,7 +1,6 @@
 import math
 import os
 import time
-from contextlib import contextmanager
 from functools import wraps
 from queue import Empty, Queue
 from threading import Event, Lock, Thread
@@ -20,11 +19,6 @@ Order = lazy_class("lumibot.entities", "Order")
 Decimal = lazy_class("decimal", "Decimal")
 
 SNAPSHOT_CAPTURE_THROTTLE_SECONDS = 1.9
-CLOSED_MARKET_PREPARATION_EVENT = "closed_market_prepare"
-
-
-class ClosedMarketOrderMutationError(RuntimeError):
-    """Raised when strategy code tries to mutate broker orders during data preparation."""
 
 
 def _default_pytz():
@@ -148,7 +142,6 @@ class StrategyExecutor(Thread):
         self.exception = None
         self._run_once_requested = False
         self._run_once_user_iteration_ran = False
-        self._run_once_closed_market_preparation = False
         self._run_once_market_open_override = None
         strategy_logger = getattr(self.strategy, "logger", logger)
         self._scheduled_timing = None
@@ -267,47 +260,6 @@ class StrategyExecutor(Thread):
             monotonic=time.monotonic,
             sleep=time.sleep,
         )
-
-    @staticmethod
-    def _scheduled_target_event():
-        if not _truthy(os.environ.get("LUMIBOT_SCHEDULED_EXECUTION")):
-            return ""
-        return str(os.environ.get("LUMIBOT_SCHEDULED_TARGET_EVENT") or "").strip().lower()
-
-    @contextmanager
-    def _block_broker_order_mutations(self):
-        """Block supported broker order mutation APIs for a preparation-only lifecycle."""
-        blocked_names = (
-            "submit_order",
-            "submit_orders",
-            "_submit_order",
-            "_submit_orders",
-            "cancel_order",
-            "cancel_orders",
-            "_cancel_order",
-            "_cancel_orders",
-            "modify_order",
-            "_modify_order",
-        )
-        missing = object()
-        original_instance_values = {}
-
-        def blocked(*_args, **_kwargs):
-            raise ClosedMarketOrderMutationError(
-                "Broker order mutations are disabled during closed-market preparation"
-            )
-
-        for name in blocked_names:
-            original_instance_values[name] = self.broker.__dict__.get(name, missing)
-            setattr(self.broker, name, blocked)
-        try:
-            yield
-        finally:
-            for name, original in original_instance_values.items():
-                if original is missing:
-                    self.broker.__dict__.pop(name, None)
-                else:
-                    setattr(self.broker, name, original)
 
     def _scheduled_regular_equity_market_open_precheck(self, market):
         if getattr(self.broker, "name", None) != "alpaca":
@@ -2339,29 +2291,6 @@ class StrategyExecutor(Thread):
         )
         self._run_once_user_iteration_ran = False
         if not market_open:
-            if self._scheduled_target_event() == CLOSED_MARKET_PREPARATION_EVENT:
-                self._run_once_closed_market_preparation = True
-                if not waited_for_target and not self._scheduled_wait_until_target():
-                    return False
-                self.strategy.log_message(
-                    "Running closed-market data preparation with broker order mutations disabled",
-                    color="blue",
-                )
-                self._scheduled_record_timing(
-                    iteration_started_at=self._scheduled_iso(self._scheduled_now_utc()),
-                    target_event=CLOSED_MARKET_PREPARATION_EVENT,
-                    status="closed_market_preparation_started",
-                )
-                with self._block_broker_order_mutations():
-                    self.strategy.on_closed_market_iteration()
-                self.strategy.backup_variables_to_db()
-                self._scheduled_record_timing(
-                    iteration_finished_at=self._scheduled_iso(self._scheduled_now_utc()),
-                    target_event=CLOSED_MARKET_PREPARATION_EVENT,
-                    status="closed_market_preparation_completed",
-                    exact_timing_verified=True,
-                )
-                return True
             self._scheduled_record_timing(
                 status="market_closed",
                 exact_timing_verified=True,
@@ -2420,11 +2349,7 @@ class StrategyExecutor(Thread):
                 self.strategy.logger.error(e)
                 self.strategy.logger.error(_format_exc())
                 try:
-                    if self._run_once_closed_market_preparation:
-                        with self._block_broker_order_mutations():
-                            self._on_bot_crash(e)
-                    else:
-                        self._on_bot_crash(e)
+                    self._on_bot_crash(e)
                 except Exception as e1:
                     self.strategy.logger.error(e1)
                     self.strategy.logger.error(_format_exc())

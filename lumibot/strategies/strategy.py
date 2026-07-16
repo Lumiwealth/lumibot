@@ -5327,17 +5327,6 @@ class Strategy(_Strategy):
         """
         pass
 
-    def on_closed_market_iteration(self):
-        """Prepare data during an explicitly scheduled closed-market run.
-
-        This lifecycle is only called for scheduled one-shot runs whose internal
-        target event is ``closed_market_prepare`` and whose broker reports the
-        market closed. LumiBot blocks supported broker order submission,
-        cancellation, and modification APIs for the duration of this method.
-        Use it to fetch data and persist a plan for a later market-open run.
-        """
-        pass
-
     def trace_stats(self, context: dict, snapshot_before: dict):
         """Lifecycle method that will be executed after
         on_trading_iteration. context is a dictionary containing

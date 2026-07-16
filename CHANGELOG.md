@@ -2,6 +2,12 @@
 
 ## 4.5.79 - Unreleased
 
+### Removed
+- **The scheduled closed-market preparation lifecycle has been removed.**
+  Scheduled runs again follow the normal market-calendar lifecycle. Strategies
+  that need after-hours preparation should explicitly configure their market
+  behavior and enforce their own session-aware order gates.
+
 ## 4.5.78 - 2026-07-16
 
 Deploy marker: this release's `deploy 4.5.78` commit.

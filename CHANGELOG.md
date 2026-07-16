@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.5.78 - Unreleased
+## 4.5.78 - 2026-07-16
+
+Deploy marker: this release's `deploy 4.5.78` commit.
 
 ### Added
 - **Live portfolio updates can target an environment-specific listener.**
@@ -12,6 +14,10 @@
   lifecycle with supported broker order mutations blocked, allowing a later
   market-open task to consume externally persisted plans without enabling
   after-hours trading.
+- **Public project and community navigation is easier to use.**
+  The README and documentation home page now expose the source repository,
+  Reddit community, and Discord community more clearly, including responsive
+  mobile navigation improvements.
 
 ## 4.5.77 - Unreleased
 

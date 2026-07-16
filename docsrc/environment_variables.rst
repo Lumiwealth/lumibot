@@ -861,6 +861,15 @@ LUMIWEALTH_API_KEY
 - Purpose: LumiWealth platform API key (for enterprise features).
 - Values: Obtain from LumiWealth (**do not hardcode**).
 
+LUMIBOT_PORTFOLIO_LISTENER_URL
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Portfolio-listener write endpoint used by live cloud account updates.
+- Values: HTTPS URL supplied by the deployment environment.
+- Default: ``https://listener.lumiwealth.com/portfolio_events``.
+- Note: BotSpot development runtimes set this explicitly so synthetic and QA
+  account observations stay isolated from production.
+
 Runtime telemetry (memory/health)
 ---------------------------------
 

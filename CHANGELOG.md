@@ -2,6 +2,12 @@
 
 ## 4.5.78 - Unreleased
 
+### Added
+- **Live portfolio updates can target an environment-specific listener.**
+  `LUMIBOT_PORTFOLIO_LISTENER_URL` lets BotSpot development workloads publish
+  account observations to an isolated development listener while preserving the
+  existing production endpoint as the compatibility default.
+
 ## 4.5.77 - Unreleased
 
 ### Fixed

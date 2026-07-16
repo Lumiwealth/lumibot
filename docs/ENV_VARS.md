@@ -333,6 +333,15 @@ These env vars are used by the ThetaData chain cache/builder in `lumibot/tools/t
 
 For cache key layout and validation workflow, see `docs/remote_cache.md`.
 
+## Portfolio listener
+
+### `LUMIBOT_PORTFOLIO_LISTENER_URL`
+- Purpose: Select the portfolio-listener write endpoint for live account updates.
+- Values: An HTTPS URL controlled by the deployment environment.
+- Default: `https://listener.lumiwealth.com/portfolio_events`.
+- BotSpot development workloads must set the isolated development endpoint
+  explicitly; production-compatible third-party runs may rely on the default.
+
 ## Runtime telemetry (memory/health)
 
 LumiBot can emit lightweight, vendor-neutral telemetry lines to stdout so you can debug OOMs in any environment

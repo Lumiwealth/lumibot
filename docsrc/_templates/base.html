@@ -1,5 +1,13 @@
 {% extends "!base.html" %}
 
+{% block htmltitle %}
+{% if pagename == master_doc %}
+<title>Lumibot: Python Algorithmic Trading and AI Agents</title>
+{% else %}
+<title>{{ title|striptags|e }} - Lumibot</title>
+{% endif %}
+{% endblock %}
+
 {% block extrahead %}
 {{ super() }}
 {% set page_url = 'https://lumibot.lumiwealth.com/' if pagename == 'index' else 'https://lumibot.lumiwealth.com/' ~ pagename ~ '.html' %}
@@ -10,7 +18,7 @@
 <meta name="description" content="{{ page_description }}">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Lumibot">
-<meta property="og:title" content="{{ title|striptags|trim }} - Lumibot">
+<meta property="og:title" content="{% if pagename == master_doc %}Lumibot: Python Algorithmic Trading and AI Agents{% else %}{{ title|striptags|trim }} - Lumibot{% endif %}">
 <meta property="og:description" content="{{ page_description }}">
 <meta property="og:url" content="{{ page_url }}">
 <meta property="og:image" content="https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png">
@@ -18,7 +26,7 @@
 <meta property="og:image:height" content="852">
 <meta property="og:image:alt" content="Lumibot AI trading robot logo">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="{{ title|striptags|trim }} - Lumibot">
+<meta name="twitter:title" content="{% if pagename == master_doc %}Lumibot: Python Algorithmic Trading and AI Agents{% else %}{{ title|striptags|trim }} - Lumibot{% endif %}">
 <meta name="twitter:description" content="{{ page_description }}">
 <meta name="twitter:image" content="https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png">
 <script type="application/ld+json">
@@ -37,7 +45,9 @@
         "height": 852
       },
       "sameAs": [
-        "https://github.com/Lumiwealth/lumibot"
+        "https://github.com/Lumiwealth/lumibot",
+        "https://www.reddit.com/r/BotSpotTrade/",
+        "https://discord.gg/lumiwealth"
       ]
     },
     {

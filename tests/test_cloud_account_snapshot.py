@@ -68,6 +68,57 @@ def test_cloud_update_marks_successful_broker_snapshot_verified(monkeypatch):
     assert '"account_snapshot_source": "broker_balance_refresh"' in payloads[0]
 
 
+def test_cloud_update_uses_production_listener_by_default(monkeypatch):
+    strategy = _fake_strategy(balances_updated=True)
+    urls = []
+
+    monkeypatch.delenv("LISTENER_WRITE_URL", raising=False)
+    monkeypatch.setattr(
+        "lumibot.strategies._strategy.requests.post",
+        lambda url, **_kwargs: urls.append(url) or _Response(),
+    )
+
+    assert _Strategy.send_update_to_cloud(strategy) is not False
+    assert urls == ["https://listener.lumiwealth.com/portfolio_events"]
+
+
+def test_cloud_update_uses_production_listener_for_blank_override(monkeypatch):
+    strategy = _fake_strategy(balances_updated=True)
+    urls = []
+
+    monkeypatch.setenv("LISTENER_WRITE_URL", "  ")
+    monkeypatch.setattr(
+        "lumibot.strategies._strategy.requests.post",
+        lambda url, **_kwargs: urls.append(url) or _Response(),
+    )
+
+    assert _Strategy.send_update_to_cloud(strategy) is not False
+    assert urls == ["https://listener.lumiwealth.com/portfolio_events"]
+
+
+def test_cloud_update_uses_configured_listener(monkeypatch):
+    strategy = _fake_strategy(balances_updated=True)
+    urls = []
+    timeouts = []
+
+    monkeypatch.setenv(
+        "LISTENER_WRITE_URL",
+        "https://listener.dev.example/portfolio_events",
+    )
+    monkeypatch.setattr(
+        "lumibot.strategies._strategy.requests.post",
+        lambda url, **kwargs: (
+            urls.append(url),
+            timeouts.append(kwargs.get("timeout")),
+            _Response(),
+        )[-1],
+    )
+
+    assert _Strategy.send_update_to_cloud(strategy) is not False
+    assert urls == ["https://listener.dev.example/portfolio_events"]
+    assert timeouts == [10]
+
+
 def test_cloud_update_refreshes_positions_before_publish(monkeypatch):
     strategy = _fake_strategy(balances_updated=True)
     sync_calls = []

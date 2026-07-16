@@ -1,15 +1,20 @@
-Lumibot: Backtestable AI Agents and Python Algorithmic Trading
-==============================================================
+Lumibot
+=======
 
-**Build deterministic trading strategies, AI trading agents, and AI trading teams for stocks, options, crypto, futures, forex, prediction markets, SEC filings, FRED macro data, technical indicators, and real brokers. Backtest, paper trade, or run live with the same Python code.**
+.. container:: lumibot-hero-lead
 
-.. raw:: html
-   :file: _html/main.html
+   **Build, backtest, and run algorithmic trading strategies and AI agents in Python.**
 
 .. image:: ../docs/assets/home/lumibot_strategy_lifecycle_homepage.png
    :alt: Lumibot strategy lifecycle from market data and filings to Python rules, AI agents, backtest reports, paper trading, and live brokers
    :width: 100%
    :class: lumibot-doc-image
+
+.. raw:: html
+   :file: _html/community_links.html
+
+.. raw:: html
+   :file: _html/main.html
 
 Getting Started
 ****************
@@ -483,9 +488,11 @@ Table of Contents
    :maxdepth: 2
 
    Home <self>
-   Build Bots with AI <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot&utm_content=sidebar_build_bots&sample=lumibot_deploy_sample>
+   Build and Deploy with BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot&utm_content=sidebar_build_bots&sample=lumibot_deploy_sample>
    BotSpot MCP Integration <botspot_mcp>
    GitHub <https://github.com/Lumiwealth/lumibot>
+   Reddit Community <https://www.reddit.com/r/BotSpotTrade/>
+   Discord Community <https://discord.gg/lumiwealth>
    getting_started
    imports_and_startup
    agents

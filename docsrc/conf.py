@@ -34,7 +34,7 @@ project = "Lumibot"
 copyright = "2021, Lumiwealth"
 author = "Lumiwealth Inc."
 
-html_title = "Lumibot: Backtestable AI Agents and Python Algorithmic Trading"
+html_title = "Lumibot"
 html_baseurl = "https://lumibot.lumiwealth.com/"
 
 source_paths = ["lumibot.brokers", "backtesting"]
@@ -112,8 +112,8 @@ html_favicon = "_html/lumibot_favicon_192.png"
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ["_html"]
-html_css_files = ["custom.css", "bootstrap/css/bootstrap.css"]
+html_static_path = ["_html", "../docs/assets/community"]
+html_css_files = ["custom.css"]
 html_js_files = ["posthog.js"]
 html_extra_path = ["_extra"]
 

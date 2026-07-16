@@ -37,7 +37,7 @@
 
 .course-list {
     margin-bottom: 60px;
-    margin-top: 18px;
+    margin-top: 28px;
 }
 
 .course-list h3,
@@ -45,77 +45,125 @@
     color: inherit;
 }
 
-.course-list .list-unstyled {
-    padding-left: 0;
+.course-section + .course-section {
+    margin-top: 34px;
 }
 
-.course-list .list-unstyled li {
+.course-benefits {
+    padding-left: 1.25rem;
+}
+
+.course-benefits li {
     margin-bottom: 10px;
     font-size: 1.05em;
 }
 
 .course-cta-row {
-    margin-top: 10px;
-    margin-bottom: 26px;
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    margin: 18px 0 30px;
 }
 
 .course-button,
 .course-button:visited {
-    display: inline-flex;
     align-items: center;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    display: inline-flex;
+    font-size: 1rem;
+    font-weight: 700;
     justify-content: center;
     min-height: 46px;
-    margin: 10px 8px 14px;
     padding: 12px 22px;
-    border-radius: 6px;
-    font-size: 1.05rem;
-    font-weight: 700;
     line-height: 1.2;
-    text-decoration: none !important;
     box-shadow: 0 10px 22px rgba(17, 24, 39, 0.18);
+    text-decoration: none;
+    transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, transform 150ms ease;
 }
 
 .course-button-primary,
-.course-button-primary:visited,
-.course-button-primary:hover,
-.course-button-primary:focus,
-.course-button-primary:active {
-    background: #c86f1f !important;
-    border-color: #c86f1f !important;
-    color: #ffffff !important;
+.course-button-primary:visited {
+    background: #c86f1f;
+    border-color: #c86f1f;
+    color: #ffffff;
 }
 
-.course-button-primary:hover {
-    background: #a95816 !important;
-    border-color: #a95816 !important;
+.course-button-primary:hover,
+.course-button-primary:focus {
+    background: #a95816;
+    border-color: #a95816;
+    color: #ffffff;
+    transform: translateY(-1px);
 }
 
 .course-button-secondary,
 .course-button-secondary:visited {
-    background: #ffffff !important;
-    border: 1px solid #2563eb !important;
-    color: #1d4ed8 !important;
+    background: #ffffff;
+    border-color: #2563eb;
+    color: #1d4ed8;
 }
 
 .course-button-secondary:hover,
-.course-button-secondary:focus,
-.course-button-secondary:active {
-    background: #eff6ff !important;
-    border-color: #1d4ed8 !important;
-    color: #1e40af !important;
-}
-
-a.btn.course-button,
-a.btn.course-button:visited,
-a.btn.course-button:hover,
-a.btn.course-button:focus,
-a.btn.course-button:active {
-    text-decoration: none !important;
+.course-button-secondary:focus {
+    background: #eff6ff;
+    border-color: #1d4ed8;
+    color: #1e40af;
+    transform: translateY(-1px);
 }
 
 .lumibot-doc-image {
     display: block;
-    margin: 18px auto 42px;
+    margin: 14px auto 18px;
+}
+
+.lumibot-hero-lead p {
+    font-size: clamp(1.15rem, 2vw, 1.35rem);
+    line-height: 1.45;
+    margin: 0;
+    max-width: 820px;
+}
+
+.community-links {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin: 0 auto 34px;
+}
+
+.community-link,
+.community-link:visited {
+    align-items: center;
+    background: var(--color-background-secondary);
+    border: 1px solid var(--color-background-border);
+    border-radius: 10px;
+    color: var(--color-foreground-primary);
+    display: flex;
+    font-size: 0.94rem;
+    font-weight: 700;
+    gap: 9px;
+    justify-content: center;
+    min-height: 48px;
+    padding: 10px 12px;
+    text-decoration: none;
+    transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+
+.community-link:hover,
+.community-link:focus {
+    background: var(--color-background-hover);
+    border-color: var(--color-foreground-border);
+    color: var(--color-foreground-primary);
+    transform: translateY(-1px);
+}
+
+.community-link-icon {
+    border-radius: 0;
+    flex: 0 0 auto;
+    height: 21px;
+    width: 21px;
 }
 
 /* Subtle rounding keeps diagrams and screenshots from looking harsh in dark
@@ -133,16 +181,66 @@ article img:not(.sidebar-logo):not(.only-light):not(.only-dark),
 
     .course-button-secondary,
     .course-button-secondary:visited {
-        background: #111827 !important;
-        border-color: #60a5fa !important;
-        color: #bfdbfe !important;
+        background: #111827;
+        border-color: #60a5fa;
+        color: #bfdbfe;
     }
 
     .course-button-secondary:hover,
-    .course-button-secondary:focus,
-    .course-button-secondary:active {
-        background: #1e3a8a !important;
-        color: #ffffff !important;
+    .course-button-secondary:focus {
+        background: #1e3a8a;
+        color: #ffffff;
+    }
+}
+
+@media (max-width: 600px) {
+    .mobile-header .brand {
+        font-size: 1rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    article h1 {
+        font-size: clamp(2.25rem, 12vw, 2.8rem);
+        line-height: 1;
+        margin: 0.55rem 0 0.7rem;
+    }
+
+    .lumibot-hero-lead p {
+        font-size: 1.05rem;
+        line-height: 1.4;
+    }
+
+    .lumibot-doc-image {
+        margin: 12px auto 14px;
+    }
+
+    .community-links {
+        gap: 7px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin-bottom: 24px;
+    }
+
+    .community-link {
+        flex-direction: column;
+        font-size: 0.78rem;
+        gap: 5px;
+        min-height: 62px;
+        padding: 8px 4px;
+    }
+
+    .community-link-icon {
+        height: 20px;
+        width: 20px;
+    }
+
+    .course-cta-row {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .course-button {
+        width: 100%;
     }
 }
 

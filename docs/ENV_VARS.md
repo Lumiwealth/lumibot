@@ -335,7 +335,7 @@ For cache key layout and validation workflow, see `docs/remote_cache.md`.
 
 ## Portfolio listener
 
-### `LUMIBOT_PORTFOLIO_LISTENER_URL`
+### `LISTENER_WRITE_URL`
 - Purpose: Select the portfolio-listener write endpoint for live account updates.
 - Values: An HTTPS URL controlled by the deployment environment.
 - Default: `https://listener.lumiwealth.com/portfolio_events`.

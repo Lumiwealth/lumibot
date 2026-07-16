@@ -3909,7 +3909,7 @@ class _Strategy:
         self.logger.debug(f"Number of cash events: {len(cash_events)}")
 
         listener_url = (
-            os.environ.get("LUMIBOT_PORTFOLIO_LISTENER_URL", "").strip()
+            os.environ.get("LISTENER_WRITE_URL", "").strip()
             or "https://listener.lumiwealth.com/portfolio_events"
         )
 

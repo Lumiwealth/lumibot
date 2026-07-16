@@ -165,7 +165,7 @@ setuptools.setup(
         "Bug Tracker": "https://github.com/Lumiwealth/lumibot/issues",
         "Source Code": "https://github.com/Lumiwealth/lumibot",
         "Reddit Community": "https://www.reddit.com/r/BotSpotTrade/",
-        "Discord Community": "https://discord.gg/lumiwealth",
+        "Discord Community": "https://discord.gg/4R9j6T3PN8",
         "BotSpot Platform": "https://botspot.trade/",
     },
     python_requires=">=3.10",

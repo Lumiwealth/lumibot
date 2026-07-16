@@ -1,7 +1,9 @@
-Lumibot: Backtestable AI Agents and Python Algorithmic Trading
-==============================================================
+Lumibot
+=======
 
-**Build deterministic trading strategies, AI trading agents, and AI trading teams for stocks, options, crypto, futures, forex, prediction markets, SEC filings, FRED macro data, technical indicators, and real brokers. Backtest, paper trade, or run live with the same Python code.**
+.. container:: lumibot-hero-lead
+
+   **Build, backtest, and run algorithmic trading strategies and AI agents in Python.**
 
 .. image:: ../docs/assets/home/lumibot_strategy_lifecycle_homepage.png
    :alt: Lumibot strategy lifecycle from market data and filings to Python rules, AI agents, backtest reports, paper trading, and live brokers

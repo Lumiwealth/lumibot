@@ -1,5 +1,13 @@
 {% extends "!base.html" %}
 
+{% block htmltitle %}
+{% if pagename == master_doc %}
+<title>{{ title|striptags|e }}</title>
+{% else %}
+<title>{{ title|striptags|e }} - Lumibot</title>
+{% endif %}
+{% endblock %}
+
 {% block extrahead %}
 {{ super() }}
 {% set page_url = 'https://lumibot.lumiwealth.com/' if pagename == 'index' else 'https://lumibot.lumiwealth.com/' ~ pagename ~ '.html' %}
@@ -37,7 +45,9 @@
         "height": 852
       },
       "sameAs": [
-        "https://github.com/Lumiwealth/lumibot"
+        "https://github.com/Lumiwealth/lumibot",
+        "https://www.reddit.com/r/BotSpotTrade/",
+        "https://discord.gg/lumiwealth"
       ]
     },
     {

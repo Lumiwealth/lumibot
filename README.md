@@ -11,6 +11,15 @@
 **Full docs:** [lumibot.lumiwealth.com](https://lumibot.lumiwealth.com/) · **Managed cloud:** [BotSpot.trade](https://botspot.trade/sales?showLogin=1&utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=top_text_link&sample=lumibot_readme_deploy) · **MCP:** [BotSpot for AI coding agents](https://botspot.trade/agents?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=top_mcp_link)
 
 <p align="center">
+  <strong>🌐 Source and community</strong><br><br>
+  <a href="https://github.com/Lumiwealth/lumibot"><img src="https://cdn.simpleicons.org/github/6e7681" alt="GitHub" width="20" height="20"> GitHub</a>
+  &nbsp;&nbsp;&nbsp;
+  <a href="https://www.reddit.com/r/BotSpotTrade/"><img src="https://cdn.simpleicons.org/reddit/ff4500" alt="Reddit" width="20" height="20"> Reddit Community</a>
+  &nbsp;&nbsp;&nbsp;
+  <a href="https://discord.gg/lumiwealth"><img src="https://cdn.simpleicons.org/discord/5865f2" alt="Discord" width="20" height="20"> Discord Community</a>
+</p>
+
+<p align="center">
   <img src="docs/assets/readme/lumibot_ai_trading_agents_overview.png" alt="Lumibot AI trading agents overview" width="100%">
 </p>
 

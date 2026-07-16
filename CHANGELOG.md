@@ -7,6 +7,11 @@
   `LISTENER_WRITE_URL` lets BotSpot development workloads publish
   account observations to an isolated development listener while preserving the
   existing production endpoint as the compatibility default.
+- **Scheduled strategies can prepare data safely while markets are closed.**
+  An explicit `closed_market_prepare` target event invokes a dedicated strategy
+  lifecycle with supported broker order mutations blocked, allowing a later
+  market-open task to consume externally persisted plans without enabling
+  after-hours trading.
 
 ## 4.5.77 - Unreleased
 

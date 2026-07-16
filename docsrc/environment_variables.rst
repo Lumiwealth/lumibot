@@ -868,8 +868,8 @@ LISTENER_WRITE_URL
 - Purpose: Portfolio-listener write endpoint used by live cloud account updates.
 - Values: HTTPS URL supplied by the deployment environment.
 - Default: ``https://listener.lumiwealth.com/portfolio_events``.
-- Note: BotSpot development runtimes set this explicitly so synthetic and QA
-  account observations stay isolated from production.
+- Note: Custom or isolated deployments can set this explicitly to keep account
+  observations separate from the default listener.
 
 Runtime telemetry (memory/health)
 ---------------------------------

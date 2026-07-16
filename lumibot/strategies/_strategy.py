@@ -3962,7 +3962,12 @@ class _Strategy:
             self.logger.debug(f"Sending {data_size_kb:.2f} KB of data to {listener_url}")
             self.logger.debug(f"Request headers: {headers}")
 
-            response = requests.post(listener_url, headers=headers, data=json_data)
+            response = requests.post(
+                listener_url,
+                headers=headers,
+                data=json_data,
+                timeout=10,
+            )
 
             self.logger.debug(f"Cloud response: Status={response.status_code}, Headers={dict(response.headers)}")
 

@@ -340,8 +340,8 @@ For cache key layout and validation workflow, see `docs/remote_cache.md`.
 - Purpose: Select the portfolio-listener write endpoint for live account updates.
 - Values: An HTTPS URL controlled by the deployment environment.
 - Default: `https://listener.lumiwealth.com/portfolio_events`.
-- BotSpot development workloads must set the isolated development endpoint
-  explicitly; production-compatible third-party runs may rely on the default.
+- Custom or isolated deployments can set this endpoint explicitly; otherwise,
+  runs rely on the default.
 
 ## Runtime telemetry (memory/health)
 

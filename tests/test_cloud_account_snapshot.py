@@ -99,6 +99,7 @@ def test_cloud_update_uses_production_listener_for_blank_override(monkeypatch):
 def test_cloud_update_uses_configured_listener(monkeypatch):
     strategy = _fake_strategy(balances_updated=True)
     urls = []
+    timeouts = []
 
     monkeypatch.setenv(
         "LISTENER_WRITE_URL",
@@ -106,11 +107,16 @@ def test_cloud_update_uses_configured_listener(monkeypatch):
     )
     monkeypatch.setattr(
         "lumibot.strategies._strategy.requests.post",
-        lambda url, **_kwargs: urls.append(url) or _Response(),
+        lambda url, **kwargs: (
+            urls.append(url),
+            timeouts.append(kwargs.get("timeout")),
+            _Response(),
+        )[-1],
     )
 
     assert _Strategy.send_update_to_cloud(strategy) is not False
     assert urls == ["https://listener.dev.example/portfolio_events"]
+    assert timeouts == [10]
 
 
 def test_cloud_update_refreshes_positions_before_publish(monkeypatch):

@@ -6,9 +6,9 @@ Deploy marker: this release's `deploy 4.5.78` commit.
 
 ### Added
 - **Live portfolio updates can target an environment-specific listener.**
-  `LISTENER_WRITE_URL` lets BotSpot development workloads publish
-  account observations to an isolated development listener while preserving the
-  existing production endpoint as the compatibility default.
+  `LISTENER_WRITE_URL` allows account observations to be published to a custom
+  listener while preserving the existing production endpoint as the
+  compatibility default.
 - **Scheduled strategies can prepare data safely while markets are closed.**
   An explicit `closed_market_prepare` target event invokes a dedicated strategy
   lifecycle with supported broker order mutations blocked, allowing a later

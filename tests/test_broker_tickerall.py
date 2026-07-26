@@ -4,6 +4,7 @@ The hosted-API client is mocked, so these run in CI with no network or
 credentials. The whole module is skipped if the optional ``tickerall`` package
 is not installed.
 """
+import os
 import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -231,12 +232,40 @@ class TestTickerAllBroker(unittest.TestCase):
     def _tracked_pending(self, broker, identifier="555"):
         """Track a pending limit order as active (as after a real submit)."""
         broker.stream = None  # do_polling processes events inline
+        self.client.history.orders.return_value = []  # default: no history match
         o = Order("s", Asset("EURUSDm", asset_type="forex"), 0.1, "buy",
                   order_type=Order.OrderType.LIMIT, limit_price=1.0)
         o.set_identifier(identifier)
         o.update_raw({})
         broker._process_trade_event(o, broker.NEW_ORDER)
         return o
+
+    def test_do_polling_history_reports_fill_when_position_netted_to_zero(self):
+        # A pending order that fills and nets a netting position to exactly zero
+        # leaves NO position in the snapshot; history (deal_count > 0) must still
+        # report it as FILLED, not CANCELED.
+        broker = self._broker()
+        o = self._tracked_pending(broker, identifier="600")
+        self.client.orders.list_pending.return_value = []
+        self.client.accounts.get.return_value = _account_detail(positions=[])  # net zero -> no position
+        self.client.history.orders.return_value = [
+            SimpleNamespace(order_ticket="600", symbol="EURUSDm", side="BUY", volume=0.1,
+                            price=1.0, time="", position_id="0", state="filled", deal_count=1),
+        ]
+        broker.do_polling()
+        self.assertTrue(o.is_filled())
+
+    def test_do_polling_history_deal_count_zero_is_cancel(self):
+        broker = self._broker()
+        o = self._tracked_pending(broker, identifier="601")
+        self.client.orders.list_pending.return_value = []
+        self.client.accounts.get.return_value = _account_detail(positions=[])
+        self.client.history.orders.return_value = [
+            SimpleNamespace(order_ticket="601", symbol="EURUSDm", side="BUY", volume=0.1,
+                            price=1.0, time="", position_id="0", state="canceled", deal_count=0),
+        ]
+        broker.do_polling()
+        self.assertTrue(o.is_canceled())
 
     def test_do_polling_fills_pending_when_position_appears(self):
         # A tracked pending order that left the broker list AND has a matching
@@ -309,6 +338,20 @@ class TestTickerAllData(unittest.TestCase):
 
     def test_get_chains_empty(self):
         self.assertEqual(self.ds.get_chains(Asset("EURUSDm", asset_type="forex")), {})
+
+    def test_env_var_credentials(self):
+        # The documented TICKERALL_* environment variables must authenticate and
+        # select an account with no config dict passed.
+        with patch.dict(os.environ, {"TICKERALL_API_KEY": "envkey", "TICKERALL_ACCOUNT_ID": "envacct"}, clear=False):
+            ds = TickerAllData({})
+        self.MockTA.assert_called_with(api_key="envkey")
+        self.assertEqual(ds._configured_account_id, "envacct")
+
+    def test_symbol_fetch_failure_not_cached(self):
+        # A transient symbol-fetch failure must not be cached permanently.
+        self.client.accounts.symbols.side_effect = [Exception("hiccup"), ["EURUSDm", "BTCUSDm"]]
+        self.assertEqual(self.ds._ensure_symbols(), [])  # first call fails, returns []
+        self.assertEqual(self.ds._ensure_symbols(), ["EURUSDm", "BTCUSDm"])  # retries, succeeds
 
 
 if __name__ == "__main__":

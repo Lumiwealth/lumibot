@@ -15,6 +15,7 @@ License: MIT
 from __future__ import annotations
 
 import datetime as dt
+import os
 from decimal import Decimal
 from threading import RLock
 
@@ -60,7 +61,13 @@ class TickerAllData(DataSource):
         self.name = "tickerall"
         self._config = config or {}
 
-        api_key = self._cfg("API_KEY") or self._cfg("TICKERALL_API_KEY")
+        # Credentials come from the config dict, and fall back to the documented
+        # TICKERALL_* environment variables so either path works.
+        api_key = (
+            self._cfg("API_KEY")
+            or self._cfg("TICKERALL_API_KEY")
+            or os.environ.get("TICKERALL_API_KEY")
+        )
         if not api_key:
             raise ValueError(
                 "TickerAll data source requires an API key. Set config['API_KEY'] "
@@ -76,10 +83,14 @@ class TickerAllData(DataSource):
                 "Install it with: pip install tickerall"
             ) from e
 
-        base_url = self._cfg("BASE_URL")
+        base_url = self._cfg("BASE_URL") or os.environ.get("TICKERALL_BASE_URL")
         self.api = Tickerall(api_key=api_key, base_url=base_url) if base_url else Tickerall(api_key=api_key)
 
-        self._configured_account_id = self._cfg("ACCOUNT_ID")
+        self._configured_account_id = (
+            self._cfg("ACCOUNT_ID")
+            or self._cfg("TICKERALL_ACCOUNT_ID")
+            or os.environ.get("TICKERALL_ACCOUNT_ID")
+        )
         self._account_id: str | None = None
         self._symbols: list | None = None
         self._stream = None
@@ -128,8 +139,11 @@ class TickerAllData(DataSource):
                     try:
                         self._symbols = list(self.api.accounts.symbols(self.account_id))
                     except Exception as e:  # pragma: no cover - network dependent
+                        # Do NOT cache the failure - leave _symbols None so a
+                        # transient hiccup retries on the next call instead of
+                        # permanently disabling symbol resolution.
                         logger.warning(f"Could not fetch symbol list from TickerAll: {e}")
-                        self._symbols = []
+                        return []
         return self._symbols
 
     def resolve_symbol(self, asset: Asset | str) -> str:

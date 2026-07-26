@@ -538,12 +538,35 @@ class TickerAll(Broker):
                 # We cancelled it; the cancel event was already dispatched.
                 self._cancelled_tickets.discard(str(order.identifier))
                 continue
-            # Left the pending list without our cancel: filled if a position
-            # for the asset now exists, otherwise treat as canceled externally.
-            if order.asset.symbol in open_positions:
+            # Left the pending list without our cancel. A fill that nets a
+            # netting position to exactly zero removes the position from the
+            # snapshot, so "a position exists" is not a reliable filled/canceled
+            # signal. Resolve it from the order's terminal state in history
+            # (deal_count > 0 means it produced a fill), and only fall back to
+            # the position-existence check when history is unavailable.
+            terminal = self._pending_terminal_state(order.identifier)
+            filled = (terminal == "filled") if terminal is not None else (order.asset.symbol in open_positions)
+            if filled:
                 price = order.limit_price or order.stop_price or order.avg_fill_price or 0.0
                 self._process_trade_event(
                     order, self.FILLED_ORDER, price=float(price), filled_quantity=float(order.quantity)
                 )
             else:
                 self._process_trade_event(order, self.CANCELED_ORDER)
+
+    def _pending_terminal_state(self, identifier):
+        """Resolve whether a pending order that left the book was filled or
+        canceled, from recent order history. ``deal_count > 0`` (or a filled
+        state) means it produced a fill. Returns 'filled', 'canceled', or None
+        when it cannot be determined.
+        """
+        try:
+            for h in self.api.history.orders(self.account_id, limit=50):
+                if str(h.order_ticket) == str(identifier):
+                    dealt = int(getattr(h, "deal_count", 0) or 0) > 0
+                    if dealt or "fill" in str(getattr(h, "state", "")).lower():
+                        return "filled"
+                    return "canceled"
+        except Exception as e:
+            logger.debug(f"Could not resolve terminal state for order {identifier}: {e}")
+        return None

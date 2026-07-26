@@ -10,10 +10,16 @@ Python package, which is Windows-only and requires a running terminal.
 How to Use TickerAll
 --------------------
 
-1. Create an account at `tickerall.com <https://tickerall.com>`_ and connect one
+1. Install Lumibot with the optional TickerAll dependency:
+
+   .. code-block:: shell
+
+       pip install lumibot[tickerall]
+
+2. Create an account at `tickerall.com <https://tickerall.com>`_ and connect one
    or more MetaTrader 5 broker accounts in the dashboard.
-2. Generate an API key.
-3. Set the environment variables below (or pass a ``config`` dict to the broker).
+3. Generate an API key.
+4. Set the environment variables below (or pass a ``config`` dict to the broker).
 
 The hosted API supports market data (historical bars, last price, quotes),
 account balances and open positions, and order management (market, limit and

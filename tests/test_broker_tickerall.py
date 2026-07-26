@@ -119,6 +119,20 @@ class TestTickerAllBroker(unittest.TestCase):
         positions = broker._pull_positions("s")
         self.assertEqual(float(positions[0].quantity), 0.15)
 
+    def test_hedging_positions_aggregate_to_net(self):
+        # A hedging account can hold several positions per symbol; they must
+        # aggregate into one net Lumibot position (BUY +, SELL -), tracking
+        # every underlying ticket for closing.
+        broker = self._broker()
+        self.client.accounts.get.return_value = _account_detail(positions=[
+            _position(ticket=1, symbol="EURUSDm", side="BUY", volume=0.2),
+            _position(ticket=2, symbol="EURUSDm", side="SELL", volume=0.05),
+        ])
+        positions = broker._pull_positions("s")
+        self.assertEqual(len(positions), 1)  # one net position, not two colliding
+        self.assertAlmostEqual(float(positions[0].quantity), 0.15)  # 0.20 - 0.05
+        self.assertEqual(sorted(positions[0].broker_tickets), [1, 2])
+
     # ── order type mapping ──────────────────────────────────────────────────────
     def test_submit_market_order_dispatches_fill(self):
         broker = self._broker()
@@ -192,6 +206,58 @@ class TestTickerAllBroker(unittest.TestCase):
         order.status = "new"
         broker.cancel_order(order)
         self.client.orders.cancel_pending.assert_called_once_with("acc1", 777)
+
+    def test_cancel_order_proceeds_on_cancelling_status(self):
+        # Strategy.cancel_order sets status to "cancelling" right before calling
+        # the broker; is_canceled() treats "cancelling" as canceled, so the guard
+        # must NOT skip on it (otherwise the broker cancel never fires).
+        broker = self._broker()
+        order = Order("s", Asset("EURUSDm", asset_type="forex"), 0.1, "buy", order_type=Order.OrderType.LIMIT,
+                      limit_price=1.05)
+        order.set_identifier("778")
+        order.status = "cancelling"
+        broker.cancel_order(order)
+        self.client.orders.cancel_pending.assert_called_once_with("acc1", 778)
+
+    def test_cancel_order_skips_terminal(self):
+        broker = self._broker()
+        order = Order("s", Asset("EURUSDm", asset_type="forex"), 0.1, "buy", order_type=Order.OrderType.LIMIT,
+                      limit_price=1.05)
+        order.set_identifier("779")
+        order.status = "canceled"
+        broker.cancel_order(order)
+        self.client.orders.cancel_pending.assert_not_called()
+
+    def _tracked_pending(self, broker, identifier="555"):
+        """Track a pending limit order as active (as after a real submit)."""
+        broker.stream = None  # do_polling processes events inline
+        o = Order("s", Asset("EURUSDm", asset_type="forex"), 0.1, "buy",
+                  order_type=Order.OrderType.LIMIT, limit_price=1.0)
+        o.set_identifier(identifier)
+        o.update_raw({})
+        broker._process_trade_event(o, broker.NEW_ORDER)
+        return o
+
+    def test_do_polling_fills_pending_when_position_appears(self):
+        # A tracked pending order that left the broker list AND has a matching
+        # position -> reconciled as FILLED.
+        broker = self._broker()
+        o = self._tracked_pending(broker)
+        self.client.orders.list_pending.return_value = []
+        self.client.accounts.get.return_value = _account_detail(
+            positions=[_position(symbol="EURUSDm", side="BUY", volume=0.1)]
+        )
+        broker.do_polling()
+        self.assertTrue(o.is_filled())
+
+    def test_do_polling_cancels_pending_when_no_position(self):
+        # A tracked pending order that vanished with no matching position -> CANCELED.
+        broker = self._broker()
+        o = self._tracked_pending(broker, identifier="556")
+        self.client.orders.list_pending.return_value = []
+        self.client.accounts.get.return_value = _account_detail(positions=[])
+        broker.do_polling()
+        self.assertTrue(o.is_canceled())
 
 
 class TestTickerAllData(unittest.TestCase):

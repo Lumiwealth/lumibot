@@ -17,6 +17,10 @@ Design notes
   placed; their eventual state is reconciled by the polling loop, and open
   positions are always kept in sync from the broker snapshot (the source of
   truth for what is actually open).
+- Closing positions: ``close_position`` / ``sell_all`` use the hosted API's
+  NATIVE position-close (by ticket) rather than the base broker's offsetting
+  sell order. On a netting account this flattens cleanly and avoids leaving a
+  transient phantom position in the tracker.
 - Asset type: MT5 instruments are addressed by a single opaque symbol string
   (e.g. ``EURUSDm``, ``XAUUSDm``, ``BTCUSD``). This integration treats every MT5
   instrument under a single canonical asset type (``forex``) so that positions
@@ -142,44 +146,57 @@ class TickerAll(Broker):
         return {"hourly": None, "daily": None}
 
     # ── positions ────────────────────────────────────────────────────────────
-    def _parse_broker_position(self, position, strategy):
+    def _net_position(self, plist, strategy):
+        """Aggregate the broker positions for one symbol into a single net
+        Lumibot position (BUY +, SELL -).
+
+        A netting account has at most one position per symbol; a HEDGING account
+        can hold several (long and short) at once. Lumibot keys positions on the
+        asset (one per symbol), so we present the net exposure and remember every
+        underlying ticket for closing.
+        """
         from lumibot.entities import Position
 
-        symbol = position.symbol
-        asset = self._asset_from_symbol(symbol)
-        volume = float(position.volume)
-        # SHORT positions carry a negative quantity in Lumibot.
-        quantity = -volume if str(position.side).upper() == "SELL" else volume
-        entry = float(position.entry_price) if position.entry_price is not None else None
+        net = notional = total_vol = pnl = 0.0
+        current = None
+        tickets = []
+        for p in plist:
+            vol = float(p.volume)
+            net += -vol if str(p.side).upper() == "SELL" else vol
+            total_vol += vol
+            if p.entry_price is not None:
+                notional += vol * float(p.entry_price)
+            if p.profit is not None:
+                pnl += float(p.profit)
+            if current is None and p.current_price is not None:
+                current = float(p.current_price)
+            tickets.append(int(p.ticket))
 
-        pos = Position(strategy, asset, quantity, avg_fill_price=entry)
+        asset = self._asset_from_symbol(plist[0].symbol)
+        avg = (notional / total_vol) if total_vol else None
+        pos = Position(strategy, asset, round(net, 8), avg_fill_price=avg)
         # Fields Lumibot attaches dynamically (not constructor args).
-        if position.current_price is not None:
-            pos.current_price = float(position.current_price)
-        if position.profit is not None:
-            pos.pnl = float(position.profit)
-        # Keep the broker ticket for closing/reconciliation.
-        pos.broker_ticket = int(position.ticket)
+        if current is not None:
+            pos.current_price = current
+        pos.pnl = pnl
+        pos.broker_tickets = tickets  # every underlying ticket (hedging may have >1)
+        pos.broker_ticket = tickets[0] if tickets else None
         return pos
 
     def _pull_positions(self, strategy) -> list:
         detail = self.api.accounts.get(self.account_id)
         strategy_name = self._strategy_name_from_input(strategy) if strategy is not None else self._strategy_name
-        result = []
+        by_symbol: dict = {}
         for p in detail.positions:
-            parsed = self._parse_broker_position(p, strategy_name)
-            if parsed is not None:
-                result.append(parsed)
-        return result
+            by_symbol.setdefault(p.symbol, []).append(p)
+        return [self._net_position(plist, strategy_name) for plist in by_symbol.values()]
 
     def _pull_position(self, strategy, asset):
         target = self._resolve_symbol(asset)
         detail = self.api.accounts.get(self.account_id)
         strategy_name = self._strategy_name_from_input(strategy) if strategy is not None else self._strategy_name
-        for p in detail.positions:
-            if p.symbol == target:
-                return self._parse_broker_position(p, strategy_name)
-        return None
+        plist = [p for p in detail.positions if p.symbol == target]
+        return self._net_position(plist, strategy_name) if plist else None
 
     # ── orders (pull side) ───────────────────────────────────────────────────
     def _pull_broker_all_orders(self) -> list:
@@ -333,6 +350,12 @@ class TickerAll(Broker):
         """Dispatch NEW then FILLED for a synchronously-filled market order."""
         self._dispatch(self.NEW_ORDER, order=order)
         self._dispatch(self.FILLED_ORDER, order=order, price=price, filled_quantity=quantity)
+        # Force an immediate position reconciliation from the broker snapshot so a
+        # close-via-offset order does not leave a transient phantom position in the
+        # tracker (on a netting account the offsetting fill nets to flat).
+        stream = getattr(self, "stream", None)
+        if stream is not None:
+            stream.dispatch(self.POLL_EVENT)
 
     def _dispatch(self, event, **payload):
         """Queue an event on the polling stream, or process it inline if no stream."""
@@ -347,7 +370,11 @@ class TickerAll(Broker):
     def cancel_order(self, order) -> None:
         if order is None or not order.identifier:
             return
-        if order.is_filled() or order.is_canceled():
+        # Skip only if the order is already terminal. Do NOT skip on a local
+        # "cancelling" status - the caller sets that right before calling this,
+        # and is_canceled() treats "cancelling" as canceled. (Broker adapters
+        # must not treat local CANCELLING as terminal before sending the cancel.)
+        if order.is_filled() or str(order.status).lower() in ("canceled", "cancelled", "expired"):
             return
         try:
             self.api.orders.cancel_pending(self.account_id, int(order.identifier))
@@ -372,6 +399,62 @@ class TickerAll(Broker):
                 order.stop_price = stop_price
         except Exception as e:
             logger.error(_colored(f"Could not modify order {order}: {e}", "red"))
+
+    # ── closing positions ────────────────────────────────────────────────────
+    def close_position(self, strategy_name: str, asset, fraction: float = 1.00):
+        """Close a position using the hosted API's NATIVE position-close.
+
+        MT5 positions are closed directly by ticket, not by an offsetting order.
+        Using the native close (rather than the base broker's offsetting sell)
+        flattens cleanly on a netting account and avoids the transient phantom
+        position an offsetting-order fill would leave in the tracker.
+        """
+        symbol = self._resolve_symbol(asset)
+        closed = 0
+        for p in self.api.accounts.get(self.account_id).positions:
+            if p.symbol != symbol:
+                continue
+            vol = round(float(p.volume) * float(fraction), 8) if fraction and float(fraction) < 1.0 else None
+            try:
+                self.api.positions.close(self.account_id, int(p.ticket), volume=vol)
+                closed += 1
+            except Exception as e:
+                logger.error(_colored(f"Could not close position {p.ticket}: {e}", "red"))
+        if closed:
+            self._force_position_sync()
+        return None
+
+    def sell_all(self, strategy_name, cancel_open_orders=True, strategy=None, is_multileg=False):
+        """Flatten all positions via the native position-close (see close_position)."""
+        logger.warning(_colored(f"Closing all positions for {strategy_name}", "yellow"))
+        if cancel_open_orders:
+            self.cancel_open_orders(strategy_name)
+        closed = 0
+        for p in self.api.accounts.get(self.account_id).positions:
+            try:
+                self.api.positions.close(self.account_id, int(p.ticket))
+                closed += 1
+            except Exception as e:
+                logger.error(_colored(f"Could not close position {p.ticket}: {e}", "red"))
+        if closed:
+            self._force_position_sync()
+
+    def cancel_open_orders(self, strategy_name=None):
+        """Cancel every pending order at the broker."""
+        for o in self._pull_broker_all_orders():
+            try:
+                self.api.orders.cancel_pending(self.account_id, int(o.ticket))
+                self._cancelled_tickets.add(str(o.ticket))
+            except Exception as e:
+                logger.error(_colored(f"Could not cancel pending order {o.ticket}: {e}", "red"))
+
+    def _force_position_sync(self):
+        """Reconcile the tracker from the broker snapshot right away."""
+        stream = getattr(self, "stream", None)
+        if stream is not None:
+            stream.dispatch(self.POLL_EVENT)
+        else:
+            self.sync_positions(None)
 
     # ── polling stream ───────────────────────────────────────────────────────
     def _get_stream_object(self):

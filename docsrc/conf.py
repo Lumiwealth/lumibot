@@ -11,8 +11,9 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
+import subprocess
 import sys
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -118,6 +119,29 @@ html_js_files = ["posthog.js"]
 html_extra_path = ["_extra"]
 
 
+def _source_lastmod(source: Path, repository_root: Path | None = None) -> str:
+    """Return the latest committed date for a documentation source file."""
+
+    repo_root = repository_root or Path(__file__).resolve().parent.parent
+    try:
+        relative_source = source.resolve().relative_to(repo_root.resolve())
+        result = subprocess.run(
+            ["git", "log", "-1", "--format=%cs", "--", relative_source.as_posix()],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        committed_date = result.stdout.strip()
+        if committed_date:
+            return date.fromisoformat(committed_date).isoformat()
+    except (OSError, ValueError, subprocess.SubprocessError):
+        pass
+
+    return datetime.fromtimestamp(source.stat().st_mtime).date().isoformat()
+
+
 def _generate_sitemap() -> None:
     """Generate sitemap.xml from the docs source tree before Sphinx copies _extra.
 
@@ -130,7 +154,7 @@ def _generate_sitemap() -> None:
     docs_root = Path(__file__).resolve().parent
     extra_root = docs_root / "_extra"
     extra_root.mkdir(parents=True, exist_ok=True)
-    urls: set[str] = set()
+    urls: dict[str, Path] = {}
 
     for source in docs_root.rglob("*.rst"):
         relative = source.relative_to(docs_root)
@@ -142,20 +166,19 @@ def _generate_sitemap() -> None:
             continue
         html_path = relative.with_suffix(".html").as_posix()
         if html_path == "index.html":
-            urls.add("https://lumibot.lumiwealth.com/")
-        urls.add(f"https://lumibot.lumiwealth.com/{html_path}")
+            urls["https://lumibot.lumiwealth.com/"] = source
+        urls[f"https://lumibot.lumiwealth.com/{html_path}"] = source
 
-    today = date.today().isoformat()
     lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
     ]
-    for url in sorted(urls):
+    for url, source in sorted(urls.items()):
         lines.extend(
             [
                 "  <url>",
                 f"    <loc>{escape(url)}</loc>",
-                f"    <lastmod>{today}</lastmod>",
+                f"    <lastmod>{_source_lastmod(source, docs_root.parent)}</lastmod>",
                 "  </url>",
             ]
         )

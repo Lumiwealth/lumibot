@@ -4,14 +4,15 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_readme_promotes_reddit_before_discord_with_brand_icons():
+def test_readme_promotes_reddit_before_discord_without_linking_to_itself():
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
 
     reddit = "https://www.reddit.com/r/BotSpotTrade/"
-    discord = "https://discord.gg/lumiwealth"
+    discord = "https://discord.gg/4R9j6T3PN8"
 
     assert "cdn.simpleicons.org" not in readme
-    assert "docs/assets/community/github.svg" in readme
+    assert "docs/assets/community/github.svg" not in readme
+    assert "> GitHub</a>" not in readme
     assert "docs/assets/community/reddit.svg" in readme
     assert "docs/assets/community/discord.svg" in readme
     assert reddit in readme
@@ -30,7 +31,7 @@ def test_docs_navigation_and_mobile_brand_stay_compact():
     reddit_label = (
         "Reddit Community <https://www.reddit.com/r/BotSpotTrade/>"
     )
-    discord_label = "Discord Community <https://discord.gg/lumiwealth>"
+    discord_label = "Discord Community <https://discord.gg/4R9j6T3PN8>"
 
     assert index.index(github_label) < index.index(reddit_label)
     assert index.index(reddit_label) < index.index(discord_label)

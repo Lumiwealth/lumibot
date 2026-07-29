@@ -102,6 +102,7 @@ Detailed Comparisons
    lumibot_vs_ai_hedge_fund
    lumibot_vs_openalice
    lumibot_vs_quantdinger
+   lumibot_vs_lean
 
 Why Lumibot Is Different
 ************************
@@ -130,3 +131,18 @@ Backtesting does not prove that a strategy will make money in the future. It
 does something more practical: it forces the agent, tools, prompts, Python
 guardrails, and broker-facing order logic to run through a repeatable trading
 lifecycle before you trust it with real execution.
+
+Source And Verification Method
+******************************
+
+This page compares product roles and documented capabilities, not investment
+returns. Project claims were checked against each project's public
+documentation or source repository on July 28, 2026. Capabilities can change,
+so use the linked primary sources before making a technical decision.
+
+- `Lumibot documentation <https://lumibot.lumiwealth.com/>`_
+- `TradingAgents source repository <https://github.com/TauricResearch/TradingAgents>`_
+- `ai-hedge-fund source repository <https://github.com/virattt/ai-hedge-fund>`_
+- `OpenAlice documentation <https://www.openalice.ai/docs/getting-started/what-is-openalice>`_
+- `QuantDinger source repository <https://github.com/brokermr810/QuantDinger>`_
+- `QuantConnect LEAN documentation <https://www.quantconnect.com/docs/v2/lean-engine>`_

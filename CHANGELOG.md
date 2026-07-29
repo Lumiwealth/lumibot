@@ -1,5 +1,24 @@
 # Changelog
 
+## 4.5.79 - Unreleased
+
+### Added
+- **Public framework comparisons now include QuantConnect LEAN and primary
+  sources.** The documentation comparison hub identifies the verification date,
+  links to official project documentation, and explains the product roles and
+  limitations without claiming a universal winner.
+
+### Changed
+- **Documentation sitemap dates now reflect source changes.** Each public page
+  uses its latest committed source date instead of making every page appear
+  updated whenever the documentation build runs.
+
+### Removed
+- **The scheduled closed-market preparation lifecycle has been removed.**
+  Scheduled runs again follow the normal market-calendar lifecycle. Strategies
+  that need after-hours preparation should explicitly configure their market
+  behavior and enforce their own session-aware order gates.
+
 ## 4.5.78 - 2026-07-16
 
 Deploy marker: this release's `deploy 4.5.78` commit.

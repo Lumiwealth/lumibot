@@ -7,6 +7,16 @@
   sources.** The documentation comparison hub identifies the verification date,
   links to official project documentation, and explains the product roles and
   limitations without claiming a universal winner.
+- **Multi-asset market-data reads now preserve safe per-asset failures.**
+  Successful assets remain available while unavailable assets include a
+  normalized category, error type, and retryability without exposing provider
+  response bodies or credentials.
+
+### Fixed
+- **Bulk historical reads now pass session selection through the provider-neutral
+  data-source interface.** Every supported broker receives the same
+  `include_after_hours` option through LumiBot rather than requiring a
+  provider-specific caller.
 
 ### Changed
 - **Documentation sitemap dates now reflect source changes.** Each public page

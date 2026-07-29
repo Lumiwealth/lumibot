@@ -24,12 +24,6 @@ if TYPE_CHECKING:
     from lumibot.entities import Bars, Quote
 
 
-def _format_exc():
-    import traceback
-
-    return traceback.format_exc()
-
-
 def _create_options_symbol(*args, **kwargs):
     from lumibot.tools import create_options_symbol
 
@@ -40,6 +34,34 @@ def _black_scholes():
     from lumibot.tools import black_scholes
 
     return black_scholes
+
+
+class MultiAssetBarsResult(dict):
+    """Asset-to-bars mapping with sanitized per-asset error metadata."""
+
+    def __init__(self, *args, errors=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.errors = errors or {}
+
+
+def _normalized_data_error(error):
+    status_code = getattr(error, "status_code", None)
+    response = getattr(error, "response", None)
+    if status_code is None and response is not None:
+        status_code = getattr(response, "status_code", None)
+    if status_code in {401, 403}:
+        category = "authorization"
+    elif status_code == 429:
+        category = "rate_limit"
+    elif isinstance(error, NotImplementedError):
+        category = "unsupported"
+    else:
+        category = "unavailable"
+    return {
+        "category": category,
+        "errorType": type(error).__name__,
+        "retryable": category in {"rate_limit", "unavailable"},
+    }
 
 
 class DataSource(ABC):
@@ -445,6 +467,7 @@ class DataSource(ABC):
 
         def process_chunk(chunk):
             chunk_result = {}
+            chunk_errors = {}
             for asset in chunk:
                 if isinstance(asset, tuple):
                     base_asset = asset[0]
@@ -467,12 +490,17 @@ class DataSource(ABC):
                     if effective_sleep_time:
                         time.sleep(effective_sleep_time)
                 except Exception as e:
-                    # Log once per asset to avoid spamming with a huge traceback
-                    logger.warning(f"Error retrieving data for {base_asset.symbol}: {e}")
-                    tb = _format_exc()
-                    logger.warning(tb)  # This prints the traceback
+                    normalized_error = _normalized_data_error(e)
+                    logger.warning(
+                        "Error retrieving data for %s: category=%s error_type=%s retryable=%s",
+                        base_asset.symbol,
+                        normalized_error["category"],
+                        normalized_error["errorType"],
+                        normalized_error["retryable"],
+                    )
                     chunk_result[asset] = None
-            return chunk_result
+                    chunk_errors[asset] = normalized_error
+            return chunk_result, chunk_errors
 
         # Convert strings to Asset objects
         assets = [Asset(symbol=a) if isinstance(a, str) else a for a in assets]
@@ -481,15 +509,18 @@ class DataSource(ABC):
         chunks = [assets[i : i + chunk_size] for i in range(0, len(assets), chunk_size)]
 
         results = {}
+        errors = {}
         # Reuse thread pool to avoid creation/destruction overhead
         from concurrent.futures import as_completed
 
         executor = self._get_or_create_thread_pool()
         futures = [executor.submit(process_chunk, chunk) for chunk in chunks]
         for future in as_completed(futures):
-            results.update(future.result())
+            chunk_result, chunk_errors = future.result()
+            results.update(chunk_result)
+            errors.update(chunk_errors)
 
-        return results
+        return MultiAssetBarsResult(results, errors=errors)
 
     def get_last_prices(self, assets, quote=None, exchange=None):
         """Takes a list of assets and returns the last known prices"""

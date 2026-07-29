@@ -54,3 +54,50 @@ def test_get_bars_default_sleep_time_applies_in_live(monkeypatch):
     ds.get_bars([Asset("SPY"), Asset("AAPL")], length=1, timestep="minute", chunk_size=1, max_workers=1)
     # One sleep per asset by default.
     assert calls["n"] == 2
+
+
+class _HttpError(RuntimeError):
+    def __init__(self, status_code):
+        super().__init__("sensitive provider response must not cross the boundary")
+        self.status_code = status_code
+
+
+def test_get_bars_preserves_partial_results_with_sanitized_error_metadata(monkeypatch):
+    ds = _DummyDataSource(backtesting=True)
+
+    def _history(*, asset, **_kwargs):
+        if asset.symbol == "RATE":
+            raise _HttpError(429)
+        if asset.symbol == "AUTH":
+            raise _HttpError(401)
+        if asset.symbol == "UNSUPPORTED":
+            raise NotImplementedError("provider detail")
+        return {"symbol": asset.symbol}
+
+    monkeypatch.setattr(ds, "get_historical_prices", _history)
+    assets = [
+        Asset("OK"),
+        Asset("RATE"),
+        Asset("AUTH"),
+        Asset("UNSUPPORTED"),
+    ]
+    result = ds.get_bars(
+        assets,
+        length=10,
+        timestep="day",
+        chunk_size=2,
+        sleep_time=0,
+    )
+
+    assert result[assets[0]] == {"symbol": "OK"}
+    assert result[assets[1]] is None
+    assert result.errors[assets[1]] == {
+        "category": "rate_limit",
+        "errorType": "_HttpError",
+        "retryable": True,
+    }
+    assert result.errors[assets[2]]["category"] == "authorization"
+    assert result.errors[assets[2]]["retryable"] is False
+    assert result.errors[assets[3]]["category"] == "unsupported"
+    assert result.errors[assets[3]]["retryable"] is False
+    assert "sensitive provider response" not in str(result.errors)

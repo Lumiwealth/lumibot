@@ -17,6 +17,13 @@ machine-specific information in this file or any other tracked repo file.
 - If sensitive data is found in tracked files, remove it immediately, scan for
   nearby leaks, and treat exposed credentials as needing rotation.
 
+# Broker Data Ownership
+
+- LumiBot broker and data-source adapters are the sole owners of provider-specific broker market-data and trading API behavior.
+- Public strategy and data-source methods must remain provider-generic. Provider batching, request construction, response parsing, and provider error normalization belong inside the relevant LumiBot adapter.
+- Never add BotSpot credential IDs, Vault references, Node service credentials, or Bot Manager runtime internals to LumiBot public contracts.
+- Multi-asset reads must preserve per-symbol success or failure so callers can distinguish returned and missing symbols without substituting another provider.
+
 # LumiBot Agent Instructions (Theta / Downloader Focus)
 
 These rules are mandatory whenever you work on ThetaData integrations.

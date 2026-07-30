@@ -1,5 +1,23 @@
 # Changelog
 
+## 4.5.81 - 2026-07-30
+
+Deploy marker: `deploy 4.5.81`
+
+### Fixed
+- **IBKR stock and index hourly caches now repair large internal holes lazily.**
+  LumiBot detects gaps longer than a normal market closure, downloads the
+  missing hourly range in bounded pages, merges real bars without deleting the
+  shared cache, and preserves partial progress for a later run. Complete warm
+  caches make no repair requests.
+- **IBKR cache repair no longer lets one symbol starve later symbols.** Daily
+  repair uses a per-series deadline and one bounded range request. Hourly repair
+  has its own deadline, and partial hourly progress is not mislabeled as a
+  24-hour no-data window.
+- **Closed-market request boundaries no longer create false underfill
+  warnings.** Weekend and overnight stock/index boundaries are evaluated
+  against the first market open and last market close.
+
 ## 4.5.80 - 2026-07-30
 
 Deploy marker: `deploy 4.5.80`

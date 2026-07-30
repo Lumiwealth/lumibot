@@ -201,6 +201,50 @@ def test_ibkr_fetch_history_between_dates_keeps_chunks_on_later_empty_page(monke
     assert calls["count"] == 2
 
 
+def test_ibkr_bounded_repair_preserves_pages_before_a_later_error(monkeypatch):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    asset = Asset(symbol="QQQ", asset_type=Asset.AssetType.STOCK)
+    quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
+    monkeypatch.setattr(ibkr_helper, "_resolve_conid", lambda **_kwargs: 123)
+    calls = {"count": 0}
+
+    def _history_request(**_kwargs):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return {
+                "data": [
+                    {
+                        "t": 1760000000000 + offset * 3_600_000,
+                        "o": 100 + offset,
+                        "h": 101 + offset,
+                        "l": 99 + offset,
+                        "c": 100.5 + offset,
+                        "v": 1000,
+                    }
+                    for offset in range(7)
+                ]
+            }
+        raise RuntimeError("provider failed after the first repair page")
+
+    monkeypatch.setattr(ibkr_helper, "_ibkr_history_request", _history_request)
+    result = ibkr_helper._fetch_history_between_dates(
+        asset=asset,
+        quote=quote,
+        timestep="hour",
+        start_dt=datetime(2025, 9, 1, tzinfo=timezone.utc),
+        end_dt=datetime(2025, 10, 31, tzinfo=timezone.utc),
+        exchange=None,
+        include_after_hours=True,
+        source="Trades",
+        source_was_explicit=False,
+        _deadline_monotonic=ibkr_helper.time.perf_counter() + 60,
+    )
+
+    assert len(result) == 7
+    assert calls["count"] == 2
+
+
 def test_ibkr_frame_covers_requested_window_rejects_underfilled_daily_series_and_allows_flat_series():
     import lumibot.tools.ibkr_helper as ibkr_helper
 
@@ -253,6 +297,52 @@ def test_ibkr_frame_covers_requested_window_rejects_underfilled_daily_series_and
             end_dt=flat_idx[-1].to_pydatetime(),
         )
         is True
+    )
+
+
+def test_ibkr_hourly_frame_treats_weekend_start_as_covered():
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    asset = Asset(symbol="QQQ", asset_type=Asset.AssetType.STOCK)
+    frame = pd.DataFrame(
+        {"close": [100.0, 101.0]},
+        index=pd.DatetimeIndex(
+            [
+                "2023-07-31 04:00:00-04:00",
+                "2023-08-01 16:00:00-04:00",
+            ]
+        ),
+    )
+
+    assert ibkr_helper.frame_covers_requested_window(
+        frame,
+        asset=asset,
+        timestep="hour",
+        start_dt=datetime(2023, 7, 30, tzinfo=timezone.utc),
+        end_dt=datetime(2023, 8, 1, 20, tzinfo=timezone.utc),
+    )
+
+
+def test_ibkr_hourly_frame_does_not_hide_missing_final_trading_day():
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    asset = Asset(symbol="QQQ", asset_type=Asset.AssetType.STOCK)
+    frame = pd.DataFrame(
+        {"close": [100.0, 101.0]},
+        index=pd.DatetimeIndex(
+            [
+                "2026-07-28 09:30:00-04:00",
+                "2026-07-29 16:00:00-04:00",
+            ]
+        ),
+    )
+
+    assert not ibkr_helper.frame_covers_requested_window(
+        frame,
+        asset=asset,
+        timestep="hour",
+        start_dt=datetime(2026, 7, 28, 13, 30, tzinfo=timezone.utc),
+        end_dt=datetime(2026, 7, 30, 16, tzinfo=timezone.utc),
     )
 
 

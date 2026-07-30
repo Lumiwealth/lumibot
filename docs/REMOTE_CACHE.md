@@ -110,6 +110,11 @@ Operationally:
   same object first, LumiBot downloads that newer object, merges both versions,
   and retries. Real bars take precedence over no-data placeholders. This avoids
   last-writer-wins data loss without adding an S3 read to the normal warm path.
+* IBKR US stock and index series self-heal known cache gaps when loaded. Daily
+  gaps use one bounded range request per series. Hourly gaps longer than seven
+  days use bounded 2000-hour pages. Partial hourly progress remains retryable,
+  while a genuine empty response receives an expiring no-data marker. No cache
+  purge or namespace cutover is required.
 * Remote uploads run only in `s3_readwrite` mode. The read-only path returns
   early, leaving a TODO hook (`BacktestCacheManager.on_local_update`) for the
   Lambda-triggered workflow.

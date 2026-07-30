@@ -372,12 +372,19 @@ Production containers are ephemeral. Even if S3 is warm:
 - Incomplete cache coverage: you cached EOD but not quote snapshots, or vice versa.
 - Many small objects: even “warm” runs are slow because S3 has to read thousands of tiny files.
 
-IBKR US stock and index day caches are checked for missing completed NYSE sessions when the
-series is loaded. A complete cache stays on the normal warm path with no downloader call and no
-S3 write. If a gap is found, LumiBot requests only the affected month, up to 12 months for that
-series and within a shared 15-second process budget. A timeout leaves the available bars usable
-and does not fail the backtest. Unresolved sessions receive a 24-hour retry marker so repeated
-backtests do not create a downloader storm.
+IBKR US stock and index caches are checked lazily for missing history. Daily
+series compare real bars with completed NYSE sessions and repair the affected
+range with one request under a 45-second per-series deadline. Hourly series
+look only for internal holes longer than seven days, then fetch the missing
+range in 2000-hour pages under a five-minute per-series deadline. The longer
+hourly deadline applies only when a damaged cache is detected.
+
+A complete cache stays on the normal warm path with no downloader call and no
+S3 write. A timeout leaves available bars usable and does not fail the
+backtest. Partial hourly progress is saved without suppressing the next repair.
+Only a genuine empty response receives a 24-hour retry marker, which prevents a
+downloader storm without making a partial cache look complete. Older generic
+missing-window markers do not block the new hourly internal-gap repair.
 
 ### 5.4 Cache design principle: fewer, larger objects
 

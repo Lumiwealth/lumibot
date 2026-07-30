@@ -102,3 +102,29 @@ def test_get_bars_preserves_partial_results_with_sanitized_error_metadata(monkey
     assert result.errors[assets[3]]["errorType"] == "unsupported_operation"
     assert result.errors[assets[3]]["retryable"] is False
     assert "sensitive provider response" not in str(result.errors)
+
+
+def test_get_bars_preserves_tuple_string_failures_as_partial_results(monkeypatch):
+    ds = _DummyDataSource(backtesting=True)
+
+    def _history(*, asset, **_kwargs):
+        if asset == "BTC":
+            raise RuntimeError("provider detail")
+        return {"symbol": asset.symbol}
+
+    monkeypatch.setattr(ds, "get_historical_prices", _history)
+    pair = ("BTC", "USD")
+    result = ds.get_bars(
+        [pair, Asset("SPY")],
+        length=10,
+        timestep="day",
+        chunk_size=2,
+        sleep_time=0,
+    )
+
+    assert result[pair] is None
+    assert result.errors[pair] == {
+        "category": "unavailable",
+        "errorType": "data_unavailable",
+        "retryable": True,
+    }

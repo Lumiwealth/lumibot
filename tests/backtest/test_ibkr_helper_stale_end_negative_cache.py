@@ -23,6 +23,11 @@ def test_ibkr_stale_end_marks_missing_window_to_avoid_repeated_history_fetches(m
         # Disable remote cache; this is a unit test for local parquet behavior.
         monkeypatch.setenv("LUMIBOT_CACHE_BACKEND", "local")
         monkeypatch.setenv("LUMIBOT_CACHE_MODE", "disabled")
+        monkeypatch.setattr(
+            backtest_cache,
+            "CACHE_REMOTE_CONFIG",
+            {"backend": "local", "mode": "disabled"},
+        )
         backtest_cache.reset_backtest_cache_manager(for_testing=True)
 
         # Patch module-level cache root constants (ibkr_helper imports by value).
@@ -136,6 +141,11 @@ def test_ibkr_placeholder_window_suppresses_subwindow_refetch_after_restart(monk
     try:
         monkeypatch.setenv("LUMIBOT_CACHE_BACKEND", "local")
         monkeypatch.setenv("LUMIBOT_CACHE_MODE", "disabled")
+        monkeypatch.setattr(
+            backtest_cache,
+            "CACHE_REMOTE_CONFIG",
+            {"backend": "local", "mode": "disabled"},
+        )
         backtest_cache.reset_backtest_cache_manager(for_testing=True)
 
         monkeypatch.setattr(ibkr_helper, "LUMIBOT_CACHE_FOLDER", str(cache_root))

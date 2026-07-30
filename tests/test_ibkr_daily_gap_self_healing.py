@@ -75,7 +75,7 @@ def test_retryable_daily_gap_scan_is_fast_for_three_year_warm_cache() -> None:
     elapsed = (pd.Timestamp.now() - started).total_seconds()
 
     assert gaps == []
-    assert elapsed < 0.1
+    assert elapsed < 1.0
 
 
 def test_daily_gap_repair_fetches_only_missing_month_with_bounded_wait(

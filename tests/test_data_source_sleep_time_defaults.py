@@ -92,12 +92,13 @@ def test_get_bars_preserves_partial_results_with_sanitized_error_metadata(monkey
     assert result[assets[0]] == {"symbol": "OK"}
     assert result[assets[1]] is None
     assert result.errors[assets[1]] == {
-        "category": "rate_limit",
-        "errorType": "_HttpError",
+        "category": "unavailable",
+        "errorType": "data_unavailable",
         "retryable": True,
     }
-    assert result.errors[assets[2]]["category"] == "authorization"
-    assert result.errors[assets[2]]["retryable"] is False
+    assert result.errors[assets[2]]["category"] == "unavailable"
+    assert result.errors[assets[2]]["retryable"] is True
     assert result.errors[assets[3]]["category"] == "unsupported"
+    assert result.errors[assets[3]]["errorType"] == "unsupported_operation"
     assert result.errors[assets[3]]["retryable"] is False
     assert "sensitive provider response" not in str(result.errors)

@@ -45,22 +45,20 @@ class MultiAssetBarsResult(dict):
 
 
 def _normalized_data_error(error):
-    status_code = getattr(error, "status_code", None)
-    response = getattr(error, "response", None)
-    if status_code is None and response is not None:
-        status_code = getattr(response, "status_code", None)
-    if status_code in {401, 403}:
-        category = "authorization"
-    elif status_code == 429:
-        category = "rate_limit"
-    elif isinstance(error, NotImplementedError):
+    """Return a provider-neutral error for the generic multi-asset boundary.
+
+    Provider adapters may translate their SDK failures before they reach this
+    boundary. The generic data source deliberately does not inspect provider
+    response objects, status codes, exception names, or response bodies.
+    """
+    if isinstance(error, NotImplementedError):
         category = "unsupported"
     else:
         category = "unavailable"
     return {
         "category": category,
-        "errorType": type(error).__name__,
-        "retryable": category in {"rate_limit", "unavailable"},
+        "errorType": "unsupported_operation" if category == "unsupported" else "data_unavailable",
+        "retryable": category == "unavailable",
     }
 
 

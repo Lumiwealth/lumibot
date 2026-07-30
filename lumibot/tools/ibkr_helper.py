@@ -86,7 +86,7 @@ _IBKR_EQUITY_ACTIONS_CACHE: Dict[str, pd.DataFrame] = {}
 _RUNTIME_CONID_CACHE: Dict[str, int] = {}
 _RUNTIME_HISTORY_NO_DATA_WINDOWS: Dict[str, Tuple[datetime, datetime]] = {}
 _RUNTIME_DAILY_GAP_CHECKED_WINDOWS: set[tuple[str, str, str]] = set()
-_RUNTIME_HOURLY_GAP_CHECKED_SERIES: set[str] = set()
+_RUNTIME_HOURLY_GAP_CHECKED_SERIES: Dict[str, tuple[int, str, str, int]] = {}
 _DISABLE_CONIDS_REMOTE_UPLOAD = False
 _LOGGED_CONIDS_REMOTE_UPLOAD_DISABLE = False
 _LOGGED_HISTORY_ALIASES: set[str] = set()
@@ -2065,7 +2065,8 @@ def frame_covers_requested_window(
             schedule = get_trading_days(
                 market="NYSE",
                 start_date=start_local.date(),
-                end_date=end_local.date(),
+                # get_trading_days treats end_date as exclusive.
+                end_date=end_local.date() + timedelta(days=1),
                 tzinfo=LUMIBOT_DEFAULT_PYTZ,
             )
             if schedule is not None and not schedule.empty:
@@ -2613,16 +2614,28 @@ def _gap_has_fresh_retry_marker(
     ):
         return False
 
-    missing_mask = df_cache["missing"].fillna(False).astype(bool)
+    try:
+        normalized_index = pd.DatetimeIndex(df_cache.index)
+        if normalized_index.tz is None:
+            normalized_index = normalized_index.tz_localize(
+                LUMIBOT_DEFAULT_PYTZ
+            )
+        else:
+            normalized_index = normalized_index.tz_convert(
+                LUMIBOT_DEFAULT_PYTZ
+            )
+    except Exception:
+        return False
+    missing_mask = df_cache["missing"].fillna(False).astype(bool).to_numpy()
     hourly_gap_mask = (
-        df_cache["missing_reason"].fillna("").astype(str)
+        df_cache["missing_reason"].fillna("").astype(str).to_numpy()
         == "hourly_internal_gap_empty"
     )
     marker_rows = df_cache.loc[
         missing_mask
         & hourly_gap_mask
-        & (df_cache.index > gap_start)
-        & (df_cache.index < gap_end),
+        & (normalized_index > gap_start)
+        & (normalized_index < gap_end),
         ["missing_retry_after"],
     ]
     if len(marker_rows) < 2:
@@ -2671,6 +2684,26 @@ def _missing_window_placeholders(
     )
 
 
+def _hourly_cache_signature(
+    df_cache: pd.DataFrame,
+) -> tuple[int, str, str, int]:
+    if df_cache is None or df_cache.empty:
+        return (0, "", "", 0)
+    try:
+        index = pd.DatetimeIndex(pd.to_datetime(df_cache.index, utc=True))
+        first = index.min().isoformat()
+        last = index.max().isoformat()
+    except Exception:
+        first = str(df_cache.index.min())
+        last = str(df_cache.index.max())
+    missing_count = (
+        int(df_cache["missing"].fillna(False).astype(bool).sum())
+        if "missing" in df_cache.columns
+        else 0
+    )
+    return (len(df_cache), first, last, missing_count)
+
+
 def _repair_us_stock_index_hourly_gaps(
     df_cache: pd.DataFrame,
     *,
@@ -2700,7 +2733,8 @@ def _repair_us_stock_index_hourly_gaps(
         return df_cache
 
     series_key = str(cache_file)
-    if series_key in _RUNTIME_HOURLY_GAP_CHECKED_SERIES:
+    cache_signature = _hourly_cache_signature(df_cache)
+    if _RUNTIME_HOURLY_GAP_CHECKED_SERIES.get(series_key) == cache_signature:
         return df_cache
 
     gaps = _hourly_internal_gaps(
@@ -2718,8 +2752,8 @@ def _repair_us_stock_index_hourly_gaps(
         )
     ]
     if not gaps:
+        _RUNTIME_HOURLY_GAP_CHECKED_SERIES[series_key] = cache_signature
         return df_cache
-    _RUNTIME_HOURLY_GAP_CHECKED_SERIES.add(series_key)
 
     logger.info(
         "IBKR hourly cache repair found %d large internal gap(s) for %s",
@@ -2799,6 +2833,9 @@ def _repair_us_stock_index_hourly_gaps(
 
     if changed:
         _write_cache_frame(cache_file, working)
+    _RUNTIME_HOURLY_GAP_CHECKED_SERIES[series_key] = _hourly_cache_signature(
+        working
+    )
     logger.info(
         "IBKR hourly cache repair completed for %s with %d unresolved large gap(s)",
         getattr(asset, "symbol", None),

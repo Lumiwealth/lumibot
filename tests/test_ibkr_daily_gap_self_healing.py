@@ -278,6 +278,14 @@ def test_hourly_gap_repair_warm_complete_cache_makes_zero_downloader_calls(
 ) -> None:
     ibkr_helper._RUNTIME_HOURLY_GAP_CHECKED_SERIES.clear()
     frame = _hourly_frame("2026-07-20 09:00", "2026-07-30 16:00")
+    gap_scan_calls = []
+    original_gap_scan = ibkr_helper._hourly_internal_gaps
+    monkeypatch.setattr(
+        ibkr_helper,
+        "_hourly_internal_gaps",
+        lambda *args, **kwargs: gap_scan_calls.append((args, kwargs))
+        or original_gap_scan(*args, **kwargs),
+    )
 
     monkeypatch.setattr(
         ibkr_helper,
@@ -302,6 +310,49 @@ def test_hourly_gap_repair_warm_complete_cache_makes_zero_downloader_calls(
     )
 
     assert result.equals(frame)
+    second = ibkr_helper._repair_us_stock_index_hourly_gaps(
+        frame,
+        cache_file=tmp_path / "QQQ-hour.parquet",
+        asset=Asset("QQQ", asset_type=Asset.AssetType.STOCK),
+        quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
+        timestep="hour",
+        start_dt=datetime(2026, 7, 20, tzinfo=timezone.utc),
+        end_dt=datetime(2026, 7, 31, tzinfo=timezone.utc),
+        exchange=None,
+        include_after_hours=True,
+        source="Trades",
+        source_was_explicit=False,
+    )
+    assert second.equals(frame)
+    assert len(gap_scan_calls) == 1
+
+
+def test_hourly_retry_marker_lookup_accepts_tz_naive_cache_index() -> None:
+    now = datetime(2026, 7, 30, 12, tzinfo=timezone.utc)
+    retry_after = datetime(2026, 7, 31, 12, tzinfo=timezone.utc).isoformat()
+    frame = pd.DataFrame(
+        {
+            "missing": [True, True],
+            "missing_retry_after": [retry_after, retry_after],
+            "missing_reason": [
+                "hourly_internal_gap_empty",
+                "hourly_internal_gap_empty",
+            ],
+        },
+        index=pd.DatetimeIndex(
+            [
+                "2026-07-20 12:00:00",
+                "2026-07-25 12:00:00",
+            ]
+        ),
+    )
+
+    assert ibkr_helper._gap_has_fresh_retry_marker(
+        frame,
+        gap_start=pd.Timestamp("2026-07-19 12:00", tz="America/New_York"),
+        gap_end=pd.Timestamp("2026-07-26 12:00", tz="America/New_York"),
+        now=now,
+    )
 
 
 def test_partial_hourly_repair_does_not_negative_cache_the_remaining_gap(

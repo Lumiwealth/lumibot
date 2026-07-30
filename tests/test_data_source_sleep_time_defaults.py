@@ -104,7 +104,9 @@ def test_get_bars_preserves_partial_results_with_sanitized_error_metadata(monkey
     assert "sensitive provider response" not in str(result.errors)
 
 
-def test_get_bars_preserves_tuple_string_failures_as_partial_results(monkeypatch):
+def test_get_bars_preserves_tuple_string_failures_as_partial_results(
+    monkeypatch, caplog
+):
     ds = _DummyDataSource(backtesting=True)
 
     def _history(*, asset, **_kwargs):
@@ -128,3 +130,6 @@ def test_get_bars_preserves_tuple_string_failures_as_partial_results(monkeypatch
         "errorType": "data_unavailable",
         "retryable": True,
     }
+    assert "BTC" not in caplog.text
+    assert "provider detail" not in caplog.text
+    assert "Error retrieving data for str" in caplog.text

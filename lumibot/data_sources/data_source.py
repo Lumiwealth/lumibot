@@ -489,7 +489,10 @@ class DataSource(ABC):
                         time.sleep(effective_sleep_time)
                 except Exception as e:
                     normalized_error = _normalized_data_error(e)
-                    asset_label = getattr(base_asset, "symbol", str(base_asset))
+                    asset_label = (
+                        getattr(base_asset, "symbol", None)
+                        or type(base_asset).__name__
+                    )
                     logger.warning(
                         "Error retrieving data for %s: category=%s error_type=%s retryable=%s",
                         asset_label,

@@ -201,6 +201,50 @@ def test_ibkr_fetch_history_between_dates_keeps_chunks_on_later_empty_page(monke
     assert calls["count"] == 2
 
 
+def test_ibkr_bounded_repair_preserves_pages_before_a_later_error(monkeypatch):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    asset = Asset(symbol="QQQ", asset_type=Asset.AssetType.STOCK)
+    quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
+    monkeypatch.setattr(ibkr_helper, "_resolve_conid", lambda **_kwargs: 123)
+    calls = {"count": 0}
+
+    def _history_request(**_kwargs):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return {
+                "data": [
+                    {
+                        "t": 1760000000000 + offset * 3_600_000,
+                        "o": 100 + offset,
+                        "h": 101 + offset,
+                        "l": 99 + offset,
+                        "c": 100.5 + offset,
+                        "v": 1000,
+                    }
+                    for offset in range(7)
+                ]
+            }
+        raise RuntimeError("provider failed after the first repair page")
+
+    monkeypatch.setattr(ibkr_helper, "_ibkr_history_request", _history_request)
+    result = ibkr_helper._fetch_history_between_dates(
+        asset=asset,
+        quote=quote,
+        timestep="hour",
+        start_dt=datetime(2025, 9, 1, tzinfo=timezone.utc),
+        end_dt=datetime(2025, 10, 31, tzinfo=timezone.utc),
+        exchange=None,
+        include_after_hours=True,
+        source="Trades",
+        source_was_explicit=False,
+        _deadline_monotonic=ibkr_helper.time.perf_counter() + 60,
+    )
+
+    assert len(result) == 7
+    assert calls["count"] == 2
+
+
 def test_ibkr_frame_covers_requested_window_rejects_underfilled_daily_series_and_allows_flat_series():
     import lumibot.tools.ibkr_helper as ibkr_helper
 

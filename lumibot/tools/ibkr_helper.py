@@ -1901,7 +1901,7 @@ def _fetch_history_between_dates(
                 max_timeout_attempts=_max_timeout_attempts,
             )
         except Exception:
-            if chunks and _deadline_monotonic is not None and time.perf_counter() >= _deadline_monotonic:
+            if chunks and _deadline_monotonic is not None:
                 break
             raise
 

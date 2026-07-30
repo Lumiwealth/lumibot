@@ -13,7 +13,7 @@
 import os
 import subprocess
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -139,7 +139,7 @@ def _source_lastmod(source: Path, repository_root: Path | None = None) -> str:
     except (OSError, ValueError, subprocess.SubprocessError):
         pass
 
-    return datetime.fromtimestamp(source.stat().st_mtime).date().isoformat()
+    return datetime.fromtimestamp(source.stat().st_mtime, tz=timezone.utc).date().isoformat()
 
 
 def _generate_sitemap() -> None:

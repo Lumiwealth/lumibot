@@ -145,4 +145,8 @@ so use the linked primary sources before making a technical decision.
 - `ai-hedge-fund source repository <https://github.com/virattt/ai-hedge-fund>`_
 - `OpenAlice documentation <https://www.openalice.ai/docs/getting-started/what-is-openalice>`_
 - `QuantDinger source repository <https://github.com/brokermr810/QuantDinger>`_
+- `Vibe-Trading source repository <https://github.com/HKUDS/Vibe-Trading>`_
+- `AI-Trader source repository <https://github.com/HKUDS/AI-Trader>`_
+- `OpenBB source repository <https://github.com/OpenBB-finance/OpenBB>`_
+- `Qlib source repository <https://github.com/microsoft/qlib>`_
 - `QuantConnect LEAN documentation <https://www.quantconnect.com/docs/v2/lean-engine>`_

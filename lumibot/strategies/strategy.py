@@ -4949,6 +4949,7 @@ class Strategy(_Strategy):
             chunk_size=chunk_size,
             max_workers=max_workers,
             exchange=exchange,
+            include_after_hours=include_after_hours,
             sleep_time=effective_sleep_time
         )
 

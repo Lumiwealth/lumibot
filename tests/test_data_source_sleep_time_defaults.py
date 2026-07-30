@@ -1,3 +1,5 @@
+import pytest
+
 from lumibot.data_sources.data_source import DataSource
 from lumibot.entities import Asset
 
@@ -54,3 +56,105 @@ def test_get_bars_default_sleep_time_applies_in_live(monkeypatch):
     ds.get_bars([Asset("SPY"), Asset("AAPL")], length=1, timestep="minute", chunk_size=1, max_workers=1)
     # One sleep per asset by default.
     assert calls["n"] == 2
+
+
+class _HttpError(RuntimeError):
+    def __init__(self, status_code):
+        super().__init__("sensitive provider response must not cross the boundary")
+        self.status_code = status_code
+
+
+def test_get_bars_preserves_partial_results_with_sanitized_error_metadata(monkeypatch):
+    ds = _DummyDataSource(backtesting=True)
+
+    def _history(*, asset, **_kwargs):
+        if asset.symbol == "RATE":
+            raise _HttpError(429)
+        if asset.symbol == "AUTH":
+            raise _HttpError(401)
+        if asset.symbol == "UNSUPPORTED":
+            raise NotImplementedError("provider detail")
+        return {"symbol": asset.symbol}
+
+    monkeypatch.setattr(ds, "get_historical_prices", _history)
+    assets = [
+        Asset("OK"),
+        Asset("RATE"),
+        Asset("AUTH"),
+        Asset("UNSUPPORTED"),
+    ]
+    result = ds.get_bars(
+        assets,
+        length=10,
+        timestep="day",
+        chunk_size=2,
+        sleep_time=0,
+    )
+
+    assert result[assets[0]] == {"symbol": "OK"}
+    assert result[assets[1]] is None
+    assert result.errors[assets[1]] == {
+        "category": "unavailable",
+        "errorType": "data_unavailable",
+        "retryable": True,
+    }
+    assert result.errors[assets[2]]["category"] == "unavailable"
+    assert result.errors[assets[2]]["retryable"] is True
+    assert result.errors[assets[3]]["category"] == "unsupported"
+    assert result.errors[assets[3]]["errorType"] == "unsupported_operation"
+    assert result.errors[assets[3]]["retryable"] is False
+    assert "sensitive provider response" not in str(result.errors)
+
+
+def test_get_bars_preserves_tuple_string_failures_as_partial_results(
+    monkeypatch, caplog
+):
+    ds = _DummyDataSource(backtesting=True)
+
+    def _history(*, asset, **_kwargs):
+        if asset == "BTC":
+            raise RuntimeError("provider detail")
+        return {"symbol": asset.symbol}
+
+    monkeypatch.setattr(ds, "get_historical_prices", _history)
+    pair = ("BTC", "USD")
+    result = ds.get_bars(
+        [pair, Asset("SPY")],
+        length=10,
+        timestep="day",
+        chunk_size=2,
+        sleep_time=0,
+    )
+
+    assert result[pair] is None
+    assert result.errors[pair] == {
+        "category": "unavailable",
+        "errorType": "data_unavailable",
+        "retryable": True,
+    }
+    assert "BTC" not in caplog.text
+    assert "provider detail" not in caplog.text
+    assert "Error retrieving data for str" in caplog.text
+
+
+def test_get_bars_rejects_duplicate_assets_before_provider_work(monkeypatch):
+    ds = _DummyDataSource(backtesting=True)
+    provider_called = False
+
+    def _history(**_kwargs):
+        nonlocal provider_called
+        provider_called = True
+        return {"ok": True}
+
+    monkeypatch.setattr(ds, "get_historical_prices", _history)
+
+    with pytest.raises(ValueError, match="duplicate entries"):
+        ds.get_bars(
+            ["SPY", "SPY"],
+            length=10,
+            timestep="day",
+            chunk_size=1,
+            sleep_time=0,
+        )
+
+    assert provider_called is False

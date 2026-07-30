@@ -37,6 +37,43 @@ class TestStrategyMethods:
         strat.logger = logging.getLogger(__name__)
         return strat
 
+    def test_bulk_history_passes_provider_neutral_session_and_batch_options(self):
+        strategy = self._make_strategy_stub()
+        strategy._logged_get_historical_prices_assets = set()
+        strategy._sanitize_user_asset = MagicMock(
+            side_effect=lambda asset: Asset(asset) if isinstance(asset, str) else asset
+        )
+        data_source = MagicMock()
+        data_source.IS_BACKTESTING_DATA_SOURCE = False
+        data_source.get_bars.return_value = {"SPY": object(), "QQQ": object()}
+        strategy.broker = SimpleNamespace(data_source=data_source)
+
+        result = strategy.get_historical_prices_for_assets(
+            ["SPY", "QQQ"],
+            40,
+            timestep="5 minutes",
+            chunk_size=25,
+            max_workers=8,
+            exchange="SMART",
+            include_after_hours=False,
+            sleep_time=0,
+        )
+
+        assert result == data_source.get_bars.return_value
+        data_source.get_bars.assert_called_once()
+        call = data_source.get_bars.call_args
+        assert [asset.symbol for asset in call.args[0]] == ["SPY", "QQQ"]
+        assert call.args[1] == 40
+        assert call.kwargs == {
+            "timestep": "5 minutes",
+            "timeshift": None,
+            "chunk_size": 25,
+            "max_workers": 8,
+            "exchange": "SMART",
+            "include_after_hours": False,
+            "sleep_time": 0,
+        }
+
     def test_get_option_expiration_after_date(self):
         """
         Test the get_option_expiration_after_date method by checking that the correct expiration date is returned

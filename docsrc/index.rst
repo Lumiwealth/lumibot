@@ -492,7 +492,7 @@ Table of Contents
    BotSpot MCP Integration <botspot_mcp>
    GitHub <https://github.com/Lumiwealth/lumibot>
    Reddit Community <https://www.reddit.com/r/BotSpotTrade/>
-   Discord Community <https://discord.gg/lumiwealth>
+   Discord Community <https://discord.gg/4R9j6T3PN8>
    getting_started
    imports_and_startup
    agents

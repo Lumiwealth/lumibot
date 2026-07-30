@@ -2396,6 +2396,22 @@ class StrategyExecutor(Thread):
         finally:
             self._in_trading_iteration = False
 
+    def _publish_run_once_final_cloud_state(self):
+        """Publish the final broker state for a successful scheduled run."""
+        publisher = getattr(self.strategy, "send_update_to_cloud", None)
+        if not callable(publisher):
+            return False
+
+        try:
+            return publisher() is not False
+        except Exception as exc:
+            self.strategy.logger.warning(
+                "Scheduled run completed, but its final cloud snapshot could not be published: %s",
+                exc,
+            )
+            self.strategy.logger.debug(_format_exc())
+            return False
+
     def run_once(self):
         self._run_once_requested = True
         try:
@@ -2411,6 +2427,8 @@ class StrategyExecutor(Thread):
             iteration_ran = self._run_live_once()
             if iteration_ran and self._run_once_user_iteration_ran:
                 self._on_strategy_end()
+            if iteration_ran:
+                self._publish_run_once_final_cloud_state()
 
             self.result = self.strategy._analysis
             self.gracefully_exit()
@@ -2434,6 +2452,7 @@ class StrategyExecutor(Thread):
             return False
         finally:
             self._run_once_user_iteration_ran = False
+            self._run_once_closed_market_preparation = False
             self._run_once_requested = False
             self._run_once_market_open_override = None
 

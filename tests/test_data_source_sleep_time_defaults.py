@@ -1,3 +1,5 @@
+import pytest
+
 from lumibot.data_sources.data_source import DataSource
 from lumibot.entities import Asset
 
@@ -133,3 +135,26 @@ def test_get_bars_preserves_tuple_string_failures_as_partial_results(
     assert "BTC" not in caplog.text
     assert "provider detail" not in caplog.text
     assert "Error retrieving data for str" in caplog.text
+
+
+def test_get_bars_rejects_duplicate_assets_before_provider_work(monkeypatch):
+    ds = _DummyDataSource(backtesting=True)
+    provider_called = False
+
+    def _history(**_kwargs):
+        nonlocal provider_called
+        provider_called = True
+        return {"ok": True}
+
+    monkeypatch.setattr(ds, "get_historical_prices", _history)
+
+    with pytest.raises(ValueError, match="duplicate entries"):
+        ds.get_bars(
+            ["SPY", "SPY"],
+            length=10,
+            timestep="day",
+            chunk_size=1,
+            sleep_time=0,
+        )
+
+    assert provider_called is False

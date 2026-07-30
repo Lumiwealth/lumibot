@@ -507,6 +507,13 @@ class DataSource(ABC):
         # Convert strings to Asset objects
         assets = [Asset(symbol=a) if isinstance(a, str) else a for a in assets]
 
+        # A duplicate key could otherwise be processed by different futures and
+        # leave a successful result paired with an error from another attempt.
+        # Reject duplicates before starting any provider work so each returned
+        # asset has exactly one outcome.
+        if len(set(assets)) != len(assets):
+            raise ValueError("assets must not contain duplicate entries")
+
         # Chunk the assets
         chunks = [assets[i : i + chunk_size] for i in range(0, len(assets), chunk_size)]
 

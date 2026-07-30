@@ -26,6 +26,22 @@ def _daily_frame(dates: list[str], *, missing: bool = False) -> pd.DataFrame:
     )
 
 
+def _hourly_frame(start: str, end: str, *, missing: bool = False) -> pd.DataFrame:
+    index = pd.date_range(start=start, end=end, freq="h", tz="America/New_York")
+    values = [pd.NA] * len(index) if missing else [100.0 + i for i in range(len(index))]
+    return pd.DataFrame(
+        {
+            "open": values,
+            "high": values,
+            "low": values,
+            "close": values,
+            "volume": values,
+            "missing": [missing] * len(index),
+        },
+        index=index,
+    )
+
+
 def test_merge_frames_never_allows_placeholder_to_replace_real_bar() -> None:
     real = _daily_frame(["2026-07-27"])
     placeholder = _daily_frame(["2026-07-27"], missing=True)
@@ -78,12 +94,11 @@ def test_retryable_daily_gap_scan_is_fast_for_three_year_warm_cache() -> None:
     assert elapsed < 1.0
 
 
-def test_daily_gap_repair_fetches_only_missing_month_with_bounded_wait(
+def test_daily_gap_repair_fetches_missing_range_with_bounded_wait(
     monkeypatch,
     tmp_path,
 ) -> None:
     ibkr_helper._RUNTIME_DAILY_GAP_CHECKED_WINDOWS.clear()
-    monkeypatch.setattr(ibkr_helper, "_RUNTIME_DAILY_GAP_REPAIR_SECONDS_USED", 0.0)
     frame = _daily_frame(["2026-07-27", "2026-07-29"])
     calls = []
 
@@ -116,10 +131,15 @@ def test_daily_gap_repair_fetches_only_missing_month_with_bounded_wait(
     )
 
     assert len(calls) == 1
-    assert calls[0]["_period_override"] == "1m"
+    assert calls[0]["_period_override"] == ibkr_helper.IBKR_STOCK_INDEX_DAILY_MAX_PERIOD
     assert calls[0]["_record_missing_on_empty"] is False
     assert calls[0]["_max_timeout_attempts"] == 1
-    assert 0 < calls[0]["_queue_timeout"] <= 15
+    assert calls[0]["_deadline_monotonic"] > 0
+    assert (
+        0
+        < calls[0]["_queue_timeout"]
+        <= ibkr_helper.IBKR_DAILY_GAP_REPAIR_TIMEOUT_SECONDS
+    )
     assert [ts.date().isoformat() for ts in result.index] == [
         "2026-07-27",
         "2026-07-28",
@@ -133,7 +153,6 @@ def test_daily_gap_repair_failure_returns_available_bars_without_failing(
     tmp_path,
 ) -> None:
     ibkr_helper._RUNTIME_DAILY_GAP_CHECKED_WINDOWS.clear()
-    monkeypatch.setattr(ibkr_helper, "_RUNTIME_DAILY_GAP_REPAIR_SECONDS_USED", 0.0)
     frame = _daily_frame(["2026-07-27", "2026-07-29"])
 
     def _timeout(**_kwargs):
@@ -170,7 +189,6 @@ def test_daily_gap_repair_records_expiring_marker_when_small_request_is_empty(
     tmp_path,
 ) -> None:
     ibkr_helper._RUNTIME_DAILY_GAP_CHECKED_WINDOWS.clear()
-    monkeypatch.setattr(ibkr_helper, "_RUNTIME_DAILY_GAP_REPAIR_SECONDS_USED", 0.0)
     frame = _daily_frame(["2026-07-27", "2026-07-29"])
     writes = []
     monkeypatch.setattr(
@@ -202,3 +220,217 @@ def test_daily_gap_repair_records_expiring_marker_when_small_request_is_empty(
     assert bool(marker["missing"]) is True
     assert pd.Timestamp(marker["missing_retry_after"]).tzinfo is not None
     assert len(writes) == 1
+
+
+def test_hourly_gap_repair_fetches_large_internal_gap_once_with_bounded_deadline(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    """Reproduce the production QQQ shape: real bars at both ends and a multi-year hole."""
+    ibkr_helper._RUNTIME_HOURLY_GAP_CHECKED_SERIES.clear()
+    left = _hourly_frame("2023-07-31 09:00", "2023-08-01 16:00")
+    right = _hourly_frame("2026-07-29 09:00", "2026-07-30 16:00")
+    frame = pd.concat([left, right]).sort_index()
+    calls = []
+
+    def _fake_fetch(**kwargs):
+        calls.append(kwargs)
+        return _hourly_frame("2023-08-01 17:00", "2026-07-29 08:00")
+
+    writes = []
+    monkeypatch.setattr(ibkr_helper, "_fetch_history_between_dates", _fake_fetch)
+    monkeypatch.setattr(
+        ibkr_helper,
+        "_write_cache_frame",
+        lambda path, updated: writes.append((path, updated.copy())),
+    )
+
+    result = ibkr_helper._repair_us_stock_index_hourly_gaps(
+        frame,
+        cache_file=tmp_path / "QQQ-hour.parquet",
+        asset=Asset("QQQ", asset_type=Asset.AssetType.STOCK),
+        quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
+        timestep="hour",
+        start_dt=datetime(2023, 7, 30, tzinfo=timezone.utc),
+        end_dt=datetime(2026, 7, 30, 23, tzinfo=timezone.utc),
+        exchange=None,
+        include_after_hours=True,
+        source="Trades",
+        source_was_explicit=False,
+    )
+
+    assert len(calls) == 1
+    assert (
+        calls[0]["_period_override"]
+        == ibkr_helper.IBKR_STOCK_INDEX_HOURLY_REPAIR_PERIOD
+    )
+    assert calls[0]["_record_missing_on_empty"] is False
+    assert calls[0]["_max_timeout_attempts"] == 1
+    assert calls[0]["_deadline_monotonic"] > 0
+    real = result.loc[~result["missing"].fillna(False)]
+    assert real.index.to_series().diff().dropna().max() <= pd.Timedelta(days=7)
+    assert len(writes) == 1
+
+
+def test_hourly_gap_repair_warm_complete_cache_makes_zero_downloader_calls(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    ibkr_helper._RUNTIME_HOURLY_GAP_CHECKED_SERIES.clear()
+    frame = _hourly_frame("2026-07-20 09:00", "2026-07-30 16:00")
+
+    monkeypatch.setattr(
+        ibkr_helper,
+        "_fetch_history_between_dates",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("complete hourly cache must not hit the downloader")
+        ),
+    )
+
+    result = ibkr_helper._repair_us_stock_index_hourly_gaps(
+        frame,
+        cache_file=tmp_path / "QQQ-hour.parquet",
+        asset=Asset("QQQ", asset_type=Asset.AssetType.STOCK),
+        quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
+        timestep="hour",
+        start_dt=datetime(2026, 7, 20, tzinfo=timezone.utc),
+        end_dt=datetime(2026, 7, 31, tzinfo=timezone.utc),
+        exchange=None,
+        include_after_hours=True,
+        source="Trades",
+        source_was_explicit=False,
+    )
+
+    assert result.equals(frame)
+
+
+def test_partial_hourly_repair_does_not_negative_cache_the_remaining_gap(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    ibkr_helper._RUNTIME_HOURLY_GAP_CHECKED_SERIES.clear()
+    left = _hourly_frame("2023-07-31 09:00", "2023-08-01 16:00")
+    right = _hourly_frame("2026-07-29 09:00", "2026-07-30 16:00")
+    frame = pd.concat([left, right]).sort_index()
+    monkeypatch.setattr(
+        ibkr_helper,
+        "_fetch_history_between_dates",
+        lambda **_kwargs: _hourly_frame(
+            "2025-07-29 09:00",
+            "2026-07-29 08:00",
+        ),
+    )
+    writes = []
+    monkeypatch.setattr(
+        ibkr_helper,
+        "_write_cache_frame",
+        lambda path, updated: writes.append((path, updated.copy())),
+    )
+
+    result = ibkr_helper._repair_us_stock_index_hourly_gaps(
+        frame,
+        cache_file=tmp_path / "QQQ-hour.parquet",
+        asset=Asset("QQQ", asset_type=Asset.AssetType.STOCK),
+        quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
+        timestep="hour",
+        start_dt=datetime(2023, 7, 30, tzinfo=timezone.utc),
+        end_dt=datetime(2026, 7, 30, 23, tzinfo=timezone.utc),
+        exchange=None,
+        include_after_hours=True,
+        source="Trades",
+        source_was_explicit=False,
+    )
+
+    assert ibkr_helper._hourly_internal_gaps(
+        result,
+        start_dt=datetime(2023, 7, 30, tzinfo=timezone.utc),
+        end_dt=datetime(2026, 7, 30, 23, tzinfo=timezone.utc),
+    )
+    assert not result["missing"].fillna(False).any()
+    assert len(writes) == 1
+
+
+def test_generic_fresh_missing_markers_do_not_block_hourly_self_healing(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    ibkr_helper._RUNTIME_HOURLY_GAP_CHECKED_SERIES.clear()
+    left = _hourly_frame("2023-07-31 09:00", "2023-08-01 16:00")
+    right = _hourly_frame("2026-07-29 09:00", "2026-07-30 16:00")
+    retry_after = datetime(2026, 7, 31, tzinfo=timezone.utc).isoformat()
+    generic_markers = pd.DataFrame(
+        {
+            "open": [pd.NA, pd.NA],
+            "high": [pd.NA, pd.NA],
+            "low": [pd.NA, pd.NA],
+            "close": [pd.NA, pd.NA],
+            "volume": [pd.NA, pd.NA],
+            "missing": [True, True],
+            "missing_retry_after": [retry_after, retry_after],
+        },
+        index=pd.to_datetime(
+            [
+                "2023-08-01 17:00:00-04:00",
+                "2026-07-29 08:00:00-04:00",
+            ],
+            utc=True,
+        ).tz_convert("America/New_York"),
+    )
+    frame = pd.concat([left, generic_markers, right]).sort_index()
+    calls = []
+    monkeypatch.setattr(
+        ibkr_helper,
+        "_fetch_history_between_dates",
+        lambda **kwargs: calls.append(kwargs)
+        or _hourly_frame("2023-08-01 17:00", "2026-07-29 08:00"),
+    )
+    monkeypatch.setattr(ibkr_helper, "_write_cache_frame", lambda *_args: None)
+
+    ibkr_helper._repair_us_stock_index_hourly_gaps(
+        frame,
+        cache_file=tmp_path / "QQQ-hour.parquet",
+        asset=Asset("QQQ", asset_type=Asset.AssetType.STOCK),
+        quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
+        timestep="hour",
+        start_dt=datetime(2023, 7, 30, tzinfo=timezone.utc),
+        end_dt=datetime(2026, 7, 30, 23, tzinfo=timezone.utc),
+        exchange=None,
+        include_after_hours=True,
+        source="Trades",
+        source_was_explicit=False,
+    )
+
+    assert len(calls) == 1
+
+
+def test_daily_gap_repair_budget_is_per_series_not_global(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    ibkr_helper._RUNTIME_DAILY_GAP_CHECKED_WINDOWS.clear()
+    calls = []
+
+    def _fake_fetch(**kwargs):
+        calls.append(kwargs)
+        return _daily_frame(["2026-07-28"])
+
+    monkeypatch.setattr(ibkr_helper, "_fetch_history_between_dates", _fake_fetch)
+    monkeypatch.setattr(ibkr_helper, "_write_cache_frame", lambda *_args: None)
+
+    for symbol in ("QQQ", "SQQQ"):
+        result = ibkr_helper._repair_us_stock_index_daily_gaps(
+            _daily_frame(["2026-07-27", "2026-07-29"]),
+            cache_file=tmp_path / f"{symbol}-day.parquet",
+            asset=Asset(symbol, asset_type=Asset.AssetType.STOCK),
+            quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
+            timestep="day",
+            start_dt=datetime(2026, 7, 27, tzinfo=timezone.utc),
+            end_dt=datetime(2026, 7, 30, 23, tzinfo=timezone.utc),
+            exchange=None,
+            include_after_hours=True,
+            source="Trades",
+            source_was_explicit=False,
+        )
+        assert pd.Timestamp("2026-07-28 16:00", tz="America/New_York") in result.index
+
+    assert len(calls) == 2

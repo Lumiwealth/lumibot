@@ -83,15 +83,20 @@ IBKR backtests cache historical bars as Parquet:
 - Local: ``LUMIBOT_CACHE_FOLDER/ibkr/...``
 - Optional S3 mirroring: configured via the standard ``LUMIBOT_CACHE_*`` variables (see :ref:`environment_variables`).
 
-For US stock and index day bars, LumiBot checks the expected NYSE sessions after loading the
-series. If a completed session is absent, LumiBot makes a small, best-effort request for the
-affected month and merges any returned bars into the existing cache. The check runs once per
-requested series window, has a process-wide 15-second repair budget, and never turns a partial
-data condition into a backtest exception. Complete warm caches do not call the downloader.
+For US stock and index bars, LumiBot checks for cache gaps after loading the
+series. Daily bars are compared with completed NYSE sessions and the affected
+range is repaired under a 45-second per-series deadline. Hourly bars are
+checked for internal holes longer than seven days and repaired in bounded
+2000-hour pages under a five-minute per-series deadline. These checks never
+turn partial data into a backtest exception, and complete warm caches do not
+call the downloader.
 
 No-data markers include a retry timestamp. Until that timestamp expires, the marker prevents
 repeated downloads. Legacy markers without a retry timestamp are eligible for one lazy repair
-attempt. When a real bar and a no-data marker share a timestamp, the real bar always wins.
+attempt. Partial hourly progress remains immediately retryable and does not
+receive a no-data marker. Older generic missing-window markers do not block the
+hourly internal-gap repair. When a real bar and a no-data marker share a
+timestamp, the real bar always wins.
 
 Conid lookups also maintain cache files under ``LUMIBOT_CACHE_FOLDER/ibkr``:
 

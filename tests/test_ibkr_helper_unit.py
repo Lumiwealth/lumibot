@@ -256,6 +256,29 @@ def test_ibkr_frame_covers_requested_window_rejects_underfilled_daily_series_and
     )
 
 
+def test_ibkr_hourly_frame_treats_weekend_start_as_covered():
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    asset = Asset(symbol="QQQ", asset_type=Asset.AssetType.STOCK)
+    frame = pd.DataFrame(
+        {"close": [100.0, 101.0]},
+        index=pd.DatetimeIndex(
+            [
+                "2023-07-31 04:00:00-04:00",
+                "2023-08-01 16:00:00-04:00",
+            ]
+        ),
+    )
+
+    assert ibkr_helper.frame_covers_requested_window(
+        frame,
+        asset=asset,
+        timestep="hour",
+        start_dt=datetime(2023, 7, 30, tzinfo=timezone.utc),
+        end_dt=datetime(2023, 8, 1, 20, tzinfo=timezone.utc),
+    )
+
+
 def test_ibkr_downloader_payload_contract_accepts_complete_and_explicit_no_data():
     import lumibot.tools.ibkr_helper as ibkr_helper
 

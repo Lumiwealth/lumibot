@@ -29,10 +29,12 @@ ClientSession = None
 StdioServerParameters = None
 stdio_client = None
 streamablehttp_client = None
+streamablehttp_client_uses_http_client = False
 
 
 def _ensure_mcp_client_imports():
-    global ClientSession, StdioServerParameters, stdio_client, streamablehttp_client
+    global ClientSession, StdioServerParameters, stdio_client
+    global streamablehttp_client, streamablehttp_client_uses_http_client
     if ClientSession is None or StdioServerParameters is None:
         from mcp import ClientSession as _ClientSession, StdioServerParameters as _StdioServerParameters
 
@@ -43,7 +45,11 @@ def _ensure_mcp_client_imports():
 
         stdio_client = _stdio_client
     if streamablehttp_client is None:
-        from mcp.client.streamable_http import streamablehttp_client as _streamablehttp_client
+        try:
+            from mcp.client.streamable_http import streamable_http_client as _streamablehttp_client
+            streamablehttp_client_uses_http_client = True
+        except ImportError:
+            from mcp.client.streamable_http import streamablehttp_client as _streamablehttp_client
 
         streamablehttp_client = _streamablehttp_client
 
@@ -1570,16 +1576,31 @@ async def _with_mcp_session(server: MCPServer, callback):
     headers = _mcp_headers(server)
     timeout = server.timeout_seconds
     sse_timeout = server.sse_read_timeout_seconds
-    async with streamablehttp_client(
-        str(server.url),
-        headers=headers,
-        timeout=timeout,
-        sse_read_timeout=sse_timeout,
-        terminate_on_close=server.terminate_on_close,
-    ) as (read_stream, write_stream, _get_session_id):
-        async with ClientSession(read_stream, write_stream) as session:
-            await session.initialize()
-            return await callback(session)
+    if streamablehttp_client_uses_http_client:
+        import httpx
+        from mcp.shared._httpx_utils import create_mcp_http_client
+
+        http_timeout = httpx.Timeout(timeout, read=sse_timeout)
+        async with create_mcp_http_client(headers=headers, timeout=http_timeout) as http_client:
+            async with streamablehttp_client(
+                str(server.url),
+                http_client=http_client,
+                terminate_on_close=server.terminate_on_close,
+            ) as (read_stream, write_stream, _get_session_id):
+                async with ClientSession(read_stream, write_stream) as session:
+                    await session.initialize()
+                    return await callback(session)
+    else:
+        async with streamablehttp_client(
+            str(server.url),
+            headers=headers,
+            timeout=timeout,
+            sse_read_timeout=sse_timeout,
+            terminate_on_close=server.terminate_on_close,
+        ) as (read_stream, write_stream, _get_session_id):
+            async with ClientSession(read_stream, write_stream) as session:
+                await session.initialize()
+                return await callback(session)
 
 
 def _run_mcp_sync(async_fn, *args):

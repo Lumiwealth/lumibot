@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.5.80 - 2026-07-30
+
+Deploy marker: `deploy 4.5.80`
+
+### Fixed
+- **Release validation now uses the same isolated test shards as protected pull
+  requests.** Unit and backtest tests no longer share one process that can leak
+  global state across unrelated files or consume the entire release timeout
+  before reporting failures.
+
 ## 4.5.79 - 2026-07-29
 
 Deploy marker: `deploy 4.5.79`

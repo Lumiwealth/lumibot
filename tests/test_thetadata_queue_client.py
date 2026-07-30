@@ -807,6 +807,31 @@ class TestSessionRecovery:
         assert isinstance(submit_calls[3], str)
         assert submit_calls[3].startswith(f"{base_corr}-retry-3-")
 
+    @patch.object(time, "sleep", return_value=None)
+    def test_execute_request_can_stop_after_one_timeout_for_best_effort_repairs(self, _mock_sleep):
+        client = QueueClient("http://test:8080", "test-key", timeout=0.05)
+
+        with patch.object(
+            client,
+            "check_or_submit",
+            return_value=("req-123", "pending", False),
+        ):
+            with patch.object(
+                client,
+                "wait_for_result",
+                side_effect=TimeoutError("simulated timeout"),
+            ) as wait_for_result:
+                with pytest.raises(TimeoutError, match="simulated timeout"):
+                    client.execute_request(
+                        method="GET",
+                        path="v3/test",
+                        query_params={"symbol": "AAPL"},
+                        timeout=0.05,
+                        max_timeout_attempts=1,
+                    )
+
+        wait_for_result.assert_called_once()
+
 
 class TestQueuedRequestInfo:
     """Tests for QueuedRequestInfo dataclass."""

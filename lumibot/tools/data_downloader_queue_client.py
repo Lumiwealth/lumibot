@@ -913,6 +913,7 @@ class QueueClient:
         headers: Optional[Dict[str, str]] = None,
         body: Optional[bytes] = None,
         timeout: Optional[float] = None,
+        max_timeout_attempts: Optional[int] = None,
     ) -> Tuple[Optional[Any], int]:
         """Submit a request and wait for result.
 
@@ -928,6 +929,8 @@ class QueueClient:
             headers: Optional headers
             body: Optional body
             timeout: Max seconds to wait
+            max_timeout_attempts: Optional cap on per-attempt timeouts. The default keeps the
+                normal self-healing retry behavior. Best-effort callers may set a finite cap.
 
         Returns:
             Tuple of (result_data, status_code)
@@ -943,6 +946,10 @@ class QueueClient:
             if self._concurrency_semaphore.acquire(timeout=1.0):
                 break
             waited = time.monotonic() - start_wait
+            if max_timeout_attempts is not None and timeout and timeout > 0 and waited >= timeout:
+                raise TimeoutError(
+                    f"Timed out waiting {waited:.1f}s for a downloader request slot"
+                )
             if waited >= 10 and (time.monotonic() - last_wait_log) > 30:
                 with self._in_flight_lock:
                     current = self._in_flight_count
@@ -1010,6 +1017,12 @@ class QueueClient:
                         )
                     except Exception:
                         pass
+
+                    if (
+                        max_timeout_attempts is not None
+                        and timeout_count >= max(1, int(max_timeout_attempts))
+                    ):
+                        raise
 
                     # First few timeouts: keep waiting on the same logical request (idempotent).
                     # After repeated timeouts, force a resubmit with a new correlation id so we can
@@ -1172,6 +1185,7 @@ def queue_request(
     querystring: Optional[Dict[str, Any]],
     headers: Optional[Dict[str, str]] = None,
     timeout: Optional[float] = None,
+    max_timeout_attempts: Optional[int] = None,
 ) -> Optional[Dict[str, Any]]:
     """Submit a request via queue and wait for result.
 
@@ -1185,6 +1199,8 @@ def queue_request(
         querystring: Query parameters
         headers: Optional headers
         timeout: Max seconds to wait (0 = wait forever)
+        max_timeout_attempts: Optional cap on per-attempt timeouts. Omit for normal
+            self-healing retries.
 
     Returns:
         Response data if request completed successfully
@@ -1212,6 +1228,7 @@ def queue_request(
         query_params=merged_query_params,
         headers=headers,
         timeout=timeout,
+        max_timeout_attempts=max_timeout_attempts,
     )
 
     # Handle status codes

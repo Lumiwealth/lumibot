@@ -106,6 +106,10 @@ Operationally:
 * `thetadata_helper.get_chains_cached` also hydrates/uploads option-chain parquet
   files so production backtest containers can reuse warm chains from S3 instead
   of rebuilding them from ThetaData on every run.
+* IBKR parquet updates use conditional S3 writes. If another backtest updates the
+  same object first, LumiBot downloads that newer object, merges both versions,
+  and retries. Real bars take precedence over no-data placeholders. This avoids
+  last-writer-wins data loss without adding an S3 read to the normal warm path.
 * Remote uploads run only in `s3_readwrite` mode. The read-only path returns
   early, leaving a TODO hook (`BacktestCacheManager.on_local_update`) for the
   Lambda-triggered workflow.

@@ -4,13 +4,6 @@
 
 Deploy marker: `deploy 4.5.79`
 
-### Fixed
-- **Scheduled `run_once()` strategies now publish their final cloud snapshot from
-  LumiBot after broker-event draining and strategy shutdown hooks complete.**
-  Account balances, positions, and terminal order state are captured before the
-  broker connection closes, and a listener publication failure remains
-  non-fatal to the completed trading run.
-
 ### Added
 - **Public framework comparisons now include QuantConnect LEAN and primary
   sources.** The documentation comparison hub identifies the verification date,
@@ -22,6 +15,11 @@ Deploy marker: `deploy 4.5.79`
   response bodies or credentials.
 
 ### Fixed
+- **Scheduled `run_once()` strategies now publish their final cloud snapshot from
+  LumiBot after broker-event draining and strategy shutdown hooks complete.**
+  Account balances, positions, and terminal order state are captured before the
+  broker connection closes, and a listener publication failure remains
+  non-fatal to the completed trading run.
 - **Bulk historical reads now pass session selection through the provider-neutral
   data-source interface.** Every supported broker receives the same
   `include_after_hours` option through LumiBot rather than requiring a
@@ -29,6 +27,13 @@ Deploy marker: `deploy 4.5.79`
 - **Scheduled closed-market preparation remains protected.** The explicit
   `closed_market_prepare` lifecycle continues to block broker submission,
   cancellation, and modification APIs while preparation code runs.
+- **IBKR daily cache gaps repair themselves without blocking backtests.**
+  Completed missing US stock and index sessions are fetched in bounded monthly
+  requests, merged into the available series, and protected by expiring retry
+  markers when the downloader has no data.
+- **Concurrent IBKR remote-cache writers no longer discard newer bars.**
+  Conditional S3 writes merge the current remote parquet with the local update
+  after a conflict, while real bars take precedence over no-data placeholders.
 
 ### Changed
 - **Documentation sitemap dates now reflect source changes.** Each public page

@@ -60,6 +60,8 @@ class _DummyStrategy:
         self.backups = 0
         self.cloud_updates = 0
         self.lifecycle_events = []
+        self.orders = []
+        self.published_orders = []
 
     @property
     def name(self):
@@ -103,6 +105,9 @@ class _DummyStrategy:
     def get_positions(self):
         return []
 
+    def get_orders(self):
+        return self.orders
+
     def _append_row(self, row):
         self.rows.append(row)
 
@@ -118,6 +123,7 @@ class _DummyStrategy:
     def send_update_to_cloud(self):
         assert self.broker.closed is False
         self.cloud_updates += 1
+        self.published_orders = list(self.get_orders())
         self.lifecycle_events.append("cloud_update")
         return True
 
@@ -182,6 +188,10 @@ def test_run_once_publishes_final_cloud_state_after_scheduled_drain(monkeypatch)
 
     def drain():
         strategy.lifecycle_events.append("broker_drain")
+        strategy.orders.append({
+            "identifier": "synthetic-filled-order-123",
+            "status": "filled",
+        })
 
     executor._scheduled_drain_after_iteration = drain
 
@@ -189,6 +199,10 @@ def test_run_once_publishes_final_cloud_state_after_scheduled_drain(monkeypatch)
 
     assert strategy.lifecycle_events == ["broker_drain", "strategy_end", "cloud_update"]
     assert strategy.cloud_updates == 1
+    assert strategy.published_orders == [{
+        "identifier": "synthetic-filled-order-123",
+        "status": "filled",
+    }]
     assert strategy.broker.closed is True
 
 

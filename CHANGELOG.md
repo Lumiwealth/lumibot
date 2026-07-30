@@ -27,10 +27,6 @@
 - **Scheduled closed-market preparation remains protected.** The explicit
   `closed_market_prepare` lifecycle continues to block broker submission,
   cancellation, and modification APIs while preparation code runs.
-- **Scheduled runs publish their final cloud state before shutting down.** A
-  successful one-shot run now sends its final broker snapshot after lifecycle
-  completion and queue draining, while publication failures remain non-fatal.
-
 ### Changed
 - **Documentation sitemap dates now reflect source changes.** Each public page
   uses its latest committed source date instead of making every page appear

@@ -140,6 +140,41 @@ def test_cloud_update_refreshes_positions_before_publish(monkeypatch):
     assert payloads[0]["positions_snapshot_source"] == "broker_positions_refresh"
 
 
+def test_cloud_update_preserves_terminal_filled_orders(monkeypatch):
+    strategy = _fake_strategy(balances_updated=True)
+    strategy.get_orders = lambda: [
+        SimpleNamespace(
+            to_dict=lambda: {
+                "identifier": "synthetic-filled-order-123",
+                "symbol": "TQQQ",
+                "side": "buy",
+                "quantity": 100,
+                "status": "filled",
+                "avg_fill_price": 55.25,
+                "broker_update_date": "2026-07-29T13:45:30+00:00",
+            }
+        )
+    ]
+    payloads = []
+
+    def fake_post(url, headers=None, data=None, **kwargs):
+        payloads.append(json.loads(data))
+        return _Response()
+
+    monkeypatch.setattr("lumibot.strategies._strategy.requests.post", fake_post)
+
+    assert _Strategy.send_update_to_cloud(strategy) is not False
+    assert payloads[0]["orders"] == [{
+        "identifier": "synthetic-filled-order-123",
+        "symbol": "TQQQ",
+        "side": "buy",
+        "quantity": 100,
+        "status": "filled",
+        "avg_fill_price": 55.25,
+        "broker_update_date": "2026-07-29T13:45:30+00:00",
+    }]
+
+
 def test_cloud_update_omits_positions_when_position_refresh_fails(monkeypatch):
     strategy = _fake_strategy(balances_updated=True)
 

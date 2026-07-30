@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.5.79 - Unreleased
+## 4.5.79 - 2026-07-29
+
+Deploy marker: `deploy 4.5.79`
 
 ### Fixed
 - **Scheduled `run_once()` strategies now publish their final cloud snapshot from
@@ -27,6 +29,7 @@
 - **Scheduled closed-market preparation remains protected.** The explicit
   `closed_market_prepare` lifecycle continues to block broker submission,
   cancellation, and modification APIs while preparation code runs.
+
 ### Changed
 - **Documentation sitemap dates now reflect source changes.** Each public page
   uses its latest committed source date instead of making every page appear

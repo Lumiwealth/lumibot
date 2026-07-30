@@ -2,6 +2,13 @@
 
 ## 4.5.79 - Unreleased
 
+### Fixed
+- **Scheduled `run_once()` strategies now publish their final cloud snapshot from
+  LumiBot after broker-event draining and strategy shutdown hooks complete.**
+  Account balances, positions, and terminal order state are captured before the
+  broker connection closes, and a listener publication failure remains
+  non-fatal to the completed trading run.
+
 ### Added
 - **Public framework comparisons now include QuantConnect LEAN and primary
   sources.** The documentation comparison hub identifies the verification date,
@@ -17,17 +24,17 @@
   data-source interface.** Every supported broker receives the same
   `include_after_hours` option through LumiBot rather than requiring a
   provider-specific caller.
+- **Scheduled closed-market preparation remains protected.** The explicit
+  `closed_market_prepare` lifecycle continues to block broker submission,
+  cancellation, and modification APIs while preparation code runs.
+- **Scheduled runs publish their final cloud state before shutting down.** A
+  successful one-shot run now sends its final broker snapshot after lifecycle
+  completion and queue draining, while publication failures remain non-fatal.
 
 ### Changed
 - **Documentation sitemap dates now reflect source changes.** Each public page
   uses its latest committed source date instead of making every page appear
   updated whenever the documentation build runs.
-
-### Removed
-- **The scheduled closed-market preparation lifecycle has been removed.**
-  Scheduled runs again follow the normal market-calendar lifecycle. Strategies
-  that need after-hours preparation should explicitly configure their market
-  behavior and enforce their own session-aware order gates.
 
 ## 4.5.78 - 2026-07-16
 

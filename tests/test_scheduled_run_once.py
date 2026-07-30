@@ -58,6 +58,8 @@ class _DummyStrategy:
         self.iterations = 0
         self.ended = 0
         self.backups = 0
+        self.cloud_updates = 0
+        self.lifecycle_events = []
 
     @property
     def name(self):
@@ -78,6 +80,7 @@ class _DummyStrategy:
 
     def on_strategy_end(self):
         self.ended += 1
+        self.lifecycle_events.append("strategy_end")
 
     def _dump_stats(self):
         self._analysis = {"iterations": self.iterations}
@@ -112,6 +115,12 @@ class _DummyStrategy:
     def backup_variables_to_db(self):
         self.backups += 1
 
+    def send_update_to_cloud(self):
+        assert self.broker.closed is False
+        self.cloud_updates += 1
+        self.lifecycle_events.append("cloud_update")
+        return True
+
     def on_bot_crash(self, error):
         return None
 
@@ -144,6 +153,8 @@ def test_strategy_executor_run_once_runs_one_live_iteration(monkeypatch):
     assert strategy.before_starting == 1
     assert strategy.iterations == 1
     assert strategy.ended == 1
+    assert strategy.cloud_updates == 1
+    assert strategy.lifecycle_events == ["strategy_end", "cloud_update"]
     assert strategy.backups >= 1
     assert strategy.broker.closed is True
     assert executor.result == {"iterations": 1}
@@ -161,6 +172,36 @@ def test_strategy_executor_run_once_skips_calendar_for_24_7_market(monkeypatch):
 
     assert executor.run_once() is True
     assert strategy.iterations == 1
+
+
+def test_run_once_publishes_final_cloud_state_after_scheduled_drain(monkeypatch):
+    strategy = _DummyStrategy()
+    strategy.broker.market = "24/7"
+    executor = StrategyExecutor(strategy)
+    executor.sync_broker = lambda: None
+
+    def drain():
+        strategy.lifecycle_events.append("broker_drain")
+
+    executor._scheduled_drain_after_iteration = drain
+
+    assert executor.run_once() is True
+
+    assert strategy.lifecycle_events == ["broker_drain", "strategy_end", "cloud_update"]
+    assert strategy.cloud_updates == 1
+    assert strategy.broker.closed is True
+
+
+def test_run_once_cloud_publish_failure_does_not_change_success(monkeypatch):
+    strategy = _DummyStrategy()
+    strategy.broker.market = "24/7"
+    strategy.send_update_to_cloud = lambda: (_ for _ in ()).throw(RuntimeError("listener unavailable"))
+    executor = StrategyExecutor(strategy)
+    executor.sync_broker = lambda: None
+
+    assert executor.run_once() is True
+    assert strategy.ended == 1
+    assert strategy.broker.closed is True
 
 
 def test_run_once_empty_parameters_skips_initialize_signature_inspection(monkeypatch):

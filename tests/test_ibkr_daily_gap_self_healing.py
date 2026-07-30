@@ -355,6 +355,49 @@ def test_hourly_retry_marker_lookup_accepts_tz_naive_cache_index() -> None:
     )
 
 
+def test_hourly_clean_scan_is_repeated_when_request_window_widens(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    ibkr_helper._RUNTIME_HOURLY_GAP_CHECKED_SERIES.clear()
+    left = _hourly_frame("2023-07-31 09:00", "2023-08-01 16:00")
+    right = _hourly_frame("2026-07-29 09:00", "2026-07-30 16:00")
+    frame = pd.concat([left, right]).sort_index()
+    calls = []
+    monkeypatch.setattr(
+        ibkr_helper,
+        "_fetch_history_between_dates",
+        lambda **kwargs: calls.append(kwargs)
+        or _hourly_frame("2023-08-01 17:00", "2026-07-29 08:00"),
+    )
+    monkeypatch.setattr(ibkr_helper, "_write_cache_frame", lambda *_args: None)
+    common = {
+        "df_cache": frame,
+        "cache_file": tmp_path / "QQQ-hour.parquet",
+        "asset": Asset("QQQ", asset_type=Asset.AssetType.STOCK),
+        "quote": Asset("USD", asset_type=Asset.AssetType.FOREX),
+        "timestep": "hour",
+        "exchange": None,
+        "include_after_hours": True,
+        "source": "Trades",
+        "source_was_explicit": False,
+    }
+
+    ibkr_helper._repair_us_stock_index_hourly_gaps(
+        **common,
+        start_dt=datetime(2023, 7, 30, tzinfo=timezone.utc),
+        end_dt=datetime(2023, 8, 2, tzinfo=timezone.utc),
+    )
+    assert calls == []
+
+    ibkr_helper._repair_us_stock_index_hourly_gaps(
+        **common,
+        start_dt=datetime(2023, 7, 30, tzinfo=timezone.utc),
+        end_dt=datetime(2026, 7, 30, 23, tzinfo=timezone.utc),
+    )
+    assert len(calls) == 1
+
+
 def test_partial_hourly_repair_does_not_negative_cache_the_remaining_gap(
     monkeypatch,
     tmp_path,

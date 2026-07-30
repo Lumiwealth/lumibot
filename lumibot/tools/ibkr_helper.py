@@ -86,7 +86,10 @@ _IBKR_EQUITY_ACTIONS_CACHE: Dict[str, pd.DataFrame] = {}
 _RUNTIME_CONID_CACHE: Dict[str, int] = {}
 _RUNTIME_HISTORY_NO_DATA_WINDOWS: Dict[str, Tuple[datetime, datetime]] = {}
 _RUNTIME_DAILY_GAP_CHECKED_WINDOWS: set[tuple[str, str, str]] = set()
-_RUNTIME_HOURLY_GAP_CHECKED_SERIES: Dict[str, tuple[int, str, str, int]] = {}
+_RUNTIME_HOURLY_GAP_CHECKED_SERIES: Dict[
+    str,
+    tuple[tuple[int, str, str, int], datetime, datetime],
+] = {}
 _DISABLE_CONIDS_REMOTE_UPLOAD = False
 _LOGGED_CONIDS_REMOTE_UPLOAD_DISABLE = False
 _LOGGED_HISTORY_ALIASES: set[str] = set()
@@ -2734,8 +2737,17 @@ def _repair_us_stock_index_hourly_gaps(
 
     series_key = str(cache_file)
     cache_signature = _hourly_cache_signature(df_cache)
-    if _RUNTIME_HOURLY_GAP_CHECKED_SERIES.get(series_key) == cache_signature:
-        return df_cache
+    request_start = _to_utc(start_dt)
+    request_end = _to_utc(end_dt)
+    previous_check = _RUNTIME_HOURLY_GAP_CHECKED_SERIES.get(series_key)
+    if previous_check is not None:
+        checked_signature, checked_start, checked_end = previous_check
+        if (
+            checked_signature == cache_signature
+            and checked_start <= request_start
+            and checked_end >= request_end
+        ):
+            return df_cache
 
     gaps = _hourly_internal_gaps(
         df_cache,
@@ -2752,7 +2764,11 @@ def _repair_us_stock_index_hourly_gaps(
         )
     ]
     if not gaps:
-        _RUNTIME_HOURLY_GAP_CHECKED_SERIES[series_key] = cache_signature
+        _RUNTIME_HOURLY_GAP_CHECKED_SERIES[series_key] = (
+            cache_signature,
+            request_start,
+            request_end,
+        )
         return df_cache
 
     logger.info(
@@ -2833,8 +2849,10 @@ def _repair_us_stock_index_hourly_gaps(
 
     if changed:
         _write_cache_frame(cache_file, working)
-    _RUNTIME_HOURLY_GAP_CHECKED_SERIES[series_key] = _hourly_cache_signature(
-        working
+    _RUNTIME_HOURLY_GAP_CHECKED_SERIES[series_key] = (
+        _hourly_cache_signature(working),
+        request_start,
+        request_end,
     )
     logger.info(
         "IBKR hourly cache repair completed for %s with %d unresolved large gap(s)",

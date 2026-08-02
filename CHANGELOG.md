@@ -7,6 +7,8 @@
   A scheduled workflow verifies the real rendered chart instead of treating a
   configured but unauthorized GitHub token as healthy. The rotation runbook now
   records the required organization owner, repository scope, and permissions.
+  Worker failures now remain valid SVG after long escaped error messages, and
+  the README chart URLs bypass GitHub's cached broken response after rotation.
 
 ## 4.5.81 - 2026-07-30
 

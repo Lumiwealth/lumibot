@@ -30,6 +30,7 @@ test("buildChart renders current live data in both themes", () => {
   for (const theme of ["light", "dark"]) {
     const svg = buildChart(history, theme);
     assert.match(svg, /^<svg /);
+    assert.match(svg, /<title id="title">LumiBot live star history<\/title>/);
     assert.match(svg, /LumiBot Project Growth/);
     assert.match(svg, /Live GitHub star history/);
     assert.match(svg, /1\.8k/);

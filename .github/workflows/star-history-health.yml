@@ -1,0 +1,21 @@
+name: Star History chart health
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-chart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Verify the rendered LumiBot star chart
+        run: |
+          curl --fail --silent --show-error \
+            "https://lumibot-star-history.lumiwealth.workers.dev/chart.svg?theme=light" \
+            --output chart.svg
+          grep -Fq '<title id="title">LumiBot live star history</title>' chart.svg

@@ -2,6 +2,12 @@
 
 ## 4.5.82 - Unreleased
 
+### Fixed
+- **The README star-history integration now has an end-to-end health check.**
+  A scheduled workflow verifies the real rendered chart instead of treating a
+  configured but unauthorized GitHub token as healthy. The rotation runbook now
+  records the required organization owner, repository scope, and permissions.
+
 ## 4.5.81 - 2026-07-30
 
 Deploy marker: `deploy 4.5.81`

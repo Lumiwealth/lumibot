@@ -209,14 +209,15 @@ export function buildChart(history, requestedTheme = "light") {
 </svg>`;
 }
 
-function errorChart(message, requestedTheme) {
+export function errorChart(message, requestedTheme) {
   const colors = THEMES[requestedTheme === "dark" ? "dark" : "light"];
+  const safeMessage = escapeXml(String(message).slice(0, 120));
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 180" role="img" aria-label="Live star history temporarily unavailable">
   <rect x="1" y="1" width="898" height="178" rx="16" fill="${colors.background}" stroke="${colors.border}" stroke-width="2" />
   <g font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif">
     <text x="40" y="70" fill="${colors.text}" font-size="24" font-weight="700">LumiBot Project Growth</text>
     <text x="40" y="108" fill="${colors.muted}" font-size="16">Live GitHub data is temporarily unavailable. Refresh shortly.</text>
-    <text x="40" y="140" fill="${colors.muted}" font-size="12">${escapeXml(message).slice(0, 120)}</text>
+    <text x="40" y="140" fill="${colors.muted}" font-size="12">${safeMessage}</text>
   </g>
 </svg>`;
 }

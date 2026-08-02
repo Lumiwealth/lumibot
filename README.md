@@ -520,9 +520,9 @@ Crypto futures/perpetual backtests can route `Asset.AssetType.CRYPTO_FUTURE` thr
 
 <a href="https://www.star-history.com/?repos=Lumiwealth%2Flumibot&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://lumibot-star-history.lumiwealth.workers.dev/chart.svg?theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://lumibot-star-history.lumiwealth.workers.dev/chart.svg?theme=light" />
-   <img alt="Live LumiBot Star History Chart" src="https://lumibot-star-history.lumiwealth.workers.dev/chart.svg?theme=light" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://lumibot-star-history.lumiwealth.workers.dev/chart.svg?theme=dark&amp;v=20260802" />
+   <source media="(prefers-color-scheme: light)" srcset="https://lumibot-star-history.lumiwealth.workers.dev/chart.svg?theme=light&amp;v=20260802" />
+   <img alt="Live LumiBot Star History Chart" src="https://lumibot-star-history.lumiwealth.workers.dev/chart.svg?theme=light&amp;v=20260802" />
  </picture>
 </a>
 

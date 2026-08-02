@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildChart, parseLastPage } from "../src/index.mjs";
+import { buildChart, errorChart, parseLastPage } from "../src/index.mjs";
 
 test("parseLastPage reads the final GitHub pagination link", () => {
   const header = [
@@ -30,10 +30,19 @@ test("buildChart renders current live data in both themes", () => {
   for (const theme of ["light", "dark"]) {
     const svg = buildChart(history, theme);
     assert.match(svg, /^<svg /);
+    assert.match(svg, /<title id="title">LumiBot live star history<\/title>/);
     assert.match(svg, /LumiBot Project Growth/);
     assert.match(svg, /Live GitHub star history/);
     assert.match(svg, /1\.8k/);
     assert.match(svg, /Lumiwealth\/lumibot/);
     assert.doesNotMatch(svg, /undefined|NaN/);
   }
+});
+
+test("errorChart truncates before XML escaping", () => {
+  const message = `${"x".repeat(119)}"more text`;
+  const svg = errorChart(message, "light");
+
+  assert.match(svg, new RegExp(`${"x".repeat(119)}&quot;</text>`));
+  assert.doesNotMatch(svg, /&q<\/text>/);
 });

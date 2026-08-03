@@ -63,6 +63,11 @@ Agents expose the same memory behavior through built-in tools:
 
 Every agent call receives a compact `Lumibot Memory State JSON` section with open theses, current position rationales, and validated lessons. That injected state is intentionally small; deeper history should be retrieved with `search_memory`.
 
+The separate `_agent_runtime_state` entry in `self.vars` keeps bounded prompt
+notes and run metadata for lifecycle continuity. It does not duplicate full
+model summaries. Full history belongs in SQLite memory and agent observability
+artifacts.
+
 Research agents with `allow_trading=False` can write proposals and risk notes, but they cannot call `remember_decision`. In Lumibot, `remember_decision` means an actual trading decision and is reserved for trading-capable agents. When an agent submits an order through `orders_submit_order`, Lumibot also records an `order.submitted` memory event automatically so the memory ledger contains the executed action, not only the model's prose.
 
 Open theses also receive a best-effort daily `thesis.outcome_observed` event while the symbol is held. This records current quantity, last price when available, and market value when available. The observation is append-only and does not replace the thesis text.

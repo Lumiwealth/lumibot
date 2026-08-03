@@ -902,11 +902,19 @@ class AgentHandle:
         runs = state.get("runs", [])
         if not isinstance(runs, list):
             runs = []
+        # The bounded memory note already carries the summary used by later
+        # prompts. Drop legacy duplicate summaries so self.vars does not grow
+        # with a second, unbounded copy of every model response.
+        runs = [
+            {key: value for key, value in run.items() if key != "summary"}
+            if isinstance(run, dict)
+            else run
+            for run in runs
+        ]
         runs.append(
             {
                 "cache_key": result.cache_key,
                 "cache_hit": result.cache_hit,
-                "summary": result.summary,
                 "model": result.model,
                 "warnings": result.warning_messages,
                 "timestamp": event_timestamp,

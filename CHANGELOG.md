@@ -3,6 +3,10 @@
 ## 4.5.82 - Unreleased
 
 ### Fixed
+- **Agent runtime state no longer duplicates unbounded model summaries.**
+  Bounded memory notes continue to provide cross-iteration context, while run
+  metadata removes legacy duplicate summaries from ``self.vars``. Full memory
+  and observability history remains in SQLite and Parquet artifacts.
 - **The README star-history integration now has an end-to-end health check.**
   A scheduled workflow verifies the real rendered chart instead of treating a
   configured but unauthorized GitHub token as healthy. The rotation runbook now

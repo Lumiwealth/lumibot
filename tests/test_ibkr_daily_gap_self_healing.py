@@ -123,7 +123,7 @@ def test_daily_gap_repair_fetches_missing_range_with_bounded_wait(
         quote=quote,
         timestep="day",
         start_dt=datetime(2026, 7, 27, tzinfo=timezone.utc),
-        end_dt=datetime(2026, 7, 30, 23, tzinfo=timezone.utc),
+        end_dt=datetime(2026, 7, 30, tzinfo=timezone.utc),
         exchange=None,
         include_after_hours=True,
         source="Trades",
@@ -131,7 +131,7 @@ def test_daily_gap_repair_fetches_missing_range_with_bounded_wait(
     )
 
     assert len(calls) == 1
-    assert calls[0]["_period_override"] == ibkr_helper.IBKR_STOCK_INDEX_DAILY_MAX_PERIOD
+    assert calls[0]["_period_override"] == "5d"
     assert calls[0]["_record_missing_on_empty"] is False
     assert calls[0]["_max_timeout_attempts"] == 1
     assert calls[0]["_deadline_monotonic"] > 0
@@ -184,7 +184,7 @@ def test_daily_gap_repair_failure_returns_available_bars_without_failing(
     assert result.equals(frame)
 
 
-def test_daily_gap_repair_records_expiring_marker_when_small_request_is_empty(
+def test_daily_gap_repair_does_not_persist_ambiguous_empty_response(
     monkeypatch,
     tmp_path,
 ) -> None:
@@ -216,10 +216,42 @@ def test_daily_gap_repair_records_expiring_marker_when_small_request_is_empty(
         source_was_explicit=False,
     )
 
-    marker = result.loc[pd.Timestamp("2026-07-28 16:00", tz="America/New_York")]
-    assert bool(marker["missing"]) is True
-    assert pd.Timestamp(marker["missing_retry_after"]).tzinfo is not None
-    assert len(writes) == 1
+    assert pd.Timestamp("2026-07-28 16:00", tz="America/New_York") not in result.index
+    assert writes == []
+
+
+def test_all_placeholder_daily_cache_repairs_without_a_real_anchor(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    ibkr_helper._RUNTIME_DAILY_GAP_CHECKED_WINDOWS.clear()
+    frame = _daily_frame(["2026-07-27", "2026-07-28", "2026-07-29"], missing=True)
+    calls = []
+
+    def _fake_fetch(**kwargs):
+        calls.append(kwargs)
+        return _daily_frame(["2026-07-27", "2026-07-28", "2026-07-29"])
+
+    monkeypatch.setattr(ibkr_helper, "_fetch_history_between_dates", _fake_fetch)
+    monkeypatch.setattr(ibkr_helper, "_write_cache_frame", lambda *_args, **_kwargs: None)
+
+    result = ibkr_helper._repair_us_stock_index_daily_gaps(
+        frame,
+        cache_file=tmp_path / "GLD.parquet",
+        asset=Asset("GLD", asset_type=Asset.AssetType.STOCK),
+        quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
+        timestep="day",
+        start_dt=datetime(2026, 7, 27, tzinfo=timezone.utc),
+        end_dt=datetime(2026, 7, 30, tzinfo=timezone.utc),
+        exchange=None,
+        include_after_hours=True,
+        source="Trades",
+        source_was_explicit=False,
+    )
+
+    assert len(calls) == 1
+    assert calls[0]["_period_override"] == "6d"
+    assert result["missing"].fillna(False).astype(bool).sum() == 0
 
 
 def test_hourly_gap_repair_fetches_large_internal_gap_once_with_bounded_deadline(

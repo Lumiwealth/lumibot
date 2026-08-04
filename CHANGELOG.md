@@ -3,6 +3,13 @@
 ## 4.5.82 - Unreleased
 
 ### Fixed
+- **IBKR history caches now distinguish confirmed absence from incomplete or
+  transient responses.** Only confirmed no-data results create expiring
+  cross-process markers. Partial payloads and downloader failures retain an
+  in-process cooldown without poisoning later backtests. Daily stock and index
+  gaps repair in small bounded segments, all-placeholder caches can recover,
+  stale stock/index contract identifiers receive one validated refresh, and
+  `settings.json` records a credential-free `data_health` summary.
 - **Agent runtime state no longer duplicates unbounded model summaries.**
   Bounded memory notes continue to provide cross-iteration context, while run
   metadata removes legacy duplicate summaries from ``self.vars``. Full memory

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import shutil
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -127,8 +127,49 @@ def test_ibkr_stale_end_marks_missing_window_to_avoid_repeated_history_fetches(m
         assert bool(cached.loc[last_bar, "missing"]) is False
         assert end in cached.index
         assert bool(cached.loc[end, "missing"]) is True
+        assert cached.loc[end, "missing_outcome"] == "confirmed_no_data"
+        assert cached.loc[end, "missing_reason"] == "successful_history_response_confirmed_no_newer_bars"
+        assert pd.Timestamp(cached.loc[end, "missing_retry_after"]) > pd.Timestamp.now(tz="UTC")
     finally:
         shutil.rmtree(cache_root, ignore_errors=True)
+
+
+def test_legacy_expired_or_ambiguous_placeholders_do_not_suppress_retry() -> None:
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 2, 3, 9, 30))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 2, 3, 16, 0))
+    now = datetime(2026, 2, 4, tzinfo=timezone.utc)
+
+    legacy = pd.DataFrame(
+        {"missing": [True, True]},
+        index=pd.DatetimeIndex([start, end]),
+    )
+    assert not ibkr_helper._window_is_placeholder_covered(
+        legacy, start_local=start, end_local=end, now=now
+    )
+
+    expired = legacy.assign(
+        missing_retry_after=[
+            datetime(2026, 2, 3, tzinfo=timezone.utc).isoformat(),
+            datetime(2026, 2, 3, tzinfo=timezone.utc).isoformat(),
+        ],
+        missing_outcome=["confirmed_no_data", "confirmed_no_data"],
+    )
+    assert not ibkr_helper._window_is_placeholder_covered(
+        expired, start_local=start, end_local=end, now=now
+    )
+
+    ambiguous = expired.assign(
+        missing_retry_after=[
+            datetime(2026, 2, 5, tzinfo=timezone.utc).isoformat(),
+            datetime(2026, 2, 5, tzinfo=timezone.utc).isoformat(),
+        ],
+        missing_outcome=["partial", "partial"],
+    )
+    assert not ibkr_helper._window_is_placeholder_covered(
+        ambiguous, start_local=start, end_local=end, now=now
+    )
 
 
 def test_ibkr_placeholder_window_suppresses_subwindow_refetch_after_restart(monkeypatch):
@@ -183,6 +224,12 @@ def test_ibkr_placeholder_window_suppresses_subwindow_refetch_after_restart(monk
                 "close": [pd.NA, pd.NA],
                 "volume": [pd.NA, pd.NA],
                 "missing": [True, True],
+                "missing_retry_after": [
+                    (datetime.now(timezone.utc) + timedelta(hours=12)).isoformat(),
+                    (datetime.now(timezone.utc) + timedelta(hours=12)).isoformat(),
+                ],
+                "missing_reason": ["confirmed_no_data", "confirmed_no_data"],
+                "missing_outcome": ["confirmed_no_data", "confirmed_no_data"],
             },
             index=pd.DatetimeIndex([missing_start, missing_end]),
         )

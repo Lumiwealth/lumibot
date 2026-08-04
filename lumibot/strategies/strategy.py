@@ -4432,6 +4432,12 @@ class Strategy(_Strategy):
             settings["thetadata_queue_telemetry"] = queue_telemetry_snapshot()
         except Exception:
             pass
+        try:
+            from lumibot.tools.ibkr_history_health import ibkr_history_health_snapshot
+
+            settings["data_health"] = ibkr_history_health_snapshot()
+        except Exception:
+            pass
         os.makedirs(os.path.dirname(settings_file), exist_ok=True)
         with open(settings_file, "w") as outfile:
             import jsonpickle

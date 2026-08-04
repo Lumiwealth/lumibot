@@ -3495,6 +3495,9 @@ class _Strategy:
 
             self.logger.info("Starting backtest...")
             try:
+                from lumibot.tools.ibkr_history_health import reset_ibkr_history_health
+
+                reset_ibkr_history_health()
                 strategy._backtest_time_start_monotonic = time.monotonic()
             except Exception:
                 pass

@@ -3494,10 +3494,13 @@ class _Strategy:
             self._trader.add_strategy(strategy)
 
             self.logger.info("Starting backtest...")
+            strategy._backtest_time_start_monotonic = time.monotonic()
             try:
-                strategy._backtest_time_start_monotonic = time.monotonic()
-            except Exception:
-                pass
+                from lumibot.tools.ibkr_history_health import reset_ibkr_history_health
+
+                reset_ibkr_history_health()
+            except Exception as exc:
+                self.logger.warning("IBKR history-health telemetry reset failed: %s", exc)
             start = datetime.datetime.now()
 
             result = self._trader.run_all(

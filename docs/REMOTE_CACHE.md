@@ -6,9 +6,7 @@ supports ThetaData caches with two selectable modes:
 
 * `disabled` – the default behaviour; caching remains purely local.
 * `s3_readwrite` – reads existing cache objects from S3 and uploads local writes.
-
-`s3_readonly` will be introduced later when the Lambda writer is ready; a TODO
-placeholder lives in the code so the follow-on work has a defined landing spot.
+* `s3_readonly` – reads existing S3 objects without uploading cache changes.
 
 ## Environment Variables
 
@@ -111,10 +109,20 @@ Operationally:
   and retries. Real bars take precedence over no-data placeholders. This avoids
   last-writer-wins data loss without adding an S3 read to the normal warm path.
 * IBKR US stock and index series self-heal known cache gaps when loaded. Daily
-  gaps use one bounded range request per series. Hourly gaps longer than seven
-  days use bounded 2000-hour pages. Partial hourly progress remains retryable,
-  while a genuine empty response receives an expiring no-data marker. No cache
-  purge or namespace cutover is required.
+  gaps are grouped by exchange session and repaired in at most four small
+  segments of at most ten sessions each. Hourly gaps longer than seven days use
+  bounded 2000-hour pages. No cache purge or namespace cutover is required.
+* IBKR cache health has four outcomes: `complete`, `partial`,
+  `confirmed_no_data`, and `transient_failure`. Only `confirmed_no_data` may
+  create a durable negative marker. The marker includes a typed reason and retry
+  timestamp. Free-form provider errors stay in logs rather than cache or
+  backtest artifacts. Partial and transient results use an in-process cooldown,
+  which preserves zero-repeat downloader work inside one backtest while allowing
+  a later process to retry.
+* `scripts/audit_ibkr_cache_health.py --remote` inspects configured S3 objects
+  only when `LUMIBOT_CACHE_MODE=s3_readonly`. It reports unreadable objects,
+  placeholders, duplicate or non-monotonic timestamps, and null real OHLC rows.
+  It never downloads broker history, uploads objects, or deletes cache data.
 * Remote uploads run only in `s3_readwrite` mode. The read-only path returns
   early, leaving a TODO hook (`BacktestCacheManager.on_local_update`) for the
   Lambda-triggered workflow.
@@ -129,6 +137,10 @@ Automated coverage lives in:
 * `tests/test_thetadata_helper.py::test_get_price_data_invokes_remote_cache_manager`
   – sanity-checks the ThetaData integration, ensuring we attempt remote fetches
   for cache hits and avoid uploads when no new data is written.
+* `tests/test_ibkr_history_health.py` validates typed outcomes, bounded repair
+  planning, and sanitized health evidence.
+* `tests/test_ibkr_cache_health_audit.py` validates structural cache auditing,
+  including continued inventory when one parquet object is unreadable.
 
 These tests run without real AWS credentials thanks to dependency injection of
 stub clients.

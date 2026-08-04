@@ -145,6 +145,11 @@ This injected state is intentionally compact. It gives the model the current
 state of memory without flooding the prompt. Deeper history should be retrieved
 with ``search_memory``.
 
+The separate ``_agent_runtime_state`` entry in ``self.vars`` keeps bounded
+prompt notes and run metadata for lifecycle continuity. It does not duplicate
+full model summaries. Full history belongs in SQLite memory and agent
+observability artifacts.
+
 Lumibot also records execution-side memory. When an agent submits an order with
 ``orders_submit_order``, Lumibot writes an append-only ``order.submitted``
 event after the order is submitted. Open theses receive a best-effort daily

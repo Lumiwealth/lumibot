@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
@@ -585,6 +586,7 @@ def test_agent_runtime_memory_notes_are_compacted(monkeypatch, tmp_path):
     from lumibot.components.notifications import NotificationManager
 
     monkeypatch.setenv("LUMIBOT_AGENT_MEMORY_NOTE_MAX_CHARS", "500")
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path))
     strategy = _Strategy()
     strategy.vars = _Vars()
     strategy.is_backtesting = False
@@ -601,6 +603,9 @@ def test_agent_runtime_memory_notes_are_compacted(monkeypatch, tmp_path):
         _runtime=runtime,
     )
     agent.run(task_prompt="first long summary")
+    state = strategy.vars.get("_agent_runtime_state")
+    state["compact_memory"]["runs"][0]["summary"] = "legacy unbounded duplicate"
+    strategy.vars.set("_agent_runtime_state", state)
     agent.run(task_prompt="second should receive compact prior summary")
 
     assert len(_LongSummaryRuntime.requests) == 2
@@ -608,6 +613,15 @@ def test_agent_runtime_memory_notes_are_compacted(monkeypatch, tmp_path):
     assert len(prior_notes) == 1
     assert len(prior_notes[0]["summary"]) == 500
     assert prior_notes[0]["summary"].endswith("...")
+    # Full summaries are already represented by bounded memory notes and must
+    # not be duplicated in the scheduled self.vars runtime metadata.
+    runs = strategy.vars.get("_agent_runtime_state")["compact_memory"]["runs"]
+    assert all("summary" not in run for run in runs)
+    artifact_path = tmp_path / "agent_runtime" / "agent_run_summaries.jsonl"
+    artifact_rows = [json.loads(line) for line in artifact_path.read_text().splitlines()]
+    migrated = [row for row in artifact_rows if row.get("migrated_from_runtime_state")]
+    assert len(migrated) == 1
+    assert migrated[0]["summary"] == "legacy unbounded duplicate"
 
 
 def test_agent_model_call_limit_stops_before_runtime_call(monkeypatch):

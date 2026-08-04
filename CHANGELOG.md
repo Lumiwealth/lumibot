@@ -1,8 +1,24 @@
 # Changelog
 
-## 4.5.82 - Unreleased
+## 4.5.82 - 2026-08-03
+
+Deploy marker: `deploy 4.5.82`
 
 ### Fixed
+- **IBKR history caches now distinguish confirmed absence from incomplete or
+  transient responses.** Only confirmed no-data results create expiring
+  cross-process markers. Partial payloads and downloader failures retain an
+  in-process cooldown without poisoning later backtests. Daily stock and index
+  gaps repair in small bounded segments, all-placeholder caches can recover,
+  stale stock/index contract identifiers receive one validated refresh, and
+  `settings.json` records a credential-free `data_health` summary. Health
+  evidence caps missing-session details, uses typed reasons instead of provider
+  error text, and keeps cache-only marker columns out of strategy dataframes.
+- **Agent runtime state no longer duplicates unbounded model summaries.**
+  Bounded memory notes continue to provide cross-iteration context, while run
+  metadata archives legacy duplicate summaries once before removing them from
+  ``self.vars``. Full memory and observability history remains in JSONL, SQLite,
+  and Parquet artifacts.
 - **The README star-history integration now has an end-to-end health check.**
   A scheduled workflow verifies the real rendered chart instead of treating a
   configured but unauthorized GitHub token as healthy. The rotation runbook now

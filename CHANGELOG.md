@@ -11,7 +11,9 @@ Deploy marker: `deploy 4.5.82`
   in-process cooldown without poisoning later backtests. Daily stock and index
   gaps repair in small bounded segments, all-placeholder caches can recover,
   stale stock/index contract identifiers receive one validated refresh, and
-  `settings.json` records a credential-free `data_health` summary.
+  `settings.json` records a credential-free `data_health` summary. Health
+  evidence caps missing-session details, uses typed reasons instead of provider
+  error text, and keeps cache-only marker columns out of strategy dataframes.
 - **Agent runtime state no longer duplicates unbounded model summaries.**
   Bounded memory notes continue to provide cross-iteration context, while run
   metadata removes legacy duplicate summaries from ``self.vars``. Full memory

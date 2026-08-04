@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.5.82 - Unreleased
+## 4.5.82 - 2026-08-03
+
+Deploy marker: `deploy 4.5.82`
 
 ### Fixed
 - **IBKR history caches now distinguish confirmed absence from incomplete or

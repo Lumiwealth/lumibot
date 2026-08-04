@@ -104,10 +104,17 @@ def run_audit(*, remote: bool, limit: int | None = None) -> dict[str, Any]:
     }
 
 
+def _nonnegative_int(value: str) -> int:
+    result = int(value)
+    if result < 0:
+        raise argparse.ArgumentTypeError("--limit must be nonnegative")
+    return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--remote", action="store_true", help="Audit configured S3 cache read-only")
-    parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--limit", type=_nonnegative_int, default=None)
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--quiet", action="store_true", help="Do not print the JSON report")
     args = parser.parse_args()

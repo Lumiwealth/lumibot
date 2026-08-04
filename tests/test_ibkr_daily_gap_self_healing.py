@@ -131,7 +131,11 @@ def test_daily_gap_repair_fetches_missing_range_with_bounded_wait(
     )
 
     assert len(calls) == 1
-    assert calls[0]["_period_override"] == "5d"
+    # The repaired July 28 session produces one padded, end-exclusive window.
+    # Derive the provider period from that window instead of freezing its floor.
+    repair_days = (calls[0]["end_dt"] - calls[0]["start_dt"]).days + 1
+    expected_period_days = max(5, min(30, repair_days))
+    assert calls[0]["_period_override"] == f"{expected_period_days}d"
     assert calls[0]["_record_missing_on_empty"] is False
     assert calls[0]["_max_timeout_attempts"] == 1
     assert calls[0]["_deadline_monotonic"] > 0
@@ -216,6 +220,8 @@ def test_daily_gap_repair_does_not_persist_ambiguous_empty_response(
         source_was_explicit=False,
     )
 
+    # An ambiguous empty repair remains absent and process-retryable. It must not
+    # write a durable missing marker that would suppress a later healthy run.
     assert pd.Timestamp("2026-07-28 16:00", tz="America/New_York") not in result.index
     assert writes == []
 

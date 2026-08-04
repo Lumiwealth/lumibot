@@ -50,9 +50,10 @@ the existing selection rules choose a valid contract.
 ## Evidence
 
 `settings.json` receives a credential-free `data_health` object. It reports the
-requested period, expected and returned sessions, exact missing sessions, repair
-attempts, transient failures, contract refreshes, and whether incomplete data
-remains. It is diagnostic metadata and does not make a backtest fail.
+requested period, expected and returned sessions, up to 100 missing-session
+dates, the full `missing_session_count`, repair attempts, transient failures,
+contract refreshes, and whether incomplete data remains. It is diagnostic
+metadata and does not make a backtest fail.
 
 The read-only cache inventory command is:
 

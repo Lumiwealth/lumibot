@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pandas as pd
+import pytest
 
 from lumibot.tools.ibkr_history_health import (
     HistoryOutcome,
@@ -17,6 +18,13 @@ from lumibot.tools.ibkr_history_health import (
     reset_ibkr_history_health_for_testing,
     split_session_groups,
 )
+
+
+@pytest.fixture(autouse=True)
+def _reset_history_health_state():
+    reset_ibkr_history_health_for_testing()
+    yield
+    reset_ibkr_history_health_for_testing()
 
 
 def test_history_failure_classification_never_persists_ambiguous_failures() -> None:
@@ -96,7 +104,6 @@ def test_large_gap_is_split_into_bounded_repair_segments() -> None:
 
 
 def test_health_snapshot_is_bounded_and_contains_no_runtime_credentials() -> None:
-    reset_ibkr_history_health_for_testing()
     record_history_health(
         symbol="SQQQ",
         asset_type="stock",
@@ -117,13 +124,33 @@ def test_health_snapshot_is_bounded_and_contains_no_runtime_credentials() -> Non
     assert snapshot["complete"] is False
     assert snapshot["incomplete_series_count"] == 1
     assert snapshot["series"][0]["missing_sessions"] == ["2025-04-29", "2025-04-30"]
+    assert snapshot["series"][0]["missing_session_count"] == 2
     assert "api_key" not in str(snapshot).lower()
+
+
+def test_health_snapshot_caps_missing_session_evidence() -> None:
+    sessions = [
+        timestamp.date().isoformat()
+        for timestamp in pd.date_range("2025-01-01", periods=125, freq="D")
+    ]
+    record_history_health(
+        symbol="SQQQ",
+        asset_type="stock",
+        timestep="day",
+        requested_start=datetime(2025, 1, 1, tzinfo=timezone.utc),
+        requested_end=datetime(2025, 12, 31, tzinfo=timezone.utc),
+        outcome=HistoryOutcome.PARTIAL,
+        missing_sessions=sessions,
+    )
+
+    health = ibkr_history_health_snapshot()["series"][0]
+    assert len(health["missing_sessions"]) == 100
+    assert health["missing_session_count"] == 125
 
 
 def test_backtest_settings_include_sanitized_data_health(tmp_path) -> None:
     from lumibot.strategies.strategy import Strategy
 
-    reset_ibkr_history_health_for_testing()
     record_history_health(
         symbol="SQQQ",
         asset_type="stock",

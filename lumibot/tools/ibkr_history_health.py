@@ -15,6 +15,8 @@ from typing import Any, Iterable, Optional, Sequence
 
 import pandas as pd
 
+IBKR_HISTORY_HEALTH_MISSING_SESSION_LIMIT = 100
+
 
 class HistoryOutcome(str, Enum):
     COMPLETE = "complete"
@@ -46,7 +48,7 @@ def classify_history_failure(exc: BaseException) -> HistoryFailureClassification
     if any(token in normalized for token in identity_tokens):
         return HistoryFailureClassification(
             outcome=HistoryOutcome.TRANSIENT_FAILURE,
-            reason=message or "identity_related_history_failure",
+            reason="identity_related_history_failure",
             identity_related=True,
         )
 
@@ -60,7 +62,7 @@ def classify_history_failure(exc: BaseException) -> HistoryFailureClassification
     if any(token in normalized for token in confirmed_tokens):
         return HistoryFailureClassification(
             outcome=HistoryOutcome.CONFIRMED_NO_DATA,
-            reason=message or "confirmed_no_data",
+            reason="confirmed_no_data",
             persist_negative_cache=True,
         )
 
@@ -75,12 +77,12 @@ def classify_history_failure(exc: BaseException) -> HistoryFailureClassification
     if any(token in normalized for token in partial_tokens):
         return HistoryFailureClassification(
             outcome=HistoryOutcome.PARTIAL,
-            reason=message or "partial_history",
+            reason="partial_history",
         )
 
     return HistoryFailureClassification(
         outcome=HistoryOutcome.TRANSIENT_FAILURE,
-        reason=message or type(exc).__name__,
+        reason="transient_history_failure",
     )
 
 
@@ -199,7 +201,8 @@ def record_history_health(
         "outcome": outcome.value,
         "expected_sessions": expected_sessions,
         "returned_sessions": returned_sessions,
-        "missing_sessions": missing,
+        "missing_sessions": missing[:IBKR_HISTORY_HEALTH_MISSING_SESSION_LIMIT],
+        "missing_session_count": len(missing),
         "repair_attempts": int(repair_attempts),
         "transient_failures": int(transient_failures),
         "conid_refreshes": int(conid_refreshes),

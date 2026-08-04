@@ -8,6 +8,15 @@ import pytest
 from lumibot.entities import Asset
 
 
+@pytest.fixture(autouse=True)
+def _reset_ibkr_history_health_state():
+    from lumibot.tools.ibkr_history_health import reset_ibkr_history_health_for_testing
+
+    reset_ibkr_history_health_for_testing()
+    yield
+    reset_ibkr_history_health_for_testing()
+
+
 def test_ibkr_helper_caches_history_and_reuses_cache(monkeypatch, tmp_path):
     import lumibot.tools.ibkr_helper as ibkr_helper
 
@@ -373,7 +382,10 @@ def test_ibkr_downloader_payload_contract_rejects_partial_or_uncacheable_history
     import lumibot.tools.ibkr_helper as ibkr_helper
     from lumibot.tools.ibkr_history_health import HistoryOutcome, classify_history_failure
 
-    with pytest.raises(RuntimeError, match="partial_history:unverified_seam") as exc_info:
+    with pytest.raises(
+        RuntimeError,
+        match="partial_history:non_cacheable_downloader_payload",
+    ) as exc_info:
         ibkr_helper._ensure_cacheable_downloader_history_payload(
             {
                 "_botspot_meta": {
@@ -385,6 +397,25 @@ def test_ibkr_downloader_payload_contract_rejects_partial_or_uncacheable_history
             }
         )
     assert classify_history_failure(exc_info.value).outcome == HistoryOutcome.PARTIAL
+    assert "unverified_seam" not in str(exc_info.value)
+
+
+def test_cache_placeholder_metadata_never_reaches_strategy_frames():
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    frame = pd.DataFrame(
+        {
+            "close": [100.0],
+            "missing": [False],
+            "missing_retry_after": ["2026-08-04T00:00:00+00:00"],
+            "missing_reason": ["confirmed_no_data"],
+            "missing_outcome": ["confirmed_no_data"],
+        }
+    )
+
+    returned = ibkr_helper._strip_missing_cache_metadata(frame)
+
+    assert returned.columns.tolist() == ["close"]
 
 
 def test_ibkr_get_price_data_returns_real_cached_bars_when_window_stays_underfilled_after_refresh_error(monkeypatch, tmp_path):
@@ -560,6 +591,8 @@ def test_ibkr_malformed_rebuild_failure_uses_process_cooldown_without_persisting
         source="Trades",
         include_after_hours=True,
     )
+    # Malformed history is retryable process state, not durable no-data evidence,
+    # so no cache placeholder file should be created.
     assert not cache_file.exists()
 
     second = ibkr_helper.get_price_data(
@@ -579,6 +612,7 @@ def test_ibkr_malformed_rebuild_failure_uses_process_cooldown_without_persisting
 
 def test_stock_history_identity_failure_refreshes_conid_once(monkeypatch):
     import lumibot.tools.ibkr_helper as ibkr_helper
+    from lumibot.tools.ibkr_history_health import ibkr_history_health_snapshot
 
     asset = Asset(symbol="GLD", asset_type=Asset.AssetType.STOCK)
     quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
@@ -624,6 +658,45 @@ def test_stock_history_identity_failure_refreshes_conid_once(monkeypatch):
     assert not result.empty
     assert resolve_calls == [False, True]
     assert history_conids == [54927692, 51529211]
+    health = ibkr_history_health_snapshot()["series"][0]
+    assert health["outcome"] == "complete"
+    assert health["conid_refreshes"] == 1
+
+
+def test_failed_conid_refresh_preserves_transient_history_failure(monkeypatch):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+    from lumibot.tools.ibkr_history_health import ibkr_history_health_snapshot
+
+    asset = Asset(symbol="GLD", asset_type=Asset.AssetType.STOCK)
+    quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
+
+    def fake_resolve_conid(*, force_refresh=False, **_kwargs):
+        if force_refresh:
+            raise RuntimeError("Unable to resolve IBKR conid during gateway outage")
+        return 54927692
+
+    monkeypatch.setattr(ibkr_helper, "_resolve_conid", fake_resolve_conid)
+    def fail_history_request(**_kwargs):
+        raise RuntimeError("Chart data unavailable")
+
+    monkeypatch.setattr(ibkr_helper, "_ibkr_history_request", fail_history_request)
+
+    with pytest.raises(RuntimeError, match="Chart data unavailable"):
+        ibkr_helper._fetch_history_between_dates(
+            asset=asset,
+            quote=quote,
+            timestep="day",
+            start_dt=datetime(2026, 7, 29, tzinfo=timezone.utc),
+            end_dt=datetime(2026, 7, 30, tzinfo=timezone.utc),
+            exchange=None,
+            include_after_hours=True,
+            source="Trades",
+            source_was_explicit=False,
+        )
+
+    health = ibkr_history_health_snapshot()["series"][0]
+    assert health["outcome"] == "transient_failure"
+    assert health["conid_refreshes"] == 1
 
 
 def test_unresolvable_stock_conid_uses_negative_cache(monkeypatch, tmp_path):

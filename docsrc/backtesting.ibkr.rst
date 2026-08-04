@@ -101,7 +101,8 @@ lazy repair. When a real bar and a no-data marker share a timestamp, the real
 bar always wins.
 
 Backtest ``settings.json`` artifacts include a credential-free ``data_health``
-summary with exact missing sessions and repair outcomes. The summary is
+summary with up to 100 missing-session dates, the full missing-session count,
+and repair outcomes. Free-form provider errors remain in logs. The summary is
 diagnostic evidence and does not add a new backtest failure condition.
 
 Conid lookups also maintain cache files under ``LUMIBOT_CACHE_FOLDER/ibkr``:

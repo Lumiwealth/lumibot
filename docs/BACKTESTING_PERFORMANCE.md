@@ -389,7 +389,8 @@ cross-process marker with a reason. Legacy, ambiguous, or expired markers are
 eligible for lazy repair.
 
 `settings.json` includes a sanitized `data_health` summary with the requested
-period, expected and returned sessions, exact missing sessions, repair attempts,
+period, expected and returned sessions, up to 100 missing-session dates, the
+full missing-session count, repair attempts,
 transient failures, contract refreshes, and final completeness. This is
 diagnostic evidence only. It does not add a new backtest failure condition.
 

@@ -6,9 +6,7 @@ supports ThetaData caches with two selectable modes:
 
 * `disabled` – the default behaviour; caching remains purely local.
 * `s3_readwrite` – reads existing cache objects from S3 and uploads local writes.
-
-`s3_readonly` will be introduced later when the Lambda writer is ready; a TODO
-placeholder lives in the code so the follow-on work has a defined landing spot.
+* `s3_readonly` – reads existing S3 objects without uploading cache changes.
 
 ## Environment Variables
 
@@ -116,10 +114,11 @@ Operationally:
   bounded 2000-hour pages. No cache purge or namespace cutover is required.
 * IBKR cache health has four outcomes: `complete`, `partial`,
   `confirmed_no_data`, and `transient_failure`. Only `confirmed_no_data` may
-  create a durable negative marker. The marker includes a reason and retry
-  timestamp. Partial and transient results use an in-process cooldown, which
-  preserves zero-repeat downloader work inside one backtest while allowing a
-  later process to retry.
+  create a durable negative marker. The marker includes a typed reason and retry
+  timestamp. Free-form provider errors stay in logs rather than cache or
+  backtest artifacts. Partial and transient results use an in-process cooldown,
+  which preserves zero-repeat downloader work inside one backtest while allowing
+  a later process to retry.
 * `scripts/audit_ibkr_cache_health.py --remote` inspects configured S3 objects
   only when `LUMIBOT_CACHE_MODE=s3_readonly`. It reports unreadable objects,
   placeholders, duplicate or non-monotonic timestamps, and null real OHLC rows.

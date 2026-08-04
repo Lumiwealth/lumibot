@@ -914,7 +914,11 @@ def get_price_data(
                         requested_start=start_utc,
                         requested_end=end_utc,
                         outcome=classification.outcome,
-                        transient_failures=1,
+                        transient_failures=(
+                            0
+                            if classification.outcome is HistoryOutcome.CONFIRMED_NO_DATA
+                            else 1
+                        ),
                         reason=classification.reason,
                     )
                 except Exception:
@@ -1105,7 +1109,7 @@ def get_price_data(
     frame = df_cache.loc[(df_cache.index >= start_local) & (df_cache.index <= end_local)].copy()
     if "missing" in frame.columns:
         frame = frame[~frame["missing"].fillna(False)]
-        frame = frame.drop(columns=["missing"], errors="ignore")
+    frame = _strip_missing_cache_metadata(frame)
     if asset_type in {"stock", "index"} and str(timestep_component).endswith("day"):
         frame = _repair_isolated_split_spikes_daily(frame)
     placeholder_covered = _window_is_placeholder_covered(df_cache, start_local=start_local, end_local=end_local)
@@ -1579,6 +1583,20 @@ def _contract_expiration_date(root_symbol: str, *, year: int, month: int):
         return third_friday
 
 
+def _strip_missing_cache_metadata(frame: pd.DataFrame) -> pd.DataFrame:
+    """Remove cache-only placeholder fields before bars reach strategy code."""
+
+    return frame.drop(
+        columns=[
+            "missing",
+            "missing_retry_after",
+            "missing_reason",
+            "missing_outcome",
+        ],
+        errors="ignore",
+    )
+
+
 def _get_cached_bars_for_source(
     *,
     asset: Asset,
@@ -1744,8 +1762,7 @@ def _get_cached_bars_for_source(
     frame = df_cache.loc[(df_cache.index >= start_local) & (df_cache.index <= end_local)].copy()
     if "missing" in frame.columns:
         frame = frame[~frame["missing"].fillna(False)]
-        frame = frame.drop(columns=["missing"], errors="ignore")
-    return frame
+    return _strip_missing_cache_metadata(frame)
 
 
 def _maybe_augment_crypto_bid_ask(
@@ -1961,24 +1978,43 @@ def _fetch_history_between_dates(
                 and classification.identity_related
                 and asset_type in {"stock", "index"}
             ):
-                conid = _resolve_conid(
-                    asset=asset,
-                    quote=quote,
-                    exchange=exchange,
-                    force_refresh=True,
-                )
+                try:
+                    conid = _resolve_conid(
+                        asset=asset,
+                        quote=quote,
+                        exchange=exchange,
+                        force_refresh=True,
+                    )
+                except Exception as refresh_exc:
+                    record_history_health(
+                        symbol=str(getattr(asset, "symbol", "") or ""),
+                        asset_type=asset_type,
+                        timestep=timestep,
+                        requested_start=start_dt,
+                        requested_end=_to_utc(end_dt),
+                        outcome=classification.outcome,
+                        conid_refreshes=1,
+                        reason=classification.reason,
+                    )
+                    logger.warning(
+                        "IBKR forced conid refresh failed for %s: %s",
+                        getattr(asset, "symbol", None),
+                        refresh_exc,
+                    )
+                    raise exc from refresh_exc
                 conid_refreshed = True
+                continue
+            if conid_refreshed:
                 record_history_health(
                     symbol=str(getattr(asset, "symbol", "") or ""),
                     asset_type=asset_type,
                     timestep=timestep,
                     requested_start=start_dt,
                     requested_end=_to_utc(end_dt),
-                    outcome=HistoryOutcome.TRANSIENT_FAILURE,
+                    outcome=classification.outcome,
                     conid_refreshes=1,
                     reason=classification.reason,
                 )
-                continue
             if chunks and _deadline_monotonic is not None:
                 break
             raise
@@ -1996,6 +2032,17 @@ def _fetch_history_between_dates(
             if chunks:
                 break
 
+            if conid_refreshed:
+                record_history_health(
+                    symbol=str(getattr(asset, "symbol", "") or ""),
+                    asset_type=asset_type,
+                    timestep=timestep,
+                    requested_start=start_dt,
+                    requested_end=_to_utc(end_dt),
+                    outcome=HistoryOutcome.CONFIRMED_NO_DATA,
+                    conid_refreshes=1,
+                    reason="confirmed_no_data_after_conid_refresh",
+                )
             return pd.DataFrame()
 
         df = _history_payload_to_frame(data, source_was_explicit=source_was_explicit)
@@ -2005,6 +2052,17 @@ def _fetch_history_between_dates(
             if chunks:
                 break
 
+            if conid_refreshed:
+                record_history_health(
+                    symbol=str(getattr(asset, "symbol", "") or ""),
+                    asset_type=asset_type,
+                    timestep=timestep,
+                    requested_start=start_dt,
+                    requested_end=_to_utc(end_dt),
+                    outcome=HistoryOutcome.CONFIRMED_NO_DATA,
+                    conid_refreshes=1,
+                    reason="confirmed_no_data_after_conid_refresh",
+                )
             return pd.DataFrame()
 
         chunks.append(df)
@@ -2034,6 +2092,16 @@ def _fetch_history_between_dates(
 
     merged = pd.concat(chunks, axis=0).sort_index()
     merged = merged[~merged.index.duplicated(keep="last")]
+    if conid_refreshed:
+        record_history_health(
+            symbol=str(getattr(asset, "symbol", "") or ""),
+            asset_type=asset_type,
+            timestep=timestep,
+            requested_start=start_dt,
+            requested_end=_to_utc(end_dt),
+            outcome=HistoryOutcome.COMPLETE,
+            conid_refreshes=1,
+        )
     # IMPORTANT: Do not clamp to the requested window here.
     #
     # IBKR can return the "latest available" bars even when the requested window is in the
@@ -2169,10 +2237,12 @@ def _ensure_cacheable_downloader_history_payload(payload: Any) -> None:
     if classification in {"complete", "explicit_no_data"} and cache_policy in {"allow", "negative_only"}:
         return
     error = str(meta.get("error") or "").strip()
-    error_detail = f" error={error}" if error else ""
+    if error:
+        logger.warning("IBKR downloader rejected non-cacheable history payload: %s", error)
     raise RuntimeError(
-        "IBKR downloader returned a non-cacheable history payload "
-        f"(classification={classification or 'unknown'} cache_write_policy={cache_policy or 'unknown'}{error_detail})"
+        "partial_history:non_cacheable_downloader_payload "
+        f"classification={classification or 'unknown'} "
+        f"cache_write_policy={cache_policy or 'unknown'}"
     )
 
 
@@ -2538,7 +2608,8 @@ def _repair_us_stock_index_daily_gaps(
         end_dt=end_dt,
     )
     if not gaps:
-        expected = _expected_us_daily_sessions(start_dt=start_dt, end_dt=end_dt)
+        effective_end = min(_to_utc(end_dt), datetime.now(timezone.utc))
+        expected = _expected_us_daily_sessions(start_dt=start_dt, end_dt=effective_end)
         missing_mask = (
             aligned["missing"].fillna(False).astype(bool)
             if "missing" in aligned.columns
@@ -2628,7 +2699,7 @@ def _repair_us_stock_index_daily_gaps(
             LUMIBOT_DEFAULT_PYTZ
         )
     }
-    unresolved = [session for session in gaps if session.date() not in real_dates]
+    unresolved = [session for session in expected if session.date() not in real_dates]
     record_history_health(
         symbol=str(getattr(asset, "symbol", "") or ""),
         asset_type=_normalize_asset_type(getattr(asset, "asset_type", "")),
@@ -3283,7 +3354,7 @@ def _get_crypto_daily_bars(
     frame = df_cache.loc[(df_cache.index >= start_day) & (df_cache.index <= end_day)].copy()
     if "missing" in frame.columns:
         frame = frame[~frame["missing"].fillna(False)]
-        frame = frame.drop(columns=["missing"], errors="ignore")
+    frame = _strip_missing_cache_metadata(frame)
     if "close" in frame.columns:
         frame["bid"] = pd.to_numeric(frame.get("bid", frame["close"]), errors="coerce").fillna(frame["close"])
         frame["ask"] = pd.to_numeric(frame.get("ask", frame["close"]), errors="coerce").fillna(frame["close"])

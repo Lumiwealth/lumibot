@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from lumibot.tools.ibkr_history_health import audit_ibkr_cache_frame
 
@@ -23,6 +24,14 @@ def test_audit_script_disables_dotenv_discovery(monkeypatch) -> None:
     monkeypatch.delenv("LUMIBOT_DISABLE_DOTENV", raising=False)
     _load_audit_script()
     assert os.environ["LUMIBOT_DISABLE_DOTENV"] == "1"
+
+
+def test_audit_limit_rejects_negative_values() -> None:
+    module = _load_audit_script()
+
+    with pytest.raises(module.argparse.ArgumentTypeError, match="--limit must be nonnegative"):
+        module._nonnegative_int("-1")
+    assert module._nonnegative_int("0") == 0
 
 
 def test_cache_audit_distinguishes_real_rows_from_placeholders() -> None:

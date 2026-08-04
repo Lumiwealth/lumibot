@@ -472,3 +472,7 @@ This philosophy applies to ALL projects, not just LumiBot.
 - When starting any task, check: does this move a North Star metric? If not, question its priority.
 - See the private workspace operating instructions for the full framework when
   working inside Rob's local BotSpot/Lumiwealth environment.
+
+## Long-Term Architecture
+
+- Make architectural decisions for the long term. Do not accept a stopgap that only works for now and is meant to be replaced later.

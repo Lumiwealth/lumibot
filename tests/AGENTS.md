@@ -31,3 +31,7 @@ These rules apply to all files under `tests/`.
 
 - CI should block edits to LEGACY tests unless the PR is explicitly approved.
   The recommended mechanism is a PR label + required write-up (see `.github/workflows/`).
+
+## Long-Term Architecture
+
+- Make architectural decisions for the long term. Do not accept a stopgap that only works for now and is meant to be replaced later.

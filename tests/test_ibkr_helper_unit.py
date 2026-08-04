@@ -371,17 +371,20 @@ def test_ibkr_downloader_payload_contract_accepts_complete_and_explicit_no_data(
 
 def test_ibkr_downloader_payload_contract_rejects_partial_or_uncacheable_history():
     import lumibot.tools.ibkr_helper as ibkr_helper
+    from lumibot.tools.ibkr_history_health import HistoryOutcome, classify_history_failure
 
-    with pytest.raises(RuntimeError, match="non-cacheable history payload"):
+    with pytest.raises(RuntimeError, match="partial_history:unverified_seam") as exc_info:
         ibkr_helper._ensure_cacheable_downloader_history_payload(
             {
                 "_botspot_meta": {
                     "provider": "ibkr",
                     "classification": "partial",
                     "cache_write_policy": "deny",
+                    "error": "partial_history:unverified_seam",
                 }
             }
         )
+    assert classify_history_failure(exc_info.value).outcome == HistoryOutcome.PARTIAL
 
 
 def test_ibkr_get_price_data_returns_real_cached_bars_when_window_stays_underfilled_after_refresh_error(monkeypatch, tmp_path):

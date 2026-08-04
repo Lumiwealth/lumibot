@@ -2168,9 +2168,11 @@ def _ensure_cacheable_downloader_history_payload(payload: Any) -> None:
     cache_policy = str(meta.get("cache_write_policy") or "").strip().lower()
     if classification in {"complete", "explicit_no_data"} and cache_policy in {"allow", "negative_only"}:
         return
+    error = str(meta.get("error") or "").strip()
+    error_detail = f" error={error}" if error else ""
     raise RuntimeError(
         "IBKR downloader returned a non-cacheable history payload "
-        f"(classification={classification or 'unknown'} cache_write_policy={cache_policy or 'unknown'})"
+        f"(classification={classification or 'unknown'} cache_write_policy={cache_policy or 'unknown'}{error_detail})"
     )
 
 

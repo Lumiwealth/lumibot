@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
@@ -585,6 +586,7 @@ def test_agent_runtime_memory_notes_are_compacted(monkeypatch, tmp_path):
     from lumibot.components.notifications import NotificationManager
 
     monkeypatch.setenv("LUMIBOT_AGENT_MEMORY_NOTE_MAX_CHARS", "500")
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path))
     strategy = _Strategy()
     strategy.vars = _Vars()
     strategy.is_backtesting = False
@@ -615,6 +617,11 @@ def test_agent_runtime_memory_notes_are_compacted(monkeypatch, tmp_path):
     # not be duplicated in the scheduled self.vars runtime metadata.
     runs = strategy.vars.get("_agent_runtime_state")["compact_memory"]["runs"]
     assert all("summary" not in run for run in runs)
+    artifact_path = tmp_path / "agent_runtime" / "agent_run_summaries.jsonl"
+    artifact_rows = [json.loads(line) for line in artifact_path.read_text().splitlines()]
+    migrated = [row for row in artifact_rows if row.get("migrated_from_runtime_state")]
+    assert len(migrated) == 1
+    assert migrated[0]["summary"] == "legacy unbounded duplicate"
 
 
 def test_agent_model_call_limit_stops_before_runtime_call(monkeypatch):

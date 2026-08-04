@@ -903,14 +903,23 @@ class AgentHandle:
         if not isinstance(runs, list):
             runs = []
         # The bounded memory note already carries the summary used by later
-        # prompts. Drop legacy duplicate summaries so self.vars does not grow
-        # with a second, unbounded copy of every model response.
-        runs = [
-            {key: value for key, value in run.items() if key != "summary"}
-            if isinstance(run, dict)
-            else run
-            for run in runs
-        ]
+        # prompts. Archive legacy duplicate summaries before removing them from
+        # self.vars so an upgrade cannot discard older run evidence.
+        compacted_runs = []
+        for run in runs:
+            if not isinstance(run, dict) or "summary" not in run:
+                compacted_runs.append(run)
+                continue
+            try:
+                self._append_legacy_run_artifact_summary(run)
+            except Exception as exc:
+                self.manager._log_warning(
+                    f"Could not archive legacy agent run summary for {self.name}: {exc}"
+                )
+                compacted_runs.append(run)
+                continue
+            compacted_runs.append({key: value for key, value in run.items() if key != "summary"})
+        runs = compacted_runs
         runs.append(
             {
                 "cache_key": result.cache_key,
@@ -1127,6 +1136,25 @@ class AgentHandle:
             "warning_messages": result.warning_messages,
             "trace_path": trace_path,
             "trace_relative_path": trace_relative_path,
+        }
+        with summary_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(_normalize_json(record), sort_keys=True))
+            handle.write("\n")
+
+    def _append_legacy_run_artifact_summary(self, run: dict[str, Any]) -> None:
+        """Archive one pre-v4.5.82 runtime summary before compacting self.vars."""
+
+        summary_path = self._runtime_artifact_dir() / "agent_run_summaries.jsonl"
+        record = {
+            "timestamp": run.get("timestamp") or self._event_timestamp(),
+            "agent_name": self.name,
+            "mode": self._runtime_context().get("mode"),
+            "model": run.get("model"),
+            "summary": run.get("summary") or "",
+            "cache_hit": bool(run.get("cache_hit")),
+            "cache_key": run.get("cache_key"),
+            "warning_messages": run.get("warnings") or [],
+            "migrated_from_runtime_state": True,
         }
         with summary_path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(_normalize_json(record), sort_keys=True))

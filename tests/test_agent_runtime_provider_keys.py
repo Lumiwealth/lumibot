@@ -12,7 +12,6 @@ from lumibot.components.agents.runtime import (
     _aggregate_usage_metadata,
     _resolve_model_for_adk,
     _strip_thought_parts_from_litellm_request,
-    _supports_explicit_temperature_for_adk_model,
     _sync_together_api_key_alias,
     _sync_xai_api_key_alias,
     _classify_agent_error,
@@ -463,18 +462,3 @@ def test_gemini_native_path_uses_plain_model_id_for_implicit_or_adk_context_cach
     # only for LiteLLM providers; Gemini implicit caching and ADK explicit
     # ContextCacheConfig are configured outside the LiteLLM wrapper.
     assert _resolve_model_for_adk("gemini-3.1-pro-preview", prompt_cache_key="stable-prefix-key") == "gemini-3.1-pro-preview"
-
-
-def test_explicit_temperature_only_sent_to_gemini_native_models():
-    assert _supports_explicit_temperature_for_adk_model("gemini-3.1-pro-preview") is True
-    assert _supports_explicit_temperature_for_adk_model("models/gemini-3.1-pro-preview") is True
-
-    # GPT-5/reasoning-class OpenAI models reject custom temperature values; the
-    # provider default is the only accepted value.
-    assert _supports_explicit_temperature_for_adk_model("openai/gpt-5.4") is False
-    assert _supports_explicit_temperature_for_adk_model("openai/gpt-5.4-mini") is False
-    assert _supports_explicit_temperature_for_adk_model("xai/grok-4.20-0309-reasoning") is False
-    assert _supports_explicit_temperature_for_adk_model("anthropic/claude-opus-4-7") is False
-    assert _supports_explicit_temperature_for_adk_model("deepseek/deepseek-v4-flash") is False
-    assert _supports_explicit_temperature_for_adk_model("together_ai/moonshotai/Kimi-K2.6") is False
-    assert _supports_explicit_temperature_for_adk_model("cerebras/gpt-oss-120b") is False

@@ -1640,11 +1640,11 @@ class OptionsHelper:
                 continue
             if limit_type == "mid":
                 mid = (quote.ask + quote.bid) / 2
-                quotes.append(mid if order.side.lower() == "buy" else -mid)
+                quotes.append(mid if order.is_buy_order() else -mid)
             elif limit_type == "best":
-                quotes.append(quote.bid if order.side.lower() == "buy" else -quote.ask)
+                quotes.append(quote.bid if order.is_buy_order() else -quote.ask)
             elif limit_type == "fastest":
-                quotes.append(quote.ask if order.side.lower() == "buy" else -quote.bid)
+                quotes.append(quote.ask if order.is_buy_order() else -quote.bid)
         if not quotes:
             self.strategy.log_message("No valid quotes for calculating limit price.", color="red")
             return None

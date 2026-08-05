@@ -984,19 +984,6 @@ def _resolve_model_for_adk(
     return model_type(model=model, **kwargs)
 
 
-def _supports_explicit_temperature_for_adk_model(model: Any) -> bool:
-    """Return True only for ADK-native models known to accept temperature.
-
-    ADK's LiteLlm bridge forwards GenerateContentConfig fields to provider APIs.
-    OpenAI GPT-5/reasoning-class models reject custom temperature values and only
-    allow the provider default. Passing temperature=0.0 therefore breaks those
-    models before the agent can run. Keep deterministic temperature only on the
-    Gemini-native path; let LiteLLM providers use their provider defaults unless
-    a future explicit per-provider compatibility layer is added.
-    """
-    return _is_native_gemini_model(model)
-
-
 class GoogleADKRuntime:
     def __init__(self, mcp_servers: list[MCPServer] | None = None) -> None:
         self.mcp_servers = mcp_servers or []
@@ -1357,8 +1344,6 @@ class GoogleADKRuntime:
         config_kwargs: dict[str, Any] = {
             "max_output_tokens": 65535,
         }
-        if _supports_explicit_temperature_for_adk_model(request.model):
-            config_kwargs["temperature"] = 0.0
         request_timeout_seconds = GoogleADKRuntime._model_request_timeout_seconds_for_request(request)
         if _is_native_gemini_model(request.model) and request_timeout_seconds is not None:
             timeout_millis = max(int(request_timeout_seconds * 1000), 1)

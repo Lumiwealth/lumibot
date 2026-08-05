@@ -2,6 +2,19 @@
 
 ## 4.5.83 - Unreleased
 
+### Added
+- **AI agents can now operate generic option and multi-leg workflows through
+  built-in LumiBot tools.** Agents can retrieve chains and strikes, inspect
+  exact-contract Greeks and market quality, find listed strikes by delta,
+  calculate signed multi-leg prices, and submit atomic multi-leg orders. The
+  new ``ai_iron_condor.py`` example keeps all selection, sizing, construction,
+  execution, and management decisions inside one agent system prompt.
+
+### Changed
+- **Model requests no longer send a temperature parameter.** LumiBot now uses
+  each provider model's current default behavior instead of maintaining a
+  provider-specific temperature compatibility branch.
+
 ## 4.5.82 - 2026-08-03
 
 Deploy marker: `deploy 4.5.82`

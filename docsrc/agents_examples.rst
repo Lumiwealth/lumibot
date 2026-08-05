@@ -16,12 +16,19 @@ when you set ``IS_BACKTESTING = True`` in the flat runner.
    agents_example_warren_buffett_value
    agents_example_bill_ackman_concentrated
    agents_example_citadel_sector_pods
+   agents_example_ai_iron_condor
 
 These examples are inspired by public investing styles and firms. They are not
 affiliated with or endorsed by the investors, firms, or companies named.
 
 Examples
 --------
+
+``ai_iron_condor.py``
+   A single-agent, AI-only SPY options example. Python creates and runs the
+   agent. The system prompt makes the agent retrieve the chain, select and
+   evaluate four contracts, size and submit the atomic multi-leg order, and
+   manage the position on later iterations.
 
 ``ai_trading_team_citadel_sector_pods.py``
    Inspired by the pod-style structure associated with Ken Griffin's Citadel:

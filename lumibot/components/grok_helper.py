@@ -159,7 +159,7 @@ Return only valid JSON following the schema.
 """
         return system_prompt
 
-    def _send_request(self, system_msg: str, user_query: str, model: str = "grok-2-latest", temperature: int = 0, retries: int = 3) -> str:
+    def _send_request(self, system_msg: str, user_query: str, model: str = "grok-2-latest", retries: int = 3) -> str:
         """
         Sends a request to the Grok/xAI API using the provided system message and user query.
         Implements a retry loop to mitigate transient failures.
@@ -173,8 +173,6 @@ Return only valid JSON following the schema.
             The user's query.
         model : str, optional
             The model to use (default is "grok-2-latest").
-        temperature : int, optional
-            The temperature setting (default is 0).
         retries : int, optional
             Number of retry attempts (default is 3).
         
@@ -196,7 +194,6 @@ Return only valid JSON following the schema.
                         {"role": "system", "content": system_msg},
                         {"role": "user", "content": user_query}
                     ],
-                    temperature=temperature,
                     max_tokens=500,
                     top_p=0.9,
                     stream=False

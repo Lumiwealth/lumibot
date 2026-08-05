@@ -31,6 +31,7 @@ With ``allow_trading=False``, LumiBot removes tools that mutate orders and the
 actual-decision memory write:
 
 - submit order
+- submit multi-leg order
 - modify order
 - cancel order
 - remember decision
@@ -53,8 +54,9 @@ Agent order tools are intentionally broker-like: LumiBot either submits the
 exact order requested or rejects it. It does not silently resize, clip, or
 normalize a requested order into a different order.
 
-Before ``orders_submit_order`` can submit an order, the agent must inspect the
-required account and price context in the same agent run:
+Before ``orders_submit_order`` or ``orders_submit_multileg`` can submit an
+order, the agent must inspect the required account and price context in the
+same agent run:
 
 - ``account_portfolio`` for cash and portfolio value
 - ``account_positions`` for current holdings
@@ -86,6 +88,33 @@ These tools let agents understand what the strategy already knows:
 
 These tools are read-only. They remain available even when
 ``allow_trading=False``.
+
+Options And Multi-Leg Orders
+----------------------------
+
+LumiBot exposes generic options capabilities to every agent:
+
+- ``options_get_chain``
+- ``options_get_strikes``
+- ``options_get_greeks``
+- ``options_find_strike_for_delta``
+- ``options_evaluate_market``
+- ``options_calculate_multileg_price``
+
+The tools retrieve data through the configured LumiBot broker or backtest data
+source. They do not select a named options strategy or choose its legs. The
+agent must select an available expiration, exact listed strikes, quantities,
+and actions from the returned evidence.
+
+``orders_submit_multileg`` submits two or more exact option legs as one atomic
+multi-leg order. Opening actions are ``buy_to_open`` and ``sell_to_open``.
+Closing actions are ``buy_to_close`` and ``sell_to_close``. Signed net prices
+are positive for debits and negative for credits.
+
+``account_positions`` includes the exact contract, signed quantity, average
+fill, current value, and P&L fields when the active broker or backtest provides
+them. Agents can use those generic fields to reconstruct and manage existing
+option positions.
 
 Technical Indicators
 --------------------

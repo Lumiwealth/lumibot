@@ -12,9 +12,20 @@ from .tool_context import current_agent_tool_context
 
 
 AssetTypeArg = Literal["stock", "option", "future", "cont_future", "forex", "crypto", "index", "multileg", "us_equity"]
-OrderSideArg = Literal["buy", "sell", "buy_to_open", "sell_to_close", "sell_short", "buy_to_cover"]
+OrderSideArg = Literal[
+    "buy",
+    "sell",
+    "buy_to_open",
+    "buy_to_close",
+    "sell_to_open",
+    "sell_to_close",
+    "sell_short",
+    "buy_to_cover",
+]
 OrderTypeArg = Literal["market", "limit", "stop", "stop_limit", "trailing_stop", "smart_limit"]
 TimeInForceArg = Literal["day", "gtc", "gtd"]
+OptionRightArg = Literal["call", "put"]
+MultilegPriceStyleArg = Literal["market", "best", "mid", "fastest"]
 NewsSortArg = Literal["asc", "desc"]
 
 COMMON_INDICATORS = [
@@ -238,6 +249,15 @@ def _position_to_dict(position: Any) -> dict[str, Any]:
     return {
         "asset": asset_payload,
         "quantity": quantity,
+        "avg_fill_price": _jsonable(getattr(position, "avg_fill_price", None)),
+        "current_price": _jsonable(getattr(position, "current_price", None)),
+        "market_value": _jsonable(getattr(position, "market_value", None)),
+        "pnl": _jsonable(
+            getattr(position, "pnl", None)
+            if hasattr(position, "pnl")
+            else getattr(position, "unrealized_pnl", None)
+        ),
+        "pnl_percent": _jsonable(getattr(position, "pnl_percent", None)),
     }
 
 
@@ -262,6 +282,97 @@ def _order_to_dict(order: Any) -> dict[str, Any]:
     }
 
 
+def _options_helper_for_strategy(strategy: Any) -> Any:
+    helper = getattr(strategy, "_agent_options_helper", None)
+    if helper is None:
+        from lumibot.components.options_helper import OptionsHelper
+
+        helper = OptionsHelper(strategy)
+        setattr(strategy, "_agent_options_helper", helper)
+    return helper
+
+
+def _underlying_asset(
+    strategy: Any,
+    *,
+    symbol: str,
+    asset_type: Literal["stock", "index"] = "stock",
+) -> Any:
+    symbol = _require_single_symbol_text("symbol", symbol)
+    asset, _ = resolve_asset_and_quote(strategy, symbol=symbol, asset_type=asset_type)
+    return asset
+
+
+def _option_asset(
+    strategy: Any,
+    *,
+    symbol: str,
+    expiration: str,
+    strike: float,
+    right: OptionRightArg,
+) -> Any:
+    symbol = _require_single_symbol_text("symbol", symbol)
+    expiration_value = _coerce_expiration(_require_non_empty_text("expiration", expiration))
+    if not isinstance(expiration_value, date):
+        raise ValueError("expiration must use YYYY-MM-DD format.")
+    strike_value = _require_positive_number("strike", strike)
+    asset, _ = resolve_asset_and_quote(
+        strategy,
+        symbol=symbol,
+        asset_type="option",
+        expiration=expiration_value,
+        strike=strike_value,
+        right=right,
+    )
+    return asset
+
+
+def _parse_option_legs(strategy: Any, legs_json: str, *, time_in_force: TimeInForceArg = "day") -> list[Any]:
+    raw = _require_non_empty_text("legs_json", legs_json)
+    try:
+        legs = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"legs_json must be valid JSON: {exc}") from exc
+    if not isinstance(legs, list) or len(legs) < 2:
+        raise ValueError("legs_json must decode to a list containing at least two option legs.")
+
+    orders: list[Any] = []
+    for index, leg in enumerate(legs):
+        if not isinstance(leg, dict):
+            raise ValueError(f"legs_json item {index} must be a JSON object.")
+        try:
+            symbol = _require_single_symbol_text("symbol", leg.get("symbol"))
+            expiration = _require_non_empty_text("expiration", leg.get("expiration"))
+            strike = _require_positive_number("strike", leg.get("strike"))
+            right = str(leg.get("right") or "").strip().lower()
+            side = str(leg.get("side") or "").strip().lower()
+            quantity = _require_positive_number("quantity", leg.get("quantity"))
+        except ValueError as exc:
+            raise ValueError(f"Invalid option leg at index {index}: {exc}") from exc
+        if right not in {"call", "put"}:
+            raise ValueError(f"Invalid option leg at index {index}: right must be 'call' or 'put'.")
+        if side not in {
+            "buy",
+            "sell",
+            "buy_to_open",
+            "buy_to_close",
+            "sell_to_open",
+            "sell_to_close",
+        }:
+            raise ValueError(
+                f"Invalid option leg at index {index}: side must describe a buy or sell action for an option contract."
+            )
+        option = _option_asset(
+            strategy,
+            symbol=symbol,
+            expiration=expiration,
+            strike=strike,
+            right=right,
+        )
+        orders.append(strategy.create_order(option, quantity, side, time_in_force=time_in_force))
+    return orders
+
+
 def _bind_positions(strategy: Any, manager: Any) -> BoundTool:
     def positions() -> dict[str, Any]:
         return {
@@ -273,7 +384,9 @@ def _bind_positions(strategy: Any, manager: Any) -> BoundTool:
         name="account_positions",
         description=(
             "Return current positions as structured data. "
-            "Each entry includes asset fields and quantity. "
+            "Each entry includes exact asset fields, signed quantity, average fill price, current price, market value, and P&L fields when the broker or backtest provides them. "
+            "For options, signed quantity is authoritative: quantity > 0 is a long contract and must use sell_to_close to reduce it; quantity < 0 is a short contract and must use buy_to_close to reduce it. "
+            "Use expiration, strike, right, signed quantity, and average fill price to reconstruct and manage an existing multi-leg position. Never report the option portfolio as flat while any option entry has nonzero quantity. "
             "Use this before trading to understand current exposure, whether a symbol is already held, and whether the current portfolio is concentrated. "
             "Example: call this before rotating into a new symbol so you can compare it against what is already owned."
         ),
@@ -342,6 +455,304 @@ def _bind_last_price(strategy: Any, manager: Any) -> BoundTool:
             "Example: market_last_price(symbol='SPY', asset_type='stock')."
         ),
         function=last_price,
+        metadata={"kind": "builtin", "replay_on_cache": True},
+    )
+
+
+def _bind_options_get_chain(strategy: Any, manager: Any) -> BoundTool:
+    def get_chain(
+        *,
+        symbol: str,
+        underlying_asset_type: Literal["stock", "index"] = "stock",
+        include_strikes: bool = False,
+    ) -> dict[str, Any]:
+        underlying = _underlying_asset(strategy, symbol=symbol, asset_type=underlying_asset_type)
+        chains = strategy.get_chains(underlying)
+        if not chains:
+            return {
+                "symbol": symbol.upper(),
+                "underlying_asset_type": underlying_asset_type,
+                "available": False,
+                "call_expirations": [],
+                "put_expirations": [],
+            }
+
+        chain_root = chains.get("Chains", {}) if hasattr(chains, "get") else {}
+        call_map = chain_root.get("CALL", {}) if isinstance(chain_root, dict) else {}
+        put_map = chain_root.get("PUT", {}) if isinstance(chain_root, dict) else {}
+
+        def side_payload(side_map: Any) -> dict[str, Any]:
+            if not isinstance(side_map, dict):
+                return {}
+            result: dict[str, Any] = {}
+            for expiration in sorted(str(value) for value in side_map.keys()):
+                strikes = side_map.get(expiration) or []
+                normalized_strikes = sorted({float(value) for value in strikes})
+                entry: dict[str, Any] = {
+                    "strike_count": len(normalized_strikes),
+                    "min_strike": normalized_strikes[0] if normalized_strikes else None,
+                    "max_strike": normalized_strikes[-1] if normalized_strikes else None,
+                }
+                if include_strikes:
+                    entry["strikes"] = normalized_strikes
+                result[expiration] = entry
+            return result
+
+        calls = side_payload(call_map)
+        puts = side_payload(put_map)
+        return {
+            "symbol": symbol.upper(),
+            "underlying_asset_type": underlying_asset_type,
+            "available": True,
+            "multiplier": _jsonable(chains.get("Multiplier") if hasattr(chains, "get") else None),
+            "exchange": _jsonable(chains.get("Exchange") if hasattr(chains, "get") else None),
+            "call_expirations": list(calls.keys()),
+            "put_expirations": list(puts.keys()),
+            "calls": calls,
+            "puts": puts,
+            "strikes_included": include_strikes,
+            "datetime": strategy.get_datetime().isoformat(),
+        }
+
+    return BoundTool(
+        name="options_get_chain",
+        description=(
+            "Retrieve the option chain available for one underlying through LumiBot's configured broker or backtest data source. "
+            "Arguments: symbol, optional underlying_asset_type='stock' or 'index', optional include_strikes. "
+            "The default compact response lists call and put expirations plus strike counts and ranges. Set include_strikes=true only when you need every strike for every expiration. "
+            "Use this before choosing option contracts. Never invent an expiration or strike that is absent from this result. "
+            "Example: options_get_chain(symbol='SPY', include_strikes=false)."
+        ),
+        function=get_chain,
+        metadata={"kind": "builtin", "replay_on_cache": True},
+    )
+
+
+def _bind_options_get_strikes(strategy: Any, manager: Any) -> BoundTool:
+    def get_strikes(
+        *,
+        symbol: str,
+        expiration: str,
+        right: OptionRightArg,
+        underlying_asset_type: Literal["stock", "index"] = "stock",
+    ) -> dict[str, Any]:
+        underlying = _underlying_asset(strategy, symbol=symbol, asset_type=underlying_asset_type)
+        expiration_value = _coerce_expiration(_require_non_empty_text("expiration", expiration))
+        if not isinstance(expiration_value, date):
+            raise ValueError("expiration must use YYYY-MM-DD format.")
+        chains = strategy.get_chains(underlying)
+        if not chains:
+            strikes: list[float] = []
+        elif hasattr(chains, "strikes"):
+            strikes = chains.strikes(expiration_value, right.upper()) or []
+        else:
+            strikes = (
+                chains.get("Chains", {})
+                .get(right.upper(), {})
+                .get(expiration_value.isoformat(), [])
+            )
+        normalized = sorted({float(value) for value in strikes})
+        return {
+            "symbol": symbol.upper(),
+            "expiration": expiration_value.isoformat(),
+            "right": right,
+            "strikes": normalized,
+            "count": len(normalized),
+            "datetime": strategy.get_datetime().isoformat(),
+        }
+
+    return BoundTool(
+        name="options_get_strikes",
+        description=(
+            "Return every listed strike for one exact underlying, expiration, and option right. "
+            "Arguments: symbol, expiration in YYYY-MM-DD, right='call' or 'put', optional underlying_asset_type='stock' or 'index'. "
+            "First use options_get_chain to choose a listed expiration, then use this result when selecting exact contracts. "
+            "Example: options_get_strikes(symbol='SPY', expiration='2026-09-18', right='put')."
+        ),
+        function=get_strikes,
+        metadata={"kind": "builtin", "replay_on_cache": True},
+    )
+
+
+def _bind_options_get_greeks(strategy: Any, manager: Any) -> BoundTool:
+    def get_greeks(
+        *,
+        symbol: str,
+        expiration: str,
+        strike: float,
+        right: OptionRightArg,
+        underlying_price: float | None = None,
+        option_price: float | None = None,
+        risk_free_rate: float | None = None,
+        query_greeks: bool = False,
+    ) -> dict[str, Any]:
+        option = _option_asset(
+            strategy,
+            symbol=symbol,
+            expiration=expiration,
+            strike=strike,
+            right=right,
+        )
+        greeks = strategy.get_greeks(
+            option,
+            asset_price=option_price,
+            underlying_price=underlying_price,
+            risk_free_rate=risk_free_rate,
+            query_greeks=query_greeks,
+        )
+        return {
+            "asset": _asset_to_dict(option),
+            "greeks": _jsonable(greeks),
+            "available": greeks is not None,
+            "datetime": strategy.get_datetime().isoformat(),
+        }
+
+    return BoundTool(
+        name="options_get_greeks",
+        description=(
+            "Get Greeks for one exact listed option contract. "
+            "Arguments: symbol, expiration, strike, right, and optional underlying_price, option_price, risk_free_rate, query_greeks. "
+            "Use the exact expiration and strike returned by options_get_chain/options_get_strikes. The result proves Greeks only for the exact strike and right named in the result. Never transfer or reuse that delta for a neighboring strike. A null greeks result means the data source cannot value that contract at the current runtime datetime. "
+            "Example: options_get_greeks(symbol='SPY', expiration='2026-09-18', strike=650, right='call')."
+        ),
+        function=get_greeks,
+        metadata={"kind": "builtin", "replay_on_cache": True},
+    )
+
+
+def _bind_options_find_strike_for_delta(strategy: Any, manager: Any) -> BoundTool:
+    def find_strike_for_delta(
+        *,
+        symbol: str,
+        expiration: str,
+        right: OptionRightArg,
+        target_delta: float,
+        underlying_price: float | None = None,
+        underlying_asset_type: Literal["stock", "index"] = "stock",
+    ) -> dict[str, Any]:
+        target_delta_value = float(target_delta)
+        if not math.isfinite(target_delta_value) or abs(target_delta_value) > 1:
+            raise ValueError("target_delta must be a finite value from -1 through 1.")
+        expiration_value = _coerce_expiration(_require_non_empty_text("expiration", expiration))
+        if not isinstance(expiration_value, date):
+            raise ValueError("expiration must use YYYY-MM-DD format.")
+        underlying = _underlying_asset(strategy, symbol=symbol, asset_type=underlying_asset_type)
+        if underlying_price is None:
+            underlying_price = strategy.get_last_price(underlying)
+        if underlying_price is None:
+            raise ValueError(f"No underlying price is available for {symbol.upper()}.")
+        chains = strategy.get_chains(underlying)
+        strike = _options_helper_for_strategy(strategy).find_strike_for_delta(
+            underlying,
+            float(underlying_price),
+            target_delta_value,
+            expiration_value,
+            right,
+            chains=chains,
+        )
+        return {
+            "symbol": symbol.upper(),
+            "expiration": expiration_value.isoformat(),
+            "right": right,
+            "target_delta": target_delta_value,
+            "underlying_price": float(underlying_price),
+            "strike": float(strike) if strike is not None else None,
+            "available": strike is not None,
+            "datetime": strategy.get_datetime().isoformat(),
+        }
+
+    return BoundTool(
+        name="options_find_strike_for_delta",
+        description=(
+            "Find the listed strike whose calculated delta is closest to a target for one expiration and right. "
+            "Arguments: symbol, expiration, right, target_delta, optional underlying_price, optional underlying_asset_type. "
+            "Use positive target delta for calls and negative target delta for puts. First retrieve the chain and choose a listed expiration. "
+            "The returned strike is only a search candidate. It does not prove that the contract's current delta equals or is acceptably close to target_delta. Call options_get_greeks on that exact strike, use the exact returned delta, and reject the candidate when it is outside the strategy's permitted range. Never relabel, round, or describe a materially different verified delta as the target delta. "
+            "Example: options_find_strike_for_delta(symbol='SPY', expiration='2026-09-18', right='put', target_delta=-0.16)."
+        ),
+        function=find_strike_for_delta,
+        metadata={"kind": "builtin", "replay_on_cache": True},
+    )
+
+
+def _bind_options_evaluate_market(strategy: Any, manager: Any) -> BoundTool:
+    def evaluate_market(
+        *,
+        symbol: str,
+        expiration: str,
+        strike: float,
+        right: OptionRightArg,
+        max_spread_pct: float | None = None,
+    ) -> dict[str, Any]:
+        option = _option_asset(
+            strategy,
+            symbol=symbol,
+            expiration=expiration,
+            strike=strike,
+            right=right,
+        )
+        evaluation = _options_helper_for_strategy(strategy).evaluate_option_market(
+            option,
+            max_spread_pct=max_spread_pct,
+        )
+        return {
+            "asset": _asset_to_dict(option),
+            "market": _jsonable(vars(evaluation)),
+            "datetime": strategy.get_datetime().isoformat(),
+        }
+
+    return BoundTool(
+        name="options_evaluate_market",
+        description=(
+            "Inspect executable quote quality for one exact option contract and return bid, ask, last, spread percentage, suggested buy/sell prices, and data-quality flags. "
+            "Arguments: symbol, expiration, strike, right, optional max_spread_pct as a fraction such as 0.20 for 20 percent. "
+            "Call this for every proposed leg before submitting a multi-leg order. Do not trade a contract whose response says the market is unavailable or unacceptably wide under your policy. "
+            "Example: options_evaluate_market(symbol='SPY', expiration='2026-09-18', strike=650, right='call', max_spread_pct=0.20)."
+        ),
+        function=evaluate_market,
+        metadata={"kind": "builtin", "replay_on_cache": True},
+    )
+
+
+def _bind_options_calculate_multileg_price(strategy: Any, manager: Any) -> BoundTool:
+    def calculate_multileg_price(
+        *,
+        legs_json: str,
+        price_style: Literal["best", "mid", "fastest"] = "mid",
+    ) -> dict[str, Any]:
+        orders = _parse_option_legs(strategy, legs_json)
+        net_price = _options_helper_for_strategy(strategy).calculate_multileg_limit_price(orders, price_style)
+        if net_price is None:
+            return {
+                "available": False,
+                "price_style": price_style,
+                "net_limit_price": None,
+                "legs": [_order_to_dict(order) for order in orders],
+            }
+        net_price = float(net_price)
+        order_type = "debit" if net_price > 0 else "credit" if net_price < 0 else "even"
+        return {
+            "available": True,
+            "price_style": price_style,
+            "net_limit_price": net_price,
+            "order_type": order_type,
+            "broker_price": abs(net_price),
+            "legs": [_order_to_dict(order) for order in orders],
+            "datetime": strategy.get_datetime().isoformat(),
+        }
+
+    return BoundTool(
+        name="options_calculate_multileg_price",
+        description=(
+            "Calculate a provider-generic net limit price for two or more exact option legs without submitting them. "
+            "Arguments: legs_json and optional price_style='best', 'mid', or 'fastest'. legs_json must be a JSON array; every leg requires symbol, expiration, strike, right, quantity, and side. "
+            "Use buy_to_open/sell_to_open when opening and buy_to_close/sell_to_close when closing. A positive net_limit_price is a debit and a negative value is a credit. "
+            "For a closing order, a positive account_positions quantity is long and requires sell_to_close; a negative quantity is short and requires buy_to_close. Closing quantity is the absolute value of the position quantity. "
+            "When comparing a per-unit multi-leg opening credit with a per-unit closing debit, price one contract per leg here. Use the full absolute position quantities only in the later orders_submit_multileg call. "
+            "Independently reconcile the returned net price from the four option midpoint values you just observed. For a defined-risk structure, reject a result that conflicts materially with those leg mids or violates the structure's economic bounds. "
+            "Example legs_json: [{\"symbol\":\"SPY\",\"expiration\":\"2026-09-18\",\"strike\":620,\"right\":\"put\",\"quantity\":1,\"side\":\"buy_to_open\"},{\"symbol\":\"SPY\",\"expiration\":\"2026-09-18\",\"strike\":625,\"right\":\"put\",\"quantity\":1,\"side\":\"sell_to_open\"}]."
+        ),
+        function=calculate_multileg_price,
         metadata={"kind": "builtin", "replay_on_cache": True},
     )
 
@@ -1431,13 +1842,84 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
             "Valid asset_type values: stock, option, future, cont_future, forex, crypto, index, multileg, us_equity. "
             "Use stock for normal equities. "
             "Before using this tool, call account_portfolio, account_positions, and market_last_price for the same symbol in the current agent run; otherwise the order is rejected with ORDER_READINESS_REQUIRED. "
-            "Valid side values: buy, sell, buy_to_open, sell_to_close, sell_short, buy_to_cover. "
+            "Valid side values: buy, sell, buy_to_open, buy_to_close, sell_to_open, sell_to_close, sell_short, buy_to_cover. "
             "Valid order_type values: market, limit, stop, stop_limit, trailing_stop, smart_limit. "
             "Valid time_in_force values: day, gtc, gtd. "
             "Caveats: limit orders require limit_price; stop and stop_limit orders require stop_price; trailing_stop requires trail_price or trail_percent; smart_limit uses LumiBot's built-in smart-limit behavior. "
             "Example: orders_submit_order(symbol='SPY', quantity=100, side='buy', asset_type='stock', order_type='market')."
         ),
         function=submit_order,
+        metadata={"kind": "builtin", "replay_on_cache": True},
+    )
+
+
+def _bind_submit_multileg_order(strategy: Any, manager: Any) -> BoundTool:
+    def submit_multileg(
+        *,
+        legs_json: str,
+        price_style: MultilegPriceStyleArg = "mid",
+        net_limit_price: float | None = None,
+        time_in_force: TimeInForceArg = "day",
+    ) -> dict[str, Any]:
+        orders = _parse_option_legs(strategy, legs_json, time_in_force=time_in_force)
+        symbols = sorted({str(getattr(order.asset, "symbol", "")).upper() for order in orders})
+        for symbol in symbols:
+            _require_agent_order_readiness(symbol)
+
+        submit_kwargs: dict[str, Any] = {
+            "is_multileg": True,
+            "duration": time_in_force,
+        }
+        resolved_net_price: float | None = None
+        if price_style == "market":
+            if net_limit_price is not None:
+                raise ValueError("net_limit_price cannot be used when price_style='market'.")
+            submit_kwargs["order_type"] = "market"
+        else:
+            if net_limit_price is None:
+                calculated = _options_helper_for_strategy(strategy).calculate_multileg_limit_price(orders, price_style)
+                if calculated is None:
+                    raise ValueError(
+                        "Unable to calculate a multi-leg limit price from the current quotes. Evaluate every leg or use price_style='market' only if your trading policy permits it."
+                    )
+                resolved_net_price = float(calculated)
+            else:
+                resolved_net_price = float(net_limit_price)
+                if not math.isfinite(resolved_net_price):
+                    raise ValueError("net_limit_price must be finite.")
+            submit_kwargs["order_type"] = (
+                "debit" if resolved_net_price > 0 else "credit" if resolved_net_price < 0 else "even"
+            )
+            submit_kwargs["price"] = abs(resolved_net_price)
+
+        submitted = strategy.submit_order(orders, **submit_kwargs)
+        submitted_orders = submitted if isinstance(submitted, list) else [submitted]
+        return {
+            "submitted": [_order_to_dict(order) for order in submitted_orders if order is not None],
+            "legs": [_order_to_dict(order) for order in orders],
+            "price_style": price_style,
+            "net_limit_price": resolved_net_price,
+            "order_type": submit_kwargs["order_type"],
+            "time_in_force": time_in_force,
+            "datetime": strategy.get_datetime().isoformat(),
+        }
+
+    return BoundTool(
+        name="orders_submit_multileg",
+        description=(
+            "Create and submit one atomic multi-leg option order from exact contracts selected by the agent. This is generic and does not choose a strategy or its legs. "
+            "Arguments: legs_json, optional price_style='market', 'best', 'mid', or 'fastest', optional signed net_limit_price, optional time_in_force. legs_json must be a JSON array with at least two legs; each leg requires symbol, expiration, strike, right, quantity, and side. "
+            "Before submitting, call account_portfolio, account_positions, market_last_price for each underlying symbol, retrieve the chain, and evaluate every exact leg. "
+            "Opening sides are buy_to_open and sell_to_open. Closing sides are buy_to_close and sell_to_close. Use matching quantities when the intended position requires matched contracts. "
+            "When closing existing positions, map signed account quantities exactly: positive long quantity -> sell_to_close; negative short quantity -> buy_to_close. Reversing that mapping increases exposure instead of closing it. "
+            "Every proposed closing leg must reduce the corresponding exact position quantity toward zero. Do not use the same closing side for positive and negative position quantities. "
+            "Current nonzero option positions remain open until a later account_positions result shows zero quantity. A submitted or filled order result is not itself proof that positions are flat, and a final response must not claim submission unless this tool returned submitted orders. "
+            "Before opening more option exposure, compare the proposed legs with all current option positions and pending orders. Do not add another structure when the strategy policy permits only one open structure. "
+            "For limit execution, a positive signed net_limit_price is a debit and a negative value is a credit. If omitted, LumiBot calculates the selected best/mid/fastest price. "
+            "The agent must validate that signed price against its exact leg quotes and strategy economics before submission. For equal-width credit spreads, credit must be positive and strictly less than the wing width. "
+            "Use price_style='market' only when the strategy policy explicitly accepts market execution. The tool returns the submitted child orders and pricing classification."
+        ),
+        function=submit_multileg,
         metadata={"kind": "builtin", "replay_on_cache": True},
     )
 
@@ -1472,6 +1954,26 @@ class _MarketTools:
             description="Load visible historical bars into DuckDB.",
             binder=_bind_load_history,
         )
+
+
+class _OptionsTools:
+    def get_chain(self) -> ToolDefinition:
+        return ToolDefinition(name="options_get_chain", description="Retrieve an underlying's available option chain.", binder=_bind_options_get_chain)
+
+    def get_strikes(self) -> ToolDefinition:
+        return ToolDefinition(name="options_get_strikes", description="List strikes for one expiration and option right.", binder=_bind_options_get_strikes)
+
+    def get_greeks(self) -> ToolDefinition:
+        return ToolDefinition(name="options_get_greeks", description="Get Greeks for one exact option contract.", binder=_bind_options_get_greeks)
+
+    def find_strike_for_delta(self) -> ToolDefinition:
+        return ToolDefinition(name="options_find_strike_for_delta", description="Find a listed option strike closest to a target delta.", binder=_bind_options_find_strike_for_delta)
+
+    def evaluate_market(self) -> ToolDefinition:
+        return ToolDefinition(name="options_evaluate_market", description="Evaluate quote quality for one exact option contract.", binder=_bind_options_evaluate_market)
+
+    def calculate_multileg_price(self) -> ToolDefinition:
+        return ToolDefinition(name="options_calculate_multileg_price", description="Calculate a signed net price for exact option legs.", binder=_bind_options_calculate_multileg_price)
 
 
 class _DuckDBTools:
@@ -1611,6 +2113,14 @@ class _OrderTools:
             metadata={"mutates_trading": True},
         )
 
+    def submit_multileg(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="orders_submit_multileg",
+            description="Submit one atomic multi-leg option order from exact agent-selected contracts.",
+            binder=_bind_submit_multileg_order,
+            metadata={"mutates_trading": True},
+        )
+
     def open_orders(self) -> ToolDefinition:
         return ToolDefinition(name="orders_open_orders", description="List tracked orders and their identifiers.", binder=_bind_open_orders)
 
@@ -1626,6 +2136,7 @@ class _OrderTools:
 class _BuiltinTools:
     account = _AccountTools()
     market = _MarketTools()
+    options = _OptionsTools()
     duckdb = _DuckDBTools()
     docs = _DocsTools()
     news = _NewsTools()
@@ -1643,6 +2154,12 @@ class _BuiltinTools:
             self.account.portfolio(),
             self.market.last_price(),
             self.market.load_history_table(),
+            self.options.get_chain(),
+            self.options.get_strikes(),
+            self.options.get_greeks(),
+            self.options.find_strike_for_delta(),
+            self.options.evaluate_market(),
+            self.options.calculate_multileg_price(),
             self.duckdb.query(),
             self.docs.search(),
             self.news.alpaca_news(),
@@ -1673,6 +2190,7 @@ class _BuiltinTools:
             self.memory.update_thesis(),
             self.memory.close_thesis(),
             self.orders.submit(),
+            self.orders.submit_multileg(),
             self.orders.cancel(),
             self.orders.open_orders(),
             self.orders.modify(),

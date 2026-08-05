@@ -3,6 +3,25 @@
 Environment Variables
 =====================
 
+BotSpot External Signal Mirror
+------------------------------
+
+The BotSpot scheduled launcher provides the following runtime-managed variables
+for an External Signal Mirror task. Strategy authors should not set them
+manually:
+
+``BOTSPOT_EXTERNAL_SIGNAL_BATCH_S3_BUCKET``
+  Private bucket containing the normalized per-run batch.
+
+``BOTSPOT_EXTERNAL_SIGNAL_BATCH_S3_KEY``
+  Per-bot, per-run object key.
+
+``BOTSPOT_EXTERNAL_SIGNAL_BATCH_SHA256``
+  SHA-256 digest verified before the batch is parsed.
+
+``BOTSPOT_EXTERNAL_SIGNAL_BATCH_ID``
+  Immutable normalized batch identifier used in audit records.
+
 LumiBot supports configuring many behaviors via environment variables. This page documents the variables most commonly used for **backtesting**, **ThetaData**, and **remote caching**.
 
 .. important::

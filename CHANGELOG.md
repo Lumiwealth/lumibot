@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.5.83 - Unreleased
+## 4.5.83 - 2026-08-05
+
+Deploy marker: `deploy 4.5.83`
 
 ### Added
 - **AI agents can now operate generic option and multi-leg workflows through

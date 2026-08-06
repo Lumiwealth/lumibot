@@ -19,6 +19,8 @@ from lumibot.components.agents.runtime import (
     _model_context_string_limit_chars,
     _tool_name_space_aliases,
     _function_tools_with_name_aliases,
+    _is_provider_safe_function_name,
+    _normalize_tool_name_typo,
     _wrap_tool_callable,
 )
 from lumibot.components.agents.schemas import BoundTool
@@ -119,6 +121,39 @@ def test_wrapped_tool_does_not_block_repeated_calls():
     assert wrapped()["value"] == 1
     assert wrapped()["value"] == 2
     assert calls["count"] == 2
+
+
+def test_tool_name_space_aliases_cover_common_llm_typos():
+    aliases = _tool_name_space_aliases("options_find_expiration")
+    assert "options_find_ expiration" in aliases
+    assert "options_ find_expiration" in aliases
+
+
+def test_normalize_tool_name_typo_collapses_space_after_underscore():
+    assert _normalize_tool_name_typo("options_find_ expiration") == "options_find_expiration"
+    assert _normalize_tool_name_typo("options_ find_expiration") == "options_find_expiration"
+    assert _is_provider_safe_function_name("options_find_expiration")
+    assert not _is_provider_safe_function_name("options_find_ expiration")
+
+
+def test_function_tools_register_only_provider_safe_canonical_names():
+    """Gemini rejects function_declarations names that contain spaces (400)."""
+
+    def sample_tool(symbol: str = "SPY"):
+        return {"symbol": symbol}
+
+    bound = BoundTool(name="options_find_expiration", description="find expiration", function=sample_tool)
+
+    class FakeFunctionTool:
+        def __init__(self, fn):
+            self.fn = fn
+            self.name = fn.__name__
+
+    tools = _function_tools_with_name_aliases(FakeFunctionTool, [bound], None)
+    names = {tool.name for tool in tools}
+    assert names == {"options_find_expiration"}
+    assert "options_find_ expiration" not in names
+    assert tools[0].fn(symbol="QQQ")["symbol"] == "QQQ"
 
 
 def test_wrapped_tool_coerces_uuid_payloads_before_provider_serialization():

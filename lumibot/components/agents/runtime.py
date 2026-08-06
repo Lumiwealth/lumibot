@@ -174,21 +174,45 @@ def _wrap_tool_callable(tool: BoundTool, tool_context: dict[str, Any] | None = N
     return wrapper
 
 
+def _is_provider_safe_function_name(name: str) -> bool:
+    """Gemini function_declarations reject spaces and most punctuation."""
+    text = str(name or "")
+    if not text or len(text) > 128:
+        return False
+    if not re.match(r"^[A-Za-z_][A-Za-z0-9_.:-]*$", text):
+        return False
+    return True
+
+
+def _normalize_tool_name_typo(name: str) -> str:
+    """Collapse common LLM typos such as a space after an underscore."""
+    text = str(name or "").strip()
+    if not text:
+        return text
+    # options_find_ expiration -> options_find_expiration
+    collapsed = re.sub(r"_ +", "_", text)
+    collapsed = re.sub(r" +_", "_", collapsed)
+    collapsed = re.sub(r"\s+", "", collapsed)
+    return collapsed
+
+
 def _function_tools_with_name_aliases(function_tool_type: Any, bound_tools: Sequence[BoundTool], tool_context: dict[str, Any] | None = None) -> list[Any]:
-    """Register canonical tools plus underscore/space typo aliases for ADK lookup."""
+    """Register only provider-safe canonical tool names.
+
+    Space-after-underscore typos are tolerated by normalizing inbound tool names
+    (see ``_normalize_tool_name_typo``). They must not be registered as Gemini
+    ``function_declarations`` because names with spaces are rejected with 400
+    INVALID_ARGUMENT and abort the entire agent run.
+    """
     tools: list[Any] = []
     seen_names: set[str] = set()
     for bound in bound_tools:
         wrapper = _wrap_tool_callable(bound, tool_context)
         canonical = wrapper.__name__
-        if canonical not in seen_names:
-            tools.append(function_tool_type(wrapper))
-            seen_names.add(canonical)
-        for alias_name in _tool_name_space_aliases(canonical):
-            if alias_name in seen_names:
-                continue
-            tools.append(function_tool_type(_clone_tool_callable(wrapper, alias_name)))
-            seen_names.add(alias_name)
+        if canonical in seen_names or not _is_provider_safe_function_name(canonical):
+            continue
+        tools.append(function_tool_type(wrapper))
+        seen_names.add(canonical)
     return tools
 
 
@@ -1251,6 +1275,10 @@ class GoogleADKRuntime:
         LlmAgentType, InMemoryRunnerType, genai_types, function_tool_type = self._ensure_adk()
         run_config_module = importlib.import_module("google.adk.agents.run_config")
         tool_name_map = {_tool_function_name(tool.name): tool.name for tool in request.bound_tools}
+        for canonical, original in list(tool_name_map.items()):
+            for alias in _tool_name_space_aliases(canonical):
+                tool_name_map.setdefault(alias, original)
+                tool_name_map.setdefault(_normalize_tool_name_typo(alias), original)
         active_tool_context = {
             "agent_name": request.agent_name,
             "model_call_id": request.model_call_id,
@@ -1332,7 +1360,10 @@ class GoogleADKRuntime:
             events.extend(normalized_events)
         for event in events:
             if event.tool_name:
-                event.tool_name = tool_name_map.get(event.tool_name, event.tool_name)
+                mapped = tool_name_map.get(event.tool_name)
+                if mapped is None:
+                    mapped = tool_name_map.get(_normalize_tool_name_typo(event.tool_name), event.tool_name)
+                event.tool_name = mapped
         summary = None
         text_chunks = [event.text for event in events if event.kind == "text" and event.text]
         if text_chunks:

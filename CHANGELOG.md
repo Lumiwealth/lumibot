@@ -40,6 +40,12 @@
   fills around clock advances, wait polls are bounded in backtests, and
   multileg parents retain the submitted net limit price. Covered by
   ``tests/backtest/test_backtesting_broker_processing.py``.
+- **Gemini agent runs no longer register space-typo tool-name aliases as
+  ``function_declarations``.** Underscore/space aliases such as
+  ``options_find_ expiration`` caused 400 INVALID_ARGUMENT and aborted every
+  AI example strategy before the first tool call. Only provider-safe canonical
+  names are registered; inbound typos are normalized on lookup. Covered by
+  ``tests/test_agent_runtime_provider_keys.py``.
 
 ## 4.5.83 - 2026-08-05
 

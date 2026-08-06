@@ -23,6 +23,11 @@
   names, uses ``AI_ORB_*`` env overrides, and requires ``market_last_prices``
   plus 09:30 ET opening ranges. VWAP and credit-spread prompts prefer
   fill-friendly market/credit limits with the same post-trade status checks.
+- **``market_historical_prices`` batch history tool for agents.** Wraps
+  ``Strategy.get_historical_prices_for_assets`` so agents can request OHLCV bars
+  for up to 150 symbols in one call and read ``bars_by_symbol`` instead of
+  looping ``market_load_history_table``. ORB prompts prefer this path for minute
+  opening-range history after a ``market_last_prices`` scan.
 
 ### Fixed
 - **Broker history timesteps accept common aliases on every data source.**

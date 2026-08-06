@@ -308,8 +308,79 @@ def _parse_symbol_list(
     if not unique:
         raise ValueError("Provide symbols and/or symbols_json with at least one symbol.")
     if len(unique) > max_symbols:
-        raise ValueError(f"At most {max_symbols} symbols are allowed per market_last_prices call.")
+        raise ValueError(f"At most {max_symbols} symbols are allowed per batch market call.")
     return unique
+
+
+_HISTORY_BAR_COLUMNS = (
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "dividend",
+    "stock_splits",
+    "bid",
+    "ask",
+    "dividend_yield",
+)
+
+
+def _bars_to_records(bars: Any) -> list[dict[str, Any]]:
+    """Serialize a Bars object (or bars-like frame) into JSON-friendly OHLCV rows."""
+    if bars is None:
+        return []
+    frame = getattr(bars, "pandas_df", None)
+    if frame is None:
+        frame = getattr(bars, "df", None)
+    if frame is None:
+        return []
+    try:
+        working = frame.copy()
+    except Exception:
+        return []
+    if getattr(working, "empty", False):
+        return []
+    try:
+        if getattr(working.index, "name", None) is not None or str(getattr(working.index, "dtype", "")).startswith(
+            "datetime"
+        ):
+            working = working.reset_index()
+    except Exception:
+        pass
+    datetime_col = None
+    for candidate in ("datetime", "date", "timestamp", "time", "index"):
+        if candidate in working.columns:
+            datetime_col = candidate
+            break
+    records: list[dict[str, Any]] = []
+    for row in working.to_dict(orient="records"):
+        record: dict[str, Any] = {}
+        if datetime_col is not None:
+            record["datetime"] = _jsonable(row.get(datetime_col))
+        for column in _HISTORY_BAR_COLUMNS:
+            if column not in row:
+                continue
+            value = row.get(column)
+            try:
+                if value is None:
+                    record[column] = None
+                else:
+                    number = float(value)
+                    record[column] = number if math.isfinite(number) else None
+            except Exception:
+                record[column] = _jsonable(value)
+        records.append(record)
+    return records
+
+
+def _symbol_from_bars_key(key: Any, fallback: str | None = None) -> str:
+    symbol = getattr(key, "symbol", None)
+    if symbol is None and isinstance(key, (list, tuple)) and key:
+        symbol = getattr(key[0], "symbol", key[0])
+    if symbol is None:
+        symbol = key if isinstance(key, str) else fallback
+    return str(symbol or "").strip().upper()
 
 
 def _asset_to_dict(asset: Any) -> dict[str, Any] | str:
@@ -543,6 +614,7 @@ def _bind_last_price(strategy: Any, manager: Any) -> BoundTool:
             "Arguments: symbol, asset_type, optional expiration/strike/right for derivatives, optional quote_symbol, optional exchange. "
             "Valid asset_type values: stock, option, future, cont_future, forex, crypto, index, multileg, us_equity. "
             "The symbol argument must be one tradable symbol. For scanning a universe of equities or ETFs, prefer market_last_prices. "
+            "For historical bars across many symbols, prefer market_historical_prices. "
             "Use stock for normal equities. Do not pass economic series ids such as DCOILWTICO, FEDFUNDS, or M2SL as market symbols; use macro/FRED tools for those instead. "
             "Example: market_last_price(symbol='SPY', asset_type='stock')."
         ),
@@ -640,11 +712,126 @@ def _bind_last_prices(strategy: Any, manager: Any) -> BoundTool:
             "Arguments: symbols as a list or comma-separated string, and/or symbols_json as a JSON array; "
             "optional asset_type (default stock), optional quote_symbol, optional exchange. "
             "Cap is 150 symbols per call. Returns prices keyed by symbol, plus symbols_available and symbols_missing. "
-            "Use this to scan a provided equity/ETF universe before loading detailed history for finalists. "
+            "Use this to scan a provided equity/ETF universe before fetching detailed history with "
+            "market_historical_prices for finalists or a full multi-symbol history request. "
             "Never invent prices for missing symbols. "
             "Example: market_last_prices(symbols_json='[\"SPY\",\"QQQ\",\"AAPL\",\"MSFT\"]')."
         ),
         function=last_prices,
+        metadata={"kind": "builtin", "replay_on_cache": True},
+    )
+
+
+def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
+    def historical_prices(
+        *,
+        symbols: list[str] | tuple[str, ...] | str | None = None,
+        symbols_json: str | None = None,
+        length: int,
+        timestep: str = "day",
+        asset_type: AssetTypeArg = "stock",
+        quote_symbol: str | None = None,
+        exchange: str | None = None,
+        include_after_hours: bool = True,
+        chunk_size: int = 100,
+        max_workers: int = 200,
+    ) -> dict[str, Any]:
+        """Return historical OHLCV bars for many symbols in one call.
+
+        Prefer this over calling market_load_history_table once per symbol when the
+        strategy needs bars for a provided universe or a shortlist of finalists.
+        """
+        symbol_list = _parse_symbol_list(symbols=symbols, symbols_json=symbols_json, max_symbols=150)
+        length = _require_positive_int("length", length)
+        timestep = _require_non_empty_text("timestep", timestep)
+        chunk_size = _require_positive_int("chunk_size", chunk_size)
+        max_workers = _require_positive_int("max_workers", max_workers)
+
+        bars_by_symbol: dict[str, list[dict[str, Any]]] = {}
+        missing: list[str] = []
+        batch_fn = getattr(strategy, "get_historical_prices_for_assets", None)
+        batch_result = None
+        if callable(batch_fn) and asset_type in {"stock", "us_equity", "index"}:
+            try:
+                batch_result = batch_fn(
+                    symbol_list,
+                    length,
+                    timestep=timestep,
+                    chunk_size=chunk_size,
+                    max_workers=max_workers,
+                    exchange=exchange,
+                    include_after_hours=include_after_hours,
+                )
+            except Exception:
+                batch_result = None
+
+        if isinstance(batch_result, dict):
+            keyed: dict[str, Any] = {}
+            for key, bars in batch_result.items():
+                keyed[_symbol_from_bars_key(key)] = bars
+            for symbol in symbol_list:
+                records = _bars_to_records(keyed.get(symbol))
+                if records:
+                    bars_by_symbol[symbol] = records
+                else:
+                    bars_by_symbol[symbol] = []
+                    missing.append(symbol)
+        else:
+            for symbol in symbol_list:
+                try:
+                    asset, quote = resolve_asset_and_quote(
+                        strategy,
+                        symbol=symbol,
+                        asset_type=asset_type,
+                        quote_symbol=quote_symbol,
+                    )
+                    bars = strategy.get_historical_prices(
+                        asset,
+                        length=length,
+                        timestep=timestep,
+                        quote=quote,
+                        exchange=exchange,
+                        include_after_hours=include_after_hours,
+                    )
+                    records = _bars_to_records(bars)
+                    bars_by_symbol[symbol] = records
+                    if not records:
+                        missing.append(symbol)
+                except Exception:
+                    bars_by_symbol[symbol] = []
+                    missing.append(symbol)
+
+        available = [symbol for symbol, records in bars_by_symbol.items() if records]
+        return {
+            "bars_by_symbol": bars_by_symbol,
+            "symbols_requested": symbol_list,
+            "symbols_available": available,
+            "symbols_missing": missing,
+            "count_requested": len(symbol_list),
+            "count_available": len(available),
+            "length": length,
+            "timestep": timestep,
+            "asset_type": asset_type,
+            "include_after_hours": bool(include_after_hours),
+            "datetime": strategy.get_datetime().isoformat(),
+        }
+
+    return BoundTool(
+        name="market_historical_prices",
+        description=(
+            "Get historical OHLCV bars for many symbols in one call via "
+            "Strategy.get_historical_prices_for_assets. "
+            "Arguments: symbols as a list or comma-separated string, and/or symbols_json as a JSON array; "
+            "required length; timestep (default day); optional asset_type (default stock), quote_symbol, "
+            "exchange, include_after_hours, chunk_size, max_workers. "
+            "Cap is 150 symbols per call. Returns bars_by_symbol keyed by symbol with datetime/open/high/low/close/volume rows, "
+            "plus symbols_available and symbols_missing. "
+            "Never loop market_load_history_table or market_last_price once per symbol when you need multi-symbol history. "
+            "Use market_last_prices for a cheap latest-price universe scan, then this tool for history on finalists or the full list. "
+            "For SQL analysis of one already-loaded table, use market_load_history_table plus duckdb_query. "
+            "Example: market_historical_prices(symbols_json='[\"SPY\",\"QQQ\",\"AAPL\"]', length=20, timestep='minute')."
+        ),
+        function=historical_prices,
         metadata={"kind": "builtin", "replay_on_cache": True},
     )
 
@@ -1325,10 +1512,11 @@ def _bind_load_history(strategy: Any, manager: Any) -> BoundTool:
     return BoundTool(
         name="market_load_history_table",
         description=(
-            "Load visible historical bars into DuckDB and return the table metadata. "
+            "Load visible historical bars for one symbol into DuckDB and return the table metadata. "
             "Arguments: symbol, length, timestep, optional table_name, asset_type, quote_symbol, exchange, expiration, strike, right, include_after_hours. "
             "Valid asset_type values: stock, option, future, cont_future, forex, crypto, index, multileg, us_equity. "
             "The symbol argument must be the exact tradable symbol, such as XLY or SPY, not a generated table name such as XLY_HIST. "
+            "For two or more symbols of history, prefer market_historical_prices instead of calling this once per symbol. "
             "Use stock for normal equities. If asset_type is omitted, stock is assumed. Do not pass economic series ids such as DCOILWTICO, FEDFUNDS, or M2SL as market symbols; use macro/FRED tools for those instead. "
             "The loaded price tables usually expose columns such as datetime, open, high, low, close, volume, bid, ask, dividend, and dividend_yield. "
             "Use datetime for timestamps and close for the traded price unless the returned sample rows show otherwise. "
@@ -2488,6 +2676,13 @@ class _MarketTools:
             binder=_bind_last_prices,
         )
 
+    def historical_prices(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="market_historical_prices",
+            description="Get historical OHLCV bars for many symbols in one JSON-friendly call.",
+            binder=_bind_historical_prices,
+        )
+
     def load_history_table(self) -> ToolDefinition:
         return ToolDefinition(
             name="market_load_history_table",
@@ -2710,6 +2905,7 @@ class _BuiltinTools:
             self.account.portfolio(),
             self.market.last_price(),
             self.market.last_prices(),
+            self.market.historical_prices(),
             self.market.load_history_table(),
             self.options.get_chain(),
             self.options.get_strikes(),

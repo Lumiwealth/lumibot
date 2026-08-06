@@ -2,10 +2,28 @@ import json
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
+import pandas as pd
+
 from lumibot.components.agents import AgentManager, BuiltinTools
 from lumibot.components.agents.runtime import _wrap_tool_callable
 from lumibot.entities import Order
 from lumibot.entities.chains import Chains
+
+
+class _FakeBars:
+    def __init__(self, closes):
+        index = pd.date_range("2026-08-01", periods=len(closes), freq="min", tz="UTC")
+        self.pandas_df = pd.DataFrame(
+            {
+                "open": closes,
+                "high": [value + 1 for value in closes],
+                "low": [value - 1 for value in closes],
+                "close": closes,
+                "volume": [1_000 + index_offset for index_offset, _ in enumerate(closes)],
+            },
+            index=index,
+        )
+        self.df = self.pandas_df
 
 
 class _OptionsStrategy:
@@ -14,6 +32,8 @@ class _OptionsStrategy:
 
     def __init__(self):
         self.submissions = []
+        self.historical_batch_calls = []
+        self.historical_single_calls = []
 
     def get_datetime(self):
         return datetime(2026, 8, 3, tzinfo=timezone.utc)
@@ -41,6 +61,33 @@ class _OptionsStrategy:
             symbol = getattr(asset, "symbol", asset)
             result[str(symbol).upper()] = self.get_last_price(asset, quote=quote, exchange=exchange)
         return result
+
+    def get_historical_prices_for_assets(self, assets, length, timestep="day", **kwargs):
+        self.historical_batch_calls.append(
+            {"assets": list(assets), "length": length, "timestep": timestep, "kwargs": kwargs}
+        )
+        closes = {
+            "SPY": [100.0 + index for index in range(length)],
+            "QQQ": [200.0 + index for index in range(length)],
+            "AAPL": [300.0 + index for index in range(length)],
+        }
+        result = {}
+        for asset in assets:
+            symbol = str(getattr(asset, "symbol", asset)).upper()
+            if symbol not in closes:
+                continue
+            result[symbol] = _FakeBars(closes[symbol])
+        return result
+
+    def get_historical_prices(self, asset, length, timestep="day", **kwargs):
+        self.historical_single_calls.append(
+            {"asset": asset, "length": length, "timestep": timestep, "kwargs": kwargs}
+        )
+        symbol = str(getattr(asset, "symbol", asset)).upper()
+        base = {"SPY": 100.0, "QQQ": 200.0, "AAPL": 300.0}.get(symbol)
+        if base is None:
+            return None
+        return _FakeBars([base + index for index in range(length)])
 
     def get_chains(self, asset):
         return Chains(
@@ -104,6 +151,7 @@ def test_default_agent_tools_expose_generic_option_discovery_and_multileg_execut
 
     assert {
         "market_last_prices",
+        "market_historical_prices",
         "options_get_chain",
         "options_get_strikes",
         "options_get_greeks",
@@ -148,7 +196,42 @@ def test_market_last_prices_returns_batch_prices_and_satisfies_order_readiness()
         asset_type="stock",
         order_type="market",
     )
-    assert submitted["order"]["symbol"] == "SPY" or submitted["order"]["asset"]["symbol"] == "SPY"
+    order_payload = submitted["order"]
+    assert order_payload.get("symbol") == "SPY" or order_payload.get("asset", {}).get("symbol") == "SPY"
+
+
+def test_market_historical_prices_uses_batch_strategy_api_once():
+    strategy = _OptionsStrategy()
+    tools = _wrapped_tools(strategy, [BuiltinTools.market.historical_prices()])
+
+    batch = tools["market_historical_prices"](
+        symbols_json='["SPY","QQQ","AAPL"]',
+        length=3,
+        timestep="minute",
+    )
+
+    assert len(strategy.historical_batch_calls) == 1
+    assert strategy.historical_single_calls == []
+    assert batch["count_requested"] == 3
+    assert batch["count_available"] == 3
+    assert batch["timestep"] == "minute"
+    assert [row["close"] for row in batch["bars_by_symbol"]["SPY"]] == [100.0, 101.0, 102.0]
+    assert [row["close"] for row in batch["bars_by_symbol"]["QQQ"]] == [200.0, 201.0, 202.0]
+    assert batch["bars_by_symbol"]["AAPL"][0]["datetime"]
+    assert batch["symbols_missing"] == []
+
+
+def test_market_historical_prices_falls_back_per_symbol_when_batch_missing():
+    strategy = _OptionsStrategy()
+    strategy.get_historical_prices_for_assets = None
+    tools = _wrapped_tools(strategy, [BuiltinTools.market.historical_prices()])
+
+    batch = tools["market_historical_prices"](symbols=["SPY", "MSFT"], length=2, timestep="day")
+
+    assert len(strategy.historical_single_calls) == 2
+    assert batch["bars_by_symbol"]["SPY"][1]["close"] == 101.0
+    assert batch["bars_by_symbol"]["MSFT"] == []
+    assert "MSFT" in batch["symbols_missing"]
 
 
 def test_orb_prompt_requires_multi_ticker_scan_with_market_last_prices():
@@ -168,6 +251,7 @@ def test_orb_prompt_requires_multi_ticker_scan_with_market_last_prices():
         }
     )
     assert "market_last_prices" in prompt
+    assert "market_historical_prices" in prompt
     assert "09:30" in prompt
     assert str(len(universe)) in prompt
     assert "SPY" in prompt and "AAPL" in prompt

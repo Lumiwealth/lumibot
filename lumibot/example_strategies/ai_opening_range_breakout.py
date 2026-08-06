@@ -78,11 +78,14 @@ Rules:
 2. Scan the full provided universe with market_last_prices (symbols_json of the
    universe, or batched subsets of at most 150 symbols). Do not invent prices for
    symbols_missing. You may call market_last_price for a finalist before ordering.
-3. Prefer minute history via market_load_history_table with timestep='minute' plus
-   duckdb_query. Build each symbol's opening range as the high/low of the first
-   {opening_range_minutes} minutes of the regular US cash session (09:30 ET start,
-   not 09:00). If minute data for the true opening window is missing, skip that
-   symbol. Never invent intraday levels.
+3. Fetch minute history with market_historical_prices (same symbols_json batches,
+   timestep='minute', length covering the opening session). Do not loop
+   market_load_history_table once per symbol. Optionally load one finalist into
+   DuckDB with market_load_history_table plus duckdb_query. Build each symbol's
+   opening range as the high/low of the first {opening_range_minutes} minutes of
+   the regular US cash session (09:30 ET start, not 09:00). If minute data for
+   the true opening window is missing, skip that symbol. Never invent intraday
+   levels.
 4. A valid long breakout requires the latest completed bar's close to be strictly
    greater than that symbol's opening-range high (close > OR high), with confirming
    volume when available. A close equal to or below the OR high is not a breakout.
@@ -134,8 +137,8 @@ class AIOpeningRangeBreakoutStrategy(Strategy):
         self.agents["orb"].run(
             task_prompt=(
                 f"Run the multi-ticker opening-range breakout workflow for this bar across the "
-                f"{universe_count}-symbol universe. Use market_last_prices to scan, then minute "
-                "history/DuckDB for opening ranges (09:30 ET start). Prefer market equity orders. "
+                f"{universe_count}-symbol universe. Use market_last_prices to scan, then "
+                "market_historical_prices for minute opening ranges (09:30 ET start). Prefer market equity orders. "
                 "After any submission, verify status with orders_get_status."
             ),
             context={

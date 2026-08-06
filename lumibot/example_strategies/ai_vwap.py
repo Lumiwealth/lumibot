@@ -58,10 +58,12 @@ class AIVWAPStrategy(Strategy):
         "risk_fraction": 0.01,
         "max_shares": 200,
         "hold_bars": 30,
+        # Prefer minute bars; use a coarser sleeptime in short backtests to bound agent calls.
+        "sleeptime": "15M",
     }
 
     def initialize(self):
-        self.sleeptime = "1M"
+        self.sleeptime = str(self.parameters.get("sleeptime", "15M"))
         self.agents.create(
             name="vwap",
             model="gemini-3.5-flash-lite",

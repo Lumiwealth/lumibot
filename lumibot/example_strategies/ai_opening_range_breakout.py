@@ -61,11 +61,12 @@ class AIOpeningRangeBreakoutStrategy(Strategy):
         "risk_fraction": 0.01,
         "max_shares": 200,
         "profit_r_multiple": 1.5,
+        # Prefer minute bars; use a coarser sleeptime in short backtests to bound agent calls.
+        "sleeptime": "15M",
     }
 
     def initialize(self):
-        # Minute cadence when the data source supports it; daily still runs.
-        self.sleeptime = "1M"
+        self.sleeptime = str(self.parameters.get("sleeptime", "15M"))
         self.agents.create(
             name="orb",
             model="gemini-3.5-flash-lite",

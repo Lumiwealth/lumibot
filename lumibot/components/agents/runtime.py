@@ -107,6 +107,38 @@ def _tool_function_name(value: str) -> str:
     return normalized
 
 
+def _tool_name_space_aliases(canonical_name: str) -> list[str]:
+    """Common LLM typos: a space after an underscore in the tool name.
+
+    Example: options_find_expiration -> options_find_ expiration
+    """
+    parts = [part for part in str(canonical_name or "").split("_") if part != ""]
+    if len(parts) < 2:
+        return []
+    aliases: list[str] = []
+    for index in range(1, len(parts)):
+        alias = "_".join(parts[:index]) + "_ " + "_".join(parts[index:])
+        if alias and alias != canonical_name and alias not in aliases:
+            aliases.append(alias)
+    return aliases
+
+
+def _clone_tool_callable(wrapper: Any, name: str) -> Any:
+    def alias(*args, **kwargs):
+        return wrapper(*args, **kwargs)
+
+    alias.__name__ = name
+    alias.__qualname__ = name
+    alias.__doc__ = getattr(wrapper, "__doc__", None)
+    signature = getattr(wrapper, "__signature__", None)
+    if signature is not None:
+        alias.__signature__ = signature
+    annotations = getattr(wrapper, "__annotations__", None)
+    if isinstance(annotations, dict):
+        alias.__annotations__ = dict(annotations)
+    return alias
+
+
 def _wrap_tool_callable(tool: BoundTool, tool_context: dict[str, Any] | None = None):
     original = tool.function
 
@@ -140,6 +172,24 @@ def _wrap_tool_callable(tool: BoundTool, tool_context: dict[str, Any] | None = N
     if isinstance(annotations, dict):
         wrapper.__annotations__ = dict(annotations)
     return wrapper
+
+
+def _function_tools_with_name_aliases(function_tool_type: Any, bound_tools: Sequence[BoundTool], tool_context: dict[str, Any] | None = None) -> list[Any]:
+    """Register canonical tools plus underscore/space typo aliases for ADK lookup."""
+    tools: list[Any] = []
+    seen_names: set[str] = set()
+    for bound in bound_tools:
+        wrapper = _wrap_tool_callable(bound, tool_context)
+        canonical = wrapper.__name__
+        if canonical not in seen_names:
+            tools.append(function_tool_type(wrapper))
+            seen_names.add(canonical)
+        for alias_name in _tool_name_space_aliases(canonical):
+            if alias_name in seen_names:
+                continue
+            tools.append(function_tool_type(_clone_tool_callable(wrapper, alias_name)))
+            seen_names.add(alias_name)
+    return tools
 
 
 def _json_safe_value(value: Any) -> Any:
@@ -1207,7 +1257,11 @@ class GoogleADKRuntime:
             "enforce_order_readiness": True,
             "tool_calls": [],
         }
-        tools = [function_tool_type(_wrap_tool_callable(tool, active_tool_context)) for tool in request.bound_tools]
+        tools = _function_tools_with_name_aliases(
+            function_tool_type,
+            request.bound_tools,
+            active_tool_context,
+        )
         config_kwargs = self._generate_content_config_kwargs_for_request(request, genai_types)
         model_request_timeout_seconds = self._model_request_timeout_seconds_for_request(request)
         run_timeout_seconds = self._run_timeout_seconds_for_request(request)

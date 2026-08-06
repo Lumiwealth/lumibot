@@ -17,6 +17,8 @@ from lumibot.components.agents.runtime import (
     _classify_agent_error,
     _model_context_limit_tokens,
     _model_context_string_limit_chars,
+    _tool_name_space_aliases,
+    _function_tools_with_name_aliases,
     _wrap_tool_callable,
 )
 from lumibot.components.agents.schemas import BoundTool

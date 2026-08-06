@@ -279,6 +279,31 @@ class AIIronCondorStrategy(Strategy):
         )
 
 
+def _parameters_from_env(defaults: dict) -> dict:
+    """Override strategy parameters from AI_IC_* environment variables when set."""
+    params = dict(defaults)
+    float_keys = (
+        "wing_width",
+        "target_delta",
+        "delta_band",
+        "profit_take_fraction",
+        "loss_multiple",
+        "max_risk_pct",
+    )
+    int_keys = ("min_dte", "max_dte", "preferred_dte", "time_stop_dte", "max_contracts")
+    if os.environ.get("AI_IC_UNDERLYING"):
+        params["underlying"] = os.environ["AI_IC_UNDERLYING"].strip().upper()
+    for key in float_keys:
+        raw = os.environ.get(f"AI_IC_{key.upper()}")
+        if raw not in (None, ""):
+            params[key] = float(raw)
+    for key in int_keys:
+        raw = os.environ.get(f"AI_IC_{key.upper()}")
+        if raw not in (None, ""):
+            params[key] = int(raw)
+    return params
+
+
 if __name__ == "__main__":
     backtesting_end = datetime.fromisoformat(os.environ.get("BACKTESTING_END", datetime.now().date().isoformat()))
     backtesting_start = datetime.fromisoformat(
@@ -290,4 +315,5 @@ if __name__ == "__main__":
         backtesting_end=backtesting_end,
         benchmark_asset="SPY",
         budget=100_000,
+        parameters=_parameters_from_env(AIIronCondorStrategy.parameters),
     )

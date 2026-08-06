@@ -5,7 +5,10 @@ AI-Only Iron Condor
 does two things: it creates one trading agent in ``initialize()`` and runs that
 agent in ``on_trading_iteration()``. All market retrieval, option selection,
 four-leg construction, sizing, execution, and position management belongs to
-the agent and its system prompt.
+the agent and its system prompt. Strategy parameters such as ``wing_width``,
+``target_delta``, DTE bounds, profit/loss exits, and risk caps are injected into
+the prompt and per-iteration context. After every submission the prompt requires
+``orders_get_status`` plus a fresh ``account_positions`` read before claiming a fill.
 
 The example uses ``gemini-3.5-flash-lite`` explicitly. Existing saved
 strategies keep the model identifier already stored in their code.

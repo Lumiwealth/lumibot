@@ -98,18 +98,28 @@ LumiBot exposes generic options capabilities to every agent:
 - ``options_get_strikes``
 - ``options_get_greeks``
 - ``options_find_strike_for_delta``
+- ``options_find_expiration``
 - ``options_evaluate_market``
 - ``options_calculate_multileg_price``
+- ``options_check_spread_profit``
 
 The tools retrieve data through the configured LumiBot broker or backtest data
 source. They do not select a named options strategy or choose its legs. The
 agent must select an available expiration, exact listed strikes, quantities,
 and actions from the returned evidence.
 
+``options_find_expiration`` finds a listed expiration on or after a target date
+using ``min_days`` and/or ``target_date``. ``options_check_spread_profit``
+estimates multi-leg P&L percentage from exact legs and the opening cash cost.
+
 ``orders_submit_multileg`` submits two or more exact option legs as one atomic
 multi-leg order. Opening actions are ``buy_to_open`` and ``sell_to_open``.
 Closing actions are ``buy_to_close`` and ``sell_to_close``. Signed net prices
 are positive for debits and negative for credits.
+
+After submission, agents can call ``orders_get_status`` or
+``orders_wait_for_terminal`` to verify identifiers. Never treat a submitted
+status as a fill unless ``is_filled`` is true.
 
 ``account_positions`` includes the exact contract, signed quantity, average
 fill, current value, and P&L fields when the active broker or backtest provides

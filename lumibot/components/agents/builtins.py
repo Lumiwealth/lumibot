@@ -757,6 +757,299 @@ def _bind_options_calculate_multileg_price(strategy: Any, manager: Any) -> Bound
     )
 
 
+def _bind_options_find_expiration(strategy: Any, manager: Any) -> BoundTool:
+    def find_expiration(
+        *,
+        symbol: str,
+        right: OptionRightArg = "call",
+        min_days: int | None = None,
+        target_date: str | None = None,
+        underlying_asset_type: Literal["stock", "index"] = "stock",
+        allow_prior: bool = False,
+    ) -> dict[str, Any]:
+        if min_days is None and not target_date:
+            raise ValueError("Provide min_days and/or target_date.")
+        if min_days is not None:
+            min_days_value = int(min_days)
+            if min_days_value < 0:
+                raise ValueError("min_days must be >= 0.")
+        else:
+            min_days_value = None
+
+        current_dt = strategy.get_datetime()
+        current_day = current_dt.date() if isinstance(current_dt, datetime) else current_dt
+        if target_date:
+            target = _coerce_expiration(_require_non_empty_text("target_date", target_date))
+            if not isinstance(target, date):
+                raise ValueError("target_date must use YYYY-MM-DD format.")
+        else:
+            target = current_day + timedelta(days=int(min_days_value))
+
+        if min_days_value is not None:
+            earliest = current_day + timedelta(days=min_days_value)
+            if target < earliest:
+                target = earliest
+
+        underlying = _underlying_asset(strategy, symbol=symbol, asset_type=underlying_asset_type)
+        chains = strategy.get_chains(underlying)
+        expiration = _options_helper_for_strategy(strategy).get_expiration_on_or_after_date(
+            target,
+            chains,
+            right,
+            underlying_asset=underlying,
+            allow_prior=bool(allow_prior),
+        )
+        expiration_iso = expiration.isoformat() if isinstance(expiration, date) else None
+        days_to_expiration = None
+        if isinstance(expiration, date):
+            days_to_expiration = (expiration - current_day).days
+        return {
+            "symbol": symbol.upper(),
+            "right": right,
+            "requested_target_date": target.isoformat(),
+            "min_days": min_days_value,
+            "allow_prior": bool(allow_prior),
+            "expiration": expiration_iso,
+            "days_to_expiration": days_to_expiration,
+            "available": expiration is not None,
+            "datetime": strategy.get_datetime().isoformat(),
+        }
+
+    return BoundTool(
+        name="options_find_expiration",
+        description=(
+            "Find a listed option expiration on or after a target date for one underlying and right. "
+            "Arguments: symbol, optional right='call' or 'put', optional min_days, optional target_date in YYYY-MM-DD, "
+            "optional underlying_asset_type='stock' or 'index', optional allow_prior. "
+            "Provide min_days and/or target_date. When both are set, the later of the two floors is used. "
+            "This wraps OptionsHelper.get_expiration_on_or_after_date and validates tradeable data when possible. "
+            "Example: options_find_expiration(symbol='SPY', min_days=30, right='put')."
+        ),
+        function=find_expiration,
+        metadata={"kind": "builtin", "replay_on_cache": True},
+    )
+
+
+def _bind_options_check_spread_profit(strategy: Any, manager: Any) -> BoundTool:
+    def check_spread_profit(
+        *,
+        legs_json: str,
+        initial_cost: float,
+        contract_multiplier: int = 100,
+    ) -> dict[str, Any]:
+        try:
+            initial_cost_value = float(initial_cost)
+        except Exception as exc:
+            raise ValueError("initial_cost must be a finite number.") from exc
+        if not math.isfinite(initial_cost_value) or initial_cost_value == 0:
+            raise ValueError("initial_cost must be a nonzero finite number.")
+        multiplier = _require_positive_int("contract_multiplier", contract_multiplier)
+        orders = _parse_option_legs(strategy, legs_json)
+        profit_pct = _options_helper_for_strategy(strategy).check_spread_profit(
+            initial_cost_value,
+            orders,
+            contract_multiplier=multiplier,
+        )
+        return {
+            "available": profit_pct is not None,
+            "initial_cost": initial_cost_value,
+            "contract_multiplier": multiplier,
+            "profit_pct": float(profit_pct) if profit_pct is not None else None,
+            "legs": [_order_to_dict(order) for order in orders],
+            "datetime": strategy.get_datetime().isoformat(),
+            "notes": (
+                "initial_cost is the cash paid (positive debit) or cash received as a negative credit when the "
+                "spread was opened, matching OptionsHelper.check_spread_profit. profit_pct is relative to that cost."
+            ),
+        }
+
+    return BoundTool(
+        name="options_check_spread_profit",
+        description=(
+            "Estimate current multi-leg spread P&L percentage from exact option legs and the opening cash cost. "
+            "Arguments: legs_json, initial_cost, optional contract_multiplier (default 100). "
+            "legs_json must be a JSON array of exact contracts with symbol, expiration, strike, right, quantity, and side. "
+            "For opening-cost accounting, use a positive initial_cost for a net debit paid and a negative initial_cost "
+            "for a net credit received. Returns profit_pct relative to initial_cost, or available=false when a leg price is missing. "
+            "This is generic multi-leg math; it does not assume an iron condor or any named structure. "
+            "Example: options_check_spread_profit(legs_json='[...]', initial_cost=-200)."
+        ),
+        function=check_spread_profit,
+        metadata={"kind": "builtin", "replay_on_cache": True},
+    )
+
+
+def _order_status_payload(order: Any) -> dict[str, Any]:
+    status = str(getattr(order, "status", "") or "").strip().lower()
+    is_filled = bool(getattr(order, "is_filled", lambda: False)())
+    is_canceled = bool(getattr(order, "is_canceled", lambda: False)())
+    is_active = bool(getattr(order, "is_active", lambda: not (is_filled or is_canceled))())
+    is_terminal = bool(is_filled or is_canceled or not is_active)
+    payload = _order_to_dict(order)
+    payload.update(
+        {
+            "status_normalized": status or None,
+            "is_filled": is_filled,
+            "is_canceled": is_canceled,
+            "is_active": is_active,
+            "is_terminal": is_terminal,
+        }
+    )
+    return payload
+
+
+def _parse_order_identifiers(*, identifier: str | None = None, identifiers_json: str | None = None) -> list[str]:
+    values: list[str] = []
+    if identifier is not None and str(identifier).strip():
+        values.append(_require_non_empty_text("identifier", identifier))
+    if identifiers_json is not None and str(identifiers_json).strip():
+        raw = _require_non_empty_text("identifiers_json", identifiers_json)
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"identifiers_json must be valid JSON: {exc}") from exc
+        if isinstance(parsed, str):
+            parsed = [parsed]
+        if not isinstance(parsed, list) or not parsed:
+            raise ValueError("identifiers_json must decode to a non-empty list of order identifiers.")
+        for index, item in enumerate(parsed):
+            try:
+                values.append(_require_non_empty_text("identifier", item))
+            except ValueError as exc:
+                raise ValueError(f"Invalid identifier at index {index}: {exc}") from exc
+    # Preserve order while dropping duplicates.
+    unique: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        unique.append(value)
+    if not unique:
+        raise ValueError("Provide identifier and/or identifiers_json with at least one order identifier.")
+    return unique
+
+
+def _bind_orders_get_status(strategy: Any, manager: Any) -> BoundTool:
+    def get_status(
+        *,
+        identifier: str | None = None,
+        identifiers_json: str | None = None,
+    ) -> dict[str, Any]:
+        identifiers = _parse_order_identifiers(identifier=identifier, identifiers_json=identifiers_json)
+        orders_payload: list[dict[str, Any]] = []
+        missing: list[str] = []
+        for order_id in identifiers:
+            order = strategy.get_order(order_id)
+            if order is None:
+                missing.append(order_id)
+                orders_payload.append(
+                    {
+                        "identifier": order_id,
+                        "available": False,
+                        "status": None,
+                        "is_filled": False,
+                        "is_canceled": False,
+                        "is_active": False,
+                        "is_terminal": False,
+                    }
+                )
+                continue
+            payload = _order_status_payload(order)
+            payload["available"] = True
+            orders_payload.append(payload)
+        return {
+            "orders": orders_payload,
+            "count": len(orders_payload),
+            "missing_identifiers": missing,
+            "all_terminal": bool(orders_payload) and all(item.get("is_terminal") for item in orders_payload),
+            "all_filled": bool(orders_payload) and all(item.get("is_filled") for item in orders_payload),
+            "datetime": strategy.get_datetime().isoformat(),
+        }
+
+    return BoundTool(
+        name="orders_get_status",
+        description=(
+            "Get current status for one or more tracked order identifiers. "
+            "Arguments: optional identifier, optional identifiers_json as a JSON array of identifiers. "
+            "Reuse this after orders_submit_order or orders_submit_multileg. Never claim a fill unless "
+            "is_filled is true for the exact identifier. Missing identifiers are returned with available=false. "
+            "Example: orders_get_status(identifier='bt_1') or orders_get_status(identifiers_json='[\"bt_1\",\"bt_2\"]')."
+        ),
+        function=get_status,
+        metadata={"kind": "builtin"},
+    )
+
+
+def _bind_orders_wait_for_terminal(strategy: Any, manager: Any) -> BoundTool:
+    def wait_for_terminal(
+        *,
+        identifier: str | None = None,
+        identifiers_json: str | None = None,
+        timeout_seconds: float = 30.0,
+        poll_interval_seconds: float = 1.0,
+    ) -> dict[str, Any]:
+        identifiers = _parse_order_identifiers(identifier=identifier, identifiers_json=identifiers_json)
+        try:
+            timeout_value = float(timeout_seconds)
+            poll_value = float(poll_interval_seconds)
+        except Exception as exc:
+            raise ValueError("timeout_seconds and poll_interval_seconds must be numbers.") from exc
+        if not math.isfinite(timeout_value) or timeout_value <= 0:
+            raise ValueError("timeout_seconds must be a finite number greater than 0.")
+        if not math.isfinite(poll_value) or poll_value <= 0:
+            raise ValueError("poll_interval_seconds must be a finite number greater than 0.")
+        # Keep agent waits bounded so a hung broker cannot stall an iteration forever.
+        timeout_value = min(timeout_value, 120.0)
+        poll_value = min(max(poll_value, 0.25), 30.0)
+
+        import time as _time
+
+        started = _time.monotonic()
+        polls = 0
+        status_tool = _bind_orders_get_status(strategy, manager).function
+        latest: dict[str, Any] = {}
+        while True:
+            polls += 1
+            latest = status_tool(identifiers_json=json.dumps(identifiers))
+            if latest.get("all_terminal"):
+                break
+            elapsed = _time.monotonic() - started
+            if elapsed >= timeout_value:
+                break
+            remaining = timeout_value - elapsed
+            sleep_for = min(poll_value, remaining)
+            sleeper = getattr(strategy, "sleep", None)
+            if callable(sleeper):
+                sleeper(sleep_for, process_pending_orders=True)
+            else:
+                _time.sleep(sleep_for)
+
+        elapsed_total = _time.monotonic() - started
+        return {
+            **latest,
+            "timed_out": not bool(latest.get("all_terminal")),
+            "timeout_seconds": timeout_value,
+            "poll_interval_seconds": poll_value,
+            "polls": polls,
+            "elapsed_seconds": elapsed_total,
+            "datetime": strategy.get_datetime().isoformat(),
+        }
+
+    return BoundTool(
+        name="orders_wait_for_terminal",
+        description=(
+            "Poll one or more tracked order identifiers until every order is terminal or a bounded timeout elapses. "
+            "Arguments: optional identifier, optional identifiers_json, optional timeout_seconds (default 30, max 120), "
+            "optional poll_interval_seconds (default 1). Uses strategy.sleep so pending broker fills can process. "
+            "In backtests, fills are often already terminal on the first poll. Never claim a fill unless is_filled is true. "
+            "Example: orders_wait_for_terminal(identifiers_json='[\"bt_1\"]', timeout_seconds=15)."
+        ),
+        function=wait_for_terminal,
+        metadata={"kind": "builtin"},
+    )
+
+
 def _bind_load_history(strategy: Any, manager: Any) -> BoundTool:
     def load_history_table(
         *,
@@ -1975,6 +2268,12 @@ class _OptionsTools:
     def calculate_multileg_price(self) -> ToolDefinition:
         return ToolDefinition(name="options_calculate_multileg_price", description="Calculate a signed net price for exact option legs.", binder=_bind_options_calculate_multileg_price)
 
+    def find_expiration(self) -> ToolDefinition:
+        return ToolDefinition(name="options_find_expiration", description="Find a listed expiration on or after a target date.", binder=_bind_options_find_expiration)
+
+    def check_spread_profit(self) -> ToolDefinition:
+        return ToolDefinition(name="options_check_spread_profit", description="Estimate multi-leg spread P&L percentage from exact legs.", binder=_bind_options_check_spread_profit)
+
 
 class _DuckDBTools:
     def query(self) -> ToolDefinition:
@@ -2124,6 +2423,16 @@ class _OrderTools:
     def open_orders(self) -> ToolDefinition:
         return ToolDefinition(name="orders_open_orders", description="List tracked orders and their identifiers.", binder=_bind_open_orders)
 
+    def get_status(self) -> ToolDefinition:
+        return ToolDefinition(name="orders_get_status", description="Get status for one or more tracked order identifiers.", binder=_bind_orders_get_status)
+
+    def wait_for_terminal(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="orders_wait_for_terminal",
+            description="Poll tracked order identifiers until terminal or timeout.",
+            binder=_bind_orders_wait_for_terminal,
+        )
+
     def modify(self) -> ToolDefinition:
         return ToolDefinition(
             name="orders_modify_order",
@@ -2158,8 +2467,10 @@ class _BuiltinTools:
             self.options.get_strikes(),
             self.options.get_greeks(),
             self.options.find_strike_for_delta(),
+            self.options.find_expiration(),
             self.options.evaluate_market(),
             self.options.calculate_multileg_price(),
+            self.options.check_spread_profit(),
             self.duckdb.query(),
             self.docs.search(),
             self.news.alpaca_news(),
@@ -2193,6 +2504,8 @@ class _BuiltinTools:
             self.orders.submit_multileg(),
             self.orders.cancel(),
             self.orders.open_orders(),
+            self.orders.get_status(),
+            self.orders.wait_for_terminal(),
             self.orders.modify(),
         ]
 

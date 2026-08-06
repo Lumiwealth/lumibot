@@ -21,12 +21,24 @@ Generic option tools:
 - `options_get_strikes`
 - `options_get_greeks`
 - `options_find_strike_for_delta`
+- `options_find_expiration`
 - `options_evaluate_market`
 - `options_calculate_multileg_price`
+- `options_check_spread_profit`
 
 These tools expose LumiBot's configured broker or backtest data source. They do not choose an options strategy or its legs. The agent must retrieve a listed expiration and strikes, inspect exact contract data, and decide what to trade.
 
+`options_find_expiration` wraps `OptionsHelper.get_expiration_on_or_after_date` with JSON-friendly `min_days` and/or `target_date` arguments. `options_check_spread_profit` estimates multi-leg P&L percentage from exact legs plus the opening cash cost.
+
 `orders_submit_multileg` accepts exact option legs selected by the agent and submits them as one atomic multi-leg order. Each leg declares `symbol`, `expiration`, `strike`, `right`, `quantity`, and `side`. Opening actions are `buy_to_open` and `sell_to_open`; closing actions are `buy_to_close` and `sell_to_close`. Signed net prices are positive for debits and negative for credits.
+
+Order status tools:
+
+- `orders_open_orders`
+- `orders_get_status`
+- `orders_wait_for_terminal`
+
+Use `orders_get_status` after a submit to verify identifiers. Never claim a fill unless `is_filled` is true. `orders_wait_for_terminal` polls with a bounded timeout (max 120 seconds) and uses `strategy.sleep` so pending fills can process.
 
 Alpaca news uses an active Alpaca broker when available. Outside Alpaca broker runs, it checks `ALPACA_NEWS_API_KEY` / `ALPACA_NEWS_API_SECRET`. If neither path is available, `alpaca_news` is not exposed to agents.
 
@@ -44,7 +56,7 @@ self.agents.create(name="researcher", allow_trading=False)
 - `orders_modify_order`
 - `remember_decision`
 
-It keeps read-only tools, including `orders_open_orders`, positions, portfolio, market data, indicators, SEC filings, FRED macro data, memory, and notifications.
+It keeps read-only tools, including `orders_open_orders`, `orders_get_status`, `orders_wait_for_terminal`, positions, portfolio, market data, indicators, SEC filings, FRED macro data, memory, and notifications.
 
 Order readiness:
 

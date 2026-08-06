@@ -98,11 +98,16 @@ def test_default_agent_tools_expose_generic_option_discovery_and_multileg_execut
         "options_get_strikes",
         "options_get_greeks",
         "options_find_strike_for_delta",
+        "options_find_expiration",
         "options_evaluate_market",
         "options_calculate_multileg_price",
+        "options_check_spread_profit",
         "orders_submit_multileg",
+        "orders_get_status",
+        "orders_wait_for_terminal",
     }.issubset(names)
     assert not any("condor" in name for name in names)
+    assert len(names) == len(BuiltinTools.all())
 
 
 def test_option_chain_and_contract_tools_return_exact_listed_contract_data():
@@ -191,10 +196,110 @@ def test_generic_option_tool_schemas_are_gemini_function_declaration_compatible(
         BuiltinTools.options.get_strikes(),
         BuiltinTools.options.get_greeks(),
         BuiltinTools.options.find_strike_for_delta(),
+        BuiltinTools.options.find_expiration(),
         BuiltinTools.options.evaluate_market(),
         BuiltinTools.options.calculate_multileg_price(),
+        BuiltinTools.options.check_spread_profit(),
         BuiltinTools.orders.submit_multileg(),
+        BuiltinTools.orders.get_status(),
+        BuiltinTools.orders.wait_for_terminal(),
     ]:
         bound = definition.binder(strategy, manager)
         declaration = FunctionTool(_wrap_tool_callable(bound))._get_declaration().model_dump(exclude_none=True)
         assert "additional_properties" not in str(declaration)
+
+
+def test_options_find_expiration_uses_min_days_target():
+    strategy = _OptionsStrategy()
+    tool = BuiltinTools.options.find_expiration().binder(strategy, AgentManager(strategy))
+
+    result = tool.function(symbol="SPY", min_days=30, right="put")
+
+    assert result["available"] is True
+    assert result["expiration"] == "2026-09-18"
+    assert result["requested_target_date"] == "2026-09-02"
+    assert result["days_to_expiration"] == 46
+
+
+def test_options_check_spread_profit_returns_percentage_for_credit_spread():
+    strategy = _OptionsStrategy()
+    tool = BuiltinTools.options.check_spread_profit().binder(strategy, AgentManager(strategy))
+    legs = [
+        {"symbol": "SPY", "expiration": "2026-09-18", "strike": 615, "right": "put", "quantity": 1, "side": "sell_to_open"},
+        {"symbol": "SPY", "expiration": "2026-09-18", "strike": 610, "right": "put", "quantity": 1, "side": "buy_to_open"},
+    ]
+
+    result = tool.function(legs_json=json.dumps(legs), initial_cost=-100.0)
+
+    assert result["available"] is True
+    assert result["profit_pct"] is not None
+
+
+def test_orders_get_status_reports_missing_and_known_identifiers():
+    from lumibot.entities import Asset
+
+    filled = Order(
+        strategy="agent-options-test",
+        asset=Asset("SPY"),
+        quantity=1,
+        side="buy",
+    )
+    filled.identifier = "bt_filled"
+    filled.status = "filled"
+
+    class _OrderAwareStrategy(_OptionsStrategy):
+        def get_order(self, identifier, broker_refresh=True, broker_refresh_ttl_seconds=0.0):
+            if identifier == "bt_filled":
+                return filled
+            return None
+
+        def sleep(self, sleeptime, process_pending_orders=True):
+            return None
+
+    strategy = _OrderAwareStrategy()
+    tools = _wrapped_tools(
+        strategy,
+        [
+            BuiltinTools.orders.get_status(),
+            BuiltinTools.orders.wait_for_terminal(),
+        ],
+    )
+
+    status = tools["orders_get_status"](identifiers_json='["bt_filled","bt_missing"]')
+    assert status["orders"][0]["is_filled"] is True
+    assert status["orders"][0]["is_terminal"] is True
+    assert status["orders"][1]["available"] is False
+    assert status["missing_identifiers"] == ["bt_missing"]
+
+    waited = tools["orders_wait_for_terminal"](identifier="bt_filled", timeout_seconds=1, poll_interval_seconds=0.25)
+    assert waited["all_filled"] is True
+    assert waited["timed_out"] is False
+    assert waited["polls"] >= 1
+
+
+def test_iron_condor_prompt_includes_parameterized_wing_and_delta():
+    from lumibot.example_strategies.ai_iron_condor import build_iron_condor_system_prompt
+
+    prompt = build_iron_condor_system_prompt(
+        {
+            "underlying": "QQQ",
+            "wing_width": 7.0,
+            "target_delta": 0.18,
+            "delta_band": 0.03,
+            "min_dte": 28,
+            "max_dte": 40,
+            "preferred_dte": 33,
+            "profit_take_fraction": 0.4,
+            "loss_multiple": 1.8,
+            "time_stop_dte": 18,
+            "max_risk_pct": 0.015,
+            "max_contracts": 4,
+        }
+    )
+
+    assert "underlying: QQQ" in prompt
+    assert "wing_width: 7.0" in prompt
+    assert "target_delta: 0.18" in prompt
+    assert "0.15 through 0.21" in prompt
+    assert "orders_get_status" in prompt
+    assert "options_find_expiration" in prompt

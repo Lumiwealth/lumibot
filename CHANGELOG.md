@@ -9,6 +9,13 @@
   SMART_LIMIT orders, and records structured quote, order, fill, rejection,
   and reported-fill comparison evidence without interpreting prose or adding
   autonomous exits.
+- **AI agents gain generic order-status and option-lifecycle builtins.**
+  ``orders_get_status`` and ``orders_wait_for_terminal`` verify fills after
+  submits. ``options_find_expiration`` and ``options_check_spread_profit`` wrap
+  OptionsHelper helpers without naming a structure. ``ai_iron_condor.py`` is
+  parameterized (wing, delta, DTE, exits, risk), and new AI-only scaffolds
+  ``ai_opening_range_breakout.py``, ``ai_vwap.py``, and ``ai_credit_spread.py``
+  keep all trading policy in system prompts.
 
 ## 4.5.83 - 2026-08-05
 

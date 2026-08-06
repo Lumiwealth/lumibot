@@ -817,6 +817,149 @@ def create_options_symbol(stock_symbol, expiration_date, option_type, strike_pri
     return f"{stock_symbol}{expiration_str}{option_char}{strike_price_str}"
 
 
+# Unit aliases accepted by every broker-facing timestep parser.
+# Includes pandas-style codes (T/min for minutes, S for seconds, H, D, W) and
+# common trading shorthands (5Min, 5mins, 1Day, 30sec, etc.).
+_TIMESTEP_UNIT_ALIASES = {
+    # seconds
+    "s": "second",
+    "sec": "second",
+    "secs": "second",
+    "second": "second",
+    "seconds": "second",
+    # minutes (pandas historically used T/t for minutes)
+    "t": "minute",
+    "m": "minute",
+    "min": "minute",
+    "mins": "minute",
+    "minute": "minute",
+    "minutes": "minute",
+    # hours
+    "h": "hour",
+    "hr": "hour",
+    "hrs": "hour",
+    "hour": "hour",
+    "hours": "hour",
+    # days
+    "d": "day",
+    "day": "day",
+    "days": "day",
+    # weeks
+    "w": "week",
+    "wk": "week",
+    "wks": "week",
+    "week": "week",
+    "weeks": "week",
+    # months (require "mo"/"month"; bare "m" stays minutes)
+    "mo": "month",
+    "mos": "month",
+    "month": "month",
+    "months": "month",
+}
+
+
+def _timestep_unit_from_alias(raw_unit: str) -> str | None:
+    unit = str(raw_unit or "").strip().lower()
+    if not unit:
+        return None
+    if unit in _TIMESTEP_UNIT_ALIASES:
+        return _TIMESTEP_UNIT_ALIASES[unit]
+    # Tolerate trailing plural "s" that was not stripped (e.g. "mins").
+    if unit.endswith("s") and unit[:-1] in _TIMESTEP_UNIT_ALIASES:
+        return _TIMESTEP_UNIT_ALIASES[unit[:-1]]
+    return None
+
+
+@lru_cache(maxsize=512)
+def parse_canonical_timestep(timestep) -> tuple[int, str] | None:
+    """Parse a messy timestep into ``(quantity, canonical_unit)``.
+
+    ``canonical_unit`` is one of: second, minute, hour, day, week, month.
+
+    Accepted examples include ``5Min``, ``5 min``, ``5minutes``, ``5Mins``,
+    ``5T``, ``5t``, ``30S``, ``2H``, ``1Day``, ``1D``, ``day``, and
+    ``15 minutes``.
+    """
+    if timestep is None:
+        return None
+
+    # Alpaca / SDK TimeFrame-like objects.
+    amount = getattr(timestep, "amount", None)
+    unit_obj = getattr(timestep, "unit", None)
+    unit_value = getattr(unit_obj, "value", None)
+    if amount is not None and unit_value is not None:
+        mapped = _timestep_unit_from_alias(str(unit_value))
+        if mapped is None:
+            return None
+        quantity = int(amount)
+        if quantity <= 0:
+            return None
+        return quantity, mapped
+
+    text = str(timestep).strip().lower()
+    if not text:
+        return None
+
+    # Collapse internal whitespace: "5   minutes" -> "5 minutes"
+    text = re.sub(r"\s+", " ", text)
+
+    bare_units = {
+        "second": (1, "second"),
+        "seconds": (1, "second"),
+        "minute": (1, "minute"),
+        "minutes": (1, "minute"),
+        "min": (1, "minute"),
+        "m": (1, "minute"),
+        "t": (1, "minute"),
+        "hour": (1, "hour"),
+        "hours": (1, "hour"),
+        "h": (1, "hour"),
+        "hr": (1, "hour"),
+        "day": (1, "day"),
+        "days": (1, "day"),
+        "d": (1, "day"),
+        "week": (1, "week"),
+        "weeks": (1, "week"),
+        "w": (1, "week"),
+        "month": (1, "month"),
+        "months": (1, "month"),
+        "mo": (1, "month"),
+    }
+    if text in bare_units:
+        return bare_units[text]
+
+    match = re.fullmatch(r"(\d+)\s*([a-z]+)", text)
+    if not match:
+        return None
+
+    quantity = int(match.group(1))
+    if quantity <= 0:
+        return None
+    mapped = _timestep_unit_from_alias(match.group(2))
+    if mapped is None:
+        return None
+    return quantity, mapped
+
+
+@lru_cache(maxsize=512)
+def canonicalize_timestep(timestep) -> str | None:
+    """Return the stable Lumibot timestep string for broker adapters.
+
+    Quantity ``1`` uses the singular unit (``minute``, ``day``, ``hour``,
+    ``second``). Larger quantities use plural spaced forms (``5 minutes``,
+    ``2 hours``, ``30 seconds``). Hours/weeks/months are preserved as their
+    own units here; Strategy resampling may still convert them later.
+    """
+    parsed = parse_canonical_timestep(timestep)
+    if parsed is None:
+        return None
+
+    quantity, unit = parsed
+    if quantity == 1:
+        return unit
+    return f"{quantity} {unit}s"
+
+
 @lru_cache(maxsize=256)
 def _parse_timestep_qty_and_unit_cached(timestep_str: str) -> tuple[int, str]:
     """Cached implementation of `parse_timestep_qty_and_unit()`.
@@ -825,6 +968,11 @@ def _parse_timestep_qty_and_unit_cached(timestep_str: str) -> tuple[int, str]:
     few timesteps (`minute`, `day`, and common multi-minute multiples). Caching avoids repeated
     regex parsing and normalization work.
     """
+    parsed = parse_canonical_timestep(timestep_str)
+    if parsed is not None:
+        return parsed
+
+    # Backward-compatible fallback for unrecognized units (preserve old behavior).
     quantity = 1
     unit = timestep_str
     m = re.search(r"(\d+)\s*(\w+)", timestep_str)
@@ -833,17 +981,7 @@ def _parse_timestep_qty_and_unit_cached(timestep_str: str) -> tuple[int, str]:
         unit = m.group(2).rstrip("s")  # remove trailing 's' if any
 
     raw_unit = str(unit or "").strip().lower()
-    canonical_unit = {
-        "m": "minute",
-        "min": "minute",
-        "minute": "minute",
-        "h": "hour",
-        "hr": "hour",
-        "hour": "hour",
-        "d": "day",
-        "day": "day",
-    }.get(raw_unit, raw_unit)
-
+    canonical_unit = _timestep_unit_from_alias(raw_unit) or raw_unit
     return quantity, canonical_unit
 
 

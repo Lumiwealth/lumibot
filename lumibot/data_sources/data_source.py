@@ -356,7 +356,8 @@ class DataSource(ABC):
         Parameters
         ----------
         timestep : str
-            The timestep string to convert. For example, "1minute" or "1hour" or "1day".
+            The timestep string to convert. For example, "1minute", "5Min", "5T",
+            "1hour", or "1Day".
 
         Returns
         -------
@@ -365,55 +366,27 @@ class DataSource(ABC):
         unit : str
             The unit of the timestep. For example, "minute" or "hour" or "day".
         """
-        timestep = timestep.lower()
+        from lumibot.tools.helpers import parse_canonical_timestep
 
-        # Define mapping from timestep units to equivalent minutes
-        time_unit_map = {
-            "minute": 1,
-            "min": 1,  # Common shorthand (e.g., "15min")
-            "hour": 60,
-            "day": 24 * 60,
-            "m": 1,  # "M" is for minutes
-            "h": 60,  # "H" is for hours
-            "d": 24 * 60,  # "D" is for days
+        parsed = parse_canonical_timestep(timestep)
+        if parsed is None:
+            raise ValueError(
+                f"Unknown timestep: {timestep}. Valid examples include minute, "
+                "5Min, 5T, 15 minutes, hour, 1Day, day, 30S."
+            )
+
+        quantity, unit = parsed
+        unit_to_timedelta = {
+            "second": timedelta(seconds=quantity),
+            "minute": timedelta(minutes=quantity),
+            "hour": timedelta(hours=quantity),
+            "day": timedelta(days=quantity),
+            "week": timedelta(weeks=quantity),
+            "month": timedelta(days=30 * quantity),
         }
-
-        # Define default values
-        quantity = 1
-        unit = ""
-
-        # Check if timestep string has a number at the beginning
-        if timestep[0].isdigit():
-            for i, char in enumerate(timestep):
-                if not char.isdigit():
-                    # Get the quantity (number of units)
-                    quantity = int(timestep[:i])
-                    # Get the unit (minute, hour, or day)
-                    # IBRK uses "minutes" instead of "minute" when 'quantity' > 1, for some reason, so handle
-                    # that behavior here so backtest is comptiable with IBRK
-                    unit = timestep[i:].strip().rstrip("s")  # Remove extra whitespace and IBKR's extra pluralization
-                    break
-        else:
-            unit = timestep
-
-        # Check if the unit is valid
-        if unit in time_unit_map:
-            # Convert quantity to minutes
-            quantity_in_minutes = quantity * time_unit_map[unit]
-            # Convert minutes to timedelta
-            delta = timedelta(minutes=quantity_in_minutes)
-            canonical_unit = {
-                "m": "minute",
-                "min": "minute",
-                "minute": "minute",
-                "h": "hour",
-                "hour": "hour",
-                "d": "day",
-                "day": "day",
-            }.get(unit, unit)
-            return delta, canonical_unit
-        else:
-            raise ValueError(f"Unknown unit: {unit}. Valid units are minute, hour, day, M, H, D")
+        if unit not in unit_to_timedelta:
+            raise ValueError(f"Unknown unit: {unit}. Valid units are second, minute, hour, day, week, month")
+        return unit_to_timedelta[unit], unit
 
     # ========Internal Market Data Methods===================
 
@@ -421,13 +394,34 @@ class DataSource(ABC):
         """transform the data source timestep variable
         into lumibot representation. set reverse to True
         for opposite direction"""
+        from lumibot.tools.helpers import canonicalize_timestep
+
+        # Accept broker/user aliases ("5Min", "5T", "1Day", etc.) before the
+        # per-source TIMESTEP_MAPPING lookup so every broker inherits the same
+        # forgiving public interface.
+        canonical = canonicalize_timestep(timestep)
+        candidates = []
+        for value in (canonical, timestep):
+            if value is None:
+                continue
+            text = str(value)
+            if text not in candidates:
+                candidates.append(text)
+            lowered = text.strip().lower()
+            if lowered and lowered not in candidates:
+                candidates.append(lowered)
+
         for item in self.TIMESTEP_MAPPING:
+            representations = list(item.get("representations") or [])
+            lumibot_name = item.get("timestep")
             if reverse:
-                if timestep == item["timestep"]:
-                    return item["representations"][0]
+                for candidate in candidates:
+                    if candidate == lumibot_name or candidate in representations:
+                        return representations[0]
             else:
-                if timestep in item["representations"]:
-                    return item["timestep"]
+                for candidate in candidates:
+                    if candidate in representations or candidate == lumibot_name:
+                        return lumibot_name
 
         raise UnavailabeTimestep(self.SOURCE, timestep)
 

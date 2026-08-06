@@ -4449,69 +4449,31 @@ class Strategy(_Strategy):
         """Parse various timestep formats into (multiplier, base_unit).
 
         Examples:
-            "5min", "5m", "5 minutes" -> (5, "minute")
+            "5min", "5m", "5 minutes", "5Min", "5T" -> (5, "minute")
             "1h", "1hour" -> (60, "minute")
-            "2d", "2 days" -> (2, "day")
+            "2d", "2 days", "1Day" -> (2, "day") or (1, "day")
             "minute" -> (1, "minute")
             "day" -> (1, "day")
+            "30S", "30 seconds" -> (30, "second")
 
         Returns None if unparseable.
         """
-        if not timestep:
+        from lumibot.tools.helpers import parse_canonical_timestep
+
+        parsed = parse_canonical_timestep(timestep)
+        if parsed is None:
             return None
 
-        # Normalize: lowercase, strip whitespace
-        timestep = str(timestep).lower().strip()
-
-        # Handle standard formats first
-        if timestep in ["minute", "minutes", "min", "m"]:
-            return (1, "minute")
-        if timestep in ["day", "days", "d"]:
-            return (1, "day")
-
-        # Try to extract number and unit
-        import re
-
-        # Match patterns like "5min", "5 min", "5 minutes", "5m"
-        pattern = r'^(\d+)\s*([a-z]+)$'
-        match = re.match(pattern, timestep)
-
-        if not match:
-            # Try without number (e.g., "hour" -> 1 hour)
-            pattern = r'^([a-z]+)$'
-            match = re.match(pattern, timestep)
-            if match:
-                unit = match.group(1)
-                multiplier = 1
-            else:
-                return None
-        else:
-            multiplier = int(match.group(1))
-            unit = match.group(2)
-
-        # Map unit aliases to base units
-        minute_aliases = ["m", "min", "mins", "minute", "minutes"]
-        hour_aliases = ["h", "hr", "hrs", "hour", "hours"]
-        day_aliases = ["d", "day", "days"]
-        week_aliases = ["w", "wk", "week", "weeks"]
-        month_aliases = ["mo", "month", "months"]
-
-        if unit in minute_aliases:
-            return (multiplier, "minute")
-        elif unit in hour_aliases:
-            # Convert hours to minutes
+        multiplier, unit = parsed
+        if unit == "hour":
+            # Convert hours to minutes for the Strategy resample path.
             return (multiplier * 60, "minute")
-        elif unit in day_aliases:
-            return (multiplier, "day")
-        elif unit in week_aliases:
-            # Convert weeks to days
+        if unit == "week":
             return (multiplier * 7, "day")
-        elif unit in month_aliases:
+        if unit == "month":
             # Approximate months as 30 days
             return (multiplier * 30, "day")
-
-        # If we can't parse it, return None
-        return None
+        return (multiplier, unit)
 
     def get_historical_prices(
         self,

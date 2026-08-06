@@ -17,6 +17,15 @@
   ``ai_opening_range_breakout.py``, ``ai_vwap.py``, and ``ai_credit_spread.py``
   keep all trading policy in system prompts.
 
+### Fixed
+- **Broker history timesteps accept common aliases on every data source.**
+  ``canonicalize_timestep`` / ``parse_canonical_timestep`` normalize spellings
+  such as ``5Min``, ``5 min``, ``5minutes``, ``5Mins``, ``5T``, ``30S``,
+  ``2H``, and ``1Day`` before ``TIMESTEP_MAPPING`` and Alpaca reverse
+  ``TimeFrame`` lookup. This keeps the public Strategy/broker-data interface
+  provider-neutral when agents or analysis code pass pandas-style or
+  CamelCase timesteps. Covered by ``tests/test_timestep_aliases.py``.
+
 ## 4.5.83 - 2026-08-05
 
 Deploy marker: `deploy 4.5.83`

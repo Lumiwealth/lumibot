@@ -31,7 +31,16 @@ class _OptionsStrategy:
         return 100_000.0
 
     def get_last_price(self, asset, quote=None, exchange=None):
-        return 630.0
+        symbol = getattr(asset, "symbol", asset)
+        prices = {"SPY": 630.0, "QQQ": 480.0, "AAPL": 210.0}
+        return prices.get(str(symbol).upper(), 100.0)
+
+    def get_last_prices(self, assets, quote=None, exchange=None):
+        result = {}
+        for asset in assets:
+            symbol = getattr(asset, "symbol", asset)
+            result[str(symbol).upper()] = self.get_last_price(asset, quote=quote, exchange=exchange)
+        return result
 
     def get_chains(self, asset):
         return Chains(
@@ -94,6 +103,7 @@ def test_default_agent_tools_expose_generic_option_discovery_and_multileg_execut
     names = {definition.name for definition in BuiltinTools.all()}
 
     assert {
+        "market_last_prices",
         "options_get_chain",
         "options_get_strikes",
         "options_get_greeks",
@@ -108,6 +118,59 @@ def test_default_agent_tools_expose_generic_option_discovery_and_multileg_execut
     }.issubset(names)
     assert not any("condor" in name for name in names)
     assert len(names) == len(BuiltinTools.all())
+
+
+def test_market_last_prices_returns_batch_prices_and_satisfies_order_readiness():
+    strategy = _OptionsStrategy()
+    tools = _wrapped_tools(
+        strategy,
+        [
+            BuiltinTools.account.positions(),
+            BuiltinTools.account.portfolio(),
+            BuiltinTools.market.last_prices(),
+            BuiltinTools.orders.submit(),
+        ],
+    )
+
+    batch = tools["market_last_prices"](symbols_json='["SPY","QQQ","AAPL"]')
+    assert batch["count_requested"] == 3
+    assert batch["prices"]["SPY"] == 630.0
+    assert batch["prices"]["QQQ"] == 480.0
+    assert "AAPL" in batch["symbols_available"]
+
+    tools["account_portfolio"]()
+    tools["account_positions"]()
+    # Batch price tool must satisfy readiness for a symbol included in the scan.
+    submitted = tools["orders_submit_order"](
+        symbol="SPY",
+        quantity=1,
+        side="buy",
+        asset_type="stock",
+        order_type="market",
+    )
+    assert submitted["order"]["symbol"] == "SPY" or submitted["order"]["asset"]["symbol"] == "SPY"
+
+
+def test_orb_prompt_requires_multi_ticker_scan_with_market_last_prices():
+    from lumibot.example_strategies.ai_opening_range_breakout import (
+        build_orb_system_prompt,
+        _parse_universe,
+        _DEFAULT_ORB_UNIVERSE,
+    )
+
+    universe = _parse_universe(_DEFAULT_ORB_UNIVERSE)
+    assert len(universe) >= 90
+    prompt = build_orb_system_prompt(
+        {
+            "universe": universe,
+            "opening_range_minutes": 15,
+            "max_positions": 1,
+        }
+    )
+    assert "market_last_prices" in prompt
+    assert "09:30" in prompt
+    assert str(len(universe)) in prompt
+    assert "SPY" in prompt and "AAPL" in prompt
 
 
 def test_option_chain_and_contract_tools_return_exact_listed_contract_data():

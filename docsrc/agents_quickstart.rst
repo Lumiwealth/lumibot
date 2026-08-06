@@ -54,14 +54,14 @@ The agent has access to all built-in tools (positions, portfolio, prices, histor
 
 Trading agents must inspect account state before submitting an order. In the
 same agent run, ``orders_submit_order`` requires successful calls to
-``account_portfolio``, ``account_positions``, and ``market_last_price`` for the
-ordered symbol. If those checks are missing, LumiBot returns
-``ORDER_READINESS_REQUIRED`` and the agent can recover by calling the missing
-tools and trying again.
+``account_portfolio``, ``account_positions``, and either ``market_last_price``
+for the ordered symbol or ``market_last_prices`` that includes it. If those
+checks are missing, LumiBot returns ``ORDER_READINESS_REQUIRED`` and the agent
+can recover by calling the missing tools and trying again.
 
-Market-price tools accept one tradable symbol per call. For a universe, call
-``market_last_price`` once per symbol or load each symbol's history table
-separately.
+For universe scans, prefer ``market_last_prices`` with a JSON list of symbols
+(up to 150 per call). Load detailed history for finalists with
+``market_load_history_table``.
 
 ``@agent_tool`` Example (Primary Pattern)
 -------------------------------------------

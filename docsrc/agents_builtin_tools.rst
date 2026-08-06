@@ -60,7 +60,8 @@ same agent run:
 
 - ``account_portfolio`` for cash and portfolio value
 - ``account_positions`` for current holdings
-- ``market_last_price`` for the ordered symbol
+- ``market_last_price`` for the ordered symbol, or ``market_last_prices``
+  including that symbol
 
 If those checks are missing, the order tool returns an
 ``ORDER_READINESS_REQUIRED`` error to the agent instead of submitting the order.
@@ -69,10 +70,15 @@ broker/country/asset-class leverage rule across stocks, ETFs, options, futures,
 forex, and crypto. The readiness gate only prevents blind trading; sizing
 judgment remains with the strategy and agent.
 
-Market-price tools accept one tradable symbol per call. Do not pass a
-comma-separated universe to ``market_last_price`` or
-``market_load_history_table``; call the tool once per symbol or load each
-symbol into DuckDB separately before querying.
+Market-price tools:
+
+- ``market_last_price`` accepts one tradable symbol per call.
+- ``market_last_prices`` accepts a JSON-friendly symbol list (``symbols`` or
+  ``symbols_json``, cap 150) and returns last prices at the current runtime
+  datetime plus available/missing symbol lists. Prefer this when scanning a
+  provided universe.
+- ``market_load_history_table`` still loads one symbol per call; load finalists
+  after the batch scan.
 
 Market And Account State
 ------------------------

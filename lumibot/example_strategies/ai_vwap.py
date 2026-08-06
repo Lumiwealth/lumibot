@@ -6,6 +6,14 @@ system prompt. Prefer minute bars and the get_indicator('vwap') tool when availa
 Local backtest:
     GEMINI_API_KEY=... BACKTESTING_DATA_SOURCE=ThetaData \
         python -m lumibot.example_strategies.ai_vwap
+
+Optional env overrides (AI_VWAP_*):
+    AI_VWAP_UNDERLYING=SPY
+    AI_VWAP_DEVIATION_PCT=0.003
+    AI_VWAP_RISK_FRACTION=0.01
+    AI_VWAP_MAX_SHARES=200
+    AI_VWAP_HOLD_BARS=30
+    AI_VWAP_SLEEPTIME=15M
 """
 
 import os
@@ -36,18 +44,26 @@ Rules:
    and market_last_price for {underlying}.
 2. Prefer get_indicator(symbol='{underlying}', indicator='vwap', timestep='minute')
    and/or market_load_history_table with timestep='minute'. If only daily data is
-   available, use daily VWAP cautiously and state the limitation.
-3. Long bias when price is at least {deviation_pct:.2%} below VWAP and shows reclaim
-   evidence (price crossing back above VWAP or stabilizing). Exit when price
-   returns to VWAP, reaches a modest extension above VWAP, or {hold_bars} bars pass.
-4. Size so approximate risk is at most {risk_fraction:.2%} of portfolio value, capped
-   at {max_shares} shares. One position at a time.
-5. Never invent VWAP, prices, or fills. A no-trade decision is valid when VWAP
-   cannot be computed from available bars.
-6. After any order submission, call orders_get_status on returned identifiers,
-   re-read account_positions, and never claim a fill unless is_filled is true.
+   available, use daily VWAP cautiously and state the limitation. Never invent VWAP.
+3. Reclaim entry rule (long):
+   a. Last price is at least {deviation_pct:.2%} below VWAP (deviation met), AND
+   b. There is reclaim evidence on the current or immediately prior bar: price closes
+      back above VWAP, or crosses from below VWAP to at/above VWAP.
+   When both are true and you are flat, you SHOULD trade. Do not keep waiting for a
+   larger dislocation once the reclaim is confirmed.
+4. Prefer order_type='market' for entries and exits so the order can fill in
+   backtests and live. Do not attach limit_price on market orders. Size so
+   approximate risk is at most {risk_fraction:.2%} of portfolio value, capped at
+   {max_shares} shares. One position at a time.
+5. Exit when price returns to VWAP, reaches a modest extension above VWAP, or about
+   {hold_bars} bars have passed since entry. Manage an open position before opening
+   another.
+6. After any orders_submit_order call, capture identifiers, call orders_get_status
+   (and orders_wait_for_terminal with a short timeout if still open), re-read
+   account_positions, and never claim a fill unless is_filled is true.
 
-Use only evidence available at the current runtime datetime.
+Use only evidence available at the current runtime datetime. A no-trade decision
+is valid only when VWAP cannot be computed or the reclaim rule is not met.
 """.strip()
 
 
@@ -76,15 +92,33 @@ class AIVWAPStrategy(Strategy):
         underlying = str(params.get("underlying", "SPY")).upper()
         self.agents["vwap"].run(
             task_prompt=(
-                f"Run the {underlying} VWAP workflow for this bar. "
-                "Prefer the vwap indicator on minute data when available. "
-                "After any submission, verify status with orders_get_status."
+                f"Run the {underlying} VWAP reclaim workflow for this bar. "
+                "If price is sufficiently below VWAP and reclaim evidence is present, "
+                "prefer a market buy and then verify fills with orders_get_status."
             ),
             context={
                 "current_datetime": self.get_datetime().isoformat(),
                 "strategy_parameters": params,
             },
         )
+
+
+def _parameters_from_env(defaults: dict) -> dict:
+    """Override strategy parameters from AI_VWAP_* environment variables when set."""
+    params = dict(defaults)
+    if os.environ.get("AI_VWAP_UNDERLYING"):
+        params["underlying"] = os.environ["AI_VWAP_UNDERLYING"].strip().upper()
+    if os.environ.get("AI_VWAP_DEVIATION_PCT"):
+        params["deviation_pct"] = float(os.environ["AI_VWAP_DEVIATION_PCT"])
+    if os.environ.get("AI_VWAP_RISK_FRACTION"):
+        params["risk_fraction"] = float(os.environ["AI_VWAP_RISK_FRACTION"])
+    if os.environ.get("AI_VWAP_MAX_SHARES"):
+        params["max_shares"] = int(os.environ["AI_VWAP_MAX_SHARES"])
+    if os.environ.get("AI_VWAP_HOLD_BARS"):
+        params["hold_bars"] = int(os.environ["AI_VWAP_HOLD_BARS"])
+    if os.environ.get("AI_VWAP_SLEEPTIME"):
+        params["sleeptime"] = os.environ["AI_VWAP_SLEEPTIME"].strip()
+    return params
 
 
 if __name__ == "__main__":
@@ -98,4 +132,5 @@ if __name__ == "__main__":
         backtesting_end=backtesting_end,
         benchmark_asset="SPY",
         budget=100_000,
+        parameters=_parameters_from_env(AIVWAPStrategy.parameters),
     )

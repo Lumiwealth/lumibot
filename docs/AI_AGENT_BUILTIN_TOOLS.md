@@ -64,13 +64,17 @@ Before an agent can submit an order with `orders_submit_order` or `orders_submit
 
 - `account_portfolio` for cash and portfolio value
 - `account_positions` for current holdings
-- `market_last_price` for the ordered symbol
+- `market_last_price` for the ordered symbol, or `market_last_prices` with that symbol included in the batch
 
 If any of those checks are missing, the order tool returns a structured `ORDER_READINESS_REQUIRED` error instead of submitting the order. Lumibot does not silently resize orders and does not apply universal margin rules across asset classes; the agent must use the checked cash, portfolio value, positions, and price to size the explicit order it submits.
 
 For options, `account_positions` includes exact contract fields, signed quantity, average fill price, current price, market value, and P&L fields when available. This gives the agent the generic information needed to reconstruct and manage open multi-leg positions.
 
-Market-price tools accept one tradable symbol per call. Do not pass a comma-separated universe to `market_last_price` or `market_load_history_table`; call the tool once per symbol or load each symbol into DuckDB separately before querying.
+Market-price tools:
+
+- `market_last_price` accepts one tradable symbol per call.
+- `market_last_prices` accepts a JSON-friendly list (`symbols` or `symbols_json`, cap 150) and returns last prices available at the current runtime datetime, plus `symbols_available` / `symbols_missing`. Prefer this when scanning a provided universe (for example multi-ticker ORB). Do not invent prices for missing symbols.
+- `market_load_history_table` still loads one symbol per call; load finalists into DuckDB after the batch scan.
 
 Indicator tools:
 

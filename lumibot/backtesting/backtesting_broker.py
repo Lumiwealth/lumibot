@@ -1235,6 +1235,21 @@ class BacktestingBroker(Broker):
                         )
                     except ValueError:
                         parent_order_type = Order.OrderType.MARKET
+            # Credit/debit/even multileg submits pass `price` as the absolute net
+            # limit. Persist it on the parent so wait/status tools and audit logs
+            # see the package limit the agent calculated (children still fill as
+            # their own order types).
+            parent_limit_price = kwargs.get("price", None)
+            if parent_limit_price is None:
+                parent_limit_price = kwargs.get("limit_price", None)
+            if parent_limit_price is not None:
+                try:
+                    parent_limit_price = float(parent_limit_price)
+                    if not math.isfinite(parent_limit_price):
+                        parent_limit_price = None
+                except Exception:
+                    parent_limit_price = None
+
             parent_order = Order(
                 asset=parent_asset,
                 strategy=orders[0].strategy,
@@ -1242,6 +1257,7 @@ class BacktestingBroker(Broker):
                 side=orders[0].side,
                 quantity=orders[0].quantity,
                 order_type=parent_order_type,
+                limit_price=parent_limit_price if parent_order_type == Order.OrderType.LIMIT else None,
                 tag=orders[0].tag,
                 status=Order.OrderStatus.SUBMITTED
             )

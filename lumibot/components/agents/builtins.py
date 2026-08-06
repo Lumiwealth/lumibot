@@ -190,13 +190,54 @@ def _has_successful_tool_call(tool_name: str) -> bool:
     )
 
 
+def _symbols_from_tool_argument(value: Any) -> set[str]:
+    """Normalize symbol arguments from single-symbol or batch price tools."""
+    symbols: set[str] = set()
+    if value is None:
+        return symbols
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return symbols
+        if text.startswith("["):
+            try:
+                parsed = json.loads(text)
+            except json.JSONDecodeError:
+                parsed = None
+            if isinstance(parsed, list):
+                for item in parsed:
+                    symbol = str(item or "").strip().upper()
+                    if symbol:
+                        symbols.add(symbol)
+                return symbols
+        for part in text.split(","):
+            symbol = part.strip().upper()
+            if symbol:
+                symbols.add(symbol)
+        return symbols
+    if isinstance(value, (list, tuple, set)):
+        for item in value:
+            symbol = str(item or "").strip().upper()
+            if symbol:
+                symbols.add(symbol)
+    return symbols
+
+
 def _has_successful_market_last_price_for_symbol(symbol: str) -> bool:
     normalized_symbol = str(symbol or "").strip().upper()
     for call in _agent_tool_calls_for_current_run():
-        if call.get("tool_name") != "market_last_price" or not _tool_call_was_successful(call):
+        tool_name = call.get("tool_name")
+        if tool_name not in {"market_last_price", "market_last_prices"} or not _tool_call_was_successful(call):
             continue
         arguments = call.get("arguments") if isinstance(call.get("arguments"), dict) else {}
-        if str(arguments.get("symbol") or "").strip().upper() == normalized_symbol:
+        if tool_name == "market_last_price":
+            if str(arguments.get("symbol") or "").strip().upper() == normalized_symbol:
+                return True
+            continue
+        # Batch tool: accept either symbols list or symbols_json.
+        batch_symbols = _symbols_from_tool_argument(arguments.get("symbols"))
+        batch_symbols |= _symbols_from_tool_argument(arguments.get("symbols_json"))
+        if normalized_symbol in batch_symbols:
             return True
     return False
 
@@ -211,13 +252,64 @@ def _require_agent_order_readiness(symbol: str) -> None:
     if not _has_successful_tool_call("account_positions"):
         missing.append("account_positions")
     if not _has_successful_market_last_price_for_symbol(symbol):
-        missing.append(f"market_last_price(symbol={symbol!r})")
+        missing.append(
+            f"market_last_price(symbol={symbol!r}) or market_last_prices including {symbol!r}"
+        )
     if missing:
         raise ValueError(
             "ORDER_READINESS_REQUIRED: Before submitting an order, call "
             f"{', '.join(missing)} in this same agent run. "
             "Agents must inspect cash, portfolio value, positions, and the latest price for the ordered asset before trading."
         )
+
+
+def _parse_symbol_list(
+    *,
+    symbols: list[str] | tuple[str, ...] | str | None = None,
+    symbols_json: str | None = None,
+    max_symbols: int = 150,
+) -> list[str]:
+    """Parse a JSON-friendly symbol universe for batch market tools."""
+    values: list[str] = []
+    if symbols is not None:
+        if isinstance(symbols, str):
+            values.extend(_symbols_from_tool_argument(symbols))
+        elif isinstance(symbols, (list, tuple)):
+            for index, item in enumerate(symbols):
+                try:
+                    values.append(_require_non_empty_text("symbol", item).upper())
+                except ValueError as exc:
+                    raise ValueError(f"Invalid symbol at index {index}: {exc}") from exc
+        else:
+            raise ValueError("symbols must be a list of symbols or a comma-separated string.")
+    if symbols_json is not None and str(symbols_json).strip():
+        raw = _require_non_empty_text("symbols_json", symbols_json)
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"symbols_json must be valid JSON: {exc}") from exc
+        if isinstance(parsed, str):
+            parsed = [parsed]
+        if not isinstance(parsed, list) or not parsed:
+            raise ValueError("symbols_json must decode to a non-empty list of symbols.")
+        for index, item in enumerate(parsed):
+            try:
+                values.append(_require_non_empty_text("symbol", item).upper())
+            except ValueError as exc:
+                raise ValueError(f"Invalid symbol at index {index}: {exc}") from exc
+    unique: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        symbol = str(value or "").strip().upper()
+        if not symbol or symbol in seen:
+            continue
+        seen.add(symbol)
+        unique.append(symbol)
+    if not unique:
+        raise ValueError("Provide symbols and/or symbols_json with at least one symbol.")
+    if len(unique) > max_symbols:
+        raise ValueError(f"At most {max_symbols} symbols are allowed per market_last_prices call.")
+    return unique
 
 
 def _asset_to_dict(asset: Any) -> dict[str, Any] | str:
@@ -450,11 +542,109 @@ def _bind_last_price(strategy: Any, manager: Any) -> BoundTool:
             "Get the current last price for one asset. "
             "Arguments: symbol, asset_type, optional expiration/strike/right for derivatives, optional quote_symbol, optional exchange. "
             "Valid asset_type values: stock, option, future, cont_future, forex, crypto, index, multileg, us_equity. "
-            "The symbol argument must be one tradable symbol, not a comma-separated universe; call once per symbol when comparing multiple assets. "
+            "The symbol argument must be one tradable symbol. For scanning a universe of equities or ETFs, prefer market_last_prices. "
             "Use stock for normal equities. Do not pass economic series ids such as DCOILWTICO, FEDFUNDS, or M2SL as market symbols; use macro/FRED tools for those instead. "
             "Example: market_last_price(symbol='SPY', asset_type='stock')."
         ),
         function=last_price,
+        metadata={"kind": "builtin", "replay_on_cache": True},
+    )
+
+
+def _bind_last_prices(strategy: Any, manager: Any) -> BoundTool:
+    def last_prices(
+        *,
+        symbols: list[str] | tuple[str, ...] | str | None = None,
+        symbols_json: str | None = None,
+        asset_type: AssetTypeArg = "stock",
+        quote_symbol: str | None = None,
+        exchange: str | None = None,
+    ) -> dict[str, Any]:
+        """Return last prices for many symbols at the current runtime datetime.
+
+        Prefer this over calling market_last_price once per symbol when scanning a
+        provided universe (for example opening-range breakout across ~100 tickers).
+        Missing prices are returned as null; never invent a price.
+        """
+        symbol_list = _parse_symbol_list(symbols=symbols, symbols_json=symbols_json, max_symbols=150)
+        prices: dict[str, float | None] = {}
+        missing: list[str] = []
+        # Prefer the batch broker path when available; fall back per symbol so one
+        # bad ticker does not discard the whole universe scan.
+        batch_fn = getattr(strategy, "get_last_prices", None)
+        if callable(batch_fn) and asset_type in {"stock", "us_equity", "index"}:
+            try:
+                batch_result = batch_fn(symbol_list, quote=None, exchange=exchange)
+            except Exception:
+                batch_result = None
+            if isinstance(batch_result, dict):
+                for symbol in symbol_list:
+                    raw = batch_result.get(symbol)
+                    if raw is None:
+                        # Some brokers key by Asset; try case-insensitive match.
+                        for key, value in batch_result.items():
+                            key_symbol = getattr(key, "symbol", key)
+                            if str(key_symbol or "").strip().upper() == symbol:
+                                raw = value
+                                break
+                    try:
+                        price = float(raw) if raw is not None else None
+                    except Exception:
+                        price = None
+                    if price is None or not math.isfinite(price):
+                        prices[symbol] = None
+                        missing.append(symbol)
+                    else:
+                        prices[symbol] = price
+            else:
+                batch_result = None
+        else:
+            batch_result = None
+
+        if batch_result is None:
+            for symbol in symbol_list:
+                try:
+                    asset, quote = resolve_asset_and_quote(
+                        strategy,
+                        symbol=symbol,
+                        asset_type=asset_type,
+                        quote_symbol=quote_symbol,
+                    )
+                    raw = strategy.get_last_price(asset, quote=quote, exchange=exchange)
+                    price = float(raw) if raw is not None else None
+                    if price is None or not math.isfinite(price):
+                        prices[symbol] = None
+                        missing.append(symbol)
+                    else:
+                        prices[symbol] = price
+                except Exception:
+                    prices[symbol] = None
+                    missing.append(symbol)
+
+        available = [symbol for symbol, price in prices.items() if price is not None]
+        return {
+            "prices": prices,
+            "symbols_requested": symbol_list,
+            "symbols_available": available,
+            "symbols_missing": missing,
+            "count_requested": len(symbol_list),
+            "count_available": len(available),
+            "asset_type": asset_type,
+            "datetime": strategy.get_datetime().isoformat(),
+        }
+
+    return BoundTool(
+        name="market_last_prices",
+        description=(
+            "Get current last prices for many symbols in one call (JSON-friendly universe scan). "
+            "Arguments: symbols as a list or comma-separated string, and/or symbols_json as a JSON array; "
+            "optional asset_type (default stock), optional quote_symbol, optional exchange. "
+            "Cap is 150 symbols per call. Returns prices keyed by symbol, plus symbols_available and symbols_missing. "
+            "Use this to scan a provided equity/ETF universe before loading detailed history for finalists. "
+            "Never invent prices for missing symbols. "
+            "Example: market_last_prices(symbols_json='[\"SPY\",\"QQQ\",\"AAPL\",\"MSFT\"]')."
+        ),
+        function=last_prices,
         metadata={"kind": "builtin", "replay_on_cache": True},
     )
 
@@ -1009,21 +1199,70 @@ def _bind_orders_wait_for_terminal(strategy: Any, manager: Any) -> BoundTool:
         polls = 0
         status_tool = _bind_orders_get_status(strategy, manager).function
         latest: dict[str, Any] = {}
+        is_backtesting = bool(getattr(strategy, "is_backtesting", False))
+        # In backtests, strategy.sleep advances simulation time instantly. Bound by
+        # poll count / simulated seconds so a wait cannot race through the remainder
+        # of the backtest window (the previous wall-clock-only path left market
+        # orders stuck in `new` and produced placeholder tearsheets).
+        max_polls = max(1, int(math.ceil(timeout_value / poll_value)) + 1)
+        if is_backtesting:
+            max_polls = min(max_polls, 60)
+            # Prefer minute-scale advances so equity market orders can fill on the
+            # next bar even when the agent passes a 1s poll interval.
+            backtest_sleep_for = max(poll_value, 60.0)
+            max_sim_seconds = min(timeout_value * max(backtest_sleep_for / max(poll_value, 1e-9), 1.0), 3600.0)
+            sim_slept = 0.0
+            broker = getattr(strategy, "broker", None)
+            process_pending = getattr(broker, "process_pending_orders", None)
+            if callable(process_pending):
+                try:
+                    process_pending(strategy=strategy)
+                except TypeError:
+                    process_pending(strategy)
+        else:
+            backtest_sleep_for = poll_value
+            max_sim_seconds = timeout_value
+            sim_slept = 0.0
+
         while True:
             polls += 1
             latest = status_tool(identifiers_json=json.dumps(identifiers))
             if latest.get("all_terminal"):
                 break
-            elapsed = _time.monotonic() - started
-            if elapsed >= timeout_value:
+            if is_backtesting:
+                if polls >= max_polls or sim_slept >= max_sim_seconds:
+                    break
+            else:
+                elapsed = _time.monotonic() - started
+                if elapsed >= timeout_value:
+                    break
+            remaining = timeout_value - ((_time.monotonic() - started) if not is_backtesting else 0.0)
+            sleep_for = (
+                min(backtest_sleep_for, max(max_sim_seconds - sim_slept, 0.0))
+                if is_backtesting
+                else min(poll_value, max(remaining, 0.0))
+            )
+            if sleep_for <= 0:
                 break
-            remaining = timeout_value - elapsed
-            sleep_for = min(poll_value, remaining)
             sleeper = getattr(strategy, "sleep", None)
             if callable(sleeper):
                 sleeper(sleep_for, process_pending_orders=True)
             else:
-                _time.sleep(sleep_for)
+                if is_backtesting:
+                    broker = getattr(strategy, "broker", None)
+                    process_pending = getattr(broker, "process_pending_orders", None)
+                    updater = getattr(broker, "_update_datetime", None)
+                    if callable(updater):
+                        updater(sleep_for)
+                    if callable(process_pending):
+                        try:
+                            process_pending(strategy=strategy)
+                        except TypeError:
+                            process_pending(strategy)
+                else:
+                    _time.sleep(sleep_for)
+            if is_backtesting:
+                sim_slept += sleep_for
 
         elapsed_total = _time.monotonic() - started
         return {
@@ -1042,7 +1281,8 @@ def _bind_orders_wait_for_terminal(strategy: Any, manager: Any) -> BoundTool:
             "Poll one or more tracked order identifiers until every order is terminal or a bounded timeout elapses. "
             "Arguments: optional identifier, optional identifiers_json, optional timeout_seconds (default 30, max 120), "
             "optional poll_interval_seconds (default 1). Uses strategy.sleep so pending broker fills can process. "
-            "In backtests, fills are often already terminal on the first poll. Never claim a fill unless is_filled is true. "
+            "In backtests, this advances simulation time in bounded steps and processes pending fills; prefer a short "
+            "timeout and confirm with orders_get_status. Never claim a fill unless is_filled is true. "
             "Example: orders_wait_for_terminal(identifiers_json='[\"bt_1\"]', timeout_seconds=15)."
         ),
         function=wait_for_terminal,
@@ -2134,7 +2374,7 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
             "Arguments: symbol, quantity, side, optional asset_type, expiration, strike, right, order_type, limit_price, stop_price, stop_limit_price, trail_price, trail_percent, quote_symbol, exchange, time_in_force. "
             "Valid asset_type values: stock, option, future, cont_future, forex, crypto, index, multileg, us_equity. "
             "Use stock for normal equities. "
-            "Before using this tool, call account_portfolio, account_positions, and market_last_price for the same symbol in the current agent run; otherwise the order is rejected with ORDER_READINESS_REQUIRED. "
+            "Before using this tool, call account_portfolio, account_positions, and market_last_price (or market_last_prices including the symbol) for the same symbol in the current agent run; otherwise the order is rejected with ORDER_READINESS_REQUIRED. "
             "Valid side values: buy, sell, buy_to_open, buy_to_close, sell_to_open, sell_to_close, sell_short, buy_to_cover. "
             "Valid order_type values: market, limit, stop, stop_limit, trailing_stop, smart_limit. "
             "Valid time_in_force values: day, gtc, gtd. "
@@ -2202,7 +2442,7 @@ def _bind_submit_multileg_order(strategy: Any, manager: Any) -> BoundTool:
         description=(
             "Create and submit one atomic multi-leg option order from exact contracts selected by the agent. This is generic and does not choose a strategy or its legs. "
             "Arguments: legs_json, optional price_style='market', 'best', 'mid', or 'fastest', optional signed net_limit_price, optional time_in_force. legs_json must be a JSON array with at least two legs; each leg requires symbol, expiration, strike, right, quantity, and side. "
-            "Before submitting, call account_portfolio, account_positions, market_last_price for each underlying symbol, retrieve the chain, and evaluate every exact leg. "
+            "Before submitting, call account_portfolio, account_positions, and market_last_price or market_last_prices for each underlying symbol, retrieve the chain, and evaluate every exact leg. "
             "Opening sides are buy_to_open and sell_to_open. Closing sides are buy_to_close and sell_to_close. Use matching quantities when the intended position requires matched contracts. "
             "When closing existing positions, map signed account quantities exactly: positive long quantity -> sell_to_close; negative short quantity -> buy_to_close. Reversing that mapping increases exposure instead of closing it. "
             "Every proposed closing leg must reduce the corresponding exact position quantity toward zero. Do not use the same closing side for positive and negative position quantities. "
@@ -2239,6 +2479,13 @@ class _MarketTools:
             name="market_last_price",
             description="Get the current last price for one asset.",
             binder=_bind_last_price,
+        )
+
+    def last_prices(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="market_last_prices",
+            description="Get current last prices for many symbols in one JSON-friendly call.",
+            binder=_bind_last_prices,
         )
 
     def load_history_table(self) -> ToolDefinition:
@@ -2462,6 +2709,7 @@ class _BuiltinTools:
             self.account.positions(),
             self.account.portfolio(),
             self.market.last_price(),
+            self.market.last_prices(),
             self.market.load_history_table(),
             self.options.get_chain(),
             self.options.get_strikes(),

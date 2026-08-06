@@ -936,7 +936,11 @@ class Strategy(_Strategy):
         sleeptime : float
             Time in seconds the program will be paused.
         process_pending_orders : bool
-            If True, the broker will process any pending orders.
+            If True, process pending broker fills around the sleep. In backtesting
+            this calls ``broker.process_pending_orders`` before and after advancing
+            the simulation clock. Required for agent tools such as
+            ``orders_wait_for_terminal`` so market orders can fill without waiting
+            for the next strategy bar.
 
         Returns
         -------
@@ -948,10 +952,32 @@ class Strategy(_Strategy):
         >>> self.sleep(5)
         """
 
-        if not self.is_backtesting:
-            # Sleep for the sleeptime in seconds.
-            time.sleep(sleeptime)
+        # Backtesting must advance the broker clock and process fills. The older
+        # path only called broker.sleep (safe_sleep), which advances datetime via
+        # _update_datetime but never runs process_pending_orders. Agent waits then
+        # raced the clock for hundreds of thousands of 1s steps while market
+        # orders stayed `new` until end-of-backtest cancel.
+        if self.is_backtesting:
+            try:
+                seconds = float(sleeptime)
+            except Exception:
+                seconds = 0.0
+            broker = self.broker
+            if process_pending_orders and hasattr(broker, "process_pending_orders"):
+                try:
+                    broker.process_pending_orders(strategy=self)
+                except TypeError:
+                    broker.process_pending_orders(self)
+            if seconds > 0 and hasattr(broker, "_update_datetime"):
+                broker._update_datetime(seconds)
+            if process_pending_orders and hasattr(broker, "process_pending_orders"):
+                try:
+                    broker.process_pending_orders(strategy=self)
+                except TypeError:
+                    broker.process_pending_orders(self)
+            return None
 
+        time.sleep(sleeptime)
         return self.broker.sleep(sleeptime)
 
     def get_selling_order(self, position: Position):

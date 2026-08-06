@@ -16,6 +16,13 @@
   parameterized (wing, delta, DTE, exits, risk), and new AI-only scaffolds
   ``ai_opening_range_breakout.py``, ``ai_vwap.py``, and ``ai_credit_spread.py``
   keep all trading policy in system prompts.
+- **``market_last_prices`` batch market tool for universe scans.** Agents can
+  request last prices for up to 150 symbols in one JSON-friendly call. Order
+  readiness accepts a successful batch that includes the ordered symbol.
+  Multi-ticker ``ai_opening_range_breakout.py`` defaults to ~100 liquid
+  names, uses ``AI_ORB_*`` env overrides, and requires ``market_last_prices``
+  plus 09:30 ET opening ranges. VWAP and credit-spread prompts prefer
+  fill-friendly market/credit limits with the same post-trade status checks.
 
 ### Fixed
 - **Broker history timesteps accept common aliases on every data source.**
@@ -25,6 +32,14 @@
   ``TimeFrame`` lookup. This keeps the public Strategy/broker-data interface
   provider-neutral when agents or analysis code pass pandas-style or
   CamelCase timesteps. Covered by ``tests/test_timestep_aliases.py``.
+- **Backtesting ``Strategy.sleep(process_pending_orders=True)`` now fills pending
+  orders.** Agent ``orders_wait_for_terminal`` advanced the sim clock through
+  ``broker.sleep`` / ``safe_sleep`` without calling ``process_pending_orders``,
+  so stock market orders and credit-spread multileg children stayed ``new``
+  until end-of-backtest cancel (flat tearsheets). Sleep now processes pending
+  fills around clock advances, wait polls are bounded in backtests, and
+  multileg parents retain the submitted net limit price. Covered by
+  ``tests/backtest/test_backtesting_broker_processing.py``.
 
 ## 4.5.83 - 2026-08-05
 

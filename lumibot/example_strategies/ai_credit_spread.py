@@ -61,37 +61,46 @@ STRATEGY PARAMETERS:
 
 Rules:
 1. Each iteration call account_portfolio, account_positions, orders_open_orders,
-   and market_last_price for {underlying}.
-2. Never open a second credit spread while any {underlying} option position or pending
-   option order exists. Manage or close first.
-3. When flat, use options_find_expiration(symbol='{underlying}', min_days={min_dte})
+   and market_last_price for {underlying}. Current signed option quantities from
+   account_positions override memory. You are not flat until every {underlying}
+   option quantity is zero.
+2. POSITION STATE LOCK: if account_positions contains any nonzero {underlying}
+   option quantity at the start of the iteration, this is MANAGE-ONLY. Do not
+   submit buy_to_open or sell_to_open later in that iteration. Never open a second
+   credit spread while any {underlying} option position or pending option order exists.
+3. When managing an open put credit spread, use this signed-quantity close table:
+   - quantity < 0 (short higher put): buy_to_close abs(quantity)
+   - quantity > 0 (long lower put): sell_to_close abs(quantity)
+   For a call credit spread:
+   - quantity < 0 (short lower call): buy_to_close abs(quantity)
+   - quantity > 0 (long higher call): sell_to_close abs(quantity)
+   Never sell_to_close a short leg. Never buy_to_close a long leg. Those actions
+   add exposure. Close quantity must equal the absolute open quantity for each
+   exact strike; never multiply size (no 12x/24x/70x cleanup orders).
+4. When flat, use options_find_expiration(symbol='{underlying}', min_days={min_dte})
    and keep DTE within {max_dte}, preferring near {preferred_dte}. Confirm listed
    strikes with options_get_chain / options_get_strikes.
-4. Choose a short strike near target delta with options_find_strike_for_delta, then
+5. Choose a short strike near target delta with options_find_strike_for_delta, then
    verify with options_get_greeks. Absolute short delta must be from
    {short_delta_min:.2f} through {short_delta_max:.2f}. Long wing is exactly {wing_width}
    points farther OTM and must be listed.
-5. Put credit spread: sell_to_open higher put, buy_to_open lower put.
+6. Put credit spread: sell_to_open higher put, buy_to_open lower put.
    Call credit spread: sell_to_open lower call, buy_to_open higher call.
-6. Evaluate both legs with options_evaluate_market. Price with
+7. Evaluate both legs with options_evaluate_market. Price with
    options_calculate_multileg_price(price_style='mid'). Require a net credit
    (negative signed price) and 0 < credit < {wing_width}.
-7. Fill-friendly credit pricing: submit with orders_submit_multileg using a signed
-   net_limit_price at the tool mid credit, or slightly more aggressive for a credit
-   (a modestly more negative signed limit, for example about $0.05 better for the
-   maker/taker path) so the backtest can fill. Never use a debit. If an opening
-   order remains unfilled into the next session, cancel/replace with an improved
-   credit limit based on a fresh options_calculate_multileg_price. Always use the
-   exact tool economics; do not invent leg prices.
-8. Size so max loss (({wing_width} - credit) * 100 * contracts) is <= {max_risk_pct_display:.2f}
+8. Fill-friendly credit pricing: submit with orders_submit_multileg using the exact
+   signed net_limit_price from options_calculate_multileg_price. Never invent leg
+   prices. Never use a debit to open.
+9. Size so max loss (({wing_width} - credit) * 100 * contracts) is <= {max_risk_pct_display:.2f}
    percent of portfolio value, capped at {max_contracts} contracts.
-9. Close when {profit_take_pct} percent of credit is captured, closing debit >=
+10. Close only when {profit_take_pct} percent of credit is captured, closing debit >=
    {loss_multiple}x opening credit, DTE <= {time_stop_dte}, or short absolute delta
-   >= 0.30. Use options_check_spread_profit when helpful. Close with the correct
-   signed-quantity sides only.
-10. After any orders_submit_multileg call, capture identifiers, call
-    orders_get_status or orders_wait_for_terminal, re-read account_positions, and
-    never claim a fill unless is_filled is true.
+   >= 0.30. Write a truth table before closing. Use options_check_spread_profit when
+   helpful. Submit one atomic two-leg closing order with the signed-quantity table.
+11. After any orders_submit_multileg call, capture identifiers, call
+   orders_get_status or orders_wait_for_terminal (keep waits short in backtests),
+   re-read account_positions, and never claim a fill unless is_filled is true.
 
 Use only evidence at the current runtime datetime. No-trade is required when any
 rule cannot be proven from tools.

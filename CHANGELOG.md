@@ -23,6 +23,8 @@
   names, uses ``AI_ORB_*`` env overrides, and requires ``market_last_prices``
   plus 09:30 ET opening ranges. VWAP and credit-spread prompts prefer
   fill-friendly market/credit limits with the same post-trade status checks.
+  VWAP default deviation is ``0.15%`` with a dip-buy / reclaim entry rule and
+  ``AI_VWAP_*`` overrides (including underlying).
 - **``market_historical_prices`` batch history tool for agents.** Wraps
   ``Strategy.get_historical_prices_for_assets`` so agents can request OHLCV bars
   for up to 150 symbols in one call and read ``bars_by_symbol`` instead of

@@ -4,6 +4,7 @@ import gzip
 import hashlib
 import json
 import os
+import re
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
@@ -62,6 +63,9 @@ def _cache_root() -> Path:
     return Path(os.environ.get("LUMIBOT_CACHE_FOLDER") or LUMIBOT_CACHE_FOLDER)
 
 
+_KEY_RE = re.compile(r"^[a-f0-9]{64}$")
+
+
 class AgentReplayCache:
     def __init__(self) -> None:
         self.root = _cache_root() / "agent_runtime" / "replay"
@@ -74,7 +78,16 @@ class AgentReplayCache:
         return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
     def _path_for(self, key: str) -> Path:
-        return self.root / key[:2] / f"{key}.json.gz"
+        if not _KEY_RE.fullmatch(key):
+            raise ValueError("Invalid replay cache key")
+        path = self.root / key[:2] / f"{key}.json.gz"
+        resolved_root = self.root.resolve()
+        resolved_path = path.resolve()
+        try:
+            resolved_path.relative_to(resolved_root)
+        except ValueError as exc:
+            raise ValueError("Invalid replay cache key") from exc
+        return resolved_path
 
     def load(self, key: str) -> dict[str, Any] | None:
         path = self._path_for(key)

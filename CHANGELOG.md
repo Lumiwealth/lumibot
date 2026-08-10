@@ -3,12 +3,6 @@
 ## 4.5.84 - Unreleased
 
 ### Added
-- **External Signal Mirror executes validated option instructions through
-  LumiBot.** The reusable component verifies immutable normalized batches,
-  maps BUY, SELL, and HOLD records to exact CALL or PUT contracts, uses
-  SMART_LIMIT orders, and records structured quote, order, fill, rejection,
-  and reported-fill comparison evidence without interpreting prose or adding
-  autonomous exits.
 - **AI agents gain generic order-status and option-lifecycle builtins.**
   ``orders_get_status`` and ``orders_wait_for_terminal`` verify fills after
   submits. ``options_find_expiration`` and ``options_check_spread_profit`` wrap

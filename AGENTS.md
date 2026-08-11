@@ -17,6 +17,15 @@ machine-specific information in this file or any other tracked repo file.
 - If sensitive data is found in tracked files, remove it immediately, scan for
   nearby leaks, and treat exposed credentials as needing rotation.
 
+# Express Authorization Required For LumiBot Changes
+
+- Treat this repository, its code, tests, documentation, dependencies, changelog, version, branches, and release artifacts as read-only unless Rob explicitly authorizes a LumiBot change in the current turn.
+- The authorization must name LumiBot or otherwise unambiguously identify this repository or package as the requested change target. A request to fix a BotSpot strategy, bot, deployment, backtest, broker connection, or customer incident is not permission to edit LumiBot.
+- When a strategy owned by Rob calls a nonexistent or hallucinated method, fix the owned strategy through the authenticated BotSpot MCP server. Never add the invented method to LumiBot merely to make that strategy run.
+- Instructions that provider-specific broker behavior belongs in LumiBot describe architecture ownership. They do not grant permission to edit LumiBot. Diagnose shared defects read-only, present the exact proposed change, and wait for Rob's explicit authorization before modifying this repository.
+- Never edit another customer's strategy or account as an alternative. Rob-owned strategies may be edited only through the owner-scoped regular, development, or local BotSpot MCP server that Rob selected for the task.
+- If authorization is ambiguous, keep LumiBot unchanged. Do not make a speculative compatibility shim, helper method, fallback, documentation change, test change, version bump, or release change.
+
 # Broker Data Ownership
 
 - LumiBot broker and data-source adapters are the sole owners of provider-specific broker market-data and trading API behavior.

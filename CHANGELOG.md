@@ -26,6 +26,10 @@
   opening-range history after a ``market_last_prices`` scan.
 
 ### Fixed
+- **Short-lived read-only strategies can skip redundant startup broker syncs.**
+  ``Strategy(..., synchronize_broker_on_start=False)`` avoids automatic balance
+  and position reads when an integration will immediately refresh only its
+  requested state. Default live-strategy startup behavior remains unchanged.
 - **Broker history timesteps accept common aliases on every data source.**
   ``canonicalize_timestep`` / ``parse_canonical_timestep`` normalize spellings
   such as ``5Min``, ``5 min``, ``5minutes``, ``5Mins``, ``5T``, ``30S``,

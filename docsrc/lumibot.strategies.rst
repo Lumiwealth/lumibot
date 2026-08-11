@@ -14,6 +14,11 @@ from strategies import Strategy
 
 The abstract class Strategy has global parameters with default values, and some properties that can be used as helpers to build trading logic.
 
+Short-lived read-only clients
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Normal live strategies synchronize balances and positions during construction. This is the safe default before trading. A short-lived read-only integration that explicitly refreshes only its requested broker data can pass ``synchronize_broker_on_start=False`` to avoid unrelated startup API calls. Such clients must call a fresh broker-backed accessor, such as ``get_positions()``, ``get_orders()``, or ``update_broker_balances(force_update=True)``, before using that state.
+
 The methods of this class can be split into several categories:
 
 **Lifecycle Methods** These are executed at different times during the execution of the bot. These represent the main flow of a strategy, some are mandatory.

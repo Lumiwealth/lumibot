@@ -116,6 +116,37 @@ def _strategy():
     return strategy, broker
 
 
+def test_live_strategy_synchronizes_broker_state_on_start_by_default():
+    broker = _LiveBroker()
+
+    _AccessorStrategy(broker=broker, budget=100_000.0, analyze_backtest=False, parameters={})
+
+    # Default remains safe for trading strategies: balances and positions are ready at startup.
+    assert broker.balance_pull_count == 1
+    assert broker.position_pull_count == 1
+
+
+def test_read_only_live_strategy_can_defer_startup_sync_until_requested():
+    broker = _LiveBroker()
+    strategy = _AccessorStrategy(
+        broker=broker,
+        budget=100_000.0,
+        analyze_backtest=False,
+        parameters={},
+        synchronize_broker_on_start=False,
+    )
+
+    # Read-only one-shot clients must avoid unrelated network calls at construction.
+    assert broker.balance_pull_count == 0
+    assert broker.position_pull_count == 0
+
+    strategy.get_positions()
+
+    # Requested data remains fresh and incurs exactly one provider refresh.
+    assert broker.balance_pull_count == 0
+    assert broker.position_pull_count == 1
+
+
 def _order(strategy_name, identifier, status, symbol="SPY", order_type=Order.OrderType.LIMIT):
     return Order(
         strategy=strategy_name,

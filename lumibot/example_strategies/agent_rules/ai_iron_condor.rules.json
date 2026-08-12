@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "rules": [
+    {"id": "single-structure", "status": "active", "interpretation": "Hold at most one SPY option structure at a time. Manage every existing leg and pending order before considering a new entry."},
+    {"id": "atomic-condor", "status": "active", "interpretation": "Open and close the four related iron-condor legs as one atomic multi-leg order."},
+    {"id": "entry-credit", "status": "active", "interpretation": "Open only when all four exact contracts are listed and liquid, both short deltas are verified in range, and the package produces a valid net credit."}
+  ]
+}

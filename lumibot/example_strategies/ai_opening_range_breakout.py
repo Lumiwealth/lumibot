@@ -14,11 +14,12 @@ Optional env overrides (AI_ORB_*):
     AI_ORB_MAX_SHARES=200
     AI_ORB_MAX_POSITIONS=1
     AI_ORB_PROFIT_R_MULTIPLE=1.5
-    AI_ORB_SLEEPTIME=15M
+    AI_ORB_SLEEPTIME=1H
 """
 
 import os
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from lumibot.strategies.strategy import Strategy
 
@@ -74,33 +75,20 @@ STRATEGY PARAMETERS:
 - profit_r_multiple: {profit_r_multiple}
 
 Rules:
-1. Each iteration call account_portfolio, account_positions, and orders_open_orders.
-2. Scan the full provided universe with market_last_prices (symbols_json of the
-   universe, or batched subsets of at most 150 symbols). Do not invent prices for
-   symbols_missing. You may call market_last_price for a finalist before ordering.
-3. Fetch minute history with market_historical_prices (same symbols_json batches,
-   timestep='minute', length covering the opening session). Do not loop
-   market_load_history_table once per symbol. Optionally load one finalist into
-   DuckDB with market_load_history_table plus duckdb_query. Build each symbol's
-   opening range as the high/low of the first {opening_range_minutes} minutes of
-   the regular US cash session (09:30 ET start, not 09:00). If minute data for
-   the true opening window is missing, skip that symbol. Never invent intraday
-   levels.
-4. A valid long breakout requires the latest completed bar's close to be strictly
+1. Scan the full provided universe and build each symbol's opening range from the
+   first {opening_range_minutes} completed minutes of the regular US cash session,
+   beginning at 09:30 ET. Skip symbols whose true opening window is unavailable.
+2. A valid long breakout requires the latest completed bar's close to be strictly
    greater than that symbol's opening-range high (close > OR high), with confirming
    volume when available. A close equal to or below the OR high is not a breakout.
    Prefer the strongest valid breakout by percent extension above the range high
    and liquidity. Short only when shorting is allowed and evidence is equally clear.
-5. Hold at most {max_positions} positions. If already at max_positions, manage exits
+3. Hold at most {max_positions} positions. If already at max_positions, manage exits
    only; do not open another name.
-6. Size so approximate stop risk is at most {risk_fraction:.2%} of portfolio value,
-   capped at {max_shares} shares. Stop is the opposite side of that symbol's opening
-   range. Prefer order_type='market' for entries and exits so backtests/live can
-   fill; do not attach a limit_price on market orders.
-7. Take profit near {profit_r_multiple}R or exit on a close back inside the range.
-8. After any orders_submit_order call, capture identifiers, call orders_get_status
-   (and orders_wait_for_terminal with a short timeout if still open), re-read
-   account_positions, and never claim a fill unless is_filled is true.
+4. Size so approximate stop risk is at most {risk_fraction:.2%} of portfolio value,
+   capped at {max_shares} shares. Stop is the opposite side of that symbol's range.
+5. Take profit near {profit_r_multiple}R or exit on a close back inside the range.
+6. Open at most one new position per symbol per trading day.
 
 Use only evidence available at the current runtime datetime. A no-trade decision
 is valid when no universe member has a complete opening range and valid breakout.
@@ -115,17 +103,18 @@ class AIOpeningRangeBreakoutStrategy(Strategy):
         "max_shares": 200,
         "max_positions": 1,
         "profit_r_multiple": 1.5,
-        # Prefer minute bars; use a coarser sleeptime in short backtests to bound agent calls.
-        "sleeptime": "15M",
+        # The agent still analyzes minute bars, but hourly decisions avoid needless calls.
+        "sleeptime": "1H",
     }
 
     def initialize(self):
-        self.sleeptime = str(self.parameters.get("sleeptime", "15M"))
+        self.sleeptime = str(self.parameters.get("sleeptime", "1H"))
         self.agents.create(
             name="orb",
             model="gemini-3.5-flash-lite",
             allow_trading=True,
             system_prompt=build_orb_system_prompt(self.parameters),
+            rules_path=Path(__file__).with_name("agent_rules") / "ai_opening_range_breakout.rules.json",
         )
 
     def on_trading_iteration(self):
@@ -135,12 +124,7 @@ class AIOpeningRangeBreakoutStrategy(Strategy):
             universe = _parse_universe(universe)
         universe_count = len(universe) if isinstance(universe, list) else 0
         self.agents["orb"].run(
-            task_prompt=(
-                f"Run the multi-ticker opening-range breakout workflow for this bar across the "
-                f"{universe_count}-symbol universe. Use market_last_prices to scan, then "
-                "market_historical_prices for minute opening ranges (09:30 ET start). Prefer market equity orders. "
-                "After any submission, verify status with orders_get_status."
-            ),
+            task_prompt=f"Run the opening-range breakout workflow across the {universe_count}-symbol universe.",
             context={
                 "current_datetime": self.get_datetime().isoformat(),
                 "strategy_parameters": params,

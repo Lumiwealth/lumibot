@@ -3,6 +3,20 @@
 ## 4.5.84 - Unreleased
 
 ### Added
+- **AI agents now load reusable runtime skills through ADK `SkillToolset`.**
+  New built-in `options-trading` and `stock-trading` skills teach generic market
+  evidence, contract, multi-leg, signed-position, intraday, sizing, and order
+  verification mechanics. Strategy examples keep their entry, exit, and risk
+  policy in concise prompts instead of repeating generic trading instructions.
+- **Canonical `rules.json` files can govern every agent call.** Agents accept a
+  `rules_path`, reload active rules before each call, reject malformed rules
+  before model spend, invalidate replay state when rules change, and persist
+  only a safe file name and content hash in runtime metadata.
+- **Real-model LumiBot evals now gate PyPI publication.** The resumable runner
+  provides fixture-backed production tool contracts, a separate LLM judge,
+  three-repeat qualification, fsynced per-case ledgers, model/token/timing/cost
+  reporting, explicit spend limits, 30-day freshness, and release-candidate
+  fingerprinting. The initial catalog covers options, stocks, ORB, and rules.
 - **AI agents gain generic order-status and option-lifecycle builtins.**
   ``orders_get_status`` and ``orders_wait_for_terminal`` verify fills after
   submits. ``options_find_expiration`` and ``options_check_spread_profit`` wrap

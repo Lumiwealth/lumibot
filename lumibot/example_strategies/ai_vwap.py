@@ -13,11 +13,12 @@ Optional env overrides (AI_VWAP_*):
     AI_VWAP_RISK_FRACTION=0.01
     AI_VWAP_MAX_SHARES=200
     AI_VWAP_HOLD_BARS=30
-    AI_VWAP_SLEEPTIME=15M
+    AI_VWAP_SLEEPTIME=1H
 """
 
 import os
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from lumibot.strategies.strategy import Strategy
 
@@ -40,28 +41,22 @@ STRATEGY PARAMETERS:
 - hold_bars: {hold_bars}
 
 Rules:
-1. Each iteration call account_portfolio, account_positions, orders_open_orders,
-   and market_last_price for {underlying}.
-2. Prefer get_indicator(symbol='{underlying}', indicator='vwap', timestep='minute')
-   and/or market_load_history_table with timestep='minute'. If only daily data is
-   available, use daily VWAP cautiously and state the limitation. Never invent VWAP.
-3. Long entry (mean-reversion toward VWAP). Compute
+1. Compute VWAP from completed minute bars and current tool evidence. Never invent it.
+2. Long entry (mean-reversion toward VWAP). Compute
    pct_below = (VWAP - last_price) / VWAP using the latest tool prices.
    When flat and pct_below >= {deviation_pct:.4f}, you SHOULD market-buy in this
    same iteration (buy the dip under VWAP). Prefer entries that also show reclaim
    evidence (last_price crossing back toward/above VWAP), but do not skip a clear
    dip that already meets the deviation threshold. Missing a valid dip entry is
    worse than sitting flat all session.
-4. Prefer order_type='market' for entries and exits so the order can fill in
-   backtests and live. Do not attach limit_price on market orders. Size so
+3. Prefer market entries and exits. Size so
    approximate risk is at most {risk_fraction:.2%} of portfolio value, capped at
    {max_shares} shares. One position at a time.
-5. Exit when price returns to VWAP, reaches a modest extension above VWAP, or about
+4. Exit when price returns to VWAP, reaches a modest extension above VWAP, or about
    {hold_bars} bars have passed since entry. Manage an open position before opening
-   another. Before any close submit, call market_last_price again in this same run.
-6. After any orders_submit_order call, capture identifiers, call orders_get_status
-   (and orders_wait_for_terminal with a short timeout if still open), re-read
-   account_positions, and never claim a fill unless is_filled is true.
+   another.
+5. Open at most one new position per trading day and do not re-enter on the same
+   day after an exit.
 
 Use only evidence available at the current runtime datetime. A no-trade decision
 is valid only when VWAP cannot be computed or the reclaim rule is not met.
@@ -75,29 +70,25 @@ class AIVWAPStrategy(Strategy):
         "risk_fraction": 0.01,
         "max_shares": 200,
         "hold_bars": 30,
-        # Prefer minute bars; use a coarser sleeptime in short backtests to bound agent calls.
-        "sleeptime": "15M",
+        # The agent still analyzes minute bars, but hourly decisions avoid needless calls.
+        "sleeptime": "1H",
     }
 
     def initialize(self):
-        self.sleeptime = str(self.parameters.get("sleeptime", "15M"))
+        self.sleeptime = str(self.parameters.get("sleeptime", "1H"))
         self.agents.create(
             name="vwap",
             model="gemini-3.5-flash-lite",
             allow_trading=True,
             system_prompt=build_vwap_system_prompt(self.parameters),
+            rules_path=Path(__file__).with_name("agent_rules") / "ai_vwap.rules.json",
         )
 
     def on_trading_iteration(self):
         params = dict(self.parameters)
         underlying = str(params.get("underlying", "SPY")).upper()
         self.agents["vwap"].run(
-            task_prompt=(
-                f"Run the {underlying} VWAP reclaim workflow for this bar. "
-                "Compute pct_below versus VWAP. If the dip threshold was met and price "
-                "has reclaimed VWAP, submit a market buy now and verify fills with "
-                "orders_get_status / orders_wait_for_terminal."
-            ),
+            task_prompt=f"Run the {underlying} VWAP workflow for this completed bar.",
             context={
                 "current_datetime": self.get_datetime().isoformat(),
                 "strategy_parameters": params,

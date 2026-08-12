@@ -10,11 +10,27 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_builtin_tools.html</loc>
-    <lastmod>2026-07-02</lastmod>
+    <lastmod>2026-08-06</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_canonical_demos.html</loc>
     <lastmod>2026-05-12</lastmod>
+  </url>
+  <url>
+    <loc>https://lumibot.lumiwealth.com/agents_example_ai_credit_spread.html</loc>
+    <lastmod>2026-08-06</lastmod>
+  </url>
+  <url>
+    <loc>https://lumibot.lumiwealth.com/agents_example_ai_iron_condor.html</loc>
+    <lastmod>2026-08-06</lastmod>
+  </url>
+  <url>
+    <loc>https://lumibot.lumiwealth.com/agents_example_ai_opening_range_breakout.html</loc>
+    <lastmod>2026-08-06</lastmod>
+  </url>
+  <url>
+    <loc>https://lumibot.lumiwealth.com/agents_example_ai_vwap.html</loc>
+    <lastmod>2026-08-06</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_example_bill_ackman_concentrated.html</loc>
@@ -42,7 +58,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_examples.html</loc>
-    <lastmod>2026-05-31</lastmod>
+    <lastmod>2026-08-06</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_flows.html</loc>
@@ -62,7 +78,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_quickstart.html</loc>
-    <lastmod>2026-05-30</lastmod>
+    <lastmod>2026-08-06</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/ai_trading_project_comparison.html</loc>
@@ -258,7 +274,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/environment_variables.html</loc>
-    <lastmod>2026-07-30</lastmod>
+    <lastmod>2026-08-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/examples.html</loc>

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import contextlib
 import asyncio
+import contextlib
 import hashlib
 import importlib
-import logging
-import json
 import inspect
+import json
+import logging
 import math
 import os
 import re
@@ -23,33 +23,31 @@ from uuid import UUID, uuid4
 from .schemas import AgentRunResult, AgentTraceEvent, BoundTool, MCPServer
 from .tool_context import agent_tool_context
 
-
 _GOOGLE_SDK_NOISE_FILTERS_CONFIGURED = False
-ClientSession = None
+MCPClient = None
+MCPImplementation = None
 StdioServerParameters = None
 stdio_client = None
 streamablehttp_client = None
-streamablehttp_client_uses_http_client = False
 
 
 def _ensure_mcp_client_imports():
-    global ClientSession, StdioServerParameters, stdio_client
-    global streamablehttp_client, streamablehttp_client_uses_http_client
-    if ClientSession is None or StdioServerParameters is None:
-        from mcp import ClientSession as _ClientSession, StdioServerParameters as _StdioServerParameters
+    global MCPClient, MCPImplementation, StdioServerParameters, stdio_client
+    global streamablehttp_client
+    if MCPClient is None or MCPImplementation is None or StdioServerParameters is None:
+        from mcp.client import Client as _MCPClient
+        from mcp.client.stdio import StdioServerParameters as _StdioServerParameters
+        from mcp_types import Implementation as _MCPImplementation
 
-        ClientSession = _ClientSession
+        MCPClient = _MCPClient
+        MCPImplementation = _MCPImplementation
         StdioServerParameters = _StdioServerParameters
     if stdio_client is None:
         from mcp.client.stdio import stdio_client as _stdio_client
 
         stdio_client = _stdio_client
     if streamablehttp_client is None:
-        try:
-            from mcp.client.streamable_http import streamable_http_client as _streamablehttp_client
-            streamablehttp_client_uses_http_client = True
-        except ImportError:
-            from mcp.client.streamable_http import streamablehttp_client as _streamablehttp_client
+        from mcp.client.streamable_http import streamable_http_client as _streamablehttp_client
 
         streamablehttp_client = _streamablehttp_client
 
@@ -1542,9 +1540,23 @@ def _jsonable(value: Any) -> Any:
     return str(value)
 
 
-async def _with_mcp_session(server: MCPServer, callback):
+def _mcp_model_dump(value: Any) -> Any:
+    model_dump = getattr(value, "model_dump", None)
+    if callable(model_dump):
+        return model_dump(by_alias=True, exclude_none=True, mode="json")
+    return _jsonable(value)
+
+
+async def _with_mcp_client(server: MCPServer, callback):
     _ensure_mcp_client_imports()
     transport = (server.transport or "http").lower().replace("-", "_")
+    from lumibot import __version__
+
+    client_kwargs = {
+        "mode": "auto",
+        "read_timeout_seconds": server.sse_read_timeout_seconds,
+        "client_info": MCPImplementation(name="lumibot", version=__version__),
+    }
     if transport == "stdio":
         parameters = StdioServerParameters(
             command=str(server.command),
@@ -1553,39 +1565,28 @@ async def _with_mcp_session(server: MCPServer, callback):
             cwd=server.cwd,
         )
         with _mcp_errlog_stream() as errlog:
-            async with stdio_client(parameters, errlog=errlog) as (read_stream, write_stream):
-                async with ClientSession(read_stream, write_stream) as session:
-                    await session.initialize()
-                    return await callback(session)
+            mcp_transport = stdio_client(parameters, errlog=errlog)
+            async with MCPClient(mcp_transport, **client_kwargs) as client:
+                return await callback(client)
 
-    headers = _mcp_headers(server)
-    timeout = server.timeout_seconds
-    sse_timeout = server.sse_read_timeout_seconds
-    if streamablehttp_client_uses_http_client:
-        import httpx
-        from mcp.shared._httpx_utils import create_mcp_http_client
+    import httpx2
 
-        http_timeout = httpx.Timeout(timeout, read=sse_timeout)
-        async with create_mcp_http_client(headers=headers, timeout=http_timeout) as http_client:
-            async with streamablehttp_client(
-                str(server.url),
-                http_client=http_client,
-                terminate_on_close=server.terminate_on_close,
-            ) as (read_stream, write_stream, _get_session_id):
-                async with ClientSession(read_stream, write_stream) as session:
-                    await session.initialize()
-                    return await callback(session)
-    else:
-        async with streamablehttp_client(
+    http_timeout = httpx2.Timeout(
+        server.timeout_seconds,
+        read=server.sse_read_timeout_seconds,
+    )
+    async with httpx2.AsyncClient(
+        headers=_mcp_headers(server),
+        timeout=http_timeout,
+        follow_redirects=True,
+    ) as http_client:
+        mcp_transport = streamablehttp_client(
             str(server.url),
-            headers=headers,
-            timeout=timeout,
-            sse_read_timeout=sse_timeout,
+            http_client=http_client,
             terminate_on_close=server.terminate_on_close,
-        ) as (read_stream, write_stream, _get_session_id):
-            async with ClientSession(read_stream, write_stream) as session:
-                await session.initialize()
-                return await callback(session)
+        )
+        async with MCPClient(mcp_transport, **client_kwargs) as client:
+            return await callback(client)
 
 
 def _run_mcp_sync(async_fn, *args):
@@ -1604,72 +1605,27 @@ def _run_mcp_sync(async_fn, *args):
 
 
 async def _list_mcp_tools_async(server: MCPServer) -> list[dict[str, Any]]:
-    transport = (server.transport or "http").lower().replace("-", "_")
-    async def callback(session: ClientSession) -> list[dict[str, Any]]:
-        result = await session.list_tools()
+    async def callback(client: Any) -> list[dict[str, Any]]:
+        result = await client.list_tools()
         tools = getattr(result, "tools", None) or []
         normalized: list[dict[str, Any]] = []
         for tool in tools:
-            dumped = _jsonable(tool)
+            dumped = _mcp_model_dump(tool)
             if isinstance(dumped, dict):
                 normalized.append(dumped)
         return normalized
 
-    if transport == "http":
-        return await _legacy_http_list_tools(server)
-    return await _with_mcp_session(server, callback)
+    return await _with_mcp_client(server, callback)
 
 
 async def _call_mcp_tool_async(server: MCPServer, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-    transport = (server.transport or "http").lower().replace("-", "_")
-    async def callback(session: ClientSession) -> dict[str, Any]:
-        result = await session.call_tool(name, arguments or {})
-        dumped = _jsonable(result)
+    async def callback(client: Any) -> dict[str, Any]:
+        result = await client.call_tool(name, arguments or {})
+        dumped = _mcp_model_dump(result)
         if not isinstance(dumped, dict):
             raise RuntimeError(f"{name} returned unexpected payload: {dumped!r}")
         if dumped.get("isError") is True:
             raise RuntimeError(f"{name} failed: {dumped}")
         return dumped
 
-    if transport == "http":
-        return await _legacy_http_call_tool(server, name, arguments)
-    return await _with_mcp_session(server, callback)
-
-
-async def _legacy_http_list_tools(server: MCPServer) -> list[dict[str, Any]]:
-    import httpx
-
-    payload = {
-        "jsonrpc": "2.0",
-        "id": "tools-list",
-        "method": "tools/list",
-        "params": {},
-    }
-    async with httpx.AsyncClient(timeout=server.timeout_seconds) as client:
-        response = await client.post(str(server.url), json=payload, headers=_mcp_headers(server))
-        response.raise_for_status()
-        data = response.json()
-    result = data.get("result") or {}
-    tools = result.get("tools") or []
-    return tools if isinstance(tools, list) else []
-
-
-async def _legacy_http_call_tool(server: MCPServer, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-    import httpx
-
-    payload = {
-        "jsonrpc": "2.0",
-        "id": f"{name}-call",
-        "method": "tools/call",
-        "params": {"name": name, "arguments": arguments},
-    }
-    async with httpx.AsyncClient(timeout=server.timeout_seconds) as client:
-        response = await client.post(str(server.url), json=payload, headers=_mcp_headers(server))
-        response.raise_for_status()
-        data = response.json()
-    if "error" in data:
-        raise RuntimeError(f"{name} failed: {data['error']}")
-    result = data.get("result") or {}
-    if not isinstance(result, dict):
-        raise RuntimeError(f"{name} returned unexpected payload: {result!r}")
-    return result
+    return await _with_mcp_client(server, callback)

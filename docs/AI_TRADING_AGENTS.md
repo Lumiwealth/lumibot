@@ -147,6 +147,12 @@ MCPServer(
 
 Any MCP server with a URL that speaks the Model Context Protocol over HTTP works. There are over 20,000 available today.
 
+LumiBot uses the official Python MCP v2 client and negotiates the stateless
+``2026-07-28`` contract with ``server/discover``. Modern HTTP requests are
+POST-only and do not create an MCP session or send ``initialize``. During the
+ecosystem transition, automatic negotiation can still connect to conforming
+legacy servers.
+
 ---
 
 ## Built-in Tools

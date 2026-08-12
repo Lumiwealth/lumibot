@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- **External MCP tools now use MCP 2026-07-28 through the official Python v2
+  client.** HTTP and stdio connections negotiate with ``server/discover``, send
+  stateless requests, and no longer depend on deprecated explicit
+  ``initialize`` or session transport behavior. Auto negotiation preserves a
+  rolling compatibility path for older conforming servers.
+
 ## 4.5.83 - 2026-08-05
 
 Deploy marker: `deploy 4.5.83`

@@ -22,7 +22,7 @@ and verification commands.
 Last verified
 -------------
 
-- This doc was updated for the current production MCP behavior on ``March 16, 2026``.
+- This client guidance was updated for MCP ``2026-07-28`` on ``August 12, 2026``.
 - Canonical host is ``https://mcp.botspot.trade``.
 
 Canonical endpoints
@@ -35,9 +35,11 @@ Canonical endpoints
 Important transport note
 ------------------------
 
-BotSpot runs MCP over HTTP JSON-RPC (POST). ``GET /mcp`` now returns a small
-capability JSON document for connector reachability checks.
-Tool execution still uses ``POST /mcp``.
+BotSpot uses the stateless MCP ``2026-07-28`` HTTP contract. Protocol traffic is
+POST-only. Clients negotiate with ``server/discover`` and send protocol,
+method, and optional tool-name headers plus per-request ``_meta``. Modern clients
+do not send ``initialize``, create an MCP session, open a standalone GET stream,
+or use transport resumability.
 
 Authentication modes
 --------------------
@@ -152,7 +154,9 @@ Validation checklist (copy/paste)
 
    curl -i -X POST https://mcp.botspot.trade/mcp \
      -H "Content-Type: application/json" \
-     --data '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+     -H "Mcp-Protocol-Version: 2026-07-28" \
+     -H "Mcp-Method: server/discover" \
+     --data '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"curl-probe","version":"1.0.0"},"io.modelcontextprotocol/clientCapabilities":{}}}}'
 
 3) Authenticated MCP call (replace key) should return tool list/result:
 
@@ -161,7 +165,9 @@ Validation checklist (copy/paste)
    curl -i -X POST https://mcp.botspot.trade/mcp \
      -H "Authorization: Bearer botspot_YOUR_API_KEY" \
      -H "Content-Type: application/json" \
-     --data '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+     -H "Mcp-Protocol-Version: 2026-07-28" \
+     -H "Mcp-Method: tools/list" \
+     --data '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"curl-probe","version":"1.0.0"},"io.modelcontextprotocol/clientCapabilities":{}}}}'
 
 Local debugging (recommended)
 -----------------------------

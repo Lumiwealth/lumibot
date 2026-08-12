@@ -449,10 +449,13 @@ class RuntimeRequest:
     memory_state: dict[str, Any] | None
     memory_notes: list[dict[str, Any]]
     bound_tools: list[BoundTool]
+    include_builtin_skills: bool = True
+    builtin_skill_fingerprint: str | None = None
     model_call_id: str | None = None
     provider_prompt_cache_key: str | None = None
     model_request_timeout_seconds: float | None = None
     run_timeout_seconds: float | None = None
+    max_output_tokens: int | None = None
 
 
 _LITELLM_CONFIGURED = False
@@ -699,6 +702,7 @@ def _provider_prompt_cache_key(request: RuntimeRequest) -> str:
         "agent": request.agent_name,
         "model": request.model,
         "system_prompt": request.system_prompt,
+        "builtin_skill_fingerprint": request.builtin_skill_fingerprint,
         "tools": [
             {
                 "name": tool.name,
@@ -1148,7 +1152,6 @@ class GoogleADKRuntime:
             pruning = _prune_request_contents_for_context_window(
                 contents,
                 context_limit_tokens=context_limit,
-                always_prune_older_tool_results=True,
             )
             if pruning:
                 logging.getLogger(__name__).warning(
@@ -1179,6 +1182,8 @@ class GoogleADKRuntime:
             if tool_response is None and len(args) >= 4:
                 tool_response = args[3]
             tool_name = str(getattr(tool, "name", None) or "")
+            if tool_name in {"list_skills", "load_skill", "load_skill_resource"}:
+                return None
             pruned = _prune_tool_response_for_context_window(tool_response, tool_name=tool_name)
             if pruned is not None:
                 logging.getLogger(__name__).warning(
@@ -1290,6 +1295,10 @@ class GoogleADKRuntime:
             request.bound_tools,
             active_tool_context,
         )
+        if request.include_builtin_skills:
+            from .skills import build_builtin_skill_toolset
+
+            tools.append(build_builtin_skill_toolset())
         config_kwargs = self._generate_content_config_kwargs_for_request(request, genai_types)
         model_request_timeout_seconds = self._model_request_timeout_seconds_for_request(request)
         run_timeout_seconds = self._run_timeout_seconds_for_request(request)
@@ -1427,7 +1436,7 @@ class GoogleADKRuntime:
     @staticmethod
     def _generate_content_config_kwargs_for_request(request: RuntimeRequest, genai_types: Any) -> dict[str, Any]:
         config_kwargs: dict[str, Any] = {
-            "max_output_tokens": 65535,
+            "max_output_tokens": request.max_output_tokens or 65535,
         }
         request_timeout_seconds = GoogleADKRuntime._model_request_timeout_seconds_for_request(request)
         if _is_native_gemini_model(request.model) and request_timeout_seconds is not None:

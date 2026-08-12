@@ -1,5 +1,9 @@
+from types import SimpleNamespace
+
 from lumibot.components.agents.manager import _usage_breakdown
 from lumibot.components.agents.runtime import (
+    GoogleADKRuntime,
+    RuntimeRequest,
     _aggregate_usage_metadata,
     _prune_large_context_strings,
     _prune_request_contents_for_context_window,
@@ -236,6 +240,66 @@ def test_gemini_context_pruning_uses_realistic_default_char_budget():
 
     assert result is None
     assert _request_contents_length(contents) == before
+
+
+def test_context_pruning_preserves_tool_evidence_until_request_is_oversized():
+    from google.genai import types
+
+    contents = [
+        types.Content(role="user", parts=[types.Part(text="Manage signed positions safely.")])
+    ]
+    for idx in range(8):
+        contents.append(
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part(
+                        functionResponse=types.FunctionResponse(
+                            name=f"tool_{idx}",
+                            response={"position": idx, "payload": "x" * 1_000},
+                        )
+                    )
+                ],
+            )
+        )
+
+    before = _request_contents_length(contents)
+    result = _prune_request_contents_for_context_window(
+        contents,
+        context_limit_tokens=1_000_000,
+    )
+
+    assert result is None
+    assert _request_contents_length(contents) == before
+    assert all(
+        not part.function_response.response.get("lumibot_context_pruned", False)
+        for content in contents[1:]
+        for part in content.parts
+    )
+
+
+def test_skill_loading_results_are_not_truncated_by_per_tool_guard():
+    request = RuntimeRequest(
+        agent_name="test",
+        model="gemini-3.5-flash-lite",
+        system_prompt="test",
+        task_prompt="test",
+        context=None,
+        runtime_context=None,
+        memory_state=None,
+        memory_notes=[],
+        bound_tools=[],
+    )
+    callback = GoogleADKRuntime()._after_tool_context_pruning_callback(request)
+    assert callback is not None
+
+    response = {"instructions": "x" * 10_000}
+    assert callback(tool=SimpleNamespace(name="load_skill"), tool_response=response) is None
+    assert response["instructions"] == "x" * 10_000
+
+    pruned = callback(tool=SimpleNamespace(name="market_history"), tool_response=response)
+    assert pruned is not None
+    assert pruned["lumibot_tool_result_pruned"] is True
 
 
 def test_deepseek_context_string_pruning_preserves_edges():

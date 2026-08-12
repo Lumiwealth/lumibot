@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pandas as pd
 
 from lumibot.components.agents import AgentManager, BuiltinTools
+from lumibot.components.agents.builtins import _position_to_dict
 from lumibot.components.agents.runtime import _wrap_tool_callable
 from lumibot.entities import Order
 from lumibot.entities.chains import Chains
@@ -168,6 +169,21 @@ def test_default_agent_tools_expose_generic_option_discovery_and_multileg_execut
     assert len(names) == len(BuiltinTools.all())
 
 
+def test_option_position_payload_exposes_unambiguous_closing_metadata():
+    short_option = SimpleNamespace(asset_type="option", symbol="SPY")
+    long_option = SimpleNamespace(asset_type="option", symbol="SPY")
+
+    short_payload = _position_to_dict(SimpleNamespace(asset=short_option, quantity=-3))
+    long_payload = _position_to_dict(SimpleNamespace(asset=long_option, quantity=3))
+
+    assert short_payload["position_side"] == "short"
+    assert short_payload["closing_side"] == "buy_to_close"
+    assert short_payload["closing_quantity"] == 3
+    assert long_payload["position_side"] == "long"
+    assert long_payload["closing_side"] == "sell_to_close"
+    assert long_payload["closing_quantity"] == 3
+
+
 def test_market_last_prices_returns_batch_prices_and_satisfies_order_readiness():
     strategy = _OptionsStrategy()
     tools = _wrapped_tools(
@@ -234,7 +250,7 @@ def test_market_historical_prices_falls_back_per_symbol_when_batch_missing():
     assert "MSFT" in batch["symbols_missing"]
 
 
-def test_orb_prompt_requires_multi_ticker_scan_with_market_last_prices():
+def test_orb_prompt_keeps_strategy_policy_without_repeating_tool_instructions():
     from lumibot.example_strategies.ai_opening_range_breakout import (
         build_orb_system_prompt,
         _parse_universe,
@@ -250,8 +266,9 @@ def test_orb_prompt_requires_multi_ticker_scan_with_market_last_prices():
             "max_positions": 1,
         }
     )
-    assert "market_last_prices" in prompt
-    assert "market_historical_prices" in prompt
+    assert "Scan the full provided universe" in prompt
+    assert "market_last_prices" not in prompt
+    assert "market_historical_prices" not in prompt
     assert "09:30" in prompt
     assert str(len(universe)) in prompt
     assert "SPY" in prompt and "AAPL" in prompt
@@ -444,9 +461,9 @@ def test_iron_condor_prompt_includes_parameterized_wing_and_delta():
         }
     )
 
-    assert "underlying: QQQ" in prompt
-    assert "wing_width: 7.0" in prompt
-    assert "target_delta: 0.18" in prompt
-    assert "0.15 through 0.21" in prompt
-    assert "orders_get_status" in prompt
-    assert "options_find_expiration" in prompt
+    assert "QQQ iron-condor" in prompt
+    assert "7.0 points" in prompt
+    assert "-0.18 delta" in prompt
+    assert "0.03 of the target" in prompt
+    assert "orders_get_status" not in prompt
+    assert "options_find_expiration" not in prompt

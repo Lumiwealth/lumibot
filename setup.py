@@ -97,7 +97,7 @@ setuptools.setup(
         "psutil",
         "openai",
         "setuptools<81",
-        "google-adk[extensions]>=2.0.0,<3.0.0",
+        "google-adk[extensions]>=2.1.0,<3.0.0",
         "google-genai>=1.72.0,<2.0.0",
         "litellm>=1.83.7,<=1.83.14",
         "anyio>=4.10.0",
@@ -113,6 +113,10 @@ setuptools.setup(
     package_data={
         "lumibot": [
             "resources/conf.yaml",
+            "components/agents/skills/*/SKILL.md",
+            "components/agents/skills/*/agents/*.yaml",
+            "components/agents/skills/*/references/*.md",
+            "example_strategies/agent_rules/*.json",
         ] + (["resources/ThetaTerminal.jar"] if theta_jar_path.exists() else []),
     },
     extras_require={

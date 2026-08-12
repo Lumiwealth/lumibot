@@ -409,9 +409,30 @@ def _position_to_dict(position: Any) -> dict[str, Any]:
         quantity = float(quantity)
     except Exception:
         quantity = quantity
+    position_side = None
+    closing_side = None
+    closing_quantity = None
+    if isinstance(quantity, (int, float)) and math.isfinite(quantity):
+        closing_quantity = abs(quantity)
+        if quantity > 0:
+            position_side = "long"
+        elif quantity < 0:
+            position_side = "short"
+        else:
+            position_side = "flat"
+        asset_type = getattr(asset, "asset_type", None)
+        asset_type_text = str(getattr(asset_type, "value", asset_type) or "").lower()
+        if asset_type_text == "option":
+            if quantity > 0:
+                closing_side = "sell_to_close"
+            elif quantity < 0:
+                closing_side = "buy_to_close"
     return {
         "asset": asset_payload,
         "quantity": quantity,
+        "position_side": position_side,
+        "closing_side": closing_side,
+        "closing_quantity": closing_quantity,
         "avg_fill_price": _jsonable(getattr(position, "avg_fill_price", None)),
         "current_price": _jsonable(getattr(position, "current_price", None)),
         "market_value": _jsonable(getattr(position, "market_value", None)),
@@ -547,7 +568,7 @@ def _bind_positions(strategy: Any, manager: Any) -> BoundTool:
         name="account_positions",
         description=(
             "Return current positions as structured data. "
-            "Each entry includes exact asset fields, signed quantity, average fill price, current price, market value, and P&L fields when the broker or backtest provides them. "
+            "Each entry includes exact asset fields, signed quantity, position_side, closing_side and closing_quantity for options, average fill price, current price, market value, and P&L fields when the broker or backtest provides them. "
             "For options, signed quantity is authoritative: quantity > 0 is a long contract and must use sell_to_close to reduce it; quantity < 0 is a short contract and must use buy_to_close to reduce it. "
             "Use expiration, strike, right, signed quantity, and average fill price to reconstruct and manage an existing multi-leg position. Never report the option portfolio as flat while any option entry has nonzero quantity. "
             "Use this before trading to understand current exposure, whether a symbol is already held, and whether the current portfolio is concentrated. "
@@ -1125,6 +1146,7 @@ def _bind_options_calculate_multileg_price(strategy: Any, manager: Any) -> Bound
             "Arguments: legs_json and optional price_style='best', 'mid', or 'fastest'. legs_json must be a JSON array; every leg requires symbol, expiration, strike, right, quantity, and side. "
             "Use buy_to_open/sell_to_open when opening and buy_to_close/sell_to_close when closing. A positive net_limit_price is a debit and a negative value is a credit. "
             "For a closing order, a positive account_positions quantity is long and requires sell_to_close; a negative quantity is short and requires buy_to_close. Closing quantity is the absolute value of the position quantity. "
+            "Never price a close with buy_to_close for a positive quantity or sell_to_close for a negative quantity because those sides do not close the observed position. "
             "When comparing a per-unit multi-leg opening credit with a per-unit closing debit, price one contract per leg here. Use the full absolute position quantities only in the later orders_submit_multileg call. "
             "Independently reconcile the returned net price from the four option midpoint values you just observed. For a defined-risk structure, reject a result that conflicts materially with those leg mids or violates the structure's economic bounds. "
             "Example legs_json: [{\"symbol\":\"SPY\",\"expiration\":\"2026-09-18\",\"strike\":620,\"right\":\"put\",\"quantity\":1,\"side\":\"buy_to_open\"},{\"symbol\":\"SPY\",\"expiration\":\"2026-09-18\",\"strike\":625,\"right\":\"put\",\"quantity\":1,\"side\":\"sell_to_open\"}]."
@@ -1196,6 +1218,7 @@ def _bind_options_find_expiration(strategy: Any, manager: Any) -> BoundTool:
         name="options_find_expiration",
         description=(
             "Find a listed option expiration on or after a target date for one underlying and right. "
+            "Call options_get_chain for the same underlying in the current agent run before using this helper. "
             "Arguments: symbol, optional right='call' or 'put', optional min_days, optional target_date in YYYY-MM-DD, "
             "optional underlying_asset_type='stock' or 'index', optional allow_prior. "
             "Provide min_days and/or target_date. When both are set, the later of the two floors is used. "
@@ -1468,8 +1491,8 @@ def _bind_orders_wait_for_terminal(strategy: Any, manager: Any) -> BoundTool:
             "Poll one or more tracked order identifiers until every order is terminal or a bounded timeout elapses. "
             "Arguments: optional identifier, optional identifiers_json, optional timeout_seconds (default 30, max 120), "
             "optional poll_interval_seconds (default 1). Uses strategy.sleep so pending broker fills can process. "
-            "In backtests, this advances simulation time in bounded steps and processes pending fills; prefer a short "
-            "timeout and confirm with orders_get_status. Never claim a fill unless is_filled is true. "
+            "In backtests, use one short bounded wait immediately after your own market-order submission when the simulator must process the pending fill. The wait advances simulated time and is capped, so do not use it as an open-ended polling loop. "
+            "Never claim a fill unless is_filled is true. "
             "Example: orders_wait_for_terminal(identifiers_json='[\"bt_1\"]', timeout_seconds=15)."
         ),
         function=wait_for_terminal,
@@ -2564,6 +2587,7 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
             "Use stock for normal equities. "
             "Before using this tool, call account_portfolio, account_positions, and market_last_price (or market_last_prices including the symbol) for the same symbol in the current agent run; otherwise the order is rejected with ORDER_READINESS_REQUIRED. "
             "Valid side values: buy, sell, buy_to_open, buy_to_close, sell_to_open, sell_to_close, sell_short, buy_to_cover. "
+            "For an option close, reconcile the exact contract with the latest account_positions result: positive long quantity requires sell_to_close and negative short quantity requires buy_to_close, always using the absolute current quantity. Never use the inverse mapping. "
             "Valid order_type values: market, limit, stop, stop_limit, trailing_stop, smart_limit. "
             "Valid time_in_force values: day, gtc, gtd. "
             "Caveats: limit orders require limit_price; stop and stop_limit orders require stop_price; trailing_stop requires trail_price or trail_percent; smart_limit uses LumiBot's built-in smart-limit behavior. "
@@ -2630,11 +2654,13 @@ def _bind_submit_multileg_order(strategy: Any, manager: Any) -> BoundTool:
         description=(
             "Create and submit one atomic multi-leg option order from exact contracts selected by the agent. This is generic and does not choose a strategy or its legs. "
             "Arguments: legs_json, optional price_style='market', 'best', 'mid', or 'fastest', optional signed net_limit_price, optional time_in_force. legs_json must be a JSON array with at least two legs; each leg requires symbol, expiration, strike, right, quantity, and side. "
-            "Before submitting, call account_portfolio, account_positions, and market_last_price or market_last_prices for each underlying symbol, retrieve the chain, and evaluate every exact leg. "
+            "Before submitting in the same agent run, call account_portfolio, account_positions, orders_open_orders, market_last_price or market_last_prices for each underlying symbol, options_get_chain, and options_calculate_multileg_price after evaluating every exact leg. "
             "Opening sides are buy_to_open and sell_to_open. Closing sides are buy_to_close and sell_to_close. Use matching quantities when the intended position requires matched contracts. "
             "When closing existing positions, map signed account quantities exactly: positive long quantity -> sell_to_close; negative short quantity -> buy_to_close. Reversing that mapping increases exposure instead of closing it. "
+            "Immediately before submission, reconcile every closing leg against the latest account_positions result. Reject the package yourself if any positive quantity is paired with buy_to_close or any negative quantity is paired with sell_to_close. "
             "Every proposed closing leg must reduce the corresponding exact position quantity toward zero. Do not use the same closing side for positive and negative position quantities. "
             "Current nonzero option positions remain open until a later account_positions result shows zero quantity. A submitted or filled order result is not itself proof that positions are flat, and a final response must not claim submission unless this tool returned submitted orders. "
+            "If positions are not flat afterward, inspect the exact order status and open orders. Do not switch order tools, reverse sides, change quantities, or submit another close until the prior order has a terminal state and a fresh account_positions result proves what remains. "
             "Before opening more option exposure, compare the proposed legs with all current option positions and pending orders. Do not add another structure when the strategy policy permits only one open structure. "
             "For limit execution, a positive signed net_limit_price is a debit and a negative value is a credit. If omitted, LumiBot calculates the selected best/mid/fastest price. "
             "The agent must validate that signed price against its exact leg quotes and strategy economics before submission. For equal-width credit spreads, credit must be positive and strictly less than the wing width. "

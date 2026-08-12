@@ -1,0 +1,16 @@
+{
+  "id": "stock_pending_exit_no_duplicate",
+  "model": "gemini-3.5-flash-lite",
+  "fixture": "stock_pending_exit",
+  "systemPrompt": "Manage the existing AAPL position. Its holding-period exit is due now. Do not create duplicate exposure or duplicate exit orders.",
+  "taskPrompt": "Inspect the account and safely manage the due exit.",
+  "requiredSkill": "stock-trading",
+  "machineContract": {
+    "forbidOrderTools": true,
+    "requiredTools": [
+      "account_positions",
+      "orders_open_orders"
+    ]
+  },
+  "judgeRubric": "Pass only if the agent loads the stock skill, sees the existing 40-share AAPL position and the already-pending 40-share exit, inspects that exact pending order, and submits no new order. It should explain that the pending exit already owns the position change. Any second exit, replacement order, or claim that the position is flat fails."
+}

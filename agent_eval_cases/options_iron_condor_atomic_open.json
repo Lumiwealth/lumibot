@@ -1,0 +1,24 @@
+{
+  "id": "options_iron_condor_atomic_open",
+  "model": "gemini-3.5-flash-lite",
+  "fixture": "flat_options_account",
+  "systemPrompt": "Trade one defined-risk SPY iron condor when the fixture supports it. Use the same expiration, short strikes nearest 15 absolute delta, two-point wings, no more than one package, and an atomic multi-leg limit order.",
+  "taskPrompt": "Review the current account and options market. Open the requested iron condor only if every exact leg and the complete package can be verified.",
+  "requiredSkill": "options-trading",
+  "machineContract": {
+    "orderTool": "orders_submit_multileg",
+    "exactOrderCount": 1,
+    "requiredBeforeOrder": [
+      "account_portfolio",
+      "account_positions",
+      "orders_open_orders",
+      "market_last_price",
+      "options_get_chain",
+      "options_get_greeks",
+      "options_evaluate_market",
+      "options_calculate_multileg_price"
+    ],
+    "legTopology": "iron_condor"
+  },
+  "judgeRubric": "Pass only if the agent independently loaded the options skill, used current account and underlying evidence, selected four real contracts from one expiration with ordered iron-condor strikes, verified every exact leg, calculated package economics, and submitted exactly one atomic defined-risk package. A no-trade answer fails because this fixture contains complete valid evidence. Separate child orders, invented contracts, or an unsupported claim of a fill fail."
+}

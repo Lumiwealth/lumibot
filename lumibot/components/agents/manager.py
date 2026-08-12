@@ -624,11 +624,13 @@ def _provider_prompt_cache_key(
     model: str,
     effective_system_prompt: str,
     bound_tools: list[BoundTool],
+    builtin_skill_fingerprint: str | None,
 ) -> str:
     payload = {
         "agent": agent_name,
         "model": model,
         "effective_system_prompt": effective_system_prompt,
+        "builtin_skill_fingerprint": builtin_skill_fingerprint,
         "tool_surface": [
             {
                 "name": tool.name,
@@ -656,6 +658,8 @@ class AgentHandle:
         runtime: Any | None = None,
         allow_trading: bool = True,
         include_builtin_tools: bool = True,
+        include_builtin_skills: bool = True,
+        rules_path: str | Path | None = None,
         model_request_timeout_seconds: float | None = None,
         run_timeout_seconds: float | None = None,
     ) -> None:
@@ -666,6 +670,8 @@ class AgentHandle:
         self.allow_trading = bool(allow_trading)
         self.model_request_timeout_seconds = model_request_timeout_seconds
         self.run_timeout_seconds = run_timeout_seconds
+        self.include_builtin_skills = bool(include_builtin_skills)
+        self.rules_path = rules_path
         from .builtins import BuiltinTools
         builtin_tools = self._filter_tools_for_trading_permission(BuiltinTools.all())
         if tools is None:
@@ -769,6 +775,9 @@ class AgentHandle:
     def _runtime_context(self) -> dict[str, Any]:
         strategy = self.manager.strategy
         current_dt = _current_strategy_datetime(strategy)
+        from .rules import load_strategy_rules
+
+        strategy_rules = load_strategy_rules(strategy, self.rules_path)
         return {
             "agent_name": self.name,
             "mode": self._runtime_mode(),
@@ -780,6 +789,7 @@ class AgentHandle:
             "account": self._serialize_account_state(),
             "recent_orders": self._serialize_orders(),
             "recent_trades": _serialize_recent_trade_events(strategy),
+            "strategy_rules": strategy_rules.runtime_context(),
         }
 
     def _base_system_prompt(self, runtime_context: dict[str, Any]) -> str:
@@ -838,6 +848,7 @@ class AgentHandle:
             "If the user asks for an aggressive or concentrated strategy, let that user strategy prompt override the default investor style, but still ground the decision in tool evidence, position sizing, broker constraints, and backtesting look-ahead safety.",
             "When querying DuckDB tables, use datetime for timestamp columns and close for price columns unless the loaded sample rows clearly show different column names.",
             "When you have access to external MCP tools, explore what they offer and use them. You do not need to be told which specific tool to call.",
+            "Asset-class skills are available through list_skills, load_skill, and load_skill_resource. Before researching, selecting, opening, modifying, closing, or managing any stock, ETF, or option position or related pending order, you MUST load the matching skill and follow it. If a broad mandate leads you to consider an asset class later, load its skill at that point before acting on the asset. Skill loading supplies knowledge; it does not choose a trade or override active strategy rules.",
             "Finish every run with a short summary sentence starting with RESULT: that explains what you did and why.",
         ]
         if mode == "backtesting":
@@ -875,12 +886,21 @@ class AgentHandle:
         return "\n".join(lines).strip()
 
     def _compose_system_prompt(self, runtime_context: dict[str, Any]) -> str:
+        strategy_rules = runtime_context.get("strategy_rules") or {
+            "document": {"version": 1, "rules": []},
+            "content_hash": None,
+            "source": "missing",
+            "file_name": None,
+        }
         return "\n\n".join(
             [
                 self._base_system_prompt(runtime_context),
                 "USER SYSTEM PROMPT:",
-                "Treat this as the strategy-specific trading objective. It may override the default investor style, but not hard safety, broker, or look-ahead-bias rules.",
+                "Treat this as the strategy-specific trading objective. It may override the default investor style, but not hard safety, broker, look-ahead-bias, or active strategy rules.",
                 self.system_prompt.strip(),
+                "ACTIVE STRATEGY RULES JSON:",
+                "These are the user's current cross-agent instructions. Follow every active rule on every call. They override conflicting strategy-objective wording but do not override hard safety, broker, or look-ahead-bias rules. An empty rules array means no additional active rules.",
+                json.dumps(strategy_rules.get("document"), sort_keys=True, ensure_ascii=True),
             ]
         ).strip()
 
@@ -1068,12 +1088,14 @@ class AgentHandle:
         memory_state: dict[str, Any] | None,
         effective_system_prompt: str,
         base_system_prompt: str,
+        builtin_skill_fingerprint: str | None,
     ) -> dict[str, Any]:
         bound_tools = self._ensure_bound_tools()
         return {
             "user_system_prompt": self.system_prompt,
             "base_system_prompt": base_system_prompt,
             "effective_system_prompt": effective_system_prompt,
+            "builtin_skill_fingerprint": builtin_skill_fingerprint,
             "task_prompt": task_prompt,
             "context": context or {},
             "runtime_context": runtime_context,
@@ -1424,6 +1446,12 @@ class AgentHandle:
         memory_state = self._memory_state(runtime_context)
         base_system_prompt = self._base_system_prompt(runtime_context)
         effective_system_prompt = self._compose_system_prompt(runtime_context)
+        if self.include_builtin_skills:
+            from .skills import builtin_skill_fingerprint
+
+            skill_fingerprint = builtin_skill_fingerprint()
+        else:
+            skill_fingerprint = None
         cache_payload = self._cache_payload(
             task_prompt=task_prompt,
             context=context,
@@ -1432,6 +1460,7 @@ class AgentHandle:
             memory_state=memory_state,
             effective_system_prompt=effective_system_prompt,
             base_system_prompt=base_system_prompt,
+            builtin_skill_fingerprint=skill_fingerprint,
         )
         cache_key = self.manager.replay_cache.compute_key(cache_payload)
         strategy = self.manager.strategy
@@ -1463,12 +1492,15 @@ class AgentHandle:
             memory_state=memory_state,
             memory_notes=self._memory_prompt_notes(),
             bound_tools=self._ensure_bound_tools(),
+            include_builtin_skills=self.include_builtin_skills,
+            builtin_skill_fingerprint=skill_fingerprint,
             model_call_id=cache_key,
             provider_prompt_cache_key=_provider_prompt_cache_key(
                 agent_name=self.name,
                 model=model_name,
                 effective_system_prompt=effective_system_prompt,
                 bound_tools=self._ensure_bound_tools(),
+                builtin_skill_fingerprint=skill_fingerprint,
             ),
             model_request_timeout_seconds=resolved_model_request_timeout_seconds,
             run_timeout_seconds=resolved_run_timeout_seconds,
@@ -2097,6 +2129,8 @@ class AgentManager:
         allow_trading: bool | None = None,
         _runtime: Any | None = None,
         include_builtin_tools: bool = True,
+        include_builtin_skills: bool = True,
+        rules_path: str | Path | None = None,
         model_request_timeout_seconds: float | None = None,
         run_timeout_seconds: float | None = None,
     ) -> AgentHandle:
@@ -2117,6 +2151,8 @@ class AgentManager:
             runtime=_runtime,
             allow_trading=resolved_allow_trading,
             include_builtin_tools=include_builtin_tools,
+            include_builtin_skills=include_builtin_skills,
+            rules_path=rules_path,
             model_request_timeout_seconds=model_request_timeout_seconds,
             run_timeout_seconds=run_timeout_seconds,
         )

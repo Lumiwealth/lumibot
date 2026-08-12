@@ -1,30 +1,29 @@
+import json
 import socket
 import subprocess
 import sys
 import tempfile
 import textwrap
 import time
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
 import pytest
 
+import lumibot.components.agents.runtime as runtime_module
 from lumibot.backtesting import PandasDataBacktesting
 from lumibot.components.agents import AgentRunResult, MCPServer
 from lumibot.entities import Asset, Data
 from lumibot.strategies import Strategy
-import lumibot.components.agents.runtime as runtime_module
-
 
 SERVER_SCRIPT = """
 import argparse
 from datetime import datetime, timezone
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server import MCPServer as SDKMCPServer
 
-mcp = FastMCP("transport-test", host="127.0.0.1", port=0)
+mcp = SDKMCPServer("transport-test")
 
 @mcp.tool()
 def echo_market_state(symbol: str = "TEST", note: str = "") -> dict:
@@ -39,9 +38,14 @@ if __name__ == "__main__":
     parser.add_argument("--transport", choices=["stdio", "streamable-http"], default="stdio")
     parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
-    if args.transport == "streamable-http":
-        mcp.settings.port = args.port
-    mcp.run(transport=args.transport)
+    mcp.run(
+        transport=args.transport,
+        host="127.0.0.1",
+        port=args.port,
+        streamable_http_path="/mcp",
+        stateless_http=True,
+        json_response=True,
+    )
 """
 
 
@@ -246,15 +250,16 @@ def test_stdio_transport_sends_child_stderr_to_devnull_when_quiet(monkeypatch):
         async def __aexit__(self, exc_type, exc, tb):
             return False
 
-    class DummySession:
+    # MCP 2 clients own negotiation; deprecated ClientSession.initialize() no longer exists.
+    class DummyClient:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
         async def __aenter__(self):
             return self
 
         async def __aexit__(self, exc_type, exc, tb):
             return False
-
-        async def initialize(self):
-            return None
 
         async def list_tools(self):
             return type("Result", (), {"tools": []})()
@@ -264,7 +269,8 @@ def test_stdio_transport_sends_child_stderr_to_devnull_when_quiet(monkeypatch):
         return DummyStdioContext()
 
     monkeypatch.setattr(runtime_module, "stdio_client", fake_stdio_client)
-    monkeypatch.setattr(runtime_module, "ClientSession", lambda read_stream, write_stream: DummySession())
+    monkeypatch.setattr(runtime_module, "MCPClient", DummyClient)
+    monkeypatch.setattr(runtime_module, "MCPImplementation", lambda **_kwargs: object())
     monkeypatch.setenv("IS_BACKTESTING", "true")
     monkeypatch.setenv("BACKTESTING_QUIET_LOGS", "true")
 
@@ -293,15 +299,16 @@ def test_stdio_transport_keeps_child_stderr_when_not_quiet(monkeypatch):
         async def __aexit__(self, exc_type, exc, tb):
             return False
 
-    class DummySession:
+    # MCP 2 clients own negotiation; deprecated ClientSession.initialize() no longer exists.
+    class DummyClient:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
         async def __aenter__(self):
             return self
 
         async def __aexit__(self, exc_type, exc, tb):
             return False
-
-        async def initialize(self):
-            return None
 
         async def list_tools(self):
             return type("Result", (), {"tools": []})()
@@ -311,7 +318,8 @@ def test_stdio_transport_keeps_child_stderr_when_not_quiet(monkeypatch):
         return DummyStdioContext()
 
     monkeypatch.setattr(runtime_module, "stdio_client", fake_stdio_client)
-    monkeypatch.setattr(runtime_module, "ClientSession", lambda read_stream, write_stream: DummySession())
+    monkeypatch.setattr(runtime_module, "MCPClient", DummyClient)
+    monkeypatch.setattr(runtime_module, "MCPImplementation", lambda **_kwargs: object())
     monkeypatch.setenv("IS_BACKTESTING", "true")
     monkeypatch.setenv("BACKTESTING_QUIET_LOGS", "false")
 

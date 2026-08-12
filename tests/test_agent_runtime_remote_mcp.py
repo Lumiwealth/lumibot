@@ -71,13 +71,27 @@ class RemoteMCPStrategy(Strategy):
 
 class _MCPHandler(BaseHTTPRequestHandler):
     calls = []
+    requests = []
 
     def do_POST(self):
         length = int(self.headers.get("Content-Length", "0"))
         body = self.rfile.read(length)
         data = json.loads(body.decode("utf-8"))
         method = data.get("method")
-        if method == "tools/list":
+        self.__class__.requests.append({"body": data, "headers": dict(self.headers)})
+        if method == "server/discover":
+            response = {
+                "jsonrpc": "2.0",
+                "id": data.get("id"),
+                "result": {
+                    "supportedVersions": ["2026-07-28"],
+                    "capabilities": {"tools": {}},
+                    "resultType": "complete",
+                    "ttlMs": 0,
+                    "cacheScope": "private",
+                },
+            }
+        elif method == "tools/list":
             response = {
                 "jsonrpc": "2.0",
                 "id": data.get("id"),
@@ -86,8 +100,12 @@ class _MCPHandler(BaseHTTPRequestHandler):
                         {
                             "name": "echo_market_state",
                             "description": "Echo a small structured market state payload.",
+                            "inputSchema": {"type": "object"},
                         }
-                    ]
+                    ],
+                    "resultType": "complete",
+                    "ttlMs": 0,
+                    "cacheScope": "private",
                 },
             }
         elif method == "tools/call":
@@ -96,10 +114,12 @@ class _MCPHandler(BaseHTTPRequestHandler):
                 "jsonrpc": "2.0",
                 "id": data.get("id"),
                 "result": {
+                    "content": [{"type": "text", "text": "stub-mcp-ok"}],
                     "structuredContent": {
                         "message": "stub-mcp-ok",
                         "arguments": data.get("params", {}).get("arguments", {}),
-                    }
+                    },
+                    "resultType": "complete",
                 },
             }
         else:
@@ -120,6 +140,7 @@ def mcp_server():
     server = ThreadingHTTPServer(("127.0.0.1", 0), _MCPHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     _MCPHandler.calls = []
+    _MCPHandler.requests = []
     thread.start()
     try:
         yield f"http://127.0.0.1:{server.server_port}/mcp"
@@ -162,6 +183,20 @@ def test_external_mcp_tool_is_allowlisted_and_invoked(monkeypatch, tmp_path, mcp
     assert _MCPHandler.calls
     assert strategy.vars.agent_result == "Remote MCP said: stub-mcp-ok"
     assert strategy.vars.agent_warnings
+    methods = [request["body"]["method"] for request in _MCPHandler.requests]
+    assert "server/discover" in methods
+    assert "initialize" not in methods
+    tool_call = next(
+        request for request in _MCPHandler.requests if request["body"]["method"] == "tools/call"
+    )
+    normalized_headers = {key.lower(): value for key, value in tool_call["headers"].items()}
+    assert normalized_headers["mcp-protocol-version"] == "2026-07-28"
+    assert normalized_headers["mcp-method"] == "tools/call"
+    assert normalized_headers["mcp-name"] == "echo_market_state"
+    assert "mcp-session-id" not in normalized_headers
+    assert tool_call["body"]["params"]["_meta"][
+        "io.modelcontextprotocol/protocolVersion"
+    ] == "2026-07-28"
 
 
 @pytest.mark.usefixtures("disable_datasource_override")

@@ -3,6 +3,11 @@
 ## 4.5.84 - Unreleased
 
 ### Added
+- **BotSpot managed AI access for strategy agents.** BotSpot deployments and
+  backtests can use a renewable, deployment-bound Node gateway capability for
+  Gemini, OpenAI, Anthropic, and xAI without exposing provider credentials to
+  strategy code. User-supplied provider keys remain authoritative and never
+  fall back to managed credits after an authentication failure.
 - **AI agents now load reusable runtime skills through ADK `SkillToolset`.**
   New built-in `options-trading` and `stock-trading` skills teach generic market
   evidence, contract, multi-leg, signed-position, intraday, sizing, and order

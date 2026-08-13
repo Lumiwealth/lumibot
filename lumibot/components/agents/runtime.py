@@ -1016,6 +1016,10 @@ def _resolve_model_for_adk(
     if not isinstance(model, str):
         return model
     lower = model.strip().lower()
+    from lumibot.components.agents.managed_gateway import managed_gateway_available_for, managed_gateway_model
+
+    if managed_gateway_available_for(model):
+        return managed_gateway_model(model)
     if _is_native_gemini_model(model):
         return model
     if lower.startswith("xai/"):

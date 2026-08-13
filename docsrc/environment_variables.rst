@@ -903,7 +903,16 @@ Notes:
 AI agent model providers
 ------------------------
 
-LumiBot's AI agent subsystem (``self.agents.create(model=...)`` or ``default_model=...``) supports multiple LLM providers. You only need the key matching the provider id you pass for each agent. Non-Gemini ids are routed through LiteLLM, which ships as a LumiBot dependency.
+LumiBot's AI agent subsystem (``self.agents.create(model=...)`` or ``default_model=...``) supports multiple LLM providers. You only need the key matching the provider id you pass for each agent. Non-Gemini ids are routed through LiteLLM, which ships as a LumiBot dependency. In BotSpot managed runtimes, an owner-bound managed AI capability may be supplied when no provider key is present. A user-provided key always takes precedence and provider errors never fall back to managed credits.
+
+LUMIBOT_AI_GATEWAY_URL and LUMIBOT_AI_GATEWAY_TOKEN
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: BotSpot-managed model access for a specific deployment or backtest.
+- These values are issued and renewed by BotSpot. Users should not create or save them manually.
+- The token is short-lived and deployment-bound. LumiBot renews it through the gateway so always-on bots can continue without receiving a long-lived provider credential.
+- Supported managed providers are Gemini, OpenAI, Anthropic, and xAI. Other providers continue to require their normal provider key.
+- Any configured provider key below takes precedence for that provider.
 
 GEMINI_API_KEY
 ^^^^^^^^^^^^^^

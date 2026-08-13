@@ -372,6 +372,13 @@ Notes:
 
 ## AI agent fundamentals, memory, and notifications
 
+BotSpot managed runtimes may inject `LUMIBOT_AI_GATEWAY_URL` and a short-lived
+`LUMIBOT_AI_GATEWAY_TOKEN`. LumiBot uses these only when the selected Gemini,
+OpenAI, Anthropic, or xAI model has no user-provided provider key. A BYOK key is
+always authoritative, including when it is invalid, so provider failures never
+silently consume BotSpot credits. The managed token renews through Node and is
+bound to one deployment or backtest.
+
 ### `LUMIBOT_SEC_USER_AGENT`
 - Purpose: Contact-style SEC EDGAR user agent header.
 - Values: Human-readable app/contact string.

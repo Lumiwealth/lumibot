@@ -24,6 +24,7 @@ from lumibot.components.agents.runtime import (
     _wrap_tool_callable,
 )
 from lumibot.components.agents.schemas import BoundTool
+from lumibot.components.agents.managed_gateway import BotSpotManagedLlm, managed_gateway_available_for
 
 
 def test_grok_api_key_alias_populates_xai_api_key(monkeypatch):
@@ -52,6 +53,61 @@ def test_native_gemini_model_does_not_mutate_google_api_key(monkeypatch):
 
     assert resolved == "gemini-3.1-flash-lite-preview"
     assert "GOOGLE_API_KEY" not in os.environ
+
+
+@pytest.mark.parametrize(
+    ("model", "key_name"),
+    [
+        ("gemini-3.1-flash-lite", "GEMINI_API_KEY"),
+        ("openai/gpt-5.6-luna", "OPENAI_API_KEY"),
+        ("anthropic/claude-sonnet-5", "ANTHROPIC_API_KEY"),
+        ("xai/grok-4.5", "XAI_API_KEY"),
+    ],
+)
+def test_byok_always_wins_over_managed_gateway(monkeypatch, model, key_name):
+    for name in (
+        "GEMINI_API_KEY",
+        "GOOGLE_API_KEY",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "XAI_API_KEY",
+        "GROK_API_KEY",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv(key_name, "customer-key")
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_URL", "https://gateway.example.test")
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_TOKEN", "managed-token")
+
+    assert not managed_gateway_available_for(model)
+    result = _resolve_model_for_adk(model)
+    assert not isinstance(result, BotSpotManagedLlm)
+
+
+def test_missing_byok_uses_managed_gateway_without_exposing_token(monkeypatch):
+    for name in (
+        "GEMINI_API_KEY",
+        "GOOGLE_API_KEY",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "XAI_API_KEY",
+        "GROK_API_KEY",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_URL", "https://gateway.example.test")
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_TOKEN", "managed-token")
+
+    result = _resolve_model_for_adk("gemini-3.1-flash-lite")
+
+    assert isinstance(result, BotSpotManagedLlm)
+    assert "managed-token" not in repr(result)
+
+
+def test_invalid_byok_cannot_fall_back_to_managed_gateway(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "invalid-customer-key")
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_URL", "https://gateway.example.test")
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_TOKEN", "managed-token")
+
+    assert not managed_gateway_available_for("openai/gpt-5.6-luna")
 
 
 def test_together_api_key_alias_populates_litellm_key(monkeypatch):

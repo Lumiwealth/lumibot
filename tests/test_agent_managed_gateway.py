@@ -1,4 +1,6 @@
 import asyncio
+import os
+import threading
 import types as python_types
 
 from google.genai import types
@@ -63,7 +65,8 @@ def test_managed_gateway_maps_adk_request_and_response():
     assert responses[0].usage_metadata.prompt_token_count == 10
 
 
-def test_expired_capability_renews_and_retries_same_request():
+def test_expired_capability_renews_and_retries_same_request(monkeypatch):
+    monkeypatch.delenv("LUMIBOT_AI_GATEWAY_TOKEN", raising=False)
     calls = []
 
     def post(url, token, payload):
@@ -98,4 +101,56 @@ def test_expired_capability_renews_and_retries_same_request():
     ]
     assert calls[-1][1] == "renewed-token"
     assert calls[0][2]["requestId"] == calls[-1][2]["requestId"]
+    assert os.environ["LUMIBOT_AI_GATEWAY_TOKEN"] == "renewed-token"
     assert responses[0].content.parts[0].text == "Done"
+
+
+def test_concurrent_expiration_rotates_the_capability_only_once(monkeypatch):
+    monkeypatch.delenv("LUMIBOT_AI_GATEWAY_TOKEN", raising=False)
+    calls = []
+    both_expired = threading.Barrier(2)
+    calls_lock = threading.Lock()
+
+    def post(url, token, payload):
+        with calls_lock:
+            calls.append((url, token, payload))
+        if url.endswith("/v1/inference") and token == "expired-token":
+            both_expired.wait(timeout=2)
+            return 401, {"error": "unauthorized", "message": "Expired"}
+        if url.endswith("/v1/grants/renew"):
+            return 200, {"accessToken": "renewed-token", "expiresInSeconds": 600}
+        return 200, {
+            "model": "openai/gpt-5.6-luna",
+            "text": "Done",
+            "toolCalls": [],
+            "usage": {"inputTokens": 5, "cachedInputTokens": 0, "outputTokens": 1},
+        }
+
+    model = BotSpotManagedLlm(
+        model="openai/gpt-5.6-luna",
+        gateway_url="https://gateway.example.test",
+        access_token="expired-token",
+        post=post,
+    )
+
+    async def collect():
+        return await asyncio.gather(
+            *[asyncio.create_task(_collect_one(model)) for _ in range(2)]
+        )
+
+    async def run():
+        return [item async for item in model.generate_content_async(_request())]
+
+    async def _collect_one(model):
+        return await run()
+
+    responses = asyncio.run(collect())
+
+    renewals = [call for call in calls if call[0].endswith("/v1/grants/renew")]
+    successful_retries = [
+        call for call in calls
+        if call[0].endswith("/v1/inference") and call[1] == "renewed-token"
+    ]
+    assert len(renewals) == 1
+    assert len(successful_retries) == 2
+    assert [response[0].content.parts[0].text for response in responses] == ["Done", "Done"]

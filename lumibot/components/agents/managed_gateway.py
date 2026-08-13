@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import threading
 import urllib.error
 import urllib.request
 import uuid
@@ -169,6 +170,7 @@ class BotSpotManagedLlm(BaseLlm):
     _gateway_url: str = PrivateAttr()
     _access_token: str = PrivateAttr()
     _post: Callable[[str, str, dict[str, Any]], tuple[int, dict[str, Any]]] = PrivateAttr()
+    _renew_lock: threading.Lock = PrivateAttr()
 
     def __init__(
         self,
@@ -182,6 +184,7 @@ class BotSpotManagedLlm(BaseLlm):
         self._gateway_url = gateway_url.rstrip("/")
         self._access_token = access_token
         self._post = post
+        self._renew_lock = threading.Lock()
 
     def _renew(self) -> None:
         status, body = self._post(f"{self._gateway_url}/v1/grants/renew", self._access_token, {})
@@ -193,11 +196,15 @@ class BotSpotManagedLlm(BaseLlm):
                 code=str(body.get("error") or "renewal_failed"),
             )
         self._access_token = token
+        os.environ["LUMIBOT_AI_GATEWAY_TOKEN"] = token
 
     def _inference(self, payload: dict[str, Any]) -> dict[str, Any]:
-        status, body = self._post(f"{self._gateway_url}/v1/inference", self._access_token, payload)
+        attempted_token = self._access_token
+        status, body = self._post(f"{self._gateway_url}/v1/inference", attempted_token, payload)
         if status == 401:
-            self._renew()
+            with self._renew_lock:
+                if self._access_token == attempted_token:
+                    self._renew()
             status, body = self._post(f"{self._gateway_url}/v1/inference", self._access_token, payload)
         if status < 200 or status >= 300:
             raise ManagedAiGatewayError(

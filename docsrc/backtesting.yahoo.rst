@@ -7,6 +7,10 @@ Yahoo
 
 Yahoo backtesting is so named because we get data for the backtesting from the Yahoo Finance website. The user is not required to supply data. Any stock information that is available in the Yahoo Finance API should be available for backtesting. The Yahoo backtester is only for stock data (including ETFs). Additionally, you cannot use the Yahoo backtester for intra-day trading, it is for daily trading only. For other securities, use the Polygon or Pandas backtesters.
 
+When ``auto_adjust`` is enabled, LumiBot asks Yahoo Finance for adjusted OHLC
+data directly. Adjusted and unadjusted responses are cached separately so that
+switching this option cannot reuse prices from the other mode.
+
 Using Yahoo backtester, you can also run backtests very easily on your strategies, you do not have to modify anything in your strategies.
 
 To use the Yahoo backtester, you must import the ``YahooDataBacktesting`` and ``BacktestingBroker`` objects.

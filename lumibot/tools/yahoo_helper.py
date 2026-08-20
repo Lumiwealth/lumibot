@@ -19,12 +19,22 @@ INFO_DATA = "info"
 INVALID_SYMBOLS = set()
 
 
+def _cache_file_name(symbol, data_type, auto_adjust=False):
+    """Return a cache name that keeps adjusted and unadjusted bars separate."""
+    normalized_type = data_type.lower()
+    if normalized_type == INFO_DATA:
+        return f"{symbol}_{normalized_type}.pickle"
+
+    adjustment = "adjusted" if auto_adjust else "unadjusted"
+    return f"{symbol}_{normalized_type}_{adjustment}.pickle"
+
+
 class _YahooData:
-    def __init__(self, symbol, type, data):
+    def __init__(self, symbol, type, data, auto_adjust=False):
         self.symbol = symbol
         self.type = type.lower()
         self.data = data
-        self.file_name = f"{symbol}_{type.lower()}.pickle"
+        self.file_name = _cache_file_name(symbol, type, auto_adjust)
 
     def is_up_to_date(self, last_needed_datetime=None):
         if last_needed_datetime is None:
@@ -82,9 +92,9 @@ class YahooHelper:
     # ====================Caching methods=================================
 
     @staticmethod
-    def check_pickle_file(symbol, type):
+    def check_pickle_file(symbol, type, auto_adjust=False):
         if YahooHelper.CACHING_ENABLED:
-            file_name = f"{symbol}_{type.lower()}.pickle"
+            file_name = _cache_file_name(symbol, type, auto_adjust)
             pickle_file_path = os.path.join(YahooHelper.LUMIBOT_YAHOO_CACHE_FOLDER, file_name)
 
             # CI/prod-like backtests start with empty disks. If the remote S3 cache is enabled,
@@ -112,10 +122,10 @@ class YahooHelper:
         return None
 
     @staticmethod
-    def dump_pickle_file(symbol, type, data):
+    def dump_pickle_file(symbol, type, data, auto_adjust=False):
         if YahooHelper.CACHING_ENABLED:
-            yahoo_data = _YahooData(symbol, type, data)
-            file_name = "%s_%s.pickle" % (symbol, type.lower())
+            yahoo_data = _YahooData(symbol, type, data, auto_adjust=auto_adjust)
+            file_name = _cache_file_name(symbol, type, auto_adjust)
             pickle_file_path = os.path.join(YahooHelper.LUMIBOT_YAHOO_CACHE_FOLDER, file_name)
             with open(pickle_file_path, "wb") as f:
                 pickle.dump(yahoo_data, f)
@@ -136,24 +146,27 @@ class YahooHelper:
         if df is None or df.empty:
             return df
 
+        # Do not mutate a cached frame.  yfinance already returns adjusted OHLC
+        # columns when auto_adjust=True.  Older yfinance releases exposed
+        # Adj Open/High/Low instead; only translate that complete legacy set.
+        # In particular, an Adj Close-only frame must not be treated as a source
+        # for fabricated adjusted OHLC values.
+        df = df.copy()
+
         if auto_adjust:
-            del df["Close"]
-            del df["Open"]
-            del df["High"]
-            del df["Low"]
-            df.rename(
-                columns={
-                    "Adj Close": "Close",
-                    "Adj Open": "Open",
-                    "Adj High": "High",
-                    "Adj Low": "Low",
-                },
-                inplace=True,
-            )
+            adjusted_columns = {"Adj Open", "Adj High", "Adj Low", "Adj Close"}
+            if adjusted_columns.issubset(df.columns):
+                df = df.drop(columns=["Open", "High", "Low", "Close"], errors="ignore")
+                df = df.rename(
+                    columns={
+                        "Adj Close": "Close",
+                        "Adj Open": "Open",
+                        "Adj High": "High",
+                        "Adj Low": "Low",
+                    }
+                )
         else:
-            for col in ["Adj Open", "Adj High", "Adj Low"]:
-                if col in df.columns:
-                    del df[col]
+            df = df.drop(columns=["Adj Open", "Adj High", "Adj Low"], errors="ignore")
 
         return df
 
@@ -226,7 +239,7 @@ class YahooHelper:
         return df["Close"].iloc[-1]
 
     @staticmethod
-    def download_symbol_data(symbol, interval="1d"):
+    def download_symbol_data(symbol, interval="1d", auto_adjust=False):
         """
         Attempts to download historical data from yfinance for the specified symbol and interval.
         Retries on empty/None data in case of transient rate limits.
@@ -255,19 +268,19 @@ class YahooHelper:
                     df = ticker.history(
                         interval=interval,
                         start=get_lumibot_datetime() - timedelta(days=7),
-                        auto_adjust=False
+                        auto_adjust=auto_adjust,
                     )
                 elif interval == "15m":
                     df = ticker.history(
                         interval=interval,
                         start=get_lumibot_datetime() - timedelta(days=60),
-                        auto_adjust=False
+                        auto_adjust=auto_adjust,
                     )
                 else:
                     df = ticker.history(
                         interval=interval,
                         period="max",
-                        auto_adjust=False
+                        auto_adjust=auto_adjust,
                     )
             except Exception as e:
                 logger.debug(f"{symbol}: Exception from ticker.history(): {e}")
@@ -331,25 +344,45 @@ class YahooHelper:
         return df
 
     @staticmethod
-    def download_symbols_data(symbols, interval="1d"):
+    def download_symbols_data(symbols, interval="1d", auto_adjust=False):
         if len(symbols) == 1:
-            item = YahooHelper.download_symbol_data(symbols[0], interval)
+            item = YahooHelper.download_symbol_data(symbols[0], interval, auto_adjust=auto_adjust)
             return {symbols[0]: item}
 
-        result = {}
+        result = {symbol: None for symbol in symbols}
         proxy = YahooHelper.sleep_and_get_proxy()
         if proxy:
             yf.set_config(proxy=proxy)
         tickers = yf.Tickers(" ".join(symbols))
-        df_yf = tickers.history(
-            period="max",
-            group_by="ticker",
-            auto_adjust=False,
-            progress=False
-        )
+        history_kwargs = {
+            "interval": interval,
+            "group_by": "ticker",
+            "auto_adjust": auto_adjust,
+            "progress": False,
+        }
+        if interval == "1m":
+            history_kwargs["start"] = get_lumibot_datetime() - timedelta(days=7)
+        elif interval == "15m":
+            history_kwargs["start"] = get_lumibot_datetime() - timedelta(days=60)
+        else:
+            history_kwargs["period"] = "max"
 
-        for i in df_yf.columns.levels[0]:
-            result[i] = YahooHelper.process_df(df_yf[i])
+        df_yf = tickers.history(**history_kwargs)
+
+        if df_yf is None or df_yf.empty:
+            return result
+
+        if isinstance(df_yf.columns, pd.MultiIndex):
+            # group_by="ticker" normally puts symbols on level 0.  Accept the
+            # alternate level ordering emitted by some yfinance versions too.
+            symbol_level = 0 if set(symbols).intersection(df_yf.columns.get_level_values(0)) else 1
+            for symbol in symbols:
+                if symbol in df_yf.columns.get_level_values(symbol_level):
+                    symbol_data = YahooHelper.process_df(
+                        df_yf.xs(symbol, level=symbol_level, axis=1)
+                    )
+                    if not symbol_data.empty:
+                        result[symbol] = symbol_data
 
         return result
 
@@ -370,42 +403,47 @@ class YahooHelper:
         return data
 
     @staticmethod
-    def fetch_symbol_data(symbol, caching=True, last_needed_datetime=None, interval="1d"):
+    def fetch_symbol_data(
+        symbol, caching=True, last_needed_datetime=None, interval="1d", auto_adjust=False
+    ):
         if caching:
-            cached_data = YahooHelper.check_pickle_file(symbol, interval)
+            cached_data = YahooHelper.check_pickle_file(symbol, interval, auto_adjust=auto_adjust)
             if cached_data:
                 if cached_data.is_up_to_date(last_needed_datetime=last_needed_datetime):
                     return cached_data.data
 
         # Caching is disabled or no previous data found
         # or data found not up to date
-        data = YahooHelper.download_symbol_data(symbol, interval)
+        data = YahooHelper.download_symbol_data(symbol, interval, auto_adjust=auto_adjust)
 
         # Check if the data is empty
         if data is None or data.empty:
             return data
 
-        YahooHelper.dump_pickle_file(symbol, interval, data)
+        YahooHelper.dump_pickle_file(symbol, interval, data, auto_adjust=auto_adjust)
         return data
 
     @staticmethod
-    def fetch_symbols_data(symbols, interval, caching=True):
+    def fetch_symbols_data(symbols, interval, caching=True, auto_adjust=False):
         result = {}
         missing_symbols = symbols.copy()
 
         if caching:
             for symbol in symbols:
-                cached_data = YahooHelper.check_pickle_file(symbol, interval)
+                cached_data = YahooHelper.check_pickle_file(symbol, interval, auto_adjust=auto_adjust)
                 if cached_data:
                     if cached_data.is_up_to_date():
                         result[symbol] = cached_data.data
                         missing_symbols.remove(symbol)
 
         if missing_symbols:
-            missing_data = YahooHelper.download_symbols_data(missing_symbols, interval)
+            missing_data = YahooHelper.download_symbols_data(
+                missing_symbols, interval, auto_adjust=auto_adjust
+            )
             for symbol, data in missing_data.items():
                 result[symbol] = data
-                YahooHelper.dump_pickle_file(symbol, interval, data)
+                if data is not None and not data.empty:
+                    YahooHelper.dump_pickle_file(symbol, interval, data, auto_adjust=auto_adjust)
 
         return result
 
@@ -429,25 +467,26 @@ class YahooHelper:
                 interval=interval,
                 caching=caching,
                 last_needed_datetime=last_needed_datetime,
+                auto_adjust=auto_adjust,
             )
-            # Pass the received auto_adjust value to format_df
             return YahooHelper.format_df(df, auto_adjust)
         else:
             raise ValueError("Unknown interval %s" % interval)
 
     @staticmethod
     def get_symbols_data(symbols, interval="1d", auto_adjust=True, caching=True):
-        result = YahooHelper.fetch_symbols_data(symbols, interval=interval, caching=caching)
+        if interval not in ["1m", "15m", "1d"]:
+            raise ValueError("Unknown interval %s" % interval)
+
+        result = YahooHelper.fetch_symbols_data(
+            symbols,
+            interval=interval,
+            auto_adjust=auto_adjust,
+            caching=caching,
+        )
         for key, df in result.items():
             result[key] = YahooHelper.format_df(df, auto_adjust)
         return result
-
-    @staticmethod
-    def get_symbols_data(symbols, interval="1d", auto_adjust=True, caching=True):
-        if interval in ["1m", "15m", "1d"]:
-            return YahooHelper.get_symbols_data(symbols, interval=interval, auto_adjust=auto_adjust, caching=caching)
-        else:
-            raise ValueError("Unknown interval %s" % interval)
 
     @staticmethod
     def get_symbol_dividends(symbol, caching=True):
@@ -461,6 +500,9 @@ class YahooHelper:
         result = {}
         data = YahooHelper.get_symbols_data(symbols, caching=caching)
         for symbol, df in data.items():
+            if df is None:
+                result[symbol] = None
+                continue
             dividends = df["Dividends"]
             result[symbol] = dividends[dividends != 0].dropna()
 
@@ -478,6 +520,9 @@ class YahooHelper:
         result = {}
         data = YahooHelper.get_symbols_data(symbols, caching=caching)
         for symbol, df in data.items():
+            if df is None:
+                result[symbol] = None
+                continue
             splits = df["Stock Splits"]
             result[symbol] = splits[splits != 0].dropna()
 
@@ -495,6 +540,9 @@ class YahooHelper:
         result = {}
         data = YahooHelper.get_symbols_data(symbols, caching=caching)
         for symbol, df in data.items():
+            if df is None:
+                result[symbol] = None
+                continue
             actions = df[["Dividends", "Stock Splits"]]
             result[symbol] = actions[actions != 0].dropna(how="all").fillna(0)
 

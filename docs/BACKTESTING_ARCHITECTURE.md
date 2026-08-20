@@ -211,8 +211,10 @@ DataSource (ABC)
 **Flow:**
 1. `YahooDataBacktesting` inherits from `YahooData`
 2. `YahooData` uses `YahooHelper` to fetch data via `yfinance` library
-3. Data is **already split-adjusted** by Yahoo
-4. No additional split processing needed
+3. `auto_adjust` is passed through to `yfinance`, so adjusted OHLC values come
+   directly from Yahoo rather than being reconstructed from `Adj Close`
+4. Adjusted and unadjusted responses use separate cache files
+5. No additional split processing is needed for adjusted data
 
 **Key Function:** `YahooHelper.get_historical_prices()`
 

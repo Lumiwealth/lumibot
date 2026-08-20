@@ -1,0 +1,220 @@
+from datetime import datetime, timedelta
+
+import pandas as pd
+import pytest
+import pytz
+
+from lumibot.backtesting import YahooDataBacktesting
+from lumibot.entities import Asset
+from lumibot.tools import yahoo_helper
+from lumibot.tools.yahoo_helper import YahooHelper
+
+
+class _FakeTicker:
+    def __init__(self, symbol, frames, history_calls):
+        self.symbol = symbol
+        self._frames = frames
+        self._history_calls = history_calls
+
+    @property
+    def info(self):
+        return {}
+
+    def history(self, **kwargs):
+        auto_adjust = kwargs["auto_adjust"]
+        self._history_calls.append(auto_adjust)
+        return self._frames[auto_adjust].copy()
+
+
+class _FakeYFinance:
+    def __init__(self, frames, history_calls):
+        self._frames = frames
+        self._history_calls = history_calls
+
+    def Ticker(self, symbol):
+        return _FakeTicker(symbol, self._frames, self._history_calls)
+
+
+def test_yahoo_auto_adjust_keeps_ohlcv_and_separates_cache_modes(monkeypatch, tmp_path):
+    """Modern yfinance frames must retain OHLCV for both adjustment modes."""
+    index = pd.DatetimeIndex(["2025-01-01 16:00:00-05:00", "2025-01-02 16:00:00-05:00"])
+    frames = {
+        # yfinance's adjusted response has no Adj Open/High/Low columns.
+        True: pd.DataFrame(
+            {
+                "Open": [101.0, 102.0],
+                "High": [103.0, 104.0],
+                "Low": [99.0, 100.0],
+                "Close": [102.0, 103.0],
+                "Volume": [1000, 1100],
+                "Dividends": [0.0, 0.0],
+                "Stock Splits": [0.0, 0.0],
+                "Capital Gains": [0.0, 0.0],
+            },
+            index=index,
+        ),
+        False: pd.DataFrame(
+            {
+                "Open": [100.0, 101.0],
+                "High": [102.0, 103.0],
+                "Low": [98.0, 99.0],
+                "Close": [101.0, 102.0],
+                "Adj Close": [99.0, 100.0],
+                "Volume": [1000, 1100],
+                "Dividends": [0.0, 0.0],
+                "Stock Splits": [0.0, 0.0],
+                "Capital Gains": [0.0, 0.0],
+            },
+            index=index,
+        ),
+    }
+    history_calls = []
+    monkeypatch.setattr(yahoo_helper, "yf", _FakeYFinance(frames, history_calls))
+    monkeypatch.setattr(YahooHelper, "sleep_and_get_proxy", staticmethod(lambda: None))
+    monkeypatch.setattr(YahooHelper, "get_symbol_info", staticmethod(lambda symbol: {}))
+    monkeypatch.setattr(YahooHelper, "LUMIBOT_YAHOO_CACHE_FOLDER", str(tmp_path))
+    monkeypatch.setattr(YahooHelper, "CACHING_ENABLED", True)
+
+    eastern = pytz.timezone("America/New_York")
+    last_needed = eastern.localize(datetime(2025, 1, 2))
+    adjusted = YahooHelper.get_symbol_data("SPY", auto_adjust=True, last_needed_datetime=last_needed)
+    unadjusted = YahooHelper.get_symbol_data("SPY", auto_adjust=False, last_needed_datetime=last_needed)
+
+    ohlcv = ["Open", "High", "Low", "Close", "Volume"]
+    assert adjusted[ohlcv].to_dict("list") == {
+        "Open": [101.0, 102.0],
+        "High": [103.0, 104.0],
+        "Low": [99.0, 100.0],
+        "Close": [102.0, 103.0],
+        "Volume": [1000, 1100],
+    }
+    assert unadjusted[ohlcv].to_dict("list") == {
+        "Open": [100.0, 101.0],
+        "High": [102.0, 103.0],
+        "Low": [98.0, 99.0],
+        "Close": [101.0, 102.0],
+        "Volume": [1000, 1100],
+    }
+
+    cache_files = {path.name for path in tmp_path.glob("*.pickle")}
+    assert cache_files == {"SPY_1d_adjusted.pickle", "SPY_1d_unadjusted.pickle"}
+
+    # Repeating either request must hit its own mode-specific cache.
+    YahooHelper.get_symbol_data("SPY", auto_adjust=True, last_needed_datetime=last_needed)
+    YahooHelper.get_symbol_data("SPY", auto_adjust=False, last_needed_datetime=last_needed)
+    assert history_calls == [True, False]
+
+    # The data-source path now has a real opening price instead of None.
+    for auto_adjust, expected_open in ((True, 102.0), (False, 101.0)):
+        data_source = YahooDataBacktesting(
+            datetime_start=eastern.localize(datetime(2025, 1, 1)),
+            datetime_end=eastern.localize(datetime(2025, 1, 3)),
+            auto_adjust=auto_adjust,
+            show_progress_bar=False,
+        )
+        data_source._datetime = eastern.localize(datetime(2025, 1, 3))
+        assert data_source.get_last_price("SPY", timestep="day") == expected_open
+
+
+@pytest.mark.parametrize(("interval", "lookback_days"), [("1m", 7), ("15m", 60)])
+def test_yahoo_batch_download_preserves_interval_and_missing_symbols(monkeypatch, interval, lookback_days):
+    """Bulk requests must preserve intraday bounds and explicit per-symbol absence."""
+    now = pytz.UTC.localize(datetime(2025, 1, 8, 12))
+    index = pd.DatetimeIndex(["2025-01-08 11:00:00+00:00"])
+    # Exercise the alternate yfinance layout with fields on level 0 and symbols on level 1.
+    columns = pd.MultiIndex.from_tuples([(field, "SPY") for field in ("Open", "High", "Low", "Close", "Volume")])
+    response = pd.DataFrame([[101.0, 103.0, 99.0, 102.0, 1000]], index=index, columns=columns)
+    history_calls = []
+
+    class FakeTickers:
+        def history(self, **kwargs):
+            history_calls.append(kwargs)
+            return response.copy()
+
+    class FakeBatchYFinance:
+        @staticmethod
+        def Tickers(symbols):
+            assert symbols == "SPY QQQ"
+            return FakeTickers()
+
+    monkeypatch.setattr(yahoo_helper, "yf", FakeBatchYFinance())
+    monkeypatch.setattr(yahoo_helper, "get_lumibot_datetime", lambda: now)
+    monkeypatch.setattr(YahooHelper, "sleep_and_get_proxy", staticmethod(lambda: None))
+
+    result = YahooHelper.download_symbols_data(["SPY", "QQQ"], interval=interval, auto_adjust=True)
+
+    assert history_calls == [
+        {
+            "interval": interval,
+            "group_by": "ticker",
+            "auto_adjust": True,
+            "progress": False,
+            "start": now - timedelta(days=lookback_days),
+        }
+    ]
+    assert list(result["SPY"].columns) == ["Open", "High", "Low", "Close", "Volume"]
+    assert result["QQQ"] is None
+
+
+def test_yahoo_batch_actions_preserve_missing_symbols(monkeypatch):
+    """Public action helpers must propagate explicit absence from partial responses."""
+    frame = pd.DataFrame(
+        {
+            "Dividends": [0.0, 1.25],
+            "Stock Splits": [2.0, 0.0],
+        },
+        index=pd.DatetimeIndex(["2025-01-01", "2025-01-02"]),
+    )
+    monkeypatch.setattr(
+        YahooHelper,
+        "get_symbols_data",
+        staticmethod(lambda symbols, caching=True: {"SPY": frame, "QQQ": None}),
+    )
+
+    dividends = YahooHelper.get_symbols_dividends(["SPY", "QQQ"])
+    splits = YahooHelper.get_symbols_splits(["SPY", "QQQ"])
+    actions = YahooHelper.get_symbols_actions(["SPY", "QQQ"])
+
+    assert dividends["SPY"].to_list() == [1.25]
+    assert splits["SPY"].to_list() == [2.0]
+    assert actions["SPY"].to_dict("list") == {
+        "Dividends": [0.0, 1.25],
+        "Stock Splits": [2.0, 0.0],
+    }
+    assert dividends["QQQ"] is None
+    assert splits["QQQ"] is None
+    assert actions["QQQ"] is None
+
+
+def test_yahoo_data_source_skips_missing_batch_frames(monkeypatch):
+    """A partial batch response must not pass missing data into the data store."""
+    eastern = pytz.timezone("America/New_York")
+    source = YahooDataBacktesting(
+        datetime_start=eastern.localize(datetime(2025, 1, 1)),
+        datetime_end=eastern.localize(datetime(2025, 1, 3)),
+        show_progress_bar=False,
+    )
+    spy = Asset("SPY")
+    qqq = Asset("QQQ")
+    frame = pd.DataFrame(
+        {"Open": [101.0], "High": [103.0], "Low": [99.0], "Close": [102.0], "Volume": [1000]},
+        index=pd.DatetimeIndex(["2025-01-02 16:00:00-05:00"]),
+    )
+    appended = []
+
+    monkeypatch.setattr(
+        YahooHelper,
+        "get_symbols_data",
+        staticmethod(lambda symbols, interval, auto_adjust: {"SPY": frame, "QQQ": None}),
+    )
+    monkeypatch.setattr(source, "_append_data", lambda asset, data: appended.append((asset, data)))
+    monkeypatch.setattr(
+        source,
+        "_pull_source_symbol_bars",
+        lambda asset, length, timestep, timeshift: asset.symbol,
+    )
+
+    result = source._pull_source_bars([spy, qqq], length=1, timestep="day")
+
+    assert appended == [(spy, frame)]
+    assert result == {spy: "SPY", qqq: "QQQ"}

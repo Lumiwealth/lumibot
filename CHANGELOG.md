@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Yahoo backtests retain complete OHLC data when automatic adjustment is
+  enabled.** The adjustment mode now reaches yfinance directly, and adjusted
+  and unadjusted responses use separate cache entries.
+
 ## 4.5.83 - 2026-08-05
 
 Deploy marker: `deploy 4.5.83`

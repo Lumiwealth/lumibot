@@ -5,6 +5,7 @@ import pytest
 import pytz
 
 from lumibot.backtesting import YahooDataBacktesting
+from lumibot.entities import Asset
 from lumibot.tools import yahoo_helper
 from lumibot.tools.yahoo_helper import YahooHelper
 
@@ -183,3 +184,37 @@ def test_yahoo_batch_actions_preserve_missing_symbols(monkeypatch):
     assert dividends["QQQ"] is None
     assert splits["QQQ"] is None
     assert actions["QQQ"] is None
+
+
+def test_yahoo_data_source_skips_missing_batch_frames(monkeypatch):
+    """A partial batch response must not pass missing data into the data store."""
+    eastern = pytz.timezone("America/New_York")
+    source = YahooDataBacktesting(
+        datetime_start=eastern.localize(datetime(2025, 1, 1)),
+        datetime_end=eastern.localize(datetime(2025, 1, 3)),
+        show_progress_bar=False,
+    )
+    spy = Asset("SPY")
+    qqq = Asset("QQQ")
+    frame = pd.DataFrame(
+        {"Open": [101.0], "High": [103.0], "Low": [99.0], "Close": [102.0], "Volume": [1000]},
+        index=pd.DatetimeIndex(["2025-01-02 16:00:00-05:00"]),
+    )
+    appended = []
+
+    monkeypatch.setattr(
+        YahooHelper,
+        "get_symbols_data",
+        staticmethod(lambda symbols, interval, auto_adjust: {"SPY": frame, "QQQ": None}),
+    )
+    monkeypatch.setattr(source, "_append_data", lambda asset, data: appended.append((asset, data)))
+    monkeypatch.setattr(
+        source,
+        "_pull_source_symbol_bars",
+        lambda asset, length, timestep, timeshift: asset.symbol,
+    )
+
+    result = source._pull_source_bars([spy, qqq], length=1, timestep="day")
+
+    assert appended == [(spy, frame)]
+    assert result == {spy: "SPY", qqq: "QQQ"}

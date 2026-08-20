@@ -378,7 +378,11 @@ class YahooHelper:
             symbol_level = 0 if set(symbols).intersection(df_yf.columns.get_level_values(0)) else 1
             for symbol in symbols:
                 if symbol in df_yf.columns.get_level_values(symbol_level):
-                    result[symbol] = YahooHelper.process_df(df_yf.xs(symbol, level=symbol_level, axis=1))
+                    symbol_data = YahooHelper.process_df(
+                        df_yf.xs(symbol, level=symbol_level, axis=1)
+                    )
+                    if not symbol_data.empty:
+                        result[symbol] = symbol_data
 
         return result
 

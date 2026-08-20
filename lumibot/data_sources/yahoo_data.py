@@ -343,6 +343,8 @@ class YahooData(DataSourceBacktesting):
                 auto_adjust=self.auto_adjust
             )
             for symbol, df in dfs.items():
+                if df is None:
+                    continue
                 # Find the corresponding asset for this symbol
                 for asset in assets:
                     asset_symbol = asset.symbol

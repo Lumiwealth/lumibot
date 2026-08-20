@@ -349,20 +349,28 @@ class YahooHelper:
             item = YahooHelper.download_symbol_data(symbols[0], interval, auto_adjust=auto_adjust)
             return {symbols[0]: item}
 
-        result = {}
+        result = {symbol: None for symbol in symbols}
         proxy = YahooHelper.sleep_and_get_proxy()
         if proxy:
             yf.set_config(proxy=proxy)
         tickers = yf.Tickers(" ".join(symbols))
-        df_yf = tickers.history(
-            period="max",
-            group_by="ticker",
-            auto_adjust=auto_adjust,
-            progress=False
-        )
+        history_kwargs = {
+            "interval": interval,
+            "group_by": "ticker",
+            "auto_adjust": auto_adjust,
+            "progress": False,
+        }
+        if interval == "1m":
+            history_kwargs["start"] = get_lumibot_datetime() - timedelta(days=7)
+        elif interval == "15m":
+            history_kwargs["start"] = get_lumibot_datetime() - timedelta(days=60)
+        else:
+            history_kwargs["period"] = "max"
+
+        df_yf = tickers.history(**history_kwargs)
 
         if df_yf is None or df_yf.empty:
-            return {symbol: None for symbol in symbols}
+            return result
 
         if isinstance(df_yf.columns, pd.MultiIndex):
             # group_by="ticker" normally puts symbols on level 0.  Accept the

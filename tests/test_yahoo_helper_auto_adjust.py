@@ -153,3 +153,33 @@ def test_yahoo_batch_download_preserves_interval_and_missing_symbols(monkeypatch
     ]
     assert list(result["SPY"].columns) == ["Open", "High", "Low", "Close", "Volume"]
     assert result["QQQ"] is None
+
+
+def test_yahoo_batch_actions_preserve_missing_symbols(monkeypatch):
+    """Public action helpers must propagate explicit absence from partial responses."""
+    frame = pd.DataFrame(
+        {
+            "Dividends": [0.0, 1.25],
+            "Stock Splits": [2.0, 0.0],
+        },
+        index=pd.DatetimeIndex(["2025-01-01", "2025-01-02"]),
+    )
+    monkeypatch.setattr(
+        YahooHelper,
+        "get_symbols_data",
+        staticmethod(lambda symbols, caching=True: {"SPY": frame, "QQQ": None}),
+    )
+
+    dividends = YahooHelper.get_symbols_dividends(["SPY", "QQQ"])
+    splits = YahooHelper.get_symbols_splits(["SPY", "QQQ"])
+    actions = YahooHelper.get_symbols_actions(["SPY", "QQQ"])
+
+    assert dividends["SPY"].to_list() == [1.25]
+    assert splits["SPY"].to_list() == [2.0]
+    assert actions["SPY"].to_dict("list") == {
+        "Dividends": [0.0, 1.25],
+        "Stock Splits": [2.0, 0.0],
+    }
+    assert dividends["QQQ"] is None
+    assert splits["QQQ"] is None
+    assert actions["QQQ"] is None

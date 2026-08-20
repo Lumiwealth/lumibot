@@ -496,6 +496,9 @@ class YahooHelper:
         result = {}
         data = YahooHelper.get_symbols_data(symbols, caching=caching)
         for symbol, df in data.items():
+            if df is None:
+                result[symbol] = None
+                continue
             dividends = df["Dividends"]
             result[symbol] = dividends[dividends != 0].dropna()
 
@@ -513,6 +516,9 @@ class YahooHelper:
         result = {}
         data = YahooHelper.get_symbols_data(symbols, caching=caching)
         for symbol, df in data.items():
+            if df is None:
+                result[symbol] = None
+                continue
             splits = df["Stock Splits"]
             result[symbol] = splits[splits != 0].dropna()
 
@@ -530,6 +536,9 @@ class YahooHelper:
         result = {}
         data = YahooHelper.get_symbols_data(symbols, caching=caching)
         for symbol, df in data.items():
+            if df is None:
+                result[symbol] = None
+                continue
             actions = df[["Dividends", "Stock Splits"]]
             result[symbol] = actions[actions != 0].dropna(how="all").fillna(0)
 

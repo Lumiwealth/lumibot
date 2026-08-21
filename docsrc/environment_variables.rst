@@ -694,6 +694,13 @@ SCHWAB_BACKEND_CALLBACK_URL
 - Purpose: OAuth callback URL for authentication flow.
 - Values: URL string.
 
+SCHWAB_CANCEL_DIAGNOSTICS
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Re-enable the post-cancel direct order read used for Schwab cancel incident diagnostics.
+- Values: ``true``/``false`` (or ``1``/``0``).
+- Default: disabled. The diagnostic read doubles the round trips on every cancel; enable it only while investigating a cancel issue.
+
 Tradovate broker
 ----------------
 

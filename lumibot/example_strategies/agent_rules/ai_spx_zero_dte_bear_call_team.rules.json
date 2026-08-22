@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "spx-zero-dte",
+      "status": "active",
+      "interpretation": "Trade only an SPX bear call spread whose two calls expire on the current trading day."
+    },
+    {
+      "id": "five-point-wing",
+      "status": "active",
+      "interpretation": "Select the short call near 0.20 delta and the long call exactly five strike points higher."
+    },
+    {
+      "id": "atomic-package",
+      "status": "active",
+      "interpretation": "Open and close both spread legs as one atomic multi-leg package. Never place either leg independently."
+    },
+    {
+      "id": "daily-limit",
+      "status": "active",
+      "interpretation": "Submit at most one new spread package per trading day and manage any existing package before a new entry."
+    },
+    {
+      "id": "verify-result",
+      "status": "active",
+      "interpretation": "After every order submission, verify the exact order status, open orders, and resulting positions before taking another action."
+    }
+  ]
+}

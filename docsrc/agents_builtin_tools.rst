@@ -123,6 +123,10 @@ multi-leg order. Opening actions are ``buy_to_open`` and ``sell_to_open``.
 Closing actions are ``buy_to_close`` and ``sell_to_close``. Signed net prices
 are positive for debits and negative for credits.
 
+If the active broker does not support atomic package submission, LumiBot
+rejects the request before submitting any child leg. A multi-leg request never
+falls back to independent orders.
+
 After submission, agents can call ``orders_get_status`` or
 ``orders_wait_for_terminal`` to verify identifiers. Never treat a submitted
 status as a fill unless ``is_filled`` is true.

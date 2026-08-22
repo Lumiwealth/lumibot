@@ -32,6 +32,10 @@ These tools expose LumiBot's configured broker or backtest data source. They do 
 
 `orders_submit_multileg` accepts exact option legs selected by the agent and submits them as one atomic multi-leg order. Each leg declares `symbol`, `expiration`, `strike`, `right`, `quantity`, and `side`. Opening actions are `buy_to_open` and `sell_to_open`; closing actions are `buy_to_close` and `sell_to_close`. Signed net prices are positive for debits and negative for credits.
 
+Atomic means fail closed. If the active broker does not implement package
+submission, LumiBot rejects the request before submitting any leg. It never
+falls back to separate child orders for a multi-leg request.
+
 Order status tools:
 
 - `orders_open_orders`

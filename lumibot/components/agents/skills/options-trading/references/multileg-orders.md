@@ -22,6 +22,10 @@ Use `orders_submit_multileg` once for the complete package. Pass the full intend
 quantities only at submission. Do not submit separate child orders merely because
 the package has several legs.
 
+If the broker rejects or does not support atomic package submission, stop. Do
+not switch to single-leg tools. Report the capability blocker and make a no-trade
+decision for that package.
+
 Before submission, confirm portfolio, positions, open orders, current underlying
 price, chain membership, exact Greeks when relevant, every leg quote, package
 price, and intended risk.

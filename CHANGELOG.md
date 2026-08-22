@@ -45,6 +45,10 @@
   opening-range history after a ``market_last_prices`` scan.
 
 ### Fixed
+- **Multi-leg submissions now fail closed when a broker lacks atomic package
+  support.** Every market, limit, credit, debit, and even-price package is
+  rejected before any child leg is submitted. LumiBot no longer degrades an
+  unsupported package into independent orders that can leave orphan exposure.
 - **Short-lived read-only strategies can skip redundant startup broker syncs.**
   ``Strategy(..., synchronize_broker_on_start=False)`` avoids automatic balance
   and position reads when an integration will immediately refresh only its

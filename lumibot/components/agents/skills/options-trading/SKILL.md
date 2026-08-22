@@ -26,9 +26,10 @@ submitting an option order.
 6. Evaluate every leg. For every multi-leg order, explicitly call
    `options_calculate_multileg_price` after evaluating the exact legs and before
    submission, even when the submit tool can calculate a price automatically.
-7. Submit related legs as one atomic multi-leg order when the tools and broker
-   support it. Do not leg into a package unless the user's rules explicitly allow
-   that risk.
+7. Submit related legs as one atomic multi-leg order. Never submit related legs
+   independently, including entry, exit, adjustment, or cleanup. If atomic
+   package submission is unavailable, make a no-trade decision and report that
+   broker capability as the blocker.
 8. Capture the returned identifier, inspect that exact order, and reread positions.
    Submission is not proof of a fill, and a fill response alone is not proof that
    the account has the intended final exposure.

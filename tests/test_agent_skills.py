@@ -59,6 +59,15 @@ def test_builtin_agent_skills_are_packaged_and_loadable():
     assert len(builtin_skill_fingerprint()) == 64
 
 
+def test_options_skill_requires_atomic_multileg_or_no_trade():
+    options_skill = next(skill for skill in load_builtin_skills() if skill.name == "options-trading")
+    instructions = " ".join(options_skill.instructions.split())
+
+    assert "Never submit related legs independently" in instructions
+    assert "If atomic package submission is unavailable" in instructions
+    assert "make a no-trade decision" in instructions
+
+
 def test_builtin_skill_toolset_exposes_progressive_loading_tools():
     toolset = build_builtin_skill_toolset()
     tools = asyncio.run(toolset.get_tools())

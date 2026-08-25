@@ -3,6 +3,7 @@ import os
 import threading
 import types as python_types
 
+import pytest
 from google.genai import types
 
 from lumibot.components.agents.managed_gateway import BotSpotManagedLlm
@@ -63,6 +64,48 @@ def test_managed_gateway_maps_adk_request_and_response():
     assert responses[0].content.parts[0].text == "Checking."
     assert responses[0].content.parts[1].function_call.name == "get_price"
     assert responses[0].usage_metadata.prompt_token_count == 10
+
+
+@pytest.mark.parametrize(
+    ("model", "expected_provider"),
+    [
+        ("gemini-3.1-flash-lite", "google"),
+        ("openai/gpt-5.6-luna", "openai"),
+        ("anthropic/claude-sonnet-5", "anthropic"),
+        ("xai/grok-4.5", "xai"),
+    ],
+)
+def test_managed_gateway_routes_every_supported_provider(model, expected_provider):
+    calls = []
+
+    def post(url, token, payload):
+        calls.append((url, token, payload))
+        return 200, {
+            "model": model,
+            "text": "Done",
+            "toolCalls": [],
+            "usage": {"inputTokens": 7, "cachedInputTokens": 2, "outputTokens": 1},
+        }
+
+    managed_model = BotSpotManagedLlm(
+        model=model,
+        gateway_url="https://gateway.example.test",
+        access_token="bounded-token",
+        post=post,
+    )
+
+    async def collect():
+        # ADK is allowed to request streaming. The gateway currently returns one
+        # final, fully accounted response rather than unmetered partial chunks.
+        return [item async for item in managed_model.generate_content_async(_request(), stream=True)]
+
+    responses = asyncio.run(collect())
+
+    assert calls[0][2]["provider"] == expected_provider
+    assert calls[0][2]["model"] == model
+    assert responses[0].usage_metadata.prompt_token_count == 7
+    assert responses[0].usage_metadata.cached_content_token_count == 2
+    assert responses[0].usage_metadata.candidates_token_count == 1
 
 
 def test_expired_capability_renews_and_retries_same_request(monkeypatch):

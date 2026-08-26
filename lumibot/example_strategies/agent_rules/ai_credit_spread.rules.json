@@ -1,7 +1,7 @@
 {
   "version": 1,
   "rules": [
-    {"id": "single-structure", "status": "active", "interpretation": "Hold at most one SPY option structure at a time. Manage every existing leg and pending order before considering a new entry."},
+    {"id": "single-structure", "status": "active", "interpretation": "Hold at most one option structure for the configured underlying at a time. Manage every existing leg and pending order before considering a new entry."},
     {"id": "atomic-spread", "status": "active", "interpretation": "Open and close both related vertical-spread legs as one atomic multi-leg order."},
     {"id": "no-repeat-close", "status": "active", "interpretation": "After a closing submission, inspect that exact order and current positions. Never submit another close until current evidence proves what remains open."}
   ]

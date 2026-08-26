@@ -237,6 +237,24 @@ def test_market_historical_prices_uses_batch_strategy_api_once():
     assert batch["symbols_missing"] == []
 
 
+def test_market_historical_prices_preserves_string_order_and_caps_parallelism():
+    strategy = _OptionsStrategy()
+    tools = _wrapped_tools(strategy, [BuiltinTools.market.historical_prices()])
+
+    batch = tools["market_historical_prices"](
+        symbols="QQQ,SPY,AAPL",
+        length=2,
+        chunk_size=10_000,
+        max_workers=10_000,
+    )
+
+    call = strategy.historical_batch_calls[0]
+    assert call["assets"] == ["QQQ", "SPY", "AAPL"]
+    assert call["kwargs"]["chunk_size"] == 150
+    assert call["kwargs"]["max_workers"] == 32
+    assert batch["symbols_requested"] == ["QQQ", "SPY", "AAPL"]
+
+
 def test_market_historical_prices_falls_back_per_symbol_when_batch_missing():
     strategy = _OptionsStrategy()
     strategy.get_historical_prices_for_assets = None

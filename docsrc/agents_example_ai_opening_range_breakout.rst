@@ -37,6 +37,8 @@ the agent must skip the symbol instead of inventing a range.
 .. code-block:: bash
 
    export GEMINI_API_KEY="your-key"
+   export DATADOWNLOADER_BASE_URL="https://data.example.test"
+   export DATADOWNLOADER_API_KEY="your-data-key"
    export BACKTESTING_DATA_SOURCE="ThetaData"
    python -m lumibot.example_strategies.ai_opening_range_breakout
 

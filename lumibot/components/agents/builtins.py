@@ -273,7 +273,17 @@ def _parse_symbol_list(
     values: list[str] = []
     if symbols is not None:
         if isinstance(symbols, str):
-            values.extend(_symbols_from_tool_argument(symbols))
+            text = symbols.strip()
+            parsed_symbols: Any = None
+            if text.startswith("["):
+                try:
+                    parsed_symbols = json.loads(text)
+                except json.JSONDecodeError:
+                    parsed_symbols = None
+            if isinstance(parsed_symbols, list):
+                values.extend(str(item or "").strip().upper() for item in parsed_symbols)
+            else:
+                values.extend(part.strip().upper() for part in text.split(","))
         elif isinstance(symbols, (list, tuple)):
             for index, item in enumerate(symbols):
                 try:
@@ -767,6 +777,8 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
         timestep = _require_non_empty_text("timestep", timestep)
         chunk_size = _require_positive_int("chunk_size", chunk_size)
         max_workers = _require_positive_int("max_workers", max_workers)
+        chunk_size = min(chunk_size, 150)
+        max_workers = min(max_workers, 32)
 
         bars_by_symbol: dict[str, list[dict[str, Any]]] = {}
         missing: list[str] = []

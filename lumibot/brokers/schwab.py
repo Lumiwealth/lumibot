@@ -645,7 +645,7 @@ class Schwab(Broker):
                     auto_refresh_kwargs=refresh_kwargs,
                     token_updater=_update_token,
                 )
-                _apply_default_request_timeout(oauth_session)
+            _apply_default_request_timeout(oauth_session)
             token_file_state["signature"] = _token_file_signature()
 
             if api_key and client_secret_env and not external_token_refresh:
@@ -660,6 +660,9 @@ class Schwab(Broker):
             # Rotate the access token before expiry so the OAuth handshake never
             # lands inside a latency-sensitive broker call. Without SCHWAB_APP_SECRET
             # Schwab rejects refresh exchanges, so the thread would only spin and warn.
+            prior_refresh_stop = getattr(self, "_schwab_token_refresh_stop", None)
+            if prior_refresh_stop is not None:
+                prior_refresh_stop.set()
             self._schwab_token_refresh_stop = None
             if (
                 not external_token_refresh
@@ -853,6 +856,13 @@ class Schwab(Broker):
             logger.error(colored(f"[Schwab] Exception while fetching account numbers: {e_acc}", "red"))
             logger.error(_format_exc())
             self.schwab_authorization_error = True
+
+    def cleanup_streams(self):
+        refresh_stop = getattr(self, "_schwab_token_refresh_stop", None)
+        if refresh_stop is not None:
+            refresh_stop.set()
+            self._schwab_token_refresh_stop = None
+        super().cleanup_streams()
 
     # Account and balance methods
     def _get_balances_at_broker(self, quote_asset: Asset, strategy) -> tuple:

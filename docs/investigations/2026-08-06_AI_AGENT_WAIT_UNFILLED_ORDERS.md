@@ -55,7 +55,7 @@ Secondary issues addressed in the same change set:
 ## Regression tests
 
 ```bash
-~/bin/safe-timeout 120s python3 -m pytest \
+bin/safe-timeout 120s python3 -m pytest \
   tests/backtest/test_backtesting_broker_processing.py::test_strategy_sleep_fills_stock_market_order_when_ohlc_exists \
   tests/backtest/test_backtesting_broker_processing.py::test_orders_wait_for_terminal_fills_stock_market_order_in_backtest \
   -v

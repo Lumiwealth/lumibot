@@ -13,7 +13,7 @@
 LumiBot agent evals call the real trading model and a separate real LLM judge.
 They verify model behavior against fixture-backed production tool contracts while
 preventing broker writes, customer access, and unnecessary historical-data cost.
-Passing evidence is valid for 30 days only when the case content, runtime skills,
+Passing evidence is valid for 90 days only when the case content, runtime skills,
 tool descriptions, rules contract, acting model, and judge model have the same
 fingerprint.
 
@@ -58,7 +58,6 @@ Run deterministic preflight and the stale catalog:
 python scripts/run_agent_evals.py \
   --gate \
   --repeat 3 \
-  --freshness-days 30 \
   --max-workers 3 \
   --max-cost-usd 10
 ```

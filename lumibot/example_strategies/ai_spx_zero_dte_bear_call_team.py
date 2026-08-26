@@ -58,7 +58,7 @@ class AISpxZeroDteBearCallTeamStrategy(Strategy):
     }
 
     def initialize(self):
-        self.sleeptime = "1D"
+        self.sleeptime = "5M"
         rules_path = Path(__file__).with_name("agent_rules") / "ai_spx_zero_dte_bear_call_team.rules.json"
         model = os.environ.get("AI_SPX_TEAM_MODEL", self.parameters["model"])
         self.agents.create(

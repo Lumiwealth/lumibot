@@ -124,6 +124,7 @@ def test_agent_can_disable_builtin_skills_explicitly():
     request = runtime.requests[0]
     assert request.include_builtin_skills is False
     assert request.builtin_skill_fingerprint is None
+    assert "MUST load the matching skill" not in request.system_prompt
 
 
 def test_rules_json_is_reloaded_and_injected_into_every_agent_call(tmp_path):

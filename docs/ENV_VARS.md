@@ -379,6 +379,18 @@ always authoritative, including when it is invalid, so provider failures never
 silently consume BotSpot credits. The managed token renews through Node and is
 bound to one deployment or backtest.
 
+### `LUMIBOT_AI_GATEWAY_URL`
+- Purpose: Base URL for the managed AI inference and capability-renewal gateway.
+- Values: HTTPS URL supplied by the deployment runtime.
+- Default: unset.
+- Notes: Used only with a deployment-bound managed capability; it does not override BYOK.
+
+### `LUMIBOT_AI_GATEWAY_TOKEN`
+- Purpose: Short-lived deployment-bound capability for managed AI inference.
+- Values: Opaque bearer token supplied and renewed by the deployment runtime.
+- Default: unset.
+- Notes: Never place a provider API key in this variable. A configured BYOK provider key remains authoritative.
+
 ### `LUMIBOT_SEC_USER_AGENT`
 - Purpose: Contact-style SEC EDGAR user agent header.
 - Values: Human-readable app/contact string.

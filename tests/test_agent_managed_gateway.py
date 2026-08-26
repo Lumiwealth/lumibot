@@ -6,7 +6,9 @@ import types as python_types
 import pytest
 from google.genai import types
 
+from lumibot.components.agents import managed_gateway as managed_gateway_module
 from lumibot.components.agents.managed_gateway import BotSpotManagedLlm
+from lumibot.components.agents.managed_gateway import ManagedAiGatewayError
 
 
 def _request():
@@ -24,6 +26,22 @@ def _request():
         ),
         contents=[types.Content(role="user", parts=[types.Part(text="Analyze SPY")])],
     )
+
+
+def test_default_gateway_transport_sanitizes_network_failures(monkeypatch):
+    def fail(*_args, **_kwargs):
+        raise managed_gateway_module.urllib.error.URLError("private-host.example.test")
+
+    monkeypatch.setattr(managed_gateway_module.urllib.request, "urlopen", fail)
+
+    with pytest.raises(ManagedAiGatewayError, match="temporarily unavailable") as exc_info:
+        managed_gateway_module._post_json(
+            "https://private-host.example.test/v1/inference",
+            "secret-token",
+            {"model": "openai/gpt-5.6-luna"},
+        )
+
+    assert "private-host" not in str(exc_info.value)
 
 
 def test_managed_gateway_maps_adk_request_and_response():

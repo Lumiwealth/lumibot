@@ -1,7 +1,7 @@
 import logging
 import time
 from datetime import date
-from threading import RLock
+from threading import Event, RLock
 from types import SimpleNamespace
 
 import pytest
@@ -1225,3 +1225,15 @@ def test_schwab_proactive_token_refresh_rotates_before_expiry():
     assert len(refresh_calls) >= 1
     assert refresh_calls[0]["refresh_token"] == "refresh-1"
     assert updated.get("access_token") == "access-2"
+
+
+def test_schwab_cleanup_stops_proactive_token_refresh():
+    broker = Schwab.__new__(Schwab)
+    refresh_stop = Event()
+    broker._schwab_token_refresh_stop = refresh_stop
+    broker.stream = None
+
+    broker.cleanup_streams()
+
+    assert refresh_stop.is_set()
+    assert broker._schwab_token_refresh_stop is None

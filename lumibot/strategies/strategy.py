@@ -4798,6 +4798,8 @@ class Strategy(_Strategy):
 
                     if base_unit == "minute":
                         resample_rule = f"{multiplier}min"
+                    elif base_unit == "second":
+                        resample_rule = f"{multiplier}s"
                     elif base_unit == "day":
                         resample_rule = f"{multiplier}D"
                     else:

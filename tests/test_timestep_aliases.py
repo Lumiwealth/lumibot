@@ -5,10 +5,18 @@ public Lumibot interface must canonicalize those before broker adapters map to
 provider wire formats. Fake data is forbidden; these tests only cover parsing.
 """
 
+import logging
+from types import SimpleNamespace
+
+import pandas as pd
+import pytest
+
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 
 from lumibot.data_sources.alpaca_data import AlpacaData
 from lumibot.data_sources.data_source import DataSource
+from lumibot.data_sources.exceptions import UnavailabeTimestep
+from lumibot.entities import Asset, Bars
 from lumibot.tools.helpers import canonicalize_timestep, parse_canonical_timestep
 
 
@@ -79,6 +87,12 @@ class TestAlpacaReverseAliasLookup:
         assert parsed.amount == 5
         assert parsed.unit == TimeFrameUnit.Minute
 
+    def test_reverse_rejects_unsupported_multi_day_quantity(self):
+        data_source = AlpacaData(ALPACA_UNIT_CONFIG)
+
+        with pytest.raises(UnavailabeTimestep):
+            data_source._parse_source_timestep("2 days", reverse=True)
+
 
 class TestDataSourceMappingUsesCanonicalAliases:
     def test_base_mapping_matches_canonical_forms(self):
@@ -121,3 +135,41 @@ class TestStrategyTimestepAliasParity:
         assert strategy._parse_timestep("5Min") == (5, "minute")
         assert strategy._parse_timestep("30S") == (30, "second")
         assert strategy._parse_timestep("1Day") == (1, "day")
+
+    def test_live_strategy_resamples_thirty_second_bars(self):
+        from lumibot.strategies.strategy import Strategy
+
+        calls = []
+
+        class Source:
+            def get_historical_prices(self, asset, length, timestep=None, **_kwargs):
+                calls.append((length, timestep))
+                index = pd.date_range("2026-08-20T00:00:00Z", periods=length, freq="s")
+                frame = pd.DataFrame(
+                    {
+                        "open": range(length),
+                        "high": range(length),
+                        "low": range(length),
+                        "close": range(length),
+                        "volume": [1] * length,
+                    },
+                    index=index,
+                )
+                return Bars(frame, "sample", asset)
+
+        strategy = Strategy.__new__(Strategy)
+        strategy.logger = logging.getLogger(__name__)
+        strategy._logged_get_historical_prices_assets = set()
+        strategy.is_backtesting = False
+        strategy.broker = SimpleNamespace(
+            data_source=Source(),
+            option_source=None,
+            IS_BACKTESTING_BROKER=False,
+            quote_assets=set(),
+        )
+        strategy.quote_asset = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+        bars = strategy.get_historical_prices(Asset("SPY"), 2, timestep="30 seconds")
+
+        assert calls == [(60, "second")]
+        assert len(bars) == 2

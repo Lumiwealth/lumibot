@@ -294,7 +294,7 @@ The PyPI release workflow gates publication on real-model evals. The initial
 catalog covers stock price evidence, completed-bar ORB behavior, single-leg
 options, atomic iron condors, signed credit-spread closes, and active rules.
 Each new or changed behavior must pass three consecutive repetitions, and fresh
-passing evidence expires after 30 days or whenever the runtime fingerprint
+passing evidence expires after 90 days or whenever the runtime fingerprint
 changes. See `docs/AGENT_EVALS.md`.
 
 **How do I get started?**

@@ -71,6 +71,8 @@ def test_24_7_bitcoin_strategy_uses_real_agent_runtime_and_managed_gateway(monke
         )
 
     monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "synthetic-test-key")
     monkeypatch.setenv("LUMIBOT_AI_GATEWAY_URL", "https://gateway.example.test")
     monkeypatch.setenv("LUMIBOT_AI_GATEWAY_TOKEN", "deployment-bound-token")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)

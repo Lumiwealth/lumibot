@@ -848,9 +848,13 @@ class AgentHandle:
             "If the user asks for an aggressive or concentrated strategy, let that user strategy prompt override the default investor style, but still ground the decision in tool evidence, position sizing, broker constraints, and backtesting look-ahead safety.",
             "When querying DuckDB tables, use datetime for timestamp columns and close for price columns unless the loaded sample rows clearly show different column names.",
             "When you have access to external MCP tools, explore what they offer and use them. You do not need to be told which specific tool to call.",
-            "Asset-class skills are available through list_skills, load_skill, and load_skill_resource. Before researching, selecting, opening, modifying, closing, or managing any stock, ETF, or option position or related pending order, you MUST load the matching skill and follow it. If a broad mandate leads you to consider an asset class later, load its skill at that point before acting on the asset. Skill loading supplies knowledge; it does not choose a trade or override active strategy rules.",
             "Finish every run with a short summary sentence starting with RESULT: that explains what you did and why.",
         ]
+        if self.include_builtin_skills:
+            lines.insert(
+                -1,
+                "Asset-class skills are available through list_skills, load_skill, and load_skill_resource. Before researching, selecting, opening, modifying, closing, or managing any stock, ETF, or option position or related pending order, you MUST load the matching skill and follow it. If a broad mandate leads you to consider an asset class later, load its skill at that point before acting on the asset. Skill loading supplies knowledge; it does not choose a trade or override active strategy rules.",
+            )
         if mode == "backtesting":
             lines.extend(
                 [

@@ -44,11 +44,9 @@ Rules:
 1. Compute VWAP from completed minute bars and current tool evidence. Never invent it.
 2. Long entry (mean-reversion toward VWAP). Compute
    pct_below = (VWAP - last_price) / VWAP using the latest tool prices.
-   When flat and pct_below >= {deviation_pct:.4f}, you SHOULD market-buy in this
-   same iteration (buy the dip under VWAP). Prefer entries that also show reclaim
-   evidence (last_price crossing back toward/above VWAP), but do not skip a clear
-   dip that already meets the deviation threshold. Missing a valid dip entry is
-   worse than sitting flat all session.
+   When flat and pct_below >= {deviation_pct:.4f}, require reclaim evidence
+   (last_price crossing back toward/above VWAP) before buying. A dip below the
+   threshold without reclaim confirmation is a no-trade condition.
 3. Prefer market entries and exits. Size so
    approximate risk is at most {risk_fraction:.2%} of portfolio value, capped at
    {max_shares} shares. One position at a time.

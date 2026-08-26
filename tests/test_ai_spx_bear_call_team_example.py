@@ -38,3 +38,9 @@ def test_spx_experiment_requires_one_atomic_five_point_package():
     assert "exactly\n5 points" in trader_prompt
     assert "one atomic\nmulti-leg package" in trader_prompt
     assert "rules_path=" in source
+
+
+def test_spx_zero_dte_team_runs_intraday_for_same_day_management():
+    source = EXAMPLE.read_text(encoding="utf-8")
+
+    assert 'self.sleeptime = "5M"' in source

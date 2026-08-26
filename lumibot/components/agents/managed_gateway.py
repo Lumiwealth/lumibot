@@ -162,6 +162,8 @@ def _post_json(url: str, token: str, payload: dict[str, Any]) -> tuple[int, dict
         except Exception:
             body = {}
         return exc.code, body
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+        raise ManagedAiGatewayError("Managed AI gateway is temporarily unavailable.") from None
 
 
 class BotSpotManagedLlm(BaseLlm):

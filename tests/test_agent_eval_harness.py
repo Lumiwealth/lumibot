@@ -38,11 +38,21 @@ def test_eval_freshness_policy_has_one_90_day_source_of_truth():
         repo_root / ".github/workflows/agent-evals.yml",
         repo_root / ".github/workflows/release.yml",
     ]
+    policy_docs = [
+        repo_root / "docs/AGENT_EVALS.md",
+        repo_root / "docs/AI_TRADING_AGENTS.md",
+    ]
 
     assert evals.DEFAULT_FRESHNESS_DAYS == 90
     for workflow_path in workflows:
         workflow = workflow_path.read_text(encoding="utf-8")
         assert "--freshness-days" not in workflow
+    for doc_path in policy_docs:
+        policy_doc = doc_path.read_text(encoding="utf-8")
+        assert "30-day" not in policy_doc
+        assert "30 days" not in policy_doc
+        assert "--freshness-days 30" not in policy_doc
+        assert "90 days" in policy_doc
 
 
 def test_eval_fingerprint_changes_with_runtime_and_judge():
@@ -65,6 +75,23 @@ def test_eval_cost_uses_official_cached_and_uncached_rates():
     )
     assert cost["estimated_usd"] == 0.4825
     assert cost["price_source_url"].startswith("https://cloud.google.com/")
+
+
+def test_eval_batch_reservations_never_exceed_the_hard_spend_budget():
+    case = evals.load_cases({"stock_price_before_order"})[0]
+    work = [(case, repetition, "fingerprint") for repetition in range(1, 4)]
+    per_repetition = evals.maximum_repetition_cost_usd(case, evals.DEFAULT_JUDGE_MODEL)
+
+    batch, remaining = evals.reserve_budget_batch(
+        work,
+        max_workers=3,
+        remaining_budget=(per_repetition * 2) + (per_repetition / 2),
+        judge_model=evals.DEFAULT_JUDGE_MODEL,
+    )
+
+    assert len(batch) == 2
+    assert len(remaining) == 1
+    assert sum(item[3] for item in batch) <= (per_repetition * 2) + (per_repetition / 2)
 
 
 def test_credit_spread_machine_contract_accepts_correct_signed_close():

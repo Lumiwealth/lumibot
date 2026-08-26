@@ -151,7 +151,8 @@ class AlpacaData(DataSource):
                         else TimeFrame(quantity, TimeFrameUnit.Hour)
                     )
                 elif unit == "day":
-                    mapping[lookup_key] = TimeFrame.Day
+                    if quantity == 1:
+                        mapping[lookup_key] = TimeFrame.Day
 
         mapped = mapping.get(lookup_key)
         if mapped is not None:

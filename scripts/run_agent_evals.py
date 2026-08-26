@@ -34,6 +34,9 @@ MODEL_PRICES_PER_MILLION = {
     "gemini-3.5-flash-lite": {"input": 0.30, "cached_input": 0.03, "output": 2.50},
     "gemini-3.1-flash-lite": {"input": 0.25, "cached_input": 0.025, "output": 1.50},
 }
+MAX_INPUT_TOKENS_PER_MODEL_CALL = 1_000_000
+ACTING_MAX_OUTPUT_TOKENS = 12_000
+JUDGE_MAX_OUTPUT_TOKENS = 1_000
 ORDER_TOOLS = {"orders_submit_order", "orders_submit_multileg"}
 LEDGER_LOCK = threading.Lock()
 
@@ -158,6 +161,44 @@ def estimate_cost(model: str, usage: dict[str, Any] | None) -> dict[str, Any]:
         "prices_per_million_tokens": prices,
         "usage": normalized,
     }
+
+
+def maximum_repetition_cost_usd(case: dict[str, Any], judge_model: str) -> float:
+    """Conservatively reserve one acting-model call plus its judge call."""
+    acting_model = str(case.get("model") or DEFAULT_ACTING_MODEL)
+    acting_prices = MODEL_PRICES_PER_MILLION[acting_model]
+    judge_prices = MODEL_PRICES_PER_MILLION[judge_model]
+    acting_max = (
+        MAX_INPUT_TOKENS_PER_MODEL_CALL * acting_prices["input"]
+        + ACTING_MAX_OUTPUT_TOKENS * acting_prices["output"]
+    ) / 1_000_000
+    judge_max = (
+        MAX_INPUT_TOKENS_PER_MODEL_CALL * judge_prices["input"]
+        + JUDGE_MAX_OUTPUT_TOKENS * judge_prices["output"]
+    ) / 1_000_000
+    return round(acting_max + judge_max, 6)
+
+
+def reserve_budget_batch(
+    pending: list[tuple[dict[str, Any], int, str]],
+    *,
+    max_workers: int,
+    remaining_budget: float,
+    judge_model: str,
+) -> tuple[list[tuple[dict[str, Any], int, str, float]], list[tuple[dict[str, Any], int, str]]]:
+    """Reserve worst-case cost before any parallel paid calls are launched."""
+    batch: list[tuple[dict[str, Any], int, str, float]] = []
+    remaining = list(pending)
+    reserved = 0.0
+    while remaining and len(batch) < max_workers:
+        case, repetition, fingerprint = remaining[0]
+        reservation = maximum_repetition_cost_usd(case, judge_model)
+        if reserved + reservation > remaining_budget:
+            break
+        remaining.pop(0)
+        batch.append((case, repetition, fingerprint, reservation))
+        reserved += reservation
+    return batch, remaining
 
 
 @dataclass
@@ -1020,8 +1061,15 @@ def main() -> int:
         remaining_budget = args.max_cost_usd - estimated_total
         if remaining_budget <= 0:
             break
-        batch_size = min(args.max_workers, len(pending))
-        batch = [pending.pop(0) for _ in range(batch_size)]
+        batch, pending = reserve_budget_batch(
+            pending,
+            max_workers=args.max_workers,
+            remaining_budget=remaining_budget,
+            judge_model=args.judge_model,
+        )
+        if not batch:
+            break
+        batch_size = len(batch)
         with concurrent.futures.ThreadPoolExecutor(max_workers=batch_size) as executor:
             futures = {
                 executor.submit(
@@ -1030,11 +1078,11 @@ def main() -> int:
                     repetition=repetition,
                     fingerprint=fingerprint,
                     judge_model=args.judge_model,
-                ): (case["id"], repetition)
-                for case, repetition, fingerprint in batch
+                ): (case["id"], repetition, reservation)
+                for case, repetition, fingerprint, reservation in batch
             }
             for future in concurrent.futures.as_completed(futures):
-                case_id, repetition = futures[future]
+                case_id, repetition, reservation = futures[future]
                 try:
                     row = future.result()
                 except Exception as exc:
@@ -1050,7 +1098,13 @@ def main() -> int:
                     }
                 append_jsonl(ledger_path, row)
                 new_rows.append(row)
-                estimated_total += float((row.get("usage") or {}).get("estimated_cost_usd") or 0)
+                actual_estimate = float((row.get("usage") or {}).get("estimated_cost_usd") or 0)
+                if actual_estimate > reservation:
+                    raise RuntimeError(
+                        f"Eval estimate exceeded its reservation for {case_id}: "
+                        f"{actual_estimate:.6f} > {reservation:.6f}"
+                    )
+                estimated_total += actual_estimate
         if estimated_total > args.max_cost_usd:
             break
 

@@ -35,11 +35,11 @@ def _provider_for_model(model: str) -> str | None:
     lower = model.strip().lower()
     if lower.startswith("gemini-") or lower.startswith("models/gemini") or lower.startswith("google/"):
         return "google"
-    if lower.startswith("openai/"):
+    if lower.startswith("openai/") or lower.startswith(("gpt-", "chatgpt-", "o1", "o3", "o4")):
         return "openai"
-    if lower.startswith("anthropic/"):
+    if lower.startswith("anthropic/") or lower.startswith("claude-"):
         return "anthropic"
-    if lower.startswith("xai/"):
+    if lower.startswith("xai/") or lower.startswith("grok-"):
         return "xai"
     return None
 

@@ -859,6 +859,12 @@ class Alpaca(Broker):
         # Quantity and side
         qty_value = getattr(response, 'qty', None) or resp_raw.get('qty')
         side_value = getattr(response, 'side', None) or resp_raw.get('side')
+        position_intent_value = (
+            getattr(response, 'position_intent', None)
+            or resp_raw.get('position_intent')
+        )
+        if mapped_asset_type == Asset.AssetType.OPTION and position_intent_value:
+            side_value = getattr(position_intent_value, "value", position_intent_value)
 
         # Determine order and class types
         order_type_value = getattr(response, 'order_type', None) or resp_raw.get('type')
@@ -1004,6 +1010,7 @@ class Alpaca(Broker):
         legs = []
         leg_quantities = []
         for order in orders:
+            self.resolve_option_order_intent(order)
             # Format option symbol
             if order.asset.asset_type == Asset.AssetType.OPTION:
                 strike_formatted = f"{order.asset.strike:08.3f}".replace('.', '').rjust(8, '0')
@@ -1014,23 +1021,13 @@ class Alpaca(Broker):
             # Determine leg side + position intent for Alpaca's mleg payload.
             # - leg.side must be "buy" or "sell"
             # - leg.position_intent must be one of: buy_to_open, buy_to_close, sell_to_open, sell_to_close
-            position_intent = getattr(order, "position_intent", None)
             raw_side = order.side
             if raw_side in ("buy_to_open", "buy_to_close"):
                 leg_side = "buy"
-                position_intent = position_intent or raw_side
             elif raw_side in ("sell_to_open", "sell_to_close"):
                 leg_side = "sell"
-                position_intent = position_intent or raw_side
             else:
-                leg_side = "buy" if order.is_buy_order() else "sell"
-                if not position_intent:
-                    # Fall back to position-based intent inference when the side doesn't encode open/close.
-                    pos = self.get_tracked_position(order.strategy, order.asset)
-                    if pos is not None and pos.quantity != 0:
-                        position_intent = "buy_to_close" if leg_side == "buy" else "sell_to_close"
-                    else:
-                        position_intent = "buy_to_open" if leg_side == "buy" else "sell_to_open"
+                raise ValueError(f"Alpaca option leg requires explicit position intent, got {raw_side}")
             # Collect leg quantities for GCD check
             leg_qty = int(abs(order.quantity))
             leg_quantities.append(leg_qty)
@@ -1038,7 +1035,7 @@ class Alpaca(Broker):
                 "symbol": option_symbol,
                 "ratio_qty": str(order.quantity),
                 "side": leg_side,
-                "position_intent": position_intent
+                "position_intent": str(raw_side)
             })
         # Ensure leg ratio quantities are relatively prime (GCD == 1)
         from functools import reduce
@@ -1194,6 +1191,8 @@ class Alpaca(Broker):
             "trail_price": str(trail_price) if trail_price is not None else None,
             "trail_percent": str(trail_percent) if trail_percent is not None else None,
         }
+        if order.asset.asset_type == Asset.AssetType.OPTION:
+            kwargs["position_intent"] = str(order.side)
         # Remove items with None values
         kwargs = {k: v for k, v in kwargs.items() if v}
 
@@ -1298,6 +1297,8 @@ class Alpaca(Broker):
                         color="red",
                     )
                 )
+
+            raise
 
         return order
 

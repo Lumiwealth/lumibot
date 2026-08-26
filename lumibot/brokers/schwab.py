@@ -2218,6 +2218,8 @@ class Schwab(Broker):
         OrderBuilder
             The order builder object for Schwab API
         """
+        if order.side in (Order.OrderSide.BUY, Order.OrderSide.SELL):
+            self.resolve_option_order_intent(order)
         try:
             # Get order parameters
             quantity = int(order.quantity)

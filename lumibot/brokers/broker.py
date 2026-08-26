@@ -2635,8 +2635,106 @@ class Broker(ABC):
 
     def submit_order(self, order) -> Order:
         """Conform an order for an asset to broker constraints and submit it."""
+        self.resolve_option_order_intent(order)
         self._conform_order(order)
         return self._submit_order(order)
+
+    def resolve_option_order_intent(
+        self,
+        order: Order,
+        additional_active_orders: list[Order] | None = None,
+    ) -> Order:
+        """Resolve a single-leg option order to an explicit open/close side.
+
+        Explicit ``*_to_open``/``*_to_close`` sides are preserved. Generic
+        ``buy``/``sell`` sides remain supported for backwards compatibility,
+        but are resolved here once using the tracked position and active orders.
+        An order that would over-close or duplicate a fully reserved close is
+        rejected instead of silently crossing through zero into a new position.
+        """
+        if getattr(getattr(order, "asset", None), "asset_type", None) != "option":
+            return order
+
+        side = Order.OrderSide(order.side)
+        explicit_sides = {
+            Order.OrderSide.BUY_TO_OPEN,
+            Order.OrderSide.BUY_TO_CLOSE,
+            Order.OrderSide.SELL_TO_OPEN,
+            Order.OrderSide.SELL_TO_CLOSE,
+        }
+        if side not in explicit_sides and side not in {
+            Order.OrderSide.BUY,
+            Order.OrderSide.SELL,
+        }:
+            raise ValueError(f"Unsupported option order side: {side}")
+
+        position = self.get_tracked_position(order.strategy, order.asset)
+        position_quantity = float(position.quantity) if position is not None else 0.0
+        close_side = None
+        open_side = None
+        if position_quantity > 0:
+            close_side = Order.OrderSide.SELL_TO_CLOSE
+            open_side = Order.OrderSide.BUY_TO_OPEN
+        elif position_quantity < 0:
+            close_side = Order.OrderSide.BUY_TO_CLOSE
+            open_side = Order.OrderSide.SELL_TO_OPEN
+
+        if side in {Order.OrderSide.BUY, Order.OrderSide.SELL}:
+            if position_quantity == 0:
+                order.side = (
+                    Order.OrderSide.BUY_TO_OPEN
+                    if side == Order.OrderSide.BUY
+                    else Order.OrderSide.SELL_TO_OPEN
+                )
+                return order
+
+            generic_closes_position = (
+                position_quantity > 0 and side == Order.OrderSide.SELL
+            ) or (
+                position_quantity < 0 and side == Order.OrderSide.BUY
+            )
+            order.side = close_side if generic_closes_position else open_side
+
+        if order.side != close_side:
+            return order
+
+        reserved_quantity = 0.0
+        active_orders = self.get_active_tracked_orders(order.strategy, order.asset)
+        if additional_active_orders:
+            active_orders.extend(
+                candidate
+                for candidate in additional_active_orders
+                if candidate.strategy == order.strategy and candidate.asset == order.asset
+            )
+        for active_order in active_orders:
+            try:
+                active_side = Order.OrderSide(active_order.side)
+            except (TypeError, ValueError):
+                continue
+            active_is_close = active_side == close_side
+            if not active_is_close:
+                active_is_close = (
+                    position_quantity > 0 and active_side == Order.OrderSide.SELL
+                ) or (
+                    position_quantity < 0 and active_side == Order.OrderSide.BUY
+                )
+            if not active_is_close:
+                continue
+
+            filled_quantity = sum(
+                float(transaction.quantity)
+                for transaction in getattr(active_order, "transactions", [])
+            )
+            reserved_quantity += max(0.0, float(active_order.quantity) - filled_quantity)
+
+        remaining_closable = max(0.0, abs(position_quantity) - reserved_quantity)
+        requested_quantity = float(order.quantity)
+        if requested_quantity > remaining_closable + 1e-9:
+            raise ValueError(
+                f"Option close quantity {requested_quantity:g} exceeds remaining closable quantity "
+                f"{remaining_closable:g} after active close orders"
+            )
+        return order
 
     def _conform_order(self, order):
         """Conform an order to broker constraints. Derived brokers should implement this method."""
@@ -2644,6 +2742,10 @@ class Broker(ABC):
 
     def submit_orders(self, orders, **kwargs) -> Union[Order, list[Order]]:
         """Submit orders"""
+        resolved_orders = []
+        for order in orders:
+            self.resolve_option_order_intent(order, additional_active_orders=resolved_orders)
+            resolved_orders.append(order)
         if hasattr(self, '_submit_orders'):
             return self._submit_orders(orders, **kwargs)
         else:

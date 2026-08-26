@@ -52,6 +52,18 @@ def _agent_memory_context_kwargs() -> dict[str, Any]:
     return kwargs
 
 
+def _broker_submission_outcome(*, certainty: str, retryable: bool = False) -> dict[str, Any]:
+    return {
+        "operation": "broker_order_submission",
+        "requiredness": "decision_critical",
+        "retryability": "retryable" if retryable else "not_applicable",
+        "fallback_used": False,
+        "decision_completed": True,
+        "broker_state_certainty": certainty,
+        "impact": "completed" if certainty == "confirmed_submitted" else "operator_attention_required",
+    }
+
+
 class _LazyModule:
     """Read-only proxy that imports the target module on first attribute access.
 
@@ -463,7 +475,7 @@ def _order_to_dict(order: Any) -> dict[str, Any]:
         quantity = float(quantity)
     except Exception:
         quantity = quantity
-    return {
+    payload = {
         "identifier": _jsonable(getattr(order, "identifier", None)),
         "status": _jsonable(getattr(order, "status", None)),
         "side": _jsonable(getattr(order, "side", None)),
@@ -474,6 +486,10 @@ def _order_to_dict(order: Any) -> dict[str, Any]:
         "limit_price": _jsonable(getattr(order, "limit_price", None)),
         "stop_price": _jsonable(getattr(order, "stop_price", None)),
     }
+    decision_provenance = getattr(order, "decision_provenance", None)
+    if isinstance(decision_provenance, dict):
+        payload["decision_provenance"] = _jsonable(decision_provenance)
+    return payload
 
 
 def _options_helper_for_strategy(strategy: Any) -> Any:
@@ -2563,9 +2579,28 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
             quote=quote,
             time_in_force=time_in_force,
         )
-        submitted = strategy.submit_order(created)
-        order_payload = _order_to_dict(submitted)
         memory = getattr(strategy, "memory", None)
+        memory_context = _agent_memory_context_kwargs()
+        decision_provenance = None
+        if memory is not None and hasattr(memory, "decision_provenance"):
+            decision_provenance = memory.decision_provenance(**memory_context)
+            setattr(created, "decision_provenance", decision_provenance)
+        try:
+            submitted = strategy.submit_order(created)
+        except Exception as exc:
+            return {
+                "ok": False,
+                "tool_error": True,
+                "tool_name": "orders_submit_order",
+                "error": {"type": exc.__class__.__name__, "message": str(exc)},
+                "execution_outcome": _broker_submission_outcome(
+                    certainty="unknown",
+                    retryable=isinstance(exc, (TimeoutError, ConnectionError)),
+                ),
+            }
+        if decision_provenance is not None and not hasattr(submitted, "decision_provenance"):
+            setattr(submitted, "decision_provenance", decision_provenance)
+        order_payload = _order_to_dict(submitted)
         if memory is not None and hasattr(memory, "record_order_submitted"):
             try:
                 memory.record_order_submitted(
@@ -2584,11 +2619,15 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
                     exchange=exchange,
                     time_in_force=time_in_force,
                     order_payload=order_payload,
-                    **_agent_memory_context_kwargs(),
+                    metadata={"decision_provenance": decision_provenance or {}},
+                    **memory_context,
                 )
             except Exception:
                 pass
-        return {"order": order_payload}
+        return {
+            "order": order_payload,
+            "execution_outcome": _broker_submission_outcome(certainty="confirmed_submitted"),
+        }
 
     return BoundTool(
         name="orders_submit_order",

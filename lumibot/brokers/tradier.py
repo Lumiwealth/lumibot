@@ -1972,9 +1972,6 @@ class Tradier(Broker):
         return cleaned
 
     def _lumi_side2tradier(self, order: Order) -> str:
-        # Make a copy of the side because we will modify it
-        original_side = order.side
-
         # Set the side that we will return
         side = order.side
 
@@ -1992,33 +1989,8 @@ class Tradier(Broker):
 
         # Convert the side to the Tradier side for options orders if necessary
         if side == Order.OrderSide.BUY or side == Order.OrderSide.SELL:
-            # Check if we currently own the option
-            position = self.get_tracked_position(order.strategy, order.asset)
-
-            # Check if we own the option then we need to sell to close or buy to close
-            if position is not None:
-                if position.quantity > 0 and side == Order.OrderSide.SELL:
-                    side = "sell_to_close"
-                elif position.quantity >= 0 and side == Order.OrderSide.BUY:
-                    side = "buy_to_open"
-                elif position.quantity < 0 and side == Order.OrderSide.BUY:
-                    side = "buy_to_close"
-                elif position.quantity <= 0 and side == Order.OrderSide.SELL:
-                    side = "sell_to_open"
-                else:
-                    logger.error(
-                        f"Unable to determine the correct side for the order. " f"Position: {position}, Order: {order}"
-                    )
-
-            # Otherwise, we don't own the option so we need to buy to open or sell to open
-            else:
-                side = "buy_to_open" if side == Order.OrderSide.BUY else "sell_to_open"
-
-        # Stoploss and limit orders are usually used to close positions, even if they are submitted "before" the
-        # position is technically open (i.e. buy and stoploss order are submitted simultaneously)
-        if (order.order_type in [Order.OrderType.STOP, Order.OrderType.TRAIL] and
-                (original_side == Order.OrderSide.BUY or original_side == Order.OrderSide.SELL)):
-            side = str(side).replace("to_open", "to_close")
+            self.resolve_option_order_intent(order)
+            side = order.side
 
         # Check if the side is a valid Tradier side
         if side not in ["buy_to_open", "buy_to_close", "sell_to_open", "sell_to_close"]:

@@ -85,6 +85,7 @@ class TestAlpacaBroker:
     def test_submit_order_calls_conform_order(self):
         broker = Alpaca(ALPACA_UNIT_CONFIG, connect_stream=False)
         broker._conform_order = MagicMock()
+        broker._submit_order = MagicMock(side_effect=lambda submitted: submitted)
         order = Order(asset=Asset("SPY"), quantity=10, side=Order.OrderSide.BUY, strategy='abc')
         broker.submit_order(order=order)
         broker._conform_order.assert_called_once()

@@ -337,11 +337,11 @@ class TestTradierBroker:
         option_order.side = "blah"
         assert not broker._lumi_side2tradier(option_order)
 
-        # Stoploss always submits as a "to_close" order
+        # Generic stop sides use the same position-aware resolver as other option orders.
         stop_stock_order = Order(strategy, stock_asset, 1, 'sell', order_type='stop', stop_price=100.0)
         assert broker._lumi_side2tradier(stop_stock_order) == "sell"
         stop_option_order = Order(strategy, option_asset, 1, 'sell', order_type='stop', stop_price=100.0)
-        assert broker._lumi_side2tradier(stop_option_order) == "sell_to_close"
+        assert broker._lumi_side2tradier(stop_option_order) == "sell_to_open"
 
         # TODO: Fix this test, it's commented out temporarily until we can figure out how to handle this case.
         # limit_option_order = Order(strategy, option_asset, 1, 'sell', order_type='limit', limit_price=100.0)

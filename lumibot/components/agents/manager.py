@@ -360,6 +360,14 @@ _AGENT_DETAIL_COLUMNS = [
     "memory_state_text",
     "memory_retrieval_ids",
     "warning_messages",
+    "outcome_operation",
+    "outcome_requiredness",
+    "outcome_retryability",
+    "outcome_fallback_used",
+    "outcome_decision_completed",
+    "outcome_broker_state_certainty",
+    "outcome_impact",
+    "outcome_error_category",
     "event_input_tokens",
     "event_output_tokens",
     "event_total_tokens",
@@ -1141,6 +1149,12 @@ class AgentHandle:
         trace_path = ""
         if isinstance(result.payload, dict):
             trace_path = str(result.payload.get("trace_path") or "")
+        execution_outcome = (
+            result.payload.get("execution_outcome")
+            if isinstance(result.payload, dict)
+            and isinstance(result.payload.get("execution_outcome"), dict)
+            else {}
+        )
         cache_root = self._cache_root()
         trace_relative_path = trace_path
         if trace_path:
@@ -1160,6 +1174,7 @@ class AgentHandle:
             "timing": _runtime_timing_payload(result),
             "tool_calls": [event.tool_name for event in result.tool_calls if event.tool_name],
             "warning_messages": result.warning_messages,
+            "execution_outcome": execution_outcome,
             "trace_path": trace_path,
             "trace_relative_path": trace_relative_path,
         }
@@ -1473,6 +1488,13 @@ class AgentHandle:
             cached = self.manager.replay_cache.load(cache_key)
             if cached is not None:
                 result = self._result_from_cached(cached, cache_key)
+                result.payload = {
+                    **(result.payload or {}),
+                    "execution_outcome": _managed_ai_execution_outcome(
+                        required_for_decision=self.allow_trading,
+                        decision_completed=True,
+                    ),
+                }
                 self._replay_cached_side_effects(result)
                 self.manager._record_agent_observability(
                     handle=self,
@@ -1821,6 +1843,12 @@ class AgentManager:
         trace_path = ""
         if isinstance(result.payload, dict):
             trace_path = str(result.payload.get("trace_path") or "")
+        execution_outcome = (
+            result.payload.get("execution_outcome")
+            if isinstance(result.payload, dict)
+            and isinstance(result.payload.get("execution_outcome"), dict)
+            else {}
+        )
         warning_messages = " | ".join(_sanitize_csv_text(message) for message in result.warning_messages if message)
         normalized_events = result.events or [AgentTraceEvent(kind="text", text=result.summary or "")]
         thinking_texts = _thinking_texts(result)
@@ -1860,6 +1888,14 @@ class AgentManager:
             "memory_state_text": memory_state_text,
             "memory_retrieval_ids": memory_retrieval_ids,
             "warning_messages": warning_messages,
+            "outcome_operation": execution_outcome.get("operation"),
+            "outcome_requiredness": execution_outcome.get("requiredness"),
+            "outcome_retryability": execution_outcome.get("retryability"),
+            "outcome_fallback_used": execution_outcome.get("fallback_used"),
+            "outcome_decision_completed": execution_outcome.get("decision_completed"),
+            "outcome_broker_state_certainty": execution_outcome.get("broker_state_certainty"),
+            "outcome_impact": execution_outcome.get("impact"),
+            "outcome_error_category": execution_outcome.get("error_category"),
             **timing,
             "trace_path": trace_path,
         }

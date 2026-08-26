@@ -447,6 +447,40 @@ def _unwrap_tool_payload(payload: Any) -> Any:
     return payload
 
 
+def _structured_operation_outcomes(result: AgentRunResult) -> list[dict[str, Any]]:
+    """Return runtime-authored operation outcomes without interpreting log text."""
+
+    outcomes: list[dict[str, Any]] = []
+    primary: dict[str, Any] = {}
+    if isinstance(result.payload, dict):
+        primary_candidate = result.payload.get("execution_outcome")
+        primary = primary_candidate if isinstance(primary_candidate, dict) else {}
+        if isinstance(primary, dict) and primary.get("operation"):
+            outcomes.append(primary)
+    for event in result.tool_results:
+        payload = _unwrap_tool_payload(event.payload)
+        if not isinstance(payload, dict):
+            continue
+        outcome = payload.get("execution_outcome")
+        if isinstance(outcome, dict) and outcome.get("operation"):
+            outcomes.append(outcome)
+        elif payload.get("tool_error") is True:
+            error = payload.get("error") if isinstance(payload.get("error"), dict) else {}
+            outcomes.append(
+                {
+                    "operation": f"tool:{event.tool_name or 'unknown'}",
+                    "requiredness": "optional",
+                    "retryability": "unknown",
+                    "fallback_used": True,
+                    "decision_completed": primary.get("decision_completed") is True,
+                    "broker_state_certainty": "not_observed",
+                    "impact": "optional_component_failed",
+                    "error_category": error.get("type") or "ToolError",
+                }
+            )
+    return outcomes
+
+
 def _sanitize_csv_text(value: Any) -> str:
     if value is None:
         return ""
@@ -1186,6 +1220,7 @@ class AgentHandle:
             and isinstance(result.payload.get("execution_outcome"), dict)
             else {}
         )
+        operation_outcomes = _structured_operation_outcomes(result)
         cache_root = self._cache_root()
         trace_relative_path = trace_path
         if trace_path:
@@ -1195,6 +1230,8 @@ class AgentHandle:
                 trace_relative_path = trace_path
         record = {
             "timestamp": self._event_timestamp(),
+            "deployment_id": os.environ.get("BOTSPOT_DEPLOYMENT_ID") or "",
+            "run_id": os.environ.get("BOTSPOT_RUN_ID") or "",
             "agent_name": self.name,
             "mode": runtime_context.get("mode"),
             "model": result.model,
@@ -1206,6 +1243,7 @@ class AgentHandle:
             "tool_calls": [event.tool_name for event in result.tool_calls if event.tool_name],
             "warning_messages": result.warning_messages,
             "execution_outcome": execution_outcome,
+            "operation_outcomes": operation_outcomes,
             "trace_path": trace_path,
             "trace_relative_path": trace_relative_path,
         }

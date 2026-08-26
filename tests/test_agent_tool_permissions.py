@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from lumibot.components.agents import AgentManager, AgentRunResult, AgentTraceEvent, BuiltinTools
-from lumibot.components.agents.manager import AgentModelCallLimitExceeded
+from lumibot.components.agents.manager import AgentModelCallLimitExceeded, _structured_operation_outcomes
 from lumibot.components.agents.schemas import BoundTool, ToolDefinition
 
 
@@ -503,6 +503,92 @@ def test_order_submit_timeout_reports_unknown_broker_state(monkeypatch):
         "decision_completed": True,
         "broker_state_certainty": "unknown",
         "impact": "operator_attention_required",
+    }
+
+
+def test_agent_summary_preserves_structured_tool_operation_outcomes(monkeypatch, tmp_path):
+    ai_outcome = {
+        "operation": "managed_ai_inference",
+        "requiredness": "decision_critical",
+        "decision_completed": True,
+        "broker_state_certainty": "not_observed",
+        "impact": "completed",
+    }
+    broker_outcome = {
+        "operation": "broker_order_submission",
+        "requiredness": "decision_critical",
+        "retryability": "retryable",
+        "fallback_used": False,
+        "decision_completed": True,
+        "broker_state_certainty": "unknown",
+        "impact": "operator_attention_required",
+    }
+    result = AgentRunResult(
+        summary="Submitted the rebalance.",
+        model="openai/gpt-5.4-mini",
+        payload={"execution_outcome": ai_outcome},
+        events=[
+            AgentTraceEvent(
+                kind="tool_result",
+                tool_name="orders_submit_order",
+                payload={"payload": {"execution_outcome": broker_outcome}},
+            )
+        ],
+    )
+
+    assert _structured_operation_outcomes(result) == [ai_outcome, broker_outcome]
+
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path))
+    monkeypatch.setenv("BOTSPOT_DEPLOYMENT_ID", "deployment-current")
+    monkeypatch.setenv("BOTSPOT_RUN_ID", "run-current")
+    handle = AgentManager(_Strategy()).create(
+        name="trader",
+        model="openai/gpt-5.4-mini",
+        allow_trading=True,
+    )
+    handle._append_run_artifact_summary(result, {"mode": "live"})
+    summary = json.loads((tmp_path / "agent_runtime" / "agent_run_summaries.jsonl").read_text())
+    assert summary["deployment_id"] == "deployment-current"
+    assert summary["run_id"] == "run-current"
+    assert summary["operation_outcomes"] == [ai_outcome, broker_outcome]
+
+
+def test_completed_agent_records_data_tool_error_as_optional_operation_failure():
+    result = AgentRunResult(
+        summary="Used the remaining data to complete the decision.",
+        model="anthropic/claude-sonnet-4-6",
+        payload={
+            "execution_outcome": {
+                "operation": "managed_ai_inference",
+                "requiredness": "decision_critical",
+                "decision_completed": True,
+                "broker_state_certainty": "not_observed",
+                "impact": "completed",
+            }
+        },
+        events=[
+            AgentTraceEvent(
+                kind="tool_result",
+                tool_name="get_fred_series",
+                payload={
+                    "tool_error": True,
+                    "error": {"type": "ConnectionError", "message": "temporary outage"},
+                },
+            )
+        ],
+    )
+
+    outcomes = _structured_operation_outcomes(result)
+
+    assert outcomes[1] == {
+        "operation": "tool:get_fred_series",
+        "requiredness": "optional",
+        "retryability": "unknown",
+        "fallback_used": True,
+        "decision_completed": True,
+        "broker_state_certainty": "not_observed",
+        "impact": "optional_component_failed",
+        "error_category": "ConnectionError",
     }
 
 

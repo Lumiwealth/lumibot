@@ -60,7 +60,8 @@ same agent run:
 
 - ``account_portfolio`` for cash and portfolio value
 - ``account_positions`` for current holdings
-- ``market_last_price`` for the ordered symbol
+- ``market_last_price`` for the ordered symbol, or ``market_last_prices``
+  including that symbol
 
 If those checks are missing, the order tool returns an
 ``ORDER_READINESS_REQUIRED`` error to the agent instead of submitting the order.
@@ -69,10 +70,15 @@ broker/country/asset-class leverage rule across stocks, ETFs, options, futures,
 forex, and crypto. The readiness gate only prevents blind trading; sizing
 judgment remains with the strategy and agent.
 
-Market-price tools accept one tradable symbol per call. Do not pass a
-comma-separated universe to ``market_last_price`` or
-``market_load_history_table``; call the tool once per symbol or load each
-symbol into DuckDB separately before querying.
+Market-price tools:
+
+- ``market_last_price`` accepts one tradable symbol per call.
+- ``market_last_prices`` accepts a JSON-friendly symbol list (``symbols`` or
+  ``symbols_json``, cap 150) and returns last prices at the current runtime
+  datetime plus available/missing symbol lists. Prefer this when scanning a
+  provided universe.
+- ``market_load_history_table`` still loads one symbol per call; load finalists
+  after the batch scan.
 
 Market And Account State
 ------------------------
@@ -98,18 +104,32 @@ LumiBot exposes generic options capabilities to every agent:
 - ``options_get_strikes``
 - ``options_get_greeks``
 - ``options_find_strike_for_delta``
+- ``options_find_expiration``
 - ``options_evaluate_market``
 - ``options_calculate_multileg_price``
+- ``options_check_spread_profit``
 
 The tools retrieve data through the configured LumiBot broker or backtest data
 source. They do not select a named options strategy or choose its legs. The
 agent must select an available expiration, exact listed strikes, quantities,
 and actions from the returned evidence.
 
+``options_find_expiration`` finds a listed expiration on or after a target date
+using ``min_days`` and/or ``target_date``. ``options_check_spread_profit``
+estimates multi-leg P&L percentage from exact legs and the opening cash cost.
+
 ``orders_submit_multileg`` submits two or more exact option legs as one atomic
 multi-leg order. Opening actions are ``buy_to_open`` and ``sell_to_open``.
 Closing actions are ``buy_to_close`` and ``sell_to_close``. Signed net prices
 are positive for debits and negative for credits.
+
+If the active broker does not support atomic package submission, LumiBot
+rejects the request before submitting any child leg. A multi-leg request never
+falls back to independent orders.
+
+After submission, agents can call ``orders_get_status`` or
+``orders_wait_for_terminal`` to verify identifiers. Never treat a submitted
+status as a fill unless ``is_filled`` is true.
 
 ``account_positions`` includes the exact contract, signed quantity, average
 fill, current value, and P&L fields when the active broker or backtest provides

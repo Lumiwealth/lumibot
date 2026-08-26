@@ -107,6 +107,38 @@ def _tool_function_name(value: str) -> str:
     return normalized
 
 
+def _tool_name_space_aliases(canonical_name: str) -> list[str]:
+    """Common LLM typos: a space after an underscore in the tool name.
+
+    Example: options_find_expiration -> options_find_ expiration
+    """
+    parts = [part for part in str(canonical_name or "").split("_") if part != ""]
+    if len(parts) < 2:
+        return []
+    aliases: list[str] = []
+    for index in range(1, len(parts)):
+        alias = "_".join(parts[:index]) + "_ " + "_".join(parts[index:])
+        if alias and alias != canonical_name and alias not in aliases:
+            aliases.append(alias)
+    return aliases
+
+
+def _clone_tool_callable(wrapper: Any, name: str) -> Any:
+    def alias(*args, **kwargs):
+        return wrapper(*args, **kwargs)
+
+    alias.__name__ = name
+    alias.__qualname__ = name
+    alias.__doc__ = getattr(wrapper, "__doc__", None)
+    signature = getattr(wrapper, "__signature__", None)
+    if signature is not None:
+        alias.__signature__ = signature
+    annotations = getattr(wrapper, "__annotations__", None)
+    if isinstance(annotations, dict):
+        alias.__annotations__ = dict(annotations)
+    return alias
+
+
 def _wrap_tool_callable(tool: BoundTool, tool_context: dict[str, Any] | None = None):
     original = tool.function
 
@@ -140,6 +172,48 @@ def _wrap_tool_callable(tool: BoundTool, tool_context: dict[str, Any] | None = N
     if isinstance(annotations, dict):
         wrapper.__annotations__ = dict(annotations)
     return wrapper
+
+
+def _is_provider_safe_function_name(name: str) -> bool:
+    """Gemini function_declarations reject spaces and most punctuation."""
+    text = str(name or "")
+    if not text or len(text) > 128:
+        return False
+    if not re.match(r"^[A-Za-z_][A-Za-z0-9_.:-]*$", text):
+        return False
+    return True
+
+
+def _normalize_tool_name_typo(name: str) -> str:
+    """Collapse common LLM typos such as a space after an underscore."""
+    text = str(name or "").strip()
+    if not text:
+        return text
+    # options_find_ expiration -> options_find_expiration
+    collapsed = re.sub(r"_ +", "_", text)
+    collapsed = re.sub(r" +_", "_", collapsed)
+    collapsed = re.sub(r"\s+", "", collapsed)
+    return collapsed
+
+
+def _function_tools_with_name_aliases(function_tool_type: Any, bound_tools: Sequence[BoundTool], tool_context: dict[str, Any] | None = None) -> list[Any]:
+    """Register only provider-safe canonical tool names.
+
+    Space-after-underscore typos are tolerated by normalizing inbound tool names
+    (see ``_normalize_tool_name_typo``). They must not be registered as Gemini
+    ``function_declarations`` because names with spaces are rejected with 400
+    INVALID_ARGUMENT and abort the entire agent run.
+    """
+    tools: list[Any] = []
+    seen_names: set[str] = set()
+    for bound in bound_tools:
+        wrapper = _wrap_tool_callable(bound, tool_context)
+        canonical = wrapper.__name__
+        if canonical in seen_names or not _is_provider_safe_function_name(canonical):
+            continue
+        tools.append(function_tool_type(wrapper))
+        seen_names.add(canonical)
+    return tools
 
 
 def _json_safe_value(value: Any) -> Any:
@@ -375,10 +449,13 @@ class RuntimeRequest:
     memory_state: dict[str, Any] | None
     memory_notes: list[dict[str, Any]]
     bound_tools: list[BoundTool]
+    include_builtin_skills: bool = True
+    builtin_skill_fingerprint: str | None = None
     model_call_id: str | None = None
     provider_prompt_cache_key: str | None = None
     model_request_timeout_seconds: float | None = None
     run_timeout_seconds: float | None = None
+    max_output_tokens: int | None = None
 
 
 _LITELLM_CONFIGURED = False
@@ -625,6 +702,7 @@ def _provider_prompt_cache_key(request: RuntimeRequest) -> str:
         "agent": request.agent_name,
         "model": request.model,
         "system_prompt": request.system_prompt,
+        "builtin_skill_fingerprint": request.builtin_skill_fingerprint,
         "tools": [
             {
                 "name": tool.name,
@@ -938,6 +1016,10 @@ def _resolve_model_for_adk(
     if not isinstance(model, str):
         return model
     lower = model.strip().lower()
+    from lumibot.components.agents.managed_gateway import managed_gateway_available_for, managed_gateway_model
+
+    if managed_gateway_available_for(model):
+        return managed_gateway_model(model)
     if _is_native_gemini_model(model):
         return model
     if lower.startswith("xai/"):
@@ -1074,7 +1156,6 @@ class GoogleADKRuntime:
             pruning = _prune_request_contents_for_context_window(
                 contents,
                 context_limit_tokens=context_limit,
-                always_prune_older_tool_results=True,
             )
             if pruning:
                 logging.getLogger(__name__).warning(
@@ -1105,6 +1186,8 @@ class GoogleADKRuntime:
             if tool_response is None and len(args) >= 4:
                 tool_response = args[3]
             tool_name = str(getattr(tool, "name", None) or "")
+            if tool_name in {"list_skills", "load_skill", "load_skill_resource"}:
+                return None
             pruned = _prune_tool_response_for_context_window(tool_response, tool_name=tool_name)
             if pruned is not None:
                 logging.getLogger(__name__).warning(
@@ -1201,13 +1284,25 @@ class GoogleADKRuntime:
         LlmAgentType, InMemoryRunnerType, genai_types, function_tool_type = self._ensure_adk()
         run_config_module = importlib.import_module("google.adk.agents.run_config")
         tool_name_map = {_tool_function_name(tool.name): tool.name for tool in request.bound_tools}
+        for canonical, original in list(tool_name_map.items()):
+            for alias in _tool_name_space_aliases(canonical):
+                tool_name_map.setdefault(alias, original)
+                tool_name_map.setdefault(_normalize_tool_name_typo(alias), original)
         active_tool_context = {
             "agent_name": request.agent_name,
             "model_call_id": request.model_call_id,
             "enforce_order_readiness": True,
             "tool_calls": [],
         }
-        tools = [function_tool_type(_wrap_tool_callable(tool, active_tool_context)) for tool in request.bound_tools]
+        tools = _function_tools_with_name_aliases(
+            function_tool_type,
+            request.bound_tools,
+            active_tool_context,
+        )
+        if request.include_builtin_skills:
+            from .skills import build_builtin_skill_toolset
+
+            tools.append(build_builtin_skill_toolset())
         config_kwargs = self._generate_content_config_kwargs_for_request(request, genai_types)
         model_request_timeout_seconds = self._model_request_timeout_seconds_for_request(request)
         run_timeout_seconds = self._run_timeout_seconds_for_request(request)
@@ -1278,7 +1373,10 @@ class GoogleADKRuntime:
             events.extend(normalized_events)
         for event in events:
             if event.tool_name:
-                event.tool_name = tool_name_map.get(event.tool_name, event.tool_name)
+                mapped = tool_name_map.get(event.tool_name)
+                if mapped is None:
+                    mapped = tool_name_map.get(_normalize_tool_name_typo(event.tool_name), event.tool_name)
+                event.tool_name = mapped
         summary = None
         text_chunks = [event.text for event in events if event.kind == "text" and event.text]
         if text_chunks:
@@ -1342,7 +1440,7 @@ class GoogleADKRuntime:
     @staticmethod
     def _generate_content_config_kwargs_for_request(request: RuntimeRequest, genai_types: Any) -> dict[str, Any]:
         config_kwargs: dict[str, Any] = {
-            "max_output_tokens": 65535,
+            "max_output_tokens": request.max_output_tokens or 65535,
         }
         request_timeout_seconds = GoogleADKRuntime._model_request_timeout_seconds_for_request(request)
         if _is_native_gemini_model(request.model) and request_timeout_seconds is not None:

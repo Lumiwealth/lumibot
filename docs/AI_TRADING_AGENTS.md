@@ -2,7 +2,7 @@
 
 > LumiBot backtests AI trading agents with real external tools, replay caching, and the same code for backtest and live.
 
-**Last Updated:** 2026-03-30
+**Last Updated:** 2026-08-11
 **Status:** Active
 **Audience:** Both
 
@@ -149,7 +149,7 @@ Any MCP server with a URL that speaks the Model Context Protocol over HTTP works
 
 ---
 
-## Built-in Tools
+## Built-in Tools and Runtime Skills
 
 All built-in tools are included by default -- even when you add custom tools via `@agent_tool` or MCP servers. No need to list them.
 
@@ -159,11 +159,66 @@ All built-in tools are included by default -- even when you add custom tools via
 - **Orders:** `orders.submit`, `orders.cancel`, `orders.modify`, `orders.open_orders`
 - **Docs:** `docs.search`
 
+LumiBot also includes model-loadable runtime skills. They are not strategy
+templates and do not contain strategy-specific entry rules:
+
+- **`options-trading`:** chain discovery, exact-contract verification, Greeks,
+  quote quality, signed package pricing, atomic multi-leg submission, signed
+  position reconstruction, and safe closing mechanics.
+- **`stock-trading`:** current-price and history evidence, research depth,
+  sizing, order verification, VWAP mechanics, and opening-range mechanics.
+
+The runtime exposes ADK's `SkillToolset` to every new agent by default. The model
+can list and load a skill whenever its own reasoning makes an asset class
+relevant. A broad mandate therefore does not require LumiBot to predict in
+advance whether the agent will choose stocks or options.
+
+## Runtime Rules
+
+Pass `rules_path` when creating an agent to supply a canonical BotSpot-style
+`rules.json` file:
+
+```python
+from pathlib import Path
+
+self.agents.create(
+    name="allocator",
+    model="gemini-3.5-flash-lite",
+    allow_trading=True,
+    system_prompt="Trade the best risk-adjusted opportunity you can prove.",
+    rules_path=Path(__file__).with_name("rules.json"),
+)
+```
+
+LumiBot reloads and validates the file before every agent call. Only active,
+non-deleted rules are injected. A malformed file fails before the model runs.
+The replay fingerprint changes when active rules change, and runtime artifacts
+record only the file name and content hash, never an absolute personal path.
+
+## Two-Agent SPX Experiment
+
+`ai_spx_zero_dte_bear_call_team.py` implements the first Rules-driven SPX
+comparison as two agents, not as an Agent-to-Python execution handoff:
+
+1. A read-only researcher gathers exact account, SPX, chain, Greek, quote, and
+   package-price evidence.
+2. A trading-enabled validator independently refreshes that evidence, checks
+   every active Rule, decides whether to trade, calls
+   `orders_submit_multileg`, and verifies the resulting order and positions.
+
+The experiment uses an SPX 0 DTE bear call spread with a short call near 0.20
+delta and a long call exactly five points higher. Both entry and exit are one
+atomic package. Missing evidence produces a no-trade decision. Unsupported
+atomic execution fails before any child leg is submitted.
+
 ---
 
 ## System Prompts
 
-LumiBot handles common instructions in its base prompt (backtesting safety, investor policy, position sizing, DuckDB guidance). Your system prompt should be 2-3 sentences about your strategy:
+LumiBot handles common instructions in its base prompt and runtime skills. Your
+system prompt should describe the strategy policy, not restate how to retrieve a
+chain, map signed option positions, submit an atomic package, check a stock price,
+or verify an order:
 
 ```python
 system_prompt=(
@@ -228,7 +283,19 @@ Most alternatives either put the LLM outside the backtest loop (QuantConnect), h
 
 **What AI models are supported?**
 
-The default model is Gemini (`gemini-3.1-flash-lite-preview`). You need a `GEMINI_API_KEY` environment variable set. The architecture supports OpenAI, Anthropic, and other providers through the underlying model router. Pass the model name via the `default_model` parameter when creating your agent.
+The architecture supports Gemini, OpenAI, Anthropic, and other providers through
+the underlying model router. The AI-only trading examples explicitly use
+`gemini-3.5-flash-lite`. Existing saved strategies keep the model string already
+stored in their code. Pass a model identifier when creating an agent.
+
+**How is agent behavior tested before release?**
+
+The PyPI release workflow gates publication on real-model evals. The initial
+catalog covers stock price evidence, completed-bar ORB behavior, single-leg
+options, atomic iron condors, signed credit-spread closes, and active rules.
+Each new or changed behavior must pass three consecutive repetitions, and fresh
+passing evidence expires after 90 days or whenever the runtime fingerprint
+changes. See `docs/AGENT_EVALS.md`.
 
 **How do I get started?**
 

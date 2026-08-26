@@ -2647,9 +2647,13 @@ class Broker(ABC):
         if hasattr(self, '_submit_orders'):
             return self._submit_orders(orders, **kwargs)
         else:
-            #if kwargs indicates multileg orders with a limit price, and broker does not support it, we should error out instead of submitting legs individually
-            if kwargs.get('is_multileg') and kwargs.get('order_type') == Order.OrderType.LIMIT:
-                raise NotImplementedError("Multileg limit orders are not supported by this broker")
+            # Atomic packages must never degrade into independent leg submissions.
+            # A partial fill would change the intended risk and can leave an orphan leg.
+            if kwargs.get('is_multileg'):
+                raise NotImplementedError(
+                    f"{self.name} does not support atomic multi-leg order submission; "
+                    "no legs were submitted"
+                )
 
             from concurrent.futures import ThreadPoolExecutor, as_completed
 

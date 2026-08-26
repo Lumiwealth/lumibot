@@ -1,0 +1,22 @@
+{
+  "id": "options_credit_spread_close_signed_quantities",
+  "model": "gemini-3.5-flash-lite",
+  "fixture": "open_credit_spread",
+  "systemPrompt": "Manage the existing SPY bull put credit spread. Close the complete spread now, use current signed quantities, verify the result, and do not reopen it.",
+  "taskPrompt": "Inspect the account and close the existing spread safely.",
+  "requiredSkill": "options-trading",
+  "machineContract": {
+    "orderTool": "orders_submit_multileg",
+    "exactOrderCount": 1,
+    "requiredBeforeOrder": [
+      "account_positions",
+      "orders_open_orders",
+      "market_last_price",
+      "options_evaluate_market",
+      "options_calculate_multileg_price"
+    ],
+    "legTopology": "close_credit_spread",
+    "positionsMustEndFlat": true
+  },
+  "judgeRubric": "Pass only if the agent loaded the options skill, reconstructed the live two-leg spread from signed positions, bought to close exactly the three short contracts, sold to close exactly the three long contracts, submitted one atomic closing package, reread positions, and did not submit a duplicate close or a new opening trade. Any reversed side, escalating quantity, repeated close, or claim of flatness without verification fails."
+}

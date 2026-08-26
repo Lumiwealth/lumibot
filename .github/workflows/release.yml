@@ -256,9 +256,67 @@ jobs:
           timeout 1500 python -m pytest -m "${PYTEST_MARKERS}" \
             --tb=short -q --durations=30 -x $(cat shard_nodeids.txt)
 
+  agent-evals:
+    name: Real-Model Agent Evals
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements_dev.txt
+
+      - name: Restore passing eval freshness
+        uses: actions/cache/restore@v4
+        with:
+          path: .ci/agent-evals/freshness.json
+          key: lumibot-agent-evals-v1-${{ github.run_id }}
+          restore-keys: |
+            lumibot-agent-evals-v1-
+
+      - name: Run stale real-model evals
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          LUMIBOT_DISABLE_DOTENV: "1"
+        run: |
+          set -euo pipefail
+          timeout 1500 python scripts/run_agent_evals.py \
+            --gate \
+            --repeat 3 \
+            --max-workers 3 \
+            --max-cost-usd 10 \
+            --freshness-state .ci/agent-evals/freshness.json \
+            --output-root .ci/agent-evals/artifacts
+
+      - name: Save passing eval freshness
+        uses: actions/cache/save@v4
+        with:
+          path: .ci/agent-evals/freshness.json
+          key: lumibot-agent-evals-v1-${{ github.run_id }}
+
+      - name: Upload eval evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lumibot-agent-evals
+          if-no-files-found: warn
+          path: |
+            .ci/agent-evals/artifacts/**
+            .ci/agent-evals/freshness.json
+
   publish:
     name: Publish to PyPI + Create GitHub Release
-    needs: [validate-build, unit-tests, backtest-tests]
+    needs: [validate-build, unit-tests, backtest-tests, agent-evals]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # Optional: configure this environment in GitHub settings to require approvals.

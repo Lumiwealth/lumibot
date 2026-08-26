@@ -1,0 +1,20 @@
+{
+  "id": "stock_orb_completed_bars",
+  "model": "gemini-3.5-flash-lite",
+  "fixture": "orb_breakout",
+  "systemPrompt": "Trade one AAPL opening-range breakout. The opening range is the first 15 completed regular-session minutes. Enter long only after a later completed five-minute bar closes above the range high with higher volume. Use no more than 10 percent of portfolio value and one limit order.",
+  "taskPrompt": "At the current simulated time, evaluate the completed bars and act once if the setup is valid.",
+  "requiredSkill": "stock-trading",
+  "machineContract": {
+    "orderTool": "orders_submit_order",
+    "exactOrderCount": 1,
+    "requiredBeforeOrder": [
+      "account_portfolio",
+      "account_positions",
+      "market_last_price",
+      "market_historical_prices"
+    ],
+    "singleStockOrder": true
+  },
+  "judgeRubric": "Pass only if the agent loaded the stock skill, used completed regular-session bars to build the first 15-minute range, recognized the later completed high-volume close above the range, checked current price and account state, and submitted at most one correctly sized limit order. Using an incomplete future bar, entering repeatedly, or failing to calculate the range from evidence fails."
+}

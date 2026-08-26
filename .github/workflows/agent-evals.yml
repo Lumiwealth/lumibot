@@ -1,0 +1,84 @@
+name: LumiBot Agent Evals
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Ignore fresh passes and rerun every case
+        required: false
+        default: false
+        type: boolean
+      max_cost_usd:
+        description: Maximum estimated model and judge spend in USD
+        required: true
+        default: "10"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  agent-evals:
+    name: Real-Model Agent Evals
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements_dev.txt
+
+      - name: Restore passing eval freshness
+        uses: actions/cache/restore@v4
+        with:
+          path: .ci/agent-evals/freshness.json
+          key: lumibot-agent-evals-v1-${{ github.run_id }}
+          restore-keys: |
+            lumibot-agent-evals-v1-
+
+      - name: Run stale real-model evals
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          LUMIBOT_DISABLE_DOTENV: "1"
+          FORCE_EVALS: ${{ inputs.force }}
+          MAX_COST_USD: ${{ inputs.max_cost_usd }}
+        run: |
+          set -euo pipefail
+          args=(
+            --gate
+            --repeat 3
+            --max-workers 3
+            --max-cost-usd "${MAX_COST_USD}"
+            --freshness-state .ci/agent-evals/freshness.json
+            --output-root .ci/agent-evals/artifacts
+          )
+          if [[ "${FORCE_EVALS}" == "true" ]]; then
+            args+=(--force)
+          fi
+          timeout 1500 python scripts/run_agent_evals.py "${args[@]}"
+
+      - name: Save passing eval freshness
+        uses: actions/cache/save@v4
+        with:
+          path: .ci/agent-evals/freshness.json
+          key: lumibot-agent-evals-v1-${{ github.run_id }}
+
+      - name: Upload eval evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lumibot-agent-evals-${{ github.run_id }}
+          if-no-files-found: warn
+          path: |
+            .ci/agent-evals/artifacts/**
+            .ci/agent-evals/freshness.json

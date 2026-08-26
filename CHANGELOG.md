@@ -1,5 +1,96 @@
 # Changelog
 
+## 4.5.84 - Unreleased
+
+### Added
+- **BotSpot managed AI access for strategy agents.** BotSpot deployments and
+  backtests can use a renewable, deployment-bound Node gateway capability for
+  Gemini, OpenAI, Anthropic, and xAI without exposing provider credentials to
+  strategy code. User-supplied provider keys remain authoritative and never
+  fall back to managed credits after an authentication failure.
+- **AI agents now load reusable runtime skills through ADK `SkillToolset`.**
+  New built-in `options-trading` and `stock-trading` skills teach generic market
+  evidence, contract, multi-leg, signed-position, intraday, sizing, and order
+  verification mechanics. Strategy examples keep their entry, exit, and risk
+  policy in concise prompts instead of repeating generic trading instructions.
+- **Canonical `rules.json` files can govern every agent call.** Agents accept a
+  `rules_path`, reload active rules before each call, reject malformed rules
+  before model spend, invalidate replay state when rules change, and persist
+  only a safe file name and content hash in runtime metadata.
+- **Real-model LumiBot evals now gate PyPI publication.** The resumable runner
+  provides fixture-backed production tool contracts, a separate LLM judge,
+  three-repeat qualification, fsynced per-case ledgers, model/token/timing/cost
+  reporting, explicit spend limits, 90-day freshness, and release-candidate
+  fingerprinting. The initial catalog covers options, stocks, ORB, and rules.
+- **AI agents gain generic order-status and option-lifecycle builtins.**
+  ``orders_get_status`` and ``orders_wait_for_terminal`` verify fills after
+  submits. ``options_find_expiration`` and ``options_check_spread_profit`` wrap
+  OptionsHelper helpers without naming a structure. ``ai_iron_condor.py`` is
+  parameterized (wing, delta, DTE, exits, risk), and new AI-only scaffolds
+  ``ai_opening_range_breakout.py``, ``ai_vwap.py``, and ``ai_credit_spread.py``
+  keep all trading policy in system prompts.
+- **``market_last_prices`` batch market tool for universe scans.** Agents can
+  request last prices for up to 150 symbols in one JSON-friendly call. Order
+  readiness accepts a successful batch that includes the ordered symbol.
+  Multi-ticker ``ai_opening_range_breakout.py`` defaults to ~100 liquid
+  names, uses ``AI_ORB_*`` env overrides, and requires ``market_last_prices``
+  plus 09:30 ET opening ranges. VWAP and credit-spread prompts prefer
+  fill-friendly market/credit limits with the same post-trade status checks.
+  VWAP default deviation is ``0.15%`` with a dip-buy / reclaim entry rule and
+  ``AI_VWAP_*`` overrides (including underlying).
+- **``market_historical_prices`` batch history tool for agents.** Wraps
+  ``Strategy.get_historical_prices_for_assets`` so agents can request OHLCV bars
+  for up to 150 symbols in one call and read ``bars_by_symbol`` instead of
+  looping ``market_load_history_table``. ORB prompts prefer this path for minute
+  opening-range history after a ``market_last_prices`` scan.
+
+### Fixed
+- **Multi-leg submissions now fail closed when a broker lacks atomic package
+  support.** Every market, limit, credit, debit, and even-price package is
+  rejected before any child leg is submitted. LumiBot no longer degrades an
+  unsupported package into independent orders that can leave orphan exposure.
+- **Short-lived read-only strategies can skip redundant startup broker syncs.**
+  ``Strategy(..., synchronize_broker_on_start=False)`` avoids automatic balance
+  and position reads when an integration will immediately refresh only its
+  requested state. Default live-strategy startup behavior remains unchanged.
+- **Broker history timesteps accept common aliases on every data source.**
+  ``canonicalize_timestep`` / ``parse_canonical_timestep`` normalize spellings
+  such as ``5Min``, ``5 min``, ``5minutes``, ``5Mins``, ``5T``, ``30S``,
+  ``2H``, and ``1Day`` before ``TIMESTEP_MAPPING`` and Alpaca reverse
+  ``TimeFrame`` lookup. This keeps the public Strategy/broker-data interface
+  provider-neutral when agents or analysis code pass pandas-style or
+  CamelCase timesteps. Covered by ``tests/test_timestep_aliases.py``.
+- **Backtesting ``Strategy.sleep(process_pending_orders=True)`` now fills pending
+  orders.** Agent ``orders_wait_for_terminal`` advanced the sim clock through
+  ``broker.sleep`` / ``safe_sleep`` without calling ``process_pending_orders``,
+  so stock market orders and credit-spread multileg children stayed ``new``
+  until end-of-backtest cancel (flat tearsheets). Sleep now processes pending
+  fills around clock advances, wait polls are bounded in backtests, and
+  multileg parents retain the submitted net limit price. Covered by
+  ``tests/backtest/test_backtesting_broker_processing.py``.
+- **Gemini agent runs no longer register space-typo tool-name aliases as
+  ``function_declarations``.** Underscore/space aliases such as
+  ``options_find_ expiration`` caused 400 INVALID_ARGUMENT and aborted every
+  AI example strategy before the first tool call. Only provider-safe canonical
+  names are registered; inbound typos are normalized on lookup. Covered by
+  ``tests/test_agent_runtime_provider_keys.py``.
+- **Schwab connections no longer silently die ~30 minutes after
+  authentication.** A background refresher now rotates the access token before
+  expiry (instead of the OAuth handshake landing inside an arbitrary broker
+  call), a missing ``SCHWAB_APP_SECRET`` is reported loudly at startup,
+  transient initialization errors no longer delete a valid token file, and
+  parent-managed (external refresh mode) token files are never deleted by the
+  child.
+- **Schwab cancel path pays for one HTTP round trip instead of two.** The
+  post-cancel diagnostic direct read is now gated behind
+  ``SCHWAB_CANCEL_DIAGNOSTICS``, and all requests through the Schwab OAuth
+  session carry a 30-second default timeout so a stalled connection cannot
+  block the trading loop indefinitely.
+- **Slow live iterations are now flagged.** When ``on_trading_iteration`` runs
+  longer than 120 seconds, the executor logs a warning explaining that
+  sleeptime cannot interrupt a running iteration and order-management deadline
+  checks only run between iterations.
+
 ## 4.5.83 - 2026-08-05
 
 Deploy marker: `deploy 4.5.83`

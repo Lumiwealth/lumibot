@@ -17,9 +17,14 @@ from lumibot.components.agents.runtime import (
     _classify_agent_error,
     _model_context_limit_tokens,
     _model_context_string_limit_chars,
+    _tool_name_space_aliases,
+    _function_tools_with_name_aliases,
+    _is_provider_safe_function_name,
+    _normalize_tool_name_typo,
     _wrap_tool_callable,
 )
 from lumibot.components.agents.schemas import BoundTool
+from lumibot.components.agents.managed_gateway import BotSpotManagedLlm, managed_gateway_available_for
 
 
 def test_grok_api_key_alias_populates_xai_api_key(monkeypatch):
@@ -48,6 +53,61 @@ def test_native_gemini_model_does_not_mutate_google_api_key(monkeypatch):
 
     assert resolved == "gemini-3.1-flash-lite-preview"
     assert "GOOGLE_API_KEY" not in os.environ
+
+
+@pytest.mark.parametrize(
+    ("model", "key_name"),
+    [
+        ("gemini-3.1-flash-lite", "GEMINI_API_KEY"),
+        ("openai/gpt-5.6-luna", "OPENAI_API_KEY"),
+        ("anthropic/claude-sonnet-5", "ANTHROPIC_API_KEY"),
+        ("xai/grok-4.5", "XAI_API_KEY"),
+    ],
+)
+def test_byok_always_wins_over_managed_gateway(monkeypatch, model, key_name):
+    for name in (
+        "GEMINI_API_KEY",
+        "GOOGLE_API_KEY",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "XAI_API_KEY",
+        "GROK_API_KEY",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv(key_name, "customer-key")
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_URL", "https://gateway.example.test")
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_TOKEN", "managed-token")
+
+    assert not managed_gateway_available_for(model)
+    result = _resolve_model_for_adk(model)
+    assert not isinstance(result, BotSpotManagedLlm)
+
+
+def test_missing_byok_uses_managed_gateway_without_exposing_token(monkeypatch):
+    for name in (
+        "GEMINI_API_KEY",
+        "GOOGLE_API_KEY",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "XAI_API_KEY",
+        "GROK_API_KEY",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_URL", "https://gateway.example.test")
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_TOKEN", "managed-token")
+
+    result = _resolve_model_for_adk("gemini-3.1-flash-lite")
+
+    assert isinstance(result, BotSpotManagedLlm)
+    assert "managed-token" not in repr(result)
+
+
+def test_invalid_byok_cannot_fall_back_to_managed_gateway(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "invalid-customer-key")
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_URL", "https://gateway.example.test")
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_TOKEN", "managed-token")
+
+    assert not managed_gateway_available_for("openai/gpt-5.6-luna")
 
 
 def test_together_api_key_alias_populates_litellm_key(monkeypatch):
@@ -117,6 +177,39 @@ def test_wrapped_tool_does_not_block_repeated_calls():
     assert wrapped()["value"] == 1
     assert wrapped()["value"] == 2
     assert calls["count"] == 2
+
+
+def test_tool_name_space_aliases_cover_common_llm_typos():
+    aliases = _tool_name_space_aliases("options_find_expiration")
+    assert "options_find_ expiration" in aliases
+    assert "options_ find_expiration" in aliases
+
+
+def test_normalize_tool_name_typo_collapses_space_after_underscore():
+    assert _normalize_tool_name_typo("options_find_ expiration") == "options_find_expiration"
+    assert _normalize_tool_name_typo("options_ find_expiration") == "options_find_expiration"
+    assert _is_provider_safe_function_name("options_find_expiration")
+    assert not _is_provider_safe_function_name("options_find_ expiration")
+
+
+def test_function_tools_register_only_provider_safe_canonical_names():
+    """Gemini rejects function_declarations names that contain spaces (400)."""
+
+    def sample_tool(symbol: str = "SPY"):
+        return {"symbol": symbol}
+
+    bound = BoundTool(name="options_find_expiration", description="find expiration", function=sample_tool)
+
+    class FakeFunctionTool:
+        def __init__(self, fn):
+            self.fn = fn
+            self.name = fn.__name__
+
+    tools = _function_tools_with_name_aliases(FakeFunctionTool, [bound], None)
+    names = {tool.name for tool in tools}
+    assert names == {"options_find_expiration"}
+    assert "options_find_ expiration" not in names
+    assert tools[0].fn(symbol="QQQ")["symbol"] == "QQQ"
 
 
 def test_wrapped_tool_coerces_uuid_payloads_before_provider_serialization():

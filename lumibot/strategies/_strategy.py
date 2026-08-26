@@ -555,6 +555,7 @@ class _Strategy:
         save_logfile=False,
         lumiwealth_api_key=None,
         include_cash_positions=False,
+        synchronize_broker_on_start=True,
         **kwargs,
     ):
         """Initializes a Strategy object.
@@ -623,6 +624,10 @@ class _Strategy:
             must be set for this to work). Defaults to None (no discord alerts).
             For instructions on how to create a discord webhook url, see this link:
             https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks
+        synchronize_broker_on_start : bool
+            If True, live strategies fetch balances and positions during construction. Keep this
+            enabled for normal trading strategies. Short-lived, read-only clients that explicitly
+            refresh only the data they request can set it to False to avoid redundant broker calls.
         discord_account_summary_footer : str
             The footer to use for the account summary sent to the discord channel if discord_webhook_url is set and the
             db_connection_str is set.
@@ -869,10 +874,11 @@ class _Strategy:
         # Setting execution parameters
         self._last_on_trading_iteration_datetime = None
         if not self.is_backtesting:
-            self.update_broker_balances()
-
-            # Set initial positions if live trading.
-            self.broker._set_initial_positions(self)
+            # Normal live strategies need complete account state before trading. One-shot,
+            # read-only clients can opt out and explicitly refresh only their requested data.
+            if synchronize_broker_on_start:
+                self.update_broker_balances()
+                self.broker._set_initial_positions(self)
         else:
             # Determine initial cash ("budget") for backtesting.
             # NOTE: In BotSpot/BotManager runs we often inject settings via environment variables.

@@ -2,10 +2,29 @@ import json
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
+import pandas as pd
+
 from lumibot.components.agents import AgentManager, BuiltinTools
+from lumibot.components.agents.builtins import _position_to_dict
 from lumibot.components.agents.runtime import _wrap_tool_callable
 from lumibot.entities import Order
 from lumibot.entities.chains import Chains
+
+
+class _FakeBars:
+    def __init__(self, closes):
+        index = pd.date_range("2026-08-01", periods=len(closes), freq="min", tz="UTC")
+        self.pandas_df = pd.DataFrame(
+            {
+                "open": closes,
+                "high": [value + 1 for value in closes],
+                "low": [value - 1 for value in closes],
+                "close": closes,
+                "volume": [1_000 + index_offset for index_offset, _ in enumerate(closes)],
+            },
+            index=index,
+        )
+        self.df = self.pandas_df
 
 
 class _OptionsStrategy:
@@ -14,6 +33,8 @@ class _OptionsStrategy:
 
     def __init__(self):
         self.submissions = []
+        self.historical_batch_calls = []
+        self.historical_single_calls = []
 
     def get_datetime(self):
         return datetime(2026, 8, 3, tzinfo=timezone.utc)
@@ -31,7 +52,43 @@ class _OptionsStrategy:
         return 100_000.0
 
     def get_last_price(self, asset, quote=None, exchange=None):
-        return 630.0
+        symbol = getattr(asset, "symbol", asset)
+        prices = {"SPY": 630.0, "QQQ": 480.0, "AAPL": 210.0}
+        return prices.get(str(symbol).upper(), 100.0)
+
+    def get_last_prices(self, assets, quote=None, exchange=None):
+        result = {}
+        for asset in assets:
+            symbol = getattr(asset, "symbol", asset)
+            result[str(symbol).upper()] = self.get_last_price(asset, quote=quote, exchange=exchange)
+        return result
+
+    def get_historical_prices_for_assets(self, assets, length, timestep="day", **kwargs):
+        self.historical_batch_calls.append(
+            {"assets": list(assets), "length": length, "timestep": timestep, "kwargs": kwargs}
+        )
+        closes = {
+            "SPY": [100.0 + index for index in range(length)],
+            "QQQ": [200.0 + index for index in range(length)],
+            "AAPL": [300.0 + index for index in range(length)],
+        }
+        result = {}
+        for asset in assets:
+            symbol = str(getattr(asset, "symbol", asset)).upper()
+            if symbol not in closes:
+                continue
+            result[symbol] = _FakeBars(closes[symbol])
+        return result
+
+    def get_historical_prices(self, asset, length, timestep="day", **kwargs):
+        self.historical_single_calls.append(
+            {"asset": asset, "length": length, "timestep": timestep, "kwargs": kwargs}
+        )
+        symbol = str(getattr(asset, "symbol", asset)).upper()
+        base = {"SPY": 100.0, "QQQ": 200.0, "AAPL": 300.0}.get(symbol)
+        if base is None:
+            return None
+        return _FakeBars([base + index for index in range(length)])
 
     def get_chains(self, asset):
         return Chains(
@@ -94,15 +151,145 @@ def test_default_agent_tools_expose_generic_option_discovery_and_multileg_execut
     names = {definition.name for definition in BuiltinTools.all()}
 
     assert {
+        "market_last_prices",
+        "market_historical_prices",
         "options_get_chain",
         "options_get_strikes",
         "options_get_greeks",
         "options_find_strike_for_delta",
+        "options_find_expiration",
         "options_evaluate_market",
         "options_calculate_multileg_price",
+        "options_check_spread_profit",
         "orders_submit_multileg",
+        "orders_get_status",
+        "orders_wait_for_terminal",
     }.issubset(names)
     assert not any("condor" in name for name in names)
+    assert len(names) == len(BuiltinTools.all())
+
+
+def test_option_position_payload_exposes_unambiguous_closing_metadata():
+    short_option = SimpleNamespace(asset_type="option", symbol="SPY")
+    long_option = SimpleNamespace(asset_type="option", symbol="SPY")
+
+    short_payload = _position_to_dict(SimpleNamespace(asset=short_option, quantity=-3))
+    long_payload = _position_to_dict(SimpleNamespace(asset=long_option, quantity=3))
+
+    assert short_payload["position_side"] == "short"
+    assert short_payload["closing_side"] == "buy_to_close"
+    assert short_payload["closing_quantity"] == 3
+    assert long_payload["position_side"] == "long"
+    assert long_payload["closing_side"] == "sell_to_close"
+    assert long_payload["closing_quantity"] == 3
+
+
+def test_market_last_prices_returns_batch_prices_and_satisfies_order_readiness():
+    strategy = _OptionsStrategy()
+    tools = _wrapped_tools(
+        strategy,
+        [
+            BuiltinTools.account.positions(),
+            BuiltinTools.account.portfolio(),
+            BuiltinTools.market.last_prices(),
+            BuiltinTools.orders.submit(),
+        ],
+    )
+
+    batch = tools["market_last_prices"](symbols_json='["SPY","QQQ","AAPL"]')
+    assert batch["count_requested"] == 3
+    assert batch["prices"]["SPY"] == 630.0
+    assert batch["prices"]["QQQ"] == 480.0
+    assert "AAPL" in batch["symbols_available"]
+
+    tools["account_portfolio"]()
+    tools["account_positions"]()
+    # Batch price tool must satisfy readiness for a symbol included in the scan.
+    submitted = tools["orders_submit_order"](
+        symbol="SPY",
+        quantity=1,
+        side="buy",
+        asset_type="stock",
+        order_type="market",
+    )
+    order_payload = submitted["order"]
+    assert order_payload.get("symbol") == "SPY" or order_payload.get("asset", {}).get("symbol") == "SPY"
+
+
+def test_market_historical_prices_uses_batch_strategy_api_once():
+    strategy = _OptionsStrategy()
+    tools = _wrapped_tools(strategy, [BuiltinTools.market.historical_prices()])
+
+    batch = tools["market_historical_prices"](
+        symbols_json='["SPY","QQQ","AAPL"]',
+        length=3,
+        timestep="minute",
+    )
+
+    assert len(strategy.historical_batch_calls) == 1
+    assert strategy.historical_single_calls == []
+    assert batch["count_requested"] == 3
+    assert batch["count_available"] == 3
+    assert batch["timestep"] == "minute"
+    assert [row["close"] for row in batch["bars_by_symbol"]["SPY"]] == [100.0, 101.0, 102.0]
+    assert [row["close"] for row in batch["bars_by_symbol"]["QQQ"]] == [200.0, 201.0, 202.0]
+    assert batch["bars_by_symbol"]["AAPL"][0]["datetime"]
+    assert batch["symbols_missing"] == []
+
+
+def test_market_historical_prices_preserves_string_order_and_caps_parallelism():
+    strategy = _OptionsStrategy()
+    tools = _wrapped_tools(strategy, [BuiltinTools.market.historical_prices()])
+
+    batch = tools["market_historical_prices"](
+        symbols="QQQ,SPY,AAPL",
+        length=2,
+        chunk_size=10_000,
+        max_workers=10_000,
+    )
+
+    call = strategy.historical_batch_calls[0]
+    assert call["assets"] == ["QQQ", "SPY", "AAPL"]
+    assert call["kwargs"]["chunk_size"] == 150
+    assert call["kwargs"]["max_workers"] == 32
+    assert batch["symbols_requested"] == ["QQQ", "SPY", "AAPL"]
+
+
+def test_market_historical_prices_falls_back_per_symbol_when_batch_missing():
+    strategy = _OptionsStrategy()
+    strategy.get_historical_prices_for_assets = None
+    tools = _wrapped_tools(strategy, [BuiltinTools.market.historical_prices()])
+
+    batch = tools["market_historical_prices"](symbols=["SPY", "MSFT"], length=2, timestep="day")
+
+    assert len(strategy.historical_single_calls) == 2
+    assert batch["bars_by_symbol"]["SPY"][1]["close"] == 101.0
+    assert batch["bars_by_symbol"]["MSFT"] == []
+    assert "MSFT" in batch["symbols_missing"]
+
+
+def test_orb_prompt_keeps_strategy_policy_without_repeating_tool_instructions():
+    from lumibot.example_strategies.ai_opening_range_breakout import (
+        build_orb_system_prompt,
+        _parse_universe,
+        _DEFAULT_ORB_UNIVERSE,
+    )
+
+    universe = _parse_universe(_DEFAULT_ORB_UNIVERSE)
+    assert len(universe) >= 90
+    prompt = build_orb_system_prompt(
+        {
+            "universe": universe,
+            "opening_range_minutes": 15,
+            "max_positions": 1,
+        }
+    )
+    assert "Scan the full provided universe" in prompt
+    assert "market_last_prices" not in prompt
+    assert "market_historical_prices" not in prompt
+    assert "09:30" in prompt
+    assert str(len(universe)) in prompt
+    assert "SPY" in prompt and "AAPL" in prompt
 
 
 def test_option_chain_and_contract_tools_return_exact_listed_contract_data():
@@ -191,10 +378,110 @@ def test_generic_option_tool_schemas_are_gemini_function_declaration_compatible(
         BuiltinTools.options.get_strikes(),
         BuiltinTools.options.get_greeks(),
         BuiltinTools.options.find_strike_for_delta(),
+        BuiltinTools.options.find_expiration(),
         BuiltinTools.options.evaluate_market(),
         BuiltinTools.options.calculate_multileg_price(),
+        BuiltinTools.options.check_spread_profit(),
         BuiltinTools.orders.submit_multileg(),
+        BuiltinTools.orders.get_status(),
+        BuiltinTools.orders.wait_for_terminal(),
     ]:
         bound = definition.binder(strategy, manager)
         declaration = FunctionTool(_wrap_tool_callable(bound))._get_declaration().model_dump(exclude_none=True)
         assert "additional_properties" not in str(declaration)
+
+
+def test_options_find_expiration_uses_min_days_target():
+    strategy = _OptionsStrategy()
+    tool = BuiltinTools.options.find_expiration().binder(strategy, AgentManager(strategy))
+
+    result = tool.function(symbol="SPY", min_days=30, right="put")
+
+    assert result["available"] is True
+    assert result["expiration"] == "2026-09-18"
+    assert result["requested_target_date"] == "2026-09-02"
+    assert result["days_to_expiration"] == 46
+
+
+def test_options_check_spread_profit_returns_percentage_for_credit_spread():
+    strategy = _OptionsStrategy()
+    tool = BuiltinTools.options.check_spread_profit().binder(strategy, AgentManager(strategy))
+    legs = [
+        {"symbol": "SPY", "expiration": "2026-09-18", "strike": 615, "right": "put", "quantity": 1, "side": "sell_to_open"},
+        {"symbol": "SPY", "expiration": "2026-09-18", "strike": 610, "right": "put", "quantity": 1, "side": "buy_to_open"},
+    ]
+
+    result = tool.function(legs_json=json.dumps(legs), initial_cost=-100.0)
+
+    assert result["available"] is True
+    assert result["profit_pct"] is not None
+
+
+def test_orders_get_status_reports_missing_and_known_identifiers():
+    from lumibot.entities import Asset
+
+    filled = Order(
+        strategy="agent-options-test",
+        asset=Asset("SPY"),
+        quantity=1,
+        side="buy",
+    )
+    filled.identifier = "bt_filled"
+    filled.status = "filled"
+
+    class _OrderAwareStrategy(_OptionsStrategy):
+        def get_order(self, identifier, broker_refresh=True, broker_refresh_ttl_seconds=0.0):
+            if identifier == "bt_filled":
+                return filled
+            return None
+
+        def sleep(self, sleeptime, process_pending_orders=True):
+            return None
+
+    strategy = _OrderAwareStrategy()
+    tools = _wrapped_tools(
+        strategy,
+        [
+            BuiltinTools.orders.get_status(),
+            BuiltinTools.orders.wait_for_terminal(),
+        ],
+    )
+
+    status = tools["orders_get_status"](identifiers_json='["bt_filled","bt_missing"]')
+    assert status["orders"][0]["is_filled"] is True
+    assert status["orders"][0]["is_terminal"] is True
+    assert status["orders"][1]["available"] is False
+    assert status["missing_identifiers"] == ["bt_missing"]
+
+    waited = tools["orders_wait_for_terminal"](identifier="bt_filled", timeout_seconds=1, poll_interval_seconds=0.25)
+    assert waited["all_filled"] is True
+    assert waited["timed_out"] is False
+    assert waited["polls"] >= 1
+
+
+def test_iron_condor_prompt_includes_parameterized_wing_and_delta():
+    from lumibot.example_strategies.ai_iron_condor import build_iron_condor_system_prompt
+
+    prompt = build_iron_condor_system_prompt(
+        {
+            "underlying": "QQQ",
+            "wing_width": 7.0,
+            "target_delta": 0.18,
+            "delta_band": 0.03,
+            "min_dte": 28,
+            "max_dte": 40,
+            "preferred_dte": 33,
+            "profit_take_fraction": 0.4,
+            "loss_multiple": 1.8,
+            "time_stop_dte": 18,
+            "max_risk_pct": 0.015,
+            "max_contracts": 4,
+        }
+    )
+
+    assert "QQQ iron-condor" in prompt
+    assert "7.0 points" in prompt
+    assert "-0.18 delta" in prompt
+    assert "0.03 of the target" in prompt
+    assert "orders_get_status" not in prompt
+    assert "options_find_expiration" not in prompt

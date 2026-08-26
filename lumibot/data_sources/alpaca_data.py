@@ -36,38 +36,12 @@ def _date_n_trading_days_from_date(*args, **kwargs):
 
 
 def _parse_alpaca_timestep_value(timestep):
-    amount = getattr(timestep, "amount", None)
-    unit = getattr(getattr(timestep, "unit", None), "value", None)
+    from lumibot.tools.helpers import canonicalize_timestep
 
-    if amount is not None and unit is not None:
-        unit = str(unit).lower()
-        if unit == "min":
-            return "minute" if amount == 1 else f"{amount} minutes"
-        if unit == "hour":
-            return "hour" if amount == 1 else f"{amount} hours"
-        if unit == "day":
-            return "day"
-
-    if isinstance(timestep, str):
-        normalized = timestep.strip().lower().replace(" ", "")
-        if normalized in {"minute", "1minute", "min", "1min", "1m"}:
-            return "minute"
-        if normalized in {"hour", "1hour", "1h"}:
-            return "hour"
-        if normalized in {"day", "1day", "1d"}:
-            return "day"
-        for suffix in ("minutes", "minute", "mins", "min", "m"):
-            if normalized.endswith(suffix):
-                value = normalized.removesuffix(suffix)
-                if value.isdigit() and int(value) > 1:
-                    return f"{int(value)} minutes"
-        for suffix in ("hours", "hour", "h"):
-            if normalized.endswith(suffix):
-                value = normalized.removesuffix(suffix)
-                if value.isdigit() and int(value) > 1:
-                    return f"{int(value)} hours"
-
-    return None
+    # Shared alias normalizer covers 5Min/5T/1Day/etc. Keep this thin wrapper
+    # so Alpaca forward and reverse paths stay on the same contract as every
+    # other broker data source.
+    return canonicalize_timestep(timestep)
 
 
 class AlpacaData(DataSource):
@@ -80,19 +54,19 @@ class AlpacaData(DataSource):
         },
         {
             "timestep": "5 minutes",
-            "representations": ["5 minutes", "5min", "5m"],
+            "representations": ["5 minutes", "5min", "5m", "5t", "5Min", "5T"],
         },
         {
             "timestep": "10 minutes",
-            "representations": ["10 minutes", "10min", "10m"],
+            "representations": ["10 minutes", "10min", "10m", "10t"],
         },
         {
             "timestep": "15 minutes",
-            "representations": ["15 minutes", "15min", "15m"],
+            "representations": ["15 minutes", "15min", "15m", "15t", "15Min"],
         },
         {
             "timestep": "30 minutes",
-            "representations": ["30 minutes", "30min", "30m"],
+            "representations": ["30 minutes", "30min", "30m", "30t"],
         },
         {
             "timestep": "hour",
@@ -133,8 +107,10 @@ class AlpacaData(DataSource):
         return pd.Timestamp(dt).isoformat()
 
     def _parse_source_timestep(self, timestep, reverse=False):
+        parsed = _parse_alpaca_timestep_value(timestep)
+        lookup_key = parsed if parsed is not None else timestep
+
         if not reverse:
-            parsed = _parse_alpaca_timestep_value(timestep)
             if parsed is not None:
                 return parsed
             return super()._parse_source_timestep(timestep, reverse=False)
@@ -153,10 +129,37 @@ class AlpacaData(DataSource):
             "4 hours": TimeFrame(4, TimeFrameUnit.Hour),
             "day": TimeFrame.Day,
         }
-        try:
+        # Dynamically accept any canonical "N minutes/hours/seconds/days" form.
+        if isinstance(lookup_key, str) and lookup_key not in mapping:
+            from lumibot.tools.helpers import parse_canonical_timestep
+
+            quantity_unit = parse_canonical_timestep(lookup_key)
+            if quantity_unit is not None:
+                quantity, unit = quantity_unit
+                if unit == "second" and hasattr(TimeFrameUnit, "Second"):
+                    mapping[lookup_key] = TimeFrame(quantity, TimeFrameUnit.Second)
+                elif unit == "minute":
+                    mapping[lookup_key] = (
+                        TimeFrame.Minute
+                        if quantity == 1
+                        else TimeFrame(quantity, TimeFrameUnit.Minute)
+                    )
+                elif unit == "hour":
+                    mapping[lookup_key] = (
+                        TimeFrame.Hour
+                        if quantity == 1
+                        else TimeFrame(quantity, TimeFrameUnit.Hour)
+                    )
+                elif unit == "day":
+                    if quantity == 1:
+                        mapping[lookup_key] = TimeFrame.Day
+
+        mapped = mapping.get(lookup_key)
+        if mapped is not None:
+            return mapped
+        if timestep in mapping:
             return mapping[timestep]
-        except KeyError:
-            return super()._parse_source_timestep(timestep, reverse=True)
+        return super()._parse_source_timestep(lookup_key, reverse=True)
 
     def _handle_auth_error(self, e, operation="data request"):
         """

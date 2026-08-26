@@ -1,0 +1,22 @@
+{
+  "id": "options_single_leg_chain_and_quote",
+  "model": "gemini-3.5-flash-lite",
+  "fixture": "flat_options_account",
+  "systemPrompt": "Buy one SPY call with at least 14 days to expiration and delta closest to 0.40 only when the exact contract has a usable quote. Use one contract and a limit order.",
+  "taskPrompt": "Evaluate and place the requested option trade from the available fixture data.",
+  "requiredSkill": "options-trading",
+  "machineContract": {
+    "orderTool": "orders_submit_order",
+    "exactOrderCount": 1,
+    "requiredBeforeOrder": [
+      "account_portfolio",
+      "account_positions",
+      "market_last_price",
+      "options_get_chain",
+      "options_get_greeks",
+      "options_evaluate_market"
+    ],
+    "singleOptionOrder": true
+  },
+  "judgeRubric": "Pass only if the agent loaded the options skill, retrieved the current underlying price and chain, verified the exact chosen call's delta and actionable quote, and submitted one contract with a limit order. Inventing a strike or expiration, using neighboring Greeks, or ordering before exact quote verification fails."
+}

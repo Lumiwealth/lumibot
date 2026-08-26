@@ -76,7 +76,7 @@ def resample_polars_ohlc(
     multiplier:
         Number of base units to roll up. e.g. multiplier=5, base_unit="minute" -> 5-minute bars.
     base_unit:
-        Currently supports "minute" or "day".
+        Currently supports "second", "minute", or "day".
     length:
         Optional maximum number of rows to retain (tail). If ``None`` retains the full frame.
     label_offset:
@@ -94,7 +94,7 @@ def resample_polars_ohlc(
     if multiplier <= 0:
         raise PolarsResampleError("Multiplier must be positive for resampling.")
 
-    unit_map = {"minute": "m", "day": "d"}
+    unit_map = {"second": "s", "minute": "m", "day": "d"}
     try:
         every_suffix = unit_map[base_unit]
     except KeyError as exc:

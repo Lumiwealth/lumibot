@@ -1,0 +1,4 @@
+interface:
+  display_name: "Options Trading"
+  short_description: "Research and execute option trades safely"
+  default_prompt: "Use $options-trading before researching, constructing, placing, or managing an option trade."

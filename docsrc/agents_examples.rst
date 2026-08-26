@@ -17,6 +17,10 @@ when you set ``IS_BACKTESTING = True`` in the flat runner.
    agents_example_bill_ackman_concentrated
    agents_example_citadel_sector_pods
    agents_example_ai_iron_condor
+   agents_example_ai_opening_range_breakout
+   agents_example_ai_vwap
+   agents_example_ai_credit_spread
+   agents_example_ai_spx_zero_dte_bear_call_team
 
 These examples are inspired by public investing styles and firms. They are not
 affiliated with or endorsed by the investors, firms, or companies named.
@@ -25,10 +29,26 @@ Examples
 --------
 
 ``ai_iron_condor.py``
-   A single-agent, AI-only SPY options example. Python creates and runs the
-   agent. The system prompt makes the agent retrieve the chain, select and
-   evaluate four contracts, size and submit the atomic multi-leg order, and
-   manage the position on later iterations.
+   A single-agent, AI-only options example with parameterized wing width, delta
+   targets, DTE window, profit/loss exits, and risk caps. Python creates and
+   runs the agent. The system prompt makes the agent retrieve the chain, select
+   and evaluate four contracts, size and submit the atomic multi-leg order,
+   verify fills with ``orders_get_status``, and manage the position later.
+
+``ai_opening_range_breakout.py``
+   AI-only opening-range breakout scaffold. Prefer minute bars when available.
+
+``ai_vwap.py``
+   AI-only VWAP reclaim / mean-reversion scaffold using indicator and history tools.
+
+``ai_credit_spread.py``
+   AI-only vertical credit-spread scaffold using the same generic option tools.
+
+``ai_spx_zero_dte_bear_call_team.py``
+   A two-agent SPX experiment. A read-only researcher gathers exact option
+   evidence, then a trading-enabled validator refreshes the evidence, decides,
+   submits one atomic five-point bear call spread package, and verifies the
+   resulting order and positions.
 
 ``ai_trading_team_citadel_sector_pods.py``
    Inspired by the pod-style structure associated with Ken Griffin's Citadel:

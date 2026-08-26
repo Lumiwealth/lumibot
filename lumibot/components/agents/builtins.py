@@ -190,13 +190,54 @@ def _has_successful_tool_call(tool_name: str) -> bool:
     )
 
 
+def _symbols_from_tool_argument(value: Any) -> set[str]:
+    """Normalize symbol arguments from single-symbol or batch price tools."""
+    symbols: set[str] = set()
+    if value is None:
+        return symbols
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return symbols
+        if text.startswith("["):
+            try:
+                parsed = json.loads(text)
+            except json.JSONDecodeError:
+                parsed = None
+            if isinstance(parsed, list):
+                for item in parsed:
+                    symbol = str(item or "").strip().upper()
+                    if symbol:
+                        symbols.add(symbol)
+                return symbols
+        for part in text.split(","):
+            symbol = part.strip().upper()
+            if symbol:
+                symbols.add(symbol)
+        return symbols
+    if isinstance(value, (list, tuple, set)):
+        for item in value:
+            symbol = str(item or "").strip().upper()
+            if symbol:
+                symbols.add(symbol)
+    return symbols
+
+
 def _has_successful_market_last_price_for_symbol(symbol: str) -> bool:
     normalized_symbol = str(symbol or "").strip().upper()
     for call in _agent_tool_calls_for_current_run():
-        if call.get("tool_name") != "market_last_price" or not _tool_call_was_successful(call):
+        tool_name = call.get("tool_name")
+        if tool_name not in {"market_last_price", "market_last_prices"} or not _tool_call_was_successful(call):
             continue
         arguments = call.get("arguments") if isinstance(call.get("arguments"), dict) else {}
-        if str(arguments.get("symbol") or "").strip().upper() == normalized_symbol:
+        if tool_name == "market_last_price":
+            if str(arguments.get("symbol") or "").strip().upper() == normalized_symbol:
+                return True
+            continue
+        # Batch tool: accept either symbols list or symbols_json.
+        batch_symbols = _symbols_from_tool_argument(arguments.get("symbols"))
+        batch_symbols |= _symbols_from_tool_argument(arguments.get("symbols_json"))
+        if normalized_symbol in batch_symbols:
             return True
     return False
 
@@ -211,13 +252,145 @@ def _require_agent_order_readiness(symbol: str) -> None:
     if not _has_successful_tool_call("account_positions"):
         missing.append("account_positions")
     if not _has_successful_market_last_price_for_symbol(symbol):
-        missing.append(f"market_last_price(symbol={symbol!r})")
+        missing.append(
+            f"market_last_price(symbol={symbol!r}) or market_last_prices including {symbol!r}"
+        )
     if missing:
         raise ValueError(
             "ORDER_READINESS_REQUIRED: Before submitting an order, call "
             f"{', '.join(missing)} in this same agent run. "
             "Agents must inspect cash, portfolio value, positions, and the latest price for the ordered asset before trading."
         )
+
+
+def _parse_symbol_list(
+    *,
+    symbols: list[str] | tuple[str, ...] | str | None = None,
+    symbols_json: str | None = None,
+    max_symbols: int = 150,
+) -> list[str]:
+    """Parse a JSON-friendly symbol universe for batch market tools."""
+    values: list[str] = []
+    if symbols is not None:
+        if isinstance(symbols, str):
+            text = symbols.strip()
+            parsed_symbols: Any = None
+            if text.startswith("["):
+                try:
+                    parsed_symbols = json.loads(text)
+                except json.JSONDecodeError:
+                    parsed_symbols = None
+            if isinstance(parsed_symbols, list):
+                values.extend(str(item or "").strip().upper() for item in parsed_symbols)
+            else:
+                values.extend(part.strip().upper() for part in text.split(","))
+        elif isinstance(symbols, (list, tuple)):
+            for index, item in enumerate(symbols):
+                try:
+                    values.append(_require_non_empty_text("symbol", item).upper())
+                except ValueError as exc:
+                    raise ValueError(f"Invalid symbol at index {index}: {exc}") from exc
+        else:
+            raise ValueError("symbols must be a list of symbols or a comma-separated string.")
+    if symbols_json is not None and str(symbols_json).strip():
+        raw = _require_non_empty_text("symbols_json", symbols_json)
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"symbols_json must be valid JSON: {exc}") from exc
+        if isinstance(parsed, str):
+            parsed = [parsed]
+        if not isinstance(parsed, list) or not parsed:
+            raise ValueError("symbols_json must decode to a non-empty list of symbols.")
+        for index, item in enumerate(parsed):
+            try:
+                values.append(_require_non_empty_text("symbol", item).upper())
+            except ValueError as exc:
+                raise ValueError(f"Invalid symbol at index {index}: {exc}") from exc
+    unique: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        symbol = str(value or "").strip().upper()
+        if not symbol or symbol in seen:
+            continue
+        seen.add(symbol)
+        unique.append(symbol)
+    if not unique:
+        raise ValueError("Provide symbols and/or symbols_json with at least one symbol.")
+    if len(unique) > max_symbols:
+        raise ValueError(f"At most {max_symbols} symbols are allowed per batch market call.")
+    return unique
+
+
+_HISTORY_BAR_COLUMNS = (
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "dividend",
+    "stock_splits",
+    "bid",
+    "ask",
+    "dividend_yield",
+)
+
+
+def _bars_to_records(bars: Any) -> list[dict[str, Any]]:
+    """Serialize a Bars object (or bars-like frame) into JSON-friendly OHLCV rows."""
+    if bars is None:
+        return []
+    frame = getattr(bars, "pandas_df", None)
+    if frame is None:
+        frame = getattr(bars, "df", None)
+    if frame is None:
+        return []
+    try:
+        working = frame.copy()
+    except Exception:
+        return []
+    if getattr(working, "empty", False):
+        return []
+    try:
+        if getattr(working.index, "name", None) is not None or str(getattr(working.index, "dtype", "")).startswith(
+            "datetime"
+        ):
+            working = working.reset_index()
+    except Exception:
+        pass
+    datetime_col = None
+    for candidate in ("datetime", "date", "timestamp", "time", "index"):
+        if candidate in working.columns:
+            datetime_col = candidate
+            break
+    records: list[dict[str, Any]] = []
+    for row in working.to_dict(orient="records"):
+        record: dict[str, Any] = {}
+        if datetime_col is not None:
+            record["datetime"] = _jsonable(row.get(datetime_col))
+        for column in _HISTORY_BAR_COLUMNS:
+            if column not in row:
+                continue
+            value = row.get(column)
+            try:
+                if value is None:
+                    record[column] = None
+                else:
+                    number = float(value)
+                    record[column] = number if math.isfinite(number) else None
+            except Exception:
+                record[column] = _jsonable(value)
+        records.append(record)
+    return records
+
+
+def _symbol_from_bars_key(key: Any, fallback: str | None = None) -> str:
+    symbol = getattr(key, "symbol", None)
+    if symbol is None and isinstance(key, (list, tuple)) and key:
+        symbol = getattr(key[0], "symbol", key[0])
+    if symbol is None:
+        symbol = key if isinstance(key, str) else fallback
+    return str(symbol or "").strip().upper()
 
 
 def _asset_to_dict(asset: Any) -> dict[str, Any] | str:
@@ -246,9 +419,30 @@ def _position_to_dict(position: Any) -> dict[str, Any]:
         quantity = float(quantity)
     except Exception:
         quantity = quantity
+    position_side = None
+    closing_side = None
+    closing_quantity = None
+    if isinstance(quantity, (int, float)) and math.isfinite(quantity):
+        closing_quantity = abs(quantity)
+        if quantity > 0:
+            position_side = "long"
+        elif quantity < 0:
+            position_side = "short"
+        else:
+            position_side = "flat"
+        asset_type = getattr(asset, "asset_type", None)
+        asset_type_text = str(getattr(asset_type, "value", asset_type) or "").lower()
+        if asset_type_text == "option":
+            if quantity > 0:
+                closing_side = "sell_to_close"
+            elif quantity < 0:
+                closing_side = "buy_to_close"
     return {
         "asset": asset_payload,
         "quantity": quantity,
+        "position_side": position_side,
+        "closing_side": closing_side,
+        "closing_quantity": closing_quantity,
         "avg_fill_price": _jsonable(getattr(position, "avg_fill_price", None)),
         "current_price": _jsonable(getattr(position, "current_price", None)),
         "market_value": _jsonable(getattr(position, "market_value", None)),
@@ -384,7 +578,7 @@ def _bind_positions(strategy: Any, manager: Any) -> BoundTool:
         name="account_positions",
         description=(
             "Return current positions as structured data. "
-            "Each entry includes exact asset fields, signed quantity, average fill price, current price, market value, and P&L fields when the broker or backtest provides them. "
+            "Each entry includes exact asset fields, signed quantity, position_side, closing_side and closing_quantity for options, average fill price, current price, market value, and P&L fields when the broker or backtest provides them. "
             "For options, signed quantity is authoritative: quantity > 0 is a long contract and must use sell_to_close to reduce it; quantity < 0 is a short contract and must use buy_to_close to reduce it. "
             "Use expiration, strike, right, signed quantity, and average fill price to reconstruct and manage an existing multi-leg position. Never report the option portfolio as flat while any option entry has nonzero quantity. "
             "Use this before trading to understand current exposure, whether a symbol is already held, and whether the current portfolio is concentrated. "
@@ -450,11 +644,227 @@ def _bind_last_price(strategy: Any, manager: Any) -> BoundTool:
             "Get the current last price for one asset. "
             "Arguments: symbol, asset_type, optional expiration/strike/right for derivatives, optional quote_symbol, optional exchange. "
             "Valid asset_type values: stock, option, future, cont_future, forex, crypto, index, multileg, us_equity. "
-            "The symbol argument must be one tradable symbol, not a comma-separated universe; call once per symbol when comparing multiple assets. "
+            "The symbol argument must be one tradable symbol. For scanning a universe of equities or ETFs, prefer market_last_prices. "
+            "For historical bars across many symbols, prefer market_historical_prices. "
             "Use stock for normal equities. Do not pass economic series ids such as DCOILWTICO, FEDFUNDS, or M2SL as market symbols; use macro/FRED tools for those instead. "
             "Example: market_last_price(symbol='SPY', asset_type='stock')."
         ),
         function=last_price,
+        metadata={"kind": "builtin", "replay_on_cache": True},
+    )
+
+
+def _bind_last_prices(strategy: Any, manager: Any) -> BoundTool:
+    def last_prices(
+        *,
+        symbols: list[str] | tuple[str, ...] | str | None = None,
+        symbols_json: str | None = None,
+        asset_type: AssetTypeArg = "stock",
+        quote_symbol: str | None = None,
+        exchange: str | None = None,
+    ) -> dict[str, Any]:
+        """Return last prices for many symbols at the current runtime datetime.
+
+        Prefer this over calling market_last_price once per symbol when scanning a
+        provided universe (for example opening-range breakout across ~100 tickers).
+        Missing prices are returned as null; never invent a price.
+        """
+        symbol_list = _parse_symbol_list(symbols=symbols, symbols_json=symbols_json, max_symbols=150)
+        prices: dict[str, float | None] = {}
+        missing: list[str] = []
+        # Prefer the batch broker path when available; fall back per symbol so one
+        # bad ticker does not discard the whole universe scan.
+        batch_fn = getattr(strategy, "get_last_prices", None)
+        if callable(batch_fn) and asset_type in {"stock", "us_equity", "index"}:
+            try:
+                batch_result = batch_fn(symbol_list, quote=None, exchange=exchange)
+            except Exception:
+                batch_result = None
+            if isinstance(batch_result, dict):
+                for symbol in symbol_list:
+                    raw = batch_result.get(symbol)
+                    if raw is None:
+                        # Some brokers key by Asset; try case-insensitive match.
+                        for key, value in batch_result.items():
+                            key_symbol = getattr(key, "symbol", key)
+                            if str(key_symbol or "").strip().upper() == symbol:
+                                raw = value
+                                break
+                    try:
+                        price = float(raw) if raw is not None else None
+                    except Exception:
+                        price = None
+                    if price is None or not math.isfinite(price):
+                        prices[symbol] = None
+                        missing.append(symbol)
+                    else:
+                        prices[symbol] = price
+            else:
+                batch_result = None
+        else:
+            batch_result = None
+
+        if batch_result is None:
+            for symbol in symbol_list:
+                try:
+                    asset, quote = resolve_asset_and_quote(
+                        strategy,
+                        symbol=symbol,
+                        asset_type=asset_type,
+                        quote_symbol=quote_symbol,
+                    )
+                    raw = strategy.get_last_price(asset, quote=quote, exchange=exchange)
+                    price = float(raw) if raw is not None else None
+                    if price is None or not math.isfinite(price):
+                        prices[symbol] = None
+                        missing.append(symbol)
+                    else:
+                        prices[symbol] = price
+                except Exception:
+                    prices[symbol] = None
+                    missing.append(symbol)
+
+        available = [symbol for symbol, price in prices.items() if price is not None]
+        return {
+            "prices": prices,
+            "symbols_requested": symbol_list,
+            "symbols_available": available,
+            "symbols_missing": missing,
+            "count_requested": len(symbol_list),
+            "count_available": len(available),
+            "asset_type": asset_type,
+            "datetime": strategy.get_datetime().isoformat(),
+        }
+
+    return BoundTool(
+        name="market_last_prices",
+        description=(
+            "Get current last prices for many symbols in one call (JSON-friendly universe scan). "
+            "Arguments: symbols as a list or comma-separated string, and/or symbols_json as a JSON array; "
+            "optional asset_type (default stock), optional quote_symbol, optional exchange. "
+            "Cap is 150 symbols per call. Returns prices keyed by symbol, plus symbols_available and symbols_missing. "
+            "Use this to scan a provided equity/ETF universe before fetching detailed history with "
+            "market_historical_prices for finalists or a full multi-symbol history request. "
+            "Never invent prices for missing symbols. "
+            "Example: market_last_prices(symbols_json='[\"SPY\",\"QQQ\",\"AAPL\",\"MSFT\"]')."
+        ),
+        function=last_prices,
+        metadata={"kind": "builtin", "replay_on_cache": True},
+    )
+
+
+def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
+    def historical_prices(
+        *,
+        symbols: list[str] | tuple[str, ...] | str | None = None,
+        symbols_json: str | None = None,
+        length: int,
+        timestep: str = "day",
+        asset_type: AssetTypeArg = "stock",
+        quote_symbol: str | None = None,
+        exchange: str | None = None,
+        include_after_hours: bool = True,
+        chunk_size: int = 100,
+        max_workers: int = 200,
+    ) -> dict[str, Any]:
+        """Return historical OHLCV bars for many symbols in one call.
+
+        Prefer this over calling market_load_history_table once per symbol when the
+        strategy needs bars for a provided universe or a shortlist of finalists.
+        """
+        symbol_list = _parse_symbol_list(symbols=symbols, symbols_json=symbols_json, max_symbols=150)
+        length = _require_positive_int("length", length)
+        timestep = _require_non_empty_text("timestep", timestep)
+        chunk_size = _require_positive_int("chunk_size", chunk_size)
+        max_workers = _require_positive_int("max_workers", max_workers)
+        chunk_size = min(chunk_size, 150)
+        max_workers = min(max_workers, 32)
+
+        bars_by_symbol: dict[str, list[dict[str, Any]]] = {}
+        missing: list[str] = []
+        batch_fn = getattr(strategy, "get_historical_prices_for_assets", None)
+        batch_result = None
+        if callable(batch_fn) and asset_type in {"stock", "us_equity", "index"}:
+            try:
+                batch_result = batch_fn(
+                    symbol_list,
+                    length,
+                    timestep=timestep,
+                    chunk_size=chunk_size,
+                    max_workers=max_workers,
+                    exchange=exchange,
+                    include_after_hours=include_after_hours,
+                )
+            except Exception:
+                batch_result = None
+
+        if isinstance(batch_result, dict):
+            keyed: dict[str, Any] = {}
+            for key, bars in batch_result.items():
+                keyed[_symbol_from_bars_key(key)] = bars
+            for symbol in symbol_list:
+                records = _bars_to_records(keyed.get(symbol))
+                if records:
+                    bars_by_symbol[symbol] = records
+                else:
+                    bars_by_symbol[symbol] = []
+                    missing.append(symbol)
+        else:
+            for symbol in symbol_list:
+                try:
+                    asset, quote = resolve_asset_and_quote(
+                        strategy,
+                        symbol=symbol,
+                        asset_type=asset_type,
+                        quote_symbol=quote_symbol,
+                    )
+                    bars = strategy.get_historical_prices(
+                        asset,
+                        length=length,
+                        timestep=timestep,
+                        quote=quote,
+                        exchange=exchange,
+                        include_after_hours=include_after_hours,
+                    )
+                    records = _bars_to_records(bars)
+                    bars_by_symbol[symbol] = records
+                    if not records:
+                        missing.append(symbol)
+                except Exception:
+                    bars_by_symbol[symbol] = []
+                    missing.append(symbol)
+
+        available = [symbol for symbol, records in bars_by_symbol.items() if records]
+        return {
+            "bars_by_symbol": bars_by_symbol,
+            "symbols_requested": symbol_list,
+            "symbols_available": available,
+            "symbols_missing": missing,
+            "count_requested": len(symbol_list),
+            "count_available": len(available),
+            "length": length,
+            "timestep": timestep,
+            "asset_type": asset_type,
+            "include_after_hours": bool(include_after_hours),
+            "datetime": strategy.get_datetime().isoformat(),
+        }
+
+    return BoundTool(
+        name="market_historical_prices",
+        description=(
+            "Get historical OHLCV bars for many symbols in one call via "
+            "Strategy.get_historical_prices_for_assets. "
+            "Arguments: symbols as a list or comma-separated string, and/or symbols_json as a JSON array; "
+            "required length; timestep (default day); optional asset_type (default stock), quote_symbol, "
+            "exchange, include_after_hours, chunk_size, max_workers. "
+            "Cap is 150 symbols per call. Returns bars_by_symbol keyed by symbol with datetime/open/high/low/close/volume rows, "
+            "plus symbols_available and symbols_missing. "
+            "Never loop market_load_history_table or market_last_price once per symbol when you need multi-symbol history. "
+            "Use market_last_prices for a cheap latest-price universe scan, then this tool for history on finalists or the full list. "
+            "For SQL analysis of one already-loaded table, use market_load_history_table plus duckdb_query. "
+            "Example: market_historical_prices(symbols_json='[\"SPY\",\"QQQ\",\"AAPL\"]', length=20, timestep='minute')."
+        ),
+        function=historical_prices,
         metadata={"kind": "builtin", "replay_on_cache": True},
     )
 
@@ -748,12 +1158,357 @@ def _bind_options_calculate_multileg_price(strategy: Any, manager: Any) -> Bound
             "Arguments: legs_json and optional price_style='best', 'mid', or 'fastest'. legs_json must be a JSON array; every leg requires symbol, expiration, strike, right, quantity, and side. "
             "Use buy_to_open/sell_to_open when opening and buy_to_close/sell_to_close when closing. A positive net_limit_price is a debit and a negative value is a credit. "
             "For a closing order, a positive account_positions quantity is long and requires sell_to_close; a negative quantity is short and requires buy_to_close. Closing quantity is the absolute value of the position quantity. "
+            "Never price a close with buy_to_close for a positive quantity or sell_to_close for a negative quantity because those sides do not close the observed position. "
             "When comparing a per-unit multi-leg opening credit with a per-unit closing debit, price one contract per leg here. Use the full absolute position quantities only in the later orders_submit_multileg call. "
             "Independently reconcile the returned net price from the four option midpoint values you just observed. For a defined-risk structure, reject a result that conflicts materially with those leg mids or violates the structure's economic bounds. "
             "Example legs_json: [{\"symbol\":\"SPY\",\"expiration\":\"2026-09-18\",\"strike\":620,\"right\":\"put\",\"quantity\":1,\"side\":\"buy_to_open\"},{\"symbol\":\"SPY\",\"expiration\":\"2026-09-18\",\"strike\":625,\"right\":\"put\",\"quantity\":1,\"side\":\"sell_to_open\"}]."
         ),
         function=calculate_multileg_price,
         metadata={"kind": "builtin", "replay_on_cache": True},
+    )
+
+
+def _bind_options_find_expiration(strategy: Any, manager: Any) -> BoundTool:
+    def find_expiration(
+        *,
+        symbol: str,
+        right: OptionRightArg = "call",
+        min_days: int | None = None,
+        target_date: str | None = None,
+        underlying_asset_type: Literal["stock", "index"] = "stock",
+        allow_prior: bool = False,
+    ) -> dict[str, Any]:
+        if min_days is None and not target_date:
+            raise ValueError("Provide min_days and/or target_date.")
+        if min_days is not None:
+            min_days_value = int(min_days)
+            if min_days_value < 0:
+                raise ValueError("min_days must be >= 0.")
+        else:
+            min_days_value = None
+
+        current_dt = strategy.get_datetime()
+        current_day = current_dt.date() if isinstance(current_dt, datetime) else current_dt
+        if target_date:
+            target = _coerce_expiration(_require_non_empty_text("target_date", target_date))
+            if not isinstance(target, date):
+                raise ValueError("target_date must use YYYY-MM-DD format.")
+        else:
+            target = current_day + timedelta(days=int(min_days_value))
+
+        if min_days_value is not None:
+            earliest = current_day + timedelta(days=min_days_value)
+            if target < earliest:
+                target = earliest
+
+        underlying = _underlying_asset(strategy, symbol=symbol, asset_type=underlying_asset_type)
+        chains = strategy.get_chains(underlying)
+        expiration = _options_helper_for_strategy(strategy).get_expiration_on_or_after_date(
+            target,
+            chains,
+            right,
+            underlying_asset=underlying,
+            allow_prior=bool(allow_prior),
+        )
+        expiration_iso = expiration.isoformat() if isinstance(expiration, date) else None
+        days_to_expiration = None
+        if isinstance(expiration, date):
+            days_to_expiration = (expiration - current_day).days
+        return {
+            "symbol": symbol.upper(),
+            "right": right,
+            "requested_target_date": target.isoformat(),
+            "min_days": min_days_value,
+            "allow_prior": bool(allow_prior),
+            "expiration": expiration_iso,
+            "days_to_expiration": days_to_expiration,
+            "available": expiration is not None,
+            "datetime": strategy.get_datetime().isoformat(),
+        }
+
+    return BoundTool(
+        name="options_find_expiration",
+        description=(
+            "Find a listed option expiration on or after a target date for one underlying and right. "
+            "Call options_get_chain for the same underlying in the current agent run before using this helper. "
+            "Arguments: symbol, optional right='call' or 'put', optional min_days, optional target_date in YYYY-MM-DD, "
+            "optional underlying_asset_type='stock' or 'index', optional allow_prior. "
+            "Provide min_days and/or target_date. When both are set, the later of the two floors is used. "
+            "This wraps OptionsHelper.get_expiration_on_or_after_date and validates tradeable data when possible. "
+            "Example: options_find_expiration(symbol='SPY', min_days=30, right='put')."
+        ),
+        function=find_expiration,
+        metadata={"kind": "builtin", "replay_on_cache": True},
+    )
+
+
+def _bind_options_check_spread_profit(strategy: Any, manager: Any) -> BoundTool:
+    def check_spread_profit(
+        *,
+        legs_json: str,
+        initial_cost: float,
+        contract_multiplier: int = 100,
+    ) -> dict[str, Any]:
+        try:
+            initial_cost_value = float(initial_cost)
+        except Exception as exc:
+            raise ValueError("initial_cost must be a finite number.") from exc
+        if not math.isfinite(initial_cost_value) or initial_cost_value == 0:
+            raise ValueError("initial_cost must be a nonzero finite number.")
+        multiplier = _require_positive_int("contract_multiplier", contract_multiplier)
+        orders = _parse_option_legs(strategy, legs_json)
+        profit_pct = _options_helper_for_strategy(strategy).check_spread_profit(
+            initial_cost_value,
+            orders,
+            contract_multiplier=multiplier,
+        )
+        return {
+            "available": profit_pct is not None,
+            "initial_cost": initial_cost_value,
+            "contract_multiplier": multiplier,
+            "profit_pct": float(profit_pct) if profit_pct is not None else None,
+            "legs": [_order_to_dict(order) for order in orders],
+            "datetime": strategy.get_datetime().isoformat(),
+            "notes": (
+                "initial_cost is the cash paid (positive debit) or cash received as a negative credit when the "
+                "spread was opened, matching OptionsHelper.check_spread_profit. profit_pct is relative to that cost."
+            ),
+        }
+
+    return BoundTool(
+        name="options_check_spread_profit",
+        description=(
+            "Estimate current multi-leg spread P&L percentage from exact option legs and the opening cash cost. "
+            "Arguments: legs_json, initial_cost, optional contract_multiplier (default 100). "
+            "legs_json must be a JSON array of exact contracts with symbol, expiration, strike, right, quantity, and side. "
+            "For opening-cost accounting, use a positive initial_cost for a net debit paid and a negative initial_cost "
+            "for a net credit received. Returns profit_pct relative to initial_cost, or available=false when a leg price is missing. "
+            "This is generic multi-leg math; it does not assume an iron condor or any named structure. "
+            "Example: options_check_spread_profit(legs_json='[...]', initial_cost=-200)."
+        ),
+        function=check_spread_profit,
+        metadata={"kind": "builtin", "replay_on_cache": True},
+    )
+
+
+def _order_status_payload(order: Any) -> dict[str, Any]:
+    status = str(getattr(order, "status", "") or "").strip().lower()
+    is_filled = bool(getattr(order, "is_filled", lambda: False)())
+    is_canceled = bool(getattr(order, "is_canceled", lambda: False)())
+    is_active = bool(getattr(order, "is_active", lambda: not (is_filled or is_canceled))())
+    is_terminal = bool(is_filled or is_canceled or not is_active)
+    payload = _order_to_dict(order)
+    payload.update(
+        {
+            "status_normalized": status or None,
+            "is_filled": is_filled,
+            "is_canceled": is_canceled,
+            "is_active": is_active,
+            "is_terminal": is_terminal,
+        }
+    )
+    return payload
+
+
+def _parse_order_identifiers(*, identifier: str | None = None, identifiers_json: str | None = None) -> list[str]:
+    values: list[str] = []
+    if identifier is not None and str(identifier).strip():
+        values.append(_require_non_empty_text("identifier", identifier))
+    if identifiers_json is not None and str(identifiers_json).strip():
+        raw = _require_non_empty_text("identifiers_json", identifiers_json)
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"identifiers_json must be valid JSON: {exc}") from exc
+        if isinstance(parsed, str):
+            parsed = [parsed]
+        if not isinstance(parsed, list) or not parsed:
+            raise ValueError("identifiers_json must decode to a non-empty list of order identifiers.")
+        for index, item in enumerate(parsed):
+            try:
+                values.append(_require_non_empty_text("identifier", item))
+            except ValueError as exc:
+                raise ValueError(f"Invalid identifier at index {index}: {exc}") from exc
+    # Preserve order while dropping duplicates.
+    unique: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        unique.append(value)
+    if not unique:
+        raise ValueError("Provide identifier and/or identifiers_json with at least one order identifier.")
+    return unique
+
+
+def _bind_orders_get_status(strategy: Any, manager: Any) -> BoundTool:
+    def get_status(
+        *,
+        identifier: str | None = None,
+        identifiers_json: str | None = None,
+    ) -> dict[str, Any]:
+        identifiers = _parse_order_identifiers(identifier=identifier, identifiers_json=identifiers_json)
+        orders_payload: list[dict[str, Any]] = []
+        missing: list[str] = []
+        for order_id in identifiers:
+            order = strategy.get_order(order_id)
+            if order is None:
+                missing.append(order_id)
+                orders_payload.append(
+                    {
+                        "identifier": order_id,
+                        "available": False,
+                        "status": None,
+                        "is_filled": False,
+                        "is_canceled": False,
+                        "is_active": False,
+                        "is_terminal": False,
+                    }
+                )
+                continue
+            payload = _order_status_payload(order)
+            payload["available"] = True
+            orders_payload.append(payload)
+        return {
+            "orders": orders_payload,
+            "count": len(orders_payload),
+            "missing_identifiers": missing,
+            "all_terminal": bool(orders_payload) and all(item.get("is_terminal") for item in orders_payload),
+            "all_filled": bool(orders_payload) and all(item.get("is_filled") for item in orders_payload),
+            "datetime": strategy.get_datetime().isoformat(),
+        }
+
+    return BoundTool(
+        name="orders_get_status",
+        description=(
+            "Get current status for one or more tracked order identifiers. "
+            "Arguments: optional identifier, optional identifiers_json as a JSON array of identifiers. "
+            "Reuse this after orders_submit_order or orders_submit_multileg. Never claim a fill unless "
+            "is_filled is true for the exact identifier. Missing identifiers are returned with available=false. "
+            "Example: orders_get_status(identifier='bt_1') or orders_get_status(identifiers_json='[\"bt_1\",\"bt_2\"]')."
+        ),
+        function=get_status,
+        metadata={"kind": "builtin"},
+    )
+
+
+def _bind_orders_wait_for_terminal(strategy: Any, manager: Any) -> BoundTool:
+    def wait_for_terminal(
+        *,
+        identifier: str | None = None,
+        identifiers_json: str | None = None,
+        timeout_seconds: float = 30.0,
+        poll_interval_seconds: float = 1.0,
+    ) -> dict[str, Any]:
+        identifiers = _parse_order_identifiers(identifier=identifier, identifiers_json=identifiers_json)
+        try:
+            timeout_value = float(timeout_seconds)
+            poll_value = float(poll_interval_seconds)
+        except Exception as exc:
+            raise ValueError("timeout_seconds and poll_interval_seconds must be numbers.") from exc
+        if not math.isfinite(timeout_value) or timeout_value <= 0:
+            raise ValueError("timeout_seconds must be a finite number greater than 0.")
+        if not math.isfinite(poll_value) or poll_value <= 0:
+            raise ValueError("poll_interval_seconds must be a finite number greater than 0.")
+        # Keep agent waits bounded so a hung broker cannot stall an iteration forever.
+        timeout_value = min(timeout_value, 120.0)
+        poll_value = min(max(poll_value, 0.25), 30.0)
+
+        import time as _time
+
+        started = _time.monotonic()
+        polls = 0
+        status_tool = _bind_orders_get_status(strategy, manager).function
+        latest: dict[str, Any] = {}
+        is_backtesting = bool(getattr(strategy, "is_backtesting", False))
+        # In backtests, strategy.sleep advances simulation time instantly. Bound by
+        # poll count / simulated seconds so a wait cannot race through the remainder
+        # of the backtest window (the previous wall-clock-only path left market
+        # orders stuck in `new` and produced placeholder tearsheets).
+        max_polls = max(1, int(math.ceil(timeout_value / poll_value)) + 1)
+        if is_backtesting:
+            max_polls = min(max_polls, 60)
+            # Prefer minute-scale advances so equity market orders can fill on the
+            # next bar even when the agent passes a 1s poll interval.
+            backtest_sleep_for = max(poll_value, 60.0)
+            max_sim_seconds = min(timeout_value * max(backtest_sleep_for / max(poll_value, 1e-9), 1.0), 3600.0)
+            sim_slept = 0.0
+            broker = getattr(strategy, "broker", None)
+            process_pending = getattr(broker, "process_pending_orders", None)
+            if callable(process_pending):
+                try:
+                    process_pending(strategy=strategy)
+                except TypeError:
+                    process_pending(strategy)
+        else:
+            backtest_sleep_for = poll_value
+            max_sim_seconds = timeout_value
+            sim_slept = 0.0
+
+        while True:
+            polls += 1
+            latest = status_tool(identifiers_json=json.dumps(identifiers))
+            if latest.get("all_terminal"):
+                break
+            if is_backtesting:
+                if polls >= max_polls or sim_slept >= max_sim_seconds:
+                    break
+            else:
+                elapsed = _time.monotonic() - started
+                if elapsed >= timeout_value:
+                    break
+            remaining = timeout_value - ((_time.monotonic() - started) if not is_backtesting else 0.0)
+            sleep_for = (
+                min(backtest_sleep_for, max(max_sim_seconds - sim_slept, 0.0))
+                if is_backtesting
+                else min(poll_value, max(remaining, 0.0))
+            )
+            if sleep_for <= 0:
+                break
+            sleeper = getattr(strategy, "sleep", None)
+            if callable(sleeper):
+                sleeper(sleep_for, process_pending_orders=True)
+            else:
+                if is_backtesting:
+                    broker = getattr(strategy, "broker", None)
+                    process_pending = getattr(broker, "process_pending_orders", None)
+                    updater = getattr(broker, "_update_datetime", None)
+                    if callable(updater):
+                        updater(sleep_for)
+                    if callable(process_pending):
+                        try:
+                            process_pending(strategy=strategy)
+                        except TypeError:
+                            process_pending(strategy)
+                else:
+                    _time.sleep(sleep_for)
+            if is_backtesting:
+                sim_slept += sleep_for
+
+        elapsed_total = _time.monotonic() - started
+        return {
+            **latest,
+            "timed_out": not bool(latest.get("all_terminal")),
+            "timeout_seconds": timeout_value,
+            "poll_interval_seconds": poll_value,
+            "polls": polls,
+            "elapsed_seconds": elapsed_total,
+            "datetime": strategy.get_datetime().isoformat(),
+        }
+
+    return BoundTool(
+        name="orders_wait_for_terminal",
+        description=(
+            "Poll one or more tracked order identifiers until every order is terminal or a bounded timeout elapses. "
+            "Arguments: optional identifier, optional identifiers_json, optional timeout_seconds (default 30, max 120), "
+            "optional poll_interval_seconds (default 1). Uses strategy.sleep so pending broker fills can process. "
+            "In backtests, use one short bounded wait immediately after your own market-order submission when the simulator must process the pending fill. The wait advances simulated time and is capped, so do not use it as an open-ended polling loop. "
+            "Never claim a fill unless is_filled is true. "
+            "Example: orders_wait_for_terminal(identifiers_json='[\"bt_1\"]', timeout_seconds=15)."
+        ),
+        function=wait_for_terminal,
+        metadata={"kind": "builtin"},
     )
 
 
@@ -792,10 +1547,11 @@ def _bind_load_history(strategy: Any, manager: Any) -> BoundTool:
     return BoundTool(
         name="market_load_history_table",
         description=(
-            "Load visible historical bars into DuckDB and return the table metadata. "
+            "Load visible historical bars for one symbol into DuckDB and return the table metadata. "
             "Arguments: symbol, length, timestep, optional table_name, asset_type, quote_symbol, exchange, expiration, strike, right, include_after_hours. "
             "Valid asset_type values: stock, option, future, cont_future, forex, crypto, index, multileg, us_equity. "
             "The symbol argument must be the exact tradable symbol, such as XLY or SPY, not a generated table name such as XLY_HIST. "
+            "For two or more symbols of history, prefer market_historical_prices instead of calling this once per symbol. "
             "Use stock for normal equities. If asset_type is omitted, stock is assumed. Do not pass economic series ids such as DCOILWTICO, FEDFUNDS, or M2SL as market symbols; use macro/FRED tools for those instead. "
             "The loaded price tables usually expose columns such as datetime, open, high, low, close, volume, bid, ask, dividend, and dividend_yield. "
             "Use datetime for timestamps and close for the traded price unless the returned sample rows show otherwise. "
@@ -1841,8 +2597,9 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
             "Arguments: symbol, quantity, side, optional asset_type, expiration, strike, right, order_type, limit_price, stop_price, stop_limit_price, trail_price, trail_percent, quote_symbol, exchange, time_in_force. "
             "Valid asset_type values: stock, option, future, cont_future, forex, crypto, index, multileg, us_equity. "
             "Use stock for normal equities. "
-            "Before using this tool, call account_portfolio, account_positions, and market_last_price for the same symbol in the current agent run; otherwise the order is rejected with ORDER_READINESS_REQUIRED. "
+            "Before using this tool, call account_portfolio, account_positions, and market_last_price (or market_last_prices including the symbol) for the same symbol in the current agent run; otherwise the order is rejected with ORDER_READINESS_REQUIRED. "
             "Valid side values: buy, sell, buy_to_open, buy_to_close, sell_to_open, sell_to_close, sell_short, buy_to_cover. "
+            "For an option close, reconcile the exact contract with the latest account_positions result: positive long quantity requires sell_to_close and negative short quantity requires buy_to_close, always using the absolute current quantity. Never use the inverse mapping. "
             "Valid order_type values: market, limit, stop, stop_limit, trailing_stop, smart_limit. "
             "Valid time_in_force values: day, gtc, gtd. "
             "Caveats: limit orders require limit_price; stop and stop_limit orders require stop_price; trailing_stop requires trail_price or trail_percent; smart_limit uses LumiBot's built-in smart-limit behavior. "
@@ -1909,11 +2666,13 @@ def _bind_submit_multileg_order(strategy: Any, manager: Any) -> BoundTool:
         description=(
             "Create and submit one atomic multi-leg option order from exact contracts selected by the agent. This is generic and does not choose a strategy or its legs. "
             "Arguments: legs_json, optional price_style='market', 'best', 'mid', or 'fastest', optional signed net_limit_price, optional time_in_force. legs_json must be a JSON array with at least two legs; each leg requires symbol, expiration, strike, right, quantity, and side. "
-            "Before submitting, call account_portfolio, account_positions, market_last_price for each underlying symbol, retrieve the chain, and evaluate every exact leg. "
+            "Before submitting in the same agent run, call account_portfolio, account_positions, orders_open_orders, market_last_price or market_last_prices for each underlying symbol, options_get_chain, and options_calculate_multileg_price after evaluating every exact leg. "
             "Opening sides are buy_to_open and sell_to_open. Closing sides are buy_to_close and sell_to_close. Use matching quantities when the intended position requires matched contracts. "
             "When closing existing positions, map signed account quantities exactly: positive long quantity -> sell_to_close; negative short quantity -> buy_to_close. Reversing that mapping increases exposure instead of closing it. "
+            "Immediately before submission, reconcile every closing leg against the latest account_positions result. Reject the package yourself if any positive quantity is paired with buy_to_close or any negative quantity is paired with sell_to_close. "
             "Every proposed closing leg must reduce the corresponding exact position quantity toward zero. Do not use the same closing side for positive and negative position quantities. "
             "Current nonzero option positions remain open until a later account_positions result shows zero quantity. A submitted or filled order result is not itself proof that positions are flat, and a final response must not claim submission unless this tool returned submitted orders. "
+            "If positions are not flat afterward, inspect the exact order status and open orders. Do not switch order tools, reverse sides, change quantities, or submit another close until the prior order has a terminal state and a fresh account_positions result proves what remains. "
             "Before opening more option exposure, compare the proposed legs with all current option positions and pending orders. Do not add another structure when the strategy policy permits only one open structure. "
             "For limit execution, a positive signed net_limit_price is a debit and a negative value is a credit. If omitted, LumiBot calculates the selected best/mid/fastest price. "
             "The agent must validate that signed price against its exact leg quotes and strategy economics before submission. For equal-width credit spreads, credit must be positive and strictly less than the wing width. "
@@ -1948,6 +2707,20 @@ class _MarketTools:
             binder=_bind_last_price,
         )
 
+    def last_prices(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="market_last_prices",
+            description="Get current last prices for many symbols in one JSON-friendly call.",
+            binder=_bind_last_prices,
+        )
+
+    def historical_prices(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="market_historical_prices",
+            description="Get historical OHLCV bars for many symbols in one JSON-friendly call.",
+            binder=_bind_historical_prices,
+        )
+
     def load_history_table(self) -> ToolDefinition:
         return ToolDefinition(
             name="market_load_history_table",
@@ -1974,6 +2747,12 @@ class _OptionsTools:
 
     def calculate_multileg_price(self) -> ToolDefinition:
         return ToolDefinition(name="options_calculate_multileg_price", description="Calculate a signed net price for exact option legs.", binder=_bind_options_calculate_multileg_price)
+
+    def find_expiration(self) -> ToolDefinition:
+        return ToolDefinition(name="options_find_expiration", description="Find a listed expiration on or after a target date.", binder=_bind_options_find_expiration)
+
+    def check_spread_profit(self) -> ToolDefinition:
+        return ToolDefinition(name="options_check_spread_profit", description="Estimate multi-leg spread P&L percentage from exact legs.", binder=_bind_options_check_spread_profit)
 
 
 class _DuckDBTools:
@@ -2124,6 +2903,16 @@ class _OrderTools:
     def open_orders(self) -> ToolDefinition:
         return ToolDefinition(name="orders_open_orders", description="List tracked orders and their identifiers.", binder=_bind_open_orders)
 
+    def get_status(self) -> ToolDefinition:
+        return ToolDefinition(name="orders_get_status", description="Get status for one or more tracked order identifiers.", binder=_bind_orders_get_status)
+
+    def wait_for_terminal(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="orders_wait_for_terminal",
+            description="Poll tracked order identifiers until terminal or timeout.",
+            binder=_bind_orders_wait_for_terminal,
+        )
+
     def modify(self) -> ToolDefinition:
         return ToolDefinition(
             name="orders_modify_order",
@@ -2153,13 +2942,17 @@ class _BuiltinTools:
             self.account.positions(),
             self.account.portfolio(),
             self.market.last_price(),
+            self.market.last_prices(),
+            self.market.historical_prices(),
             self.market.load_history_table(),
             self.options.get_chain(),
             self.options.get_strikes(),
             self.options.get_greeks(),
             self.options.find_strike_for_delta(),
+            self.options.find_expiration(),
             self.options.evaluate_market(),
             self.options.calculate_multileg_price(),
+            self.options.check_spread_profit(),
             self.duckdb.query(),
             self.docs.search(),
             self.news.alpaca_news(),
@@ -2193,6 +2986,8 @@ class _BuiltinTools:
             self.orders.submit_multileg(),
             self.orders.cancel(),
             self.orders.open_orders(),
+            self.orders.get_status(),
+            self.orders.wait_for_terminal(),
             self.orders.modify(),
         ]
 

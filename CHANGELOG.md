@@ -2,6 +2,14 @@
 
 ## 4.5.85 - Unreleased
 
+### Fixed
+- **Option orders now preserve open/close intent across brokers.** Generic
+  single-leg option buys and sells resolve centrally from signed positions and
+  active close quantities, high-level close helpers emit explicit close intent,
+  and ambiguous duplicate or zero-crossing closes fail before submission.
+  Alpaca now sends and restores `position_intent` for single-leg orders and
+  raises rejected submissions after marking the order errored.
+
 ## 4.5.84 - Unreleased
 
 ### Added

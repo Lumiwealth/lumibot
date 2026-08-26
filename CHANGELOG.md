@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.5.86 - Unreleased
+
+### Fixed
+- **Documentation configuration tests no longer leak mocked broker packages.**
+  Loading the Sphinx configuration in-process now restores `sys.modules`, so
+  later broker tests and runtime imports see the installed Tradier package.
+
 ## 4.5.85 - Unreleased
 
 ### Fixed

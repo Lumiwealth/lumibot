@@ -1,6 +1,7 @@
 import importlib.util
 import os
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -8,9 +9,18 @@ from types import SimpleNamespace
 
 def _load_docs_config():
     config_path = Path(__file__).resolve().parents[1] / "docsrc" / "conf.py"
+    sitemap_path = config_path.parent / "_extra" / "sitemap.xml"
+    original_sitemap = sitemap_path.read_bytes()
     spec = importlib.util.spec_from_file_location("lumibot_docs_conf", config_path)
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    original_modules = sys.modules.copy()
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        for module_name in set(sys.modules) - set(original_modules):
+            sys.modules.pop(module_name, None)
+        sys.modules.update(original_modules)
+        sitemap_path.write_bytes(original_sitemap)
     return module
 
 

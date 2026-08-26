@@ -10,6 +10,6 @@ machine facts such as tool order, order count, exact leg sides and quantities,
 and final fixture positions.
 
 New or materially changed cases require a preserved honest red baseline and three
-consecutive passing repetitions. Passing freshness lasts 30 days for the exact
+consecutive passing repetitions. Passing freshness lasts 90 days for the exact
 case, acting model, judge model, fixture, runtime, tool, rule, and skill
 fingerprints. Release CI reruns only stale coverage.

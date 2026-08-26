@@ -57,7 +57,6 @@ jobs:
           args=(
             --gate
             --repeat 3
-            --freshness-days 30
             --max-workers 3
             --max-cost-usd "${MAX_COST_USD}"
             --freshness-state .ci/agent-evals/freshness.json

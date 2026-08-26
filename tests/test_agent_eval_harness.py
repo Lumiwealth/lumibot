@@ -32,6 +32,19 @@ def test_release_publish_is_blocked_by_real_model_agent_evals():
     assert "GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}" in workflow
 
 
+def test_eval_freshness_policy_has_one_90_day_source_of_truth():
+    repo_root = Path(__file__).resolve().parents[1]
+    workflows = [
+        repo_root / ".github/workflows/agent-evals.yml",
+        repo_root / ".github/workflows/release.yml",
+    ]
+
+    assert evals.DEFAULT_FRESHNESS_DAYS == 90
+    for workflow_path in workflows:
+        workflow = workflow_path.read_text(encoding="utf-8")
+        assert "--freshness-days" not in workflow
+
+
 def test_eval_fingerprint_changes_with_runtime_and_judge():
     case = evals.load_cases({"stock_price_before_order"})[0]
     first = evals.case_fingerprint(case, judge_model="gemini-3.1-flash-lite", runtime_hash="a")

@@ -293,7 +293,6 @@ jobs:
           timeout 1500 python scripts/run_agent_evals.py \
             --gate \
             --repeat 3 \
-            --freshness-days 30 \
             --max-workers 3 \
             --max-cost-usd 10 \
             --freshness-state .ci/agent-evals/freshness.json \

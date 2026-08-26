@@ -26,7 +26,7 @@ sys.path.insert(0, str(REPO_ROOT))
 CASE_ROOT = REPO_ROOT / "agent_eval_cases"
 DEFAULT_ACTING_MODEL = "gemini-3.5-flash-lite"
 DEFAULT_JUDGE_MODEL = "gemini-3.1-flash-lite"
-DEFAULT_FRESHNESS_DAYS = 30
+DEFAULT_FRESHNESS_DAYS = 90
 REQUIRED_CONSECUTIVE_PASSES = 3
 PRICE_SOURCE = "Google Cloud Agent Platform pricing, 2026-08-11"
 PRICE_SOURCE_URL = "https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing"

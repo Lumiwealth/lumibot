@@ -20,7 +20,7 @@
 - **Real-model LumiBot evals now gate PyPI publication.** The resumable runner
   provides fixture-backed production tool contracts, a separate LLM judge,
   three-repeat qualification, fsynced per-case ledgers, model/token/timing/cost
-  reporting, explicit spend limits, 30-day freshness, and release-candidate
+  reporting, explicit spend limits, 90-day freshness, and release-candidate
   fingerprinting. The initial catalog covers options, stocks, ORB, and rules.
 - **AI agents gain generic order-status and option-lifecycle builtins.**
   ``orders_get_status`` and ``orders_wait_for_terminal`` verify fills after

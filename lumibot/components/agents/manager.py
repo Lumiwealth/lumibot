@@ -576,6 +576,37 @@ def _runtime_timing_payload(result: AgentRunResult) -> dict[str, Any]:
     }
 
 
+def _managed_ai_execution_outcome(
+    *,
+    required_for_decision: bool,
+    decision_completed: bool,
+    error_category: str | None = None,
+    fallback_used: bool = False,
+) -> dict[str, Any]:
+    return {
+        "operation": "managed_ai_inference",
+        "requiredness": "decision_critical" if required_for_decision else "optional",
+        "retryability": (
+            "retryable"
+            if error_category in {"transient", "unknown"}
+            else "non_retryable"
+            if error_category
+            else "not_applicable"
+        ),
+        "fallback_used": bool(fallback_used),
+        "decision_completed": bool(decision_completed),
+        "broker_state_certainty": "not_observed",
+        "impact": (
+            "completed"
+            if decision_completed
+            else "decision_blocked"
+            if required_for_decision
+            else "optional_component_failed"
+        ),
+        "error_category": error_category,
+    }
+
+
 def _iter_timestamp_candidates(value: Any, *, path: str = "payload", hinted: bool = False):
     if isinstance(value, dict):
         for key, item in value.items():
@@ -1599,6 +1630,12 @@ class AgentHandle:
                 "runtime_error": True,
                 "error_class": exc.__class__.__name__,
                 "error_message": str(exc)[:800],
+                "execution_outcome": _managed_ai_execution_outcome(
+                    required_for_decision=self.allow_trading,
+                    decision_completed=False,
+                    error_category=category,
+                    fallback_used=True,
+                ),
             }
             self._finalize_runtime_timing(
                 result,
@@ -1628,6 +1665,10 @@ class AgentHandle:
         )
         result.cache_key = cache_key
         result.warnings = self._derive_warnings(result, runtime_context)
+        execution_outcome = _managed_ai_execution_outcome(
+            required_for_decision=self.allow_trading,
+            decision_completed=True,
+        )
         trace_payload = {
             "agent": self.name,
             "model": model_name,
@@ -1663,11 +1704,13 @@ class AgentHandle:
             "usage": result.usage,
             "timing": _runtime_timing_payload(result),
             "duckdb_metrics": self.manager.duckdb.get_metrics(),
+            "execution_outcome": execution_outcome,
         }
         trace_path = self._write_trace(result, trace_payload)
         result.payload = {
             "trace_path": trace_path.as_posix(),
             "warnings": result.warnings,
+            "execution_outcome": execution_outcome,
         }
         if should_replay:
             self.manager.replay_cache.save(

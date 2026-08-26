@@ -478,6 +478,19 @@ def _structured_operation_outcomes(result: AgentRunResult) -> list[dict[str, Any
                     "error_category": error.get("type") or "ToolError",
                 }
             )
+        else:
+            outcomes.append(
+                {
+                    "operation": f"tool:{event.tool_name or 'unknown'}",
+                    "requiredness": "optional",
+                    "retryability": "not_applicable",
+                    "fallback_used": False,
+                    "decision_completed": primary.get("decision_completed") is True,
+                    "broker_state_certainty": "not_observed",
+                    "impact": "completed",
+                    "error_category": None,
+                }
+            )
     return outcomes
 
 

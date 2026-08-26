@@ -569,19 +569,24 @@ def test_completed_agent_records_data_tool_error_as_optional_operation_failure()
         events=[
             AgentTraceEvent(
                 kind="tool_result",
-                tool_name="get_fred_series",
+                tool_name="account_positions",
                 payload={
                     "tool_error": True,
                     "error": {"type": "ConnectionError", "message": "temporary outage"},
                 },
-            )
+            ),
+            AgentTraceEvent(
+                kind="tool_result",
+                tool_name="account_positions",
+                payload={"positions": []},
+            ),
         ],
     )
 
     outcomes = _structured_operation_outcomes(result)
 
     assert outcomes[1] == {
-        "operation": "tool:get_fred_series",
+        "operation": "tool:account_positions",
         "requiredness": "optional",
         "retryability": "unknown",
         "fallback_used": True,
@@ -589,6 +594,16 @@ def test_completed_agent_records_data_tool_error_as_optional_operation_failure()
         "broker_state_certainty": "not_observed",
         "impact": "optional_component_failed",
         "error_category": "ConnectionError",
+    }
+    assert outcomes[2] == {
+        "operation": "tool:account_positions",
+        "requiredness": "optional",
+        "retryability": "not_applicable",
+        "fallback_used": False,
+        "decision_completed": True,
+        "broker_state_certainty": "not_observed",
+        "impact": "completed",
+        "error_category": None,
     }
 
 

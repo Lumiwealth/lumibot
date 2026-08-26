@@ -127,6 +127,11 @@ class _CaptureRuntime:
         )
 
 
+class _MissingProviderCredentialRuntime:
+    def run(self, request):
+        raise ValueError("No API key was provided")
+
+
 def test_agent_allow_trading_false_removes_only_mutating_order_tools(monkeypatch):
     monkeypatch.delenv("FRED_API_KEY", raising=False)
     strategy = _Strategy()
@@ -151,6 +156,56 @@ def test_agent_allow_trading_false_removes_only_mutating_order_tools(monkeypatch
     assert "get_fred_latest" not in tool_names
     assert "get_fred_snapshot" not in tool_names
     assert agent.default_model == "openai/gpt-5.4-mini"
+
+
+def test_live_agent_auth_failure_emits_structured_decision_outcome():
+    strategy = _Strategy()
+    strategy.is_backtesting = False
+    manager = AgentManager(strategy)
+    agent = manager.create(
+        name="portfolio_manager",
+        model="gemini/gemini-3.1-pro-preview",
+        allow_trading=True,
+        _runtime=_MissingProviderCredentialRuntime(),
+    )
+
+    result = agent.run(task_prompt="Make the scheduled investment decision.")
+
+    assert result.payload["execution_outcome"] == {
+        "operation": "managed_ai_inference",
+        "requiredness": "decision_critical",
+        "retryability": "non_retryable",
+        "fallback_used": True,
+        "decision_completed": False,
+        "broker_state_certainty": "not_observed",
+        "impact": "decision_blocked",
+        "error_category": "auth",
+    }
+
+
+def test_optional_agent_auth_failure_does_not_mark_decision_blocked():
+    strategy = _Strategy()
+    strategy.is_backtesting = False
+    manager = AgentManager(strategy)
+    agent = manager.create(
+        name="optional_researcher",
+        model="anthropic/claude-sonnet-4-6",
+        allow_trading=False,
+        _runtime=_MissingProviderCredentialRuntime(),
+    )
+
+    result = agent.run(task_prompt="Enrich the completed decision with optional research.")
+
+    assert result.payload["execution_outcome"] == {
+        "operation": "managed_ai_inference",
+        "requiredness": "optional",
+        "retryability": "non_retryable",
+        "fallback_used": True,
+        "decision_completed": False,
+        "broker_state_certainty": "not_observed",
+        "impact": "optional_component_failed",
+        "error_category": "auth",
+    }
 
 
 def test_agent_timeout_options_forward_to_runtime_request(monkeypatch):
@@ -370,6 +425,15 @@ def test_order_submit_tool_records_memory_event(monkeypatch, tmp_path):
 
     strategy = _OrderStrategy()
     strategy.memory = MemoryStore(strategy, root_dir=tmp_path)
+    decision = strategy.memory.remember_decision(
+        "Buy TQQQ after the committee approved the risk-adjusted entry.",
+        symbol="TQQQ",
+        action="buy",
+        agent_name="trader",
+        model_call_id="call-order-1",
+    )
+    monkeypatch.setenv("BOTSPOT_DEPLOYMENT_ID", "deployment-123")
+    monkeypatch.setenv("BOTSPOT_ARTIFACT_RUN_ID", "run-456")
     monkeypatch.setattr(
         "lumibot.components.agents.builtins.resolve_asset_and_quote",
         lambda *args, **kwargs: (_Asset(), None),
@@ -380,11 +444,66 @@ def test_order_submit_tool_records_memory_event(monkeypatch, tmp_path):
     result = wrapped(symbol="TQQQ", quantity=10, side="buy")
 
     assert result["order"]["identifier"] == "order-123"
+    assert result["order"]["decision_provenance"] == {
+        "deployment_id": "deployment-123",
+        "run_id": "run-456",
+        "decision_id": decision["memory_id"],
+        "model_call_id": "call-order-1",
+    }
     events = pd.read_parquet(strategy.memory.export_artifacts(tmp_path, prefix="order_memory")["memory_events"])
     order_events = events[events["event_type"] == "order.submitted"]
     assert len(order_events) == 1
     assert order_events.iloc[0]["agent_name"] == "trader"
     assert order_events.iloc[0]["model_call_id"] == "call-order-1"
+    event_metadata = json.loads(order_events.iloc[0]["metadata_json"])
+    assert event_metadata["decision_provenance"] == result["order"]["decision_provenance"]
+
+
+def test_order_submit_timeout_reports_unknown_broker_state(monkeypatch):
+    from lumibot.components.agents.builtins import _bind_submit_order
+    from lumibot.components.agents.runtime import _wrap_tool_callable
+
+    class _Asset:
+        symbol = "TQQQ"
+        asset_type = "stock"
+
+    class _Order:
+        identifier = "order-timeout"
+        asset = _Asset()
+        quantity = 10
+        side = "buy"
+        order_type = "market"
+        time_in_force = "day"
+        limit_price = None
+        stop_price = None
+
+    class _TimeoutStrategy(_Strategy):
+        def create_order(self, *args, **kwargs):
+            return _Order()
+
+        def submit_order(self, order):
+            raise TimeoutError("broker response timed out")
+
+    strategy = _TimeoutStrategy()
+    monkeypatch.setattr(
+        "lumibot.components.agents.builtins.resolve_asset_and_quote",
+        lambda *args, **kwargs: (_Asset(), None),
+    )
+
+    result = _wrap_tool_callable(_bind_submit_order(strategy, manager=None))(
+        symbol="TQQQ", quantity=10, side="buy"
+    )
+
+    assert result["tool_error"] is True
+    assert result["execution_outcome"] == {
+        "operation": "broker_order_submission",
+        "requiredness": "decision_critical",
+        "retryability": "retryable",
+        "fallback_used": False,
+        "decision_completed": True,
+        "broker_state_certainty": "unknown",
+        "impact": "operator_attention_required",
+    }
 
 
 def test_builtin_indicator_schema_is_gemini_function_declaration_compatible():

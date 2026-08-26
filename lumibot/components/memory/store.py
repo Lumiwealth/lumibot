@@ -348,6 +348,9 @@ class MemoryStore:
             "arguments": {key: value for key, value in order_kwargs.items() if value is not None},
             "metadata": metadata or {},
         }
+        decision_provenance = (metadata or {}).get("decision_provenance")
+        if isinstance(decision_provenance, dict):
+            payload["decision_provenance"] = decision_provenance
         text_parts = ["Submitted order"]
         if side:
             text_parts.append(str(side))
@@ -371,6 +374,42 @@ class MemoryStore:
         )
         self._export_artifacts_best_effort()
         return event
+
+    def decision_provenance(
+        self,
+        *,
+        agent_name: str | None = None,
+        model_call_id: str | None = None,
+    ) -> dict[str, str | None]:
+        """Return stable runtime and decision references for an order submission."""
+        decision_id = None
+        if model_call_id:
+            with self._connect() as conn:
+                row = conn.execute(
+                    """
+                    SELECT subject_id
+                    FROM memory_events
+                    WHERE event_type = 'decision.recorded'
+                      AND model_call_id = ?
+                      AND (? IS NULL OR agent_name = ?)
+                    ORDER BY sequence DESC
+                    LIMIT 1
+                    """,
+                    (model_call_id, agent_name, agent_name),
+                ).fetchone()
+            if row:
+                decision_id = str(row["subject_id"])
+        return {
+            "deployment_id": str(os.environ.get("BOTSPOT_DEPLOYMENT_ID") or "").strip() or None,
+            "run_id": str(
+                os.environ.get("BOTSPOT_ARTIFACT_RUN_ID")
+                or os.environ.get("BOTSPOT_RUN_ID")
+                or ""
+            ).strip()
+            or None,
+            "decision_id": decision_id,
+            "model_call_id": str(model_call_id or "").strip() or None,
+        }
 
     def get(self, memory_id: str) -> dict[str, Any] | None:
         with self._connect() as conn:

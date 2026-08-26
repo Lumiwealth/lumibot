@@ -74,6 +74,22 @@
   AI example strategy before the first tool call. Only provider-safe canonical
   names are registered; inbound typos are normalized on lookup. Covered by
   ``tests/test_agent_runtime_provider_keys.py``.
+- **Schwab connections no longer silently die ~30 minutes after
+  authentication.** A background refresher now rotates the access token before
+  expiry (instead of the OAuth handshake landing inside an arbitrary broker
+  call), a missing ``SCHWAB_APP_SECRET`` is reported loudly at startup,
+  transient initialization errors no longer delete a valid token file, and
+  parent-managed (external refresh mode) token files are never deleted by the
+  child.
+- **Schwab cancel path pays for one HTTP round trip instead of two.** The
+  post-cancel diagnostic direct read is now gated behind
+  ``SCHWAB_CANCEL_DIAGNOSTICS``, and all requests through the Schwab OAuth
+  session carry a 30-second default timeout so a stalled connection cannot
+  block the trading loop indefinitely.
+- **Slow live iterations are now flagged.** When ``on_trading_iteration`` runs
+  longer than 120 seconds, the executor logs a warning explaining that
+  sleeptime cannot interrupt a running iteration and order-management deadline
+  checks only run between iterations.
 
 ## 4.5.83 - 2026-08-05
 

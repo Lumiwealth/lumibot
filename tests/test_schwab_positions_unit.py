@@ -1,4 +1,5 @@
 import logging
+import time
 from datetime import date
 from threading import RLock
 from types import SimpleNamespace
@@ -1139,3 +1140,88 @@ def test_schwab_run_stream_without_stream_returns_without_traceback(caplog):
 
     assert "skipping stream runner" in caplog.text
     assert "Traceback" not in caplog.text
+
+
+class _DirectReadClient(_CancelClient):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.get_order_calls = []
+
+    def get_order(self, order_id, account_hash):
+        self.get_order_calls.append((order_id, account_hash))
+        return SimpleNamespace(status_code=200, text="OK", json=lambda: {"status": "CANCELED"})
+
+
+def test_schwab_cancel_order_skips_diagnostic_direct_read_by_default(monkeypatch):
+    # The post-cancel direct read doubles round trips on the cancel hot path;
+    # it must only run when SCHWAB_CANCEL_DIAGNOSTICS is enabled.
+    monkeypatch.delenv("SCHWAB_CANCEL_DIAGNOSTICS", raising=False)
+    client = _DirectReadClient()
+    broker = _broker_for_cancel(client=client)
+
+    broker.cancel_order(_order())
+
+    assert client.cancel_calls == [("order-123", "account-hash")]
+    assert client.get_order_calls == []
+
+
+def test_schwab_cancel_order_runs_diagnostic_direct_read_when_enabled(monkeypatch):
+    monkeypatch.setenv("SCHWAB_CANCEL_DIAGNOSTICS", "1")
+    client = _DirectReadClient()
+    broker = _broker_for_cancel(client=client)
+
+    broker.cancel_order(_order())
+
+    assert client.cancel_calls == [("order-123", "account-hash")]
+    assert client.get_order_calls == [("order-123", "account-hash")]
+
+
+def test_schwab_oauth_session_requests_get_default_timeout():
+    from lumibot.brokers.schwab import _apply_default_request_timeout
+
+    captured = {}
+
+    class _Session:
+        def request(self, *args, **kwargs):
+            captured.update(kwargs)
+            return "ok"
+
+    session = _Session()
+    _apply_default_request_timeout(session, timeout_seconds=42.0)
+
+    assert session.request("GET", "https://example.com") == "ok"
+    assert captured["timeout"] == 42.0
+
+    session.request("GET", "https://example.com", timeout=5.0)
+    assert captured["timeout"] == 5.0
+
+
+def test_schwab_proactive_token_refresh_rotates_before_expiry():
+    from lumibot.brokers.schwab import _start_schwab_proactive_token_refresh
+
+    token = {"refresh_token": "refresh-1", "expires_at": time.time() - 10}
+    refresh_calls = []
+
+    class _FakeOAuthSession:
+        auto_refresh_url = "https://api.schwabapi.com/v1/oauth/token"
+
+        def refresh_token(self, url, refresh_token=None, **kwargs):
+            refresh_calls.append({"url": url, "refresh_token": refresh_token})
+            return {"access_token": "access-2", "refresh_token": "refresh-2"}
+
+    updated = {}
+
+    def _update_token(updated_token):
+        updated.update(updated_token)
+
+    stop = _start_schwab_proactive_token_refresh(_FakeOAuthSession(), token, {}, _update_token)
+    try:
+        deadline = time.time() + 5
+        while not updated and time.time() < deadline:
+            time.sleep(0.01)
+    finally:
+        stop.set()
+
+    assert len(refresh_calls) >= 1
+    assert refresh_calls[0]["refresh_token"] == "refresh-1"
+    assert updated.get("access_token") == "access-2"

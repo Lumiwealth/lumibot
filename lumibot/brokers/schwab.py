@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import os
 import re
+import threading
 from threading import Thread
 
 from lumibot._lazy_imports import LazyLogger, lazy_class
@@ -100,6 +101,100 @@ def _botspot_force_broker_token_refresh() -> bool:
         "y",
         "on",
     }
+
+
+def _schwab_cancel_diagnostics_enabled() -> bool:
+    """Post-cancel direct order reads double the round trips on every cancel.
+
+    They were added as always-on incident diagnostics; they now run only when
+    explicitly enabled so latency-sensitive cancels pay for one HTTP call.
+    """
+    return (os.environ.get("SCHWAB_CANCEL_DIAGNOSTICS") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+# Refresh this many seconds before the access token actually expires so no
+# latency-sensitive broker call (quotes, cancels) absorbs the OAuth handshake.
+_SCHWAB_PROACTIVE_REFRESH_MARGIN_SECONDS = 300
+_SCHWAB_PROACTIVE_REFRESH_POLL_SECONDS = 30
+_SCHWAB_PROACTIVE_REFRESH_RETRY_SECONDS = 60
+_SCHWAB_HTTP_TIMEOUT_SECONDS = 30.0
+
+
+def _apply_default_request_timeout(oauth_session, timeout_seconds: float = _SCHWAB_HTTP_TIMEOUT_SECONDS) -> None:
+    """Give every request through the OAuth session an explicit default timeout.
+
+    requests has no default timeout, so a stalled TLS/proxy connection would
+    block the trading loop indefinitely (including cancels).
+    """
+    original_request = oauth_session.request
+
+    def _request_with_default_timeout(*args, **kwargs):
+        if kwargs.get("timeout") is None:
+            kwargs["timeout"] = timeout_seconds
+        return original_request(*args, **kwargs)
+
+    oauth_session.request = _request_with_default_timeout
+
+
+def _start_schwab_proactive_token_refresh(
+    oauth_session,
+    token_dict_for_session: dict,
+    refresh_kwargs: dict,
+    update_token_callback,
+) -> threading.Event:
+    """Refresh the Schwab access token in the background before it expires.
+
+    Schwab access tokens live ~30 minutes and oauthlib only refreshes lazily
+    inside whatever request first crosses the expiry boundary. That made the
+    refresh handshake (and any transient failure) land on an arbitrary broker
+    call - historically a cancel or quote - and could take seconds. This daemon
+    thread rotates the token ahead of expiry instead. The stop event is returned
+    so owners can shut the thread down with the broker.
+    """
+    stop_event = threading.Event()
+
+    def _seconds_until_expiry():
+        expires_at = token_dict_for_session.get("expires_at")
+        try:
+            return float(expires_at) - time.time()
+        except (TypeError, ValueError):
+            # Unknown expiry: poll periodically and let oauthlib decide lazily.
+            return None
+
+    def _refresh_once():
+        refresh_token_value = token_dict_for_session.get("refresh_token")
+        if not refresh_token_value:
+            raise RuntimeError("missing refresh_token")
+        refreshed = oauth_session.refresh_token(
+            oauth_session.auto_refresh_url,
+            refresh_token=refresh_token_value,
+            **refresh_kwargs,
+        )
+        if not isinstance(refreshed, dict) or not refreshed.get("access_token"):
+            raise RuntimeError("refresh response did not include access_token")
+        update_token_callback(refreshed)
+
+    def _run():
+        while not stop_event.is_set():
+            remaining = _seconds_until_expiry()
+            if remaining is None or remaining <= _SCHWAB_PROACTIVE_REFRESH_MARGIN_SECONDS:
+                try:
+                    _refresh_once()
+                    logger.info("[Schwab] Proactive background token refresh completed.")
+                except Exception as exc:
+                    logger.warning(f"[Schwab] Proactive background token refresh failed, will retry: {exc}")
+                stop_event.wait(_SCHWAB_PROACTIVE_REFRESH_RETRY_SECONDS)
+            else:
+                stop_event.wait(min(remaining - _SCHWAB_PROACTIVE_REFRESH_MARGIN_SECONDS, _SCHWAB_PROACTIVE_REFRESH_POLL_SECONDS))
+
+    thread = Thread(target=_run, name="schwab-token-refresher", daemon=True)
+    thread.start()
+    return stop_event
 
 
 def _is_external_schwab_token_file_valid(token_path: Path) -> bool:
@@ -544,6 +639,7 @@ class Schwab(Broker):
                     auto_refresh_kwargs=refresh_kwargs,
                     token_updater=_update_token,
                 )
+                _apply_default_request_timeout(oauth_session)
             token_file_state["signature"] = _token_file_signature()
 
             if api_key and client_secret_env and not external_token_refresh:
@@ -554,6 +650,27 @@ class Schwab(Broker):
 
                 #create refresh hook. This is beacuse oa2session does not perform refreshes with auth headers, only with json bodies. 
                 oauth_session.register_compliance_hook("refresh_token_request", _refresh_token_hook)
+
+            # Rotate the access token before expiry so the OAuth handshake never
+            # lands inside a latency-sensitive broker call. Without SCHWAB_APP_SECRET
+            # Schwab rejects refresh exchanges, so the thread would only spin and warn.
+            self._schwab_token_refresh_stop = None
+            if not external_token_refresh and client_secret_env and token_dict_for_session.get("refresh_token"):
+                try:
+                    self._schwab_token_refresh_stop = _start_schwab_proactive_token_refresh(
+                        oauth_session,
+                        token_dict_for_session,
+                        refresh_kwargs,
+                        _update_token,
+                    )
+                except Exception as exc:
+                    logger.warning(f"[Schwab] Could not start proactive token refresher: {exc}")
+            elif not external_token_refresh and not client_secret_env:
+                logger.error(
+                    "[Schwab] SCHWAB_APP_SECRET is not configured; automatic token refresh is NOT possible "
+                    "and the connection will fail ~30 minutes after each re-authentication. Configure "
+                    "SCHWAB_APP_SECRET or plan to re-authenticate before then."
+                )
 
             if external_token_refresh:
                 original_request = oauth_session.request
@@ -627,9 +744,22 @@ class Schwab(Broker):
         except Exception as e:
             logger.error(colored(f"[Schwab] Error initializing Schwab client from token file {token_path}: {e}", "red"))
             logger.error(_format_exc())
+            # Only delete the token file when it is genuinely corrupt (unreadable
+            # JSON or structurally missing its token). A transient network/API
+            # error during startup must not destroy a valid refresh_token, which
+            # would force an interactive re-authentication.
+            token_file_corrupt = isinstance(e, _json_module().JSONDecodeError) or (
+                isinstance(e, ValueError) and "token" in str(e).lower()
+            )
             if token_path.exists() and not external_token_refresh and not isinstance(e, SchwabTokenPersistenceError):
-                logger.warning(f"[Schwab] Deleting potentially corrupt token file: {token_path}")
-                token_path.unlink(missing_ok=True)
+                if token_file_corrupt:
+                    logger.warning(f"[Schwab] Deleting corrupt token file: {token_path}")
+                    token_path.unlink(missing_ok=True)
+                else:
+                    logger.warning(
+                        f"[Schwab] Keeping token file {token_path} after a transient initialization error "
+                        "(the file itself looks intact); it can be reused on the next start."
+                    )
             self.schwab_authorization_error = True
             raise ConnectionError(
                 f"Failed to initialize Schwab client: {e}. "
@@ -700,8 +830,10 @@ class Schwab(Broker):
             else:
                 code = getattr(resp_accounts, 'status_code', 'n/a')
                 logger.error(f"[Schwab] Failed to fetch account numbers. HTTP status {code}")
-                if code == 401:
-                    # Token is invalid, delete it so user will be prompted to re-authenticate
+                if code == 401 and not external_token_refresh:
+                    # Token is invalid, delete it so user will be prompted to re-authenticate.
+                    # In external mode the file is parent-managed; deleting it here would
+                    # destroy the refresh token the parent process rotates.
                     if token_path.exists(): token_path.unlink(missing_ok=True)
                     logger.warning(f"[Schwab] Deleted invalid token file {token_path} due to 401 error.")
                     raise ConnectionError("Schwab authentication failed (401 Unauthorized). Token deleted. Please restart to re-authenticate.")
@@ -2696,7 +2828,10 @@ class Schwab(Broker):
             raise LumibotBrokerAPIError(error_msg)
 
         logger.info(colored(f"Schwab cancel accepted for order {order.identifier}.", "green"))
-        self._log_cancel_direct_read(order.identifier, "after_cancel_accept")
+        if _schwab_cancel_diagnostics_enabled():
+            # Incident diagnostics only: this is an extra full round trip on the
+            # cancel hot path. Enable SCHWAB_CANCEL_DIAGNOSTICS to restore it.
+            self._log_cancel_direct_read(order.identifier, "after_cancel_accept")
 
         self._mark_order_tree_canceled(order)
 

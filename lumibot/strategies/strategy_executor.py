@@ -10,6 +10,10 @@ from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 
 logger = LazyLogger(__name__)
 
+# Warn when a single on_trading_iteration blocks for longer than this; long
+# iterations delay cancel/deadline checks until the loop regains control.
+_ITERATION_OVERRUN_WARN_SECONDS = 120.0
+
 pd = LazyModule("pandas")
 mcal = LazyModule("pandas_market_calendars")
 Asset = lazy_class("lumibot.entities", "Asset")
@@ -1386,6 +1390,20 @@ class StrategyExecutor(Thread):
             # Update cron count to account for how long this iteration took to complete so that the next iteration will
             # occur at the correct time.
             self.cron_count = self._seconds_to_sleeptime_count(int(runtime), sleep_units)
+
+            # sleeptime cannot interrupt a running iteration: APScheduler skips
+            # ticks while this job is executing, so any pending-order deadline
+            # logic only runs when on_trading_iteration regains control. Warn
+            # loudly when an iteration overruns badly enough that order
+            # management (e.g. cancel deadlines) will have been delayed.
+            if runtime > _ITERATION_OVERRUN_WARN_SECONDS:
+                self.strategy.log_message(
+                    f"on_trading_iteration took {runtime:.1f}s, which blocks all order management until it "
+                    f"finishes (sleeptime={self.strategy.sleeptime!r} does not interrupt a running iteration). "
+                    "Consider caching option chains/quotes, narrowing get_orders calls in the hot path, or "
+                    "moving deadline checks into event handlers such as on_filled_order.",
+                    color="yellow",
+                )
             next_run_time = self.get_next_ap_scheduler_run_time()
             if next_run_time is not None and log_iteration_heartbeat:
                 # Format the date to be used in the log message.

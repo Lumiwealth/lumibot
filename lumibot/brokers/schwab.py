@@ -131,7 +131,13 @@ def _apply_default_request_timeout(oauth_session, timeout_seconds: float = _SCHW
     requests has no default timeout, so a stalled TLS/proxy connection would
     block the trading loop indefinitely (including cancels).
     """
-    original_request = oauth_session.request
+    original_request = getattr(oauth_session, "request", None)
+    if not callable(original_request):
+        # Some supported schwab-py transports and test doubles expose the
+        # request path through their client wrapper instead of directly on the
+        # OAuth session. Do not turn the timeout safety enhancement into an
+        # initialization failure for those sessions.
+        return
 
     def _request_with_default_timeout(*args, **kwargs):
         if kwargs.get("timeout") is None:
@@ -655,7 +661,12 @@ class Schwab(Broker):
             # lands inside a latency-sensitive broker call. Without SCHWAB_APP_SECRET
             # Schwab rejects refresh exchanges, so the thread would only spin and warn.
             self._schwab_token_refresh_stop = None
-            if not external_token_refresh and client_secret_env and token_dict_for_session.get("refresh_token"):
+            if (
+                not external_token_refresh
+                and not _botspot_force_broker_token_refresh()
+                and client_secret_env
+                and token_dict_for_session.get("refresh_token")
+            ):
                 try:
                     self._schwab_token_refresh_stop = _start_schwab_proactive_token_refresh(
                         oauth_session,

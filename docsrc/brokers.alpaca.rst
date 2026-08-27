@@ -15,6 +15,18 @@ Features
 * **Live Streaming**: Real-time trade updates and market data
 * **Cash Events**: Live cloud payloads can include normalized broker cash events such as deposits, withdrawals, interest, dividends, fees, journals, and adjustments
 
+End-of-Day Lifecycle
+--------------------
+
+Live and paper Alpaca strategies use LumiBot's standard live-broker market-close wait. Order fills
+continue to arrive through Alpaca's WebSocket stream or OAuth polling stream; the simulated
+``process_pending_orders()`` step is used only by backtesting brokers.
+
+Older LumiBot releases affected by `issue #1113 <https://github.com/Lumiwealth/lumibot/issues/1113>`__
+could raise ``AttributeError: 'Alpaca' object has no attribute 'process_pending_orders'`` while
+entering the end-of-day lifecycle. Upgrade to a release containing the fix rather than adding a
+``process_pending_orders`` method to a strategy or live broker.
+
 Getting Started
 ---------------
 

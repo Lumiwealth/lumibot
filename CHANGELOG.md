@@ -2,6 +2,9 @@
 
 ## 4.5.87 - Unreleased
 
+### Documentation
+- **Fast order lifecycle guidance now separates strategy policy, broker constraints, and reusable state-machine invariants.** The new guide documents configurable monotonic deadlines, callback races, risk-scoped blocking, bounded reconciliation, Schwab request budgeting and measured cancel-response observations, plus a redacted telemetry contract for deadline and hedge diagnosis.
+
 ## 4.5.86 - Unreleased
 
 ### Fixed

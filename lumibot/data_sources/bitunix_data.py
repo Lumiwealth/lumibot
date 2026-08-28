@@ -230,10 +230,44 @@ class BitunixData(DataSource):
     def get_timestep_from_string(self, timestep: str) -> str:
         """
         Maps a string representation of a timestep to the normalized timestep.
+
+        Matches the request and its canonical form against each row's
+        representations and their canonical forms. Both halves carry cases the
+        other does not: "15Min" and "240T" need the representations
+        canonicalized as well, since they only meet "15m" and "240m" there,
+        while "240" and "60" need the raw strings, because
+        ``canonicalize_timestep`` returns None for a bare number.
+        Matching the raw strings alone left six of the nine rows in
+        TIMESTEP_MAPPING unreachable by their own name -- "3 minutes",
+        "5 minutes", "15 minutes", "30 minutes", "2 hours" and "4 hours" each
+        fell through to the default below and were served as 1-minute candles.
         """
-        ts = timestep.lower().strip()
+        from lumibot.tools.helpers import canonicalize_timestep
+
+        # `.lower()` is the call this method already made; a non-string still
+        # fails on attribute access, as it did before. The isinstance test is
+        # load-bearing: canonicalize_timestep is lru_cached, and without it a
+        # bytearray raises TypeError from inside the cache instead of matching
+        # nothing, which is what it did on dev.
+        text = timestep.lower().strip()
+        canonical = canonicalize_timestep(text) if isinstance(text, str) else None
+        candidates = {str(text).lower()}
+        if canonical:
+            candidates.add(canonical)
+
         for mapping in self.TIMESTEP_MAPPING:
-            if ts in [r.lower() for r in mapping["representations"]]:
+            names = set()
+            for rep in mapping["representations"]:
+                names.add(str(rep).lower())
+                # Canonicalize the representations too, so an alias that
+                # normalizes to the same duration matches even when it is
+                # spelled differently: "240T" -> "240 minutes" reaches the
+                # "4 hours" row through its own "240m".
+                rep_canonical = canonicalize_timestep(rep)
+                if rep_canonical:
+                    names.add(rep_canonical)
+            if candidates & names:
                 return mapping["timestep"]
+
         # Default to "minute" if not found
         return "minute"

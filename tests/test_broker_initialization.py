@@ -472,7 +472,12 @@ def test_ibkr_rest_submit_order_without_stream_does_not_crash(monkeypatch):
     from lumibot.entities import Asset, Order
 
     monkeypatch.setattr(broker_module.Broker, "_start_orders_thread", lambda self: None)
-    data_source = SimpleNamespace(execute_order=lambda order_data: [{"order_id": "ib-1"}])
+    # The REST broker requests the complete response so atomic packages can
+    # validate every native acknowledgement. Keep this fake aligned with the
+    # production data-source interface introduced for that safety invariant.
+    data_source = SimpleNamespace(
+        execute_order=lambda order_data, return_raw_response=False: [{"order_id": "ib-1"}]
+    )
     broker = InteractiveBrokersREST(config={"MARKET": "NYSE"}, data_source=data_source, connect_stream=False)
     broker.get_order_data_from_orders = lambda orders: {"orders": []}
     broker._log_order_status = lambda *args, **kwargs: None

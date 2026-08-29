@@ -3,11 +3,14 @@
 ## 4.5.86 - Unreleased
 
 ### Changed
-- **Documented IBKR Client Portal REST advanced-order semantics.** The
-  contributor and broker guides now describe atomic BRACKET/OTO packages,
-  executable-child-only OCO packages, native-leg tracking and cancellation,
-  polling relationships, and the explicit REST GTD limitation. Legacy socket
-  GTD behavior remains separate.
+- **IBKR Client Portal REST now supports provider-specific advanced-order
+  packages.** BRACKET and OTO submit their executable parent and children in
+  one request; OCO submits only its two broker-backed children as an OCA group.
+  Native legs receive separate normalized IDs, polling preserves local order
+  trees, advanced cancellation attempts every known broker-backed member, and
+  partial acknowledgements trigger compensating cancellation. Unverified REST
+  GTD submission now fails explicitly while Legacy socket GTD remains supported.
+  Contributor and broker documentation describe these semantics and limits.
 
 ### Fixed
 - **Documentation configuration tests no longer leak mocked broker packages.**

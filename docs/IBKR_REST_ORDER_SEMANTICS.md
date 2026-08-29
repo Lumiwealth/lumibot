@@ -27,12 +27,19 @@ The adapter sends each advanced package in one `execute_order()` request:
   the same cOID/`parentId` relationship.
 - **OCO** does not send the conceptual LumiBot parent. It sends exactly the two
   executable children as an IBKR single-group/OCA package (`isSingleGroup`).
-  The conceptual parent remains a local container.
+  Each child receives a unique `cOID` so acknowledgements can be correlated if
+  IBKR returns them out of request order. The conceptual parent remains a local
+  container.
 
 Each executable native leg receives and tracks its own broker order ID. For
 BRACKET and OTO, the tracked parent uses the broker ID as the children's
 `parent_identifier`. For OCO, children retain the local container's identifier;
 the local parent has no broker order ID.
+
+IBKR's documented OCA example returns tickets in a different order from the
+request. LumiBot therefore uses response `local_order_id` values to correlate
+OCO acknowledgements. If the complete mapping remains ambiguous, submission
+fails closed and every acknowledged broker ID receives a cancellation attempt.
 
 Strategies should use the current generic parameter names when constructing
 packages, for example:
@@ -43,6 +50,7 @@ entry = strategy.create_order(
     quantity=10,
     side="buy",
     order_type="limit",
+    order_class="bracket",
     limit_price=100,
     secondary_limit_price=110,
     secondary_stop_price=95,
@@ -82,6 +90,7 @@ contain and be parsed from `goodTillDate`.
 
 Exact-date GTD remains separately supported by the Legacy IBKR socket adapter;
 this REST limitation does not change generic `Order`, backtesting, Polymarket,
-or other broker behavior. See the [IBKR Client Portal API documentation](https://ibkrcampus.com/campus/ibkr-api-page/cpapi-v1/)
-and [IBKR TWS API order documentation](https://ibkrcampus.com/campus/ibkr-api-page/twsapi-doc/)
-for provider documentation.
+or other broker behavior. See IBKR's [Web API order documentation](https://ibkrcampus.com/campus/ibkr-api-page/webapi-doc/#orders),
+[new-order endpoint reference](https://ibkrcampus.com/docs/web-api/api-reference/trading/trading-orders/submit-new-order),
+and [TWS API documentation](https://www.interactivebrokers.com/docs/tws-api/doc/introduction)
+for the separate provider contracts.

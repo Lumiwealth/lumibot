@@ -742,7 +742,13 @@ class InteractiveBrokersREST(Broker):
                 acknowledged_ids.append(order_id)
         return acknowledged_ids
 
-    def _validate_order_acknowledgements(self, response, expected_count: int) -> list[tuple[str, dict]]:
+    def _validate_order_acknowledgements(
+        self,
+        response,
+        expected_count: int,
+        submitted_tickets: list[dict] | None = None,
+        require_unambiguous_correlation: bool = False,
+    ) -> list[tuple[str, dict]]:
         """Validate an atomic Client Portal acknowledgement package."""
         errors = []
         if not isinstance(response, list):
@@ -776,6 +782,44 @@ class InteractiveBrokersREST(Broker):
         acknowledged_ids = [order_id for order_id, _ in acknowledgements]
         if len(set(acknowledged_ids)) != len(acknowledged_ids):
             errors.append("response contains duplicate order_id acknowledgements")
+
+        if not errors and submitted_tickets is not None:
+            ticket_indexes_by_coid = {
+                str(ticket["cOID"]): index
+                for index, ticket in enumerate(submitted_tickets)
+                if ticket.get("cOID") is not None
+            }
+            correlated = [None] * expected_count
+            uncorrelated = []
+            for acknowledgement in acknowledgements:
+                local_order_id = acknowledgement[1].get("local_order_id")
+                local_order_id = (
+                    str(local_order_id) if local_order_id is not None else None
+                )
+                ticket_index = ticket_indexes_by_coid.get(local_order_id)
+                if ticket_index is None:
+                    uncorrelated.append(acknowledgement)
+                elif correlated[ticket_index] is not None:
+                    errors.append(
+                        f"response contains duplicate local_order_id {local_order_id!r}"
+                    )
+                else:
+                    correlated[ticket_index] = acknowledgement
+
+            open_indexes = [
+                index for index, acknowledgement in enumerate(correlated)
+                if acknowledgement is None
+            ]
+            if require_unambiguous_correlation and len(open_indexes) > 1:
+                errors.append(
+                    "response does not identify enough OCO acknowledgements by local_order_id"
+                )
+            elif len(open_indexes) != len(uncorrelated):
+                errors.append("response acknowledgement correlation is inconsistent")
+            else:
+                for ticket_index, acknowledgement in zip(open_indexes, uncorrelated):
+                    correlated[ticket_index] = acknowledgement
+                acknowledgements = correlated
 
         if errors:
             raise ValueError("Invalid IBKR REST order acknowledgement package: " + "; ".join(errors))
@@ -871,6 +915,10 @@ class InteractiveBrokersREST(Broker):
                 acknowledgements = self._validate_order_acknowledgements(
                     response,
                     expected_count=len(native_orders),
+                    submitted_tickets=order_data["orders"],
+                    require_unambiguous_correlation=(
+                        order.order_class is Order.OrderClass.OCO
+                    ),
                 )
             except Exception:
                 self._cancel_acknowledged_order_ids(order, acknowledged_ids)
@@ -1162,8 +1210,20 @@ class InteractiveBrokersREST(Broker):
             # The LumiBot OCO parent is conceptual; IBKR receives only its
             # two executable children as one single-group package.
             native_orders = children
+            child_coids = [self._get_ibkr_client_order_id(child) for child in children]
+            if len(set(child_coids)) != len(child_coids):
+                raise ValueError(
+                    "IBKR REST OCO child orders must have distinct identifiers for cOID correlation."
+                )
             tickets = [
-                (child, order.exchange, None, None, True) for child in children
+                (
+                    child,
+                    order.exchange,
+                    child_coid,
+                    None,
+                    True,
+                )
+                for child, child_coid in zip(children, child_coids)
             ]
         else:
             raise ValueError(

@@ -620,7 +620,7 @@ class InteractiveBrokersRESTData(DataSource):
         response = self.get_from_endpoint(url, "Getting Order Info", allow_fail=False, silent=True)
         return response
 
-    def execute_order(self, order_data):
+    def execute_order(self, order_data, return_raw_response=False):
         if order_data is None:
             logger.debug(colored("Failed to get order data.", "red"))
             return None
@@ -629,6 +629,12 @@ class InteractiveBrokersRESTData(DataSource):
 
         url = f"{self.base_url}/iserver/account/{self.account_id}/orders"
         response = self.post_to_endpoint(url, order_data, description="Executing order")
+
+        # Atomic order packages need the complete broker response so the
+        # broker adapter can validate every acknowledgement and compensate for
+        # partial acceptance. Confirmation handling remains in post_to_endpoint.
+        if return_raw_response:
+            return response
 
         if isinstance(response, list) and "order_id" in response[0]:
             # success

@@ -4,7 +4,9 @@ import pytest
 
 import lumibot.brokers.interactive_brokers_rest as ibkr_rest_module
 from lumibot.brokers.interactive_brokers_rest import InteractiveBrokersREST
+from lumibot.data_sources.interactive_brokers_rest_data import InteractiveBrokersRESTData
 from lumibot.entities import Asset, Order
+from lumibot.trading_builtins.safe_list import SafeList
 
 
 @pytest.fixture
@@ -14,6 +16,41 @@ def broker(monkeypatch):
     broker.data_source = Mock()
     broker.data_source.get_conid_from_asset.return_value = 265598
     broker.data_source.get_contract_rules.return_value = {"rules": {"increment": 0.01}}
+    broker.name = InteractiveBrokersREST.NAME
+    broker.logger = Mock()
+    broker.logger.isEnabledFor.return_value = False
+    broker._log_order_status = Mock()
+    broker._hold_trade_events = False
+    broker._held_trades = []
+    broker._subscribers = SafeList(None)
+    broker._unprocessed_orders = SafeList(None)
+    broker._placeholder_orders = SafeList(None)
+    broker._new_orders = SafeList(None)
+    broker._canceled_orders = SafeList(None)
+    broker._partially_filled_orders = SafeList(None)
+    broker._filled_orders = SafeList(None)
+    broker._error_orders = SafeList(None)
+    broker._tracked_orders_cache_key = None
+    broker._tracked_orders_cache_value = []
+    broker._tracked_orders_filter_cache = {}
+    broker._active_tracked_orders_filter_cache = {}
+    broker._on_new_order = Mock()
+
+    broker.dispatched_events = []
+
+    def dispatch_and_process(event, **kwargs):
+        order = kwargs["order"]
+        broker.dispatched_events.append((event, order, order.status))
+        if event == broker.NEW_ORDER:
+            processed_order = broker._process_new_order(order)
+            if processed_order:
+                broker._on_new_order(processed_order)
+        elif event == broker.PLACEHOLDER_ORDER:
+            broker._process_placeholder_order(order)
+        elif event == broker.ERROR_ORDER:
+            order.set_error(kwargs["error_msg"])
+
+    broker._safe_stream_dispatch = Mock(side_effect=dispatch_and_process)
     return broker
 
 
@@ -224,3 +261,213 @@ def test_unserializable_advanced_child_prevents_complete_package(broker):
         broker._get_order_data_for_submission(parent)
 
     broker.data_source.execute_order.assert_not_called()
+
+
+def test_submit_simple_maps_raw_acknowledgement_and_tracks_once(broker):
+    order = _order(
+        identifier="local-simple",
+        limit_price=100.0,
+        order_type=Order.OrderType.LIMIT,
+    )
+    response = [{"order_id": 1001, "order_status": "Submitted"}]
+    broker.data_source.execute_order.return_value = response
+
+    result = broker._submit_order(order)
+
+    assert result is order
+    assert order.identifier == "1001"
+    assert order._raw is response[0]
+    assert order.was_transmitted()
+    assert order in broker._new_orders
+    assert order not in broker._unprocessed_orders
+    assert order._new_event.is_set()
+    assert broker.dispatched_events == [(broker.NEW_ORDER, order, Order.OrderStatus.SUBMITTED)]
+    broker._on_new_order.assert_called_once_with(order)
+    broker.data_source.execute_order.assert_called_once()
+    assert broker.data_source.execute_order.call_args.kwargs == {"return_raw_response": True}
+
+
+def test_execute_order_can_return_complete_mixed_response_without_network():
+    data_source = InteractiveBrokersRESTData.__new__(InteractiveBrokersRESTData)
+    data_source.base_url = "https://example.invalid"
+    data_source.account_id = "test-account"
+    data_source.ping_iserver = Mock()
+    response = [{"error": "rejected"}, {"order_id": "1002"}]
+    data_source.post_to_endpoint = Mock(return_value=response)
+
+    result = data_source.execute_order({"orders": [{}, {}]}, return_raw_response=True)
+
+    assert result is response
+    data_source.ping_iserver.assert_called_once_with()
+    data_source.post_to_endpoint.assert_called_once_with(
+        "https://example.invalid/iserver/account/test-account/orders",
+        {"orders": [{}, {}]},
+        description="Executing order",
+    )
+
+
+def test_submit_bracket_maps_and_tracks_every_native_leg(broker):
+    parent = _order(
+        identifier="local-bracket",
+        limit_price=100.0,
+        order_type=Order.OrderType.LIMIT,
+        order_class=Order.OrderClass.BRACKET,
+        secondary_limit_price=110.0,
+        secondary_stop_price=95.0,
+    )
+    children = list(parent.child_orders)
+    response = [
+        {"order_id": 2001, "order_status": "Submitted"},
+        {"order_id": "2002", "order_status": "Submitted"},
+        {"order_id": 2003, "order_status": "Submitted"},
+    ]
+    broker.data_source.execute_order.return_value = response
+
+    broker._submit_order(parent)
+
+    native_orders = [parent, *children]
+    assert parent.child_orders == children
+    assert [native.identifier for native in native_orders] == ["2001", "2002", "2003"]
+    assert [native._raw for native in native_orders] == response
+    assert all(native.was_transmitted() for native in native_orders)
+    assert all(child.parent_identifier == "2001" for child in children)
+    assert all(native in broker._new_orders for native in native_orders)
+    assert all(native not in broker._unprocessed_orders for native in native_orders)
+    assert all(native._new_event.is_set() for native in native_orders)
+    assert [event for event, _, _ in broker.dispatched_events] == [broker.NEW_ORDER] * 3
+    assert [status for _, _, status in broker.dispatched_events] == [Order.OrderStatus.SUBMITTED] * 3
+    assert [args.args[0] for args in broker._on_new_order.call_args_list] == native_orders
+
+
+def test_submit_oto_maps_parent_and_child_in_request_order(broker):
+    parent = _order(
+        identifier="local-oto",
+        limit_price=100.0,
+        order_type=Order.OrderType.LIMIT,
+        order_class=Order.OrderClass.OTO,
+        secondary_limit_price=110.0,
+    )
+    child = parent.child_orders[0]
+    response = [
+        {"order_id": "3001", "order_status": "Submitted"},
+        {"order_id": 3002, "order_status": "Submitted"},
+    ]
+    broker.data_source.execute_order.return_value = response
+
+    broker._submit_order(parent)
+
+    assert parent.identifier == "3001"
+    assert child.identifier == "3002"
+    assert child.parent_identifier == "3001"
+    assert parent._raw is response[0]
+    assert child._raw is response[1]
+    assert parent in broker._new_orders
+    assert child in broker._new_orders
+    assert len(broker._unprocessed_orders) == 0
+    assert broker._on_new_order.call_count == 2
+
+
+def test_submit_oco_keeps_local_parent_placeholder_and_tracks_native_children(broker):
+    parent = _order(
+        identifier="local-oco",
+        side=Order.OrderSide.SELL,
+        limit_price=110.0,
+        stop_price=95.0,
+        order_class=Order.OrderClass.OCO,
+    )
+    children = list(parent.child_orders)
+    response = [
+        {"order_id": 4001, "order_status": "Submitted"},
+        {"order_id": "4002", "order_status": "Submitted"},
+    ]
+    broker.data_source.execute_order.return_value = response
+
+    broker._submit_order(parent)
+
+    assert parent.identifier == "local-oco"
+    assert not parent.was_transmitted()
+    assert parent in broker._placeholder_orders
+    assert parent not in broker._new_orders
+    assert [child.identifier for child in children] == ["4001", "4002"]
+    assert [child._raw for child in children] == response
+    assert all(child.parent_identifier == "local-oco" for child in children)
+    assert all(child in broker._new_orders for child in children)
+    assert all(child not in broker._unprocessed_orders for child in children)
+    assert parent._new_event.is_set()
+    assert [event for event, _, _ in broker.dispatched_events] == [
+        broker.PLACEHOLDER_ORDER,
+        broker.NEW_ORDER,
+        broker.NEW_ORDER,
+    ]
+    assert [args.args[0] for args in broker._on_new_order.call_args_list] == children
+
+
+@pytest.mark.parametrize(
+    ("response", "cleanup_ids"),
+    [
+        ([{"order_id": "5001"}, "malformed-entry"], ["5001"]),
+        ([{"order_id": "5001"}], ["5001"]),
+        (
+            [{"order_id": "5001"}, {"order_id": "5002"}, {"order_id": "5003"}],
+            ["5001", "5002", "5003"],
+        ),
+        (
+            [{"order_id": "5001"}, {"order_id": "5002", "error": "rejected"}],
+            ["5001", "5002"],
+        ),
+        ([{"error": "rejected"}, {"order_id": "5002"}], ["5002"]),
+    ],
+    ids=["malformed", "short", "long", "mixed", "mixed-first-error"],
+)
+def test_invalid_acknowledgement_package_cleans_every_acknowledged_id(
+    broker,
+    response,
+    cleanup_ids,
+):
+    parent = _order(
+        identifier="failed-bracket",
+        limit_price=100.0,
+        order_type=Order.OrderType.LIMIT,
+        order_class=Order.OrderClass.BRACKET,
+        secondary_limit_price=110.0,
+    )
+    original_identifiers = [parent.identifier, parent.child_orders[0].identifier]
+    broker.data_source.execute_order.return_value = response
+
+    broker._submit_order(parent)
+
+    cleanup_orders = [args.args[0] for args in broker.data_source.delete_order.call_args_list]
+    assert [cleanup.identifier for cleanup in cleanup_orders] == cleanup_ids
+    assert [parent.identifier, parent.child_orders[0].identifier] == original_identifiers
+    assert parent.status == Order.OrderStatus.ERROR
+    assert parent.child_orders[0].status == Order.OrderStatus.ERROR
+    assert not parent.was_transmitted()
+    assert not parent.child_orders[0].was_transmitted()
+    assert "Invalid IBKR REST order acknowledgement package" in parent.error_message
+    assert len(broker._unprocessed_orders) == 0
+    assert len(broker._new_orders) == 0
+    assert [event for event, _, _ in broker.dispatched_events] == [broker.ERROR_ORDER]
+    broker._on_new_order.assert_not_called()
+
+
+def test_cleanup_continues_after_an_earlier_cancel_fails(broker):
+    parent = _order(
+        identifier="cleanup-bracket",
+        limit_price=100.0,
+        order_type=Order.OrderType.LIMIT,
+        order_class=Order.OrderClass.BRACKET,
+        secondary_limit_price=110.0,
+    )
+    broker.data_source.execute_order.return_value = [
+        {"order_id": "6001"},
+        {"order_id": "6002"},
+        {"order_id": "6003"},
+    ]
+    broker.data_source.delete_order.side_effect = [RuntimeError("first cleanup failed"), None, None]
+
+    broker._submit_order(parent)
+
+    cleanup_orders = [args.args[0] for args in broker.data_source.delete_order.call_args_list]
+    assert [cleanup.identifier for cleanup in cleanup_orders] == ["6001", "6002", "6003"]
+    assert parent.status == Order.OrderStatus.ERROR
+    assert broker._on_new_order.call_count == 0

@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from unittest.mock import Mock, call
 
 import pytest
@@ -790,3 +791,110 @@ def test_polling_dispatches_filled_and_canceled_child_status_changes(broker):
         broker.FILLED_ORDER,
         broker.CANCELED_ORDER,
     ]
+
+
+def _gtd_date():
+    return datetime(2026, 9, 1, 15, 30, tzinfo=timezone.utc)
+
+
+def test_rest_simple_gtd_fails_before_conid_or_execute_order(broker):
+    order = _order(
+        time_in_force="gtd",
+        good_till_date=_gtd_date(),
+        limit_price=100.0,
+        order_type=Order.OrderType.LIMIT,
+    )
+
+    with pytest.raises(NotImplementedError, match="exact-date GTD submission is not supported"):
+        broker._submit_order(order)
+
+    broker.data_source.get_conid_from_asset.assert_not_called()
+    broker.data_source.get_contract_rules.assert_not_called()
+    broker.data_source.execute_order.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "order_class, order_kwargs",
+    [
+        (Order.OrderClass.BRACKET, {"limit_price": 100.0, "secondary_limit_price": 110.0}),
+        (Order.OrderClass.OTO, {"limit_price": 100.0, "secondary_limit_price": 110.0}),
+        (Order.OrderClass.OCO, {"side": Order.OrderSide.SELL, "limit_price": 110.0, "stop_price": 95.0}),
+    ],
+)
+def test_rest_advanced_parent_gtd_fails_before_package_serialization(broker, order_class, order_kwargs):
+    parent = _order(
+        order_class=order_class,
+        time_in_force="gtd",
+        good_till_date=_gtd_date(),
+        **order_kwargs,
+    )
+
+    with pytest.raises(NotImplementedError, match="exact-date GTD submission is not supported"):
+        broker._submit_order(parent)
+
+    broker.data_source.get_conid_from_asset.assert_not_called()
+    broker.data_source.execute_order.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "order_class, order_kwargs",
+    [
+        (Order.OrderClass.BRACKET, {"limit_price": 100.0, "secondary_limit_price": 110.0}),
+        (Order.OrderClass.OTO, {"limit_price": 100.0, "secondary_limit_price": 110.0}),
+        (Order.OrderClass.OCO, {"side": Order.OrderSide.SELL, "limit_price": 110.0, "stop_price": 95.0}),
+    ],
+)
+def test_rest_advanced_child_gtd_fails_before_package_serialization(broker, order_class, order_kwargs):
+    parent = _order(order_class=order_class, **order_kwargs)
+    child = parent.child_orders[0]
+    child.time_in_force = "gtd"
+    child.good_till_date = _gtd_date()
+
+    with pytest.raises(NotImplementedError, match="exact-date GTD submission is not supported"):
+        broker._submit_order(parent)
+
+    broker.data_source.get_conid_from_asset.assert_not_called()
+    broker.data_source.execute_order.assert_not_called()
+
+
+def test_rest_multileg_gtd_fails_before_conid_or_execute_order(broker):
+    leg = _order(time_in_force="gtd", good_till_date=_gtd_date())
+
+    with pytest.raises(NotImplementedError, match="exact-date GTD submission is not supported"):
+        broker._submit_orders([leg], is_multileg=True)
+
+    broker.data_source.get_conid_from_asset.assert_not_called()
+    broker.data_source.execute_order.assert_not_called()
+
+
+@pytest.mark.parametrize("order_class", [Order.OrderClass.SIMPLE, Order.OrderClass.BRACKET])
+def test_rest_good_till_date_without_gtd_is_rejected(order_class, broker):
+    order_kwargs = {
+        "time_in_force": "gtc",
+        "good_till_date": _gtd_date(),
+        "limit_price": 100.0,
+        "order_type": Order.OrderType.LIMIT,
+    }
+    if order_class is Order.OrderClass.BRACKET:
+        order_kwargs.update(order_class=order_class, secondary_limit_price=110.0)
+    order = _order(**order_kwargs)
+
+    with pytest.raises(ValueError, match="good_till_date requires time_in_force='gtd'"):
+        broker._submit_order(order)
+
+    broker.data_source.get_conid_from_asset.assert_not_called()
+    broker.data_source.execute_order.assert_not_called()
+
+
+@pytest.mark.parametrize("time_in_force", ["day", "gtc"])
+def test_rest_supported_time_in_force_payload_remains_unchanged(broker, time_in_force):
+    order = _order(
+        time_in_force=time_in_force,
+        limit_price=100.0,
+        order_type=Order.OrderType.LIMIT,
+    )
+
+    payload = broker._get_order_data_for_submission(order)
+
+    assert payload["orders"][0]["tif"] == time_in_force.upper()
+    assert "goodTillDate" not in payload["orders"][0]

@@ -2,7 +2,7 @@
 
 Architecture and safety notes for LumiBot's Interactive Brokers Client Portal REST transport.
 
-Last Updated: 2026-07-13
+Last Updated: 2026-08-29
 
 Status: Paper proof of concept
 
@@ -16,6 +16,16 @@ Audience: LumiBot contributors and downstream runtime integrators
 - an HTTP client that sends REST requests and can later carry OAuth request signing.
 
 This keeps broker, order, position, contract, and market-data behavior independent from authentication. Local individual-account testing can use IBeam temporarily. Approved third-party integrations can later inject an OAuth-capable HTTP session without rewriting broker methods.
+
+## Order Time-In-Force Limitation
+
+The Client Portal REST adapter rejects `time_in_force="gtd"` and a supplied
+`good_till_date` before contract lookup or order execution. IBKR documents an
+exact-date `goodTillDate` field for the Legacy socket API, but the Client Portal
+order schema does not document a verified REST equivalent. The adapter must not
+silently omit the requested expiration or pass an undocumented field. Existing
+broker responses containing `goodTillDate` continue to be parsed; this is a
+submission limitation only.
 
 ## Supported Transport Shapes
 

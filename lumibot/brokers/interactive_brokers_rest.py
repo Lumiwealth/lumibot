@@ -222,6 +222,10 @@ class InteractiveBrokersREST(Broker):
         """Parse a broker order representation
         to an order object"""
 
+        order_id = self._normalize_ibkr_order_identifier(response.get("orderId"))
+        if order_id is None:
+            raise ValueError("IBKR REST order response is missing a valid orderId.")
+
         asset_type = [k for k, v in TYPE_MAP.items() if v == response["secType"]][0]
         totalQuantity = response["totalSize"]
 
@@ -233,7 +237,7 @@ class InteractiveBrokersREST(Broker):
             order.quantity = totalQuantity
             order.asset = Asset(symbol=response['ticker'], asset_type="multileg")
             order.side = response['side']
-            order.identifier = response['orderId']
+            order.identifier = order_id
 
             order.child_orders = []
 
@@ -263,7 +267,7 @@ class InteractiveBrokersREST(Broker):
             )
 
         order._transmitted = True
-        order.set_identifier(response["orderId"])
+        order.set_identifier(order_id)
         # Map IB order status to Lumibot status
         order.status = response["status"].lower()
 
@@ -372,7 +376,9 @@ class InteractiveBrokersREST(Broker):
                 if isinstance(order, dict)
                 else getattr(order, "orderId", None)
             )
-            if order_id is not None and str(order_id) == str(identifier):
+            normalized_order_id = self._normalize_ibkr_order_identifier(order_id)
+            normalized_identifier = self._normalize_ibkr_order_identifier(identifier)
+            if normalized_order_id is not None and normalized_order_id == normalized_identifier:
                 return order
 
         logger.warning(
@@ -974,11 +980,19 @@ class InteractiveBrokersREST(Broker):
             logger.error(colored("Error details:", "red"), exc_info=True)
 
     @staticmethod
-    def _normalize_broker_order_id(identifier) -> str | None:
-        """Return a usable Client Portal order ID, excluding local identifiers."""
+    def _normalize_ibkr_order_identifier(identifier) -> str | None:
+        """Normalize Client Portal IDs across integer and string responses."""
         if isinstance(identifier, bool) or not isinstance(identifier, (str, int)):
             return None
         order_id = str(identifier).strip()
+        return order_id or None
+
+    @classmethod
+    def _normalize_broker_order_id(cls, identifier) -> str | None:
+        """Return a usable Client Portal order ID, excluding local identifiers."""
+        order_id = cls._normalize_ibkr_order_identifier(identifier)
+        if order_id is None:
+            return None
         if not re.fullmatch(r"[0-9]+", order_id) or int(order_id) <= 0:
             return None
         return order_id
@@ -1487,7 +1501,11 @@ class InteractiveBrokersREST(Broker):
 
         # Get current orders from IB and dispatch them to the stream for processing
         raw_orders = self.data_source.get_broker_all_orders()
-        stored_orders = {x.identifier: x for x in self.get_all_orders()}
+        stored_orders = {}
+        for stored_order in self.get_all_orders():
+            order_id = self._normalize_ibkr_order_identifier(stored_order.identifier)
+            if order_id is not None:
+                stored_orders[order_id] = stored_order
 
         for order_raw in raw_orders:
             order = self._parse_broker_order(order_raw, self._strategy_name)
@@ -1497,8 +1515,12 @@ class InteractiveBrokersREST(Broker):
 
             # Process all parent and child orders
             for order in all_orders:
+                order_id = self._normalize_ibkr_order_identifier(order.identifier)
+                if order_id is None:
+                    logger.warning("Ignoring IBKR REST poll order without a valid order identifier.")
+                    continue
                 # First time seeing this order
-                if order.identifier not in stored_orders:
+                if order_id not in stored_orders:
                     if self._first_iteration:
                         # Process existing orders on first poll
                         if order.status == Order.OrderStatus.FILLED:
@@ -1520,27 +1542,34 @@ class InteractiveBrokersREST(Broker):
                         self._process_new_order(order)
                 else:
                     # Update existing order
-                    stored_order = stored_orders[order.identifier]
+                    stored_order = stored_orders[order_id]
                     stored_order.quantity = order.quantity
-                    stored_children = [stored_orders[o.identifier] if o.identifier in stored_orders else o
-                                    for o in order.child_orders]
+                    stored_order.avg_fill_price = order.avg_fill_price
+                    stored_order.update_raw(order._raw)
 
-                    if stored_children:
+                    # Flat Client Portal responses for a known native child do
+                    # not describe its LumiBot parent tree.  Only replace child
+                    # links when IBKR actually returned nested child data.
+                    if order.child_orders:
+                        stored_children = []
+                        for child_order in order.child_orders:
+                            child_id = self._normalize_ibkr_order_identifier(child_order.identifier)
+                            stored_children.append(stored_orders.get(child_id, child_order))
                         stored_order.child_orders = stored_children
 
                     # Handle status changes
                     if not order.equivalent_status(stored_order):
                         match order.status.lower():
-                            case "submitted" | "open":
+                            case "submitted" | "open" | "new":
                                 self._safe_stream_dispatch(self.NEW_ORDER, order=stored_order)
-                            case "fill":
+                            case "fill" | "filled":
                                 self._safe_stream_dispatch(
                                     self.FILLED_ORDER,
                                     order=stored_order,
                                     price=order.avg_fill_price,
                                     filled_quantity=order.quantity
                                 )
-                            case "canceled":
+                            case "cancel" | "canceled" | "cancelled":
                                 self._safe_stream_dispatch(self.CANCELED_ORDER, order=stored_order)
                             case "error":
                                 msg = f"IB encountered an error with order {order.identifier}"
@@ -1549,7 +1578,11 @@ class InteractiveBrokersREST(Broker):
                         stored_order.status = order.status
 
         # Check for disappeared orders
-        tracked_orders = {x.identifier: x for x in self.get_tracked_orders()}
+        tracked_orders = {}
+        for tracked_order in self.get_tracked_orders():
+            order_id = self._normalize_ibkr_order_identifier(tracked_order.identifier)
+            if order_id is not None:
+                tracked_orders[order_id] = tracked_order
         broker_ids = self._get_broker_id_from_raw_orders(raw_orders)
         for order_id, order in tracked_orders.items():
             if order_id not in broker_ids:
@@ -1569,9 +1602,13 @@ class InteractiveBrokersREST(Broker):
         ids = []
         for o in raw_orders:
             if "orderId" in o:
-                ids.append(str(o["orderId"]))
+                order_id = self._normalize_ibkr_order_identifier(o["orderId"])
+                if order_id is not None:
+                    ids.append(order_id)
             if "leg" in o and isinstance(o["leg"], list):
                 for leg in o["leg"]:
                     if "orderId" in leg:
-                        ids.append(str(leg["orderId"]))
+                        order_id = self._normalize_ibkr_order_identifier(leg["orderId"])
+                        if order_id is not None:
+                            ids.append(order_id)
         return ids

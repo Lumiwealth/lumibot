@@ -441,7 +441,7 @@ Yes. LumiBot supports several environment variables for backtest configuration:
 - ``BACKTESTING_START`` / ``BACKTESTING_END`` -- date range (``YYYY-MM-DD``)
 - ``BACKTESTING_BUDGET`` -- starting cash (e.g., ``100000``)
 - ``BACKTESTING_DATA_SOURCE`` -- data source (``yahoo``, ``polygon``, ``thetadata``, etc.)
-- ``BACKTESTING_PARAMETERS`` -- JSON string of strategy parameters
+- ``LUMIBOT_STRATEGY_PARAMETERS`` -- JSON string of reusable strategy parameters (backtest and live)
 
 See :doc:`environment_variables` for the full list.
 
@@ -566,7 +566,7 @@ Define a ``parameters`` dict on your class, then access them with ``self.paramet
             symbol = self.parameters["symbol"]
             period = self.parameters["sma_period"]
 
-Parameters can be overridden at runtime via ``BACKTESTING_PARAMETERS`` environment variable.
+Parameters can be overridden at runtime via ``LUMIBOT_STRATEGY_PARAMETERS``. The same JSON object works in a backtest and in live execution, which lets you deploy the exact parameter set you validated. ``BACKTESTING_PARAMETERS`` remains a deprecated compatibility alias.
 
 What order types does LumiBot support?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

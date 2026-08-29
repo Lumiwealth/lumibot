@@ -4,6 +4,15 @@
 
 ### Fixed
 
+- Strategy parameter overrides now use the mode-neutral
+  `LUMIBOT_STRATEGY_PARAMETERS` contract in both backtests and live execution,
+  so a validated parameter set can be deployed unchanged. The former
+  `BACKTESTING_PARAMETERS` name remains a deprecated compatibility alias, and
+  logs expose parameter keys without values.
+- Backtests now record a safe `logs/data_provenance.json` artifact with the
+  versioned routing policy and data adapters actually observed, without
+  credentials or signed URLs.
+
 - Schwab order lifecycle observations now converge through one serialized,
   idempotent reducer shared by account-activity streaming and REST healing.
   Cancel HTTP acceptance remains non-terminal, partial fills preserve delta

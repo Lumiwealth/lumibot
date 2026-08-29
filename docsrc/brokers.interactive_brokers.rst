@@ -111,6 +111,46 @@ Use the Legacy Interactive Brokers Gateway adapter when your strategy requires
 exact-date GTD orders. Orders created through another IBKR interface can still
 be read by the REST adapter.
 
+REST advanced orders
+--------------------
+
+The LumiBot ``Order`` entity is provider-generic. The
+``InteractiveBrokersREST`` adapter performs the IBKR-specific translation:
+
+* **BRACKET** sends one atomic request containing the executable parent and
+  one or two attached children.
+* **OTO** sends one atomic request containing the executable parent and its
+  single attached child.
+* **OCO** sends only its two executable children as an IBKR single-group/OCA
+  package. Its LumiBot parent is a local container and is never sent to IBKR.
+
+Each executable leg receives and tracks a separate broker order ID. Canceling
+a BRACKET or OTO parent attempts all known broker-backed members; canceling an
+OCO parent attempts both executable children. A direct child cancellation is
+limited to that child. The adapter continues attempting remaining members if
+one cancellation fails.
+
+For example, advanced orders use the current generic names
+``secondary_limit_price`` and ``secondary_stop_price``:
+
+.. code-block:: python
+
+   order = strategy.create_order(
+       asset,
+       quantity=10,
+       side="buy",
+       order_type="limit",
+       limit_price=100,
+       secondary_limit_price=110,
+       secondary_stop_price=95,
+   )
+
+REST polling updates the already-tracked native legs and preserves their
+parent/child relationships across IBKR integer or string identifier formats.
+Reconstruction of an advanced package submitted before process startup is not
+claimed. See the `IBKR Client Portal API documentation
+<https://ibkrcampus.com/campus/ibkr-api-page/cpapi-v1/>`_ for provider details.
+
 Strategy Setup
 --------------
 

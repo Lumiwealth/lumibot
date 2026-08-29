@@ -2,6 +2,13 @@
 
 ## 4.5.86 - Unreleased
 
+### Changed
+- **Documented IBKR Client Portal REST advanced-order semantics.** The
+  contributor and broker guides now describe atomic BRACKET/OTO packages,
+  executable-child-only OCO packages, native-leg tracking and cancellation,
+  polling relationships, and the explicit REST GTD limitation. Legacy socket
+  GTD behavior remains separate.
+
 ### Fixed
 - **Documentation configuration tests no longer leak mocked broker packages.**
   Loading the Sphinx configuration in-process now restores `sys.modules`, so

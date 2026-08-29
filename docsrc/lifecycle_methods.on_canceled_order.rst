@@ -1,8 +1,9 @@
 def on_canceled_order
 ===================================
 
-The lifecycle method called when an order has been successfully canceled by the
-broker. Use this lifecycle event to reconcile terminal cancellation state.
+The lifecycle callback method called after LumiBot observes that an order has
+been terminally canceled by the broker. Use this callback to reconcile terminal
+cancellation state.
 
 This callback does **not** initiate cancellation or act as a timer. Call
 ``self.cancel_order(order)`` from the strategy's deadline logic. The broker call
@@ -36,6 +37,12 @@ For a deadline-driven pattern, process local pending events while waiting and
 use a bounded exact-order read only after a missed callback, restart/reconnect,
 or ambiguous cancel result. Repeated broker polling is not required for this
 callback to work.
+
+In live trading, callback delivery can occur after ``cancel_order`` returns or
+after reconnect reconciliation. Keep callback work idempotent and avoid long
+blocking broker reads. In backtests the broker simulator usually delivers the
+same callback deterministically, but strategies should use the live-safe
+idempotent pattern in both modes.
 
 Reference
 ----------

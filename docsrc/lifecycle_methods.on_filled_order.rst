@@ -1,8 +1,9 @@
 def on_filled_order
 ===================================
 
-The lifecycle method is called when an order has been successfully filled by
-the broker. Use this lifecycle event as the fast path for fill-dependent work.
+The lifecycle callback method is called after LumiBot observes that an order
+has been fully filled by the broker. Use it as the fast path for fill-dependent
+work.
 
 The callback already supplies the filled ``order``. A required hedge should not
 wait for another broker-backed ``self.get_order(order.identifier)`` call. Route
@@ -21,6 +22,12 @@ order (Order): The corresponding order object that has been filled
 price (float): The filled price
 quantity (int): The filled quantity
 multiplier (int): Options multiplier
+
+``quantity`` is the fill quantity applied by this callback. If no partial-fill
+callback preceded it, that is normally the full order quantity. If partial
+callbacks already applied quantity, this callback carries the remaining delta.
+It is not a new cumulative total. Live reconnect/reconciliation paths can repeat
+observations, so external side effects such as hedges must be idempotent.
 
 .. code-block:: python
 

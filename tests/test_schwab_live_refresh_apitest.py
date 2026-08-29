@@ -1,14 +1,13 @@
+import asyncio
 import os
 import time
 from datetime import date
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
 from lumibot.brokers.schwab import Schwab
 from lumibot.entities import Asset, Order
-
 
 pytestmark = pytest.mark.apitest
 
@@ -49,6 +48,14 @@ def _poll_all_for_order(broker, order_id, strategy_name, *, timeout_seconds=4.0)
         if raw or time.perf_counter() >= deadline:
             return raw, parsed
         time.sleep(0.25)
+
+
+def _account_activity_message_type(message):
+    content = message.get("content") if isinstance(message, dict) else None
+    first = content[0] if isinstance(content, list) and content else {}
+    if not isinstance(first, dict):
+        return "unknown"
+    return str(first.get("MESSAGE_TYPE") or first.get("message_type") or "unknown")
 
 
 def _select_tsll_call_asset(broker):
@@ -143,6 +150,73 @@ def test_schwab_live_submit_read_cancel_refresh(monkeypatch):
         )
         assert post_cancel_all["status"] in {"CANCELED", "CANCELLED"}
         assert post_cancel_all_parsed.is_canceled()
+    finally:
+        if submitted and submitted.identifier:
+            try:
+                raw = broker._pull_broker_order(submitted.identifier)
+                status = str(raw.get("status", "") if raw else "").upper()
+                if status not in {"CANCELED", "CANCELLED", "FILLED", "REJECTED", "EXPIRED"}:
+                    broker.cancel_order(submitted)
+            except Exception:
+                pass
+
+
+def test_schwab_live_account_activity_stream_observes_order_change(monkeypatch):
+    """Connects the real account stream and verifies an order change wakes it.
+
+    Raw provider messages are deliberately not written to test output or disk.
+    The product adapter treats them as opaque wake-ups and reconciles through an
+    exact REST order read.
+    """
+
+    broker = _schwab_broker(monkeypatch)
+    strategy_name = "schwab-live-account-activity-apitest"
+    submitted = None
+    observed_message_types = []
+
+    order = Order(
+        strategy=strategy_name,
+        asset=Asset("TSLL", asset_type=Asset.AssetType.STOCK),
+        quantity=1,
+        side=Order.OrderSide.BUY,
+        order_type=Order.OrderType.LIMIT,
+        limit_price=0.01,
+        time_in_force="day",
+        tag=strategy_name,
+    )
+
+    async def exercise_stream():
+        nonlocal submitted
+
+        def record_activity(message):
+            observed_message_types.append(_account_activity_message_type(message))
+
+        stream_client = broker.stream_client
+        stream_client.add_account_activity_handler(record_activity)
+        await broker._configure_schwab_account_activity_stream(stream_client)
+        try:
+            submitted = await asyncio.to_thread(broker._submit_order, order)
+            assert submitted is not None
+            assert submitted.identifier
+            try:
+                await asyncio.to_thread(broker.cancel_order, submitted)
+            except Exception:
+                # The order may transition to rejected before after-hours cancel;
+                # that broker transition should still produce account activity.
+                pass
+
+            deadline = time.monotonic() + 10
+            while not observed_message_types and time.monotonic() < deadline:
+                await asyncio.wait_for(stream_client.handle_message(), timeout=5)
+        finally:
+            try:
+                await stream_client.account_activity_unsubs()
+            finally:
+                await stream_client.logout()
+
+    try:
+        asyncio.run(exercise_stream())
+        assert observed_message_types
     finally:
         if submitted and submitted.identifier:
             try:

@@ -210,7 +210,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.schwab.html</loc>
-    <lastmod>2026-07-02</lastmod>
+    <lastmod>2026-08-28</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.tradier.html</loc>
@@ -342,11 +342,11 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lifecycle_methods.on_canceled_order.html</loc>
-    <lastmod>2024-08-23</lastmod>
+    <lastmod>2026-08-28</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lifecycle_methods.on_filled_order.html</loc>
-    <lastmod>2024-08-23</lastmod>
+    <lastmod>2026-08-28</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lifecycle_methods.on_new_order.html</loc>

@@ -1268,7 +1268,10 @@ class Order:
         bool
             True if the order has been cancelled, False otherwise.
         """
-        return self.status.lower() in ["cancelled", "canceled", "cancel", "cancelling", "error", "expired"]
+        # ``cancelling`` means the broker has accepted or is processing a cancel
+        # request.  It is deliberately active/non-terminal because a fill can
+        # still win the race before the broker confirms cancellation.
+        return self.status.lower() in ["cancelled", "canceled", "cancel", "error", "expired"]
 
     def is_filled(self):
         """

@@ -91,19 +91,31 @@ For a deadline-critical order:
 Checking local state every 50 or 100 milliseconds does not consume broker API
 quota. Calling `get_order` every 50, 250, or 500 milliseconds does.
 
-## What The Callbacks Mean
+## What Lifecycle Callback Methods Mean
+
+LumiBot's `on_*` lifecycle methods are callbacks: the framework invokes them
+after it observes an event. They are still methods on the strategy class, but
+thinking of them as callbacks makes their ownership clear. A callback reports
+an observation; it does not cause the broker event named in the method. Live
+callbacks can be delayed, duplicated by reconnect/reconciliation paths, or
+arrive while strategy iteration code is running, so their side effects must be
+idempotent and should avoid long blocking broker reads.
 
 ### `on_filled_order`
 
 This is the fastest normal transition for a full fill. The callback already
 contains the filled order. If a hedge is required, pass that callback order
 directly to an idempotent hedge helper instead of making the hedge wait for
-another broker read.
+another broker read. `quantity` is the quantity applied by this callback. It is
+the whole fill when no partial callback preceded it, or the remaining delta
+after earlier partial-fill callbacks.
 
 ### `on_partially_filled_order`
 
 Use this when hedge or replacement quantity depends on partial fills. Track
-cumulative filled quantity and hedge only the unprocessed delta. A later full
+cumulative filled quantity and hedge only the unprocessed delta. LumiBot passes
+`(position, order, price, quantity, multiplier)` and `quantity` is the newly
+observed fill delta, not the broker's cumulative filled quantity. A later full
 fill callback must reuse the same idempotency state.
 
 ### `on_canceled_order`
@@ -184,6 +196,20 @@ account, network path, and library version. It is not a Schwab SLA, it does not
 measure every rate-limit condition, and it does not prove when the broker's
 terminal callback becomes visible. Strategy deadlines must come from user
 intent and risk policy, not by doubling this sample's maximum.
+
+The Schwab adapter uses account-activity WebSocket messages as a wake-up signal,
+then reconciles only the locally tracked active orders through exact-order REST
+reads. WebSocket and REST observations feed the same serialized, idempotent
+transition reducer. The adapter performs an active-order reconciliation after
+login or reconnect and retains a 30-second broad order-history poll only as a
+healing fallback. It does not increase broad polling to once per second.
+
+A successful Schwab cancel HTTP response means the request was accepted. The
+local order remains `CANCELLING`, which is active and non-terminal, until a
+later broker observation says `CANCELED`, `FILLED`, `EXPIRED`, or rejected/error.
+Schwab 429 responses suppress more reads in the same endpoint family for the
+server's `Retry-After` interval, or bounded exponential backoff with jitter when
+that header is absent. A throttled or missing read never invents terminal state.
 
 References:
 

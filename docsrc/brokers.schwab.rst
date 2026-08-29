@@ -117,9 +117,12 @@ Simple stock and single-leg option ``self.modify_order(...)`` calls use Schwab's
 replace-order endpoint. Schwab returns a new broker order id for the replacement;
 LumiBot updates the order object's ``identifier`` and keeps the old id in
 ``previous_identifiers``. For timeout logic where the intended behavior is to
-remove the order, prefer ``self.cancel_order(order)`` plus a direct
-``self.get_order(order.identifier)`` confirmation instead of modifying the
-order into a different price.
+remove the order, prefer ``self.cancel_order(order)`` instead of modifying the
+order into a different price. A successful cancel response is acceptance, not
+terminal confirmation: the order remains active with ``CANCELLING`` status
+until Schwab later reports ``CANCELED``, ``FILLED``, ``EXPIRED``, or a
+rejection/error. Do not put an immediate direct order read in front of the
+cancellation deadline.
 
 Schwab account history can include rows that are not ordinary strategy orders,
 such as mutual funds, sweep/cash-equivalent records, bonds, option exercise
@@ -171,6 +174,19 @@ the cancel. ``cancel_order`` may return before the queued
 through one idempotent reducer keyed by the broker order identifier or a stable
 causal group.
 
+These ``on_*`` methods are lifecycle callback methods: LumiBot invokes them
+after broker observations. ``on_partially_filled_order(position, order, price,
+quantity, multiplier)`` receives the newly observed fill delta in ``quantity``;
+it is not cumulative across callbacks. A later ``on_filled_order`` receives the
+remaining fill delta and must share the same idempotency state.
+
+LumiBot uses Schwab account-activity WebSocket messages to wake exact reads of
+locally tracked active orders. REST snapshots and stream-triggered observations
+feed one serialized transition reducer, including after login or reconnect. A
+30-second broad history poll remains as a healing fallback. This is deliberately
+not one-second broad polling: one-second polling multiplies request pressure and
+does not remove fill/cancel races.
+
 Scope blocking to the strategy's actual risk invariant. A cancel-pending order
 must block a conflicting replacement for the same exposure. Independent symbols
 may continue when capital and risk policy permit. Unknown broker state is not
@@ -183,6 +199,11 @@ cancels, and replaces. Do not infer a universal requests-per-second guarantee.
 See the `schwab-py order-limit documentation
 <https://schwab-py.readthedocs.io/en/latest/getting-started.html#order-limit>`_
 and :doc:`lifecycle_methods.on_canceled_order`.
+
+When Schwab returns HTTP 429, LumiBot honors ``Retry-After`` when present and
+otherwise applies bounded exponential backoff with jitter for that endpoint
+family. A throttled read returns no new observation and never converts the
+tracked order to a terminal status.
 
 An authorized local sample of 16 successful cancel HTTP responses ranged from
 228 ms to 444 ms, with a 302.5 ms median and 444 ms 95th percentile. This small

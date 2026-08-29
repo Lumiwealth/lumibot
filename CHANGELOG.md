@@ -4,11 +4,21 @@
 
 ### Fixed
 
+- Schwab order lifecycle observations now converge through one serialized,
+  idempotent reducer shared by account-activity streaming and REST healing.
+  Cancel HTTP acceptance remains non-terminal, partial fills preserve delta
+  quantities, reconnects reconcile active orders, duplicate/out-of-order
+  observations do not repeat callbacks, and HTTP 429 responses honor bounded
+  endpoint-family backoff instead of inventing order state.
 - Define `Strategy.initial_budget` for live strategies as the first broker-verified
   portfolio equity snapshot, while preserving configured starting cash semantics in
   backtests.
 
 ### Documentation
+- **Lifecycle methods are documented as callbacks with precise live semantics.**
+  The Schwab and lifecycle references now define callback triggers, partial/full
+  fill quantity deltas, cancel acceptance versus terminal observation,
+  streaming-first reconciliation, reconnect behavior, and rate-limit handling.
 - **Fast order lifecycle guidance now separates strategy policy, broker constraints, and reusable state-machine invariants.** The new guide documents configurable monotonic deadlines, callback races, risk-scoped blocking, bounded reconciliation, Schwab request budgeting and measured cancel-response observations, plus a redacted telemetry contract for deadline and hedge diagnosis.
 
 ## 4.5.86 - Unreleased

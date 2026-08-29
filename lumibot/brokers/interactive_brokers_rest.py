@@ -720,6 +720,115 @@ class InteractiveBrokersREST(Broker):
                     )
                 )
 
+    @staticmethod
+    def _get_acknowledged_order_ids(response) -> list[str]:
+        """Collect every usable broker ID from a response for cleanup purposes."""
+        entries = response if isinstance(response, list) else [response]
+        acknowledged_ids = []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            order_id = entry.get("order_id")
+            if isinstance(order_id, bool) or not isinstance(order_id, (str, int)):
+                continue
+            order_id = str(order_id).strip()
+            if order_id:
+                acknowledged_ids.append(order_id)
+        return acknowledged_ids
+
+    def _validate_order_acknowledgements(self, response, expected_count: int) -> list[tuple[str, dict]]:
+        """Validate an atomic Client Portal acknowledgement package."""
+        errors = []
+        if not isinstance(response, list):
+            errors.append(f"response must be a list, received {type(response).__name__}")
+            entries = []
+        else:
+            entries = response
+            if len(entries) != expected_count:
+                errors.append(
+                    f"expected {expected_count} acknowledgement entries, received {len(entries)}"
+                )
+
+        acknowledgements = []
+        for index, entry in enumerate(entries):
+            if not isinstance(entry, dict):
+                errors.append(f"entry {index} must be an object")
+                continue
+            if "error" in entry or "message" in entry:
+                errors.append(f"entry {index} contains an error or message instead of a clean acknowledgement")
+
+            order_id = entry.get("order_id")
+            if isinstance(order_id, bool) or not isinstance(order_id, (str, int)):
+                errors.append(f"entry {index} is missing a valid order_id")
+                continue
+            order_id = str(order_id).strip()
+            if not order_id:
+                errors.append(f"entry {index} is missing a valid order_id")
+                continue
+            acknowledgements.append((order_id, entry))
+
+        acknowledged_ids = [order_id for order_id, _ in acknowledgements]
+        if len(set(acknowledged_ids)) != len(acknowledged_ids):
+            errors.append("response contains duplicate order_id acknowledgements")
+
+        if errors:
+            raise ValueError("Invalid IBKR REST order acknowledgement package: " + "; ".join(errors))
+        return acknowledgements
+
+    def _cancel_acknowledged_order_ids(self, package_order, acknowledged_ids: list[str]) -> None:
+        """Best-effort compensation for a package that IBKR only partly acknowledged."""
+        for order_id in acknowledged_ids:
+            cleanup_order = Order(strategy=package_order.strategy, identifier=order_id)
+            try:
+                self.cancel_order(cleanup_order)
+            except Exception:
+                logger.error(
+                    f"Failed to cancel acknowledged IBKR REST order {order_id} during package cleanup.",
+                    exc_info=True,
+                )
+
+    def _mark_order_package_error(self, order, message: str) -> None:
+        """Mark a failed local order tree without generating per-leg error callbacks."""
+        affected_orders = [order, *order.child_orders]
+        seen = set()
+        for affected_order in affected_orders:
+            object_id = id(affected_order)
+            if object_id in seen:
+                continue
+            seen.add(object_id)
+            affected_order.set_error(message)
+
+        self._log_order_status(order, "failed", success=False)
+        self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=message)
+
+    def _track_acknowledged_order_package(self, order, native_orders, acknowledgements) -> None:
+        """Apply broker acknowledgements and register every native order exactly once."""
+        for native_order, (order_id, raw_response) in zip(native_orders, acknowledgements):
+            native_order.identifier = order_id
+            native_order.update_raw(raw_response)
+            native_order.status = Order.OrderStatus.SUBMITTED
+
+        if order.order_class in (Order.OrderClass.BRACKET, Order.OrderClass.OTO):
+            broker_parent_id = native_orders[0].identifier
+            for child_order in order.child_orders:
+                child_order.parent_identifier = broker_parent_id
+        elif order.order_class is Order.OrderClass.OCO:
+            local_parent_id = order.identifier
+            for child_order in order.child_orders:
+                child_order.parent_identifier = local_parent_id
+            order.status = Order.OrderStatus.SUBMITTED
+            self._unprocessed_orders.append(order)
+
+        # Add the complete package before dispatching events so callbacks cannot
+        # observe a partially registered native order tree.
+        for native_order in native_orders:
+            self._unprocessed_orders.append(native_order)
+
+        if order.order_class is Order.OrderClass.OCO:
+            self._safe_stream_dispatch(self.PLACEHOLDER_ORDER, order=order)
+        for native_order in native_orders:
+            self._safe_stream_dispatch(self.NEW_ORDER, order=native_order)
+
     def _submit_order(self, order: Order) -> Order:
         # Ensure futures orders have expiration set
         if (
@@ -743,29 +852,32 @@ class InteractiveBrokersREST(Broker):
                     logger.info(colored(f"Auto-filled expiration for {order.asset.symbol}: {order.asset.expiration}", "yellow"))
 
         try:
-            order_data = self._get_order_data_for_submission(order)
-            response = self.data_source.execute_order(order_data)
+            order_data, native_orders = self._build_order_submission(order)
+            response = self.data_source.execute_order(order_data, return_raw_response=True)
 
-            if response is None:
-                self._log_order_status(order, "failed", success=False)
-                msg = "Broker returned no response"
-                self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
-                return order
+            acknowledged_ids = self._get_acknowledged_order_ids(response)
+            try:
+                acknowledgements = self._validate_order_acknowledgements(
+                    response,
+                    expected_count=len(native_orders),
+                )
+            except Exception:
+                self._cancel_acknowledged_order_ids(order, acknowledged_ids)
+                raise
+
+            try:
+                self._track_acknowledged_order_package(order, native_orders, acknowledgements)
+            except Exception:
+                self._cancel_acknowledged_order_ids(order, acknowledged_ids)
+                raise
 
             self._log_order_status(order, "executed", success=True)
-
-            order.identifier = response[0]["order_id"]
-            self._unprocessed_orders.append(order)
-            order.status=Order.OrderStatus.SUBMITTED
-
-            self._safe_stream_dispatch(self.NEW_ORDER, order=order)
-
             return order
 
         except Exception as e:
-            msg = colored(f"Error submitting order {order}: {e}", color="red")
+            msg = f"Error submitting IBKR REST order package {order}: {e}"
             logger.error(colored("Error details:", "red"), exc_info=True)
-            self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
+            self._mark_order_package_error(order, msg)
             return order
 
     def _submit_orders(
@@ -905,16 +1017,22 @@ class InteractiveBrokersREST(Broker):
         return f"lumibot-{sha256(identifier.encode('utf-8')).hexdigest()[:56]}"
 
     def _get_order_data_for_submission(self, order):
+        order_data, _ = self._build_order_submission(order)
+        return order_data
+
+    def _build_order_submission(self, order):
         """Build one atomic Client Portal order-ticket package for an Order tree.
 
         The generic Order tree models the relationships.  This adapter maps
         those relationships to the Client Portal-specific cOID, parentId, and
-        isSingleGroup ticket fields without changing the Order API.
+        isSingleGroup ticket fields without changing the Order API.  The
+        returned native-order list is in exactly the same order as the REST
+        tickets so acknowledgements can be mapped without inference.
         """
         order_class = order.order_class
 
         if order_class is Order.OrderClass.SIMPLE:
-            return self.get_order_data_from_orders([order])
+            return self.get_order_data_from_orders([order]), [order]
 
         children = list(order.child_orders)
         if order_class is Order.OrderClass.BRACKET:
@@ -924,6 +1042,7 @@ class InteractiveBrokersREST(Broker):
                     f"Found {len(children)}."
                 )
             parent_coid = self._get_ibkr_client_order_id(order)
+            native_orders = [order, *children]
             tickets = [(order, None, parent_coid, None, None)]
             tickets.extend(
                 (child, order.exchange, None, parent_coid, None) for child in children
@@ -935,6 +1054,7 @@ class InteractiveBrokersREST(Broker):
                     f"Found {len(children)}."
                 )
             parent_coid = self._get_ibkr_client_order_id(order)
+            native_orders = [order, children[0]]
             tickets = [
                 (order, None, parent_coid, None, None),
                 (children[0], order.exchange, None, parent_coid, None),
@@ -947,6 +1067,7 @@ class InteractiveBrokersREST(Broker):
                 )
             # The LumiBot OCO parent is conceptual; IBKR receives only its
             # two executable children as one single-group package.
+            native_orders = children
             tickets = [
                 (child, order.exchange, None, None, True) for child in children
             ]
@@ -973,7 +1094,7 @@ class InteractiveBrokersREST(Broker):
                 )
             order_data["orders"].append(ticket)
 
-        return order_data
+        return order_data, native_orders
 
     def get_order_data_from_order(
         self,
@@ -1219,6 +1340,17 @@ class InteractiveBrokersREST(Broker):
                 broker._process_trade_event(
                     order,
                     broker.NEW_ORDER,
+                )
+                return True
+            except:
+                logger.error(_format_exc())
+
+        @broker.stream.add_action(broker.PLACEHOLDER_ORDER)
+        def on_trade_event_placeholder(order):
+            try:
+                broker._process_trade_event(
+                    order,
+                    broker.PLACEHOLDER_ORDER,
                 )
                 return True
             except:

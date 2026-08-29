@@ -973,8 +973,51 @@ class InteractiveBrokersREST(Broker):
 
             logger.error(colored("Error details:", "red"), exc_info=True)
 
+    @staticmethod
+    def _normalize_broker_order_id(identifier) -> str | None:
+        """Return a usable Client Portal order ID, excluding local identifiers."""
+        if isinstance(identifier, bool) or not isinstance(identifier, (str, int)):
+            return None
+        order_id = str(identifier).strip()
+        if not re.fullmatch(r"[0-9]+", order_id) or int(order_id) <= 0:
+            return None
+        return order_id
+
+    def _get_cancel_order_targets(self, order: Order) -> list[Order]:
+        """Return unique broker-backed cancellation targets in dependency order."""
+        if order.order_class is Order.OrderClass.OCO:
+            # An OCO parent is a LumiBot-only container and must never be sent
+            # to Client Portal, even if its local identifier looks numeric.
+            candidates = list(order.child_orders)
+        elif order.order_class in (Order.OrderClass.BRACKET, Order.OrderClass.OTO):
+            candidates = [order, *order.child_orders]
+        else:
+            # Explicit cancellation of an individual child remains scoped to
+            # that child because children are SIMPLE Order objects.
+            candidates = [order]
+
+        targets = []
+        seen_order_ids = set()
+        for candidate in candidates:
+            order_id = self._normalize_broker_order_id(candidate.identifier)
+            if order_id is None or order_id in seen_order_ids:
+                continue
+            seen_order_ids.add(order_id)
+            targets.append(candidate)
+        return targets
+
     def cancel_order(self, order: Order) -> None:
-        self.data_source.delete_order(order)
+        """Cancel every known native IBKR order represented by a LumiBot Order."""
+        for target in self._get_cancel_order_targets(order):
+            try:
+                # An explicit broker cancellation must not be suppressed by
+                # local LumiBot status. Let IBKR accept or reject each request.
+                self.data_source.delete_order(target)
+            except Exception:
+                logger.error(
+                    f"Failed to cancel IBKR REST order {target.identifier}; continuing package cancellation.",
+                    exc_info=True,
+                )
 
     def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
                       stop_price: Union[float, None] = None):

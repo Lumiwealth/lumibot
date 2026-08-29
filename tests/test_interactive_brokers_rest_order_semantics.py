@@ -35,6 +35,10 @@ def broker(monkeypatch):
     broker._tracked_orders_filter_cache = {}
     broker._active_tracked_orders_filter_cache = {}
     broker._on_new_order = Mock()
+    broker._strategy_name = "ibkr_rest_order_semantics"
+    broker._first_iteration = False
+    broker.sync_positions = Mock()
+    broker.data_source.get_contract_details.return_value = {"instrument_type": "STK"}
 
     broker.dispatched_events = []
 
@@ -47,6 +51,12 @@ def broker(monkeypatch):
                 broker._on_new_order(processed_order)
         elif event == broker.PLACEHOLDER_ORDER:
             broker._process_placeholder_order(order)
+        elif event == broker.FILLED_ORDER:
+            order.status = broker.FILLED_ORDER
+            order.set_filled()
+        elif event == broker.CANCELED_ORDER:
+            order.status = broker.CANCELED_ORDER
+            order.set_canceled()
         elif event == broker.ERROR_ORDER:
             order.set_error(kwargs["error_msg"])
 
@@ -65,6 +75,24 @@ def _order(**kwargs):
     }
     defaults.update(kwargs)
     return Order(**defaults)
+
+
+def _poll_order(order_id, status="Open", avg_price=None):
+    response = {
+        "orderId": order_id,
+        "secType": "STK",
+        "totalSize": 1,
+        "conid": 265598,
+        "ticker": "SPY",
+        "cashCcy": "USD",
+        "timeInForce": "GTC",
+        "status": status,
+        "side": "BUY",
+        "price": 100.0,
+    }
+    if avg_price is not None:
+        response["avgPrice"] = avg_price
+    return response
 
 
 def test_simple_order_payload_is_unchanged(broker):
@@ -625,3 +653,140 @@ def test_cancel_continues_after_exception_and_rejection(broker):
     broker.cancel_order(parent)
 
     assert [args.args[0] for args in broker.data_source.delete_order.call_args_list] == native_orders
+
+
+@pytest.mark.parametrize(
+    ("submission_order_id", "poll_order_id"),
+    [("8101", 8101), (8102, "8102")],
+)
+def test_polling_matches_simple_order_despite_order_id_type_changes(
+    broker,
+    submission_order_id,
+    poll_order_id,
+):
+    order = _order(limit_price=100.0, order_type=Order.OrderType.LIMIT)
+    broker.data_source.execute_order.return_value = [{"order_id": submission_order_id}]
+    broker._submit_order(order)
+    raw_order = _poll_order(poll_order_id, status="Open")
+    broker.data_source.get_broker_all_orders.return_value = [raw_order]
+
+    broker.do_polling()
+
+    assert order.identifier == str(submission_order_id)
+    assert order._raw is raw_order
+    assert order.status == Order.OrderStatus.OPEN
+    assert broker.get_all_orders() == [order]
+    broker.sync_positions.assert_called_once_with(None)
+
+
+def test_polling_updates_bracket_native_orders_without_erasing_child_relationships(broker):
+    parent = _order(
+        limit_price=100.0,
+        order_type=Order.OrderType.LIMIT,
+        order_class=Order.OrderClass.BRACKET,
+        secondary_limit_price=110.0,
+        secondary_stop_price=95.0,
+    )
+    children = list(parent.child_orders)
+    broker.data_source.execute_order.return_value = [
+        {"order_id": "8201"},
+        {"order_id": "8202"},
+        {"order_id": "8203"},
+    ]
+    broker._submit_order(parent)
+    raw_orders = [_poll_order(8201), _poll_order(8202), _poll_order(8203)]
+    broker.data_source.get_broker_all_orders.return_value = raw_orders
+
+    broker.do_polling()
+
+    assert parent.child_orders == children
+    assert [child.parent_identifier for child in children] == ["8201", "8201"]
+    assert [parent._raw, *(child._raw for child in children)] == raw_orders
+    assert set(broker.get_all_orders()) == {parent, *children}
+
+
+def test_polling_updates_oto_parent_and_child_in_place(broker):
+    parent = _order(
+        limit_price=100.0,
+        order_type=Order.OrderType.LIMIT,
+        order_class=Order.OrderClass.OTO,
+        secondary_limit_price=110.0,
+    )
+    child = parent.child_orders[0]
+    broker.data_source.execute_order.return_value = [
+        {"order_id": 8301},
+        {"order_id": 8302},
+    ]
+    broker._submit_order(parent)
+    raw_orders = [_poll_order("8301"), _poll_order("8302")]
+    broker.data_source.get_broker_all_orders.return_value = raw_orders
+
+    broker.do_polling()
+
+    assert parent.child_orders == [child]
+    assert child.parent_identifier == "8301"
+    assert parent._raw is raw_orders[0]
+    assert child._raw is raw_orders[1]
+    assert set(broker.get_all_orders()) == {parent, child}
+
+
+def test_polling_keeps_oco_placeholder_connected_to_known_children(broker):
+    parent = _order(
+        identifier="local-oco-container",
+        side=Order.OrderSide.SELL,
+        limit_price=110.0,
+        stop_price=95.0,
+        order_class=Order.OrderClass.OCO,
+    )
+    children = list(parent.child_orders)
+    broker.data_source.execute_order.return_value = [
+        {"order_id": "8401"},
+        {"order_id": "8402"},
+    ]
+    broker._submit_order(parent)
+    raw_orders = [_poll_order(8401), _poll_order(8402)]
+    broker.data_source.get_broker_all_orders.return_value = raw_orders
+
+    broker.do_polling()
+
+    assert parent.identifier == "local-oco-container"
+    assert parent.child_orders == children
+    assert [child.parent_identifier for child in children] == [parent.identifier, parent.identifier]
+    assert [child._raw for child in children] == raw_orders
+    assert parent in broker._placeholder_orders
+    assert set(broker.get_all_orders()) == {parent, *children}
+
+
+def test_polling_dispatches_filled_and_canceled_child_status_changes(broker):
+    parent = _order(
+        limit_price=100.0,
+        order_type=Order.OrderType.LIMIT,
+        order_class=Order.OrderClass.BRACKET,
+        secondary_limit_price=110.0,
+        secondary_stop_price=95.0,
+    )
+    first_child, second_child = parent.child_orders
+    broker.data_source.execute_order.return_value = [
+        {"order_id": "8501"},
+        {"order_id": "8502"},
+        {"order_id": "8503"},
+    ]
+    broker._submit_order(parent)
+    broker.dispatched_events.clear()
+    raw_orders = [
+        _poll_order(8501, status="Open"),
+        _poll_order(8502, status="Filled", avg_price=110.0),
+        _poll_order(8503, status="Canceled"),
+    ]
+    broker.data_source.get_broker_all_orders.return_value = raw_orders
+
+    broker.do_polling()
+
+    assert first_child.status == Order.OrderStatus.FILLED
+    assert second_child.status == Order.OrderStatus.CANCELED
+    assert first_child._raw is raw_orders[1]
+    assert second_child._raw is raw_orders[2]
+    assert [event for event, _, _ in broker.dispatched_events] == [
+        broker.FILLED_ORDER,
+        broker.CANCELED_ORDER,
+    ]

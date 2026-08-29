@@ -2,6 +2,12 @@
 
 ## 4.5.87 - Unreleased
 
+### Fixed
+
+- Define `Strategy.initial_budget` for live strategies as the first broker-verified
+  portfolio equity snapshot, while preserving configured starting cash semantics in
+  backtests.
+
 ### Documentation
 - **Fast order lifecycle guidance now separates strategy policy, broker constraints, and reusable state-machine invariants.** The new guide documents configurable monotonic deadlines, callback races, risk-scoped blocking, bounded reconciliation, Schwab request budgeting and measured cancel-response observations, plus a redacted telemetry contract for deadline and hedge diagnosis.
 

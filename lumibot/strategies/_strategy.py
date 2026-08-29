@@ -871,6 +871,11 @@ class _Strategy:
         # Set the the state of first iteration to True. This will later be updated to False by the strategy executor
         self._first_iteration = True
 
+        # Public Strategy.initial_budget is available in both runtimes. Backtests
+        # replace this with configured starting cash below; live strategies replace
+        # it with the first broker-verified account equity snapshot.
+        self._initial_budget = None
+
         # Setting execution parameters
         self._last_on_trading_iteration_datetime = None
         if not self.is_backtesting:
@@ -879,6 +884,7 @@ class _Strategy:
             if synchronize_broker_on_start:
                 self.update_broker_balances()
                 self.broker._set_initial_positions(self)
+                self._initial_budget = self._portfolio_value
         else:
             # Determine initial cash ("budget") for backtesting.
             # NOTE: In BotSpot/BotManager runs we often inject settings via environment variables.

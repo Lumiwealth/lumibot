@@ -471,3 +471,157 @@ def test_cleanup_continues_after_an_earlier_cancel_fails(broker):
     assert [cleanup.identifier for cleanup in cleanup_orders] == ["6001", "6002", "6003"]
     assert parent.status == Order.OrderStatus.ERROR
     assert broker._on_new_order.call_count == 0
+
+
+def _set_broker_id(order, order_id):
+    order.identifier = str(order_id)
+    order.update_raw({"order_id": str(order_id)})
+
+
+def test_cancel_simple_order_contacts_ibkr(broker):
+    order = _order(limit_price=100.0, order_type=Order.OrderType.LIMIT)
+    _set_broker_id(order, 7001)
+
+    broker.cancel_order(order)
+
+    broker.data_source.delete_order.assert_called_once_with(order)
+
+
+def test_cancel_bracket_parent_attempts_parent_and_every_child(broker):
+    parent = _order(
+        limit_price=100.0,
+        order_type=Order.OrderType.LIMIT,
+        order_class=Order.OrderClass.BRACKET,
+        secondary_limit_price=110.0,
+        secondary_stop_price=95.0,
+    )
+    native_orders = [parent, *parent.child_orders]
+    for order_id, native_order in zip((7101, 7102, 7103), native_orders):
+        _set_broker_id(native_order, order_id)
+
+    broker.cancel_order(parent)
+
+    assert [args.args[0] for args in broker.data_source.delete_order.call_args_list] == native_orders
+
+
+def test_cancel_oto_parent_attempts_parent_and_child(broker):
+    parent = _order(
+        limit_price=100.0,
+        order_type=Order.OrderType.LIMIT,
+        order_class=Order.OrderClass.OTO,
+        secondary_limit_price=110.0,
+    )
+    native_orders = [parent, *parent.child_orders]
+    for order_id, native_order in zip((7201, 7202), native_orders):
+        _set_broker_id(native_order, order_id)
+
+    broker.cancel_order(parent)
+
+    assert [args.args[0] for args in broker.data_source.delete_order.call_args_list] == native_orders
+
+
+def test_cancel_oco_parent_excludes_local_container_id(broker):
+    parent = _order(
+        identifier="7300",
+        side=Order.OrderSide.SELL,
+        limit_price=110.0,
+        stop_price=95.0,
+        order_class=Order.OrderClass.OCO,
+    )
+    for order_id, child in zip((7301, 7302), parent.child_orders):
+        _set_broker_id(child, order_id)
+
+    broker.cancel_order(parent)
+
+    canceled_orders = [args.args[0] for args in broker.data_source.delete_order.call_args_list]
+    assert canceled_orders == parent.child_orders
+    assert all(canceled.identifier != parent.identifier for canceled in canceled_orders)
+
+
+def test_canceling_advanced_child_only_contacts_ibkr_for_that_child(broker):
+    parent = _order(
+        limit_price=100.0,
+        order_type=Order.OrderType.LIMIT,
+        order_class=Order.OrderClass.BRACKET,
+        secondary_limit_price=110.0,
+        secondary_stop_price=95.0,
+    )
+    _set_broker_id(parent, 7401)
+    _set_broker_id(parent.child_orders[0], 7402)
+    _set_broker_id(parent.child_orders[1], 7403)
+
+    broker.cancel_order(parent.child_orders[1])
+
+    broker.data_source.delete_order.assert_called_once_with(parent.child_orders[1])
+
+
+def test_cancel_deduplicates_broker_ids(broker):
+    parent = _order(
+        limit_price=100.0,
+        order_type=Order.OrderType.LIMIT,
+        order_class=Order.OrderClass.BRACKET,
+        secondary_limit_price=110.0,
+        secondary_stop_price=95.0,
+    )
+    _set_broker_id(parent, 7501)
+    _set_broker_id(parent.child_orders[0], 7501)
+    _set_broker_id(parent.child_orders[1], 7502)
+
+    broker.cancel_order(parent)
+
+    canceled_orders = [args.args[0] for args in broker.data_source.delete_order.call_args_list]
+    assert [canceled.identifier for canceled in canceled_orders] == ["7501", "7502"]
+
+
+@pytest.mark.parametrize(
+    "terminal_status",
+    [
+        Order.OrderStatus.CANCELLING,
+        Order.OrderStatus.CANCELED,
+        Order.OrderStatus.FILLED,
+        Order.OrderStatus.ERROR,
+    ],
+)
+def test_cancel_contacts_ibkr_regardless_of_terminal_local_status(broker, terminal_status):
+    order = _order(limit_price=100.0, order_type=Order.OrderType.LIMIT)
+    _set_broker_id(order, 7601)
+    order.status = terminal_status
+
+    broker.cancel_order(order)
+
+    broker.data_source.delete_order.assert_called_once_with(order)
+
+
+def test_cancel_skips_empty_local_and_malformed_identifiers(broker):
+    parent = _order(
+        limit_price=100.0,
+        order_type=Order.OrderType.LIMIT,
+        order_class=Order.OrderClass.BRACKET,
+        secondary_limit_price=110.0,
+        secondary_stop_price=95.0,
+    )
+    _set_broker_id(parent, 7701)
+    parent.child_orders[0].identifier = ""
+    parent.child_orders[1].identifier = "local-child-id"
+
+    broker.cancel_order(parent)
+
+    broker.data_source.delete_order.assert_called_once_with(parent)
+
+
+def test_cancel_continues_after_exception_and_rejection(broker):
+    parent = _order(
+        limit_price=100.0,
+        order_type=Order.OrderType.LIMIT,
+        order_class=Order.OrderClass.BRACKET,
+        secondary_limit_price=110.0,
+        secondary_stop_price=95.0,
+    )
+    native_orders = [parent, *parent.child_orders]
+    for order_id, native_order in zip((7801, 7802, 7803), native_orders):
+        _set_broker_id(native_order, order_id)
+    broker.data_source.delete_order.side_effect = [RuntimeError("cancel failed"), False, True]
+
+    broker.cancel_order(parent)
+
+    assert [args.args[0] for args in broker.data_source.delete_order.call_args_list] == native_orders

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+from hashlib import sha256
 from math import gcd
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
@@ -742,7 +743,7 @@ class InteractiveBrokersREST(Broker):
                     logger.info(colored(f"Auto-filled expiration for {order.asset.symbol}: {order.asset.expiration}", "yellow"))
 
         try:
-            order_data = self.get_order_data_from_orders([order])
+            order_data = self._get_order_data_for_submission(order)
             response = self.data_source.execute_order(order_data)
 
             if response is None:
@@ -885,11 +886,109 @@ class InteractiveBrokersREST(Broker):
 
         return legs_dict
 
-    def get_order_data_from_order(self, order):
+    def _get_ibkr_client_order_id(self, order) -> str:
+        """Return an IBKR-safe, stable client order ID for a parent ticket.
+
+        LumiBot identifiers are UUIDs by default, so they can normally be sent
+        directly.  A caller may supply a different identifier, however, and
+        Client Portal requires a cOID no longer than 64 characters.  Hashing
+        non-safe identifiers keeps the REST-only requirement out of Order
+        while preserving a stable link for this submission.
+        """
+        identifier = str(getattr(order, "identifier", "") or "")
+        if not identifier:
+            raise ValueError("IBKR REST advanced-order parent is missing an identifier for cOID.")
+
+        if re.fullmatch(r"[A-Za-z0-9_-]{1,64}", identifier):
+            return identifier
+
+        return f"lumibot-{sha256(identifier.encode('utf-8')).hexdigest()[:56]}"
+
+    def _get_order_data_for_submission(self, order):
+        """Build one atomic Client Portal order-ticket package for an Order tree.
+
+        The generic Order tree models the relationships.  This adapter maps
+        those relationships to the Client Portal-specific cOID, parentId, and
+        isSingleGroup ticket fields without changing the Order API.
+        """
+        order_class = order.order_class
+
+        if order_class is Order.OrderClass.SIMPLE:
+            return self.get_order_data_from_orders([order])
+
+        children = list(order.child_orders)
+        if order_class is Order.OrderClass.BRACKET:
+            if len(children) not in (1, 2):
+                raise ValueError(
+                    "IBKR REST BRACKET orders must contain one or two child orders. "
+                    f"Found {len(children)}."
+                )
+            parent_coid = self._get_ibkr_client_order_id(order)
+            tickets = [(order, None, parent_coid, None, None)]
+            tickets.extend(
+                (child, order.exchange, None, parent_coid, None) for child in children
+            )
+        elif order_class is Order.OrderClass.OTO:
+            if len(children) != 1:
+                raise ValueError(
+                    "IBKR REST OTO orders must contain exactly one child order. "
+                    f"Found {len(children)}."
+                )
+            parent_coid = self._get_ibkr_client_order_id(order)
+            tickets = [
+                (order, None, parent_coid, None, None),
+                (children[0], order.exchange, None, parent_coid, None),
+            ]
+        elif order_class is Order.OrderClass.OCO:
+            if len(children) != 2:
+                raise ValueError(
+                    "IBKR REST OCO orders must contain exactly two child orders. "
+                    f"Found {len(children)}."
+                )
+            # The LumiBot OCO parent is conceptual; IBKR receives only its
+            # two executable children as one single-group package.
+            tickets = [
+                (child, order.exchange, None, None, True) for child in children
+            ]
+        else:
+            raise ValueError(
+                f"IBKR REST advanced-order package construction does not support {order_class!r}."
+            )
+
+        order_data = {"orders": []}
+        for index, (ticket_order, inherited_exchange, c_oid, parent_id, is_single_group) in enumerate(tickets):
+            effective_exchange = ticket_order.exchange or inherited_exchange
+            ticket = self.get_order_data_from_order(
+                ticket_order,
+                exchange=effective_exchange,
+                c_oid=c_oid,
+                parent_id=parent_id,
+                is_single_group=is_single_group,
+            )
+            if ticket is None:
+                role = "parent" if index == 0 and order_class is not Order.OrderClass.OCO else "child"
+                raise ValueError(
+                    f"Unable to serialize IBKR REST {order_class.value} {role} ticket; "
+                    "the complete order package was not built."
+                )
+            order_data["orders"].append(ticket)
+
+        return order_data
+
+    def get_order_data_from_order(
+        self,
+        order,
+        *,
+        exchange=None,
+        c_oid: str | None = None,
+        parent_id: str | None = None,
+        is_single_group: bool | None = None,
+    ):
         try:
             conid = None
             side = None
             orderType = None
+            effective_exchange = order.exchange if exchange is None else exchange
 
             if order.is_buy_order():
                 side = "BUY"
@@ -901,7 +1000,7 @@ class InteractiveBrokersREST(Broker):
 
             orderType = ORDERTYPE_MAPPING[order.order_type]
 
-            conid = self.data_source.get_conid_from_asset(order.asset, exchange=order.exchange)
+            conid = self.data_source.get_conid_from_asset(order.asset, exchange=effective_exchange)
 
             if conid is None:
                 asset_type = order.asset.asset_type
@@ -931,7 +1030,7 @@ class InteractiveBrokersREST(Broker):
                 "tif": order.time_in_force.upper(),
                 "price": price,
                 "auxPrice": aux_price,
-                "listingExchange": order.exchange,
+                "listingExchange": effective_exchange,
             }
 
             if order.trail_percent:
@@ -941,6 +1040,13 @@ class InteractiveBrokersREST(Broker):
             if order.trail_price:
                 data["trailingType"] = "amt"
                 data["trailingAmt"] = order.trail_price
+
+            if c_oid is not None:
+                data["cOID"] = c_oid
+            if parent_id is not None:
+                data["parentId"] = parent_id
+            if is_single_group is not None:
+                data["isSingleGroup"] = is_single_group
 
             # Remove items with value None from order_data
             data = {k: v for k, v in data.items() if v is not None}

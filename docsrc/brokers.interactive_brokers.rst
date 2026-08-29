@@ -100,6 +100,17 @@ When using a paper trading account, log in with your paper trading username and 
 
 **Note:** The paper trading account is separate from your live account. Ensure you're using the correct credentials for each environment to avoid any login conflicts.
 
+Client Portal REST order-expiry limitation
+------------------------------------------
+
+The Interactive Brokers Client Portal REST adapter supports the currently
+documented time-in-force values such as ``day`` and ``gtc``. It rejects
+``time_in_force="gtd"`` and any ``good_till_date`` because IBKR's Client
+Portal order schema does not document a verified exact-date expiration field.
+Use the Legacy Interactive Brokers Gateway adapter when your strategy requires
+exact-date GTD orders. Orders created through another IBKR interface can still
+be read by the REST adapter.
+
 Strategy Setup
 --------------
 

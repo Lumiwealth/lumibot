@@ -836,6 +836,11 @@ class InteractiveBrokersREST(Broker):
             self._safe_stream_dispatch(self.NEW_ORDER, order=native_order)
 
     def _submit_order(self, order: Order) -> Order:
+        # Validate before the futures fallback can perform a conid lookup.  The
+        # Client Portal schema does not document an exact-date GTD field, so a
+        # REST submission must never silently discard LumiBot's expiration.
+        self._validate_rest_order_time_in_force([order, *order.child_orders])
+
         # Ensure futures orders have expiration set
         if (
             hasattr(order.asset, "asset_type")
@@ -894,6 +899,8 @@ class InteractiveBrokersREST(Broker):
         duration: str = "day",
         price=None,
     ):
+        self._validate_rest_order_time_in_force(orders, duration=duration)
+
         try:
             if is_multileg:
                 if order_type == "credit":
@@ -1073,6 +1080,35 @@ class InteractiveBrokersREST(Broker):
 
         return f"lumibot-{sha256(identifier.encode('utf-8')).hexdigest()[:56]}"
 
+    @staticmethod
+    def _validate_rest_order_time_in_force(orders: list[Order], duration: str | None = None) -> None:
+        """Reject unverified Client Portal exact-date GTD submissions.
+
+        IBKR's socket API supports ``goodTillDate``, but Client Portal's order
+        schema does not document an equivalent field.  Keeping this check in
+        the REST adapter prevents the generic Order's ``good_till_date`` from
+        being silently omitted from either a single ticket or an order package.
+        """
+        if duration is not None and str(duration).upper() == "GTD":
+            raise NotImplementedError(
+                "IBKR REST exact-date GTD submission is not supported because "
+                "the Client Portal expiration field is not verified."
+            )
+
+        for order in orders:
+            time_in_force = str(getattr(order, "time_in_force", "") or "").upper()
+            good_till_date = getattr(order, "good_till_date", None)
+            if time_in_force == "GTD":
+                raise NotImplementedError(
+                    "IBKR REST exact-date GTD submission is not supported because "
+                    "the Client Portal expiration field is not verified."
+                )
+            if good_till_date is not None:
+                raise ValueError(
+                    "IBKR REST good_till_date requires time_in_force='gtd'; "
+                    f"received time_in_force={getattr(order, 'time_in_force', None)!r}."
+                )
+
     def _get_order_data_for_submission(self, order):
         order_data, _ = self._build_order_submission(order)
         return order_data
@@ -1086,6 +1122,7 @@ class InteractiveBrokersREST(Broker):
         returned native-order list is in exactly the same order as the REST
         tickets so acknowledgements can be mapped without inference.
         """
+        self._validate_rest_order_time_in_force([order, *order.child_orders])
         order_class = order.order_class
 
         if order_class is Order.OrderClass.SIMPLE:
@@ -1162,6 +1199,8 @@ class InteractiveBrokersREST(Broker):
         parent_id: str | None = None,
         is_single_group: bool | None = None,
     ):
+        self._validate_rest_order_time_in_force([order])
+
         try:
             conid = None
             side = None
@@ -1271,6 +1310,7 @@ class InteractiveBrokersREST(Broker):
         dict
             A dictionary containing the order data for the multileg order.
         """
+        self._validate_rest_order_time_in_force(orders, duration=duration)
 
         # Initialize the order data dictionary
         order_data = {"orders": []}

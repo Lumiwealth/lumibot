@@ -236,9 +236,27 @@ def test_oco_payload_excludes_conceptual_parent_and_marks_both_children(broker):
     assert len(payload["orders"]) == 2
     assert [ticket["orderType"] for ticket in payload["orders"]] == ["LMT", "STP"]
     assert all(ticket["isSingleGroup"] is True for ticket in payload["orders"])
-    assert all("cOID" not in ticket for ticket in payload["orders"])
+    assert [ticket["cOID"] for ticket in payload["orders"]] == [
+        child.identifier for child in parent.child_orders
+    ]
+    assert len({ticket["cOID"] for ticket in payload["orders"]}) == 2
     assert all("parentId" not in ticket for ticket in payload["orders"])
     assert all(ticket["listingExchange"] == "SMART" for ticket in payload["orders"])
+
+
+def test_oco_duplicate_child_coids_fail_before_contract_lookup(broker):
+    parent = _order(
+        side=Order.OrderSide.SELL,
+        limit_price=110.0,
+        stop_price=95.0,
+        order_class=Order.OrderClass.OCO,
+    )
+    parent.child_orders[1].identifier = parent.child_orders[0].identifier
+
+    with pytest.raises(ValueError, match="distinct identifiers for cOID correlation"):
+        broker._get_order_data_for_submission(parent)
+
+    broker.data_source.get_conid_from_asset.assert_not_called()
 
 
 @pytest.mark.parametrize("order_class", [Order.OrderClass.BRACKET, Order.OrderClass.OTO, Order.OrderClass.OCO])
@@ -405,9 +423,14 @@ def test_submit_oco_keeps_local_parent_placeholder_and_tracks_native_children(br
         order_class=Order.OrderClass.OCO,
     )
     children = list(parent.child_orders)
+    child_coids = [child.identifier for child in children]
     response = [
+        {
+            "order_id": "4002",
+            "order_status": "Submitted",
+            "local_order_id": child_coids[1],
+        },
         {"order_id": 4001, "order_status": "Submitted"},
-        {"order_id": "4002", "order_status": "Submitted"},
     ]
     broker.data_source.execute_order.return_value = response
 
@@ -418,7 +441,7 @@ def test_submit_oco_keeps_local_parent_placeholder_and_tracks_native_children(br
     assert parent in broker._placeholder_orders
     assert parent not in broker._new_orders
     assert [child.identifier for child in children] == ["4001", "4002"]
-    assert [child._raw for child in children] == response
+    assert [child._raw for child in children] == [response[1], response[0]]
     assert all(child.parent_identifier == "local-oco" for child in children)
     assert all(child in broker._new_orders for child in children)
     assert all(child not in broker._unprocessed_orders for child in children)
@@ -429,6 +452,29 @@ def test_submit_oco_keeps_local_parent_placeholder_and_tracks_native_children(br
         broker.NEW_ORDER,
     ]
     assert [args.args[0] for args in broker._on_new_order.call_args_list] == children
+
+
+def test_submit_oco_rejects_ambiguous_acknowledgement_order_and_cleans_up(broker):
+    parent = _order(
+        identifier="ambiguous-oco",
+        side=Order.OrderSide.SELL,
+        limit_price=110.0,
+        stop_price=95.0,
+        order_class=Order.OrderClass.OCO,
+    )
+    broker.data_source.execute_order.return_value = [
+        {"order_id": "4011", "order_status": "Submitted"},
+        {"order_id": "4012", "order_status": "Submitted"},
+    ]
+
+    broker._submit_order(parent)
+
+    cleanup_orders = [args.args[0] for args in broker.data_source.delete_order.call_args_list]
+    assert [cleanup.identifier for cleanup in cleanup_orders] == ["4011", "4012"]
+    assert parent.status == Order.OrderStatus.ERROR
+    assert all(child.status == Order.OrderStatus.ERROR for child in parent.child_orders)
+    assert "does not identify enough OCO acknowledgements" in parent.error_message
+    assert not broker.get_all_orders()
 
 
 @pytest.mark.parametrize(
@@ -740,9 +786,10 @@ def test_polling_keeps_oco_placeholder_connected_to_known_children(broker):
         order_class=Order.OrderClass.OCO,
     )
     children = list(parent.child_orders)
+    child_coids = [child.identifier for child in children]
     broker.data_source.execute_order.return_value = [
-        {"order_id": "8401"},
-        {"order_id": "8402"},
+        {"order_id": "8401", "local_order_id": child_coids[0]},
+        {"order_id": "8402", "local_order_id": child_coids[1]},
     ]
     broker._submit_order(parent)
     raw_orders = [_poll_order(8401), _poll_order(8402)]

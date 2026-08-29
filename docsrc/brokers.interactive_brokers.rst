@@ -70,7 +70,7 @@ Two-Factor Authentication (2FA)
 
 Interactive Brokers requires two-factor authentication for Client Portal Gateway users. Individual users must authenticate in a browser on the same machine as the gateway and reauthenticate at least daily. LumiBot does not provide a supported way to bypass this requirement.
 
-See `IBKR Client Portal Gateway requirements <https://ibkrcampus.com/campus/ibkr-api-page/cpapi-v1/>`_.
+See `IBKR Web API documentation <https://ibkrcampus.com/campus/ibkr-api-page/webapi-doc/>`_.
 
 .. warning::
 
@@ -122,7 +122,9 @@ The LumiBot ``Order`` entity is provider-generic. The
 * **OTO** sends one atomic request containing the executable parent and its
   single attached child.
 * **OCO** sends only its two executable children as an IBKR single-group/OCA
-  package. Its LumiBot parent is a local container and is never sent to IBKR.
+  package. Each child receives a unique IBKR client order ID so responses can
+  be correlated even when IBKR returns them out of request order. Its LumiBot
+  parent is a local container and is never sent to IBKR.
 
 Each executable leg receives and tracks a separate broker order ID. Canceling
 a BRACKET or OTO parent attempts all known broker-backed members; canceling an
@@ -140,6 +142,7 @@ For example, advanced orders use the current generic names
        quantity=10,
        side="buy",
        order_type="limit",
+       order_class="bracket",
        limit_price=100,
        secondary_limit_price=110,
        secondary_stop_price=95,
@@ -149,7 +152,10 @@ REST polling updates the already-tracked native legs and preserves their
 parent/child relationships across IBKR integer or string identifier formats.
 Reconstruction of an advanced package submitted before process startup is not
 claimed. See the `IBKR Client Portal API documentation
-<https://ibkrcampus.com/campus/ibkr-api-page/cpapi-v1/>`_ for provider details.
+<https://ibkrcampus.com/campus/ibkr-api-page/webapi-doc/#orders>`_ and the
+`new-order endpoint reference
+<https://ibkrcampus.com/docs/web-api/api-reference/trading/trading-orders/submit-new-order>`_
+for provider details.
 
 Strategy Setup
 --------------

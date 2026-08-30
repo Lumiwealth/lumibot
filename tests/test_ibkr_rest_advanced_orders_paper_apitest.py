@@ -21,6 +21,8 @@ pytestmark = [pytest.mark.apitest, pytest.mark.ibkr]
 
 _STRATEGY_NAME = "ibkr_rest_advanced_orders_paper_apitest"
 _POLL_INTERVAL_SECONDS = 0.5
+_MARKET_DATA_ATTEMPTS = 3
+_MARKET_DATA_RETRY_SECONDS = 0.25
 _VISIBLE_TIMEOUT_SECONDS = 20.0
 _CANCEL_TIMEOUT_SECONDS = 30.0
 _TERMINAL_STATUSES = {
@@ -120,9 +122,13 @@ class _BrokerTrafficProbe:
                 allow_fail=allow_fail,
                 max_retries=0 if max_retries is None else max_retries,
             )
-            if description == "Executing order" and self.current_scenario is not None:
+            if self.current_scenario is not None and description in {
+                "Executing order",
+                "Confirming Order",
+            }:
                 entries = response if isinstance(response, list) else [response]
-                self.current_scenario.response_entry_count = len(entries)
+                if description == "Executing order":
+                    self.current_scenario.response_entry_count = len(entries)
                 for entry in entries:
                     if not isinstance(entry, dict):
                         continue
@@ -131,8 +137,9 @@ class _BrokerTrafficProbe:
                         continue
                     normalized = str(order_id).strip()
                     if normalized:
-                        # Record immediately after the real acknowledgement,
-                        # before the broker maps or validates the package.
+                        # Confirmation calls can be nested inside the outer
+                        # execute call. Capture each ID as that call returns so
+                        # a later confirmation failure cannot orphan an ID.
                         if normalized not in self.current_scenario.acknowledged_ids:
                             self.current_scenario.acknowledged_ids.append(normalized)
             return response
@@ -200,6 +207,35 @@ def _order_id(payload) -> str | None:
         return None
     normalized = str(value).strip()
     return normalized or None
+
+
+def _bounded_reference_price(data_source, asset: Asset) -> float | None:
+    """Read a current price through the configured data source with short bounds."""
+    conid = data_source.get_conid_from_asset(asset, exchange="SMART")
+    if conid is None:
+        return None
+
+    path = f"{data_source.base_url}/iserver/marketdata/snapshot?conids={conid}&fields=31"
+    for attempt in range(_MARKET_DATA_ATTEMPTS):
+        payload = data_source.get_from_endpoint(
+            path,
+            description="Getting bounded paper-test reference price",
+            silent=True,
+            max_retries=0,
+        )
+        if isinstance(payload, list) and payload and isinstance(payload[0], dict):
+            raw_price = payload[0].get("31")
+            if isinstance(raw_price, str) and raw_price.startswith("C"):
+                raw_price = raw_price[1:].strip()
+            try:
+                price = float(raw_price)
+            except (TypeError, ValueError):
+                price = 0.0
+            if price > 0:
+                return price
+        if attempt + 1 < _MARKET_DATA_ATTEMPTS:
+            time.sleep(_MARKET_DATA_RETRY_SECONDS)
+    return None
 
 
 def _poll_account_orders(data_source) -> tuple[bool, dict[str, str | None]]:
@@ -489,7 +525,7 @@ def test_ibkr_rest_advanced_orders_on_verified_paper_account(
     request.addfinalizer(stop_broker_threads)
 
     asset = Asset("SPY", asset_type=Asset.AssetType.STOCK)
-    reference_price = broker.get_last_price(asset, exchange="SMART")
+    reference_price = _bounded_reference_price(data_source, asset)
     if reference_price is None or float(reference_price) <= 0:
         pytest.skip("IBKR paper gateway did not provide a usable current SPY reference price")
 

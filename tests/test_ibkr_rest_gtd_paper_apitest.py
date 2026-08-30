@@ -63,6 +63,13 @@ def _request_json(data_source, method: str, path: str, payload: dict | None = No
     handling can POST to ``/iserver/reply``; this probe must contact only the
     non-ordering what-if endpoint for its order-shaped request.
     """
+    if method not in {"GET", "POST"}:
+        pytest.fail("IBKR GTD capability probe permits only GET and POST requests")
+    if method == "POST":
+        expected_path = f"/iserver/account/{data_source.account_id}/orders/whatif"
+        if path != expected_path:
+            pytest.fail("IBKR GTD capability probe refuses POST outside /orders/whatif")
+
     url = f"{data_source.base_url}{path}"
     request = data_source.http_client.get if method == "GET" else data_source.http_client.post
     try:

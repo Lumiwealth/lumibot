@@ -94,3 +94,45 @@ or other broker behavior. See IBKR's [Web API order documentation](https://ibkrc
 [new-order endpoint reference](https://ibkrcampus.com/docs/web-api/api-reference/trading/trading-orders/submit-new-order),
 and [TWS API documentation](https://www.interactivebrokers.com/docs/tws-api/doc/introduction)
 for the separate provider contracts.
+
+## Authorized paper-validation runbook
+
+The repository's IBKR REST paper suites are real broker API tests. A paper
+account limits the financial impact; it does not make the tests unit tests or
+safe for an unattended production session. They are marked ``apitest`` and
+``ibkr`` and are excluded from ordinary CI (the normal CI policy excludes
+``apitest`` tests).
+
+An explicitly authorized maintainer must use a dedicated IBKR paper username
+and an already authenticated paper Client Portal gateway. Configure the
+existing LumiBot IBKR settings without recording their values anywhere in the
+repository. ``IB_USE_PAPER_ACCOUNT`` must be explicitly set to ``true``;
+never use a production account for these tests. The fixture then verifies that
+the authenticated selected account has the
+paper ``DU`` identity convention and, when supplied, matches
+``IB_ACCOUNT_ID``. An external ``IB_API_URL`` gateway must already be
+authenticated to the paper account: the local paper flag does not convert an
+external live session. Missing configuration or an unavailable gateway skips
+the suite; a configured live-style account fails before an order request.
+
+Run only the focused modules, from the `lumibot-dev` environment, after
+confirming that the gateway is the intended paper session:
+
+```bash
+conda run -n lumibot-dev python -m pytest -q -m "apitest and ibkr" tests/test_ibkr_rest_advanced_orders_paper_apitest.py
+conda run -n lumibot-dev python -m pytest -q -m "apitest and ibkr" tests/test_ibkr_rest_gtd_paper_apitest.py
+```
+
+The advanced-order suite obtains a current reference price, submits deliberately
+non-marketable BRACKET/OTO/OCO tickets, and always attempts cancellation in
+cleanup. The GTD module is a separate, read-only capability probe: it uses
+only `/orders/whatif` and does not enable production GTD serialization. The
+probe's result is evidence for a separate reviewed implementation decision;
+passing it does not prove production OAuth readiness or authorize production
+order testing.
+
+Only masked account suffixes may appear in output. Never copy usernames,
+passwords, account identifiers, cookies, tokens, gateway session material, or
+raw broker responses into logs or issue reports. Process termination can still
+interrupt a `finally` cleanup; after any interrupted run, the maintainer must
+inspect the paper account and confirm that no test orders remain working.

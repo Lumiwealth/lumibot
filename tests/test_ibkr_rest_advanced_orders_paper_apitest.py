@@ -37,9 +37,36 @@ _FILLED_STATUSES = {"fill", "filled"}
 @dataclass
 class _ScenarioRecord:
     name: str
+    expected_native_count: int
     acknowledged_ids: list[str] = field(default_factory=list)
+    response_entry_count: int = 0
+    cleanup_attempted_ids: set[str] = field(default_factory=set)
     confirmation_count_before: int = 0
     cancellation_count_before: int = 0
+    polling_outcome: str = "not_reached"
+    cancellation_outcome: str = "not_reached"
+
+    @property
+    def acceptance_outcome(self) -> str:
+        acknowledged_count = len(self.acknowledged_ids)
+        if acknowledged_count == 0:
+            return "no_order_accepted"
+        if acknowledged_count == self.expected_native_count:
+            return "package_fully_accepted"
+        if acknowledged_count < self.expected_native_count:
+            return "package_partially_acknowledged"
+        return "unexpected_acknowledgement_count"
+
+    def sanitized_diagnostic(self) -> str:
+        return (
+            f"acceptance={self.acceptance_outcome}, "
+            f"expected_native={self.expected_native_count}, "
+            f"response_entries={self.response_entry_count}, "
+            f"acknowledged_unique={len(self.acknowledged_ids)}, "
+            f"polling={self.polling_outcome}, "
+            f"cancellation={self.cancellation_outcome}, "
+            f"cleanup_attempted_unique={len(self.cleanup_attempted_ids)}"
+        )
 
 
 class _BrokerTrafficProbe:
@@ -95,6 +122,7 @@ class _BrokerTrafficProbe:
             )
             if description == "Executing order" and self.current_scenario is not None:
                 entries = response if isinstance(response, list) else [response]
+                self.current_scenario.response_entry_count = len(entries)
                 for entry in entries:
                     if not isinstance(entry, dict):
                         continue
@@ -105,7 +133,8 @@ class _BrokerTrafficProbe:
                     if normalized:
                         # Record immediately after the real acknowledgement,
                         # before the broker maps or validates the package.
-                        self.current_scenario.acknowledged_ids.append(normalized)
+                        if normalized not in self.current_scenario.acknowledged_ids:
+                            self.current_scenario.acknowledged_ids.append(normalized)
             return response
 
         def bounded_delete(
@@ -132,9 +161,10 @@ class _BrokerTrafficProbe:
         monkeypatch.setattr(data_source, "delete_to_endpoint", bounded_delete)
         monkeypatch.setattr(data_source, "delete_order", delete_order_and_record)
 
-    def begin(self, name: str) -> _ScenarioRecord:
+    def begin(self, name: str, expected_native_count: int) -> _ScenarioRecord:
         record = _ScenarioRecord(
             name=name,
+            expected_native_count=expected_native_count,
             confirmation_count_before=self.confirmation_count,
             cancellation_count_before=len(self.cancellation_targets),
         )
@@ -294,10 +324,15 @@ def _assert_acknowledgement_and_tracking(
     native_orders: list[Order],
 ) -> list[str]:
     expected_count = len(native_orders)
-    if len(record.acknowledged_ids) != expected_count:
+    if record.response_entry_count != expected_count:
         pytest.fail(
             f"IBKR {record.name} response cardinality mismatch: expected {expected_count} "
-            f"native acknowledgements, received {len(record.acknowledged_ids)}"
+            f"native acknowledgement entries, received {record.response_entry_count}"
+        )
+    if len(record.acknowledged_ids) != expected_count:
+        pytest.fail(
+            f"IBKR {record.name} acknowledged {len(record.acknowledged_ids)} unique native IDs "
+            f"but expected {expected_count}"
         )
 
     native_ids = [str(order.identifier) for order in native_orders]
@@ -331,6 +366,9 @@ def _cleanup_scenario(
 ) -> list[str]:
     cleanup_errors = []
     cancellation_start = len(probe.cancellation_targets)
+    # The acknowledgement ledger is ordered and deduplicated at capture time.
+    # Repeating cancellation here is intentional: cleanup must be idempotent
+    # even when the scenario already canceled through a package parent.
     for order_id in record.acknowledged_ids:
         try:
             broker.cancel_order(Order(strategy=_STRATEGY_NAME, identifier=order_id))
@@ -338,6 +376,9 @@ def _cleanup_scenario(
             cleanup_errors.append(type(exc).__name__)
 
     attempted = probe.cancellation_targets[cancellation_start:]
+    record.cleanup_attempted_ids.update(
+        order_id for order_id in attempted if order_id in record.acknowledged_ids
+    )
     missing_attempts = Counter(record.acknowledged_ids) - Counter(attempted)
     if missing_attempts:
         cleanup_errors.append(
@@ -361,9 +402,11 @@ def _run_scenario(
     package_order: Order,
     expected_native_orders,
     assertions,
+    cancellation_assertions,
     record_property,
 ) -> None:
-    record = probe.begin(name)
+    native_orders = expected_native_orders(package_order)
+    record = probe.begin(name, expected_native_count=len(native_orders))
     scenario_error: BaseException | None = None
     try:
         result = broker.submit_order(package_order)
@@ -376,11 +419,18 @@ def _run_scenario(
             native_orders,
         )
         assertions(package_order, native_orders, native_ids, record)
-        _wait_until_native_tickets_are_retrievable(data_source, native_ids)
+        record.polling_outcome = "in_progress"
+        try:
+            _wait_until_native_tickets_are_retrievable(data_source, native_ids)
+        except BaseException:
+            record.polling_outcome = "failed"
+            raise
+        record.polling_outcome = "all_native_tickets_retrievable"
         assert all(
             broker.get_order(order_id) is native_order
             for order_id, native_order in zip(native_ids, native_orders)
         ), f"IBKR {name} lifecycle polling lost or duplicated a tracked native order"
+        cancellation_assertions(package_order, native_orders, native_ids, record)
     except BaseException as exc:
         scenario_error = exc
     finally:
@@ -390,13 +440,27 @@ def _run_scenario(
             f"ibkr_{name.lower()}_confirmation_path",
             probe.confirmation_occurred(record),
         )
+        record_property(f"ibkr_{name.lower()}_acceptance", record.acceptance_outcome)
+        record_property(
+            f"ibkr_{name.lower()}_acknowledged_unique",
+            len(record.acknowledged_ids),
+        )
+        record_property(
+            f"ibkr_{name.lower()}_cleanup_attempted_unique",
+            len(record.cleanup_attempted_ids),
+        )
+        record_property(f"ibkr_{name.lower()}_polling", record.polling_outcome)
 
     if scenario_error is not None:
+        scenario_error.add_note("Sanitized IBKR paper diagnostic: " + record.sanitized_diagnostic())
         if cleanup_errors:
             scenario_error.add_note("Cleanup: " + "; ".join(cleanup_errors))
         raise scenario_error
     if cleanup_errors:
-        pytest.fail(f"IBKR {name} cleanup failed: {'; '.join(cleanup_errors)}")
+        pytest.fail(
+            f"IBKR {name} cleanup failed ({record.sanitized_diagnostic()}): "
+            f"{'; '.join(cleanup_errors)}"
+        )
 
 
 def test_ibkr_rest_advanced_orders_on_verified_paper_account(
@@ -455,12 +519,68 @@ def test_ibkr_rest_advanced_orders_on_verified_paper_account(
         assert local_parent_id not in native_ids
         assert all(child.parent_identifier == local_parent_id for child in native_orders)
 
+    def assert_exact_cancellation_targets(start, expected_ids, label):
+        contacted_ids = probe.cancellation_targets[start:]
+        assert Counter(contacted_ids) == Counter(expected_ids), (
+            f"IBKR {label} cancellation contacted an unexpected set of native IDs"
+        )
+
+    def cancel_bracket(parent, native_orders, native_ids, record):
+        record.cancellation_outcome = "in_progress"
+        direct_child = native_orders[-1]
+        direct_child_id = native_ids[-1]
+
+        # Explicit cancellation must reach IBKR regardless of local workflow
+        # state, and repeating the exact child cancellation must remain safe.
+        for local_status in (Order.OrderStatus.CANCELLING, Order.OrderStatus.CANCELED):
+            direct_child.status = local_status
+            cancellation_start = len(probe.cancellation_targets)
+            broker.cancel_order(direct_child)
+            assert_exact_cancellation_targets(
+                cancellation_start,
+                [direct_child_id],
+                f"BRACKET direct child in {local_status.value}",
+            )
+
         cancellation_start = len(probe.cancellation_targets)
         broker.cancel_order(parent)
-        parent_cancel_targets = probe.cancellation_targets[cancellation_start:]
-        assert Counter(parent_cancel_targets) == Counter(native_ids)
-        assert local_parent_id not in parent_cancel_targets
+        assert_exact_cancellation_targets(
+            cancellation_start,
+            native_ids,
+            "BRACKET parent",
+        )
+        _wait_until_orders_are_not_working(data_source, native_ids)
+        record.cancellation_outcome = "all_native_tickets_inactive"
+
+    def cancel_oto(parent, _native_orders, native_ids, record):
+        record.cancellation_outcome = "in_progress"
+        # Two parent-level attempts prove both local terminal-ish states still
+        # contact every broker-backed member and that cancellation is idempotent.
+        for local_status in (Order.OrderStatus.CANCELLING, Order.OrderStatus.CANCELED):
+            parent.status = local_status
+            cancellation_start = len(probe.cancellation_targets)
+            broker.cancel_order(parent)
+            assert_exact_cancellation_targets(
+                cancellation_start,
+                native_ids,
+                f"OTO parent in {local_status.value}",
+            )
+        _wait_until_orders_are_not_working(data_source, native_ids)
+        record.cancellation_outcome = "all_native_tickets_inactive"
+
+    def cancel_oco(parent, _native_orders, native_ids, record):
+        local_parent_id = str(parent.identifier)
+        record.cancellation_outcome = "in_progress"
+        for local_status in (Order.OrderStatus.CANCELLING, Order.OrderStatus.CANCELED):
+            parent.status = local_status
+            cancellation_start = len(probe.cancellation_targets)
+            broker.cancel_order(parent)
+            parent_cancel_targets = probe.cancellation_targets[cancellation_start:]
+            assert Counter(parent_cancel_targets) == Counter(native_ids)
+            assert local_parent_id not in parent_cancel_targets
         assert local_parent_id not in probe.scenario_cancellation_targets(record)
+        _wait_until_orders_are_not_working(data_source, native_ids)
+        record.cancellation_outcome = "all_native_tickets_inactive"
 
     try:
         _run_scenario(
@@ -483,6 +603,7 @@ def test_ibkr_rest_advanced_orders_on_verified_paper_account(
             ),
             expected_native_orders=lambda parent: [parent, *parent.child_orders],
             assertions=assert_bracket,
+            cancellation_assertions=cancel_bracket,
             record_property=record_property,
         )
 
@@ -505,6 +626,7 @@ def test_ibkr_rest_advanced_orders_on_verified_paper_account(
             ),
             expected_native_orders=lambda parent: [parent, *parent.child_orders],
             assertions=assert_oto,
+            cancellation_assertions=cancel_oto,
             record_property=record_property,
         )
 
@@ -526,6 +648,7 @@ def test_ibkr_rest_advanced_orders_on_verified_paper_account(
             ),
             expected_native_orders=lambda parent: list(parent.child_orders),
             assertions=assert_oco,
+            cancellation_assertions=cancel_oco,
             record_property=record_property,
         )
     finally:

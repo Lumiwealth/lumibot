@@ -202,6 +202,26 @@ IBKR paper-account ``DU`` convention and that it matches an explicitly supplied
 ``IB_ACCOUNT_ID``. Test output masks account identifiers; do not add credentials
 or account identifiers to test logs.
 
+.. warning::
+
+   The opt-in IBKR REST paper suites are real broker API tests, even though
+   they use a paper account, and are excluded from ordinary CI. An authorized
+   maintainer must use a dedicated paper username with an already authenticated
+   paper gateway and set ``IB_USE_PAPER_ACCOUNT=true`` explicitly; never use a
+   production account for these tests. The
+   authenticated selected account must pass the paper ``DU`` identity gate.
+   For an external ``IB_API_URL`` gateway, the session must already be the
+   paper session; the local flag cannot convert a live session. The advanced
+   suite submits deliberately non-marketable orders and attempts cancellation,
+   but process termination can interrupt cleanup, so inspect the paper account
+   afterward. Only masked account suffixes may be shown in output. Passing
+   these tests does not establish production OAuth readiness.
+
+   The GTD capability probe is separate from advanced-order submission tests
+   and uses only the non-ordering ``/orders/whatif`` endpoint. It does not
+   enable production GTD behavior; any production implementation requires a
+   separate reviewed decision.
+
 Example Strategy
 ----------------
 

@@ -97,6 +97,9 @@ for the separate provider contracts.
 
 ## Authorized paper-validation runbook
 
+For the complete credential-free operator procedure, see
+[IBKR REST Paper-Test Runbook](IBKR_REST_PAPER_TEST_RUNBOOK.md).
+
 The repository's IBKR REST paper suites are real broker API tests. A paper
 account limits the financial impact; it does not make the tests unit tests or
 safe for an unattended production session. They are marked ``apitest`` and
@@ -117,12 +120,13 @@ the suite; a configured live-style account fails before an order request.
 Within one pytest invocation, the paper fixture reuses a single authenticated
 data source so its tests do not start competing local IBeam containers.
 
-Run only the focused modules, from the `lumibot-dev` environment, after
-confirming that the gateway is the intended paper session:
+Run only the focused modules from an environment with LumiBot and its test
+dependencies installed, after confirming that the gateway is the intended
+paper session:
 
 ```bash
-conda run -n lumibot-dev python -m pytest -q -m "apitest and ibkr" tests/test_ibkr_rest_advanced_orders_paper_apitest.py
-conda run -n lumibot-dev python -m pytest -q -m "apitest and ibkr" tests/test_ibkr_rest_gtd_paper_apitest.py
+python -m pytest -q -m "apitest and ibkr" tests/test_ibkr_rest_advanced_orders_paper_apitest.py
+python -m pytest -q -m "apitest and ibkr" tests/test_ibkr_rest_gtd_paper_apitest.py
 ```
 
 The advanced-order suite obtains a current reference price, submits deliberately

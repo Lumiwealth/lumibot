@@ -125,8 +125,20 @@ def require_authenticated_ibkr_rest_paper_account(
     )
 
 
+def _construct_paper_test_data_source(data_source_type, config, monkeypatch):
+    """Construct the test data source without changing IBKR warning settings.
+
+    ``InteractiveBrokersRESTData.start()`` normally suppresses selected IBKR
+    warnings after authentication.  A paper safety fixture must not make that
+    session-changing request before it has verified the authenticated account,
+    and paper tests should observe warnings rather than suppress them.
+    """
+    monkeypatch.setattr(data_source_type, "suppress_warnings", lambda _self: None)
+    return data_source_type(config)
+
+
 @pytest.fixture
-def ibkr_rest_paper_order_data_source():
+def ibkr_rest_paper_order_data_source(monkeypatch):
     """Yield an authenticated, verified paper data source for order API tests."""
     from lumibot.credentials import INTERACTIVE_BROKERS_REST_CONFIG
     from lumibot.data_sources import InteractiveBrokersRESTData
@@ -135,7 +147,11 @@ def ibkr_rest_paper_order_data_source():
     require_explicit_ibkr_rest_paper_configuration(config)
     data_source = None
     try:
-        data_source = InteractiveBrokersRESTData(config)
+        data_source = _construct_paper_test_data_source(
+            InteractiveBrokersRESTData,
+            config,
+            monkeypatch,
+        )
     except Exception:
         pytest.skip("IBKR REST gateway is unavailable for the paper-order test")
 

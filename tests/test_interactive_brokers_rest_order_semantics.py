@@ -491,8 +491,9 @@ def test_submit_oco_rejects_ambiguous_acknowledgement_order_and_cleans_up(broker
             ["5001", "5002"],
         ),
         ([{"error": "rejected"}, {"order_id": "5002"}], ["5002"]),
+        ([{"order_id": "-1"}, {"order_id": "5002"}], ["5002"]),
     ],
-    ids=["malformed", "short", "long", "mixed", "mixed-first-error"],
+    ids=["malformed", "short", "long", "mixed", "mixed-first-error", "placeholder"],
 )
 def test_invalid_acknowledgement_package_cleans_every_acknowledged_id(
     broker,

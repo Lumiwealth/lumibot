@@ -114,6 +114,8 @@ paper ``DU`` identity convention and, when supplied, matches
 authenticated to the paper account: the local paper flag does not convert an
 external live session. Missing configuration or an unavailable gateway skips
 the suite; a configured live-style account fails before an order request.
+Within one pytest invocation, the paper fixture reuses a single authenticated
+data source so its tests do not start competing local IBeam containers.
 
 Run only the focused modules, from the `lumibot-dev` environment, after
 confirming that the gateway is the intended paper session:

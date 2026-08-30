@@ -201,6 +201,8 @@ order, the fixture verifies that the authenticated selected account uses the
 IBKR paper-account ``DU`` convention and that it matches an explicitly supplied
 ``IB_ACCOUNT_ID``. Test output masks account identifiers; do not add credentials
 or account identifiers to test logs.
+Within one pytest invocation, the fixture reuses one authenticated data source
+so individual paper tests do not start competing local IBeam containers.
 
 .. warning::
 

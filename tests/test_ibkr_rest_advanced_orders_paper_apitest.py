@@ -14,7 +14,10 @@ import pytest
 
 from lumibot.brokers.interactive_brokers_rest import InteractiveBrokersREST
 from lumibot.entities import Asset, Order
-from tests.ibkr_rest_paper_order_safety import ibkr_rest_paper_order_data_source
+from tests.ibkr_rest_paper_order_safety import (
+    ibkr_rest_paper_order_data_source,
+    ibkr_rest_paper_test_config,
+)
 
 
 pytestmark = [pytest.mark.apitest, pytest.mark.ibkr]
@@ -132,11 +135,12 @@ class _BrokerTrafficProbe:
                 for entry in entries:
                     if not isinstance(entry, dict):
                         continue
-                    order_id = entry.get("order_id")
-                    if isinstance(order_id, bool) or not isinstance(order_id, (str, int)):
-                        continue
-                    normalized = str(order_id).strip()
-                    if normalized:
+                    # ``-1`` and other non-positive/non-numeric values are
+                    # Client Portal placeholders, not broker-backed tickets.
+                    normalized = InteractiveBrokersREST._normalize_broker_order_id(
+                        entry.get("order_id")
+                    )
+                    if normalized is not None:
                         # Confirmation calls can be nested inside the outer
                         # execute call. Capture each ID as that call returns so
                         # a later confirmation failure cannot orphan an ID.
@@ -506,12 +510,10 @@ def test_ibkr_rest_advanced_orders_on_verified_paper_account(
     request,
 ):
     """Exercise real broker submission, polling, tracking, and cleanup on paper."""
-    from lumibot.credentials import INTERACTIVE_BROKERS_REST_CONFIG
-
     data_source = ibkr_rest_paper_order_data_source
     probe = _BrokerTrafficProbe(data_source, monkeypatch)
     broker = InteractiveBrokersREST(
-        dict(INTERACTIVE_BROKERS_REST_CONFIG),
+        ibkr_rest_paper_test_config(),
         data_source=data_source,
         connect_stream=False,
     )

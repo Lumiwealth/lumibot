@@ -4,6 +4,8 @@ from lumibot.entities import Asset
 from tests.ibkr_rest_paper_order_safety import (
     _authenticated_selected_account_id,
     _construct_paper_test_data_source,
+    ibkr_rest_paper_order_data_source,
+    ibkr_rest_paper_test_config,
     mask_ibkr_account_id,
     require_explicit_ibkr_rest_paper_configuration,
     require_ibkr_rest_paper_account,
@@ -22,6 +24,39 @@ def _local_ibeam_config():
 def test_missing_ibkr_rest_configuration_skips_before_gateway_startup():
     with pytest.raises(pytest.skip.Exception):
         require_explicit_ibkr_rest_paper_configuration({}, {"IB_USE_PAPER_ACCOUNT": "true"})
+
+
+def test_paper_test_config_uses_existing_rest_environment_names_without_importing_credentials():
+    config = ibkr_rest_paper_test_config(
+        {
+            "IB_USERNAME": "test-user",
+            "IB_PASSWORD": "test-password",
+            "IB_ACCOUNT_ID": "DU1234567",
+            "IB_API_URL": "https://gateway.example",
+            "IB_USE_PAPER_ACCOUNT": "true",
+            "IB_GATEWAY_PORT": "4243",
+        }
+    )
+
+    assert config == {
+        "IB_USERNAME": "test-user",
+        "IB_PASSWORD": "test-password",
+        "IB_ACCOUNT_ID": "DU1234567",
+        "API_URL": "https://gateway.example",
+        "RUNNING_ON_SERVER": None,
+        "GATEWAY_PORT": "4243",
+        "GATEWAY_INSTANCE_ID": None,
+        "USE_PAPER_ACCOUNT": "true",
+        "IBEAM_DOCKER_TAG": None,
+        "AUTH_TIMEOUT": None,
+        "AUTH_POLL_INTERVAL": None,
+        "REQUEST_TIMEOUT": None,
+        "VERIFY_SSL": None,
+    }
+
+
+def test_paper_data_source_fixture_is_session_scoped_to_reuse_one_gateway():
+    assert ibkr_rest_paper_order_data_source._fixture_function_marker.scope == "session"
 
 
 def test_absent_explicit_paper_flag_skips_even_when_config_default_would_be_paper():
@@ -90,7 +125,7 @@ def test_confirmation_acknowledgement_is_ledged_before_outer_submission_returns(
                     self.probe.current_scenario.acknowledged_ids
                 )
                 return response
-            return [{"order_id": "broker-order-1"}]
+            return [{"order_id": "-1"}, {"order_id": "1001"}]
 
         def delete_to_endpoint(self, *_args, **_kwargs):
             return None
@@ -109,8 +144,8 @@ def test_confirmation_acknowledgement_is_ledged_before_outer_submission_returns(
         description="Executing order",
     )
 
-    assert data_source.ledger_seen_before_outer_return == ["broker-order-1"]
-    assert record.acknowledged_ids == ["broker-order-1"]
+    assert data_source.ledger_seen_before_outer_return == ["1001"]
+    assert record.acknowledged_ids == ["1001"]
 
 
 def test_advanced_paper_reference_price_uses_bounded_configured_snapshot():

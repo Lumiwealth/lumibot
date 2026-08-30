@@ -726,19 +726,19 @@ class InteractiveBrokersREST(Broker):
                     )
                 )
 
-    @staticmethod
-    def _get_acknowledged_order_ids(response) -> list[str]:
+    @classmethod
+    def _get_acknowledged_order_ids(cls, response) -> list[str]:
         """Collect every usable broker ID from a response for cleanup purposes."""
         entries = response if isinstance(response, list) else [response]
         acknowledged_ids = []
         for entry in entries:
             if not isinstance(entry, dict):
                 continue
-            order_id = entry.get("order_id")
-            if isinstance(order_id, bool) or not isinstance(order_id, (str, int)):
-                continue
-            order_id = str(order_id).strip()
-            if order_id:
+            # Client Portal can return placeholders such as ``-1`` for an
+            # unaccepted package member. Only a positive numeric ID identifies
+            # a ticket that can be compensated, polled, or canceled.
+            order_id = cls._normalize_broker_order_id(entry.get("order_id"))
+            if order_id is not None:
                 acknowledged_ids.append(order_id)
         return acknowledged_ids
 
@@ -769,12 +769,8 @@ class InteractiveBrokersREST(Broker):
             if "error" in entry or "message" in entry:
                 errors.append(f"entry {index} contains an error or message instead of a clean acknowledgement")
 
-            order_id = entry.get("order_id")
-            if isinstance(order_id, bool) or not isinstance(order_id, (str, int)):
-                errors.append(f"entry {index} is missing a valid order_id")
-                continue
-            order_id = str(order_id).strip()
-            if not order_id:
+            order_id = self._normalize_broker_order_id(entry.get("order_id"))
+            if order_id is None:
                 errors.append(f"entry {index} is missing a valid order_id")
                 continue
             acknowledgements.append((order_id, entry))

@@ -8,12 +8,41 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
+from unittest.mock import patch
 
 import pytest
 
 
 def _as_bool(value: object) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def ibkr_rest_paper_test_config(
+    environment: Mapping[str, str] | None = None,
+) -> dict[str, str | None]:
+    """Build the established REST configuration without importing credentials.
+
+    Importing ``lumibot.credentials`` may auto-select and start a broker when
+    IBKR credentials are present. Paper API tests must run their explicit-paper
+    gate before any gateway construction, so they read the same public IBKR
+    environment variables directly instead.
+    """
+    environment = os.environ if environment is None else environment
+    return {
+        "IB_USERNAME": environment.get("IB_USERNAME"),
+        "IB_PASSWORD": environment.get("IB_PASSWORD"),
+        "IB_ACCOUNT_ID": environment.get("IB_ACCOUNT_ID"),
+        "API_URL": environment.get("IB_API_URL"),
+        "RUNNING_ON_SERVER": environment.get("RUNNING_ON_SERVER"),
+        "GATEWAY_PORT": environment.get("IB_GATEWAY_PORT"),
+        "GATEWAY_INSTANCE_ID": environment.get("IB_GATEWAY_INSTANCE_ID"),
+        "USE_PAPER_ACCOUNT": environment.get("IB_USE_PAPER_ACCOUNT", "true"),
+        "IBEAM_DOCKER_TAG": environment.get("IBEAM_DOCKER_TAG"),
+        "AUTH_TIMEOUT": environment.get("IB_AUTH_TIMEOUT"),
+        "AUTH_POLL_INTERVAL": environment.get("IB_AUTH_POLL_INTERVAL"),
+        "REQUEST_TIMEOUT": environment.get("IB_REQUEST_TIMEOUT"),
+        "VERIFY_SSL": environment.get("IB_VERIFY_SSL"),
+    }
 
 
 def mask_ibkr_account_id(account_id: object) -> str:
@@ -137,21 +166,23 @@ def _construct_paper_test_data_source(data_source_type, config, monkeypatch):
     return data_source_type(config)
 
 
-@pytest.fixture
-def ibkr_rest_paper_order_data_source(monkeypatch):
+@pytest.fixture(scope="session")
+def ibkr_rest_paper_order_data_source():
     """Yield an authenticated, verified paper data source for order API tests."""
-    from lumibot.credentials import INTERACTIVE_BROKERS_REST_CONFIG
     from lumibot.data_sources import InteractiveBrokersRESTData
 
-    config = dict(INTERACTIVE_BROKERS_REST_CONFIG)
+    config = ibkr_rest_paper_test_config()
     require_explicit_ibkr_rest_paper_configuration(config)
     data_source = None
     try:
-        data_source = _construct_paper_test_data_source(
+        # Keep this patch scoped to construction: the safety gate must inspect
+        # the authenticated account before a paper test can change server state.
+        with patch.object(
             InteractiveBrokersRESTData,
-            config,
-            monkeypatch,
-        )
+            "suppress_warnings",
+            lambda _self: None,
+        ):
+            data_source = InteractiveBrokersRESTData(config)
     except Exception:
         pytest.skip("IBKR REST gateway is unavailable for the paper-order test")
 

@@ -191,6 +191,17 @@ Add these variables to a `.env` file in the same directory as your strategy:
     - (Optional) Maximum authentication wait in seconds.
     - `300`
 
+REST Paper-Order Test Safety
+----------------------------
+
+LumiBot's repository-only IBKR REST paper-order API-test fixture requires
+``IB_USE_PAPER_ACCOUNT=true`` to be explicitly present, even though the local
+IBeam configuration defaults to paper mode. Before an order test constructs an
+order, the fixture verifies that the authenticated selected account uses the
+IBKR paper-account ``DU`` convention and that it matches an explicitly supplied
+``IB_ACCOUNT_ID``. Test output masks account identifiers; do not add credentials
+or account identifiers to test logs.
+
 Example Strategy
 ----------------
 

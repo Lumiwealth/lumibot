@@ -83,3 +83,22 @@ python -m pytest \
 ```
 
 Real broker smoke testing must use a dedicated paper username, verify the paper account before any order action, and record account identifiers only in masked form. A passing paper smoke does not prove production or OAuth readiness.
+
+## Paper Order API-Test Safety Gate
+
+Any future REST test that constructs, submits, changes, or cancels an order must
+be marked with both `pytest.mark.apitest` and `pytest.mark.ibkr`, and must use
+the `ibkr_rest_paper_order_data_source` fixture from
+`tests/ibkr_rest_paper_order_safety.py`. The fixture:
+
+- skips when required local credentials are absent or the gateway cannot be reached;
+- requires the raw `IB_USE_PAPER_ACCOUNT` environment variable to be explicitly
+  set to `true`, rather than accepting the LumiBot configuration default;
+- reads the authenticated account selection before an order object is constructed;
+- requires the paper-account `DU` prefix and an exact match with an explicitly
+  configured `IB_ACCOUNT_ID`;
+- emits account identifiers only as masked suffixes and never logs gateway
+  response payloads.
+
+The gate is intentionally test-scoped. It does not change production account
+selection or broker behavior.

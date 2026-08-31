@@ -24,8 +24,11 @@ pytestmark = [pytest.mark.apitest, pytest.mark.ibkr]
 
 _STRATEGY_NAME = "ibkr_rest_advanced_orders_paper_apitest"
 _POLL_INTERVAL_SECONDS = 0.5
-_MARKET_DATA_ATTEMPTS = 3
-_MARKET_DATA_RETRY_SECONDS = 0.25
+# Client Portal snapshots often need a brief warm-up request before field 31 is
+# populated. Keep order construction bounded while allowing a healthy gateway
+# time to return the reference price needed for non-marketable limits.
+_MARKET_DATA_ATTEMPTS = 6
+_MARKET_DATA_RETRY_SECONDS = 1.0
 _VISIBLE_TIMEOUT_SECONDS = 20.0
 _CANCEL_TIMEOUT_SECONDS = 30.0
 _TERMINAL_STATUSES = {

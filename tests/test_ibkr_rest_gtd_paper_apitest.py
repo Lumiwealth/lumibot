@@ -24,8 +24,11 @@ pytestmark = [pytest.mark.apitest, pytest.mark.ibkr]
 
 _SYMBOL = "SPY"
 _REQUEST_TIMEOUT_SECONDS = 5.0
-_MARKET_DATA_ATTEMPTS = 3
-_MARKET_DATA_RETRY_SECONDS = 0.25
+# Client Portal snapshots often need a brief warm-up request before field 31 is
+# populated. Keep the paper probe bounded while allowing that subscription to
+# become usable on an otherwise healthy, authenticated gateway.
+_MARKET_DATA_ATTEMPTS = 6
+_MARKET_DATA_RETRY_SECONDS = 1.0
 _MARGIN_RESPONSE_FIELDS = {
     "amount",
     "equity",

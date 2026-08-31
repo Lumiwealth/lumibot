@@ -2,7 +2,7 @@
 
 Credential-free procedure for authorized IBKR REST paper-order validation.
 
-**Last Updated:** 2026-08-30
+**Last Updated:** 2026-08-31
 **Status:** Active operator runbook
 **Audience:** Authorized LumiBot maintainers
 
@@ -98,10 +98,10 @@ with a sanitized reason. A passing probe is evidence for a separate reviewed
 implementation decision; it does not enable production GTD support.
 
 LumiBot's legacy IBKR socket adapter has separate GTD support. REST exact-date
-GTD serialization remains disabled. The authorized paper probe on 2026-08-30
-rejected the candidate REST `tif=GTD` and `goodTillDate` request. That probe was
-run on a Sunday outside US regular trading hours, so advanced-order observations
-from that session are preliminary pending a market-hours retest.
+GTD serialization remains disabled. The 2026-08-30 Sunday probe rejected the
+candidate REST `tif=GTD` and `goodTillDate` request; an authorized 2026-08-31
+US regular-trading-hours probe rejected the same candidate. This is current
+evidence that the configured Client Portal REST API does not accept it.
 
 ## Advanced-order paper smoke suite
 

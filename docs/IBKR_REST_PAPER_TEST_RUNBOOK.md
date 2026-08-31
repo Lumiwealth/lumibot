@@ -119,6 +119,12 @@ deliberately non-marketable BRACKET, OTO, and OCO packages. It polls order
 status and attempts cancellation in `finally` cleanup. Only masked account
 suffixes may appear in test output.
 
+Allow several minutes for an advanced-order run: the test waits only as long as
+needed for acknowledgement, bounded polling, cancellation, and cancellation
+verification. If it skips because the gateway did not provide a usable current
+reference price, no order was constructed or submitted; restore the paper
+gateway's market-data availability and run it again during market hours.
+
 ## After every run
 
 - Inspect the paper account directly and confirm no test orders remain working.

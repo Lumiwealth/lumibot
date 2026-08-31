@@ -17,6 +17,10 @@ def broker(monkeypatch):
     broker.data_source = Mock()
     broker.data_source.get_conid_from_asset.return_value = 265598
     broker.data_source.get_contract_rules.return_value = {"rules": {"increment": 0.01}}
+    broker.data_source.get_broker_all_orders_once.return_value = []
+    # Reconciliation timing is tested deterministically; unit failures must not
+    # wait for the production bounded polling window.
+    monkeypatch.setattr(ibkr_rest_module, "_ADVANCED_ACK_RECONCILIATION_SECONDS", 0.0)
     broker.name = InteractiveBrokersREST.NAME
     broker.logger = Mock()
     broker.logger.isEnabledFor.return_value = False
@@ -134,7 +138,7 @@ def test_bracket_payload_with_one_child_links_parent_and_inherits_exchange(broke
     parent_ticket, child_ticket = payload["orders"]
     assert parent_ticket["cOID"] == "bracket-parent"
     assert child_ticket["parentId"] == "bracket-parent"
-    assert "cOID" not in child_ticket
+    assert child_ticket["cOID"] == child.identifier
     assert parent_ticket["price"] == pytest.approx(99.99)
     assert child_ticket["price"] == pytest.approx(109.99)
     assert child_ticket["listingExchange"] == "SMART"
@@ -161,12 +165,16 @@ def test_bracket_payload_with_two_children_only_links_the_parent(broker):
     assert payload["orders"][0]["cOID"] == "bracket-parent-two"
     assert payload["orders"][1]["parentId"] == "bracket-parent-two"
     assert payload["orders"][2]["parentId"] == "bracket-parent-two"
-    assert "cOID" not in payload["orders"][1]
-    assert "cOID" not in payload["orders"][2]
+    assert [ticket["cOID"] for ticket in payload["orders"][1:]] == [
+        child.identifier for child in parent.child_orders
+    ]
     assert payload["orders"][1]["orderType"] == "LMT"
     assert payload["orders"][1]["price"] == pytest.approx(109.99)
     assert payload["orders"][2]["orderType"] == "STP"
-    assert payload["orders"][2]["auxPrice"] == pytest.approx(94.99)
+    # Client Portal REST requires an STP trigger in ``price``; ``auxPrice``
+    # is only the trigger field for an STP LMT ticket.
+    assert payload["orders"][2]["price"] == pytest.approx(94.99)
+    assert "auxPrice" not in payload["orders"][2]
 
 
 def test_advanced_parent_coid_is_stable_safe_and_within_ibkr_limit(broker):
@@ -186,6 +194,7 @@ def test_advanced_parent_coid_is_stable_safe_and_within_ibkr_limit(broker):
     assert len(c_oid) <= 64
     assert c_oid.startswith("lumibot-")
     assert first_payload["orders"][1]["parentId"] == c_oid
+    assert first_payload["orders"][1]["cOID"] == parent.child_orders[0].identifier
 
 
 def test_oto_payload_preserves_explicit_child_settings(broker):
@@ -217,9 +226,9 @@ def test_oto_payload_preserves_explicit_child_settings(broker):
         "tif": "DAY",
         "price": pytest.approx(101.24),
         "listingExchange": "ARCA",
+        "cOID": "explicit-oto-child",
         "parentId": "oto-parent",
     }
-    assert "cOID" not in payload["orders"][1]
 
 
 def test_oco_payload_excludes_conceptual_parent_and_marks_both_children(broker):
@@ -242,6 +251,30 @@ def test_oco_payload_excludes_conceptual_parent_and_marks_both_children(broker):
     assert len({ticket["cOID"] for ticket in payload["orders"]}) == 2
     assert all("parentId" not in ticket for ticket in payload["orders"])
     assert all(ticket["listingExchange"] == "SMART" for ticket in payload["orders"])
+    assert payload["orders"][1]["price"] == pytest.approx(94.99)
+    assert "auxPrice" not in payload["orders"][1]
+
+
+def test_stop_and_stop_limit_payloads_use_client_portal_price_fields(broker):
+    stop = _order(
+        stop_price=95.0,
+        order_type=Order.OrderType.STOP,
+    )
+    stop_limit = _order(
+        limit_price=96.0,
+        stop_price=95.0,
+        order_type=Order.OrderType.STOP_LIMIT,
+    )
+
+    stop_ticket = broker._get_order_data_for_submission(stop)["orders"][0]
+    stop_limit_ticket = broker._get_order_data_for_submission(stop_limit)["orders"][0]
+
+    assert stop_ticket["orderType"] == "STP"
+    assert stop_ticket["price"] == pytest.approx(94.99)
+    assert "auxPrice" not in stop_ticket
+    assert stop_limit_ticket["orderType"] == "STP LMT"
+    assert stop_limit_ticket["price"] == pytest.approx(95.99)
+    assert stop_limit_ticket["auxPrice"] == pytest.approx(94.99)
 
 
 def test_oco_duplicate_child_coids_fail_before_contract_lookup(broker):
@@ -252,6 +285,22 @@ def test_oco_duplicate_child_coids_fail_before_contract_lookup(broker):
         order_class=Order.OrderClass.OCO,
     )
     parent.child_orders[1].identifier = parent.child_orders[0].identifier
+
+    with pytest.raises(ValueError, match="distinct identifiers for cOID correlation"):
+        broker._get_order_data_for_submission(parent)
+
+    broker.data_source.get_conid_from_asset.assert_not_called()
+
+
+def test_bracket_duplicate_parent_and_child_coids_fail_before_contract_lookup(broker):
+    parent = _order(
+        identifier="duplicate-coid",
+        limit_price=100.0,
+        order_type=Order.OrderType.LIMIT,
+        order_class=Order.OrderClass.BRACKET,
+        secondary_limit_price=110.0,
+    )
+    parent.child_orders[0].identifier = parent.identifier
 
     with pytest.raises(ValueError, match="distinct identifiers for cOID correlation"):
         broker._get_order_data_for_submission(parent)
@@ -353,6 +402,43 @@ def test_execute_order_can_return_complete_mixed_response_without_network():
     )
 
 
+def test_get_broker_all_orders_once_is_bounded_and_does_not_ping():
+    data_source = InteractiveBrokersRESTData.__new__(InteractiveBrokersRESTData)
+    data_source.base_url = "https://example.invalid"
+    data_source.account_id = "test-account"
+    data_source.ping_iserver = Mock()
+    orders = [{"orderId": "1901", "order_ref": "local-order"}]
+    data_source.get_from_endpoint = Mock(return_value={"orders": orders})
+
+    assert data_source.get_broker_all_orders_once() is orders
+    data_source.ping_iserver.assert_not_called()
+    data_source.get_from_endpoint.assert_called_once_with(
+        "https://example.invalid/iserver/account/orders?force=true&accountId=test-account",
+        "Reconciling submitted orders",
+        allow_fail=True,
+        silent=True,
+        max_retries=0,
+    )
+
+
+@pytest.mark.parametrize(
+    ("response", "expected"),
+    [
+        ({"order_id": "1902"}, True),
+        ({"error": "order does not exist"}, False),
+        (None, False),
+    ],
+)
+def test_delete_order_reports_error_payload_as_failure(response, expected):
+    data_source = InteractiveBrokersRESTData.__new__(InteractiveBrokersRESTData)
+    data_source.base_url = "https://example.invalid"
+    data_source.account_id = "test-account"
+    data_source.ping_iserver = Mock()
+    data_source.delete_to_endpoint = Mock(return_value=response)
+
+    assert data_source.delete_order(Mock(identifier="1902")) is expected
+
+
 def test_submit_bracket_maps_and_tracks_every_native_leg(broker):
     parent = _order(
         identifier="local-bracket",
@@ -363,10 +449,11 @@ def test_submit_bracket_maps_and_tracks_every_native_leg(broker):
         secondary_stop_price=95.0,
     )
     children = list(parent.child_orders)
+    coids = [parent.identifier, *(child.identifier for child in children)]
     response = [
-        {"order_id": 2001, "order_status": "Submitted"},
-        {"order_id": "2002", "order_status": "Submitted"},
-        {"order_id": 2003, "order_status": "Submitted"},
+        {"order_id": 2001, "order_status": "Submitted", "local_order_id": coids[0]},
+        {"order_id": "2002", "order_status": "Submitted", "local_order_id": coids[1]},
+        {"order_id": 2003, "order_status": "Submitted", "local_order_id": coids[2]},
     ]
     broker.data_source.execute_order.return_value = response
 
@@ -386,6 +473,88 @@ def test_submit_bracket_maps_and_tracks_every_native_leg(broker):
     assert [args.args[0] for args in broker._on_new_order.call_args_list] == native_orders
 
 
+def test_submit_bracket_reconciles_documented_short_response_by_child_coid(broker):
+    """IBKR documents fewer immediate rows than submitted bracket tickets."""
+    parent = _order(
+        identifier="reconciled-bracket",
+        limit_price=100.0,
+        order_type=Order.OrderType.LIMIT,
+        order_class=Order.OrderClass.BRACKET,
+        secondary_limit_price=110.0,
+        secondary_stop_price=95.0,
+    )
+    native_orders = [parent, *parent.child_orders]
+    coids = [native.identifier for native in native_orders]
+    broker.data_source.execute_order.return_value = [
+        {"order_id": "2051", "local_order_id": coids[0]},
+        {"order_id": "2052", "local_order_id": coids[1]},
+    ]
+    polled = [
+        {"orderId": "2051", "order_ref": coids[0]},
+        {"orderId": "2052", "order_ref": coids[1]},
+        {"orderId": "2053", "order_ref": coids[2]},
+    ]
+    broker.data_source.get_broker_all_orders_once.return_value = polled
+
+    broker._submit_order(parent)
+
+    assert [native.identifier for native in native_orders] == ["2051", "2052", "2053"]
+    assert [native._raw for native in native_orders] == polled
+    assert all(native in broker._new_orders for native in native_orders)
+    broker.data_source.delete_order.assert_not_called()
+
+
+def test_failed_reconciliation_cleans_ids_found_during_polling(broker):
+    parent = _order(
+        identifier="partially-reconciled-bracket",
+        limit_price=100.0,
+        order_type=Order.OrderType.LIMIT,
+        order_class=Order.OrderClass.BRACKET,
+        secondary_limit_price=110.0,
+        secondary_stop_price=95.0,
+    )
+    coids = [parent.identifier, *(child.identifier for child in parent.child_orders)]
+    broker.data_source.execute_order.return_value = [
+        {"order_id": "2061", "local_order_id": coids[0]},
+    ]
+    broker.data_source.get_broker_all_orders_once.return_value = [
+        {"orderId": "2061", "order_ref": coids[0]},
+        {"orderId": "2062", "order_ref": coids[1]},
+    ]
+
+    broker._submit_order(parent)
+
+    cleanup_orders = [args.args[0] for args in broker.data_source.delete_order.call_args_list]
+    assert [cleanup.identifier for cleanup in cleanup_orders] == ["2061", "2062"]
+    assert "resolved 2 of 3 native tickets" in parent.error_message
+    assert parent.status == Order.OrderStatus.ERROR
+
+
+def test_reconciliation_rejects_and_cleans_an_unmapped_submission_id(broker):
+    parent = _order(
+        identifier="unexpected-id-bracket",
+        limit_price=100.0,
+        order_type=Order.OrderType.LIMIT,
+        order_class=Order.OrderClass.BRACKET,
+        secondary_limit_price=110.0,
+    )
+    coids = [parent.identifier, parent.child_orders[0].identifier]
+    broker.data_source.execute_order.return_value = [
+        {"order_id": "2079"},
+    ]
+    broker.data_source.get_broker_all_orders_once.return_value = [
+        {"orderId": "2071", "order_ref": coids[0]},
+        {"orderId": "2072", "order_ref": coids[1]},
+    ]
+
+    broker._submit_order(parent)
+
+    cleanup_orders = [args.args[0] for args in broker.data_source.delete_order.call_args_list]
+    assert [cleanup.identifier for cleanup in cleanup_orders] == ["2079", "2071", "2072"]
+    assert "broker ID outside the reconciled package" in parent.error_message
+    assert parent.status == Order.OrderStatus.ERROR
+
+
 def test_submit_oto_maps_parent_and_child_in_request_order(broker):
     parent = _order(
         identifier="local-oto",
@@ -396,8 +565,8 @@ def test_submit_oto_maps_parent_and_child_in_request_order(broker):
     )
     child = parent.child_orders[0]
     response = [
-        {"order_id": "3001", "order_status": "Submitted"},
-        {"order_id": 3002, "order_status": "Submitted"},
+        {"order_id": "3001", "order_status": "Submitted", "local_order_id": parent.identifier},
+        {"order_id": 3002, "order_status": "Submitted", "local_order_id": child.identifier},
     ]
     broker.data_source.execute_order.return_value = response
 
@@ -473,7 +642,7 @@ def test_submit_oco_rejects_ambiguous_acknowledgement_order_and_cleans_up(broker
     assert [cleanup.identifier for cleanup in cleanup_orders] == ["4011", "4012"]
     assert parent.status == Order.OrderStatus.ERROR
     assert all(child.status == Order.OrderStatus.ERROR for child in parent.child_orders)
-    assert "does not identify enough OCO acknowledgements" in parent.error_message
+    assert "does not identify enough acknowledgements" in parent.error_message
     assert not broker.get_all_orders()
 
 
@@ -736,10 +905,11 @@ def test_polling_updates_bracket_native_orders_without_erasing_child_relationshi
         secondary_stop_price=95.0,
     )
     children = list(parent.child_orders)
+    coids = [parent.identifier, *(child.identifier for child in children)]
     broker.data_source.execute_order.return_value = [
-        {"order_id": "8201"},
-        {"order_id": "8202"},
-        {"order_id": "8203"},
+        {"order_id": "8201", "local_order_id": coids[0]},
+        {"order_id": "8202", "local_order_id": coids[1]},
+        {"order_id": "8203", "local_order_id": coids[2]},
     ]
     broker._submit_order(parent)
     raw_orders = [_poll_order(8201), _poll_order(8202), _poll_order(8203)]
@@ -762,8 +932,8 @@ def test_polling_updates_oto_parent_and_child_in_place(broker):
     )
     child = parent.child_orders[0]
     broker.data_source.execute_order.return_value = [
-        {"order_id": 8301},
-        {"order_id": 8302},
+        {"order_id": 8301, "local_order_id": parent.identifier},
+        {"order_id": 8302, "local_order_id": child.identifier},
     ]
     broker._submit_order(parent)
     raw_orders = [_poll_order("8301"), _poll_order("8302")]
@@ -816,9 +986,9 @@ def test_polling_dispatches_filled_and_canceled_child_status_changes(broker):
     )
     first_child, second_child = parent.child_orders
     broker.data_source.execute_order.return_value = [
-        {"order_id": "8501"},
-        {"order_id": "8502"},
-        {"order_id": "8503"},
+        {"order_id": "8501", "local_order_id": parent.identifier},
+        {"order_id": "8502", "local_order_id": first_child.identifier},
+        {"order_id": "8503", "local_order_id": second_child.identifier},
     ]
     broker._submit_order(parent)
     broker.dispatched_events.clear()

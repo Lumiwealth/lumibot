@@ -25,9 +25,9 @@ pytestmark = [pytest.mark.apitest, pytest.mark.ibkr]
 _SYMBOL = "SPY"
 _REQUEST_TIMEOUT_SECONDS = 5.0
 # Client Portal snapshots often need a brief warm-up request before field 31 is
-# populated. Keep the paper probe bounded while allowing that subscription to
-# become usable on an otherwise healthy, authenticated gateway.
-_MARKET_DATA_ATTEMPTS = 6
+# populated. Keep the paper probe bounded to a 15-second warm-up while allowing
+# that subscription to become usable on an otherwise healthy, authenticated gateway.
+_MARKET_DATA_ATTEMPTS = 16
 _MARKET_DATA_RETRY_SECONDS = 1.0
 _MARGIN_RESPONSE_FIELDS = {
     "amount",
@@ -98,14 +98,21 @@ def _request_json(data_source, method: str, path: str, payload: dict | None = No
     return response.status_code, response_payload
 
 
-def _contract_conid(data_source) -> int:
+def _contract_conid(
+    data_source,
+    *,
+    symbol: str = _SYMBOL,
+    skip_context: str = "GTD paper capability probe",
+) -> int:
     status_code, payload = _request_json(
         data_source,
         "GET",
-        f"/iserver/secdef/search?symbol={_SYMBOL}",
+        f"/iserver/secdef/search?symbol={symbol}",
     )
     if not 200 <= status_code < 300 or not isinstance(payload, list):
-        pytest.skip("IBKR REST gateway did not provide a usable SPY contract for the GTD probe")
+        pytest.skip(
+            f"IBKR REST gateway did not provide a usable {symbol} contract for the {skip_context}"
+        )
 
     for candidate in payload:
         if not isinstance(candidate, dict):
@@ -117,10 +124,18 @@ def _contract_conid(data_source) -> int:
             return int(conid)
         except (TypeError, ValueError):
             continue
-    pytest.skip("IBKR REST gateway did not provide a usable SPY contract for the GTD probe")
+    pytest.skip(
+        f"IBKR REST gateway did not provide a usable {symbol} contract for the {skip_context}"
+    )
 
 
-def _reference_price(data_source, conid: int) -> float:
+def _reference_price(
+    data_source,
+    conid: int,
+    *,
+    symbol: str = _SYMBOL,
+    skip_context: str = "GTD paper capability probe",
+) -> float:
     path = f"/iserver/marketdata/snapshot?conids={conid}&fields=31"
     for attempt in range(_MARKET_DATA_ATTEMPTS):
         status_code, payload = _request_json(data_source, "GET", path)
@@ -136,7 +151,9 @@ def _reference_price(data_source, conid: int) -> float:
                 return price
         if attempt + 1 < _MARKET_DATA_ATTEMPTS:
             time.sleep(_MARKET_DATA_RETRY_SECONDS)
-    pytest.skip("IBKR REST gateway did not provide a usable SPY reference price for the GTD probe")
+    pytest.skip(
+        f"IBKR REST gateway did not provide a usable {symbol} reference price for the {skip_context}"
+    )
 
 
 def _tif_tokens(value: Any) -> set[str]:

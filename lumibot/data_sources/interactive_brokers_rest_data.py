@@ -613,6 +613,29 @@ class InteractiveBrokersRESTData(DataSource):
 
         return []
 
+    def get_broker_all_orders_once(self):
+        """Fetch the selected account's orders once without an unbounded retry.
+
+        Advanced-order acknowledgement reconciliation runs after the submission
+        request has already authenticated the brokerage session.  It must not
+        enter the normal polling method's retry-until-available behavior while
+        an incompletely acknowledged package may still need compensation.
+        """
+        url = (
+            f"{self.base_url}/iserver/account/orders?force=true"
+            f"&accountId={self.account_id}"
+        )
+        response = self.get_from_endpoint(
+            url,
+            "Reconciling submitted orders",
+            allow_fail=True,
+            silent=True,
+            max_retries=0,
+        )
+        if isinstance(response, dict) and isinstance(response.get("orders"), list):
+            return response["orders"]
+        return []
+
     def get_order_info(self, orderid):
         self.ping_iserver()
 
@@ -660,12 +683,14 @@ class InteractiveBrokersRESTData(DataSource):
         orderId = order.identifier
         url = f"{self.base_url}/iserver/account/{self.account_id}/order/{orderId}"
         status = self.delete_to_endpoint(url, description=f"Deleting order {orderId}")
-        if status:
+        if status and not (isinstance(status, dict) and status.get("error")):
             logger.info(
                 colored(f"Order with ID {orderId} canceled successfully.", "green")
             )
+            return True
         else:
             logger.error(colored(f"Failed to delete order with ID {orderId}.", "red"))
+            return False
 
     def get_positions(self):
         """

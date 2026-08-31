@@ -2,7 +2,7 @@
 
 Contributor and user reference for advanced orders submitted through the IBKR Client Portal REST adapter.
 
-Last Updated: 2026-08-29
+Last Updated: 2026-08-31
 
 Status: Current behavior
 
@@ -21,10 +21,10 @@ boundaries.
 The adapter sends each advanced package in one `execute_order()` request:
 
 - **BRACKET** sends the executable parent followed by one or two attached
-  children. The parent receives a Client Portal `cOID`; each child receives
-  `parentId` equal to that cOID.
+  children. The parent and each child receive distinct Client Portal `cOID`
+  values; each child also receives `parentId` equal to the parent's `cOID`.
 - **OTO** sends the executable parent followed by its one attached child, with
-  the same cOID/`parentId` relationship.
+  the same distinct-child-`cOID` and parent-`parentId` relationship.
 - **OCO** does not send the conceptual LumiBot parent. It sends exactly the two
   executable children as an IBKR single-group/OCA package (`isSingleGroup`).
   Each child receives a unique `cOID` so acknowledgements can be correlated if
@@ -36,10 +36,22 @@ BRACKET and OTO, the tracked parent uses the broker ID as the children's
 `parent_identifier`. For OCO, children retain the local container's identifier;
 the local parent has no broker order ID.
 
-IBKR's documented OCA example returns tickets in a different order from the
-request. LumiBot therefore uses response `local_order_id` values to correlate
-OCO acknowledgements. If the complete mapping remains ambiguous, submission
-fails closed and every acknowledged broker ID receives a cancellation attempt.
+Client Portal does not guarantee one immediate acknowledgement row per submitted
+advanced-order ticket. IBKR's published bracket example submits three tickets
+but shows two immediate response rows, while its OCA example returns tickets in
+a different order. LumiBot therefore uses client-order correlation values and a
+bounded account-order poll to reconcile an incomplete BRACKET or OTO response;
+OCO responses use `local_order_id` correlation. The adapter tracks a package
+only after every expected executable ticket resolves to a distinct positive
+broker ID. If the complete mapping remains missing or ambiguous, submission
+fails closed and every broker ID discovered in either the response or the
+bounded reconciliation receives a cancellation attempt.
+
+This behavior follows IBKR's
+[published bracket response example](https://ibkrcampus.com/campus/ibkr-quant-news/how-to-code-a-bracket-order-in-the-web-api/),
+[current complex-order lesson](https://ibkrcampus.com/campus/trading-lessons/complex-orders/),
+and the documented `order_ref` field returned by
+[live-order monitoring](https://ibkrcampus.com/campus/ibkr-api-page/webapi-doc/#monitoring-live-orders).
 
 Strategies should use the current generic parameter names when constructing
 packages, for example:
@@ -62,6 +74,11 @@ time-in-force, and exchange. Automatically generated children may inherit the
 parent exchange for REST contract resolution without mutating the generic
 `Order` objects.
 
+For Client Portal REST price fields, a `stop` (`STP`) ticket serializes its
+trigger as `price`; it does not send `auxPrice`. A `stop_limit` (`STP LMT`)
+ticket serializes its limit as `price` and its trigger as `auxPrice`. This
+matches IBKR's published Web API bracket field definitions.
+
 ## Cancellation and polling
 
 Canceling a BRACKET or OTO parent attempts cancellation for the broker-backed
@@ -77,6 +94,12 @@ erase known child relationships, and the OCO local container remains connected
 to its tracked children. Reconstruction of an advanced package submitted
 before process startup is not claimed: it would require a tested, reliable
 relationship field in the broker response.
+
+The bounded acknowledgement poll uses a single-attempt account-order read and
+never enters the adapter's normal retry-until-available polling loop. A deletion
+error response is logged as a cancellation failure, not as a successful
+cancellation. An "order does not exist" result can mean a rejected or already
+inactive ticket, but it is not reported as proof that IBKR accepted a cancel.
 
 ## GTD limitation
 

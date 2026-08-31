@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 from hashlib import sha256
 from math import gcd
 
@@ -66,6 +67,9 @@ ORDERTYPE_MAPPING = dict(
     stop_limit="STP LMT",
     trailing_stop="TRAIL",
 )
+
+_ADVANCED_ACK_RECONCILIATION_SECONDS = 10.0
+_ADVANCED_ACK_POLL_INTERVAL_SECONDS = 0.5
 
 SPREAD_CONID_MAP = {
     "AUD": 61227077,
@@ -738,7 +742,7 @@ class InteractiveBrokersREST(Broker):
             # unaccepted package member. Only a positive numeric ID identifies
             # a ticket that can be compensated, polled, or canceled.
             order_id = cls._normalize_broker_order_id(entry.get("order_id"))
-            if order_id is not None:
+            if order_id is not None and order_id not in acknowledged_ids:
                 acknowledged_ids.append(order_id)
         return acknowledged_ids
 
@@ -808,7 +812,7 @@ class InteractiveBrokersREST(Broker):
             ]
             if require_unambiguous_correlation and len(open_indexes) > 1:
                 errors.append(
-                    "response does not identify enough OCO acknowledgements by local_order_id"
+                    "response does not identify enough acknowledgements by local_order_id"
                 )
             elif len(open_indexes) != len(uncorrelated):
                 errors.append("response acknowledgement correlation is inconsistent")
@@ -820,6 +824,115 @@ class InteractiveBrokersREST(Broker):
         if errors:
             raise ValueError("Invalid IBKR REST order acknowledgement package: " + "; ".join(errors))
         return acknowledgements
+
+    @staticmethod
+    def _get_order_correlation_id(record: dict) -> str | None:
+        """Read a Client Portal client-order correlation value without logging it."""
+        for field in ("local_order_id", "order_ref", "orderRef", "cOID"):
+            value = record.get(field)
+            if value is not None and str(value).strip():
+                return str(value).strip()
+        return None
+
+    def _reconcile_advanced_order_acknowledgements(
+        self,
+        response,
+        submitted_tickets: list[dict],
+        acknowledged_ids: list[str],
+    ) -> list[tuple[str, dict]]:
+        """Resolve an incomplete BRACKET/OTO response through bounded polling.
+
+        Client Portal can submit three bracket tickets while returning fewer
+        immediate acknowledgement rows.  Every native ticket has a unique cOID,
+        so account-order polling can complete the mapping without relying on
+        response position or accidentally adopting another account order.
+        """
+        entries = response if isinstance(response, list) else []
+        if not isinstance(response, list):
+            raise ValueError(
+                "Invalid IBKR REST order acknowledgement package: "
+                f"response must be a list, received {type(response).__name__}"
+            )
+        if any(
+            not isinstance(entry, dict) or "error" in entry or "message" in entry
+            for entry in entries
+        ):
+            raise ValueError(
+                "Invalid IBKR REST order acknowledgement package: "
+                "response contains a malformed entry, error, or message"
+            )
+
+        ticket_indexes_by_coid = {
+            str(ticket["cOID"]): index
+            for index, ticket in enumerate(submitted_tickets)
+            if ticket.get("cOID") is not None
+        }
+        expected_count = len(submitted_tickets)
+        if len(entries) > expected_count:
+            raise ValueError(
+                "Invalid IBKR REST order acknowledgement package: "
+                f"received {len(entries)} entries for {expected_count} native tickets"
+            )
+        if len(ticket_indexes_by_coid) != expected_count:
+            raise ValueError(
+                "Invalid IBKR REST order acknowledgement package: "
+                "advanced tickets do not have unique client order IDs"
+            )
+
+        correlated: list[tuple[str, dict] | None] = [None] * expected_count
+
+        def collect(records, *, polled: bool) -> None:
+            for record in records:
+                if not isinstance(record, dict):
+                    continue
+                raw_order_id = record.get("orderId") if polled else record.get("order_id")
+                order_id = self._normalize_broker_order_id(raw_order_id)
+                correlation_id = self._get_order_correlation_id(record)
+                ticket_index = ticket_indexes_by_coid.get(correlation_id)
+                if order_id is None or ticket_index is None:
+                    continue
+                current = correlated[ticket_index]
+                if current is not None and current[0] != order_id:
+                    raise ValueError(
+                        "Invalid IBKR REST order acknowledgement package: "
+                        "one client order ID resolved to multiple broker IDs"
+                    )
+                correlated[ticket_index] = (order_id, record)
+                if order_id not in acknowledged_ids:
+                    acknowledged_ids.append(order_id)
+
+        collect(entries, polled=False)
+        deadline = time.monotonic() + _ADVANCED_ACK_RECONCILIATION_SECONDS
+        while any(acknowledgement is None for acknowledgement in correlated):
+            collect(self.data_source.get_broker_all_orders_once(), polled=True)
+            if all(acknowledgement is not None for acknowledgement in correlated):
+                break
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            time.sleep(min(_ADVANCED_ACK_POLL_INTERVAL_SECONDS, remaining))
+
+        resolved_count = sum(acknowledgement is not None for acknowledgement in correlated)
+        if resolved_count != expected_count:
+            raise ValueError(
+                "Invalid IBKR REST order acknowledgement package: "
+                f"resolved {resolved_count} of {expected_count} native tickets "
+                "within the bounded reconciliation window"
+            )
+
+        resolved = [acknowledgement for acknowledgement in correlated if acknowledgement is not None]
+        resolved_ids = [order_id for order_id, _ in resolved]
+        if len(set(resolved_ids)) != expected_count:
+            raise ValueError(
+                "Invalid IBKR REST order acknowledgement package: "
+                "reconciliation returned duplicate broker IDs"
+            )
+        if set(acknowledged_ids) != set(resolved_ids):
+            raise ValueError(
+                "Invalid IBKR REST order acknowledgement package: "
+                "submission returned a broker ID outside the reconciled package"
+            )
+        return resolved
 
     def _cancel_acknowledged_order_ids(self, package_order, acknowledged_ids: list[str]) -> None:
         """Best-effort compensation for a package that IBKR only partly acknowledged."""
@@ -913,12 +1026,28 @@ class InteractiveBrokersREST(Broker):
                     expected_count=len(native_orders),
                     submitted_tickets=order_data["orders"],
                     require_unambiguous_correlation=(
-                        order.order_class is Order.OrderClass.OCO
+                        order.order_class
+                        in (
+                            Order.OrderClass.BRACKET,
+                            Order.OrderClass.OTO,
+                            Order.OrderClass.OCO,
+                        )
                     ),
                 )
             except Exception:
-                self._cancel_acknowledged_order_ids(order, acknowledged_ids)
-                raise
+                if order.order_class in (Order.OrderClass.BRACKET, Order.OrderClass.OTO):
+                    try:
+                        acknowledgements = self._reconcile_advanced_order_acknowledgements(
+                            response,
+                            order_data["orders"],
+                            acknowledged_ids,
+                        )
+                    except Exception:
+                        self._cancel_acknowledged_order_ids(order, acknowledged_ids)
+                        raise
+                else:
+                    self._cancel_acknowledged_order_ids(order, acknowledged_ids)
+                    raise
 
             try:
                 self._track_acknowledged_order_package(order, native_orders, acknowledgements)
@@ -1183,7 +1312,14 @@ class InteractiveBrokersREST(Broker):
             native_orders = [order, *children]
             tickets = [(order, None, parent_coid, None, None)]
             tickets.extend(
-                (child, order.exchange, None, parent_coid, None) for child in children
+                (
+                    child,
+                    order.exchange,
+                    self._get_ibkr_client_order_id(child),
+                    parent_coid,
+                    None,
+                )
+                for child in children
             )
         elif order_class is Order.OrderClass.OTO:
             if len(children) != 1:
@@ -1195,7 +1331,13 @@ class InteractiveBrokersREST(Broker):
             native_orders = [order, children[0]]
             tickets = [
                 (order, None, parent_coid, None, None),
-                (children[0], order.exchange, None, parent_coid, None),
+                (
+                    children[0],
+                    order.exchange,
+                    self._get_ibkr_client_order_id(children[0]),
+                    parent_coid,
+                    None,
+                ),
             ]
         elif order_class is Order.OrderClass.OCO:
             if len(children) != 2:
@@ -1224,6 +1366,12 @@ class InteractiveBrokersREST(Broker):
         else:
             raise ValueError(
                 f"IBKR REST advanced-order package construction does not support {order_class!r}."
+            )
+
+        package_coids = [ticket[2] for ticket in tickets if ticket[2] is not None]
+        if len(set(package_coids)) != len(package_coids):
+            raise ValueError(
+                "IBKR REST advanced-order tickets must have distinct identifiers for cOID correlation."
             )
 
         order_data = {"orders": []}
@@ -1292,8 +1440,28 @@ class InteractiveBrokersREST(Broker):
 
             rules = self.data_source.get_contract_rules(conid)
             increment = rules['rules']['increment'] # 0.05 for example
-            price = (order.limit_price // increment) * increment if order.limit_price is not None else None
-            aux_price = (order.stop_price // increment) * increment if order.stop_price is not None else None
+            limit_price = (
+                (order.limit_price // increment) * increment
+                if order.limit_price is not None
+                else None
+            )
+            stop_price = (
+                (order.stop_price // increment) * increment
+                if order.stop_price is not None
+                else None
+            )
+            # Client Portal REST uses ``price`` for an STP trigger. ``auxPrice``
+            # is the trigger only for STP LMT; sending an STP trigger as auxPrice
+            # can produce a placeholder acknowledgement instead of a ticket.
+            if order.order_type == Order.OrderType.STOP:
+                price = stop_price
+                aux_price = None
+            elif order.order_type == Order.OrderType.STOP_LIMIT:
+                price = limit_price
+                aux_price = stop_price
+            else:
+                price = limit_price
+                aux_price = None
 
             data = {
                 "conid": conid,

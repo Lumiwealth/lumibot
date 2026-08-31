@@ -414,11 +414,13 @@ def _json_loads(*args, **kwargs):
     return _json_module().loads(*args, **kwargs)
 
 
-def _get_backtesting_parameters():
+def _get_strategy_parameters():
     if not _DEFER_CREDENTIALS_ON_IMPORT:
-        return getattr(_credentials(), "BACKTESTING_PARAMETERS", None)
+        return getattr(_credentials(), "STRATEGY_PARAMETERS", None)
 
-    raw = os.environ.get("BACKTESTING_PARAMETERS")
+    raw = os.environ.get("LUMIBOT_STRATEGY_PARAMETERS")
+    if raw is None:
+        raw = os.environ.get("BACKTESTING_PARAMETERS")
     if raw is None:
         return None
     raw = raw.strip()
@@ -871,6 +873,11 @@ class _Strategy:
         # Set the the state of first iteration to True. This will later be updated to False by the strategy executor
         self._first_iteration = True
 
+        # Public Strategy.initial_budget is available in both runtimes. Backtests
+        # replace this with configured starting cash below; live strategies replace
+        # it with the first broker-verified account equity snapshot.
+        self._initial_budget = None
+
         # Setting execution parameters
         self._last_on_trading_iteration_datetime = None
         if not self.is_backtesting:
@@ -879,6 +886,7 @@ class _Strategy:
             if synchronize_broker_on_start:
                 self.update_broker_balances()
                 self.broker._set_initial_positions(self)
+                self._initial_budget = self._portfolio_value
         else:
             # Determine initial cash ("budget") for backtesting.
             # NOTE: In BotSpot/BotManager runs we often inject settings via environment variables.
@@ -999,13 +1007,14 @@ class _Strategy:
         if parameters is not None and isinstance(self.parameters, dict):
             self.parameters = {**self.parameters, **parameters}
 
-        # Apply BACKTESTING_PARAMETERS env var override (highest priority, wins over code-level params)
-        BACKTESTING_PARAMETERS = _get_backtesting_parameters()
-        if BACKTESTING_PARAMETERS is not None and isinstance(BACKTESTING_PARAMETERS, dict):
-            self.parameters = {**self.parameters, **BACKTESTING_PARAMETERS}
+        # Apply one mode-neutral override with highest priority for both
+        # backtests and live execution.
+        strategy_parameter_overrides = _get_strategy_parameters()
+        if strategy_parameter_overrides is not None and isinstance(strategy_parameter_overrides, dict):
+            self.parameters = {**self.parameters, **strategy_parameter_overrides}
             self.logger.info(
                 colored(
-                    f"Applied BACKTESTING_PARAMETERS override: {list(BACKTESTING_PARAMETERS.keys())}",
+                    f"Applied strategy parameter override keys: {list(strategy_parameter_overrides.keys())}",
                     "green",
                 )
             )
@@ -3522,6 +3531,15 @@ class _Strategy:
                 tearsheet_metrics_file=tearsheet_metrics_file,
                 base_filename=base_filename,
             )
+
+            try:
+                from lumibot.backtesting.data_provenance import write_backtest_data_provenance
+
+                write_backtest_data_provenance(data_source, logdir)
+            except Exception as exc:
+                # Provenance is diagnostic metadata and must never make an otherwise valid
+                # trading simulation fail at the artifact-writing boundary.
+                self.logger.warning("Backtest data provenance artifact could not be written: %s", exc)
 
             end = datetime.datetime.now()
             backtesting_length = backtesting_end - backtesting_start

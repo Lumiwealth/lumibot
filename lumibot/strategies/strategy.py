@@ -186,10 +186,14 @@ class Strategy(_Strategy):
 
     @property
     def initial_budget(self):
-        """Returns the initial budget for the strategy.
+        """Returns the strategy's starting value.
+
+        In backtests this is the configured starting cash. In live trading it is
+        the first broker-verified portfolio equity snapshot, including existing
+        positions; it is not merely the account's cash balance.
 
         Returns:
-            float: The initial budget for the strategy.
+            float: Starting backtest cash or live account equity.
 
         Example
         -------

@@ -1086,6 +1086,39 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
         self._registry = _ProviderRegistry(self)
         self._routing = self._normalize_routing(self._extract_routing_config(getattr(self, "_config", None)))
         self._registry.validate_routing(self._routing)
+        self._observed_data_routes: Dict[tuple, Dict[str, str]] = {}
+
+    def _record_observed_route(
+        self,
+        asset: Asset,
+        provider_spec: ProviderSpec,
+        *,
+        timestep: Optional[str] = None,
+        feed_type: Optional[str] = None,
+    ) -> None:
+        asset_type = _normalize_asset_type(getattr(asset, "asset_type", "")) or "unknown"
+        symbol = str(getattr(asset, "symbol", "") or "").strip()
+        adapter = type(self._registry.adapter_for_spec(provider_spec)).__name__
+        route = {
+            "assetClass": asset_type,
+            "symbol": symbol,
+            "adapter": adapter,
+            "vendor": provider_spec.provider,
+        }
+        if provider_spec.ccxt_exchange_id:
+            route["exchange"] = provider_spec.ccxt_exchange_id
+        if feed_type:
+            route["feedType"] = feed_type
+        if timestep:
+            route["resolution"] = str(timestep)
+        key = (asset_type, symbol, provider_spec.provider, provider_spec.ccxt_exchange_id, feed_type, str(timestep or ""))
+        if not isinstance(getattr(self, "_observed_data_routes", None), dict):
+            self._observed_data_routes = {}
+        self._observed_data_routes[key] = route
+
+    def get_data_provenance(self) -> Dict[str, Any]:
+        observed = getattr(self, "_observed_data_routes", {})
+        return {"observedRoutes": list(observed.values()) if isinstance(observed, dict) else []}
 
     @staticmethod
     def _extract_routing_config(config: Any) -> Optional[Dict[str, str]]:
@@ -1164,6 +1197,12 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
 
         provider_spec = self._provider_spec_for_asset(asset_separated)
         adapter = self._registry.adapter_for_spec(provider_spec)
+        self._record_observed_route(
+            asset_separated,
+            provider_spec,
+            timestep=timestep,
+            feed_type="quote" if require_quote_data and not require_ohlc_data else "ohlc",
+        )
         return adapter.update_pandas_data(
             asset=asset_separated,
             quote_asset=quote_asset,

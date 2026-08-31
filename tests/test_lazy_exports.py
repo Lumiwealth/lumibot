@@ -81,6 +81,7 @@ def test_startup_class_exports_defer_heavy_dependencies():
     env = os.environ.copy()
     env["LUMIBOT_DISABLE_DOTENV"] = "1"
     env["LUMIBOT_DISABLE_DOTENV_LOCAL"] = "1"
+    env["LUMIBOT_LAZY_CREDENTIALS"] = "1"
     env["LUMIBOT_LOG_LEVEL"] = "ERROR"
 
     result = subprocess.run(

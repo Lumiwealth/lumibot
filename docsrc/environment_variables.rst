@@ -63,16 +63,24 @@ BACKTESTING_BUDGET
   - When set, this value is preferred over any ``budget=`` passed in strategy code, so it can be controlled per-run via injected environment variables.
   - Default (when unset and no code budget is provided): ``100000``.
 
-BACKTESTING_PARAMETERS
-^^^^^^^^^^^^^^^^^^^^^^
+LUMIBOT_STRATEGY_PARAMETERS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- Purpose: Override or inject strategy parameters via environment variable, without modifying strategy code.
+- Purpose: Override or inject strategy parameters without modifying strategy code. The same parameter contract applies to backtests and live strategy execution.
 - Format: JSON string representing a dictionary. Example: ``{"symbol": "AAPL", "quantity": 10}``
 - Notes:
   - When set, the parsed dict is merged on top of the strategy's existing ``parameters`` dict with highest priority (wins over both class-level defaults and code-level overrides).
-  - Useful for parameter sweeps: run the same strategy code with different parameter sets per backtest.
+  - Useful for parameter sweeps and for deploying the exact parameter set validated by a backtest.
   - Nested dicts are supported (e.g. ``{"ALLOCATION": {"SPY": 0.50, "IWM": 0.50}}``).
   - Invalid JSON or non-dict values are ignored with a warning.
+  - ``BACKTESTING_PARAMETERS`` remains a deprecated compatibility alias for older external runners. If both are present, ``LUMIBOT_STRATEGY_PARAMETERS`` wins.
+
+BOTSPOT_DATA_ROUTING_POLICY
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Attach the non-secret version of the routing policy that selected a backtest datasource.
+- Format: JSON object containing a ``version`` field.
+- Notes: LumiBot writes the policy version and the adapters actually observed during the run to ``logs/data_provenance.json``. Credentials, tokens, and signed URLs are never included.
 
 BACKTESTING_DATA_SOURCE
 ^^^^^^^^^^^^^^^^^^^^^^^

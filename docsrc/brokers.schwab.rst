@@ -117,9 +117,12 @@ Simple stock and single-leg option ``self.modify_order(...)`` calls use Schwab's
 replace-order endpoint. Schwab returns a new broker order id for the replacement;
 LumiBot updates the order object's ``identifier`` and keeps the old id in
 ``previous_identifiers``. For timeout logic where the intended behavior is to
-remove the order, prefer ``self.cancel_order(order)`` plus a direct
-``self.get_order(order.identifier)`` confirmation instead of modifying the
-order into a different price.
+remove the order, prefer ``self.cancel_order(order)`` instead of modifying the
+order into a different price. A successful cancel response is acceptance, not
+terminal confirmation: the order remains active with ``CANCELLING`` status
+until Schwab later reports ``CANCELED``, ``FILLED``, ``EXPIRED``, or a
+rejection/error. Do not put an immediate direct order read in front of the
+cancellation deadline.
 
 Schwab account history can include rows that are not ordinary strategy orders,
 such as mutual funds, sweep/cash-equivalent records, bonds, option exercise
@@ -131,6 +134,82 @@ representable unknown Schwab records as ``Asset.AssetType.UNKNOWN``,
 If Schwab cannot return fresh cash or portfolio value, ``self.get_cash()`` and
 ``self.get_portfolio_value()`` return ``None`` and leave cached values unchanged.
 Do not treat ``None`` as zero.
+
+Fast cancellation and request budgets
+-------------------------------------
+
+Separate three measurements when implementing a cancel-after deadline:
+
+* the local time at which the strategy dispatches ``cancel_order``;
+* the HTTP response time for the cancel request;
+* the later broker-terminal outcome such as ``CANCELED`` or ``FILLED``.
+
+The strategy controls the first measurement. It cannot guarantee the other two
+at an exact deadline.
+
+Use a configurable ``cancel_after_seconds`` policy and an absolute
+``time.monotonic()`` deadline. Do not use one fixed timeout for every strategy.
+Finish expensive chain, quote, and liquidity work before submission; then
+process local pending order events while waiting for the deadline:
+
+.. code-block:: python
+
+   deadline = time.monotonic() + cancel_after_seconds
+   while time.monotonic() < deadline and order.is_active():
+       remaining = deadline - time.monotonic()
+       self.sleep(min(0.05, remaining), process_pending_orders=True)
+
+   if order.is_active():
+       self.cancel_order(order)
+
+The short ``self.sleep`` calls above process local queued events. They are not
+broker polls. Avoid calling ``self.get_order`` every fraction of a second or
+placing a broker read immediately before the deadline. Use a bounded exact-order
+read later for a missed callback, restart/reconnect, or ambiguous cancel result.
+
+``on_filled_order`` is the fast path for a fill and already includes the filled
+order. ``on_canceled_order`` reports terminal cancellation; it does not initiate
+the cancel. ``cancel_order`` may return before the queued
+``on_canceled_order`` callback runs. Route callbacks and later reconciliation
+through one idempotent reducer keyed by the broker order identifier or a stable
+causal group.
+
+These ``on_*`` methods are lifecycle callback methods: LumiBot invokes them
+after broker observations. ``on_partially_filled_order(position, order, price,
+quantity, multiplier)`` receives the newly observed fill delta in ``quantity``;
+it is not cumulative across callbacks. A later ``on_filled_order`` receives the
+remaining fill delta and must share the same idempotency state.
+
+LumiBot uses Schwab account-activity WebSocket messages to wake exact reads of
+locally tracked active orders. REST snapshots and stream-triggered observations
+feed one serialized transition reducer, including after login or reconnect. A
+30-second broad history poll remains as a healing fallback. This is deliberately
+not one-second broad polling: one-second polling multiplies request pressure and
+does not remove fill/cancel races.
+
+Scope blocking to the strategy's actual risk invariant. A cancel-pending order
+must block a conflicting replacement for the same exposure. Independent symbols
+may continue when capital and risk policy permit. Unknown broker state is not
+terminal, but it does not automatically require a strategy-wide freeze.
+
+Schwab developer applications have an application-level order limit for make,
+cancel, and replace requests per minute. Treat throttling as an aggregate
+broker-call budget across market data, order lists, exact reads, submits,
+cancels, and replaces. Do not infer a universal requests-per-second guarantee.
+See the `schwab-py order-limit documentation
+<https://schwab-py.readthedocs.io/en/latest/getting-started.html#order-limit>`_
+and :doc:`lifecycle_methods.on_canceled_order`.
+
+When Schwab returns HTTP 429, LumiBot honors ``Retry-After`` when present and
+otherwise applies bounded exponential backoff with jitter for that endpoint
+family. A throttled read returns no new observation and never converts the
+tracked order to a terminal status.
+
+An authorized local sample of 16 successful cancel HTTP responses ranged from
+228 ms to 444 ms, with a 302.5 ms median and 444 ms 95th percentile. This small
+sample is not a Schwab service-level guarantee and does not measure terminal
+callback visibility. Do not choose a strategy deadline by multiplying these
+observations.
 
 Example ``.env``
 ----------------
@@ -334,9 +413,15 @@ Market Data
 Rate Limits & Token Expiry
 --------------------------
 
-- **~120 requests/minute** for data; **2–4 trade requests/sec**.
-- Exceeding limits returns HTTP 429 errors.
-- Error codes: `429-001` = rate, `429-005` = burst; back-off 60 seconds if hit.
+- Schwab developer applications expose a configurable **order limit**: the
+  number of make, cancel, and replace requests the app may place per minute.
+  The application's configured value is authoritative for that app.
+- Schwab may return HTTP 429 when a request budget or burst limit is exceeded.
+  Respect ``Retry-After`` when present; otherwise use bounded exponential
+  backoff with jitter.
+- Do not rely on a universal data-requests-per-minute or trade-requests-per-second
+  value. Budget all broker endpoint families and measure the target app's
+  actual behavior.
 - Access tokens expire after 30 minutes; refresh tokens after 7 days.
 
 Known Issues & Best Practices

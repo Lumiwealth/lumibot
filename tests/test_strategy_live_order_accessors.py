@@ -179,6 +179,17 @@ def test_get_orders_filters_by_order_status_enum_and_identifiers():
     assert [order.identifier for order in active_orders] == ["open-1"]
 
 
+def test_get_orders_active_statuses_include_cancel_pending_orders():
+    strategy, broker = _strategy()
+    cancel_pending = _order(strategy.name, "cancel-pending-1", Order.OrderStatus.CANCELLING)
+    broker._new_orders.append(cancel_pending)
+
+    active_orders = strategy.get_orders(statuses=Order.ACTIVE_STATUSES, broker_refresh=False)
+
+    assert [order.identifier for order in active_orders] == ["cancel-pending-1"]
+    assert cancel_pending.is_active() is True
+
+
 def test_get_orders_accepts_single_enum_status():
     strategy, broker = _strategy()
     broker._new_orders.append(_order(strategy.name, "open-1", Order.OrderStatus.OPEN))

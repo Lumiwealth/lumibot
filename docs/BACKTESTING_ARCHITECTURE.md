@@ -149,6 +149,20 @@ Where parallelism **does** fit today:
 - independent backtest runs (parameter sweeps, window sweeps, strategy comparisons),
 - and some bounded batching opportunities inside one run (for example grouped price lookups).
 
+Runtime strategy parameters are also mode-neutral. BotSpot and other runners
+pass one JSON object through ``LUMIBOT_STRATEGY_PARAMETERS``; LumiBot merges it
+over class and constructor defaults in both backtests and live execution. This
+keeps each run internally serial while allowing independent parameter sets to
+run in parallel at the process/container layer. ``BACKTESTING_PARAMETERS`` is
+only a deprecated compatibility alias for verified older runners and must not
+be used by new integrations.
+
+Completed runs also write ``logs/data_provenance.json``. The artifact records
+the versioned selection policy plus the adapter, vendor, exchange, symbol,
+feed, and resolution actually observed where the datasource can report those
+facts. Its schema is allowlisted so credentials, tokens, and signed URLs cannot
+enter the artifact.
+
 Practical guidance:
 
 - If you need “10 backtests at once,” prefer **process/container-level concurrency for independent runs**.

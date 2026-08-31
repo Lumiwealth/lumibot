@@ -118,9 +118,10 @@ The LumiBot ``Order`` entity is provider-generic. The
 ``InteractiveBrokersREST`` adapter performs the IBKR-specific translation:
 
 * **BRACKET** sends one atomic request containing the executable parent and
-  one or two attached children.
+  one or two attached children. Every ticket receives a distinct client order
+  ID, while each child references the parent's client order ID.
 * **OTO** sends one atomic request containing the executable parent and its
-  single attached child.
+  single attached child, using the same client-order relationship.
 * **OCO** sends only its two executable children as an IBKR single-group/OCA
   package. Each child receives a unique IBKR client order ID so responses can
   be correlated even when IBKR returns them out of request order. Its LumiBot
@@ -131,6 +132,17 @@ a BRACKET or OTO parent attempts all known broker-backed members; canceling an
 OCO parent attempts both executable children. A direct child cancellation is
 limited to that child. The adapter continues attempting remaining members if
 one cancellation fails.
+
+IBKR may return fewer immediate acknowledgement rows than the number of tickets
+in a BRACKET or OTO request. LumiBot does not infer missing broker IDs from row
+position. It performs a bounded reconciliation using the distinct client order
+IDs and tracks the package only when every executable ticket has a distinct
+positive broker ID. Otherwise, it fails closed and attempts cancellation for
+every broker ID discovered during submission or reconciliation.
+
+For Client Portal REST, a ``stop`` order uses its trigger as the ``price``
+field. A ``stop_limit`` order uses ``price`` for its limit and ``auxPrice`` for
+its trigger.
 
 For example, advanced orders use the current generic names
 ``secondary_limit_price`` and ``secondary_stop_price``:

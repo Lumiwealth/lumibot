@@ -14,6 +14,8 @@ from tests.ibkr_rest_paper_order_safety import (
 from tests.test_ibkr_rest_advanced_orders_paper_apitest import (
     _BrokerTrafficProbe,
     _bounded_reference_price,
+    _sanitized_submission_entry_shape,
+    _sanitized_warning_category,
 )
 from tests.test_ibkr_rest_gtd_paper_apitest import _request_json
 
@@ -149,30 +151,63 @@ def test_confirmation_acknowledgement_is_ledged_before_outer_submission_returns(
     assert record.acknowledged_ids == ["1001"]
 
 
+def test_submission_response_diagnostic_masks_all_broker_values():
+    diagnostic = _sanitized_submission_entry_shape(
+        {
+            "order_id": "-1",
+            "local_order_id": "local-secret",
+            "parent_order_id": "1234567890",
+            "error": "private broker response",
+            "message": "private confirmation",
+            "warning_message": "private warning",
+        }
+    )
+
+    assert diagnostic == (
+        "id=placeholder_or_nonpositive, local_order_id=present, "
+        "parent_order_id=present, error=present, message=present, warning=non_numeric_warning"
+    )
+    assert "local-secret" not in diagnostic
+    assert "1234567890" not in diagnostic
+    assert "private" not in diagnostic
+
+
+def test_submission_warning_diagnostic_exposes_only_exact_short_numeric_codes():
+    assert _sanitized_warning_category("399") == "code=399"
+    assert _sanitized_warning_category(399) == "code=399"
+    assert _sanitized_warning_category("warning 399") == "non_numeric_warning"
+    assert _sanitized_warning_category("DU1234567") == "non_numeric_warning"
+    assert _sanitized_warning_category(None) == "absent"
+
+
 def test_advanced_paper_reference_price_uses_bounded_configured_snapshot():
+    class FakeResponse:
+        status_code = 200
+
+        def __init__(self, payload):
+            self.payload = payload
+
+        def json(self):
+            return self.payload
+
+    class FakeHttpClient:
+        def get(self, url, **_kwargs):
+            if url.endswith("/iserver/secdef/search?symbol=SPY"):
+                return FakeResponse([{"conid": 265598}])
+            assert url.endswith("/iserver/marketdata/snapshot?conids=265598&fields=31")
+            return FakeResponse([{"31": "C 100.25"}])
+
     class FakeDataSource:
         base_url = "https://gateway.example/v1/api"
-
-        def __init__(self):
-            self.snapshot_calls = 0
-
-        def get_conid_from_asset(self, asset, exchange=None):
-            assert asset.symbol == "SPY"
-            assert exchange == "SMART"
-            return 265598
-
-        def get_from_endpoint(self, url, **kwargs):
-            self.snapshot_calls += 1
-            assert url.endswith("/iserver/marketdata/snapshot?conids=265598&fields=31")
-            assert kwargs["max_retries"] == 0
-            return [{"31": "C 100.25"}]
+        verify_ssl = True
+        request_timeout = 1
+        http_client = FakeHttpClient()
 
     data_source = FakeDataSource()
 
     price = _bounded_reference_price(data_source, Asset("SPY"))
 
     assert price == 100.25
-    assert data_source.snapshot_calls == 1
 
 
 def test_gtd_paper_reference_price_allows_a_bounded_snapshot_warmup(monkeypatch):

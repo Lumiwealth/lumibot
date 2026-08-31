@@ -127,6 +127,28 @@ suffixes may appear in test output.
 - Do not interpret a passing paper run as proof of production OAuth readiness
   or authorization for production testing.
 
+## Advanced-order acknowledgement diagnostics
+
+Client Portal can return fewer immediate acknowledgement rows than the number
+of BRACKET or OTO tickets submitted. That alone is not a failed package: LumiBot
+uses distinct client order IDs and bounded polling to reconcile every expected
+native ticket. The smoke test passes only when the complete set of distinct,
+positive broker IDs is resolved and tracked. If reconciliation stays partial,
+the test fails and cleanup attempts every broker ID discovered so far.
+
+On a failed submission, the paper test prints a sanitized response-shape summary.
+It identifies only whether each response entry had a positive, placeholder, or
+missing ID and whether correlation, parent, error, message, or warning fields
+were present. If a warning value is exactly a short numeric IBKR code, that code
+is shown; otherwise it is reported only as ``non_numeric_warning``. It also
+reports bounded reconciliation poll and match counts. It never prints order IDs,
+account identifiers, or raw broker response text.
+
+A cleanup response saying that an order does not exist is not evidence that a
+working order was canceled. It may indicate that the ticket was rejected or is
+already inactive. Always complete the post-run paper-account inspection; the
+adapter no longer reports an IBKR deletion error as a successful cancellation.
+
 ## Safety gates to expect
 
 - Missing local credentials or an unavailable gateway skips the API test.

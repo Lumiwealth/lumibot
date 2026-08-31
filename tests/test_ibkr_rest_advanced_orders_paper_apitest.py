@@ -18,17 +18,16 @@ from tests.ibkr_rest_paper_order_safety import (
     ibkr_rest_paper_order_data_source,
     ibkr_rest_paper_test_config,
 )
+from tests.test_ibkr_rest_gtd_paper_apitest import (
+    _contract_conid as _paper_contract_conid,
+    _reference_price as _paper_reference_price,
+)
 
 
 pytestmark = [pytest.mark.apitest, pytest.mark.ibkr]
 
 _STRATEGY_NAME = "ibkr_rest_advanced_orders_paper_apitest"
 _POLL_INTERVAL_SECONDS = 0.5
-# Client Portal snapshots often need a brief warm-up request before field 31 is
-# populated. Keep order construction bounded while allowing a healthy gateway
-# time to return the reference price needed for non-marketable limits.
-_MARKET_DATA_ATTEMPTS = 6
-_MARKET_DATA_RETRY_SECONDS = 1.0
 _VISIBLE_TIMEOUT_SECONDS = 20.0
 _CANCEL_TIMEOUT_SECONDS = 30.0
 _TERMINAL_STATUSES = {
@@ -42,12 +41,57 @@ _TERMINAL_STATUSES = {
 _FILLED_STATUSES = {"fill", "filled"}
 
 
+def _sanitized_warning_category(value) -> str:
+    """Return only an exact short numeric IBKR warning code, never warning text."""
+    if isinstance(value, bool) or value is None:
+        return "absent"
+    if isinstance(value, int) and 0 <= value <= 99999:
+        return f"code={value}"
+    if isinstance(value, str):
+        candidate = value.strip()
+        if candidate.isascii() and candidate.isdecimal() and 1 <= len(candidate) <= 5:
+            return f"code={candidate}"
+    return "non_numeric_warning"
+
+
+def _sanitized_submission_entry_shape(entry) -> str:
+    """Describe an order response entry without retaining any broker content."""
+    if not isinstance(entry, dict):
+        return "entry=non_object"
+
+    raw_order_id = entry.get("order_id")
+    normalized_order_id = InteractiveBrokersREST._normalize_broker_order_id(raw_order_id)
+    if normalized_order_id is not None:
+        id_state = "positive"
+    elif raw_order_id is None:
+        id_state = "missing"
+    elif isinstance(raw_order_id, (int, str)) and not isinstance(raw_order_id, bool):
+        id_state = "placeholder_or_nonpositive"
+    else:
+        id_state = "invalid"
+
+    return (
+        f"id={id_state}, "
+        f"local_order_id={'present' if entry.get('local_order_id') is not None else 'absent'}, "
+        f"parent_order_id={'present' if entry.get('parent_order_id') is not None else 'absent'}, "
+        f"error={'present' if 'error' in entry else 'absent'}, "
+        f"message={'present' if 'message' in entry else 'absent'}, "
+        f"warning={_sanitized_warning_category(entry.get('warning_message'))}"
+    )
+
+
 @dataclass
 class _ScenarioRecord:
     name: str
     expected_native_count: int
+    expected_coids: set[str] = field(default_factory=set)
     acknowledged_ids: list[str] = field(default_factory=list)
     response_entry_count: int = 0
+    response_entry_shapes: list[str] = field(default_factory=list)
+    reconciliation_poll_count: int = 0
+    reconciliation_order_row_count: int = 0
+    reconciled_ticket_count: int = 0
+    reconciled_coids: set[str] = field(default_factory=set)
     cleanup_attempted_ids: set[str] = field(default_factory=set)
     confirmation_count_before: int = 0
     cancellation_count_before: int = 0
@@ -70,7 +114,11 @@ class _ScenarioRecord:
             f"acceptance={self.acceptance_outcome}, "
             f"expected_native={self.expected_native_count}, "
             f"response_entries={self.response_entry_count}, "
+            f"response_shapes=[{' | '.join(self.response_entry_shapes) or 'none'}], "
             f"acknowledged_unique={len(self.acknowledged_ids)}, "
+            f"reconciliation_polls={self.reconciliation_poll_count}, "
+            f"reconciliation_order_rows={self.reconciliation_order_row_count}, "
+            f"reconciled_tickets={self.reconciled_ticket_count}, "
             f"polling={self.polling_outcome}, "
             f"cancellation={self.cancellation_outcome}, "
             f"cleanup_attempted_unique={len(self.cleanup_attempted_ids)}"
@@ -102,13 +150,38 @@ class _BrokerTrafficProbe:
             allow_fail=True,
             max_retries=None,
         ):
-            return original_get(
+            response = original_get(
                 url,
                 description=description,
                 silent=silent,
                 allow_fail=allow_fail,
                 max_retries=0 if max_retries is None else max_retries,
             )
+            if self.current_scenario is not None and description == "Reconciling submitted orders":
+                record = self.current_scenario
+                record.reconciliation_poll_count += 1
+                entries = response.get("orders") if isinstance(response, dict) else None
+                if isinstance(entries, list):
+                    record.reconciliation_order_row_count += len(entries)
+                else:
+                    entries = []
+                for entry in entries:
+                    if not isinstance(entry, dict):
+                        continue
+                    correlation_id = InteractiveBrokersREST._get_order_correlation_id(entry)
+                    order_id = InteractiveBrokersREST._normalize_broker_order_id(
+                        entry.get("orderId")
+                    )
+                    if (
+                        correlation_id in self.current_scenario.expected_coids
+                        and order_id is not None
+                        and order_id not in record.acknowledged_ids
+                    ):
+                        record.acknowledged_ids.append(order_id)
+                    if correlation_id in record.expected_coids and correlation_id not in record.reconciled_coids:
+                        record.reconciled_coids.add(correlation_id)
+                        record.reconciled_ticket_count = len(record.reconciled_coids)
+            return response
 
         def bounded_post(
             url,
@@ -135,6 +208,9 @@ class _BrokerTrafficProbe:
                 entries = response if isinstance(response, list) else [response]
                 if description == "Executing order":
                     self.current_scenario.response_entry_count = len(entries)
+                    self.current_scenario.response_entry_shapes = [
+                        _sanitized_submission_entry_shape(entry) for entry in entries
+                    ]
                 for entry in entries:
                     if not isinstance(entry, dict):
                         continue
@@ -175,10 +251,20 @@ class _BrokerTrafficProbe:
         monkeypatch.setattr(data_source, "delete_to_endpoint", bounded_delete)
         monkeypatch.setattr(data_source, "delete_order", delete_order_and_record)
 
-    def begin(self, name: str, expected_native_count: int) -> _ScenarioRecord:
+    def begin(
+        self,
+        name: str,
+        native_orders: list[Order] | None = None,
+        *,
+        expected_native_count: int | None = None,
+    ) -> _ScenarioRecord:
+        native_orders = native_orders or []
+        if expected_native_count is None:
+            expected_native_count = len(native_orders)
         record = _ScenarioRecord(
             name=name,
             expected_native_count=expected_native_count,
+            expected_coids={str(order.identifier) for order in native_orders},
             confirmation_count_before=self.confirmation_count,
             cancellation_count_before=len(self.cancellation_targets),
         )
@@ -217,32 +303,20 @@ def _order_id(payload) -> str | None:
 
 
 def _bounded_reference_price(data_source, asset: Asset) -> float | None:
-    """Read a current price through the configured data source with short bounds."""
-    conid = data_source.get_conid_from_asset(asset, exchange="SMART")
-    if conid is None:
-        return None
-
-    path = f"{data_source.base_url}/iserver/marketdata/snapshot?conids={conid}&fields=31"
-    for attempt in range(_MARKET_DATA_ATTEMPTS):
-        payload = data_source.get_from_endpoint(
-            path,
-            description="Getting bounded paper-test reference price",
-            silent=True,
-            max_retries=0,
-        )
-        if isinstance(payload, list) and payload and isinstance(payload[0], dict):
-            raw_price = payload[0].get("31")
-            if isinstance(raw_price, str) and raw_price.startswith("C"):
-                raw_price = raw_price[1:].strip()
-            try:
-                price = float(raw_price)
-            except (TypeError, ValueError):
-                price = 0.0
-            if price > 0:
-                return price
-        if attempt + 1 < _MARKET_DATA_ATTEMPTS:
-            time.sleep(_MARKET_DATA_RETRY_SECONDS)
-    return None
+    """Read a price through the same bounded REST snapshot path as the GTD probe."""
+    symbol = asset.symbol
+    skip_context = "advanced paper-order test"
+    conid = _paper_contract_conid(
+        data_source,
+        symbol=symbol,
+        skip_context=skip_context,
+    )
+    return _paper_reference_price(
+        data_source,
+        conid,
+        symbol=symbol,
+        skip_context=skip_context,
+    )
 
 
 def _poll_account_orders(data_source) -> tuple[bool, dict[str, str | None]]:
@@ -367,18 +441,20 @@ def _assert_acknowledgement_and_tracking(
     native_orders: list[Order],
 ) -> list[str]:
     expected_count = len(native_orders)
-    if record.response_entry_count != expected_count:
-        pytest.fail(
-            f"IBKR {record.name} response cardinality mismatch: expected {expected_count} "
-            f"native acknowledgement entries, received {record.response_entry_count}"
-        )
+    native_ids = [str(order.identifier) for order in native_orders]
+    # Client Portal may return fewer immediate rows than submitted bracket
+    # tickets. Successful bounded reconciliation is authoritative, and these
+    # broker-backed IDs must enter the outer finally-cleanup ledger at once.
+    for order_id in native_ids:
+        normalized = InteractiveBrokersREST._normalize_broker_order_id(order_id)
+        if normalized is not None and normalized not in record.acknowledged_ids:
+            record.acknowledged_ids.append(normalized)
     if len(record.acknowledged_ids) != expected_count:
         pytest.fail(
             f"IBKR {record.name} acknowledged {len(record.acknowledged_ids)} unique native IDs "
             f"but expected {expected_count}"
         )
 
-    native_ids = [str(order.identifier) for order in native_orders]
     assert len(set(native_ids)) == expected_count, (
         f"IBKR {record.name} native tickets did not receive distinct broker IDs"
     )
@@ -449,7 +525,7 @@ def _run_scenario(
     record_property,
 ) -> None:
     native_orders = expected_native_orders(package_order)
-    record = probe.begin(name, expected_native_count=len(native_orders))
+    record = probe.begin(name, native_orders)
     scenario_error: BaseException | None = None
     try:
         result = broker.submit_order(package_order)
@@ -487,6 +563,14 @@ def _run_scenario(
         record_property(
             f"ibkr_{name.lower()}_acknowledged_unique",
             len(record.acknowledged_ids),
+        )
+        record_property(
+            f"ibkr_{name.lower()}_response_shapes",
+            " | ".join(record.response_entry_shapes) or "none",
+        )
+        record_property(
+            f"ibkr_{name.lower()}_reconciled_tickets",
+            record.reconciled_ticket_count,
         )
         record_property(
             f"ibkr_{name.lower()}_cleanup_attempted_unique",

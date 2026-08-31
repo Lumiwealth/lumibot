@@ -8,9 +8,15 @@
   one request; OCO submits only its two broker-backed children as an OCA group.
   Native legs receive separate normalized IDs, polling preserves local order
   trees, advanced cancellation attempts every known broker-backed member, and
-  partial acknowledgements trigger compensating cancellation. Unverified REST
-  GTD submission now fails explicitly while Legacy socket GTD remains supported.
-  Contributor and broker documentation describe these semantics and limits.
+  partial acknowledgements trigger bounded client-ID reconciliation followed by
+  compensating cancellation if any native ticket remains unresolved. BRACKET
+  and OTO children now receive distinct correlation IDs because Client Portal
+  can return fewer immediate acknowledgement rows than submitted tickets. REST
+  stop tickets now use Client Portal's required ``price`` trigger field, while
+  stop-limit tickets keep their trigger in ``auxPrice``.
+  Unverified REST GTD submission now fails explicitly while Legacy socket GTD
+  remains supported. Contributor and broker documentation describe these
+  semantics and limits.
 
 ### Fixed
 - **Documentation configuration tests no longer leak mocked broker packages.**

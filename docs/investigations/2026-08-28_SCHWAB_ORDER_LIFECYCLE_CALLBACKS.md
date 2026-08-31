@@ -2,8 +2,8 @@
 
 Broker-safe lifecycle reducer, streaming wake-ups, cancellation truth, rate limiting, and callback quantity semantics.
 
-**Last Updated:** 2026-08-28  
-**Status:** Implemented locally on the active version branch; deterministic qualification complete; live stream payload capture still pending  
+**Last Updated:** 2026-08-28
+**Status:** Implemented locally on the active version branch; deterministic qualification complete; live stream payload capture still pending
 **Audience:** LumiBot maintainers, broker-adapter engineers, BotSpot runtime engineers, and Agent prompt/eval maintainers
 
 ## Overview

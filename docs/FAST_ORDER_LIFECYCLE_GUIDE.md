@@ -2,8 +2,8 @@
 
 Broker-neutral guidance for deadline-driven cancellation, callback races, reconciliation, hedges, and request budgets.
 
-**Last Updated:** 2026-08-28  
-**Status:** Active design and strategy-authoring guide  
+**Last Updated:** 2026-08-28
+**Status:** Active design and strategy-authoring guide
 **Audience:** LumiBot strategy authors, maintainers, broker-adapter engineers, and AI-agent prompt maintainers
 
 ## Overview

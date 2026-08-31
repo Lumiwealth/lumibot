@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.5.88 - Unreleased
+
 ## 4.5.87 - 2026-08-30
 
 Deploy marker: `79fdbd23938c`

@@ -215,6 +215,7 @@ class Order:
         OrderStatus.SUBMITTED,
         OrderStatus.OPEN,
         OrderStatus.NEW,
+        OrderStatus.CANCELLING,
         OrderStatus.PARTIALLY_FILLED,
     )
 

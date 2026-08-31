@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import asyncio
 import base64
 import hashlib
 import os
-import random
 import re
 import threading
 import time
@@ -359,6 +357,8 @@ class Schwab(Broker):
         return self._schwab_now_value() >= float(deadlines.get(endpoint_family, 0.0))
 
     def _record_schwab_rate_limit(self, response, endpoint_family: str) -> None:
+        import random
+
         if not hasattr(self, "_schwab_rate_limit_deadlines"):
             self._schwab_rate_limit_deadlines = {}
         if not hasattr(self, "_schwab_rate_limit_attempts"):
@@ -2074,6 +2074,8 @@ class Schwab(Broker):
                 logger.error(_format_exc())
 
     async def _run_schwab_account_activity_async(self) -> None:
+        import asyncio
+
         backoff_seconds = 1.0
         while not self._schwab_activity_stop.is_set():
             stream_client = self.stream_client
@@ -2098,6 +2100,8 @@ class Schwab(Broker):
                     logger.error(_format_exc())
 
     def _run_schwab_account_activity_stream(self) -> None:
+        import asyncio
+
         try:
             asyncio.run(self._run_schwab_account_activity_async())
         except Exception:

@@ -1,6 +1,7 @@
 import pytest
 
 from lumibot.entities import Asset
+from tests import test_ibkr_rest_gtd_paper_apitest as gtd_paper_apitest
 from tests.ibkr_rest_paper_order_safety import (
     _authenticated_selected_account_id,
     _construct_paper_test_data_source,
@@ -172,6 +173,44 @@ def test_advanced_paper_reference_price_uses_bounded_configured_snapshot():
 
     assert price == 100.25
     assert data_source.snapshot_calls == 1
+
+
+def test_gtd_paper_reference_price_allows_a_bounded_snapshot_warmup(monkeypatch):
+    class FakeResponse:
+        status_code = 200
+
+        def __init__(self, payload):
+            self.payload = payload
+
+        def json(self):
+            return self.payload
+
+    class FakeHttpClient:
+        def __init__(self):
+            self.snapshot_calls = 0
+
+        def get(self, _url, **_kwargs):
+            self.snapshot_calls += 1
+            if self.snapshot_calls < gtd_paper_apitest._MARKET_DATA_ATTEMPTS:
+                return FakeResponse([])
+            return FakeResponse([{"31": "100.25"}])
+
+    class FakeDataSource:
+        base_url = "https://gateway.example/v1/api"
+        verify_ssl = True
+        request_timeout = 1
+        http_client = FakeHttpClient()
+
+    sleep_calls = []
+    monkeypatch.setattr(gtd_paper_apitest.time, "sleep", sleep_calls.append)
+
+    price = gtd_paper_apitest._reference_price(FakeDataSource(), 265598)
+
+    assert price == 100.25
+    assert FakeDataSource.http_client.snapshot_calls == gtd_paper_apitest._MARKET_DATA_ATTEMPTS
+    assert sleep_calls == [gtd_paper_apitest._MARKET_DATA_RETRY_SECONDS] * (
+        gtd_paper_apitest._MARKET_DATA_ATTEMPTS - 1
+    )
 
 
 def test_gtd_probe_refuses_post_outside_whatif(monkeypatch):

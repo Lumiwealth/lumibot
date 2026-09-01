@@ -2,6 +2,13 @@
 
 ## 4.5.88 - Unreleased
 
+### Fixed
+
+- Schwab account-activity streaming now receives the same refreshable OAuth
+  token metadata as the manually constructed REST client. Stream login and
+  reconnect no longer fail with a missing ``client.token_metadata`` while REST
+  trading continues to work.
+
 ## 4.5.87 - 2026-08-30
 
 Deploy marker: `79fdbd23938c`

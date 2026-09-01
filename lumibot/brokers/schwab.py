@@ -810,7 +810,25 @@ class Schwab(Broker):
             # Passing it raises: TypeError: BaseClient.__init__() got an unexpected keyword argument 'app_secret'.
             # The secret is only needed when REFRESHING a token via the auth helpers, not when we already
             # have a full token dict and build the OAuth2Session ourselves, so we can safely omit it here.
-            self.client = _get_client_class()(api_key=api_key, session=oauth_session)
+            # schwab-py's REST client accepts a raw OAuth session, but its
+            # StreamClient login reads ``client.token_metadata.token``. Keep
+            # metadata attached when constructing the manual REST client so
+            # REST and account-activity streaming share the same live token.
+            # The metadata references token_dict_for_session itself; refresh
+            # updates mutate that dict in place, so stream reconnects see the
+            # latest access token without creating a competing token owner.
+            from schwab.auth import TokenMetadata as _TokenMetadata
+
+            token_metadata = _TokenMetadata(
+                token=token_dict_for_session,
+                creation_timestamp=wrapped_token_data.get("creation_timestamp", int(time.time())),
+                unwrapped_token_write_func=_update_token,
+            )
+            self.client = _get_client_class()(
+                api_key=api_key,
+                session=oauth_session,
+                token_metadata=token_metadata,
+            )
             logger.info(f"[Schwab] Successfully initialized Schwab client from {token_path} (app_secret not used).")
             # Check if SCHWAB_APP_SECRET is available for auto-refresh warning
             app_secret_for_refresh = config.get("SCHWAB_APP_SECRET") or os.environ.get("SCHWAB_APP_SECRET")

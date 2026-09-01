@@ -8,6 +8,19 @@
 
 ---
 
+## BotSpot integration release boundary
+
+This runbook owns publishing LumiBot itself. It does not replace BotSpot's
+coordinated pre-Dev qualification when a BotSpot release consumes a new LumiBot
+version. Before any BotSpot Dev branch move or deployment, the exact combined
+candidate must pass all scoped deterministic checks, the entire formal
+Playwright inventory locally on Rob's Mac, and, when Agent is scoped, every
+case selected by mandatory local Agent freshness plus its required targeted
+repeats. Focused Playwright tests never qualify a release. GitHub and live Dev
+rerun the already-green candidate as environment proof, not as the first full
+test loop. LumiBot publication, Bot Manager Dev deployment, and Bot Manager
+production deployment each retain their own explicit authorization boundary.
+
 ## TL;DR (do this in order)
 
 1) **Run the release preflight first.** If branch, `setup.py`, `CHANGELOG.md`, tag, or `dev` state is inconsistent, stop. Do not tag. Do not deploy BotManager. Fix the branch first.

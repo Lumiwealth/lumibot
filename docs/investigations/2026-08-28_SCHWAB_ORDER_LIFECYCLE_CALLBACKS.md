@@ -2,8 +2,8 @@
 
 Broker-safe lifecycle reducer, streaming wake-ups, cancellation truth, rate limiting, and callback quantity semantics.
 
-**Last Updated:** 2026-08-28
-**Status:** Implemented locally on the active version branch; deterministic qualification complete; live stream payload capture still pending
+**Last Updated:** 2026-08-31
+**Status:** Implemented on the active version branch; deterministic and Rob-owned live stream/reconnect qualification complete; live partial-fill capture still pending
 **Audience:** LumiBot maintainers, broker-adapter engineers, BotSpot runtime engineers, and Agent prompt/eval maintainers
 
 ## Overview
@@ -144,20 +144,33 @@ concurrent REST/stream duplicates, handler registration order, reconnect
 reconciliation, active-only exact reads, slow broad healing, opaque telemetry,
 and `Retry-After` suppression.
 
-## Remaining Live Qualification Boundary
+## Live Stream Red Baseline and Repair
 
-The deterministic product contract is implemented and tested, but a sanitized
-Dev/local capture of current Schwab account-activity message types and a forced
-socket reconnect have not yet been recorded against this revision. Until that
-evidence exists, the stream remains a wake-up channel and REST remains the
-authoritative parsed order snapshot. This limitation does not reintroduce
-premature terminal state or duplicate callbacks; it limits how much REST load
-the first streaming version can remove.
+The published 4.5.87 wheel passed live REST account, quote, submit, cancel, and
+exact-order reads, but failed before account-activity subscription. schwab-py's
+`StreamClient.login()` reads `client.token_metadata.token`; LumiBot constructed
+the REST `Client` around its manually managed `OAuth2Session` without attaching
+the corresponding `TokenMetadata`, leaving `client.token_metadata=None`.
 
-A live account-activity API test was added and attempted after the deterministic
-gate. The saved access token had expired and Schwab rejected automatic refresh
-with `invalid_client` because the local run had no configured app secret. Broker
-initialization therefore stopped before stream login and before any order was
-submitted. This is preserved as an authentication-precondition failure, not
-reported as streaming evidence. Re-run the marked API test after a fresh local
-authorization to close this boundary.
+A new initialization test reproduced that exact contract failure before the
+repair. The active 4.5.88 branch now constructs `TokenMetadata` from the wrapped
+token and passes it to schwab-py's REST `Client`. The metadata references the
+same token dictionary that LumiBot's refresh path updates in place, preserving
+one token owner across REST, stream login, and reconnect.
+
+Rob-owned after-hours validation then proved both initial connection and a
+fresh-client reconnect without logging raw provider payloads or account ids:
+
+- initial subscription received `OrderCreated` after a real broker-terminal
+  rejected order;
+- unsubscribe/logout followed by a fresh `StreamClient`, login, and
+  subscription received a second `OrderCreated` event;
+- the pass criterion excluded the `SUBSCRIBED` acknowledgement so an
+  acknowledgement could not masquerade as order activity;
+- automatic access-token refresh completed before the stream sessions and both
+  sessions used the refreshed shared token metadata.
+
+REST remains the authoritative parsed order snapshot. The remaining live
+boundary is an intentionally controlled partial/full-fill capture while the
+market is open; deterministic delta, duplicate, cancel/fill-race, and reconnect
+coverage remains green.

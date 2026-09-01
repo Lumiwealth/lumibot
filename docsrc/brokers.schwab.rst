@@ -187,6 +187,11 @@ feed one serialized transition reducer, including after login or reconnect. A
 not one-second broad polling: one-second polling multiplies request pressure and
 does not remove fill/cancel races.
 
+The REST and account-activity clients share the same refreshable OAuth token
+metadata. A token refresh updates the shared token object in place, so a later
+stream login or reconnect uses the current access token instead of maintaining
+a second credential owner.
+
 Scope blocking to the strategy's actual risk invariant. A cancel-pending order
 must block a conflicting replacement for the same exposure. Independent symbols
 may continue when capital and risk policy permit. Unknown broker state is not

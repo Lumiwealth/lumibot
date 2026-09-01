@@ -17,6 +17,18 @@ machine-specific information in this file or any other tracked repo file.
 - If sensitive data is needed for private BotSpot/Lumiwealth operations, keep it
   in private repos/docs/secret stores, not in this public LumiBot checkout.
 
+## BotSpot integration release qualification
+
+- LumiBot has its own package/release cycle. When a BotSpot release explicitly
+  includes a changed LumiBot artifact or contract, run the complete locally
+  runnable LumiBot gate on that exact package candidate before downstream Dev.
+- The consuming BotSpot candidate must pass every Playwright test owned by its
+  scope locally before Dev; focused tests never qualify. If Agent is scoped,
+  mandatory local eval freshness and required targeted repeats must also pass.
+- Hosted qualification reruns the same committed BotSpot inventory against the
+  exact Dev tuple. Hosted-only failures block production and return to local
+  parity, contention, or nondeterminism diagnosis.
+
 ## 🚨🚨🚨 RULE #1 — NEVER FABRICATE BACKTEST DATA 🚨🚨🚨
 
 **Fake / synthesized / default-filled market data is STRICTLY FORBIDDEN.**

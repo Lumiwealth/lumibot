@@ -44,6 +44,10 @@ Deploy marker: `79fdbd23938c`
 ## 4.5.86 - Unreleased
 
 ### Fixed
+- **Alpaca live strategies no longer crash during the end-of-day market-close wait.** Alpaca now
+  inherits the generic live broker wait instead of calling the backtesting-only
+  ``process_pending_orders()`` method, and an already-closed session no longer waits for a future
+  session's close.
 - **Documentation configuration tests no longer leak mocked broker packages.**
   Loading the Sphinx configuration in-process now restores `sys.modules`, so
   later broker tests and runtime imports see the installed Tradier package.

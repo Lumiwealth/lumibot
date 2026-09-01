@@ -2,7 +2,7 @@
 
 ## 4.5.89 - Unreleased
 
-## 4.5.88 - Unreleased
+## 4.5.88 - 2026-09-01
 
 ### Fixed
 

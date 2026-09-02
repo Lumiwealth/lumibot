@@ -16,9 +16,10 @@ version. Before any BotSpot Dev branch move or deployment, the exact combined
 candidate must pass all scoped deterministic checks, the entire formal
 Playwright inventory locally on Rob's Mac, and, when Agent is scoped, every
 case selected by mandatory local Agent freshness plus its required targeted
-repeats. Focused Playwright tests never qualify a release. GitHub and live Dev
-rerun the already-green candidate as environment proof, not as the first full
-test loop. LumiBot publication, Bot Manager Dev deployment, and Bot Manager
+repeats. Focused Playwright tests never qualify a release. GitHub release gates
+remain blocking for the exact candidate before publication; live Dev reruns
+the already-green candidate as environment proof, not as the first full test
+loop. LumiBot publication, Bot Manager Dev deployment, and Bot Manager
 production deployment each retain their own explicit authorization boundary.
 
 ## TL;DR (do this in order)

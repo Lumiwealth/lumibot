@@ -1,3 +1,4 @@
+import hashlib
 import json
 import math
 import os
@@ -241,6 +242,7 @@ def _injected_account_snapshot_is_complete() -> bool:
 def _has_complete_unfiltered_pagination_after(tool_name: str, after_index: int) -> bool:
     contiguous_end = 0
     expected_total: int | None = None
+    expected_snapshot_id: str | None = None
     for index, call in enumerate(_agent_tool_calls_for_current_run()):
         if index <= after_index or call.get("tool_name") != tool_name or not _tool_call_was_successful(call):
             continue
@@ -253,11 +255,19 @@ def _has_complete_unfiltered_pagination_after(tool_name: str, after_index: int) 
             total = int(coverage.get("matched") if coverage.get("matched") is not None else coverage.get("total"))
         except (TypeError, ValueError):
             continue
-        if expected_total is None:
+        snapshot_id = coverage.get("snapshot_id")
+        if not isinstance(snapshot_id, str) or not snapshot_id:
+            contiguous_end = 0
+            expected_total = None
+            expected_snapshot_id = None
+            continue
+        if expected_total is None or expected_snapshot_id is None:
             expected_total = total
-        elif total != expected_total:
+            expected_snapshot_id = snapshot_id
+        elif total != expected_total or snapshot_id != expected_snapshot_id:
             contiguous_end = 0
             expected_total = total
+            expected_snapshot_id = snapshot_id
         if offset > contiguous_end:
             continue
         contiguous_end = max(contiguous_end, offset + returned)
@@ -714,6 +724,7 @@ def _paged_payload(
     limit: int,
     total: int,
     filters: dict[str, Any],
+    snapshot_id: str,
 ) -> dict[str, Any]:
     page = payloads[offset : offset + limit]
     next_offset = offset + len(page)
@@ -729,7 +740,25 @@ def _paged_payload(
         "complete": complete,
         "next_offset": None if complete else next_offset,
         "filters": filters,
+        "snapshot_id": snapshot_id,
     }
+
+
+def _collection_snapshot_id(payloads: list[dict[str, Any]], *, item_key: str) -> str:
+    """Hash the account facts that must stay stable across readiness pages."""
+
+    if item_key == "positions":
+        stable_payloads = [
+            {
+                "asset": payload.get("asset"),
+                "quantity": payload.get("quantity"),
+            }
+            for payload in payloads
+        ]
+    else:
+        stable_payloads = payloads
+    encoded = json.dumps(stable_payloads, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _options_helper_for_strategy(strategy: Any) -> Any:
@@ -854,6 +883,7 @@ def _bind_positions(strategy: Any, manager: Any) -> BoundTool:
             limit=limit_value,
             total=len(payloads),
             filters=filters,
+            snapshot_id=_collection_snapshot_id(payloads, item_key="positions"),
         )
         result["as_of"] = strategy.get_datetime().isoformat()
         return result
@@ -2159,6 +2189,7 @@ def _bind_open_orders(strategy: Any, manager: Any) -> BoundTool:
             limit=limit_value,
             total=len(payloads),
             filters=filters,
+            snapshot_id=_collection_snapshot_id(payloads, item_key="orders"),
         )
         result["as_of"] = strategy.get_datetime().isoformat()
         return result

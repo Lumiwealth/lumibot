@@ -33,6 +33,19 @@ def test_successful_order_finishes_as_completed_decision():
     assert _managed_ai_terminal_status(result, allow_trading=True) == "completed_decision"
 
 
+def test_read_only_open_orders_check_does_not_claim_a_completed_decision():
+    result = _result(
+        AgentTraceEvent(kind="tool_call", tool_name="orders_open_orders", payload={}),
+        AgentTraceEvent(
+            kind="tool_result",
+            tool_name="orders_open_orders",
+            payload={"orders": [], "complete": True},
+        ),
+    )
+
+    assert _managed_ai_terminal_status(result, allow_trading=True) == "completed_no_action"
+
+
 def test_unrecovered_structural_tool_error_is_not_reported_as_completed():
     result = _result(
         AgentTraceEvent(kind="tool_call", tool_name="account_positions", payload={}),

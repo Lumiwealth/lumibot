@@ -170,6 +170,7 @@ def _wrap_tool_callable(tool: BoundTool, tool_context: dict[str, Any] | None = N
                             "complete",
                             "next_offset",
                             "filters",
+                            "snapshot_id",
                         )
                     }
                 calls.append(call_record)

@@ -253,6 +253,43 @@ def test_managed_gateway_preserves_parallel_call_order_and_linkage():
     assert [part["id"] for part in tool_history[1]["parts"]] == ["call-spy", "call-qqq"]
 
 
+def test_managed_gateway_continuation_is_request_scoped_not_model_scoped():
+    payloads = []
+
+    def post(_url, _token, payload):
+        payloads.append(payload)
+        return 200, {
+            "model": "openai/gpt-5.6-luna",
+            "continuationId": f"next-{payload.get('continuationId') or 'root'}",
+            "parts": [{"type": "text", "text": "Done"}],
+            "usage": {},
+        }
+
+    model = BotSpotManagedLlm(
+        model="openai/gpt-5.6-luna",
+        gateway_url="https://gateway.example.test/",
+        access_token="bounded-token",
+        post=post,
+    )
+    first = _request()
+    first.previous_interaction_id = "conversation-a"
+    second = _request()
+    second.previous_interaction_id = "conversation-b"
+
+    async def collect(request):
+        return [item async for item in model.generate_content_async(request)]
+
+    first_response = asyncio.run(collect(first))[0]
+    second_response = asyncio.run(collect(second))[0]
+
+    assert [payload.get("continuationId") for payload in payloads] == [
+        "conversation-a",
+        "conversation-b",
+    ]
+    assert first_response.interaction_id == "next-conversation-a"
+    assert second_response.interaction_id == "next-conversation-b"
+
+
 @pytest.mark.parametrize(
     "parts",
     [

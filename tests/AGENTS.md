@@ -10,8 +10,8 @@ candidate must pass every formal Playwright test owned by the release scope
 locally on Rob's Mac. Focused Playwright tests are repair-only. When Agent is
 scoped, mandatory local freshness must select and pass every stale, missing,
 failed, incomplete, or incompatible case, with a second unchanged selection of
-zero. GitHub and Dev rerun the exact locally green candidate as final
-environment proof.
+zero. GitHub reruns are blocking release validation for the exact candidate;
+the hosted Dev rerun additionally supplies final environment proof.
 
 ## Legacy tests are high-authority
 

@@ -274,7 +274,6 @@ class BotSpotManagedLlm(BaseLlm):
     _access_token: str = PrivateAttr()
     _post: Callable[[str, str, dict[str, Any]], tuple[int, dict[str, Any]]] = PrivateAttr()
     _renew_lock: threading.Lock = PrivateAttr()
-    _continuation_id: str | None = PrivateAttr(default=None)
 
     def __init__(
         self,
@@ -289,7 +288,6 @@ class BotSpotManagedLlm(BaseLlm):
         self._access_token = access_token
         self._post = post
         self._renew_lock = threading.Lock()
-        self._continuation_id = None
 
     def _renew(self) -> None:
         status, body = self._post(f"{self._gateway_url}/v1/grants/renew", self._access_token, {})
@@ -334,8 +332,9 @@ class BotSpotManagedLlm(BaseLlm):
             "tools": _tools(llm_request),
             "maxOutputTokens": int(getattr(config, "max_output_tokens", None) or 16_384),
         }
-        if self._continuation_id:
-            payload["continuationId"] = self._continuation_id
+        continuation_id = getattr(llm_request, "previous_interaction_id", None)
+        if continuation_id:
+            payload["continuationId"] = str(continuation_id)
         temperature = getattr(config, "temperature", None)
         if temperature is not None:
             payload["temperature"] = float(temperature)
@@ -348,8 +347,7 @@ class BotSpotManagedLlm(BaseLlm):
                 code="protocol_integrity_error",
             )
         parts = [_response_part(part) for part in raw_parts]
-        continuation_id = body.get("continuationId")
-        self._continuation_id = str(continuation_id) if continuation_id else None
+        response_continuation_id = body.get("continuationId")
         usage = body.get("usage") or {}
         usage_metadata = types.GenerateContentResponseUsageMetadata(
             prompt_token_count=int(usage.get("inputTokens") or 0),
@@ -362,6 +360,7 @@ class BotSpotManagedLlm(BaseLlm):
             content=types.Content(role="model", parts=parts),
             partial=False,
             turn_complete=True,
+            interaction_id=str(response_continuation_id) if response_continuation_id else None,
             usage_metadata=usage_metadata,
         )
 

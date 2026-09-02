@@ -33,7 +33,13 @@
   zeroes, prompts state that truncated positions and orders still exist, and
   order readiness now requires complete unfiltered position and open-order
   pagination whenever the initial snapshot is incomplete or an earlier order
-  mutated account state.
+  mutated account state. Pagination pages must also share one content-derived
+  account snapshot identifier, so an order cannot pass readiness by combining
+  pages from changing position or open-order collections.
+- **Managed continuation and decision outcomes are conversation-safe.** Opaque
+  provider continuation identifiers now travel through ADK's request/response
+  interaction fields instead of shared model-instance state, and read-only
+  order inspection no longer records a false completed trading decision.
 
 ## 4.5.88 - 2026-09-01
 

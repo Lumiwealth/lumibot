@@ -140,6 +140,10 @@ pages with 50 records by default and at most 100 per call. Every response
 includes total, matched, returned, omitted, complete, and next-offset metadata.
 When ``complete`` is false, omitted records still exist; continue through the
 remaining unfiltered pages before treating the account view as complete.
+Every page also carries a content-derived ``snapshot_id``. Full-account
+readiness accepts a page sequence only when every page has the same identifier;
+if positions or open orders change between calls, restart pagination at offset
+zero.
 
 Both tools support exact symbol, asset type, expiration, strike, and option
 right filters. This allows an agent to find a specific contract even when it

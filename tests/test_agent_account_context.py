@@ -459,3 +459,37 @@ def test_contiguous_position_pages_and_open_orders_satisfy_order_readiness():
 
     assert "tool_error" not in submitted
     assert len(strategy.submitted_orders) == 1
+
+
+def test_changed_position_membership_with_same_count_invalidates_paginated_readiness():
+    positions = [_option_position(400 + index, 1) for index in range(63)]
+    strategy = _AccountStrategy(positions=positions)
+    tools, _ = _wrapped_tools(
+        strategy,
+        [
+            BuiltinTools.account.positions(),
+            BuiltinTools.account.portfolio(),
+            BuiltinTools.orders.open_orders(),
+            BuiltinTools.market.last_price(),
+            BuiltinTools.orders.submit(),
+        ],
+    )
+    tools["account_portfolio"]()
+    first_page = tools["account_positions"]()
+    strategy._positions = [_option_position(401 + index, 1) for index in range(63)]
+    second_page = tools["account_positions"](offset=50)
+    tools["orders_open_orders"]()
+    tools["market_last_price"](symbol="QQQ", asset_type="stock")
+
+    blocked = tools["orders_submit_order"](
+        symbol="QQQ",
+        quantity=1,
+        side="buy",
+        asset_type="stock",
+        order_type="market",
+    )
+
+    assert first_page["snapshot_id"] != second_page["snapshot_id"]
+    assert blocked["tool_error"] is True
+    assert "complete account_positions pagination" in blocked["error"]["message"]
+    assert strategy.submitted_orders == []

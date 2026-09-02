@@ -727,9 +727,15 @@ def _managed_ai_execution_outcome(
 def _managed_ai_terminal_status(result: AgentRunResult, *, allow_trading: bool) -> str:
     """Classify a successful ADK run from structural tool events only."""
 
+    mutating_order_tools = {
+        "orders_submit_order",
+        "orders_submit_multileg",
+        "orders_cancel_order",
+        "orders_modify_order",
+    }
     tool_results = result.tool_results
     successful_order = any(
-        str(event.tool_name or "").startswith("orders_")
+        str(event.tool_name or "") in mutating_order_tools
         and not (
             isinstance(_unwrap_tool_payload(event.payload), dict)
             and _unwrap_tool_payload(event.payload).get("tool_error") is True

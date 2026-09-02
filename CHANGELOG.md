@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.5.90 - Unreleased
+
+### Fixed
+- **Coinbase/CCXT crypto backtests no longer silently complete with zero trades
+  when strategies use pair-string base symbols.** Hyphen and concatenated forms
+  such as `BTC-USD`, `BTCUSD`, and redundant `BTC-USD/USD` now normalize to the
+  CCXT unified USD form `BTC/USD` before market lookup. If a market still cannot
+  be resolved after alias attempts, CCXT history raises a clear diagnostic
+  instead of returning empty candles that produce `completed_no_trades`.
+
+
 ## 4.5.89 - 2026-09-02
 
 Deploy marker: `04ef8d417189`

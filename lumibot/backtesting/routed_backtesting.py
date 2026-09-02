@@ -964,7 +964,17 @@ class _CcxtRoutingAdapter(_DataFrameRoutingAdapter):
         else:
             raise RoutingProviderError(f"CCXT routing only supports minute/hour/day timesteps, got {ts_unit!r}.")
 
-        symbol = f"{asset.symbol.upper()}/{quote_asset.symbol.upper()}"
+        from lumibot.tools.symbol_normalization import build_ccxt_crypto_symbol
+
+        symbol = build_ccxt_crypto_symbol(
+            getattr(asset, "symbol", asset),
+            getattr(quote_asset, "symbol", quote_asset),
+            exchange_id=exchange_id,
+        )
+        if not symbol:
+            raise RoutingProviderError(
+                f"Unable to build a CCXT crypto symbol from asset={asset!r} quote={quote_asset!r}."
+            )
         if ts_unit in {"minute", "hour"}:
             try:
                 prefetch_start = min(start_datetime, self._router.datetime_start)

@@ -111,3 +111,152 @@ def normalize_symbol_for_broker(
     root, suffix = parsed
     return f"{root}{separator}{suffix}"
 
+
+
+# Common quote currencies appended to concatenated crypto pair strings such as BTCUSD.
+_CRYPTO_QUOTE_SUFFIXES = (
+    "USDT",
+    "USDC",
+    "USD",
+    "EUR",
+    "GBP",
+    "BTC",
+    "ETH",
+    "BUSD",
+    "DAI",
+)
+
+
+def parse_crypto_pair_symbol(symbol: object) -> tuple[Optional[str], Optional[str]]:
+    """
+    Parse a crypto base or pair string into (base, quote).
+
+    Accepts common exchange/UI forms:
+    - BTC/USD, BTC-USD, BTC:USD
+    - BTCUSD (concatenated with a known quote suffix)
+    - BTC (base only; quote is None)
+    """
+    sym = _normalize_symbol_text(symbol)
+    if not isinstance(sym, str) or not sym:
+        return None, None
+
+    parts = [part for part in re.split(r"[/:\-]", sym) if part]
+    if len(parts) >= 2:
+        return parts[0], parts[1]
+
+    for suffix in _CRYPTO_QUOTE_SUFFIXES:
+        if sym.endswith(suffix) and len(sym) > len(suffix):
+            base = sym[: -len(suffix)]
+            if base:
+                return base, suffix
+    return sym, None
+
+
+def build_ccxt_crypto_symbol(
+    base_or_pair: object,
+    quote: Optional[object] = None,
+    *,
+    exchange_id: Optional[str] = None,
+) -> Optional[str]:
+    """
+    Build a CCXT unified market symbol (BASE/QUOTE) for crypto history and orders.
+
+    Coinbase's native product id is ``BTC-USD``, but CCXT's unified symbol is
+    ``BTC/USD``. Pair strings accidentally used as the crypto base asset
+    (``Asset("BTC-USD")`` + quote ``USD``) otherwise become the nonexistent
+    ``BTC-USD/USD`` market and silently yield empty history / zero-trade
+    backtests.
+
+    The ``exchange_id`` argument is reserved for exchange-specific quote
+    preferences and is currently unused beyond documentation.
+    """
+    del exchange_id  # Reserved for future exchange-specific quote remaps.
+
+    base_sym = _normalize_symbol_text(base_or_pair)
+    quote_sym = _normalize_symbol_text(quote) if quote is not None else None
+    if not isinstance(base_sym, str) or not base_sym:
+        return None
+
+    parsed_base, parsed_quote = parse_crypto_pair_symbol(base_sym)
+    if not parsed_base:
+        return None
+
+    explicit_quote = quote_sym if isinstance(quote_sym, str) and quote_sym else None
+    if parsed_quote and explicit_quote and parsed_quote == explicit_quote:
+        # Asset("BTC-USD") + quote USD -> BTC/USD (not BTC-USD/USD).
+        resolved_quote = parsed_quote
+    elif parsed_quote and explicit_quote and parsed_quote != explicit_quote:
+        # Pair already encodes a quote; prefer the pair's quote over a second
+        # appended quote that would create BASE-QUOTE/OTHER nonsense.
+        resolved_quote = parsed_quote
+    elif parsed_quote:
+        resolved_quote = parsed_quote
+    else:
+        resolved_quote = explicit_quote
+
+    if not resolved_quote:
+        return parsed_base
+
+    return f"{parsed_base}/{resolved_quote}"
+
+
+def crypto_ccxt_symbol_candidates(
+    symbol: object,
+    *,
+    exchange_id: Optional[str] = None,
+) -> list[str]:
+    """
+    Return unique CCXT symbol candidates to try when resolving a market.
+
+    Starts with the normalized BASE/QUOTE form, then includes a few common
+    aliases so Coinbase-style hyphen ids and redundant pair/quote forms can
+    still resolve.
+    """
+    raw = _normalize_symbol_text(symbol)
+    candidates: list[str] = []
+
+    def _add(value: Optional[str]) -> None:
+        if isinstance(value, str) and value and value not in candidates:
+            candidates.append(value)
+
+    if isinstance(raw, str) and raw:
+        _add(raw)
+        # Hyphen native product ids (BTC-USD) -> CCXT unified (BTC/USD).
+        if "-" in raw and "/" not in raw:
+            _add(raw.replace("-", "/"))
+        # Redundant pair/quote (BTC-USD/USD) -> BTC/USD.
+        if "/" in raw:
+            left, right = raw.split("/", 1)
+            left_base, left_quote = parse_crypto_pair_symbol(left)
+            if left_base and left_quote and left_quote == right:
+                _add(f"{left_base}/{left_quote}")
+
+    normalized = build_ccxt_crypto_symbol(raw, exchange_id=exchange_id) if isinstance(raw, str) else None
+    _add(normalized)
+
+    # Prefer USD form on Coinbase when a USDT request is made and callers want
+    # exchange-native USD pairs; keep USDT first so intentional USDT stays
+    # authoritative when the market exists.
+    if isinstance(normalized, str) and normalized.endswith("/USDT") and (exchange_id or "").strip().lower() in {
+        "coinbase",
+        "coinbaseexchange",
+        "coinbaseadvanced",
+        "coinbasepro",
+    }:
+        _add(normalized[: -len("USDT")] + "USD")
+
+    return candidates
+
+
+def resolve_ccxt_market_symbol(markets: Optional[dict], symbol: object, *, exchange_id: Optional[str] = None) -> Optional[str]:
+    """
+    Resolve ``symbol`` to a key present in ``markets``, trying crypto aliases.
+
+    Returns the resolved CCXT unified symbol, or None when no candidate exists
+    in ``markets``.
+    """
+    market_map = markets if isinstance(markets, dict) else {}
+    for candidate in crypto_ccxt_symbol_candidates(symbol, exchange_id=exchange_id):
+        if candidate in market_map:
+            return candidate
+    return None

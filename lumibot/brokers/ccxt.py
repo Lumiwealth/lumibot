@@ -447,6 +447,28 @@ class Ccxt(Broker):
 
         # Check order within limits.
         self._ensure_markets_loaded()
+        from lumibot.tools.symbol_normalization import resolve_ccxt_market_symbol
+
+        exchange_id = getattr(self.api, "id", None)
+        resolved_pair = resolve_ccxt_market_symbol(
+            getattr(self.api, "markets", None),
+            order.pair,
+            exchange_id=exchange_id,
+        )
+        if resolved_pair is None:
+            logger.error(
+                f"An order for {order.pair} was submitted. The market for that pair does not exist"
+            )
+            order.set_error("No market for pair.")
+            return order
+        if resolved_pair != order.pair:
+            logger.info(
+                "Normalized crypto CCXT order pair %s -> %s for %s",
+                order.pair,
+                resolved_pair,
+                exchange_id or "ccxt",
+            )
+            order.pair = resolved_pair
         market = self.api.markets.get(order.pair, None)
         if market is None:
             logger.error(f"An order for {order.pair} was submitted. The market for that pair does not exist")

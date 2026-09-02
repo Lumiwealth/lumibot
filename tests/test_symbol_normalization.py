@@ -7,7 +7,14 @@ from alpaca.trading.enums import PositionSide
 from lumibot.brokers.alpaca import Alpaca
 from lumibot.brokers.tradier import Tradier
 from lumibot.entities import Asset, Order
-from lumibot.tools.symbol_normalization import normalize_symbol_for_broker, normalize_symbol_for_internal
+from lumibot.tools.symbol_normalization import (
+    build_ccxt_crypto_symbol,
+    crypto_ccxt_symbol_candidates,
+    normalize_symbol_for_broker,
+    normalize_symbol_for_internal,
+    parse_crypto_pair_symbol,
+    resolve_ccxt_market_symbol,
+)
 
 
 def test_normalize_symbol_for_internal_uses_dot_canonical_format():
@@ -153,3 +160,49 @@ def test_interactive_brokers_converts_dot_symbol_for_contract_and_back_for_posit
         strategy="unit_test_strategy",
     )
     assert parsed_position.asset.symbol == "BRK.B"
+
+
+def test_parse_crypto_pair_symbol_accepts_common_forms():
+    assert parse_crypto_pair_symbol("BTC/USD") == ("BTC", "USD")
+    assert parse_crypto_pair_symbol("btc-usd") == ("BTC", "USD")
+    assert parse_crypto_pair_symbol("BTCUSD") == ("BTC", "USD")
+    assert parse_crypto_pair_symbol("BTC") == ("BTC", None)
+    assert parse_crypto_pair_symbol("") == (None, None)
+
+
+def test_build_ccxt_crypto_symbol_normalizes_pair_as_base_with_usd_quote():
+    # BEFORE: Asset("BTC-USD") + quote USD became BTC-USD/USD and Coinbase returned no market.
+    # AFTER: normalize to the CCXT unified USD form BTC/USD.
+    assert build_ccxt_crypto_symbol("BTC-USD", "USD") == "BTC/USD"
+    assert build_ccxt_crypto_symbol("BTC/USD", "USD") == "BTC/USD"
+    assert build_ccxt_crypto_symbol("BTC", "USD") == "BTC/USD"
+    assert build_ccxt_crypto_symbol("BTCUSD", "USD") == "BTC/USD"
+    assert build_ccxt_crypto_symbol("ETH-EUR", "EUR") == "ETH/EUR"
+
+
+def test_resolve_ccxt_market_symbol_maps_coinbase_hyphen_and_redundant_pair():
+    markets = {"BTC/USD": {"id": "BTC-USD", "symbol": "BTC/USD"}}
+    assert resolve_ccxt_market_symbol(markets, "BTC-USD") == "BTC/USD"
+    assert resolve_ccxt_market_symbol(markets, "BTC-USD/USD") == "BTC/USD"
+    assert resolve_ccxt_market_symbol(markets, "BTC/USD") == "BTC/USD"
+    assert resolve_ccxt_market_symbol(markets, "ETH/USD") is None
+    assert "BTC/USD" in crypto_ccxt_symbol_candidates("BTC-USD/USD")
+
+
+def test_coinbase_usdt_candidate_includes_usd_alias():
+    candidates = crypto_ccxt_symbol_candidates("BTC/USDT", exchange_id="coinbase")
+    assert candidates[0] == "BTC/USDT"
+    assert "BTC/USD" in candidates
+
+
+def test_order_pair_normalizes_btc_usd_pair_base():
+    from lumibot.entities import Order
+
+    order = Order(
+        strategy="unit",
+        asset=Asset("BTC-USD", asset_type=Asset.AssetType.CRYPTO),
+        quantity=0.001,
+        side="buy",
+        quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
+    )
+    assert order.pair == "BTC/USD"

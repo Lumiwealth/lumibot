@@ -3115,7 +3115,13 @@ class Broker(ABC):
                 f"{stored_order.symbol} ID={stored_order.identifier}, processed by broker {self.name}"
             )
 
-        if self._hold_trade_events and not is_backtesting:
+        from lumibot.brokers.trade_event_priority import should_hold_trade_event_for_sync
+
+        if should_hold_trade_event_for_sync(
+            hold_trade_events=bool(self._hold_trade_events),
+            is_backtesting=bool(is_backtesting),
+            type_event=type_event,
+        ):
             if self.logger.isEnabledFor(20):
                 self.logger.info(
                     f"Trade event held for {stored_order.strategy} strategy: {type_event} {stored_order.symbol} "
@@ -3123,7 +3129,8 @@ class Broker(ABC):
                     f"self._hold_trade_events is {self._hold_trade_events}"
                 )
 
-            # Hold the trade event
+            # Hold the trade event (non-fill). Fills take the priority path so
+            # hedges are not delayed by sync_broker or a long trading iteration.
             self._held_trades.append(
                 (
                     stored_order,

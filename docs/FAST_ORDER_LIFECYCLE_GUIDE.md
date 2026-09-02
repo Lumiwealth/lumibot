@@ -72,7 +72,10 @@ overhead; it does not guarantee network latency or broker terminal time.
 `self.sleeptime = "1S"` means the next trading iteration begins after the
 current iteration finishes. It does not interrupt a slow scan. A deadline that
 is checked only in a later `on_trading_iteration` can therefore be late by the
-entire scan duration.
+entire scan duration. Fill and partial-fill callbacks are different: in live
+mode LumiBot drains them on a priority path while the scan runs, so
+`on_filled_order` hedges must not wait for the scan to finish. Prefer hedges in
+`on_filled_order`, not in a later iteration poll.
 
 For a deadline-critical order:
 

@@ -3,6 +3,14 @@
 ## 4.5.90 - Unreleased
 
 ### Fixed
+- **Live fill/hedge callbacks are no longer gated behind a long
+  ``on_trading_iteration``.** During live scans the executor drains priority
+  fill/cancel events on the OTIM thread while user strategy code runs on a
+  helper thread, ``check_queue`` wakes immediately on fill/cancel/error events
+  instead of sleeping up to 0.5s, and ``sync_broker`` no longer holds fill or
+  partial-fill trade events. Target: hedge submission must not wait for a
+  100s+ scan (Titus CVNA 2026-09-02: option fill while a 122s iteration was
+  running). Covered by ``tests/test_priority_fill_during_iteration.py``.
 - **Coinbase/CCXT crypto backtests no longer silently complete with zero trades
   when strategies use pair-string base symbols.** Hyphen and concatenated forms
   such as `BTC-USD`, `BTCUSD`, and redundant `BTC-USD/USD` now normalize to the

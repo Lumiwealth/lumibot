@@ -1,9 +1,22 @@
 # Changelog
 
-## 4.5.89 - Unreleased
+## 4.5.89 - 2026-09-02
 
 ### Added
 
+- **BotSpot managed AI requests now use a lossless structured v2 protocol.**
+  Ordered text, native function calls, native function responses, exact call
+  identifiers, thought flags, and base64 thought signatures survive the
+  LumiBot-to-gateway round trip. Unsupported or malformed parts fail visibly
+  with ``protocol_integrity_error`` instead of being silently converted to
+  prose. The released v1 route remains available only for older LumiBot
+  callers.
+- **Managed Agent artifacts now expose typed outcomes and exact runtime
+  provenance.** Decision results distinguish completed decisions, completed
+  no-action decisions, provider errors, tool errors, protocol-integrity errors,
+  and runtime errors. ``agent_detail`` records native tool-call linkage,
+  gateway protocol version, LumiBot version, and a gateway-component
+  fingerprint so the served implementation can be verified from artifacts.
 - **Agent account tools now support bounded pagination and exact contract
   lookup.** ``account_positions`` and ``orders_open_orders`` return 50 compact,
   deterministically ordered records by default (maximum 100), report explicit

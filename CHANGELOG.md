@@ -2,6 +2,8 @@
 
 ## 4.5.90 - 2026-09-02
 
+Deploy marker: `008fa573a9fb`
+
 ### Fixed
 - **Release tests no longer inherit developer credentials into lazy-import
   subprocesses or classify live Alpaca shorting checks as deterministic unit

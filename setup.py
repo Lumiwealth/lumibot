@@ -124,7 +124,12 @@ setuptools.setup(
         "thetadata": [
             "thetadata",
         ],
+        # Optional dependency to enable the TickerAll hosted MT5 API broker
+        "tickerall": [
+            "tickerall>=0.1.16",
+        ],
     },
+
     keywords=[
         "algorithmic-trading",
         "backtesting",

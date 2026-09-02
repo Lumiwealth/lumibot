@@ -40,6 +40,7 @@ class AgentTraceEvent:
     kind: str
     text: str | None = None
     tool_name: str | None = None
+    call_id: str | None = None
     payload: dict[str, Any] | None = None
     timestamp: str | None = None
 

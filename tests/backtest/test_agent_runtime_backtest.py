@@ -56,6 +56,7 @@ class StockPlanRuntime:
         events = [_event("thinking", text="Inspecting current stock state.")]
         positions = _invoke_tool(request, events, "account_positions")
         _invoke_tool(request, events, "account_portfolio")
+        _invoke_tool(request, events, "orders_open_orders")
         _invoke_tool(request, events, "market_last_price", symbol=request.context["symbol"], asset_type="stock")
         table = _invoke_tool(
             request,
@@ -104,6 +105,7 @@ class OptionPlanRuntime:
         events = [_event("thinking", text="Inspecting current option state.")]
         positions = _invoke_tool(request, events, "account_positions")
         _invoke_tool(request, events, "account_portfolio")
+        _invoke_tool(request, events, "orders_open_orders")
         _invoke_tool(
             request,
             events,
@@ -134,7 +136,7 @@ class OptionPlanRuntime:
             sql=f"SELECT COUNT(*) AS rows_seen, MIN(close) AS min_close, MAX(close) AS max_close FROM {table['table_name']}",
         )
         has_position = any(
-            pos.get("asset", {}).get("asset_type") == "option" and float(pos.get("quantity") or 0) > 0
+            pos.get("asset", {}).get("type") == "option" and float(pos.get("quantity") or 0) > 0
             for pos in positions["positions"]
             if isinstance(pos, dict)
         )
@@ -167,6 +169,7 @@ class MinuteStressRuntime:
         events = [_event("thinking", text="Stress-testing minute DuckDB history refresh.")]
         positions = _invoke_tool(request, events, "account_positions")
         _invoke_tool(request, events, "account_portfolio")
+        _invoke_tool(request, events, "orders_open_orders")
         _invoke_tool(request, events, "market_last_price", symbol=request.context["symbol"], asset_type="stock")
         table = _invoke_tool(
             request,
@@ -804,11 +807,14 @@ def test_agent_detail_parquet_has_single_token_summary_row_and_full_events(monke
     summaries = df[df["event_kind"] == "call_summary"]
     assert len(summaries) == UsageTelemetryRuntime.call_count
     assert set(summaries["outcome_operation"]) == {"managed_ai_inference"}
+    assert set(summaries["outcome_status"]) == {"completed_no_action"}
     assert set(summaries["outcome_requiredness"]) == {"decision_critical"}
     assert set(summaries["outcome_decision_completed"]) == {True}
     assert set(summaries["outcome_fallback_used"]) == {False}
     assert set(summaries["outcome_broker_state_certainty"]) == {"not_observed"}
     assert set(summaries["outcome_impact"]) == {"completed"}
+    assert set(summaries["runtime_version"]) == {"4.5.89"}
+    assert set(summaries["ai_access_mode"]) == {"byok"}
     call_numbers = list(range(1, UsageTelemetryRuntime.call_count + 1))
     assert summaries["call_input_tokens"].sum() == sum(1000 + idx for idx in call_numbers)
     assert summaries["call_output_tokens"].sum() == sum(200 + idx for idx in call_numbers)

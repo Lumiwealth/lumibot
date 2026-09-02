@@ -26,6 +26,20 @@ machine-specific information in this file or any other tracked repo file.
 - Never edit another customer's strategy or account as an alternative. Rob-owned strategies may be edited only through the owner-scoped regular, development, or local BotSpot MCP server that Rob selected for the task.
 - If authorization is ambiguous, keep LumiBot unchanged. Do not make a speculative compatibility shim, helper method, fallback, documentation change, test change, version bump, or release change.
 
+# BotSpot integration release qualification
+
+- LumiBot keeps its independent package/release cycle. When an explicitly
+  authorized BotSpot release includes a changed LumiBot artifact or contract,
+  the exact package candidate must pass its complete locally runnable LumiBot
+  tests before any downstream Dev deployment.
+- The BotSpot candidate consuming that package must then pass every formal
+  Playwright test owned by its scope locally before Dev. If BotSpot Agent is
+  scoped, its mandatory local freshness selector and required targeted repeats
+  must also be green locally. Focused tests are repair evidence only.
+- Hosted qualification reruns the same committed BotSpot inventory against the
+  exact Dev-served tuple. A hosted-only failure blocks production and requires
+  local environment-parity, contention, or nondeterminism diagnosis.
+
 # Broker Data Ownership
 
 - LumiBot broker and data-source adapters are the sole owners of provider-specific broker market-data and trading API behavior.

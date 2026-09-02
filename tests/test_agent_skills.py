@@ -1,6 +1,7 @@
 import asyncio
 import json
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import pytest
 
@@ -32,6 +33,26 @@ class _Strategy:
 
     def log_message(self, *args, **kwargs):
         return None
+
+
+class _AccountSnapshotStrategy(_Strategy):
+    def get_cash(self):
+        return 100_000.0
+
+    def get_portfolio_value(self):
+        return 125_000.0
+
+    def get_positions(self, include_cash_positions=True):
+        return [
+            SimpleNamespace(
+                asset=SimpleNamespace(symbol=f"SYM{index:02d}", asset_type="stock"),
+                quantity=index + 1,
+            )
+            for index in range(30)
+        ]
+
+    def get_orders(self):
+        return []
 
 
 class _CaptureRuntime:
@@ -207,6 +228,34 @@ def test_missing_rules_json_injects_an_empty_active_ledger():
         "file_name": None,
     }
     assert '"rules": []' in request.system_prompt
+
+
+def test_runtime_context_injects_bounded_account_snapshot_with_completeness_flags():
+    runtime = _CaptureRuntime()
+    agent = AgentManager(_AccountSnapshotStrategy()).create(
+        name="snapshot",
+        tools=[],
+        include_builtin_tools=False,
+        _runtime=runtime,
+    )
+
+    agent.run(task_prompt="Inspect the account.")
+
+    context = runtime.requests[0].runtime_context
+    assert context["account"] == {"cash": 100_000.0, "portfolio_value": 125_000.0}
+    assert len(context["positions"]) == 30
+    assert context["account_snapshot"] == {
+        "as_of": "2026-08-11T00:00:00+00:00",
+        "account_complete": True,
+        "positions_total": 30,
+        "positions_included": 30,
+        "positions_omitted": 0,
+        "positions_complete": True,
+        "open_orders_total": 0,
+        "open_orders_included": 0,
+        "open_orders_omitted": 0,
+        "open_orders_complete": True,
+    }
 
 
 def test_invalid_rules_json_stops_before_model_call(tmp_path):

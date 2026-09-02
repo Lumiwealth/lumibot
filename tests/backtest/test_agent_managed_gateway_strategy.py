@@ -57,8 +57,7 @@ def test_24_7_bitcoin_strategy_uses_real_agent_runtime_and_managed_gateway(monke
         gateway_calls.append((url, token, payload))
         return 200, {
             "model": payload["model"],
-            "text": "BTC observation complete.",
-            "toolCalls": [],
+            "parts": [{"type": "text", "text": "BTC observation complete."}],
             "usage": {"inputTokens": 11, "cachedInputTokens": 3, "outputTokens": 4},
         }
 
@@ -100,7 +99,7 @@ def test_24_7_bitcoin_strategy_uses_real_agent_runtime_and_managed_gateway(monke
     assert strategy.vars.agent_summary == "BTC observation complete."
     assert len(gateway_calls) == 1
     url, token, payload = gateway_calls[0]
-    assert url == "https://gateway.example.test/v1/inference"
+    assert url == "https://gateway.example.test/v2/inference"
     assert token == "deployment-bound-token"
     assert payload["provider"] == "openai"
     assert payload["model"] == "openai/gpt-5.6-luna"
@@ -108,3 +107,8 @@ def test_24_7_bitcoin_strategy_uses_real_agent_runtime_and_managed_gateway(monke
     assert strategy.parameters["agent_btc_research_input_tokens"] == 11
     assert strategy.parameters["agent_btc_research_cached_input_tokens"] == 3
     assert strategy.parameters["agent_btc_research_output_tokens"] == 4
+    detail = pd.read_parquet(strategy.parameters["agent_btc_research_detail_parquet"])
+    summaries = detail[detail["event_kind"] == "call_summary"]
+    assert set(summaries["ai_access_mode"]) == {"botspot_managed"}
+    assert set(summaries["gateway_protocol_version"]) == {2}
+    assert summaries["gateway_component_sha256"].str.fullmatch(r"[0-9a-f]{64}").all()

@@ -2,7 +2,7 @@
 
 ## 4.5.90 - 2026-09-02
 
-Deploy marker: `008fa573a9fb`
+Deploy marker: `76bb79c757c2`
 
 ### Fixed
 - **Release tests no longer inherit developer credentials into lazy-import

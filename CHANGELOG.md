@@ -2,6 +2,8 @@
 
 ## 4.5.89 - 2026-09-02
 
+Deploy marker: `04ef8d417189`
+
 ### Added
 
 - **BotSpot managed AI requests now use a lossless structured v2 protocol.**

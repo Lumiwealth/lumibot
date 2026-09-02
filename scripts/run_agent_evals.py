@@ -313,17 +313,29 @@ def build_tools(fixture: FixtureRuntime) -> list[Any]:
         result = {"cash": 100000.0, "portfolio_value": 100000.0, "currency": "USD"}
         return fixture.record("account_portfolio", {}, result)
 
-    def account_positions() -> dict[str, Any]:
+    def account_positions(offset: int = 0, limit: int = 50) -> dict[str, Any]:
         position_payloads = json.loads(json.dumps(fixture.positions))
         for position in position_payloads:
             quantity = float(position.get("quantity") or 0)
             position["position_side"] = "long" if quantity > 0 else "short" if quantity < 0 else "flat"
             position["closing_side"] = "sell_to_close" if quantity > 0 else "buy_to_close" if quantity < 0 else None
             position["closing_quantity"] = abs(quantity)
-        result = {"positions": position_payloads, "count": len(position_payloads)}
-        return fixture.record("account_positions", {}, result)
+        page = position_payloads[offset : offset + limit]
+        result = {
+            "positions": page,
+            "total": len(position_payloads),
+            "matched": len(position_payloads),
+            "returned": len(page),
+            "omitted": max(len(position_payloads) - offset - len(page), 0),
+            "complete": offset + len(page) >= len(position_payloads),
+            "next_offset": offset + len(page) if offset + len(page) < len(position_payloads) else None,
+            "snapshot_id": f"fixture-positions-{len(position_payloads)}",
+            "as_of": "2026-08-11T14:35:00Z",
+            "filters": {},
+        }
+        return fixture.record("account_positions", {"offset": offset, "limit": limit}, result)
 
-    def orders_open_orders() -> dict[str, Any]:
+    def orders_open_orders(offset: int = 0, limit: int = 50) -> dict[str, Any]:
         orders = []
         if fixture.name == "stock_pending_exit":
             orders = [
@@ -336,8 +348,20 @@ def build_tools(fixture: FixtureRuntime) -> list[Any]:
                     "is_terminal": False,
                 }
             ]
-        result = {"orders": orders, "count": len(orders)}
-        return fixture.record("orders_open_orders", {}, result)
+        page = orders[offset : offset + limit]
+        result = {
+            "orders": page,
+            "total": len(orders),
+            "matched": len(orders),
+            "returned": len(page),
+            "omitted": max(len(orders) - offset - len(page), 0),
+            "complete": offset + len(page) >= len(orders),
+            "next_offset": offset + len(page) if offset + len(page) < len(orders) else None,
+            "snapshot_id": f"fixture-open-orders-{len(orders)}",
+            "as_of": "2026-08-11T14:35:00Z",
+            "filters": {},
+        }
+        return fixture.record("orders_open_orders", {"offset": offset, "limit": limit}, result)
 
     def market_last_price(symbol: str, asset_type: str = "stock") -> dict[str, Any]:
         price = 230.0 if symbol.upper() == "AAPL" else fixture.underlying_price
@@ -349,50 +373,126 @@ def build_tools(fixture: FixtureRuntime) -> list[Any]:
         }
         return fixture.record("market_last_price", {"symbol": symbol, "asset_type": asset_type}, result)
 
+    def risk_calculate_stock_quantity(
+        maximum_notional: float,
+        price: float,
+        available_cash: float | None = None,
+    ) -> dict[str, Any]:
+        spendable_notional = min(
+            float(maximum_notional),
+            float(available_cash) if available_cash is not None else float(maximum_notional),
+        )
+        quantity = int(spendable_notional // float(price))
+        notional = quantity * float(price)
+        result = {
+            "quantity": quantity,
+            "price": float(price),
+            "maximum_notional": float(maximum_notional),
+            "available_cash": float(available_cash) if available_cash is not None else None,
+            "spendable_notional": spendable_notional,
+            "notional": notional,
+            "remaining_notional": spendable_notional - notional,
+            "within_maximum_notional": notional <= float(maximum_notional),
+            "within_available_cash": available_cash is None or notional <= float(available_cash),
+        }
+        return fixture.record(
+            "risk_calculate_stock_quantity",
+            {
+                "maximum_notional": maximum_notional,
+                "price": price,
+                "available_cash": available_cash,
+            },
+            result,
+        )
+
     def market_historical_prices(
         symbols: str,
         length: int = 10,
         timestep: str = "day",
     ) -> dict[str, Any]:
         if fixture.name == "orb_breakout":
-            bars = [
-                {
-                    "datetime": "2026-08-11T13:30:00Z",
-                    "open": 227.0,
-                    "high": 228.0,
-                    "low": 226.8,
-                    "close": 227.6,
-                    "volume": 1000,
-                    "complete": True,
-                },
-                {
-                    "datetime": "2026-08-11T13:35:00Z",
-                    "open": 227.6,
-                    "high": 228.4,
-                    "low": 227.4,
-                    "close": 228.1,
-                    "volume": 1100,
-                    "complete": True,
-                },
-                {
-                    "datetime": "2026-08-11T13:40:00Z",
-                    "open": 228.1,
-                    "high": 228.5,
-                    "low": 227.9,
-                    "close": 228.3,
-                    "volume": 1050,
-                    "complete": True,
-                },
-                {
-                    "datetime": "2026-08-11T13:45:00Z",
-                    "open": 228.3,
-                    "high": 230.2,
-                    "low": 228.2,
-                    "close": 230.0,
-                    "volume": 2400,
-                    "complete": True,
-                },
-            ]
+            normalized_timestep = timestep.lower().replace(" ", "")
+            if normalized_timestep in {"minute", "1m", "1min", "1minute"}:
+                closes = [
+                    227.1,
+                    227.2,
+                    227.3,
+                    227.4,
+                    227.6,
+                    227.7,
+                    227.8,
+                    227.9,
+                    228.0,
+                    228.1,
+                    228.15,
+                    228.2,
+                    228.25,
+                    228.28,
+                    228.3,
+                    228.6,
+                    228.9,
+                    229.2,
+                    229.6,
+                    230.0,
+                ]
+                block_highs = [228.0, 228.4, 228.5, 230.2]
+                block_volumes = [200, 220, 210, 480]
+                start = datetime(2026, 8, 11, 13, 30, tzinfo=timezone.utc)
+                bars = []
+                previous_close = 227.0
+                for index, close in enumerate(closes):
+                    block = index // 5
+                    bars.append(
+                        {
+                            "datetime": utc_text(start + timedelta(minutes=index)),
+                            "open": previous_close,
+                            "high": max(close, block_highs[block] if index % 5 == 4 else close + 0.05),
+                            "low": min(previous_close, close) - 0.1,
+                            "close": close,
+                            "volume": block_volumes[block],
+                            "complete": True,
+                        }
+                    )
+                    previous_close = close
+            else:
+                bars = [
+                    {
+                        "datetime": "2026-08-11T13:30:00Z",
+                        "open": 227.0,
+                        "high": 228.0,
+                        "low": 226.8,
+                        "close": 227.6,
+                        "volume": 1000,
+                        "complete": True,
+                    },
+                    {
+                        "datetime": "2026-08-11T13:35:00Z",
+                        "open": 227.6,
+                        "high": 228.4,
+                        "low": 227.4,
+                        "close": 228.1,
+                        "volume": 1100,
+                        "complete": True,
+                    },
+                    {
+                        "datetime": "2026-08-11T13:40:00Z",
+                        "open": 228.1,
+                        "high": 228.5,
+                        "low": 227.9,
+                        "close": 228.3,
+                        "volume": 1050,
+                        "complete": True,
+                    },
+                    {
+                        "datetime": "2026-08-11T13:45:00Z",
+                        "open": 228.3,
+                        "high": 230.2,
+                        "low": 228.2,
+                        "close": 230.0,
+                        "volume": 2400,
+                        "complete": True,
+                    },
+                ]
         else:
             closes = [221.0, 223.0, 225.0, 227.0, 229.0]
             bars = [
@@ -526,6 +626,34 @@ def build_tools(fixture: FixtureRuntime) -> list[Any]:
         time_in_force: str = "day",
     ) -> dict[str, Any]:
         legs = _parse_legs(legs_json)
+        for leg in legs:
+            side = str(leg.get("side") or "").lower()
+            if side not in {"buy_to_close", "sell_to_close"}:
+                continue
+            quantity = abs(float(leg.get("quantity") or 0))
+            key = fixture.option_key(leg)
+            current = next(
+                (position for position in fixture.positions if fixture.option_key(position) == key),
+                None,
+            )
+            current_quantity = float(current["quantity"]) if current is not None else 0.0
+            expected_side = (
+                "sell_to_close"
+                if current_quantity > 0
+                else "buy_to_close"
+                if current_quantity < 0
+                else None
+            )
+            if side != expected_side:
+                raise ValueError(
+                    "Option closing side does not reduce the current signed position: "
+                    f"current_quantity={current_quantity}, side={side!r}, required_side={expected_side!r}."
+                )
+            if quantity > abs(current_quantity):
+                raise ValueError(
+                    "Option closing quantity exceeds the current signed position: "
+                    f"current_quantity={current_quantity}, requested_quantity={quantity}."
+                )
         fixture.order_counter += 1
         submission = {
             "tool": "orders_submit_multileg",
@@ -715,6 +843,11 @@ def build_tools(fixture: FixtureRuntime) -> list[Any]:
             "market_historical_prices",
             "Return completed historical OHLCV bars visible at the current simulated time.",
             market_historical_prices,
+        ),
+        (
+            "risk_calculate_stock_quantity",
+            "Calculate a whole-share stock quantity within maximum notional and available-cash caps.",
+            risk_calculate_stock_quantity,
         ),
         (
             "options_get_chain",

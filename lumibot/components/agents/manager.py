@@ -1104,6 +1104,7 @@ class AgentHandle:
             "TOOL USAGE:",
             "Use your available tools to gather evidence before making any trading decision. Do not guess when a tool can give you the answer.",
             "Before placing any trade, use tools to check current positions, available cash, and portfolio value.",
+            "For a stock order constrained by a notional or portfolio-percentage cap, use risk_calculate_stock_quantity and submit its returned whole-share quantity unchanged.",
             "Load recent price history for any asset you are considering and inspect it before deciding.",
             "If you already hold a position and are considering adding, reducing, or selling it, call search_memory for the open thesis first and compare the current evidence against that thesis.",
             "When available, use the built-in evidence stack before making a material equity decision: account/portfolio tools, current market prices, recent price history, DuckDB analysis, technical indicators, relevant news, macro/FRED data, SEC financial statements, SEC company facts, and SEC filings.",
@@ -1113,6 +1114,7 @@ class AgentHandle:
             "If the user asks for an aggressive or concentrated strategy, let that user strategy prompt override the default investor style, but still ground the decision in tool evidence, position sizing, broker constraints, and backtesting look-ahead safety.",
             "When querying DuckDB tables, use datetime for timestamp columns and close for price columns unless the loaded sample rows clearly show different column names.",
             "When you have access to external MCP tools, explore what they offer and use them. You do not need to be told which specific tool to call.",
+            "Before your final response, reconcile every state-changing tool result with the latest account and order reads. Never claim that no order was submitted after an order tool returned a submitted identifier; report the exact observed order status, even if your later analysis changes.",
             "Finish every run with a short summary sentence starting with RESULT: that explains what you did and why.",
         ]
         if self.include_builtin_skills:

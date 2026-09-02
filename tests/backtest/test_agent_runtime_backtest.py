@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from lumibot import __version__ as lumibot_version
 from lumibot.backtesting import PandasDataBacktesting
 from lumibot.components.agents import AgentRunResult
 from lumibot.entities import Asset, Data
@@ -813,7 +814,7 @@ def test_agent_detail_parquet_has_single_token_summary_row_and_full_events(monke
     assert set(summaries["outcome_fallback_used"]) == {False}
     assert set(summaries["outcome_broker_state_certainty"]) == {"not_observed"}
     assert set(summaries["outcome_impact"]) == {"completed"}
-    assert set(summaries["runtime_version"]) == {"4.5.89"}
+    assert set(summaries["runtime_version"]) == {lumibot_version}
     assert set(summaries["ai_access_mode"]) == {"byok"}
     call_numbers = list(range(1, UsageTelemetryRuntime.call_count + 1))
     assert summaries["call_input_tokens"].sum() == sum(1000 + idx for idx in call_numbers)

@@ -3,6 +3,39 @@
 ## 4.5.90 - Unreleased
 
 ### Fixed
+- **Release tests no longer inherit developer credentials into lazy-import
+  subprocesses or classify live Alpaca shorting checks as deterministic unit
+  coverage.** The isolated import checks strip broker/data-provider runtime
+  variables, the no-broker test now explicitly suppresses the dynamic default
+  broker factory, and network-backed shorting tests are correctly marked as API
+  tests. This keeps local and GitHub release gates equivalent without exposing
+  credential-bearing state in failure traces.
+- **Built distributions exclude generated Python bytecode.** The resource
+  manifest still includes the optional ThetaData runtime files while pruning
+  ``__pycache__`` directories and ``*.pyc``/``*.pyo`` artifacts from public
+  wheels.
+- **Option close tools now reject exposure-increasing closing legs before broker
+  submission.** Single-leg and atomic multi-leg closes validate every contract
+  against the latest signed position, reject reversed closing sides and oversized
+  quantities with a visible error, and allow the agent to correct the package
+  without creating a duplicate order.
+- **Agent release fixtures now exercise the same compact account-pagination
+  contract as production.** Positions and open orders expose totals, returned and
+  omitted counts, completeness, next offsets, snapshot identifiers, and as-of
+  timestamps, preventing agents from repeatedly polling legacy count-only fixture
+  results that could never prove account readiness.
+- **Stock agents now keep opening-range boundaries and reported order state
+  consistent.** The stock skill defines bar timestamps as interval starts,
+  excludes the first post-window bar from the opening range, requires exact
+  interval aggregation when necessary, verifies share quantity against notional
+  and cash caps through the deterministic ``risk_calculate_stock_quantity`` tool,
+  and requires final narratives to match submitted order
+  identifiers and final account reads. This fixes real-model release-gate
+  failures where an order filled but the final response claimed no trade occurred
+  and where a tenfold sizing error exceeded the strategy's allocation cap.
+  Historical-price tool guidance now advertises supported multi-minute aliases,
+  and agents may not treat a one-minute constituent as a completed five-minute
+  confirmation bar.
 - **Live fill/hedge callbacks are no longer gated behind a long
   ``on_trading_iteration``.** During live scans the executor drains priority
   fill/cancel events on the OTIM thread while user strategy code runs on a

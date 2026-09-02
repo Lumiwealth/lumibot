@@ -48,28 +48,31 @@ class TestBrokerInitializationSimple:
         # Mock both the credentials imports in the strategy module
         from lumibot.strategies import Strategy
 
-        with patch('lumibot.strategies._strategy.BROKER', None):
-            with patch('lumibot.credentials.IS_BACKTESTING', False):
-                # Create a minimal strategy class for testing
-                class TestStrategy(Strategy):
-                    def on_trading_iteration(self):
-                        pass
-                
-                # Attempt to initialize the strategy with None broker
-                with pytest.raises(ValueError) as exc_info:
-                    TestStrategy(broker=None)
-                
-                # Check that the error message is helpful and contains key information
-                error_message = str(exc_info.value)
-                
-                # Verify the error message contains helpful guidance
-                assert "No broker is set" in error_message
-                assert "IS_BACKTESTING" in error_message
-                assert ".env file" in error_message
-                assert "ALPACA_API_KEY" in error_message
-                assert "lumibot.lumiwealth.com" in error_message
-                assert "backtesting" in error_message.lower()
-                assert "live trading" in error_message.lower()
+        with (
+            patch("lumibot.strategies._strategy.BROKER", None),
+            patch("lumibot.strategies._strategy.get_default_broker", return_value=None),
+            patch("lumibot.credentials.IS_BACKTESTING", False),
+        ):
+            # Create a minimal strategy class for testing
+            class TestStrategy(Strategy):
+                def on_trading_iteration(self):
+                    pass
+
+            # Attempt to initialize the strategy with None broker
+            with pytest.raises(ValueError) as exc_info:
+                TestStrategy(broker=None)
+
+            # Check that the error message is helpful and contains key information
+            error_message = str(exc_info.value)
+
+            # Verify the error message contains helpful guidance
+            assert "No broker is set" in error_message
+            assert "IS_BACKTESTING" in error_message
+            assert ".env file" in error_message
+            assert "ALPACA_API_KEY" in error_message
+            assert "lumibot.lumiwealth.com" in error_message
+            assert "backtesting" in error_message.lower()
+            assert "live trading" in error_message.lower()
     
     def test_strategy_with_valid_broker_does_not_raise_broker_error(self):
         """

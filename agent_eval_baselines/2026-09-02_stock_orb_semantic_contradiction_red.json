@@ -1,0 +1,19 @@
+{
+  "caseId": "stock_orb_completed_bars",
+  "status": "red",
+  "observedAt": "2026-09-02",
+  "sourceWorkflowRun": "https://github.com/Lumiwealth/lumibot/actions/runs/33674982256",
+  "sourceArtifactId": 9864099174,
+  "repetition": 3,
+  "observedFailure": {
+    "description": "The agent submitted and filled a 43-share AAPL limit order, then its final answer incorrectly included the 09:45 bar in the 15-minute opening range and claimed that no trade was entered.",
+    "submittedOrderIdentifier": "fixture-order-1",
+    "submittedQuantity": 43,
+    "finalPositionQuantity": 43,
+    "finalAnswerClaimedNoTrade": true
+  },
+  "sourceArtifactHashes": {
+    "ledgerJsonlSha256": "45806e694ec460539b5eb205c729796d8625aeea38f0e719b3ed40cc379e81c7",
+    "summaryJsonSha256": "af849208908382372319cd8c47b6b0ed8a636397280b454f7189756ef0646a0e"
+  }
+}

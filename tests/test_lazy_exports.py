@@ -6,6 +6,34 @@ import sys
 from unittest.mock import patch
 
 
+_RUNTIME_ENV_PREFIXES = (
+    "ALPACA_",
+    "BACKTESTING_",
+    "DATABENTO_",
+    "DATADOWNLOADER_",
+    "LUMIBOT_",
+    "LUMIWEALTH_",
+    "POLYGON_",
+    "PROJECTX_",
+    "THETADATA_",
+    "TRADIER_",
+)
+
+
+def _clean_subprocess_env() -> dict[str, str]:
+    """Keep lazy-import subprocesses independent of local runtime credentials."""
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key not in {"BROKER", "DATA_SOURCE", "IS_BACKTESTING", "TRADING_BROKER"}
+        and not key.startswith(_RUNTIME_ENV_PREFIXES)
+    }
+    env["LUMIBOT_DISABLE_DOTENV"] = "1"
+    env["LUMIBOT_DISABLE_DOTENV_LOCAL"] = "1"
+    env["LUMIBOT_LOG_LEVEL"] = "ERROR"
+    return env
+
+
 def test_lazy_package_all_exports_resolve():
     modules = [
         "lumibot",
@@ -496,10 +524,7 @@ def test_bitunix_data_default_timezone_is_utc(monkeypatch):
 
 
 def test_diversified_leverage_import_defers_datetime():
-    env = os.environ.copy()
-    env["LUMIBOT_DISABLE_DOTENV"] = "1"
-    env["LUMIBOT_DISABLE_DOTENV_LOCAL"] = "1"
-    env["LUMIBOT_LOG_LEVEL"] = "ERROR"
+    env = _clean_subprocess_env()
 
     result = subprocess.run(
         [
@@ -706,10 +731,7 @@ print('signature=' + str(inspect.signature(strategy_module.Asset)))
 
 
 def test_strategy_construction_defers_optional_components():
-    env = os.environ.copy()
-    env["LUMIBOT_DISABLE_DOTENV"] = "1"
-    env["LUMIBOT_DISABLE_DOTENV_LOCAL"] = "1"
-    env["LUMIBOT_LOG_LEVEL"] = "ERROR"
+    env = _clean_subprocess_env()
 
     result = subprocess.run(
         [

@@ -19,6 +19,9 @@ class BuildWithThetaJar(_build_py):
     """
 
     def run(self):
+        build_lib = Path(self.build_lib)
+        if build_lib.exists():
+            shutil.rmtree(build_lib)
         super().run()
         self._maybe_copy_theta_terminal()
 

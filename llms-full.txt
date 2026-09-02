@@ -1,5 +1,5 @@
 # Lumibot Documentation (Compiled)
-# Generated: 2026-09-02T08:44:26Z
+# Generated: 2026-09-02T08:47:49Z
 
 
 ===== agents =====
@@ -7605,8 +7605,8 @@ Important:
 
   Interested in implementing these strategies? BotSpot can help you
   build, backtest, and run LumiBot strategies from plain English.
-  Start on BotSpot. For any questions, email us at
-  support@lumiwealth.com.
+  Start on BotSpot. For questions, use BotSpot's public support
+  experience.
 
 ===== backtesting.thetadata =====
 

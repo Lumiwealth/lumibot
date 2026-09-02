@@ -147,4 +147,4 @@ class MyStrategy(Strategy):
 
 Set via environment variable: `BACKTESTING_DATA_SOURCE=yahoo|polygon|thetadata|polymarket`
 
-# Generated: 2026-09-02T08:44:27Z
+# Generated: 2026-09-02T08:47:50Z

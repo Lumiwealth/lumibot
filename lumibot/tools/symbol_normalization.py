@@ -144,7 +144,7 @@ def parse_crypto_pair_symbol(symbol: object) -> tuple[Optional[str], Optional[st
     if len(parts) >= 2:
         return parts[0], parts[1]
 
-    for suffix in _CRYPTO_QUOTE_SUFFIXES:
+    for suffix in sorted(_CRYPTO_QUOTE_SUFFIXES, key=len, reverse=True):
         if sym.endswith(suffix) and len(sym) > len(suffix):
             base = sym[: -len(suffix)]
             if base:
@@ -233,17 +233,6 @@ def crypto_ccxt_symbol_candidates(
 
     normalized = build_ccxt_crypto_symbol(raw, exchange_id=exchange_id) if isinstance(raw, str) else None
     _add(normalized)
-
-    # Prefer USD form on Coinbase when a USDT request is made and callers want
-    # exchange-native USD pairs; keep USDT first so intentional USDT stays
-    # authoritative when the market exists.
-    if isinstance(normalized, str) and normalized.endswith("/USDT") and (exchange_id or "").strip().lower() in {
-        "coinbase",
-        "coinbaseexchange",
-        "coinbaseadvanced",
-        "coinbasepro",
-    }:
-        _add(normalized[: -len("USDT")] + "USD")
 
     return candidates
 

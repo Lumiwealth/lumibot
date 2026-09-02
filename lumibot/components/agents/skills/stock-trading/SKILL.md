@@ -21,7 +21,8 @@ broad mandate leads you to a stock idea, load it before submitting an order.
    stop distance, and the user's risk rules. For a notional cap, calculate
    the maximum notional and call `risk_calculate_stock_quantity`; use its returned
    whole-share quantity unchanged. Verify its notional is at or below both the cap
-   and available cash before submission.
+   and available cash before submission. Submit only when the returned quantity is
+   greater than zero; otherwise make a no-trade decision.
 6. Submit the selected order once.
 7. Capture the returned identifier, inspect that exact order, and reread positions
    and open orders. In backtests, a short bounded `orders_wait_for_terminal` is

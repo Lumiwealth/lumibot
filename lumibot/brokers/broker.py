@@ -1051,6 +1051,11 @@ class Broker(ABC):
         """
         Sync the broker positions with the lumibot positions. Remove any lumibot positions that are not at the broker.
         """
+        # Only positions that existed before the broker snapshot began are
+        # eligible for stale pruning. A fill can add a local position while the
+        # remote read is in flight; absence from that older snapshot must not
+        # delete the newly observed fill.
+        positions_before_snapshot = {id(position) for position in self._filled_positions.get_list()}
         positions_broker = self._pull_positions(strategy)
         for position in positions_broker:
             # Check if the position is None
@@ -1092,7 +1097,11 @@ class Broker(ABC):
                 if position_broker.asset == position.asset:
                     found = True
                     break
-            if not found and (position.asset not in self.quote_assets):
+            if (
+                not found
+                and id(position) in positions_before_snapshot
+                and (position.asset not in self.quote_assets)
+            ):
                 self._filled_positions.remove(position)
 
     def refresh_positions(self, strategy, ttl_seconds: float = 0.0):

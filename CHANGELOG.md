@@ -5,6 +5,20 @@
 Deploy marker: `76bb79c757c2`
 
 ### Fixed
+- **Managed agents now preserve correctness across compound safety boundaries.**
+  Duplicate option-closing legs are validated against the remaining signed
+  position, stale broker snapshots cannot prune positions created while the
+  snapshot was in flight, fixture snapshot identifiers change when position
+  content changes, and stock sizing guidance requires a verified positive
+  whole-share quantity even when the built-in sizing tool is unavailable.
+- **Priority trade events are now isolated from normal executor backlog.** Fill,
+  partial-fill, cancel, and error events use a dedicated nonblocking queue that
+  is drained before ordinary order events, eliminating the prior
+  ``Queue.empty()``/blocking-``get()`` race and preserving hedge responsiveness.
+- **Crypto symbol normalization preserves the requested quote asset.** Compact
+  symbols prefer the longest recognized suffix (for example ``BTCBUSD`` parses
+  as ``BTC/BUSD``), and Coinbase lookup no longer silently substitutes a USD
+  market for an explicitly requested USDT market.
 - **Release tests no longer inherit developer credentials into lazy-import
   subprocesses or classify live Alpaca shorting checks as deterministic unit
   coverage.** The isolated import checks strip broker/data-provider runtime
@@ -44,7 +58,7 @@ Deploy marker: `76bb79c757c2`
   helper thread, ``check_queue`` wakes immediately on fill/cancel/error events
   instead of sleeping up to 0.5s, and ``sync_broker`` no longer holds fill or
   partial-fill trade events. Target: hedge submission must not wait for a
-  100s+ scan (Titus CVNA 2026-09-02: option fill while a 122s iteration was
+  100s+ scan (2026-09-02 regression: option fill while a 122s iteration was
   running). Covered by ``tests/test_priority_fill_during_iteration.py``.
 - **Coinbase/CCXT crypto backtests no longer silently complete with zero trades
   when strategies use pair-string base symbols.** Hyphen and concatenated forms

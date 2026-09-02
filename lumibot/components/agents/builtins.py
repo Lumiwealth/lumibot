@@ -916,6 +916,9 @@ def _validate_option_closing_orders(strategy: Any, orders: list[Any]) -> None:
                 "Option closing quantity exceeds the current signed position: "
                 f"contract={key}, current_quantity={current_quantity}, requested_quantity={order_quantity}."
             )
+        quantities_by_contract[key] = (
+            current_quantity - order_quantity if side == "sell_to_close" else current_quantity + order_quantity
+        )
 
 
 def _bind_positions(strategy: Any, manager: Any) -> BoundTool:

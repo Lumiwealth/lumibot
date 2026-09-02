@@ -8,15 +8,34 @@ from unittest.mock import patch
 
 _RUNTIME_ENV_PREFIXES = (
     "ALPACA_",
+    "ANTHROPIC_",
     "BACKTESTING_",
+    "BINANCE_",
+    "BITUNIX_",
+    "CCXT_",
+    "COINBASE_",
     "DATABENTO_",
     "DATADOWNLOADER_",
+    "DEEPSEEK_",
+    "GEMINI_",
+    "GOOGLE_",
+    "GROK_",
+    "IBKR_",
+    "INTERACTIVE_BROKERS_",
+    "KRAKEN_",
     "LUMIBOT_",
     "LUMIWEALTH_",
+    "OPENAI_",
+    "OPENROUTER_",
     "POLYGON_",
+    "POLYMARKET_",
     "PROJECTX_",
+    "SCHWAB_",
     "THETADATA_",
     "TRADIER_",
+    "TRADOVATE_",
+    "WEEX_",
+    "XAI_",
 )
 
 
@@ -661,10 +680,7 @@ def test_order_import_defers_smart_limit_module():
 
 
 def test_startup_order_lazy_class_proxy_defers_order_module():
-    env = os.environ.copy()
-    env["LUMIBOT_DISABLE_DOTENV"] = "1"
-    env["LUMIBOT_DISABLE_DOTENV_LOCAL"] = "1"
-    env["LUMIBOT_LOG_LEVEL"] = "ERROR"
+    env = _clean_subprocess_env()
 
     result = subprocess.run(
         [

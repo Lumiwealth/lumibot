@@ -174,6 +174,22 @@ def test_credit_spread_fixture_rejects_reversed_closing_sides_before_submission(
         (594.0, -3),
         (592.0, 3),
     }
+
+
+def test_credit_spread_fixture_rejects_duplicate_closes_beyond_position():
+    fixture = evals.build_fixture("open_credit_spread")
+    submit = next(tool for tool in evals.build_tools(fixture) if tool.name == "orders_submit_multileg")
+
+    with pytest.raises(ValueError, match="requested_quantity=2.0"):
+        submit.function(
+            legs_json=(
+                '[{"symbol":"SPY","expiration":"2026-08-28","strike":592,'
+                '"right":"put","quantity":2,"side":"sell_to_close"},'
+                '{"symbol":"SPY","expiration":"2026-08-28","strike":592,'
+                '"right":"put","quantity":2,"side":"sell_to_close"}]'
+            )
+        )
+
     assert fixture.submissions == []
 
 
@@ -282,13 +298,18 @@ def test_account_eval_fixtures_match_compact_pagination_contract():
     assert positions["omitted"] == 1
     assert positions["complete"] is False
     assert positions["next_offset"] == 1
-    assert positions["snapshot_id"] == "fixture-positions-2"
+    assert positions["snapshot_id"].startswith("fixture-positions-")
     assert orders["total"] == 0
     assert orders["returned"] == 0
     assert orders["omitted"] == 0
     assert orders["complete"] is True
     assert orders["next_offset"] is None
     assert orders["snapshot_id"] == "fixture-open-orders-0"
+
+    original_snapshot_id = positions["snapshot_id"]
+    fixture.positions[0]["quantity"] = float(fixture.positions[0]["quantity"]) + 1
+    changed = tools["account_positions"](offset=0, limit=1)
+    assert changed["snapshot_id"] != original_snapshot_id
 
 
 def test_stock_order_fixture_applies_filled_order_to_positions():

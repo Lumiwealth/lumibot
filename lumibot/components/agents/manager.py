@@ -1057,6 +1057,19 @@ class AgentHandle:
                 f"{open_orders_omitted} open orders are omitted from the injected snapshot; they still exist. "
                 "Use complete unfiltered orders_open_orders pagination before concluding no other open orders exist."
             )
+        available_tool_names = {tool.name for tool in self._ensure_bound_tools()}
+        if "risk_calculate_stock_quantity" in available_tool_names:
+            stock_sizing_instruction = (
+                "For a stock order constrained by a notional or portfolio-percentage cap, use "
+                "risk_calculate_stock_quantity and submit its returned whole-share quantity unchanged only when "
+                "quantity is greater than zero; otherwise make a no-trade decision."
+            )
+        else:
+            stock_sizing_instruction = (
+                "risk_calculate_stock_quantity is unavailable. Do not submit a stock order constrained by a "
+                "notional or portfolio-percentage cap unless another available tool produces a verified positive "
+                "whole-share quantity within both the cap and available cash; otherwise make a no-trade decision."
+            )
         lines = [
             "You are operating as a trading agent inside LumiBot.",
             "Use the provided runtime context and tool outputs as the ground truth for the current state of the strategy.",
@@ -1104,7 +1117,7 @@ class AgentHandle:
             "TOOL USAGE:",
             "Use your available tools to gather evidence before making any trading decision. Do not guess when a tool can give you the answer.",
             "Before placing any trade, use tools to check current positions, available cash, and portfolio value.",
-            "For a stock order constrained by a notional or portfolio-percentage cap, use risk_calculate_stock_quantity and submit its returned whole-share quantity unchanged.",
+            stock_sizing_instruction,
             "Load recent price history for any asset you are considering and inspect it before deciding.",
             "If you already hold a position and are considering adding, reducing, or selling it, call search_memory for the open thesis first and compare the current evidence against that thesis.",
             "When available, use the built-in evidence stack before making a material equity decision: account/portfolio tools, current market prices, recent price history, DuckDB analysis, technical indicators, relevant news, macro/FRED data, SEC financial statements, SEC company facts, and SEC filings.",

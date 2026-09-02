@@ -329,7 +329,10 @@ def build_tools(fixture: FixtureRuntime) -> list[Any]:
             "omitted": max(len(position_payloads) - offset - len(page), 0),
             "complete": offset + len(page) >= len(position_payloads),
             "next_offset": offset + len(page) if offset + len(page) < len(position_payloads) else None,
-            "snapshot_id": f"fixture-positions-{len(position_payloads)}",
+            "snapshot_id": (
+                "fixture-positions-"
+                + hashlib.sha256(stable_json(position_payloads).encode("utf-8")).hexdigest()[:16]
+            ),
             "as_of": "2026-08-11T14:35:00Z",
             "filters": {},
         }
@@ -626,17 +629,17 @@ def build_tools(fixture: FixtureRuntime) -> list[Any]:
         time_in_force: str = "day",
     ) -> dict[str, Any]:
         legs = _parse_legs(legs_json)
+        remaining_by_contract = {
+            fixture.option_key(position): float(position["quantity"])
+            for position in fixture.positions
+        }
         for leg in legs:
             side = str(leg.get("side") or "").lower()
             if side not in {"buy_to_close", "sell_to_close"}:
                 continue
             quantity = abs(float(leg.get("quantity") or 0))
             key = fixture.option_key(leg)
-            current = next(
-                (position for position in fixture.positions if fixture.option_key(position) == key),
-                None,
-            )
-            current_quantity = float(current["quantity"]) if current is not None else 0.0
+            current_quantity = remaining_by_contract.get(key, 0.0)
             expected_side = (
                 "sell_to_close"
                 if current_quantity > 0
@@ -654,6 +657,9 @@ def build_tools(fixture: FixtureRuntime) -> list[Any]:
                     "Option closing quantity exceeds the current signed position: "
                     f"current_quantity={current_quantity}, requested_quantity={quantity}."
                 )
+            remaining_by_contract[key] = (
+                current_quantity - quantity if side == "sell_to_close" else current_quantity + quantity
+            )
         fixture.order_counter += 1
         submission = {
             "tool": "orders_submit_multileg",

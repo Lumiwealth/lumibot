@@ -166,6 +166,7 @@ def test_parse_crypto_pair_symbol_accepts_common_forms():
     assert parse_crypto_pair_symbol("BTC/USD") == ("BTC", "USD")
     assert parse_crypto_pair_symbol("btc-usd") == ("BTC", "USD")
     assert parse_crypto_pair_symbol("BTCUSD") == ("BTC", "USD")
+    assert parse_crypto_pair_symbol("BTCBUSD") == ("BTC", "BUSD")
     assert parse_crypto_pair_symbol("BTC") == ("BTC", None)
     assert parse_crypto_pair_symbol("") == (None, None)
 
@@ -189,10 +190,11 @@ def test_resolve_ccxt_market_symbol_maps_coinbase_hyphen_and_redundant_pair():
     assert "BTC/USD" in crypto_ccxt_symbol_candidates("BTC-USD/USD")
 
 
-def test_coinbase_usdt_candidate_includes_usd_alias():
+def test_coinbase_usdt_candidate_does_not_substitute_usd_quote():
     candidates = crypto_ccxt_symbol_candidates("BTC/USDT", exchange_id="coinbase")
     assert candidates[0] == "BTC/USDT"
-    assert "BTC/USD" in candidates
+    assert "BTC/USD" not in candidates
+    assert resolve_ccxt_market_symbol({"BTC/USD": {}}, "BTC/USDT", exchange_id="coinbase") is None
 
 
 def test_order_pair_normalizes_btc_usd_pair_base():

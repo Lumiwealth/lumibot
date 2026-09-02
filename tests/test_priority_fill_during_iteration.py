@@ -1,6 +1,6 @@
 """Priority fill/hedge handling must not wait for a long on_trading_iteration.
 
-Regression for Titus / CVNA live hedge delay (2026-09-02):
+Regression for a live option-fill hedge delay (2026-09-02):
 option fill arrived while a ~122s scan was running; hedge submission must not be
 gated behind the full scan finishing.
 """
@@ -292,3 +292,52 @@ def test_broker_does_not_hold_fill_events_during_sync():
     assert not should_hold_trade_event_for_sync(
         hold_trade_events=True, is_backtesting=True, type_event="new"
     )
+
+
+def test_process_queue_uses_nonblocking_retrieval():
+    strategy = _PriorityHedgeStrategy(scan_seconds=0.01)
+    executor = _build_live_executor(strategy)
+
+    class NonBlockingOnlyQueue:
+        def get(self):
+            raise AssertionError("process_queue must not use blocking Queue.get")
+
+        def get_nowait(self):
+            from queue import Empty
+
+            raise Empty
+
+    executor.queue = NonBlockingOnlyQueue()
+    executor.process_queue()
+
+
+def test_process_queue_drains_priority_events_before_normal_backlog():
+    strategy = _PriorityHedgeStrategy(scan_seconds=0.01)
+    executor = _build_live_executor(strategy)
+    processed = []
+    executor.process_event = lambda event, payload: processed.append(event)
+
+    executor.add_event(executor.NEW_ORDER, {"sequence": 1})
+    executor.add_event(executor.NEW_ORDER, {"sequence": 2})
+    executor.add_event(executor.FILLED_ORDER, {"sequence": 3})
+    executor.process_queue()
+
+    assert processed == [executor.FILLED_ORDER, executor.NEW_ORDER, executor.NEW_ORDER]
+
+
+def test_priority_event_preempts_remaining_normal_backlog_when_it_arrives_mid_drain():
+    strategy = _PriorityHedgeStrategy(scan_seconds=0.01)
+    executor = _build_live_executor(strategy)
+    processed = []
+
+    def process(event, payload):
+        processed.append(event)
+        if payload["sequence"] == 1:
+            executor.add_event(executor.FILLED_ORDER, {"sequence": 3})
+
+    executor.process_event = process
+    executor.add_event(executor.NEW_ORDER, {"sequence": 1})
+    executor.add_event(executor.NEW_ORDER, {"sequence": 2})
+    executor.process_queue()
+
+    assert processed == [executor.NEW_ORDER, executor.FILLED_ORDER, executor.NEW_ORDER]

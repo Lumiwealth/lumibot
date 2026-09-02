@@ -162,6 +162,7 @@ class StrategyExecutor(Thread):
         self.stop_event = Event()
         self.lock = Lock()
         self.queue = Queue()
+        self.priority_queue = Queue()
 
         self.strategy = strategy
         self._strategy_context = None
@@ -853,9 +854,11 @@ class StrategyExecutor(Thread):
         return broker_identifiers
 
     def add_event(self, event_name, payload):
-        self.queue.put((event_name, payload))
         if event_name in _PRIORITY_TRADE_EVENTS:
+            self.priority_queue.put((event_name, payload))
             self._queue_wakeup.set()
+        else:
+            self.queue.put((event_name, payload))
 
     def process_event(self, event, payload):
         # Log that we are processing an event.
@@ -978,8 +981,14 @@ class StrategyExecutor(Thread):
             self.strategy.logger.error(f"Event {event} not recognized. Payload: {payload}")
 
     def process_queue(self):
-        while not self.queue.empty():
-            event, payload = self.queue.get()
+        while True:
+            try:
+                event, payload = self.priority_queue.get_nowait()
+            except Empty:
+                try:
+                    event, payload = self.queue.get_nowait()
+                except Empty:
+                    break
             self.process_event(event, payload)
 
     def _process_smart_limit_orders(self):

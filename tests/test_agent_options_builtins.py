@@ -400,6 +400,15 @@ def test_option_close_validation_rejects_reversed_side_and_oversized_quantity():
         [SimpleNamespace(asset=long_put, quantity=3, side="sell_to_close")],
     )
 
+    with pytest.raises(ValueError, match="requested_quantity=2.0"):
+        _validate_option_closing_orders(
+            strategy,
+            [
+                SimpleNamespace(asset=long_put, quantity=2, side="sell_to_close"),
+                SimpleNamespace(asset=long_put, quantity=2, side="sell_to_close"),
+            ],
+        )
+
 
 def test_multileg_submit_creates_one_atomic_four_leg_order_after_normal_readiness_checks():
     strategy = _OptionsStrategy()

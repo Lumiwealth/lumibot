@@ -90,3 +90,18 @@ def test_sync_positions_clears_stale_mark_fields_missing_from_broker_position():
     assert not hasattr(synced, "current_price")
     assert not hasattr(synced, "market_value")
     assert not hasattr(synced, "pnl")
+
+
+def test_sync_positions_does_not_prune_position_added_after_snapshot_started():
+    broker = _BrokerForSyncTest([])
+    new_fill = _stock_position(quantity=1, current_price=220.0, market_value=220.0, pnl=0.0)
+
+    def pull_positions_with_interleaved_fill(strategy):
+        broker._filled_positions.append(new_fill)
+        return []
+
+    broker._pull_positions = pull_positions_with_interleaved_fill
+
+    broker.sync_positions(_Strategy())
+
+    assert broker._filled_positions.get_list() == [new_fill]

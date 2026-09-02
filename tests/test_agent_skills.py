@@ -145,7 +145,8 @@ def test_agent_runtime_enables_builtin_skills_and_fingerprints_cache(monkeypatch
     assert "managing any stock, ETF, or option position or related pending order" in first.system_prompt
     assert "MUST load the matching skill" in first.system_prompt
     assert "Never claim that no order was submitted" in first.system_prompt
-    assert "use risk_calculate_stock_quantity" in first.system_prompt
+    assert "risk_calculate_stock_quantity is unavailable" in first.system_prompt
+    assert "make a no-trade decision" in first.system_prompt
 
 
 def test_agent_can_disable_builtin_skills_explicitly():

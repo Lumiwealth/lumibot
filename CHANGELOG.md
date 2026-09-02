@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.5.90 - Unreleased
+## 4.5.90 - 2026-09-02
 
 ### Fixed
 - **Release tests no longer inherit developer credentials into lazy-import

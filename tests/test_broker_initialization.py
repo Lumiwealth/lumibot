@@ -6,10 +6,11 @@ import os
 import time
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from urllib.parse import urlparse
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
-from unittest.mock import patch, MagicMock
 
 
 class _CalendarTestBroker:
@@ -70,7 +71,12 @@ class TestBrokerInitializationSimple:
             assert "IS_BACKTESTING" in error_message
             assert ".env file" in error_message
             assert "ALPACA_API_KEY" in error_message
-            assert "lumibot.lumiwealth.com" in error_message
+            documented_hosts = {
+                urlparse(token.rstrip(".,;:!?)]}")).hostname
+                for token in error_message.split()
+                if token.startswith(("https://", "http://"))
+            }
+            assert "lumibot.lumiwealth.com" in documented_hosts
             assert "backtesting" in error_message.lower()
             assert "live trading" in error_message.lower()
     

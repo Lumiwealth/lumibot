@@ -36,6 +36,9 @@ class _OrderReadinessStrategy(_Strategy):
     def get_positions(self, include_cash_positions=True):
         return []
 
+    def get_orders(self):
+        return list(self.submitted_orders)
+
     def get_cash(self):
         return 100000.0
 
@@ -648,6 +651,7 @@ def test_agent_order_tool_rejects_when_account_context_was_not_checked():
         [
             BuiltinTools.account.positions(),
             BuiltinTools.account.portfolio(),
+            BuiltinTools.orders.open_orders(),
             BuiltinTools.market.last_price(),
             BuiltinTools.orders.submit(),
         ],
@@ -677,6 +681,7 @@ def test_agent_order_tool_submits_after_account_context_was_checked():
         [
             BuiltinTools.account.positions(),
             BuiltinTools.account.portfolio(),
+            BuiltinTools.orders.open_orders(),
             BuiltinTools.market.last_price(),
             BuiltinTools.orders.submit(),
         ],
@@ -684,6 +689,7 @@ def test_agent_order_tool_submits_after_account_context_was_checked():
 
     tool_map["account_portfolio"]()
     tool_map["account_positions"]()
+    tool_map["orders_open_orders"]()
     tool_map["market_last_price"](symbol="SPY", asset_type="stock")
     result = tool_map["orders_submit_order"](
         symbol="SPY",
@@ -734,6 +740,7 @@ def test_successful_order_invalidates_injected_snapshot_until_account_is_refresh
         [
             BuiltinTools.account.positions(),
             BuiltinTools.account.portfolio(),
+            BuiltinTools.orders.open_orders(),
             BuiltinTools.market.last_price(),
             BuiltinTools.orders.submit(),
         ],
@@ -768,6 +775,7 @@ def test_successful_order_invalidates_injected_snapshot_until_account_is_refresh
 
     tool_map["account_portfolio"]()
     tool_map["account_positions"]()
+    tool_map["orders_open_orders"]()
     third = tool_map["orders_submit_order"](
         symbol="SPY",
         quantity=1,

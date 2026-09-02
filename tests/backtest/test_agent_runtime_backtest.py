@@ -56,6 +56,7 @@ class StockPlanRuntime:
         events = [_event("thinking", text="Inspecting current stock state.")]
         positions = _invoke_tool(request, events, "account_positions")
         _invoke_tool(request, events, "account_portfolio")
+        _invoke_tool(request, events, "orders_open_orders")
         _invoke_tool(request, events, "market_last_price", symbol=request.context["symbol"], asset_type="stock")
         table = _invoke_tool(
             request,
@@ -104,6 +105,7 @@ class OptionPlanRuntime:
         events = [_event("thinking", text="Inspecting current option state.")]
         positions = _invoke_tool(request, events, "account_positions")
         _invoke_tool(request, events, "account_portfolio")
+        _invoke_tool(request, events, "orders_open_orders")
         _invoke_tool(
             request,
             events,
@@ -134,7 +136,7 @@ class OptionPlanRuntime:
             sql=f"SELECT COUNT(*) AS rows_seen, MIN(close) AS min_close, MAX(close) AS max_close FROM {table['table_name']}",
         )
         has_position = any(
-            pos.get("asset", {}).get("asset_type") == "option" and float(pos.get("quantity") or 0) > 0
+            pos.get("asset", {}).get("type") == "option" and float(pos.get("quantity") or 0) > 0
             for pos in positions["positions"]
             if isinstance(pos, dict)
         )
@@ -167,6 +169,7 @@ class MinuteStressRuntime:
         events = [_event("thinking", text="Stress-testing minute DuckDB history refresh.")]
         positions = _invoke_tool(request, events, "account_positions")
         _invoke_tool(request, events, "account_portfolio")
+        _invoke_tool(request, events, "orders_open_orders")
         _invoke_tool(request, events, "market_last_price", symbol=request.context["symbol"], asset_type="stock")
         table = _invoke_tool(
             request,

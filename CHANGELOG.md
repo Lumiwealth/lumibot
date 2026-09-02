@@ -2,6 +2,26 @@
 
 ## 4.5.89 - Unreleased
 
+### Added
+
+- **Agent account tools now support bounded pagination and exact contract
+  lookup.** ``account_positions`` and ``orders_open_orders`` return 50 compact,
+  deterministically ordered records by default (maximum 100), report explicit
+  total/included/omitted/completeness metadata, and accept exact symbol, asset
+  type, expiration, strike, and option-right filters. Open-order lookup also
+  matches multi-leg child contracts.
+
+### Fixed
+
+- **Agent account context stays compact and cannot silently hide omitted
+  exposure.** Injected snapshots and account tools share a strict projection
+  built from ``Asset.to_minimal_dict()`` rather than expanding raw broker or
+  Python objects. Missing optional values are omitted instead of becoming fake
+  zeroes, prompts state that truncated positions and orders still exist, and
+  order readiness now requires complete unfiltered position and open-order
+  pagination whenever the initial snapshot is incomplete or an earlier order
+  mutated account state.
+
 ## 4.5.88 - 2026-09-01
 
 ### Fixed

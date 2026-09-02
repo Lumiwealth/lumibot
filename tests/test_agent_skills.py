@@ -243,15 +243,17 @@ def test_runtime_context_injects_bounded_account_snapshot_with_completeness_flag
 
     context = runtime.requests[0].runtime_context
     assert context["account"] == {"cash": 100_000.0, "portfolio_value": 125_000.0}
-    assert len(context["positions"]) == 25
+    assert len(context["positions"]) == 30
     assert context["account_snapshot"] == {
         "as_of": "2026-08-11T00:00:00+00:00",
         "account_complete": True,
-        "positions_count": 30,
-        "positions_included": 25,
-        "positions_complete": False,
-        "open_orders_count": 0,
+        "positions_total": 30,
+        "positions_included": 30,
+        "positions_omitted": 0,
+        "positions_complete": True,
+        "open_orders_total": 0,
         "open_orders_included": 0,
+        "open_orders_omitted": 0,
         "open_orders_complete": True,
     }
 

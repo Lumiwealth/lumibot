@@ -153,13 +153,26 @@ def _wrap_tool_callable(tool: BoundTool, tool_context: dict[str, Any] | None = N
         if isinstance(tool_context, dict):
             calls = tool_context.setdefault("tool_calls", [])
             if isinstance(calls, list):
-                calls.append(
-                    {
-                        "tool_name": tool.name,
-                        "arguments": _json_safe_value(dict(kwargs or {})),
-                        "ok": not (isinstance(result, dict) and result.get("tool_error") is True),
+                call_record = {
+                    "tool_name": tool.name,
+                    "arguments": _json_safe_value(dict(kwargs or {})),
+                    "ok": not (isinstance(result, dict) and result.get("tool_error") is True),
+                }
+                if tool.name in {"account_positions", "orders_open_orders"} and isinstance(result, dict):
+                    call_record["coverage"] = {
+                        key: _json_safe_value(result.get(key))
+                        for key in (
+                            "total",
+                            "matched",
+                            "returned",
+                            "offset",
+                            "limit",
+                            "complete",
+                            "next_offset",
+                            "filters",
+                        )
                     }
-                )
+                calls.append(call_record)
         return result
 
     wrapper.__name__ = _tool_function_name(tool.name)

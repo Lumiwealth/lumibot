@@ -45,6 +45,9 @@ class _OptionsStrategy:
     def get_positions(self, include_cash_positions=True):
         return []
 
+    def get_orders(self):
+        return []
+
     def get_cash(self):
         return 100_000.0
 
@@ -191,6 +194,7 @@ def test_market_last_prices_returns_batch_prices_and_satisfies_order_readiness()
         [
             BuiltinTools.account.positions(),
             BuiltinTools.account.portfolio(),
+            BuiltinTools.orders.open_orders(),
             BuiltinTools.market.last_prices(),
             BuiltinTools.orders.submit(),
         ],
@@ -204,6 +208,7 @@ def test_market_last_prices_returns_batch_prices_and_satisfies_order_readiness()
 
     tools["account_portfolio"]()
     tools["account_positions"]()
+    tools["orders_open_orders"]()
     # Batch price tool must satisfy readiness for a symbol included in the scan.
     submitted = tools["orders_submit_order"](
         symbol="SPY",
@@ -340,12 +345,14 @@ def test_multileg_submit_creates_one_atomic_four_leg_order_after_normal_readines
         [
             BuiltinTools.account.positions(),
             BuiltinTools.account.portfolio(),
+            BuiltinTools.orders.open_orders(),
             BuiltinTools.market.last_price(),
             BuiltinTools.orders.submit_multileg(),
         ],
     )
     tools["account_portfolio"]()
     tools["account_positions"]()
+    tools["orders_open_orders"]()
     tools["market_last_price"](symbol="SPY")
 
     result = tools["orders_submit_multileg"](

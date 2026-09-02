@@ -55,11 +55,12 @@ exact order requested or rejects it. It does not silently resize, clip, or
 normalize a requested order into a different order.
 
 Before ``orders_submit_order`` or ``orders_submit_multileg`` can submit an
-order, the agent must inspect the required account and price context in the
-same agent run:
+order, the agent must inspect the required account, open-order, and price
+context in the same agent run:
 
 - ``account_portfolio`` for cash and portfolio value
-- ``account_positions`` for current holdings
+- complete unfiltered ``account_positions`` pagination for current holdings
+- complete unfiltered ``orders_open_orders`` pagination for active orders
 - ``market_last_price`` for the ordered symbol, or ``market_last_prices``
   including that symbol
 
@@ -68,7 +69,10 @@ If those checks are missing, the order tool returns an
 This is not a universal margin model. LumiBot does not try to enforce one
 broker/country/asset-class leverage rule across stocks, ETFs, options, futures,
 forex, and crypto. The readiness gate only prevents blind trading; sizing
-judgment remains with the strategy and agent.
+judgment remains with the strategy and agent. A fresh injected account snapshot
+satisfies the initial account and open-order checks only when all of its
+completeness flags are true. After an order mutation, the agent must refresh
+the account and open-order context before submitting another order.
 
 Market-price tools:
 
@@ -131,10 +135,26 @@ After submission, agents can call ``orders_get_status`` or
 ``orders_wait_for_terminal`` to verify identifiers. Never treat a submitted
 status as a fill unless ``is_filled`` is true.
 
-``account_positions`` includes the exact contract, signed quantity, average
-fill, current value, and P&L fields when the active broker or backtest provides
-them. Agents can use those generic fields to reconstruct and manage existing
-option positions.
+``account_positions`` and ``orders_open_orders`` return compact, deterministic
+pages with 50 records by default and at most 100 per call. Every response
+includes total, matched, returned, omitted, complete, and next-offset metadata.
+When ``complete`` is false, omitted records still exist; continue through the
+remaining unfiltered pages before treating the account view as complete.
+
+Both tools support exact symbol, asset type, expiration, strike, and option
+right filters. This allows an agent to find a specific contract even when it
+falls outside the first visible page. Open-order filters also inspect compact
+multi-leg child contracts. A targeted lookup proves whether that contract is
+present, while complete unfiltered pagination is still required for full
+order-readiness.
+
+Position entries include the exact compact asset identity, signed quantity,
+closing side and quantity for options, and available average fill, current
+price, market value, and P&L fields. Missing optional values are omitted rather
+than represented as zero. The injected runtime snapshot uses the same compact
+position and order representation as the tools, so inspecting the account does
+not unexpectedly expand raw broker or internal Python objects into model
+context.
 
 Technical Indicators
 --------------------

@@ -932,7 +932,7 @@ class AgentHandle:
             return current_dt.isoformat()
         return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
-    def _serialize_positions(self, limit: int = 25) -> tuple[list[dict[str, Any]], int, bool]:
+    def _serialize_positions(self, limit: int = 50) -> tuple[list[dict[str, Any]], int, bool]:
         if not hasattr(self.manager.strategy, "get_positions"):
             return [], 0, False
         try:
@@ -940,7 +940,10 @@ class AgentHandle:
         except Exception:
             return [], 0, False
         _order_to_dict, _position_to_dict = _get_builtin_serializers()
-        serialized = [_position_to_dict(position) for position in positions]
+        serialized = sorted(
+            (_position_to_dict(position) for position in positions),
+            key=lambda payload: json.dumps(payload.get("asset", {}), sort_keys=True, default=str),
+        )
         return serialized[:limit], len(serialized), len(serialized) <= limit
 
     def _serialize_account_state(self) -> tuple[dict[str, Any], bool]:
@@ -962,7 +965,7 @@ class AgentHandle:
         _order_to_dict, _position_to_dict = _get_builtin_serializers()
         return [_order_to_dict(order) for order in orders[-limit:]]
 
-    def _serialize_open_orders(self, limit: int = 10) -> tuple[list[dict[str, Any]], int, bool]:
+    def _serialize_open_orders(self, limit: int = 50) -> tuple[list[dict[str, Any]], int, bool]:
         if not hasattr(self.manager.strategy, "get_orders"):
             return [], 0, False
         try:
@@ -970,12 +973,26 @@ class AgentHandle:
         except Exception:
             return [], 0, False
         _order_to_dict, _position_to_dict = _get_builtin_serializers()
-        terminal_statuses = {"canceled", "cancelled", "error", "filled"}
-        serialized = [
-            payload
-            for payload in (_order_to_dict(order) for order in orders)
-            if str(payload.get("status") or "").strip().lower() not in terminal_statuses
-        ]
+        active_statuses = {"unprocessed", "submitted", "open", "new", "cancelling", "partial_fill"}
+        active_orders = []
+        for order in orders:
+            is_active = getattr(order, "is_active", None)
+            if callable(is_active):
+                try:
+                    if not is_active():
+                        continue
+                except Exception:
+                    pass
+            elif str(getattr(order, "status", "") or "").strip().lower() not in active_statuses:
+                continue
+            active_orders.append(order)
+        serialized = sorted(
+            (_order_to_dict(order) for order in active_orders),
+            key=lambda payload: (
+                json.dumps(payload.get("asset", {}), sort_keys=True, default=str),
+                str(payload.get("identifier") or ""),
+            ),
+        )
         return serialized[:limit], len(serialized), len(serialized) <= limit
 
     def _runtime_mode(self) -> str:
@@ -1004,11 +1021,13 @@ class AgentHandle:
             "account_snapshot": {
                 "as_of": as_of,
                 "account_complete": account_complete,
-                "positions_count": positions_count,
+                "positions_total": positions_count,
                 "positions_included": len(positions),
+                "positions_omitted": max(positions_count - len(positions), 0),
                 "positions_complete": positions_complete,
-                "open_orders_count": open_orders_count,
+                "open_orders_total": open_orders_count,
                 "open_orders_included": len(open_orders),
+                "open_orders_omitted": max(open_orders_count - len(open_orders), 0),
                 "open_orders_complete": open_orders_complete,
             },
             "recent_orders": self._serialize_orders(),
@@ -1018,6 +1037,20 @@ class AgentHandle:
 
     def _base_system_prompt(self, runtime_context: dict[str, Any]) -> str:
         mode = runtime_context.get("mode") or "live"
+        account_snapshot = runtime_context.get("account_snapshot") or {}
+        omitted_warnings: list[str] = []
+        positions_omitted = int(account_snapshot.get("positions_omitted") or 0)
+        open_orders_omitted = int(account_snapshot.get("open_orders_omitted") or 0)
+        if positions_omitted:
+            omitted_warnings.append(
+                f"{positions_omitted} positions are omitted from the injected snapshot; they still exist. "
+                "Use complete unfiltered account_positions pagination before treating the portfolio as fully inspected."
+            )
+        if open_orders_omitted:
+            omitted_warnings.append(
+                f"{open_orders_omitted} open orders are omitted from the injected snapshot; they still exist. "
+                "Use complete unfiltered orders_open_orders pagination before concluding no other open orders exist."
+            )
         lines = [
             "You are operating as a trading agent inside LumiBot.",
             "Use the provided runtime context and tool outputs as the ground truth for the current state of the strategy.",
@@ -1025,6 +1058,7 @@ class AgentHandle:
             "If evidence is weak, conflicting, stale, or incomplete, prefer doing nothing and explain why.",
             "Execution mode, current datetime, current timezone, current positions, cash, equity/portfolio value, recent orders, and recent trades are provided in Runtime Context JSON.",
             "Runtime Context JSON includes account_snapshot freshness, counts, and completeness flags. Treat truncated or incomplete snapshots as insufficient and call the relevant account tool before acting.",
+            *omitted_warnings,
             "Review current exposure, available cash, and recent activity before proposing any new trade.",
             "",
             "DEFAULT INVESTOR POLICY - FOLLOW THIS UNLESS THE USER'S SYSTEM PROMPT CLEARLY ASKS FOR A DIFFERENT STYLE:",
@@ -1055,7 +1089,7 @@ class AgentHandle:
             "POSITION SIZING AND ORDER EXECUTION:",
             "Do not buy token one-share positions. Use account cash, portfolio value, current position size, and last price to calculate a sensible whole-share quantity.",
             "Round down to whole shares when sizing positions.",
-            "Before every order, check current cash, portfolio value, current positions, and the latest price of the asset you are ordering. Lumibot rejects agent order submissions that skip those checks in the current agent run.",
+            "Before every order, check current cash, portfolio value, current positions, open orders, and the latest price of the asset you are ordering. A complete current injected snapshot satisfies the initial account and open-order checks. After any order mutation, Lumibot requires fresh complete account_positions and orders_open_orders pagination plus account_portfolio before another order.",
             "Estimate the order's cash impact before submitting it. Ask whether the order is likely to create negative cash or additional leverage, and only do that when it is intentional for the strategy and suitable for the asset class.",
             "Margin and leverage behave differently across stocks, ETFs, options, futures, forex, crypto, brokers, and jurisdictions. Use judgment instead of assuming the same sizing rule works for every asset class.",
             "When switching from one asset to another, close or reduce the current position first to free up capital before buying the replacement.",

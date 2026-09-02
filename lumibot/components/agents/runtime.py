@@ -47,6 +47,7 @@ def _ensure_mcp_client_imports():
     if streamablehttp_client is None:
         try:
             from mcp.client.streamable_http import streamable_http_client as _streamablehttp_client
+
             streamablehttp_client_uses_http_client = True
         except ImportError:
             from mcp.client.streamable_http import streamablehttp_client as _streamablehttp_client
@@ -196,7 +197,9 @@ def _normalize_tool_name_typo(name: str) -> str:
     return collapsed
 
 
-def _function_tools_with_name_aliases(function_tool_type: Any, bound_tools: Sequence[BoundTool], tool_context: dict[str, Any] | None = None) -> list[Any]:
+def _function_tools_with_name_aliases(
+    function_tool_type: Any, bound_tools: Sequence[BoundTool], tool_context: dict[str, Any] | None = None
+) -> list[Any]:
     """Register only provider-safe canonical tool names.
 
     Space-after-underscore typos are tolerated by normalizing inbound tool names
@@ -272,7 +275,12 @@ def _to_serializable_dict(value: Any) -> dict[str, Any] | None:
 
 def _extract_structured_content(result: Any) -> dict[str, Any]:
     if isinstance(result, dict):
-        structured = result.get("structuredContent") or result.get("structured_content") or result.get("output") or result.get("result")
+        structured = (
+            result.get("structuredContent")
+            or result.get("structured_content")
+            or result.get("output")
+            or result.get("result")
+        )
         if isinstance(structured, dict):
             return structured
         content = result.get("content")
@@ -293,10 +301,9 @@ def _extract_structured_content(result: Any) -> dict[str, Any]:
 
 
 def _quiet_backtest_logs_enabled() -> bool:
-    return (
-        str(os.environ.get("IS_BACKTESTING", "")).strip().lower() == "true"
-        and str(os.environ.get("BACKTESTING_QUIET_LOGS", "")).strip().lower() in {"1", "true", "yes", "on"}
-    )
+    return str(os.environ.get("IS_BACKTESTING", "")).strip().lower() == "true" and str(
+        os.environ.get("BACKTESTING_QUIET_LOGS", "")
+    ).strip().lower() in {"1", "true", "yes", "on"}
 
 
 @contextlib.contextmanager
@@ -415,6 +422,7 @@ def _normalize_event(event: Any) -> list[AgentTraceEvent]:
                 AgentTraceEvent(
                     kind="tool_call",
                     tool_name=str(function_call.name),
+                    call_id=(str(function_call.id) if getattr(function_call, "id", None) else None),
                     payload=payload,
                 )
             )
@@ -428,6 +436,7 @@ def _normalize_event(event: Any) -> list[AgentTraceEvent]:
                 AgentTraceEvent(
                     kind="tool_result",
                     tool_name=tool_name,
+                    call_id=(str(function_response.id) if getattr(function_response, "id", None) else None),
                     payload=_extract_structured_content(function_response.response or {}),
                 )
             )
@@ -878,7 +887,9 @@ def _replace_function_response_payload(part: Any, message: str) -> bool:
         return False
 
 
-def _prune_tool_response_for_context_window(tool_response: Any, *, tool_name: str | None, max_chars: int = 4_000) -> Any | None:
+def _prune_tool_response_for_context_window(
+    tool_response: Any, *, tool_name: str | None, max_chars: int = 4_000
+) -> Any | None:
     response_chars = _serialized_content_length(tool_response)
     if response_chars <= max_chars:
         return None
@@ -928,7 +939,9 @@ def _prune_request_contents_for_context_window(
                 tool_response_parts.append(part)
 
     should_prune_for_size = before_chars > max_chars
-    should_prune_for_history = always_prune_older_tool_results and len(tool_response_parts) > preserve_recent_tool_results
+    should_prune_for_history = (
+        always_prune_older_tool_results and len(tool_response_parts) > preserve_recent_tool_results
+    )
     if not should_prune_for_size and not should_prune_for_history:
         return None
 
@@ -944,7 +957,7 @@ def _prune_request_contents_for_context_window(
     )
     candidates = [
         part
-        for part in tool_response_parts[: -preserve_recent_tool_results]
+        for part in tool_response_parts[:-preserve_recent_tool_results]
         if not _function_response_payload_is_pruned(part)
     ]
     candidates.sort(key=_function_response_payload_length, reverse=True)
@@ -1208,10 +1221,7 @@ class GoogleADKRuntime:
                 f"Runtime Context JSON:\n{json.dumps(_json_safe_value(request.runtime_context), sort_keys=True, default=str)}"
             )
         if request.bound_tools:
-            sections.append(
-                "Available Tools JSON:\n"
-                f"{json.dumps(sorted(tool_names), sort_keys=True, default=str)}"
-            )
+            sections.append(f"Available Tools JSON:\n{json.dumps(sorted(tool_names), sort_keys=True, default=str)}")
         if request.memory_state:
             sections.append(
                 "Lumibot Memory State JSON:\n"
@@ -1228,10 +1238,7 @@ class GoogleADKRuntime:
                 )
                 if memory_pruned:
                     sections.append(f"Lumibot Context Notice:\nPruned {memory_pruned} oversized memory string(s).")
-            sections.append(
-                "Persistent Memory JSON:\n"
-                f"{json.dumps(memory_notes, sort_keys=True, default=str)}"
-            )
+            sections.append(f"Persistent Memory JSON:\n{json.dumps(memory_notes, sort_keys=True, default=str)}")
         if request.task_prompt:
             sections.append(f"Task:\n{request.task_prompt.strip()}")
         else:
@@ -1243,7 +1250,9 @@ class GoogleADKRuntime:
             ]
             if "alpaca_news" in tool_names:
                 required_categories.append("alpaca_news")
-            fred_tools = sorted(name for name in tool_names if name.startswith("get_fred_") or name == "list_fred_series")
+            fred_tools = sorted(
+                name for name in tool_names if name.startswith("get_fred_") or name == "list_fred_series"
+            )
             if fred_tools:
                 required_categories.append(" or ".join(fred_tools))
             required_categories.extend(
@@ -1292,6 +1301,9 @@ class GoogleADKRuntime:
             "agent_name": request.agent_name,
             "model_call_id": request.model_call_id,
             "enforce_order_readiness": True,
+            "account_snapshot": (
+                request.runtime_context.get("account_snapshot") if isinstance(request.runtime_context, dict) else None
+            ),
             "tool_calls": [],
         }
         tools = _function_tools_with_name_aliases(
@@ -1396,9 +1408,7 @@ class GoogleADKRuntime:
             ended_at=ended_at,
             latency_ms=max(int((ended_perf - started_perf) * 1000), 0),
             first_event_latency_ms=(
-                max(int((first_event_perf - started_perf) * 1000), 0)
-                if first_event_perf is not None
-                else None
+                max(int((first_event_perf - started_perf) * 1000), 0) if first_event_perf is not None else None
             ),
         )
 
@@ -1549,6 +1559,7 @@ class StubAgentRuntime:
                     kind=event["kind"],
                     text=event.get("text"),
                     tool_name=event.get("tool_name"),
+                    call_id=event.get("call_id"),
                     payload=event.get("payload"),
                     timestamp=event.get("timestamp") or _utc_iso_timestamp(),
                 )
@@ -1572,6 +1583,11 @@ class StubAgentRuntime:
                 "agent_name": request.agent_name,
                 "model_call_id": request.model_call_id,
                 "enforce_order_readiness": True,
+                "account_snapshot": (
+                    request.runtime_context.get("account_snapshot")
+                    if isinstance(request.runtime_context, dict)
+                    else None
+                ),
                 "tool_calls": [],
             }
             if callable(first_tool.function):
@@ -1703,6 +1719,7 @@ def _run_mcp_sync(async_fn, *args):
 
 async def _list_mcp_tools_async(server: MCPServer) -> list[dict[str, Any]]:
     transport = (server.transport or "http").lower().replace("-", "_")
+
     async def callback(session: ClientSession) -> list[dict[str, Any]]:
         result = await session.list_tools()
         tools = getattr(result, "tools", None) or []
@@ -1720,6 +1737,7 @@ async def _list_mcp_tools_async(server: MCPServer) -> list[dict[str, Any]]:
 
 async def _call_mcp_tool_async(server: MCPServer, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     transport = (server.transport or "http").lower().replace("-", "_")
+
     async def callback(session: ClientSession) -> dict[str, Any]:
         result = await session.call_tool(name, arguments or {})
         dumped = _jsonable(result)

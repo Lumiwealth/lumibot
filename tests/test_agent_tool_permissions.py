@@ -63,7 +63,7 @@ class _OrderReadinessStrategy(_Strategy):
         return order
 
 
-def _wrap_builtin_tools(strategy, tool_definitions):
+def _wrap_builtin_tools(strategy, tool_definitions, *, account_snapshot=None):
     from lumibot.components.agents.runtime import _wrap_tool_callable
 
     manager = AgentManager(strategy)
@@ -72,6 +72,7 @@ def _wrap_builtin_tools(strategy, tool_definitions):
         "agent_name": "trader",
         "model_call_id": "test-model-call",
         "enforce_order_readiness": True,
+        "account_snapshot": account_snapshot,
         "tool_calls": [],
     }
     return {tool.name: _wrap_tool_callable(tool, tool_context) for tool in tools}
@@ -176,6 +177,7 @@ def test_live_agent_auth_failure_emits_structured_decision_outcome():
         "requiredness": "decision_critical",
         "retryability": "non_retryable",
         "fallback_used": True,
+        "status": "runtime_error",
         "decision_completed": False,
         "broker_state_certainty": "not_observed",
         "impact": "decision_blocked",
@@ -201,6 +203,7 @@ def test_optional_agent_auth_failure_does_not_mark_decision_blocked():
         "requiredness": "optional",
         "retryability": "non_retryable",
         "fallback_used": True,
+        "status": "runtime_error",
         "decision_completed": False,
         "broker_state_certainty": "not_observed",
         "impact": "optional_component_failed",
@@ -490,9 +493,7 @@ def test_order_submit_timeout_reports_unknown_broker_state(monkeypatch):
         lambda *args, **kwargs: (_Asset(), None),
     )
 
-    result = _wrap_tool_callable(_bind_submit_order(strategy, manager=None))(
-        symbol="TQQQ", quantity=10, side="buy"
-    )
+    result = _wrap_tool_callable(_bind_submit_order(strategy, manager=None))(symbol="TQQQ", quantity=10, side="buy")
 
     assert result["tool_error"] is True
     assert result["execution_outcome"] == {
@@ -695,6 +696,88 @@ def test_agent_order_tool_submits_after_account_context_was_checked():
     assert "tool_error" not in result
     assert result["order"]["asset"]["symbol"] == "SPY"
     assert len(strategy.submitted_orders) == 1
+
+
+def test_agent_order_tool_accepts_complete_injected_account_snapshot_for_first_order():
+    strategy = _OrderReadinessStrategy()
+    tool_map = _wrap_builtin_tools(
+        strategy,
+        [
+            BuiltinTools.market.last_price(),
+            BuiltinTools.orders.submit(),
+        ],
+        account_snapshot={
+            "as_of": "2026-01-02T00:00:00+00:00",
+            "account_complete": True,
+            "positions_complete": True,
+            "open_orders_complete": True,
+        },
+    )
+
+    tool_map["market_last_price"](symbol="SPY", asset_type="stock")
+    result = tool_map["orders_submit_order"](
+        symbol="SPY",
+        quantity=1,
+        side="buy",
+        asset_type="stock",
+        order_type="market",
+    )
+
+    assert "tool_error" not in result
+    assert len(strategy.submitted_orders) == 1
+
+
+def test_successful_order_invalidates_injected_snapshot_until_account_is_refreshed():
+    strategy = _OrderReadinessStrategy()
+    tool_map = _wrap_builtin_tools(
+        strategy,
+        [
+            BuiltinTools.account.positions(),
+            BuiltinTools.account.portfolio(),
+            BuiltinTools.market.last_price(),
+            BuiltinTools.orders.submit(),
+        ],
+        account_snapshot={
+            "as_of": "2026-01-02T00:00:00+00:00",
+            "account_complete": True,
+            "positions_complete": True,
+            "open_orders_complete": True,
+        },
+    )
+
+    tool_map["market_last_price"](symbol="SPY", asset_type="stock")
+    first = tool_map["orders_submit_order"](
+        symbol="SPY",
+        quantity=1,
+        side="buy",
+        asset_type="stock",
+        order_type="market",
+    )
+    second = tool_map["orders_submit_order"](
+        symbol="SPY",
+        quantity=1,
+        side="buy",
+        asset_type="stock",
+        order_type="market",
+    )
+
+    assert "tool_error" not in first
+    assert second["tool_error"] is True
+    assert "account_portfolio" in second["error"]["message"]
+    assert "account_positions" in second["error"]["message"]
+
+    tool_map["account_portfolio"]()
+    tool_map["account_positions"]()
+    third = tool_map["orders_submit_order"](
+        symbol="SPY",
+        quantity=1,
+        side="buy",
+        asset_type="stock",
+        order_type="market",
+    )
+
+    assert "tool_error" not in third
+    assert len(strategy.submitted_orders) == 2
 
 
 def test_agent_order_tool_requires_last_price_for_ordered_symbol():

@@ -804,11 +804,14 @@ def test_agent_detail_parquet_has_single_token_summary_row_and_full_events(monke
     summaries = df[df["event_kind"] == "call_summary"]
     assert len(summaries) == UsageTelemetryRuntime.call_count
     assert set(summaries["outcome_operation"]) == {"managed_ai_inference"}
+    assert set(summaries["outcome_status"]) == {"completed_no_action"}
     assert set(summaries["outcome_requiredness"]) == {"decision_critical"}
     assert set(summaries["outcome_decision_completed"]) == {True}
     assert set(summaries["outcome_fallback_used"]) == {False}
     assert set(summaries["outcome_broker_state_certainty"]) == {"not_observed"}
     assert set(summaries["outcome_impact"]) == {"completed"}
+    assert set(summaries["runtime_version"]) == {"4.5.89"}
+    assert set(summaries["ai_access_mode"]) == {"byok"}
     call_numbers = list(range(1, UsageTelemetryRuntime.call_count + 1))
     assert summaries["call_input_tokens"].sum() == sum(1000 + idx for idx in call_numbers)
     assert summaries["call_output_tokens"].sum() == sum(200 + idx for idx in call_numbers)

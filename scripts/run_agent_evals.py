@@ -70,6 +70,7 @@ def runtime_fingerprint() -> str:
         REPO_ROOT / "lumibot/components/agents/rules.py",
         REPO_ROOT / "lumibot/components/agents/skills.py",
         REPO_ROOT / "lumibot/components/agents/builtins.py",
+        REPO_ROOT / "lumibot/components/agents/managed_gateway.py",
         Path(__file__).resolve(),
     ]
     skills_root = REPO_ROOT / "lumibot/components/agents/skills"
@@ -169,12 +170,10 @@ def maximum_repetition_cost_usd(case: dict[str, Any], judge_model: str) -> float
     acting_prices = MODEL_PRICES_PER_MILLION[acting_model]
     judge_prices = MODEL_PRICES_PER_MILLION[judge_model]
     acting_max = (
-        MAX_INPUT_TOKENS_PER_MODEL_CALL * acting_prices["input"]
-        + ACTING_MAX_OUTPUT_TOKENS * acting_prices["output"]
+        MAX_INPUT_TOKENS_PER_MODEL_CALL * acting_prices["input"] + ACTING_MAX_OUTPUT_TOKENS * acting_prices["output"]
     ) / 1_000_000
     judge_max = (
-        MAX_INPUT_TOKENS_PER_MODEL_CALL * judge_prices["input"]
-        + JUDGE_MAX_OUTPUT_TOKENS * judge_prices["output"]
+        MAX_INPUT_TOKENS_PER_MODEL_CALL * judge_prices["input"] + JUDGE_MAX_OUTPUT_TOKENS * judge_prices["output"]
     ) / 1_000_000
     return round(acting_max + judge_max, 6)
 
@@ -319,9 +318,7 @@ def build_tools(fixture: FixtureRuntime) -> list[Any]:
         for position in position_payloads:
             quantity = float(position.get("quantity") or 0)
             position["position_side"] = "long" if quantity > 0 else "short" if quantity < 0 else "flat"
-            position["closing_side"] = (
-                "sell_to_close" if quantity > 0 else "buy_to_close" if quantity < 0 else None
-            )
+            position["closing_side"] = "sell_to_close" if quantity > 0 else "buy_to_close" if quantity < 0 else None
             position["closing_quantity"] = abs(quantity)
         result = {"positions": position_payloads, "count": len(position_payloads)}
         return fixture.record("account_positions", {}, result)
@@ -344,7 +341,12 @@ def build_tools(fixture: FixtureRuntime) -> list[Any]:
 
     def market_last_price(symbol: str, asset_type: str = "stock") -> dict[str, Any]:
         price = 230.0 if symbol.upper() == "AAPL" else fixture.underlying_price
-        result = {"symbol": symbol.upper(), "asset_type": asset_type, "price": price, "timestamp": "2026-08-11T14:35:00Z"}
+        result = {
+            "symbol": symbol.upper(),
+            "asset_type": asset_type,
+            "price": price,
+            "timestamp": "2026-08-11T14:35:00Z",
+        }
         return fixture.record("market_last_price", {"symbol": symbol, "asset_type": asset_type}, result)
 
     def market_historical_prices(
@@ -354,15 +356,55 @@ def build_tools(fixture: FixtureRuntime) -> list[Any]:
     ) -> dict[str, Any]:
         if fixture.name == "orb_breakout":
             bars = [
-                {"datetime": "2026-08-11T13:30:00Z", "open": 227.0, "high": 228.0, "low": 226.8, "close": 227.6, "volume": 1000, "complete": True},
-                {"datetime": "2026-08-11T13:35:00Z", "open": 227.6, "high": 228.4, "low": 227.4, "close": 228.1, "volume": 1100, "complete": True},
-                {"datetime": "2026-08-11T13:40:00Z", "open": 228.1, "high": 228.5, "low": 227.9, "close": 228.3, "volume": 1050, "complete": True},
-                {"datetime": "2026-08-11T13:45:00Z", "open": 228.3, "high": 230.2, "low": 228.2, "close": 230.0, "volume": 2400, "complete": True},
+                {
+                    "datetime": "2026-08-11T13:30:00Z",
+                    "open": 227.0,
+                    "high": 228.0,
+                    "low": 226.8,
+                    "close": 227.6,
+                    "volume": 1000,
+                    "complete": True,
+                },
+                {
+                    "datetime": "2026-08-11T13:35:00Z",
+                    "open": 227.6,
+                    "high": 228.4,
+                    "low": 227.4,
+                    "close": 228.1,
+                    "volume": 1100,
+                    "complete": True,
+                },
+                {
+                    "datetime": "2026-08-11T13:40:00Z",
+                    "open": 228.1,
+                    "high": 228.5,
+                    "low": 227.9,
+                    "close": 228.3,
+                    "volume": 1050,
+                    "complete": True,
+                },
+                {
+                    "datetime": "2026-08-11T13:45:00Z",
+                    "open": 228.3,
+                    "high": 230.2,
+                    "low": 228.2,
+                    "close": 230.0,
+                    "volume": 2400,
+                    "complete": True,
+                },
             ]
         else:
             closes = [221.0, 223.0, 225.0, 227.0, 229.0]
             bars = [
-                {"datetime": f"2026-08-{day:02d}T20:00:00Z", "open": close - 1, "high": close + 1, "low": close - 2, "close": close, "volume": 1000000, "complete": True}
+                {
+                    "datetime": f"2026-08-{day:02d}T20:00:00Z",
+                    "open": close - 1,
+                    "high": close + 1,
+                    "low": close - 2,
+                    "close": close,
+                    "volume": 1000000,
+                    "complete": True,
+                }
                 for day, close in zip(range(4, 9), closes)
             ]
         result = {"symbols": [symbols], "timestep": timestep, "bars": {"AAPL": bars[-length:]}}
@@ -425,7 +467,13 @@ def build_tools(fixture: FixtureRuntime) -> list[Any]:
     ) -> dict[str, Any]:
         strikes = [592.0, 594.0, 596.0, 598.0] if right.lower() == "put" else [602.0, 604.0, 606.0, 608.0]
         strike = min(strikes, key=lambda item: abs(fixture.greek(item, right) - float(target_delta)))
-        result = {"symbol": symbol.upper(), "expiration": expiration, "right": right.lower(), "strike": strike, "delta": fixture.greek(strike, right)}
+        result = {
+            "symbol": symbol.upper(),
+            "expiration": expiration,
+            "right": right.lower(),
+            "strike": strike,
+            "delta": fixture.greek(strike, right),
+        }
         return fixture.record(
             "options_find_strike_for_delta",
             {"symbol": symbol, "expiration": expiration, "right": right, "target_delta": target_delta},
@@ -592,11 +640,7 @@ def build_tools(fixture: FixtureRuntime) -> list[Any]:
                 fixture.positions.append(current)
             signed_fill = fill_quantity if normalized_side.startswith("buy") else -fill_quantity
             current["quantity"] = float(current.get("quantity") or 0) + signed_fill
-        fixture.positions = [
-            position
-            for position in fixture.positions
-            if float(position.get("quantity") or 0) != 0
-        ]
+        fixture.positions = [position for position in fixture.positions if float(position.get("quantity") or 0) != 0]
         result = {"identifier": submission["identifier"], "status": "filled", "submitted": True}
         return fixture.record("orders_submit_order", submission, result)
 
@@ -652,21 +696,69 @@ def build_tools(fixture: FixtureRuntime) -> list[Any]:
 
     specs: list[tuple[str, str, Callable[..., Any]]] = [
         ("account_portfolio", "Return current cash and portfolio value for sizing.", account_portfolio),
-        ("account_positions", "Return exact current positions with signed quantities. Reread after orders.", account_positions),
-        ("orders_open_orders", "Return currently open orders so duplicate or conflicting orders can be avoided.", orders_open_orders),
-        ("market_last_price", "Return the current price for an exact stock or underlying. Use before every order.", market_last_price),
-        ("market_historical_prices", "Return completed historical OHLCV bars visible at the current simulated time.", market_historical_prices),
-        ("options_get_chain", "Return listed expirations and strikes for an underlying. Never invent contracts.", options_get_chain),
-        ("options_find_expiration", "Find a listed expiration satisfying a minimum days-to-expiration target.", options_find_expiration),
+        (
+            "account_positions",
+            "Return exact current positions with signed quantities. Reread after orders.",
+            account_positions,
+        ),
+        (
+            "orders_open_orders",
+            "Return currently open orders so duplicate or conflicting orders can be avoided.",
+            orders_open_orders,
+        ),
+        (
+            "market_last_price",
+            "Return the current price for an exact stock or underlying. Use before every order.",
+            market_last_price,
+        ),
+        (
+            "market_historical_prices",
+            "Return completed historical OHLCV bars visible at the current simulated time.",
+            market_historical_prices,
+        ),
+        (
+            "options_get_chain",
+            "Return listed expirations and strikes for an underlying. Never invent contracts.",
+            options_get_chain,
+        ),
+        (
+            "options_find_expiration",
+            "Find a listed expiration satisfying a minimum days-to-expiration target.",
+            options_find_expiration,
+        ),
         ("options_get_strikes", "Return listed strikes for one exact expiration and right.", options_get_strikes),
         ("options_get_greeks", "Return point-in-time Greeks for one exact listed option contract.", options_get_greeks),
-        ("options_find_strike_for_delta", "Return a listed candidate strike nearest a target delta. Verify the exact contract afterward.", options_find_strike_for_delta),
-        ("options_evaluate_market", "Return actionable bid, ask, spread, usability, and timestamp for one exact option contract.", options_evaluate_market),
-        ("options_calculate_multileg_price", "Calculate signed per-unit package price from exact verified option legs. Positive is debit and negative is credit.", options_calculate_multileg_price),
-        ("orders_submit_multileg", "Submit one atomic multi-leg option order. Pass every exact leg in legs_json with side and quantity.", orders_submit_multileg),
-        ("orders_submit_order", "Submit one stock or single-leg option order with explicit quantity, side, type, and limit price.", orders_submit_order),
+        (
+            "options_find_strike_for_delta",
+            "Return a listed candidate strike nearest a target delta. Verify the exact contract afterward.",
+            options_find_strike_for_delta,
+        ),
+        (
+            "options_evaluate_market",
+            "Return actionable bid, ask, spread, usability, and timestamp for one exact option contract.",
+            options_evaluate_market,
+        ),
+        (
+            "options_calculate_multileg_price",
+            "Calculate signed per-unit package price from exact verified option legs. Positive is debit and negative is credit.",
+            options_calculate_multileg_price,
+        ),
+        (
+            "orders_submit_multileg",
+            "Submit one atomic multi-leg option order. Pass every exact leg in legs_json with side and quantity.",
+            orders_submit_multileg,
+        ),
+        (
+            "orders_submit_order",
+            "Submit one stock or single-leg option order with explicit quantity, side, type, and limit price.",
+            orders_submit_order,
+        ),
         ("orders_get_status", "Get the current status of one exact submitted order identifier.", orders_get_status),
-        ("orders_wait_for_terminal", "Wait briefly for one exact submitted order to become terminal.", orders_wait_for_terminal),
+        (
+            "orders_wait_for_terminal",
+            "Wait briefly for one exact submitted order to become terminal.",
+            orders_wait_for_terminal,
+        ),
     ]
     return [
         BoundTool(
@@ -682,14 +774,8 @@ def build_tools(fixture: FixtureRuntime) -> list[Any]:
 def compact_transcript(result: Any, fixture: FixtureRuntime) -> dict[str, Any]:
     return {
         "final_answer": result.summary or result.text,
-        "tool_calls": [
-            {"name": event.tool_name, "payload": event.payload}
-            for event in result.tool_calls
-        ],
-        "tool_results": [
-            {"name": event.tool_name, "payload": event.payload}
-            for event in result.tool_results
-        ],
+        "tool_calls": [{"name": event.tool_name, "payload": event.payload} for event in result.tool_calls],
+        "tool_results": [{"name": event.tool_name, "payload": event.payload} for event in result.tool_results],
         "fixture_calls": fixture.calls,
         "submissions": fixture.submissions,
         "final_positions": fixture.positions,
@@ -726,9 +812,7 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
     order_tool = contract.get("orderTool")
     relevant = [submission for submission in submissions if submission.get("tool") == order_tool]
     if "exactOrderCount" in contract and len(relevant) != int(contract["exactOrderCount"]):
-        failures.append(
-            f"expected {contract['exactOrderCount']} {order_tool} submission(s), observed {len(relevant)}"
-        )
+        failures.append(f"expected {contract['exactOrderCount']} {order_tool} submission(s), observed {len(relevant)}")
     if relevant:
         order_index = sequence.index(order_tool) if order_tool in sequence else len(sequence)
         for required in contract.get("requiredBeforeOrder") or []:
@@ -741,8 +825,12 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
         if len(legs) != 4:
             failures.append("iron condor did not contain exactly four legs")
         else:
-            puts = sorted((leg for leg in legs if str(leg.get("right")).lower() == "put"), key=lambda leg: float(leg["strike"]))
-            calls_ = sorted((leg for leg in legs if str(leg.get("right")).lower() == "call"), key=lambda leg: float(leg["strike"]))
+            puts = sorted(
+                (leg for leg in legs if str(leg.get("right")).lower() == "put"), key=lambda leg: float(leg["strike"])
+            )
+            calls_ = sorted(
+                (leg for leg in legs if str(leg.get("right")).lower() == "call"), key=lambda leg: float(leg["strike"])
+            )
             if len(puts) != 2 or len(calls_) != 2:
                 failures.append("iron condor rights were not two puts and two calls")
             elif not (
@@ -939,10 +1027,7 @@ def append_jsonl(path: Path, row: dict[str, Any]) -> None:
 
 
 def consecutive_pass_count(rows: list[dict[str, Any]], case_id: str, fingerprint: str) -> int:
-    relevant = [
-        row for row in rows
-        if row.get("case_id") == case_id and row.get("fingerprint") == fingerprint
-    ]
+    relevant = [row for row in rows if row.get("case_id") == case_id and row.get("fingerprint") == fingerprint]
     count = 0
     for row in reversed(relevant):
         if row.get("status") != "pass":
@@ -983,10 +1068,8 @@ def write_json_atomic(path: Path, value: dict[str, Any]) -> None:
 
 def preflight(cases: list[dict[str, Any]], judge_model: str, max_cost_usd: float) -> None:
     missing_models = sorted(
-        {
-            str(case.get("model") or DEFAULT_ACTING_MODEL)
-            for case in cases
-        }.union({judge_model}) - MODEL_PRICES_PER_MILLION.keys()
+        {str(case.get("model") or DEFAULT_ACTING_MODEL) for case in cases}.union({judge_model})
+        - MODEL_PRICES_PER_MILLION.keys()
     )
     if missing_models:
         raise RuntimeError(f"Pricing is unknown for: {', '.join(missing_models)}")
@@ -1038,8 +1121,7 @@ def main() -> int:
     existing_rows = read_jsonl(ledger_path)
     state = load_freshness(args.freshness_state)
     fingerprints = {
-        case["id"]: case_fingerprint(case, judge_model=args.judge_model, runtime_hash=runtime_hash)
-        for case in cases
+        case["id"]: case_fingerprint(case, judge_model=args.judge_model, runtime_hash=runtime_hash) for case in cases
     }
 
     work: list[tuple[dict[str, Any], int, str]] = []
@@ -1127,8 +1209,7 @@ def main() -> int:
     write_json_atomic(args.freshness_state, state)
 
     final_fresh = [
-        case["id"] for case in cases
-        if is_fresh(state, case["id"], fingerprints[case["id"]], args.freshness_days)
+        case["id"] for case in cases if is_fresh(state, case["id"], fingerprints[case["id"]], args.freshness_days)
     ]
     pass_count = sum(row.get("status") == "pass" for row in new_rows)
     fail_count = sum(row.get("status") == "fail" for row in new_rows)
@@ -1139,7 +1220,14 @@ def main() -> int:
             for row in new_rows
             for role in ("acting", "judge")
         )
-        for key in ("input_tokens", "cached_input_tokens", "uncached_input_tokens", "output_tokens", "thinking_tokens", "total_tokens")
+        for key in (
+            "input_tokens",
+            "cached_input_tokens",
+            "uncached_input_tokens",
+            "output_tokens",
+            "thinking_tokens",
+            "total_tokens",
+        )
     }
     summary = {
         "timestamp": utc_text(),

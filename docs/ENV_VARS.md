@@ -409,6 +409,24 @@ bound to one deployment or backtest.
 - Purpose: Override the local FRED macro data cache.
 - Default: `~/.lumibot/cache/fred`.
 
+### `FXMD_API_KEY`
+- Purpose: Optional FXMacroData API key for non-USD and paid macro announcement endpoints.
+- Default: unset.
+- Notes: Lumibot sends this key as an `X-API-Key` header. `FXMACRODATA_API_KEY` is also accepted. USD announcement data can be fetched without a key.
+
+### `FXMACRODATA_API_KEY`
+- Purpose: Alternate environment variable for the FXMacroData API key.
+- Default: unset.
+- Notes: Used when `FXMD_API_KEY` is not set.
+
+### `LUMIBOT_FXMACRODATA_API_BASE_URL`
+- Purpose: Override the FXMacroData API base URL.
+- Default: `https://api.fxmacrodata.com/v1`.
+
+### `LUMIBOT_FXMACRODATA_CACHE_DIR`
+- Purpose: Override the local FXMacroData macro release cache.
+- Default: `~/.lumibot/cache/fxmacrodata`.
+
 ### `LUMIBOT_MEMORY_DIR`
 - Purpose: Override the local SQLite agent memory root.
 - Default: `.lumibot/memory` under the current working directory.

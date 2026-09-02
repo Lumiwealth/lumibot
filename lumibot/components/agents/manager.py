@@ -1352,6 +1352,10 @@ class AgentHandle:
                 "get_fred_series",
                 "get_fred_latest",
                 "get_fred_snapshot",
+                "list_fxmacrodata_indicators",
+                "get_fxmacrodata_series",
+                "get_fxmacrodata_latest",
+                "get_fxmacrodata_snapshot",
             }
             for name in tool_names
         )

@@ -151,6 +151,10 @@ def test_agent_allow_trading_false_removes_only_mutating_order_tools(monkeypatch
     assert "account_positions" in tool_names
     assert "get_income_statement" in tool_names
     assert "get_indicator" in tool_names
+    assert "list_fxmacrodata_indicators" in tool_names
+    assert "get_fxmacrodata_series" in tool_names
+    assert "get_fxmacrodata_latest" in tool_names
+    assert "get_fxmacrodata_snapshot" in tool_names
     assert "list_fred_series" not in tool_names
     assert "get_fred_series" not in tool_names
     assert "get_fred_latest" not in tool_names

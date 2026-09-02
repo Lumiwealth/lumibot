@@ -992,7 +992,7 @@ class _Strategy:
         self.agents = _lazy_strategy_component("lumibot.components.agents", "AgentManager", self)
         self.indicators = _lazy_strategy_component("lumibot.indicators", "Indicators", self)
         self.fundamentals = _lazy_strategy_component("lumibot.fundamentals", "SECFundamentals", self)
-        self.macro = _lazy_strategy_component("lumibot.macro", "FREDMacroData", self)
+        self.macro = _lazy_strategy_component("lumibot.macro", "MacroData", self)
         self.notifications = _lazy_strategy_component(
             "lumibot.components.notifications",
             "NotificationManager",

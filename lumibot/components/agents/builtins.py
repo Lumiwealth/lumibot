@@ -2382,6 +2382,97 @@ def _bind_get_fred_snapshot(strategy: Any, manager: Any) -> BoundTool:
     )
 
 
+def _fxmacrodata_client(strategy: Any) -> Any:
+    macro = getattr(strategy, "macro", None)
+    client = getattr(macro, "fxmacrodata", None) or getattr(macro, "fxmd", None)
+    if client is None:
+        raise ValueError("FXMacroData is not configured on strategy.macro.")
+    return client
+
+
+def _bind_list_fxmacrodata_indicators(strategy: Any, manager: Any) -> BoundTool:
+    def list_fxmacrodata_indicators(category: str | None = None) -> dict[str, Any]:
+        return _fxmacrodata_client(strategy).list_indicators(category=category)
+
+    return BoundTool(
+        name="list_fxmacrodata_indicators",
+        description=(
+            "List common FXMacroData macro announcement indicators for FX-focused event-risk research. "
+            "Use this before requesting inflation, policy-rate, labor, growth, trade, or sentiment series."
+        ),
+        function=list_fxmacrodata_indicators,
+        source="builtin",
+        metadata={"kind": "macro", "cache_scope": "strategy_day"},
+    )
+
+
+def _bind_get_fxmacrodata_series(strategy: Any, manager: Any) -> BoundTool:
+    def get_fxmacrodata_series(
+        currency: str,
+        indicator: str,
+        start: str | None = None,
+        end: str | None = None,
+        as_of: str | None = None,
+        limit: int | None = None,
+    ) -> dict[str, Any]:
+        return _fxmacrodata_client(strategy).get_series(
+            currency,
+            indicator,
+            start=start,
+            end=end,
+            as_of=as_of,
+            limit=limit,
+        )
+
+    return BoundTool(
+        name="get_fxmacrodata_series",
+        description=(
+            "Get an FXMacroData macro announcement series for a currency and indicator. "
+            "In backtests, as_of defaults to the strategy datetime and release rows are gated by announcement time. "
+            "USD is public; set FXMD_API_KEY or FXMACRODATA_API_KEY for non-USD and paid endpoint access."
+        ),
+        function=get_fxmacrodata_series,
+        source="builtin",
+        metadata={"kind": "macro", "cache_scope": "strategy_day"},
+    )
+
+
+def _bind_get_fxmacrodata_latest(strategy: Any, manager: Any) -> BoundTool:
+    def get_fxmacrodata_latest(currency: str, indicator: str, as_of: str | None = None) -> dict[str, Any]:
+        return _fxmacrodata_client(strategy).get_latest(currency, indicator, as_of=as_of)
+
+    return BoundTool(
+        name="get_fxmacrodata_latest",
+        description=(
+            "Get the latest FXMacroData release row for a currency and indicator available as of the strategy datetime "
+            "or explicit as_of timestamp."
+        ),
+        function=get_fxmacrodata_latest,
+        source="builtin",
+        metadata={"kind": "macro", "cache_scope": "strategy_day"},
+    )
+
+
+def _bind_get_fxmacrodata_snapshot(strategy: Any, manager: Any) -> BoundTool:
+    def get_fxmacrodata_snapshot(
+        currency: str,
+        indicators: list[str] | str,
+        as_of: str | None = None,
+    ) -> dict[str, Any]:
+        return _fxmacrodata_client(strategy).get_snapshot(currency, indicators, as_of=as_of)
+
+    return BoundTool(
+        name="get_fxmacrodata_snapshot",
+        description=(
+            "Get latest FXMacroData release rows for several indicators in one currency. "
+            "Pass indicators as a list or comma-separated string such as inflation,policy_rate,unemployment."
+        ),
+        function=get_fxmacrodata_snapshot,
+        source="builtin",
+        metadata={"kind": "macro", "cache_scope": "strategy_day"},
+    )
+
+
 def _bind_notify_user(strategy: Any, manager: Any) -> BoundTool:
     def notify_user(title: str, message: str, severity: str = "info", enabled: bool | None = None) -> dict[str, Any]:
         results = strategy.notify(title, message, severity=severity, enabled=enabled)
@@ -2874,6 +2965,34 @@ class _MacroTools:
     def get_fred_snapshot(self) -> ToolDefinition:
         return ToolDefinition(name="get_fred_snapshot", description="Get a multi-series FRED macro snapshot.", binder=_bind_get_fred_snapshot)
 
+    def list_fxmacrodata_indicators(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="list_fxmacrodata_indicators",
+            description="List common FXMacroData announcement indicators.",
+            binder=_bind_list_fxmacrodata_indicators,
+        )
+
+    def get_fxmacrodata_series(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="get_fxmacrodata_series",
+            description="Get an FXMacroData macro announcement series.",
+            binder=_bind_get_fxmacrodata_series,
+        )
+
+    def get_fxmacrodata_latest(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="get_fxmacrodata_latest",
+            description="Get the latest FXMacroData macro release row.",
+            binder=_bind_get_fxmacrodata_latest,
+        )
+
+    def get_fxmacrodata_snapshot(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="get_fxmacrodata_snapshot",
+            description="Get a multi-indicator FXMacroData macro snapshot.",
+            binder=_bind_get_fxmacrodata_snapshot,
+        )
+
 
 class _NotificationTools:
     def notify_user(self) -> ToolDefinition:
@@ -3011,6 +3130,10 @@ class _BuiltinTools:
             self.macro.get_fred_series(),
             self.macro.get_fred_latest(),
             self.macro.get_fred_snapshot(),
+            self.macro.list_fxmacrodata_indicators(),
+            self.macro.get_fxmacrodata_series(),
+            self.macro.get_fxmacrodata_latest(),
+            self.macro.get_fxmacrodata_snapshot(),
             self.notifications.notify_user(),
             self.memory.remember(),
             self.memory.search(),

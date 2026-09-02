@@ -185,6 +185,20 @@ using realtime parameters. LumiBot's built-in FRED tools do not use public CSV
 fallbacks; macro tool output should either come from the official API or fail
 clearly.
 
+FXMacroData
+-----------
+
+FXMacroData tools expose FX-focused macro announcement rows to agents:
+
+- ``list_fxmacrodata_indicators``
+- ``get_fxmacrodata_series``
+- ``get_fxmacrodata_latest``
+- ``get_fxmacrodata_snapshot``
+
+USD announcement data is public. Set ``FXMD_API_KEY`` or
+``FXMACRODATA_API_KEY`` for non-USD and paid endpoint access. LumiBot sends the
+key as an ``X-API-Key`` header rather than adding it to request URLs.
+
 News
 ----
 

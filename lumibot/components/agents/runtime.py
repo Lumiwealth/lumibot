@@ -1246,6 +1246,13 @@ class GoogleADKRuntime:
             fred_tools = sorted(name for name in tool_names if name.startswith("get_fred_") or name == "list_fred_series")
             if fred_tools:
                 required_categories.append(" or ".join(fred_tools))
+            fxmacrodata_tools = sorted(
+                name
+                for name in tool_names
+                if name.startswith("get_fxmacrodata_") or name == "list_fxmacrodata_indicators"
+            )
+            if fxmacrodata_tools:
+                required_categories.append(" or ".join(fxmacrodata_tools))
             required_categories.extend(
                 [
                     "get_income_statement, get_balance_sheet, get_cash_flow, or get_company_facts",

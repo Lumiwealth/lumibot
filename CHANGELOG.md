@@ -2,7 +2,7 @@
 
 ## 4.5.90 - 2026-09-02
 
-Deploy marker: `171254021ecb`
+Deploy marker: `d5a2d1629580`
 
 ### Fixed
 - **Live fill handling now enforces strategy ownership before hedge callbacks.**

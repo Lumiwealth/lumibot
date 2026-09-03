@@ -2,7 +2,7 @@
 
 ## 4.5.90 - 2026-09-02
 
-Deploy marker: `76bb79c757c2`
+Deploy marker: `171254021ecb`
 
 ### Fixed
 - **Managed agents now preserve correctness across compound safety boundaries.**

@@ -3108,7 +3108,11 @@ class Broker(ABC):
             multiplier=multiplier,
         )
         subscriber = self._resolve_subscriber(order.strategy)
-        if subscriber and self.order_is_foreign_to_local_strategy(order, getattr(subscriber, "name", None)):
+        if (
+            subscriber
+            and not self.IS_BACKTESTING_BROKER
+            and self.order_is_foreign_to_local_strategy(order, getattr(subscriber, "name", None))
+        ):
             if self.logger.isEnabledFor(20):
                 self.logger.info(
                     colored(
@@ -3141,7 +3145,11 @@ class Broker(ABC):
         subscriber = self._resolve_subscriber(order.strategy)
         # Defense in depth: never deliver fills that are not owned by the subscriber.
         # Prevents shared-account MOS activity from triggering STM on_filled_order hedges.
-        if subscriber and self.order_is_foreign_to_local_strategy(order, getattr(subscriber, "name", None)):
+        if (
+            subscriber
+            and not self.IS_BACKTESTING_BROKER
+            and self.order_is_foreign_to_local_strategy(order, getattr(subscriber, "name", None))
+        ):
             if self.logger.isEnabledFor(20):
                 self.logger.info(
                     colored(

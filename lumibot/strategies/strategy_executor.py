@@ -1634,7 +1634,7 @@ class StrategyExecutor(Thread):
         order_strategy = getattr(order, "strategy", None)
         order_tag = getattr(order, "tag", None)
         belongs = True
-        if local_name and (order_tag or order_strategy):
+        if not self.broker.IS_BACKTESTING_BROKER and local_name and (order_tag or order_strategy):
             from lumibot.brokers.broker import Broker as _Broker
 
             if order_tag:
@@ -1653,7 +1653,7 @@ class StrategyExecutor(Thread):
         order_strategy = getattr(order, "strategy", None)
         order_tag = getattr(order, "tag", None)
         belongs = True
-        if local_name and (order_tag or order_strategy):
+        if not self.broker.IS_BACKTESTING_BROKER and local_name and (order_tag or order_strategy):
             from lumibot.brokers.broker import Broker as _Broker
 
             if order_tag:

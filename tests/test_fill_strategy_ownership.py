@@ -213,6 +213,39 @@ def test_executor_allows_owned_option_fill_hedge():
     assert int(strategy.hedge_orders[0].quantity) == 100
 
 
+def test_executor_preserves_backtest_fill_callbacks_when_order_metadata_differs():
+    """Broker ownership tags are a live shared-account boundary, not a backtest filter.
+
+    Historical adapters can reconstruct strategy/tag metadata differently from the
+    active strategy name. Backtests must preserve their deterministic fill callback
+    behavior instead of silently dropping those fills.
+    """
+    strategy = _HedgeStrategy("Backdoor Butterfly", underlying="SPY")
+    strategy.is_backtesting = True
+    strategy.broker.IS_BACKTESTING_BROKER = True
+    executor = StrategyExecutor(strategy)
+    strategy._executor = executor
+
+    reconstructed = _make_option_order(
+        strategy="Historical Adapter",
+        underlying="SPY",
+        identifier="backtest-fill-1",
+        tag="Historical-Adapter",
+    )
+    position = MagicMock()
+    position.asset = reconstructed.asset
+
+    executor._on_filled_order(
+        position,
+        reconstructed,
+        price=1.25,
+        quantity=Decimal("1"),
+        multiplier=100,
+    )
+
+    assert strategy.recorded_fills == [reconstructed]
+
+
 @pytest.fixture
 def tradier_broker(mocker):
     from lumibot.brokers.tradier import Tradier

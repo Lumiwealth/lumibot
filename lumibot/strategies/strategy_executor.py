@@ -1630,10 +1630,45 @@ class StrategyExecutor(Thread):
 
     @event_method
     def _on_partially_filled_order(self, position, order, price, quantity, multiplier):
+        local_name = getattr(self.strategy, "name", None) or getattr(self.strategy, "_name", None)
+        order_strategy = getattr(order, "strategy", None)
+        order_tag = getattr(order, "tag", None)
+        belongs = True
+        if local_name and (order_tag or order_strategy):
+            from lumibot.brokers.broker import Broker as _Broker
+
+            if order_tag:
+                belongs = _Broker.strategy_tag_matches(order_tag, local_name)
+            else:
+                belongs = _Broker.strategy_tag_matches(order_strategy, local_name)
+        if not belongs:
+            return
         self.strategy.on_partially_filled_order(position, order, price, quantity, multiplier)
 
     @event_method
     def _on_filled_order(self, position, order, price, quantity, multiplier):
+        # Shared-account safety: never invoke strategy fill/hedge handlers for
+        # orders owned by a different strategy (tag/strategy mismatch).
+        local_name = getattr(self.strategy, "name", None) or getattr(self.strategy, "_name", None)
+        order_strategy = getattr(order, "strategy", None)
+        order_tag = getattr(order, "tag", None)
+        belongs = True
+        if local_name and (order_tag or order_strategy):
+            from lumibot.brokers.broker import Broker as _Broker
+
+            if order_tag:
+                belongs = _Broker.strategy_tag_matches(order_tag, local_name)
+            else:
+                belongs = _Broker.strategy_tag_matches(order_strategy, local_name)
+        if not belongs:
+            if self.strategy.logger.isEnabledFor(20):
+                self.strategy.logger.info(
+                    f"Skipping on_filled_order for foreign order "
+                    f"id={getattr(order, 'identifier', None)} strategy={order_strategy!r} "
+                    f"tag={order_tag!r} local={local_name!r}"
+                )
+            return
+
         self.strategy.on_filled_order(position, order, price, quantity, multiplier)
 
         # PERF: In backtesting we never send Discord notifications (`Strategy.send_discord_message`

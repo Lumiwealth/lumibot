@@ -2950,6 +2950,98 @@ class Broker(ABC):
 
         return None
 
+    @staticmethod
+    def normalize_broker_strategy_tag(value) -> str:
+        """Normalize strategy names the way Tradier tags do (non-alnum -> '-')."""
+        import re
+
+        if value is None:
+            return ""
+        text = str(value).strip()
+        if not text:
+            return ""
+        return re.sub(r"[^a-zA-Z0-9-]", "-", text)
+
+    @classmethod
+    def strategy_tag_matches(cls, tag, strategy_name) -> bool:
+        """True when a broker order tag matches a strategy name under tag normalization."""
+        if not tag or not strategy_name:
+            return False
+        return cls.normalize_broker_strategy_tag(tag) == cls.normalize_broker_strategy_tag(strategy_name)
+
+    @staticmethod
+    def option_underlying_symbol(asset) -> str | None:
+        """Best-effort underlying symbol for option (or stock) assets used in hedge gates."""
+        if asset is None:
+            return None
+        underlying = getattr(asset, "underlying_asset", None)
+        if underlying is not None and getattr(underlying, "symbol", None):
+            return str(underlying.symbol).upper()
+        symbol = getattr(asset, "symbol", None)
+        return str(symbol).upper() if symbol else None
+
+    @classmethod
+    def fills_match_underlying(cls, asset, underlyings) -> bool:
+        """True when asset underlying/symbol is in the allowed underlying set (case-insensitive)."""
+        if underlyings is None:
+            return False
+        allowed = {str(u).upper() for u in underlyings if u}
+        if not allowed:
+            return False
+        symbol = cls.option_underlying_symbol(asset)
+        return bool(symbol) and symbol in allowed
+
+    def order_belongs_to_local_strategy(self, order, local_strategy_name: str | None = None) -> bool:
+        """Return True only when this order is owned by the local strategy.
+
+        Shared broker accounts can expose other strategies' activity. Broker tags are
+        ground truth and must win over a wrongly attributed ``order.strategy`` so a
+        sole local subscriber never hedges off foreign fills (Titus STM/MOS bug).
+        """
+        local_name = local_strategy_name or getattr(self, "_strategy_name", None) or ""
+        if not local_name and hasattr(self, "_subscribers") and len(self._subscribers) == 1:
+            only = self._subscribers[0]
+            local_name = getattr(only, "name", "") or str(only)
+
+        if not local_name:
+            # No local identity — cannot safely claim ownership.
+            return False
+
+        tag = getattr(order, "tag", None)
+        if tag:
+            # Explicit tag always wins: foreign tags must never be claimed locally.
+            return self.strategy_tag_matches(tag, local_name)
+
+        order_strategy = getattr(order, "strategy", None) or ""
+        if order_strategy:
+            return self.strategy_tag_matches(order_strategy, local_name)
+
+        # Untagged with empty strategy: do not claim.
+        return False
+
+    def order_is_foreign_to_local_strategy(self, order, local_strategy_name: str | None = None) -> bool:
+        """True only when tag/strategy evidence shows the order belongs to someone else.
+
+        Absence of tag/strategy is not treated as foreign so untagged sole-subscriber
+        fills keep working; explicit foreign tags still block hedge delivery.
+        """
+        local_name = local_strategy_name or getattr(self, "_strategy_name", None) or ""
+        if not local_name and hasattr(self, "_subscribers") and len(self._subscribers) == 1:
+            only = self._subscribers[0]
+            local_name = getattr(only, "name", "") or str(only)
+        if not local_name:
+            return False
+
+        tag = getattr(order, "tag", None)
+        if tag:
+            return not self.strategy_tag_matches(tag, local_name)
+
+        order_strategy = getattr(order, "strategy", None) or ""
+        if order_strategy:
+            return not self.strategy_tag_matches(order_strategy, local_name)
+
+        return False
+
     def _resolve_subscriber(self, strategy_name):
         """Get subscriber by name, falling back to the sole registered subscriber when strategy_name is falsy."""
         subscriber = self._get_subscriber(strategy_name)
@@ -3016,6 +3108,17 @@ class Broker(ABC):
             multiplier=multiplier,
         )
         subscriber = self._resolve_subscriber(order.strategy)
+        if subscriber and self.order_is_foreign_to_local_strategy(order, getattr(subscriber, "name", None)):
+            if self.logger.isEnabledFor(20):
+                self.logger.info(
+                    colored(
+                        f"Skipping partial fill for foreign order {getattr(order, 'identifier', None)} "
+                        f"(order.strategy={order.strategy!r}, tag={getattr(order, 'tag', None)!r}) "
+                        f"vs subscriber {getattr(subscriber, 'name', None)!r}",
+                        color="yellow",
+                    )
+                )
+            return
         if subscriber:
             subscriber.add_event(subscriber.PARTIALLY_FILLED_ORDER, payload)
         else:
@@ -3036,6 +3139,19 @@ class Broker(ABC):
             multiplier=multiplier,
         )
         subscriber = self._resolve_subscriber(order.strategy)
+        # Defense in depth: never deliver fills that are not owned by the subscriber.
+        # Prevents shared-account MOS activity from triggering STM on_filled_order hedges.
+        if subscriber and self.order_is_foreign_to_local_strategy(order, getattr(subscriber, "name", None)):
+            if self.logger.isEnabledFor(20):
+                self.logger.info(
+                    colored(
+                        f"Skipping fill for foreign order {getattr(order, 'identifier', None)} "
+                        f"(order.strategy={order.strategy!r}, tag={getattr(order, 'tag', None)!r}) "
+                        f"vs subscriber {getattr(subscriber, 'name', None)!r}",
+                        color="yellow",
+                    )
+                )
+            return
         if subscriber:
             subscriber.add_event(subscriber.FILLED_ORDER, payload)
         else:

@@ -5,6 +5,18 @@
 Deploy marker: `171254021ecb`
 
 ### Fixed
+- **Live fill handling now enforces strategy ownership before hedge callbacks.**
+  Shared-account broker activity with a foreign order tag (for example MOS
+  option fills while an STM strategy is the sole local subscriber) is no longer
+  ingested or delivered to ``on_filled_order``. Tag matching is ground truth over
+  a wrongly attributed ``order.strategy``, sole-subscriber fallback no longer
+  claims foreign tags, Tradier polling skips foreign-tagged rows, Schwab no
+  longer seeds untracked foreign NEW snapshots into the local strategy, and
+  executor/broker fill paths skip foreign fills so an unrelated option fill
+  cannot trigger a 100-share stock hedge. Helper APIs:
+  ``Broker.normalize_broker_strategy_tag``, ``strategy_tag_matches``,
+  ``order_belongs_to_local_strategy``, ``order_is_foreign_to_local_strategy``,
+  and ``fills_match_underlying``.
 - **Managed agents now preserve correctness across compound safety boundaries.**
   Duplicate option-closing legs are validated against the remaining signed
   position, stale broker snapshots cannot prune positions created while the

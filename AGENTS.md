@@ -53,15 +53,16 @@ These rules are mandatory whenever you work on ThetaData integrations.
 
 ## Image Generation Rule (CRITICAL)
 
-- For any generated or AI-edited image, infographic, diagram, marketing visual, README visual, documentation visual, or repo asset image, use Nano Banana MCP only (`mcp__nano_banana__generate_image` / `mcp__nano_banana__edit_image`).
-- This is non-negotiable for flow diagrams, architecture diagrams, sequence diagrams, screenshots-as-illustrations, and documentation visuals. Use Nano Banana with reference images/profiles strong enough for readable labels, arrows, branding, and layout.
-- Never use generic image generators, cheaper/lower-quality image models, local SVG/HTML/canvas placeholders, Python drawing scripts, Mermaid screenshots, manually assembled box diagrams, or other fallback image pipelines for generated documentation/product images.
-- For Lumibot, BotSpot, and Lumiwealth visuals, use the canonical Spot mascot reference through Nano Banana (`reference_profile="botspot_spot"` or the approved brand reference images). Spot should usually be doing something relevant to the concept being explained, such as reviewing filings, managing agents, guarding risk, or filing memories. Do not accept off-brand mascot variants or generic static poses when a topic-specific Spot action would make the visual clearer.
+- For any generated or AI-edited image, infographic, diagram, marketing visual, README visual, documentation visual, or repo asset image, use the approved Image Generator only.
+- `Nano Banana` is a compatibility phrase for the approved Image Generator. It does not select Google or Gemini unless Rob explicitly insists on that provider after rejecting the approved default result.
+- The Image Generator controls provider, model, resolution, and quality. Callers may provide only the prompt, purpose, aspect ratio, approved reference images, and an explicit Rob-requested Medium-quality exception. Never request Pro, High, Auto, an arbitrary resolution, or another model.
+- Never use local SVG/HTML/canvas placeholders, Python drawing scripts, Mermaid screenshots, manually assembled box diagrams, or other fallback pipelines for generated documentation/product images.
+- For Lumibot, BotSpot, and Lumiwealth visuals, use the canonical Spot mascot reference or the approved brand reference images when a mascot is helpful. Spot should usually be doing something relevant to the concept being explained, such as reviewing filings, managing agents, guarding risk, or filing memories. Do not accept off-brand mascot variants or generic static poses when a topic-specific Spot action would make the visual clearer.
 - Every generated image must be visually inspected before it is shown to Rob, committed, or used in the repo/docs/README. Open the actual output image, inspect the text, arrows, mascot, spacing, and overall visual hierarchy, and reject outputs with broken/missing text, awkward arrows, cluttered layouts, inaccurate product claims, off-brand mascot variants, or anything that looks like a placeholder.
-- If an image is not good enough, regenerate or edit it with Nano Banana and inspect again. Iterate until the asset is genuinely usable. Do not hand Rob a low-quality image and expect him to catch the problem.
+- If an image is not good enough, regenerate it through the approved Image Generator and inspect again. Iterate until the asset is genuinely usable. Do not hand Rob a low-quality image and expect him to catch the problem.
 - Do not confuse visual asset types. A clickable banner or hero graphic can be a strong marketing asset, but it is not the same thing as a clear CTA button. README/docs pages should usually have one dominant primary CTA; additional CTAs must be visibly secondary and must not look like status badges.
 - When reporting generated visual work, include the generator used and the full absolute paths for the inspected output files.
-- If Nano Banana MCP access is unavailable or broken, stop and report that blocker instead of making replacement images another way.
+- If the Image Generator is unavailable or broken, stop and report that blocker instead of making replacement images another way.
 
 ## Backtesting Accuracy (Definition)
 

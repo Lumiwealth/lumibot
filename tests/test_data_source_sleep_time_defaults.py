@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 
 from lumibot.data_sources.data_source import DataSource
@@ -118,13 +120,17 @@ def test_get_bars_preserves_tuple_string_failures_as_partial_results(
 
     monkeypatch.setattr(ds, "get_historical_prices", _history)
     pair = ("BTC", "USD")
-    result = ds.get_bars(
-        [pair, Asset("SPY")],
-        length=10,
-        timestep="day",
-        chunk_size=2,
-        sleep_time=0,
-    )
+    with caplog.at_level(
+        logging.WARNING,
+        logger="lumibot.data_sources.data_source",
+    ):
+        result = ds.get_bars(
+            [pair, Asset("SPY")],
+            length=10,
+            timestep="day",
+            chunk_size=2,
+            sleep_time=0,
+        )
 
     assert result[pair] is None
     assert result.errors[pair] == {

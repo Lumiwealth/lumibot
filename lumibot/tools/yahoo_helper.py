@@ -137,19 +137,32 @@ class YahooHelper:
             return df
 
         if auto_adjust:
-            del df["Close"]
-            del df["Open"]
-            del df["High"]
-            del df["Low"]
-            df.rename(
-                columns={
-                    "Adj Close": "Close",
-                    "Adj Open": "Open",
-                    "Adj High": "High",
-                    "Adj Low": "Low",
-                },
-                inplace=True,
-            )
+            if "Adj Open" in df.columns:
+                # Older yfinance versions return split/dividend-adjusted
+                # Open/High/Low/Close columns.
+                del df["Close"]
+                del df["Open"]
+                del df["High"]
+                del df["Low"]
+                df.rename(
+                    columns={
+                        "Adj Close": "Close",
+                        "Adj Open": "Open",
+                        "Adj High": "High",
+                        "Adj Low": "Low",
+                    },
+                    inplace=True,
+                )
+            else:
+                # Newer yfinance versions only return "Adj Close". Scale the
+                # raw OHLC columns by the Adj Close / Close ratio (the same
+                # adjustment yfinance applies for auto_adjust=True), then drop
+                # the adjusted column. Without this, Open/High/Low would be
+                # lost and get_last_price() would return None.
+                adj_ratio = df["Adj Close"] / df["Close"]
+                for col in ["Open", "High", "Low", "Close"]:
+                    df[col] = df[col] * adj_ratio
+                del df["Adj Close"]
         else:
             for col in ["Adj Open", "Adj High", "Adj Low"]:
                 if col in df.columns:

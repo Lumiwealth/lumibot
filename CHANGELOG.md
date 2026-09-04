@@ -2,6 +2,13 @@
 
 ## 4.5.91 - Unreleased
 
+### Fixed
+- **Release tags can reuse compatible real-model eval evidence from a prior
+  version-branch qualification.** The release gate restores the newest
+  repository-scoped standalone eval artifact after the branch-scoped cache,
+  while the existing case/runtime/model fingerprints and freshness policy
+  remain authoritative. Stale or incompatible cases still run normally.
+
 ## 4.5.90 - 2026-09-02
 
 Deploy marker: `d5a2d1629580`

@@ -1,13 +1,14 @@
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from types import SimpleNamespace
 
 import pandas as pd
+import pytest
 
 from lumibot.components.agents import AgentManager, BuiltinTools
-from lumibot.components.agents.builtins import _position_to_dict
+from lumibot.components.agents.builtins import _position_to_dict, _validate_option_closing_orders
 from lumibot.components.agents.runtime import _wrap_tool_callable
-from lumibot.entities import Order
+from lumibot.entities import Asset, Order
 from lumibot.entities.chains import Chains
 
 
@@ -156,6 +157,7 @@ def test_default_agent_tools_expose_generic_option_discovery_and_multileg_execut
     assert {
         "market_last_prices",
         "market_historical_prices",
+        "risk_calculate_stock_quantity",
         "options_get_chain",
         "options_get_strikes",
         "options_get_greeks",
@@ -170,6 +172,36 @@ def test_default_agent_tools_expose_generic_option_discovery_and_multileg_execut
     }.issubset(names)
     assert not any("condor" in name for name in names)
     assert len(names) == len(BuiltinTools.all())
+
+
+def test_stock_quantity_calculator_respects_notional_and_cash_caps():
+    strategy = _OptionsStrategy()
+    tool = BuiltinTools.risk.calculate_stock_quantity().binder(strategy, AgentManager(strategy))
+
+    result = tool.function(maximum_notional=10_000, price=230, available_cash=100_000)
+    cash_limited = tool.function(maximum_notional=10_000, price=230, available_cash=5_000)
+
+    assert result["quantity"] == 43
+    assert result["notional"] == 9_890
+    assert result["within_maximum_notional"] is True
+    assert result["within_available_cash"] is True
+    assert cash_limited["quantity"] == 21
+    assert cash_limited["notional"] == 4_830
+
+
+def test_stock_quantity_calculator_handles_zero_cash_and_rejects_invalid_inputs():
+    strategy = _OptionsStrategy()
+    tool = BuiltinTools.risk.calculate_stock_quantity().binder(strategy, AgentManager(strategy))
+
+    no_cash = tool.function(maximum_notional=10_000, price=230, available_cash=0)
+
+    assert no_cash["quantity"] == 0
+    assert no_cash["notional"] == 0
+    assert no_cash["within_available_cash"] is True
+    with pytest.raises(ValueError, match="available_cash must be a finite number"):
+        tool.function(maximum_notional=10_000, price=230, available_cash=-1)
+    with pytest.raises(ValueError, match="price must be a finite number greater than 0"):
+        tool.function(maximum_notional=10_000, price=0, available_cash=10_000)
 
 
 def test_option_position_payload_exposes_unambiguous_closing_metadata():
@@ -336,6 +368,46 @@ def test_multileg_price_preserves_opening_side_direction():
     assert result["available"] is True
     assert result["net_limit_price"] == -2.0
     assert result["order_type"] == "credit"
+
+
+def test_option_close_validation_rejects_reversed_side_and_oversized_quantity():
+    strategy = _OptionsStrategy()
+    long_put = Asset(
+        symbol="SPY",
+        asset_type="option",
+        expiration=date(2026, 9, 18),
+        strike=610,
+        right="put",
+    )
+    strategy.get_positions = lambda include_cash_positions=True: [
+        SimpleNamespace(asset=long_put, quantity=3)
+    ]
+
+    with pytest.raises(ValueError, match="required_side='sell_to_close'"):
+        _validate_option_closing_orders(
+            strategy,
+            [SimpleNamespace(asset=long_put, quantity=3, side="buy_to_close")],
+        )
+
+    with pytest.raises(ValueError, match="requested_quantity=4.0"):
+        _validate_option_closing_orders(
+            strategy,
+            [SimpleNamespace(asset=long_put, quantity=4, side="sell_to_close")],
+        )
+
+    _validate_option_closing_orders(
+        strategy,
+        [SimpleNamespace(asset=long_put, quantity=3, side="sell_to_close")],
+    )
+
+    with pytest.raises(ValueError, match="requested_quantity=2.0"):
+        _validate_option_closing_orders(
+            strategy,
+            [
+                SimpleNamespace(asset=long_put, quantity=2, side="sell_to_close"),
+                SimpleNamespace(asset=long_put, quantity=2, side="sell_to_close"),
+            ],
+        )
 
 
 def test_multileg_submit_creates_one_atomic_four_leg_order_after_normal_readiness_checks():

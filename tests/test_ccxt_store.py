@@ -644,3 +644,63 @@ def test_cache_download_data_without_overap(exchange_id:str, symbol:str, timefra
     # Remove cache file if exists.
     if os.path.exists(cache_file_path):
         os.remove(cache_file_path)
+
+
+def test_ccxt_cache_normalizes_coinbase_btc_usd_pair_forms(tmp_path, monkeypatch):
+    """BEFORE: BTC-USD and BTC-USD/USD missed Coinbase markets and returned empty.
+    AFTER: both resolve to BTC/USD and fetch OHLCV.
+    """
+    cache = _cache_without_live_exchange(tmp_path, monkeypatch)
+    fetched = []
+
+    class FakeApi:
+        id = "coinbase"
+        has = {"fetchOHLCV": True}
+        markets = {"BTC/USD": {"id": "BTC-USD", "symbol": "BTC/USD"}}
+
+        def parse8601(self, value):
+            return int(pd.Timestamp(value).timestamp() * 1000)
+
+        def fetch_ohlcv(self, symbol, timeframe, since=None, limit=None, params=None):
+            fetched.append(symbol)
+            assert symbol == "BTC/USD"
+            return [[int(pd.Timestamp("2026-01-01").timestamp() * 1000), 1, 2, 0.5, 1.5, 10]]
+
+    cache.api = FakeApi()
+    cache.max_download_limit = 10
+
+    for requested in ("BTC-USD", "BTC-USD/USD", "BTC/USD"):
+        fetched.clear()
+        df = cache._get_barset_from_api(
+            requested,
+            "1d",
+            limit=1,
+            start=datetime(2026, 1, 1),
+            end=datetime(2026, 1, 2),
+        )
+        assert fetched
+        assert set(fetched) == {"BTC/USD"}
+        assert not df.empty
+
+
+def test_ccxt_cache_missing_market_raises_clear_diagnostic(tmp_path, monkeypatch):
+    cache = _cache_without_live_exchange(tmp_path, monkeypatch)
+
+    class FakeApi:
+        id = "coinbase"
+        has = {"fetchOHLCV": True}
+        markets = {"ETH/USD": {"id": "ETH-USD", "symbol": "ETH/USD"}}
+
+        def parse8601(self, value):
+            return int(pd.Timestamp(value).timestamp() * 1000)
+
+    cache.api = FakeApi()
+
+    with pytest.raises(ValueError, match="CCXT market not found for .BTC-USD/USD."):
+        cache._get_barset_from_api(
+            "BTC-USD/USD",
+            "1d",
+            limit=1,
+            start=datetime(2026, 1, 1),
+            end=datetime(2026, 1, 2),
+        )

@@ -6,6 +6,53 @@ import sys
 from unittest.mock import patch
 
 
+_RUNTIME_ENV_PREFIXES = (
+    "ALPACA_",
+    "ANTHROPIC_",
+    "BACKTESTING_",
+    "BINANCE_",
+    "BITUNIX_",
+    "CCXT_",
+    "COINBASE_",
+    "DATABENTO_",
+    "DATADOWNLOADER_",
+    "DEEPSEEK_",
+    "GEMINI_",
+    "GOOGLE_",
+    "GROK_",
+    "IBKR_",
+    "INTERACTIVE_BROKERS_",
+    "KRAKEN_",
+    "LUMIBOT_",
+    "LUMIWEALTH_",
+    "OPENAI_",
+    "OPENROUTER_",
+    "POLYGON_",
+    "POLYMARKET_",
+    "PROJECTX_",
+    "SCHWAB_",
+    "THETADATA_",
+    "TRADIER_",
+    "TRADOVATE_",
+    "WEEX_",
+    "XAI_",
+)
+
+
+def _clean_subprocess_env() -> dict[str, str]:
+    """Keep lazy-import subprocesses independent of local runtime credentials."""
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key not in {"BROKER", "DATA_SOURCE", "IS_BACKTESTING", "TRADING_BROKER"}
+        and not key.startswith(_RUNTIME_ENV_PREFIXES)
+    }
+    env["LUMIBOT_DISABLE_DOTENV"] = "1"
+    env["LUMIBOT_DISABLE_DOTENV_LOCAL"] = "1"
+    env["LUMIBOT_LOG_LEVEL"] = "ERROR"
+    return env
+
+
 def test_lazy_package_all_exports_resolve():
     modules = [
         "lumibot",
@@ -496,10 +543,7 @@ def test_bitunix_data_default_timezone_is_utc(monkeypatch):
 
 
 def test_diversified_leverage_import_defers_datetime():
-    env = os.environ.copy()
-    env["LUMIBOT_DISABLE_DOTENV"] = "1"
-    env["LUMIBOT_DISABLE_DOTENV_LOCAL"] = "1"
-    env["LUMIBOT_LOG_LEVEL"] = "ERROR"
+    env = _clean_subprocess_env()
 
     result = subprocess.run(
         [
@@ -636,10 +680,7 @@ def test_order_import_defers_smart_limit_module():
 
 
 def test_startup_order_lazy_class_proxy_defers_order_module():
-    env = os.environ.copy()
-    env["LUMIBOT_DISABLE_DOTENV"] = "1"
-    env["LUMIBOT_DISABLE_DOTENV_LOCAL"] = "1"
-    env["LUMIBOT_LOG_LEVEL"] = "ERROR"
+    env = _clean_subprocess_env()
 
     result = subprocess.run(
         [
@@ -706,10 +747,7 @@ print('signature=' + str(inspect.signature(strategy_module.Asset)))
 
 
 def test_strategy_construction_defers_optional_components():
-    env = os.environ.copy()
-    env["LUMIBOT_DISABLE_DOTENV"] = "1"
-    env["LUMIBOT_DISABLE_DOTENV_LOCAL"] = "1"
-    env["LUMIBOT_LOG_LEVEL"] = "ERROR"
+    env = _clean_subprocess_env()
 
     result = subprocess.run(
         [

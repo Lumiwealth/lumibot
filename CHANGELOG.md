@@ -1,5 +1,85 @@
 # Changelog
 
+## 4.5.90 - 2026-09-02
+
+Deploy marker: `d5a2d1629580`
+
+### Fixed
+- **Live fill handling now enforces strategy ownership before hedge callbacks.**
+  Shared-account broker activity with a foreign order tag (for example MOS
+  option fills while an STM strategy is the sole local subscriber) is no longer
+  ingested or delivered to ``on_filled_order``. Tag matching is ground truth over
+  a wrongly attributed ``order.strategy``, sole-subscriber fallback no longer
+  claims foreign tags, Tradier polling skips foreign-tagged rows, Schwab no
+  longer seeds untracked foreign NEW snapshots into the local strategy, and
+  executor/broker fill paths skip foreign fills so an unrelated option fill
+  cannot trigger a 100-share stock hedge. Helper APIs:
+  ``Broker.normalize_broker_strategy_tag``, ``strategy_tag_matches``,
+  ``order_belongs_to_local_strategy``, ``order_is_foreign_to_local_strategy``,
+  and ``fills_match_underlying``.
+- **Managed agents now preserve correctness across compound safety boundaries.**
+  Duplicate option-closing legs are validated against the remaining signed
+  position, stale broker snapshots cannot prune positions created while the
+  snapshot was in flight, fixture snapshot identifiers change when position
+  content changes, and stock sizing guidance requires a verified positive
+  whole-share quantity even when the built-in sizing tool is unavailable.
+- **Priority trade events are now isolated from normal executor backlog.** Fill,
+  partial-fill, cancel, and error events use a dedicated nonblocking queue that
+  is drained before ordinary order events, eliminating the prior
+  ``Queue.empty()``/blocking-``get()`` race and preserving hedge responsiveness.
+- **Crypto symbol normalization preserves the requested quote asset.** Compact
+  symbols prefer the longest recognized suffix (for example ``BTCBUSD`` parses
+  as ``BTC/BUSD``), and Coinbase lookup no longer silently substitutes a USD
+  market for an explicitly requested USDT market.
+- **Release tests no longer inherit developer credentials into lazy-import
+  subprocesses or classify live Alpaca shorting checks as deterministic unit
+  coverage.** The isolated import checks strip broker/data-provider runtime
+  variables, the no-broker test now explicitly suppresses the dynamic default
+  broker factory, and network-backed shorting tests are correctly marked as API
+  tests. This keeps local and GitHub release gates equivalent without exposing
+  credential-bearing state in failure traces.
+- **Built distributions exclude generated Python bytecode.** The resource
+  manifest still includes the optional ThetaData runtime files while pruning
+  ``__pycache__`` directories and ``*.pyc``/``*.pyo`` artifacts from public
+  wheels.
+- **Option close tools now reject exposure-increasing closing legs before broker
+  submission.** Single-leg and atomic multi-leg closes validate every contract
+  against the latest signed position, reject reversed closing sides and oversized
+  quantities with a visible error, and allow the agent to correct the package
+  without creating a duplicate order.
+- **Agent release fixtures now exercise the same compact account-pagination
+  contract as production.** Positions and open orders expose totals, returned and
+  omitted counts, completeness, next offsets, snapshot identifiers, and as-of
+  timestamps, preventing agents from repeatedly polling legacy count-only fixture
+  results that could never prove account readiness.
+- **Stock agents now keep opening-range boundaries and reported order state
+  consistent.** The stock skill defines bar timestamps as interval starts,
+  excludes the first post-window bar from the opening range, requires exact
+  interval aggregation when necessary, verifies share quantity against notional
+  and cash caps through the deterministic ``risk_calculate_stock_quantity`` tool,
+  and requires final narratives to match submitted order
+  identifiers and final account reads. This fixes real-model release-gate
+  failures where an order filled but the final response claimed no trade occurred
+  and where a tenfold sizing error exceeded the strategy's allocation cap.
+  Historical-price tool guidance now advertises supported multi-minute aliases,
+  and agents may not treat a one-minute constituent as a completed five-minute
+  confirmation bar.
+- **Live fill/hedge callbacks are no longer gated behind a long
+  ``on_trading_iteration``.** During live scans the executor drains priority
+  fill/cancel events on the OTIM thread while user strategy code runs on a
+  helper thread, ``check_queue`` wakes immediately on fill/cancel/error events
+  instead of sleeping up to 0.5s, and ``sync_broker`` no longer holds fill or
+  partial-fill trade events. Target: hedge submission must not wait for a
+  100s+ scan (2026-09-02 regression: option fill while a 122s iteration was
+  running). Covered by ``tests/test_priority_fill_during_iteration.py``.
+- **Coinbase/CCXT crypto backtests no longer silently complete with zero trades
+  when strategies use pair-string base symbols.** Hyphen and concatenated forms
+  such as `BTC-USD`, `BTCUSD`, and redundant `BTC-USD/USD` now normalize to the
+  CCXT unified USD form `BTC/USD` before market lookup. If a market still cannot
+  be resolved after alias attempts, CCXT history raises a clear diagnostic
+  instead of returning empty candles that produce `completed_no_trades`.
+
+
 ## 4.5.89 - 2026-09-02
 
 Deploy marker: `04ef8d417189`

@@ -2,7 +2,7 @@
 
 Broker-neutral guidance for deadline-driven cancellation, callback races, reconciliation, hedges, and request budgets.
 
-**Last Updated:** 2026-08-28
+**Last Updated:** 2026-09-03
 **Status:** Active design and strategy-authoring guide
 **Audience:** LumiBot strategy authors, maintainers, broker-adapter engineers, and AI-agent prompt maintainers
 
@@ -20,6 +20,20 @@ The reusable architecture is broker-neutral. Broker-specific behavior belongs
 in a broker profile, and the strategy still owns its deadline, replacement,
 hedge, and conflict policy. Do not turn one strategy's timeout or risk rule into
 a global LumiBot default.
+
+## Strategy ownership of fills (shared accounts)
+
+When multiple live strategies share one brokerage account, the broker poll can
+surface another strategy's fills. LumiBot must not attribute those fills to the
+local strategy:
+
+- Broker order **tags** are ground truth for ownership (normalized strategy name).
+- Foreign-tagged activity is skipped during polling and never delivered to
+  ``on_filled_order`` / hedge handlers.
+- Sole-subscriber fallback must not claim orders whose tag belongs to someone else.
+- Hedge logic should also verify option underlying matches the strategy symbol
+  (``Broker.fills_match_underlying`` / ``option_underlying_symbol``) as defense
+  in depth.
 
 ## The Core Model
 
@@ -72,7 +86,10 @@ overhead; it does not guarantee network latency or broker terminal time.
 `self.sleeptime = "1S"` means the next trading iteration begins after the
 current iteration finishes. It does not interrupt a slow scan. A deadline that
 is checked only in a later `on_trading_iteration` can therefore be late by the
-entire scan duration.
+entire scan duration. Fill and partial-fill callbacks are different: in live
+mode LumiBot drains them on a priority path while the scan runs, so
+`on_filled_order` hedges must not wait for the scan to finish. Prefer hedges in
+`on_filled_order`, not in a later iteration poll.
 
 For a deadline-critical order:
 

@@ -1861,11 +1861,26 @@ class Schwab(Broker):
         observed_status = getattr(observed_order, "status", Order.OrderStatus.UNKNOWN)
 
         # A seven-day healing snapshot contains unrelated historical orders.
-        # Seed only active orders that are not already tracked; terminal history
-        # must not replay callbacks into the running strategy.
+        # Never adopt untracked account orders into this strategy. Locally
+        # submitted orders are tracked at submit time; seeding foreign NEW
+        # orders previously let a shared-account MOS fill reach an STM
+        # on_filled_order hedge path.
         if stored_order is None:
-            if Order.is_equivalent_status(observed_status, self.NEW_ORDER) or Order.is_equivalent_status(
-                observed_status, Order.OrderStatus.CANCELLING
+            if self.order_is_foreign_to_local_strategy(observed_order, getattr(self, "_strategy_name", None)):
+                return
+            local_name = getattr(self, "_strategy_name", None)
+            tag = getattr(observed_order, "tag", None)
+            # Only re-bind untracked active orders when the broker tag proves
+            # ownership. Untagged snapshots are ignored so shared-account
+            # activity cannot become this strategy's tracked order.
+            if (
+                local_name
+                and tag
+                and self.strategy_tag_matches(tag, local_name)
+                and (
+                    Order.is_equivalent_status(observed_status, self.NEW_ORDER)
+                    or Order.is_equivalent_status(observed_status, Order.OrderStatus.CANCELLING)
+                )
             ):
                 self._process_new_order(observed_order)
                 if Order.is_equivalent_status(observed_status, Order.OrderStatus.CANCELLING):
@@ -2145,8 +2160,12 @@ class Schwab(Broker):
                 orders = broker._pull_broker_all_orders()
                 for order_data in orders:
                     order = broker._parse_broker_order(order_data, broker._strategy_name)
-                    if order:
-                        broker._process_schwab_order_snapshot(order)
+                    if not order:
+                        continue
+                    # Shared-account safety: skip foreign-tagged snapshots early.
+                    if broker.order_is_foreign_to_local_strategy(order, broker._strategy_name):
+                        continue
+                    broker._process_schwab_order_snapshot(order)
             except Exception:
                 logger.error(_format_exc())
 

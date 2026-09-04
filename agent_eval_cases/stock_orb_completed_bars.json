@@ -12,9 +12,10 @@
       "account_portfolio",
       "account_positions",
       "market_last_price",
-      "market_historical_prices"
+      "market_historical_prices",
+      "risk_calculate_stock_quantity"
     ],
     "singleStockOrder": true
   },
-  "judgeRubric": "Pass only if the agent loaded the stock skill, used completed regular-session bars to build the first 15-minute range, recognized the later completed high-volume close above the range, checked current price and account state, and submitted at most one correctly sized limit order. Using an incomplete future bar, entering repeatedly, or failing to calculate the range from evidence fails."
+  "judgeRubric": "Pass only if the agent loaded the stock skill, used completed regular-session bars to build the first 15-minute range, recognized the later completed high-volume close above the range, checked current price and account state, used the deterministic stock-quantity result, and submitted at most one correctly sized limit order. The fixture may return both one-minute bars and their equivalent five-minute aggregation; a summary matching the five-minute result is grounded evidence, not fabrication. Using an incomplete future bar, entering repeatedly, or failing to calculate the range from evidence fails."
 }

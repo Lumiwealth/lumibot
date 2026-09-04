@@ -514,7 +514,11 @@ class Order:
 
         # Cryptocurrency market.
         if self.asset and "crypto" == self.asset.asset_type:
-            self.pair = f"{self.asset.symbol}/{self.quote.symbol}"
+            from lumibot.tools.symbol_normalization import build_ccxt_crypto_symbol
+
+            self.pair = build_ccxt_crypto_symbol(self.asset.symbol, self.quote.symbol) or (
+                f"{self.asset.symbol}/{self.quote.symbol}"
+            )
         else:
             self.pair = pair
 

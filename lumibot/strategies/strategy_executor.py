@@ -11,8 +11,29 @@ from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 logger = LazyLogger(__name__)
 
 # Warn when a single on_trading_iteration blocks for longer than this; long
-# iterations delay cancel/deadline checks until the loop regains control.
+# iterations delay cancel/deadline checks that still live only inside the scan
+# loop. Fill/hedge callbacks use a priority drain path and are not gated on the
+# scan finishing.
 _ITERATION_OVERRUN_WARN_SECONDS = 120.0
+
+# Events that must wake the live order-management loop immediately (hedges,
+# cancels, errors). NEW_ORDER is intentionally excluded so startup floods do not
+# thrash the wakeup event.
+_PRIORITY_TRADE_EVENTS = frozenset({"fill", "partial_fill", "canceled", "error"})
+
+# How often the OTIM thread drains the event queue while a live user scan runs.
+_PRIORITY_DRAIN_INTERVAL_SECONDS = 0.05
+
+
+def should_hold_trade_event_for_sync(*, hold_trade_events: bool, is_backtesting: bool, type_event: str) -> bool:
+    """Re-export: see lumibot.brokers.trade_event_priority."""
+    from lumibot.brokers.trade_event_priority import should_hold_trade_event_for_sync as _impl
+
+    return _impl(
+        hold_trade_events=hold_trade_events,
+        is_backtesting=is_backtesting,
+        type_event=type_event,
+    )
 
 pd = LazyModule("pandas")
 mcal = LazyModule("pandas_market_calendars")
@@ -141,6 +162,7 @@ class StrategyExecutor(Thread):
         self.stop_event = Event()
         self.lock = Lock()
         self.queue = Queue()
+        self.priority_queue = Queue()
 
         self.strategy = strategy
         self._strategy_context = None
@@ -169,6 +191,9 @@ class StrategyExecutor(Thread):
 
         # Create an Event object for the check queue stop event.
         self.check_queue_stop_event = Event()
+        # Priority wake for fill/cancel/error events so check_queue does not sleep
+        # a full 0.5s while a hedge is waiting.
+        self._queue_wakeup = Event()
 
         # Keep track of Abrupt Closing method execution
         self.abrupt_closing = False
@@ -439,7 +464,8 @@ class StrategyExecutor(Thread):
 
     def check_queue(self):
         # Define a function that checks the queue and processes the queue. This is run continuously in a separate
-        # thread in live.
+        # thread in live. Priority fill/cancel events set `_queue_wakeup` so we do
+        # not wait a full half-second while a hedge is pending.
         while not self.check_queue_stop_event.is_set():
             try:
                 self.process_queue()
@@ -449,7 +475,9 @@ class StrategyExecutor(Thread):
                 self._process_smart_limit_orders()
             except Exception as exc:
                 self.strategy.logger.error(f"SMART_LIMIT processing failed: {exc}")
-            time.sleep(0.5)
+            timeout = 0.1 if self._in_trading_iteration else 0.5
+            self._queue_wakeup.wait(timeout=timeout)
+            self._queue_wakeup.clear()
 
     def safe_sleep(self, sleeptime):
         # This method should only be run in back testing. If it's running during live, something has gone wrong.
@@ -826,7 +854,11 @@ class StrategyExecutor(Thread):
         return broker_identifiers
 
     def add_event(self, event_name, payload):
-        self.queue.put((event_name, payload))
+        if event_name in _PRIORITY_TRADE_EVENTS:
+            self.priority_queue.put((event_name, payload))
+            self._queue_wakeup.set()
+        else:
+            self.queue.put((event_name, payload))
 
     def process_event(self, event, payload):
         # Log that we are processing an event.
@@ -949,8 +981,14 @@ class StrategyExecutor(Thread):
             self.strategy.logger.error(f"Event {event} not recognized. Payload: {payload}")
 
     def process_queue(self):
-        while not self.queue.empty():
-            event, payload = self.queue.get()
+        while True:
+            try:
+                event, payload = self.priority_queue.get_nowait()
+            except Empty:
+                try:
+                    event, payload = self.queue.get_nowait()
+                except Empty:
+                    break
             self.process_event(event, payload)
 
     def _process_smart_limit_orders(self):
@@ -1310,6 +1348,48 @@ class StrategyExecutor(Thread):
         self.strategy.logger.debug("Executing the before_starting_trading lifecycle method")
         self.strategy.before_starting_trading()
 
+    def _run_live_trading_iteration_with_priority_drains(self, on_trading_iteration):
+        """Run user on_trading_iteration without gating fill/hedge callbacks.
+
+        A long live scan previously blocked APScheduler from re-entering OTIM, and
+        pure-Python scan work could starve the background check_queue thread via
+        the GIL. Running the user iteration on a helper thread lets this thread
+        keep draining priority fill/cancel events so hedge submission is not
+        delayed by the full scan duration.
+        """
+        done = Event()
+        errors: list[BaseException] = []
+
+        def _user_iteration():
+            try:
+                on_trading_iteration()
+            except BaseException as exc:  # noqa: BLE001 - re-raised below
+                errors.append(exc)
+            finally:
+                done.set()
+
+        strategy_name = getattr(self.strategy, "name", None) or getattr(self.strategy, "_name", "strategy")
+        worker = Thread(
+            target=_user_iteration,
+            name=f"OTIM-user-{strategy_name}",
+            daemon=True,
+        )
+        worker.start()
+        while not done.wait(timeout=_PRIORITY_DRAIN_INTERVAL_SECONDS):
+            try:
+                self.process_queue()
+            except Empty:
+                pass
+            try:
+                self._process_smart_limit_orders()
+            except Exception as exc:
+                self.strategy.logger.error(
+                    f"SMART_LIMIT processing failed during priority drain: {exc}"
+                )
+        worker.join(timeout=5.0)
+        if errors:
+            raise errors[0]
+
     @lifecycle_method
     @trace_stats
     def _on_trading_iteration(self):
@@ -1369,7 +1449,12 @@ class StrategyExecutor(Thread):
             # Variable Restore
             if not self._run_once_requested:
                 self.strategy.load_variables_from_db()
-            on_trading_iteration()
+            if self.broker.IS_BACKTESTING_BROKER:
+                on_trading_iteration()
+            else:
+                # Live: drain fill/hedge events while the user scan runs so a
+                # 100s+ on_trading_iteration cannot gate order management.
+                self._run_live_trading_iteration_with_priority_drains(on_trading_iteration)
 
             self.strategy._first_iteration = False
             self.broker._first_iteration = False
@@ -1392,16 +1477,16 @@ class StrategyExecutor(Thread):
             self.cron_count = self._seconds_to_sleeptime_count(int(runtime), sleep_units)
 
             # sleeptime cannot interrupt a running iteration: APScheduler skips
-            # ticks while this job is executing, so any pending-order deadline
-            # logic only runs when on_trading_iteration regains control. Warn
-            # loudly when an iteration overruns badly enough that order
-            # management (e.g. cancel deadlines) will have been delayed.
+            # ticks while this job is executing. Fill/hedge callbacks drain on a
+            # priority path during the scan, but deadline/cancel logic that still
+            # lives only inside on_trading_iteration waits until it finishes.
             if runtime > _ITERATION_OVERRUN_WARN_SECONDS:
                 self.strategy.log_message(
-                    f"on_trading_iteration took {runtime:.1f}s, which blocks all order management until it "
-                    f"finishes (sleeptime={self.strategy.sleeptime!r} does not interrupt a running iteration). "
-                    "Consider caching option chains/quotes, narrowing get_orders calls in the hot path, or "
-                    "moving deadline checks into event handlers such as on_filled_order.",
+                    f"on_trading_iteration took {runtime:.1f}s. Fill/hedge callbacks use a priority path and "
+                    f"are not gated on the scan finishing, but any deadline/cancel logic that only runs inside "
+                    f"on_trading_iteration still waits (sleeptime={self.strategy.sleeptime!r} does not interrupt "
+                    "a running iteration). Prefer on_filled_order for hedges; cache option chains/quotes and "
+                    "narrow get_orders calls in the hot path.",
                     color="yellow",
                 )
             next_run_time = self.get_next_ap_scheduler_run_time()
@@ -1545,10 +1630,45 @@ class StrategyExecutor(Thread):
 
     @event_method
     def _on_partially_filled_order(self, position, order, price, quantity, multiplier):
+        local_name = getattr(self.strategy, "name", None) or getattr(self.strategy, "_name", None)
+        order_strategy = getattr(order, "strategy", None)
+        order_tag = getattr(order, "tag", None)
+        belongs = True
+        if not self.broker.IS_BACKTESTING_BROKER and local_name and (order_tag or order_strategy):
+            from lumibot.brokers.broker import Broker as _Broker
+
+            if order_tag:
+                belongs = _Broker.strategy_tag_matches(order_tag, local_name)
+            else:
+                belongs = _Broker.strategy_tag_matches(order_strategy, local_name)
+        if not belongs:
+            return
         self.strategy.on_partially_filled_order(position, order, price, quantity, multiplier)
 
     @event_method
     def _on_filled_order(self, position, order, price, quantity, multiplier):
+        # Shared-account safety: never invoke strategy fill/hedge handlers for
+        # orders owned by a different strategy (tag/strategy mismatch).
+        local_name = getattr(self.strategy, "name", None) or getattr(self.strategy, "_name", None)
+        order_strategy = getattr(order, "strategy", None)
+        order_tag = getattr(order, "tag", None)
+        belongs = True
+        if not self.broker.IS_BACKTESTING_BROKER and local_name and (order_tag or order_strategy):
+            from lumibot.brokers.broker import Broker as _Broker
+
+            if order_tag:
+                belongs = _Broker.strategy_tag_matches(order_tag, local_name)
+            else:
+                belongs = _Broker.strategy_tag_matches(order_strategy, local_name)
+        if not belongs:
+            if self.strategy.logger.isEnabledFor(20):
+                self.strategy.logger.info(
+                    f"Skipping on_filled_order for foreign order "
+                    f"id={getattr(order, 'identifier', None)} strategy={order_strategy!r} "
+                    f"tag={order_tag!r} local={local_name!r}"
+                )
+            return
+
         self.strategy.on_filled_order(position, order, price, quantity, multiplier)
 
         # PERF: In backtesting we never send Discord notifications (`Strategy.send_discord_message`

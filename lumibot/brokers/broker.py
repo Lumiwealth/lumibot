@@ -1051,6 +1051,11 @@ class Broker(ABC):
         """
         Sync the broker positions with the lumibot positions. Remove any lumibot positions that are not at the broker.
         """
+        # Only positions that existed before the broker snapshot began are
+        # eligible for stale pruning. A fill can add a local position while the
+        # remote read is in flight; absence from that older snapshot must not
+        # delete the newly observed fill.
+        positions_before_snapshot = {id(position) for position in self._filled_positions.get_list()}
         positions_broker = self._pull_positions(strategy)
         for position in positions_broker:
             # Check if the position is None
@@ -1092,7 +1097,11 @@ class Broker(ABC):
                 if position_broker.asset == position.asset:
                     found = True
                     break
-            if not found and (position.asset not in self.quote_assets):
+            if (
+                not found
+                and id(position) in positions_before_snapshot
+                and (position.asset not in self.quote_assets)
+            ):
                 self._filled_positions.remove(position)
 
     def refresh_positions(self, strategy, ttl_seconds: float = 0.0):
@@ -2941,6 +2950,98 @@ class Broker(ABC):
 
         return None
 
+    @staticmethod
+    def normalize_broker_strategy_tag(value) -> str:
+        """Normalize strategy names the way Tradier tags do (non-alnum -> '-')."""
+        import re
+
+        if value is None:
+            return ""
+        text = str(value).strip()
+        if not text:
+            return ""
+        return re.sub(r"[^a-zA-Z0-9-]", "-", text)
+
+    @classmethod
+    def strategy_tag_matches(cls, tag, strategy_name) -> bool:
+        """True when a broker order tag matches a strategy name under tag normalization."""
+        if not tag or not strategy_name:
+            return False
+        return cls.normalize_broker_strategy_tag(tag) == cls.normalize_broker_strategy_tag(strategy_name)
+
+    @staticmethod
+    def option_underlying_symbol(asset) -> str | None:
+        """Best-effort underlying symbol for option (or stock) assets used in hedge gates."""
+        if asset is None:
+            return None
+        underlying = getattr(asset, "underlying_asset", None)
+        if underlying is not None and getattr(underlying, "symbol", None):
+            return str(underlying.symbol).upper()
+        symbol = getattr(asset, "symbol", None)
+        return str(symbol).upper() if symbol else None
+
+    @classmethod
+    def fills_match_underlying(cls, asset, underlyings) -> bool:
+        """True when asset underlying/symbol is in the allowed underlying set (case-insensitive)."""
+        if underlyings is None:
+            return False
+        allowed = {str(u).upper() for u in underlyings if u}
+        if not allowed:
+            return False
+        symbol = cls.option_underlying_symbol(asset)
+        return bool(symbol) and symbol in allowed
+
+    def order_belongs_to_local_strategy(self, order, local_strategy_name: str | None = None) -> bool:
+        """Return True only when this order is owned by the local strategy.
+
+        Shared broker accounts can expose other strategies' activity. Broker tags are
+        ground truth and must win over a wrongly attributed ``order.strategy`` so a
+        sole local subscriber never hedges off foreign fills (Titus STM/MOS bug).
+        """
+        local_name = local_strategy_name or getattr(self, "_strategy_name", None) or ""
+        if not local_name and hasattr(self, "_subscribers") and len(self._subscribers) == 1:
+            only = self._subscribers[0]
+            local_name = getattr(only, "name", "") or str(only)
+
+        if not local_name:
+            # No local identity — cannot safely claim ownership.
+            return False
+
+        tag = getattr(order, "tag", None)
+        if tag:
+            # Explicit tag always wins: foreign tags must never be claimed locally.
+            return self.strategy_tag_matches(tag, local_name)
+
+        order_strategy = getattr(order, "strategy", None) or ""
+        if order_strategy:
+            return self.strategy_tag_matches(order_strategy, local_name)
+
+        # Untagged with empty strategy: do not claim.
+        return False
+
+    def order_is_foreign_to_local_strategy(self, order, local_strategy_name: str | None = None) -> bool:
+        """True only when tag/strategy evidence shows the order belongs to someone else.
+
+        Absence of tag/strategy is not treated as foreign so untagged sole-subscriber
+        fills keep working; explicit foreign tags still block hedge delivery.
+        """
+        local_name = local_strategy_name or getattr(self, "_strategy_name", None) or ""
+        if not local_name and hasattr(self, "_subscribers") and len(self._subscribers) == 1:
+            only = self._subscribers[0]
+            local_name = getattr(only, "name", "") or str(only)
+        if not local_name:
+            return False
+
+        tag = getattr(order, "tag", None)
+        if tag:
+            return not self.strategy_tag_matches(tag, local_name)
+
+        order_strategy = getattr(order, "strategy", None) or ""
+        if order_strategy:
+            return not self.strategy_tag_matches(order_strategy, local_name)
+
+        return False
+
     def _resolve_subscriber(self, strategy_name):
         """Get subscriber by name, falling back to the sole registered subscriber when strategy_name is falsy."""
         subscriber = self._get_subscriber(strategy_name)
@@ -3007,6 +3108,21 @@ class Broker(ABC):
             multiplier=multiplier,
         )
         subscriber = self._resolve_subscriber(order.strategy)
+        if (
+            subscriber
+            and not self.IS_BACKTESTING_BROKER
+            and self.order_is_foreign_to_local_strategy(order, getattr(subscriber, "name", None))
+        ):
+            if self.logger.isEnabledFor(20):
+                self.logger.info(
+                    colored(
+                        f"Skipping partial fill for foreign order {getattr(order, 'identifier', None)} "
+                        f"(order.strategy={order.strategy!r}, tag={getattr(order, 'tag', None)!r}) "
+                        f"vs subscriber {getattr(subscriber, 'name', None)!r}",
+                        color="yellow",
+                    )
+                )
+            return
         if subscriber:
             subscriber.add_event(subscriber.PARTIALLY_FILLED_ORDER, payload)
         else:
@@ -3027,6 +3143,23 @@ class Broker(ABC):
             multiplier=multiplier,
         )
         subscriber = self._resolve_subscriber(order.strategy)
+        # Defense in depth: never deliver fills that are not owned by the subscriber.
+        # Prevents shared-account MOS activity from triggering STM on_filled_order hedges.
+        if (
+            subscriber
+            and not self.IS_BACKTESTING_BROKER
+            and self.order_is_foreign_to_local_strategy(order, getattr(subscriber, "name", None))
+        ):
+            if self.logger.isEnabledFor(20):
+                self.logger.info(
+                    colored(
+                        f"Skipping fill for foreign order {getattr(order, 'identifier', None)} "
+                        f"(order.strategy={order.strategy!r}, tag={getattr(order, 'tag', None)!r}) "
+                        f"vs subscriber {getattr(subscriber, 'name', None)!r}",
+                        color="yellow",
+                    )
+                )
+            return
         if subscriber:
             subscriber.add_event(subscriber.FILLED_ORDER, payload)
         else:
@@ -3115,7 +3248,13 @@ class Broker(ABC):
                 f"{stored_order.symbol} ID={stored_order.identifier}, processed by broker {self.name}"
             )
 
-        if self._hold_trade_events and not is_backtesting:
+        from lumibot.brokers.trade_event_priority import should_hold_trade_event_for_sync
+
+        if should_hold_trade_event_for_sync(
+            hold_trade_events=bool(self._hold_trade_events),
+            is_backtesting=bool(is_backtesting),
+            type_event=type_event,
+        ):
             if self.logger.isEnabledFor(20):
                 self.logger.info(
                     f"Trade event held for {stored_order.strategy} strategy: {type_event} {stored_order.symbol} "
@@ -3123,7 +3262,8 @@ class Broker(ABC):
                     f"self._hold_trade_events is {self._hold_trade_events}"
                 )
 
-            # Hold the trade event
+            # Hold the trade event (non-fill). Fills take the priority path so
+            # hedges are not delayed by sync_broker or a long trading iteration.
             self._held_trades.append(
                 (
                     stored_order,

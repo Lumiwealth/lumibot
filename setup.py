@@ -19,6 +19,9 @@ class BuildWithThetaJar(_build_py):
     """
 
     def run(self):
+        build_lib = Path(self.build_lib)
+        if build_lib.exists():
+            shutil.rmtree(build_lib)
         super().run()
         self._maybe_copy_theta_terminal()
 
@@ -43,7 +46,7 @@ theta_jar_path = PROJECT_ROOT / "lumibot" / "resources" / "ThetaTerminal.jar"
 
 setuptools.setup(
     name="lumibot",
-    version="4.5.89",
+    version="4.5.90",
     author="Robert Grzesik",
     author_email="rob@botspot.trade",
     description="Python framework for algorithmic trading: backtesting and live deployment for stocks, options, crypto, futures, and forex. Same code for backtest and live trading.",

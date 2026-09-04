@@ -11,6 +11,8 @@ from lumibot.credentials import ALPACA_TEST_CONFIG
 from lumibot.example_strategies.drift_rebalancer import DriftRebalancer
 from lumibot.components.drift_rebalancer_logic import DriftType
 
+pytestmark = pytest.mark.apitest
+
 # Skip these tests if Alpaca test credentials are not available
 if not ALPACA_TEST_CONFIG.get('API_KEY') or ALPACA_TEST_CONFIG.get('API_KEY') == '<your key here>':
     pytest.skip("These tests require an Alpaca API key", allow_module_level=True)

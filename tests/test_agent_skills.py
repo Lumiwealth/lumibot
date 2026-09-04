@@ -89,6 +89,23 @@ def test_options_skill_requires_atomic_multileg_or_no_trade():
     assert "make a no-trade decision" in instructions
 
 
+def test_stock_skill_defines_opening_range_boundaries_and_order_truth():
+    stock_skill = next(skill for skill in load_builtin_skills() if skill.name == "stock-trading")
+    instructions = " ".join(stock_skill.instructions.split())
+    intraday = " ".join(stock_skill.resources.references["intraday-setups.md"].split())
+
+    assert "Write down the decisive condition" in instructions
+    assert "call `risk_calculate_stock_quantity`" in instructions
+    assert "quantity unchanged" in instructions
+    assert "notional is at or below both the cap and available cash" in instructions
+    assert "never say that no order was entered" in instructions
+    assert "three five-minute bars starting at 09:30, 09:35, and 09:40 form the range" in intraday
+    assert "starting at 09:45 is the first later candidate" in intraday
+    assert "aggregate the exact non-overlapping intervals" in intraday
+    assert "Never treat the first one-minute constituent" in intraday
+    assert "as a completed five-minute bar" in intraday
+
+
 def test_builtin_skill_toolset_exposes_progressive_loading_tools():
     toolset = build_builtin_skill_toolset()
     tools = asyncio.run(toolset.get_tools())
@@ -127,6 +144,9 @@ def test_agent_runtime_enables_builtin_skills_and_fingerprints_cache(monkeypatch
     assert "load_skill" in first.system_prompt
     assert "managing any stock, ETF, or option position or related pending order" in first.system_prompt
     assert "MUST load the matching skill" in first.system_prompt
+    assert "Never claim that no order was submitted" in first.system_prompt
+    assert "risk_calculate_stock_quantity is unavailable" in first.system_prompt
+    assert "make a no-trade decision" in first.system_prompt
 
 
 def test_agent_can_disable_builtin_skills_explicitly():

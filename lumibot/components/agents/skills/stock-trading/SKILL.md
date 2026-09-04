@@ -15,9 +15,14 @@ broad mandate leads you to a stock idea, load it before submitting an order.
 3. Use batch tools for a universe. Do not loop one symbol at a time when a batch
    price or history tool can return the same evidence.
 4. Evaluate the user's entry, exit, sizing, and frequency rules against current
-   evidence. Do not invent missing signals.
+   evidence. Write down the decisive condition and whether it is true before
+   submitting an order. Do not invent missing signals.
 5. Size from current portfolio value, available cash, current price, volatility or
-   stop distance, and the user's risk rules.
+   stop distance, and the user's risk rules. For a notional cap, calculate
+   the maximum notional and call `risk_calculate_stock_quantity`; use its returned
+   whole-share quantity unchanged. Verify its notional is at or below both the cap
+   and available cash before submission. Submit only when the returned quantity is
+   greater than zero; otherwise make a no-trade decision.
 6. Submit the selected order once.
 7. Capture the returned identifier, inspect that exact order, and reread positions
    and open orders. In backtests, a short bounded `orders_wait_for_terminal` is
@@ -26,6 +31,9 @@ broad mandate leads you to a stock idea, load it before submitting an order.
 8. If a related order is already open, inspect that exact order and do not submit
    another order for the same intended position change. A pending exit already
    owns the exit. Let it resolve or cancel it deliberately before replacing it.
+9. Reconcile the final summary with the mutation tools and the final account
+   reads. If an order tool returned a submitted identifier, never say that no
+   order was entered. Report the exact observed status instead.
 
 ## Research depth
 

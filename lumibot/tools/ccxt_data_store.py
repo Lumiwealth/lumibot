@@ -214,6 +214,18 @@ class CcxtCacheDB:
         if timeframe not in _TIMEFRAME_SECONDS:
             raise ValueError(f"Unsupported CCXT timeframe {timeframe!r}; expected one of {sorted(_TIMEFRAME_SECONDS)}")
 
+        from lumibot.tools.symbol_normalization import build_ccxt_crypto_symbol
+
+        normalized_symbol = build_ccxt_crypto_symbol(symbol, exchange_id=self.exchange_id)
+        if normalized_symbol and normalized_symbol != symbol:
+            self.logger.info(
+                "Normalized crypto CCXT download symbol %s -> %s for %s",
+                symbol,
+                normalized_symbol,
+                self.exchange_id,
+            )
+            symbol = normalized_symbol
+
         start_dt, end_dt = self._normalize_download_window(start, end)
         if start_dt > end_dt:
             self.logger.warning(
@@ -577,6 +589,53 @@ class CcxtCacheDB:
         if not self.api.has["fetchOHLCV"]:
             logger.error("Exchange does not support fetching OHLCV data")
 
+        from lumibot.tools.symbol_normalization import (
+            build_ccxt_crypto_symbol,
+            crypto_ccxt_symbol_candidates,
+            resolve_ccxt_market_symbol,
+        )
+
+        exchange_id = getattr(self.api, "id", None) or getattr(self, "exchange_id", None)
+        requested_symbol = symbol
+        normalized_symbol = build_ccxt_crypto_symbol(symbol, exchange_id=exchange_id) or symbol
+        resolved_symbol = resolve_ccxt_market_symbol(
+            getattr(self.api, "markets", None),
+            normalized_symbol,
+            exchange_id=exchange_id,
+        )
+        if resolved_symbol is None:
+            # Also try the raw request in case callers already passed a market id alias.
+            resolved_symbol = resolve_ccxt_market_symbol(
+                getattr(self.api, "markets", None),
+                requested_symbol,
+                exchange_id=exchange_id,
+            )
+        if resolved_symbol is None:
+            tried = crypto_ccxt_symbol_candidates(normalized_symbol, exchange_id=exchange_id)
+            logger.error(
+                "A request for market data for %s was submitted. "
+                "The market for that pair does not exist on %s after crypto symbol normalization. "
+                "Tried: %s. "
+                "For Coinbase spot history use CCXT unified USD form like BTC/USD "
+                "(base Asset('BTC') + quote USD), not BTC-USD or BTC-USD/USD.",
+                requested_symbol,
+                exchange_id or "ccxt",
+                tried,
+            )
+            # Raise instead of silently returning empty candles so backtests cannot
+            # complete with zero trades when the only issue was symbol/data resolution.
+            raise ValueError(
+                f"CCXT market not found for {requested_symbol!r} on {exchange_id or 'ccxt'}. "
+                f"Tried {tried}. Use BASE/QUOTE (e.g. BTC/USD) rather than BTC-USD or BTC-USD/USD."
+            )
+        if resolved_symbol != requested_symbol:
+            logger.info(
+                "Normalized crypto CCXT symbol %s -> %s for %s market data",
+                requested_symbol,
+                resolved_symbol,
+                exchange_id or "ccxt",
+            )
+        symbol = resolved_symbol
         market = self.api.markets.get(symbol, None)
         if market is None:
             logger.error(

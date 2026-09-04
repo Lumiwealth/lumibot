@@ -183,6 +183,16 @@ def _require_positive_number(name: str, value: Any) -> float:
     return parsed
 
 
+def _require_nonnegative_number(name: str, value: Any) -> float:
+    try:
+        parsed = float(value)
+    except Exception as exc:
+        raise ValueError(f"{name} must be a nonnegative number.") from exc
+    if not math.isfinite(parsed) or parsed < 0:
+        raise ValueError(f"{name} must be a finite number greater than or equal to 0.")
+    return parsed
+
+
 def _agent_tool_calls_for_current_run() -> list[dict[str, Any]]:
     context = current_agent_tool_context()
     calls = context.get("tool_calls")
@@ -852,6 +862,65 @@ def _parse_option_legs(strategy: Any, legs_json: str, *, time_in_force: TimeInFo
     return orders
 
 
+def _option_contract_key(asset: Any) -> tuple[str, str, float, str]:
+    expiration = getattr(asset, "expiration", None)
+    if isinstance(expiration, (date, datetime)):
+        expiration_text = expiration.strftime("%Y-%m-%d")
+    else:
+        expiration_text = str(expiration or "")
+    right = getattr(asset, "right", None)
+    return (
+        str(getattr(asset, "symbol", "") or "").upper(),
+        expiration_text,
+        float(getattr(asset, "strike", 0) or 0),
+        str(getattr(right, "value", right) or "").lower(),
+    )
+
+
+def _validate_option_closing_orders(strategy: Any, orders: list[Any]) -> None:
+    closing_orders = [
+        order
+        for order in orders
+        if str(getattr(order, "side", "") or "").lower() in {"buy_to_close", "sell_to_close"}
+    ]
+    if not closing_orders:
+        return
+
+    quantities_by_contract: dict[tuple[str, str, float, str], float] = {}
+    for position in strategy.get_positions(include_cash_positions=True) or []:
+        asset = getattr(position, "asset", None)
+        asset_type = getattr(asset, "asset_type", None)
+        if str(getattr(asset_type, "value", asset_type) or "").lower() != "option":
+            continue
+        key = _option_contract_key(asset)
+        quantities_by_contract[key] = quantities_by_contract.get(key, 0.0) + float(
+            getattr(position, "quantity", 0) or 0
+        )
+
+    for order in closing_orders:
+        side = str(getattr(order, "side", "") or "").lower()
+        key = _option_contract_key(getattr(order, "asset", None))
+        current_quantity = quantities_by_contract.get(key, 0.0)
+        expected_side = (
+            "sell_to_close" if current_quantity > 0 else "buy_to_close" if current_quantity < 0 else None
+        )
+        if side != expected_side:
+            raise ValueError(
+                "Option closing side does not reduce the current signed position: "
+                f"contract={key}, current_quantity={current_quantity}, side={side!r}, "
+                f"required_side={expected_side!r}. Reread account_positions and correct the leg."
+            )
+        order_quantity = float(getattr(order, "quantity", 0) or 0)
+        if order_quantity > abs(current_quantity):
+            raise ValueError(
+                "Option closing quantity exceeds the current signed position: "
+                f"contract={key}, current_quantity={current_quantity}, requested_quantity={order_quantity}."
+            )
+        quantities_by_contract[key] = (
+            current_quantity - order_quantity if side == "sell_to_close" else current_quantity + order_quantity
+        )
+
+
 def _bind_positions(strategy: Any, manager: Any) -> BoundTool:
     def positions(
         *,
@@ -920,6 +989,51 @@ def _bind_portfolio(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=portfolio,
         metadata={"kind": "builtin"},
+    )
+
+
+def _bind_calculate_stock_quantity(strategy: Any, manager: Any) -> BoundTool:
+    def calculate_stock_quantity(
+        *,
+        maximum_notional: float,
+        price: float,
+        available_cash: float | None = None,
+    ) -> dict[str, Any]:
+        maximum_notional_value = _require_positive_number("maximum_notional", maximum_notional)
+        price_value = _require_positive_number("price", price)
+        available_cash_value = (
+            _require_nonnegative_number("available_cash", available_cash)
+            if available_cash is not None
+            else None
+        )
+        spendable_notional = min(
+            maximum_notional_value,
+            available_cash_value if available_cash_value is not None else maximum_notional_value,
+        )
+        quantity = math.floor(spendable_notional / price_value)
+        notional = quantity * price_value
+        return {
+            "quantity": quantity,
+            "price": price_value,
+            "maximum_notional": maximum_notional_value,
+            "available_cash": available_cash_value,
+            "spendable_notional": spendable_notional,
+            "notional": notional,
+            "remaining_notional": spendable_notional - notional,
+            "within_maximum_notional": notional <= maximum_notional_value,
+            "within_available_cash": available_cash_value is None or notional <= available_cash_value,
+        }
+
+    return BoundTool(
+        name="risk_calculate_stock_quantity",
+        description=(
+            "Calculate a whole-share stock quantity without model arithmetic. "
+            "Arguments: maximum_notional, current or intended limit price, and optional available_cash. "
+            "Returns floor(min(maximum_notional, available_cash) / price), the resulting notional, and explicit cap checks. "
+            "Use the returned quantity unchanged for a capped stock order after verifying it is positive."
+        ),
+        function=calculate_stock_quantity,
+        metadata={"kind": "builtin", "replay_on_cache": True},
     )
 
 
@@ -1169,14 +1283,14 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
             "Get historical OHLCV bars for many symbols in one call via "
             "Strategy.get_historical_prices_for_assets. "
             "Arguments: symbols as a list or comma-separated string, and/or symbols_json as a JSON array; "
-            "required length; timestep (default day); optional asset_type (default stock), quote_symbol, "
+            "required length; timestep (default day; multi-minute aliases such as '5minute', '5min', and '5 minutes' are supported); optional asset_type (default stock), quote_symbol, "
             "exchange, include_after_hours, chunk_size, max_workers. "
             "Cap is 150 symbols per call. Returns bars_by_symbol keyed by symbol with datetime/open/high/low/close/volume rows, "
             "plus symbols_available and symbols_missing. "
             "Never loop market_load_history_table or market_last_price once per symbol when you need multi-symbol history. "
             "Use market_last_prices for a cheap latest-price universe scan, then this tool for history on finalists or the full list. "
             "For SQL analysis of one already-loaded table, use market_load_history_table plus duckdb_query. "
-            'Example: market_historical_prices(symbols_json=\'["SPY","QQQ","AAPL"]\', length=20, timestep=\'minute\').'
+            'Examples: market_historical_prices(symbols_json=\'["SPY","QQQ","AAPL"]\', length=20, timestep=\'minute\'); market_historical_prices(symbols="AAPL", length=20, timestep="5minute").'
         ),
         function=historical_prices,
         metadata={"kind": "builtin", "replay_on_cache": True},
@@ -2958,6 +3072,7 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
             quote=quote,
             time_in_force=time_in_force,
         )
+        _validate_option_closing_orders(strategy, [created])
         memory = getattr(strategy, "memory", None)
         memory_context = _agent_memory_context_kwargs()
         decision_provenance = None
@@ -3040,6 +3155,7 @@ def _bind_submit_multileg_order(strategy: Any, manager: Any) -> BoundTool:
         symbols = sorted({str(getattr(order.asset, "symbol", "")).upper() for order in orders})
         for symbol in symbols:
             _require_agent_order_readiness(symbol)
+        _validate_option_closing_orders(strategy, orders)
 
         submit_kwargs: dict[str, Any] = {
             "is_multileg": True,
@@ -3144,6 +3260,15 @@ class _MarketTools:
             name="market_load_history_table",
             description="Load visible historical bars into DuckDB.",
             binder=_bind_load_history,
+        )
+
+
+class _RiskTools:
+    def calculate_stock_quantity(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="risk_calculate_stock_quantity",
+            description="Calculate a whole-share stock quantity within notional and cash caps.",
+            binder=_bind_calculate_stock_quantity,
         )
 
 
@@ -3423,6 +3548,7 @@ class _OrderTools:
 class _BuiltinTools:
     account = _AccountTools()
     market = _MarketTools()
+    risk = _RiskTools()
     options = _OptionsTools()
     duckdb = _DuckDBTools()
     docs = _DocsTools()
@@ -3443,6 +3569,7 @@ class _BuiltinTools:
             self.market.last_prices(),
             self.market.historical_prices(),
             self.market.load_history_table(),
+            self.risk.calculate_stock_quantity(),
             self.options.get_chain(),
             self.options.get_strikes(),
             self.options.get_greeks(),

@@ -2,6 +2,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts/run_agent_evals.py"
 SPEC = importlib.util.spec_from_file_location("run_agent_evals", SCRIPT_PATH)
@@ -30,6 +32,16 @@ def test_release_publish_is_blocked_by_real_model_agent_evals():
     assert "python scripts/run_agent_evals.py" in workflow
     assert "needs: [validate-build, unit-tests, backtest-tests, agent-evals]" in workflow
     assert "GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}" in workflow
+
+
+def test_paid_eval_workflows_cap_each_run_at_two_dollars():
+    repo_root = Path(__file__).resolve().parents[1]
+    standalone = (repo_root / ".github/workflows/agent-evals.yml").read_text(encoding="utf-8")
+    release = (repo_root / ".github/workflows/release.yml").read_text(encoding="utf-8")
+
+    assert 'default: "2"' in standalone
+    assert "--max-cost-usd 2" in release
+    assert '--max-cost-usd 10' not in release
 
 
 def test_eval_freshness_policy_has_one_90_day_source_of_truth():
@@ -152,25 +164,43 @@ def test_credit_spread_machine_contract_rejects_reversed_close():
     assert any("closing legs" in failure for failure in score["failures"])
 
 
-def test_credit_spread_fixture_does_not_flatten_reversed_closing_sides():
+def test_credit_spread_fixture_rejects_reversed_closing_sides_before_submission():
     fixture = evals.build_fixture("open_credit_spread")
     submit = next(
         tool for tool in evals.build_tools(fixture) if tool.name == "orders_submit_multileg"
     )
 
-    submit.function(
-        legs_json=(
-            '[{"symbol":"SPY","expiration":"2026-08-28","strike":592,'
-            '"right":"put","quantity":3,"side":"buy_to_close"},'
-            '{"symbol":"SPY","expiration":"2026-08-28","strike":594,'
-            '"right":"put","quantity":3,"side":"sell_to_close"}]'
+    with pytest.raises(ValueError, match="does not reduce the current signed position"):
+        submit.function(
+            legs_json=(
+                '[{"symbol":"SPY","expiration":"2026-08-28","strike":592,'
+                '"right":"put","quantity":3,"side":"buy_to_close"},'
+                '{"symbol":"SPY","expiration":"2026-08-28","strike":594,'
+                '"right":"put","quantity":3,"side":"sell_to_close"}]'
+            )
         )
-    )
 
     assert {(position["strike"], position["quantity"]) for position in fixture.positions} == {
         (594.0, -3),
         (592.0, 3),
     }
+
+
+def test_credit_spread_fixture_rejects_duplicate_closes_beyond_position():
+    fixture = evals.build_fixture("open_credit_spread")
+    submit = next(tool for tool in evals.build_tools(fixture) if tool.name == "orders_submit_multileg")
+
+    with pytest.raises(ValueError, match="requested_quantity=2.0"):
+        submit.function(
+            legs_json=(
+                '[{"symbol":"SPY","expiration":"2026-08-28","strike":592,'
+                '"right":"put","quantity":2,"side":"sell_to_close"},'
+                '{"symbol":"SPY","expiration":"2026-08-28","strike":592,'
+                '"right":"put","quantity":2,"side":"sell_to_close"}]'
+            )
+        )
+
+    assert fixture.submissions == []
 
 
 def test_credit_spread_eval_has_an_honest_preserved_red_baseline():
@@ -214,6 +244,82 @@ def test_stock_pending_exit_eval_has_an_honest_preserved_red_baseline():
     assert baseline["sourceArtifactHashes"]["tradesCsvSha256"] == (
         "0f617ee6587dd44e22646062444d891c965d9de879f7cccf021e961fc6397a4f"
     )
+
+
+def test_stock_orb_eval_has_an_honest_preserved_red_baseline():
+    baseline_path = (
+        Path(__file__).resolve().parents[1]
+        / "agent_eval_baselines/2026-09-02_stock_orb_semantic_contradiction_red.json"
+    )
+    baseline = __import__("json").loads(baseline_path.read_text(encoding="utf-8"))
+    assert baseline["caseId"] == "stock_orb_completed_bars"
+    assert baseline["status"] == "red"
+    assert baseline["observedFailure"]["submittedOrderIdentifier"] == "fixture-order-1"
+    assert baseline["observedFailure"]["finalAnswerClaimedNoTrade"] is True
+    assert baseline["sourceArtifactHashes"]["ledgerJsonlSha256"] == (
+        "45806e694ec460539b5eb205c729796d8625aeea38f0e719b3ed40cc379e81c7"
+    )
+
+
+def test_stock_orb_fixture_honors_requested_minute_interval():
+    fixture = evals.build_fixture("orb_breakout")
+    history = next(tool for tool in evals.build_tools(fixture) if tool.name == "market_historical_prices")
+
+    result = history.function(symbols="AAPL", length=30, timestep="minute")
+    bars = result["bars"]["AAPL"]
+
+    assert result["timestep"] == "minute"
+    assert len(bars) == 20
+    assert bars[0]["datetime"] == "2026-08-11T13:30:00Z"
+    assert bars[14]["datetime"] == "2026-08-11T13:44:00Z"
+    assert bars[15]["datetime"] == "2026-08-11T13:45:00Z"
+    assert max(bar["high"] for bar in bars[:15]) == 228.5
+    assert bars[19]["close"] == 230.0
+    assert sum(bar["volume"] for bar in bars[15:20]) > max(
+        sum(bar["volume"] for bar in bars[offset : offset + 5])
+        for offset in range(0, 15, 5)
+    )
+
+
+def test_stock_orb_contract_requires_deterministic_quantity_calculation():
+    case = evals.load_cases({"stock_orb_completed_bars"})[0]
+
+    assert "risk_calculate_stock_quantity" in case["machineContract"]["requiredBeforeOrder"]
+
+    fixture = evals.build_fixture("orb_breakout")
+    sizing = next(
+        tool for tool in evals.build_tools(fixture) if tool.name == "risk_calculate_stock_quantity"
+    )
+    result = sizing.function(maximum_notional=10_000, price=230, available_cash=100_000)
+
+    assert result["quantity"] == 43
+    assert result["notional"] == 9_890
+
+
+def test_account_eval_fixtures_match_compact_pagination_contract():
+    fixture = evals.build_fixture("open_credit_spread")
+    tools = {tool.name: tool.function for tool in evals.build_tools(fixture)}
+
+    positions = tools["account_positions"](offset=0, limit=1)
+    orders = tools["orders_open_orders"](offset=0, limit=50)
+
+    assert positions["total"] == 2
+    assert positions["returned"] == 1
+    assert positions["omitted"] == 1
+    assert positions["complete"] is False
+    assert positions["next_offset"] == 1
+    assert positions["snapshot_id"].startswith("fixture-positions-")
+    assert orders["total"] == 0
+    assert orders["returned"] == 0
+    assert orders["omitted"] == 0
+    assert orders["complete"] is True
+    assert orders["next_offset"] is None
+    assert orders["snapshot_id"] == "fixture-open-orders-0"
+
+    original_snapshot_id = positions["snapshot_id"]
+    fixture.positions[0]["quantity"] = float(fixture.positions[0]["quantity"]) + 1
+    changed = tools["account_positions"](offset=0, limit=1)
+    assert changed["snapshot_id"] != original_snapshot_id
 
 
 def test_stock_order_fixture_applies_filled_order_to_positions():

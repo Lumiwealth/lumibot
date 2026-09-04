@@ -294,7 +294,7 @@ jobs:
             --gate \
             --repeat 3 \
             --max-workers 3 \
-            --max-cost-usd 10 \
+            --max-cost-usd 2 \
             --freshness-state .ci/agent-evals/freshness.json \
             --output-root .ci/agent-evals/artifacts
 

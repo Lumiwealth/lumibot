@@ -11,7 +11,7 @@ on:
       max_cost_usd:
         description: Maximum estimated model and judge spend in USD
         required: true
-        default: "10"
+        default: "2"
         type: string
 
 permissions:

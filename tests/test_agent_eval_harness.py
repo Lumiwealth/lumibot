@@ -34,6 +34,16 @@ def test_release_publish_is_blocked_by_real_model_agent_evals():
     assert "GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}" in workflow
 
 
+def test_paid_eval_workflows_cap_each_run_at_two_dollars():
+    repo_root = Path(__file__).resolve().parents[1]
+    standalone = (repo_root / ".github/workflows/agent-evals.yml").read_text(encoding="utf-8")
+    release = (repo_root / ".github/workflows/release.yml").read_text(encoding="utf-8")
+
+    assert 'default: "2"' in standalone
+    assert "--max-cost-usd 2" in release
+    assert '--max-cost-usd 10' not in release
+
+
 def test_eval_freshness_policy_has_one_90_day_source_of_truth():
     repo_root = Path(__file__).resolve().parents[1]
     workflows = [

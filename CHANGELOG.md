@@ -1,5 +1,25 @@
 # Changelog
 
+## 4.5.91 - Unreleased
+
+### Fixed
+- **Release tags can reuse compatible real-model eval evidence from a prior
+  version-branch qualification.** The release gate restores the newest
+  repository-scoped standalone eval artifact after the branch-scoped cache,
+  while the existing case/runtime/model fingerprints and freshness policy
+  remain authoritative. Stale or incompatible cases still run normally.
+- **Live Bitunix and Coinbase/CCXT history requests return complete bar
+  windows.** Bitunix requests native mapped intervals, respects the exchange's
+  200-candle page limit, and walks bounded timestamp windows. The live CCXT
+  cursor now advances by one full timeframe after the last returned candle.
+  Both paths raise a clear short-history error instead of silently returning an
+  undersized frame.
+- **Crypto-futures positions can be closed safely in backtests.** The shared
+  broker close path now builds a side-correct reduce-only order when
+  ``Position.get_selling_order()`` intentionally returns ``None``. ``sell_all``
+  filters null orders, submission rejects null orders explicitly, and ordinary
+  stock/option close behavior is unchanged.
+
 ## 4.5.90 - 2026-09-02
 
 Deploy marker: `d5a2d1629580`

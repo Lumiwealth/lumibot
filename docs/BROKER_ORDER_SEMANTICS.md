@@ -2,7 +2,7 @@
 
 > Notes on live broker behavior that affect backtesting semantics (extended hours, order types, and “market closed / no data” handling).
 
-**Last Updated:** 2026-07-08
+**Last Updated:** 2026-09-05
 **Status:** Active
 **Audience:** Developers, AI Agents
 
@@ -44,6 +44,31 @@ Backtesting must not assume a single universal rule for “market closed” beca
 - futures brokers differ on stop triggering outside “RTH”
 
 When behavior differs across brokers, we need broker-scoped semantics (or a documented approximation).
+
+### Crypto-futures close invariant
+
+`Position.get_selling_order()` intentionally does not synthesize a generic
+crypto-futures sell because a plain opposite-side order can increase or reverse
+exposure. The broker owns the closing semantics:
+
+- `Broker.close_position()` must always create a side-correct reduce-only order
+  for a nonzero crypto-futures position: sell a long and buy a short.
+- Partial closes scale the absolute position quantity by a fraction in `(0, 1]`.
+- `sell_all()` must never pass `None` into bulk submission.
+- No broker, including `BacktestingBroker`, may submit a null order.
+- Backtesting applies the close fill to the tracked position and removes it when
+  the quantity reaches zero.
+
+### Live crypto history completeness invariant
+
+Live history must not silently return fewer bars because of a provider page
+limit or inclusive timestamp cursor:
+
+- Bitunix uses mapped native intervals when available and paginates bounded
+  `startTime`/`endTime` windows with at most 200 candles per request.
+- CCXT advances `since` to `last_candle_timestamp + timeframe`.
+- If the available provider history is genuinely shorter than requested, the
+  data source raises a diagnostic with returned and requested counts.
 
 ---
 

@@ -2644,6 +2644,8 @@ class Broker(ABC):
 
     def submit_order(self, order) -> Order:
         """Conform an order for an asset to broker constraints and submit it."""
+        if order is None:
+            raise ValueError("Cannot submit a null order")
         self.resolve_option_order_intent(order)
         self._conform_order(order)
         return self._submit_order(order)
@@ -2878,15 +2880,32 @@ class Broker(ABC):
             if position.quantity == 0:
                 continue
 
+            order = None
             if strategy is not None:
                 if strategy.quote_asset != position.asset:
-                    order = position.get_selling_order(quote_asset=strategy.quote_asset)
-                    orders.append(order)
+                    order = self._create_position_closing_order(position, quote_asset=strategy.quote_asset)
             else:
-                order = position.get_selling_order()
+                order = self._create_position_closing_order(position)
+            if order is not None:
                 orders.append(order)
 
         self.submit_orders(orders, is_multileg=is_multileg)
+
+    def _create_position_closing_order(self, position, quote_asset=None):
+        """Build a close order, including reduce-only crypto-futures fallback."""
+        order = position.get_selling_order(quote_asset=quote_asset)
+        if order is not None or position.quantity == 0:
+            return order
+
+        order = Order(
+            position.strategy,
+            position.asset,
+            abs(position.quantity),
+            side=Order.OrderSide.SELL if position.quantity > 0 else Order.OrderSide.BUY,
+            quote=quote_asset,
+        )
+        order.reduce_only = True
+        return order
 
     def close_position(self, strategy_name: str, asset: Asset, fraction: float = 1.00):
         """
@@ -2907,6 +2926,10 @@ class Broker(ABC):
             The sell order submitted to close the position, or None if no open position exists
             or the position quantity is zero.
         """
+        fraction_value = float(fraction)
+        if not 0 < fraction_value <= 1:
+            raise ValueError("fraction must be greater than 0 and no more than 1")
+
         pos = self.get_tracked_position(strategy_name, asset)
         if pos and pos.quantity != 0:
             self.logger.info(
@@ -2916,9 +2939,17 @@ class Broker(ABC):
                 fraction,
                 pos.quantity,
             )
-            order = pos.get_selling_order(quote_asset=self.quote_assets and next(iter(self.quote_assets)))
+            quote_asset = next(iter(self.quote_assets), None)
+            order = self._create_position_closing_order(pos, quote_asset=quote_asset)
+            if order is None:
+                self.logger.warning(
+                    "close_position(strategy=%s, asset=%s) could not build a close order",
+                    strategy_name,
+                    getattr(asset, "symbol", asset),
+                )
+                return None
             if fraction != 1.00:
-                order.quantity = order.quantity * fraction
+                order.quantity = order.quantity * fraction_value
             order_id = getattr(order, "identifier", None) or getattr(order, "id", None) or getattr(order, "order_id", None)
             self.logger.info(
                 "close_position(strategy=%s) submitting order %s qty=%s side=%s type=%s",

@@ -11,6 +11,7 @@ on:
 permissions:
   contents: write
   id-token: write
+  actions: read
 
 jobs:
   validate-build:
@@ -283,6 +284,15 @@ jobs:
           key: lumibot-agent-evals-v1-${{ github.run_id }}
           restore-keys: |
             lumibot-agent-evals-v1-
+
+      - name: Restore cross-workflow passing eval freshness
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python scripts/restore_agent_eval_freshness.py \
+            --repository "${GITHUB_REPOSITORY}" \
+            --output .ci/agent-evals/freshness.json
 
       - name: Run stale real-model evals
         env:

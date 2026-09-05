@@ -4543,8 +4543,9 @@ class Strategy(_Strategy):
                 - Days: ``"2d"``, ``"2 days"``, ``"1 week"``, ``"1w"``, etc.
                 - Flexible formatting: Case-insensitive, with/without spaces
 
-            When using multi-timeframe formats, the method automatically fetches the
-            underlying minute or day data and resamples it to your desired timeframe.
+            When using multi-timeframe formats, the method asks capable live data
+            sources for native bars. Other sources automatically fetch the underlying
+            minute or day data and resample it to your desired timeframe.
             Default value depends on the data_source (minute for alpaca, day for yahoo, ...)
         timeshift : int, timedelta, or None
             ``None`` by default. When provided it shifts the data window relative to
@@ -4674,7 +4675,13 @@ class Strategy(_Strategy):
             # the backtesting data source so it can slice/aggregate efficiently and cache
             # results internally.
             multiplier, base_unit = parsed
+            live_data_source = getattr(getattr(self, "broker", None), "data_source", None)
+            supports_native_timestep = getattr(live_data_source, "supports_native_timestep", None)
             if getattr(self, "is_backtesting", False) or getattr(getattr(self, "broker", None), "IS_BACKTESTING_BROKER", False):
+                actual_timestep = original_timestep
+                actual_length = length
+                needs_resampling = False
+            elif callable(supports_native_timestep) and supports_native_timestep(original_timestep):
                 actual_timestep = original_timestep
                 actual_length = length
                 needs_resampling = False

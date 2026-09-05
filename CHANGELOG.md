@@ -166,6 +166,22 @@ Deploy marker: `79fdbd23938c`
 
 ## 4.5.86 - Unreleased
 
+### Changed
+- **IBKR Client Portal REST now supports provider-specific advanced-order
+  packages.** BRACKET and OTO submit their executable parent and children in
+  one request; OCO submits only its two broker-backed children as an OCA group.
+  Native legs receive separate normalized IDs, polling preserves local order
+  trees, advanced cancellation attempts every known broker-backed member, and
+  partial acknowledgements trigger bounded client-ID reconciliation followed by
+  compensating cancellation if any native ticket remains unresolved. BRACKET
+  and OTO children now receive distinct correlation IDs because Client Portal
+  can return fewer immediate acknowledgement rows than submitted tickets. REST
+  stop tickets now use Client Portal's required ``price`` trigger field, while
+  stop-limit tickets keep their trigger in ``auxPrice``.
+  Unverified REST GTD submission now fails explicitly while Legacy socket GTD
+  remains supported. Contributor and broker documentation describe these
+  semantics and limits.
+
 ### Fixed
 - **Documentation configuration tests no longer leak mocked broker packages.**
   Loading the Sphinx configuration in-process now restores `sys.modules`, so

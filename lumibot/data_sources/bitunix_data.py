@@ -40,6 +40,18 @@ class BitunixData(DataSource):
         {"timestep": "4 hours", "representations": ["240", "240m", "4h"]},
         {"timestep": "day", "representations": ["D", "1d", "day"]},
     ]
+    MAX_KLINE_LIMIT = 200
+    _INTERVAL_MILLISECONDS = {
+        "1m": 60_000,
+        "3m": 3 * 60_000,
+        "5m": 5 * 60_000,
+        "15m": 15 * 60_000,
+        "30m": 30 * 60_000,
+        "1h": 60 * 60_000,
+        "2h": 2 * 60 * 60_000,
+        "4h": 4 * 60 * 60_000,
+        "1d": 24 * 60 * 60_000,
+    }
 
     def __init__(self, config: dict, max_workers: int = 1, chunk_size: int = 100, tzinfo: Optional[pytz.timezone] = None):
         super().__init__(delay=0, tzinfo=tzinfo)
@@ -126,6 +138,15 @@ class BitunixData(DataSource):
             # Default to 1m if unknown
             return "1m"
 
+    def supports_native_timestep(self, timestep: str) -> bool:
+        """Return whether Bitunix can serve the requested interval directly."""
+        normalized = str(timestep or "").lower().strip()
+        return any(
+            normalized == str(mapping["timestep"]).lower()
+            or normalized in {str(value).lower() for value in mapping["representations"]}
+            for mapping in self.TIMESTEP_MAPPING
+        )
+
     def get_historical_prices(
         self,
         asset: Asset,
@@ -141,7 +162,7 @@ class BitunixData(DataSource):
             timestep = self.get_timestep()
 
         # Determine symbol format based on asset type
-        if asset.asset_type == Asset.AssetType.FUTURE:
+        if asset.asset_type in (Asset.AssetType.FUTURE, Asset.AssetType.CRYPTO_FUTURE):
             symbol = asset.symbol
         else:
             symbol = f"{asset.symbol}{quote.symbol}"
@@ -153,64 +174,112 @@ class BitunixData(DataSource):
         interval = self._parse_source_timestep(timestep)
 
         try:
-            # Calculate limit - request more than needed to ensure we get enough data
-            limit = min(1000, length * 2)  # BitUnix might limit to 1000 candles
+            interval_ms = self._INTERVAL_MILLISECONDS[interval]
+            end = pd.Timestamp(self.get_datetime())
+            if timeshift is not None:
+                if isinstance(timeshift, int):
+                    end = end - pd.Timedelta(milliseconds=timeshift * interval_ms)
+                else:
+                    end = end - timeshift
+            end_ms = int(end.timestamp() * 1000)
 
-            resp = self.client.get_kline(symbol=symbol, interval=interval, limit=limit)
-            if resp and resp.get("code") == 0:
-                bars_data = resp.get("data", [])
-                if not bars_data:
-                    return None
-
-                # Construct DataFrame from candle data
-                df = pd.DataFrame(bars_data)
-
-                # Expected format from documentation - adjust if needed
-                if "t" in df.columns:  # Timestamp
-                    df["ts"] = df["t"]
-                elif "time" in df.columns:  # Also handle 'time' column
-                    df["ts"] = df["time"]
-                if "o" in df.columns:  # Open
-                    df["open"] = df["o"]
-                if "h" in df.columns:  # High
-                    df["high"] = df["h"]
-                if "l" in df.columns:  # Low
-                    df["low"] = df["l"]
-                if "c" in df.columns:  # Close
-                    df["close"] = df["c"]
-                if "baseVol" in df.columns:  # Volume
-                    df["volume"] = df["baseVol"]
-
-                # Ensure numeric columns
-                for col in ("open", "high", "low", "close", "volume"):
-                    if col in df.columns:
-                        df[col] = pd.to_numeric(df[col], errors="coerce")
-
-                # Set timestamp as index
-                if "ts" in df.columns:
-                    df.index = pd.to_datetime(pd.to_numeric(df["ts"], errors="coerce"), unit="ms")
-                    # Convert timezone
-                    df.index = df.index.tz_localize(pytz.utc).tz_convert(self.tzinfo)
-
-                # Select only required columns
-                required_cols = ["open", "high", "low", "close", "volume"]
-                for col in required_cols:
-                    if col not in df.columns:
-                        df[col] = 0.0
-
-                # Limit to the requested length
-                df = df.sort_index()
-                if len(df) > length:
-                    df = df.tail(length)
-
-                # Wrap in Bars object
-                return self._parse_source_symbol_bars(
-                    df[required_cols],
-                    asset,
-                    quote=None if asset.asset_type == Asset.AssetType.FUTURE else quote,
-                    length=length
+            # Bitunix caps each response at 200 candles. Query bounded forward
+            # windows so response ordering cannot strand the request on one page.
+            buffer = 2
+            start_ms = end_ms - (length + buffer) * interval_ms
+            cursor = start_ms
+            bars_data = []
+            while cursor < end_ms:
+                page_end = min(end_ms + 1, cursor + (self.MAX_KLINE_LIMIT + 1) * interval_ms)
+                resp = self.client.get_kline(
+                    symbol=symbol,
+                    interval=interval,
+                    start_time=cursor,
+                    end_time=page_end,
+                    limit=self.MAX_KLINE_LIMIT,
                 )
+                if not resp or resp.get("code") != 0:
+                    break
 
+                page = resp.get("data", []) or []
+                bars_data.extend(page)
+                page_timestamps = []
+                for candle in page:
+                    raw_timestamp = candle.get("t", candle.get("time"))
+                    try:
+                        page_timestamps.append(int(raw_timestamp))
+                    except (TypeError, ValueError):
+                        continue
+
+                if page_timestamps:
+                    next_cursor = max(page_timestamps)
+                    if next_cursor <= cursor:
+                        next_cursor = page_end
+                else:
+                    next_cursor = page_end
+                if next_cursor <= cursor:
+                    break
+                cursor = next_cursor
+
+            if not bars_data:
+                return None
+
+            # Construct DataFrame from candle data
+            df = pd.DataFrame(bars_data)
+
+            # Expected format from documentation - adjust if needed
+            if "t" in df.columns:  # Timestamp
+                df["ts"] = df["t"]
+            elif "time" in df.columns:  # Also handle 'time' column
+                df["ts"] = df["time"]
+            if "o" in df.columns:  # Open
+                df["open"] = df["o"]
+            if "h" in df.columns:  # High
+                df["high"] = df["h"]
+            if "l" in df.columns:  # Low
+                df["low"] = df["l"]
+            if "c" in df.columns:  # Close
+                df["close"] = df["c"]
+            if "baseVol" in df.columns:  # Volume
+                df["volume"] = df["baseVol"]
+
+            # Ensure numeric columns
+            for col in ("open", "high", "low", "close", "volume"):
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
+
+            # Set timestamp as index
+            if "ts" in df.columns:
+                df.index = pd.to_datetime(pd.to_numeric(df["ts"], errors="coerce"), unit="ms", utc=True)
+                df.index = df.index.tz_convert(self.tzinfo)
+                df = df[~df.index.duplicated(keep="last")]
+
+            # Select only required columns
+            required_cols = ["open", "high", "low", "close", "volume"]
+            for col in required_cols:
+                if col not in df.columns:
+                    df[col] = 0.0
+
+            # Limit to the requested length and fail loudly if the exchange
+            # cannot supply it, rather than silently starving the strategy.
+            df = df.sort_index()
+            if len(df) < length:
+                raise ValueError(
+                    f"Bitunix returned only {len(df)} of {length} requested {interval} bars for {symbol}"
+                )
+            if len(df) > length:
+                df = df.tail(length)
+
+            # Wrap in Bars object
+            return self._parse_source_symbol_bars(
+                df[required_cols],
+                asset,
+                quote=None if asset.asset_type in (Asset.AssetType.FUTURE, Asset.AssetType.CRYPTO_FUTURE) else quote,
+                length=length
+            )
+
+        except ValueError:
+            raise
         except Exception:
             import traceback
             traceback.print_exc()

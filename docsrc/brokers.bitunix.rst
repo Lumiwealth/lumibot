@@ -43,6 +43,20 @@ You can specify the leverage for a Bitunix futures order by setting the `leverag
     if submitted_order:
         self.log_message(f"Placed order: ID={submitted_order.identifier}, Status={submitted_order.status}")
 
+Historical Bars
+---------------
+
+Bitunix serves native crypto-futures intervals including ``1m``, ``15m``,
+``1h``, ``2h``, ``4h``, and ``1d``. LumiBot requests a native interval when it
+matches the strategy timeframe instead of downloading one-minute bars and
+resampling them locally.
+
+The Bitunix futures API limits each kline response to 200 candles. LumiBot
+automatically paginates timestamp-bounded windows when ``length`` is greater
+than 200. If the symbol does not have enough exchange history to satisfy the
+request, ``get_historical_prices`` raises a clear error with the returned and
+requested counts instead of silently returning a short frame.
+
 Example Usage
 -------------
 
@@ -75,6 +89,10 @@ Below are practical examples using the Bitunix broker in Lumibot, based on the `
     import time
     time.sleep(10)
     self.close_position(asset)
+
+``close_position`` uses reduce-only semantics. Partial closes are supported by
+passing ``fraction`` between 0 and 1, for example
+``self.close_position(asset, fraction=0.5)``.
 
 **Cancelling Open Orders**
 

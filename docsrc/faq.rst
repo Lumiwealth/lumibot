@@ -717,6 +717,11 @@ For ``Asset.AssetType.CRYPTO_FUTURE``, use ``self.close_position()`` instead of 
     # CORRECT - closes existing position
     self.close_position(asset)
 
+The close order is side-correct and reduce-only for crypto futures in both live
+broker and backtesting flows. You can close part of a position with
+``self.close_position(asset, fraction=0.5)``. ``fraction`` must be greater than
+0 and no more than 1.
+
 
 Futures Trading
 ---------------

@@ -171,19 +171,17 @@ class CcxtData(DataSource):
 
         endunix = self.api.parse8601(end.strftime("%Y-%m-%d %H:%M:%S"))
         buffer = 10  # A few extra datapoints in the download then trim the df.
-        if freq == "1m":
-            start = end - datetime.timedelta(minutes=limit + buffer)
-        else:
-            start = end - datetime.timedelta(days=limit + buffer)
+        timeframe_delta, _ = self.convert_timestep_str_to_timedelta(freq)
+        timeframe_ms = int(timeframe_delta.total_seconds() * 1000)
+        start = end - timeframe_delta * (limit + buffer)
         df_ret = None
         curr_start = self.api.parse8601(start.strftime("%Y-%m-%d %H:%M:%S"))
         cnt = 0
-        last_curr_end = None
-        # loop_limit = 300 if limit > 300 else limit
         loop_limit = 300
         rate_limit = 10  # Requests per second in burst.
+        page_span_ms = loop_limit * timeframe_ms
 
-        while True:
+        while curr_start <= endunix:
             cnt += 1
             candles = self.api.fetch_ohlcv(symbol, freq, since=curr_start, limit=loop_limit, params={})
 
@@ -191,29 +189,23 @@ class CcxtData(DataSource):
             df["datetime"] = pd.to_datetime(df["datetime"], unit="ms")
             df = df.set_index("datetime")
 
-            if df_ret is None:
-                df_ret = df
-            else:
-                df_ret = pd.concat([df_ret, df])
-
-            df_ret = df_ret.sort_index()
-
+            next_start = curr_start + page_span_ms
             if len(df) > 0:
                 last_curr_end = self.api.parse8601(df.index[-1].strftime("%Y-%m-%d %H:%M:%S"))
+                next_start = max(last_curr_end + timeframe_ms, curr_start + timeframe_ms)
+                if df_ret is None:
+                    df_ret = df
+                else:
+                    df_ret = pd.concat([df_ret, df])
+                df_ret = df_ret.sort_index()
             else:
                 last_curr_end = None
 
-            if len(df_ret) >= limit:
+            if last_curr_end is not None and last_curr_end >= endunix:
                 break
-            elif last_curr_end is None:
+            if next_start <= curr_start:
                 break
-            elif last_curr_end > endunix:
-                break
-
-            if curr_start == last_curr_end:
-                break
-            else:
-                curr_start = last_curr_end
+            curr_start = next_start
 
             # Sleep for half a second every rate_limit requests to prevent rate limiting issues
             if cnt % rate_limit == 0:
@@ -223,9 +215,16 @@ class CcxtData(DataSource):
             if cnt > 500:
                 break
 
+        if df_ret is None:
+            raise ValueError(f"CCXT returned no {freq} bars for {symbol}; {limit} were requested")
+
         df_ret = df_ret[~df_ret.index.duplicated(keep="first")]
         df_ret = df_ret.loc[:end]
         df_ret = df_ret.iloc[-limit:]
+        if len(df_ret) < limit:
+            raise ValueError(
+                f"CCXT returned only {len(df_ret)} of {limit} requested {freq} bars for {symbol}"
+            )
 
         return df_ret
 

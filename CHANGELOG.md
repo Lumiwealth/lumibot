@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.5.91 - Unreleased
+## 4.5.91 - 2026-09-06
 
 ### Fixed
 - **Bitunix futures orders obey exchange quantity and price rules.** Decimal
@@ -15,8 +15,10 @@
   When submit and callback copies of the same order race with a broker refresh,
   reconciliation now collapses them atomically into one strategy-owned order
   while preserving authoritative open, partial, filled, canceled, expired, and
-  error lifecycle state. A later scheduled process can also recover a terminal
-  order from the broker snapshot after the submitting process exits.
+  error lifecycle state. New-order callbacks now perform lookup and transition
+  under the same lock, broker-driven closes retain the strategy quote asset,
+  and a later scheduled process can recover a terminal order from the broker
+  snapshot after the submitting process exits.
 - **Hosted agents can use deployment-bound BotSpot public research safely.**
   BotSpot runtimes auto-attach a short-lived, read-only macro and SEC research
   MCP capability; external users receive one optional linking notice. Historical
@@ -32,7 +34,11 @@
   version-branch qualification.** The release gate restores the newest
   repository-scoped standalone eval artifact after the branch-scoped cache,
   while the existing case/runtime/model fingerprints and freshness policy
-  remain authoritative. Stale or incompatible cases still run normally.
+  remain authoritative. Cross-workflow evidence is accepted only when its
+  source commit is the exact release commit or an ancestor, targeted case IDs
+  are normalized, recorded research fixtures are fingerprinted, and unsupported
+  research datasets fail closed instead of silently substituting a different
+  data source. Stale or incompatible cases still run normally.
 - **Live Bitunix and Coinbase/CCXT history requests return complete bar
   windows.** Bitunix requests native mapped intervals, respects the exchange's
   200-candle page limit, and walks bounded timestamp windows. The live CCXT

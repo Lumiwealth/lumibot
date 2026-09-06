@@ -63,6 +63,15 @@ def make_order(quantity="0.008868641", **kwargs):
     )
 
 
+def test_generic_broker_submit_orders_rejects_a_null_entry(submission):
+    broker, _, request = submission
+
+    with pytest.raises(ValueError, match="null order"):
+        broker.submit_orders([None])
+
+    request.assert_not_called()
+
+
 @pytest.mark.parametrize("value", [0.00000001, Decimal("0.00000001"), "0.00000001"])
 def test_client_serializes_numeric_fields_as_plain_decimal_strings(value):
     client = BitUnixClient(api_key="test-key", secret_key="test-secret")

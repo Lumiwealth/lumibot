@@ -173,6 +173,7 @@ def test_standalone_eval_workflow_supports_targeted_case_repeats():
     assert "case_ids:" in workflow
     assert "CASE_IDS: ${{ inputs.case_ids }}" in workflow
     assert 'args+=(--case-id "${case_id}")' in workflow
+    assert 'case_id="${case_id//[[:space:]]/}"' in workflow
 
 
 def test_release_restores_repository_scoped_eval_evidence_after_branch_scoped_cache():

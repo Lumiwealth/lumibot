@@ -2811,6 +2811,8 @@ class Broker(ABC):
         """Submit orders"""
         resolved_orders = []
         for order in orders:
+            if order is None:
+                raise ValueError("Cannot submit a null order")
             self.resolve_option_order_intent(order, additional_active_orders=resolved_orders)
             resolved_orders.append(order)
         if hasattr(self, '_submit_orders'):

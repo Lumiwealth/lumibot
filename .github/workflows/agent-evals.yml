@@ -74,6 +74,7 @@ jobs:
           if [[ -n "${CASE_IDS}" ]]; then
             IFS=',' read -ra selected_case_ids <<< "${CASE_IDS}"
             for case_id in "${selected_case_ids[@]}"; do
+              case_id="${case_id//[[:space:]]/}"
               args+=(--case-id "${case_id}")
             done
           fi

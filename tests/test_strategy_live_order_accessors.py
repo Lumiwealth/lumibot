@@ -279,6 +279,22 @@ def test_live_get_order_survives_submit_callback_duplicate_then_terminal_sync():
     assert [order.identifier for order in broker.get_all_orders()] == ["fast-fill-1"]
 
 
+def test_fresh_process_imports_terminal_broker_order_for_durable_reconciliation():
+    """A later scheduled process must recover an order that filled after prior exit."""
+    strategy, broker = _strategy()
+    broker._first_iteration = True
+    broker.broker_orders = [
+        _order(strategy.name, "filled-after-exit-1", Order.OrderStatus.FILLED),
+    ]
+
+    broker.sync_orders(strategy)
+
+    recovered = broker.get_tracked_order("filled-after-exit-1")
+    assert recovered is not None
+    assert recovered.status == Order.OrderStatus.FILLED
+    assert broker._filled_orders.get_list() == [recovered]
+
+
 @pytest.mark.parametrize(
     ("broker_status", "expected_bucket"),
     [

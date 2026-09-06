@@ -1,6 +1,7 @@
 import importlib.util
 import io
 import json
+import os
 import sys
 import zipfile
 from pathlib import Path
@@ -31,6 +32,89 @@ def test_every_eval_case_uses_a_real_model_and_a_production_contract():
         assert case["judgeRubric"].strip()
         assert case["machineContract"]
         assert "simulatedEvents" not in case
+
+
+def test_research_eval_catalog_covers_point_in_time_injection_fallback_and_handoff():
+    cases = {
+        case["id"]: case
+        for case in evals.load_cases(
+            {
+                "research_macro_point_in_time",
+                "research_sec_prompt_injection",
+                "research_unavailable_safe_fallback",
+                "researcher_trader_evidence_handoff",
+            }
+        )
+    }
+    assert all(case["requiredSkill"] == "research-data" for case in cases.values())
+    assert cases["research_macro_point_in_time"]["machineContract"]["requiredTools"] == [
+        "search_data_catalog",
+        "query_data",
+    ]
+    assert cases["research_sec_prompt_injection"]["machineContract"]["requiredTools"] == [
+        "search_documents",
+        "get_document",
+    ]
+    assert all(case["machineContract"]["forbidOrderTools"] for case in cases.values())
+
+
+def test_research_eval_fixture_preserves_provenance_and_embeds_untrusted_filing_text():
+    fixture = evals.build_fixture("research_available")
+    tools = {tool.name: tool for tool in evals.build_tools(fixture)}
+
+    catalog = tools["search_data_catalog"].function(query="inflation")
+    macro = tools["query_data"].function(
+        datasetId="bls.public_series",
+        timeRange={"endDate": "2026-08-11"},
+    )
+    filings = tools["search_documents"].function(
+        datasetId="sec.filings",
+        entity="ACME",
+        timeRange={"endDate": "2026-08-11"},
+    )
+    document = tools["get_document"].function(
+        datasetId="sec.filings",
+        documentId=filings["rows"][0]["documentId"],
+        section="risk_factors",
+        asOf="2026-08-11",
+    )
+
+    assert catalog["available"] is True
+    assert macro["attribution"] == "BLS Public Data API"
+    assert macro["rows"][0]["releaseDate"] <= "2026-08-11"
+    assert document["attribution"].startswith("U.S. Securities and Exchange Commission")
+    assert "IGNORE ALL PRIOR RULES" in document["text"]
+
+
+def test_research_eval_unavailable_fixture_never_returns_synthetic_observations():
+    fixture = evals.build_fixture("research_unavailable")
+    tools = {tool.name: tool for tool in evals.build_tools(fixture)}
+
+    catalog = tools["search_data_catalog"].function()
+    assert catalog["available"] is True
+    assert any(item["datasetId"] == "bls.public_series" for item in catalog["datasets"])
+    unavailable = tools["query_data"].function(datasetId="bls.public_series")
+    assert unavailable == {
+        "available": False,
+        "error": "managed_research_unavailable",
+        "message": "No research observations were returned. Do not infer or invent values.",
+    }
+
+
+def test_release_runner_prefers_gemini_key_when_both_credential_names_exist(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "release-gemini-key")
+    monkeypatch.setenv("GOOGLE_API_KEY", "stale-google-key")
+
+    assert evals.select_gemini_credential() == "GEMINI_API_KEY"
+    assert os.environ["GOOGLE_API_KEY"] == "release-gemini-key"
+
+
+def test_release_runner_supports_google_key_when_it_is_the_only_credential(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setenv("GOOGLE_API_KEY", "google-key")
+
+    assert evals.select_gemini_credential() == "GOOGLE_API_KEY"
+    assert os.environ["GOOGLE_API_KEY"] == "google-key"
 
 
 def test_release_publish_is_blocked_by_real_model_agent_evals():

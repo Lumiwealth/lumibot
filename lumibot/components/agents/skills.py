@@ -7,8 +7,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-
-BUILTIN_SKILL_NAMES = ("options-trading", "stock-trading")
+BUILTIN_SKILL_NAMES = ("options-trading", "research-data", "stock-trading")
 BUILTIN_SKILLS_ROOT = Path(__file__).with_name("skills")
 
 

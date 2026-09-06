@@ -1464,29 +1464,33 @@ class Broker(ABC):
     # ================================ Common functions ================================
     @property
     def _tracked_orders(self):
-        cache_key = (
-            getattr(self._unprocessed_orders, "revision", 0),
-            getattr(self._new_orders, "revision", 0),
-            getattr(self._partially_filled_orders, "revision", 0),
-            getattr(self._filled_orders, "revision", 0),
-            getattr(self._error_orders, "revision", 0),
-            getattr(self._canceled_orders, "revision", 0),
-            getattr(self._placeholder_orders, "revision", 0),
-        )
-        if self._tracked_orders_cache_key == cache_key:
-            return self._tracked_orders_cache_value
+        # Every live tracker uses this same RLock.  Holding it for the complete
+        # snapshot prevents readers from observing the intentional remove/append
+        # gap while a broker callback moves an order between lifecycle buckets.
+        with self._lock:
+            cache_key = (
+                getattr(self._unprocessed_orders, "revision", 0),
+                getattr(self._new_orders, "revision", 0),
+                getattr(self._partially_filled_orders, "revision", 0),
+                getattr(self._filled_orders, "revision", 0),
+                getattr(self._error_orders, "revision", 0),
+                getattr(self._canceled_orders, "revision", 0),
+                getattr(self._placeholder_orders, "revision", 0),
+            )
+            if self._tracked_orders_cache_key == cache_key:
+                return self._tracked_orders_cache_value
 
-        orders: list[Order] = []
-        orders.extend(self._unprocessed_orders.get_list())
-        orders.extend(self._new_orders.get_list())
-        orders.extend(self._partially_filled_orders.get_list())
-        orders.extend(self._filled_orders.get_list())
-        orders.extend(self._error_orders.get_list())
-        orders.extend(self._canceled_orders.get_list())
-        orders.extend(self._placeholder_orders.get_list())
-        self._tracked_orders_cache_key = cache_key
-        self._tracked_orders_cache_value = orders
-        return orders
+            orders: list[Order] = []
+            orders.extend(self._unprocessed_orders.get_list())
+            orders.extend(self._new_orders.get_list())
+            orders.extend(self._partially_filled_orders.get_list())
+            orders.extend(self._filled_orders.get_list())
+            orders.extend(self._error_orders.get_list())
+            orders.extend(self._canceled_orders.get_list())
+            orders.extend(self._placeholder_orders.get_list())
+            self._tracked_orders_cache_key = cache_key
+            self._tracked_orders_cache_value = orders
+            return orders
 
     @staticmethod
     def _strategy_name_from_input(strategy):
@@ -1909,15 +1913,59 @@ class Broker(ABC):
         Keep orders that are completed (i.e. filled, canceled, error) and remove any duplicates from the 'new' and
         'unprocessed' trackers.
         """
-        if not broker_order.is_active():
-            self._new_orders.remove(broker_order.identifier, key="identifier")
-            self._unprocessed_orders.remove(broker_order.identifier, key="identifier")
-            self._partially_filled_orders.remove(broker_order.identifier, key="identifier")
-        elif broker_order in self._partially_filled_orders:
-            self._new_orders.remove(broker_order.identifier, key="identifier")
-            self._unprocessed_orders.remove(broker_order.identifier, key="identifier")
-        elif broker_order in self._new_orders:
-            self._unprocessed_orders.remove(broker_order.identifier, key="identifier")
+        buckets = (
+            self._unprocessed_orders,
+            self._new_orders,
+            self._partially_filled_orders,
+            self._filled_orders,
+            self._error_orders,
+            self._canceled_orders,
+            self._placeholder_orders,
+        )
+        with self._lock:
+            matches = [
+                order
+                for bucket in buckets
+                for order in bucket.get_list()
+                if order.identifier == broker_order.identifier
+            ]
+            survivor = matches[0] if matches else broker_order
+
+            # Keep the original strategy-owned object so decision provenance and
+            # local metadata survive, while applying the broker's authoritative
+            # lifecycle fields.
+            survivor.status = broker_order.status
+            survivor.quantity = broker_order.quantity
+            for attr in ("limit_price", "stop_price", "avg_fill_price", "error_message"):
+                broker_value = getattr(broker_order, attr, None)
+                if broker_value is not None:
+                    setattr(survivor, attr, broker_value)
+            raw = getattr(broker_order, "_raw", None)
+            if raw is not None:
+                survivor.update_raw(raw)
+
+            for bucket in buckets:
+                while any(
+                    order.identifier == broker_order.identifier
+                    for order in bucket.get_list()
+                ):
+                    bucket.remove(broker_order.identifier, key="identifier")
+
+            if survivor.is_filled():
+                destination = self._filled_orders
+            elif survivor.status == Order.OrderStatus.ERROR:
+                destination = self._error_orders
+            elif survivor.is_canceled():
+                destination = self._canceled_orders
+            elif survivor.status == Order.OrderStatus.PARTIALLY_FILLED:
+                destination = self._partially_filled_orders
+            elif survivor.is_active():
+                destination = self._new_orders
+            else:
+                destination = self._unprocessed_orders
+            destination.append(survivor)
+            self._invalidate_order_caches()
+            return survivor
 
     def _process_new_order(self, order):
         # Don't duplicate orders in the new orders tracker. Check if an order with the same identifier already exists
@@ -1932,36 +1980,40 @@ class Broker(ABC):
             else:
                 order = existing_order  # Use the existing order object from unprocessed and update status
 
-        self._unprocessed_orders.remove(order.identifier, key="identifier")
-        order.status = self.NEW_ORDER
-        order.set_new()
-        self._new_orders.append(order)
+        with self._lock:
+            self._unprocessed_orders.remove(order.identifier, key="identifier")
+            order.status = self.NEW_ORDER
+            order.set_new()
+            self._new_orders.append(order)
         return order
 
     def _process_placeholder_order(self, order):
         """Used to track a placeholder order that never gets filled. I.e. OCO parent order"""
-        self._unprocessed_orders.remove(order.identifier, key="identifier")
-        order.status = self.NEW_ORDER
-        order.set_new()
-        self._placeholder_orders.append(order)
+        with self._lock:
+            self._unprocessed_orders.remove(order.identifier, key="identifier")
+            order.status = self.NEW_ORDER
+            order.set_new()
+            self._placeholder_orders.append(order)
         return order
 
     def _process_canceled_order(self, order):
-        self._new_orders.remove(order.identifier, key="identifier")
-        self._unprocessed_orders.remove(order.identifier, key="identifier")
-        self._partially_filled_orders.remove(order.identifier, key="identifier")
-        order.status = self.CANCELED_ORDER
-        order.set_canceled()
-        self._canceled_orders.append(order)
+        with self._lock:
+            self._new_orders.remove(order.identifier, key="identifier")
+            self._unprocessed_orders.remove(order.identifier, key="identifier")
+            self._partially_filled_orders.remove(order.identifier, key="identifier")
+            order.status = self.CANCELED_ORDER
+            order.set_canceled()
+            self._canceled_orders.append(order)
         return order
 
     def _process_partially_filled_order(self, order, price, quantity):
-        self._new_orders.remove(order.identifier, key="identifier")
-        order.add_transaction(price, quantity)
-        order.status = self.PARTIALLY_FILLED_ORDER
-        order.set_partially_filled()
-        if order not in self._partially_filled_orders:
-            self._partially_filled_orders.append(order)
+        with self._lock:
+            self._new_orders.remove(order.identifier, key="identifier")
+            order.add_transaction(price, quantity)
+            order.status = self.PARTIALLY_FILLED_ORDER
+            order.set_partially_filled()
+            if order not in self._partially_filled_orders:
+                self._partially_filled_orders.append(order)
 
         position = self.get_tracked_position(order.strategy, order.asset)
         if position is None:
@@ -1977,13 +2029,14 @@ class Broker(ABC):
         return order, position
 
     def _process_filled_order(self, order, price, quantity):
-        self._new_orders.remove(order.identifier, key="identifier")
-        self._unprocessed_orders.remove(order.identifier, key="identifier")
-        self._partially_filled_orders.remove(order.identifier, key="identifier")
-        order.add_transaction(price, quantity)
-        order.status = self.FILLED_ORDER
-        order.set_filled()
-        self._filled_orders.append(order)
+        with self._lock:
+            self._new_orders.remove(order.identifier, key="identifier")
+            self._unprocessed_orders.remove(order.identifier, key="identifier")
+            self._partially_filled_orders.remove(order.identifier, key="identifier")
+            order.add_transaction(price, quantity)
+            order.status = self.FILLED_ORDER
+            order.set_filled()
+            self._filled_orders.append(order)
 
         position = self.get_tracked_position(order.strategy, order.asset)
         if position is None:
@@ -2003,13 +2056,14 @@ class Broker(ABC):
         return position
 
     def _process_error_order(self, order, error):
-        self._new_orders.remove(order.identifier, key="identifier")
-        self._unprocessed_orders.remove(order.identifier, key="identifier")
-        self._partially_filled_orders.remove(order.identifier, key="identifier")
-        self._filled_orders.remove(order.identifier, key="identifier")
-        order.status = self.ERROR_ORDER
-        order.set_error(error)
-        self._error_orders.append(order)
+        with self._lock:
+            self._new_orders.remove(order.identifier, key="identifier")
+            self._unprocessed_orders.remove(order.identifier, key="identifier")
+            self._partially_filled_orders.remove(order.identifier, key="identifier")
+            self._filled_orders.remove(order.identifier, key="identifier")
+            order.status = self.ERROR_ORDER
+            order.set_error(error)
+            self._error_orders.append(order)
         return order
 
     def _process_option_lifecycle_event(self, order, price, quantity, lifecycle_status, lifecycle_label):
@@ -2022,13 +2076,14 @@ class Broker(ABC):
                 color="green",
             )
         )
-        self._new_orders.remove(order.identifier, key="identifier")
-        self._unprocessed_orders.remove(order.identifier, key="identifier")
-        self._partially_filled_orders.remove(order.identifier, key="identifier")
-        order.add_transaction(price_value, quantity_value)
-        order.status = lifecycle_status
-        order.set_filled()
-        self._filled_orders.append(order)
+        with self._lock:
+            self._new_orders.remove(order.identifier, key="identifier")
+            self._unprocessed_orders.remove(order.identifier, key="identifier")
+            self._partially_filled_orders.remove(order.identifier, key="identifier")
+            order.add_transaction(price_value, quantity_value)
+            order.status = lifecycle_status
+            order.set_filled()
+            self._filled_orders.append(order)
 
         position = self.get_tracked_position(order.strategy, order.asset)
         if position is not None:
@@ -2500,35 +2555,36 @@ class Broker(ABC):
         plus placeholders), avoiding the much larger filled/canceled/error histories.
         """
         strategy_name = self._strategy_name_from_input(strategy)
-        active_cache_key = (
-            getattr(self._unprocessed_orders, "revision", 0),
-            getattr(self._new_orders, "revision", 0),
-            getattr(self._partially_filled_orders, "revision", 0),
-            getattr(self._placeholder_orders, "revision", 0),
-            strategy_name,
-            asset,
-        )
-        cached = self._active_tracked_orders_filter_cache.get(active_cache_key)
-        if cached is not None or active_cache_key in self._active_tracked_orders_filter_cache:
-            return list(cached)
+        with self._lock:
+            active_cache_key = (
+                getattr(self._unprocessed_orders, "revision", 0),
+                getattr(self._new_orders, "revision", 0),
+                getattr(self._partially_filled_orders, "revision", 0),
+                getattr(self._placeholder_orders, "revision", 0),
+                strategy_name,
+                asset,
+            )
+            cached = self._active_tracked_orders_filter_cache.get(active_cache_key)
+            if cached is not None or active_cache_key in self._active_tracked_orders_filter_cache:
+                return list(cached)
 
-        result: list[Order] = []
-        for bucket in (
-            self._unprocessed_orders,
-            self._new_orders,
-            self._partially_filled_orders,
-            self._placeholder_orders,
-        ):
-            for order in bucket.get_list():
-                if not order.is_active():
-                    continue
-                if strategy_name is not None and order.strategy != strategy_name:
-                    continue
-                if asset is not None and order.asset != asset:
-                    continue
-                result.append(order)
-        self._cache_result(self._active_tracked_orders_filter_cache, active_cache_key, result)
-        return list(result)
+            result: list[Order] = []
+            for bucket in (
+                self._unprocessed_orders,
+                self._new_orders,
+                self._partially_filled_orders,
+                self._placeholder_orders,
+            ):
+                for order in bucket.get_list():
+                    if not order.is_active():
+                        continue
+                    if strategy_name is not None and order.strategy != strategy_name:
+                        continue
+                    if asset is not None and order.asset != asset:
+                        continue
+                    result.append(order)
+            self._cache_result(self._active_tracked_orders_filter_cache, active_cache_key, result)
+            return list(result)
 
     def get_all_orders(self) -> list[Order]:
         """get all tracked and completed orders"""

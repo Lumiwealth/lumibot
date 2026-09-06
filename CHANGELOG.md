@@ -9,6 +9,11 @@
   runtime state. Exact ``get_order`` and filtered ``get_orders`` calls can
   therefore observe the submitted order through its terminal lifecycle without
   confusing a type mismatch with a missing order.
+- **Remote MCP tools expose their authoritative argument contracts to agents.**
+  LumiBot now loads each allowlisted tool's description and input schema through
+  ``tools/list`` and projects the exact field names into the model-facing
+  callable. Hosted research agents no longer have to guess between names such as
+  ``datasetId`` and ``dataset_id`` before calling BotSpot's strict MCP server.
 
 ## 4.5.91 - 2026-09-06
 

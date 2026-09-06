@@ -83,6 +83,54 @@ def _get_runtime_imports():
     return _RUNTIME_IMPORTS
 
 
+def _list_remote_mcp_tools(server: MCPServer) -> list[dict[str, Any]]:
+    """Load the authoritative MCP tool contracts without importing ADK eagerly."""
+    from .runtime import list_mcp_tools
+
+    return list_mcp_tools(server)
+
+
+def _python_annotation_for_json_schema(schema: Any) -> Any:
+    if not isinstance(schema, dict):
+        return Any
+    schema_type = schema.get("type")
+    if isinstance(schema_type, list):
+        schema_type = next((item for item in schema_type if item != "null"), None)
+    return {
+        "string": str,
+        "integer": int,
+        "number": float,
+        "boolean": bool,
+        "array": list,
+        "object": dict,
+    }.get(schema_type, Any)
+
+
+def _signature_from_json_schema(schema: Any) -> inspect.Signature | None:
+    """Project an MCP object schema into a callable signature for model tooling."""
+    if not isinstance(schema, dict) or schema.get("type") != "object":
+        return None
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        return None
+    required = set(schema.get("required") or [])
+    ordered_names = [name for name in properties if name in required]
+    ordered_names.extend(name for name in properties if name not in required)
+    parameters: list[inspect.Parameter] = []
+    for name in ordered_names:
+        if not isinstance(name, str) or not name.isidentifier():
+            return None
+        parameters.append(
+            inspect.Parameter(
+                name,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                default=inspect.Parameter.empty if name in required else None,
+                annotation=_python_annotation_for_json_schema(properties.get(name)),
+            )
+        )
+    return inspect.Signature(parameters=parameters, return_annotation=dict)
+
+
 def _get_parquet_utils():
     global _PARQUET_UTILS
     if _PARQUET_UTILS is None:
@@ -1284,12 +1332,28 @@ class AgentHandle:
     def _build_remote_tools(self) -> list[BoundTool]:
         remote_tools: list[BoundTool] = []
         for server in self._mcp_servers:
+            contracts = self.manager._remote_mcp_tool_contracts(server)
             for exposed_name in server.exposed_tools or []:
-                description = f"Remote MCP tool {exposed_name} on server {server.name}."
+                contract = contracts.get(exposed_name) or {}
+                input_schema = contract.get("inputSchema") or contract.get("input_schema")
+                description = str(contract.get("description") or "").strip()
+                if not description:
+                    description = f"Remote MCP tool {exposed_name} on server {server.name}."
+                if isinstance(input_schema, dict):
+                    description = (
+                        f"{description}\n\nInput JSON schema (use these exact field names):\n"
+                        f"{json.dumps(input_schema, sort_keys=True, ensure_ascii=True)}"
+                    )
 
                 def make_remote_tool(_server: MCPServer, _tool_name: str):
-                    def remote_tool(payload: dict[str, Any]) -> dict[str, Any]:
-                        payload = self._bound_remote_tool_payload(_server, _tool_name, payload)
+                    def remote_tool(payload: dict[str, Any] | None = None, **arguments: Any) -> dict[str, Any]:
+                        resolved_arguments = dict(payload or {})
+                        resolved_arguments.update(arguments)
+                        payload = self._bound_remote_tool_payload(
+                            _server,
+                            _tool_name,
+                            resolved_arguments,
+                        )
                         warning_key = (_server.name, _tool_name)
                         if (
                             bool(getattr(self.manager.strategy, "is_backtesting", False))
@@ -1309,6 +1373,17 @@ class AgentHandle:
                     return remote_tool
 
                 remote_tool = make_remote_tool(server, exposed_name)
+                signature = _signature_from_json_schema(input_schema)
+                remote_tool.__signature__ = signature or inspect.Signature(
+                    parameters=[
+                        inspect.Parameter(
+                            "payload",
+                            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                            annotation=dict,
+                        )
+                    ],
+                    return_annotation=dict,
+                )
                 remote_tools.append(
                     BoundTool(
                         name=exposed_name,
@@ -2126,6 +2201,7 @@ class AgentManager:
         self._agents: dict[str, AgentHandle] = {}
         self._warned_backtest_mcp_tools: set[tuple[str, str]] = set()
         self._warning_keys: set[str] = set()
+        self._remote_mcp_contract_cache: dict[tuple[str, str], dict[str, dict[str, Any]]] = {}
         self._model_call_count = 0
         agent_replay_cache_class, _ = _get_replay_imports()
         self.replay_cache = agent_replay_cache_class()
@@ -2135,6 +2211,27 @@ class AgentManager:
         self._observability_rows: dict[str, list[dict[str, Any]]] = {}
         self._observability_all_rows: list[dict[str, Any]] = []
         self._tool_result_cache: dict[str, Any] = {}
+
+    def _remote_mcp_tool_contracts(self, server: MCPServer) -> dict[str, dict[str, Any]]:
+        cache_key = (server.name, str(server.url or server.command or ""))
+        cached = self._remote_mcp_contract_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        contracts: dict[str, dict[str, Any]] = {}
+        try:
+            for item in _list_remote_mcp_tools(server):
+                if not isinstance(item, dict):
+                    continue
+                name = item.get("name")
+                if isinstance(name, str) and name in (server.exposed_tools or []):
+                    contracts[name] = item
+        except Exception as exc:
+            self._warn_once(
+                f"mcp_contract:{server.name}",
+                f"Could not load tool contracts from MCP server {server.name!r}: {exc}",
+            )
+        self._remote_mcp_contract_cache[cache_key] = contracts
+        return contracts
 
     def __getitem__(self, item: str) -> AgentHandle:
         return self._agents[item]

@@ -13,6 +13,7 @@ from typing import Any
 from lumibot import LUMIBOT_CACHE_FOLDER
 
 from .schemas import AgentRunResult, AgentTraceEvent, BoundTool, MCPServer, ToolDefinition
+from .skills import BUILTIN_SKILL_LOADING_INSTRUCTION
 from .tool_context import agent_tool_context
 from .tools import bind_callable_tool
 
@@ -1179,7 +1180,7 @@ class AgentHandle:
         if self.include_builtin_skills:
             lines.insert(
                 -1,
-                "Asset-class skills are available through list_skills, load_skill, and load_skill_resource. Before researching, selecting, opening, modifying, closing, or managing any stock, ETF, or option position or related pending order, you MUST load the matching skill and follow it. If a broad mandate leads you to consider an asset class later, load its skill at that point before acting on the asset. Skill loading supplies knowledge; it does not choose a trade or override active strategy rules.",
+                BUILTIN_SKILL_LOADING_INSTRUCTION,
             )
         if mode == "backtesting":
             lines.extend(

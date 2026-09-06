@@ -58,6 +58,15 @@ def test_research_eval_catalog_covers_point_in_time_injection_fallback_and_hando
     assert all(case["machineContract"]["forbidOrderTools"] for case in cases.values())
 
 
+def test_research_eval_prompt_requires_loading_the_research_skill():
+    case = evals.load_cases({"research_macro_point_in_time"})[0]
+
+    prompt = evals.build_eval_system_prompt(case)
+
+    assert "MUST load the research-data skill" in prompt
+    assert "managed BotSpot public macro or SEC research tools" in prompt
+
+
 def test_research_eval_fixture_preserves_provenance_and_embeds_untrusted_filing_text():
     fixture = evals.build_fixture("research_available")
     tools = {tool.name: tool for tool in evals.build_tools(fixture)}
@@ -133,6 +142,16 @@ def test_paid_eval_workflows_cap_each_run_at_two_dollars():
     assert 'default: "2"' in standalone
     assert "--max-cost-usd 2" in release
     assert "--max-cost-usd 10" not in release
+
+
+def test_standalone_eval_workflow_supports_targeted_case_repeats():
+    workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/agent-evals.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "case_ids:" in workflow
+    assert "CASE_IDS: ${{ inputs.case_ids }}" in workflow
+    assert 'args+=(--case-id "${case_id}")' in workflow
 
 
 def test_release_restores_repository_scoped_eval_evidence_after_branch_scoped_cache():

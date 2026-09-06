@@ -13,6 +13,11 @@ on:
         required: true
         default: "2"
         type: string
+      case_ids:
+        description: Optional comma-separated case IDs for targeted qualification
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -52,6 +57,7 @@ jobs:
           LUMIBOT_DISABLE_DOTENV: "1"
           FORCE_EVALS: ${{ inputs.force }}
           MAX_COST_USD: ${{ inputs.max_cost_usd }}
+          CASE_IDS: ${{ inputs.case_ids }}
         run: |
           set -euo pipefail
           args=(
@@ -64,6 +70,12 @@ jobs:
           )
           if [[ "${FORCE_EVALS}" == "true" ]]; then
             args+=(--force)
+          fi
+          if [[ -n "${CASE_IDS}" ]]; then
+            IFS=',' read -ra selected_case_ids <<< "${CASE_IDS}"
+            for case_id in "${selected_case_ids[@]}"; do
+              args+=(--case-id "${case_id}")
+            done
           fi
           timeout 1500 python scripts/run_agent_evals.py "${args[@]}"
 

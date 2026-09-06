@@ -1156,6 +1156,23 @@ def run_judge(case: dict[str, Any], transcript: dict[str, Any], judge_model: str
     return parse_judge_json(result.summary or result.text), result, elapsed
 
 
+def build_eval_system_prompt(case: dict[str, Any]) -> str:
+    from lumibot.components.agents.skills import BUILTIN_SKILL_LOADING_INSTRUCTION
+
+    rules = case.get("rules") or {"version": 1, "rules": []}
+    return "\n\n".join(
+        [
+            "You are operating as a trading agent inside LumiBot. Use tool results as current truth. Do not claim fills or positions without verification.",
+            BUILTIN_SKILL_LOADING_INSTRUCTION,
+            "USER SYSTEM PROMPT:",
+            str(case["systemPrompt"]),
+            "ACTIVE STRATEGY RULES JSON:",
+            "Follow every active rule. Active rules override conflicting strategy-objective wording but not hard safety.",
+            json.dumps(rules, sort_keys=True),
+        ]
+    )
+
+
 def execute_repetition(
     case: dict[str, Any],
     *,
@@ -1170,17 +1187,7 @@ def execute_repetition(
     fixture = build_fixture(str(case["fixture"]))
     tools = build_tools(fixture)
     rules = case.get("rules") or {"version": 1, "rules": []}
-    system_prompt = "\n\n".join(
-        [
-            "You are operating as a trading agent inside LumiBot. Use tool results as current truth. Do not claim fills or positions without verification.",
-            "Asset-class skills are available through list_skills, load_skill, and load_skill_resource. Before researching, selecting, opening, modifying, closing, or managing any stock, ETF, or option position or related pending order, you MUST load the matching skill. This also applies when a broad mandate leads you to an asset class later.",
-            "USER SYSTEM PROMPT:",
-            str(case["systemPrompt"]),
-            "ACTIVE STRATEGY RULES JSON:",
-            "Follow every active rule. Active rules override conflicting strategy-objective wording but not hard safety.",
-            json.dumps(rules, sort_keys=True),
-        ]
-    )
+    system_prompt = build_eval_system_prompt(case)
     runtime_context = {
         "mode": "backtesting",
         "current_datetime": "2026-08-11T14:35:00Z",

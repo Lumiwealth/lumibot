@@ -2,6 +2,8 @@
 
 ## 4.5.91 - 2026-09-06
 
+Deploy marker: `d007efed231d`
+
 ### Fixed
 - **Bitunix futures orders obey exchange quantity and price rules.** Decimal
   quantities and prices round down using cached trading-pair precision and

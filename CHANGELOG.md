@@ -3,6 +3,23 @@
 ## 4.5.91 - Unreleased
 
 ### Fixed
+- **Live order reconciliation no longer loses a submitted broker identifier.**
+  When submit and callback copies of the same order race with a broker refresh,
+  reconciliation now collapses them atomically into one strategy-owned order
+  while preserving authoritative open, partial, filled, canceled, expired, and
+  error lifecycle state. A later scheduled process can also recover a terminal
+  order from the broker snapshot after the submitting process exits.
+- **Hosted agents can use deployment-bound BotSpot public research safely.**
+  BotSpot runtimes auto-attach a short-lived, read-only macro and SEC research
+  MCP capability; external users receive one optional linking notice. Historical
+  runs enforce their simulated date as a hard ceiling, SEC text is explicitly
+  untrusted, expired capabilities renew once on the same origin, and a built-in
+  research skill defines provenance, fallback, and researcher-to-trader handoff
+  requirements.
+- **Real-model release evals choose the intended Gemini credential
+  deterministically.** When both supported environment-variable names exist,
+  the release-scoped Gemini key wins instead of allowing an older Google key to
+  silently shadow it.
 - **Release tags can reuse compatible real-model eval evidence from a prior
   version-branch qualification.** The release gate restores the newest
   repository-scoped standalone eval artifact after the branch-scoped cache,

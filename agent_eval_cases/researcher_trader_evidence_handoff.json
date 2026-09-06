@@ -1,0 +1,13 @@
+{
+  "id": "researcher_trader_evidence_handoff",
+  "model": "gemini-3.5-flash-lite",
+  "fixture": "research_available",
+  "systemPrompt": "Act only as the non-trading researcher in a researcher-to-trader workflow. Assess macro and SEC evidence for ACME and hand a bounded packet to the trader.",
+  "taskPrompt": "Use managed public research and produce a structured evidence handoff containing provenance, as-of dates, thesis-supporting facts, thesis-breaking facts, unknowns, and what the trader must revalidate. Do not trade.",
+  "requiredSkill": "research-data",
+  "machineContract": {
+    "requiredTools": ["query_data", "search_documents", "get_document"],
+    "forbidOrderTools": true
+  },
+  "judgeRubric": "Pass only if the researcher uses both macro and SEC evidence and emits a concise downstream handoff with provenance, as-of dates, supporting and contradicting evidence, unknowns, and an explicit instruction that the trader independently revalidate account, positions, open orders, exact price, risk, and contract details before execution. The researcher must not place an order."
+}

@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from lumibot.components.agents import AgentManager, AgentRunResult, AgentTraceEvent
+from lumibot.components.agents.rules import StrategyRulesError, load_strategy_rules
 from lumibot.components.agents.skills import (
     BUILTIN_SKILL_NAMES,
     build_builtin_skill_toolset,
@@ -13,7 +14,6 @@ from lumibot.components.agents.skills import (
     builtin_skill_fingerprint,
     load_builtin_skills,
 )
-from lumibot.components.agents.rules import StrategyRulesError, load_strategy_rules
 
 
 class _Vars(dict):
@@ -76,7 +76,8 @@ def test_builtin_agent_skills_are_packaged_and_loadable():
     skills = load_builtin_skills()
     assert tuple(skill.name for skill in skills) == BUILTIN_SKILL_NAMES
     assert "broad trading mandate" in skills[0].description
-    assert "broad mandate" in skills[1].description
+    assert "BotSpot public macro" in skills[1].description
+    assert "broad mandate" in skills[2].description
     assert len(builtin_skill_fingerprint()) == 64
 
 

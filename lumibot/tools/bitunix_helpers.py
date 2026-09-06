@@ -1,11 +1,11 @@
-import os
-import time
-from typing import Dict, Any, Optional
 import hashlib
 import json
+import os
+import time
+from decimal import Decimal
+from typing import Any, Dict, Optional
 
 from lumibot._lazy_imports import LazyLogger
-
 
 logger = LazyLogger(__name__)
 
@@ -162,12 +162,12 @@ class BitUnixClient:
         symbol: str,
         side: str,
         orderType: str,
-        qty: float,
-        take_profit_price: Optional[float] = None,
-        stop_loss_price: Optional[float] = None,
-        price: Optional[float] = None,
+        qty: str | float | Decimal,
+        take_profit_price: Optional[str | float | Decimal] = None,
+        stop_loss_price: Optional[str | float | Decimal] = None,
+        price: Optional[str | float | Decimal] = None,
         clientId: Optional[str] = None,
-        tradeSide: str = "OPEN",
+        tradeSide: Optional[str] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """
@@ -181,7 +181,7 @@ class BitUnixClient:
         body = {
             "symbol":    symbol,
             "side":      side,
-            "tradeSide": tradeSide,
+            "tradeSide": tradeSide or ("CLOSE" if kwargs.get("reduceOnly") else "OPEN"),
             "orderType": orderType,
             "qty":       qty,
             **({"price": price}      if price is not None else {}),
@@ -190,6 +190,11 @@ class BitUnixClient:
             **({"slPrice": stop_loss_price} if stop_loss_price is not None else {}),
             **kwargs,
         }
+        # Normalize after kwargs so native TP/SL fields obey the same wire contract.
+        # Fixed-point formatting also avoids scientific notation for small quantities.
+        for field in ("qty", "price", "tpPrice", "slPrice", "tpOrderPrice", "slOrderPrice"):
+            if field in body and body[field] is not None:
+                body[field] = format(Decimal(str(body[field])), "f")
         return self._request(
             method="POST",
             endpoint="/api/v1/futures/trade/place_order",
@@ -377,7 +382,7 @@ class BitUnixClient:
         start_time: Optional[int] = None,
         end_time: Optional[int] = None,
         limit: Optional[int] = None,
-        type: Optional[str] = None,
+        type: Optional[str] = None,  # noqa: A002 - Preserve the public Bitunix kline keyword.
     ) -> Dict[str, Any]:
         """
         Historical OHLCV candles.
@@ -450,7 +455,8 @@ class BitUnixClient:
         Current mark price and funding details for `symbol`.
 
         Returns:
-            Dict[str, Any]: ``{"code": int, "msg": str, "data": {"markPrice": str, "fundingRate": str, "nextFundingTime": int}}``
+            Dict[str, Any]: Response with ``code``, ``msg``, and ``data`` containing
+            ``markPrice``, ``fundingRate``, and ``nextFundingTime``.
         """
         return self._request(
             method="GET",

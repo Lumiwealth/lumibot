@@ -22,6 +22,12 @@ Set up a futures contract using the following:
 * asset_type(str): "future"
 * nexpiration(str): Expiry added as datetime.date() So June 2021 would be datetime.date(2021, 6, 18)`
 
+The ``leverage`` constructor argument is preserved for both ``future`` and
+``crypto_future`` assets (default: 1). For example,
+``Asset("BTCUSDT", Asset.AssetType.CRYPTO_FUTURE, leverage=10)`` retains 10.
+Other asset types use leverage 1. This value expresses requested leverage;
+the broker determines whether it can apply it.
+
 **Forex Only**
 
 * symbol(str): Currency base: eg: EUR

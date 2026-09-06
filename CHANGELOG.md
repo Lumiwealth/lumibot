@@ -3,6 +3,14 @@
 ## 4.5.91 - Unreleased
 
 ### Fixed
+- **Bitunix futures orders obey exchange quantity and price rules.** Decimal
+  quantities and prices round down using cached trading-pair precision and
+  serialize as strings; below-minimum quantities fail locally. Crypto-futures
+  assets retain requested constructor leverage. Hedge-mode initialization
+  failures block submission, and reduce-only closes use `CLOSE`, the matching
+  position ID, and the correct hedge side. Fractional Bitunix closes use
+  Decimal arithmetic, with close responses mapped back to execution sides and
+  exchange `SHORT` positions retaining their negative quantity.
 - **Live order reconciliation no longer loses a submitted broker identifier.**
   When submit and callback copies of the same order race with a broker refresh,
   reconciliation now collapses them atomically into one strategy-owned order

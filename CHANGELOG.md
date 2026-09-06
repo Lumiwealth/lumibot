@@ -3,6 +3,14 @@
 ## 4.5.91 - Unreleased
 
 ### Fixed
+- **Bitunix futures orders obey exchange quantity and price rules.** Decimal
+  quantities and prices round down using cached trading-pair precision and
+  serialize as strings; below-minimum quantities fail locally. Crypto-futures
+  assets retain requested constructor leverage. Hedge-mode initialization
+  failures block submission, and reduce-only closes use `CLOSE`, the matching
+  position ID, and the correct hedge side. Fractional Bitunix closes use
+  Decimal arithmetic, with close responses mapped back to execution sides and
+  exchange `SHORT` positions retaining their negative quantity.
 - **Release tags can reuse compatible real-model eval evidence from a prior
   version-branch qualification.** The release gate restores the newest
   repository-scoped standalone eval artifact after the branch-scoped cache,

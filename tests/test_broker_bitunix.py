@@ -1,14 +1,15 @@
 import unittest
-from unittest.mock import MagicMock, patch
 from decimal import Decimal
 from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 from lumibot.brokers.bitunix import Bitunix
+from lumibot.brokers.broker import LumibotBrokerAPIError
 from lumibot.brokers.schwab import Schwab
 from lumibot.entities import Asset, Order, Position, SmartLimitConfig, SmartLimitPreset
 from lumibot.strategies.strategy import Strategy
 from lumibot.tools.bitunix_helpers import BitUnixClient
-from lumibot.brokers.broker import LumibotBrokerAPIError
+
 
 class TestBitunixBroker(unittest.TestCase):
     def setUp(self):
@@ -19,6 +20,13 @@ class TestBitunixBroker(unittest.TestCase):
         }
         # Mock the BitUnixClient to prevent actual API calls
         self.mock_bitunix_client = MagicMock(spec=BitUnixClient)
+        # Submission now validates exchange rules before sending an order; keep the
+        # existing broker lifecycle assertions exercising their original API paths.
+        self.mock_bitunix_client.get_trading_pairs.return_value = {
+            "code": 0,
+            "data": [{"symbol": "BTCUSDT", "basePrecision": 4,
+                      "quotePrecision": 1, "minTradeVolume": "0.0001"}],
+        }
 
     @patch("lumibot.brokers.bitunix.BitUnixClient")
     @patch("lumibot.brokers.bitunix.BitunixData")
@@ -185,7 +193,7 @@ class TestBitunixBroker(unittest.TestCase):
         }
         positions = broker._pull_positions(mock_strategy)
         self.assertEqual(len(positions), 2)
-        
+
         btc_pos = next(p for p in positions if p.asset.symbol == "BTCUSDT")
         eth_pos = next(p for p in positions if p.asset.symbol == "ETHUSDT")
 
@@ -216,11 +224,20 @@ class TestBitunixBroker(unittest.TestCase):
             }
         }
         # Mock _pull_positions as it's called by _get_balances_at_broker
-        broker._pull_positions = MagicMock(return_value=[
-            Position("test_strategy", Asset("BTCUSDT", Asset.AssetType.CRYPTO_FUTURE), Decimal("0.1"), avg_fill_price=Decimal("50000"))
-        ])
+        broker._pull_positions = MagicMock(
+            return_value=[
+                Position(
+                    "test_strategy",
+                    Asset("BTCUSDT", Asset.AssetType.CRYPTO_FUTURE),
+                    Decimal("0.1"),
+                    avg_fill_price=Decimal("50000"),
+                )
+            ]
+        )
 
-        cash, positions_value, net_liquidation = broker._get_balances_at_broker(Asset("USDT", Asset.AssetType.CRYPTO), mock_strategy)
+        cash, positions_value, net_liquidation = broker._get_balances_at_broker(
+            Asset("USDT", Asset.AssetType.CRYPTO), mock_strategy
+        )
 
         self.assertEqual(cash, 10000.00)
         self.assertEqual(positions_value, 5000.0) # 0.1 * 50000
@@ -244,9 +261,9 @@ class TestBitunixBroker(unittest.TestCase):
         MockBitUnixClientInstance.return_value = self.mock_bitunix_client
         mock_data_source = MockBitunixData.return_value
         mock_data_source.client_symbols = set()
-        
+
         broker = Bitunix(self.config)
-        
+
         raw_order_data = {
             "orderId": "98765",
             "symbol": "ETHUSDT",
@@ -260,9 +277,9 @@ class TestBitunixBroker(unittest.TestCase):
             "leverage": "5",
             "time": 1678886400000 # Example timestamp
         }
-        
+
         parsed_order = broker._parse_broker_order(raw_order_data, "test_strategy")
-        
+
         self.assertIsNotNone(parsed_order)
         self.assertEqual(parsed_order.identifier, "98765")
         self.assertEqual(parsed_order.asset.symbol, "ETHUSDT")

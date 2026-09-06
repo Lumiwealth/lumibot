@@ -2,6 +2,14 @@
 
 ## 4.5.92 - Unreleased
 
+### Fixed
+- **Serialized broker order IDs remain queryable during live tool loops.**
+  Broker-native identifiers such as Alpaca ``uuid.UUID`` values now compare
+  losslessly with the string form carried by JSON, agent tools, and scheduled
+  runtime state. Exact ``get_order`` and filtered ``get_orders`` calls can
+  therefore observe the submitted order through its terminal lifecycle without
+  confusing a type mismatch with a missing order.
+
 ## 4.5.91 - 2026-09-06
 
 Deploy marker: `d007efed231d`

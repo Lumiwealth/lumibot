@@ -1788,8 +1788,11 @@ class Strategy(_Strategy):
         self._refresh_live_orders(broker_refresh=broker_refresh, broker_refresh_ttl_seconds=broker_refresh_ttl_seconds)
         all_orders = self.broker.get_tracked_orders(self.name)
         if identifiers:
-            identifier_set = set(identifiers)
-            all_orders = [order for order in all_orders if order.identifier in identifier_set]
+            all_orders = [
+                order
+                for order in all_orders
+                if any(self.broker.identifiers_equal(order.identifier, identifier) for identifier in identifiers)
+            ]
         if normalized_statuses is not None:
             all_orders = [order for order in all_orders if self._order_matches_statuses(order, normalized_statuses)]
         return all_orders

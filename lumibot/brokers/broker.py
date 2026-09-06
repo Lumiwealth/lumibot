@@ -1499,6 +1499,21 @@ class Broker(ABC):
         return strategy
 
     @staticmethod
+    def identifiers_equal(left, right) -> bool:
+        """Compare broker identifiers across native and serialized boundaries.
+
+        Alpaca returns ``uuid.UUID`` identifiers, while agent tools, JSON, and
+        scheduled-runtime state necessarily carry the same value as text. Keep
+        the broker-native value on the order, but make lookup tolerant of its
+        lossless string representation.
+        """
+        if left == right:
+            return True
+        if left is None or right is None:
+            return False
+        return str(left) == str(right)
+
+    @staticmethod
     def _cache_result(cache: dict, key, value):
         if len(cache) >= 256:
             cache.clear()
@@ -2523,7 +2538,7 @@ class Broker(ABC):
         if use_placeholders:
             tracked_orders.extend(self._placeholder_orders.get_list())
         for order in tracked_orders:
-            if order.identifier == identifier:
+            if self.identifiers_equal(order.identifier, identifier):
                 return order
         return None
 
@@ -2593,7 +2608,7 @@ class Broker(ABC):
     def get_order(self, identifier) -> Order:
         """get a tracked order given an identifier"""
         for order in self.get_all_orders():
-            if order.identifier == identifier:
+            if self.identifiers_equal(order.identifier, identifier):
                 return order
         return None
 

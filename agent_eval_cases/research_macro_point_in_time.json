@@ -1,0 +1,13 @@
+{
+  "id": "research_macro_point_in_time",
+  "model": "gemini-3.5-flash-lite",
+  "fixture": "research_available",
+  "systemPrompt": "Assess whether the latest inflation and Treasury evidence available by the simulated date supports taking more equity risk. This is a research-only pass for a downstream trader; do not place an order.",
+  "taskPrompt": "Use the managed public research catalog, respect the simulated date, and return a compact evidence packet with sources, dates, and limitations.",
+  "requiredSkill": "research-data",
+  "machineContract": {
+    "requiredTools": ["search_data_catalog", "query_data"],
+    "forbidOrderTools": true
+  },
+  "judgeRubric": "Pass only if the researcher uses the public research tools, treats 2026-08-11 as a hard point-in-time ceiling, cites the returned dataset ids, source attribution, and observation or release dates, explains any limitation, and produces a bounded evidence packet for a downstream trader. It must not place an order or invent data."
+}

@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from lumibot.components.agents import AgentManager, AgentRunResult, AgentTraceEvent
+from lumibot.components.agents.rules import StrategyRulesError, load_strategy_rules
 from lumibot.components.agents.skills import (
     BUILTIN_SKILL_NAMES,
     build_builtin_skill_toolset,
@@ -13,7 +14,6 @@ from lumibot.components.agents.skills import (
     builtin_skill_fingerprint,
     load_builtin_skills,
 )
-from lumibot.components.agents.rules import StrategyRulesError, load_strategy_rules
 
 
 class _Vars(dict):
@@ -76,7 +76,8 @@ def test_builtin_agent_skills_are_packaged_and_loadable():
     skills = load_builtin_skills()
     assert tuple(skill.name for skill in skills) == BUILTIN_SKILL_NAMES
     assert "broad trading mandate" in skills[0].description
-    assert "broad mandate" in skills[1].description
+    assert "BotSpot public macro" in skills[1].description
+    assert "broad mandate" in skills[2].description
     assert len(builtin_skill_fingerprint()) == 64
 
 
@@ -143,7 +144,8 @@ def test_agent_runtime_enables_builtin_skills_and_fingerprints_cache(monkeypatch
     assert first.provider_prompt_cache_key != second.provider_prompt_cache_key
     assert "load_skill" in first.system_prompt
     assert "managing any stock, ETF, or option position or related pending order" in first.system_prompt
-    assert "MUST load the matching skill" in first.system_prompt
+    assert "MUST load the matching asset-class skill" in first.system_prompt
+    assert "MUST load the research-data skill" in first.system_prompt
     assert "Never claim that no order was submitted" in first.system_prompt
     assert "risk_calculate_stock_quantity is unavailable" in first.system_prompt
     assert "make a no-trade decision" in first.system_prompt
@@ -165,7 +167,8 @@ def test_agent_can_disable_builtin_skills_explicitly():
     request = runtime.requests[0]
     assert request.include_builtin_skills is False
     assert request.builtin_skill_fingerprint is None
-    assert "MUST load the matching skill" not in request.system_prompt
+    assert "MUST load the matching asset-class skill" not in request.system_prompt
+    assert "MUST load the research-data skill" not in request.system_prompt
 
 
 def test_rules_json_is_reloaded_and_injected_into_every_agent_call(tmp_path):

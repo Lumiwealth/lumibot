@@ -1,5 +1,5 @@
 from datetime import datetime
-from threading import RLock
+from threading import Event, RLock, Thread
 
 import pytest
 
@@ -252,6 +252,124 @@ def test_live_get_order_refreshes_existing_order_status():
     assert refreshed is tracked
     assert refreshed.status == Order.OrderStatus.FILLED
     assert strategy.get_orders(statuses=Order.ACTIVE_STATUSES) == []
+
+
+def test_live_get_order_survives_submit_callback_duplicate_then_terminal_sync():
+    """A fast broker callback must not make a just-submitted identifier disappear.
+
+    The submit response and the broker callback can race, briefly leaving the same
+    identifier in the unprocessed and new buckets.  A following broker refresh may
+    already report the order as filled.  Reconciliation must collapse the duplicate
+    into one terminal record instead of deleting both local copies.
+    """
+    strategy, broker = _strategy()
+    submitted = _order(strategy.name, "fast-fill-1", Order.OrderStatus.SUBMITTED)
+    callback_copy = _order(strategy.name, "fast-fill-1", Order.OrderStatus.OPEN)
+    broker._unprocessed_orders.append(submitted)
+    broker._new_orders.append(callback_copy)
+    broker.broker_orders = [
+        _order(strategy.name, "fast-fill-1", Order.OrderStatus.FILLED),
+    ]
+
+    refreshed = strategy.get_order("fast-fill-1")
+
+    assert refreshed is not None
+    assert refreshed.identifier == "fast-fill-1"
+    assert refreshed.status == Order.OrderStatus.FILLED
+    assert [order.identifier for order in broker.get_all_orders()] == ["fast-fill-1"]
+
+
+def test_fresh_process_imports_terminal_broker_order_for_durable_reconciliation():
+    """A later scheduled process must recover an order that filled after prior exit."""
+    strategy, broker = _strategy()
+    broker._first_iteration = True
+    broker.broker_orders = [
+        _order(strategy.name, "filled-after-exit-1", Order.OrderStatus.FILLED),
+    ]
+
+    broker.sync_orders(strategy)
+
+    recovered = broker.get_tracked_order("filled-after-exit-1")
+    assert recovered is not None
+    assert recovered.status == Order.OrderStatus.FILLED
+    assert broker._filled_orders.get_list() == [recovered]
+
+
+@pytest.mark.parametrize(
+    ("broker_status", "expected_bucket"),
+    [
+        (Order.OrderStatus.OPEN, "_new_orders"),
+        (Order.OrderStatus.PARTIALLY_FILLED, "_partially_filled_orders"),
+        (Order.OrderStatus.FILLED, "_filled_orders"),
+        (Order.OrderStatus.CASH_SETTLED, "_filled_orders"),
+        (Order.OrderStatus.CANCELED, "_canceled_orders"),
+        (Order.OrderStatus.EXPIRED, "_canceled_orders"),
+        (Order.OrderStatus.ERROR, "_error_orders"),
+    ],
+)
+def test_clean_order_trackers_collapses_duplicates_without_losing_lifecycle_or_provenance(
+    broker_status,
+    expected_bucket,
+):
+    strategy, broker = _strategy()
+    submitted = _order(strategy.name, "duplicate-1", Order.OrderStatus.SUBMITTED)
+    submitted.decision_provenance = {"agent": "trader", "cycle": 7}
+    callback_copy = _order(strategy.name, "duplicate-1", Order.OrderStatus.OPEN)
+    authoritative = _order(strategy.name, "duplicate-1", broker_status)
+    authoritative.limit_price = 99.25
+    broker._unprocessed_orders.append(submitted)
+    broker._new_orders.append(callback_copy)
+
+    survivor = broker._clean_order_trackers(authoritative)
+
+    assert survivor is submitted
+    assert survivor.status == broker_status
+    assert survivor.limit_price == 99.25
+    assert survivor.decision_provenance == {"agent": "trader", "cycle": 7}
+    assert getattr(broker, expected_bucket).get_list() == [submitted]
+    assert [order.identifier for order in broker.get_all_orders()] == ["duplicate-1"]
+
+
+def test_tracker_transition_is_atomic_for_concurrent_identifier_lookup(monkeypatch):
+    strategy, broker = _strategy()
+    submitted = _order(strategy.name, "atomic-1", Order.OrderStatus.SUBMITTED)
+    callback_copy = _order(strategy.name, "atomic-1", Order.OrderStatus.OPEN)
+    authoritative = _order(strategy.name, "atomic-1", Order.OrderStatus.FILLED)
+    broker._unprocessed_orders.append(submitted)
+    broker._new_orders.append(callback_copy)
+
+    append_entered = Event()
+    allow_append = Event()
+    original_append = broker._filled_orders.append
+
+    def paused_append(order):
+        append_entered.set()
+        assert allow_append.wait(timeout=2)
+        original_append(order)
+
+    monkeypatch.setattr(broker._filled_orders, "append", paused_append)
+    cleanup = Thread(target=broker._clean_order_trackers, args=(authoritative,))
+    cleanup.start()
+    assert append_entered.wait(timeout=2)
+
+    observed = []
+    lookup_done = Event()
+
+    def lookup():
+        observed.append(broker.get_tracked_order("atomic-1"))
+        lookup_done.set()
+
+    reader = Thread(target=lookup)
+    reader.start()
+    assert lookup_done.wait(timeout=0.05) is False
+    allow_append.set()
+    cleanup.join(timeout=2)
+    reader.join(timeout=2)
+
+    assert cleanup.is_alive() is False
+    assert reader.is_alive() is False
+    assert observed == [submitted]
+    assert submitted.status == Order.OrderStatus.FILLED
 
 
 def test_live_order_list_miss_uses_direct_lookup_before_terminal_update():

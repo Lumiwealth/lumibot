@@ -2,7 +2,7 @@
 
 > Notes on live broker behavior that affect backtesting semantics (extended hours, order types, and “market closed / no data” handling).
 
-**Last Updated:** 2026-07-08
+**Last Updated:** 2026-09-06
 **Status:** Active
 **Audience:** Developers, AI Agents
 
@@ -45,9 +45,71 @@ Backtesting must not assume a single universal rule for “market closed” beca
 
 When behavior differs across brokers, we need broker-scoped semantics (or a documented approximation).
 
+### Crypto-futures close invariant
+
+`Position.get_selling_order()` intentionally does not synthesize a generic
+crypto-futures sell because a plain opposite-side order can increase or reverse
+exposure. The broker owns the closing semantics:
+
+- `Broker.close_position()` must always create a side-correct reduce-only order
+  for a nonzero crypto-futures position: sell a long and buy a short.
+- Partial closes scale the absolute position quantity by a fraction in `(0, 1]`.
+- `sell_all()` must never pass `None` into bulk submission.
+- No broker, including `BacktestingBroker`, may submit a null order.
+- Backtesting applies the close fill to the tracked position and removes it when
+  the quantity reaches zero.
+
+### Live crypto history completeness invariant
+
+Live history must not silently return fewer bars because of a provider page
+limit or inclusive timestamp cursor:
+
+- Bitunix uses mapped native intervals when available and paginates bounded
+  `startTime`/`endTime` windows with at most 200 candles per request.
+- CCXT advances `since` to `last_candle_timestamp + timeframe`.
+- If the available provider history is genuinely shorter than requested, the
+  data source raises a diagnostic with returned and requested counts.
+
 ---
 
 ## Broker notes (public sources, summarized)
+
+### Bitunix futures submission contract
+
+- Cache validated `basePrecision`, `quotePrecision`, and `minTradeVolume` by
+  symbol for the broker session. Failed metadata requests are not cached and
+  must never fall back to guessed precision.
+- Use Decimal rounding down for quantity and prices. Serialize fixed-point
+  strings at the client boundary, including native TP/SL keyword fields.
+  Track the executable quantity so a full fill does not leave an artificial
+  remainder. Below-minimum sizes fail locally, including rounded-to-zero sizes.
+- Preserve constructor leverage for `CRYPTO_FUTURE` as for `FUTURE`. This is
+  desired leverage, not proof that the exchange accepted the leverage change;
+  the existing warning behavior for leverage API failures remains.
+- Only submit after HEDGE initialization is confirmed. Failures leave the
+  initialization flag unset and block the order, so a later submission retries.
+  Never infer ONE_WAY mode from a failed mode-change request.
+- HEDGE opens use `tradeSide=OPEN`; reduce-only closes use `CLOSE`, the unique
+  matching exchange position ID, and the position side (BUY for long, SELL for
+  short). LumiBot retains the opposite execution side on the Order, and the
+  response parser translates CLOSE rows back to that execution side.
+  Position reads recognize both LONG/SHORT and older BUY/SELL side labels so a
+  short remains negative when constructing the close.
+- Bitunix fractional closes convert both quantity and fraction to Decimal.
+  A rounded partial close can leave a real residual position. No changes to
+  the shared base-broker close or history-pagination paths are needed.
+
+Sources: [place order](https://www.bitunix.com/api-docs/futures/trade/place_order.html),
+[pair metadata](https://www.bitunix.com/api-docs/futures/market/get_trading_pairs.html),
+[position mode](https://www.bitunix.com/api-docs/futures/account/change_position_mode.html).
+
+Regression evidence: `tests/test_bitunix_place_order_params.py` intercepts
+HTTP transport and exercises the real broker/client serialization path,
+including a simulated code-10002 validator. The initial RED run was 21 failed,
+1 passed; additional close-default/response tests failed 3/3 before their fix.
+This is deterministic contract validation, not live execution qualification.
+The exact saved customer strategy and account path were not run: live keys
+and live smoke testing were explicitly excluded from this task.
 
 ### Unknown Broker Objects And Refresh Resilience
 

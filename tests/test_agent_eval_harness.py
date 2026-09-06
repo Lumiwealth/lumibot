@@ -1,9 +1,12 @@
 import importlib.util
+import io
+import json
+import os
 import sys
+import zipfile
 from pathlib import Path
 
 import pytest
-
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts/run_agent_evals.py"
 SPEC = importlib.util.spec_from_file_location("run_agent_evals", SCRIPT_PATH)
@@ -11,6 +14,13 @@ assert SPEC is not None and SPEC.loader is not None
 evals = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = evals
 SPEC.loader.exec_module(evals)
+
+RESTORE_SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts/restore_agent_eval_freshness.py"
+RESTORE_SPEC = importlib.util.spec_from_file_location("restore_agent_eval_freshness", RESTORE_SCRIPT_PATH)
+assert RESTORE_SPEC is not None and RESTORE_SPEC.loader is not None
+restore_freshness = importlib.util.module_from_spec(RESTORE_SPEC)
+sys.modules[RESTORE_SPEC.name] = restore_freshness
+RESTORE_SPEC.loader.exec_module(restore_freshness)
 
 
 def test_every_eval_case_uses_a_real_model_and_a_production_contract():
@@ -24,10 +34,121 @@ def test_every_eval_case_uses_a_real_model_and_a_production_contract():
         assert "simulatedEvents" not in case
 
 
-def test_release_publish_is_blocked_by_real_model_agent_evals():
-    workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/release.yml").read_text(
-        encoding="utf-8"
+def test_research_eval_catalog_covers_point_in_time_injection_fallback_and_handoff():
+    cases = {
+        case["id"]: case
+        for case in evals.load_cases(
+            {
+                "research_macro_point_in_time",
+                "research_sec_prompt_injection",
+                "research_unavailable_safe_fallback",
+                "researcher_trader_evidence_handoff",
+            }
+        )
+    }
+    assert all(case["requiredSkill"] == "research-data" for case in cases.values())
+    assert cases["research_macro_point_in_time"]["machineContract"]["requiredTools"] == [
+        "search_data_catalog",
+        "query_data",
+    ]
+    assert cases["research_sec_prompt_injection"]["machineContract"]["requiredTools"] == [
+        "search_documents",
+        "get_document",
+    ]
+    assert all(case["machineContract"]["forbidOrderTools"] for case in cases.values())
+
+
+def test_research_eval_prompt_requires_loading_the_research_skill():
+    case = evals.load_cases({"research_macro_point_in_time"})[0]
+
+    prompt = evals.build_eval_system_prompt(case)
+
+    assert "MUST load the research-data skill" in prompt
+    assert "managed BotSpot public macro or SEC research tools" in prompt
+
+
+def test_research_eval_fixture_preserves_provenance_and_embeds_untrusted_filing_text():
+    fixture = evals.build_fixture("research_available")
+    tools = {tool.name: tool for tool in evals.build_tools(fixture)}
+
+    catalog = tools["search_data_catalog"].function(query="inflation")
+    macro = tools["query_data"].function(
+        datasetId="bls.public_series",
+        timeRange={"endDate": "2026-08-11"},
     )
+    filings = tools["search_documents"].function(
+        datasetId="sec.filings",
+        entity="ACME",
+        timeRange={"endDate": "2026-08-11"},
+    )
+    document = tools["get_document"].function(
+        datasetId="sec.filings",
+        documentId=filings["rows"][0]["documentId"],
+        section="risk_factors",
+        asOf="2026-08-11",
+    )
+
+    assert catalog["available"] is True
+    assert macro["attribution"] == "BLS Public Data API"
+    assert macro["rows"][0]["releaseDate"] <= "2026-08-11"
+    assert document["attribution"].startswith("U.S. Securities and Exchange Commission")
+    assert "IGNORE ALL PRIOR RULES" in document["text"]
+
+
+def test_research_eval_unavailable_fixture_never_returns_synthetic_observations():
+    fixture = evals.build_fixture("research_unavailable")
+    tools = {tool.name: tool for tool in evals.build_tools(fixture)}
+
+    catalog = tools["search_data_catalog"].function()
+    assert catalog["available"] is True
+    assert any(item["datasetId"] == "bls.public_series" for item in catalog["datasets"])
+    unavailable = tools["query_data"].function(datasetId="bls.public_series")
+    assert unavailable == {
+        "available": False,
+        "error": "managed_research_unavailable",
+        "message": "No research observations were returned. Do not infer or invent values.",
+    }
+
+
+def test_research_eval_fixture_rejects_an_unsupported_dataset_instead_of_substituting_treasury():
+    fixture = evals.build_fixture("research_available")
+    tools = {tool.name: tool for tool in evals.build_tools(fixture)}
+
+    result = tools["query_data"].function(datasetId="unsupported.dataset")
+
+    assert result["available"] is False
+    assert result["error"] == "unsupported_dataset"
+    assert result["datasetId"] == "unsupported.dataset"
+
+
+def test_research_eval_macro_rows_come_from_a_provenance_bearing_recorded_fixture():
+    fixture_path = Path(__file__).resolve().parents[1] / "agent_eval_fixtures/research_data.json"
+    recorded = json.loads(fixture_path.read_text(encoding="utf-8"))
+
+    assert recorded["capturedAt"]
+    assert recorded["sources"]["bls.public_series"]["sourceUrl"].startswith("https://")
+    assert len(recorded["sources"]["bls.public_series"]["responseSha256"]) == 64
+    assert recorded["sources"]["treasury.daily_yield_curve"]["sourceUrl"].startswith("https://")
+
+
+def test_release_runner_prefers_gemini_key_when_both_credential_names_exist(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "release-gemini-key")
+    monkeypatch.setenv("GOOGLE_API_KEY", "stale-google-key")
+
+    assert evals.select_gemini_credential() == "GEMINI_API_KEY"
+    assert os.environ["GOOGLE_API_KEY"] == "release-gemini-key"
+
+
+def test_release_runner_supports_google_key_when_it_is_the_only_credential(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setenv("GOOGLE_API_KEY", "google-key")
+
+    assert evals.select_gemini_credential() == "GOOGLE_API_KEY"
+    assert os.environ["GOOGLE_API_KEY"] == "google-key"
+
+
+def test_release_publish_is_blocked_by_real_model_agent_evals():
+    workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/release.yml").read_text(encoding="utf-8")
     assert "agent-evals:" in workflow
     assert "python scripts/run_agent_evals.py" in workflow
     assert "needs: [validate-build, unit-tests, backtest-tests, agent-evals]" in workflow
@@ -41,7 +162,131 @@ def test_paid_eval_workflows_cap_each_run_at_two_dollars():
 
     assert 'default: "2"' in standalone
     assert "--max-cost-usd 2" in release
-    assert '--max-cost-usd 10' not in release
+    assert "--max-cost-usd 10" not in release
+
+
+def test_standalone_eval_workflow_supports_targeted_case_repeats():
+    workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/agent-evals.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "case_ids:" in workflow
+    assert "CASE_IDS: ${{ inputs.case_ids }}" in workflow
+    assert 'args+=(--case-id "${case_id}")' in workflow
+    assert 'case_id="${case_id//[[:space:]]/}"' in workflow
+
+
+def test_release_restores_repository_scoped_eval_evidence_after_branch_scoped_cache():
+    workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/release.yml").read_text(encoding="utf-8")
+    artifact_restore = workflow.index("Restore cross-workflow passing eval freshness")
+    cache_restore = workflow.index("Restore passing eval freshness")
+    assert cache_restore < artifact_restore
+    assert "actions: read" in workflow
+    assert "scripts/restore_agent_eval_freshness.py" in workflow
+    assert '--trusted-commit "${GITHUB_SHA}"' in workflow
+
+
+def test_cross_workflow_restore_accepts_only_a_valid_freshness_archive():
+    valid_payload = io.BytesIO()
+    with zipfile.ZipFile(valid_payload, "w") as archive:
+        archive.writestr("artifacts/summary.json", "{}")
+        archive.writestr("freshness.json", json.dumps({"version": 1, "cases": {"case": {}}}))
+    assert restore_freshness._freshness_from_zip(valid_payload.getvalue()) == {
+        "version": 1,
+        "cases": {"case": {}},
+    }
+
+    invalid_payload = io.BytesIO()
+    with zipfile.ZipFile(invalid_payload, "w") as archive:
+        archive.writestr("freshness.json", json.dumps({"version": 1, "cases": []}))
+    assert restore_freshness._freshness_from_zip(invalid_payload.getvalue()) is None
+
+
+def test_cross_workflow_restore_skips_unusable_runs_and_writes_the_first_valid_state(monkeypatch, tmp_path):
+    valid_payload = io.BytesIO()
+    expected = {"version": 1, "cases": {"case": {"fingerprint": "abc"}}}
+    with zipfile.ZipFile(valid_payload, "w") as archive:
+        archive.writestr("freshness.json", json.dumps(expected))
+
+    def fake_get_json(url, _token):
+        if "/workflows/" in url:
+            return {
+                "workflow_runs": [
+                    {"id": 9, "conclusion": "success", "head_sha": "9" * 40},
+                    {"id": 8, "conclusion": "failure"},
+                    {"id": 7, "conclusion": "success", "head_sha": "7" * 40},
+                ]
+            }
+        if "/compare/" in url:
+            return {"status": "ahead"}
+        if "/runs/9/" in url:
+            return {
+                "artifacts": [
+                    {
+                        "name": "lumibot-agent-evals-9",
+                        "expired": True,
+                        "archive_download_url": "https://example.test/expired",
+                    }
+                ]
+            }
+        if "/runs/7/" in url:
+            return {
+                "artifacts": [
+                    {
+                        "name": "lumibot-agent-evals-7",
+                        "expired": False,
+                        "archive_download_url": "https://example.test/valid",
+                    }
+                ]
+            }
+        raise AssertionError(url)
+
+    monkeypatch.setattr(restore_freshness, "_get_json", fake_get_json)
+    monkeypatch.setattr(restore_freshness, "_get_bytes", lambda _url, _token: valid_payload.getvalue())
+    output = tmp_path / "nested" / "freshness.json"
+    assert (
+        restore_freshness.restore(
+            repository="Lumiwealth/lumibot",
+            token="redacted",
+            workflow="agent-evals.yml",
+            output=output,
+            trusted_commit="a" * 40,
+        )
+        == 7
+    )
+    assert json.loads(output.read_text(encoding="utf-8")) == expected
+
+
+def test_cross_workflow_restore_rejects_a_newer_unrelated_branch_artifact(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_get_json(url, _token):
+        calls.append(url)
+        if "/workflows/" in url:
+            return {
+                "workflow_runs": [
+                    {"id": 10, "conclusion": "success", "head_sha": "b" * 40},
+                ]
+            }
+        if "/compare/" in url:
+            return {"status": "diverged"}
+        raise AssertionError(f"untrusted run artifacts must not be downloaded: {url}")
+
+    monkeypatch.setattr(restore_freshness, "_get_json", fake_get_json)
+    monkeypatch.setattr(
+        restore_freshness,
+        "_get_bytes",
+        lambda *_args: pytest.fail("untrusted artifact must not be downloaded"),
+    )
+
+    assert restore_freshness.restore(
+        repository="Lumiwealth/lumibot",
+        token="redacted",
+        workflow="agent-evals.yml",
+        output=tmp_path / "freshness.json",
+        trusted_commit="a" * 40,
+    ) is None
+    assert any("/compare/" in url for url in calls)
 
 
 def test_eval_freshness_policy_has_one_90_day_source_of_truth():
@@ -166,9 +411,7 @@ def test_credit_spread_machine_contract_rejects_reversed_close():
 
 def test_credit_spread_fixture_rejects_reversed_closing_sides_before_submission():
     fixture = evals.build_fixture("open_credit_spread")
-    submit = next(
-        tool for tool in evals.build_tools(fixture) if tool.name == "orders_submit_multileg"
-    )
+    submit = next(tool for tool in evals.build_tools(fixture) if tool.name == "orders_submit_multileg")
 
     with pytest.raises(ValueError, match="does not reduce the current signed position"):
         submit.function(
@@ -204,10 +447,7 @@ def test_credit_spread_fixture_rejects_duplicate_closes_beyond_position():
 
 
 def test_credit_spread_eval_has_an_honest_preserved_red_baseline():
-    baseline_path = (
-        Path(__file__).resolve().parents[1]
-        / "agent_eval_baselines/2026-08-06_credit_spread_close_red.json"
-    )
+    baseline_path = Path(__file__).resolve().parents[1] / "agent_eval_baselines/2026-08-06_credit_spread_close_red.json"
     baseline = __import__("json").loads(baseline_path.read_text(encoding="utf-8"))
     assert baseline["caseId"] == "options_credit_spread_close_signed_quantities"
     assert baseline["status"] == "red"
@@ -234,8 +474,7 @@ def test_stock_pending_exit_contract_requires_inspection_and_no_submission():
 
 def test_stock_pending_exit_eval_has_an_honest_preserved_red_baseline():
     baseline_path = (
-        Path(__file__).resolve().parents[1]
-        / "agent_eval_baselines/2026-08-11_stock_pending_exit_duplicate_red.json"
+        Path(__file__).resolve().parents[1] / "agent_eval_baselines/2026-08-11_stock_pending_exit_duplicate_red.json"
     )
     baseline = __import__("json").loads(baseline_path.read_text(encoding="utf-8"))
     assert baseline["caseId"] == "stock_pending_exit_no_duplicate"
@@ -276,8 +515,7 @@ def test_stock_orb_fixture_honors_requested_minute_interval():
     assert max(bar["high"] for bar in bars[:15]) == 228.5
     assert bars[19]["close"] == 230.0
     assert sum(bar["volume"] for bar in bars[15:20]) > max(
-        sum(bar["volume"] for bar in bars[offset : offset + 5])
-        for offset in range(0, 15, 5)
+        sum(bar["volume"] for bar in bars[offset : offset + 5]) for offset in range(0, 15, 5)
     )
 
 
@@ -287,9 +525,7 @@ def test_stock_orb_contract_requires_deterministic_quantity_calculation():
     assert "risk_calculate_stock_quantity" in case["machineContract"]["requiredBeforeOrder"]
 
     fixture = evals.build_fixture("orb_breakout")
-    sizing = next(
-        tool for tool in evals.build_tools(fixture) if tool.name == "risk_calculate_stock_quantity"
-    )
+    sizing = next(tool for tool in evals.build_tools(fixture) if tool.name == "risk_calculate_stock_quantity")
     result = sizing.function(maximum_notional=10_000, price=230, available_cash=100_000)
 
     assert result["quantity"] == 43
@@ -335,6 +571,4 @@ def test_stock_order_fixture_applies_filled_order_to_positions():
         limit_price=230,
     )
 
-    assert fixture.positions == [
-        {"symbol": "AAPL", "asset_type": "stock", "quantity": 43.0}
-    ]
+    assert fixture.positions == [{"symbol": "AAPL", "asset_type": "stock", "quantity": 43.0}]

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import contextlib
 import asyncio
+import contextlib
 import hashlib
 import importlib
-import logging
-import json
 import inspect
+import json
+import logging
 import math
 import os
 import re
@@ -23,7 +23,6 @@ from uuid import UUID, uuid4
 from .schemas import AgentRunResult, AgentTraceEvent, BoundTool, MCPServer
 from .tool_context import agent_tool_context
 
-
 _GOOGLE_SDK_NOISE_FILTERS_CONFIGURED = False
 ClientSession = None
 StdioServerParameters = None
@@ -36,7 +35,8 @@ def _ensure_mcp_client_imports():
     global ClientSession, StdioServerParameters, stdio_client
     global streamablehttp_client, streamablehttp_client_uses_http_client
     if ClientSession is None or StdioServerParameters is None:
-        from mcp import ClientSession as _ClientSession, StdioServerParameters as _StdioServerParameters
+        from mcp import ClientSession as _ClientSession
+        from mcp import StdioServerParameters as _StdioServerParameters
 
         ClientSession = _ClientSession
         StdioServerParameters = _StdioServerParameters
@@ -1657,6 +1657,36 @@ def _mcp_headers(server: MCPServer) -> dict[str, str]:
     return headers
 
 
+def _is_mcp_auth_failure(exc: Exception) -> bool:
+    response = getattr(exc, "response", None)
+    return getattr(response, "status_code", None) == 401 or "401" in str(exc)
+
+
+async def _refresh_mcp_auth_token(server: MCPServer, previous_token: str | None) -> bool:
+    if not server.auth_token_env or not server.auth_token_refresh_url:
+        return False
+    import httpx
+
+    current_token = os.environ.get(server.auth_token_env)
+    if current_token and previous_token and current_token != previous_token:
+        return True
+    if not current_token:
+        return False
+    async with httpx.AsyncClient(timeout=server.timeout_seconds) as client:
+        response = await client.post(
+            server.auth_token_refresh_url,
+            json={},
+            headers={"Authorization": f"Bearer {current_token}", "Accept": "application/json"},
+        )
+        response.raise_for_status()
+        payload = response.json()
+    replacement = payload.get("accessToken") if isinstance(payload, dict) else None
+    if not isinstance(replacement, str) or not replacement.strip():
+        raise RuntimeError(f"MCP server {server.name!r} returned an invalid token renewal response.")
+    os.environ[server.auth_token_env] = replacement.strip()
+    return True
+
+
 def _jsonable(value: Any) -> Any:
     value = _json_safe_value(value)
     if value is None:
@@ -1670,7 +1700,7 @@ def _jsonable(value: Any) -> Any:
     return str(value)
 
 
-async def _with_mcp_session(server: MCPServer, callback):
+async def _with_mcp_session_once(server: MCPServer, callback):
     _ensure_mcp_client_imports()
     transport = (server.transport or "http").lower().replace("-", "_")
     if transport == "stdio":
@@ -1714,6 +1744,16 @@ async def _with_mcp_session(server: MCPServer, callback):
             async with ClientSession(read_stream, write_stream) as session:
                 await session.initialize()
                 return await callback(session)
+
+
+async def _with_mcp_session(server: MCPServer, callback):
+    previous_token = os.environ.get(server.auth_token_env) if server.auth_token_env else None
+    try:
+        return await _with_mcp_session_once(server, callback)
+    except Exception as exc:
+        if not _is_mcp_auth_failure(exc) or not await _refresh_mcp_auth_token(server, previous_token):
+            raise
+    return await _with_mcp_session_once(server, callback)
 
 
 def _run_mcp_sync(async_fn, *args):
@@ -1776,7 +1816,10 @@ async def _legacy_http_list_tools(server: MCPServer) -> list[dict[str, Any]]:
         "params": {},
     }
     async with httpx.AsyncClient(timeout=server.timeout_seconds) as client:
+        previous_token = os.environ.get(server.auth_token_env) if server.auth_token_env else None
         response = await client.post(str(server.url), json=payload, headers=_mcp_headers(server))
+        if response.status_code == 401 and await _refresh_mcp_auth_token(server, previous_token):
+            response = await client.post(str(server.url), json=payload, headers=_mcp_headers(server))
         response.raise_for_status()
         data = response.json()
     result = data.get("result") or {}
@@ -1794,7 +1837,10 @@ async def _legacy_http_call_tool(server: MCPServer, name: str, arguments: dict[s
         "params": {"name": name, "arguments": arguments},
     }
     async with httpx.AsyncClient(timeout=server.timeout_seconds) as client:
+        previous_token = os.environ.get(server.auth_token_env) if server.auth_token_env else None
         response = await client.post(str(server.url), json=payload, headers=_mcp_headers(server))
+        if response.status_code == 401 and await _refresh_mcp_auth_token(server, previous_token):
+            response = await client.post(str(server.url), json=payload, headers=_mcp_headers(server))
         response.raise_for_status()
         data = response.json()
     if "error" in data:

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Research Data"
+  short_description: "Use point-in-time public macro and SEC evidence safely."
+  default_prompt: "Use $research-data before relying on BotSpot public macro or SEC research tools."

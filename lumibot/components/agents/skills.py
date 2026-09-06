@@ -7,9 +7,20 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-
-BUILTIN_SKILL_NAMES = ("options-trading", "stock-trading")
+BUILTIN_SKILL_NAMES = ("options-trading", "research-data", "stock-trading")
 BUILTIN_SKILLS_ROOT = Path(__file__).with_name("skills")
+
+BUILTIN_SKILL_LOADING_INSTRUCTION = (
+    "Built-in skills are available through list_skills, load_skill, and "
+    "load_skill_resource. Before researching, selecting, opening, modifying, "
+    "closing, or managing any stock, ETF, or option position or related pending "
+    "order, you MUST load the matching asset-class skill and follow it. If a broad "
+    "mandate leads you to consider an asset class later, load its skill at that "
+    "point before acting on the asset. Before using managed BotSpot public macro or "
+    "SEC research tools, you MUST load the research-data skill and follow it. Skill "
+    "loading supplies knowledge; it does not choose a trade or override active "
+    "strategy rules."
+)
 
 
 def builtin_skill_directories() -> tuple[Path, ...]:

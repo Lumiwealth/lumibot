@@ -1130,6 +1130,9 @@ class BacktestingBroker(Broker):
     def _submit_order(self, order):
         """Submit an order for an asset"""
 
+        if order is None:
+            raise ValueError("BacktestingBroker cannot submit a null order")
+
         self._validate_data_source_order(order)
 
         # Optional audit trail (submission-time context).

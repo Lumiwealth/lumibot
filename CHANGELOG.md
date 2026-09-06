@@ -1,5 +1,58 @@
 # Changelog
 
+## 4.5.91 - 2026-09-06
+
+Deploy marker: `d007efed231d`
+
+### Fixed
+- **Bitunix futures orders obey exchange quantity and price rules.** Decimal
+  quantities and prices round down using cached trading-pair precision and
+  serialize as strings; below-minimum quantities fail locally. Crypto-futures
+  assets retain requested constructor leverage. Hedge-mode initialization
+  failures block submission, and reduce-only closes use `CLOSE`, the matching
+  position ID, and the correct hedge side. Fractional Bitunix closes use
+  Decimal arithmetic, with close responses mapped back to execution sides and
+  exchange `SHORT` positions retaining their negative quantity.
+- **Live order reconciliation no longer loses a submitted broker identifier.**
+  When submit and callback copies of the same order race with a broker refresh,
+  reconciliation now collapses them atomically into one strategy-owned order
+  while preserving authoritative open, partial, filled, canceled, expired, and
+  error lifecycle state. New-order callbacks now perform lookup and transition
+  under the same lock, broker-driven closes retain the strategy quote asset,
+  and a later scheduled process can recover a terminal order from the broker
+  snapshot after the submitting process exits.
+- **Hosted agents can use deployment-bound BotSpot public research safely.**
+  BotSpot runtimes auto-attach a short-lived, read-only macro and SEC research
+  MCP capability; external users receive one optional linking notice. Historical
+  runs enforce their simulated date as a hard ceiling, SEC text is explicitly
+  untrusted, expired capabilities renew once on the same origin, and a built-in
+  research skill defines provenance, fallback, and researcher-to-trader handoff
+  requirements.
+- **Real-model release evals choose the intended Gemini credential
+  deterministically.** When both supported environment-variable names exist,
+  the release-scoped Gemini key wins instead of allowing an older Google key to
+  silently shadow it.
+- **Release tags can reuse compatible real-model eval evidence from a prior
+  version-branch qualification.** The release gate restores the newest
+  repository-scoped standalone eval artifact after the branch-scoped cache,
+  while the existing case/runtime/model fingerprints and freshness policy
+  remain authoritative. Cross-workflow evidence is accepted only when its
+  source commit is the exact release commit or an ancestor, targeted case IDs
+  are normalized, recorded research fixtures are fingerprinted, and unsupported
+  research datasets fail closed instead of silently substituting a different
+  data source. Stale or incompatible cases still run normally.
+- **Live Bitunix and Coinbase/CCXT history requests return complete bar
+  windows.** Bitunix requests native mapped intervals, respects the exchange's
+  200-candle page limit, and walks bounded timestamp windows. The live CCXT
+  cursor now advances by one full timeframe after the last returned candle.
+  Both paths raise a clear short-history error instead of silently returning an
+  undersized frame.
+- **Crypto-futures positions can be closed safely in backtests.** The shared
+  broker close path now builds a side-correct reduce-only order when
+  ``Position.get_selling_order()`` intentionally returns ``None``. ``sell_all``
+  filters null orders, submission rejects null orders explicitly, and ordinary
+  stock/option close behavior is unchanged.
+
 ## 4.5.90 - 2026-09-02
 
 Deploy marker: `d5a2d1629580`

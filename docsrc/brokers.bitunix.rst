@@ -23,7 +23,12 @@ Set the following environment variables in your `.env` file or system environmen
 Setting Leverage for Bitunix Orders
 -----------------------------------
 
-You can specify the leverage for a Bitunix futures order by setting the `leverage` attribute on the `Asset` object before creating the order. If not set, the default leverage configured at the broker will be used.
+Specify leverage in the ``CRYPTO_FUTURE`` Asset constructor or set its
+``leverage`` attribute before creating an order. The constructor preserves the
+requested leverage; its default is 1. LumiBot requests that leverage from
+Bitunix before submitting the order. If the exchange rejects the leverage
+change, LumiBot logs a warning; the Asset value does not confirm the exchange's
+actual leverage.
 
 **Example: Setting Leverage on a Bitunix Futures Order**
 
@@ -42,6 +47,49 @@ You can specify the leverage for a Bitunix futures order by setting the `leverag
     submitted_order = self.submit_order(order)
     if submitted_order:
         self.log_message(f"Placed order: ID={submitted_order.identifier}, Status={submitted_order.status}")
+
+Order Precision and Position Mode
+---------------------------------
+
+LumiBot loads and caches Bitunix trading-pair rules for each symbol during the
+broker session. Quantities round down to ``basePrecision`` decimal places;
+limit, take-profit, and stop-loss prices round down to ``quotePrecision``.
+All quantity and price fields are sent as decimal strings. For example, with
+BTCUSDT rules of ``basePrecision=4`` and ``minTradeVolume=0.0001``, a requested
+quantity of ``0.008868641`` becomes ``"0.0088"``. The tracked order quantity
+uses this executable size. Rounding down can leave a small residual position
+after a partial close.
+
+Quantities below ``minTradeVolume`` after rounding return an order with
+``ERROR`` status without placing an exchange order. Missing or invalid pair
+rules also block submission; failed lookups are retried on the next order.
+
+The adapter requires confirmed ``HEDGE`` mode before submitting. If mode
+initialization fails or reports ``ONE_WAY``, the order receives a clear error
+and is not sent. Check the account mode and outstanding positions/orders
+before retrying: Bitunix can reject mode changes while positions or orders
+exist. Opens send ``tradeSide="OPEN"``. Reduce-only closes send
+``tradeSide="CLOSE"`` with the matching exchange position ID and hedge side.
+An absent or ambiguous matching position blocks the close.
+
+See the Bitunix `place-order contract
+<https://www.bitunix.com/api-docs/futures/trade/place_order.html>`_ and
+`trading-pair rules
+<https://www.bitunix.com/api-docs/futures/market/get_trading_pairs.html>`_.
+
+Historical Bars
+---------------
+
+Bitunix serves native crypto-futures intervals including ``1m``, ``15m``,
+``1h``, ``2h``, ``4h``, and ``1d``. LumiBot requests a native interval when it
+matches the strategy timeframe instead of downloading one-minute bars and
+resampling them locally.
+
+The Bitunix futures API limits each kline response to 200 candles. LumiBot
+automatically paginates timestamp-bounded windows when ``length`` is greater
+than 200. If the symbol does not have enough exchange history to satisfy the
+request, ``get_historical_prices`` raises a clear error with the returned and
+requested counts instead of silently returning a short frame.
 
 Example Usage
 -------------
@@ -75,6 +123,10 @@ Below are practical examples using the Bitunix broker in Lumibot, based on the `
     import time
     time.sleep(10)
     self.close_position(asset)
+
+``close_position`` uses reduce-only semantics. Partial closes are supported by
+passing ``fraction`` between 0 and 1, for example
+``self.close_position(asset, fraction=0.5)``.
 
 **Cancelling Open Orders**
 

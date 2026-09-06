@@ -1,5 +1,5 @@
-import hashlib
 import functools
+import hashlib
 import inspect
 import json
 import os
@@ -13,15 +13,21 @@ from typing import Any
 from lumibot import LUMIBOT_CACHE_FOLDER
 
 from .schemas import AgentRunResult, AgentTraceEvent, BoundTool, MCPServer, ToolDefinition
+from .skills import BUILTIN_SKILL_LOADING_INSTRUCTION
 from .tool_context import agent_tool_context
 from .tools import bind_callable_tool
-
 
 _TIMESTAMP_HINT_RE = re.compile(
     r"(time|date|datetime|published|updated|created|accepted|released|release|as_of|realtime)",
     re.IGNORECASE,
 )
 _DEFAULT_MEMORY_NOTE_MAX_CHARS = 2000
+_BOTSPOT_RESEARCH_TOOLS = [
+    "search_data_catalog",
+    "query_data",
+    "search_documents",
+    "get_document",
+]
 
 
 class AgentModelCallLimitExceeded(RuntimeError):
@@ -48,7 +54,8 @@ def _get_pandas():
 def _get_replay_imports():
     global _REPLAY_IMPORTS
     if _REPLAY_IMPORTS is None:
-        from .replay_cache import AgentReplayCache, _normalize_json as normalize_json
+        from .replay_cache import AgentReplayCache
+        from .replay_cache import _normalize_json as normalize_json
 
         _REPLAY_IMPORTS = (AgentReplayCache, normalize_json)
     return _REPLAY_IMPORTS
@@ -113,6 +120,40 @@ def _current_strategy_datetime(strategy: Any) -> Any:
     if hasattr(strategy, "get_datetime"):
         return _safe_call(strategy.get_datetime)
     return None
+
+
+def _botspot_research_server_from_environment() -> tuple[MCPServer | None, str | None]:
+    url = str(os.environ.get("BOTSPOT_RESEARCH_MCP_URL") or "").strip()
+    token = str(os.environ.get("BOTSPOT_RESEARCH_MCP_TOKEN") or "").strip()
+    renew_url = str(os.environ.get("BOTSPOT_RESEARCH_MCP_RENEW_URL") or "").strip()
+    configured = [bool(url), bool(token), bool(renew_url)]
+    if not any(configured):
+        return (
+            None,
+            "BotSpot managed public macro and SEC research are not linked. This optional capability "
+            "is attached automatically on BotSpot; external LumiBot users can link a BotSpot account. "
+            "Ordinary LumiBot tools and strategy execution remain available.",
+        )
+    if not all(configured):
+        return (
+            None,
+            "BotSpot research is only partially configured. Link a BotSpot account or run on BotSpot "
+            "to use the managed public macro and SEC research catalog.",
+        )
+    try:
+        return (
+            MCPServer(
+                name="botspot_research",
+                transport="streamable_http",
+                url=url,
+                exposed_tools=_BOTSPOT_RESEARCH_TOOLS,
+                auth_token_env="BOTSPOT_RESEARCH_MCP_TOKEN",
+                auth_token_refresh_url=renew_url,
+            ),
+            None,
+        )
+    except ValueError as exc:
+        return None, f"BotSpot research configuration is invalid: {exc}"
 
 
 def _iso_or_none(value: Any) -> str | None:
@@ -680,6 +721,7 @@ def _managed_gateway_component_sha256() -> str:
 
 def _managed_ai_provenance(model: str) -> dict[str, Any]:
     from lumibot import __version__
+
     from .managed_gateway import managed_gateway_available_for
 
     managed = managed_gateway_available_for(model)
@@ -871,7 +913,12 @@ class AgentHandle:
             self._tool_inputs = builtin_tools + self._filter_tools_for_trading_permission(list(tools))
         else:
             self._tool_inputs = self._filter_tools_for_trading_permission(list(tools))
-        self._mcp_servers = mcp_servers or []
+        self._mcp_servers = list(mcp_servers or [])
+        hosted_research, research_warning = _botspot_research_server_from_environment()
+        if hosted_research and all(server.name != hosted_research.name for server in self._mcp_servers):
+            self._mcp_servers.append(hosted_research)
+        if research_warning:
+            self.manager._warn_once("botspot_research_configuration", research_warning)
         google_runtime, _RuntimeRequest, _StubAgentRuntime, _call_mcp_tool = _get_runtime_imports()
         self._runtime = runtime or google_runtime(mcp_servers=self._mcp_servers)
         self._bound_tools: list[BoundTool] | None = None
@@ -1133,7 +1180,7 @@ class AgentHandle:
         if self.include_builtin_skills:
             lines.insert(
                 -1,
-                "Asset-class skills are available through list_skills, load_skill, and load_skill_resource. Before researching, selecting, opening, modifying, closing, or managing any stock, ETF, or option position or related pending order, you MUST load the matching skill and follow it. If a broad mandate leads you to consider an asset class later, load its skill at that point before acting on the asset. Skill loading supplies knowledge; it does not choose a trade or override active strategy rules.",
+                BUILTIN_SKILL_LOADING_INSTRUCTION,
             )
         if mode == "backtesting":
             lines.extend(
@@ -1242,6 +1289,7 @@ class AgentHandle:
 
                 def make_remote_tool(_server: MCPServer, _tool_name: str):
                     def remote_tool(payload: dict[str, Any]) -> dict[str, Any]:
+                        payload = self._bound_remote_tool_payload(_server, _tool_name, payload)
                         warning_key = (_server.name, _tool_name)
                         if (
                             bool(getattr(self.manager.strategy, "is_backtesting", False))
@@ -1277,6 +1325,28 @@ class AgentHandle:
                     )
                 )
         return remote_tools
+
+    def _bound_remote_tool_payload(
+        self, server: MCPServer, tool_name: str, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        arguments = dict(payload or {})
+        if server.name != "botspot_research" or not bool(
+            getattr(self.manager.strategy, "is_backtesting", False)
+        ):
+            return arguments
+        current_dt = _current_strategy_datetime(self.manager.strategy)
+        if current_dt is None:
+            raise RuntimeError("BotSpot research requires a current simulated datetime during backtests.")
+        as_of = current_dt.date().isoformat() if hasattr(current_dt, "date") else str(current_dt)[:10]
+        if tool_name in {"query_data", "search_documents"}:
+            time_range = dict(arguments.get("timeRange") or {})
+            requested_end = str(time_range.get("endDate") or "").strip()
+            if not requested_end or requested_end[:10] > as_of:
+                time_range["endDate"] = as_of
+            arguments["timeRange"] = time_range
+        elif tool_name == "get_document":
+            arguments["asOf"] = as_of
+        return arguments
 
     def _ensure_bound_tools(self) -> list[BoundTool]:
         if self._bound_tools is not None:
@@ -1366,7 +1436,7 @@ class AgentHandle:
         elif category == "billing":
             lines.extend(
                 [
-                    f"Likely cause: provider billing issue (out of credits, quota exceeded).",
+                    "Likely cause: provider billing issue (out of credits, quota exceeded).",
                     f"  Check billing at: {billing_url}",
                 ]
             )
@@ -1874,6 +1944,7 @@ class AgentHandle:
             raise
         except BaseException as exc:  # noqa: BLE001 - intentional broad catch
             import traceback as _tb
+
             from .runtime import _classify_agent_error
             from .schemas import AgentRunResult, AgentTraceEvent
 
@@ -2054,6 +2125,7 @@ class AgentManager:
         self.strategy = strategy
         self._agents: dict[str, AgentHandle] = {}
         self._warned_backtest_mcp_tools: set[tuple[str, str]] = set()
+        self._warning_keys: set[str] = set()
         self._model_call_count = 0
         agent_replay_cache_class, _ = _get_replay_imports()
         self.replay_cache = agent_replay_cache_class()
@@ -2066,6 +2138,18 @@ class AgentManager:
 
     def __getitem__(self, item: str) -> AgentHandle:
         return self._agents[item]
+
+    def _warn_once(self, key: str, message: str) -> None:
+        if key in self._warning_keys:
+            return
+        self._warning_keys.add(key)
+        logger = getattr(self.strategy, "logger", None)
+        if logger is not None and hasattr(logger, "warning"):
+            self._log_warning(message)
+            return
+        log_message = getattr(self.strategy, "log_message", None)
+        if callable(log_message):
+            log_message(f"[agents] {message}", color="yellow")
 
     def _reserve_model_call(self, *, agent_name: str, model: str) -> None:
         limit = _agent_model_call_limit(self.strategy)

@@ -23,7 +23,7 @@ def parse_symbol(*args, **kwargs):
 class StrEnum(str, Enum):
     """
     A string enum implementation that works with Python 3.9+
-    
+
     This class extends str and Enum to create string enums that:
     1. Can be used like strings (string methods, comparison)
     2. Are hashable (for use in dictionaries, sets, etc.)
@@ -251,7 +251,7 @@ class Asset:
         self.underlying_asset = underlying_asset
 
         # Leverage for futures assets (ignored for other asset types)
-        self.leverage = leverage if asset_type == self.AssetType.FUTURE else 1
+        self.leverage = leverage if asset_type in (self.AssetType.FUTURE, self.AssetType.CRYPTO_FUTURE) else 1
 
         # If the underlying asset is set but the symbol is not, set the symbol to the underlying asset symbol
         if self.underlying_asset is not None and self.symbol is None:
@@ -289,8 +289,12 @@ class Asset:
         # Cache the hash: Asset objects are used heavily as dict keys during backtests (quotes, bars,
         # chains, positions). Recomputing tuple hashes millions of times dominates CPU in option-heavy
         # strategies; caching preserves correctness as long as identity fields remain unchanged.
-        auto_expiry_key = self.auto_expiry if (self.asset_type == self.AssetType.FUTURE and self.expiration is None) else None
-        self._cached_hash = hash((self.symbol, self.asset_type, self.expiration, self.strike, self.right, auto_expiry_key))
+        auto_expiry_key = (
+            self.auto_expiry if (self.asset_type == self.AssetType.FUTURE and self.expiration is None) else None
+        )
+        self._cached_hash = hash(
+            (self.symbol, self.asset_type, self.expiration, self.strike, self.right, auto_expiry_key)
+        )
         minimal_type = str(self.asset_type) if self.asset_type else "stock"
         minimal_dict = {
             "symbol": self.symbol,
@@ -300,7 +304,9 @@ class Asset:
             if self.strike:
                 minimal_dict["strike"] = float(self.strike)
             if self.expiration:
-                minimal_dict["exp"] = self.expiration.isoformat() if hasattr(self.expiration, "isoformat") else str(self.expiration)
+                minimal_dict["exp"] = (
+                    self.expiration.isoformat() if hasattr(self.expiration, "isoformat") else str(self.expiration)
+                )
             if self.right:
                 minimal_dict["right"] = str(self.right)
             if self.multiplier:
@@ -314,7 +320,9 @@ class Asset:
             "crypto_future",
         ):
             if self.expiration:
-                minimal_dict["exp"] = self.expiration.isoformat() if hasattr(self.expiration, "isoformat") else str(self.expiration)
+                minimal_dict["exp"] = (
+                    self.expiration.isoformat() if hasattr(self.expiration, "isoformat") else str(self.expiration)
+                )
             if self.multiplier and self.multiplier != 1:
                 minimal_dict["mult"] = self.multiplier
         self._cached_minimal_dict = minimal_dict
@@ -533,12 +541,12 @@ class Asset:
     def _calculate_auto_expiry(self, auto_expiry):
         """
         Calculate automatic expiry date for futures contracts
-        
+
         Parameters
         ----------
         auto_expiry : str
             Type of auto expiry: 'front_month', 'next_quarter', 'auto', or True
-            
+
         Returns
         -------
         datetime.date
@@ -700,15 +708,15 @@ class Asset:
     def get_potential_futures_contracts(self, reference_date: datetime = None) -> list:
         """
         Get a list of potential futures contracts in order of preference.
-        
+
         This is useful for data sources or brokers that need to try multiple
         contract symbols to find available data.
-        
+
         Returns
         -------
         list
             List of potential contract symbols in order of preference
-            
+
         Raises
         ------
         ValueError
@@ -724,12 +732,12 @@ class Asset:
     def _generate_current_futures_contract(self, reference_date: datetime = None) -> str:
         """
         Generate the most appropriate futures contract for the given date.
-        
+
         Parameters
         ----------
         reference_date : datetime, optional
             Reference date for contract resolution. If None, uses current date.
-        
+
         Returns
         -------
         str
@@ -741,7 +749,7 @@ class Asset:
     def _generate_potential_contracts(self, reference_date: datetime = None) -> list:
         """
         Generate potential contract symbols in order of preference.
-        
+
         Returns
         -------
         list
@@ -833,10 +841,6 @@ class Asset:
         """Return base symbol, target year/month, and effective reference date."""
         if reference_date is None:
             reference_date = datetime.now()
-
-        # import logging
-        # logger = logging.getLogger(__name__)
-        # logger.info(f"[CONTRACT RESOLUTION] symbol={self.symbol}, reference_date={reference_date}, month={reference_date.month}, day={reference_date.day}")
 
         from lumibot.tools import futures_roll
 

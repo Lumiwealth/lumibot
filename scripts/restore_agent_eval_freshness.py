@@ -14,6 +14,7 @@ import argparse
 import io
 import json
 import os
+import re
 import tempfile
 import urllib.parse
 import urllib.request
@@ -81,7 +82,25 @@ def _freshness_from_zip(payload: bytes) -> dict[str, Any] | None:
     return value
 
 
-def restore(*, repository: str, token: str, workflow: str, output: Path, limit: int = 20) -> int | None:
+def _is_ancestor_of_candidate(*, repository: str, token: str, ancestor: str, candidate: str) -> bool:
+    if ancestor == candidate:
+        return True
+    comparison = _get_json(
+        f"{API_ROOT}/repos/{repository}/compare/{ancestor}...{candidate}",
+        token,
+    )
+    return comparison.get("status") == "ahead"
+
+
+def restore(
+    *,
+    repository: str,
+    token: str,
+    workflow: str,
+    output: Path,
+    trusted_commit: str,
+    limit: int = 20,
+) -> int | None:
     workflow_name = urllib.parse.quote(workflow, safe="")
     runs_url = (
         f"{API_ROOT}/repos/{repository}/actions/workflows/{workflow_name}/runs"
@@ -91,6 +110,16 @@ def restore(*, repository: str, token: str, workflow: str, output: Path, limit: 
     for run in runs:
         run_id = run.get("id")
         if not isinstance(run_id, int) or run.get("conclusion") != "success":
+            continue
+        head_sha = run.get("head_sha")
+        if not isinstance(head_sha, str) or not re.fullmatch(r"[0-9a-fA-F]{40}", head_sha):
+            continue
+        if not _is_ancestor_of_candidate(
+            repository=repository,
+            token=token,
+            ancestor=head_sha,
+            candidate=trusted_commit,
+        ):
             continue
         artifacts = _get_json(
             f"{API_ROOT}/repos/{repository}/actions/runs/{run_id}/artifacts?per_page=100",
@@ -128,12 +157,15 @@ def main() -> int:
     parser.add_argument("--token", default=os.environ.get("GITHUB_TOKEN", ""))
     parser.add_argument("--workflow", default="agent-evals.yml")
     parser.add_argument("--output", type=Path, default=Path(".ci/agent-evals/freshness.json"))
+    parser.add_argument("--trusted-commit", default=os.environ.get("GITHUB_SHA", ""))
     parser.add_argument("--limit", type=int, default=20)
     args = parser.parse_args()
     if not args.repository or "/" not in args.repository:
         parser.error("--repository or GITHUB_REPOSITORY is required")
     if not args.token:
         parser.error("--token or GITHUB_TOKEN is required")
+    if not re.fullmatch(r"[0-9a-fA-F]{40}", args.trusted_commit):
+        parser.error("--trusted-commit or GITHUB_SHA must be a full 40-character commit SHA")
     if args.limit < 1 or args.limit > 100:
         parser.error("--limit must be between 1 and 100")
     run_id = restore(
@@ -141,6 +173,7 @@ def main() -> int:
         token=args.token,
         workflow=args.workflow,
         output=args.output,
+        trusted_commit=args.trusted_commit,
         limit=args.limit,
     )
     if run_id is None:

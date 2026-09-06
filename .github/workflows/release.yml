@@ -292,6 +292,7 @@ jobs:
           set -euo pipefail
           python scripts/restore_agent_eval_freshness.py \
             --repository "${GITHUB_REPOSITORY}" \
+            --trusted-commit "${GITHUB_SHA}" \
             --output .ci/agent-evals/freshness.json
 
       - name: Run stale real-model evals

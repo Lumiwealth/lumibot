@@ -127,6 +127,17 @@ Live scheduled execution (BotSpot/BotManager)
 - ``LUMIBOT_SCHEDULED_STATE_BACKEND``: external state backend prepared by BotManager: ``s3``, ``dynamodb``, or ``none``. ``none`` disables scheduled ``self.vars`` file load/save.
 - ``LUMIBOT_SCHEDULED_STATE_FILE``: local JSON file managed by BotManager/bootstrap code to restore and persist ``self.vars`` for one scheduled live run. State is restored before scheduled lifecycle hooks.
 
+BotSpot managed research
+------------------------
+
+- ``BOTSPOT_RESEARCH_MCP_URL``: optional BotSpot Research MCP endpoint.
+- ``BOTSPOT_RESEARCH_MCP_TOKEN``: secret, short-lived bearer capability bound to an authenticated user or hosted deployment.
+- ``BOTSPOT_RESEARCH_MCP_RENEW_URL``: optional HTTPS renewal endpoint. Localhost is permitted for local development; otherwise its origin must match the MCP endpoint.
+- All three variables are required for automatic attachment. BotSpot-hosted runtimes inject them; external users can link a BotSpot account and configure the same contract.
+- Missing or incomplete configuration preserves ordinary LumiBot strategy and agent behavior and emits one deduplicated capability notice.
+
+``GITHUB_TOKEN`` is used only in tagged release CI with repository ``actions: read`` permission to restore compatible agent-eval freshness evidence. The source workflow commit must be an ancestor of the exact tagged candidate. If no trustworthy artifact is available, stale cases run normally. Never log or commit token values.
+
 Backtest artifacts + UX flags
 -----------------------------
 

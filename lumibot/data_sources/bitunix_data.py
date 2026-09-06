@@ -183,46 +183,57 @@ class BitunixData(DataSource):
                     end = end - timeshift
             end_ms = int(end.timestamp() * 1000)
 
-            # Bitunix caps each response at 200 candles. Query bounded forward
-            # windows so response ordering cannot strand the request on one page.
+            # Bitunix caps each response at 200 candles. Some markets are
+            # sparse, so progressively widen the bounded lookback until the
+            # requested number of unique candles is available.
             buffer = 2
-            start_ms = end_ms - (length + buffer) * interval_ms
-            cursor = start_ms
             bars_data = []
-            while cursor < end_ms:
-                page_end = min(end_ms + 1, cursor + (self.MAX_KLINE_LIMIT + 1) * interval_ms)
-                resp = self.client.get_kline(
-                    symbol=symbol,
-                    interval=interval,
-                    start_time=cursor,
-                    end_time=page_end,
-                    limit=self.MAX_KLINE_LIMIT,
-                )
-                if not resp or resp.get("code") != 0:
-                    break
+            for lookback_multiplier in (1, 4, 16, 64):
+                start_ms = end_ms - (length + buffer) * interval_ms * lookback_multiplier
+                cursor = start_ms
+                attempt_data = []
+                while cursor < end_ms:
+                    page_end = min(end_ms + 1, cursor + (self.MAX_KLINE_LIMIT + 1) * interval_ms)
+                    resp = self.client.get_kline(
+                        symbol=symbol,
+                        interval=interval,
+                        start_time=cursor,
+                        end_time=page_end,
+                        limit=self.MAX_KLINE_LIMIT,
+                    )
+                    if not resp or resp.get("code") != 0:
+                        break
 
-                page = resp.get("data", []) or []
-                bars_data.extend(page)
-                page_timestamps = []
-                for candle in page:
-                    raw_timestamp = candle.get("t", candle.get("time"))
-                    try:
-                        page_timestamps.append(int(raw_timestamp))
-                    except (TypeError, ValueError):
-                        continue
+                    page = resp.get("data", []) or []
+                    attempt_data.extend(page)
+                    page_timestamps = []
+                    for candle in page:
+                        raw_timestamp = candle.get("t", candle.get("time"))
+                        try:
+                            page_timestamps.append(int(raw_timestamp))
+                        except (TypeError, ValueError):
+                            continue
 
-                if page_timestamps:
-                    next_cursor = max(page_timestamps)
+                    next_cursor = max(page_timestamps) if page_timestamps else page_end
                     if next_cursor <= cursor:
                         next_cursor = page_end
-                else:
-                    next_cursor = page_end
-                if next_cursor <= cursor:
+                    if next_cursor <= cursor:
+                        break
+                    cursor = next_cursor
+
+                bars_data = attempt_data
+                unique_timestamps = {
+                    str(candle.get("t", candle.get("time")))
+                    for candle in bars_data
+                    if candle.get("t", candle.get("time")) is not None
+                }
+                if len(unique_timestamps) >= length:
                     break
-                cursor = next_cursor
 
             if not bars_data:
-                return None
+                raise ValueError(
+                    f"Bitunix returned no {interval} bars for {symbol}; {length} were requested"
+                )
 
             # Construct DataFrame from candle data
             df = pd.DataFrame(bars_data)

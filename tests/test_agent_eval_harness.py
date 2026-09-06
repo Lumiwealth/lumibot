@@ -110,6 +110,27 @@ def test_research_eval_unavailable_fixture_never_returns_synthetic_observations(
     }
 
 
+def test_research_eval_fixture_rejects_an_unsupported_dataset_instead_of_substituting_treasury():
+    fixture = evals.build_fixture("research_available")
+    tools = {tool.name: tool for tool in evals.build_tools(fixture)}
+
+    result = tools["query_data"].function(datasetId="unsupported.dataset")
+
+    assert result["available"] is False
+    assert result["error"] == "unsupported_dataset"
+    assert result["datasetId"] == "unsupported.dataset"
+
+
+def test_research_eval_macro_rows_come_from_a_provenance_bearing_recorded_fixture():
+    fixture_path = Path(__file__).resolve().parents[1] / "agent_eval_fixtures/research_data.json"
+    recorded = json.loads(fixture_path.read_text(encoding="utf-8"))
+
+    assert recorded["capturedAt"]
+    assert recorded["sources"]["bls.public_series"]["sourceUrl"].startswith("https://")
+    assert len(recorded["sources"]["bls.public_series"]["responseSha256"]) == 64
+    assert recorded["sources"]["treasury.daily_yield_curve"]["sourceUrl"].startswith("https://")
+
+
 def test_release_runner_prefers_gemini_key_when_both_credential_names_exist(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "release-gemini-key")
     monkeypatch.setenv("GOOGLE_API_KEY", "stale-google-key")
@@ -161,6 +182,7 @@ def test_release_restores_repository_scoped_eval_evidence_after_branch_scoped_ca
     assert cache_restore < artifact_restore
     assert "actions: read" in workflow
     assert "scripts/restore_agent_eval_freshness.py" in workflow
+    assert '--trusted-commit "${GITHUB_SHA}"' in workflow
 
 
 def test_cross_workflow_restore_accepts_only_a_valid_freshness_archive():
@@ -189,11 +211,13 @@ def test_cross_workflow_restore_skips_unusable_runs_and_writes_the_first_valid_s
         if "/workflows/" in url:
             return {
                 "workflow_runs": [
-                    {"id": 9, "conclusion": "success"},
+                    {"id": 9, "conclusion": "success", "head_sha": "9" * 40},
                     {"id": 8, "conclusion": "failure"},
-                    {"id": 7, "conclusion": "success"},
+                    {"id": 7, "conclusion": "success", "head_sha": "7" * 40},
                 ]
             }
+        if "/compare/" in url:
+            return {"status": "ahead"}
         if "/runs/9/" in url:
             return {
                 "artifacts": [
@@ -225,10 +249,43 @@ def test_cross_workflow_restore_skips_unusable_runs_and_writes_the_first_valid_s
             token="redacted",
             workflow="agent-evals.yml",
             output=output,
+            trusted_commit="a" * 40,
         )
         == 7
     )
     assert json.loads(output.read_text(encoding="utf-8")) == expected
+
+
+def test_cross_workflow_restore_rejects_a_newer_unrelated_branch_artifact(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_get_json(url, _token):
+        calls.append(url)
+        if "/workflows/" in url:
+            return {
+                "workflow_runs": [
+                    {"id": 10, "conclusion": "success", "head_sha": "b" * 40},
+                ]
+            }
+        if "/compare/" in url:
+            return {"status": "diverged"}
+        raise AssertionError(f"untrusted run artifacts must not be downloaded: {url}")
+
+    monkeypatch.setattr(restore_freshness, "_get_json", fake_get_json)
+    monkeypatch.setattr(
+        restore_freshness,
+        "_get_bytes",
+        lambda *_args: pytest.fail("untrusted artifact must not be downloaded"),
+    )
+
+    assert restore_freshness.restore(
+        repository="Lumiwealth/lumibot",
+        token="redacted",
+        workflow="agent-evals.yml",
+        output=tmp_path / "freshness.json",
+        trusted_commit="a" * 40,
+    ) is None
+    assert any("/compare/" in url for url in calls)
 
 
 def test_eval_freshness_policy_has_one_90_day_source_of_truth():

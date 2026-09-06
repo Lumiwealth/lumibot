@@ -31,8 +31,20 @@ def submission():
         return_value={
             "code": 0,
             "data": [
-                {"symbol": "BTCUSDT", "side": "LONG", "positionId": "test-long", "qty": "0.02"},
-                {"symbol": "BTCUSDT", "side": "SHORT", "positionId": "test-short", "qty": "0.02"},
+                {
+                    "symbol": "BTCUSDT",
+                    "side": "LONG",
+                    "positionId": "test-long",
+                    "qty": "0.02",
+                    "positionMode": "HEDGE",
+                },
+                {
+                    "symbol": "BTCUSDT",
+                    "side": "SHORT",
+                    "positionId": "test-short",
+                    "qty": "0.02",
+                    "positionMode": "HEDGE",
+                },
             ],
         }
     )
@@ -188,6 +200,36 @@ def test_failed_hedge_initialization_blocks_submit_and_retries(submission, failu
     assert "HEDGE" in str(order._error)
     request.assert_not_called()
     assert broker._submit_order(make_order()).status == Order.OrderStatus.SUBMITTED
+
+
+def test_confirmed_existing_hedge_position_allows_reduce_only_close_after_mode_change_failure(submission):
+    broker, client, request = submission
+    client.change_position_mode.side_effect = RuntimeError("existing position prevents mode change")
+    order = make_order(side=Order.OrderSide.SELL)
+    order.reduce_only = True
+
+    result = broker._submit_order(order)
+
+    assert result.status == Order.OrderStatus.SUBMITTED
+    assert json.loads(request.call_args.kwargs["data"])["positionId"] == "test-long"
+
+
+@pytest.mark.parametrize("position_mode", [None, "ONE_WAY"])
+def test_reduce_only_close_still_fails_when_live_position_does_not_confirm_hedge_mode(
+    submission, position_mode
+):
+    broker, client, request = submission
+    client.change_position_mode.side_effect = RuntimeError("mode unavailable")
+    for position in client.get_positions.return_value["data"]:
+        if position_mode is None:
+            position.pop("positionMode", None)
+        else:
+            position["positionMode"] = position_mode
+    order = make_order(side=Order.OrderSide.SELL)
+    order.reduce_only = True
+
+    assert broker._submit_order(order).status == Order.OrderStatus.ERROR
+    request.assert_not_called()
 
 
 @pytest.mark.parametrize(

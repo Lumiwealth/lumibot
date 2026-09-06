@@ -1,0 +1,22 @@
+{
+  "capturedAt": "2026-09-06T19:55:00Z",
+  "description": "Deterministic public-data responses recorded for LumiBot agent evals. Values are never refreshed during an eval run.",
+  "sources": {
+    "bls.public_series": {
+      "attribution": "BLS Public Data API",
+      "limitations": ["Fixture contains one released CPI-U observation and no revision history."],
+      "responseSha256": "4eff4648f4682d6552d8f4e5fc872534b42182e4a0641d8a710bf6d8a53b8163",
+      "rows": [{"observationDate": "2025-01-01", "releaseDate": "2025-02-12", "series": "CPI-U all items", "units": "index", "value": 317.671}],
+      "source": "U.S. Bureau of Labor Statistics",
+      "sourceUrl": "https://api.bls.gov/publicAPI/v2/timeseries/data/CUUR0000SA0?startyear=2025&endyear=2025"
+    },
+    "treasury.daily_yield_curve": {
+      "attribution": "U.S. Department of the Treasury",
+      "limitations": ["Fixture contains one daily par-yield observation and no intraday data."],
+      "responseSha256": "23ed504f776fbc9ececef58aa5e07039b33cfd4cab736bd9a3a2dcb633085423",
+      "rows": [{"observationDate": "2025-01-02", "tenYearYield": 4.57, "units": "percent"}],
+      "source": "U.S. Department of the Treasury",
+      "sourceUrl": "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2025"
+    }
+  }
+}

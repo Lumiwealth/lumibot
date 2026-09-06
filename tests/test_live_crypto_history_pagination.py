@@ -63,6 +63,26 @@ class _CappedBitunixClient:
         }
 
 
+class _SparseBitunixClient(_CappedBitunixClient):
+    """Expose one real candle per ten requested intervals."""
+
+    def get_kline(self, symbol, interval, start_time=None, end_time=None, limit=None):
+        response = super().get_kline(symbol, interval, start_time, end_time, limit)
+        response["data"] = [
+            candle
+            for candle in response["data"]
+            if (int(candle["time"]) // _INTERVAL_MS[interval]) % 10 == 0
+        ]
+        return response
+
+
+class _EmptyBitunixClient(_CappedBitunixClient):
+    def get_kline(self, symbol, interval, start_time=None, end_time=None, limit=None):
+        response = super().get_kline(symbol, interval, start_time, end_time, limit)
+        response["data"] = []
+        return response
+
+
 def _bitunix_source(end: pd.Timestamp):
     source = BitunixData.__new__(BitunixData)
     source.name = "bitunix"
@@ -85,6 +105,28 @@ def test_bitunix_paginates_past_exchange_limit():
     assert all(call["limit"] <= 200 for call in source.client.calls)
     assert all(call["start_time"] is not None for call in source.client.calls)
     assert all(call["end_time"] is not None for call in source.client.calls)
+
+
+def test_bitunix_expands_lookback_for_sparse_history():
+    end = pd.Timestamp("2026-09-04T12:00:00Z")
+    source = _bitunix_source(end)
+    source.client = _SparseBitunixClient(end)
+    asset = Asset("BTCUSDT", asset_type=Asset.AssetType.CRYPTO_FUTURE)
+
+    bars = source.get_historical_prices(asset, length=5, timestep="minute")
+
+    assert len(bars) == 5
+    assert min(call["start_time"] for call in source.client.calls) < int(end.timestamp() * 1000) - 20 * 60_000
+
+
+def test_bitunix_empty_history_raises_the_short_history_contract():
+    end = pd.Timestamp("2026-09-04T12:00:00Z")
+    source = _bitunix_source(end)
+    source.client = _EmptyBitunixClient(end)
+    asset = Asset("BTCUSDT", asset_type=Asset.AssetType.CRYPTO_FUTURE)
+
+    with pytest.raises(ValueError, match="returned no 1m bars"):
+        source.get_historical_prices(asset, length=5, timestep="minute")
 
 
 @pytest.mark.parametrize(
@@ -137,6 +179,20 @@ class _SingleCandleCcxtApi:
         return [[since, 100, 101, 99, 100, 1]]
 
 
+class _SparseCcxtApi(_SingleCandleCcxtApi):
+    def __init__(self, end: datetime.datetime):
+        super().__init__(end)
+        step = 10 * 60_000
+        self.candles = [
+            [self.end_ms - offset, 100, 101, 99, 100, 1]
+            for offset in range(0, 100 * step, step)
+        ][::-1]
+
+    def fetch_ohlcv(self, symbol, freq, since, limit, params):
+        self.calls.append(since)
+        return [candle for candle in self.candles if candle[0] >= since][:limit]
+
+
 def test_ccxt_live_pagination_advances_past_inclusive_last_candle():
     end = datetime.datetime(2026, 9, 4, 12, 0)
     api = _SingleCandleCcxtApi(end)
@@ -152,3 +208,16 @@ def test_ccxt_live_pagination_advances_past_inclusive_last_candle():
         later - earlier == 60_000
         for earlier, later in zip(api.calls, api.calls[1:])
     )
+
+
+def test_ccxt_expands_lookback_for_sparse_history():
+    end = datetime.datetime(2026, 9, 4, 12, 0)
+    api = _SparseCcxtApi(end)
+    source = CcxtData.__new__(CcxtData)
+    source.api = api
+    source._ensure_markets_loaded = lambda: None
+
+    frame = source.get_barset_from_api(api, "BTC/USD", "1m", limit=5, end=end)
+
+    assert len(frame) == 5
+    assert min(api.calls) <= api.end_ms - 40 * 60_000

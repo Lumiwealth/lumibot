@@ -1,5 +1,7 @@
 import datetime
+import threading
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -7,6 +9,7 @@ import pytest
 from lumibot.backtesting import BacktestingBroker
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, Order, Position
+from lumibot.strategies import Strategy
 
 
 def _broker():
@@ -82,3 +85,73 @@ def test_sell_all_never_submits_null_orders_for_crypto_futures():
     assert len(submitted) == 1
     assert isinstance(submitted[0], Order)
     assert submitted[0].reduce_only is True
+
+
+def test_submit_orders_rejects_a_null_entry():
+    broker = _broker()
+
+    with pytest.raises(ValueError, match="null order"):
+        broker.submit_orders([None])
+
+
+def test_strategy_submit_orders_rejects_a_null_entry_before_validation():
+    strategy = Strategy.__new__(Strategy)
+
+    with pytest.raises(ValueError, match="null order"):
+        strategy.submit_orders([None])
+
+
+def test_close_position_uses_the_owning_strategys_quote_asset():
+    broker = _broker()
+    asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+    usd = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    usdt = Asset("USDT", asset_type=Asset.AssetType.CRYPTO)
+    broker.quote_assets = [usd, usdt]
+    broker._subscribers.append(SimpleNamespace(name="other-strategy", quote_asset=usd))
+    broker._subscribers.append(SimpleNamespace(name="crypto-test", quote_asset=usdt))
+    broker._filled_positions.append(Position("crypto-test", asset, Decimal("2")))
+    broker.submit_order = MagicMock(side_effect=lambda order: order)
+
+    close_order = broker.close_position("crypto-test", asset)
+
+    assert close_order.quote == usdt
+
+
+def test_concurrent_new_order_callbacks_do_not_duplicate_the_same_identifier():
+    broker = _broker()
+    asset = Asset("SPY", asset_type=Asset.AssetType.STOCK)
+    first = Order("stock-test", asset, 1, side=Order.OrderSide.BUY)
+    second = Order("stock-test", asset, 1, side=Order.OrderSide.BUY)
+    second.identifier = first.identifier
+    original_lookup = broker.get_tracked_order
+    second_lookup_started = threading.Event()
+    calls = 0
+    calls_lock = threading.Lock()
+
+    def racing_lookup(identifier):
+        nonlocal calls
+        with calls_lock:
+            calls += 1
+            call_number = calls
+        if call_number == 1:
+            second_lookup_started.wait(timeout=0.2)
+        else:
+            second_lookup_started.set()
+        return original_lookup(identifier)
+
+    broker.get_tracked_order = racing_lookup
+    results = []
+
+    def process(order):
+        results.append(broker._process_new_order(order))
+
+    threads = [threading.Thread(target=process, args=(order,)) for order in (first, second)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=1)
+
+    assert not any(thread.is_alive() for thread in threads)
+    assert len([order for order in broker._new_orders if order.identifier == first.identifier]) == 1
+    assert len(results) == 2
+    assert results[0] is results[1]

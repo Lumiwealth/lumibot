@@ -307,7 +307,7 @@ class Bitunix(Broker):
             self._trading_pair_rules[symbol] = rules
         return self._trading_pair_rules[symbol]
 
-    def _get_close_position_id(self, symbol: str, position_side: str) -> str:
+    def _get_close_position(self, symbol: str, position_side: str) -> dict:
         response = self.api.get_positions()
         if not response or response.get("code") != 0:
             raise LumibotBrokerAPIError(f"Cannot read Bitunix position for closing {symbol}")
@@ -319,7 +319,10 @@ class Bitunix(Broker):
         ]
         if len(matches) != 1 or not matches[0].get("positionId"):
             raise LumibotBrokerAPIError(f"Cannot identify a unique Bitunix {position_side} position for {symbol}")
-        return str(matches[0]["positionId"])
+        return matches[0]
+
+    def _get_close_position_id(self, symbol: str, position_side: str) -> str:
+        return str(self._get_close_position(symbol, position_side)["positionId"])
 
     # --- Multi-leg, OCO, OTO, Bracket, Trailing Stop ---
     def _submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None):
@@ -371,10 +374,25 @@ class Bitunix(Broker):
                     )
 
             self._ensure_position_mode_initialized()
-            if not self._position_mode_initialized:
+            close_position = None
+            if reduce_only:
+                position_side = "LONG" if self._map_side_to_bitunix(order.side) == "SELL" else "SHORT"
+                close_position = self._get_close_position(symbol, position_side)
+
+            confirmed_existing_hedge_close = bool(
+                reduce_only
+                and close_position is not None
+                and close_position.get("positionMode") == "HEDGE"
+            )
+            if not self._position_mode_initialized and not confirmed_existing_hedge_close:
                 raise LumibotBrokerAPIError(
                     "Bitunix HEDGE position mode could not be confirmed; order was not sent. "
                     "Check the account position mode and outstanding positions/orders before retrying."
+                )
+            if confirmed_existing_hedge_close and not self._position_mode_initialized:
+                logger.info(
+                    "Allowing reduce-only close because the live %s position confirms HEDGE mode",
+                    symbol,
                 )
             # Ensure desired leverage is set
             leverage = order.asset.leverage
@@ -402,8 +420,7 @@ class Bitunix(Broker):
             }
             if reduce_only:
                 # Bitunix HEDGE uses the position's side, while LumiBot keeps the execution side.
-                position_side = "LONG" if params["side"] == "SELL" else "SHORT"
-                params["positionId"] = self._get_close_position_id(symbol, position_side)
+                params["positionId"] = str(close_position["positionId"])
                 params["side"] = "BUY" if position_side == "LONG" else "SELL"
             if price is not None:
                 params["price"] = format(price, "f")

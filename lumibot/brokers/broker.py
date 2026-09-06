@@ -1968,19 +1968,19 @@ class Broker(ABC):
             return survivor
 
     def _process_new_order(self, order):
-        # Don't duplicate orders in the new orders tracker. Check if an order with the same identifier already exists
-        # in the tracked orders.
-        existing_order = self.get_tracked_order(order.identifier)
-        if existing_order:
-            # Check if this order already exists in self._new_orders based on the identifier - Do nothing
-            if existing_order in self._new_orders:
-                return existing_order
-            if existing_order not in self._unprocessed_orders:
-                return existing_order  # Exists in another tracker, return it without adding to prevent duplicates
-            else:
-                order = existing_order  # Use the existing order object from unprocessed and update status
-
         with self._lock:
+            # The lookup and transition are one atomic operation. Broker stream
+            # callbacks can deliver the same NEW event concurrently; checking
+            # before taking the lock lets both callbacks believe the order is
+            # absent and return different local objects for one broker id.
+            existing_order = self.get_tracked_order(order.identifier)
+            if existing_order:
+                if existing_order in self._new_orders:
+                    return existing_order
+                if existing_order not in self._unprocessed_orders:
+                    return existing_order
+                order = existing_order
+
             self._unprocessed_orders.remove(order.identifier, key="identifier")
             order.status = self.NEW_ORDER
             order.set_new()
@@ -2995,7 +2995,12 @@ class Broker(ABC):
                 fraction,
                 pos.quantity,
             )
-            quote_asset = next(iter(self.quote_assets), None)
+            subscriber = self._get_subscriber(strategy_name)
+            quote_asset = getattr(subscriber, "quote_asset", None)
+            if quote_asset is None:
+                # Compatibility fallback for callers that do not register a
+                # strategy subscriber (for example, small broker unit tests).
+                quote_asset = next(iter(self.quote_assets), None)
             order = self._create_position_closing_order(pos, quote_asset=quote_asset)
             if order is None:
                 self.logger.warning(

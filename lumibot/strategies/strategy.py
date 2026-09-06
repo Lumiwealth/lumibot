@@ -1971,6 +1971,8 @@ class Strategy(_Strategy):
             default_multileg = True
 
             for o in order:
+                if o is None:
+                    raise ValueError("Cannot submit a null order")
                 if not self._validate_order(o):
                     return
 

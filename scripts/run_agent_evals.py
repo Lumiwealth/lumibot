@@ -70,6 +70,7 @@ def runtime_fingerprint() -> str:
         REPO_ROOT / "lumibot/components/agents/skills.py",
         REPO_ROOT / "lumibot/components/agents/builtins.py",
         REPO_ROOT / "lumibot/components/agents/managed_gateway.py",
+        REPO_ROOT / "agent_eval_fixtures/research_data.json",
         Path(__file__).resolve(),
     ]
     skills_root = REPO_ROOT / "lumibot/components/agents/skills"
@@ -301,6 +302,10 @@ def build_tools(fixture: FixtureRuntime) -> list[Any]:
     from lumibot.components.agents.schemas import BoundTool
 
     builtin_definitions = {definition.name: definition for definition in BuiltinTools.all()}
+    research_fixture = json.loads(
+        (REPO_ROOT / "agent_eval_fixtures/research_data.json").read_text(encoding="utf-8")
+    )
+    research_sources = research_fixture["sources"]
 
     def production_description(name: str, fallback: str) -> str:
         definition = builtin_definitions.get(name)
@@ -335,25 +340,26 @@ def build_tools(fixture: FixtureRuntime) -> list[Any]:
                 "error": "managed_research_unavailable",
                 "message": "No research observations were returned. Do not infer or invent values.",
             }
-        elif datasetId == "bls.public_series":
+        elif datasetId in research_sources:
+            recorded = research_sources[datasetId]
             result = {
                 "available": True,
                 "datasetId": datasetId,
-                "source": "U.S. Bureau of Labor Statistics",
-                "attribution": "BLS Public Data API",
+                "source": recorded["source"],
+                "sourceUrl": recorded["sourceUrl"],
+                "attribution": recorded["attribution"],
+                "capturedAt": research_fixture["capturedAt"],
+                "responseSha256": recorded["responseSha256"],
                 "asOf": "2026-08-11",
-                "rows": [{"series": "CPI-U all items", "observationDate": "2026-07-01", "releaseDate": "2026-08-11", "value": 329.4, "units": "index"}],
-                "limitations": ["Fixture contains one released observation and no revision history."],
+                "rows": recorded["rows"],
+                "limitations": recorded["limitations"],
             }
         else:
             result = {
-                "available": True,
-                "datasetId": "treasury.daily_yield_curve",
-                "source": "U.S. Department of the Treasury",
-                "attribution": "Treasury Fiscal Data",
-                "asOf": "2026-08-11",
-                "rows": [{"observationDate": "2026-08-10", "tenYearYield": 4.12, "units": "percent"}],
-                "limitations": ["The 2026-08-11 close was not yet available at the simulated time."],
+                "available": False,
+                "datasetId": datasetId,
+                "error": "unsupported_dataset",
+                "message": "The requested dataset is not present in this deterministic eval fixture.",
             }
         return fixture.record("query_data", arguments, result)
 

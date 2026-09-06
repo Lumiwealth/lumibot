@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.5.92 - Unreleased
+
 ## 4.5.91 - 2026-09-06
 
 Deploy marker: `d007efed231d`

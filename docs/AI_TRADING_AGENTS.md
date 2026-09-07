@@ -80,7 +80,7 @@ if __name__ == "__main__":
         )
 ```
 
-The agent gets Lumibot's built-in `get_fred_series` tool automatically when `FRED_API_KEY` is configured. During backtests the tool defaults `as_of` to the strategy datetime and uses FRED/ALFRED realtime parameters, so the agent does not see future macro revisions.
+The agent gets Lumibot's built-in macro tools automatically. `get_fred_series` is exposed when `FRED_API_KEY` is configured and uses FRED/ALFRED realtime parameters during backtests. FXMacroData tools such as `get_fxmacrodata_series` are also available for FX-focused macro announcement rows; set `FXMD_API_KEY` or `FXMACRODATA_API_KEY` for non-USD access.
 
 No local MCP server scripts. No npm installs. No explicit built-in tool lists. Lumibot includes all built-in tools by default, and you can add custom `@agent_tool` functions when you need proprietary APIs or special research logic.
 

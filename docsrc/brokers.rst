@@ -33,5 +33,6 @@ Broker setup is easier on `BotSpot <https://botspot.trade/sales?showLogin=1&utm_
    brokers.polymarket
    brokers.projectx
    brokers.schwab
+   brokers.tickerall
    brokers.tradier
    brokers.tradovate

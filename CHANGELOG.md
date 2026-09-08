@@ -13,6 +13,9 @@
 - Corrected README and package license labels to match the existing GPLv3 LICENSE file; the license text is unchanged.
 
 ### Fixed
+- Multi-leg price calculation requires valid quotes for every option leg.
+  Missing, failed, nonfinite, negative or crossed quotes no longer produce a
+  partial package price. Unknown price styles fail visibly.
 - **Indicator batch metadata rejects non-string and oversized fields before
   data work.** Result ids, indicator names and timesteps are never coerced from
   arrays or objects into misleading strings.

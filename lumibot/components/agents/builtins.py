@@ -2504,6 +2504,10 @@ def _bind_get_indicators(strategy: Any, manager: Any) -> BoundTool:
         for item in requests:
             if not isinstance(item, dict) or set(item) - {"id", "indicator", "timestep", "parameters"}:
                 raise ValueError("Each request supports only id, indicator, timestep and parameters.")
+            for field in ("id", "indicator", "timestep"):
+                value = item.get(field, timestep if field == "timestep" else None)
+                if not isinstance(value, str) or not value.strip() or len(value) > 128:
+                    raise ValueError(f"Indicator request {field} must be a nonempty string of at most 128 characters.")
             result_id = _require_non_empty_text("id", item.get("id"))
             if result_id in seen:
                 raise ValueError("Indicator request ids must be unique.")

@@ -187,6 +187,8 @@ Results retain their request IDs. A failed calculation does not hide other
 results; ``complete=false`` means at least one request failed. The original
 ``indicators=["rsi", "macd"]`` interface remains supported for default parameters.
 Do not combine ``indicators`` and ``requests_json`` in one call.
+Request ids, indicator names and timesteps must be nonempty strings of at most
+128 characters. Malformed envelopes fail before data retrieval.
 
 Testing and eval costs
 ---------------------

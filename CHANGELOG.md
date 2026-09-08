@@ -10,6 +10,9 @@
 - Corrected README and package license labels to match the existing GPLv3 LICENSE file; the license text is unchanged.
 
 ### Fixed
+- **Indicator batch metadata rejects non-string and oversized fields before
+  data work.** Result ids, indicator names and timesteps are never coerced from
+  arrays or objects into misleading strings.
 - **Managed AI family selection pins one exact model per decision.** A compatible
   gateway resolves the family once; tool continuations retain that id and reject
   inconsistent resolution without falling back from personal credentials.

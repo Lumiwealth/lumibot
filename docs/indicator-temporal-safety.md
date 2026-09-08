@@ -22,6 +22,8 @@ Agent batches accept `requests_json` with unique IDs, per-request parameters and
 timeframes. The published list-of-names interface is retained for existing
 strategies. Invalid envelopes fail before calculations; individual calculation
 failures remain explicit in otherwise useful batches.
+Request ids, indicator names and timeframes are bounded strings; arrays, objects
+and oversized values fail before data retrieval rather than being stringified.
 
 Stored timeframe metadata must match the request. A missing minute series cannot
 reuse a daily store entry and label it as minute output; the history request must

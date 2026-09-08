@@ -151,6 +151,10 @@ def test_parameterized_batch_preserves_ids_and_per_item_failures():
         [{"id": "same", "indicator": "sma"}] * 2,
         [{"id": "x", "indicator": "sma", "parameters": []}],
         [{"id": "x", "indicator": "sma", "made_up_option": 1}],
+        [{"id": ["x"], "indicator": "sma"}],
+        [{"id": "x", "indicator": ["sma"]}],
+        [{"id": "x", "indicator": "sma", "timestep": {"value": "day"}}],
+        [{"id": "x" * 129, "indicator": "sma"}],
     ],
 )
 def test_invalid_batch_rejected_before_calculation(requests):

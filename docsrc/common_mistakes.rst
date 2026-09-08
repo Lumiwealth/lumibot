@@ -392,3 +392,19 @@ Using sleep() in Strategy
         if elapsed > timedelta(seconds=5):
             # Now do the next step
             pass
+
+
+IBKR history waits and data-health diagnostics
+---------------------------------------------
+
+A provider rate limit is a retryable wait, not evidence that an instrument has
+no prices. When the downloader supplies structured rate-limit information,
+LumiBot retains the request identity and exposes the provider wait in download
+status. Buying more simultaneous quotes does not automatically remove
+historical-data pacing restrictions.
+
+Inspect the ``data_health`` field in backtest settings alongside the requested
+window and provider error details. An incomplete diagnostic is not an automatic
+backtest failure; a legitimate strategy can also produce no trades. Short daily
+requests include the full required history and calendar padding. Longer
+stock/index windows retain the five-year page cap and backward pagination.

@@ -2,7 +2,27 @@
 
 ## 4.5.92 - Unreleased
 
+### Changed
+- Short daily IBKR stock/index history requests size the provider page from the
+  complete required window, including lookback and calendar padding. Requests
+  longer than one year retain the five-year cap and backward pagination.
+- Added partnership information, direct AI example routes, and hosted marketplace links to the public documentation and README.
+- Corrected README and package license labels to match the existing GPLv3 LICENSE file; the license text is unchanged.
+
 ### Fixed
+- IBKR history diagnostics retain structured downloader causes and distinguish
+  data sources and requested windows. A failed fetch is no longer overwritten
+  or double-counted as an empty payload. Diagnostics do not fail a backtest.
+- Downloader provider cooldowns remain attached to their original queued
+  request instead of forcing duplicate submissions after repeated wait
+  timeouts. Provider waiting is exposed separately from simulated progress.
+- **Indicators cannot calculate against future backtest rows.** Input is copied
+  and restricted to strategy time before computation; negative offsets and
+  explicit noncausal parameters fail visibly. Observed bar corrections invalidate
+  memoized results and custom functions cannot mutate the source frame.
+- **Agent indicator batches support independent parameters and timeframes.**
+  Requests carry unique result IDs and retain individual calculation errors,
+  allowing different moving-average lengths in one call.
 - **Serialized broker order IDs remain queryable during live tool loops.**
   Broker-native identifiers such as Alpaca ``uuid.UUID`` values now compare
   losslessly with the string form carried by JSON, agent tools, and scheduled

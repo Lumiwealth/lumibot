@@ -2485,6 +2485,8 @@ def _bind_get_indicator(strategy: Any, manager: Any) -> BoundTool:
             "Arguments: symbol, indicator, timestep='day', asset_type='stock', optional parameters_json as a JSON object string. "
             "Examples: get_indicator(symbol='SPY', indicator='rsi', parameters_json='{\"length\": 14}'); "
             "get_indicator(symbol='NVDA', indicator='macd'). "
+            "Fibonacci range retracements use indicator='fibonacci', parameters_json='{\"direction\": \"up\"}': "
+            "up measures down from the observed high; down measures up from the low. It does not infer a trend. "
             "Optional start and end are inclusive ISO timestamps with explicit timezones; both are required together. "
             "Window calculations use no bars outside that window, including warmup; missing values remain null. "
             "In backtests this returns only the current-bar value and does not expose future bars."

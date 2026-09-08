@@ -3,6 +3,9 @@
 ## 4.5.92 - Unreleased
 
 ### Changed
+- Fibonacci range retracements support explicit up/down direction, bounded
+  lookback and independent monthly/annual windows through the agent indicator
+  tools. Numerical contracts cover RSI, VWAP, SMA50/200, MACD, Bollinger and ATR.
 - AI documentation opens with complete workflow routes and a grouped example
   directory. Stock/ORB setup documents exact prerequisites and validation limits;
   the public Backtrader migration guide replaces the duplicate internal guide.
@@ -23,6 +26,10 @@
 - Corrected README and package license labels to match the existing GPLv3 LICENSE file; the license text is unchanged.
 
 ### Fixed
+- Cloud telemetry no longer logs listener credentials, authentication headers,
+  echoed response bodies or transport exception text. Status diagnostics remain.
+- Scheduled-order contracts exercise actual process exit and fresh-process
+  reconciliation, including terminal states and duplicate broker observations.
 - Eval startup imports only its approved inference credential and disables
   automatic broker/dotenv discovery. Non-inference HTTP requests fail before
   transport, including accidental background broker initialization.

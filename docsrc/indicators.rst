@@ -60,6 +60,27 @@ If the indicator has not yet accumulated enough bars to produce a value, the
 return is ``NaN`` (scalar) or a row containing ``NaN`` (multi-column). If the
 data source has no bars at all for the asset, the return is ``None``.
 
+Fibonacci range retracements
+----------------------------
+
+``fibonacci`` returns observed range bounds and the standard 0, 23.6, 38.2,
+50, 61.8, 78.6 and 100 percent retracement prices::
+
+    levels = self.indicators.fibonacci(asset, direction="up", length=200)
+    halfway = levels["retracement_0.5"]
+
+``direction="up"`` measures down from the high; ``direction="down"`` measures
+up from the low. Direction is explicit: this calculation does not identify a
+trend, choose swing pivots, or recommend a trade. Missing warmup returns no value;
+nonfinite or crossed high/low data and unsupported parameters fail visibly.
+
+Agent ``get_indicator`` and ``get_indicators`` accept ``indicator="fibonacci"``.
+Use independently named batch requests with explicit zoned ``start``/``end``
+bounds for each completed month and for the annual window. Each calculation
+uses only its own window; it cannot borrow prices from another month or future
+bars. Combine these requests with independently parameterized RSI, SMA50,
+SMA200 and intraday VWAP requests in the same batch.
+
 Custom indicators
 -----------------
 

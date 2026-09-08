@@ -3872,7 +3872,7 @@ class _Strategy:
             return
 
         # Log that we're starting to send data
-        self.logger.debug(f"Starting cloud update for strategy '{self._name}' with API key: {self.lumiwealth_api_key[:10]}...")
+        self.logger.debug(f"Starting authenticated cloud update for strategy '{self._name}'")
 
         # Refresh the broker account snapshot first. This prevents a failed
         # broker read from being published as stale/default account values.
@@ -3997,8 +3997,7 @@ class _Strategy:
             # Send the data to the cloud
             json_data = _json_dumps(data, default=str)
             data_size_kb = len(json_data.encode('utf-8')) / 1024
-            self.logger.debug(f"Sending {data_size_kb:.2f} KB of data to {listener_url}")
-            self.logger.debug(f"Request headers: {headers}")
+            self.logger.debug(f"Sending {data_size_kb:.2f} KB of data to the configured listener")
 
             response = requests.post(
                 listener_url,
@@ -4007,20 +4006,20 @@ class _Strategy:
                 timeout=10,
             )
 
-            self.logger.debug(f"Cloud response: Status={response.status_code}, Headers={dict(response.headers)}")
+            self.logger.debug(f"Cloud response: Status={response.status_code}")
 
-        except requests.exceptions.ConnectionError as e:
-            self.logger.info(f"Connection error when sending to cloud: {e}", exc_info=True)
+        except requests.exceptions.ConnectionError:
+            self.logger.info("Connection error when sending to cloud; a later snapshot will retry.")
             return False
-        except requests.exceptions.Timeout as e:
-            self.logger.info(f"Timeout error when sending to cloud: {e}", exc_info=True)
+        except requests.exceptions.Timeout:
+            self.logger.info("Timeout error when sending to cloud; a later snapshot will retry.")
             return False
-        except requests.exceptions.RequestException as e:
-            self.logger.info(f"Request error when sending to cloud: {e}", exc_info=True)
+        except requests.exceptions.RequestException:
+            self.logger.info("Request error when sending to cloud; inspect listener status telemetry.")
             return False
         except Exception as e:
-            self.logger.error(f"Unexpected error when sending to cloud: {e}")
-            self.logger.error(_format_exc())
+            # SDK errors/response bodies can echo authentication headers or URLs.
+            self.logger.error(f"Unexpected error when sending to cloud: {type(e).__name__}")
             return False
 
         # Check if the message was sent successfully
@@ -4029,20 +4028,17 @@ class _Strategy:
             self.logger.debug(f"Portfolio update sent successfully to cloud for strategy '{self._name}'")
             return True
         elif response.status_code == 401:
-            self.logger.error(f"❌ Authentication failed - Invalid API key: {self.lumiwealth_api_key[:10]}...")
-            self.logger.error(f"Response: {response.text}")
+            self.logger.error("❌ Cloud authentication failed; check the configured listener credential.")
             return False
         elif response.status_code == 400:
             self.logger.error("❌ Bad request - Invalid data format")
-            self.logger.error(f"Response: {response.text}")
             return False
         elif response.status_code == 413:
             self.logger.error(f"❌ Payload too large ({data_size_kb:.2f} KB)")
-            self.logger.error(f"Response: {response.text}")
             return False
         else:
             self.logger.error(
-                f"❌ Failed to send update to cloud. Status: {response.status_code}, Response: {response.text}"
+                f"❌ Failed to send update to cloud. Status: {response.status_code}"
             )
             return False
 

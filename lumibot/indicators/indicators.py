@@ -141,6 +141,17 @@ class Indicators:
             raise TypeError(f"custom indicator fn must be callable, got {type(fn).__name__}")
         return self._dispatch(asset, timestep, name, kwargs, custom_fn=fn)
 
+    def fibonacci(self, asset, timestep="day", *, direction="up", length=None, **kwargs):
+        """Range retracements: up measures down from the high, down up from the low.
+
+        Uses only observed OHLC bars. Omit length for the full available range,
+        or use calculate_window/get_indicator start+end for a month or year.
+        This does not infer trend direction, swing pivots, or trading signals.
+        """
+        return self._dispatch(
+            asset, timestep, "fibonacci", {"direction": direction, "length": length, **kwargs}, None
+        )
+
     def invalidate(self, asset=None) -> None:
         """Drop memoized indicator results.
 
@@ -181,8 +192,8 @@ class Indicators:
         Source adapters still own bar completion and timestamp conventions.
         """
         bounds = self.validate_window(start, end)
-        if not isinstance(indicator, str) or indicator.startswith("_") or not callable(
-            getattr(_get_ta_module(), indicator, None)
+        if not isinstance(indicator, str) or indicator.startswith("_") or (
+            indicator != "fibonacci" and not callable(getattr(_get_ta_module(), indicator, None))
         ):
             raise ValueError("Unknown window indicator.")
         return self._dispatch(asset, timestep, indicator, parameters or {}, None, window=bounds)
@@ -321,6 +332,8 @@ class Indicators:
     def _compute(self, df, name, kwargs, custom_fn):
         if custom_fn is not None:
             return custom_fn(df, **kwargs)
+        if name == "fibonacci":
+            return self._fibonacci_range(df, **kwargs)
         ta = _get_ta_module()
         fn = getattr(ta, name)
         call_args = {}
@@ -333,6 +346,29 @@ class Indicators:
         if name in {"dpo", "ichimoku"}:
             call_args["lookahead"] = False
         return fn(**call_args)
+
+    @staticmethod
+    def _fibonacci_range(df, *, direction="up", length=None, **unsupported):
+        if unsupported or direction not in {"up", "down"}:
+            raise ValueError("Fibonacci supports direction='up'/'down' and optional positive integer length only.")
+        if length is not None:
+            if type(length) is not int or length <= 0:
+                raise ValueError("Fibonacci length must be a positive integer.")
+            if len(df) < length:
+                return None
+            df = df.iloc[-length:]
+        if not {"high", "low"}.issubset(df.columns):
+            raise ValueError("Fibonacci requires high and low observations.")
+        prices = df[["high", "low"]].to_numpy(dtype=float)
+        if not np.isfinite(prices).all() or (df.high < df.low).any():
+            raise ValueError("Fibonacci requires finite, non-crossed high/low observations.")
+        high, low = float(df.high.max()), float(df.low.min())
+        values = {"high": high, "low": low}
+        for ratio in (0, 0.236, 0.382, 0.5, 0.618, 0.786, 1):
+            values[f"retracement_{ratio:g}"] = (
+                high - (high - low) * ratio if direction == "up" else low + (high - low) * ratio
+            )
+        return pd.DataFrame([values], index=df.index[-1:])
 
     def _at_current_bar(self, result):
         now = self._strategy.get_datetime()

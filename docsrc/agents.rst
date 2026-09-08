@@ -1,23 +1,33 @@
 AI Trading Agents and Agentic Backtesting
 ==========================================
 
-LumiBot lets an AI agent reason, call external tools, and execute trades **on every bar during a backtest** -- then run the exact same strategy code live. Whether you use ``@agent_tool`` to wrap any REST API as a callable tool or connect to one of 20,000+ external `MCP servers <https://modelcontextprotocol.io/>`_, LumiBot handles it in one unified codebase. A built-in replay cache makes warm reruns deterministic and fast. Whether you want to backtest an AI trading agent, build an agentic backtesting framework, or connect LLM-driven trading bots to live brokers, LumiBot handles it all.
+Build AI trading agents in Python inside a LumiBot strategy. Agents can inspect
+market evidence, use research tools, and submit orders through the strategy's
+broker. You choose when they run and which agents can trade.
 
-Using an AI coding agent? BotSpot MCP can generate Lumibot strategies, run backtests, inspect artifacts, and iterate from tools like Cursor, Claude, Codex, and ChatGPT-compatible clients.
+Choose your first workflow
+--------------------------
 
-BotSpot is strongest when you want the agent workflow plus the managed cloud around it:
+* **Build your first agent:** :doc:`agents_quickstart` has installation, model credentials, daily data, and a complete research backtest.
+* **Trade stocks:** start with :doc:`a large-cap stock team <agents_example_bull_bear_large_cap_stocks>` or :doc:`opening range breakout <agents_example_ai_opening_range_breakout>`.
+* **Explore macro teams:** inspect :doc:`the idea-meritocracy example <agents_example_ray_dalio_idea_meritocracy>` and :doc:`FRED/ALFRED data setup <macro_data>`.
+* **Trade options:** :doc:`agents_example_ai_iron_condor` explains option-chain evidence, four-leg orders, and data limitations.
 
-- Lumibot-specific prompts for strategy generation, debugging, and revision
-- hosted backtests with charts, trades, logs, decisions, and audit artifacts
-- parallel backtests for comparing agent prompts, model choices, and strategy variants
-- broker-connected paper or live runs without maintaining your own scheduler or server
-- browser, phone, Claude, ChatGPT, Telegram, Discord, and MCP access to the same workflow
+Compare prerequisites and evidence in :doc:`agents_examples` before choosing a
+strategy. Start with regular stocks or ETFs; leveraged instruments and short-dated
+options are advanced examples.
 
-.. image:: ../docs/assets/readme/cta_botspot_mcp.png
-   :alt: Use BotSpot MCP
-   :align: center
-   :width: 520px
-   :target: https://botspot.trade/agents?utm_source=documentation&utm_medium=agents&utm_campaign=lumibot&utm_content=mcp_top_button
+Run a hosted example
+--------------------
+
+The sector-pod and macro-team pages link to their regular and leveraged BotSpot
+marketplace variants. BotSpot provides the hosted backtest, broker-connection,
+artifact, and scheduling workflow around LumiBot. See :doc:`botspot_mcp` for
+access from an AI coding assistant. Model, data, broker, and BotSpot plan
+requirements depend on the example.
+
+**Building a product on LumiBot?** :doc:`PARTNERSHIPS` explains funded
+integrations, maintenance, developer tutorials, and strategic collaboration.
 
 .. toctree::
    :maxdepth: 1
@@ -31,64 +41,35 @@ BotSpot is strongest when you want the agent workflow plus the managed cloud aro
    agents_memory
    agents_notifications
 
-Why This Is Different
----------------------
+Runtime concepts
+----------------
 
-Most tools that combine LLMs and trading fall into one of three categories:
+Create agents in ``initialize()`` and call them from strategy lifecycle methods
+such as ``on_trading_iteration()``. Separate research-only agents from those
+allowed to submit orders. The :doc:`quick start <agents_quickstart>` is the
+complete first-run example; the snippets below explain individual capabilities.
 
-1. **LLM outside the loop.** Platforms like QuantConnect let you call an LLM externally, but the model is not part of the backtest simulation. It cannot reason over point-in-time data on each bar.
-2. **Agent frameworks with no backtesting.** CrewAI, AutoGen, and LangGraph build multi-agent workflows, but none of them can simulate a trading backtest where the agent makes decisions bar by bar against historical data.
-3. **Hobby scripts with no infrastructure.** Open-source experiments wire GPT to a broker, but they lack MCP support, replay caching, DuckDB time-series queries, and the observability needed for production.
+* Built-in tools provide market/account evidence and order workflows.
+* ``@agent_tool`` exposes a Python function and its contract to the agent.
+* Compatible MCP servers supply external tools; their authentication, schemas,
+  and historical-data behavior must be checked for the intended task.
+* Replay caching can reuse eligible prior agent results. A cache hit is not a
+  new model decision or independent validation of a strategy.
+* A broker-backed runner and a backtest runner can use the same strategy class,
+  but still require different data, credentials, and execution configuration.
 
-LumiBot is different because it combines all of these in one framework:
+Verification and historical limits
+----------------------------------
 
-- **LLM in the loop on every bar.** The AI agent runs inside ``on_trading_iteration()``, receives point-in-time market state, calls tools, reasons, and submits orders -- all within the backtest simulation.
-- **@agent_tool for reliable external data.** Wrap any REST API as a callable tool using the ``@agent_tool`` decorator and the ``requests`` library. This is the primary and recommended pattern because it works reliably in both backtests and live trading.
-- **MCP server support.** Connect to any MCP-compatible server with a URL for live trading or when you have a compatible server. There are over 20,000 MCP servers available today.
-- **Replay caching for deterministic backtests.** Identical prompt + context + tools + timestamp = cached result. Warm reruns complete in seconds with zero model calls.
-- **Any LLM provider.** Use OpenAI, Anthropic, Google Gemini, xAI Grok, or any provider supported by the underlying model router. Swap models with a single env var; ``@agent_tool`` functions and replay cache work unchanged across all providers.
-- **Automatic retry on transient provider errors.** Rate limits (429), server errors (500/503/529), and transient network blips are retried automatically with exponential backoff. Production agents stay alive through normal cloud-provider hiccups without strategy-level error handling.
-- **Same code for backtest and live.** No separate "backtest mode" strategy. Write once, backtest it, deploy it.
+Market tools use the strategy clock where supported. An LLM may nevertheless
+know facts from after a historical window. Inspect source timestamps, revisions,
+orders, and artifacts; a successful run does not establish profitable trading.
 
-Quick Start
------------
-
-Here is a complete AI trading agent strategy that uses Lumibot's built-in FRED macro tools and makes trading decisions:
-
-.. code-block:: python
-
-    from lumibot.strategies import Strategy
-
-
-    class M2LiquidityStrategy(Strategy):
-        def initialize(self):
-            self.sleeptime = "1D"
-            self.agents.create(
-                name="m2_analyst",
-                default_model="gpt-4.1-mini",
-                system_prompt=(
-                    "Use money supply and liquidity data to decide between "
-                    "TQQQ and SHV. Focus on whether M2 liquidity is expanding "
-                    "or contracting."
-                ),
-            )
-
-        def on_trading_iteration(self):
-            result = self.agents["m2_analyst"].run()
-            self.log_message(f"[m2_analyst] {result.summary}", color="yellow")
-
-    if __name__ == "__main__":
-        IS_BACKTESTING = True
-        if IS_BACKTESTING:
-            from datetime import datetime
-            M2LiquidityStrategy.backtest(
-                datasource_class=None,
-                backtesting_start=datetime(2020, 1, 1),
-                backtesting_end=datetime(2026, 3, 1),
-                benchmark_asset="SPY",
-            )
-
-That is the entire strategy file. No local MCP server scripts, no npm installs, and no explicit built-in tool lists. LumiBot includes built-in tools by default, including ``get_fred_series`` when ``FRED_API_KEY`` is configured.
+Release verification exercises the actual Strategy, AgentManager, built-in
+tools and backtesting broker. Market observations and research responses are
+fixtures; actor and judge calls use real models. Execution scenarios require a
+broker-observed simulated fill, not merely an order claim in model prose.
+Historical research fixtures also exercise MCP schema discovery and as-of binding.
 
 How ``@agent_tool`` Works
 -------------------------

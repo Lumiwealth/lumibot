@@ -341,7 +341,7 @@ See the docs comparison pages for more detail: [Lumibot vs TradingAgents](https:
 | **Hosted deployment path** | BotSpot | No | No | No | No | Paid cloud | No | No | Hummingbot Foundation/enterprise ecosystem |
 | **License** | GPL-3.0 | GPL-3.0 | GPL-3.0 | Apache-2.0 | AGPL-3.0 | MIT | Apache-2.0 | LGPL-3.0 | Apache-2.0 |
 
-**Switching from Backtrader?** See our [migration guide](docs/MIGRATING_FROM_BACKTRADER.md) for a side-by-side comparison with code examples.
+**Switching from Backtrader?** See our [migration guide](docsrc/MIGRATING_FROM_BACKTRADER.rst) for a side-by-side comparison with code examples.
 
 ## Deploy Live
 

@@ -2,7 +2,11 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://lumibot.lumiwealth.com/</loc>
-    <lastmod>2026-07-16</lastmod>
+    <lastmod>2026-09-08</lastmod>
+  </url>
+  <url>
+    <loc>https://lumibot.lumiwealth.com/MIGRATING_FROM_BACKTRADER.html</loc>
+    <lastmod>2026-09-08</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/PARTNERSHIPS.html</loc>
@@ -10,7 +14,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents.html</loc>
-    <lastmod>2026-06-02</lastmod>
+    <lastmod>2026-09-08</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_builtin_tools.html</loc>
@@ -18,7 +22,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_canonical_demos.html</loc>
-    <lastmod>2026-05-12</lastmod>
+    <lastmod>2026-09-08</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_example_ai_credit_spread.html</loc>
@@ -54,11 +58,11 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_example_citadel_sector_pods.html</loc>
-    <lastmod>2026-05-31</lastmod>
+    <lastmod>2026-09-08</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_example_ray_dalio_idea_meritocracy.html</loc>
-    <lastmod>2026-05-31</lastmod>
+    <lastmod>2026-09-08</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_example_warren_buffett_value.html</loc>
@@ -86,7 +90,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_quickstart.html</loc>
-    <lastmod>2026-08-06</lastmod>
+    <lastmod>2026-09-08</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/ai_trading_project_comparison.html</loc>
@@ -310,7 +314,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/index.html</loc>
-    <lastmod>2026-07-16</lastmod>
+    <lastmod>2026-09-08</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/indicators.html</loc>
@@ -426,7 +430,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/options_helper.html</loc>
-    <lastmod>2026-05-09</lastmod>
+    <lastmod>2026-09-08</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/reference.html</loc>

@@ -82,7 +82,29 @@
       return;
     }
 
-    if (href.indexOf("botspot.trade") !== -1) {
+    var route = "";
+    if (link.closest(".lumibot-start-routes")) {
+      if (link.hash === "#first-python-backtest") route = "python_backtest";
+      else if (link.pathname.endsWith("/agents_quickstart.html")) route = "ai_agent";
+      else if (link.pathname.endsWith("/agents_example_ai_iron_condor.html")) route = "options";
+    } else if (link.closest(".lumibot-partnership-route")) {
+      route = "partnership";
+    }
+    if (route) {
+      capture("lumibot_docs_start_click", {
+        route: route,
+        link_path: link.pathname || "",
+        link_hash: link.hash || ""
+      });
+    }
+    if (link.protocol === "mailto:") {
+      if (window.location.pathname.endsWith("/PARTNERSHIPS.html")) {
+        capture("lumibot_docs_partnership_contact_click", { route: "email" });
+      }
+      return;
+    }
+
+    if (link.hostname === "botspot.trade" || link.hostname.endsWith(".botspot.trade")) {
       capture("lumibot_docs_botspot_click", {
         link_text: (link.textContent || "").trim().slice(0, 120),
         link_href: href,

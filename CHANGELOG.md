@@ -3,6 +3,11 @@
 ## 4.5.92 - Unreleased
 
 ### Changed
+- AI documentation opens with complete workflow routes and a grouped example
+  directory. Stock/ORB setup documents exact prerequisites and validation limits;
+  the public Backtrader migration guide replaces the duplicate internal guide.
+- Documentation analytics distinguish Python, AI, options and partnership entry
+  choices, with duplicate-event and destination-classification coverage.
 - Backtest progress and settings retain per-run initialization, callback, first
   price, simulation and report timestamps, separately from heartbeat updates.
 - New agents without an explicit model use Gemini 3.5 Flash-Lite rather than

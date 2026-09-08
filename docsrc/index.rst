@@ -8,16 +8,20 @@ Lumibot
 Start here
 ----------
 
-* **Run a Python backtest:** the :ref:`complete daily-stock example below <first-python-backtest>` needs no broker account.
-* **Build an AI agent:** :doc:`agents_quickstart` covers installation, model credentials, and a complete runner.
-* **Explore options:** :doc:`agents_example_ai_iron_condor` explains the four-leg workflow and its data requirements.
+.. container:: lumibot-start-routes
+
+   * **Run a Python backtest:** the :ref:`complete daily-stock example below <first-python-backtest>` needs no broker account.
+   * **Build an AI agent:** :doc:`agents_quickstart` covers installation, model credentials, and a complete runner.
+   * **Explore options:** :doc:`agents_example_ai_iron_condor` explains the four-leg workflow and its data requirements.
 
 For stock strategies, explore :doc:`opening range breakout <agents_example_ai_opening_range_breakout>`
 or :doc:`large-cap stock teams <agents_example_bull_bear_large_cap_stocks>`.
 For economic research, see :doc:`macro_data`.
 
-**Building on LumiBot?** :doc:`Partner with us <PARTNERSHIPS>` on integrations,
-open-source maintenance, joint tutorials, or strategic collaboration.
+.. container:: lumibot-partnership-route
+
+   **Building on LumiBot?** :doc:`Partner with us <PARTNERSHIPS>` on integrations,
+   open-source maintenance, joint tutorials, or strategic collaboration.
 
 .. image:: ../docs/assets/home/lumibot_strategy_lifecycle_homepage.png
    :alt: Lumibot strategy lifecycle from market data and filings to Python rules, AI agents, backtest reports, paper trading, and live brokers
@@ -507,6 +511,7 @@ Table of Contents
    Build and Deploy with BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot&utm_content=sidebar_build_bots&sample=lumibot_deploy_sample>
    BotSpot MCP Integration <botspot_mcp>
    Partnerships and Sponsorship <PARTNERSHIPS>
+   Migrate from Backtrader <MIGRATING_FROM_BACKTRADER>
    GitHub <https://github.com/Lumiwealth/lumibot>
    Reddit Community <https://www.reddit.com/r/BotSpotTrade/>
    Discord Community <https://discord.gg/4R9j6T3PN8>

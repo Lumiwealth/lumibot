@@ -735,6 +735,16 @@ For `Asset.AssetType.CRYPTO_FUTURE`, routed backtesting fetches spot crypto hist
 
 #### Crypto daily bars (important semantics)
 
+CCXT OHLCV timestamps mark candle opens. Default research history and last-price
+queries expose only candles whose full minute/hour/day interval has closed at
+the simulated time (after any explicit timeshift). The broker execution path
+uses an explicit one-interval offset to retrieve the current execution candle;
+its existing timestamp checks still reject future bars and sparse-gap fills.
+Do not share that execution offset with AI research: a current candle's eventual
+high, low, close and volume are not known at its opening time. Coverage lives in
+`tests/test_backtesting_ccxt_execution_semantics.py` and includes actual adapter
+history plus broker execution against the same synthetic cached candles.
+
 IBKR's `bar=1d` history for crypto is not a clean midnight-to-midnight 24/7 day series, and its timestamps can lag the
 simulation clock used by daily-cadence strategies. To keep daily backtests stable (no “stale end of data” refresh loops),
 LumiBot derives **crypto daily bars** from intraday history and aligns them to midnight day buckets in `LUMIBOT_DEFAULT_PYTZ`

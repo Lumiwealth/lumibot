@@ -26,6 +26,10 @@
 - Corrected README and package license labels to match the existing GPLv3 LICENSE file; the license text is unchanged.
 
 ### Fixed
+- CCXT research history and last-price queries no longer expose unfinished
+  candles' future OHLCV values. Minute/hour/day completion boundaries and
+  shifted history are covered; execution retains current-candle fills and
+  existing sparse-gap/future-timestamp safeguards.
 - Cloud telemetry no longer logs listener credentials, authentication headers,
   echoed response bodies or transport exception text. Status diagnostics remain.
 - Scheduled-order contracts exercise actual process exit and fresh-process

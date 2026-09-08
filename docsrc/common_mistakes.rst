@@ -6,6 +6,20 @@ This page documents the most common mistakes made when writing Lumibot strategie
 Critical Mistakes (Will Break Your Strategy)
 --------------------------------------------
 
+Using an Unfinished Crypto Candle as Historical Evidence
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+CCXT candles are timestamped at their opening time. At 09:00, the eventual
+close of the 09:00–09:01 candle is not known. Default CCXT backtest history
+and last-price queries therefore use completed candles only. This applies to
+minute, hour and day bars, including AI research through those methods.
+
+Do not add a negative history ``timeshift`` to make that future closing price
+available to your strategy. The backtesting broker uses an execution-only
+offset to simulate orders against the current candle; this does not make the
+whole candle valid evidence for the preceding decision. When no candle has
+closed yet, missing history is expected, not permission to invent a price.
+
 Using datetime.now() Instead of self.get_datetime()
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

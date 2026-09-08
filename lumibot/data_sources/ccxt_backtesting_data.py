@@ -120,7 +120,10 @@ class CcxtBacktestingData(DataSourceBacktesting):
             end = end - timeshift
 
         end = self.to_default_timezone(end)
-        result_data = data[data.index <= end]
+        # CCXT stamps candles at their OPEN. Research may consume their OHLCV
+        # only after the whole interval closes, not its future close/high/low.
+        bar_duration, _ = self.convert_timestep_str_to_timedelta(timestep)
+        result_data = data[data.index + bar_duration <= end]
 
         if length is None:
             return result_data

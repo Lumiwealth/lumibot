@@ -1,7 +1,25 @@
 AI Agents Quick Start
 =====================
 
-This page shows the core patterns for creating and running AI trading agents inside a LumiBot strategy. Whether you want to backtest an AI trading agent with external tools or build an agentic backtesting workflow, these examples get you started in minutes. For background on why LumiBot is the only framework that puts the LLM inside the backtest loop, see :doc:`agents`.
+Create and run an AI agent inside a Python trading strategy. This first example
+uses LumiBot's built-in market tools and daily stock data to produce research
+during a short backtest. For the runtime, tool, and execution guide, see :doc:`agents`.
+
+Before you run
+--------------
+
+Use Python 3.10 or later and LumiBot 4.5.91 or later. Install LumiBot in your
+Python environment and supply an OpenAI API key for the model used below:
+
+.. code-block:: bash
+
+    python -m pip install "lumibot>=4.5.91"
+    export OPENAI_API_KEY="your-openai-key"
+
+The example uses Yahoo daily prices and does not need broker credentials.
+Model calls use your provider account and may incur charges. Additional data
+tools, such as FRED and Alpaca News, have their own credential requirements.
+See :doc:`agents_builtin_tools` before extending the example.
 
 The pattern is simple:
 
@@ -23,10 +41,13 @@ Built-in tools are included by default -- no import needed for those.
 Minimal Example (Built-in Tools Only)
 --------------------------------------
 
-This strategy creates an agent that uses only the default built-in tools. No external APIs, no explicit tool list.
+Save the complete example as ``my_ai_strategy.py``. It creates a research agent
+with built-in tools and trading disabled for this first run.
 
 .. code-block:: python
 
+    from datetime import datetime
+    from lumibot.backtesting import YahooDataBacktesting
     from lumibot.strategies import Strategy
 
 
@@ -38,9 +59,10 @@ This strategy creates an agent that uses only the default built-in tools. No ext
             self.agents.create(
                 name="research",
                 default_model="gpt-4.1-mini",
+                allow_trading=False,
                 system_prompt=(
-                    "Analyze the current portfolio and market conditions. "
-                    "Trade conservatively. If the evidence is weak, do nothing."
+                    "Use the available market tools to summarize SPY's price history "
+                    "as of the strategy date. Explain missing evidence. Do not trade."
                 ),
             )
 
@@ -50,7 +72,29 @@ This strategy creates an agent that uses only the default built-in tools. No ext
             )
             self.log_message(f"[research] {result.summary}", color="yellow")
 
-The agent has access to all built-in tools (positions, portfolio, prices, history, DuckDB, orders, docs) without listing them.
+    if __name__ == "__main__":
+        SimpleAgentStrategy.backtest(
+            YahooDataBacktesting,
+            datetime(2025, 1, 6),
+            datetime(2025, 1, 8),
+        )
+
+Run it from the same Python environment:
+
+.. code-block:: bash
+
+    python my_ai_strategy.py
+
+Inspect the ``[research]`` log entries and generated backtest artifacts. This
+example should produce research, with no trades. A completed research run is
+not evidence of a profitable strategy. An LLM may know facts from after a
+historical test window even when its market tools respect the strategy date.
+
+Next, follow :doc:`stock opening range breakout <agents_example_ai_opening_range_breakout>`,
+:doc:`large-cap stock teams <agents_example_bull_bear_large_cap_stocks>`, or
+:doc:`options iron condors <agents_example_ai_iron_condor>` for trading examples.
+
+The agent has access to built-in research tools without listing them.
 
 Trading agents must inspect account state before submitting an order. In the
 same agent run, ``orders_submit_order`` requires successful calls to

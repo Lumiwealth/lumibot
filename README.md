@@ -2,7 +2,7 @@
 [![Coverage](https://raw.githubusercontent.com/Lumiwealth/lumibot/badge/coverage.svg)](https://github.com/Lumiwealth/lumibot/actions/workflows/cicd.yaml)
 [![PyPI](https://img.shields.io/pypi/v/lumibot)](https://pypi.org/project/lumibot/)
 [![Python](https://img.shields.io/pypi/pyversions/lumibot)](https://pypi.org/project/lumibot/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
 # Lumibot
 
@@ -31,6 +31,14 @@
 Start with the open-source docs, then deploy when you are ready: [Lumibot documentation](https://lumibot.lumiwealth.com/?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=what_you_can_build_docs) · [Try a sample Lumibot strategy on BotSpot](https://botspot.trade/sales?showLogin=1&utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=what_you_can_build_botspot&sample=lumibot_readme_deploy)
 
 ## Quick Start
+
+Choose a starting point:
+
+- **Run a Python backtest:** [the complete example below](#backtest-a-strategy), using daily Yahoo data without a broker account.
+- **Build an AI agent:** [AI Agents Quick Start](https://lumibot.lumiwealth.com/agents_quickstart.html), with installation, model credentials, and a complete backtest runner.
+- **Explore an options strategy:** [AI iron condor](https://lumibot.lumiwealth.com/agents_example_ai_iron_condor.html), including data requirements and the limits of the recorded evidence.
+
+Building a product on LumiBot? [Partner with LumiBot](docsrc/PARTNERSHIPS.rst) through funded integrations, open-source maintenance, joint tutorials, or strategic collaboration.
 
 ### Backtest a strategy
 
@@ -103,6 +111,17 @@ Lumibot now includes a built-in AI agent runtime for financial research, reasoni
 Classic Python strategies are still first-class. Lumibot lets you choose the right level of intelligence: fixed rules, AI agents, or a hybrid where Python handles the hard gates and agents reason through evidence.
 
 Built-in AI agent tools include market/account state, order inspection, DuckDB queries, documentation search, Alpaca news when credentials exist, technical indicators, SEC fundamentals and filings, FRED macro data, local memory, and Telegram notifications.
+
+### Explore existing AI strategies
+
+Start with [stock opening range breakout](https://lumibot.lumiwealth.com/agents_example_ai_opening_range_breakout.html), [large-cap stock teams](https://lumibot.lumiwealth.com/agents_example_bull_bear_large_cap_stocks.html), or [macro research](https://lumibot.lumiwealth.com/macro_data.html).
+
+For a hosted starting point, open these BotSpot marketplace examples:
+
+- **Citadel-inspired sector pods:** [regular ETFs](https://botspot.trade/marketplace/strategy/4fb6cf2f-272c-4a73-96e7-edd7383b1a33?utm_source=github&utm_medium=readme&utm_campaign=lumibot_ai_examples&utm_content=citadel_regular) or [leveraged ETFs](https://botspot.trade/marketplace/strategy/da83818b-f994-4163-8ef3-99ea346325b4?utm_source=github&utm_medium=readme&utm_campaign=lumibot_ai_examples&utm_content=citadel_leveraged).
+- **Ray Dalio-inspired idea meritocracy:** [regular ETFs](https://botspot.trade/marketplace/strategy/b00c5f9c-beea-46fe-bdba-fc65c1315d5f?utm_source=github&utm_medium=readme&utm_campaign=lumibot_ai_examples&utm_content=dalio_regular) or [leveraged ETFs](https://botspot.trade/marketplace/strategy/362a50a1-d501-4b08-8d42-c7701a363731?utm_source=github&utm_medium=readme&utm_campaign=lumibot_ai_examples&utm_content=dalio_leveraged).
+
+These are educational implementations inspired by organizational ideas, with no affiliation or endorsement from the named firms or people. They are not replicas of proprietary strategies. Start with the regular ETF versions; leveraged versions are advanced examples. The listings have no strategy subscription fee; BotSpot plans, model usage, broker access, and data requirements still apply.
 
 ### Design Your AI Trading Team
 
@@ -320,7 +339,7 @@ See the docs comparison pages for more detail: [Lumibot vs TradingAgents](https:
 | **AI agent runtime** | Built-in | No | FreqAI (ML) | No | No | ML pipeline | No | No | Scripts/controllers |
 | **Broker execution** | Alpaca, IBKR, Tradier, Schwab, Tradovate, TopstepX (via ProjectX), Bitunix, Polymarket, selected CCXT | IB only (outdated) | Crypto exchanges | None | None | Crypto exchanges | No | Exchange adapters | Crypto exchanges |
 | **Hosted deployment path** | BotSpot | No | No | No | No | Paid cloud | No | No | Hummingbot Foundation/enterprise ecosystem |
-| **License** | MIT | GPL-3.0 | GPL-3.0 | Apache-2.0 | AGPL-3.0 | MIT | Apache-2.0 | LGPL-3.0 | Apache-2.0 |
+| **License** | GPL-3.0 | GPL-3.0 | GPL-3.0 | Apache-2.0 | AGPL-3.0 | MIT | Apache-2.0 | LGPL-3.0 | Apache-2.0 |
 
 **Switching from Backtrader?** See our [migration guide](docs/MIGRATING_FROM_BACKTRADER.md) for a side-by-side comparison with code examples.
 
@@ -577,4 +596,4 @@ Affiliate disclosure: some provider links or promo codes, including ThetaData, m
 
 ## License
 
-MIT License - [View License](https://github.com/Lumiwealth/lumibot/blob/master/LICENSE)
+GNU General Public License v3.0 - [View License](LICENSE)

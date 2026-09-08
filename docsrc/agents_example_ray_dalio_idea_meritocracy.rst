@@ -16,7 +16,18 @@ one argues from inflation and rates, one argues from debt, liquidity, currency,
 and policy pressure, then a disagreement agent stress-tests all three before
 the trader picks one ETF.
 
-`See this strategy running live on BotSpot <https://botspot.trade/marketplace/strategy/81af73b8-7dec-4941-ba35-d5a06fee6863>`__
+Hosted examples on BotSpot
+---------------------------
+
+Open the Data-On marketplace variants: `regular ETFs <https://botspot.trade/marketplace/strategy/b00c5f9c-beea-46fe-bdba-fc65c1315d5f?utm_source=documentation&utm_medium=example&utm_campaign=lumibot_ai_examples&utm_content=dalio_regular>`_
+or `leveraged ETFs <https://botspot.trade/marketplace/strategy/362a50a1-d501-4b08-8d42-c7701a363731?utm_source=documentation&utm_medium=example&utm_campaign=lumibot_ai_examples&utm_content=dalio_leveraged>`_.
+These variants add macro and news evidence and request diversified allocations;
+their saved code differs from the original single-ETF example below. Start with
+the regular version. The listings have no strategy subscription fee; BotSpot
+plans, model usage, broker access, and data requirements still apply.
+
+These are educational examples with no affiliation or endorsement from Ray
+Dalio or Bridgewater, and are not replicas of their proprietary strategies.
 
 How the team works
 ------------------

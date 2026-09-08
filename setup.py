@@ -54,7 +54,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/Lumiwealth/lumibot",
     packages=setuptools.find_packages(include=["lumibot", "lumibot.*"]),
-    license="MIT",  # Add license argument
+    license="GPL-3.0",
     include_package_data=True,
     install_requires=[
         "polygon-api-client>=1.13.3",
@@ -156,7 +156,7 @@ setuptools.setup(
         "Intended Audience :: Developers",
         "Intended Audience :: Financial and Insurance Industry",
         "Intended Audience :: Science/Research",
-        "License :: OSI Approved :: MIT License",
+        "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",

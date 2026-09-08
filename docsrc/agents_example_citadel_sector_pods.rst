@@ -17,7 +17,18 @@ portfolio manager has permission to submit orders. It is a good example when
 you want to test whether specialist agents can create better decisions than one
 single broad prompt.
 
-`See this strategy running live on BotSpot <https://botspot.trade/marketplace/strategy/0b4576c7-f78b-4477-ba3a-630758fb0168>`__
+Hosted examples on BotSpot
+---------------------------
+
+Open the Data-On marketplace variants: `regular sector ETFs <https://botspot.trade/marketplace/strategy/4fb6cf2f-272c-4a73-96e7-edd7383b1a33?utm_source=documentation&utm_medium=example&utm_campaign=lumibot_ai_examples&utm_content=citadel_regular>`_
+or `leveraged sector ETFs <https://botspot.trade/marketplace/strategy/da83818b-f994-4163-8ef3-99ea346325b4?utm_source=documentation&utm_medium=example&utm_campaign=lumibot_ai_examples&utm_content=citadel_leveraged>`_.
+These variants add macro and news evidence and request diversified allocations;
+their saved code differs from the original example below. Start with the regular
+version. The listings have no strategy subscription fee; BotSpot plans, model
+usage, broker access, and data requirements still apply.
+
+These are educational examples with no affiliation or endorsement from Citadel
+or its personnel, and are not replicas of a proprietary strategy.
 
 How the team works
 ------------------

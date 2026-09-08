@@ -11,15 +11,30 @@
 {% block extrahead %}
 {{ super() }}
 {% set page_url = 'https://lumibot.lumiwealth.com/' if pagename == 'index' else 'https://lumibot.lumiwealth.com/' ~ pagename ~ '.html' %}
-{% set page_description = 'Lumibot is a Python framework for deterministic trading strategies, AI trading teams, and hybrid trading systems that backtest, paper trade, and run live with real brokers.' %}
+{% set descriptions = {
+  'index': 'Build Python trading bots and AI trading agents with LumiBot. Backtest strategies, inspect decisions, and connect stocks, options, crypto, and futures brokers.',
+  'agents': 'Build AI trading agents inside LumiBot strategies. Explore tools, multi-agent teams, historical backtests, memory, and broker execution in Python.',
+  'agents_quickstart': 'Run your first LumiBot AI agent with a complete Python example, installation steps, model credentials, daily stock data, and a short research backtest.',
+  'agents_examples': 'Explore LumiBot AI trading examples for stocks, options, macro research, and multi-agent teams, with source code and documented data requirements.',
+  'agents_example_ai_opening_range_breakout': 'Build an AI opening range breakout strategy in Python with completed opening bars, stock-order workflows, source code, and documented test evidence.',
+  'agents_example_ai_iron_condor': 'Explore an AI iron condor strategy in Python: option-chain evidence, four-leg orders, data setup, source code, and the limits of recorded backtests.',
+  'agents_example_bull_bear_large_cap_stocks': 'Build a Python AI stock-trading team with bull, bear, and trader agents that debate large-cap stocks inside the LumiBot strategy lifecycle.',
+  'agents_example_citadel_sector_pods': 'Explore a Citadel-inspired AI sector-pod team in LumiBot, with research agents, portfolio decisions, Python source, and hosted BotSpot examples.',
+  'agents_example_ray_dalio_idea_meritocracy': 'Explore a Ray Dalio-inspired AI macro team in LumiBot, with specialist debate, portfolio decisions, Python source, and hosted BotSpot examples.',
+  'backtesting': 'Backtest Python trading strategies in LumiBot. Compare historical data sources and learn how strategy logic, orders, fees, and results fit together.',
+  'macro_data': 'Use FRED and ALFRED economic data in LumiBot strategies and AI agents. Configure credentials and query macro series with historical vintage handling.',
+  'fundamentals': 'Use company fundamentals and SEC filings in LumiBot strategies and AI research agents. Explore data access, examples, and historical-data limitations.',
+  'PARTNERSHIPS': 'Partner with the LumiBot team on funded integrations, open-source maintenance, developer tutorials, and strategic product collaboration.'
+} %}
+{% set page_description = descriptions.get(pagename, (title|striptags|trim) ~ ': setup, usage, and reference documentation for the LumiBot Python trading framework.') %}
 <link rel="icon" type="image/png" sizes="192x192" href="{{ pathto('_static/lumibot_favicon_192.png', 1) }}">
 <link rel="icon" type="image/png" sizes="512x512" href="{{ pathto('_static/lumibot_favicon_512.png', 1) }}">
 <link rel="apple-touch-icon" sizes="192x192" href="{{ pathto('_static/lumibot_favicon_192.png', 1) }}">
-<meta name="description" content="{{ page_description }}">
+<meta name="description" content="{{ page_description|e }}">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Lumibot">
 <meta property="og:title" content="{% if pagename == master_doc %}Lumibot: Python Algorithmic Trading and AI Agents{% else %}{{ title|striptags|trim }} - Lumibot{% endif %}">
-<meta property="og:description" content="{{ page_description }}">
+<meta property="og:description" content="{{ page_description|e }}">
 <meta property="og:url" content="{{ page_url }}">
 <meta property="og:image" content="https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png">
 <meta property="og:image:width" content="852">
@@ -27,7 +42,7 @@
 <meta property="og:image:alt" content="Lumibot AI trading robot logo">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{% if pagename == master_doc %}Lumibot: Python Algorithmic Trading and AI Agents{% else %}{{ title|striptags|trim }} - Lumibot{% endif %}">
-<meta name="twitter:description" content="{{ page_description }}">
+<meta name="twitter:description" content="{{ page_description|e }}">
 <meta name="twitter:image" content="https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png">
 <script type="application/ld+json">
 {

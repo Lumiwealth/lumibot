@@ -43,6 +43,22 @@ def test_runtime_timings_are_per_source_bounded_and_return_copies(tmp_path, monk
     assert "first_callback_entered_at" in first.get_runtime_timings()
 
 
+def test_final_report_phase_is_published_without_advancing_simulation(tmp_path, monkeypatch):
+    monkeypatch.setenv("BACKTESTING_PROGRESS_HEARTBEAT", "false")
+    start = datetime(2026, 1, 5, tzinfo=timezone.utc)
+    source = create_test_data_source(str(tmp_path), start, start + timedelta(days=7))
+    source._update_datetime(source.datetime_start + timedelta(days=1))
+    with open(source._progress_csv_path, newline="") as stream:
+        before = next(csv.DictReader(stream))
+    source.record_runtime_milestone("reports_completed_at")
+    assert source.flush_runtime_timings()
+    with open(source._progress_csv_path, newline="") as stream:
+        after = next(csv.DictReader(stream))
+    for field in ("percent", "simulation_date", "portfolio_value"):
+        assert after[field] == before[field]
+    assert "reports_completed_at" in json.loads(after["runtime_timings"])
+
+
 def test_actual_callback_entry_is_recorded_before_callback_can_wait_for_prices(tmp_path, monkeypatch):
     from lumibot.strategies.strategy_executor import StrategyExecutor
 

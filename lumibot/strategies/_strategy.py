@@ -3669,6 +3669,7 @@ class _Strategy:
 
         try:
             self.broker.data_source.record_runtime_milestone("reports_completed_at")
+            self.broker.data_source.flush_runtime_timings()
         except Exception:
             pass
         self.write_backtest_settings(settings_file)

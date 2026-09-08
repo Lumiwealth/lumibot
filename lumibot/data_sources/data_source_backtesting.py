@@ -177,6 +177,15 @@ class DataSourceBacktesting(DataSource, ABC):
         with self._runtime_timings_lock:
             return dict(self._runtime_timings)
 
+    def flush_runtime_timings(self):
+        """Publish final phases without inventing another simulation step."""
+        if not self.log_backtest_progress_to_file:
+            return False
+        with self._progress_snapshot_lock:
+            snapshot = dict(self._last_progress_snapshot)
+        self.log_backtest_progress_to_csv(**snapshot)
+        return True
+
     def shutdown(self):
         """Cleanup any background resources (thread pools, progress heartbeat)."""
         self.stop_progress_heartbeat()

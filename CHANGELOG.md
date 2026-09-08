@@ -10,6 +10,9 @@
 - Corrected README and package license labels to match the existing GPLv3 LICENSE file; the license text is unchanged.
 
 ### Fixed
+- **Managed AI family selection pins one exact model per decision.** A compatible
+  gateway resolves the family once; tool continuations retain that id and reject
+  inconsistent resolution without falling back from personal credentials.
 - **Indicator timeframes do not silently substitute a different cached series.**
   A request for minute data cannot reuse and relabel a daily store entry.
 - **Agent eval spending survives tool continuations, errors and process resumes.**

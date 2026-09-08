@@ -303,3 +303,18 @@ The built-in research tools are designed around backtest/live parity:
 
 This lets agents research during a backtest without accidentally looking into
 the future.
+
+Managed model families
+----------------------
+
+With managed AI configured, a strategy may select a reviewed family such as
+``google/gemini-pro``, ``google/gemini-flash``, ``google/gemini-flash-lite`` or
+``openai/luna``. The gateway resolves that family to one exact model on the
+first request. LumiBot keeps that model for the entire decision, including
+native tool continuations. Later decisions may use a newly reviewed mapping.
+For reproducible historical experiments, use an exact model id instead.
+
+Family names require a compatible managed gateway. They are not aliases to
+send directly to a provider. BYOK execution continues to require an exact
+provider model id; LumiBot does not ignore personal keys or switch billing
+routes when authentication fails.

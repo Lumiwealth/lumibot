@@ -55,6 +55,20 @@ def test_native_gemini_model_does_not_mutate_google_api_key(monkeypatch):
     assert "GOOGLE_API_KEY" not in os.environ
 
 
+def test_managed_family_never_falls_back_to_direct_provider_or_ignores_byok(monkeypatch):
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_URL", "https://gateway.example.test")
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_TOKEN", "managed-token")
+    monkeypatch.setenv("GEMINI_API_KEY", "personal-test-key")
+    with pytest.raises(RuntimeError, match="select an exact provider model id"):
+        _resolve_model_for_adk("google/gemini-pro")
+    monkeypatch.delenv("GEMINI_API_KEY")
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    assert isinstance(_resolve_model_for_adk("google/gemini-pro"), BotSpotManagedLlm)
+    monkeypatch.delenv("LUMIBOT_AI_GATEWAY_TOKEN")
+    with pytest.raises(RuntimeError, match="Model families require BotSpot"):
+        _resolve_model_for_adk("google/gemini-pro")
+
+
 @pytest.mark.parametrize(
     ("model", "key_name"),
     [

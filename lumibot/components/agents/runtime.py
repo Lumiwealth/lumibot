@@ -1046,10 +1046,18 @@ def _resolve_model_for_adk(
     if not isinstance(model, str):
         return model
     lower = model.strip().lower()
-    from lumibot.components.agents.managed_gateway import managed_gateway_available_for, managed_gateway_model
+    from lumibot.components.agents.managed_gateway import (
+        MANAGED_MODEL_FAMILIES, ManagedAiGatewayError, managed_gateway_available_for, managed_gateway_model,
+    )
 
     if managed_gateway_available_for(model):
         return managed_gateway_model(model)
+    if model in MANAGED_MODEL_FAMILIES:
+        raise ManagedAiGatewayError(
+            "Model families require BotSpot managed AI without a personal provider key. "
+            "For direct provider/BYOK execution, select an exact provider model id.",
+            code="model_resolution_required",
+        )
     if _is_native_gemini_model(model):
         return model
     if lower.startswith("xai/"):

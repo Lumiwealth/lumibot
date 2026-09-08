@@ -8,8 +8,7 @@ import pytest
 from google.genai import types
 
 from lumibot.components.agents import managed_gateway as managed_gateway_module
-from lumibot.components.agents.managed_gateway import BotSpotManagedLlm
-from lumibot.components.agents.managed_gateway import ManagedAiGatewayError
+from lumibot.components.agents.managed_gateway import BotSpotManagedLlm, ManagedAiGatewayError
 
 
 def _request():
@@ -90,6 +89,79 @@ def test_managed_gateway_maps_adk_request_and_response():
     assert responses[0].content.parts[0].text == "Checking."
     assert responses[0].content.parts[1].function_call.name == "get_price"
     assert responses[0].usage_metadata.prompt_token_count == 10
+
+
+def test_managed_family_pins_exact_model_across_native_tool_continuations():
+    calls = []
+
+    def post(url, token, payload):
+        calls.append(payload)
+        return 200, {"resolvedModel": "gemini-3.5-flash-lite", "model": "vendor-version-001",
+                     "parts": [{"type": "function_call", "name": "get_price", "id": "call-1",
+                                "arguments": {"symbol": "SPY"}}]}
+
+    model = BotSpotManagedLlm(model="google/gemini-flash-lite", gateway_url="https://gateway.example.test",
+                             access_token="fixture-capability", post=post)
+
+    async def run():
+        request = _request()
+        first = [item async for item in model.generate_content_async(request)]
+        request.contents.extend([first[0].content, types.Content(role="user", parts=[types.Part(
+            function_response=types.FunctionResponse(id="call-1", name="get_price", response={"price": 100}))])])
+        return [item async for item in model.generate_content_async(request)]
+
+    asyncio.run(run())
+    assert [call["model"] for call in calls] == ["google/gemini-flash-lite", "gemini-3.5-flash-lite"]
+    assert calls[1]["messages"][-1]["parts"][0]["id"] == "call-1"
+
+
+@pytest.mark.parametrize("resolved", ["openai/gpt-5.6-luna", "gemini-3.8-flash", "google/gemini-pro", 123])
+def test_managed_gateway_rejects_changed_or_invalid_exact_model_resolution(resolved):
+    model = BotSpotManagedLlm(model="gemini-3.5-flash-lite", gateway_url="https://gateway.example.test",
+                             access_token="fixture-capability", post=lambda *_: (200, {
+                                 "resolvedModel": resolved, "parts": [{"type": "text", "text": "done"}]}))
+
+    async def run():
+        return [item async for item in model.generate_content_async(_request())]
+
+    with pytest.raises(ManagedAiGatewayError, match="model resolution"):
+        asyncio.run(run())
+
+
+@pytest.mark.parametrize("second_resolution", [None, "gemini-3.8-flash"])
+def test_managed_family_rejects_resolution_loss_or_change_mid_decision(second_resolution):
+    resolutions = iter(["gemini-3.5-flash-lite", second_resolution])
+    model = BotSpotManagedLlm(model="google/gemini-flash-lite", gateway_url="https://gateway.example.test",
+                             access_token="fixture-capability", post=lambda *_: (200, {
+                                 "resolvedModel": next(resolutions), "parts": [{"type": "text", "text": "done"}]}))
+
+    async def run():
+        for _ in range(2):
+            _ = [item async for item in model.generate_content_async(_request())]
+
+    with pytest.raises(ManagedAiGatewayError, match="model resolution"):
+        asyncio.run(run())
+
+
+def test_concurrent_family_requests_resolve_only_once():
+    calls = []
+
+    def post(url, token, payload):
+        calls.append(payload["model"])
+        return 200, {"resolvedModel": "gemini-3.5-flash-lite", "parts": [{"type": "text", "text": "done"}]}
+
+    model = BotSpotManagedLlm(model="google/gemini-flash-lite", gateway_url="https://gateway.example.test",
+                             access_token="fixture-capability", post=post)
+
+    async def call():
+        return [item async for item in model.generate_content_async(_request())]
+
+    async def run():
+        await asyncio.gather(call(), call(), call())
+
+    asyncio.run(run())
+    assert calls.count("google/gemini-flash-lite") == 1
+    assert calls.count("gemini-3.5-flash-lite") == 2
 
 
 def test_managed_gateway_preserves_structured_sequential_tool_history():

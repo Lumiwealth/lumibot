@@ -10,6 +10,8 @@
 - Corrected README and package license labels to match the existing GPLv3 LICENSE file; the license text is unchanged.
 
 ### Fixed
+- **Indicator timeframes do not silently substitute a different cached series.**
+  A request for minute data cannot reuse and relabel a daily store entry.
 - **Agent eval spending survives tool continuations, errors and process resumes.**
   Durable reservations precede each actor/judge call, unknown usage retains its
   reserved cost, and budgeted native Gemini requests disable hidden SDK retries.

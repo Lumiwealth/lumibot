@@ -104,6 +104,27 @@ def test_missing_warmup_is_json_null_not_zero_or_nan():
     json.dumps(result, allow_nan=False)
 
 
+def test_batch_does_not_relabel_daily_store_as_minute_data():
+    strategy, asset, frame, _ = make_strategy()
+    stored = strategy.broker.data_source._data_store[(asset, None)]
+    stored.timestep = "day"
+    minute_frame = frame.copy()
+    minute_frame["close"] = [100, 200, 300]
+    queries = []
+
+    def history(asset, *, length, timestep):
+        queries.append(timestep)
+        return SimpleNamespace(df=minute_frame)
+
+    strategy.get_historical_prices = history
+    result = _bind_get_indicators(strategy, None).function("SPY", requests_json=json.dumps([
+        {"id": "daily", "indicator": "sma", "timestep": "day", "parameters": {"length": 2}},
+        {"id": "minute", "indicator": "sma", "timestep": "minute", "parameters": {"length": 2}},
+    ]))
+    assert [row["value"] for row in result["results"]] == [15, 150]
+    assert queries == ["minute"]
+
+
 def test_parameterized_batch_preserves_ids_and_per_item_failures():
     strategy, _, _, _ = make_strategy()
     tool = _bind_get_indicators(strategy, None).function

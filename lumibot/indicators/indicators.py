@@ -256,6 +256,14 @@ class Indicators:
 
     def _find_in_store(self, data_source, asset, timestep=None):
         store = data_source._data_store
+
+        def matches_timeframe(data):
+            stored_timestep = getattr(data, "timestep", None)
+            # Older/custom stores can omit timeframe metadata. When it is
+            # present, never relabel daily bars as intraday (or vice versa).
+            # Resampling belongs to the selected data source's history method.
+            return stored_timestep is None or timestep is None or stored_timestep == timestep
+
         if hasattr(data_source, "find_asset_in_data_store"):
             for ts_arg in (timestep, None):
                 try:
@@ -271,11 +279,11 @@ class Indicators:
                         key = None
                 except Exception:
                     key = None
-                if key is not None and key in store:
+                if key is not None and key in store and matches_timeframe(store[key]):
                     return store[key]
         for stored_key, data in store.items():
             stored_asset = stored_key[0] if isinstance(stored_key, tuple) else stored_key
-            if stored_asset == asset:
+            if stored_asset == asset and matches_timeframe(data):
                 return data
         return None
 

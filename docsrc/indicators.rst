@@ -117,6 +117,11 @@ contract. This accessor does not infer an exchange session close from a daily
 date label. Restricting future rows alone must not be treated as proof that a
 provider's current bar is complete.
 
+When a cached series declares its timestep, it must match the requested timestep.
+Missing intraday data cannot silently use daily bars. Requests for another
+timeframe use the data source's historical-price method, including its resampling
+and availability rules.
+
 API reference
 -------------
 

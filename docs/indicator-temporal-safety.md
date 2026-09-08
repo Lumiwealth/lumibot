@@ -23,6 +23,10 @@ timeframes. The published list-of-names interface is retained for existing
 strategies. Invalid envelopes fail before calculations; individual calculation
 failures remain explicit in otherwise useful batches.
 
+Stored timeframe metadata must match the request. A missing minute series cannot
+reuse a daily store entry and label it as minute output; the history request must
+go through the data source for its requested timeframe or remain unavailable.
+
 Remaining qualification: adapter-specific completed bars (including daily date
 labels, sessions and timezones), independently calculated multi-indicator values,
 real-model reasoning, and performance on long observed histories. Do not infer

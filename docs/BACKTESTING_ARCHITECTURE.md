@@ -15,6 +15,11 @@
 
 ## Overview
 
+Technical indicator calculations restrict input to strategy-time history before
+computing, rather than trimming a result calculated over future bars. See
+[indicator temporal safety](indicator-temporal-safety.md) for the regression,
+cache contract and the separate adapter bar-completion qualification boundary.
+
 LumiBot is a trading and backtesting framework. This document focuses on the **backtesting architecture**, specifically how data flows from external sources (Yahoo, ThetaData, IBKR Client Portal REST, Polygon) into the backtesting engine.
 
 **CORE PRINCIPLE: Backtesting must mimic live broker behavior.**

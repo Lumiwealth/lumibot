@@ -31,8 +31,9 @@ fingerprint.
 - New or materially changed cases must preserve an honest failing baseline, then
   pass three consecutive targeted repetitions.
 - A case passes the release gate only when every required repetition passes.
-- The runner appends one durable ledger row after every repetition and supports
-  resuming only missing or failed work.
+- The runner reserves budget in a durable per-model-call ledger before every
+  actor, judge, continuation and outer retry. It also records each repetition
+  and resumes only missing or failed work.
 
 ## Initial Catalog
 
@@ -68,7 +69,6 @@ Run one changed case three times:
 python scripts/run_agent_evals.py \
   --case-id options_credit_spread_close_signed_quantities \
   --repeat 3 \
-  --force \
   --max-cost-usd 2
 ```
 
@@ -80,10 +80,31 @@ model pricing, artifacts, or the requested total cost budget are invalid.
 Each run writes:
 
 - append-only `ledger.jsonl` with one fsynced record per repetition;
-- incremental `summary.json` with pass, fail, missing, skipped, and resumed counts;
+- append-only `model_calls.jsonl` with fsynced reservations and settlements;
+- incremental `progress.json` after each repetition and terminal `summary.json`;
 - model, judge, token, timing, and estimated-cost totals;
 - fixture versus real external-write classification;
 - case and runtime fingerprints used by the freshness gate.
+
+The call ledger owns the cap across process resumes and concurrent workers.
+Unknown usage (including timeout or process death) retains the entire reserved
+maximum; resuming cannot treat it as free. A corrupt ledger or changed cap/pricing
+fails closed. An older run without a call ledger cannot safely resume inference
+until its spending is reconciled. Do not start a new output directory to reset
+an approved release-attempt cap. CI and local qualification must carry the same
+attempt ledger or an explicitly reconciled remaining allocation.
+
+Budgeted native Gemini requests disable SDK-level retries; any outer retry gets
+a new reservation. The optional budget does not change ordinary agent runs or
+provider account limits. No prompt or credential is written to the call ledger.
+Cost with unsettled calls is a conservative committed amount, not a claim of
+provider-settled billing. Native model context/output limits bound reservations.
+
+Fingerprints include indicator and broker code plus installed ADK, GenAI,
+LiteLLM, pandas-ta, pandas, NumPy and Alpaca SDK versions. Compatible passes retain
+their original timestamp rather than being renewed when an unchanged gate skips
+them. The current shared fingerprint is conservative: a shared dependency change
+can invalidate more than one case.
 
 Do not commit API keys, prompts containing secrets, or customer data in eval
 cases or artifacts.

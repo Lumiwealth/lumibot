@@ -2372,6 +2372,8 @@ def _bind_modify_order(strategy: Any, manager: Any) -> BoundTool:
 
 
 def _jsonable(value: Any) -> Any:
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
     if isinstance(value, (datetime, date)):
@@ -2402,7 +2404,8 @@ def _bind_list_indicators(strategy: Any, manager: Any) -> BoundTool:
             "common_indicators": COMMON_INDICATORS,
             "notes": (
                 "Use get_indicator for one current-bar indicator value. "
-                "Lumibot slices indicator outputs to the current strategy datetime, so backtests do not see future bars."
+                "LumiBot restricts calculation input to strategy time and rejects noncausal parameters. "
+                "Bar completion and timestamps follow the selected data source."
             ),
         }
 
@@ -2481,22 +2484,57 @@ def _bind_get_indicator(strategy: Any, manager: Any) -> BoundTool:
 def _bind_get_indicators(strategy: Any, manager: Any) -> BoundTool:
     def get_indicators(
         symbol: str,
-        indicators: list[str],
+        indicators: list[str] | None = None,
         timestep: str = "day",
         asset_type: AssetTypeArg = "stock",
+        requests_json: str | None = None,
     ) -> dict[str, Any]:
+        # Keep the published list-of-names call compatible while giving each
+        # parameterized request an unambiguous result identity. Validate the
+        # whole envelope before doing any data work; isolate calculation errors.
+        if requests_json is not None:
+            if indicators is not None:
+                raise ValueError("Use either indicators or requests_json, not both.")
+            requests = json.loads(requests_json)
+        else:
+            requests = [{"id": str(i), "indicator": name} for i, name in enumerate(indicators or [])]
+        if not isinstance(requests, list) or not 1 <= len(requests) <= 50:
+            raise ValueError("An indicator batch must contain between 1 and 50 requests.")
+        seen = set()
+        for item in requests:
+            if not isinstance(item, dict) or set(item) - {"id", "indicator", "timestep", "parameters"}:
+                raise ValueError("Each request supports only id, indicator, timestep and parameters.")
+            result_id = _require_non_empty_text("id", item.get("id"))
+            if result_id in seen:
+                raise ValueError("Indicator request ids must be unique.")
+            seen.add(result_id)
+            _require_non_empty_text("indicator", item.get("indicator"))
+            _require_non_empty_text("timestep", item.get("timestep", timestep))
+            if not isinstance(item.get("parameters", {}), dict):
+                raise ValueError("Indicator parameters must be an object.")
         results = []
         single = _bind_get_indicator(strategy, manager).function
-        for name in indicators:
+        for item in requests:
             try:
-                results.append(single(symbol=symbol, indicator=name, timestep=timestep, asset_type=asset_type))
+                result = single(
+                    symbol=symbol, indicator=item["indicator"],
+                    timestep=item.get("timestep", timestep), asset_type=asset_type,
+                    parameters_json=json.dumps(item.get("parameters", {})),
+                )
             except Exception as exc:
-                results.append({"ok": False, "indicator": name, "error": str(exc)})
-        return {"ok": True, "symbol": symbol.upper(), "results": results}
+                result = {"ok": False, "indicator": item["indicator"], "tool_error": True, "error": str(exc)}
+            results.append({"id": item["id"], **result})
+        return {"ok": True, "symbol": symbol.upper(), "complete": all(r["ok"] for r in results), "results": results}
 
     return BoundTool(
         name="get_indicators",
-        description="Get multiple current-bar technical indicators for one symbol. Pass indicators=['rsi', 'macd', 'bbands', ...].",
+        description=(
+            "Get up to 50 indicators for one symbol. Use requests_json for independent parameters/timeframes, "
+            'e.g. [{"id":"sma50","indicator":"sma","timestep":"day","parameters":{"length":50}},'
+            '{"id":"sma200","indicator":"sma","parameters":{"length":200}}]. '
+            "Each result retains its id and errors do not hide other results. "
+            "Alternatively use indicators=['rsi', 'macd', 'bbands'] for default parameters."
+        ),
         function=get_indicators,
         source="builtin",
         metadata={"kind": "indicator"},

@@ -479,6 +479,9 @@ class RuntimeRequest:
     model_request_timeout_seconds: float | None = None
     run_timeout_seconds: float | None = None
     max_output_tokens: int | None = None
+    # Optional caller-owned budget (release evals). No provider credentials or
+    # account caps are modified. Each continuation gets a separate reservation.
+    model_call_budget: Any | None = None
 
 
 _LITELLM_CONFIGURED = False
@@ -1198,6 +1201,40 @@ class GoogleADKRuntime:
 
         return _callback
 
+    def _model_callbacks(self, request: RuntimeRequest):
+        pruning = self._before_model_context_pruning_callback(request)
+        budget = request.model_call_budget
+        if budget is None:
+            return pruning, None
+        if not _is_native_gemini_model(request.model):
+            raise ValueError("Per-call eval budgeting currently requires a priced native Gemini model.")
+        from .managed_gateway import managed_gateway_available_for
+        if managed_gateway_available_for(request.model):
+            raise ValueError("Budgeted native Gemini evals cannot use a managed gateway pricing route.")
+        ticket = None
+
+        def before(*args, **kwargs):
+            nonlocal ticket
+            if pruning is not None:
+                pruning(*args, **kwargs)
+            # An earlier request without usage remains reserved in the durable
+            # ledger. A retry/continuation cannot spend that reservation again.
+            ticket = budget.reserve(request.model, request.max_output_tokens or 65535)
+
+        def after(*args, llm_response=None, **kwargs):
+            nonlocal ticket
+            if llm_response is None and len(args) >= 2:
+                llm_response = args[1]
+            if getattr(llm_response, "partial", False):
+                return None
+            usage = _coerce_usage_metadata(getattr(llm_response, "usage_metadata", None))
+            if ticket is not None and usage:
+                budget.settle(ticket, usage)
+                ticket = None
+            return None
+
+        return before, after
+
     def _after_tool_context_pruning_callback(self, request: RuntimeRequest):
         if _model_context_limit_tokens(request.model) is None:
             return None
@@ -1346,6 +1383,7 @@ class GoogleADKRuntime:
         except Exception:
             pass
         planner = self._maybe_build_gemini_thinking_planner(request.model, genai_types)
+        before_model, after_model = self._model_callbacks(request)
         agent = LlmAgentType(
             name=request.agent_name,
             model=_resolve_model_for_adk(
@@ -1357,7 +1395,8 @@ class GoogleADKRuntime:
             tools=tools,
             generate_content_config=genai_types.GenerateContentConfig(**config_kwargs),
             planner=planner,
-            before_model_callback=self._before_model_context_pruning_callback(request),
+            before_model_callback=before_model,
+            after_model_callback=after_model,
             after_tool_callback=self._after_tool_context_pruning_callback(request),
         )
         runner = InMemoryRunnerType(agent=agent, app_name="lumibot-agents")
@@ -1472,6 +1511,14 @@ class GoogleADKRuntime:
             http_options_type = getattr(genai_types, "HttpOptions", None)
             if http_options_type is not None:
                 config_kwargs["http_options"] = http_options_type(timeout=timeout_millis)
+        if request.model_call_budget is not None:
+            if not _is_native_gemini_model(request.model):
+                raise ValueError("Per-call eval budgeting requires native Gemini.")
+            options = config_kwargs.get("http_options") or genai_types.HttpOptions()
+            # SDK retries happen below ADK callbacks. Disable them for budgeted
+            # runs; outer retries pass through the reservation callback again.
+            options.retry_options = genai_types.HttpRetryOptions(attempts=1)
+            config_kwargs["http_options"] = options
         return config_kwargs
 
     @staticmethod

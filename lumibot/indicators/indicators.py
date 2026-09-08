@@ -13,37 +13,17 @@ Usage inside a Strategy::
         "my_signal", my_signal_fn, asset, timestep="day", length=50,
     )
 
-Behavior
---------
-- The first call for a given ``(asset, timestep, indicator_name, kwargs)`` runs
-  the indicator over the **full known bar series** for that asset and
-  memoizes the result on the ``Indicators`` instance.
-- Every subsequent call with the same key returns the value at the current
-  strategy datetime in O(1) (constant-time pandas slice + iloc).
-- The memo lives on the strategy's ``self.indicators`` and dies with the
-  strategy instance. No disk cache, no cross-run persistence.
-
-Why
----
-Traditional strategies call something like::
-
-    df = bars.df.copy()
-    df["sma"] = df["close"].rolling(200).mean()
-    df["rsi"] = df["close"].rolling(14).apply(my_rsi)
-    latest = df.iloc[-1]
-
-That recomputes the full indicator over the full lookback every iteration
-(O(N * W) total, where N is iteration count and W is window length). For a
-13-year daily backtest with a 300-bar lookback that is ~1M redundant ops.
-
-Computing the indicator **once** over the whole series and then indexing by
-current datetime collapses that to O(N + W) total — the exact speedup users
-are missing when they hand-roll indicator code inside ``on_trading_iteration``.
+Only rows at or before the strategy datetime enter a calculation. Results are
+memoized for identical observed input and parameters, not for the whole future
+backtest dataset. Negative offsets and explicitly noncausal parameters fail
+visibly. Source adapters retain ownership of bar timestamp/completion semantics.
 """
+
 from __future__ import annotations
 
+import hashlib
 import logging
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 import numpy as np
 import pandas as pd
@@ -127,9 +107,8 @@ class Indicators:
 
         _call.__name__ = f"indicators.{name}"
         _call.__doc__ = (
-            f"Precomputed pandas-ta-classic ``{name}`` indicator for the given "
-            f"asset+timestep. First call runs the full-history compute; every "
-            f"subsequent call is an O(1) lookup at the current strategy bar."
+            f"As-of pandas-ta-classic ``{name}`` indicator for the given "
+            f"asset+timestep. Identical observed input reuses the cached result."
         )
         return _call
 
@@ -150,7 +129,7 @@ class Indicators:
             indicator a stable label so repeat calls hit the memo.
         fn : callable
             ``fn(df, **kwargs) -> pandas.Series | pandas.DataFrame``.
-            Function to run once over the full history DataFrame.
+            Function to run over a copy of history available as of strategy time.
         asset : Asset
             Underlying asset.
         timestep : str
@@ -159,9 +138,7 @@ class Indicators:
             Forwarded to ``fn`` and included in the cache key.
         """
         if not callable(fn):
-            raise TypeError(
-                f"custom indicator fn must be callable, got {type(fn).__name__}"
-            )
+            raise TypeError(f"custom indicator fn must be callable, got {type(fn).__name__}")
         return self._dispatch(asset, timestep, name, kwargs, custom_fn=fn)
 
     def invalidate(self, asset=None) -> None:
@@ -184,16 +161,41 @@ class Indicators:
         return len(self._cache)
 
     def _dispatch(self, asset, timestep, name, kwargs, custom_fn):
+        self._validate_causal_parameters(kwargs)
         key = self._cache_key(asset, timestep, name, kwargs)
         df = self._full_history(asset, timestep)
         if df is None or df.empty:
             return None
-        data_tag = (len(df), df.index[-1])
+        if not isinstance(df.index, pd.DatetimeIndex) or not df.index.is_monotonic_increasing or not df.index.is_unique:
+            raise ValueError("Indicator history requires a unique, increasing DatetimeIndex.")
+        # Slicing OUTPUT cannot make an arbitrary calculation causal: negative
+        # shifts, centered windows and custom functions can use later rows.
+        # Copy also prevents a custom function from mutating the provider cache.
+        now = self._strategy.get_datetime()
+        end = self._position_at(df.index, now) + 1
+        df = df.iloc[:end].copy()
+        if df.empty:
+            return None
+        digest = hashlib.sha256(pd.util.hash_pandas_object(df, index=True).values.tobytes()).hexdigest()
+        data_tag = (tuple(df.columns), digest, custom_fn)
         cached = self._cache.get(key)
         if cached is None or cached[0] != data_tag:
             result = self._compute(df, name, kwargs, custom_fn)
             self._cache[key] = (data_tag, result)
         return self._at_current_bar(self._cache[key][1])
+
+    @staticmethod
+    def _validate_causal_parameters(kwargs):
+        offset = kwargs.get("offset", 0)
+        if offset is not None:
+            try:
+                valid_offset = np.isfinite(float(offset)) and float(offset) >= 0 and float(offset).is_integer()
+            except (TypeError, ValueError, OverflowError):
+                valid_offset = False
+            if not valid_offset:
+                raise ValueError("Only causal indicators are supported: offset must be a nonnegative integer.")
+        if kwargs.get("center") or kwargs.get("lookahead"):
+            raise ValueError("Only causal indicators are supported: center and lookahead must be false.")
 
     def _asset_key(self, asset):
         if hasattr(asset, "symbol"):
@@ -210,12 +212,11 @@ class Indicators:
                 kw_items.append((k, repr(v)))
         return (self._asset_key(asset), timestep, name, tuple(kw_items))
 
-    def _full_history(self, asset, timestep) -> Optional[pd.DataFrame]:
+    def _full_history(self, asset, timestep) -> pd.DataFrame | None:
         """Return the full known bar series DataFrame for ``asset``.
 
-        In backtest mode (PANDAS-style data source) this returns the entire
-        simulated dataset — the indicator output is sliced to current-bar
-        in ``_at_current_bar``, so the strategy never sees future values.
+        In backtest mode this may contain the entire simulated dataset.
+        ``_dispatch`` restricts the INPUT before computing, never just output.
 
         In routed/live modes ``_data_store`` is populated lazily. If it is
         empty we call ``get_historical_prices`` with a large length to force
@@ -229,9 +230,7 @@ class Indicators:
             return df
 
         try:
-            bars = self._strategy.get_historical_prices(
-                asset, length=self._fallback_length, timestep=timestep
-            )
+            bars = self._strategy.get_historical_prices(asset, length=self._fallback_length, timestep=timestep)
         except Exception as exc:
             logger.debug("indicators: get_historical_prices fallback failed for %s: %s", asset, exc)
             bars = None
@@ -244,7 +243,7 @@ class Indicators:
             return None
         return getattr(bars, "df", None)
 
-    def _read_store_df(self, data_source, asset, timestep) -> Optional[pd.DataFrame]:
+    def _read_store_df(self, data_source, asset, timestep) -> pd.DataFrame | None:
         if data_source is None or getattr(data_source, "_data_store", None) is None:
             return None
         data_obj = self._find_in_store(data_source, asset, timestep)
@@ -260,7 +259,11 @@ class Indicators:
         if hasattr(data_source, "find_asset_in_data_store"):
             for ts_arg in (timestep, None):
                 try:
-                    key = data_source.find_asset_in_data_store(asset, timestep=ts_arg) if ts_arg else data_source.find_asset_in_data_store(asset)
+                    key = (
+                        data_source.find_asset_in_data_store(asset, timestep=ts_arg)
+                        if ts_arg
+                        else data_source.find_asset_in_data_store(asset)
+                    )
                 except TypeError:
                     try:
                         key = data_source.find_asset_in_data_store(asset)
@@ -286,6 +289,10 @@ class Indicators:
             if col in df.columns:
                 call_args[col] = df[col]
         call_args.update(kwargs)
+        # These pandas-ta indicators otherwise enable noncausal components by
+        # default. An explicit true is rejected before reaching this boundary.
+        if name in {"dpo", "ichimoku"}:
+            call_args["lookahead"] = False
         return fn(**call_args)
 
     def _at_current_bar(self, result):

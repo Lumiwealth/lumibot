@@ -169,9 +169,37 @@ Indicator tools expose LumiBot's indicator system to agents:
 - ``get_indicator``
 - ``get_indicators``
 
-In backtests, indicators are evaluated against the visible historical data and
-return the value at or before the current strategy datetime. This prevents the
-agent from seeing a future indicator value.
+Indicator input is restricted to rows at or before strategy time, not just the
+returned value. Noncausal parameters are rejected. Completion of a timestamped
+bar follows the selected data source's contract; see :doc:`indicators`.
+
+Use ``get_indicators`` with ``requests_json`` for independent parameters and
+timeframes. Each of up to 50 requests needs a unique ``id`` and ``indicator``;
+optional ``parameters`` is an object and ``timestep`` overrides the batch default::
+
+    get_indicators(symbol="SPY", requests_json='[
+      {"id":"sma50","indicator":"sma","parameters":{"length":50}},
+      {"id":"sma200","indicator":"sma","parameters":{"length":200}},
+      {"id":"minute_rsi","indicator":"rsi","timestep":"minute","parameters":{"length":14}}
+    ]')
+
+Results retain their request IDs. A failed calculation does not hide other
+results; ``complete=false`` means at least one request failed. The original
+``indicators=["rsi", "macd"]`` interface remains supported for default parameters.
+Do not combine ``indicators`` and ``requests_json`` in one call.
+
+Testing and eval costs
+---------------------
+
+The source release eval runner uses a durable, per-model-call spending ledger.
+Actor calls, judge calls and continuations reserve their maximum cost before
+inference. Missing usage after a failure retains its reservation across resumes;
+it is not counted as a free call. This opt-in release-test policy does not alter
+ordinary strategy execution or impose a new provider account limit.
+
+Freshness remains 90 days for compatible evidence. Runtime, indicator, broker
+and installed SDK changes invalidate the relevant shared fingerprint. See the
+repository's ``docs/AGENT_EVALS.md`` for the ledger and resume contract.
 
 SEC Fundamentals And Filings
 ----------------------------

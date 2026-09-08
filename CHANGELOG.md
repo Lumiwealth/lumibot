@@ -10,6 +10,11 @@
 - Corrected README and package license labels to match the existing GPLv3 LICENSE file; the license text is unchanged.
 
 ### Fixed
+- **Agent eval spending survives tool continuations, errors and process resumes.**
+  Durable reservations precede each actor/judge call, unknown usage retains its
+  reserved cost, and budgeted native Gemini requests disable hidden SDK retries.
+  Freshness now includes indicator/broker code and installed SDK versions without
+  renewing the timestamps of unchanged skipped passes.
 - IBKR history diagnostics retain structured downloader causes and distinguish
   data sources and requested windows. A failed fetch is no longer overwritten
   or double-counted as an empty payload. Diagnostics do not fail a backtest.

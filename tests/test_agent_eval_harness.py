@@ -334,10 +334,12 @@ def test_eval_cost_uses_official_cached_and_uncached_rates():
     assert cost["price_source_url"].startswith("https://cloud.google.com/")
 
 
-def test_eval_batch_reservations_never_exceed_the_hard_spend_budget():
+def test_eval_initial_worker_admission_does_not_overcommit_initial_calls():
     case = evals.load_cases({"stock_price_before_order"})[0]
     work = [(case, repetition, "fingerprint") for repetition in range(1, 4)]
-    per_repetition = evals.maximum_repetition_cost_usd(case, evals.DEFAULT_JUDGE_MODEL)
+    # This admits workers, not whole tool loops. Per-call ledger tests enforce
+    # the actual cap before each continuation and across process resumes.
+    per_repetition = evals.initial_repetition_reservation_usd(case, evals.DEFAULT_JUDGE_MODEL)
 
     batch, remaining = evals.reserve_budget_batch(
         work,
@@ -349,6 +351,37 @@ def test_eval_batch_reservations_never_exceed_the_hard_spend_budget():
     assert len(batch) == 2
     assert len(remaining) == 1
     assert sum(item[3] for item in batch) <= (per_repetition * 2) + (per_repetition / 2)
+
+
+def test_runtime_fingerprint_includes_indicators_broker_and_installed_sdks(monkeypatch):
+    seen = []
+    monkeypatch.setattr(evals, "sha256_files", lambda paths: seen.extend(paths) or "source")
+    monkeypatch.setattr(evals.importlib.metadata, "version", lambda package: "first")
+    first = evals.runtime_fingerprint()
+    monkeypatch.setattr(evals.importlib.metadata, "version", lambda package: "second")
+    assert evals.runtime_fingerprint() != first
+    assert evals.REPO_ROOT / "lumibot/indicators/indicators.py" in seen
+    assert evals.REPO_ROOT / "lumibot/brokers/broker.py" in seen
+    assert evals.REPO_ROOT / "scripts/agent_eval_call_budget.py" in seen
+
+
+def test_fresh_gate_preserves_original_pass_time_without_spending(tmp_path, monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "unused-synthetic-key")
+    case = evals.load_cases({"stock_price_before_order"})[0]
+    fingerprint = evals.case_fingerprint(case, judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash="runtime")
+    passed_at = evals.utc_text(evals.utc_now() - evals.timedelta(days=2))
+    state_path = tmp_path / "freshness.json"
+    evals.write_json_atomic(state_path, {"version": 1, "cases": {case["id"]: {
+        "fingerprint": fingerprint, "passed_at": passed_at, "consecutive_passes": 3,
+    }}})
+    monkeypatch.setattr(evals, "runtime_fingerprint", lambda: "runtime")
+    monkeypatch.setattr(sys, "argv", ["runner", "--gate", "--case-id", case["id"],
+        "--max-cost-usd", "4", "--freshness-state", str(state_path), "--output-root", str(tmp_path / "run")])
+    assert evals.main() == 0
+    assert evals.load_freshness(state_path)["cases"][case["id"]]["passed_at"] == passed_at
+    summary = json.loads((tmp_path / "run/summary.json").read_text())
+    assert summary["scheduled_repetitions"] == 0
+    assert summary["model_call_budget"]["committed_usd"] == 0
 
 
 def test_credit_spread_machine_contract_accepts_correct_signed_close():

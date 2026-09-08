@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import hashlib
+import importlib.metadata
 import json
 import os
 import re
@@ -33,7 +34,7 @@ MODEL_PRICES_PER_MILLION = {
     "gemini-3.5-flash-lite": {"input": 0.30, "cached_input": 0.03, "output": 2.50},
     "gemini-3.1-flash-lite": {"input": 0.25, "cached_input": 0.025, "output": 1.50},
 }
-MAX_INPUT_TOKENS_PER_MODEL_CALL = 1_000_000
+MAX_INPUT_TOKENS_PER_MODEL_CALL = 1_048_576
 ACTING_MAX_OUTPUT_TOKENS = 12_000
 JUDGE_MAX_OUTPUT_TOKENS = 1_000
 ORDER_TOOLS = {"orders_submit_order", "orders_submit_multileg"}
@@ -70,12 +71,23 @@ def runtime_fingerprint() -> str:
         REPO_ROOT / "lumibot/components/agents/skills.py",
         REPO_ROOT / "lumibot/components/agents/builtins.py",
         REPO_ROOT / "lumibot/components/agents/managed_gateway.py",
+        REPO_ROOT / "lumibot/indicators/indicators.py",
+        REPO_ROOT / "lumibot/brokers/broker.py",
+        REPO_ROOT / "lumibot/brokers/alpaca.py",
+        REPO_ROOT / "lumibot/strategies/strategy.py",
+        REPO_ROOT / "scripts/agent_eval_call_budget.py",
         REPO_ROOT / "agent_eval_fixtures/research_data.json",
         Path(__file__).resolve(),
     ]
     skills_root = REPO_ROOT / "lumibot/components/agents/skills"
     paths.extend(path for path in skills_root.rglob("*") if path.is_file())
-    return sha256_files(paths)
+    sdk_versions = {}
+    for package in ("google-adk", "google-genai", "litellm", "pandas-ta-classic", "pandas", "numpy", "alpaca-py"):
+        try:
+            sdk_versions[package] = importlib.metadata.version(package)
+        except importlib.metadata.PackageNotFoundError:
+            sdk_versions[package] = "missing"
+    return hashlib.sha256((sha256_files(paths) + stable_json(sdk_versions)).encode()).hexdigest()
 
 
 def load_cases(case_ids: set[str] | None = None) -> list[dict[str, Any]]:
@@ -164,8 +176,8 @@ def estimate_cost(model: str, usage: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
-def maximum_repetition_cost_usd(case: dict[str, Any], judge_model: str) -> float:
-    """Conservatively reserve one acting-model call plus its judge call."""
+def initial_repetition_reservation_usd(case: dict[str, Any], judge_model: str) -> float:
+    """Worker scheduling estimate, NOT an upper bound for a tool-loop repetition."""
     acting_model = str(case.get("model") or DEFAULT_ACTING_MODEL)
     acting_prices = MODEL_PRICES_PER_MILLION[acting_model]
     judge_prices = MODEL_PRICES_PER_MILLION[judge_model]
@@ -185,13 +197,13 @@ def reserve_budget_batch(
     remaining_budget: float,
     judge_model: str,
 ) -> tuple[list[tuple[dict[str, Any], int, str, float]], list[tuple[dict[str, Any], int, str]]]:
-    """Reserve worst-case cost before any parallel paid calls are launched."""
+    """Limit worker admission; the durable per-call ledger authorizes inference."""
     batch: list[tuple[dict[str, Any], int, str, float]] = []
     remaining = list(pending)
     reserved = 0.0
     while remaining and len(batch) < max_workers:
         case, repetition, fingerprint = remaining[0]
-        reservation = maximum_repetition_cost_usd(case, judge_model)
+        reservation = initial_repetition_reservation_usd(case, judge_model)
         if reserved + reservation > remaining_budget:
             break
         remaining.pop(0)
@@ -1132,7 +1144,7 @@ def parse_judge_json(text: str) -> dict[str, Any]:
     return {"pass": value["pass"], "reason": str(value.get("reason") or "")}
 
 
-def run_judge(case: dict[str, Any], transcript: dict[str, Any], judge_model: str) -> tuple[dict[str, Any], Any, float]:
+def run_judge(case: dict[str, Any], transcript: dict[str, Any], judge_model: str, budget: Any) -> tuple[dict[str, Any], Any, float]:
     from lumibot.components.agents.runtime import GoogleADKRuntime, RuntimeRequest
 
     prompt = (
@@ -1155,6 +1167,7 @@ def run_judge(case: dict[str, Any], transcript: dict[str, Any], judge_model: str
         model_request_timeout_seconds=180,
         run_timeout_seconds=300,
         max_output_tokens=1000,
+        model_call_budget=budget,
     )
     started = time.perf_counter()
     result = GoogleADKRuntime().run(request)
@@ -1185,6 +1198,7 @@ def execute_repetition(
     repetition: int,
     fingerprint: str,
     judge_model: str,
+    budget: Any,
 ) -> dict[str, Any]:
     from lumibot.components.agents.runtime import GoogleADKRuntime, RuntimeRequest
     from lumibot.components.agents.skills import builtin_skill_fingerprint
@@ -1216,6 +1230,7 @@ def execute_repetition(
         model_request_timeout_seconds=240,
         run_timeout_seconds=600,
         max_output_tokens=12000,
+        model_call_budget=budget.for_scope(case["id"], repetition, "acting"),
     )
     setup_seconds = time.perf_counter() - setup_started
     model_started = time.perf_counter()
@@ -1223,7 +1238,8 @@ def execute_repetition(
     model_seconds = time.perf_counter() - model_started
     transcript = compact_transcript(result, fixture)
     machine = score_machine_contract(case, transcript)
-    judge, judge_result, judge_seconds = run_judge(case, transcript, judge_model)
+    judge, judge_result, judge_seconds = run_judge(
+        case, transcript, judge_model, budget.for_scope(case["id"], repetition, "judge"))
     acting_cost = estimate_cost(request.model, result.usage)
     judge_cost = estimate_cost(judge_model, judge_result.usage)
     passed = bool(machine["pass"] and judge["pass"])
@@ -1394,6 +1410,15 @@ def main() -> int:
     ledger_path = output_root / "ledger.jsonl"
     summary_path = output_root / "summary.json"
     existing_rows = read_jsonl(ledger_path)
+    from scripts.agent_eval_call_budget import EvalCallBudget
+
+    call_ledger_path = output_root / "model_calls.jsonl"
+    if existing_rows and not call_ledger_path.exists():
+        raise RuntimeError("This old run has no per-call spending ledger; reconcile its spending before resuming inference.")
+    budget = EvalCallBudget(
+        call_ledger_path, cap_usd=args.max_cost_usd, prices=MODEL_PRICES_PER_MILLION,
+        max_input_tokens=MAX_INPUT_TOKENS_PER_MODEL_CALL,
+    )
     state = load_freshness(args.freshness_state)
     fingerprints = {
         case["id"]: case_fingerprint(case, judge_model=args.judge_model, runtime_hash=runtime_hash) for case in cases
@@ -1412,7 +1437,8 @@ def main() -> int:
 
     run_started = time.perf_counter()
     new_rows: list[dict[str, Any]] = []
-    estimated_total = 0.0
+    prior_committed = budget.committed_usd
+    estimated_total = prior_committed
     pending = list(work)
     while pending:
         remaining_budget = args.max_cost_usd - estimated_total
@@ -1435,6 +1461,7 @@ def main() -> int:
                     repetition=repetition,
                     fingerprint=fingerprint,
                     judge_model=args.judge_model,
+                    budget=budget,
                 ): (case["id"], repetition, reservation)
                 for case, repetition, fingerprint, reservation in batch
             }
@@ -1450,18 +1477,21 @@ def main() -> int:
                         "repetition": repetition,
                         "fingerprint": fingerprints[case_id],
                         "status": "error",
-                        "error": f"{type(exc).__name__}: {exc}",
+                        # Provider errors can contain request material. Detailed
+                        # cost survives separately without persisting secrets.
+                        "error": type(exc).__name__,
                         "external_writes": "fixture_only",
                     }
                 append_jsonl(ledger_path, row)
                 new_rows.append(row)
-                actual_estimate = float((row.get("usage") or {}).get("estimated_cost_usd") or 0)
-                if actual_estimate > reservation:
-                    raise RuntimeError(
-                        f"Eval estimate exceeded its reservation for {case_id}: "
-                        f"{actual_estimate:.6f} > {reservation:.6f}"
-                    )
-                estimated_total += actual_estimate
+                # Batch estimates schedule workers, but only the shared durable
+                # per-call ledger authorizes spend, including failed/retried
+                # calls and every actor/judge continuation.
+                estimated_total = budget.committed_usd
+                write_json_atomic(output_root / "progress.json", {
+                    "completed_repetitions": len(new_rows), "remaining_repetitions": len(work) - len(new_rows),
+                    "budget": budget.snapshot(), "ledger_path": str(ledger_path),
+                })
         if estimated_total > args.max_cost_usd:
             break
 
@@ -1470,10 +1500,11 @@ def main() -> int:
     for case in cases:
         case_id = case["id"]
         fingerprint = fingerprints[case_id]
-        if consecutive_pass_count(all_rows, case_id, fingerprint) >= REQUIRED_CONSECUTIVE_PASSES:
+        case_rows = [row for row in new_rows if row.get("case_id") == case_id]
+        if case_rows and consecutive_pass_count(all_rows, case_id, fingerprint) >= REQUIRED_CONSECUTIVE_PASSES:
             state.setdefault("cases", {})[case_id] = {
                 "fingerprint": fingerprint,
-                "passed_at": utc_text(),
+                "passed_at": case_rows[-1]["timestamp"],
                 "consecutive_passes": REQUIRED_CONSECUTIVE_PASSES,
                 "acting_model": case.get("model") or DEFAULT_ACTING_MODEL,
                 "judge_model": args.judge_model,
@@ -1525,11 +1556,10 @@ def main() -> int:
         "models": sorted({str(case.get("model") or DEFAULT_ACTING_MODEL) for case in cases}),
         "judge_model": args.judge_model,
         "usage": usage_totals,
-        "incremental_estimated_cost_usd": round(estimated_total, 6),
-        "cumulative_estimated_cost_usd": round(
-            sum(float((row.get("usage") or {}).get("estimated_cost_usd") or 0) for row in all_rows),
-            6,
-        ),
+        "incremental_estimated_cost_usd": round(estimated_total - prior_committed, 6),
+        "cumulative_estimated_cost_usd": round(estimated_total, 6),
+        "model_call_budget": budget.snapshot(),
+        "model_call_ledger_path": str(call_ledger_path),
         "max_cost_usd": args.max_cost_usd,
         "fixture_external_writes": len(new_rows),
         "real_external_writes": 0,

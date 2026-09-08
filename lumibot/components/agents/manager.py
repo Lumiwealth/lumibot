@@ -2703,7 +2703,7 @@ class AgentManager:
         resolved_system_prompt = system_prompt or prompt or "You are a LumiBot trading agent."
         if model is not None and default_model is not None and model != default_model:
             raise ValueError("Pass either model or default_model, not both with different values.")
-        resolved_model = model or default_model or "gemini-3.1-flash-lite-preview"
+        resolved_model = model or default_model or "gemini-3.5-flash-lite"
         resolved_allow_trading = True if allow_trading is None else bool(allow_trading)
         handle = AgentHandle(
             manager=self,

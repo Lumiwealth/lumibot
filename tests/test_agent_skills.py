@@ -68,6 +68,13 @@ class _CaptureRuntime:
         )
 
 
+def test_default_agent_model_is_current_and_explicit_pins_are_preserved():
+    manager = AgentManager(_Strategy())
+    assert manager.create(name="default", _runtime=_CaptureRuntime()).default_model == "gemini-3.5-flash-lite"
+    assert manager.create(name="pinned", model="pinned-model", _runtime=_CaptureRuntime()).default_model == "pinned-model"
+    assert manager.create(name="family", model="google/gemini-pro", _runtime=_CaptureRuntime()).default_model == "google/gemini-pro"
+
+
 def test_builtin_agent_skills_are_packaged_and_loadable():
     directories = builtin_skill_directories()
     assert tuple(path.name for path in directories) == BUILTIN_SKILL_NAMES

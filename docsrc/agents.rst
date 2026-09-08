@@ -333,9 +333,9 @@ Most alternatives either put the LLM outside the backtest loop (QuantConnect), h
 
 LumiBot ships with first-class support for Gemini, OpenAI (GPT), xAI (Grok), Anthropic (Claude), and any other provider covered by LiteLLM (~100 providers). You pick the model per agent via the ``default_model`` parameter when creating your agent.
 
-Gemini ids (e.g. ``"gemini-3.1-flash-lite-preview"``) take Google ADK's native fast path. Anything else is automatically routed through LiteLLM using the provider-prefixed id format:
+Gemini ids (e.g. ``"gemini-3.5-flash-lite"``) take Google ADK's native fast path. Anything else is automatically routed through LiteLLM using the provider-prefixed id format:
 
-- Gemini: ``"gemini-3.1-flash-lite-preview"`` (default) -- requires ``GEMINI_API_KEY``
+- Gemini: ``"gemini-3.5-flash-lite"`` (default) -- requires ``GEMINI_API_KEY`` for native calls; managed calls use the configured gateway capability
 - OpenAI: ``"openai/gpt-5.4-mini"`` (good default), ``"openai/gpt-5.4"``, ``"openai/gpt-5.4-pro"``, ``"openai/gpt-5.4-nano"`` -- requires ``OPENAI_API_KEY``
 - xAI Grok: ``"xai/grok-4.20-0309-reasoning"`` (Grok 4.2, reasoning on, 2M ctx), ``"xai/grok-4-1-fast-reasoning-latest"`` (cheap/fast), or ``"xai/grok-4-latest"`` (older) -- requires ``XAI_API_KEY`` or ``GROK_API_KEY``
 - Anthropic Claude: ``"anthropic/claude-opus-4-7"``, ``"anthropic/claude-sonnet-4-6"`` -- requires ``ANTHROPIC_API_KEY``
@@ -476,7 +476,7 @@ Cost depends on the LLM provider and model, the number of bars in your backtest,
 
 **How can I reduce API costs?**
 
-Use the replay cache -- once a backtest is cached, subsequent runs are free. Use cost-effective models (e.g., ``gemini-3.1-flash-lite-preview``). Keep your backtest date range focused during development. Reduce the number of tool calls by making your tools return comprehensive data in a single call rather than requiring multiple round trips.
+Use the replay cache -- compatible cached decisions avoid another model call. Use cost-effective models (e.g., ``gemini-3.5-flash-lite``). Keep your backtest date range focused during development. Reduce the number of tool calls by making your tools return comprehensive data in a single call rather than requiring multiple round trips.
 
 **How does replay caching reduce costs?**
 
@@ -652,7 +652,7 @@ Use ``scripts/run_agent_prompt_cache_probe.py`` to verify provider-reported cach
 
 .. code-block:: bash
 
-    python scripts/run_agent_prompt_cache_probe.py --model gemini-3.1-flash-lite-preview
+    python scripts/run_agent_prompt_cache_probe.py --model gemini-3.5-flash-lite
     python scripts/run_agent_prompt_cache_probe.py --model openai/gpt-5.4-mini
 
 The probe bypasses LumiBot's replay cache, sends repeated calls with the same long static prefix, and prints input tokens, cached input tokens, uncached input tokens, output tokens, and latency for each call.
@@ -700,7 +700,7 @@ Complete runnable example:
             self.sleeptime = "1D"
             self.agents.create(
                 name="news_trader",
-                default_model=os.environ.get("AGENT_MODEL", "gemini-3.1-flash-lite-preview"),
+                default_model=os.environ.get("AGENT_MODEL", "gemini-3.5-flash-lite"),
                 system_prompt=(
                     "Use Alpaca news and market tools to decide whether to hold SPY, QQQ, or a defensive ETF. "
                     "First call alpaca_news with symbols='SPY,QQQ,DIA,IWM', include_content=False, and limit=30. "

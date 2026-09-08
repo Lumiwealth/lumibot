@@ -3,6 +3,9 @@
 ## 4.5.92 - Unreleased
 
 ### Changed
+- New agents without an explicit model use Gemini 3.5 Flash-Lite rather than
+  the retired preview default. Explicit model pins and managed families remain
+  unchanged; existing agent instances are not migrated during a decision.
 - Agent indicator queries accept independent, explicitly zoned historical
   windows. Bounds cannot exceed strategy time; missing warmup remains missing,
   and monthly or annual requests cannot borrow bars from another window.

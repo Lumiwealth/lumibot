@@ -732,6 +732,9 @@ def main() -> int:
     parser.add_argument("--output-root", type=Path, default=Path("artifacts/agent_evals"))
     parser.add_argument("--max-workers", type=int, default=3)
     parser.add_argument("--gate", action="store_true", help="Skip fresh cases and require complete fresh coverage")
+    parser.add_argument(
+        "--preflight-only", action="store_true", help="Validate fixtures and report freshness without inference"
+    )
     parser.add_argument("--force", action="store_true", help="Ignore freshness and existing passing repetitions")
     args = parser.parse_args()
     if args.repeat < REQUIRED_CONSECUTIVE_PASSES:
@@ -747,6 +750,31 @@ def main() -> int:
     preflight(cases, args.judge_model, args.max_cost_usd)
     preflight_production_fixtures(cases)
     runtime_hash = runtime_fingerprint()
+    if args.preflight_only:
+        state = load_freshness(args.freshness_state)
+        fresh = [
+            case["id"]
+            for case in cases
+            if is_fresh(
+                state,
+                case["id"],
+                case_fingerprint(case, judge_model=args.judge_model, runtime_hash=runtime_hash),
+                args.freshness_days,
+            )
+        ]
+        print(
+            json.dumps(
+                {
+                    "case_count": len(cases),
+                    "fresh_case_ids": fresh,
+                    "selected_case_count": len(cases) if args.force or not args.gate else len(cases) - len(fresh),
+                    "runtime_fingerprint": runtime_hash,
+                    "paid_calls": 0,
+                },
+                sort_keys=True,
+            )
+        )
+        return 0
     output_root = args.output_root.resolve()
     ledger_path = output_root / "ledger.jsonl"
     summary_path = output_root / "summary.json"

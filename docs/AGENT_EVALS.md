@@ -71,6 +71,16 @@ escalation that the repaired catalog protects against.
 
 ## Local Commands
 
+Validate schemas, actual tool bindings, MCP discovery and freshness without
+reserving budget or calling a model:
+
+```bash
+python scripts/run_agent_evals.py --preflight-only --gate --max-cost-usd 4
+```
+
+This is a deterministic preflight, not a real-model pass or credential-acceptance
+check. It does not write a freshness receipt or create a spending ledger.
+
 Run deterministic preflight and the stale catalog:
 
 ```bash

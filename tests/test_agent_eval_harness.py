@@ -758,3 +758,51 @@ def test_stock_order_fixture_applies_filled_order_to_positions():
     positions = [p for p in fixture.production.strategy.get_positions() if p.asset.symbol == "AAPL"]
     assert len(positions) == 1
     assert float(positions[0].quantity) == 43.0
+
+
+@pytest.mark.parametrize(
+    "extra_args,fresh,select_all",
+    [
+        ([], False, True),
+        ([], True, True),
+        (["--gate"], True, False),
+        (["--gate", "--force"], True, True),
+    ],
+)
+def test_preflight_only_never_constructs_a_spending_ledger(
+    monkeypatch, tmp_path, capsys, extra_args, fresh, select_all
+):
+    from scripts import agent_eval_call_budget, agent_eval_isolation
+
+    monkeypatch.setattr(agent_eval_isolation, "configure_fixture_environment", lambda root: None)
+    monkeypatch.setattr(evals, "select_gemini_credential", lambda: "GEMINI_API_KEY")
+    monkeypatch.setattr(evals, "preflight", lambda *args: None)
+    monkeypatch.setattr(evals, "preflight_production_fixtures", lambda cases: None)
+    monkeypatch.setattr(evals, "runtime_fingerprint", lambda: "test-fingerprint")
+    monkeypatch.setattr(evals, "is_fresh", lambda *args: fresh)
+    monkeypatch.setattr(
+        agent_eval_call_budget,
+        "EvalCallBudget",
+        lambda *args, **kwargs: pytest.fail("Preflight cannot reserve or create spending"),
+    )
+    monkeypatch.setattr(
+        evals.sys,
+        "argv",
+        [
+            "run_agent_evals.py",
+            "--max-cost-usd",
+            "4",
+            "--preflight-only",
+            "--freshness-state",
+            str(tmp_path / "freshness.json"),
+            "--output-root",
+            str(tmp_path / "no-ledger"),
+        ]
+        + extra_args,
+    )
+    assert evals.main() == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["paid_calls"] == 0
+    assert report["case_count"] > 0
+    assert report["selected_case_count"] == (report["case_count"] if select_all else 0)
+    assert not (tmp_path / "no-ledger").exists()

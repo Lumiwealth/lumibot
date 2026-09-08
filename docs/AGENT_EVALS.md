@@ -2,7 +2,7 @@
 
 > Real-model release gates for LumiBot's built-in trading-agent behavior.
 
-**Last Updated:** 2026-08-11
+**Last Updated:** 2026-09-08
 **Status:** Active
 **Audience:** Both
 
@@ -11,11 +11,29 @@
 ## Overview
 
 LumiBot agent evals call the real trading model and a separate real LLM judge.
-They verify model behavior against fixture-backed production tool contracts while
+They verify model behavior through the real Strategy, AgentManager and built-in
+tool bindings, with fixture OHLCV and broker responses underneath those APIs, while
 preventing broker writes, customer access, and unnecessary historical-data cost.
 Passing evidence is valid for 90 days only when the case content, runtime skills,
 tool descriptions, rules contract, acting model, and judge model have the same
 fingerprint.
+
+The harness no longer defines simplified account, market, pricing, or order
+functions. It uses real Data, Asset, Position and Order objects and the actual
+BacktestingBroker to settle orders. Research uses a local stdio MCP fixture,
+including real tools/list discovery and the manager's historical-date binding.
+This is not a claim of hosted authorization or provider-data integration.
+The judge sees broker-observed order states separately from the model's claims.
+Execution cases fail if no simulated fill exists; provider/runtime failures
+cannot pass as completed decisions.
+
+Each repetition receives a unique strategy identity and local replay directory;
+remote replay reads/writes are disabled at the cache transport boundary. Live
+hosted gateway and broker credentials never enter the fixture process. The CLI
+imports only the approved Gemini key, disables LumiBot dotenv discovery before
+importing Strategy, and rejects non-inference HTTP requests at the transport
+boundary. This prevents a developer's default broker from starting during an
+import. No customer account or external broker writes are needed.
 
 ---
 
@@ -87,6 +105,12 @@ Each run writes:
 - case and runtime fingerprints used by the freshness gate.
 
 The call ledger owns the cap across process resumes and concurrent workers.
+Native eval calls also use the provider's count-only endpoint for the exact
+system instruction, tools and continuation history. A separate durable input
+window paces actor and judge calls per model at 200,000 input tokens per minute.
+This is an eval-worker throttle, not a customer quota or a provider-account cap.
+It addresses the observed 250,000-token free-tier limit without serializing
+entire cases, resetting spending, or enabling hidden SDK retries.
 Unknown usage (including timeout or process death) retains the entire reserved
 maximum; resuming cannot treat it as free. A corrupt ledger or changed cap/pricing
 fails closed. An older run without a call ledger cannot safely resume inference

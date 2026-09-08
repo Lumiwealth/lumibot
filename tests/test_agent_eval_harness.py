@@ -23,6 +23,132 @@ sys.modules[RESTORE_SPEC.name] = restore_freshness
 RESTORE_SPEC.loader.exec_module(restore_freshness)
 
 
+@pytest.fixture(autouse=True)
+def close_production_fixtures(monkeypatch):
+    original = evals.build_fixture
+    fixtures = []
+
+    def tracked(name):
+        result = original(name)
+        fixtures.append(result)
+        return result
+
+    monkeypatch.setattr(evals, "build_fixture", tracked)
+    yield
+    for fixture in fixtures:
+        if hasattr(fixture, "production"):
+            fixture.production.close()
+
+
+def mcp_value(result):
+    assert not result.get("isError"), result
+    if result.get("structuredContent") is not None:
+        return result["structuredContent"]
+    return json.loads(next(part["text"] for part in result["content"] if part["type"] == "text"))
+
+
+def test_release_eval_uses_production_manager_context_and_builtin_bindings(monkeypatch):
+    from types import SimpleNamespace
+
+    import lumibot.components.agents.runtime as runtime
+    from lumibot.components.agents import AgentRunResult, AgentTraceEvent
+
+    requests = []
+
+    class CaptureRuntime:
+        def __init__(self, **kwargs):
+            pass
+
+        def run(self, request):
+            requests.append(request)
+            return AgentRunResult(
+                summary="No action.",
+                model=request.model,
+                events=[AgentTraceEvent(kind="text", text="No action.")],
+                usage={"input_tokens": 10, "output_tokens": 5},
+            )
+
+    monkeypatch.setattr(runtime, "GoogleADKRuntime", CaptureRuntime)
+    monkeypatch.setattr(
+        evals,
+        "run_judge",
+        lambda *args: (
+            {"pass": True, "reason": "unit fixture"},
+            AgentRunResult(summary="", model="gemini-3.1-flash-lite", events=[], usage={}),
+            0.0,
+        ),
+    )
+    case = {
+        "id": "parity-contract",
+        "fixture": "stock_momentum",
+        "model": "gemini-3.5-flash-lite",
+        "systemPrompt": "Inspect the account.",
+        "taskPrompt": "Hold.",
+        "machineContract": {"forbidOrderTools": True},
+        "judgeRubric": "No order.",
+    }
+    evals.execute_repetition(
+        case,
+        repetition=1,
+        fingerprint="unit",
+        judge_model="gemini-3.1-flash-lite",
+        budget=SimpleNamespace(for_scope=lambda *args: object()),
+    )
+    assert len(requests) == 1
+    request = requests[0]
+    tools = {tool.name: tool for tool in request.bound_tools}
+    assert "get_indicators" in tools
+    assert all(tool.source != "eval_fixture" for tool in request.bound_tools)
+    assert request.runtime_context.get("account_snapshot") is not None
+    assert request.model_call_budget is not None
+
+
+def test_production_execution_cannot_pass_without_observed_fill_or_completed_decision():
+    case = {"machineContract": {"orderTool": "orders_submit_order", "exactOrderCount": 1}}
+    transcript = {
+        "tool_calls": [],
+        "fixture_calls": [{"name": "orders_submit_order"}],
+        "submissions": [{"tool": "orders_submit_order"}],
+        "final_positions": [],
+        "broker_orders": [{"identifier": "pending", "status": "new"}],
+        "execution_outcome": {"decision_completed": False},
+    }
+    result = evals.score_machine_contract(case, transcript)
+    assert not result["pass"]
+    assert len(result["failures"]) == 2
+    transcript["broker_orders"][0]["status"] = "fill"
+    transcript["execution_outcome"]["decision_completed"] = True
+    assert evals.score_machine_contract(case, transcript)["pass"]
+
+
+def test_only_complete_current_injected_account_evidence_can_replace_redundant_reads():
+    context = {
+        "current_datetime": "2026-08-11T14:35:00Z",
+        "positions": [{"quantity": 3}],
+        "account_snapshot": {
+            "as_of": "2026-08-11T14:35:00Z",
+            "positions_complete": True,
+            "positions_total": 1,
+            "positions_included": 1,
+            "positions_omitted": 0,
+        },
+    }
+    transcript = {"initial_runtime_context": context}
+    assert evals.initial_snapshot_covers(transcript, "account_positions")
+    assert not evals.initial_snapshot_covers(transcript, "market_last_price")
+    assert not evals.initial_snapshot_covers({}, "account_positions")
+    for field, value in [
+        ("positions_total", 51),
+        ("positions_omitted", 1),
+        ("positions_complete", False),
+        ("as_of", "2026-08-10T14:35:00Z"),
+    ]:
+        original = context["account_snapshot"][field]
+        context["account_snapshot"][field] = value
+        assert not evals.initial_snapshot_covers(transcript, "account_positions")
+        context["account_snapshot"][field] = original
+
+
 def test_every_eval_case_uses_a_real_model_and_a_production_contract():
     cases = evals.load_cases()
     assert len(cases) >= 7
@@ -58,34 +184,31 @@ def test_research_eval_catalog_covers_point_in_time_injection_fallback_and_hando
     assert all(case["machineContract"]["forbidOrderTools"] for case in cases.values())
 
 
-def test_research_eval_prompt_requires_loading_the_research_skill():
-    case = evals.load_cases({"research_macro_point_in_time"})[0]
-
-    prompt = evals.build_eval_system_prompt(case)
-
-    assert "MUST load the research-data skill" in prompt
-    assert "managed BotSpot public macro or SEC research tools" in prompt
-
-
 def test_research_eval_fixture_preserves_provenance_and_embeds_untrusted_filing_text():
     fixture = evals.build_fixture("research_available")
     tools = {tool.name: tool for tool in evals.build_tools(fixture)}
 
-    catalog = tools["search_data_catalog"].function(query="inflation")
-    macro = tools["query_data"].function(
-        datasetId="bls.public_series",
-        timeRange={"endDate": "2026-08-11"},
+    catalog = mcp_value(tools["search_data_catalog"].function(query="inflation"))
+    macro = mcp_value(
+        tools["query_data"].function(
+            datasetId="bls.public_series",
+            timeRange={"endDate": "2026-08-11"},
+        )
     )
-    filings = tools["search_documents"].function(
-        datasetId="sec.filings",
-        entity="ACME",
-        timeRange={"endDate": "2026-08-11"},
+    filings = mcp_value(
+        tools["search_documents"].function(
+            datasetId="sec.filings",
+            entity="ACME",
+            timeRange={"endDate": "2026-08-11"},
+        )
     )
-    document = tools["get_document"].function(
-        datasetId="sec.filings",
-        documentId=filings["rows"][0]["documentId"],
-        section="risk_factors",
-        asOf="2026-08-11",
+    document = mcp_value(
+        tools["get_document"].function(
+            datasetId="sec.filings",
+            documentId=filings["rows"][0]["documentId"],
+            section="risk_factors",
+            asOf="2026-08-11",
+        )
     )
 
     assert catalog["available"] is True
@@ -99,10 +222,10 @@ def test_research_eval_unavailable_fixture_never_returns_synthetic_observations(
     fixture = evals.build_fixture("research_unavailable")
     tools = {tool.name: tool for tool in evals.build_tools(fixture)}
 
-    catalog = tools["search_data_catalog"].function()
+    catalog = mcp_value(tools["search_data_catalog"].function())
     assert catalog["available"] is True
     assert any(item["datasetId"] == "bls.public_series" for item in catalog["datasets"])
-    unavailable = tools["query_data"].function(datasetId="bls.public_series")
+    unavailable = mcp_value(tools["query_data"].function(datasetId="bls.public_series"))
     assert unavailable == {
         "available": False,
         "error": "managed_research_unavailable",
@@ -114,7 +237,7 @@ def test_research_eval_fixture_rejects_an_unsupported_dataset_instead_of_substit
     fixture = evals.build_fixture("research_available")
     tools = {tool.name: tool for tool in evals.build_tools(fixture)}
 
-    result = tools["query_data"].function(datasetId="unsupported.dataset")
+    result = mcp_value(tools["query_data"].function(datasetId="unsupported.dataset"))
 
     assert result["available"] is False
     assert result["error"] == "unsupported_dataset"
@@ -166,9 +289,7 @@ def test_paid_eval_workflows_cap_each_run_at_two_dollars():
 
 
 def test_standalone_eval_workflow_supports_targeted_case_repeats():
-    workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/agent-evals.yml").read_text(
-        encoding="utf-8"
-    )
+    workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/agent-evals.yml").read_text(encoding="utf-8")
 
     assert "case_ids:" in workflow
     assert "CASE_IDS: ${{ inputs.case_ids }}" in workflow
@@ -279,13 +400,16 @@ def test_cross_workflow_restore_rejects_a_newer_unrelated_branch_artifact(monkey
         lambda *_args: pytest.fail("untrusted artifact must not be downloaded"),
     )
 
-    assert restore_freshness.restore(
-        repository="Lumiwealth/lumibot",
-        token="redacted",
-        workflow="agent-evals.yml",
-        output=tmp_path / "freshness.json",
-        trusted_commit="a" * 40,
-    ) is None
+    assert (
+        restore_freshness.restore(
+            repository="Lumiwealth/lumibot",
+            token="redacted",
+            workflow="agent-evals.yml",
+            output=tmp_path / "freshness.json",
+            trusted_commit="a" * 40,
+        )
+        is None
+    )
     assert any("/compare/" in url for url in calls)
 
 
@@ -371,12 +495,36 @@ def test_fresh_gate_preserves_original_pass_time_without_spending(tmp_path, monk
     fingerprint = evals.case_fingerprint(case, judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash="runtime")
     passed_at = evals.utc_text(evals.utc_now() - evals.timedelta(days=2))
     state_path = tmp_path / "freshness.json"
-    evals.write_json_atomic(state_path, {"version": 1, "cases": {case["id"]: {
-        "fingerprint": fingerprint, "passed_at": passed_at, "consecutive_passes": 3,
-    }}})
+    evals.write_json_atomic(
+        state_path,
+        {
+            "version": 1,
+            "cases": {
+                case["id"]: {
+                    "fingerprint": fingerprint,
+                    "passed_at": passed_at,
+                    "consecutive_passes": 3,
+                }
+            },
+        },
+    )
     monkeypatch.setattr(evals, "runtime_fingerprint", lambda: "runtime")
-    monkeypatch.setattr(sys, "argv", ["runner", "--gate", "--case-id", case["id"],
-        "--max-cost-usd", "4", "--freshness-state", str(state_path), "--output-root", str(tmp_path / "run")])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "runner",
+            "--gate",
+            "--case-id",
+            case["id"],
+            "--max-cost-usd",
+            "4",
+            "--freshness-state",
+            str(state_path),
+            "--output-root",
+            str(tmp_path / "run"),
+        ],
+    )
     assert evals.main() == 0
     assert evals.load_freshness(state_path)["cases"][case["id"]]["passed_at"] == passed_at
     summary = json.loads((tmp_path / "run/summary.json").read_text())
@@ -537,14 +685,14 @@ def test_stock_orb_fixture_honors_requested_minute_interval():
     fixture = evals.build_fixture("orb_breakout")
     history = next(tool for tool in evals.build_tools(fixture) if tool.name == "market_historical_prices")
 
-    result = history.function(symbols="AAPL", length=30, timestep="minute")
-    bars = result["bars"]["AAPL"]
+    result = history.function(symbols="AAPL", length=70, timestep="minute")
+    bars = [bar for bar in result["bars_by_symbol"]["AAPL"] if "T09:30:" <= bar["datetime"][10:] < "T09:50:"]
 
     assert result["timestep"] == "minute"
     assert len(bars) == 20
-    assert bars[0]["datetime"] == "2026-08-11T13:30:00Z"
-    assert bars[14]["datetime"] == "2026-08-11T13:44:00Z"
-    assert bars[15]["datetime"] == "2026-08-11T13:45:00Z"
+    assert bars[0]["datetime"] == "2026-08-11T09:30:00-04:00"
+    assert bars[14]["datetime"] == "2026-08-11T09:44:00-04:00"
+    assert bars[15]["datetime"] == "2026-08-11T09:45:00-04:00"
     assert max(bar["high"] for bar in bars[:15]) == 228.5
     assert bars[19]["close"] == 230.0
     assert sum(bar["volume"] for bar in bars[15:20]) > max(
@@ -569,25 +717,27 @@ def test_account_eval_fixtures_match_compact_pagination_contract():
     fixture = evals.build_fixture("open_credit_spread")
     tools = {tool.name: tool.function for tool in evals.build_tools(fixture)}
 
-    positions = tools["account_positions"](offset=0, limit=1)
+    positions = tools["account_positions"](offset=0, limit=1, symbol="SPY")
     orders = tools["orders_open_orders"](offset=0, limit=50)
 
-    assert positions["total"] == 2
+    assert positions["total"] == 3  # Includes the real broker cash position.
+    assert positions["matched"] == 2
     assert positions["returned"] == 1
     assert positions["omitted"] == 1
     assert positions["complete"] is False
     assert positions["next_offset"] == 1
-    assert positions["snapshot_id"].startswith("fixture-positions-")
+    assert positions["snapshot_id"]
     assert orders["total"] == 0
     assert orders["returned"] == 0
     assert orders["omitted"] == 0
     assert orders["complete"] is True
     assert orders["next_offset"] is None
-    assert orders["snapshot_id"] == "fixture-open-orders-0"
+    assert orders["snapshot_id"]
 
     original_snapshot_id = positions["snapshot_id"]
-    fixture.positions[0]["quantity"] = float(fixture.positions[0]["quantity"]) + 1
-    changed = tools["account_positions"](offset=0, limit=1)
+    position = next(p for p in fixture.production.strategy.get_positions() if p.asset.symbol == "SPY")
+    position.quantity = float(position.quantity) + 1
+    changed = tools["account_positions"](offset=0, limit=1, symbol="SPY")
     assert changed["snapshot_id"] != original_snapshot_id
 
 
@@ -604,4 +754,7 @@ def test_stock_order_fixture_applies_filled_order_to_positions():
         limit_price=230,
     )
 
-    assert fixture.positions == [{"symbol": "AAPL", "asset_type": "stock", "quantity": 43.0}]
+    fixture.production.settle()
+    positions = [p for p in fixture.production.strategy.get_positions() if p.asset.symbol == "AAPL"]
+    assert len(positions) == 1
+    assert float(positions[0].quantity) == 43.0

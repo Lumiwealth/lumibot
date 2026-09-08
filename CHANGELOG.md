@@ -18,6 +18,15 @@
 - Corrected README and package license labels to match the existing GPLv3 LICENSE file; the license text is unchanged.
 
 ### Fixed
+- Eval startup imports only its approved inference credential and disables
+  automatic broker/dotenv discovery. Non-inference HTTP requests fail before
+  transport, including accidental background broker initialization.
+- Release evals use the real AgentManager and built-in trading tools instead of
+  simplified replacement functions. Fixture data and real simulated broker fills
+  now expose tool-schema drift and missing execution outcomes before publication.
+- Native evals pace exact provider-counted input across concurrent workers and
+  resumes. This avoids bursts over the observed free-tier input limit without
+  changing customer/provider quotas or discarding prior spend reservations.
 - Multi-leg price calculation requires valid quotes for every option leg.
   Missing, failed, nonfinite, negative or crossed quotes no longer produce a
   partial package price. Unknown price styles fail visibly.

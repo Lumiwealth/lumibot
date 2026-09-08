@@ -35,6 +35,9 @@ class EvalCallBudget:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.prices = prices
+        from scripts.agent_eval_rate_pacing import InputPacer
+
+        self.input_pacer = InputPacer(self.path.with_name("input_rate.jsonl"))
         self.header = {
             "kind": "budget",
             "version": 1,
@@ -206,3 +209,8 @@ class _ScopedBudget:
 
     def settle(self, token, usage):
         return self.owner.settle(token, usage)
+
+    def before_request(self, model, llm_request):
+        from scripts.agent_eval_rate_pacing import count_native_request
+
+        self.owner.input_pacer.admit(model, count_native_request(model, llm_request))

@@ -1225,6 +1225,10 @@ class GoogleADKRuntime:
             nonlocal ticket
             if pruning is not None:
                 pruning(*args, **kwargs)
+            before_request = getattr(budget, "before_request", None)
+            if callable(before_request):
+                llm_request = kwargs.get("llm_request") or (args[1] if len(args) > 1 else None)
+                before_request(request.model, llm_request)
             # An earlier request without usage remains reserved in the durable
             # ledger. A retry/continuation cannot spend that reservation again.
             ticket = budget.reserve(request.model, request.max_output_tokens or 65535)

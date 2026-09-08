@@ -29,6 +29,12 @@ Stored timeframe metadata must match the request. A missing minute series cannot
 reuse a daily store entry and label it as minute output; the history request must
 go through the data source for its requested timeframe or remain unavailable.
 
+Independent `start`/`end` windows are inclusive, require explicit timezone offsets,
+and reject any end beyond strategy time. Every request validates its window before
+data work. Calculations use only that window, without borrowing warmup bars from
+another month or year. Equivalent timezone offsets identify the same window and
+do not mutate the strategy clock. Empty/insufficient windows remain null.
+
 Remaining qualification: adapter-specific completed bars (including daily date
 labels, sessions and timezones), independently calculated multi-indicator values,
 real-model reasoning, and performance on long observed histories. Do not infer

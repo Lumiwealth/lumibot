@@ -160,9 +160,36 @@ class Indicators:
         """Number of memoized indicator results currently held."""
         return len(self._cache)
 
-    def _dispatch(self, asset, timestep, name, kwargs, custom_fn):
+    def validate_window(self, start, end):
+        """Validate an inclusive, explicitly zoned historical calculation window."""
+        try:
+            bounds = [pd.Timestamp(value) for value in (start, end)]
+            now = pd.Timestamp(self._strategy.get_datetime())
+            if any(pd.isna(value) or value.tzinfo is None for value in bounds) or now.tzinfo is None:
+                raise ValueError("timezone required")
+            if bounds[0] > bounds[1] or bounds[1] > now:
+                raise ValueError("reversed or future bounds")
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("Indicator window requires zoned start <= end <= strategy time.") from exc
+        return tuple(value.tz_convert("UTC") for value in bounds)
+
+    def calculate_window(self, asset, indicator, *, start, end, timestep="day", parameters=None):
+        """Calculate using only bars inside an inclusive window, with no borrowed warmup.
+
+        Bounds must include timezones and end no later than strategy time. An
+        insufficient window returns the indicator's missing value, never zero.
+        Source adapters still own bar completion and timestamp conventions.
+        """
+        bounds = self.validate_window(start, end)
+        if not isinstance(indicator, str) or indicator.startswith("_") or not callable(
+            getattr(_get_ta_module(), indicator, None)
+        ):
+            raise ValueError("Unknown window indicator.")
+        return self._dispatch(asset, timestep, indicator, parameters or {}, None, window=bounds)
+
+    def _dispatch(self, asset, timestep, name, kwargs, custom_fn, *, window=None):
         self._validate_causal_parameters(kwargs)
-        key = self._cache_key(asset, timestep, name, kwargs)
+        key = self._cache_key(asset, timestep, name, kwargs) + (window,)
         df = self._full_history(asset, timestep)
         if df is None or df.empty:
             return None
@@ -174,6 +201,10 @@ class Indicators:
         now = self._strategy.get_datetime()
         end = self._position_at(df.index, now) + 1
         df = df.iloc[:end].copy()
+        if window is not None:
+            if df.index.tz is None:
+                raise ValueError("Indicator window history requires timezone-aware timestamps.")
+            df = df.loc[(df.index >= window[0]) & (df.index <= window[1])]
         if df.empty:
             return None
         digest = hashlib.sha256(pd.util.hash_pandas_object(df, index=True).values.tobytes()).hexdigest()

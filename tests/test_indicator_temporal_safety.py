@@ -162,3 +162,37 @@ def test_invalid_batch_rejected_before_calculation(requests):
     with pytest.raises(ValueError):
         _bind_get_indicators(strategy, None).function("SPY", requests_json=json.dumps(requests))
     assert strategy.indicators.cache_size == 0
+
+
+def test_batch_windows_are_independent_and_do_not_borrow_warmup():
+    strategy, _, _, _ = make_strategy()
+    result = _bind_get_indicators(strategy, None).function("SPY", requests_json=json.dumps([
+        {"id": "full", "indicator": "sma", "parameters": {"length": 2},
+         "start": "2024-01-02T00:00:00Z", "end": "2024-01-03T00:00:00Z"},
+        {"id": "short", "indicator": "sma", "parameters": {"length": 2},
+         "start": "2024-01-03T00:00:00Z", "end": "2024-01-03T00:00:00Z"},
+    ]))
+    assert [row["value"] for row in result["results"]] == [15, None]
+    assert result["results"][0]["window"]["start"] == "2024-01-02T00:00:00+00:00"
+
+
+@pytest.mark.parametrize("start,end", [
+    ("2024-01-02", "2024-01-03T00:00:00Z"),
+    ("2024-01-03T00:00:00Z", "2024-01-02T00:00:00Z"),
+    ("2024-01-02T00:00:00Z", "2024-01-04T00:00:00Z"),
+])
+def test_window_rejects_ambiguous_reversed_and_future_bounds(start, end):
+    strategy, _, _, _ = make_strategy()
+    with pytest.raises(ValueError, match="window"):
+        _bind_get_indicator(strategy, None).function("SPY", "sma", start=start, end=end)
+    assert strategy.indicators.cache_size == 0
+
+
+def test_equivalent_timezone_windows_are_equal_and_do_not_change_strategy_clock():
+    strategy, _, _, state = make_strategy()
+    before = state["now"]
+    result = _bind_get_indicator(strategy, None).function(
+        "SPY", "sma", parameters_json='{"length": 2}',
+        start="2024-01-01T19:00:00-05:00", end="2024-01-02T19:00:00-05:00")
+    assert result["value"] == 15
+    assert state["now"] == before

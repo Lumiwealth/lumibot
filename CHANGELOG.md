@@ -3,6 +3,9 @@
 ## 4.5.92 - Unreleased
 
 ### Changed
+- Agent indicator queries accept independent, explicitly zoned historical
+  windows. Bounds cannot exceed strategy time; missing warmup remains missing,
+  and monthly or annual requests cannot borrow bars from another window.
 - Short daily IBKR stock/index history requests size the provider page from the
   complete required window, including lookback and calendar padding. Requests
   longer than one year retain the five-year cap and backward pagination.

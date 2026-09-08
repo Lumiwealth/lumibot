@@ -320,3 +320,12 @@ Family names require a compatible managed gateway. They are not aliases to
 send directly to a provider. BYOK execution continues to require an exact
 provider model id; LumiBot does not ignore personal keys or switch billing
 routes when authentication fails.
+Historical indicator windows
+----------------------------
+
+``get_indicator`` and each ``get_indicators`` request accept optional ``start``
+and ``end`` ISO timestamps with timezone offsets. Supply both together. The
+inclusive end cannot exceed strategy time. Only bars inside the window are
+used, including warmup; an insufficient window returns null, not a zero signal.
+For example, use separate result IDs and January/February bounds for independent
+monthly calculations. Source adapters retain ownership of bar completion.

@@ -3582,6 +3582,11 @@ class _Strategy:
         if not self._analyze_backtest:
             return
 
+        try:
+            self.broker.data_source.record_runtime_milestone("reports_started_at")
+        except Exception:
+            pass
+
         if not base_filename:
             base_filename = self._name
 
@@ -3662,6 +3667,11 @@ class _Strategy:
         if tearsheet_result is not None:
             tearsheet_result.to_csv(tearsheet_csv_file)
 
+        try:
+            self.broker.data_source.record_runtime_milestone("reports_completed_at")
+        except Exception:
+            pass
+        self.write_backtest_settings(settings_file)
         return tearsheet_result
 
     @classmethod

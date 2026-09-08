@@ -3,6 +3,8 @@
 ## 4.5.92 - Unreleased
 
 ### Changed
+- Backtest progress and settings retain per-run initialization, callback, first
+  price, simulation and report timestamps, separately from heartbeat updates.
 - New agents without an explicit model use Gemini 3.5 Flash-Lite rather than
   the retired preview default. Explicit model pins and managed families remain
   unchanged; existing agent instances are not migrated during a decision.

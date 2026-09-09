@@ -26,6 +26,9 @@
 - Corrected README and package license labels to match the existing GPLv3 LICENSE file; the license text is unchanged.
 
 ### Fixed
+- Managed-gateway protocol and hard provider-quota errors retain their typed
+  cause. Backtests now fail visibly on invalid provider tool contracts or
+  exhausted billing/quota instead of recording repeated no-action iterations.
 - CCXT research history and last-price queries no longer expose unfinished
   candles' future OHLCV values. Minute/hour/day completion boundaries and
   shifted history are covered; execution retains current-candle fills and

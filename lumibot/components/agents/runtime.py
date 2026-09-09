@@ -590,6 +590,21 @@ def _classify_agent_error(exc: BaseException) -> str:
     exc_name = exc.__class__.__name__
     message = str(exc)
     message_lower = message.lower()
+    typed_code = str(getattr(exc, "code", "") or "").strip().lower()
+
+    # Managed-gateway errors retain a machine-readable cause even though the
+    # public message is deliberately sanitized. Honor that cause before the
+    # gateway's HTTP 502/503 envelope would incorrectly make every failure look
+    # transient. Hard quota/billing failures and invalid provider contracts are
+    # actionable backtest failures, not valid no-op trading decisions.
+    if typed_code == "provider_quota_exhausted":
+        return "billing"
+    if typed_code == "protocol_integrity_error":
+        return "config"
+    if typed_code in {"provider_auth_failed", "unauthorized", "renewal_failed"}:
+        return "auth"
+    if typed_code in {"provider_not_configured", "invalid_request"}:
+        return "config"
 
     # HTTP status code if the provider SDK attached one.
     status_code = None

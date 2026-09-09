@@ -1,7 +1,25 @@
-Code Examples
-=============
+LumiBot Python Trading Examples
+===============================
+
+.. meta::
+   :description: Explore runnable LumiBot Python examples for AI trading agents, stocks, options, crypto, futures, backtesting, and supported brokers.
 
 This page contains practical code examples for common Lumibot tasks. These examples cover stocks, options, crypto, futures, and advanced features like the PerplexityHelper for AI-powered trading decisions.
+
+Choose a first runnable example
+-------------------------------
+
+* **AI agent:** :doc:`agents_quickstart` requires a supported model credential.
+* **Daily stocks:** :ref:`the Yahoo buy-and-hold backtest <first-python-backtest>`
+  requires no broker or data-provider credential.
+* **Stock research team:** :doc:`agents_example_bull_bear_large_cap_stocks`
+  uses Yahoo data plus a model credential.
+* **Options:** :doc:`agents_example_ai_iron_condor` requires intraday option data
+  and a model credential.
+* **Crypto:** :doc:`brokers.ccxt` starts with exchange-specific credentials and
+  clearly separates documented live and backtesting paths.
+* **Futures:** :doc:`backtesting.databento` shows a complete historical runner
+  and its dataset requirements.
 
 AI Agents
 ---------

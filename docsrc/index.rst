@@ -1,5 +1,8 @@
-Lumibot
-=======
+LumiBot: Python Trading and AI Agent Framework
+==============================================
+
+.. meta::
+   :description: Build, backtest, and run Python trading strategies and AI trading agents with LumiBot across stocks, options, crypto, futures, and supported brokers.
 
 .. container:: lumibot-hero-lead
 
@@ -516,6 +519,7 @@ Table of Contents
    Reddit Community <https://www.reddit.com/r/BotSpotTrade/>
    Discord Community <https://discord.gg/4R9j6T3PN8>
    getting_started
+   strategy_api_overview
    imports_and_startup
    agents
    ai_trading_project_comparison

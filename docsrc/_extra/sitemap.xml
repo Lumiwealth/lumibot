@@ -34,7 +34,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_example_ai_opening_range_breakout.html</loc>
-    <lastmod>2026-08-25</lastmod>
+    <lastmod>2026-09-08</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_example_ai_spx_zero_dte_bear_call_team.html</loc>
@@ -50,7 +50,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_example_bull_bear_large_cap_stocks.html</loc>
-    <lastmod>2026-05-31</lastmod>
+    <lastmod>2026-09-08</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_example_bull_bear_leveraged_etf.html</loc>
@@ -70,7 +70,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_examples.html</loc>
-    <lastmod>2026-08-22</lastmod>
+    <lastmod>2026-09-08</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_flows.html</loc>
@@ -439,6 +439,10 @@
   <url>
     <loc>https://lumibot.lumiwealth.com/smart_limit.html</loc>
     <lastmod>2025-12-30</lastmod>
+  </url>
+  <url>
+    <loc>https://lumibot.lumiwealth.com/strategy_api_overview.html</loc>
+    <lastmod>2026-09-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.account.html</loc>

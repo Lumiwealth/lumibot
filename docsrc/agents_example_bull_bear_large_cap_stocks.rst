@@ -87,10 +87,33 @@ ordinary stocks.
 
 Inspect the decision summaries and generated backtest artifacts. Reconcile the
 selected stock, submitted orders, fills or no-action outcome, and terminal run
-status. The historical screenshot above is prior evidence; it is not a new
-result for this exact source and window. A new full-window model-backed run is
-required before calling the current tutorial runtime-verified. Historical LLM
-knowledge can extend beyond the simulated date.
+status.
+
+Verified current-source run
+---------------------------
+
+We completed the full April 6–10, 2026 window from source commit
+``a5969317cf37f2fa9035c214e5e9be2023afbd2a`` with Yahoo data,
+``gemini-3.5-flash-lite``, and the three-symbol universe above. The four agents
+completed 20 decision cycles through the April 10 close. Provider continuations
+made 183 model calls and cost $0.5078 at the recorded input, cached-input, and
+output-token rates.
+
+The backtesting broker recorded one submitted market order and one fill: 580
+shares of NVDA at $177.16 on April 6. The strategy held that position through
+the end of the window. Portfolio value moved from $100,000 to $102,714.40, a
+2.71% return over the run. The generated tear sheet reports a 2.89% maximum
+drawdown. These figures describe this short historical simulation only; they do
+not forecast future performance.
+
+The run saved ``stats.csv``, ``trades.csv``, ``lumibot.log``,
+``tearsheet.html``, and ``tearsheet_metrics.json``. Five researcher calls first
+sent both mutually exclusive indicator-batch inputs, received a visible error,
+and recovered. The strategy still completed, but the trace shows why a full
+log review matters. The trader also used concentrated sizing that temporarily
+made simulated cash negative. Treat the example as an inspectable agent
+workflow, not a conservative allocation template. Historical LLM knowledge can
+extend beyond the simulated date.
 
 Run the existing broker entry point
 -----------------------------------

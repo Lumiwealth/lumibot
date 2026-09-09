@@ -1,10 +1,33 @@
-Bitunix
-======================================================
+Bitunix API Perpetual Futures Trading with LumiBot
+==================================================
+
+.. meta::
+   :description: Configure Bitunix API perpetual futures trading with LumiBot, including USDT futures funding, credentials, order setup, and supported behavior.
 
 How to Use Bitunix
 ------------------
 
 Bitunix integration in Lumibot supports **only perpetual futures trading**. Spot trading is not supported.
+
+.. list-table:: Bitunix support at a glance
+   :header-rows: 1
+   :widths: 30 25 45
+
+   * - Capability
+     - Status
+     - Requirement
+   * - USDT perpetual futures
+     - Supported
+     - Fund the Futures wallet with USDT
+   * - Spot trading
+     - Not supported
+     - Use another broker integration
+   * - Hedge-mode positions
+     - Required
+     - The account must confirm ``HEDGE`` mode
+   * - Historical futures bars
+     - Supported
+     - Use a native interval and available exchange history
 
 **Account Funding and Cash Calculation:**
 

@@ -44,7 +44,10 @@ def test_docs_navigation_and_mobile_brand_stay_compact():
 def test_homepage_keeps_a_short_hero_and_places_image_above_supporting_copy():
     index = (REPO_ROOT / "docsrc" / "index.rst").read_text(encoding="utf-8")
 
-    assert index.startswith("Lumibot\n=======")
+    assert index.startswith(
+        "LumiBot: Python Trading and AI Agent Framework\n"
+        "=============================================="
+    )
     assert "Build, backtest, and run algorithmic trading strategies" in index
     image = ".. image:: ../docs/assets/home/lumibot_strategy_lifecycle_homepage.png"
     supporting_copy = ".. raw:: html\n   :file: _html/main.html"

@@ -1,9 +1,14 @@
-Getting Started
-***************
+Getting Started with LumiBot
+****************************
 
-Lumibot is a Python library that allows you to create trading strategies and backtest them. It also allows you to run your strategies live on a paper trading account. You can also use Lumibot to run your strategies live on a real trading account, but we recommend you start with paper trading first.
+.. meta::
+   :description: Install LumiBot and run your first Python trading backtest or AI trading agent, then connect a supported broker when you are ready.
 
-Lumibot is designed to be easy to use, but also powerful. It is designed to be used by both beginners and advanced users. It is also designed to be flexible, so you can use it to create any kind of trading strategy you want. It is also designed to be fast, so you can backtest your strategies quickly.
+LumiBot is a Python library for writing one trading strategy and running it in
+historical backtests or with a supported broker. Start with the complete
+:ref:`daily-stock backtest <first-python-backtest>`, or use
+:doc:`agents_quickstart` to build a research agent inside the same strategy
+lifecycle. Broker setup comes later, after you can inspect a completed backtest.
 
 Build AI Trading Agents
 =======================

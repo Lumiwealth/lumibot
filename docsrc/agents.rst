@@ -1,5 +1,8 @@
-AI Trading Agents and Agentic Backtesting
-==========================================
+Build AI Trading Agents in Python with LumiBot
+==============================================
+
+.. meta::
+   :description: Build AI trading agents in Python with LumiBot. Start with a complete agentic backtest, then explore stock teams, macro research, and options agents.
 
 Build AI trading agents in Python inside a LumiBot strategy. Agents can inspect
 market evidence, use research tools, and submit orders through the strategy's

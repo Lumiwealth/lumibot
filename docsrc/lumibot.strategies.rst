@@ -31,6 +31,10 @@ The methods of this class can be split into several categories:
 
 All the methods in each of these categories are described below.
 
+Start with :doc:`strategy_api_overview` for a copy-and-run example and the
+small set of methods used in most strategies. The generated class reference
+below remains the complete source-level API.
+
 Documentation
 """""""""""""""""""
 

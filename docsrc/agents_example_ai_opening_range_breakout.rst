@@ -24,11 +24,24 @@ Verified backtest evidence
 The earlier five-day mechanical run completed with four fills across NVIDIA and
 AMD and a 0.44% total return, but required 104 agent calls. The refactor moved
 reusable stock mechanics into the runtime skill and changed the default decision
-cadence to hourly while retaining minute evidence. A bounded current run reached
-its third trading day with real position changes before the ten-minute wall-clock
-guard stopped it. The production-gated ORB eval passes three consecutive
-real-model repetitions and verifies completed 09:30 ET opening bars, a completed
-breakout close, current price evidence, one submission, and post-order state.
+cadence to hourly while retaining minute evidence. The production-gated ORB eval
+passes three consecutive real-model repetitions and verifies completed 09:30 ET
+opening bars, a completed breakout close, current price evidence, one submission,
+and post-order state.
+
+A fresh one-day run from source commit
+``cfa017cfd11c937cd1b87d5119fff067972e6b04`` completed from the April 6,
+2026 open through the 16:00 ET close. It used IBKR intraday history through the
+configured Data Downloader, ``gemini-3.5-flash-lite``, and the SPY, NVDA, and AMD
+universe below. Seven hourly agent decisions completed without a runtime or data
+fetch failure. The agent submitted no order, the backtesting broker recorded no
+fill, and simulated portfolio value remained $100,000. This is a completed
+no-trade result, not a timeout or a substituted trade.
+
+The uncached run made 58 provider calls and cost $0.1759 at the recorded input,
+cached-input, and output-token rates. It saved ``stats.csv``, ``trades.csv``,
+``lumibot.log``, ``tearsheet.html``, and ``tearsheet_metrics.json``. Because the
+run contained no trade and no return variation, the tear sheet is a placeholder.
 
 The example is therefore qualified for mechanics and bounded model behavior, not
 for expected returns. If minute bars for the true opening window are unavailable,
@@ -55,10 +68,17 @@ package in your virtual environment so the runner and documentation match:
    python -m lumibot.example_strategies.ai_opening_range_breakout
 
 The current source selects ``gemini-3.5-flash-lite``. Check that your provider
-account supports it. The window spans April 6 through April 10, 2026, with an
-April 11 end boundary. These are reproducible input settings, not a claim that
-this exact current-source run has completed. Start with three symbols before
-expanding to the default universe.
+account supports it. The command above spans April 6 through April 10, 2026,
+with an April 11 end boundary. Start with three symbols before expanding to the
+default universe. For the shorter verified mechanics run described above, use
+an April 7 end boundary and the configured IBKR downloader route:
+
+.. code-block:: bash
+
+   export BACKTESTING_DATA_SOURCE="ibkr"
+   export BACKTESTING_END="2026-04-07"
+
+Choose one backtesting data source. Do not set both ThetaData and IBKR values.
 
 Use the configured Data Downloader for historical ThetaData requests. Do not
 start another licensed terminal session as a shortcut. Yahoo daily bars cannot
@@ -66,9 +86,10 @@ supply a 09:30–09:45 opening range. Missing intraday evidence should result in
 skip with an explanation.
 
 The call limit bounds agent invocations, not necessarily every provider
-continuation or dollar of spend. Model and data charges depend on your accounts;
-use a separately enforced budget for paid verification. Reaching the limit is an
-incomplete run, not a passing demonstration.
+continuation or dollar of spend. In the verified one-day run, seven agent
+decisions resulted in 58 provider calls. Model and data charges depend on your
+accounts; use a separately enforced budget for paid verification. Reaching the
+limit is an incomplete run, not a passing demonstration.
 
 Inspect the output
 ------------------

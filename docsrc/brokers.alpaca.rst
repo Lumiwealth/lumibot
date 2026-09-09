@@ -1,7 +1,14 @@
-Alpaca
-======================================================
+Alpaca API Trading with LumiBot
+===============================
+
+.. meta::
+   :description: Connect LumiBot to Alpaca for stock, ETF, option, and crypto trading with API credentials, paper or live mode, and runnable Python examples.
 
 The Alpaca broker integration allows you to trade stocks, options, and cryptocurrencies through Alpaca Markets. This is one of the most popular brokers for algorithmic trading.
+
+Go directly to :ref:`Alpaca setup <alpaca-getting-started>`,
+:ref:`authentication <alpaca-authentication>`, :ref:`configuration
+<alpaca-configuration>`, or :ref:`runnable examples <alpaca-examples>`.
 
 Features
 --------
@@ -14,6 +21,8 @@ Features
 * **Multi-leg Options**: Support for complex options strategies
 * **Live Streaming**: Real-time trade updates and market data
 * **Cash Events**: Live cloud payloads can include normalized broker cash events such as deposits, withdrawals, interest, dividends, fees, journals, and adjustments
+
+.. _alpaca-getting-started:
 
 Getting Started
 ---------------
@@ -71,6 +80,8 @@ Getting Started
        trader.add_strategy(strategy)
        trader.run_all()
 
+.. _alpaca-authentication:
+
 Authentication Methods
 ----------------------
 
@@ -106,6 +117,8 @@ For OAuth authentication, visit `botspot.trade <https://botspot.trade>`__ to set
     ALPACA_OAUTH_TOKEN=your_oauth_token_here
     ALPACA_IS_PAPER=true
 
+.. _alpaca-configuration:
+
 Configuration Options
 ---------------------
 
@@ -135,6 +148,8 @@ All configuration should be done via environment variables in your `.env` file:
      - bool
      - ``true``
      - Toggle paper trading (``true``) versus live trading (``false``).
+
+.. _alpaca-examples:
 
 Usage Examples
 --------------

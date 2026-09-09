@@ -329,7 +329,8 @@ def test_orb_prompt_keeps_strategy_policy_without_repeating_tool_instructions():
     assert "Reuse one bounded multi-symbol history result" in prompt
     assert "evidence is missing or invalid" in prompt
     assert "breakout candidate is the latest completed" in prompt
-    assert "every intervening bar since the market opened" in prompt
+    assert "12 bars at 10:30, then 24, 36, 48, 60" in prompt
+    assert "Do not\n   round those counts up to 100" in prompt
     assert str(len(universe)) in prompt
     assert "SPY" in prompt and "AAPL" in prompt
 

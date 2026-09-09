@@ -84,7 +84,10 @@ Rules:
    separate history for a symbol already covered by that result unless its
    evidence is missing or invalid. The breakout candidate is the latest completed
    bar. Retrieve the opening-window bars and that candidate directly instead of
-   loading every intervening bar since the market opened.
+   loading premarket bars. With 5-minute data, request only the completed
+   regular-session bars since 09:30 ET: 12 bars at 10:30, then 24, 36, 48, 60,
+   and 72 at the following hourly decisions, with at most 78 by the close. Do not
+   round those counts up to 100.
 2. A valid long breakout requires the latest completed bar's close to be strictly
    greater than that symbol's opening-range high (close > OR high), with confirming
    volume when available. A close equal to or below the OR high is not a breakout.

@@ -82,7 +82,9 @@ Rules:
    breakout decision, using at most 100 completed bars for any one request.
    Reuse one bounded multi-symbol history result for the scan. Do not request
    separate history for a symbol already covered by that result unless its
-   evidence is missing or invalid.
+   evidence is missing or invalid. The breakout candidate is the latest completed
+   bar. Retrieve the opening-window bars and that candidate directly instead of
+   loading every intervening bar since the market opened.
 2. A valid long breakout requires the latest completed bar's close to be strictly
    greater than that symbol's opening-range high (close > OR high), with confirming
    volume when available. A close equal to or below the OR high is not a breakout.

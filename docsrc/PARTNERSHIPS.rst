@@ -18,7 +18,7 @@ You can fund a specific integration, support ongoing open-source development,
 or work with us on a broader product collaboration. Start with a concrete
 developer problem and an outcome we can demonstrate together.
 
-**Discuss a partnership:** `Email the LumiBot team <mailto:rob@botspot.trade?subject=LumiBot%20partnership>`_.
+**Discuss a partnership:** `Contact the LumiBot team through BotSpot <https://botspot.trade/contact>`_.
 
 Ways to work together
 ---------------------
@@ -81,4 +81,4 @@ Tell us what your team builds, the integration or developer outcome you want,
 your timing, and the kind of support you have in mind. If you have a budget range,
 include it so we can propose an appropriately sized first project.
 
-`Email the LumiBot team <mailto:rob@botspot.trade?subject=LumiBot%20partnership>`_.
+`Contact the LumiBot team through BotSpot <https://botspot.trade/contact>`_.

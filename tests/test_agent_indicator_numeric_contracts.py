@@ -104,6 +104,48 @@ def test_indicator_tool_preserves_crypto_quote_and_exchange_identity():
     assert row["value"] == pytest.approx(101_500.0)
 
 
+def test_indicator_batch_can_calculate_the_same_indicator_for_multiple_symbols():
+    now = pd.Timestamp("2026-09-08T16:00:00Z")
+    spy = Asset("SPY")
+    aapl = Asset("AAPL")
+    spy_frame = pd.DataFrame(
+        {"close": [10.0, 11.0, 12.0]},
+        index=pd.date_range("2026-09-06", periods=3, freq="D", tz="UTC"),
+    )
+    aapl_frame = pd.DataFrame(
+        {"close": [100.0, 101.0, 102.0]},
+        index=pd.date_range("2026-09-06", periods=3, freq="D", tz="UTC"),
+    )
+    strategy = SimpleNamespace(
+        broker=SimpleNamespace(
+            data_source=SimpleNamespace(
+                _data_store={
+                    (spy, "day"): SimpleNamespace(df=spy_frame, timestep="day"),
+                    (aapl, "day"): SimpleNamespace(df=aapl_frame, timestep="day"),
+                }
+            )
+        ),
+        get_datetime=lambda: now,
+    )
+    strategy.indicators = Indicators(strategy)
+
+    response = _bind_get_indicators(strategy, None).function(
+        "SPY",
+        requests_json=json.dumps(
+            [
+                {"id": "spy-sma", "symbol": "SPY", "indicator": "sma", "parameters": {"length": 2}},
+                {"id": "aapl-sma", "symbol": "AAPL", "indicator": "sma", "parameters": {"length": 2}},
+            ]
+        ),
+    )
+
+    assert response["complete"] is True
+    assert [(row["symbol"], row["value"]) for row in response["results"]] == [
+        ("SPY", pytest.approx(11.5)),
+        ("AAPL", pytest.approx(101.5)),
+    ]
+
+
 def _adjusted_average(values, alpha):
     # Independent scalar recurrence, not pandas-ta or the production calculation.
     weighted = denominator = 0.0

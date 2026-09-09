@@ -2543,13 +2543,27 @@ def _bind_get_indicators(strategy: Any, manager: Any) -> BoundTool:
         if not isinstance(requests, list) or not 1 <= len(requests) <= 50:
             raise ValueError("An indicator batch must contain between 1 and 50 requests.")
         seen = set()
+        allowed_request_fields = {
+            "id", "symbol", "asset_type", "quote_symbol", "exchange",
+            "indicator", "timestep", "parameters", "start", "end",
+        }
         for item in requests:
-            if not isinstance(item, dict) or set(item) - {"id", "indicator", "timestep", "parameters", "start", "end"}:
-                raise ValueError("Each request supports only id, indicator, timestep, parameters, start and end.")
+            if not isinstance(item, dict) or set(item) - allowed_request_fields:
+                raise ValueError(
+                    "Each request supports only id, symbol, asset_type, quote_symbol, exchange, "
+                    "indicator, timestep, parameters, start and end."
+                )
             for field in ("id", "indicator", "timestep"):
                 value = item.get(field, timestep if field == "timestep" else None)
                 if not isinstance(value, str) or not value.strip() or len(value) > 128:
                     raise ValueError(f"Indicator request {field} must be a nonempty string of at most 128 characters.")
+            for field in ("symbol", "asset_type", "quote_symbol", "exchange"):
+                if field in item:
+                    value = item[field]
+                    if not isinstance(value, str) or not value.strip() or len(value) > 128:
+                        raise ValueError(
+                            f"Indicator request {field} must be a nonempty string of at most 128 characters."
+                        )
             result_id = _require_non_empty_text("id", item.get("id"))
             if result_id in seen:
                 raise ValueError("Indicator request ids must be unique.")
@@ -2567,9 +2581,11 @@ def _bind_get_indicators(strategy: Any, manager: Any) -> BoundTool:
         for item in requests:
             try:
                 result = single(
-                    symbol=symbol, indicator=item["indicator"],
-                    timestep=item.get("timestep", timestep), asset_type=asset_type,
-                    quote_symbol=quote_symbol, exchange=exchange,
+                    symbol=item.get("symbol", symbol), indicator=item["indicator"],
+                    timestep=item.get("timestep", timestep),
+                    asset_type=item.get("asset_type", asset_type),
+                    quote_symbol=item.get("quote_symbol", quote_symbol),
+                    exchange=item.get("exchange", exchange),
                     parameters_json=json.dumps(item.get("parameters", {})),
                     start=item.get("start"), end=item.get("end"),
                 )
@@ -2589,11 +2605,11 @@ def _bind_get_indicators(strategy: Any, manager: Any) -> BoundTool:
     return BoundTool(
         name="get_indicators",
         description=(
-            "Get up to 50 indicators for one symbol. Supply exactly one of indicators or requests_json; never supply both. "
-            "Use requests_json for independent parameters/timeframes, "
+            "Get up to 50 indicators for one or more symbols. Supply exactly one of indicators or requests_json; never supply both. "
+            "Use requests_json for independent symbols, parameters, timeframes, or instrument identities. "
             "Preserve asset_type, quote_symbol, and exchange for the complete instrument identity; for BTC/USD crypto pass asset_type='crypto' and quote_symbol='USD'. "
-            'e.g. [{"id":"sma50","indicator":"sma","timestep":"day","parameters":{"length":50}},'
-            '{"id":"sma200","indicator":"sma","parameters":{"length":200}}]. '
+            'For example: [{"id":"spy-rsi","symbol":"SPY","indicator":"rsi","parameters":{"length":14}},'
+            '{"id":"aapl-rsi","symbol":"AAPL","indicator":"rsi","parameters":{"length":14}}]. '
             "Each result retains its id and errors do not hide other results. "
             "Each request may also specify independent zoned ISO start/end timestamps for an inclusive historical window. "
             "Alternatively use indicators=['rsi', 'macd', 'bbands'] for default parameters."

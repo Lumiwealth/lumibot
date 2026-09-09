@@ -78,6 +78,8 @@ Rules:
 1. Scan the full provided universe and build each symbol's opening range from the
    first {opening_range_minutes} completed minutes of the regular US cash session,
    beginning at 09:30 ET. Skip symbols whose true opening window is unavailable.
+   Request only the evidence needed for that opening window and the later
+   breakout decision, using at most 100 completed bars for any one request.
 2. A valid long breakout requires the latest completed bar's close to be strictly
    greater than that symbol's opening-range high (close > OR high), with confirming
    volume when available. A close equal to or below the OR high is not a breakout.

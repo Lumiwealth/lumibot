@@ -325,6 +325,7 @@ def test_orb_prompt_keeps_strategy_policy_without_repeating_tool_instructions():
     assert "market_last_prices" not in prompt
     assert "market_historical_prices" not in prompt
     assert "09:30" in prompt
+    assert "at most 100 completed bars" in prompt
     assert str(len(universe)) in prompt
     assert "SPY" in prompt and "AAPL" in prompt
 

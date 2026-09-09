@@ -184,7 +184,43 @@ class Indicators:
             raise ValueError("Indicator window requires zoned start <= end <= strategy time.") from exc
         return tuple(value.tz_convert("UTC") for value in bounds)
 
-    def calculate_window(self, asset, indicator, *, start, end, timestep="day", parameters=None):
+    def calculate(
+        self,
+        asset,
+        indicator,
+        *,
+        timestep="day",
+        parameters=None,
+        quote=None,
+        exchange=None,
+    ):
+        """Calculate one indicator while retaining the complete market identity."""
+        if not isinstance(indicator, str) or indicator.startswith("_") or (
+            indicator != "fibonacci" and not callable(getattr(_get_ta_module(), indicator, None))
+        ):
+            raise ValueError("Unknown indicator.")
+        return self._dispatch(
+            asset,
+            timestep,
+            indicator,
+            parameters or {},
+            None,
+            quote=quote,
+            exchange=exchange,
+        )
+
+    def calculate_window(
+        self,
+        asset,
+        indicator,
+        *,
+        start,
+        end,
+        timestep="day",
+        parameters=None,
+        quote=None,
+        exchange=None,
+    ):
         """Calculate using only bars inside an inclusive window, with no borrowed warmup.
 
         Bounds must include timezones and end no later than strategy time. An
@@ -196,12 +232,25 @@ class Indicators:
             indicator != "fibonacci" and not callable(getattr(_get_ta_module(), indicator, None))
         ):
             raise ValueError("Unknown window indicator.")
-        return self._dispatch(asset, timestep, indicator, parameters or {}, None, window=bounds)
+        return self._dispatch(
+            asset,
+            timestep,
+            indicator,
+            parameters or {},
+            None,
+            window=bounds,
+            quote=quote,
+            exchange=exchange,
+        )
 
-    def _dispatch(self, asset, timestep, name, kwargs, custom_fn, *, window=None):
+    def _dispatch(self, asset, timestep, name, kwargs, custom_fn, *, window=None, quote=None, exchange=None):
         self._validate_causal_parameters(kwargs)
-        key = self._cache_key(asset, timestep, name, kwargs) + (window,)
-        df = self._full_history(asset, timestep)
+        key = self._cache_key(asset, timestep, name, kwargs) + (
+            window,
+            self._asset_key(quote) if quote is not None else None,
+            exchange,
+        )
+        df = self._full_history(asset, timestep, quote=quote, exchange=exchange)
         if df is None or df.empty:
             return None
         if not isinstance(df.index, pd.DatetimeIndex) or not df.index.is_monotonic_increasing or not df.index.is_unique:
@@ -254,7 +303,7 @@ class Indicators:
                 kw_items.append((k, repr(v)))
         return (self._asset_key(asset), timestep, name, tuple(kw_items))
 
-    def _full_history(self, asset, timestep) -> pd.DataFrame | None:
+    def _full_history(self, asset, timestep, *, quote=None, exchange=None) -> pd.DataFrame | None:
         """Return the full known bar series DataFrame for ``asset``.
 
         In backtest mode this may contain the entire simulated dataset.
@@ -267,17 +316,22 @@ class Indicators:
         broker = getattr(self._strategy, "broker", None)
         data_source = getattr(broker, "data_source", None) if broker is not None else None
 
-        df = self._read_store_df(data_source, asset, timestep)
+        df = self._read_store_df(data_source, asset, timestep, quote=quote)
         if df is not None:
             return df
 
         try:
-            bars = self._strategy.get_historical_prices(asset, length=self._fallback_length, timestep=timestep)
+            history_kwargs = {"length": self._fallback_length, "timestep": timestep}
+            if quote is not None:
+                history_kwargs["quote"] = quote
+            if exchange is not None:
+                history_kwargs["exchange"] = exchange
+            bars = self._strategy.get_historical_prices(asset, **history_kwargs)
         except Exception as exc:
             logger.debug("indicators: get_historical_prices fallback failed for %s: %s", asset, exc)
             bars = None
 
-        df = self._read_store_df(data_source, asset, timestep)
+        df = self._read_store_df(data_source, asset, timestep, quote=quote)
         if df is not None:
             return df
 
@@ -285,10 +339,10 @@ class Indicators:
             return None
         return getattr(bars, "df", None)
 
-    def _read_store_df(self, data_source, asset, timestep) -> pd.DataFrame | None:
+    def _read_store_df(self, data_source, asset, timestep, *, quote=None) -> pd.DataFrame | None:
         if data_source is None or getattr(data_source, "_data_store", None) is None:
             return None
-        data_obj = self._find_in_store(data_source, asset, timestep)
+        data_obj = self._find_in_store(data_source, asset, timestep, quote=quote)
         if data_obj is None or not hasattr(data_obj, "df"):
             return None
         df = data_obj.df
@@ -296,7 +350,7 @@ class Indicators:
             return None
         return df
 
-    def _find_in_store(self, data_source, asset, timestep=None):
+    def _find_in_store(self, data_source, asset, timestep=None, *, quote=None):
         store = data_source._data_store
 
         def matches_timeframe(data):
@@ -325,7 +379,10 @@ class Indicators:
                     return store[key]
         for stored_key, data in store.items():
             stored_asset = stored_key[0] if isinstance(stored_key, tuple) else stored_key
-            if stored_asset == asset and matches_timeframe(data):
+            stored_quote = None
+            if isinstance(stored_asset, tuple) and stored_asset:
+                stored_asset, stored_quote = stored_asset[0], stored_asset[1] if len(stored_asset) > 1 else None
+            if stored_asset == asset and (quote is None or stored_quote == quote) and matches_timeframe(data):
                 return data
         return None
 

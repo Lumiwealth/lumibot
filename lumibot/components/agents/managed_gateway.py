@@ -38,7 +38,7 @@ class ManagedAiGatewayError(RuntimeError):
 MANAGED_MODEL_FAMILIES = frozenset({
     "google/gemini-pro", "google/gemini-flash", "google/gemini-flash-lite",
     "openai/luna", "openai/terra", "openai/sol", "openai/astra",
-    "anthropic/sonnet", "xai/grok",
+    "anthropic/sonnet", "anthropic/opus", "anthropic/fable", "xai/grok",
 })
 
 
@@ -290,6 +290,7 @@ class BotSpotManagedLlm(BaseLlm):
     _renew_lock: threading.Lock = PrivateAttr()
     _model_lock: threading.Lock = PrivateAttr()
     _resolved_model: str | None = PrivateAttr(default=None)
+    _reasoning_effort: str | None = PrivateAttr(default=None)
 
     def __init__(
         self,
@@ -297,6 +298,7 @@ class BotSpotManagedLlm(BaseLlm):
         model: str,
         gateway_url: str,
         access_token: str,
+        reasoning_effort: str | None = None,
         post: Callable[[str, str, dict[str, Any]], tuple[int, dict[str, Any]]] = _post_json,
     ) -> None:
         super().__init__(model=model)
@@ -305,6 +307,9 @@ class BotSpotManagedLlm(BaseLlm):
         self._post = post
         self._renew_lock = threading.Lock()
         self._model_lock = threading.Lock()
+        if reasoning_effort not in {None, "none", "low", "medium", "high", "xhigh", "max"}:
+            raise ValueError("Unsupported managed AI reasoning effort.")
+        self._reasoning_effort = reasoning_effort
 
     def _renew(self) -> None:
         status, body = self._post(f"{self._gateway_url}/v1/grants/renew", self._access_token, {})
@@ -386,6 +391,8 @@ class BotSpotManagedLlm(BaseLlm):
         temperature = getattr(config, "temperature", None)
         if temperature is not None:
             payload["temperature"] = float(temperature)
+        if self._reasoning_effort is not None:
+            payload["reasoningEffort"] = self._reasoning_effort
         body = await asyncio.to_thread(self._resolved_inference, payload)
 
         raw_parts = body.get("parts")
@@ -413,9 +420,10 @@ class BotSpotManagedLlm(BaseLlm):
         )
 
 
-def managed_gateway_model(model: str) -> BotSpotManagedLlm:
+def managed_gateway_model(model: str, *, reasoning_effort: str | None = None) -> BotSpotManagedLlm:
     return BotSpotManagedLlm(
         model=model,
         gateway_url=str(os.environ["LUMIBOT_AI_GATEWAY_URL"]),
         access_token=str(os.environ["LUMIBOT_AI_GATEWAY_TOKEN"]),
+        reasoning_effort=reasoning_effort,
     )

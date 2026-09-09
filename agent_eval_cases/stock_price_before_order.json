@@ -2,17 +2,25 @@
   "id": "stock_price_before_order",
   "model": "gemini-3.5-flash-lite",
   "fixture": "flat_stock_account",
-  "systemPrompt": "Buy AAPL only if current price and recent completed daily bars confirm it remains above its five-day average. Risk no more than 10 percent of portfolio value and use a limit order.",
+  "systemPrompt": "Buy AAPL only if current price and recent completed daily bars confirm it remains above its five-day average. Risk no more than 10 percent of portfolio value, preserve its instrument identity explicitly as asset_type stock, and use a limit order.",
   "taskPrompt": "Evaluate the rule with current fixture evidence and act once if it passes.",
   "requiredSkill": "stock-trading",
   "machineContract": {
+    "acceptCompleteInitialAccountSnapshot": true,
     "orderTool": "orders_submit_order",
     "exactOrderCount": 1,
     "requiredBeforeOrder": [
       "account_portfolio",
       "account_positions",
       "market_last_price",
-      "market_historical_prices"
+      "risk_calculate_stock_quantity"
+    ],
+    "requiredAnyTools": [
+      [
+        "market_historical_prices",
+        "market_load_history_table",
+        "get_indicator"
+      ]
     ],
     "singleStockOrder": true
   },

@@ -73,8 +73,16 @@ def test_managed_native_tool_chain_reaches_atomic_option_submission_and_simulate
     monkeypatch.setenv("LUMIBOT_AI_GATEWAY_TOKEN", "synthetic-bound-token")
     for key in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):
         monkeypatch.delenv(key, raising=False)
-    monkeypatch.setattr("lumibot.components.agents.managed_gateway.managed_gateway_model", lambda model: BotSpotManagedLlm(
-        model=model, gateway_url="https://gateway.example.test", access_token="synthetic-bound-token", post=post))
+    monkeypatch.setattr(
+        "lumibot.components.agents.managed_gateway.managed_gateway_model",
+        lambda model, *, reasoning_effort=None: BotSpotManagedLlm(
+            model=model,
+            reasoning_effort=reasoning_effort,
+            gateway_url="https://gateway.example.test",
+            access_token="synthetic-bound-token",
+            post=post,
+        ),
+    )
     _, strategy = ManagedSpreadStrategy.run_backtest(
         datasource_class=PandasDataBacktesting,
         backtesting_start=datetime(2026, 8, 20, 14, 30, tzinfo=timezone.utc),

@@ -45,18 +45,24 @@ class _FixtureBroker(BacktestingBroker):
         return {"delta": delta, "gamma": 0.012, "theta": -0.05, "vega": 0.10, "rho": 0.02, "implied_volatility": 0.2}
 
 
-def _history(asset, fixture):
+def _history(asset, fixture, quote_asset=None):
     # Minute observations include today's opening range and prior daily closes.
     now = pd.Timestamp("2026-08-11T14:35:00Z")
     index = pd.date_range("2026-08-04T13:30:00Z", now + pd.Timedelta(minutes=2), freq="min")
     if asset.asset_type == "option":
-        quote = fixture.quote(float(asset.strike), str(asset.right).lower())
-        price = quote["last"]
+        market_quote = fixture.quote(float(asset.strike), str(asset.right).lower())
+        price = market_quote["last"]
+    elif asset.symbol == "BTC" and asset.asset_type == "crypto":
+        price = 100_000.0
+        market_quote = {"bid": price - 5.0, "ask": price + 5.0}
+    elif asset.symbol == "BTC":
+        price = 10.0
+        market_quote = {"bid": 9.95, "ask": 10.05}
     else:
         price = 230.0 if asset.symbol == "AAPL" else fixture.underlying_price
-        quote = {"bid": price - 0.05, "ask": price + 0.05}
+        market_quote = {"bid": price - 0.05, "ask": price + 0.05}
     frame = pd.DataFrame(
-        {"open": price, "high": price + 0.05, "low": price - 0.05, "close": price, "volume": 1000, **quote}, index=index
+        {"open": price, "high": price + 0.05, "low": price - 0.05, "close": price, "volume": 1000, **market_quote}, index=index
     )
     if asset.symbol == "AAPL" and asset.asset_type == "stock":
         closes = [
@@ -91,7 +97,7 @@ def _history(asset, fixture):
                 close,
                 [200, 220, 210, 480][i // 5],
             ]
-    return Data(asset, frame, timestep="minute")
+    return Data(asset, frame, quote=quote_asset, timestep="minute")
 
 
 class ProductionFixture:
@@ -112,8 +118,19 @@ class ProductionFixture:
                 )
                 for strike in strikes
             )
+        data = [_history(asset, fixture) for asset in assets]
+        if fixture.name == "crypto_instrument_identity":
+            stock_btc = Asset("BTC", asset_type="stock")
+            crypto_btc = Asset("BTC", asset_type="crypto")
+            crypto_usd = Asset("USD", asset_type="crypto")
+            data.extend(
+                [
+                    _history(stock_btc, fixture),
+                    _history(crypto_btc, fixture, quote_asset=crypto_usd),
+                ]
+            )
         source = PandasDataBacktesting(
-            pandas_data={asset: _history(asset, fixture) for asset in assets},
+            pandas_data=data,
             datetime_start=pd.Timestamp("2026-08-11T14:35:00Z"),
             datetime_end=pd.Timestamp("2026-08-11T14:37:00Z"),
             show_progress_bar=False,
@@ -147,7 +164,7 @@ class ProductionFixture:
         self.manager.replay_cache.root = self.root / "replay"
         self.manager.replay_cache.remote_cache = _NoRemoteCache()
 
-    def create_agent(self, case, runtime):
+    def create_agent(self, case, runtime, *, name="trader", allow_trading=True, system_prompt=None):
         rules = self.root / "rules.json"
         rules.write_text(json.dumps(case.get("rules") or {"version": 1, "rules": []}), encoding="utf-8")
         servers = []
@@ -161,13 +178,13 @@ class ProductionFixture:
                 )
             ]
         return self.manager.create(
-            name="trader",
+            name=name,
             model=case["model"],
-            system_prompt=case["systemPrompt"],
+            system_prompt=system_prompt or case["systemPrompt"],
             rules_path=rules,
             _runtime=runtime,
             mcp_servers=servers,
-            allow_trading=True,
+            allow_trading=allow_trading,
         )
 
     def tools(self):

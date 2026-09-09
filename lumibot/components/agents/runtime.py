@@ -479,6 +479,7 @@ class RuntimeRequest:
     model_request_timeout_seconds: float | None = None
     run_timeout_seconds: float | None = None
     max_output_tokens: int | None = None
+    reasoning_effort: str | None = None
     # Optional caller-owned budget (release evals). No provider credentials or
     # account caps are modified. Each continuation gets a separate reservation.
     model_call_budget: Any | None = None
@@ -1053,6 +1054,7 @@ def _resolve_model_for_adk(
     *,
     prompt_cache_key: str | None = None,
     model_request_timeout_seconds: float | None = None,
+    reasoning_effort: str | None = None,
 ) -> Any:
     # Native Gemini IDs take ADK's fast path as plain strings. Any other
     # provider prefix (e.g. "openai/...", "xai/...", "anthropic/...") is
@@ -1066,7 +1068,7 @@ def _resolve_model_for_adk(
     )
 
     if managed_gateway_available_for(model):
-        return managed_gateway_model(model)
+        return managed_gateway_model(model, reasoning_effort=reasoning_effort)
     if model in MANAGED_MODEL_FAMILIES:
         raise ManagedAiGatewayError(
             "Model families require BotSpot managed AI without a personal provider key. "
@@ -1320,32 +1322,13 @@ class GoogleADKRuntime:
         if request.task_prompt:
             sections.append(f"Task:\n{request.task_prompt.strip()}")
         else:
-            required_categories = [
-                "account_positions or account_portfolio",
-                "market_last_price or market_load_history_table",
-                "duckdb_query after loading a price table",
-                "get_indicator or get_indicators",
-            ]
-            if "alpaca_news" in tool_names:
-                required_categories.append("alpaca_news")
-            fred_tools = sorted(
-                name for name in tool_names if name.startswith("get_fred_") or name == "list_fred_series"
-            )
-            if fred_tools:
-                required_categories.append(" or ".join(fred_tools))
-            required_categories.extend(
-                [
-                    "get_income_statement, get_balance_sheet, get_cash_flow, or get_company_facts",
-                    "get_filings, search_filing, or get_filing_document",
-                ]
-            )
             sections.append(
                 "Task:\n"
-                "Do your normal job for the current market state. Before making a trading decision, use the available "
-                "tools to review account/portfolio state, current market prices, recent price history, technical "
-                "indicators, relevant news when configured, macro/FRED data when configured, and SEC financial/filing "
-                "evidence for relevant single-stock candidates. Specifically, include calls from these available "
-                f"categories: {'; '.join(required_categories)}. "
+                "Do your normal job for the current market state. Use only the evidence and tools needed for this "
+                "decision. Do not call every available data category by default. Treat a fresh, complete Runtime "
+                "Context account snapshot as authoritative until an order mutation occurs. Refresh only stale, "
+                "incomplete, omitted, or decision-critical account details. Prefer bounded batch tools when several "
+                "related values are needed, and pass compact conclusions rather than raw histories between agents. "
                 "In backtests, date-bound every external data request to the current simulated datetime and do not use "
                 "future information."
             )
@@ -1417,6 +1400,7 @@ class GoogleADKRuntime:
                 request.model,
                 prompt_cache_key=request.provider_prompt_cache_key or _provider_prompt_cache_key(request),
                 model_request_timeout_seconds=model_request_timeout_seconds,
+                reasoning_effort=request.reasoning_effort,
             ),
             instruction=self._instruction_for(request),
             tools=tools,

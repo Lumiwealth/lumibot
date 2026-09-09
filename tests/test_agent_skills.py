@@ -1,6 +1,7 @@
 import asyncio
 import json
 from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -86,6 +87,18 @@ def test_builtin_agent_skills_are_packaged_and_loadable():
     assert "BotSpot public macro" in skills[1].description
     assert "broad mandate" in skills[2].description
     assert len(builtin_skill_fingerprint()) == 64
+
+
+def test_research_skill_requires_query_after_catalog_discovery():
+    skill = (
+        Path(__file__).resolve().parents[1]
+        / "lumibot/components/agents/skills/research-data/SKILL.md"
+    )
+    text = skill.read_text(encoding="utf-8")
+
+    assert "Catalog results are metadata, not observations" in text
+    assert "call `query_data`" in text
+    assert "MUST call `query_data` for at least one relevant macro dataset" in text
 
 
 def test_options_skill_requires_atomic_multileg_or_no_trade():

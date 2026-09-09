@@ -2424,11 +2424,18 @@ def _bind_get_indicator(strategy: Any, manager: Any) -> BoundTool:
         indicator: str,
         timestep: str = "day",
         asset_type: AssetTypeArg = "stock",
+        quote_symbol: str | None = None,
+        exchange: str | None = None,
         parameters_json: str | None = None,
         start: str | None = None,
         end: str | None = None,
     ) -> dict[str, Any]:
-        asset = _asset_class()(symbol, asset_type=asset_type)
+        asset, quote = resolve_asset_and_quote(
+            strategy,
+            symbol=symbol,
+            asset_type=asset_type,
+            quote_symbol=quote_symbol,
+        )
         indicator_name = _require_non_empty_text("indicator", indicator)
         indicator_kwargs: dict[str, Any] = {}
         if parameters_json:
@@ -2460,14 +2467,30 @@ def _bind_get_indicator(strategy: Any, manager: Any) -> BoundTool:
             bounds = strategy.indicators.validate_window(start, end)
             window = {"start": bounds[0].isoformat(), "end": bounds[1].isoformat(), "inclusive": True}
             value = strategy.indicators.calculate_window(
-                asset, indicator_name, start=start, end=end, timestep=timestep, parameters=indicator_kwargs)
+                asset,
+                indicator_name,
+                start=start,
+                end=end,
+                timestep=timestep,
+                parameters=indicator_kwargs,
+                quote=quote,
+                exchange=exchange,
+            )
         else:
-            fn = getattr(strategy.indicators, indicator_name)
-            value = fn(asset, timestep=timestep, **indicator_kwargs)
+            value = strategy.indicators.calculate(
+                asset,
+                indicator_name,
+                timestep=timestep,
+                parameters=indicator_kwargs,
+                quote=quote,
+                exchange=exchange,
+            )
         return {
             "ok": True,
             "symbol": symbol.upper(),
             "asset_type": asset_type,
+            "quote_symbol": quote_symbol.upper() if quote_symbol else None,
+            "exchange": exchange,
             "indicator": indicator_name,
             "timestep": timestep,
             "datetime": strategy.get_datetime().isoformat()
@@ -2482,7 +2505,8 @@ def _bind_get_indicator(strategy: Any, manager: Any) -> BoundTool:
         name="get_indicator",
         description=(
             "Get one technical indicator for the current strategy datetime. "
-            "Arguments: symbol, indicator, timestep='day', asset_type='stock', optional parameters_json as a JSON object string. "
+            "Arguments: symbol, indicator, timestep='day', asset_type='stock', optional quote_symbol, exchange, and parameters_json as a JSON object string. "
+            "Preserve the complete instrument identity: for BTC/USD crypto pass asset_type='crypto' and quote_symbol='USD'; a ticker alone is not enough to distinguish a stock from crypto. "
             "Examples: get_indicator(symbol='SPY', indicator='rsi', parameters_json='{\"length\": 14}'); "
             "get_indicator(symbol='NVDA', indicator='macd'). "
             "Fibonacci range retracements use indicator='fibonacci', parameters_json='{\"direction\": \"up\"}': "
@@ -2503,6 +2527,8 @@ def _bind_get_indicators(strategy: Any, manager: Any) -> BoundTool:
         indicators: list[str] | None = None,
         timestep: str = "day",
         asset_type: AssetTypeArg = "stock",
+        quote_symbol: str | None = None,
+        exchange: str | None = None,
         requests_json: str | None = None,
     ) -> dict[str, Any]:
         # Keep the published list-of-names call compatible while giving each
@@ -2543,18 +2569,28 @@ def _bind_get_indicators(strategy: Any, manager: Any) -> BoundTool:
                 result = single(
                     symbol=symbol, indicator=item["indicator"],
                     timestep=item.get("timestep", timestep), asset_type=asset_type,
+                    quote_symbol=quote_symbol, exchange=exchange,
                     parameters_json=json.dumps(item.get("parameters", {})),
                     start=item.get("start"), end=item.get("end"),
                 )
             except Exception as exc:
                 result = {"ok": False, "indicator": item["indicator"], "tool_error": True, "error": str(exc)}
             results.append({"id": item["id"], **result})
-        return {"ok": True, "symbol": symbol.upper(), "complete": all(r["ok"] for r in results), "results": results}
+        return {
+            "ok": True,
+            "symbol": symbol.upper(),
+            "asset_type": asset_type,
+            "quote_symbol": quote_symbol.upper() if quote_symbol else None,
+            "exchange": exchange,
+            "complete": all(r["ok"] for r in results),
+            "results": results,
+        }
 
     return BoundTool(
         name="get_indicators",
         description=(
             "Get up to 50 indicators for one symbol. Use requests_json for independent parameters/timeframes, "
+            "Preserve asset_type, quote_symbol, and exchange for the complete instrument identity; for BTC/USD crypto pass asset_type='crypto' and quote_symbol='USD'. "
             'e.g. [{"id":"sma50","indicator":"sma","timestep":"day","parameters":{"length":50}},'
             '{"id":"sma200","indicator":"sma","parameters":{"length":200}}]. '
             "Each result retains its id and errors do not hide other results. "

@@ -462,6 +462,8 @@ def test_runtime_prompt_only_names_available_tools():
     assert "Momentum holds." in user_text
     assert "list_fred_series" not in user_text
     assert "alpaca_news" not in user_text
+    assert "Specifically, include calls" not in user_text
+    assert "Do not call every available data category by default" in user_text
 
 
 def test_runtime_enforces_agent_run_timeout(monkeypatch):

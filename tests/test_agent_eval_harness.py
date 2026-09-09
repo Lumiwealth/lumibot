@@ -160,6 +160,57 @@ def test_every_eval_case_uses_a_real_model_and_a_production_contract():
         assert "simulatedEvents" not in case
 
 
+def test_entry_evals_accept_only_complete_current_account_snapshots_instead_of_redundant_reads():
+    cases = {case["id"]: case for case in evals.load_cases()}
+    for case_id in (
+        "options_single_leg_chain_and_quote",
+        "stock_price_before_order",
+        "stock_orb_completed_bars",
+    ):
+        contract = cases[case_id]["machineContract"]
+        assert contract["acceptCompleteInitialAccountSnapshot"] is True
+        assert any(
+            tool in contract["requiredBeforeOrder"]
+            for tool in ("account_portfolio", "account_positions", "orders_open_orders")
+        )
+
+
+def test_stock_entry_evals_require_explicit_instrument_identity():
+    cases = {case["id"]: case for case in evals.load_cases()}
+    for case_id in ("stock_price_before_order", "stock_orb_completed_bars"):
+        assert "asset_type stock" in cases[case_id]["systemPrompt"]
+
+
+def test_stock_price_eval_accepts_each_production_history_analysis_path():
+    case = next(case for case in evals.load_cases() if case["id"] == "stock_price_before_order")
+    assert case["machineContract"]["requiredAnyTools"] == [
+        ["market_historical_prices", "market_load_history_table", "get_indicator"]
+    ]
+    assert "risk_calculate_stock_quantity" in case["machineContract"]["requiredBeforeOrder"]
+
+
+def test_crypto_identity_eval_preserves_typed_instrument_contract_and_red_baseline():
+    case = evals.load_cases({"crypto_instrument_identity"})[0]
+    assert case["context"]["instrument_universe"] == [
+        {"symbol": "BTC", "asset_type": "stock"},
+        {"symbol": "BTC", "asset_type": "crypto", "quote_symbol": "USD"},
+    ]
+    assert case["machineContract"]["instrumentIdentity"] == {
+        "symbol": "BTC",
+        "asset_type": "crypto",
+        "quote_symbol": "USD",
+    }
+    assert case["machineContract"]["requiredAnyTools"] == [["get_indicator", "get_indicators"]]
+    baseline = json.loads(
+        (evals.REPO_ROOT / "agent_eval_baselines/2026-09-09_crypto_instrument_identity_red.json").read_text()
+    )
+    assert baseline["bad_tool_call"]["arguments"] == {
+        "indicators": ["rsi", "macd"],
+        "symbol": "BTC",
+        "timestep": "hour",
+    }
+
+
 def test_research_eval_catalog_covers_point_in_time_injection_fallback_and_handoff():
     cases = {
         case["id"]: case
@@ -173,6 +224,14 @@ def test_research_eval_catalog_covers_point_in_time_injection_fallback_and_hando
         )
     }
     assert all(case["requiredSkill"] == "research-data" for case in cases.values())
+    handoff = cases["researcher_trader_evidence_handoff"]
+    assert handoff["agentTopology"] == "researcher_then_trader"
+    assert handoff["machineContract"]["requiredAgents"] == ["researcher", "trader"]
+    assert handoff["machineContract"]["requiredTraderTools"] == [
+        "account_portfolio",
+        "account_positions",
+        "orders_open_orders",
+    ]
     assert cases["research_macro_point_in_time"]["machineContract"]["requiredTools"] == [
         "search_data_catalog",
         "query_data",
@@ -485,6 +544,7 @@ def test_runtime_fingerprint_includes_indicators_broker_and_installed_sdks(monke
     monkeypatch.setattr(evals.importlib.metadata, "version", lambda package: "second")
     assert evals.runtime_fingerprint() != first
     assert evals.REPO_ROOT / "lumibot/indicators/indicators.py" in seen
+    assert evals.REPO_ROOT / "lumibot/components/agents/asset_resolution.py" in seen
     assert evals.REPO_ROOT / "lumibot/brokers/broker.py" in seen
     assert evals.REPO_ROOT / "scripts/agent_eval_call_budget.py" in seen
 

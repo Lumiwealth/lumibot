@@ -834,11 +834,18 @@ def _managed_ai_terminal_status(result: AgentRunResult, *, allow_trading: bool) 
     )
     if successful_order:
         return "completed_decision"
-    if any(
-        isinstance(_unwrap_tool_payload(event.payload), dict)
-        and _unwrap_tool_payload(event.payload).get("tool_error") is True
-        for event in tool_results
-    ):
+    later_successes: set[str] = set()
+    has_unrecovered_tool_error = False
+    for event in reversed(tool_results):
+        tool_name = str(event.tool_name or "")
+        payload = _unwrap_tool_payload(event.payload)
+        is_error = isinstance(payload, dict) and payload.get("tool_error") is True
+        if is_error:
+            if tool_name not in later_successes:
+                has_unrecovered_tool_error = True
+        else:
+            later_successes.add(tool_name)
+    if has_unrecovered_tool_error:
         return "tool_error"
     return "completed_no_action" if allow_trading else "completed_decision"
 
@@ -942,6 +949,7 @@ class AgentHandle:
         rules_path: str | Path | None = None,
         model_request_timeout_seconds: float | None = None,
         run_timeout_seconds: float | None = None,
+        reasoning_effort: str | None = None,
     ) -> None:
         self.manager = manager
         self.name = name
@@ -950,6 +958,9 @@ class AgentHandle:
         self.allow_trading = bool(allow_trading)
         self.model_request_timeout_seconds = model_request_timeout_seconds
         self.run_timeout_seconds = run_timeout_seconds
+        if reasoning_effort not in {None, "none", "low", "medium", "high", "xhigh", "max"}:
+            raise ValueError("Unsupported agent reasoning_effort.")
+        self.reasoning_effort = reasoning_effort
         self.include_builtin_skills = bool(include_builtin_skills)
         self.rules_path = rules_path
         from .builtins import BuiltinTools
@@ -1215,13 +1226,12 @@ class AgentHandle:
             stock_sizing_instruction,
             "Load recent price history for any asset you are considering and inspect it before deciding.",
             "If you already hold a position and are considering adding, reducing, or selling it, call search_memory for the open thesis first and compare the current evidence against that thesis.",
-            "When available, use the built-in evidence stack before making a material equity decision: account/portfolio tools, current market prices, recent price history, DuckDB analysis, technical indicators, relevant news, macro/FRED data, SEC financial statements, SEC company facts, and SEC filings.",
-            "Do not submit a material equity order until you have called account/portfolio tools, market price/history tools, at least one technical indicator tool, a relevant news tool when configured, a macro/FRED tool when configured, and SEC financial/filing tools for relevant single-stock candidates.",
-            "For ETFs, indexes, or broad-market trades, use SEC financial/filing tools on the most relevant single-stock candidates, holdings, or alternatives you are considering; do not skip the category just because the final instrument is an ETF.",
+            "Choose the smallest relevant evidence set for the strategy's thesis and decision. Do not call every available data category by default. Use technical, news, macro, or SEC evidence when it can materially confirm or break the thesis, and explicitly identify important evidence that is unavailable.",
+            "Before a material order, the account/risk checks and a current price needed to size that order are mandatory. Other evidence categories are thesis-dependent: do not fetch unrelated SEC filings for an index or ETF merely to satisfy a generic checklist.",
             "Do not repeat identical read-only evidence calls if the current task context already includes fresh results from another agent; reference those results and call again only when they are missing, stale, or conflicting.",
             "If the user asks for an aggressive or concentrated strategy, let that user strategy prompt override the default investor style, but still ground the decision in tool evidence, position sizing, broker constraints, and backtesting look-ahead safety.",
             "When querying DuckDB tables, use datetime for timestamp columns and close for price columns unless the loaded sample rows clearly show different column names.",
-            "When you have access to external MCP tools, explore what they offer and use them. You do not need to be told which specific tool to call.",
+            "Use external MCP tools only when their evidence is relevant to the current task; availability alone is not a reason to call them.",
             "Before your final response, reconcile every state-changing tool result with the latest account and order reads. Never claim that no order was submitted after an order tool returned a submitted identifier; report the exact observed order status, even if your later analysis changes.",
             "Finish every run with a short summary sentence starting with RESULT: that explains what you did and why.",
         ]
@@ -1551,6 +1561,7 @@ class AgentHandle:
         effective_system_prompt: str,
         base_system_prompt: str,
         builtin_skill_fingerprint: str | None,
+        reasoning_effort: str | None,
     ) -> dict[str, Any]:
         bound_tools = self._ensure_bound_tools()
         return {
@@ -1563,6 +1574,7 @@ class AgentHandle:
             "runtime_context": runtime_context,
             "memory_state": memory_state or {},
             "model": model,
+            "reasoning_effort": reasoning_effort,
             "tool_surface": [
                 {
                     "name": tool.name,
@@ -1900,6 +1912,7 @@ class AgentHandle:
         model: str | None = None,
         model_request_timeout_seconds: float | None = None,
         run_timeout_seconds: float | None = None,
+        reasoning_effort: str | None = None,
         **kwargs: Any,
     ) -> AgentRunResult:
         if "task" in kwargs and task_prompt is None:
@@ -1917,6 +1930,9 @@ class AgentHandle:
         resolved_run_timeout_seconds = (
             run_timeout_seconds if run_timeout_seconds is not None else self.run_timeout_seconds
         )
+        resolved_reasoning_effort = reasoning_effort if reasoning_effort is not None else self.reasoning_effort
+        if resolved_reasoning_effort not in {None, "none", "low", "medium", "high", "xhigh", "max"}:
+            raise ValueError("Unsupported agent reasoning_effort.")
         runtime_context = self._runtime_context()
         memory_state = self._memory_state(runtime_context)
         base_system_prompt = self._base_system_prompt(runtime_context)
@@ -1936,6 +1952,7 @@ class AgentHandle:
             effective_system_prompt=effective_system_prompt,
             base_system_prompt=base_system_prompt,
             builtin_skill_fingerprint=skill_fingerprint,
+            reasoning_effort=resolved_reasoning_effort,
         )
         cache_key = self.manager.replay_cache.compute_key(cache_payload)
         strategy = self.manager.strategy
@@ -1990,6 +2007,7 @@ class AgentHandle:
             ),
             model_request_timeout_seconds=resolved_model_request_timeout_seconds,
             run_timeout_seconds=resolved_run_timeout_seconds,
+            reasoning_effort=resolved_reasoning_effort,
         )
         self.manager._reserve_model_call(agent_name=self.name, model=model_name)
         # Strategy-level safety net with live-vs-backtest branching.
@@ -2697,6 +2715,7 @@ class AgentManager:
         rules_path: str | Path | None = None,
         model_request_timeout_seconds: float | None = None,
         run_timeout_seconds: float | None = None,
+        reasoning_effort: str | None = None,
     ) -> AgentHandle:
         if name in self._agents:
             raise ValueError(f"Agent with name {name!r} already exists.")
@@ -2719,6 +2738,7 @@ class AgentManager:
             rules_path=rules_path,
             model_request_timeout_seconds=model_request_timeout_seconds,
             run_timeout_seconds=run_timeout_seconds,
+            reasoning_effort=reasoning_effort,
         )
         if cadence is not None:
             self.strategy.log_message(

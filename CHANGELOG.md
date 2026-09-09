@@ -3,6 +3,17 @@
 ## 4.5.92 - Unreleased
 
 ### Changed
+- Managed AI agents can select a reviewed provider reasoning effort end to end;
+  unsupported provider/effort combinations fail visibly instead of being
+  silently ignored. Stable Anthropic Opus/Fable family identifiers are also
+  recognized alongside Sonnet.
+- Agent evidence guidance now asks for the smallest thesis-relevant evidence
+  set, reuses fresh account and handoff context, and avoids unrelated tool
+  categories while retaining mandatory account, risk, and current-price checks
+  before an order.
+- Indicator tools preserve complete instrument identity, including asset type,
+  quote asset, and exchange, so a crypto pair cannot be silently treated as a
+  same-ticker stock.
 - Fibonacci range retracements support explicit up/down direction, bounded
   lookback and independent monthly/annual windows through the agent indicator
   tools. Numerical contracts cover RSI, VWAP, SMA50/200, MACD, Bollinger and ATR.
@@ -26,6 +37,12 @@
 - Corrected README and package license labels to match the existing GPLv3 LICENSE file; the license text is unchanged.
 
 ### Fixed
+- A failed tool attempt followed by a successful retry of the same tool is
+  classified as recovered. Unrecovered or final tool failures still produce a
+  structured ``tool_error`` outcome.
+- Production eval fixtures now execute a real non-trading researcher followed
+  by a separately instantiated trading/risk agent, preserving both actors'
+  tool evidence and usage instead of simulating the handoff with a paragraph.
 - Managed-gateway protocol and hard provider-quota errors retain their typed
   cause. Backtests now fail visibly on invalid provider tool contracts or
   exhausted billing/quota instead of recording repeated no-action iterations.

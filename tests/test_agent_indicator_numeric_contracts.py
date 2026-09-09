@@ -61,6 +61,49 @@ def _batch(strategy, requests):
     return {row["id"]: row["value"] for row in response["results"]}
 
 
+def test_indicator_tool_preserves_crypto_quote_and_exchange_identity():
+    now = pd.Timestamp("2026-09-08T16:00:00Z")
+    stock = Asset("BTC", asset_type="stock")
+    crypto = Asset("BTC", asset_type="crypto")
+    quote = Asset("USD", asset_type="crypto")
+    stock_frame = pd.DataFrame(
+        {"close": [10.0, 11.0, 12.0]},
+        index=pd.date_range("2026-09-06", periods=3, freq="D", tz="UTC"),
+    )
+    crypto_frame = pd.DataFrame(
+        {"close": [100_000.0, 101_000.0, 102_000.0]},
+        index=pd.date_range("2026-09-06", periods=3, freq="D", tz="UTC"),
+    )
+    strategy = SimpleNamespace(
+        broker=SimpleNamespace(
+            data_source=SimpleNamespace(
+                _data_store={
+                    (stock, "day"): SimpleNamespace(df=stock_frame, timestep="day"),
+                    ((crypto, quote), "day"): SimpleNamespace(df=crypto_frame, timestep="day"),
+                }
+            )
+        ),
+        get_datetime=lambda: now,
+    )
+    strategy.indicators = Indicators(strategy)
+
+    response = _bind_get_indicators(strategy, None).function(
+        "BTC",
+        asset_type="crypto",
+        quote_symbol="USD",
+        exchange="COINBASE",
+        requests_json=json.dumps(
+            [{"id": "crypto-sma", "indicator": "sma", "parameters": {"length": 2, "talib": False}}]
+        ),
+    )
+
+    row = response["results"][0]
+    assert row["asset_type"] == "crypto"
+    assert row["quote_symbol"] == "USD"
+    assert row["exchange"] == "COINBASE"
+    assert row["value"] == pytest.approx(101_500.0)
+
+
 def _adjusted_average(values, alpha):
     # Independent scalar recurrence, not pandas-ta or the production calculation.
     weighted = denominator = 0.0

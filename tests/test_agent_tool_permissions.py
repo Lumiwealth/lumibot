@@ -188,6 +188,19 @@ def test_live_agent_auth_failure_emits_structured_decision_outcome():
     }
 
 
+def test_base_prompt_selects_relevant_evidence_instead_of_every_tool_category():
+    manager = AgentManager(_Strategy())
+    agent = manager.create(name="trader", allow_trading=True)
+
+    prompt = agent._base_system_prompt(agent._runtime_context())
+
+    assert "Do not call every available data category by default" in prompt
+    assert "Other evidence categories are thesis-dependent" in prompt
+    assert "availability alone is not a reason to call them" in prompt
+    assert "Do not submit a material equity order until you have called" not in prompt
+    assert "use SEC financial/filing tools on the most relevant single-stock" not in prompt
+
+
 def test_optional_agent_auth_failure_does_not_mark_decision_blocked():
     strategy = _Strategy()
     strategy.is_backtesting = False
@@ -230,6 +243,7 @@ def test_agent_timeout_options_forward_to_runtime_request(monkeypatch):
         _runtime=_CaptureRuntime(),
         model_request_timeout_seconds=123,
         run_timeout_seconds=456,
+        reasoning_effort="high",
     )
 
     manager["timed"].run(task_prompt="Use defaults.")
@@ -241,6 +255,7 @@ def test_agent_timeout_options_forward_to_runtime_request(monkeypatch):
 
     assert _CaptureRuntime.requests[0].model_request_timeout_seconds == 123
     assert _CaptureRuntime.requests[0].run_timeout_seconds == 456
+    assert _CaptureRuntime.requests[0].reasoning_effort == "high"
     assert _CaptureRuntime.requests[1].model_request_timeout_seconds == 7
     assert _CaptureRuntime.requests[1].run_timeout_seconds == 8
 
@@ -628,6 +643,45 @@ def test_builtin_indicator_schema_is_gemini_function_declaration_compatible():
 
     assert "additional_properties" not in schema_text
     assert "parameters_json" in parameters["properties"]
+
+
+def test_actual_account_indicator_research_and_multileg_schemas_cross_managed_gateway():
+    pytest.importorskip("google.adk.tools.function_tool")
+    from google.adk.tools.function_tool import FunctionTool
+    from google.genai import types
+
+    from lumibot.components.agents.managed_gateway import _tools
+    from lumibot.components.agents.runtime import _wrap_tool_callable
+
+    agent = AgentManager(_Strategy()).create(
+        name="trader",
+        model="openai/gpt-5.6-luna",
+        allow_trading=True,
+    )
+    selected = {
+        tool.name: tool
+        for tool in agent._ensure_bound_tools()
+        if tool.name in {"account_positions", "get_indicators", "get_income_statement", "orders_submit_multileg"}
+    }
+    assert set(selected) == {
+        "account_positions",
+        "get_indicators",
+        "get_income_statement",
+        "orders_submit_multileg",
+    }
+    declarations = [
+        FunctionTool(_wrap_tool_callable(tool))._get_declaration()
+        for tool in selected.values()
+    ]
+    request = SimpleNamespace(config=SimpleNamespace(tools=[types.Tool(function_declarations=declarations)]))
+
+    gateway_tools = {tool["name"]: tool for tool in _tools(request)}
+    assert gateway_tools.keys() == selected.keys()
+    assert "symbol" in gateway_tools["account_positions"]["inputSchema"]["properties"]
+    assert "requests_json" in gateway_tools["get_indicators"]["inputSchema"]["properties"]
+    assert "symbol" in gateway_tools["get_income_statement"]["inputSchema"]["properties"]
+    assert "legs_json" in gateway_tools["orders_submit_multileg"]["inputSchema"]["properties"]
+    json.dumps(gateway_tools, allow_nan=False)
 
 
 def test_agent_allow_trading_true_keeps_mutating_order_tools():

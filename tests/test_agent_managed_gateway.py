@@ -95,6 +95,26 @@ def test_managed_gateway_maps_adk_request_and_response():
     assert responses[0].usage_metadata.prompt_token_count == 10
 
 
+def test_managed_gateway_forwards_explicit_reasoning_effort():
+    payloads = []
+    model = BotSpotManagedLlm(
+        model="openai/gpt-5.6-luna",
+        gateway_url="https://gateway.example.test/",
+        access_token="bounded-token",
+        reasoning_effort="high",
+        post=lambda _url, _token, payload: (
+            payloads.append(payload) or 200,
+            {"model": "gpt-5.6-luna", "parts": [{"type": "text", "text": "Done"}], "usage": {}},
+        ),
+    )
+
+    async def collect():
+        return [item async for item in model.generate_content_async(_request())]
+
+    asyncio.run(collect())
+    assert payloads[0]["reasoningEffort"] == "high"
+
+
 def test_managed_family_pins_exact_model_across_native_tool_continuations():
     calls = []
 
@@ -395,21 +415,24 @@ def test_managed_gateway_rejects_lossy_or_malformed_provider_parts(parts):
 
 
 @pytest.mark.parametrize(
-    ("model", "expected_provider"),
+    ("model", "expected_provider", "resolved_model"),
     [
-        ("gemini-3.1-flash-lite", "google"),
-        ("openai/gpt-5.6-luna", "openai"),
-        ("anthropic/claude-sonnet-5", "anthropic"),
-        ("xai/grok-4.5", "xai"),
+        ("gemini-3.1-flash-lite", "google", None),
+        ("openai/gpt-5.6-luna", "openai", None),
+        ("anthropic/claude-sonnet-5", "anthropic", None),
+        ("anthropic/opus", "anthropic", "claude-opus-5"),
+        ("anthropic/fable", "anthropic", "claude-fable-5-1"),
+        ("xai/grok-4.5", "xai", None),
     ],
 )
-def test_managed_gateway_routes_every_supported_provider(model, expected_provider):
+def test_managed_gateway_routes_every_supported_provider(model, expected_provider, resolved_model):
     calls = []
 
     def post(url, token, payload):
         calls.append((url, token, payload))
         return 200, {
-            "model": model,
+            "model": resolved_model or model,
+            **({"resolvedModel": resolved_model} if resolved_model else {}),
             "parts": [{"type": "text", "text": "Done"}],
             "usage": {"inputTokens": 7, "cachedInputTokens": 2, "outputTokens": 1},
         }

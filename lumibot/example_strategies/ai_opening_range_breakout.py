@@ -80,6 +80,9 @@ Rules:
    beginning at 09:30 ET. Skip symbols whose true opening window is unavailable.
    Request only the evidence needed for that opening window and the later
    breakout decision, using at most 100 completed bars for any one request.
+   Reuse one bounded multi-symbol history result for the scan. Do not request
+   separate history for a symbol already covered by that result unless its
+   evidence is missing or invalid.
 2. A valid long breakout requires the latest completed bar's close to be strictly
    greater than that symbol's opening-range high (close > OR high), with confirming
    volume when available. A close equal to or below the OR high is not a breakout.

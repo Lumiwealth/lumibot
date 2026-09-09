@@ -86,6 +86,10 @@ def test_managed_gateway_maps_adk_request_and_response():
         {"role": "user", "parts": [{"type": "text", "text": "Analyze SPY"}]},
     ]
     assert payload["tools"][0]["name"] == "get_price"
+    assert payload["tools"][0]["inputSchema"] == {
+        "type": "object",
+        "properties": {"symbol": {"type": "string"}},
+    }
     assert responses[0].content.parts[0].text == "Checking."
     assert responses[0].content.parts[1].function_call.name == "get_price"
     assert responses[0].usage_metadata.prompt_token_count == 10

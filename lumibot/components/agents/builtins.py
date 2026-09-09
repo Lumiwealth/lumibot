@@ -2589,7 +2589,8 @@ def _bind_get_indicators(strategy: Any, manager: Any) -> BoundTool:
     return BoundTool(
         name="get_indicators",
         description=(
-            "Get up to 50 indicators for one symbol. Use requests_json for independent parameters/timeframes, "
+            "Get up to 50 indicators for one symbol. Supply exactly one of indicators or requests_json; never supply both. "
+            "Use requests_json for independent parameters/timeframes, "
             "Preserve asset_type, quote_symbol, and exchange for the complete instrument identity; for BTC/USD crypto pass asset_type='crypto' and quote_symbol='USD'. "
             'e.g. [{"id":"sma50","indicator":"sma","timestep":"day","parameters":{"length":50}},'
             '{"id":"sma200","indicator":"sma","parameters":{"length":200}}]. '

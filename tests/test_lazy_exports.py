@@ -53,6 +53,25 @@ def _clean_subprocess_env() -> dict[str, str]:
     return env
 
 
+def test_numeric_report_helpers_do_not_load_plotting_or_provider_clients():
+    # Cloud profiles showed numeric stats importing unused plotting/provider
+    # libraries before the first callback. Keep calculations independent of them.
+    result = subprocess.run(
+        [sys.executable, "-c", """
+import sys
+import pandas as pd
+from lumibot.tools.indicators import cumulative_to_period_flows, stats_summary
+assert cumulative_to_period_flows(pd.Series([100, 125, 120])).tolist() == [100, 25, -5]
+frame = pd.DataFrame({'return': [0.0, 0.01, -0.005]}, index=pd.date_range('2024-01-02', periods=3))
+assert abs(stats_summary(frame, 0)['total_return'] - 0.00495) < 1e-9
+for name in ('plotly', 'quantstats_lumi', 'lumibot.tools.yahoo_helper'):
+    assert name not in sys.modules, name
+"""],
+        env=_clean_subprocess_env(), capture_output=True, text=True, timeout=60,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_lazy_package_all_exports_resolve():
     modules = [
         "lumibot",

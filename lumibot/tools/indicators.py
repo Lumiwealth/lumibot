@@ -9,15 +9,21 @@ from decimal import Decimal, InvalidOperation
 
 import pandas as pd
 import numpy as np
-import plotly.graph_objects as go
 import pytz
-import quantstats_lumi as qs
-from plotly.subplots import make_subplots
+from lumibot._lazy_imports import LazyModule, lazy_class
 
 from ..constants import LUMIBOT_DEFAULT_TIMEZONE
 from lumibot.tools import to_datetime_aware
 
-from .yahoo_helper import YahooHelper as yh
+go = LazyModule("plotly.graph_objects")
+qs = LazyModule("quantstats_lumi")
+yh = lazy_class("lumibot.tools.yahoo_helper", "YahooHelper")
+
+
+def make_subplots(*args, **kwargs):
+    from plotly.subplots import make_subplots as implementation
+
+    return implementation(*args, **kwargs)
 
 from lumibot.tools.lumibot_logger import get_logger
 from lumibot.tools.parquet_utils import (

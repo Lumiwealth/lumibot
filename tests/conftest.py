@@ -345,11 +345,14 @@ def pytest_runtest_setup(item: pytest.Item):
     requires_theta = item.get_closest_marker("thetadata") is not None
     requires_ibkr = item.get_closest_marker("ibkr") is not None
     requires_polymarket = item.get_closest_marker("polymarket") is not None
+    # Kalshi has independent Demo credentials. Do not apply unrelated legacy
+    # Polygon/Theta gates to this newly supported broker's API tests.
+    requires_kalshi = item.get_closest_marker("kalshi") is not None
     requires_polymarket_credentials = item.get_closest_marker("polymarket_credentials") is not None
     requires_polymarket_live_trading = item.get_closest_marker("polymarket_live_trading") is not None
 
     # Determine which providers are required
-    if requires_ibkr or requires_polymarket:
+    if requires_ibkr or requires_polymarket or requires_kalshi:
         need_polygon = False
         need_theta = False
     elif requires_polygon or requires_theta:

@@ -419,6 +419,15 @@ quotes, inspect market rules and resolution status, backtest historical Polymark
 
 Start with the full setup and reference guide: :doc:`brokers.polymarket`.
 
+Kalshi Live Trading
+-------------------
+
+Kalshi supports live binary prediction contracts through the normal broker and
+data-source interfaces: account values, positions, orders, limit GTC/IOC/FOK/GTD,
+price modification, cancellation, streaming, quotes and historical prices.
+Start with :doc:`brokers.kalshi`. This integration does not provide Kalshi
+backtesting or unpriced market orders.
+
 Compared With Backtesting Libraries
 -----------------------------------
 

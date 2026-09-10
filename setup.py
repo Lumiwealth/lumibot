@@ -111,6 +111,8 @@ setuptools.setup(
         "requests-oauthlib",
         "boto3>=1.40.64",
         "httpx",
+        "cryptography>=41",
+        "websockets>=15,<16",
     ],
     # Include configuration files, and only include ThetaTerminal.jar if present
     package_data={

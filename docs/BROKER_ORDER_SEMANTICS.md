@@ -2,9 +2,35 @@
 
 > Notes on live broker behavior that affect backtesting semantics (extended hours, order types, and “market closed / no data” handling).
 
-**Last Updated:** 2026-09-06
+**Last Updated:** 2026-09-10
 **Status:** Active
 **Audience:** Developers, AI Agents
+
+## Kalshi live prediction contracts
+
+Kalshi uses `prediction_contract` assets with the market ticker as the symbol.
+All prices and order sides refer to YES: buy increases signed YES quantity and
+sell decreases it. Negative positions are NO contracts. Polymarket's distinct
+outcome-token identifiers are not reused or inferred from a Kalshi ticker.
+
+Only simple limit orders are supported, with explicit `gtc`, `ioc`, `fok` or
+`gtd` (future timezone-aware expiration). The provider's V2 endpoint requires a
+price, so `market` raises instead of being silently simulated. `day`, stops,
+trailing/smart limits, bracket/OCO/OTO/multileg, and custom provider parameters
+are unsupported. Price modification uses amend; quantity changes require a new
+order. Plural submission remains the broker base's independent-order behavior.
+
+Kalshi integer cents and fixed-point strings are normalized at the adapter.
+LumiBot account value is available cash plus the provider's positions value.
+Prediction-contract fills use the existing cash-refresh behavior rather than
+stock short-sale arithmetic. Fill notifications are reconciled against REST
+cumulative quantity/notional and delivered once through `_process_trade_event`.
+The adapter retains sub-cent fill averages despite the generic Order setter's
+cent rounding. The existing `CustomStream` owns notification dispatch and REST
+repair after disconnects. There is no Kalshi backtesting adapter in this change.
+
+See `KALSHI_BROKER_ARCHITECTURE.md` and `docsrc/brokers.kalshi.rst` for tests,
+credentials, endpoint mappings, limits and user examples.
 
 ---
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Kalshi live broker and data source using the existing prediction-contract asset,
+  credentials loader, order/position types, singular/plural strategy methods, and
+  CustomStream lifecycle. Supports RSA API keys (inline PEM or file), Demo/production,
+  USD balances, positions, orders, simple limit GTC/IOC/FOK/GTD, price modification,
+  cancellation, quotes, last prices and historical candles. Unsupported market and
+  advanced order types fail explicitly. Includes offline and opt-in Demo API tests.
+  Kalshi backtesting and hosted OAuth onboarding are not included.
+
 ## 4.5.91 - 2026-09-06
 
 Deploy marker: `d007efed231d`

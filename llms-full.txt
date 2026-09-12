@@ -1,5 +1,5 @@
 # Lumibot Documentation (Compiled)
-# Generated: 2026-09-12T19:05:46Z
+# Generated: 2026-09-12T19:09:37Z
 
 
 ===== MIGRATING_FROM_BACKTRADER =====
@@ -6096,15 +6096,15 @@ Quick Comparison
 |                    |                      | rministic    | charts, logs   | selected CCXT  |                | kill switches    |
 |                    |                      | gates        |                |                |                |                  |
 +--------------------+----------------------+--------------+----------------+----------------+----------------+------------------+
-| TradingAgents      | Multi-agent LLM      | Yes, with a  | Research/demo  | Not the main   | Limited        | No               |
-|                    | trading research     | specific re  | oriented       | focus          |                |                  |
-|                    | framework            | search/deba  |                |                |                |                  |
-|                    |                      | te structure |                |                |                |                  |
+| TradingAgents      | Multi-agent LLM      | Yes, with a  | Ticker/date    | Not the main   | Limited        | No               |
+|                    | trading research     | specific re  | analysis;      | focus          |                |                  |
+|                    | framework            | search/deba  | inspect the    |                |                |                  |
+|                    |                      | te structure | research setup |                |                |                  |
 +--------------------+----------------------+--------------+----------------+----------------+----------------+------------------+
-| ai-hedge-fund      | Educational AI hedge | Yes, with    | Demo/backtest  | Not the main   | Limited        | No               |
-|                    | fund with named      | investor-    | oriented       | focus          |                |                  |
-|                    | investor-style       | style        |                |                |                |                  |
-|                    | agents               | personas     |                |                |                |                  |
+| ai-hedge-fund      | Investor-style       | Yes, with    | Saved-fund     | Roadmap;       | Limited        | No               |
+|                    | agents and saved     | investor-    | backtest       | README says no |                |                  |
+|                    | fund mandates        | style        | command        | actual trades  |                |                  |
+|                    |                      | personas     | documented     |                |                |                  |
 +--------------------+----------------------+--------------+----------------+----------------+----------------+------------------+
 | OpenAlice          | One-person Wall      | Yes, with an | Emerging/expe  | Local/self-run | Limited        | No               |
 |                    | Street agent concept | end-to-end   | rimental       | focus          |                |                  |
@@ -6115,11 +6115,16 @@ Quick Comparison
 | QuantDinger        | Self-hosted AI quant | Yes          | Yes            | Crypto, IBKR,  | Yes            | Self-hosted      |
 |                    | operating system     |              |                | MT5, Alpaca    |                |                  |
 +--------------------+----------------------+--------------+----------------+----------------+----------------+------------------+
-| Vibe-Trading       | Personal trading     | Yes          | Yes            | Agent trading  | Limited        | Platform-        |
-|                    | agent                |              |                | platform focus |                | specific         |
+| Vibe-Trading       | Personal trading     | Yes          | Backtest tools | Broker         | Strategy       | Platform-        |
+|                    | agent                |              | and evidence   | connectors;    | artifacts      | specific         |
+|                    |                      |              | tracking       | support varies | documented     |                  |
+|                    |                      |              | documented     | by connector   |                |                  |
 +--------------------+----------------------+--------------+----------------+----------------+----------------+------------------+
-| AI-Trader          | Agent-native trading | Yes          | Platform focus | Platform focus | Limited        | Platform-        |
-|                    | platform             |              |                |                |                | specific         |
+| AI-Trader          | Agent-native trading | Yes          | Inspect        | Broker-sync    | Limited        | Platform-        |
+|                    | platform             |              | platform expe  | and simulated- |                | specific         |
+|                    |                      |              | riment/simula  | trading        |                |                  |
+|                    |                      |              | tion workflow  | workflows      |                |                  |
+|                    |                      |              |                | documented     |                |                  |
 +--------------------+----------------------+--------------+----------------+----------------+----------------+------------------+
 | OpenBB             | Financial data       | Tooling for  | Not a strategy | No broker      | No             | OpenBB workspac  |
 |                    | platform for         | agents       | backtester     | execution      |                | e/platform       |
@@ -6148,8 +6153,10 @@ Detailed Comparisons
 Why Lumibot Is Different
 ========================
 
-Most AI trading demos stop at research, a notebook, or a simulated
-agent conversation. Lumibot is built around the strategy lifecycle:
+Projects overlap, and several offer backtesting and execution-related
+workflows. Choose by the interface, market-data contract, supported
+broker operations, and evidence you need. LumiBot is built around the
+Strategy lifecycle:
 
 * **Design the agent flow you want:** single agent, research-to-trade,
   bull/bear/neutral team, specialist desk, model debate, or a hybrid
@@ -6186,10 +6193,13 @@ Source And Verification Method
 ==============================
 
 This page compares product roles and documented capabilities, not
-investment returns. Project claims were checked against each project's
-public documentation or source repository on July 28, 2026.
-Capabilities can change, so use the linked primary sources before
-making a technical decision.
+investment returns. The TradingAgents, ai-hedge-fund, Vibe-Trading and
+AI-Trader rows were refreshed from their primary repository READMEs on
+September 12, 2026. These are documented capabilities, not
+integrations independently executed for this comparison. Other rows
+retain the July 28, 2026 review. Capabilities can change; check the
+linked source and the exact revision before making a technical
+decision.
 
 * Lumibot documentation
 
@@ -28138,9 +28148,15 @@ strategy toward paper or live trading when appropriate.
 Where ai-hedge-fund Fits
 ========================
 
-ai-hedge-fund is useful when you want an educational, investor-style
-AI demo. The named-agent pattern is easy to understand and easy to
-share.
+ai-hedge-fund documents an interactive terminal app, saved fund
+mandates, and a command to backtest those mandates. Its README
+describes persistent paper/live operation as a direction of
+development and separately says the system does not actually make
+trades. Do not confuse the roadmap with current execution support.
+
+Checked against the ai-hedge-fund README on September 12, 2026. These
+are source-documentation claims, not an independently run broker
+comparison.
 
 
 Where Lumibot Fits
@@ -28487,13 +28503,16 @@ Lumibot supports:
 Why Backtesting Matters
 =======================
 
-Without backtesting, a multi-agent trading workflow is mostly a prompt
-experiment. You can read a transcript and hope the agents behave well
-later. With Lumibot, the same team must make decisions inside a
-repeatable historical simulation, using broker-like cash, positions,
-orders, and market data. That is how you find bad prompts, missing
-tool data, poor sizing, unwanted trades, and weak risk rules before
-moving toward real execution.
+TradingAgents' current README documents ticker/date analysis,
+checkpoints, and the limits of reproducibility when live news and
+social data are used. LumiBot's execution loop adds order and account
+artifacts to inspect alongside agent reasoning. For either project,
+record the data cutoff, model, source revision and actual evidence
+before comparing results.
+
+This description was checked against the TradingAgents README on
+September 12, 2026. It is a documentation comparison, not an
+independently run benchmark.
 
 
 Short Version

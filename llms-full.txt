@@ -1,5 +1,5 @@
 # Lumibot Documentation (Compiled)
-# Generated: 2026-09-12T19:42:45Z
+# Generated: 2026-09-12T19:48:33Z
 
 
 ===== MIGRATING_FROM_BACKTRADER =====
@@ -13474,6 +13474,26 @@ This page documents the most common mistakes made when writing Lumibot
 strategies, along with the correct patterns to use instead.
 
 
+Restoring Asset Variables After a Restart
+=========================================
+
+Keep instruments as "Asset" objects in "self.vars". New scheduled-file
+and database backups preserve their type, including assets nested in
+lists, dictionaries, or tuples. Restored objects can be passed
+directly to "get_position()" and "add_ohlc()". Sets still restore as
+lists, with their asset values preserved.
+
+Older backups may contain an untagged asset dictionary. Such
+dictionaries are not converted automatically because the same shape
+can be ordinary strategy metadata. When migrating a known instrument
+variable, reconstruct it explicitly with "Asset.from_dict(value)"
+after restoration and before using strategy APIs. Do not apply this
+conversion to arbitrary dictionaries or discard other saved strategy
+state. Backups written by the updated runtime should be restored by
+the updated runtime; older versions do not understand the asset type
+tag.
+
+
 Critical Mistakes (Will Break Your Strategy)
 ============================================
 
@@ -23373,6 +23393,8 @@ Table of Contents
   * Conclusion
 
 * Common Mistakes and How to Avoid Them
+
+  * Restoring Asset Variables After a Restart
 
   * Critical Mistakes (Will Break Your Strategy)
 

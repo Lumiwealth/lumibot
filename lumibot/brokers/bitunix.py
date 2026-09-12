@@ -394,10 +394,11 @@ class Bitunix(Broker):
                     "Allowing reduce-only close because the live %s position confirms HEDGE mode",
                     symbol,
                 )
-            # Ensure desired leverage is set
+            # Only opening orders set leverage. Reconstructed close assets may
+            # default to 1x, which must not change an existing position's margin.
             leverage = order.asset.leverage
             try:
-                if self.current_leverage.get(symbol) != leverage:
+                if not reduce_only and self.current_leverage.get(symbol) != leverage:
                     lev_resp = self.api.change_leverage(
                         symbol=symbol, leverage=leverage, margin_coin=self.get_quote_asset().symbol
                     )  # Use quote_asset.symbol

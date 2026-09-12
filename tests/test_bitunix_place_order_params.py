@@ -275,6 +275,32 @@ def test_close_position_fraction_reaches_wire(submission, quantity, wire_side):
     assert body["side"] == wire_side
 
 
+@pytest.mark.parametrize("quantity,wire_side", [("0.02", "BUY"), ("-0.02", "SELL")])
+@pytest.mark.parametrize("fraction", [0.4, 1.0])
+@pytest.mark.parametrize("cached_leverage", [None, 10])
+def test_close_position_preserves_exchange_leverage(submission, quantity, wire_side, fraction, cached_leverage):
+    broker, client, request = submission
+    # Reconstructed assets default to 1x; closing must not apply that default
+    # to an existing position, including after a restart with an empty cache.
+    asset = Asset("BTCUSDT", Asset.AssetType.CRYPTO_FUTURE)
+    broker.get_tracked_position = MagicMock(return_value=Position("test-strategy", asset, Decimal(quantity)))
+    broker.submit_order = broker._submit_order
+    if cached_leverage is not None:
+        broker.current_leverage[asset.symbol] = cached_leverage
+    previous_leverage = broker.current_leverage.copy()
+
+    order = broker.close_position("test-strategy", asset, fraction=fraction)
+
+    client.change_leverage.assert_not_called()
+    assert broker.current_leverage == previous_leverage
+    assert order.status == Order.OrderStatus.SUBMITTED
+    body = json.loads(request.call_args.kwargs["data"])
+    assert body["tradeSide"] == "CLOSE"
+    assert body["side"] == wire_side
+    assert body["positionId"] == ("test-long" if wire_side == "BUY" else "test-short")
+    assert Decimal(body["qty"]) == abs(Decimal(quantity)) * Decimal(str(fraction))
+
+
 def test_close_without_matching_position_fails_closed(submission):
     broker, client, request = submission
     client.get_positions.return_value = {"code": 0, "data": []}

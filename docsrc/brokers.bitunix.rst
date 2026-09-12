@@ -49,7 +49,10 @@ Setting Leverage for Bitunix Orders
 Specify leverage in the ``CRYPTO_FUTURE`` Asset constructor or set its
 ``leverage`` attribute before creating an order. The constructor preserves the
 requested leverage; its default is 1. LumiBot requests that leverage from
-Bitunix before submitting the order. If the exchange rejects the leverage
+Bitunix before submitting an opening order. Reduce-only orders, including full
+and fractional ``close_position`` calls, preserve the existing exchange leverage
+without requesting a leverage change. This also applies after a restart when
+the local leverage cache is empty. If the exchange rejects an opening leverage
 change, LumiBot logs a warning; the Asset value does not confirm the exchange's
 actual leverage.
 

@@ -3,6 +3,23 @@ Common Mistakes and How to Avoid Them
 
 This page documents the most common mistakes made when writing Lumibot strategies, along with the correct patterns to use instead.
 
+Restoring Asset Variables After a Restart
+--------------------------------------------------------------------------------
+
+Keep instruments as ``Asset`` objects in ``self.vars``. New scheduled-file and
+database backups preserve their type, including assets nested in lists,
+dictionaries, or tuples. Restored objects can be passed directly to
+``get_position()`` and ``add_ohlc()``.
+Sets still restore as lists, with their asset values preserved.
+
+Older backups may contain an untagged asset dictionary. Such dictionaries are
+not converted automatically because the same shape can be ordinary strategy
+metadata. When migrating a known instrument variable, reconstruct it explicitly
+with ``Asset.from_dict(value)`` after restoration and before using strategy APIs.
+Do not apply this conversion to arbitrary dictionaries or discard other saved
+strategy state. Backups written by the updated runtime should be restored by
+the updated runtime; older versions do not understand the asset type tag.
+
 Critical Mistakes (Will Break Your Strategy)
 --------------------------------------------
 
@@ -409,7 +426,7 @@ Using sleep() in Strategy
 
 
 IBKR history waits and data-health diagnostics
----------------------------------------------
+--------------------------------------------------------------------------------
 
 A provider rate limit is a retryable wait, not evidence that an instrument has
 no prices. When the downloader supplies structured rate-limit information,

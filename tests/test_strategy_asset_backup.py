@@ -153,6 +153,13 @@ def test_legacy_date_strings_keep_backend_contract(restart):
     assert strategy.vars.label == "2026-09-bad"
 
 
+def test_tuple_preserves_date_values_and_legacy_dictionary_coercion(restart):
+    day = datetime.date(2026, 9, 12)
+    strategy = restart({"values": ({"day": "2026-09-12"}, "2026-09-12", day)})
+    expected = "2026-09-12" if os.environ["LUMIBOT_SCHEDULED_EXECUTION"] == "true" else day
+    assert strategy.vars.values == ({"day": expected}, "2026-09-12", day)
+
+
 @pytest.mark.parametrize(
     "value",
     [

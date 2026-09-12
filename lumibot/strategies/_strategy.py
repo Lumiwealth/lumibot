@@ -4768,6 +4768,8 @@ class _Strategy:
                     return {key: _coerce_value(_coerce_legacy_dates(nested)) for key, nested in value.items()}
                 if isinstance(value, list):
                     return [_coerce_legacy_dates(nested) for nested in value]
+                if isinstance(value, tuple):
+                    return tuple(_coerce_legacy_dates(nested) for nested in value)
                 return value
 
             data = _coerce_legacy_dates(self._deserialize_variables_from_backup(json_data))

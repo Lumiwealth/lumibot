@@ -18,6 +18,9 @@ def test_quickstart_includes_one_canonical_trading_example():
     assert "literalinclude:: ../lumibot/example_strategies/ai_researcher_trader.py" in text
     assert "gemini-3.5-flash-lite" in text
     assert "gpt-4.1" not in text
+    guide = (ROOT / "docs/AI_TRADING_AGENTS.md").read_text()
+    assert "gpt-4.1" not in guide
+    assert "ai_researcher_trader.py" in guide
 
 
 def test_example_import_does_not_start_agents(monkeypatch):

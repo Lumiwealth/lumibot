@@ -198,3 +198,5 @@ Migration guide
 ``compute_indicators`` runs exactly once per asset/timestep; every subsequent
 iteration returns the current-bar row in O(log N) without re-running the
 rolling-window math.
+
+See :doc:`standalone_components` for use in scripts and notebooks.

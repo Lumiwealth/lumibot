@@ -2,7 +2,15 @@ AI Trading Examples: Stocks, Macro Teams, and Options
 =====================================================
 
 Choose a strategy by the job you want to learn and the data you can supply.
-Start with :doc:`agents_quickstart` for a complete research-only backtest.
+
+**Start with two agents:** :doc:`agents_quickstart` creates a researcher and a
+trader inside a standard Strategy. The trader reviews risk and observes orders.
+
+.. image:: ../docs/assets/ai-researcher-trader/workflow.png
+   :alt: Research, risk review, order submission, and order verification
+   :width: 100%
+
+Start with :doc:`agents_quickstart` for a complete two-agent stock backtest.
 All examples below make model calls and require a supported provider account;
 the Gemini examples use ``GEMINI_API_KEY``. Model usage may incur charges.
 
@@ -65,15 +73,15 @@ ETF and macro teams
 Hosted Data-On examples
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-* Sector pods: `regular ETFs <https://botspot.trade/marketplace/strategy/4fb6cf2f-272c-4a73-96e7-edd7383b1a33?utm_source=documentation&utm_medium=example_index&utm_campaign=lumibot_ai_examples&utm_content=citadel_regular>`_ or `leveraged ETFs <https://botspot.trade/marketplace/strategy/da83818b-f994-4163-8ef3-99ea346325b4?utm_source=documentation&utm_medium=example_index&utm_campaign=lumibot_ai_examples&utm_content=citadel_leveraged>`_.
-* Macro team: `regular ETFs <https://botspot.trade/marketplace/strategy/b00c5f9c-beea-46fe-bdba-fc65c1315d5f?utm_source=documentation&utm_medium=example_index&utm_campaign=lumibot_ai_examples&utm_content=dalio_regular>`_ or `leveraged ETFs <https://botspot.trade/marketplace/strategy/362a50a1-d501-4b08-8d42-c7701a363731?utm_source=documentation&utm_medium=example_index&utm_campaign=lumibot_ai_examples&utm_content=dalio_leveraged>`_.
+* Sector pods: `regular ETFs <https://botspot.trade/marketplace/strategy/4fb6cf2f-272c-4a73-96e7-edd7383b1a33?utm_source=documentation&utm_medium=example_index&utm_campaign=lumibot_ai_examples&utm_content=citadel_regular>`__ or `leveraged ETFs <https://botspot.trade/marketplace/strategy/da83818b-f994-4163-8ef3-99ea346325b4?utm_source=documentation&utm_medium=example_index&utm_campaign=lumibot_ai_examples&utm_content=citadel_leveraged>`__.
+* Macro team: `regular ETFs <https://botspot.trade/marketplace/strategy/b00c5f9c-beea-46fe-bdba-fc65c1315d5f?utm_source=documentation&utm_medium=example_index&utm_campaign=lumibot_ai_examples&utm_content=dalio_regular>`__ or `leveraged ETFs <https://botspot.trade/marketplace/strategy/362a50a1-d501-4b08-8d42-c7701a363731?utm_source=documentation&utm_medium=example_index&utm_campaign=lumibot_ai_examples&utm_content=dalio_leveraged>`__.
 
 The four listings have no strategy subscription fee; BotSpot plans, model usage,
 data, and broker requirements still apply. The Data-On versions add evidence and
 allocation behavior beyond the original source examples. Inspect the saved code.
 
-Options
--------
+Options strategies
+------------------
 
 .. list-table:: Options workflows
    :header-rows: 1

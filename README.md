@@ -6,7 +6,13 @@
 
 # Lumibot
 
-**Build, backtest, and run algorithmic trading strategies and AI agents in Python.**
+**Build AI trading teams that research, manage risk, and place trades.**
+
+LumiBot is an open-source Python framework for backtesting and running trading strategies. Use a research agent and a dedicated trading agent, inspect their decisions and fills, and connect supported brokers through the same `Strategy` interface.
+
+**Start here:** [AI quickstart](https://lumibot.lumiwealth.com/agents_quickstart.html) · [Examples and recorded results](https://lumibot.lumiwealth.com/agents_examples.html) · [Python backtest](#backtest-a-strategy) · [For coding agents](https://lumibot.lumiwealth.com/agent_start_here.html)
+
+Existing `Strategy` subclasses remain supported. No new programming model is required.
 
 **Full docs:** [lumibot.lumiwealth.com](https://lumibot.lumiwealth.com/) · **Managed cloud:** [BotSpot.trade](https://botspot.trade/sales?showLogin=1&utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=top_text_link&sample=lumibot_readme_deploy) · **MCP:** [BotSpot for AI coding agents](https://botspot.trade/agents?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=top_mcp_link)
 
@@ -18,8 +24,31 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/readme/lumibot_ai_trading_agents_overview.png" alt="Lumibot AI trading agents overview" width="100%">
+  <img src="docs/assets/ai-researcher-trader/workflow.png" alt="Lumibot AI trading agents overview" width="100%">
 </p>
+
+## Try the development example without API keys
+
+```bash
+python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
+python -m lumibot.example_strategies.first_backtest
+```
+
+This installation check uses synthetic prices and the real backtest engine. It prints an actual simulated fill, makes no paid calls, and does not open a browser. For real market research and model-driven trading, follow the [two-agent quickstart](https://lumibot.lumiwealth.com/agents_quickstart.html).
+
+## Inspect a recorded AI backtest
+
+[![Recorded large-cap AI team backtest](docs/assets/ai-trading-team-backtests/bull-bear-large-cap-stocks-backtest-top.png)](https://lumibot.lumiwealth.com/agents_example_bull_bear_large_cap_stocks.html)
+
+[Read the exact example, recorded run, and limitations](https://lumibot.lumiwealth.com/agents_example_bull_bear_large_cap_stocks.html). This is a historical example, not the result of the new two-agent quickstart. Inspect the source, dates, model, and orders before drawing conclusions about performance.
+
+## Learn with Rob
+
+[![Build AI trading bots with Rob Grzesik, creator of LumiBot](docs/assets/ai-researcher-trader/learn-with-rob.png)](https://botspot.trade/challenges?utm_source=github&utm_medium=readme&utm_campaign=lumibot_ai_team&utm_content=learn_with_rob)
+
+Join the AI trading challenge, see the workflow explained, and explore whether the AI Trading Bootcamp fits what you want to build. **[Join the challenge](https://botspot.trade/challenges?utm_source=github&utm_medium=readme&utm_campaign=lumibot_ai_team&utm_content=learn_with_rob)** · [Explore the bootcamp](https://botspot.trade/courses/ai-trading-bootcamp?utm_source=github&utm_medium=readme&utm_campaign=lumibot_ai_team&utm_content=bootcamp)
+
+LumiBot remains free and open source. Use [BotSpot](https://botspot.trade/agents?utm_source=github&utm_medium=readme&utm_campaign=lumibot_ai_team&utm_content=hosted) when you want the hosted workspace and MCP tools.
 
 ## What You Can Build
 
@@ -597,3 +626,7 @@ Affiliate disclosure: some provider links or promo codes, including ThetaData, m
 ## License
 
 GNU General Public License v3.0 - [View License](LICENSE)
+
+## Contribute
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for reproducible bugs, examples, tests, and focused pull requests. If LumiBot is useful to your work, star the repository and share an example with another developer.

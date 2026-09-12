@@ -2,7 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://lumibot.lumiwealth.com/</loc>
-    <lastmod>2026-09-08</lastmod>
+    <lastmod>2026-09-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/MIGRATING_FROM_BACKTRADER.html</loc>
@@ -13,8 +13,12 @@
     <lastmod>2026-09-08</lastmod>
   </url>
   <url>
+    <loc>https://lumibot.lumiwealth.com/agent_start_here.html</loc>
+    <lastmod>2026-09-12</lastmod>
+  </url>
+  <url>
     <loc>https://lumibot.lumiwealth.com/agents.html</loc>
-    <lastmod>2026-09-08</lastmod>
+    <lastmod>2026-09-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_builtin_tools.html</loc>
@@ -34,7 +38,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_example_ai_opening_range_breakout.html</loc>
-    <lastmod>2026-09-08</lastmod>
+    <lastmod>2026-09-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_example_ai_spx_zero_dte_bear_call_team.html</loc>
@@ -50,7 +54,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_example_bull_bear_large_cap_stocks.html</loc>
-    <lastmod>2026-09-08</lastmod>
+    <lastmod>2026-09-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_example_bull_bear_leveraged_etf.html</loc>
@@ -102,15 +106,15 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/backtesting.databento.html</loc>
-    <lastmod>2026-05-20</lastmod>
+    <lastmod>2026-09-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/backtesting.how_to_backtest.html</loc>
-    <lastmod>2026-07-02</lastmod>
+    <lastmod>2026-09-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/backtesting.html</loc>
-    <lastmod>2026-07-02</lastmod>
+    <lastmod>2026-09-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/backtesting.ibkr.html</loc>
@@ -134,15 +138,15 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/backtesting.polygon.html</loc>
-    <lastmod>2025-12-08</lastmod>
+    <lastmod>2026-09-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/backtesting.tearsheet_html.html</loc>
-    <lastmod>2026-09-02</lastmod>
+    <lastmod>2026-09-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/backtesting.thetadata.html</loc>
-    <lastmod>2026-01-25</lastmod>
+    <lastmod>2026-09-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/backtesting.trades_files.html</loc>
@@ -150,7 +154,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/backtesting.yahoo.html</loc>
-    <lastmod>2025-09-28</lastmod>
+    <lastmod>2026-09-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/botspot_mcp.html</loc>
@@ -158,11 +162,11 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.alpaca.html</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-09-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.bitunix.html</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-12</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.ccxt.binance.html</loc>
@@ -182,7 +186,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.ccxt.html</loc>
-    <lastmod>2026-05-11</lastmod>
+    <lastmod>2026-09-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.ccxt.kraken.html</loc>
@@ -202,11 +206,11 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.html</loc>
-    <lastmod>2026-07-01</lastmod>
+    <lastmod>2026-09-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.interactive_brokers.html</loc>
-    <lastmod>2026-07-13</lastmod>
+    <lastmod>2026-09-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.interactive_brokers_legacy.html</loc>
@@ -222,7 +226,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.schwab.html</loc>
-    <lastmod>2026-08-31</lastmod>
+    <lastmod>2026-09-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/brokers.tradier.html</loc>
@@ -242,7 +246,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/deployment.html</loc>
-    <lastmod>2026-05-21</lastmod>
+    <lastmod>2026-09-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/entities.asset.html</loc>
@@ -290,7 +294,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/examples.html</loc>
-    <lastmod>2026-05-21</lastmod>
+    <lastmod>2026-09-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/faq.html</loc>
@@ -306,7 +310,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/getting_started.html</loc>
-    <lastmod>2026-05-21</lastmod>
+    <lastmod>2026-09-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/imports_and_startup.html</loc>
@@ -314,7 +318,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/index.html</loc>
-    <lastmod>2026-09-08</lastmod>
+    <lastmod>2026-09-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/indicators.html</loc>
@@ -398,7 +402,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lumibot.strategies.html</loc>
-    <lastmod>2026-08-12</lastmod>
+    <lastmod>2026-09-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lumibot.traders.html</loc>
@@ -414,7 +418,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lumibot_vs_openalice.html</loc>
-    <lastmod>2026-06-01</lastmod>
+    <lastmod>2026-09-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/lumibot_vs_quantdinger.html</loc>
@@ -434,11 +438,15 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/reference.html</loc>
-    <lastmod>2026-02-05</lastmod>
+    <lastmod>2026-09-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/smart_limit.html</loc>
     <lastmod>2025-12-30</lastmod>
+  </url>
+  <url>
+    <loc>https://lumibot.lumiwealth.com/standalone_components.html</loc>
+    <lastmod>2026-09-12</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_api_overview.html</loc>
@@ -514,7 +522,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.html</loc>
-    <lastmod>2023-07-12</lastmod>
+    <lastmod>2026-09-09</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/strategy_methods.misc.html</loc>

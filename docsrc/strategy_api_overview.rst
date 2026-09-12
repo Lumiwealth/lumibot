@@ -67,3 +67,16 @@ Use :doc:`strategy_properties` for fields such as ``first_iteration`` and
 ``portfolio_value``. Continue to :doc:`strategy_methods` for the complete
 categorized method reference or :doc:`agents_quickstart` to add an AI agent to
 the same lifecycle.
+
+Choose how to use LumiBot
+-------------------------
+
+Use a ``Strategy`` subclass for trading and backtesting, including AI teams.
+Use :doc:`standalone_components` for selected data/research helpers in another
+program. A configured strategy can run continuously with ``run_live()`` or
+execute one scheduled lifecycle with ``run_live(run_once=True)``. The latter is
+not an arbitrary step-through-backtest API.
+
+There is no requirement for a function named ``main``. An
+``if __name__ == "__main__":`` guard prevents your runner executing on import.
+See :doc:`agent_start_here` for exact entry points for coding agents.

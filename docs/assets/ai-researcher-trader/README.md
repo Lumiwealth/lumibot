@@ -8,3 +8,9 @@ Rob and Spot references. Files are the unmodified returned assets.
 
 Real backtest screenshots elsewhere in the documentation retain their original
 source, dates and validation status. These illustrations are not backtest proof.
+
+## Documentation previews
+
+`preview-desktop.png` and `preview-mobile.png` are unmodified Firefox screenshots
+of the locally rendered documentation on September 12, 2026. They show the
+proposed website appearance, not proof that GitHub Pages has deployed it.

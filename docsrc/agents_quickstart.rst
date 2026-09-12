@@ -25,6 +25,7 @@ use your provider account and incur charges; start with this short date range.
 
    python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
    export GEMINI_API_KEY="your-gemini-api-key"
+   export BACKTESTING_DATA_SOURCE=yahoo
 
 Save the complete code below as ``my_ai_strategy.py``, then run:
 

@@ -10,7 +10,7 @@ and the real Pandas backtest engine. It makes no model or broker calls:
 .. code-block:: bash
 
    python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
-   python -m lumibot.example_strategies.first_backtest
+   BACKTESTING_DATA_SOURCE=none python -m lumibot.example_strategies.first_backtest
 
 It prints the simulated order record and ending portfolio value. The prices are
 invented for an installation check; the result is not historical performance.

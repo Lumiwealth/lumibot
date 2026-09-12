@@ -1,5 +1,5 @@
 # Lumibot Documentation (Compiled)
-# Generated: 2026-09-12T19:09:37Z
+# Generated: 2026-09-12T19:24:42Z
 
 
 ===== MIGRATING_FROM_BACKTRADER =====
@@ -5507,6 +5507,7 @@ start with this short date range.
 
    python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
    export GEMINI_API_KEY="your-gemini-api-key"
+   export BACKTESTING_DATA_SOURCE=yahoo
 
 Save the complete code below as "my_ai_strategy.py", then run:
 
@@ -21834,7 +21835,7 @@ minute prices and the real Pandas backtest engine. It makes no model
 or broker calls:
 
    python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
-   python -m lumibot.example_strategies.first_backtest
+   BACKTESTING_DATA_SOURCE=none python -m lumibot.example_strategies.first_backtest
 
 It prints the simulated order record and ending portfolio value. The
 prices are invented for an installation check; the result is not

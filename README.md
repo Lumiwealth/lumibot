@@ -31,7 +31,7 @@ Existing `Strategy` subclasses remain supported. No new programming model is req
 
 ```bash
 python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
-python -m lumibot.example_strategies.first_backtest
+BACKTESTING_DATA_SOURCE=none python -m lumibot.example_strategies.first_backtest
 ```
 
 This installation check uses synthetic prices and the real backtest engine. It prints an actual simulated fill, makes no paid calls, and does not open a browser. For real market research and model-driven trading, follow the [two-agent quickstart](https://lumibot.lumiwealth.com/agents_quickstart.html).

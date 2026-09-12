@@ -50,12 +50,13 @@ Start with a researcher and a separate trading agent using the existing Strategy
 ```bash
 python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
 export GEMINI_API_KEY="your-gemini-api-key"
+export BACKTESTING_DATA_SOURCE=yahoo
 python -m lumibot.example_strategies.ai_researcher_trader
 ```
 
 The example uses `gemini-3.5-flash-lite`, Yahoo daily prices and a short historical window. Model calls incur charges. The version-branch installation is explicit because this documentation update does not publish a PyPI release. Fresh real-model proof for this new example is still pending; the real-engine test uses a scripted model substitute.
 
-For an installation check without credentials or paid calls, run `python -m lumibot.example_strategies.first_backtest`. Its prices are synthetic and its simulated fill tests mechanics, not returns.
+For an installation check without credentials or paid calls, run `BACKTESTING_DATA_SOURCE=none python -m lumibot.example_strategies.first_backtest`. Its prices are synthetic and its simulated fill tests mechanics, not returns.
 
 Macro tools additionally require `FRED_API_KEY`. They use the strategy clock and FRED/ALFRED vintage parameters; inspect publication dates and missing data. Add ordinary `@agent_tool` functions when you need custom research services.
 

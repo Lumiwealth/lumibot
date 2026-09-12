@@ -5,7 +5,7 @@
   "examples": {
     "first_backtest": {
       "source": "lumibot/example_strategies/first_backtest.py",
-      "sha256": "1de7b9238581455fb5475dab5a4a177012c4efdefaf0c0ed1529e0080bccf2f5",
+      "sha256": "b7313cebc7e37dd11baa7af65b6db1988353173a507acce8b5e47ea31ec08e0a",
       "data": "synthetic minute OHLCV in source",
       "engine": "PandasDataBacktesting",
       "window": [
@@ -19,7 +19,7 @@
       "fill_price": 100,
       "fees": 0,
       "model_calls": 0,
-      "validation": "Built wheel, installed outside source checkout, ran module, and asserted actual engine fill in pytest. Not investment performance."
+      "validation": "Built final wheel, installed outside source checkout, ran module with BACKTESTING_DATA_SOURCE=none, and asserted actual engine fill. External data-source override is rejected before engine startup. Not investment performance."
     },
     "ai_researcher_trader": {
       "source": "lumibot/example_strategies/ai_researcher_trader.py",

@@ -5,6 +5,7 @@ No credentials, network data, model calls or browser opening are required.
 The results demonstrate order mechanics, not an investment opportunity.
 """
 from datetime import datetime
+import os
 
 import pandas as pd
 
@@ -23,6 +24,9 @@ class FirstBacktest(Strategy):
 
 
 def run_example():
+    override = os.environ.get("BACKTESTING_DATA_SOURCE", "").strip().lower()
+    if override not in {"", "none"}:
+        raise ValueError("For this offline check, set BACKTESTING_DATA_SOURCE=none before running.")
     asset = Asset("DEMO", Asset.AssetType.STOCK)
     prices = [100.0, 101.0, 102.0, 103.0, 104.0, 105.0]
     frame = pd.DataFrame(

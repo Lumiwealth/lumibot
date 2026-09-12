@@ -14,6 +14,7 @@ instrument contract. The variable backup boundary now wraps actual assets with
 the existing `__lumibot_type__` envelope and restores them with `Asset.from_dict`.
 Both persistence backends use the same serializer and decoder. Nested assets,
 option underlyings, leverage, and precision use the entity's canonical contract.
+Sets keep the existing list restoration contract while retaining nested asset types.
 
 Database legacy date-string coercion runs after entity decoding so an option's
 expiration is not converted before `Asset.from_dict` consumes it. Scheduled

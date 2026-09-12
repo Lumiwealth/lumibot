@@ -10,6 +10,7 @@ Keep instruments as ``Asset`` objects in ``self.vars``. New scheduled-file and
 database backups preserve their type, including assets nested in lists,
 dictionaries, or tuples. Restored objects can be passed directly to
 ``get_position()`` and ``add_ohlc()``.
+Sets still restore as lists, with their asset values preserved.
 
 Older backups may contain an untagged asset dictionary. Such dictionaries are
 not converted automatically because the same shape can be ordinary strategy

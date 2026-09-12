@@ -4517,7 +4517,7 @@ class _Strategy:
                 "__lumibot_type__": "tuple",
                 "value": [_Strategy._encode_variable_for_backup(nested) for nested in value],
             }
-        if isinstance(value, list):
+        if isinstance(value, (list, set)):
             return [_Strategy._encode_variable_for_backup(nested) for nested in value]
         return value
 

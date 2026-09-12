@@ -110,6 +110,13 @@ def test_asset_shaped_plain_dictionary_stays_dictionary(restart):
     assert strategy.vars.items == []
 
 
+def test_assets_in_sets_keep_existing_list_container_contract(restart):
+    strategy = restart({"instruments": {Asset("SPY")}})
+    assert isinstance(strategy.vars.instruments, list)
+    assert isinstance(strategy.vars.instruments[0], Asset)
+    assert strategy.vars.instruments[0].to_dict() == Asset("SPY").to_dict()
+
+
 def test_legacy_untagged_asset_is_not_guessed():
     value = Asset("SPY").to_dict()
     assert _Strategy._deserialize_variables_from_backup(json.dumps({"asset": value})) == {"asset": value}

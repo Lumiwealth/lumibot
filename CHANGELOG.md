@@ -37,6 +37,8 @@
 - Corrected README and package license labels to match the existing GPLv3 LICENSE file; the license text is unchanged.
 
 ### Fixed
+- Strategy variable backups retain `Asset` objects across scheduled-file and
+  database restarts, including nested instruments and option underlyings.
 - Bitunix reduce-only closes no longer request a leverage change from a
   reconstructed asset's default, preserving the existing position's leverage
   for full and fractional closes, including after broker restarts.

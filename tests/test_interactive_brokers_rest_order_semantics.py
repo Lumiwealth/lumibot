@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from threading import RLock
 from unittest.mock import Mock, call
 
 import pytest
@@ -14,6 +15,9 @@ from lumibot.trading_builtins.safe_list import SafeList
 def broker(monkeypatch):
     monkeypatch.setattr(ibkr_rest_module, "colored", lambda text, *args, **kwargs: text)
     broker = InteractiveBrokersREST.__new__(InteractiveBrokersREST)
+    # This fixture bypasses Broker.__init__; supply the lock that normal broker
+    # construction creates because dispatched order processing uses it.
+    broker._lock = RLock()
     broker.data_source = Mock()
     broker.data_source.get_conid_from_asset.return_value = 265598
     broker.data_source.get_contract_rules.return_value = {"rules": {"increment": 0.01}}

@@ -4507,7 +4507,11 @@ class _Strategy:
         if isinstance(value, datetime.date):
             return {"__lumibot_type__": "date", "value": value.isoformat()}
         if isinstance(value, dict):
-            return {key: _Strategy._encode_variable_for_backup(nested) for key, nested in value.items()}
+            encoded = {key: _Strategy._encode_variable_for_backup(nested) for key, nested in value.items()}
+            if set(value) == {"__lumibot_type__", "value"}:
+                # Escape literal envelopes, including this escape tag itself.
+                return {"__lumibot_type__": "dict", "value": encoded}
+            return encoded
         if isinstance(value, tuple):
             return {
                 "__lumibot_type__": "tuple",
@@ -4521,6 +4525,11 @@ class _Strategy:
     def _decode_variable_from_backup(value):
         if isinstance(value, dict):
             if set(value.keys()) == {"__lumibot_type__", "value"}:
+                if value["__lumibot_type__"] == "dict":
+                    return {
+                        key: _Strategy._decode_variable_from_backup(nested)
+                        for key, nested in value["value"].items()
+                    }
                 if value["__lumibot_type__"] == "Asset":
                     return Asset.from_dict(value["value"])
                 if value["__lumibot_type__"] == "datetime":
@@ -4537,7 +4546,7 @@ class _Strategy:
     @classmethod
     def _serialize_variables_for_backup(cls, variables):
         return _json_dumps(
-            cls._encode_variable_for_backup(variables),
+            {key: cls._encode_variable_for_backup(value) for key, value in variables.items()},
             sort_keys=True,
             cls=_safe_json_encoder_class(),
         )
@@ -4639,15 +4648,14 @@ class _Strategy:
             # Create the table by saving this empty DataFrame to the database
             stats_new.to_sql(self.backup_table_name, self.db_engine, if_exists='replace', index=True)
 
-        current_state = self._serialize_variables_for_backup(self.vars.all())
-        if current_state == self._last_backup_state:
-            self.logger.info("No variables changed. Not backing up.")
-            return
-
         try:
             data_to_save = self.vars.all()
+            current_state = self._serialize_variables_for_backup(data_to_save)
+            if current_state == self._last_backup_state:
+                self.logger.info("No variables changed. Not backing up.")
+                return
             if data_to_save:
-                json_data_to_save = self._serialize_variables_for_backup(data_to_save)
+                json_data_to_save = current_state
                 with self.db_engine.connect() as connection:
                     with connection.begin():
                         # Check if the row exists

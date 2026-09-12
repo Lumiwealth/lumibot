@@ -21,6 +21,11 @@ plain strings retain their existing behavior. Malformed typed data fails before
 any loaded variables replace initialized state. Repeated saves compare the same
 serialized representation as the restore fingerprint.
 
+Literal dictionaries matching the reserved type-envelope shape are escaped,
+including nested escape envelopes, so they are not interpreted as instruments
+or other typed values. Serialization failures leave the prior backup intact and
+are handled by each backend's existing backup error log.
+
 ## Compatibility and verification
 
 Old untagged dictionaries remain dictionaries: shape alone cannot distinguish

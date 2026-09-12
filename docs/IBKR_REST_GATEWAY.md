@@ -2,7 +2,7 @@
 
 Architecture and safety notes for LumiBot's Interactive Brokers Client Portal REST transport.
 
-Last Updated: 2026-07-13
+Last Updated: 2026-08-29
 
 Status: Paper proof of concept
 
@@ -16,6 +16,16 @@ Audience: LumiBot contributors and downstream runtime integrators
 - an HTTP client that sends REST requests and can later carry OAuth request signing.
 
 This keeps broker, order, position, contract, and market-data behavior independent from authentication. Local individual-account testing can use IBeam temporarily. Approved third-party integrations can later inject an OAuth-capable HTTP session without rewriting broker methods.
+
+## Order Time-In-Force Limitation
+
+The Client Portal REST adapter rejects `time_in_force="gtd"` and a supplied
+`good_till_date` before contract lookup or order execution. IBKR documents an
+exact-date `goodTillDate` field for the Legacy socket API, but the Client Portal
+order schema does not document a verified REST equivalent. The adapter must not
+silently omit the requested expiration or pass an undocumented field. Existing
+broker responses containing `goodTillDate` continue to be parsed; this is a
+submission limitation only.
 
 ## Supported Transport Shapes
 
@@ -73,3 +83,22 @@ python -m pytest \
 ```
 
 Real broker smoke testing must use a dedicated paper username, verify the paper account before any order action, and record account identifiers only in masked form. A passing paper smoke does not prove production or OAuth readiness.
+
+## Paper Order API-Test Safety Gate
+
+Any future REST test that constructs, submits, changes, or cancels an order must
+be marked with both `pytest.mark.apitest` and `pytest.mark.ibkr`, and must use
+the `ibkr_rest_paper_order_data_source` fixture from
+`tests/ibkr_rest_paper_order_safety.py`. The fixture:
+
+- skips when required local credentials are absent or the gateway cannot be reached;
+- requires the raw `IB_USE_PAPER_ACCOUNT` environment variable to be explicitly
+  set to `true`, rather than accepting the LumiBot configuration default;
+- reads the authenticated account selection before an order object is constructed;
+- requires the paper-account `DU` prefix and an exact match with an explicitly
+  configured `IB_ACCOUNT_ID`;
+- emits account identifiers only as masked suffixes and never logs gateway
+  response payloads.
+
+The gate is intentionally test-scoped. It does not change production account
+selection or broker behavior.

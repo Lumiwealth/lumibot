@@ -70,7 +70,7 @@ Two-Factor Authentication (2FA)
 
 Interactive Brokers requires two-factor authentication for Client Portal Gateway users. Individual users must authenticate in a browser on the same machine as the gateway and reauthenticate at least daily. LumiBot does not provide a supported way to bypass this requirement.
 
-See `IBKR Client Portal Gateway requirements <https://ibkrcampus.com/campus/ibkr-api-page/cpapi-v1/>`_.
+See `IBKR Web API documentation <https://ibkrcampus.com/campus/ibkr-api-page/webapi-doc/>`_.
 
 .. warning::
 
@@ -99,6 +99,75 @@ When using a paper trading account, log in with your paper trading username and 
 7. Use these credentials when logging into the paper trading environment and configuring your API connection.
 
 **Note:** The paper trading account is separate from your live account. Ensure you're using the correct credentials for each environment to avoid any login conflicts.
+
+Client Portal REST order-expiry limitation
+------------------------------------------
+
+The Interactive Brokers Client Portal REST adapter supports the currently
+documented time-in-force values such as ``day`` and ``gtc``. It rejects
+``time_in_force="gtd"`` and any ``good_till_date`` because IBKR's Client
+Portal order schema does not document a verified exact-date expiration field.
+Use the Legacy Interactive Brokers Gateway adapter when your strategy requires
+exact-date GTD orders. Orders created through another IBKR interface can still
+be read by the REST adapter.
+
+REST advanced orders
+--------------------
+
+The LumiBot ``Order`` entity is provider-generic. The
+``InteractiveBrokersREST`` adapter performs the IBKR-specific translation:
+
+* **BRACKET** sends one atomic request containing the executable parent and
+  one or two attached children. Every ticket receives a distinct client order
+  ID, while each child references the parent's client order ID.
+* **OTO** sends one atomic request containing the executable parent and its
+  single attached child, using the same client-order relationship.
+* **OCO** sends only its two executable children as an IBKR single-group/OCA
+  package. Each child receives a unique IBKR client order ID so responses can
+  be correlated even when IBKR returns them out of request order. Its LumiBot
+  parent is a local container and is never sent to IBKR.
+
+Each executable leg receives and tracks a separate broker order ID. Canceling
+a BRACKET or OTO parent attempts all known broker-backed members; canceling an
+OCO parent attempts both executable children. A direct child cancellation is
+limited to that child. The adapter continues attempting remaining members if
+one cancellation fails.
+
+IBKR may return fewer immediate acknowledgement rows than the number of tickets
+in a BRACKET or OTO request. LumiBot does not infer missing broker IDs from row
+position. It performs a bounded reconciliation using the distinct client order
+IDs and tracks the package only when every executable ticket has a distinct
+positive broker ID. Otherwise, it fails closed and attempts cancellation for
+every broker ID discovered during submission or reconciliation.
+
+For Client Portal REST, a ``stop`` order uses its trigger as the ``price``
+field. A ``stop_limit`` order uses ``price`` for its limit and ``auxPrice`` for
+its trigger.
+
+For example, advanced orders use the current generic names
+``secondary_limit_price`` and ``secondary_stop_price``:
+
+.. code-block:: python
+
+   order = strategy.create_order(
+       asset,
+       quantity=10,
+       side="buy",
+       order_type="limit",
+       order_class="bracket",
+       limit_price=100,
+       secondary_limit_price=110,
+       secondary_stop_price=95,
+   )
+
+REST polling updates the already-tracked native legs and preserves their
+parent/child relationships across IBKR integer or string identifier formats.
+Reconstruction of an advanced package submitted before process startup is not
+claimed. See the `IBKR Client Portal API documentation
+<https://ibkrcampus.com/campus/ibkr-api-page/webapi-doc/#orders>`_ and the
+`new-order endpoint reference
+<https://ibkrcampus.com/docs/web-api/api-reference/trading/trading-orders/submit-new-order>`_
+for provider details.
 
 Strategy Setup
 --------------
@@ -133,6 +202,39 @@ Add these variables to a `.env` file in the same directory as your strategy:
   * - `IB_AUTH_TIMEOUT`
     - (Optional) Maximum authentication wait in seconds.
     - `300`
+
+REST Paper-Order Test Safety
+----------------------------
+
+LumiBot's repository-only IBKR REST paper-order API-test fixture requires
+``IB_USE_PAPER_ACCOUNT=true`` to be explicitly present, even though the local
+IBeam configuration defaults to paper mode. Before an order test constructs an
+order, the fixture verifies that the authenticated selected account uses the
+IBKR paper-account ``DU`` convention and that it matches an explicitly supplied
+``IB_ACCOUNT_ID``. Test output masks account identifiers; do not add credentials
+or account identifiers to test logs.
+Within one pytest invocation, the fixture reuses one authenticated data source
+so individual paper tests do not start competing local IBeam containers.
+
+.. warning::
+
+   The opt-in IBKR REST paper suites are real broker API tests, even though
+   they use a paper account, and are excluded from ordinary CI. An authorized
+   maintainer must use a dedicated paper username with an already authenticated
+   paper gateway and set ``IB_USE_PAPER_ACCOUNT=true`` explicitly; never use a
+   production account for these tests. The
+   authenticated selected account must pass the paper ``DU`` identity gate.
+   For an external ``IB_API_URL`` gateway, the session must already be the
+   paper session; the local flag cannot convert a live session. The advanced
+   suite submits deliberately non-marketable orders and attempts cancellation,
+   but process termination can interrupt cleanup, so inspect the paper account
+   afterward. Only masked account suffixes may be shown in output. Passing
+   these tests does not establish production OAuth readiness.
+
+   The GTD capability probe is separate from advanced-order submission tests
+   and uses only the non-ordering ``/orders/whatif`` endpoint. It does not
+   enable production GTD behavior; any production implementation requires a
+   separate reviewed decision.
 
 Example Strategy
 ----------------

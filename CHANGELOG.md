@@ -37,6 +37,9 @@
 - Corrected README and package license labels to match the existing GPLv3 LICENSE file; the license text is unchanged.
 
 ### Fixed
+- Bitunix reduce-only closes no longer request a leverage change from a
+  reconstructed asset's default, preserving the existing position's leverage
+  for full and fractional closes, including after broker restarts.
 - A failed tool attempt followed by a successful retry of the same tool is
   classified as recovered. Unrecovered or final tool failures still produce a
   structured ``tool_error`` outcome.

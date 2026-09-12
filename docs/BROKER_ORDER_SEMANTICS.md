@@ -86,6 +86,10 @@ limit or inclusive timestamp cursor:
 - Preserve constructor leverage for `CRYPTO_FUTURE` as for `FUTURE`. This is
   desired leverage, not proof that the exchange accepted the leverage change;
   the existing warning behavior for leverage API failures remains.
+- Apply desired leverage only to opening orders. Reduce-only full and partial
+  closes must not call the leverage API or update the local leverage cache,
+  even when a reconstructed asset defaults to 1x or a restart clears the cache.
+  Position identification, HEDGE validation, and quantity rules still apply.
 - Only submit after HEDGE initialization is confirmed. Failures leave the
   initialization flag unset and block the order, so a later submission retries.
   Never infer ONE_WAY mode from a failed mode-change request.

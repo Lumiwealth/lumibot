@@ -21,3 +21,20 @@ For each decision retain the relevant source SHA, reproducing test, current chec
 results and rationale. Any order/clock/thread change requires engine integration
 coverage as well as unit tests. Real-provider evidence must identify its provider,
 mode, timestamp and limitations without exposing credentials.
+
+## Run a read-only snapshot
+
+```bash
+gh pr list --repo Lumiwealth/lumibot --state open --limit 100 \
+  --json number,title,url,createdAt,isDraft,author,comments,reviews,statusCheckRollup \
+  > /tmp/lumibot-prs.json
+python scripts/github_triage_digest.py /tmp/lumibot-prs.json > /tmp/lumibot-triage.json
+```
+
+This is a metadata snapshot, not a complete engineering review. If the list
+reaches the requested limit, fetch the remaining PRs before reporting an inventory.
+The CLI may omit author associations and truncate long discussions; use paginated
+GraphQL comment/review data with `authorAssociation` to establish maintainer roles
+and full discussion coverage. The digest explicitly preserves unknown roles.
+Keep downloaded discussion bodies out of public commits. Review the digest locally;
+the script sends no comments and changes no labels, PRs, or repository settings.

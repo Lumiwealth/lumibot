@@ -28,3 +28,13 @@ def test_unknown_association_is_reported_not_assumed():
 def test_changes_requested_assigns_contributor_next_step():
     item = {"author": {"login": "alice"}, "comments": [], "reviews": [{"author": {"login": "maintainer"}, "authorAssociation": "MEMBER", "state": "CHANGES_REQUESTED", "submittedAt": "2026-09-10T00:00:00Z"}]}
     assert load_digest().classify(item)["waiting_on"] == "contributor revision; verify whether addressed"
+
+
+def test_github_cli_bot_flag_is_not_classified_as_a_human():
+    item = {"author": {"login": "alice"}, "comments": [
+        {"author": {"login": "coderabbitai", "is_bot": True},
+         "authorAssociation": "MEMBER", "createdAt": "2026-09-10T00:00:00Z"}
+    ]}
+    result = load_digest().classify(item)
+    assert result["last_maintainer_response"] is None
+    assert result["unknown_human_roles"] == []

@@ -10,7 +10,7 @@ def classify(item):
     for event in [*(item.get("comments") or []), *(item.get("reviews") or [])]:
         user = event.get("author") or {}
         login = user.get("login", "")
-        if not login or login.endswith("[bot]") or user.get("isBot"):
+        if not login or login.endswith("[bot]") or user.get("isBot") or user.get("is_bot"):
             continue
         if login == author:
             continue

@@ -48,8 +48,9 @@ def test_homepage_keeps_a_short_hero_and_places_image_above_supporting_copy():
         "LumiBot: Python Trading and AI Agent Framework\n"
         "=============================================="
     )
-    assert "Build, backtest, and run algorithmic trading strategies" in index
-    image = ".. image:: ../docs/assets/home/lumibot_strategy_lifecycle_homepage.png"
+    # Requested AI-first hero keeps the image ahead of supporting copy.
+    assert "Build AI trading teams that research, manage risk, and place trades." in index
+    image = ".. image:: ../docs/assets/ai-researcher-trader/workflow.png"
     supporting_copy = ".. raw:: html\n   :file: _html/main.html"
 
     assert index.index(image) < index.index(supporting_copy)

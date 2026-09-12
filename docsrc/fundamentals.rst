@@ -75,3 +75,5 @@ Filing search is useful for agent workflows modeled after real fundamental
 research. A researcher can identify a relevant annual report, search for risk
 factors or accounting details, and only open the full filing when it needs more
 context.
+
+See :doc:`standalone_components` for use in scripts and notebooks.

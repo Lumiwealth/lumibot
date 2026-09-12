@@ -1,0 +1,28 @@
+name: Bug report
+description: Report a reproducible LumiBot problem
+title: "[Bug]: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Expected and observed behavior
+      description: What were you trying to do, and what happened?
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: LumiBot, Python, and operating system versions
+    validations:
+      required: true
+  - type: input
+    id: provider
+    attributes:
+      label: Broker and data source
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction and sanitized logs
+      description: Remove credentials, account identifiers, and personal data. Never attach .env files.
+    validations:
+      required: true

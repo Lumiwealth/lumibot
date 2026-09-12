@@ -6,13 +6,14 @@ LumiBot: Python Trading and AI Agent Framework
 
 .. container:: lumibot-hero-lead
 
-   **Build, backtest, and run algorithmic trading strategies and AI agents in Python.**
+   **Build AI trading teams that research, manage risk, and place trades.**
 
 Start here
 ----------
 
 .. container:: lumibot-start-routes
 
+   * **See AI examples and results:** :doc:`agents_examples` links directly to stock teams, macro teams, and options.
    * **Run a Python backtest:** the :ref:`complete daily-stock example below <first-python-backtest>` needs no broker account.
    * **Build an AI agent:** :doc:`agents_quickstart` covers installation, model credentials, and a complete runner.
    * **Explore options:** :doc:`agents_example_ai_iron_condor` explains the four-leg workflow and its data requirements.
@@ -26,8 +27,8 @@ For economic research, see :doc:`macro_data`.
    **Building on LumiBot?** :doc:`Partner with us <PARTNERSHIPS>` on integrations,
    open-source maintenance, joint tutorials, or strategic collaboration.
 
-.. image:: ../docs/assets/home/lumibot_strategy_lifecycle_homepage.png
-   :alt: Lumibot strategy lifecycle from market data and filings to Python rules, AI agents, backtest reports, paper trading, and live brokers
+.. image:: ../docs/assets/ai-researcher-trader/workflow.png
+   :alt: Researcher gathers evidence; trader reviews risk, places orders, and verifies results
    :width: 100%
    :class: lumibot-doc-image
 
@@ -36,6 +37,8 @@ For economic research, see :doc:`macro_data`.
 
 .. raw:: html
    :file: _html/main.html
+
+.. include:: _includes/learn_with_rob.rst
 
 .. _first-python-backtest:
 
@@ -511,6 +514,11 @@ Table of Contents
    :maxdepth: 2
 
    Home <self>
+   Start Here <getting_started>
+   AI Quickstart <agents_quickstart>
+   AI Examples <agents_examples>
+   For Coding Agents <agent_start_here>
+   Reusable Components <standalone_components>
    Build and Deploy with BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot&utm_content=sidebar_build_bots&sample=lumibot_deploy_sample>
    BotSpot MCP Integration <botspot_mcp>
    Partnerships and Sponsorship <PARTNERSHIPS>
@@ -518,7 +526,6 @@ Table of Contents
    GitHub <https://github.com/Lumiwealth/lumibot>
    Reddit Community <https://www.reddit.com/r/BotSpotTrade/>
    Discord Community <https://discord.gg/4R9j6T3PN8>
-   getting_started
    strategy_api_overview
    imports_and_startup
    agents

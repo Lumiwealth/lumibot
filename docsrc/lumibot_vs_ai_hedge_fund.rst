@@ -14,8 +14,15 @@ when appropriate.
 Where ai-hedge-fund Fits
 ************************
 
-ai-hedge-fund is useful when you want an educational, investor-style AI demo.
-The named-agent pattern is easy to understand and easy to share.
+ai-hedge-fund documents an interactive terminal app, saved fund mandates,
+and a command to backtest those mandates. Its README describes persistent
+paper/live operation as a direction of development and separately says the
+system does not actually make trades. Do not confuse the roadmap with current
+execution support.
+
+Checked against the `ai-hedge-fund README
+<https://github.com/virattt/ai-hedge-fund>`_ on September 12, 2026. These are
+source-documentation claims, not an independently run broker comparison.
 
 Where Lumibot Fits
 ******************

@@ -1,0 +1,18 @@
+name: Feature request
+description: Explain a user problem and its current workaround
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to accomplish?
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Current workaround and its limitations
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior and compatibility
+      description: How would this preserve existing strategies?

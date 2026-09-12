@@ -1,6 +1,22 @@
 Getting Started with LumiBot
 ****************************
 
+Check your installation without credentials
+-------------------------------------------
+
+The development source includes an offline example using synthetic minute prices
+and the real Pandas backtest engine. It makes no model or broker calls:
+
+.. code-block:: bash
+
+   python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
+   python -m lumibot.example_strategies.first_backtest
+
+It prints the simulated order record and ending portfolio value. The prices are
+invented for an installation check; the result is not historical performance.
+For an AI strategy, continue to :doc:`agents_quickstart`.
+
+
 .. meta::
    :description: Install LumiBot and run your first Python trading backtest or AI trading agent, then connect a supported broker when you are ready.
 

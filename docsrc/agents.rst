@@ -11,7 +11,7 @@ broker. You choose when they run and which agents can trade.
 Choose your first workflow
 --------------------------
 
-* **Build your first agent:** :doc:`agents_quickstart` has installation, model credentials, daily data, and a complete research backtest.
+* **Build your first agent:** :doc:`agents_quickstart` has installation, model credentials, daily data, and a complete researcher-and-trader backtest.
 * **Trade stocks:** start with :doc:`a large-cap stock team <agents_example_bull_bear_large_cap_stocks>` or :doc:`opening range breakout <agents_example_ai_opening_range_breakout>`.
 * **Explore macro teams:** inspect :doc:`the idea-meritocracy example <agents_example_ray_dalio_idea_meritocracy>` and :doc:`FRED/ALFRED data setup <macro_data>`.
 * **Trade options:** :doc:`agents_example_ai_iron_condor` explains option-chain evidence, four-leg orders, and data limitations.
@@ -35,9 +35,7 @@ integrations, maintenance, developer tutorials, and strategic collaboration.
 .. toctree::
    :maxdepth: 1
 
-   agents_quickstart
    agents_flows
-   agents_examples
    agents_builtin_tools
    agents_canonical_demos
    agents_observability

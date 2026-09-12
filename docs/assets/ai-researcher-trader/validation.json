@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-09-12",
+  "package_version": "4.5.92",
+  "examples": {
+    "first_backtest": {
+      "source": "lumibot/example_strategies/first_backtest.py",
+      "sha256": "1de7b9238581455fb5475dab5a4a177012c4efdefaf0c0ed1529e0080bccf2f5",
+      "data": "synthetic minute OHLCV in source",
+      "engine": "PandasDataBacktesting",
+      "window": [
+        "2025-01-06T09:30:00-05:00",
+        "2025-01-06T09:35:00-05:00"
+      ],
+      "initial_equity": 10000,
+      "final_equity": 10005,
+      "filled_orders": 1,
+      "fill_quantity": 1,
+      "fill_price": 100,
+      "fees": 0,
+      "model_calls": 0,
+      "validation": "Built wheel, installed outside source checkout, ran module, and asserted actual engine fill in pytest. Not investment performance."
+    },
+    "ai_researcher_trader": {
+      "source": "lumibot/example_strategies/ai_researcher_trader.py",
+      "sha256": "a2820f0c5e9593f6151143f96a9441442d8ab05da38da6e2f7488c436e021ed9",
+      "model": "gemini-3.5-flash-lite",
+      "real_model_run": null,
+      "validation": "Import and role wiring tests plus canonical daily example executed through real engine and order tools with a scripted model substitute. This does not validate model reasoning or AI returns."
+    }
+  }
+}

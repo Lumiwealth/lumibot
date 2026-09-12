@@ -19,12 +19,10 @@ the trader picks one ETF.
 Hosted examples on BotSpot
 ---------------------------
 
-Open the Data-On marketplace variants: `regular ETFs <https://botspot.trade/marketplace/strategy/b00c5f9c-beea-46fe-bdba-fc65c1315d5f?utm_source=documentation&utm_medium=example&utm_campaign=lumibot_ai_examples&utm_content=dalio_regular>`_
-or `leveraged ETFs <https://botspot.trade/marketplace/strategy/362a50a1-d501-4b08-8d42-c7701a363731?utm_source=documentation&utm_medium=example&utm_campaign=lumibot_ai_examples&utm_content=dalio_leveraged>`_.
-These variants add macro and news evidence and request diversified allocations;
-their saved code differs from the original single-ETF example below. Start with
-the regular version. The listings have no strategy subscription fee; BotSpot
-plans, model usage, broker access, and data requirements still apply.
+Explore the public `Macro Insight AI: Bridgewater-Style Strategy <https://botspot.trade/marketplace/strategy/81af73b8-7dec-4941-ba35-d5a06fee6863?utm_source=documentation&utm_medium=example&utm_campaign=lumibot_ai_examples>`_ listing.
+Inspect its published revision and available observations before using it; a
+listing is not proof of a currently healthy deployment or future performance.
+BotSpot plans, model usage, broker access, and data requirements may apply.
 
 These are educational examples with no affiliation or endorsement from Ray
 Dalio or Bridgewater, and are not replicas of their proprietary strategies.

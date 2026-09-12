@@ -1,5 +1,5 @@
 # Lumibot Documentation (Compiled)
-# Generated: 2026-09-12T19:24:42Z
+# Generated: 2026-09-12T19:42:45Z
 
 
 ===== MIGRATING_FROM_BACKTRADER =====
@@ -3942,12 +3942,11 @@ agents can create better decisions than one single broad prompt.
 Hosted examples on BotSpot
 ==========================
 
-Open the Data-On marketplace variants: regular sector ETFs or
-leveraged sector ETFs. These variants add macro and news evidence and
-request diversified allocations; their saved code differs from the
-original example below. Start with the regular version. The listings
-have no strategy subscription fee; BotSpot plans, model usage, broker
-access, and data requirements still apply.
+Explore the public Sector Rotation AI Multi-Pod Strategy listing.
+Inspect its published revision and available observations before using
+it; a listing is not proof of a currently healthy deployment or future
+performance. BotSpot plans, model usage, broker access, and data
+requirements may apply.
 
 These are educational examples with no affiliation or endorsement from
 Citadel or its personnel, and are not replicas of a proprietary
@@ -4148,12 +4147,11 @@ agent stress-tests all three before the trader picks one ETF.
 Hosted examples on BotSpot
 ==========================
 
-Open the Data-On marketplace variants: regular ETFs or leveraged ETFs.
-These variants add macro and news evidence and request diversified
-allocations; their saved code differs from the original single-ETF
-example below. Start with the regular version. The listings have no
-strategy subscription fee; BotSpot plans, model usage, broker access,
-and data requirements still apply.
+Explore the public Macro Insight AI: Bridgewater-Style Strategy
+listing. Inspect its published revision and available observations
+before using it; a listing is not proof of a currently healthy
+deployment or future performance. BotSpot plans, model usage, broker
+access, and data requirements may apply.
 
 These are educational examples with no affiliation or endorsement from
 Ray Dalio or Bridgewater, and are not replicas of their proprietary
@@ -4543,20 +4541,16 @@ Team workflows
 +---------------------------+--------------------------------+---------------------------+----------------------+
 | Example                   | What it does                   | Data and cadence          | Evidence             |
 |===========================|================================|===========================|======================|
-| Sector pods               | Sector specialists present     | Daily ETF prices. Hosted  | Regular and          |
-|                           | ideas to a portfolio manager.  | Data-On variants also     | leveraged            |
-|                           |                                | require macro/news        | marketplace          |
-|                           |                                | credentials.              | revisions verified;  |
-|                           |                                |                           | not a performance    |
+| Sector pods               | Sector specialists present     | Daily ETF prices; inspect | Source example and   |
+|                           | ideas to a portfolio manager.  | the published revision    | public strategy      |
+|                           |                                | for additional data       | listing; not a       |
+|                           |                                | requirements.             | performance          |
 |                           |                                |                           | endorsement.         |
 +---------------------------+--------------------------------+---------------------------+----------------------+
-| Macro idea meritocracy    | Growth, inflation, and         | Daily ETF prices;         | Regular and          |
-|                           | liquidity agents debate        | FRED/ALFRED and news for  | leveraged            |
-|                           | allocation.                    | Data-On variants.         | marketplace          |
-|                           |                                |                           | revisions verified;  |
-|                           |                                |                           | source differs from  |
-|                           |                                |                           | the original single- |
-|                           |                                |                           | ETF example.         |
+| Macro idea meritocracy    | Growth, inflation, and         | Daily ETF prices;         | Source example and   |
+|                           | liquidity agents debate        | FRED/ALFRED is available  | public strategy      |
+|                           | allocation.                    | for macro extensions.     | listing; inspect the |
+|                           |                                |                           | published revision.  |
 +---------------------------+--------------------------------+---------------------------+----------------------+
 | Leveraged ETF bull/bear   | Debate leveraged long and      | Daily prices; advanced    | Source example;      |
 | team                      | inverse ETFs.                  | instrument and            | inspect the page's   |
@@ -4565,17 +4559,17 @@ Team workflows
 +---------------------------+--------------------------------+---------------------------+----------------------+
 
 
-Hosted Data-On examples
------------------------
+Public strategy listings
+------------------------
 
-* Sector pods: regular ETFs or leveraged ETFs.
+* Sector Rotation AI Multi-Pod Strategy.
 
-* Macro team: regular ETFs or leveraged ETFs.
+* Macro Insight AI: Bridgewater-Style Strategy.
 
-The four listings have no strategy subscription fee; BotSpot plans,
-model usage, data, and broker requirements still apply. The Data-On
-versions add evidence and allocation behavior beyond the original
-source examples. Inspect the saved code.
+These public listings were verified on September 12, 2026. Inspect
+their published revisions and available observations; listing
+availability does not establish deployment health or performance.
+BotSpot plans, model usage, data, and broker requirements may apply.
 
 
 Options strategies

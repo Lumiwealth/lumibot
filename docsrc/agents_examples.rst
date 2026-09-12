@@ -59,26 +59,27 @@ ETF and macro teams
      - Evidence
    * - :doc:`Sector pods <agents_example_citadel_sector_pods>`
      - Sector specialists present ideas to a portfolio manager.
-     - Daily ETF prices. Hosted Data-On variants also require macro/news credentials.
-     - Regular and leveraged marketplace revisions verified; not a performance endorsement.
+     - Daily ETF prices; inspect the published revision for additional data requirements.
+     - Source example and public strategy listing; not a performance endorsement.
    * - :doc:`Macro idea meritocracy <agents_example_ray_dalio_idea_meritocracy>`
      - Growth, inflation, and liquidity agents debate allocation.
-     - Daily ETF prices; :doc:`FRED/ALFRED <macro_data>` and news for Data-On variants.
-     - Regular and leveraged marketplace revisions verified; source differs from the original single-ETF example.
+     - Daily ETF prices; :doc:`FRED/ALFRED <macro_data>` is available for macro extensions.
+     - Source example and public strategy listing; inspect the published revision.
    * - :doc:`Leveraged ETF bull/bear team <agents_example_bull_bear_leveraged_etf>`
      - Debate leveraged long and inverse ETFs.
      - Daily prices; advanced instrument and concentration risk.
      - Source example; inspect the page's evidence before running it.
 
-Hosted Data-On examples
-~~~~~~~~~~~~~~~~~~~~~~~
+Public strategy listings
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-* Sector pods: `regular ETFs <https://botspot.trade/marketplace/strategy/4fb6cf2f-272c-4a73-96e7-edd7383b1a33?utm_source=documentation&utm_medium=example_index&utm_campaign=lumibot_ai_examples&utm_content=citadel_regular>`__ or `leveraged ETFs <https://botspot.trade/marketplace/strategy/da83818b-f994-4163-8ef3-99ea346325b4?utm_source=documentation&utm_medium=example_index&utm_campaign=lumibot_ai_examples&utm_content=citadel_leveraged>`__.
-* Macro team: `regular ETFs <https://botspot.trade/marketplace/strategy/b00c5f9c-beea-46fe-bdba-fc65c1315d5f?utm_source=documentation&utm_medium=example_index&utm_campaign=lumibot_ai_examples&utm_content=dalio_regular>`__ or `leveraged ETFs <https://botspot.trade/marketplace/strategy/362a50a1-d501-4b08-8d42-c7701a363731?utm_source=documentation&utm_medium=example_index&utm_campaign=lumibot_ai_examples&utm_content=dalio_leveraged>`__.
+* `Sector Rotation AI Multi-Pod Strategy <https://botspot.trade/marketplace/strategy/0b4576c7-f78b-4477-ba3a-630758fb0168?utm_source=documentation&utm_medium=example_index&utm_campaign=lumibot_ai_examples&utm_content=citadel>`__.
+* `Macro Insight AI: Bridgewater-Style Strategy <https://botspot.trade/marketplace/strategy/81af73b8-7dec-4941-ba35-d5a06fee6863?utm_source=documentation&utm_medium=example_index&utm_campaign=lumibot_ai_examples&utm_content=dalio>`__.
 
-The four listings have no strategy subscription fee; BotSpot plans, model usage,
-data, and broker requirements still apply. The Data-On versions add evidence and
-allocation behavior beyond the original source examples. Inspect the saved code.
+These public listings were verified on September 12, 2026. Inspect their
+published revisions and available observations; listing availability does not
+establish deployment health or performance. BotSpot plans, model usage, data,
+and broker requirements may apply.
 
 Options strategies
 ------------------

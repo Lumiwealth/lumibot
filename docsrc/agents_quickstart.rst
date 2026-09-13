@@ -41,14 +41,16 @@ Your strategy code
    :language: python
    :linenos:
 
-.. image:: ../docs/assets/ai-trading/inspect-decisions.png
-   :alt: Concept illustration of research notes, historical decisions and order records.
+.. image:: ../docs/assets/ai-trading/backtest-benefit.png
+   :alt: See how a strategy would have traded in a historical LumiBot backtest.
    :width: 640px
    :align: center
    :class: lumibot-entry-hero
 
-Inspect what happened
----------------------
+.. _inspect-what-happened:
+
+See the example backtest
+------------------------
 
 A September 13, 2026 run completed all five sessions (April 6–10) with ten
 fresh Gemini researcher/trader runs. The trader bought 15 SPY shares on April 7
@@ -82,7 +84,25 @@ how both the reasoning and orders changed. Keep the same ``Strategy`` class
 when adding researchers or moving to a configured broker runner. Existing
 Strategy subclasses do not need to migrate to another API.
 
-.. include:: _includes/learn_with_rob.rst
+Keep building with the AI Trading Bootcamp
+---------------------------------------------
+
+**Learn to build AI trading bots with Rob Grzesik, creator of LumiBot.**
+Follow the training and learn how to turn an idea into an AI trading strategy.
+
+.. image:: ../docs/assets/ai-trading/rob-bootcamp.png
+   :alt: Learn to build AI trading bots with Rob Grzesik. Explore the AI Trading Bootcamp.
+   :width: 640px
+   :align: center
+   :class: lumibot-learning-image
+   :target: https://botspot.trade/courses/ai-trading-bootcamp?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=quickstart_bootcamp_image
+
+
+`Join the free challenge → <https://botspot.trade/challenges?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=free_challenge>`_
+
+For deeper training, explore the `AI Trading Bootcamp <https://botspot.trade/courses/ai-trading-bootcamp?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=bootcamp>`_.
+LumiBot remains free and open source.
+
 
 Extend the team
 ---------------

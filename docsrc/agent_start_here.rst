@@ -13,7 +13,7 @@ Create agents in ``initialize`` and invoke them in ``on_trading_iteration``.
 Do not invent an alternative execution API.
 
 The canonical two-agent source is
-`ai_researcher_trader.py <https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/ai_researcher_trader.py>`_.
+`ai_researcher_trader.py <https://github.com/Lumiwealth/lumibot/blob/version/4.5.92/lumibot/example_strategies/ai_researcher_trader.py>`_.
 It uses ``gemini-3.5-flash-lite``, ``GEMINI_API_KEY``, and Yahoo daily prices.
 Read its full source before changing it. Copy the complete file and execute it
 in the same Python environment where LumiBot is installed.

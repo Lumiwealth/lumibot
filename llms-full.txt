@@ -1,5 +1,5 @@
 # Lumibot Documentation (Compiled)
-# Generated: 2026-09-13T17:31:23Z
+# Generated: 2026-09-13T18:25:40Z
 
 
 ===== MIGRATING_FROM_BACKTRADER =====
@@ -4475,8 +4475,7 @@ what the agents decided. Model calls require a provider key. Each
 example states its data requirements and whether the displayed result
 is a recorded run.
 
-[image: Concept illustration: evidence, opposing analysis and trade
-decisions.][image]
+[image: AI trading examples for stocks, macro and options.][image]
 
 **First AI backtest**
 
@@ -4628,6 +4627,16 @@ source, data, and window. It does not establish investment
 performance. An LLM may know future facts despite historical market-
 tool timestamps. These examples are inspired by public ideas, without
 affiliation or endorsement from named people or firms.
+
+
+Build your own AI trading bot
+=============================
+
+Want help turning your idea into a strategy? Learn with Rob in the
+free challenge.
+
+[image: Learn with Rob Grzesik, creator of LumiBot. Join the FREE
+challenge.][image]
 
 ===== agents_flows =====
 
@@ -5609,12 +5618,12 @@ Your strategy code
            show_indicators=False,
        )
 
-[image: Concept illustration of research notes, historical decisions
-and order records.][image]
+[image: See how a strategy would have traded in a historical LumiBot
+backtest.][image]
 
 
-Inspect what happened
-=====================
+See the example backtest
+========================
 
 A September 13, 2026 run completed all five sessions (April 6–10) with
 ten fresh Gemini researcher/trader runs. The trader bought 15 SPY
@@ -5654,15 +5663,15 @@ broker runner. Existing Strategy subclasses do not need to migrate to
 another API.
 
 
-Want help building your first AI trading bot?
-=============================================
+Keep building with the AI Trading Bootcamp
+==========================================
 
-**Join the free challenge with Rob Grzesik, creator of LumiBot.**
-Follow the training and learn how to turn an idea into an AI trading
-strategy.
+**Learn to build AI trading bots with Rob Grzesik, creator of
+LumiBot.** Follow the training and learn how to turn an idea into an
+AI trading strategy.
 
-[image: Build your first AI trading bot with Rob Grzesik. Join the
-FREE challenge.][image]
+[image: Learn to build AI trading bots with Rob Grzesik. Explore the
+AI Trading Bootcamp.][image]
 
 Join the free challenge →
 
@@ -19028,7 +19037,7 @@ Typical AI agent pattern:
    def initialize(self):
        self.agents.create(
            name="research",
-           default_model="gemini-3.1-flash-lite-preview",
+           default_model="gemini-3.5-flash-lite",
            system_prompt="Use the available tools and return a short summary.",
            tools=[
                BuiltinTools.account.positions(),
@@ -22301,8 +22310,8 @@ Want help building your first AI trading bot?
 Follow the training and learn how to turn an idea into an AI trading
 strategy.
 
-[image: Build your first AI trading bot with Rob Grzesik. Join the
-FREE challenge.][image]
+[image: Learn with Rob Grzesik, creator of LumiBot. Join the FREE
+challenge.][image]
 
 Join the free challenge →
 
@@ -22394,11 +22403,11 @@ misclassified by partial matches.
 LumiBot AI Trading
 ******************
 
-**The open-source Python framework for AI trading agents.**
+**Turn trading ideas into working strategies.**
 
-Build agents that research markets, debate ideas, and place trades.
-Backtest their decisions, inspect the orders, and connect supported
-brokers using the same Python strategy.
+Build trading strategies with Python rules, AI agents, or both.
+Backtest on historical data, view trades and results, and connect a
+supported broker through the same strategy interface.
 
 Python quickstart · AI quickstart · Python examples · AI examples ·
 Recorded run · GitHub
@@ -22426,8 +22435,23 @@ Read and customize the strategy or inspect the recorded decisions and
 fill. The example uses "gemini-3.5-flash-lite". Fresh AI decisions can
 vary.
 
-[image: LumiBot AI Trading: research, debate, trade and
-backtest][image]
+[image: LumiBot: Python rules or AI agents, historical backtests and
+broker connections][image]
+
+
+Why build with LumiBot?
+=======================
+
+* **One strategy lifecycle:** use your own Python rules, AI agents, or
+  both.
+
+* **Historical backtesting:** test an idea before connecting a broker.
+
+* **Broker adapters:** keep trading logic separate from broker
+  configuration.
+
+* **Examples to build on:** start with stocks, macro, options, or buy-
+  and-hold.
 
 
 Build your own trading system
@@ -22997,8 +23021,8 @@ Want help building your first AI trading bot?
 Follow the training and learn how to turn an idea into an AI trading
 strategy.
 
-[image: Build your first AI trading bot with Rob Grzesik. Join the
-FREE challenge.][image]
+[image: Learn with Rob Grzesik, creator of LumiBot. Join the FREE
+challenge.][image]
 
 Join the free challenge →
 
@@ -29663,7 +29687,8 @@ You can use selected research components without running a trading
 strategy. The examples below are network reads, not backtests or
 broker connections.
 
-[image: LumiBot components: data, research and brokers.][image]
+[image: Use FRED economic data and SEC filings in your own Python
+scripts.][image]
 
 
 Read macro data
@@ -29757,6 +29782,15 @@ and execution. Broker objects may start threads or streams; they are
 not all stateless REST clients. Use Strategy API Overview and Trading
 Brokers Supported by LumiBot when embedding trading execution, and
 preserve their startup/shutdown lifecycle.
+
+
+Learn to build a complete strategy
+==================================
+
+Explore the AI Trading Bootcamp with Rob Grzesik for guided training.
+
+[image: Learn to build AI trading bots with Rob Grzesik. Explore the
+AI Trading Bootcamp.][image]
 
 ===== strategy_api_overview =====
 

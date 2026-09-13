@@ -87,6 +87,7 @@
       if (link.hash === "#first-python-backtest") route = "python_backtest";
       else if (link.pathname.endsWith("/agents_quickstart.html")) route = "ai_agent";
       else if (link.pathname.endsWith("/agents_examples.html")) route = "ai_examples";
+      else if (link.pathname.endsWith("/examples.html")) route = "python_examples";
       else if (link.pathname.endsWith("/agents_example_ai_iron_condor.html")) route = "options";
     } else if (link.closest(".lumibot-partnership-route")) {
       route = "partnership";

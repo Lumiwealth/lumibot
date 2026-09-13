@@ -6,7 +6,7 @@
 
 # LumiBot AI Trading
 
-**The open-source Python framework for AI trading agents.**
+**Turn trading ideas into working strategies.**
 
 Give AI agents market data, research tools, and the ability to place trades. Build a single agent, a team that debates ideas, or combine AI with your own trading rules. LumiBot brings them into one backtesting and trading framework.
 
@@ -15,8 +15,15 @@ Give AI agents market data, research tools, and the ability to place trades. Bui
 **Prefer traditional trading strategies?** Write your own rules, indicators, and order logic in a normal `Strategy` subclass. No AI model or model API key is required. [Run the complete Python backtest](#backtest-a-strategy), then [connect the same strategy to a broker](#run-the-same-strategy-with-a-paper-broker).
 
 <p align="center">
-  <img src="docs/assets/ai-trading/ai-trading-hero.png" alt="LumiBot AI Trading: research, debate, trade and backtest" width="640">
+  <img src="docs/assets/ai-trading/benefit-hero.png" alt="LumiBot: Python rules or AI agents, historical backtests and broker connections" width="640">
 </p>
+
+## Why LumiBot?
+
+- **Use Python rules, AI agents, or both.** Keep one familiar `Strategy` lifecycle.
+- **Backtest before connecting a broker.** Run historical simulations and view trades and results.
+- **Reuse your strategy across supported brokers.** Keep strategy logic separate from broker configuration.
+- **Start from working examples.** Choose stocks, macro, options, or a traditional buy-and-hold strategy.
 
 ## Run your first AI backtest
 

@@ -1,15 +1,18 @@
-# AI trading artwork — September 13 refresh
+# Current AI trading artwork
 
-Five separate images generated with the approved Image Generator, using its default low quality and server-controlled GPT Image 2.5 Sunburst. Each is the raw, visually inspected output. No compositing, retouching or cropping.
+Seven new separate approved-generator outputs plus the retained free-challenge banner are used in the current pages. All were inspected and copied as-is, with no compositing, cropping or repair. Images are 1536 × 864 and displayed centered, proportionally, up to 640 × 360. Rounded panels are generated into the artwork.
 
-- [AI trading hero](ai-trading-hero.png): replaces the rejected robot portrait.
-- [Free challenge](free-challenge.png): based on Rob's original photographic headshot, without a mascot.
-- [AI strategies](ai-strategies.png): evidence, discussion and decisions.
-- [Inspect decisions](inspect-decisions.png): conceptual backtest illustration, not a performance result.
-- [Build your way](build-your-way.png): data, research and broker components.
+| Asset | Purpose |
+| --- | --- |
+| benefit-hero.png | Turn trading ideas into working strategies; actual Spot reference |
+| example-gallery.png | Stocks, macro and options examples |
+| backtest-benefit.png | Historical backtesting benefit; conceptual illustration, not results |
+| component-research.png | FRED and SEC research in an existing Python project |
+| rob-get-started.png | Free challenge after setup |
+| rob-examples.png | Free challenge after AI examples |
+| rob-bootcamp.png | Bootcamp after quickstart and reusable components |
+| free-challenge.png | Retained user-liked banner on README and homepage |
 
-All assets are 1536 × 864, displayed centered at up to 640 × 360 with proportional responsive scaling. Rounded panels are part of the generated images and therefore also appear in GitHub's sanitized README.
+[Generation prompts and references](benefit-prompts.json) · [Complete page screenshots](review/complete/README.md)
 
-[Prompts and rejected-draft corrections](visual-refresh-prompts.md) · [Screenshots](review/visual-refresh.md)
-
-Historical review screenshots show earlier versions and do not represent the latest artwork. Real backtest records remain separate.
+The older ai-trading-hero, ai-strategies, inspect-decisions and build-your-way assets are historical drafts, retained for the audit trail. They are not the current page illustrations. Earlier review screenshots may show them.

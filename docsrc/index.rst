@@ -6,11 +6,11 @@ LumiBot AI Trading
 
 .. container:: lumibot-hero-lead
 
-   **The open-source Python framework for AI trading agents.**
+   **Turn trading ideas into working strategies.**
 
-Build agents that research markets, debate ideas, and place trades.
-Backtest their decisions, inspect the orders, and connect supported brokers
-using the same Python strategy.
+Build trading strategies with Python rules, AI agents, or both. Backtest on
+historical data, view trades and results, and connect a supported broker through
+the same strategy interface.
 
 .. container:: lumibot-start-routes
 
@@ -42,11 +42,19 @@ account; model calls use your provider billing.
 `inspect the recorded decisions and fill <https://github.com/Lumiwealth/lumibot/blob/version/4.5.92/docs/assets/ai-trading/spy-20260913/README.md>`_.
 The example uses ``gemini-3.5-flash-lite``. Fresh AI decisions can vary.
 
-.. image:: ../docs/assets/ai-trading/ai-trading-hero.png
-   :alt: LumiBot AI Trading: research, debate, trade and backtest
+.. image:: ../docs/assets/ai-trading/benefit-hero.png
+   :alt: LumiBot: Python rules or AI agents, historical backtests and broker connections
    :width: 640px
    :align: center
    :class: lumibot-entry-hero
+
+Why build with LumiBot?
+************************
+
+* **One strategy lifecycle:** use your own Python rules, AI agents, or both.
+* **Historical backtesting:** test an idea before connecting a broker.
+* **Broker adapters:** keep trading logic separate from broker configuration.
+* **Examples to build on:** start with stocks, macro, options, or buy-and-hold.
 
 Build your own trading system
 *****************************
@@ -547,7 +555,25 @@ Compared With Backtesting Libraries
      - Crypto exchanges
      - Ecosystem/enterprise options
 
-.. include:: _includes/learn_with_rob.rst
+Want help building your first AI trading bot?
+---------------------------------------------
+
+**Join the free challenge with Rob Grzesik, creator of LumiBot.**
+Follow the training and learn how to turn an idea into an AI trading strategy.
+
+.. image:: ../docs/assets/ai-trading/free-challenge.png
+   :alt: Learn with Rob Grzesik, creator of LumiBot. Join the FREE challenge.
+   :width: 640px
+   :align: center
+   :class: lumibot-learning-image
+   :target: https://botspot.trade/challenges?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=home_challenge_image
+
+
+`Join the free challenge → <https://botspot.trade/challenges?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=free_challenge>`_
+
+For deeper training, explore the `AI Trading Bootcamp <https://botspot.trade/courses/ai-trading-bootcamp?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=bootcamp>`_.
+LumiBot remains free and open source.
+
 
 Table of Contents
 *****************

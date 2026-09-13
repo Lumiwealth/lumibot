@@ -77,7 +77,7 @@ Typical AI agent pattern:
     def initialize(self):
         self.agents.create(
             name="research",
-            default_model="gemini-3.1-flash-lite-preview",
+            default_model="gemini-3.5-flash-lite",
             system_prompt="Use the available tools and return a short summary.",
             tools=[
                 BuiltinTools.account.positions(),

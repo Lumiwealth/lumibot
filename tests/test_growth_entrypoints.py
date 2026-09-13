@@ -69,7 +69,7 @@ def test_readme_leads_with_runnable_ai_before_education():
     assert 'export GEMINI_API_KEY=' in opening
     assert opening.index('```python') < opening.index('Join the free challenge')
     assert 'width="640"' in opening
-    assert 'ai-trading-hero.png' in opening
+    assert 'benefit-hero.png' in opening
     assert 'learn-with-rob.png' not in opening
 
 
@@ -77,7 +77,7 @@ def test_navigation_has_task_groups_and_education_follows_quickstart():
     index = (ROOT / 'docsrc/index.rst').read_text()
     for group in ('Start here', 'AI trading', 'Build strategies', 'Backtest and trade', 'Community and learning'):
         assert f':caption: {group}' in index
-    assert index.index('.. _first-python-backtest:') < index.index('.. include:: _includes/learn_with_rob.rst')
+    assert index.index('.. _first-python-backtest:') < index.index('Want help building your first AI trading bot?')
     invitation = (ROOT / 'docsrc/_includes/learn_with_rob.rst').read_text()
     assert 'free challenge' in invitation
     assert ':width: 640px' in invitation
@@ -96,9 +96,9 @@ def test_homepage_and_readme_offer_direct_ai_runner_before_reference_choices():
 def test_generated_artwork_has_consistent_centered_placements():
     text = (ROOT / 'README.md').read_text()
     assert '<p align="center">\n<a href="https://botspot.trade/challenges?' in text
-    for page, asset in [('agents_examples.rst', 'ai-strategies.png'),
-                        ('agents_quickstart.rst', 'inspect-decisions.png'),
-                        ('standalone_components.rst', 'build-your-way.png')]:
+    for page, asset in [('agents_examples.rst', 'example-gallery.png'),
+                        ('agents_quickstart.rst', 'backtest-benefit.png'),
+                        ('standalone_components.rst', 'component-research.png')]:
         source = (ROOT / 'docsrc' / page).read_text()
         assert asset in source
         assert ':align: center' in source
@@ -118,3 +118,20 @@ def test_traditional_strategies_are_first_screen_and_start_here_choices():
     examples = (ROOT / 'docsrc/examples.rst').read_text()
     assert examples.index('Traditional Python strategies') < examples.index('AI Agents\n')
     assert 'buy_and_hold.py' in examples
+
+
+def test_benefit_copy_and_tracked_learning_placements():
+    home = (ROOT / 'docsrc/index.rst').read_text()
+    assert 'Turn trading ideas into working strategies' in home
+    for page, content in [('index.rst', 'home_challenge_image'),
+                          ('getting_started.rst', 'setup_challenge_image'),
+                          ('agents_examples.rst', 'examples_challenge_image'),
+                          ('agents_quickstart.rst', 'quickstart_bootcamp_image'),
+                          ('standalone_components.rst', 'components_bootcamp_image')]:
+        source = (ROOT / 'docsrc' / page).read_text()
+        assert content in source
+        assert 'utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading' in source
+    assert 'blob/dev/' not in (ROOT / 'docsrc/agent_start_here.rst').read_text()
+    template = (ROOT / 'docsrc/_templates/base.html').read_text()
+    assert 'benefit-hero.png' in template
+    assert 'name="description"' in template

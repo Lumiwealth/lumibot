@@ -5,8 +5,8 @@ Start with a complete strategy, run a historical backtest, and inspect what the
 agents decided. Model calls require a provider key. Each example states its
 data requirements and whether the displayed result is a recorded run.
 
-.. image:: ../docs/assets/ai-trading/ai-strategies.png
-   :alt: Concept illustration: evidence, opposing analysis and trade decisions.
+.. image:: ../docs/assets/ai-trading/example-gallery.png
+   :alt: AI trading examples for stocks, macro and options.
    :width: 640px
    :align: center
    :class: lumibot-entry-hero
@@ -158,3 +158,16 @@ public ideas, without affiliation or endorsement from named people or firms.
    agents_example_ai_iron_condor
    agents_example_ai_credit_spread
    agents_example_ai_spx_zero_dte_bear_call_team
+
+Build your own AI trading bot
+-----------------------------
+
+Want help turning your idea into a strategy? Learn with Rob in the free challenge.
+
+.. image:: ../docs/assets/ai-trading/rob-examples.png
+   :alt: Learn with Rob Grzesik, creator of LumiBot. Join the FREE challenge.
+   :width: 640px
+   :align: center
+   :class: lumibot-learning-image
+   :target: https://botspot.trade/challenges?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=examples_challenge_image
+

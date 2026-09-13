@@ -31,20 +31,23 @@
 <link rel="icon" type="image/png" sizes="192x192" href="{{ pathto('_static/lumibot_favicon_192.png', 1) }}">
 <link rel="icon" type="image/png" sizes="512x512" href="{{ pathto('_static/lumibot_favicon_512.png', 1) }}">
 <link rel="apple-touch-icon" sizes="192x192" href="{{ pathto('_static/lumibot_favicon_192.png', 1) }}">
+{% if 'name="description"' not in metatags %}
 <meta name="description" content="{{ page_description|e }}">
+{% endif %}
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Lumibot">
 <meta property="og:title" content="{% if pagename == master_doc %}Lumibot: Python Algorithmic Trading and AI Agents{% else %}{{ title|striptags|trim }} - Lumibot{% endif %}">
 <meta property="og:description" content="{{ page_description|e }}">
 <meta property="og:url" content="{{ page_url }}">
-<meta property="og:image" content="https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png">
-<meta property="og:image:width" content="852">
-<meta property="og:image:height" content="852">
-<meta property="og:image:alt" content="Lumibot AI trading robot logo">
+{% set share_image = {'index': 'benefit-hero.png', 'agents_examples': 'example-gallery.png', 'agents_quickstart': 'backtest-benefit.png', 'standalone_components': 'component-research.png'}.get(pagename) %}
+<meta property="og:image" content="https://lumibot.lumiwealth.com/{{ '_images/' ~ share_image if share_image else '_static/lumibot_spot_logo.png' }}">
+<meta property="og:image:width" content="{{ 1536 if share_image else 852 }}">
+<meta property="og:image:height" content="{{ 864 if share_image else 852 }}">
+<meta property="og:image:alt" content="{{ title|striptags|e }}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{% if pagename == master_doc %}Lumibot: Python Algorithmic Trading and AI Agents{% else %}{{ title|striptags|trim }} - Lumibot{% endif %}">
 <meta name="twitter:description" content="{{ page_description|e }}">
-<meta name="twitter:image" content="https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png">
+<meta name="twitter:image" content="https://lumibot.lumiwealth.com/{{ '_images/' ~ share_image if share_image else '_static/lumibot_spot_logo.png' }}">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",

@@ -7,8 +7,8 @@ Use LumiBot in another Python project
 You can use selected research components without running a trading strategy.
 The examples below are network reads, not backtests or broker connections.
 
-.. image:: ../docs/assets/ai-trading/build-your-way.png
-   :alt: LumiBot components: data, research and brokers.
+.. image:: ../docs/assets/ai-trading/component-research.png
+   :alt: Use FRED economic data and SEC filings in your own Python scripts.
    :width: 640px
    :align: center
    :class: lumibot-entry-hero
@@ -106,3 +106,16 @@ Execution components have a lifecycle
 execution. Broker objects may start threads or streams; they are not all
 stateless REST clients. Use :doc:`strategy_api_overview` and :doc:`brokers`
 when embedding trading execution, and preserve their startup/shutdown lifecycle.
+
+Learn to build a complete strategy
+----------------------------------
+
+Explore the AI Trading Bootcamp with Rob Grzesik for guided training.
+
+.. image:: ../docs/assets/ai-trading/rob-bootcamp.png
+   :alt: Learn to build AI trading bots with Rob Grzesik. Explore the AI Trading Bootcamp.
+   :width: 640px
+   :align: center
+   :class: lumibot-learning-image
+   :target: https://botspot.trade/courses/ai-trading-bootcamp?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=components_bootcamp_image
+

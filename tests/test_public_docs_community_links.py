@@ -48,8 +48,8 @@ def test_homepage_keeps_a_short_hero_and_places_runner_before_image():
     assert index.startswith("LumiBot AI Trading\n==================")
     assert "Build AI-powered trading strategies in Python." in index
     assert ":width: 640px" in index
-    assert index.index("python -m lumibot.example_strategies.ai_researcher_trader") < index.index("ai-trading-hero.png")
-    assert index.index(".. _first-python-backtest:") < index.index("learn_with_rob.rst")
+    assert index.index("python -m lumibot.example_strategies.ai_researcher_trader") < index.index("benefit-hero.png")
+    assert index.index(".. _first-python-backtest:") < index.index("Want help building your first AI trading bot?")
 
 
 def test_docs_community_icons_are_local_static_assets():

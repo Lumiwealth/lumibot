@@ -44,6 +44,7 @@ home.click('agents_example_ai_iron_condor.html', '.lumibot-start-routes');
 home.click('PARTNERSHIPS.html', '.lumibot-partnership-route');
 home.click('agents_quickstart.html', null);
 home.click('agents_examples.html', '.lumibot-start-routes');
+home.click('examples.html', '.lumibot-start-routes');
 home.click('https://botspot.trade/challenges?utm_content=learn_with_rob', null);
 home.click('https://botspot.trade/marketplace/strategy/example', null);
 home.click('https://botspot.trade.evil.example/path', null);
@@ -62,7 +63,7 @@ console.log(JSON.stringify({home: home.events, listeners: home.listeners.length,
     data = json.loads(result.stdout)
     assert data["listeners"] == 1
     routes = [e["properties"]["route"] for e in data["home"] if e["name"] == "lumibot_docs_start_click"]
-    assert routes == ["python_backtest", "ai_agent", "options", "partnership", "ai_examples"]
+    assert routes == ["python_backtest", "ai_agent", "options", "partnership", "ai_examples", "python_examples"]
     destinations = [
         (e["properties"]["link_path"], e["properties"]["link_hash"])
         for e in data["home"] if e["name"] == "lumibot_docs_start_click"
@@ -73,6 +74,7 @@ console.log(JSON.stringify({home: home.events, listeners: home.listeners.length,
         ("/agents_example_ai_iron_condor.html", ""),
         ("/PARTNERSHIPS.html", ""),
         ("/agents_examples.html", ""),
+        ("/examples.html", ""),
     ]
     names = [event["name"] for event in data["home"]]
     assert names.count("lumibot_docs_pageview") == 1

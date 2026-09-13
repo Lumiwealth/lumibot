@@ -2,6 +2,12 @@
 
 Current character-free artwork and creator attribution. Local Firefox documentation captures; published README evidence is identified separately. No Dev deployment is implied.
 
+## Published GitHub README
+
+![Published README](final-readme.png)
+
+[Full README screenshot](final-readme-full.png)
+
 ## Homepage and full navigation
 
 ![Homepage and full navigation](final-home-top.png)

@@ -1,5 +1,5 @@
 Run your first AI backtest
-=========================
+==========================
 
 .. meta::
    :description: Backtest a researcher and a trading agent with LumiBot. Inspect the evidence, risk decision, orders, and fills using a complete Python example.

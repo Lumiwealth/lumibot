@@ -1,0 +1,34 @@
+{
+  "recorded_at": "2026-09-13",
+  "model": "gemini-3.5-flash-lite",
+  "judge_model": "gemini-3.5-flash-lite",
+  "cases": {
+    "researcher_trader_evidence_handoff": {
+      "consecutive_passes": 5,
+      "total_passes": 5,
+      "failed_attempts": 0
+    },
+    "stock_pending_exit_no_duplicate": {
+      "consecutive_passes": 5,
+      "total_passes": 5,
+      "failed_attempts": 1
+    },
+    "stock_price_before_order": {
+      "consecutive_passes": 5,
+      "total_passes": 5,
+      "failed_attempts": 0
+    }
+  },
+  "external_writes": "Fixture broker writes for these evals; separate Yahoo backtest used actual simulator fills",
+  "budget_usd": 25,
+  "combined_model_cost_usd": 0.57576631,
+  "combined_usage": {
+    "input_tokens": 4849001,
+    "cached_input_tokens": 3383987,
+    "output_tokens": 13897
+  },
+  "resumed_completed_repetitions": 11,
+  "resume_new_passes": 4,
+  "missing_repetitions": 0,
+  "note": "Initial 503 preserved. Initial process guard interrupted incomplete work; resume paid only for the remaining required repetitions. This is targeted evidence, not a full-version release gate."
+}

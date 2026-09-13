@@ -1,18 +1,38 @@
-AI Trading Examples: Stocks, Macro Teams, and Options
-=====================================================
+AI Trading Examples
+===================
 
-Choose a strategy by the job you want to learn and the data you can supply.
+Start with a complete strategy, run a historical backtest, and inspect what the
+agents decided. Model calls require a provider key. Each example states its
+data requirements and whether the displayed result is a recorded run.
 
-**Start with two agents:** :doc:`agents_quickstart` creates a researcher and a
-trader inside a standard Strategy. The trader reviews risk and observes orders.
+.. container:: lumibot-entry-grid lumibot-start-routes
 
-.. image:: ../docs/assets/ai-researcher-trader/workflow.png
-   :alt: Research, risk review, order submission, and order verification
-   :width: 100%
+   .. container:: lumibot-entry-card
 
-Start with :doc:`agents_quickstart` for a complete two-agent stock backtest.
-All examples below make model calls and require a supported provider account;
-the Gemini examples use ``GEMINI_API_KEY``. Model usage may incur charges.
+      **First AI backtest**
+
+      SPY trend research, risk review, and a trading agent. A small starting point.
+
+      :doc:`Run the SPY example → <agents_quickstart>`
+
+   .. container:: lumibot-entry-card
+
+      **Agents that debate**
+
+      Researcher, bull, bear, and trader working with familiar large-cap stocks.
+
+      :doc:`See the stock team → <agents_example_bull_bear_large_cap_stocks>`
+
+   .. container:: lumibot-entry-card
+
+      **Options strategies**
+
+      Explore an iron condor with its contracts, data setup, and recorded evidence.
+
+      :doc:`Explore the iron condor → <agents_example_ai_iron_condor>`
+
+Compare the workflows below. A fresh model run may produce different decisions
+and returns; saved traces show what happened in a particular run.
 
 Stocks
 ------

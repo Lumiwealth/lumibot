@@ -3,6 +3,7 @@
 ## 4.5.92 - Unreleased
 
 ### Growth documentation and examples
+- Refined AI trading entry points with a runnable README example, grouped navigation, compact brand artwork, and a free challenge invitation after useful content.
 - Added a canonical researcher/trader Strategy example with Gemini 3.5 Flash-Lite, explicit position limits, and order-observation guidance.
 - Promoted AI quickstart and examples to top-level navigation; added reusable-component and coding-agent entry pages.
 - Added creator-led challenge imagery, preserved classic Strategy entry points, and introduced contributor intake and a read-only PR triage utility.

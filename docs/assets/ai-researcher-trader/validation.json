@@ -25,8 +25,8 @@
       "source": "lumibot/example_strategies/ai_researcher_trader.py",
       "sha256": "a2820f0c5e9593f6151143f96a9441442d8ab05da38da6e2f7488c436e021ed9",
       "model": "gemini-3.5-flash-lite",
-      "real_model_run": null,
-      "validation": "Import and role wiring tests plus canonical daily example executed through real engine and order tools with a scripted model substitute. This does not validate model reasoning or AI returns."
+      "real_model_run": "../ai-trading/spy-20260913/receipt.json",
+      "validation": "September 13: ten fresh Gemini researcher/trader trajectories across five Yahoo trading sessions; one actual engine fill, 15 SPY shares. See linked receipt, decisions, and trade CSV."
     }
   }
 }

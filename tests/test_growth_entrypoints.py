@@ -58,3 +58,26 @@ def test_two_roles_preserve_evidence_and_trading_ownership():
     assert [name for name, _ in calls] == ["researcher", "trader"]
     assert calls[1][1]["context"]["research_evidence"] == "researcher evidence"
     assert calls[1][1]["context"]["max_position_pct"] == 10
+
+
+def test_readme_leads_with_runnable_ai_before_education():
+    text = (ROOT / 'README.md').read_text()
+    opening = text.split('## What You Can Build')[0]
+    assert 'LumiBot AI Trading' in opening
+    assert 'Try the development example without API keys' not in opening
+    assert 'ResearcherTraderStrategy.backtest(' in opening
+    assert 'export GEMINI_API_KEY=' in opening
+    assert opening.index('```python') < opening.index('Join the free challenge')
+    assert 'width="360"' in opening
+    assert 'ai-trading-hero.png' in opening
+    assert 'learn-with-rob.png' not in opening
+
+
+def test_navigation_has_task_groups_and_education_follows_quickstart():
+    index = (ROOT / 'docsrc/index.rst').read_text()
+    for group in ('Start here', 'AI trading', 'Build strategies', 'Backtest and trade', 'Community and learning'):
+        assert f':caption: {group}' in index
+    assert index.index('.. _first-python-backtest:') < index.index('.. include:: _includes/learn_with_rob.rst')
+    invitation = (ROOT / 'docsrc/_includes/learn_with_rob.rst').read_text()
+    assert 'free challenge' in invitation
+    assert ':width: 360px' in invitation

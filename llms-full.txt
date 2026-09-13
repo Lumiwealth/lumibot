@@ -1,5 +1,5 @@
 # Lumibot Documentation (Compiled)
-# Generated: 2026-09-12T19:48:33Z
+# Generated: 2026-09-13T07:20:21Z
 
 
 ===== MIGRATING_FROM_BACKTRADER =====
@@ -158,11 +158,10 @@ Trading Strategy and the relevant broker documentation.
 Add AI only after the port is understood
 ========================================
 
-Use Build your first AI trading team to add a research agent, then AI
-Trading Examples: Stocks, Macro Teams, and Options for stock, macro,
-and options workflows. Keep the deterministic port as a baseline.
-Record model cost and the limits of historical LLM knowledge alongside
-any performance comparison.
+Use Run your first AI backtest to add a research agent, then AI
+Trading Examples for stock, macro, and options workflows. Keep the
+deterministic port as a baseline. Record model cost and the limits of
+historical LLM knowledge alongside any performance comparison.
 
 ===== PARTNERSHIPS =====
 
@@ -287,11 +286,10 @@ LumiBot for coding agents
 Start from a complete example
 =============================
 
-Use Build your first AI trading team for an AI strategy or Getting
-Started with LumiBot for ordinary Python rules. Both use "from
-lumibot.strategies import Strategy". Create agents in "initialize" and
-invoke them in "on_trading_iteration". Do not invent an alternative
-execution API.
+Use Run your first AI backtest for an AI strategy or Start with
+LumiBot for ordinary Python rules. Both use "from lumibot.strategies
+import Strategy". Create agents in "initialize" and invoke them in
+"on_trading_iteration". Do not invent an alternative execution API.
 
 The canonical two-agent source is ai_researcher_trader.py. It uses
 "gemini-3.5-flash-lite", "GEMINI_API_KEY", and Yahoo daily prices.
@@ -348,7 +346,7 @@ agents can trade.
 Choose your first workflow
 ==========================
 
-* **Build your first agent:** Build your first AI trading team has
+* **Build your first agent:** Run your first AI backtest has
   installation, model credentials, daily data, and a complete
   researcher-and-trader backtest.
 
@@ -361,10 +359,9 @@ Choose your first workflow
 * **Trade options:** AI-Only Iron Condor explains option-chain
   evidence, four-leg orders, and data limitations.
 
-Compare prerequisites and evidence in AI Trading Examples: Stocks,
-Macro Teams, and Options before choosing a strategy. Start with
-regular stocks or ETFs; leveraged instruments and short-dated options
-are advanced examples.
+Compare prerequisites and evidence in AI Trading Examples before
+choosing a strategy. Start with regular stocks or ETFs; leveraged
+instruments and short-dated options are advanced examples.
 
 
 Run a hosted example
@@ -813,8 +810,8 @@ Install LumiBot, set "GEMINI_API_KEY" in your environment, copy the
 Quick Start example on this page, and run it. The M2 Liquidity
 Strategy example is a complete, runnable strategy file. Provider-
 specific variants are available for OpenAI, Grok, and Anthropic. See
-Build your first AI trading team for additional patterns and Canonical
-AI Agent Demos for the reference demo strategies.
+Run your first AI backtest for additional patterns and Canonical AI
+Agent Demos for the reference demo strategies.
 
 **What API keys do I need?**
 
@@ -2316,7 +2313,7 @@ Related Pages
 * Build AI Trading Agents in Python with LumiBot -- main guide and
   architecture
 
-* Build your first AI trading team -- code patterns and API reference
+* Run your first AI backtest -- code patterns and API reference
 
 * AI Agent Observability -- traces, replay cache, and debugging
 
@@ -4470,23 +4467,38 @@ Example code
 
 ===== agents_examples =====
 
-AI Trading Examples: Stocks, Macro Teams, and Options
-*****************************************************
+AI Trading Examples
+*******************
 
-Choose a strategy by the job you want to learn and the data you can
-supply.
+Start with a complete strategy, run a historical backtest, and inspect
+what the agents decided. Model calls require a provider key. Each
+example states its data requirements and whether the displayed result
+is a recorded run.
 
-**Start with two agents:** Build your first AI trading team creates a
-researcher and a trader inside a standard Strategy. The trader reviews
-risk and observes orders.
+**First AI backtest**
 
-[image: Research, risk review, order submission, and order
-verification][image]
+SPY trend research, risk review, and a trading agent. A small starting
+point.
 
-Start with Build your first AI trading team for a complete two-agent
-stock backtest. All examples below make model calls and require a
-supported provider account; the Gemini examples use "GEMINI_API_KEY".
-Model usage may incur charges.
+Run the SPY example →
+
+**Agents that debate**
+
+Researcher, bull, bear, and trader working with familiar large-cap
+stocks.
+
+See the stock team →
+
+**Options strategies**
+
+Explore an iron condor with its contracts, data setup, and recorded
+evidence.
+
+Explore the iron condor →
+
+Compare the workflows below. A fresh model run may produce different
+decisions and returns; saved traces show what happened in a particular
+run.
 
 
 Stocks
@@ -4619,11 +4631,11 @@ affiliation or endorsement from named people or firms.
 Design Your AI Trading Team
 ***************************
 
-Start with Build your first AI trading team: one researcher gathers
-evidence and one trading agent owns risk review, order submission, and
-status reconciliation. Add researchers ahead of that trader when the
-strategy needs more perspectives. Research is evidence to evaluate,
-not permission to override the trading mandate.
+Start with Run your first AI backtest: one researcher gathers evidence
+and one trading agent owns risk review, order submission, and status
+reconciliation. Add researchers ahead of that trader when the strategy
+needs more perspectives. Research is evidence to evaluate, not
+permission to override the trading mandate.
 
 An AI trading team is the way your strategy calls one or more agents
 during normal LumiBot lifecycle methods such as
@@ -4842,8 +4854,7 @@ Where To Go Next
 * Agent Built-In Tools explains the built-in tools available to
   agents.
 
-* AI Trading Examples: Stocks, Macro Teams, and Options lists the
-  copy-paste AI trading team examples.
+* AI Trading Examples lists the copy-paste AI trading team examples.
 
 * Agent Memory explains how agents can remember decisions and lessons.
 
@@ -5455,7 +5466,7 @@ Related Pages
 * Build AI Trading Agents in Python with LumiBot -- main guide and
   architecture
 
-* Build your first AI trading team -- code patterns and API reference
+* Run your first AI backtest -- code patterns and API reference
 
 * Canonical AI Agent Demos -- the four reference demo strategies
 
@@ -5478,26 +5489,22 @@ real broker behavior.
 
 ===== agents_quickstart =====
 
-Build your first AI trading team
-********************************
+Run your first AI backtest
+**************************
 
 One agent researches the market. A second agent reviews risk, decides
 whether to trade, and checks the result. Both run inside the same
 standard "Strategy" class used by conventional LumiBot strategies.
 
-[image: Researcher gathers evidence; trader reviews risk, places an
-order, and verifies its status][image]
-
 
 Before you run
 ==============
 
-Use Python 3.10 or later and the current development source shown
-below. These documentation changes do not publish a new PyPI package.
-The example uses "gemini-3.5-flash-lite", "GEMINI_API_KEY", and Yahoo
-daily prices. You do not need broker credentials for this historical
-backtest. Model calls use your provider account and incur charges;
-start with this short date range.
+Use Python 3.10 or later. Install the version-branch source below to
+get this example. It uses "gemini-3.5-flash-lite", "GEMINI_API_KEY",
+and Yahoo daily prices. You do not need broker credentials for this
+historical backtest. Model calls use your provider account and incur
+charges; start with this short date range.
 
    python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
    export GEMINI_API_KEY="your-gemini-api-key"
@@ -5514,8 +5521,8 @@ selling or leverage is part of this example. An agent may correctly
 decide not to trade.
 
 
-Complete example
-================
+Your strategy code
+==================
 
    """A researcher and a trading agent share one standard LumiBot Strategy.
 
@@ -5603,10 +5610,15 @@ Complete example
 Inspect what happened
 =====================
 
-This newly added two-agent example has import, wiring, and real-engine
-checks with a scripted model substitute; a fresh real-model execution
-receipt is not yet published. The gallery retains separately
-identified historical runs.
+A September 13, 2026 run completed all five sessions (April 6–10) with
+ten fresh Gemini researcher/trader runs. The trader bought 15 SPY
+shares on April 7 and verified the simulated fill at $656.65. It held
+on the remaining sessions.
+
+Inspect the exact source, decisions, trade CSV, and run receipt. The
+final simulated account value was $100,272.85 from $100,000. This
+short run demonstrates the workflow; fresh inference can produce
+different decisions.
 
 Read the "Research:" and "Trader:" log entries, then inspect the
 generated trade records and tear sheet. An agent's written claim is
@@ -5620,10 +5632,10 @@ tool. In backtests it can advance simulation time; a timeout does not
 mean an order was rejected. Never blindly retry an unresolved order.
 
 See AI Agent Observability for traces and replay, and AI Trading
-Examples: Stocks, Macro Teams, and Options for recorded stock, macro,
-and options demonstrations. Historical model knowledge can include
-later events even when tools respect the strategy clock. Backtest
-returns are simulated, not a promise of returns.
+Examples for recorded stock, macro, and options demonstrations.
+Historical model knowledge can include later events even when tools
+respect the strategy clock. Backtest returns are simulated, not a
+promise of returns.
 
 
 Change one thing
@@ -5636,21 +5648,20 @@ broker runner. Existing Strategy subclasses do not need to migrate to
 another API.
 
 
-Learn with the creator of LumiBot
-=================================
+Want help building your first AI trading bot?
+=============================================
 
-[image: Build AI trading bots with Rob Grzesik, creator of LumiBot.
-Join the AI trading challenge.][image]
+**Join the free challenge with Rob Grzesik, creator of LumiBot.**
+Follow the training and learn how to turn an idea into an AI trading
+strategy.
 
-**Learn to build AI trading bots with Rob Grzesik, creator of
-LumiBot.** Join the AI trading challenge, see the workflow explained,
-and explore whether the AI Trading Bootcamp fits what you want to
-build.
+[image: Build your first AI trading bot with Rob Grzesik. Join the
+FREE challenge.][image]
 
-Join the AI trading challenge · Explore the bootcamp
+Join the free challenge →
 
-LumiBot remains free and open source. For a hosted workspace or an
-external coding-agent connection, see BotSpot MCP Integration.
+For deeper training, explore the AI Trading Bootcamp. LumiBot remains
+free and open source.
 
 
 Extend the team
@@ -10052,6 +10063,27 @@ environment:
    BITUNIX_API_SECRET=your_bitunix_api_secret
 
 
+Position Refresh Failures
+=========================
+
+Position reads require a complete successful response. A transport
+error, rejected request, or malformed position raises
+"LumibotBrokerAPIError" and leaves tracked positions unchanged. A
+failed read does not mean the account is flat and is not cached as a
+successful refresh; a later read can retry. An explicitly successful
+empty snapshot removes all stale non-cash positions. Polling reports
+the failure and retries on its next cycle. Strategy code using fresh
+"get_position()" or "get_positions()" reads should allow the error to
+stop that decision, rather than treating it as permission to open a
+position.
+
+The tracker supports one active position per symbol. Multiple nonzero
+rows for the same symbol, including simultaneous long and short HEDGE
+positions, raise the same error and preserve tracked state. They
+cannot be represented as independent positions by this adapter. Zero-
+quantity rows are ignored.
+
+
 Setting Leverage for Bitunix Orders
 ===================================
 
@@ -13210,6 +13242,8 @@ Contents:
 * Bitunix API Perpetual Futures Trading with LumiBot
 
   * How to Use Bitunix
+
+  * Position Refresh Failures
 
   * Setting Leverage for Bitunix Orders
 
@@ -18887,8 +18921,8 @@ features like the PerplexityHelper for AI-powered trading decisions.
 Choose a first runnable example
 ===============================
 
-* **AI agent:** Build your first AI trading team requires a supported
-  model credential.
+* **AI agent:** Run your first AI backtest requires a supported model
+  credential.
 
 * **Daily stocks:** the Yahoo buy-and-hold backtest requires no broker
   or data-provider credential.
@@ -18915,8 +18949,8 @@ lifecycle. The recommended agent docs path is:
 
 * Build AI Trading Agents in Python with LumiBot for the main guide
 
-* Build your first AI trading team for the core
-  "self.agents.create(...)" / ".run(...)" pattern
+* Run your first AI backtest for the core "self.agents.create(...)" /
+  ".run(...)" pattern
 
 * Canonical AI Agent Demos for the Alpaca news, FRED macro, and M2
   demos
@@ -19840,7 +19874,7 @@ Frequently Asked Questions (FAQ)
 ********************************
 
 This page answers common questions about LumiBot. If you're new, start
-with the Getting Started with LumiBot guide.
+with the Start with LumiBot guide.
 
 
 Getting Started
@@ -21837,91 +21871,57 @@ its clean data and extensive contract coverage.
 
 ===== getting_started =====
 
-Getting Started with LumiBot
-****************************
+Start with LumiBot
+******************
 
 
-Check your installation without credentials
-===========================================
+Choose what you want to build
+=============================
 
-The development source includes an offline example using synthetic
-minute prices and the real Pandas backtest engine. It makes no model
-or broker calls:
+* **AI trading:** Run your first AI backtest with a Gemini API key,
+  historical SPY prices, and complete Python code.
+
+* **Your own trading rules:** Backtest a Python strategy using daily
+  stock prices. No model account is needed.
+
+* **Research in another project:** Use data and research components
+  without creating a trading strategy.
+
+Already building with an AI coding assistant? Give it LumiBot for
+coding agents.
+
+
+Install LumiBot
+===============
+
+Use Python 3.10 or later in your own virtual environment:
+
+   python -m pip install lumibot
+
+The AI quickstart includes the source-version install command for its
+newest example. Follow that page's complete commands if you choose the
+AI route.
+
+
+Optional offline installation check
+===================================
+
+This is a conventional Python check, **not an AI strategy**. It uses
+synthetic prices and makes no model, market-data, or broker requests:
 
    python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
    BACKTESTING_DATA_SOURCE=none python -m lumibot.example_strategies.first_backtest
 
-It prints the simulated order record and ending portfolio value. The
-prices are invented for an installation check; the result is not
-historical performance. For an AI strategy, continue to Build your
-first AI trading team.
-
-LumiBot is a Python library for writing one trading strategy and
-running it in historical backtests or with a supported broker. Start
-with the complete daily-stock backtest, or use Build your first AI
-trading team to build a research agent inside the same strategy
-lifecycle. Broker setup comes later, after you can inspect a completed
-backtest.
+It prints a simulated order and ending value so you can check the
+installation. For AI trading, continue to Run your first AI backtest
+and configure your model key.
 
 
-Build AI Trading Agents
------------------------
+Connect a broker after your backtest
+====================================
 
-Lumibot now supports **AI trading agents** inside the "Strategy"
-class. If you want an **agentic trading** workflow, you can create an
-agent in "initialize()", run it from "on_trading_iteration()" or
-"on_filled_order()", query time-series data with DuckDB, and replay
-the same agent decisions during backtests.
-
-Read Build AI Trading Agents in Python with LumiBot for the full
-guide.
-
-
-Need Help Building Or Running Strategies?
------------------------------------------
-
-Lumibot is open source, but the full workflow is better on BotSpot
-when you want to build, backtest, and run strategies without
-assembling every data source, broker connection, server, scheduler,
-log pipeline, and monitoring tool yourself.
-
-BotSpot gives Lumibot users a managed layer around the code:
-
-* **Backtesting data included.** Use supported hosted datasets without
-  wrangling every vendor, API key, downloader, and local file
-  yourself.
-
-* **Cheaper deployment at scale.** Run scheduled or periodic bots on
-  infrastructure built for Lumibot instead of paying for a separate
-  always-on cloud server per strategy.
-
-* **Lumibot-tuned AI.** Generate and revise strategies with workflows
-  built around Lumibot conventions, backtests, artifacts, brokers, and
-  deployment.
-
-* **MCP for coding agents.** Let Codex, Claude Code, Cursor, and other
-  MCP clients launch backtests, inspect artifacts, compare results,
-  and prepare deployment.
-
-* **Marketplace and strategy library.** Start from existing strategy
-  examples, clone or adapt code when allowed, run marketplace
-  strategies, or publish your own.
-
-* **Monitoring and control.** Inspect charts, logs, trades, account
-  state, audit history, alerts, and kill switches from one place.
-
-* **Work from anywhere.** Use the web app, your phone, Telegram,
-  Discord, Claude, ChatGPT, or BotSpot MCP without losing your
-  strategy context.
-
-[image: Try deploying a sample Lumibot strategy on BotSpot][image]
-
-If you want your coding agent to work directly with BotSpot, open the
-BotSpot MCP guide. If you want guided training, the AI Trading
-Bootcamp teaches the full path from strategy idea to backtest to live
-deployment.
-
-[image: AI Trading Bootcamp][image]
+The guide below uses Alpaca. See Trading Brokers Supported by LumiBot
+for other supported connections.
 
 
 Getting Started With Lumibot
@@ -22253,6 +22253,22 @@ backtesting and live trading.
 Check the Frequently Asked Questions (FAQ) for 70+ answered questions
 covering backtesting, brokers, AI agents, options, crypto, and more.
 
+
+Want help building your first AI trading bot?
+=============================================
+
+**Join the free challenge with Rob Grzesik, creator of LumiBot.**
+Follow the training and learn how to turn an idea into an AI trading
+strategy.
+
+[image: Build your first AI trading bot with Rob Grzesik. Join the
+FREE challenge.][image]
+
+Join the free challenge →
+
+For deeper training, explore the AI Trading Bootcamp. LumiBot remains
+free and open source.
+
 ===== imports_and_startup =====
 
 Imports and Startup
@@ -22335,58 +22351,43 @@ misclassified by partial matches.
 
 ===== index =====
 
-LumiBot: Python Trading and AI Agent Framework
-**********************************************
+LumiBot AI Trading
+******************
 
-**Build AI trading teams that research, manage risk, and place
-trades.**
+**Build AI-powered trading strategies in Python.**
 
+Give agents market data, research tools, and the ability to place
+trades. Backtest a single agent, a debating team, or AI combined with
+your own rules.
 
-Start here
-==========
+**Run your first AI backtest**
 
-* **See AI examples and results:** AI Trading Examples: Stocks, Macro
-  Teams, and Options links directly to stock teams, macro teams, and
-  options.
+Start with Python, a Gemini key, and a complete SPY strategy.
 
-* **Run a Python backtest:** the complete daily-stock example below
-  needs no broker account.
+Start the AI quickstart →
 
-* **Build an AI agent:** Build your first AI trading team covers
-  installation, model credentials, and a complete runner.
+**Explore AI strategies**
 
-* **Explore options:** AI-Only Iron Condor explains the four-leg
-  workflow and its data requirements.
+Browse stock, macro, and options teams with code and recorded runs.
 
-For stock strategies, explore opening range breakout or large-cap
-stock teams. For economic research, see FRED Macro Data.
+Browse the examples →
 
-**Building on LumiBot?** Partner with us on integrations, open-source
-maintenance, joint tutorials, or strategic collaboration.
+**Write a Python strategy**
 
-[image: Researcher gathers evidence; trader reviews risk, places
-orders, and verifies results][image]
+Use your own rules, indicators, and the same Strategy lifecycle.
 
+Run a Python backtest →
 
-Learn with the creator of LumiBot
-=================================
+[image: LumiBot AI Trading: research, debate, trade and
+backtest][image]
 
-[image: Build AI trading bots with Rob Grzesik, creator of LumiBot.
-Join the AI trading challenge.][image]
-
-**Learn to build AI trading bots with Rob Grzesik, creator of
-LumiBot.** Join the AI trading challenge, see the workflow explained,
-and explore whether the AI Trading Bootcamp fits what you want to
-build.
-
-Join the AI trading challenge · Explore the bootcamp
-
-LumiBot remains free and open source. For a hosted workspace or an
-external coding-agent connection, see BotSpot MCP Integration.
+For coding assistants, start with LumiBot for coding agents. To use
+research and data inside another project, see Use LumiBot in another
+Python project.
 
 
 Getting Started
----------------
+===============
 
 After you have installed Lumibot on your computer, you can create a
 strategy and backtest it using free data available from Yahoo Finance,
@@ -22394,7 +22395,7 @@ or use your own data. Here's how to get started:
 
 
 Step 1: Install Lumibot
-=======================
+-----------------------
 
 Note:
 
@@ -22409,7 +22410,7 @@ Install the package on your computer:
 
 
 Step 2: Create a Strategy for Backtesting
-=========================================
+-----------------------------------------
 
 Here's some code to get you started:
 
@@ -22439,7 +22440,7 @@ Here's some code to get you started:
 
 
 Step 3: Take Your Bot Live
-==========================
+--------------------------
 
 Once you have backtested your strategy and understand how it behaves
 on historical data, you can take your bot to paper trading or live
@@ -22481,7 +22482,7 @@ Important:
 
 
 AI Trading Team
----------------
+===============
 
 LumiBot is built for **AI agents that reason, call external tools, and
 make trading decisions on every bar during a backtest** -- then run
@@ -22530,10 +22531,10 @@ Key AI agent docs:
 * Design Your AI Trading Team -- design single-agent, multi-agent,
   debate, team, and hybrid flows
 
-* AI Trading Examples: Stocks, Macro Teams, and Options -- copy-paste
-  AI trading team examples, including leveraged ETFs, large-cap
-  stocks, Ray Dalio idea meritocracy, Warren Buffett value, Bill
-  Ackman concentrated, and Citadel sector pods
+* AI Trading Examples -- copy-paste AI trading team examples,
+  including leveraged ETFs, large-cap stocks, Ray Dalio idea
+  meritocracy, Warren Buffett value, Bill Ackman concentrated, and
+  Citadel sector pods
 
 * SEC Fundamentals -- SEC fundamentals and filing research tools
 
@@ -22542,8 +22543,8 @@ Key AI agent docs:
 * Agent Built-In Tools -- built-in tools, indicators, and trading
   permissions
 
-* Build your first AI trading team -- quick start with code examples
-  for AI agent backtesting
+* Run your first AI backtest -- quick start with code examples for AI
+  agent backtesting
 
 * Canonical AI Agent Demos -- three reference demos: news sentiment,
   macro risk, and M2 liquidity
@@ -22553,7 +22554,7 @@ Key AI agent docs:
 
 
 Design Your AI Trading Team
----------------------------
+===========================
 
 An AI trading team is just a group of agents with different jobs
 inside the same LumiBot strategy. You can build a single-agent
@@ -22565,7 +22566,7 @@ layered on top of normal Python logic.
 
 
 Example: Research, Bull, Bear, and Trader Agents
-------------------------------------------------
+================================================
 
 Here is one example pattern: a researcher gathers evidence, bull and
 bear agents debate the trade, and a trader agent decides what to buy
@@ -22715,7 +22716,7 @@ See this AI trading team running live on BotSpot
 
 
 More AI Trading Team Examples
------------------------------
+=============================
 
 These examples show different ways to organize an AI trading team.
 Each page explains the inspiration, the agent flow, how to run it with
@@ -22756,7 +22757,7 @@ a broker in paper mode, and how to backtest it.
 
 
 Cash Accounting
----------------
+===============
 
 Lumibot supports explicit cash accounting for both backtests and live
 broker telemetry. Use the strategy cash methods for deposits,
@@ -22775,7 +22776,7 @@ Start with Cash Accounting for the end-to-end guide.
 
 
 Additional Resources
---------------------
+====================
 
 If you would like to learn how to modify your strategies, we suggest
 that you first learn about Lifecycle Methods, then Strategy Methods,
@@ -22792,7 +22793,7 @@ the same Python lifecycle.
 
 
 Need Extra Help?
-----------------
+================
 
 If you want a guided path instead of piecing everything together from
 docs, start with the AI Trading Bootcamp. It teaches the full
@@ -22807,7 +22808,7 @@ trading server.
 
 
 Why Lumibot?
-------------
+============
 
 AI trading projects have proved that people want agentic trading
 workflows. Lumibot's edge is that those workflows run inside a real
@@ -22824,7 +22825,7 @@ or live trading.
 
 
 Compared With AI Trading Agent Projects
-=======================================
+---------------------------------------
 
 +--------------------+--------------------+--------------------+----------------------+--------------------+
 | Project            | AI trading teams   | Backtest decisions | Paper/live broker    | Hosted             |
@@ -22870,7 +22871,7 @@ Read the detailed comparison page: AI Trading Project Comparison.
 
 
 Polymarket Trading And Backtesting
-==================================
+----------------------------------
 
 LumiBot supports Polymarket prediction-contract trading and
 backtesting through the normal broker, data-source, and backtesting
@@ -22883,7 +22884,7 @@ Start with the full setup and reference guide: Polymarket.
 
 
 Compared With Backtesting Libraries
-===================================
+-----------------------------------
 
 +--------------------+--------------------+--------------------+--------------------+--------------------+--------------------+
 | Library            | Same code:         | Assets             | AI agent runtime   | Broker/live path   | Hosted deployment  |
@@ -22919,522 +22920,110 @@ Compared With Backtesting Libraries
 +--------------------+--------------------+--------------------+--------------------+--------------------+--------------------+
 
 
+Want help building your first AI trading bot?
+---------------------------------------------
+
+**Join the free challenge with Rob Grzesik, creator of LumiBot.**
+Follow the training and learn how to turn an idea into an AI trading
+strategy.
+
+[image: Build your first AI trading bot with Rob Grzesik. Join the
+FREE challenge.][image]
+
+Join the free challenge →
+
+For deeper training, explore the AI Trading Bootcamp. LumiBot remains
+free and open source.
+
+
 Table of Contents
------------------
+=================
+
+
+Start here
+^^^^^^^^^^
 
 * Home
 
 * Start Here
 
-  * Check your installation without credentials
-
-  * Step 1: Install the Package
-
-  * Step 2: Import the Following Modules
-
-  * Step 3: Create an Alpaca Paper Trading Account
-
-  * Step 4: Configure Your API Keys
-
-  * Step 5: Create a Strategy Class
-
-  * Step 6: Instantiate the Trader, Alpaca, and Strategy Classes
-
-  * Step 7: Backtest the Strategy (Optional)
-
-  * Step 8: Run the Strategy
-
 * AI Quickstart
-
-  * Before you run
-
-  * Complete example
-
-  * Inspect what happened
-
-  * Change one thing
-
-  * Learn with the creator of LumiBot
-
-  * Extend the team
-
-  * "@agent_tool" Example (Primary Pattern)
-
-  * MCP Server Example (Alternative Pattern)
-
-  * Custom Strategy Tools with "@agent_tool"
-
-  * Passing Context
-
-  * Working with the Result
-
-  * Running a Backtest
-
-  * Best Practices
-
-  * Where to Go Next
-
-  * Frequently Asked Questions
 
 * AI Examples
 
-  * Stocks
-
-  * ETF and macro teams
-
-  * Options strategies
-
-  * Before running a strategy
-
 * For Coding Agents
 
-  * Start from a complete example
 
-  * Three ways agents participate
+AI trading
+^^^^^^^^^^
 
-  * Verify evidence, not prose
+* AI Agent Guide
+
+* Compare AI Frameworks
+
+
+Build strategies
+^^^^^^^^^^^^^^^^
+
+* Strategy API
+
+* Imports and Startup
 
 * Reusable Components
 
-  * Read macro data
+* Lifecycle Methods
 
-  * Read SEC submissions
+* Strategy Methods
 
-  * Reuse an indicator function
+* Strategy Properties
 
-  * Execution components have a lifecycle
+* Assets and Orders
+
+* Indicators
+
+* SEC Fundamentals
+
+* Macro Data
+
+
+Backtest and trade
+^^^^^^^^^^^^^^^^^^
+
+* Backtesting
+
+* Brokers
+
+* Cash Accounting
+
+* Deployment
+
+* Examples
+
+* Reference
+
+* Common Mistakes
+
+* FAQ
+
+
+Community and learning
+^^^^^^^^^^^^^^^^^^^^^^
+
+* Free AI Trading Challenge
 
 * Build and Deploy with BotSpot
 
 * BotSpot MCP Integration
 
-  * Last verified
-
-  * Canonical endpoints
-
-  * Important transport note
-
-  * Authentication modes
-
-  * Create an API key
-
-  * Client quickstarts
-
-  * What BotSpot MCP enables
-
-  * Known chaining requirement
-
-  * Validation checklist (copy/paste)
-
-  * Local debugging (recommended)
-
-  * Troubleshooting
-
-  * More resources
-
 * Partnerships and Sponsorship
 
-  * Overview
-
-  * Ways to work together
-
-  * What a first project could deliver
-
-  * Explore the technology
-
-  * Start a conversation
-
 * Migrate from Backtrader
-
-  * Map the lifecycle
-
-  * A small allocation example
-
-  * Compare timestamps and orders first
-
-  * Broker-connected execution uses a different runner
-
-  * Add AI only after the port is understood
 
 * GitHub
 
 * Reddit Community
 
 * Discord Community
-
-* Strategy API Overview
-
-  * Core methods
-
-  * Choose how to use LumiBot
-
-* Imports and Startup
-
-  * Supported Import Styles
-
-  * Lazy Import Semantics
-
-  * Symbol Parsing
-
-* Build AI Trading Agents in Python with LumiBot
-
-  * Choose your first workflow
-
-  * Run a hosted example
-
-  * Runtime concepts
-
-  * Verification and historical limits
-
-  * How "@agent_tool" Works
-
-  * External Data Patterns
-
-  * Built-in Tools
-
-  * System Prompts
-
-  * Agent Handoffs
-
-  * DuckDB and Time-Series Data
-
-  * Replay Cache
-
-  * Observability
-
-  * Canonical Demos
-
-  * Frequently Asked Questions
-
-  * Error Handling and Reliability
-
-* AI Trading Project Comparison
-
-  * Quick Comparison
-
-  * Detailed Comparisons
-
-  * Why Lumibot Is Different
-
-  * Source And Verification Method
-
-* Cash Accounting
-
-  * Strategy cash methods
-
-  * Backtest artifacts
-
-  * Broker cash events
-
-  * Long-form reference
-
-  * Documentation map
-
-* Lifecycle Methods
-
-  * Summary
-
-  * def initialize
-
-  * def on_trading_iteration
-
-  * def before_market_opens
-
-  * def before_starting_trading
-
-  * def before_market_closes
-
-  * def after_market_closes
-
-  * def on_abrupt_closing
-
-  * def on_bot_crash
-
-  * def trace_stats
-
-  * def tearsheet_custom_metrics
-
-  * def on_new_order
-
-  * def on_partially_filled_order
-
-  * def on_filled_order
-
-  * def on_canceled_order
-
-  * def on_parameters_updated
-
-* Strategy Methods
-
-  * Order Management
-
-  * Account Management
-
-  * Data
-
-  * Chart Functions
-
-  * Parameters
-
-  * Options
-
-  * DateTime
-
-  * Miscellaneous
-
-* Strategy Properties
-
-  * self.cash
-
-  * self.portfolio_value
-
-  * self.first_iteration
-
-  * self.is_backtesting
-
-  * self.quote_asset
-
-  * self.name
-
-  * self.initial_budget
-
-  * self.minutes_before_closing
-
-  * self.minutes_before_opening
-
-  * self.sleeptime
-
-  * self.last_on_trading_iteration_datetime
-
-  * self.timezone
-
-  * self.pytz
-
-  * self.unspent_money
-
-* Entities
-
-  * Asset
-
-  * Bars
-
-  * Data
-
-  * Order
-
-  * Position
-
-  * Trading Fee
-
-  * Trading Slippage
-
-  * Smart Limit Config
-
-  * Chains Entity
-
-* Indicators
-
-  * Why this matters
-
-  * Built-in pandas-ta-classic passthrough
-
-  * Fibonacci range retracements
-
-  * Custom indicators
-
-  * Cache key and staleness
-
-  * Current-bar semantics
-
-  * API reference
-
-  * Migration guide
-
-* SEC Fundamentals
-
-  * Point-In-Time Behavior
-
-  * Caching
-
-  * Agent Tools
-
-  * Related Macro Data
-
-  * Filing Search
-
-* FRED Macro Data
-
-  * Strategy API
-
-  * Agent Tools
-
-  * API Key Behavior
-
-  * Backtest Date Safety
-
-  * Cache
-
-* Backtesting Trading Strategies in Python with LumiBot
-
-  * Managed Backtesting on BotSpot
-
-  * Agentic Backtesting
-
-  * Files Generated from Backtesting
-
-* Trading Brokers Supported by LumiBot
-
-  * Alpaca API Trading with LumiBot
-
-  * Bitunix API Perpetual Futures Trading with LumiBot
-
-  * CCXT Crypto Trading and Backtesting with LumiBot
-
-  * Interactive Brokers API Trading with LumiBot
-
-  * Interactive Brokers Legacy
-
-  * Polymarket
-
-  * ProjectX / TopstepX
-
-  * Charles Schwab API Trading with LumiBot
-
-  * Tradier
-
-  * Tradovate
-
-* Reference
-
-  * Variable Backup & Restore
-
-  * Futures Trading
-
-  * Smart Limit Orders
-
-  * OptionsHelper
-
-  * Environment Variables
-
-* LumiBot Python Trading Examples
-
-  * Choose a first runnable example
-
-  * AI Agents
-
-  * Stocks
-
-  * Positions and Orders
-
-  * Persistent Variables
-
-  * Logging and Debugging
-
-  * Options
-
-  * Options Strategies with OptionsHelper
-
-  * Cryptocurrency
-
-  * Crypto Futures (Bitunix)
-
-  * Futures (DataBento)
-
-  * FOREX
-
-  * AI-Powered Trading (PerplexityHelper)
-
-* Deploy a LumiBot Trading Strategy
-
-  * Option A — Deploy on BotSpot (Recommended)
-
-  * Option B — Self-hosted Deployment (Render or Replit)
-
-  * Example Strategy for Deployment
-
-  * Choosing Your Self-hosted Platform
-
-  * Deploying to Render
-
-  * Deploying to Replit
-
-  * Secrets Configuration
-
-  * Broker Configuration
-
-  * Tradier Configuration
-
-  * Tradovate Configuration
-
-  * Alpaca Configuration
-
-  * Coinbase Configuration
-
-  * Kraken Configuration
-
-  * Additional CCXT Exchange Examples
-
-  * Interactive Brokers Configuration
-
-  * Interactive Brokers-Legacy Configuration
-
-  * Schwab Configuration
-
-  * Bitunix Configuration
-
-  * DataBento Configuration
-
-  * ProjectX Configuration
-
-  * General Environment Variables
-
-  * Final Steps
-
-  * Conclusion
-
-* Common Mistakes and How to Avoid Them
-
-  * Restoring Asset Variables After a Restart
-
-  * Critical Mistakes (Will Break Your Strategy)
-
-  * Data Mistakes
-
-  * Options Mistakes
-
-  * Order Mistakes
-
-  * Visualization Mistakes
-
-  * Code Organization Mistakes
-
-  * IBKR history waits and data-health diagnostics
-
-* Frequently Asked Questions (FAQ)
-
-  * Getting Started
-
-  * AI Trading Agents
-
-  * Backtesting
-
-  * Strategy Development
-
-  * Options Trading
-
-  * Crypto Trading
-
-  * Futures Trading
-
-  * Brokers
-
-  * Data and Market Information
-
-  * Deployment
-
-  * Debugging and Troubleshooting
-
-  * Advanced Topics
 
 * Get Pre-Built Strategies
 
@@ -30061,9 +29650,9 @@ strategies:
 
 The caller owns timestamp ordering, completed-bar selection, and
 timezone. Do not pass future rows or the still-forming bar. See
-Indicators for LumiBot's existing indicator tools and Build your first
-AI trading team for "@agent_tool" wrappers. A new plugin registry is
-not required to reuse code.
+Indicators for LumiBot's existing indicator tools and Run your first
+AI backtest for "@agent_tool" wrappers. A new plugin registry is not
+required to reuse code.
 
 Use the same function through the existing custom-indicator API when
 you need strategy-time history and memoization. Save this reusable
@@ -30161,8 +29750,8 @@ Common Strategy methods
 
 Use Strategy Properties for fields such as "first_iteration" and
 "portfolio_value". Continue to Strategy Methods for the complete
-categorized method reference or Build your first AI trading team to
-add an AI agent to the same lifecycle.
+categorized method reference or Run your first AI backtest to add an
+AI agent to the same lifecycle.
 
 
 Choose how to use LumiBot

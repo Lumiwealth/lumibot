@@ -1,44 +1,49 @@
-LumiBot: Python Trading and AI Agent Framework
-==============================================
+LumiBot AI Trading
+==================
 
 .. meta::
-   :description: Build, backtest, and run Python trading strategies and AI trading agents with LumiBot across stocks, options, crypto, futures, and supported brokers.
+   :description: Build AI-powered trading strategies in Python. Run an AI backtest, inspect its decisions and orders, then connect a supported broker with LumiBot.
 
 .. container:: lumibot-hero-lead
 
-   **Build AI trading teams that research, manage risk, and place trades.**
+   **Build AI-powered trading strategies in Python.**
 
-Start here
-----------
+Give agents market data, research tools, and the ability to place trades.
+Backtest a single agent, a debating team, or AI combined with your own rules.
 
-.. container:: lumibot-start-routes
+.. container:: lumibot-entry-grid lumibot-start-routes
 
-   * **See AI examples and results:** :doc:`agents_examples` links directly to stock teams, macro teams, and options.
-   * **Run a Python backtest:** the :ref:`complete daily-stock example below <first-python-backtest>` needs no broker account.
-   * **Build an AI agent:** :doc:`agents_quickstart` covers installation, model credentials, and a complete runner.
-   * **Explore options:** :doc:`agents_example_ai_iron_condor` explains the four-leg workflow and its data requirements.
+   .. container:: lumibot-entry-card
 
-For stock strategies, explore :doc:`opening range breakout <agents_example_ai_opening_range_breakout>`
-or :doc:`large-cap stock teams <agents_example_bull_bear_large_cap_stocks>`.
-For economic research, see :doc:`macro_data`.
+      **Run your first AI backtest**
 
-.. container:: lumibot-partnership-route
+      Start with Python, a Gemini key, and a complete SPY strategy.
 
-   **Building on LumiBot?** :doc:`Partner with us <PARTNERSHIPS>` on integrations,
-   open-source maintenance, joint tutorials, or strategic collaboration.
+      :doc:`Start the AI quickstart → <agents_quickstart>`
 
-.. image:: ../docs/assets/ai-researcher-trader/workflow.png
-   :alt: Researcher gathers evidence; trader reviews risk, places orders, and verifies results
-   :width: 100%
-   :class: lumibot-doc-image
+   .. container:: lumibot-entry-card
 
-.. raw:: html
-   :file: _html/community_links.html
+      **Explore AI strategies**
 
-.. raw:: html
-   :file: _html/main.html
+      Browse stock, macro, and options teams with code and recorded runs.
 
-.. include:: _includes/learn_with_rob.rst
+      :doc:`Browse the examples → <agents_examples>`
+
+   .. container:: lumibot-entry-card
+
+      **Write a Python strategy**
+
+      Use your own rules, indicators, and the same Strategy lifecycle.
+
+      :ref:`Run a Python backtest → <first-python-backtest>`
+
+.. image:: ../docs/assets/ai-trading/ai-trading-hero.png
+   :alt: LumiBot AI Trading: research, debate, trade and backtest
+   :width: 560px
+   :class: lumibot-entry-hero
+
+For coding assistants, start with :doc:`agent_start_here`.
+To use research and data inside another project, see :doc:`standalone_components`.
 
 .. _first-python-backtest:
 
@@ -507,18 +512,61 @@ Compared With Backtesting Libraries
      - Crypto exchanges
      - Ecosystem/enterprise options
 
+.. include:: _includes/learn_with_rob.rst
+
 Table of Contents
 *****************
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
+   :caption: Start here
 
    Home <self>
    Start Here <getting_started>
    AI Quickstart <agents_quickstart>
    AI Examples <agents_examples>
    For Coding Agents <agent_start_here>
+
+.. toctree::
+   :maxdepth: 1
+   :caption: AI trading
+
+   AI Agent Guide <agents>
+   Compare AI Frameworks <ai_trading_project_comparison>
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Build strategies
+
+   Strategy API <strategy_api_overview>
+   Imports and Startup <imports_and_startup>
    Reusable Components <standalone_components>
+   Lifecycle Methods <lifecycle_methods>
+   Strategy Methods <strategy_methods>
+   Strategy Properties <strategy_properties>
+   Assets and Orders <entities>
+   Indicators <indicators>
+   SEC Fundamentals <fundamentals>
+   Macro Data <macro_data>
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Backtest and trade
+
+   Backtesting <backtesting>
+   Brokers <brokers>
+   Cash Accounting <cash_accounting>
+   Deployment <deployment>
+   Examples <examples>
+   Reference <reference>
+   Common Mistakes <common_mistakes>
+   FAQ <faq>
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Community and learning
+
+   Free AI Trading Challenge <https://botspot.trade/challenges?utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot_ai_trading&utm_content=free_challenge>
    Build and Deploy with BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot&utm_content=sidebar_build_bots&sample=lumibot_deploy_sample>
    BotSpot MCP Integration <botspot_mcp>
    Partnerships and Sponsorship <PARTNERSHIPS>
@@ -526,25 +574,6 @@ Table of Contents
    GitHub <https://github.com/Lumiwealth/lumibot>
    Reddit Community <https://www.reddit.com/r/BotSpotTrade/>
    Discord Community <https://discord.gg/4R9j6T3PN8>
-   strategy_api_overview
-   imports_and_startup
-   agents
-   ai_trading_project_comparison
-   cash_accounting
-   lifecycle_methods
-   strategy_methods
-   strategy_properties
-   entities
-   indicators
-   fundamentals
-   macro_data
-   backtesting
-   brokers
-   reference
-   examples
-   deployment
-   common_mistakes
-   faq
    Get Pre-Built Strategies <https://botspot.trade/marketplace?utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot&utm_content=sidebar_marketplace>
 
 Indices and tables

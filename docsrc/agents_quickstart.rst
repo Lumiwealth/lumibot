@@ -1,5 +1,5 @@
-Build your first AI trading team
-================================
+Run your first AI backtest
+=========================
 
 .. meta::
    :description: Backtest a researcher and a trading agent with LumiBot. Inspect the evidence, risk decision, orders, and fills using a complete Python example.
@@ -8,15 +8,11 @@ One agent researches the market. A second agent reviews risk, decides whether
 to trade, and checks the result. Both run inside the same standard ``Strategy``
 class used by conventional LumiBot strategies.
 
-.. image:: ../docs/assets/ai-researcher-trader/workflow.png
-   :alt: Researcher gathers evidence; trader reviews risk, places an order, and verifies its status
-   :width: 100%
-
 Before you run
 --------------
 
-Use Python 3.10 or later and the current development source shown below.
-These documentation changes do not publish a new PyPI package. The example uses
+Use Python 3.10 or later. Install the version-branch source below to get this
+example. It uses
 ``gemini-3.5-flash-lite``, ``GEMINI_API_KEY``, and Yahoo daily prices.
 You do not need broker credentials for this historical backtest. Model calls
 use your provider account and incur charges; start with this short date range.
@@ -38,8 +34,8 @@ The trader can buy up to 10% of portfolio value, hold, or close the position
 when the trend condition turns negative. No short selling or leverage is part
 of this example. An agent may correctly decide not to trade.
 
-Complete example
-----------------
+Your strategy code
+------------------
 
 .. literalinclude:: ../lumibot/example_strategies/ai_researcher_trader.py
    :language: python
@@ -48,10 +44,14 @@ Complete example
 Inspect what happened
 ---------------------
 
-This newly added two-agent example has import, wiring, and real-engine checks with a
-scripted model substitute; a fresh
-real-model execution receipt is not yet published. The gallery retains
-separately identified historical runs.
+A September 13, 2026 run completed all five sessions (April 6–10) with ten
+fresh Gemini researcher/trader runs. The trader bought 15 SPY shares on April 7
+and verified the simulated fill at $656.65. It held on the remaining sessions.
+
+`Inspect the exact source, decisions, trade CSV, and run receipt
+<https://github.com/Lumiwealth/lumibot/blob/version/4.5.92/docs/assets/ai-trading/spy-20260913/README.md>`_.
+The final simulated account value was $100,272.85 from $100,000. This short
+run demonstrates the workflow; fresh inference can produce different decisions.
 
 Read the ``Research:`` and ``Trader:`` log entries, then inspect the generated
 trade records and tear sheet. An agent's written claim is not a fill: compare

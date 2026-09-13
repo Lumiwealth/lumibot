@@ -44,16 +44,12 @@ def test_docs_navigation_and_mobile_brand_stay_compact():
 def test_homepage_keeps_a_short_hero_and_places_image_above_supporting_copy():
     index = (REPO_ROOT / "docsrc" / "index.rst").read_text(encoding="utf-8")
 
-    assert index.startswith(
-        "LumiBot: Python Trading and AI Agent Framework\n"
-        "=============================================="
-    )
-    # Requested AI-first hero keeps the image ahead of supporting copy.
-    assert "Build AI trading teams that research, manage risk, and place trades." in index
-    image = ".. image:: ../docs/assets/ai-researcher-trader/workflow.png"
-    supporting_copy = ".. raw:: html\n   :file: _html/main.html"
-
-    assert index.index(image) < index.index(supporting_copy)
+    # September 13 user correction: AI trading pitch, compact image, task routes.
+    assert index.startswith("LumiBot AI Trading\n==================")
+    assert "Build AI-powered trading strategies in Python." in index
+    assert ":width: 560px" in index
+    assert index.index("Start the AI quickstart") < index.index("ai-trading-hero.png")
+    assert index.index(".. _first-python-backtest:") < index.index("learn_with_rob.rst")
 
 
 def test_docs_community_icons_are_local_static_assets():

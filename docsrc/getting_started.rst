@@ -1,66 +1,49 @@
-Getting Started with LumiBot
-****************************
+Start with LumiBot
+******************
 
-Check your installation without credentials
--------------------------------------------
+.. meta::
+   :description: Choose your first LumiBot workflow: an AI trading backtest, a conventional Python strategy, or reusable research tools.
 
-The development source includes an offline example using synthetic minute prices
-and the real Pandas backtest engine. It makes no model or broker calls:
+Choose what you want to build
+-----------------------------
+
+* **AI trading:** :doc:`Run your first AI backtest <agents_quickstart>` with a Gemini API key, historical SPY prices, and complete Python code.
+* **Your own trading rules:** :ref:`Backtest a Python strategy <first-python-backtest>` using daily stock prices. No model account is needed.
+* **Research in another project:** :doc:`Use data and research components <standalone_components>` without creating a trading strategy.
+
+Already building with an AI coding assistant? Give it :doc:`agent_start_here`.
+
+Install LumiBot
+---------------
+
+Use Python 3.10 or later in your own virtual environment:
+
+.. code-block:: bash
+
+   python -m pip install lumibot
+
+The :doc:`AI quickstart <agents_quickstart>` includes the source-version install
+command for its newest example. Follow that page's complete commands if you
+choose the AI route.
+
+Optional offline installation check
+------------------------------------
+
+This is a conventional Python check, **not an AI strategy**. It uses synthetic
+prices and makes no model, market-data, or broker requests:
 
 .. code-block:: bash
 
    python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
    BACKTESTING_DATA_SOURCE=none python -m lumibot.example_strategies.first_backtest
 
-It prints the simulated order record and ending portfolio value. The prices are
-invented for an installation check; the result is not historical performance.
-For an AI strategy, continue to :doc:`agents_quickstart`.
+It prints a simulated order and ending value so you can check the installation.
+For AI trading, continue to :doc:`agents_quickstart` and configure your model key.
 
+Connect a broker after your backtest
+------------------------------------
 
-.. meta::
-   :description: Install LumiBot and run your first Python trading backtest or AI trading agent, then connect a supported broker when you are ready.
-
-LumiBot is a Python library for writing one trading strategy and running it in
-historical backtests or with a supported broker. Start with the complete
-:ref:`daily-stock backtest <first-python-backtest>`, or use
-:doc:`agents_quickstart` to build a research agent inside the same strategy
-lifecycle. Broker setup comes later, after you can inspect a completed backtest.
-
-Build AI Trading Agents
-=======================
-
-Lumibot now supports **AI trading agents** inside the ``Strategy`` class. If you want an **agentic trading** workflow, you can create an agent in ``initialize()``, run it from ``on_trading_iteration()`` or ``on_filled_order()``, query time-series data with DuckDB, and replay the same agent decisions during backtests.
-
-Read :doc:`agents` for the full guide.
-
-Need Help Building Or Running Strategies?
-=========================================
-
-Lumibot is open source, but the full workflow is better on `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=getting_started&utm_campaign=lumibot&utm_content=top_text&sample=lumibot_deploy_sample>`_ when you want to build, backtest, and run strategies without assembling every data source, broker connection, server, scheduler, log pipeline, and monitoring tool yourself.
-
-BotSpot gives Lumibot users a managed layer around the code:
-
-- **Backtesting data included.** Use supported hosted datasets without wrangling every vendor, API key, downloader, and local file yourself.
-- **Cheaper deployment at scale.** Run scheduled or periodic bots on infrastructure built for Lumibot instead of paying for a separate always-on cloud server per strategy.
-- **Lumibot-tuned AI.** Generate and revise strategies with workflows built around Lumibot conventions, backtests, artifacts, brokers, and deployment.
-- **MCP for coding agents.** Let Codex, Claude Code, Cursor, and other MCP clients launch backtests, inspect artifacts, compare results, and prepare deployment.
-- **Marketplace and strategy library.** Start from existing strategy examples, clone or adapt code when allowed, run marketplace strategies, or publish your own.
-- **Monitoring and control.** Inspect charts, logs, trades, account state, audit history, alerts, and kill switches from one place.
-- **Work from anywhere.** Use the web app, your phone, Telegram, Discord, Claude, ChatGPT, or BotSpot MCP without losing your strategy context.
-
-.. image:: ../docs/assets/readme/cta_deploy_on_botspot.png
-   :alt: Try deploying a sample Lumibot strategy on BotSpot
-   :align: center
-   :width: 520px
-   :target: https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=getting_started&utm_campaign=lumibot&utm_content=deploy_button&sample=lumibot_deploy_sample
-
-If you want your coding agent to work directly with BotSpot, open the :doc:`BotSpot MCP guide <botspot_mcp>`. If you want guided training, the AI Trading Bootcamp teaches the full path from strategy idea to backtest to live deployment.
-
-.. image:: ../docs/assets/readme/cta_bootcamp.png
-   :alt: AI Trading Bootcamp
-   :align: center
-   :width: 520px
-   :target: https://www.botspot.trade/ai-bot-builder-bootcamp?utm_source=documentation&utm_medium=getting_started&utm_campaign=lumibot&utm_content=bootcamp_button
+The guide below uses Alpaca. See :doc:`brokers` for other supported connections.
 
 Getting Started With Lumibot
 ============================
@@ -364,3 +347,5 @@ During backtesting, ``datetime.now()`` returns the real current time, not the si
 **Where can I find more help?**
 
 Check the :doc:`faq` for 70+ answered questions covering backtesting, brokers, AI agents, options, crypto, and more.
+
+.. include:: _includes/learn_with_rob.rst

@@ -1,17 +1,16 @@
-Learn with the creator of LumiBot
----------------------------------
+Want help building your first AI trading bot?
+---------------------------------------------
 
-.. image:: ../docs/assets/ai-researcher-trader/learn-with-rob.png
-   :alt: Build AI trading bots with Rob Grzesik, creator of LumiBot. Join the AI trading challenge.
-   :width: 100%
-   :target: https://botspot.trade/challenges?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_team&utm_content=learn_with_rob
+**Join the free challenge with Rob Grzesik, creator of LumiBot.**
+Follow the training and learn how to turn an idea into an AI trading strategy.
 
-**Learn to build AI trading bots with Rob Grzesik, creator of LumiBot.**
-Join the AI trading challenge, see the workflow explained, and explore whether
-the AI Trading Bootcamp fits what you want to build.
+.. image:: ../docs/assets/ai-trading/free-challenge.png
+   :alt: Build your first AI trading bot with Rob Grzesik. Join the FREE challenge.
+   :width: 360px
+   :class: lumibot-learning-image
+   :target: https://botspot.trade/challenges?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=free_challenge_image
 
-`Join the AI trading challenge <https://botspot.trade/challenges?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_team&utm_content=learn_with_rob>`_
-· `Explore the bootcamp <https://botspot.trade/courses/ai-trading-bootcamp?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_team&utm_content=bootcamp>`_
+`Join the free challenge → <https://botspot.trade/challenges?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=free_challenge>`_
 
-LumiBot remains free and open source. For a hosted workspace or an external
-coding-agent connection, see :doc:`botspot_mcp`.
+For deeper training, explore the `AI Trading Bootcamp <https://botspot.trade/courses/ai-trading-bootcamp?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=bootcamp>`_.
+LumiBot remains free and open source.

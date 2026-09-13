@@ -147,3 +147,31 @@ def test_rejected_mascot_outputs_cannot_return():
     for name in ("benefit-hero", "example-gallery", "backtest-benefit", "component-research", "python-strategies", "broker-connections"):
         assert hashlib.sha256((assets / f"{name}.png").read_bytes()).hexdigest() not in rejected
     assert "Do not generate robot or mascot variations" in (root / "AGENTS.md").read_text()
+
+
+def test_creator_campaign_placements_have_distinct_tracking():
+    import json
+    import re
+    from pathlib import Path
+    from urllib.parse import urlparse, parse_qs
+    root = Path(__file__).resolve().parents[1]
+    rows = json.loads((root / "docs/assets/ai-trading/creator-placements.json").read_text())
+    challenge = set()
+    bootcamp = set()
+    tags = set()
+    for filename, image, tag, destination in rows:
+        source = (root / filename).read_text()
+        assert image + ".png" in source
+        links = re.findall(r'https://botspot\.trade/[^\s<>"\)]+', source)
+        found = [url for url in links if parse_qs(urlparse(url).query).get("utm_content") == [tag]]
+        assert found, (filename, tag)
+        for url in found:
+            parsed = urlparse(url)
+            assert parsed.path == "/" + destination
+            query = parse_qs(parsed.query)
+            assert all(query.get(key) for key in ("utm_source", "utm_medium", "utm_campaign", "utm_content"))
+        assert tag not in tags
+        tags.add(tag)
+        (challenge if destination == "challenges" else bootcamp).add(image)
+    assert len(challenge) >= 6
+    assert len(bootcamp) >= 3

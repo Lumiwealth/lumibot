@@ -1,5 +1,5 @@
 # Lumibot Documentation (Compiled)
-# Generated: 2026-09-13T20:48:29Z
+# Generated: 2026-09-13T21:04:40Z
 
 
 ===== MIGRATING_FROM_BACKTRADER =====
@@ -4475,7 +4475,8 @@ what the agents decided. Model calls require a provider key. Each
 example states its data requirements and whether the displayed result
 is a recorded run.
 
-[image: AI trading examples for stocks, macro and options.][image]
+[image: AI trading with LumiBot: one agent, agents that debate, or AI
+combined with Python rules.][image]
 
 **First AI backtest**
 
@@ -4871,6 +4872,16 @@ Where To Go Next
 * Agent Memory explains how agents can remember decisions and lessons.
 
 * AI Agent Observability explains traces and replay artifacts.
+
+
+Learn AI trading with the creator of LumiBot
+============================================
+
+Learn with Rob Grzesik, creator of LumiBot. Explore the AI Trading
+Bootcamp.
+
+[image: Rob Grzesik, creator of LumiBot. Explore the AI Trading
+Bootcamp.][image]
 
 ===== agents_memory =====
 
@@ -8903,6 +8914,16 @@ Contents:
 * Indicators Files
 
 * Logs CSV
+
+
+Learn to build and backtest with Rob
+------------------------------------
+
+Learn with Rob Grzesik, creator of LumiBot. Join the FREE AI
+challenge.
+
+[image: Rob Grzesik, creator of LumiBot. Join the FREE AI
+challenge.][image]
 
 ===== backtesting.yahoo =====
 
@@ -19918,6 +19939,16 @@ Query with a custom JSON schema for structured results:
                self.submit_order(order)
                break
 
+
+Build your trading bot with Rob
+===============================
+
+Learn with Rob Grzesik, creator of LumiBot. Join the FREE AI
+challenge.
+
+[image: Rob Grzesik, creator of LumiBot. Join the FREE AI
+challenge.][image]
+
 ===== faq =====
 
 Frequently Asked Questions (FAQ)
@@ -22581,6 +22612,22 @@ Important:
   everything works as expected before moving to live trading.
 
 
+Want help building your first AI trading bot?
+---------------------------------------------
+
+**Join the free challenge with Rob Grzesik, creator of LumiBot.**
+Follow the training and learn how to turn an idea into an AI trading
+strategy.
+
+[image: Learn with Rob Grzesik, creator of LumiBot. Join the FREE
+challenge.][image]
+
+Join the free challenge →
+
+For deeper training, explore the AI Trading Bootcamp. LumiBot remains
+free and open source.
+
+
 AI Trading Team
 ===============
 
@@ -23018,22 +23065,6 @@ Compared With Backtesting Libraries
 | Hummingbot         | Crypto             | Crypto market      | Scripts/controlle  | Crypto exchanges   | Ecosystem/enterpr  |
 |                    |                    | making             | rs                 |                    | ise options        |
 +--------------------+--------------------+--------------------+--------------------+--------------------+--------------------+
-
-
-Want help building your first AI trading bot?
----------------------------------------------
-
-**Join the free challenge with Rob Grzesik, creator of LumiBot.**
-Follow the training and learn how to turn an idea into an AI trading
-strategy.
-
-[image: Learn with Rob Grzesik, creator of LumiBot. Join the FREE
-challenge.][image]
-
-Join the free challenge →
-
-For deeper training, explore the AI Trading Bootcamp. LumiBot remains
-free and open source.
 
 
 Table of Contents

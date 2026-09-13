@@ -1,3 +1,5 @@
+**[Latest creator campaign: all nine portraits and placements](../creator-campaign/README.md)**
+
 # Complete current screenshots
 
 Current character-free artwork and creator attribution. Local Firefox documentation captures; published README evidence is identified separately. No Dev deployment is implied.

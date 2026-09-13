@@ -633,8 +633,8 @@ Crypto futures/perpetual backtests can route `Asset.AssetType.CRYPTO_FUTURE` thr
 Learn to build, backtest, and deploy trading strategies using AI. Join 2,400+ traders.
 
 <p align="center">
-  <a href="https://www.botspot.trade/ai-bot-builder-bootcamp?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=bootcamp_button">
-    <img src="docs/assets/readme/cta_bootcamp.png" alt="AI Trading Bootcamp" width="520">
+  <a href="https://botspot.trade/courses/ai-trading-bootcamp?utm_source=github&utm_medium=readme&utm_campaign=lumibot_ai_trading&utm_content=readme_bootcamp_image">
+    <img src="docs/assets/ai-trading/rob-bootcamp-teams.png" alt="Rob Grzesik, creator of LumiBot. Explore the AI Trading Bootcamp" width="640">
   </a>
 </p>
 

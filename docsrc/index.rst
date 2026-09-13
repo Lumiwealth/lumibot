@@ -181,6 +181,26 @@ Once you have backtested your strategy and understand how it behaves on historic
 
    **Remember to start with a paper trading account** to ensure everything works as expected before moving to live trading.
 
+Want help building your first AI trading bot?
+---------------------------------------------
+
+**Join the free challenge with Rob Grzesik, creator of LumiBot.**
+Follow the training and learn how to turn an idea into an AI trading strategy.
+
+.. image:: ../docs/assets/ai-trading/rob-challenge-home.png
+   :alt: Learn with Rob Grzesik, creator of LumiBot. Join the FREE challenge.
+   :width: 640px
+   :align: center
+   :class: lumibot-learning-image
+   :target: https://botspot.trade/challenges?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=home_challenge_image
+
+
+`Join the free challenge → <https://botspot.trade/challenges?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=free_challenge>`_
+
+For deeper training, explore the `AI Trading Bootcamp <https://botspot.trade/courses/ai-trading-bootcamp?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=bootcamp>`_.
+LumiBot remains free and open source.
+
+
 AI Trading Team
 ***************
 
@@ -554,26 +574,6 @@ Compared With Backtesting Libraries
      - Scripts/controllers
      - Crypto exchanges
      - Ecosystem/enterprise options
-
-Want help building your first AI trading bot?
----------------------------------------------
-
-**Join the free challenge with Rob Grzesik, creator of LumiBot.**
-Follow the training and learn how to turn an idea into an AI trading strategy.
-
-.. image:: ../docs/assets/ai-trading/free-challenge.png
-   :alt: Learn with Rob Grzesik, creator of LumiBot. Join the FREE challenge.
-   :width: 640px
-   :align: center
-   :class: lumibot-learning-image
-   :target: https://botspot.trade/challenges?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=home_challenge_image
-
-
-`Join the free challenge → <https://botspot.trade/challenges?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=free_challenge>`_
-
-For deeper training, explore the `AI Trading Bootcamp <https://botspot.trade/courses/ai-trading-bootcamp?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=bootcamp>`_.
-LumiBot remains free and open source.
-
 
 Table of Contents
 *****************

@@ -112,7 +112,7 @@ Learn to build a complete strategy
 
 Explore the AI Trading Bootcamp with Rob Grzesik for guided training.
 
-.. image:: ../docs/assets/ai-trading/rob-bootcamp.png
+.. image:: ../docs/assets/ai-trading/rob-bootcamp-components.png
    :alt: Learn to build AI trading bots with Rob Grzesik. Explore the AI Trading Bootcamp.
    :width: 640px
    :align: center

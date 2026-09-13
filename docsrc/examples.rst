@@ -974,3 +974,15 @@ Query with a custom JSON schema for structured results:
                 order = self.create_order(asset, 150, "buy")
                 self.submit_order(order)
                 break
+
+Build your trading bot with Rob
+-------------------------------
+
+Learn with Rob Grzesik, creator of LumiBot. Join the FREE AI challenge.
+
+.. image:: ../docs/assets/ai-trading/rob-challenge-python.png
+   :alt: Rob Grzesik, creator of LumiBot. Join the FREE AI challenge.
+   :width: 640px
+   :align: center
+   :class: lumibot-learning-image
+   :target: https://botspot.trade/challenges?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=python_examples_challenge_image

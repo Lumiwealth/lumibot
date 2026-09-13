@@ -6,7 +6,7 @@ agents decided. Model calls require a provider key. Each example states its
 data requirements and whether the displayed result is a recorded run.
 
 .. image:: ../docs/assets/ai-trading/example-gallery.png
-   :alt: AI trading examples for stocks, macro and options.
+   :alt: AI trading with LumiBot: one agent, agents that debate, or AI combined with Python rules.
    :width: 640px
    :align: center
    :class: lumibot-entry-hero

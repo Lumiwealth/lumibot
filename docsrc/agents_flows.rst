@@ -217,3 +217,15 @@ Where To Go Next
 - :doc:`agents_examples` lists the copy-paste AI trading team examples.
 - :doc:`agents_memory` explains how agents can remember decisions and lessons.
 - :doc:`agents_observability` explains traces and replay artifacts.
+
+Learn AI trading with the creator of LumiBot
+--------------------------------------------
+
+Learn with Rob Grzesik, creator of LumiBot. Explore the AI Trading Bootcamp.
+
+.. image:: ../docs/assets/ai-trading/rob-bootcamp-teams.png
+   :alt: Rob Grzesik, creator of LumiBot. Explore the AI Trading Bootcamp.
+   :width: 640px
+   :align: center
+   :class: lumibot-learning-image
+   :target: https://botspot.trade/courses/ai-trading-bootcamp?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=team_design_bootcamp_image

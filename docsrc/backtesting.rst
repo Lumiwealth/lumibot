@@ -101,3 +101,15 @@ When you run a backtest, several important files are generated, each prefixed by
    backtesting.trades_files
    backtesting.indicators_files
    backtesting.logs_csv
+
+Learn to build and backtest with Rob
+------------------------------------
+
+Learn with Rob Grzesik, creator of LumiBot. Join the FREE AI challenge.
+
+.. image:: ../docs/assets/ai-trading/rob-challenge-backtest.png
+   :alt: Rob Grzesik, creator of LumiBot. Join the FREE AI challenge.
+   :width: 640px
+   :align: center
+   :class: lumibot-learning-image
+   :target: https://botspot.trade/challenges?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=backtesting_challenge_image

@@ -20,3 +20,7 @@ Hero regenerated without code or pseudocode after the first draft invented a non
 Examples regenerated with the final hero as style reference: light editorial design, same rounded panel, Market Evidence, Opposing Analysis, Trade Decision, document and discussion icons. No trading-room background.
 
 Challenge regenerated from the original Rob Grzesik headshot photograph, preserving likeness and expression, navy blazer and white shirt, portrait on the right, typography on the left. Exact text: Build your first AI trading bot; Join the FREE challenge; With Rob Grzesik, creator of LumiBot. No robot, pointing, thumbs-up, or fake trading screen.
+
+## Trade-order icon correction
+
+Regenerated the inspection illustration from its previous asset using the approved Image Generator at default quality. Preserved layout, palette, proportions, rounded corners and all other text. Replaced the shopping cart with a financial trade-ticket document containing buy/sell arrows; changed the right heading to Trade Order and timeline label to Place Trade. Explicitly prohibited carts, baskets, groceries and retail imagery. The returned asset was visually inspected and copied unchanged.

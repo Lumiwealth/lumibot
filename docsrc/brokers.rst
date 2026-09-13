@@ -6,6 +6,11 @@ Trading Brokers Supported by LumiBot
 
 There are several different brokers that you can use to trade with Lumibot, and we're adding more as we speak! Learn more about how they work and how to set them up here.
 
+.. image:: ../docs/assets/ai-trading/broker-connections.png
+   :alt: Conceptual illustration: strategy logic connected to a broker trade ticket
+   :width: 640px
+   :align: center
+
 .. list-table:: Common LumiBot broker paths
    :header-rows: 1
    :widths: 22 27 20 31

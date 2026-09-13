@@ -25,6 +25,11 @@ credentials may be required by the provider you choose.
 Learn :doc:`lifecycle_methods`, :doc:`strategy_methods`, :doc:`indicators`,
 :doc:`backtesting`, and :doc:`brokers` as your strategy grows.
 
+.. image:: ../docs/assets/ai-trading/python-strategies.png
+   :alt: Traditional Python strategies: your rules, tested on historical data
+   :width: 640px
+   :align: center
+
 Choose a first runnable example
 -------------------------------
 

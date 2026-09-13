@@ -1,48 +1,40 @@
-# Complete visual review — September 13, 2026
+# Complete current screenshots
 
-These are actual Firefox screenshots of the local Sphinx build, not mockups or evidence of a Dev deployment. Open any full-page image and zoom to read every section. The source and screenshot commits are on version/4.5.92.
+Current character-free artwork and creator attribution. Local Firefox documentation captures; published README evidence is identified separately. No Dev deployment is implied.
 
-## Published GitHub README
+## Homepage and full navigation
 
-Captured from source commit `274a6399` on GitHub.
+![Homepage and full navigation](final-home-top.png)
 
-![Published README](published-readme-top.png)
+## Benefits and entry cards
 
-[Full published README screenshot](published-readme-full.png)
+![Benefits and entry cards](final-home-benefits.png)
 
-## Start with these views
+## Traditional Python setup and code
 
-### Homepage, runnable example and navigation
+![Traditional Python setup and code](final-python-code.png)
 
-![Homepage, runnable example and navigation](focus-home.png)
+## Traditional strategy examples
 
-### 390px layouts and expanded mobile menu
+![Traditional strategy examples](final-python-examples.png)
 
-![390px layouts and expanded mobile menu](complete-mobile.png)
+## Broker overview
 
-### AI examples and free challenge
+![Broker overview](final-broker-table.png)
 
-![AI examples and free challenge](focus-examples-learning.png)
+## AI gallery and examples
 
-### Python setup and creator banner
+![AI gallery and examples](final-ai-gallery.png)
 
-![Python setup and creator banner](focus-setup-learning.png)
+## Reusable research components
 
-### AI quickstart and bootcamp banner
+![Reusable research components](final-component-code.png)
 
-![AI quickstart and bootcamp banner](focus-bootcamp.png)
+## Creator attribution and bootcamp
 
-### Actual free challenge destination
+![Creator attribution and bootcamp](final-creator-attribution.png)
 
-![Actual free challenge destination](verified-challenge-destination.png)
-
-### Actual bootcamp destination
-
-![Actual bootcamp destination](verified-bootcamp-destination.png)
-
-## Every documentation page captured
-
-Each image includes the full page: text, code, menus, images and footer. Some pages only changed their shared navigation, metadata or links; this inventory does not imply every paragraph was rewritten.
+## Full pages: all text, code and navigation
 
 - [agent_start_here](full-agent_start_here.png)
 - [agents](full-agents.png)
@@ -85,6 +77,4 @@ Each image includes the full page: text, code, menus, images and footer. Some pa
 - [strategy_api_overview](full-strategy_api_overview.png)
 - [strategy_methods](full-strategy_methods.png)
 
-## Changes that are not pictures
-
-See [implementation and growth review](../../../../GROWTH_REVIEW_2026-09-13.md) for source paths, tests, remaining work and competitor research. Runtime code, CI and repository triage must be reviewed as source and test evidence, not as screenshots of a page.
+Earlier image-refresh captures are superseded and should not be used as brand references.

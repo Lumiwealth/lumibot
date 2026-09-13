@@ -1,5 +1,5 @@
 # Lumibot Documentation (Compiled)
-# Generated: 2026-09-13T18:25:40Z
+# Generated: 2026-09-13T20:48:29Z
 
 
 ===== MIGRATING_FROM_BACKTRADER =====
@@ -13180,6 +13180,9 @@ There are several different brokers that you can use to trade with
 Lumibot, and we're adding more as we speak! Learn more about how they
 work and how to set them up here.
 
+[image: Conceptual illustration: strategy logic connected to a broker
+trade ticket][image]
+
 
 Common LumiBot broker paths
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -18960,6 +18963,9 @@ you choose.
 Learn Lifecycle Methods, Strategy Methods, Indicators, Backtesting
 Trading Strategies in Python with LumiBot, and Trading Brokers
 Supported by LumiBot as your strategy grows.
+
+[image: Traditional Python strategies: your rules, tested on
+historical data][image]
 
 
 Choose a first runnable example

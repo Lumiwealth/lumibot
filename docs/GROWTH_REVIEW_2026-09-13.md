@@ -9,7 +9,7 @@ The headline is now **Turn trading ideas into working strategies.** This describ
 | Surface | Exact files | Result |
 | --- | --- | --- |
 | README | `README.md` | Benefit headline and four concrete reasons to use LumiBot; runnable AI command, source and recorded-run links; traditional Python route; retained clickable free-challenge banner |
-| Homepage | `docsrc/index.rst` | Benefit copy, explicit AI/Python paths, concrete quickstart, centered mascot hero, reasons to choose the library, tracked education banner after useful content |
+| Homepage | `docsrc/index.rst` | Benefit copy, explicit AI/Python paths, concrete quickstart, centered character-free hero, reasons to choose the library, tracked education banner after useful content |
 | AI examples | `docsrc/agents_examples.rst` | Stocks/macro/options illustration matching the gallery, examples remain linked; new Rob free-challenge banner |
 | AI quickstart | `docsrc/agents_quickstart.rst` | Backtesting benefit illustration, “See the example backtest” heading, preserved old anchor, bootcamp banner after tutorial |
 | Python setup | `docsrc/getting_started.rst` | Traditional setup retained; new Rob free-challenge banner |
@@ -20,7 +20,7 @@ The headline is now **Turn trading ideas into working strategies.** This describ
 | Click measurement | `docsrc/_html/posthog.js` | Traditional Python example route gets its own start-route classification |
 | Agent-readable docs | `llms.txt`, `llms-full.txt` | Regenerated from current documentation |
 
-Seven new raw generated assets use the canonical mascot or three Rob reference photos. The user-approved free-challenge asset remains. See [asset provenance](assets/ai-trading/README.md). These are conceptual illustrations and education promotions; actual backtest results remain separately identified.
+The current set has six character-free editorial illustrations and four creator banners. Generated mascot variants were rejected and replaced; the repository instructions now prohibit regenerating them. The user-approved free-challenge asset remains. See [asset provenance](assets/ai-trading/README.md). These are conceptual illustrations and education promotions; actual backtest results remain separately identified.
 
 ## What we learned from successful projects
 

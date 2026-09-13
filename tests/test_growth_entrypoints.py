@@ -135,3 +135,15 @@ def test_benefit_copy_and_tracked_learning_placements():
     template = (ROOT / 'docsrc/_templates/base.html').read_text()
     assert 'benefit-hero.png' in template
     assert 'name="description"' in template
+
+
+def test_rejected_mascot_outputs_cannot_return():
+    import hashlib
+    import json
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    assets = root / "docs/assets/ai-trading"
+    rejected = set(json.loads((assets / "rejected-mascot-hashes.json").read_text()).values())
+    for name in ("benefit-hero", "example-gallery", "backtest-benefit", "component-research", "python-strategies", "broker-connections"):
+        assert hashlib.sha256((assets / f"{name}.png").read_bytes()).hexdigest() not in rejected
+    assert "Do not generate robot or mascot variations" in (root / "AGENTS.md").read_text()

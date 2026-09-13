@@ -107,6 +107,10 @@ limit or inclusive timestamp cursor:
   Raise `LumibotBrokerAPIError` before returning any partial list, preserving
   tracked positions and allowing the next refresh to retry. Bitunix cannot
   represent an unknown side without guessing its signed exposure.
+- Reject multiple nonzero rows for the same asset, including opposite-side
+  HEDGE positions. The shared tracker identifies positions by asset and cannot
+  represent both independently; publishing them would make exposure depend on
+  response order. Zero-quantity rows do not create this ambiguity.
 - Shared stale-position pruning iterates a copy of the tracker list, so an
   explicitly successful empty snapshot removes every stale non-cash position.
   The existing pre-snapshot identity guard still protects fills added while the

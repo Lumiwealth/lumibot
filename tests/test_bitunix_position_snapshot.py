@@ -53,6 +53,9 @@ def broker():
         {"code": 0, "data": [row(), row(symbol="")]},
         {"code": 0, "data": [row(), {"symbol": "ETHUSDT", "side": "LONG"}]},
         {"code": 0, "data": [row(), row("ETHUSDT", avgOpenPrice="NaN")]},
+        {"code": 0, "data": [row(side="LONG"), row(side="SHORT")]},
+        {"code": 0, "data": [row(side="SHORT"), row(side="LONG")]},
+        {"code": 0, "data": [row(side="LONG"), row(side="LONG")]},
     ],
 )
 def test_failed_snapshot_preserves_all_positions_and_refresh_retry(broker, response):
@@ -139,3 +142,13 @@ def test_direct_position_read_accepts_strategy_name(broker):
     position = broker._pull_position("test_strategy", asset)
     assert position.strategy == "test_strategy"
     assert position.quantity == Decimal("-0.5")
+
+
+@pytest.mark.parametrize("zero_first", [True, False])
+def test_zero_quantity_row_does_not_make_active_position_ambiguous(broker, zero_first):
+    rows = [row(qty="0", side="LONG"), row(side="SHORT")]
+    broker.api._request.return_value = {"code": 0, "data": rows if zero_first else rows[::-1]}
+    broker.sync_positions(None)
+    positions = broker._filled_positions.get_list()
+    assert len(positions) == 1
+    assert positions[0].quantity == Decimal("-0.5")

@@ -220,6 +220,7 @@ class Bitunix(Broker):
         must raise instead, because shared position sync prunes absent assets.
         """
         positions = []
+        seen_assets = set()
         Position = _position_class()
         strategy_name = self._strategy_name_from_input(strategy) or ""
 
@@ -247,6 +248,11 @@ class Bitunix(Broker):
                 qty = -abs(qty) if side in ("SELL", "SHORT") else abs(qty)
                 if qty != 0:
                     asset = Asset(sym, Asset.AssetType.CRYPTO_FUTURE)
+                    if asset in seen_assets:
+                        raise LumibotBrokerAPIError(
+                            "Multiple active Bitunix positions for one symbol cannot be represented safely"
+                        )
+                    seen_assets.add(asset)
                     pos = Position(strategy_name, asset, qty)
                     pos.avg_fill_price = entry
                     pos._raw = p

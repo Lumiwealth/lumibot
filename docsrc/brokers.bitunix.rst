@@ -55,6 +55,11 @@ Polling reports the failure and retries on its next cycle. Strategy code using
 fresh ``get_position()`` or ``get_positions()`` reads should allow the error to
 stop that decision, rather than treating it as permission to open a position.
 
+The tracker supports one active position per symbol. Multiple nonzero rows for
+the same symbol, including simultaneous long and short HEDGE positions, raise
+the same error and preserve tracked state. They cannot be represented as
+independent positions by this adapter. Zero-quantity rows are ignored.
+
 Setting Leverage for Bitunix Orders
 -----------------------------------
 

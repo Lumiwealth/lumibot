@@ -105,3 +105,32 @@ def test_sync_positions_does_not_prune_position_added_after_snapshot_started():
     broker.sync_positions(_Strategy())
 
     assert broker._filled_positions.get_list() == [new_fill]
+
+
+def test_sync_positions_preserves_fields_on_position_added_during_read():
+    """A streamed fill takes precedence over a same-asset in-flight snapshot."""
+    broker = _BrokerForSyncTest([])
+    new_fill = _stock_position(quantity=2, current_price=220.0, market_value=440.0, pnl=1.0)
+    new_fill.strategy = "fill-owner"
+    stale_snapshot = _stock_position(quantity=1, current_price=210.0, market_value=210.0, pnl=-10.0)
+
+    def pull_positions_with_interleaved_fill(strategy):
+        broker._filled_positions.append(new_fill)
+        return [stale_snapshot]
+
+    broker._pull_positions = pull_positions_with_interleaved_fill
+    broker.sync_positions(_Strategy())
+
+    assert broker._filled_positions.get_list() == [new_fill]
+    assert new_fill.quantity == 2
+    assert new_fill.current_price == 220.0
+    assert new_fill.market_value == 440.0
+    assert new_fill.pnl == 1.0
+    assert new_fill.strategy == "fill-owner"
+
+    # The next fresh snapshot may reconcile that now-existing position normally.
+    broker._pull_positions = lambda strategy: [stale_snapshot]
+    broker.sync_positions(_Strategy())
+    assert new_fill.quantity == 1
+    assert new_fill.current_price == 210.0
+    assert new_fill.strategy == _Strategy.name

@@ -1080,6 +1080,10 @@ class Broker(ABC):
                 position_lumi = position_lumi[0] if len(position_lumi) > 0 else None
 
                 if position_lumi:
+                    # A streamed fill added while the read was in flight is
+                    # newer than this snapshot, including its fields and owner.
+                    if id(position_lumi) not in positions_before_snapshot:
+                        continue
                     self._sync_position_fields_from_broker(position_lumi, position)
 
                     # No current brokers have any way to distinguish between strategies for an open position.

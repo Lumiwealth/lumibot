@@ -176,6 +176,7 @@ def test_older_refresh_preserves_newer_success_but_survives_newer_failure(
     old_thread_name = []
 
     def transport(**kwargs):
+        """Hold only the older request so the public accessor can finish first."""
         if current_thread().name in old_thread_name:
             old_read_started.set()
             assert release_old_read.wait(5), "test failed to release older read"
@@ -183,6 +184,7 @@ def test_older_refresh_preserves_newer_success_but_survives_newer_failure(
         return newer_response
 
     def old_refresh():
+        """Identify the background polling thread before starting its read."""
         old_thread_name.append(current_thread().name)
         broker.sync_positions(None)
 
@@ -200,7 +202,7 @@ def test_older_refresh_preserves_newer_success_but_survives_newer_failure(
                     strategy.get_position(asset)
             else:
                 strategy.get_position(asset)
-                revision_after_newer = broker._filled_positions.revision
+            revision_after_newer = broker._filled_positions.revision
         finally:
             release_old_read.set()
         older.result(timeout=5)

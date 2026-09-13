@@ -332,5 +332,6 @@ older response is ignored in full: it cannot prune, resurrect, or change positio
 A failed newer read does not invalidate an older successful response. Network I/O
 runs outside the tracker lock so fills and strategy accessors can still proceed.
 The existing pre-read position identity check continues to protect new local fills
-from stale pruning. This ordering is local request ordering; it cannot establish
+from stale pruning and same-asset field/owner overwrites. The next fresh read
+reconciles those positions normally. This ordering is local request ordering; it cannot establish
 the exchange's internal snapshot timestamp or historical incident cause.

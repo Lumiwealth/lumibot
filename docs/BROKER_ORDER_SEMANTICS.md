@@ -102,10 +102,30 @@ limit or inclusive timestamp cursor:
 - Bitunix fractional closes convert both quantity and fraction to Decimal.
   A rounded partial close can leave a real residual position. No changes to
   the shared base-broker close or history-pagination paths are needed.
+- Position snapshots are atomic: reject a failed response or any row lacking a
+  usable symbol, recognized position side, or finite quantity/entry price.
+  Raise `LumibotBrokerAPIError` before returning any partial list, preserving
+  tracked positions and allowing the next refresh to retry. Bitunix cannot
+  represent an unknown side without guessing its signed exposure.
+- Reject multiple nonzero rows for the same asset, including opposite-side
+  HEDGE positions. The shared tracker identifies positions by asset and cannot
+  represent both independently; publishing them would make exposure depend on
+  response order. Zero-quantity rows do not create this ambiguity.
+- Shared stale-position pruning iterates a copy of the tracker list, so an
+  explicitly successful empty snapshot removes every stale non-cash position.
+  The existing pre-snapshot identity guard still protects fills added while the
+  remote read is in flight. Snapshot failure and an empty account remain
+  distinct; neither implies a customer strategy's own variables are reconciled.
 
 Sources: [place order](https://www.bitunix.com/api-docs/futures/trade/place_order.html),
 [pair metadata](https://www.bitunix.com/api-docs/futures/market/get_trading_pairs.html),
 [position mode](https://www.bitunix.com/api-docs/futures/account/change_position_mode.html).
+
+Position snapshot contract:
+[pending positions](https://www.bitunix.com/api-docs/futures/position/get_pending_positions.html).
+`tests/test_bitunix_position_snapshot.py` exercises the real broker and client
+with intercepted transport, including rejected/malformed snapshots, preserved
+state, retry, valid empty accounts, and signed long/short positions.
 
 Regression evidence: `tests/test_bitunix_place_order_params.py` intercepts
 HTTP transport and exercises the real broker/client serialization path,
@@ -131,6 +151,8 @@ LumiBot should not fail an entire order, position, or balance refresh because on
 - Warn instead of raising for unknown broker asset/order/status/side values.
 - Skip only truly unrepresentable rows, such as no usable symbol/instrument identifier or non-numeric quantity.
 - If a Schwab position refresh is degraded by skipped rows, update parsed rows but do not remove tracked positions just because they were absent from the partial parse.
+- Bitunix position sync requires an atomic snapshot and raises on unrepresentable
+  rows instead of returning a partial list that would authorize stale pruning.
 - Never write cash or portfolio value as `0` because a broker balance refresh failed. `get_cash()` and `get_portfolio_value()` return `None` on failed fresh reads and leave cached internal values unchanged.
 
 This policy is intentionally different from order mutation behavior. Submit, cancel, and modify failures still fail loudly. The resilience policy applies to reading/parsing broker state, not hiding failed state-changing requests.

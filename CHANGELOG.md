@@ -43,6 +43,11 @@
 - Corrected README and package license labels to match the existing GPLv3 LICENSE file; the license text is unchanged.
 
 ### Fixed
+- Failed or malformed Bitunix position snapshots preserve tracked positions
+  and remain retryable instead of making the account appear flat. Successful
+  empty broker snapshots now remove every stale non-cash position.
+  Ambiguous same-symbol active positions are rejected instead of overwriting
+  each other according to response order.
 - Strategy variable backups retain `Asset` objects across scheduled-file and
   database restarts, including nested instruments and option underlyings.
 - Bitunix reduce-only closes no longer request a leverage change from a

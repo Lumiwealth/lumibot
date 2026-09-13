@@ -43,6 +43,23 @@ Set the following environment variables in your `.env` file or system environmen
     BITUNIX_API_KEY=your_bitunix_api_key
     BITUNIX_API_SECRET=your_bitunix_api_secret
 
+Position Refresh Failures
+----------------------------
+
+Position reads require a complete successful response. A transport error,
+rejected request, or malformed position raises ``LumibotBrokerAPIError`` and
+leaves tracked positions unchanged. A failed read does not mean the account is
+flat and is not cached as a successful refresh; a later read can retry.
+An explicitly successful empty snapshot removes all stale non-cash positions.
+Polling reports the failure and retries on its next cycle. Strategy code using
+fresh ``get_position()`` or ``get_positions()`` reads should allow the error to
+stop that decision, rather than treating it as permission to open a position.
+
+The tracker supports one active position per symbol. Multiple nonzero rows for
+the same symbol, including simultaneous long and short HEDGE positions, raise
+the same error and preserve tracked state. They cannot be represented as
+independent positions by this adapter. Zero-quantity rows are ignored.
+
 Setting Leverage for Bitunix Orders
 -----------------------------------
 

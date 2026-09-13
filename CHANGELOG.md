@@ -44,6 +44,10 @@
 - Corrected README and package license labels to match the existing GPLv3 LICENSE file; the license text is unchanged.
 
 ### Fixed
+- Overlapping broker position reads no longer let an older response delete,
+  resurrect, or overwrite a newer applied snapshot. Network reads remain outside
+  the tracker lock, and a failed newer request does not discard older success.
+  Positions added during a read also keep their newer fields and strategy owner.
 - Failed or malformed Bitunix position snapshots preserve tracked positions
   and remain retryable instead of making the account appear flat. Successful
   empty broker snapshots now remove every stale non-cash position.

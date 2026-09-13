@@ -88,3 +88,20 @@ campaign. The existing digest and templates are implemented; maintainer decision
 external announcements and hosted-bot repairs are separate outstanding actions.
 The compatibility-preserving Strategy API is retained. A callback API rewrite
 is not required for this entry-point work and has no demonstrated growth benefit.
+
+## Above-the-fold revision after direct visual comparison
+
+September 13 follow-up: inspected the rendered READMEs of TradingAgents,
+AI Hedge Fund and OpenBB, not only their source text. TradingAgents leads with
+brand/community identity and release news; AI Hedge Fund uses compact install/run
+commands; OpenBB pairs a product visual with a small executable example. Their
+layouts differ, so LumiBot combines these patterns rather than claiming there is
+one universal winning layout.
+
+The documentation home now puts a concise framework statement, four direct links,
+and the existing AI module command before the illustration, route cards and
+conventional tutorial. README artwork is reduced to 360px, with the same executable
+module command before customization code. The sidebar logo is limited to 128px
+so navigation is visible earlier. No new execution API or fabricated release news
+was added. The previous 13-screen review is historical; the latest first-screen
+captures are in review/above-the-fold.md.

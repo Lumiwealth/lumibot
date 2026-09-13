@@ -41,14 +41,14 @@ def test_docs_navigation_and_mobile_brand_stay_compact():
     assert "Lumibot: Python Algorithmic Trading and AI Agents" in template
 
 
-def test_homepage_keeps_a_short_hero_and_places_image_above_supporting_copy():
+def test_homepage_keeps_a_short_hero_and_places_runner_before_image():
     index = (REPO_ROOT / "docsrc" / "index.rst").read_text(encoding="utf-8")
 
     # September 13 user correction: AI trading pitch, compact image, task routes.
     assert index.startswith("LumiBot AI Trading\n==================")
     assert "Build AI-powered trading strategies in Python." in index
     assert ":width: 560px" in index
-    assert index.index("Start the AI quickstart") < index.index("ai-trading-hero.png")
+    assert index.index("python -m lumibot.example_strategies.ai_researcher_trader") < index.index("ai-trading-hero.png")
     assert index.index(".. _first-python-backtest:") < index.index("learn_with_rob.rst")
 
 

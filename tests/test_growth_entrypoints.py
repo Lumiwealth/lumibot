@@ -81,3 +81,13 @@ def test_navigation_has_task_groups_and_education_follows_quickstart():
     invitation = (ROOT / 'docsrc/_includes/learn_with_rob.rst').read_text()
     assert 'free challenge' in invitation
     assert ':width: 360px' in invitation
+
+
+def test_homepage_and_readme_offer_direct_ai_runner_before_reference_choices():
+    """Rob requested competitor-style install/run entry points above the fold."""
+    home = (ROOT / 'docsrc/index.rst').read_text()
+    readme = (ROOT / 'README.md').read_text()
+    runner = 'python -m lumibot.example_strategies.ai_researcher_trader'
+    assert home.index(runner) < home.index('lumibot-entry-grid')
+    assert home.index(runner) < home.index('.. _first-python-backtest:')
+    assert readme.index(runner) < readme.index('Save as `my_ai_strategy.py`')

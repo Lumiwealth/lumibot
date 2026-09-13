@@ -1,5 +1,7 @@
 # LumiBot visual review — September 13, 2026
 
+**[Latest homepage, README and navigation revision](above-the-fold.md)** — the opening screenshots below are historical.
+
 [Open the revised README](https://github.com/Lumiwealth/lumibot/blob/version/4.5.92/README.md) · [Exact changes and competitor rationale](../../../AI_TRADING_ENTRYPOINTS.md) · [Fresh AI run, code and records](../spy-20260913/README.md)
 
 The three README screenshots were captured from GitHub after source commit

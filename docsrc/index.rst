@@ -6,10 +6,44 @@ LumiBot AI Trading
 
 .. container:: lumibot-hero-lead
 
-   **Build AI-powered trading strategies in Python.**
+   **The open-source Python framework for AI trading agents.**
 
-Give agents market data, research tools, and the ability to place trades.
-Backtest a single agent, a debating team, or AI combined with your own rules.
+Build agents that research markets, debate ideas, and place trades.
+Backtest their decisions, inspect the orders, and connect supported brokers
+using the same Python strategy.
+
+.. container:: lumibot-start-routes
+
+   :doc:`Quickstart <agents_quickstart>` · :doc:`AI examples <agents_examples>` ·
+   `Recorded run <https://github.com/Lumiwealth/lumibot/blob/version/4.5.92/docs/assets/ai-trading/spy-20260913/README.md>`_ ·
+   `GitHub <https://github.com/Lumiwealth/lumibot>`_
+
+Run an AI strategy
+******************
+
+Start with a complete SPY strategy: research the trend, review risk, and let the
+trading agent decide whether to buy, hold, or sell. **Python 3.10+ and a Gemini
+API key required.** This historical backtest uses Yahoo prices and no broker
+account; model calls use your provider billing.
+
+.. code-block:: bash
+
+   python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
+   export GEMINI_API_KEY="your-gemini-api-key"
+   export BACKTESTING_DATA_SOURCE=yahoo
+   python -m lumibot.example_strategies.ai_researcher_trader
+
+:doc:`Read and customize the strategy <agents_quickstart>` or
+`inspect the recorded decisions and fill <https://github.com/Lumiwealth/lumibot/blob/version/4.5.92/docs/assets/ai-trading/spy-20260913/README.md>`_.
+The example uses ``gemini-3.5-flash-lite``. Fresh AI decisions can vary.
+
+.. image:: ../docs/assets/ai-trading/ai-trading-hero.png
+   :alt: LumiBot AI Trading: research, debate, trade and backtest
+   :width: 560px
+   :class: lumibot-entry-hero
+
+Build your own trading system
+*****************************
 
 .. container:: lumibot-entry-grid lumibot-start-routes
 
@@ -36,11 +70,6 @@ Backtest a single agent, a debating team, or AI combined with your own rules.
       Use your own rules, indicators, and the same Strategy lifecycle.
 
       :ref:`Run a Python backtest → <first-python-backtest>`
-
-.. image:: ../docs/assets/ai-trading/ai-trading-hero.png
-   :alt: LumiBot AI Trading: research, debate, trade and backtest
-   :width: 560px
-   :class: lumibot-entry-hero
 
 For coding assistants, start with :doc:`agent_start_here`.
 To use research and data inside another project, see :doc:`standalone_components`.

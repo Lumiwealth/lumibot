@@ -346,3 +346,6 @@ article img:not(.sidebar-logo):not(.only-light):not(.only-dark),
 .lumibot-entry-hero { display: block; max-width: 100%; height: auto; margin: 1.5rem auto; }
 .lumibot-learning-image { max-width: 100%; height: auto; }
 @media (max-width: 680px) { .lumibot-entry-grid { grid-template-columns: 1fr; } }
+
+/* Keep navigation visible near the top, including on narrow screens. */
+.sidebar-brand img.sidebar-logo { max-width: 128px; margin: 0 auto; }

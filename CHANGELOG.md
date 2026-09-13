@@ -3,6 +3,7 @@
 ## 4.5.92 - Unreleased
 
 ### Growth documentation and examples
+- Put the executable AI quickstart in the homepage and README opening, with compact artwork and a smaller navigation logo.
 - Refined AI trading entry points with a runnable README example, grouped navigation, compact brand artwork, and a free challenge invitation after useful content.
 - Added a canonical researcher/trader Strategy example with Gemini 3.5 Flash-Lite, explicit position limits, and order-observation guidance.
 - Promoted AI quickstart and examples to top-level navigation; added reusable-component and coding-agent entry pages.

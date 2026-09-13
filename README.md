@@ -6,14 +6,14 @@
 
 # LumiBot AI Trading
 
-**Build AI-powered trading strategies in Python. Backtest them. Connect your broker.**
+**The open-source Python framework for AI trading agents.**
 
 Give AI agents market data, research tools, and the ability to place trades. Build a single agent, a team that debates ideas, or combine AI with your own trading rules. LumiBot brings them into one backtesting and trading framework.
 
 **[Run your first AI backtest](#run-your-first-ai-backtest)** · [Explore AI strategies](https://lumibot.lumiwealth.com/agents_examples.html) · [Documentation](https://lumibot.lumiwealth.com/)
 
 <p align="center">
-  <img src="docs/assets/ai-trading/ai-trading-hero.png" alt="LumiBot AI Trading: research, debate, trade and backtest" width="560">
+  <img src="docs/assets/ai-trading/ai-trading-hero.png" alt="LumiBot AI Trading: research, debate, trade and backtest" width="360">
 </p>
 
 ## Run your first AI backtest
@@ -26,7 +26,12 @@ Start with SPY. A research agent analyzes its trend; a trading agent checks the 
 python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
 export GEMINI_API_KEY="your-gemini-api-key"
 export BACKTESTING_DATA_SOURCE=yahoo
+python -m lumibot.example_strategies.ai_researcher_trader
 ```
+
+The command runs the complete SPY example. Watch the research and trading decisions, then inspect the generated order records. [Open its source](lumibot/example_strategies/ai_researcher_trader.py).
+
+### Customize the backtest
 
 Save as `my_ai_strategy.py`:
 

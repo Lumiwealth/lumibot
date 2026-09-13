@@ -356,10 +356,21 @@ CACHE_REMOTE_CONFIG = {
 }
 
 # Alpaca Configuration
+_ALPACA_API_KEY = os.environ.get("ALPACA_API_KEY") or os.environ.get("APCA_API_KEY_ID")
+_ALPACA_API_SECRET = (
+    os.environ.get("ALPACA_API_SECRET")
+    or os.environ.get("ALPACA_SECRET_KEY")
+    or os.environ.get("APCA_API_SECRET_KEY")
+)
+if _ALPACA_API_KEY and "ALPACA_API_KEY" not in os.environ:
+    os.environ["ALPACA_API_KEY"] = _ALPACA_API_KEY
+if _ALPACA_API_SECRET and "ALPACA_API_SECRET" not in os.environ:
+    os.environ["ALPACA_API_SECRET"] = _ALPACA_API_SECRET
+
 ALPACA_CONFIG = {
     # Add ALPACA_API_KEY, ALPACA_API_SECRET, ALPACA_OAUTH_TOKEN, and ALPACA_IS_PAPER to your .env file or set them as secrets
-    "API_KEY": os.environ.get("ALPACA_API_KEY"),
-    "API_SECRET": os.environ.get("ALPACA_API_SECRET"),
+    "API_KEY": _ALPACA_API_KEY,
+    "API_SECRET": _ALPACA_API_SECRET,
     "OAUTH_TOKEN": os.environ.get("ALPACA_OAUTH_TOKEN"),
     "PAPER": os.environ.get("ALPACA_IS_PAPER").lower() == "true" if os.environ.get("ALPACA_IS_PAPER") else True,
 }

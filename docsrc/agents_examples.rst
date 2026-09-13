@@ -170,4 +170,3 @@ Want help turning your idea into a strategy? Learn with Rob in the free challeng
    :align: center
    :class: lumibot-learning-image
    :target: https://botspot.trade/challenges?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=examples_challenge_image
-

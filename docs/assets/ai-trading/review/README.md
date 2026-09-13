@@ -1,6 +1,8 @@
 # LumiBot visual review — September 13, 2026
 
-**[Latest five-image refresh and placement screenshots](visual-refresh.md)**
+**[Latest complete review: 40 full pages, published README, menus and creator placements](complete/README.md)**
+
+[Previous five-image refresh](visual-refresh.md)
 
 **[Latest homepage, README and navigation revision](above-the-fold.md)** — the opening screenshots below are historical.
 

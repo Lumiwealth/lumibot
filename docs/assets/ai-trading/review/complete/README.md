@@ -2,6 +2,14 @@
 
 These are actual Firefox screenshots of the local Sphinx build, not mockups or evidence of a Dev deployment. Open any full-page image and zoom to read every section. The source and screenshot commits are on version/4.5.92.
 
+## Published GitHub README
+
+Captured from source commit `274a6399` on GitHub.
+
+![Published README](published-readme-top.png)
+
+[Full published README screenshot](published-readme-full.png)
+
 ## Start with these views
 
 ### Homepage, runnable example and navigation

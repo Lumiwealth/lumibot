@@ -118,4 +118,3 @@ Explore the AI Trading Bootcamp with Rob Grzesik for guided training.
    :align: center
    :class: lumibot-learning-image
    :target: https://botspot.trade/courses/ai-trading-bootcamp?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=components_bootcamp_image
-

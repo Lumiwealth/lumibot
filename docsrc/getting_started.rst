@@ -371,4 +371,3 @@ Follow the training and learn how to turn an idea into an AI trading strategy.
 
 For deeper training, explore the `AI Trading Bootcamp <https://botspot.trade/courses/ai-trading-bootcamp?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=bootcamp>`_.
 LumiBot remains free and open source.
-

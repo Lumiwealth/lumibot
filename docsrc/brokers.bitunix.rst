@@ -51,6 +51,9 @@ rejected request, or malformed position raises ``LumibotBrokerAPIError`` and
 leaves tracked positions unchanged. A failed read does not mean the account is
 flat and is not cached as a successful refresh; a later read can retry.
 An explicitly successful empty snapshot removes all stale non-cash positions.
+Concurrent polling and strategy reads preserve the latest successfully applied
+request: an older response cannot remove, resurrect, or overwrite its positions.
+Failed reads remain retryable and do not discard another successful response.
 Polling reports the failure and retries on its next cycle. Strategy code using
 fresh ``get_position()`` or ``get_positions()`` reads should allow the error to
 stop that decision, rather than treating it as permission to open a position.

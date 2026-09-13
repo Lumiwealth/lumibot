@@ -323,3 +323,14 @@ Maintain a small table in this doc (append-only) for each broker:
 - order type
 - expected behavior (accept/hold/reject; eligible-to-fill)
 - last verified date + environment (paper/live)
+
+### Overlapping position refreshes
+
+The shared broker assigns a sequence number before each position read and applies
+a completed snapshot under the tracker lock. Once a newer request has applied, an
+older response is ignored in full: it cannot prune, resurrect, or change positions.
+A failed newer read does not invalidate an older successful response. Network I/O
+runs outside the tracker lock so fills and strategy accessors can still proceed.
+The existing pre-read position identity check continues to protect new local fills
+from stale pruning. This ordering is local request ordering; it cannot establish
+the exchange's internal snapshot timestamp or historical incident cause.

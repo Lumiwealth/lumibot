@@ -1,6 +1,8 @@
 """Position refresh must not turn an unreadable broker snapshot into flat state."""
 
+from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
+from threading import Event, current_thread
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -152,3 +154,61 @@ def test_zero_quantity_row_does_not_make_active_position_ambiguous(broker, zero_
     positions = broker._filled_positions.get_list()
     assert len(positions) == 1
     assert positions[0].quantity == Decimal("-0.5")
+
+
+@pytest.mark.parametrize(
+    "older_rows, newer_response, expected_quantity",
+    [
+        ([], {"code": 0, "data": [row(qty="1.5")]}, "-1.5"),
+        ([row(qty="0.75")], {"code": 0, "data": [row(qty="1.5")]}, "-1.5"),
+        ([row(qty="0.75")], {"code": 0, "data": []}, None),
+        ([row(qty="0.75")], {"code": 10001}, "-0.75"),
+        ([], {"code": 10001}, None),
+    ],
+    ids=["stale-delete", "stale-quantity", "stale-resurrection", "newer-fails", "newer-fails-empty"],
+)
+def test_older_refresh_preserves_newer_success_but_survives_newer_failure(
+    broker, older_rows, newer_response, expected_quantity
+):
+    """A slow poll must not overwrite a newer successful accessor refresh."""
+    old_read_started = Event()
+    release_old_read = Event()
+    old_thread_name = []
+
+    def transport(**kwargs):
+        if current_thread().name in old_thread_name:
+            old_read_started.set()
+            assert release_old_read.wait(5), "test failed to release older read"
+            return {"code": 0, "data": older_rows}
+        return newer_response
+
+    def old_refresh():
+        old_thread_name.append(current_thread().name)
+        broker.sync_positions(None)
+
+    broker.api._request.side_effect = transport
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        older = pool.submit(old_refresh)
+        try:
+            assert old_read_started.wait(5), "older refresh did not start"
+            strategy = object.__new__(Strategy)
+            strategy._name = "test_strategy"
+            strategy.broker = broker
+            asset = Asset("BTCUSDT", Asset.AssetType.CRYPTO_FUTURE)
+            if newer_response["code"] != 0:
+                with pytest.raises(LumibotBrokerAPIError):
+                    strategy.get_position(asset)
+            else:
+                strategy.get_position(asset)
+                revision_after_newer = broker._filled_positions.revision
+        finally:
+            release_old_read.set()
+        older.result(timeout=5)
+
+    remaining = broker.get_tracked_position("test_strategy", Asset("BTCUSDT", Asset.AssetType.CRYPTO_FUTURE))
+    if expected_quantity is None:
+        assert remaining is None
+    else:
+        assert remaining.quantity == Decimal(expected_quantity)
+    if newer_response["code"] == 0:
+        assert broker._filled_positions.revision == revision_after_newer

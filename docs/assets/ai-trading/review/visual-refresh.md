@@ -4,6 +4,14 @@ Replaces the robot hero and awkward left-aligned challenge image; adds three wor
 
 20/20 affected tests passed. Sphinx builds completed. Firefox verified desktop image centering (zero offset), 640 × 360 proportions, and 390px responsive pages without overflow. Narrow-screen images rendered at 358 × 201.38. This is browser-frame evidence, not an iPhone device test.
 
+## Published GitHub README
+
+Captured from version/4.5.92 after commit 4e125e44. Challenge image is 640 × 360, centered with zero offset.
+
+![README challenge](art-readme-challenge.png)
+
+![README hero](art-readme-hero.png)
+
 ## Homepage
 ![Homepage](art-home.png)
 

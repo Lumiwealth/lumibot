@@ -12,6 +12,12 @@ These screenshots supersede the earlier homepage and README opening captures. Th
 
 These are observed patterns, not evidence that copying a layout causes a particular star-growth rate.
 
+## README on GitHub
+
+Captured from the published version branch at source commit 2533d42d.
+
+![README opening](readme-above-fold.png)
+
 ## Homepage
 
 ![Homepage opening](home-above-fold.png)

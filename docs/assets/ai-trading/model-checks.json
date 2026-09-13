@@ -30,5 +30,7 @@
   "resumed_completed_repetitions": 11,
   "resume_new_passes": 4,
   "missing_repetitions": 0,
-  "note": "Initial 503 preserved. Initial process guard interrupted incomplete work; resume paid only for the remaining required repetitions. This is targeted evidence, not a full-version release gate."
+  "note": "Initial 503 preserved. Initial process guard interrupted incomplete work; resume paid only for the remaining required repetitions. This is targeted evidence, not a full-version release gate.",
+  "runtime_commit": "ea55faef38eea8bfcfc022962e1a457f2d4a8476",
+  "later_maintainer_change": "cc16cd51 broker synchronization change was preserved later; its affected deterministic tests and documentation/example selection passed 59/59. These paid trajectories predate that runtime change."
 }

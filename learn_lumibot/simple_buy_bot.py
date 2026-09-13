@@ -37,7 +37,7 @@ ALPACA_CONFIG = get_alpaca_config()
 class MyStrategy(Strategy):
     def on_trading_iteration(self):
         if self.first_iteration:
-            sndk = self.create_order("SNDK", 10, "buy")
+            sndk = self.create_order("MU", 10, "buy")
             self.submit_order(sndk)
 
 

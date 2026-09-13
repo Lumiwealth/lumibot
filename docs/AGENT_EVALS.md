@@ -153,3 +153,13 @@ cannot begin if the eval gate fails or lacks valid fresh evidence.
 The manual `LumiBot Agent Evals` workflow uses the same runner and contracts. A
 manual pass is useful for qualification, but release publication still verifies
 the gate for the exact tagged candidate.
+
+### Interrupted completion receipts
+
+If a process stops after appending completed repetitions but before writing the
+freshness file, resume reconstructs the receipt from the matching case/runtime
+fingerprint in the durable ledger. It preserves the last matching run's original
+passing timestamp and still requires the full consecutive pass count. Unrelated
+fingerprints cannot renew the receipt, and an expired or incompatible receipt
+cannot qualify a different release candidate. This recovery does not invoke the
+model again for the already completed matching repetitions.

@@ -10,6 +10,7 @@
 
 
 ### Changed
+- Agent evaluation resume rebuilds missing freshness receipts from matching completed ledger entries without repeating paid calls or changing their original timestamps.
 - Managed AI agents can select a reviewed provider reasoning effort end to end;
   unsupported provider/effort combinations fail visibly instead of being
   silently ignored. Stable Anthropic Opus/Fable family identifiers are also

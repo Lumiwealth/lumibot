@@ -997,7 +997,13 @@ def main() -> int:
     for case in cases:
         case_id = case["id"]
         fingerprint = fingerprints[case_id]
-        case_rows = [row for row in new_rows if row.get("case_id") == case_id]
+        # The process may stop after fsyncing all passes but before writing
+        # freshness. Recover the receipt from matching durable evidence, keeping
+        # its original timestamp rather than paying for or re-dating those runs.
+        case_rows = [
+            row for row in all_rows
+            if row.get("case_id") == case_id and row.get("fingerprint") == fingerprint
+        ]
         if case_rows and consecutive_pass_count(all_rows, case_id, fingerprint) >= REQUIRED_CONSECUTIVE_PASSES:
             state.setdefault("cases", {})[case_id] = {
                 "fingerprint": fingerprint,

@@ -32,5 +32,6 @@
   "missing_repetitions": 0,
   "note": "Initial 503 preserved. Initial process guard interrupted incomplete work; resume paid only for the remaining required repetitions. This is targeted evidence, not a full-version release gate.",
   "runtime_commit": "ea55faef38eea8bfcfc022962e1a457f2d4a8476",
-  "later_maintainer_change": "cc16cd51 broker synchronization change was preserved later; its affected deterministic tests and documentation/example selection passed 59/59. These paid trajectories predate that runtime change."
+  "later_maintainer_change": "cc16cd51 broker synchronization change was preserved later; its affected deterministic tests and documentation/example selection passed 59/59. These paid trajectories predate that runtime change.",
+  "resume_receipt_status": "The resumed historical CLI exited 1 despite all 15 passing repetitions: the interrupted first process had not written one completed case freshness receipt. The runner was corrected to recover matching durable ledger evidence; its full harness/budget/isolation/pacing tests passed 67/67. Historical paid trajectories remain tied to runtime_commit and do not qualify the later runtime automatically."
 }

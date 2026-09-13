@@ -866,3 +866,37 @@ def test_preflight_only_never_constructs_a_spending_ledger(
     assert report["case_count"] > 0
     assert report["selected_case_count"] == (report["case_count"] if select_all else 0)
     assert not (tmp_path / "no-ledger").exists()
+
+
+def test_resume_rebuilds_missing_freshness_from_completed_matching_ledger(monkeypatch, tmp_path, capsys):
+    """An interruption after ledger fsync must not require paying for passed cases again."""
+    from datetime import timedelta
+    from scripts import agent_eval_isolation
+    from scripts.agent_eval_call_budget import EvalCallBudget
+
+    case = {"id": "resume-contract", "model": "gemini-3.5-flash-lite"}
+    monkeypatch.setattr(agent_eval_isolation, "configure_fixture_environment", lambda root: None)
+    monkeypatch.setattr(evals, "select_gemini_credential", lambda: "GEMINI_API_KEY")
+    monkeypatch.setattr(evals, "load_cases", lambda ids: [case])
+    monkeypatch.setattr(evals, "preflight", lambda *args: None)
+    monkeypatch.setattr(evals, "preflight_production_fixtures", lambda cases: None)
+    monkeypatch.setattr(evals, "runtime_fingerprint", lambda: "same-runtime")
+    monkeypatch.setattr(evals, "execute_repetition", lambda *a, **k: pytest.fail("Completed passes must be reused"))
+    fingerprint = evals.case_fingerprint(case, judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash="same-runtime")
+    passed_at = (evals.utc_now() - timedelta(days=1)).isoformat()
+    rows = [{"case_id": case["id"], "fingerprint": fingerprint, "status": "pass", "timestamp": passed_at}
+            for _ in range(evals.REQUIRED_CONSECUTIVE_PASSES)]
+    # An unrelated later fingerprint must not rejuvenate the recovered receipt.
+    rows.append({"case_id": case["id"], "fingerprint": "other-runtime", "status": "pass", "timestamp": evals.utc_text()})
+    (tmp_path / "ledger.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+    EvalCallBudget(tmp_path / "model_calls.jsonl", cap_usd=25,
+                   prices=evals.MODEL_PRICES_PER_MILLION, max_input_tokens=evals.MAX_INPUT_TOKENS_PER_MODEL_CALL)
+    state_path = tmp_path / "freshness.json"
+    monkeypatch.setattr(evals.sys, "argv", ["run_agent_evals.py", "--max-cost-usd", "25",
+        "--output-root", str(tmp_path), "--freshness-state", str(state_path)])
+    assert evals.main() == 0
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["scheduled_repetitions"] == 0
+    assert summary["fresh_case_count"] == 1
+    assert summary["incremental_estimated_cost_usd"] == 0
+    assert json.loads(state_path.read_text())["cases"][case["id"]]["passed_at"] == passed_at

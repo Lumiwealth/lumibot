@@ -10,7 +10,9 @@
 
 Give AI agents market data, research tools, and the ability to place trades. Build a single agent, a team that debates ideas, or combine AI with your own trading rules. LumiBot brings them into one backtesting and trading framework.
 
-**[Run your first AI backtest](#run-your-first-ai-backtest)** · [Explore AI strategies](https://lumibot.lumiwealth.com/agents_examples.html) · [Documentation](https://lumibot.lumiwealth.com/)
+**[Python quickstart](#backtest-a-strategy)** · **[AI quickstart](#run-your-first-ai-backtest)** · [Python examples](https://lumibot.lumiwealth.com/examples.html) · [AI examples](https://lumibot.lumiwealth.com/agents_examples.html)
+
+**Prefer traditional trading strategies?** Write your own rules, indicators, and order logic in a normal `Strategy` subclass. No AI model or model API key is required. [Run the complete Python backtest](#backtest-a-strategy), then [connect the same strategy to a broker](#run-the-same-strategy-with-a-paper-broker).
 
 <p align="center">
   <img src="docs/assets/ai-trading/ai-trading-hero.png" alt="LumiBot AI Trading: research, debate, trade and backtest" width="640">
@@ -116,6 +118,8 @@ Choose a starting point:
 Building a product on LumiBot? [Partner with LumiBot](docsrc/PARTNERSHIPS.rst) through funded integrations, open-source maintenance, joint tutorials, or strategic collaboration.
 
 ### Backtest a strategy
+
+This is a traditional rules-based strategy: buy 10 AAPL shares on the first iteration and hold. It uses Yahoo historical prices, requires internet access, and makes no AI calls. Use Python 3.10 or later.
 
 ```bash
 pip install lumibot

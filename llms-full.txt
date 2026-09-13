@@ -1,5 +1,5 @@
 # Lumibot Documentation (Compiled)
-# Generated: 2026-09-13T17:26:47Z
+# Generated: 2026-09-13T17:31:23Z
 
 
 ===== MIGRATING_FROM_BACKTRADER =====
@@ -18929,6 +18929,30 @@ These examples cover stocks, options, crypto, futures, and advanced
 features like the PerplexityHelper for AI-powered trading decisions.
 
 
+Traditional Python strategies
+=============================
+
+AI is optional. These examples use Python rules and the standard
+"Strategy" lifecycle; no model API key is needed. Start with the
+complete buy-and-hold backtest, then follow Start with LumiBot to
+configure a broker.
+
+* Buy and hold: a simple stock strategy.
+
+* Momentum: rank stocks by historical price changes.
+
+* Bracket orders: order-entry and exit structure.
+
+These source examples have their own runner and provider requirements;
+start with the complete backtest above before adapting them.
+Historical data or broker credentials may be required by the provider
+you choose.
+
+Learn Lifecycle Methods, Strategy Methods, Indicators, Backtesting
+Trading Strategies in Python with LumiBot, and Trading Brokers
+Supported by LumiBot as your strategy grows.
+
+
 Choose a first runnable example
 ===============================
 
@@ -21885,6 +21909,11 @@ its clean data and extensive contract coverage.
 Start with LumiBot
 ******************
 
+Traditional strategies are fully supported: define your own Python
+rules in a "Strategy" subclass, backtest, then configure a broker. AI
+agents are optional. See Python strategy examples for buy-and-hold,
+momentum, and bracket-order starting points.
+
 
 Choose what you want to build
 =============================
@@ -22371,7 +22400,12 @@ Build agents that research markets, debate ideas, and place trades.
 Backtest their decisions, inspect the orders, and connect supported
 brokers using the same Python strategy.
 
-Quickstart · AI examples · Recorded run · GitHub
+Python quickstart · AI quickstart · Python examples · AI examples ·
+Recorded run · GitHub
+
+**AI is optional.** For traditional strategies, write your own rules
+and indicators in a normal "Strategy" subclass. Start with the
+complete Python backtest; no AI model or model API key is required.
 
 
 Run an AI strategy
@@ -22981,7 +23015,9 @@ Start here
 
 * Home
 
-* Start Here
+* Start Here / Python Setup
+
+* Python Strategy Examples
 
 * AI Quickstart
 
@@ -23032,8 +23068,6 @@ Backtest and trade
 * Cash Accounting
 
 * Deployment
-
-* Examples
 
 * Reference
 

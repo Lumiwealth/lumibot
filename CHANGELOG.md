@@ -3,6 +3,7 @@
 ## 4.5.92 - Unreleased
 
 ### Growth documentation and examples
+- Restored prominent traditional Python quickstart and example routes alongside AI, with explicit no-model requirements and direct lifecycle/broker guidance.
 - Replaced rejected hero/challenge art, added three workflow illustrations, and centered responsive image placements with consistent proportions.
 - Put the executable AI quickstart in the homepage and README opening, with compact artwork and a smaller navigation logo.
 - Refined AI trading entry points with a runnable README example, grouped navigation, compact brand artwork, and a free challenge invitation after useful content.

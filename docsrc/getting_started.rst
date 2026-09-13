@@ -4,6 +4,11 @@ Start with LumiBot
 .. meta::
    :description: Choose your first LumiBot workflow: an AI trading backtest, a conventional Python strategy, or reusable research tools.
 
+Traditional strategies are fully supported: define your own Python rules in a
+``Strategy`` subclass, backtest, then configure a broker. AI agents are optional.
+See :doc:`Python strategy examples <examples>` for buy-and-hold, momentum, and
+bracket-order starting points.
+
 Choose what you want to build
 -----------------------------
 

@@ -105,3 +105,18 @@ module command before customization code. The sidebar logo is limited to 128px
 so navigation is visible earlier. No new execution API or fabricated release news
 was added. The previous 13-screen review is historical; the latest first-screen
 captures are in review/above-the-fold.md.
+
+## Traditional strategies remain first-class
+
+The README and homepage now offer a Python quickstart alongside the AI quickstart
+before the artwork. They explicitly say AI is optional. The conventional
+buy-and-hold backtest and same-class broker runner are preserved.
+
+The first navigation group links directly to Python setup and Python Strategy
+Examples. The examples page opens with traditional buy-and-hold, momentum, and
+bracket-order source links, then offers the AI paths. This keeps existing users
+and developers writing deterministic rules from mistaking LumiBot for an
+AI-only framework. No Strategy runtime or API changed.
+
+Validation: 21/21 affected documentation and example tests passed, including
+a regression that first failed when traditional first-screen links were absent.

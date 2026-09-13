@@ -14,9 +14,14 @@ using the same Python strategy.
 
 .. container:: lumibot-start-routes
 
-   :doc:`Quickstart <agents_quickstart>` · :doc:`AI examples <agents_examples>` ·
+   :ref:`Python quickstart <first-python-backtest>` · :doc:`AI quickstart <agents_quickstart>` ·
+   :doc:`Python examples <examples>` · :doc:`AI examples <agents_examples>` ·
    `Recorded run <https://github.com/Lumiwealth/lumibot/blob/version/4.5.92/docs/assets/ai-trading/spy-20260913/README.md>`_ ·
    `GitHub <https://github.com/Lumiwealth/lumibot>`_
+
+**AI is optional.** For traditional strategies, write your own rules and indicators
+in a normal ``Strategy`` subclass. :ref:`Start with the complete Python backtest
+<first-python-backtest>`; no AI model or model API key is required.
 
 Run an AI strategy
 ******************
@@ -552,7 +557,8 @@ Table of Contents
    :caption: Start here
 
    Home <self>
-   Start Here <getting_started>
+   Start Here / Python Setup <getting_started>
+   Python Strategy Examples <examples>
    AI Quickstart <agents_quickstart>
    AI Examples <agents_examples>
    For Coding Agents <agent_start_here>
@@ -587,7 +593,6 @@ Table of Contents
    Brokers <brokers>
    Cash Accounting <cash_accounting>
    Deployment <deployment>
-   Examples <examples>
    Reference <reference>
    Common Mistakes <common_mistakes>
    FAQ <faq>

@@ -105,3 +105,16 @@ def test_generated_artwork_has_consistent_centered_placements():
     css = (ROOT / 'docsrc/_html/custom.css').read_text()
     assert '.lumibot-learning-image' in css
     assert 'width: min(100%, 640px)' in css
+
+
+def test_traditional_strategies_are_first_screen_and_start_here_choices():
+    readme = (ROOT / 'README.md').read_text().split('## Run your first AI backtest')[0]
+    assert '[Python quickstart](#backtest-a-strategy)' in readme
+    assert 'No AI model or model API key is required' in readme
+    home = (ROOT / 'docsrc/index.rst').read_text()
+    assert home.index('Python quickstart <first-python-backtest>') < home.index('Run an AI strategy')
+    nav = home.split(':caption: Start here')[1].split('.. toctree::')[0]
+    assert 'Python Strategy Examples <examples>' in nav
+    examples = (ROOT / 'docsrc/examples.rst').read_text()
+    assert examples.index('Traditional Python strategies') < examples.index('AI Agents\n')
+    assert 'buy_and_hold.py' in examples
